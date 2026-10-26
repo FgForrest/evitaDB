@@ -48,6 +48,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import java.io.ByteArrayOutputStream;
@@ -58,6 +62,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Currency;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.PRICE;
@@ -75,12 +80,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * a reader that got this wrong would answer `attributeInRange` and `priceValidIn` queries with the wrong records and
  * throw nothing at all.
  *
- * The two families are handled differently on purpose, and both are pinned here:
- *
- * - a **price validity** index is always a `DateTimeRange`, so its backward-compatible readers rescale it outright;
- * - an **attribute** range index may be over any of the six range subtypes, so its readers only mark the part's
- *   provenance and the rescale is routed on the declared attribute type by the load path (covered end-to-end, with a
- *   query, by `AttributeIndexLoaderTest`'s legacy nest).
+ * Versioned readers convert inline DateTimeRange companions using the root's declared plain type. Only paged
+ * temporal companions retain a marker for the storage migration, whose tests cover their cross-record rewrite.
+ * Price validity has always been reader-side because it is always inline and temporal.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -96,6 +98,8 @@ class LegacyRangeThresholdScaleSerializerTest {
 	 * attribute index key now occupies.
 	 */
 	private static final long FILTER_2025_5_UID = -3363238752052021735L;
+	/** The serial-version-uid release 2026.1 shipped for `FilterIndexStoragePart`. */
+	private static final long FILTER_2026_1_UID = 942367579256351640L;
 	/** The serial-version-uid release 2026.2 shipped for `FilterIndexStoragePart`. */
 	private static final long FILTER_2026_2_UID = 3847290165472938104L;
 	/** The serial-version-uid release 2026.2 shipped for `PriceListAndCurrencySuperIndexStoragePart`. */
@@ -123,11 +127,6 @@ class LegacyRangeThresholdScaleSerializerTest {
 	/**
 	 * Builds the range points a pre-change writer left on disk for one record valid over `[from, to]`, including the
 	 * two border sentinels the index always carries.
-	 *
-	 * @param from     the lower threshold in the writer's own scale
-	 * @param to       the upper threshold in the writer's own scale
-	 * @param recordId the record the range belongs to
-	 * @return the four range points in ascending threshold order
 	 */
 	@Nonnull
 	private static TransactionalRangePoint[] points(long from, long to, int recordId) {
@@ -142,9 +141,6 @@ class LegacyRangeThresholdScaleSerializerTest {
 	/**
 	 * Returns the index's thresholds in ascending order, so a rescale can be asserted on the numbers themselves
 	 * beside the query results.
-	 *
-	 * @param index the index to read
-	 * @return its thresholds, ascending
 	 */
 	@Nonnull
 	private static long[] thresholdsOf(@Nonnull RangeIndex index) {
@@ -160,10 +156,6 @@ class LegacyRangeThresholdScaleSerializerTest {
 	 * are **byte-identical** to the current ones — only the meaning of their validity thresholds changed — so
 	 * re-stamping the current writer's output is a faithful reproduction of what release 2026.2 wrote, and says so
 	 * more plainly than a hand-copied wire ever could.
-	 *
-	 * @param bytes the uid-prefixed blob to re-stamp
-	 * @param uid   the serial-version-uid to write over its first eight bytes
-	 * @return the same bytes, carrying the legacy uid
 	 */
 	@Nonnull
 	private static byte[] withUid(@Nonnull byte[] bytes, long uid) {
@@ -175,6 +167,7 @@ class LegacyRangeThresholdScaleSerializerTest {
 		return bytes;
 	}
 
+	/** Registers the production versioned readers and an isolated compressor. */
 	@BeforeEach
 	void setUp() {
 		this.keyCompressor = new ReadWriteKeyCompressor(Collections.emptyMap());
@@ -185,9 +178,6 @@ class LegacyRangeThresholdScaleSerializerTest {
 	 * Hand-encodes the released 2026.2 `FilterIndexStoragePart` wire: the identity header followed by the shared
 	 * filter payload, and nothing after it — the value id section that the current format appends did not exist yet.
 	 * The deprecated reader's own write path throws, so the wire is reproduced here.
-	 *
-	 * @param part the part to encode in the legacy format
-	 * @return the legacy-format bytes, uid-prefixed
 	 */
 	@Nonnull
 	private byte[] encodeLegacyFilterBytes(@Nonnull FilterIndexStoragePart part) {
@@ -209,24 +199,23 @@ class LegacyRangeThresholdScaleSerializerTest {
 	}
 
 	/**
-	 * Hand-encodes the released 2025.5 `FilterIndexStoragePart` wire. It differs from the 2026.2 one in two places:
+	 * Hand-encodes the released pre-freeze `FilterIndexStoragePart` wire. It differs from the 2026.2 one in two places:
 	 * the attribute key slot holds a plain {@link AttributeKey} rather than a compressed `AttributeIndexKey` (the
 	 * reader bridges it), and the payload tail carries neither the frozen decimal-places scale nor either page-stream
 	 * metadata axis — both formats predate them. The deprecated reader's own write path throws, so the wire is
 	 * reproduced here.
-	 *
-	 * @param part the part to encode in the legacy format
-	 * @return the legacy-format bytes, uid-prefixed
 	 */
 	@Nonnull
-	private byte[] encodeLegacy2025FilterBytes(@Nonnull FilterIndexStoragePart part) {
+	private byte[] encodeLegacyPreFreezeFilterBytes(@Nonnull FilterIndexStoragePart part, long uid) {
 		final ByteArrayOutputStream os = new ByteArrayOutputStream(4_096);
 		try (final Output output = new Output(os, 4_096)) {
-			output.writeLong(FILTER_2025_5_UID);
+			output.writeLong(uid);
 			output.writeInt(part.getEntityIndexPrimaryKey());
 			output.writeVarLong(part.getStoragePartPK(), true);
 			// the slot the current format spends on a compressed `AttributeIndexKey` held a plain `AttributeKey`
-			output.writeVarInt(this.keyCompressor.getId(new AttributeKey("validity")), true);
+			output.writeVarInt(uid == FILTER_2025_5_UID
+				? this.keyCompressor.getId(new AttributeKey("validity"))
+				: this.keyCompressor.getId(part.getAttributeIndexKey()), true);
 			this.kryo.writeClass(output, part.getAttributeType());
 			final ValueToRecordBitmap[] points = part.getHistogramPoints();
 			output.writeInt(points.length);
@@ -242,16 +231,123 @@ class LegacyRangeThresholdScaleSerializerTest {
 		return os.toByteArray();
 	}
 
+	/** Combines each released inline filter wire with scalar, array and numeric declared types. */
+	private static Stream<Arguments> inlineFilterFormats() {
+		return Stream.of(FILTER_2025_5_UID, FILTER_2026_1_UID, FILTER_2026_2_UID)
+			.flatMap(uid -> Stream.of(DateTimeRange.class, DateTimeRange[].class,
+				IntegerNumberRange.class, IntegerNumberRange[].class).map(type -> Arguments.of(uid, type)));
+	}
+
+	/** Ported loader routing cases now prove every versioned filter reader converts only temporal inline ranges. */
+	@ParameterizedTest(name = "uid={0}, type={1}")
+	@MethodSource("inlineFilterFormats")
+	@DisplayName("routes inline conversion on the persisted plain type for every legacy filter format")
+	void shouldConvertOnlyDeclaredTemporalInlineFilterRanges(long uid, Class<?> declaredType) {
+		final FilterIndexStoragePart legacy = new FilterIndexStoragePart(7, ATTRIBUTE_KEY, declaredType,
+			new ValueToRecordBitmap[0], new RangeIndex(points(10, 20, 1)), 3L);
+		final byte[] bytes;
+		if (uid == FILTER_2026_2_UID) {
+			bytes = encodeLegacyFilterBytes(legacy);
+		} else {
+			bytes = encodeLegacyPreFreezeFilterBytes(legacy, uid);
+		}
+		final FilterIndexStoragePart decoded = StoragePartSerializerTestSupport.decode(this.kryo, bytes,
+			FilterIndexStoragePart.class);
+		final boolean temporal = declaredType == DateTimeRange.class || declaredType == DateTimeRange[].class;
+		assertArrayEquals(new long[]{Long.MIN_VALUE, temporal ? 10_000L : 10L,
+			temporal ? 20_000L : 20L, Long.MAX_VALUE}, thresholdsOf(decoded.getRangeIndex()));
+		assertFalse(decoded.isSecondGranularityRangePages());
+		assertArrayEquals(new int[]{1}, decoded.getRangeIndex()
+			.getRecordsEnvelopingInclusive(temporal ? 15_000L : 15L).compute().getArray());
+		assertArrayEquals(new int[0], decoded.getRangeIndex()
+			.getRecordsEnvelopingInclusive(temporal ? 15L : 15_000L).compute().getArray());
+		final FilterIndexStoragePart current = StoragePartSerializerTestSupport.roundTrip(this.kryo, decoded,
+			FilterIndexStoragePart.class);
+		assertArrayEquals(thresholdsOf(decoded.getRangeIndex()), thresholdsOf(current.getRangeIndex()));
+	}
+
+	/** Histogram readers apply the same scalar and array type gate, including untouched numeric thresholds. */
+	@ParameterizedTest
+	@MethodSource("histogramTypes")
+	@DisplayName("converts only temporal inline histogram companions")
+	void shouldConvertOnlyDeclaredTemporalInlineHistogramRanges(Class<?> declaredType) {
+		final HistogramIndexStoragePart legacy = new HistogramIndexStoragePart(7, "ranges", null, declaredType,
+			new ValueToRecordBitmap[0], new RangeIndex(points(10, 20, 1)), 0);
+		final HistogramIndexStoragePart decoded = StoragePartSerializerTestSupport.decode(this.kryo,
+			withUid(StoragePartSerializerTestSupport.encodeCurrent(this.kryo, legacy), HISTOGRAM_2026_2_UID),
+			HistogramIndexStoragePart.class);
+		final boolean temporal = declaredType == DateTimeRange.class || declaredType == DateTimeRange[].class;
+		assertArrayEquals(new long[]{Long.MIN_VALUE, temporal ? 10_000L : 10L,
+			temporal ? 20_000L : 20L, Long.MAX_VALUE}, thresholdsOf(decoded.getRangeIndex()));
+		assertFalse(decoded.isSecondGranularityRangePages());
+		assertArrayEquals(new int[]{1}, decoded.getRangeIndex()
+			.getRecordsEnvelopingInclusive(temporal ? 15_000L : 15L).compute().getArray());
+		assertArrayEquals(new int[0], decoded.getRangeIndex()
+			.getRecordsEnvelopingInclusive(temporal ? 15L : 15_000L).compute().getArray());
+	}
+
+	/** Covers scalar and array forms of both temporal and numeric histogram range types. */
+	private static Stream<Class<?>> histogramTypes() {
+		return Stream.of(
+			DateTimeRange.class, DateTimeRange[].class, IntegerNumberRange.class, IntegerNumberRange[].class
+		);
+	}
+
+	/** Only paged temporal roots retain provenance, since their unversioned leaves require migration. */
+	@ParameterizedTest
+	@MethodSource("histogramTypes")
+	@DisplayName("marks only paged temporal range companions in filter and histogram readers")
+	void shouldMarkOnlyTemporalRangePages(Class<?> declaredType) {
+		final FilterIndexStoragePart filter = new FilterIndexStoragePart(7, ATTRIBUTE_KEY, declaredType,
+			new ValueToRecordBitmap[0], null, 0, false, -1, new int[0], true, 100, new int[]{11, 17}, 3L);
+		final FilterIndexStoragePart decodedFilter = StoragePartSerializerTestSupport.decode(this.kryo,
+			encodeLegacyFilterBytes(filter), FilterIndexStoragePart.class);
+		final HistogramIndexStoragePart histogram = new HistogramIndexStoragePart(7, "ranges", null, declaredType,
+			new ValueToRecordBitmap[0], null, 0, false, -1, new int[0], true, 100, new int[]{11, 17}, null);
+		final HistogramIndexStoragePart decodedHistogram = StoragePartSerializerTestSupport.decode(this.kryo,
+			withUid(StoragePartSerializerTestSupport.encodeCurrent(this.kryo, histogram), HISTOGRAM_2026_2_UID),
+			HistogramIndexStoragePart.class);
+		final boolean temporal = declaredType == DateTimeRange.class || declaredType == DateTimeRange[].class;
+		assertEquals(temporal, decodedFilter.isSecondGranularityRangePages());
+		assertEquals(temporal, decodedHistogram.isSecondGranularityRangePages());
+		assertArrayEquals(new int[]{11, 17}, decodedFilter.getRangeLeafPageSequences());
+		assertArrayEquals(new int[]{11, 17}, decodedHistogram.getRangeLeafPageSequences());
+	}
+
+	/** Open-bound collisions are converted and merged by each reader rather than by an engine loader. */
+	@ParameterizedTest
+	@ValueSource(longs = {FILTER_2025_5_UID, FILTER_2026_1_UID, FILTER_2026_2_UID, HISTOGRAM_2026_2_UID})
+	@DisplayName("merges legacy open thresholds with border points and answers future probes")
+	void shouldConvertOpenEndedCompanionsInReaders(long uid) {
+		final RangeIndex legacyRange = new RangeIndex(points(10,
+			LocalDateTime.MAX.atOffset(ZoneOffset.UTC).toEpochSecond(), 1));
+		final RangeIndex decoded;
+		if (uid == HISTOGRAM_2026_2_UID) {
+			final HistogramIndexStoragePart part = new HistogramIndexStoragePart(7, "ranges", null,
+				DateTimeRange.class, new ValueToRecordBitmap[0], legacyRange, 0);
+			decoded = StoragePartSerializerTestSupport.decode(this.kryo,
+				withUid(StoragePartSerializerTestSupport.encodeCurrent(this.kryo, part), uid),
+				HistogramIndexStoragePart.class).getRangeIndex();
+		} else {
+			final FilterIndexStoragePart part = new FilterIndexStoragePart(7, ATTRIBUTE_KEY, DateTimeRange.class,
+				new ValueToRecordBitmap[0], legacyRange, 3L);
+			decoded = StoragePartSerializerTestSupport.decode(this.kryo, uid == FILTER_2026_2_UID
+				? encodeLegacyFilterBytes(part) : encodeLegacyPreFreezeFilterBytes(part, uid),
+				FilterIndexStoragePart.class).getRangeIndex();
+		}
+		assertArrayEquals(new long[]{Long.MIN_VALUE, 10_000L, Long.MAX_VALUE}, thresholdsOf(decoded));
+		assertArrayEquals(new int[]{1}, decoded.getRecordsEnvelopingInclusive(1_000_000L).compute().getArray());
+		assertArrayEquals(new int[0], decoded.getRecordsEnvelopingInclusive(9_999L).compute().getArray());
+	}
+
 	@Nested
-	@DisplayName("attribute filter index — the reader marks provenance, the load path routes on the type")
+	@DisplayName("attribute filter readers convert inline ranges")
 	class FilterPart {
 
+		/** The oldest typed inline filter decodes once to concrete millisecond thresholds and bridges its key. */
 		@Test
-		@DisplayName("a released 2025.5 blob reads back marked as second-granularity, through the attribute key bridge")
-		void shouldMarkALegacy2025FilterBlob() {
-			// the oldest of the three backward-compatible filter readers, and the last one left unasserted. Its
-			// provenance mark is what routes the rescale, and dropping it would read every `DateTimeRange` range
-			// threshold in a 2025.5 catalog a thousand times too small - silently, and for good
+		@DisplayName("a released 2025.5 inline blob reads back in milliseconds, through the attribute key bridge")
+		void shouldConvertALegacy2025FilterBlob() {
 			final DateTimeRange validity = DateTimeRange.between(VALID_FROM, VALID_TO);
 			final FilterIndexStoragePart legacy = new FilterIndexStoragePart(
 				7, ATTRIBUTE_KEY, DateTimeRange.class,
@@ -262,27 +358,28 @@ class LegacyRangeThresholdScaleSerializerTest {
 
 			final FilterIndexStoragePart decoded = StoragePartSerializerTestSupport.decode(
 				LegacyRangeThresholdScaleSerializerTest.this.kryo,
-				encodeLegacy2025FilterBytes(legacy), FilterIndexStoragePart.class
+				encodeLegacyPreFreezeFilterBytes(legacy, FILTER_2025_5_UID), FilterIndexStoragePart.class
 			);
 
-			assertTrue(
-				decoded.isSecondGranularityRangeThresholds(),
-				"a blob read by a backward-compatible reader must be marked - the load path routes on this"
+			assertFalse(
+				decoded.isSecondGranularityRangePages(),
+				"inline companions have already been converted"
 			);
 			assertEquals(
 				ATTRIBUTE_KEY, decoded.getAttributeIndexKey(),
 				"the plain attribute key must have been bridged into an attribute index key"
 			);
 			assertArrayEquals(
-				new long[]{Long.MIN_VALUE, VALID_FROM.toEpochSecond(), VALID_TO.toEpochSecond(), Long.MAX_VALUE},
+				new long[]{Long.MIN_VALUE, 1_779_279_566_000L, 1_779_711_566_000L, Long.MAX_VALUE},
 				thresholdsOf(decoded.getRangeIndex()),
-				"the reader must hand the thresholds on untouched"
+				"the reader converts every inline threshold exactly once"
 			);
 		}
 
+		/** The last legacy filter reader converts inline thresholds and leaves no paged migration marker. */
 		@Test
-		@DisplayName("a released 2026.2 blob reads back marked as second-granularity")
-		void shouldMarkALegacyFilterBlob() {
+		@DisplayName("a released 2026.2 inline blob reads back in milliseconds")
+		void shouldConvertALegacyFilterBlob() {
 			final DateTimeRange validity = DateTimeRange.between(VALID_FROM, VALID_TO);
 			final FilterIndexStoragePart legacy = new FilterIndexStoragePart(
 				7, ATTRIBUTE_KEY, DateTimeRange.class,
@@ -296,19 +393,18 @@ class LegacyRangeThresholdScaleSerializerTest {
 				encodeLegacyFilterBytes(legacy), FilterIndexStoragePart.class
 			);
 
-			assertTrue(
-				decoded.isSecondGranularityRangeThresholds(),
-				"a blob read by a backward-compatible reader must be marked - the load path routes on this"
+			assertFalse(
+				decoded.isSecondGranularityRangePages(),
+				"inline companions have already been converted"
 			);
-			// the reader does NOT rescale: it cannot, because a range-PAGED axis keeps its thresholds in leaf-page
-			// records this serializer never reads, and because only a `DateTimeRange` index may be rescaled at all
 			assertArrayEquals(
-				new long[]{Long.MIN_VALUE, VALID_FROM.toEpochSecond(), VALID_TO.toEpochSecond(), Long.MAX_VALUE},
+				new long[]{Long.MIN_VALUE, 1_779_279_566_000L, 1_779_711_566_000L, Long.MAX_VALUE},
 				thresholdsOf(decoded.getRangeIndex()),
-				"the reader must hand the thresholds on untouched"
+				"the reader converts every inline threshold exactly once"
 			);
 		}
 
+		/** A current filter round trip preserves millisecond thresholds without marking or multiplying them. */
 		@Test
 		@DisplayName("a part written by the current serializer reads back unmarked")
 		void shouldNotMarkACurrentFilterBlob() {
@@ -327,7 +423,7 @@ class LegacyRangeThresholdScaleSerializerTest {
 			);
 
 			assertFalse(
-				decoded.isSecondGranularityRangeThresholds(),
+				decoded.isSecondGranularityRangePages(),
 				"the current serializer writes millisecond thresholds and must never mark its output"
 			);
 			assertArrayEquals(
@@ -342,6 +438,7 @@ class LegacyRangeThresholdScaleSerializerTest {
 	@DisplayName("price validity index — the reader rescales outright")
 	class PricePart {
 
+		/** The legacy super-price reader converts validity while preserving the price records. */
 		@Test
 		@DisplayName("a released 2026.2 super-index blob has its validity rescaled and answers priceValidIn correctly")
 		void shouldRescaleASuperIndexValidity() {
@@ -371,6 +468,7 @@ class LegacyRangeThresholdScaleSerializerTest {
 			);
 		}
 
+		/** The legacy reference-price reader converts validity while retaining all referenced price ids. */
 		@Test
 		@DisplayName("a released 2026.2 ref-index blob has its validity rescaled")
 		void shouldRescaleARefIndexValidity() {
@@ -398,6 +496,7 @@ class LegacyRangeThresholdScaleSerializerTest {
 			);
 		}
 
+		/** A current price root preserves validity thresholds across serialization. */
 		@Test
 		@DisplayName("a super-index blob written by the current serializer is not rescaled")
 		void shouldNotRescaleACurrentSuperIndexValidity() {
@@ -425,8 +524,6 @@ class LegacyRangeThresholdScaleSerializerTest {
 		 * price is selected at a
 		 * moment inside its validity, not selected outside it, and not selected by a probe left in the old
 		 * second-granularity scale — the last of which is what fails when the rescale is dropped.
-		 *
-		 * @param validityIndex the validity index to probe
 		 */
 		private void assertValidityRescaled(@Nonnull RangeIndex validityIndex) {
 			assertArrayEquals(
@@ -461,8 +558,9 @@ class LegacyRangeThresholdScaleSerializerTest {
 	@DisplayName("histogram index — a released shape that was once assumed unreleased")
 	class HistogramPart {
 
+		/** The released histogram reader remains registered and converts inline validity to concrete milliseconds. */
 		@Test
-		@DisplayName("a released 2026.2 blob still opens, and reads back marked as second-granularity")
+		@DisplayName("a released 2026.2 inline histogram opens with millisecond thresholds")
 		void shouldReadAReleasedHistogramBlob() {
 			// the regression test for a real production-catalog failure: bumping this record's uid without a reader
 			// made every released 2026.2 catalog carrying a histogram index fail to open outright with
@@ -486,20 +584,19 @@ class LegacyRangeThresholdScaleSerializerTest {
 				HistogramIndexStoragePart.class
 			);
 
-			assertTrue(
-				decoded.isSecondGranularityRangeThresholds(),
-				"a blob read by a backward-compatible reader must be marked - the load path routes on this"
+			assertFalse(
+				decoded.isSecondGranularityRangePages(),
+				"inline companions have already been converted"
 			);
 			assertEquals(DateTimeRange.class, decoded.getValueType(), "the value type must survive the read");
-			// the reader hands the thresholds on untouched, exactly as the filter reader does: a range-PAGED axis
-			// keeps them in leaf-page records this serializer never sees
 			assertArrayEquals(
-				new long[]{Long.MIN_VALUE, VALID_FROM.toEpochSecond(), VALID_TO.toEpochSecond(), Long.MAX_VALUE},
+				new long[]{Long.MIN_VALUE, 1_779_279_566_000L, 1_779_711_566_000L, Long.MAX_VALUE},
 				thresholdsOf(decoded.getRangeIndex()),
-				"the reader must hand the thresholds on untouched"
+				"the reader converts every inline threshold exactly once"
 			);
 		}
 
+		/** The current histogram reader preserves millisecond thresholds without a migration marker. */
 		@Test
 		@DisplayName("a part written by the current serializer reads back unmarked")
 		void shouldNotMarkACurrentHistogramBlob() {
@@ -516,7 +613,7 @@ class LegacyRangeThresholdScaleSerializerTest {
 			);
 
 			assertFalse(
-				decoded.isSecondGranularityRangeThresholds(),
+				decoded.isSecondGranularityRangePages(),
 				"the current serializer writes millisecond thresholds and must never mark its output"
 			);
 			assertArrayEquals(
@@ -531,6 +628,7 @@ class LegacyRangeThresholdScaleSerializerTest {
 	@DisplayName("the threshold rescale itself")
 	class RescaleRule {
 
+		/** Real positive and negative seconds multiply exactly; legacy sentinels map to constant open borders. */
 		@Test
 		@DisplayName("a real second threshold is multiplied, a legacy open sentinel becomes the constant one")
 		void shouldSeparateRealThresholdsFromLegacySentinels() {
@@ -538,37 +636,38 @@ class LegacyRangeThresholdScaleSerializerTest {
 			// temporal attribute exceeds ~1e11 seconds, the window edge sits at ~9.22e15, and the legacy open-bound
 			// sentinels are ~3.16e16
 			assertEquals(
-				1_779_279_566_000L, RangeIndex.rescaleSecondGranularityThreshold(1_779_279_566L),
+				1_779_279_566_000L, LegacyRangeIndexConversion.rescaleSecondGranularityThreshold(1_779_279_566L),
 				"a real moment is multiplied by exactly a thousand"
 			);
 			assertEquals(
-				-1_779_279_566_000L, RangeIndex.rescaleSecondGranularityThreshold(-1_779_279_566L),
+				-1_779_279_566_000L, LegacyRangeIndexConversion.rescaleSecondGranularityThreshold(-1_779_279_566L),
 				"and so is a pre-epoch one"
 			);
 			assertEquals(
 				DateTimeRange.OPEN_TO_THRESHOLD,
-				RangeIndex.rescaleSecondGranularityThreshold(
+				LegacyRangeIndexConversion.rescaleSecondGranularityThreshold(
 					LocalDateTime.MAX.atOffset(ZoneOffset.ofHours(-18)).toEpochSecond()
 				),
 				"the legacy open-to sentinel at the extreme offset must land on the constant"
 			);
 			assertEquals(
 				DateTimeRange.OPEN_FROM_THRESHOLD,
-				RangeIndex.rescaleSecondGranularityThreshold(
+				LegacyRangeIndexConversion.rescaleSecondGranularityThreshold(
 					LocalDateTime.MIN.atOffset(ZoneOffset.ofHours(18)).toEpochSecond()
 				),
 				"and so must the legacy open-from sentinel at the other extreme"
 			);
 			assertEquals(
-				Long.MIN_VALUE, RangeIndex.rescaleSecondGranularityThreshold(Long.MIN_VALUE),
+				Long.MIN_VALUE, LegacyRangeIndexConversion.rescaleSecondGranularityThreshold(Long.MIN_VALUE),
 				"the index's own lower border point maps onto itself"
 			);
 			assertEquals(
-				Long.MAX_VALUE, RangeIndex.rescaleSecondGranularityThreshold(Long.MAX_VALUE),
+				Long.MAX_VALUE, LegacyRangeIndexConversion.rescaleSecondGranularityThreshold(Long.MAX_VALUE),
 				"and so does the upper one"
 			);
 		}
 
+		/** Classification at both representable edges distinguishes the last real seconds from open bounds. */
 		@Test
 		@DisplayName("the classification boundary itself decides between multiplying and the open-bound constant")
 		void shouldClassifyTheRepresentableWindowEdgesExactly()  {
@@ -577,22 +676,30 @@ class LegacyRangeThresholdScaleSerializerTest {
 			// These four assertions sit ON the cut and one step past it
 			assertEquals(
 				DateTimeRange.MIN_REPRESENTABLE_EPOCH_SECOND * 1000L,
-				RangeIndex.rescaleSecondGranularityThreshold(DateTimeRange.MIN_REPRESENTABLE_EPOCH_SECOND),
+				LegacyRangeIndexConversion.rescaleSecondGranularityThreshold(
+					DateTimeRange.MIN_REPRESENTABLE_EPOCH_SECOND
+				),
 				"the lowest representable second is still a real moment and must be multiplied"
 			);
 			assertEquals(
 				DateTimeRange.OPEN_FROM_THRESHOLD,
-				RangeIndex.rescaleSecondGranularityThreshold(DateTimeRange.MIN_REPRESENTABLE_EPOCH_SECOND - 1L),
+				LegacyRangeIndexConversion.rescaleSecondGranularityThreshold(
+					DateTimeRange.MIN_REPRESENTABLE_EPOCH_SECOND - 1L
+				),
 				"one second below it is an open-from bound"
 			);
 			assertEquals(
 				DateTimeRange.MAX_REPRESENTABLE_EPOCH_SECOND * 1000L,
-				RangeIndex.rescaleSecondGranularityThreshold(DateTimeRange.MAX_REPRESENTABLE_EPOCH_SECOND),
+				LegacyRangeIndexConversion.rescaleSecondGranularityThreshold(
+					DateTimeRange.MAX_REPRESENTABLE_EPOCH_SECOND
+				),
 				"the highest representable second is still a real moment and must be multiplied"
 			);
 			assertEquals(
 				DateTimeRange.OPEN_TO_THRESHOLD,
-				RangeIndex.rescaleSecondGranularityThreshold(DateTimeRange.MAX_REPRESENTABLE_EPOCH_SECOND + 1L),
+				LegacyRangeIndexConversion.rescaleSecondGranularityThreshold(
+					DateTimeRange.MAX_REPRESENTABLE_EPOCH_SECOND + 1L
+				),
 				"one second above it is an open-to bound"
 			);
 			// and the multiplied edges really do stay inside the window rather than overflowing into the sentinels,
@@ -607,6 +714,7 @@ class LegacyRangeThresholdScaleSerializerTest {
 			);
 		}
 
+		/** Legacy offset-dependent sentinels collapse into one point containing both records. */
 		@Test
 		@DisplayName("points that collide after the rescale are merged rather than duplicated")
 		void shouldMergeCollidingPointsOnRescale() {
@@ -623,7 +731,7 @@ class LegacyRangeThresholdScaleSerializerTest {
 				legacyOpenAtPlusTwo < legacyOpenAtUtc, "the two legacy sentinels must really differ, and in this order"
 			);
 
-			final RangeIndex rescaled = RangeIndex.rescaledFromSecondGranularity(
+			final RangeIndex rescaled = LegacyRangeIndexConversion.rescaledFromSecondGranularity(
 				new RangeIndex(new TransactionalRangePoint[]{
 					new TransactionalRangePoint(Long.MIN_VALUE),
 					new TransactionalRangePoint(VALID_FROM.toEpochSecond(), new int[]{1, 2}, new int[0]),
@@ -649,19 +757,5 @@ class LegacyRangeThresholdScaleSerializerTest {
 			);
 		}
 
-		@Test
-		@DisplayName("a numeric range index is left alone by construction — the rescale is never called for one")
-		void shouldNeverTouchANumericRange() {
-			// a numeric threshold is the caller's own number: `IntegerNumberRange.between(10, 20)` stores 10 and 20,
-			// which the rescale rule would happily multiply. Nothing but the declared attribute type keeps it away,
-			// which is why the routing lives in the load path and is pinned there
-			final IntegerNumberRange numeric = IntegerNumberRange.between(10, 20);
-			assertEquals(10L, numeric.getFrom());
-			assertEquals(20L, numeric.getTo());
-			assertEquals(
-				10_000L, RangeIndex.rescaleSecondGranularityThreshold(numeric.getFrom()),
-				"applied to a numeric threshold the rule silently multiplies it - which is the whole hazard"
-			);
-		}
 	}
 }

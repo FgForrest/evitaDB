@@ -21,12 +21,17 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.invertedIndex;
+package io.evitadb.store.catalog;
 
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.invertedIndex.ValueToRecord;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.page.PageEmission;
+import io.evitadb.store.catalog.LegacyInvertedIndexCorrection.CorrectedBuckets;
+import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -41,49 +46,33 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+import static io.evitadb.dataType.EvitaDataTypes.clampToSupportedWindow;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.STORAGE;
+import static java.util.Arrays.copyOf;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Migration coverage for a filter index persisted **before** temporal values were truncated to whole milliseconds.
- *
- * Such a catalog can hold two buckets whose `Instant` keys differ only below the millisecond. Both now encode to the
- * same `long` in the leaf's key column, so the reload path is handed two persisted buckets that collapse onto one
- * tree key — a state neither reload constructor was written for: the bucket-replaying one documents its input as
- * "unique & monotonic", and the `PAGED` one promises one in-memory leaf per persisted page.
- *
- * The tests below drive both reload paths with exactly that shape of persisted state, hand-built the way a
- * pre-truncation writer would have left it (a real writer cannot produce it any more — `FilterIndex.getNormalizer`
- * truncates on the way in). What must hold either way: **no record may be lost, and the reload must not fail**. The
- * collapsed index is additionally expected to report itself dirty, so the next commit rewrites it in canonical form
- * and the repair is paid for exactly once.
- *
- * Three key shapes reach the repair, and each is driven separately because each rides a different codec through a
- * different normalizer branch: `Instant` keys (the `OffsetDateTime` and `LocalDateTime` attribute types),
- * `LocalTime` keys (encoded as nano-of-day), and `DateTimeRange` keys — whose move to milliseconds changed not only
- * the resolution of the comparison but which bound decides a tie, so a persisted order can come back **reversed**
- * rather than merely collapsed.
- *
- * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
+ * Tests the protocol 6 → 7 migration correction of legacy bucket keys followed by a clean production restore.
+ * Collisions, range ordering, retained value ids and page boundaries are checked before and after restoration.
  */
-@DisplayName("A filter index persisted before millisecond truncation reloads without losing records")
+@DisplayName("Migration corrects legacy filter buckets and restores them cleanly")
 @Tag(STORAGE)
 @Tag(INDEXING)
 @Tag(ATTRIBUTE)
 @Tag(DATA_TYPE)
-class InvertedIndexSubMillisecondReloadTest {
+class Migration_2026_3_InvertedIndexCorrectionTest {
 	/**
 	 * The millisecond every sub-millisecond twin in this suite collapses onto.
 	 */
@@ -104,7 +93,7 @@ class InvertedIndexSubMillisecondReloadTest {
 	/**
 	 * The name the value-id-carrying fixtures register themselves under.
 	 */
-	private static final String VALUE_ID_CONSUMER = "sub-millisecond-reload-test";
+	private static final String VALUE_ID_CONSUMER = "sub-millisecond-migration-test";
 
 	/**
 	 * The lower `LocalTime` twin — the value a pre-truncation writer would have persisted first.
@@ -123,6 +112,79 @@ class InvertedIndexSubMillisecondReloadTest {
 	 */
 	private static final LocalTime NEIGHBOUR_TIME = LocalTime.of(12, 19, 26, 124_000_000);
 
+	/** Canonical input has no correction result and therefore emits no replacement parts. */
+	@Test
+	@DisplayName("leaves already-canonical inline and paged bucket generations untouched")
+	void shouldPlanNoRewriteForCanonicalTrees() {
+		final ValueToRecord[][] pages = {
+			{new ValueToRecordBitmap(COLLAPSE_TARGET, 1)}, {new ValueToRecordBitmap(NEIGHBOUR, 2)}
+		};
+		assertNull(LegacyInvertedIndexCorrection.correct(
+			OffsetDateTime.class, 0, pages, new int[][]{{11}, {12}}, Comparator.naturalOrder(), true
+		));
+		assertNull(LegacyInvertedIndexCorrection.correct(
+			OffsetDateTime.class, 0, new ValueToRecord[][]{{pages[0][0], pages[1][0]}},
+			new int[][]{{11, 12}}, Comparator.naturalOrder(), false
+		));
+	}
+
+	/** An inversion outside the released range ordering must remain visible to production corruption checks. */
+	@Test
+	@DisplayName("does not heal an unrecognized range inversion or a stale page twin")
+	void shouldLeaveUnrecognizedInversionsForTheLoader() {
+		final OffsetDateTime base = OffsetDateTime.parse("2024-01-01T00:00:00Z");
+		final DateTimeRange lower = DateTimeRange.between(base, base.plusSeconds(1));
+		final DateTimeRange upper = DateTimeRange.between(base.plusSeconds(3), base.plusSeconds(4));
+		final ValueToRecord[][] pages = {
+			{new ValueToRecordBitmap(upper, 1)}, {new ValueToRecordBitmap(lower, 2)}
+		};
+		assertNull(LegacyInvertedIndexCorrection.correct(
+			DateTimeRange.class, 0, pages, null, Comparator.naturalOrder(), true
+		));
+		final GenericEvitaInternalError error = assertThrows(GenericEvitaInternalError.class, () ->
+			InvertedIndex.fromPersistedPages(DateTimeRange.class, new int[]{1, 2}, pages, null, 2,
+				normalizer(DateTimeRange.class), Comparator.naturalOrder(), 0));
+		assertTrue(error.getMessage().contains("index corruption"));
+	}
+
+	/** A page repeating its predecessor's last stored key is a stale twin, not two values canonicalization joined. */
+	@Test
+	@DisplayName("does not heal a stale page twin that repeats its predecessor's last stored key")
+	void shouldLeaveAnEqualKeyPageTwinForTheLoader() {
+		final ValueToRecord[][] pages = {
+			{new ValueToRecordBitmap(COLLAPSE_TARGET, 1)},
+			{new ValueToRecordBitmap(COLLAPSE_TARGET, 2), new ValueToRecordBitmap(NEIGHBOUR, 3)}
+		};
+
+		final CorrectedBuckets corrected = LegacyInvertedIndexCorrection.correct(
+			OffsetDateTime.class, 0, pages, null, Comparator.naturalOrder(), true
+		);
+
+		assertNull(corrected, "a repeated stored key must reach the loader unchanged rather than be merged");
+		final GenericEvitaInternalError error = assertThrows(GenericEvitaInternalError.class, () ->
+			InvertedIndex.fromPersistedPages(OffsetDateTime.class, new int[]{1, 2}, pages, null, 2,
+				normalizer(), Comparator.naturalOrder(), 0));
+		assertTrue(error.getMessage().contains("index corruption"));
+	}
+
+	/** A clamp collision and a truncation collision are merged in the very same correction result. */
+	@Test
+	@DisplayName("clamps before canonicalizing and unions every colliding record")
+	void shouldClampAndMergeInOneCorrection() {
+		final Instant edge = clampToSupportedWindow(Instant.MAX);
+		final ValueToRecord[][] pages = {
+			{new ValueToRecordBitmap(edge, 1)},
+			{new ValueToRecordBitmap(Instant.MAX.minusSeconds(1), 2), new ValueToRecordBitmap(Instant.MAX, 3)}
+		};
+		final CorrectedBuckets corrected = LegacyInvertedIndexCorrection.correct(
+			OffsetDateTime.class, 0, pages, new int[][]{{11}, {12, 13}}, Comparator.naturalOrder(), true
+		);
+		assertNotNull(corrected);
+		assertEquals(1, corrected.pages().length);
+		assertArrayEquals(new int[]{1, 2, 3}, corrected.pages()[0][0].getRecordIds().getArray());
+		assertArrayEquals(new int[]{11}, corrected.valueIds()[0]);
+	}
+
 	/**
 	 * The normalizer an `OffsetDateTime` filter index is built with — the declared type every `Instant`-keyed
 	 * fixture in this suite uses.
@@ -135,20 +197,19 @@ class InvertedIndexSubMillisecondReloadTest {
 	/**
 	 * The normalizer a filter index over the given declared attribute type is built with. Each declared type takes a
 	 * different branch of {@link FilterIndex#getNormalizer(Class, int)} and rides a different key codec, so the
-	 * repair has to be driven through each of them rather than argued from one.
-	 *
-	 * @param declaredType the plain (non-array) declared attribute type
-	 * @return the normalizer that type's filter index is built with
+	 * migration correction has to be driven through each of them rather than argued from one.
 	 */
 	@Nonnull
 	private static Function<Object, Serializable> normalizer(@Nonnull Class<?> declaredType) {
 		return FilterIndex.getNormalizer(declaredType, 0);
 	}
 
+	/** Inline migration fixtures restored with canonical keys and retained ids. */
 	@Nested
-	@DisplayName("inline reload (the bucket-replaying constructor)")
-	class InlineReload {
+	@DisplayName("inline migration correction followed by clean restore")
+	class InlineMigrationCorrection {
 
+		/** Migration unions colliding instant buckets while preserving the neighbouring millisecond. */
 		@Test
 		@DisplayName("merges two persisted sub-millisecond buckets into one, keeping both records")
 		void shouldMergeCollidingPersistedBuckets() {
@@ -158,8 +219,8 @@ class InvertedIndexSubMillisecondReloadTest {
 				new ValueToRecordBitmap(NEIGHBOUR, 4)
 			};
 
-			final InvertedIndex reloaded = new InvertedIndex(
-				OffsetDateTime.class, persisted, normalizer(), normalizer(), Comparator.naturalOrder(), 0
+			final InvertedIndex reloaded = migrateInline(
+				OffsetDateTime.class, persisted, normalizer(), Comparator.naturalOrder(), 0
 			);
 
 			assertEquals(2, reloaded.getBucketCount(), "the two twins must share one bucket");
@@ -173,12 +234,12 @@ class InvertedIndexSubMillisecondReloadTest {
 				reloaded.getRecordsEqualTo(NEIGHBOUR).getArray(),
 				"the neighbouring millisecond must keep its own bucket"
 			);
-			assertTrue(
-				reloaded.isDirty(),
-				"a reload that collapsed two persisted buckets must ask to be rewritten in canonical form"
+			assertFalse(reloaded.isDirty(),
+				"a migrated tree loads clean"
 			);
 		}
 
+		/** The merged instant bucket restores under the exact millisecond key produced by migration. */
 		@Test
 		@DisplayName("keys the merged bucket by the truncated instant, not by the value that created it")
 		void shouldKeyTheMergedBucketByTheTruncatedInstant() {
@@ -187,8 +248,8 @@ class InvertedIndexSubMillisecondReloadTest {
 				new ValueToRecordBitmap(UPPER_TWIN, 2)
 			};
 
-			final InvertedIndex reloaded = new InvertedIndex(
-				OffsetDateTime.class, persisted, normalizer(), normalizer(), Comparator.naturalOrder(), 0
+			final InvertedIndex reloaded = migrateInline(
+				OffsetDateTime.class, persisted, normalizer(), Comparator.naturalOrder(), 0
 			);
 
 			final ValueToRecordBitmap[] rehydrated = reloaded.getValueToRecordBitmap();
@@ -199,11 +260,12 @@ class InvertedIndexSubMillisecondReloadTest {
 			);
 		}
 
+		/** Migration compacts inline ids with their buckets without mutating the persisted id array. */
 		@Test
-		@DisplayName("realigns the persisted inline value id column with the buckets the repair left")
+		@DisplayName("compacts inline value ids with the buckets retained by migration")
 		void shouldRealignTheInlineValueIdColumn() {
-			// the inline id column is positional over the buckets that were WRITTEN; a repaired tree holds fewer, and
-			// the loader's own alignment premise refuses the pair outright - the catalog does not open at all
+			// The migration compacts the positional id column together with the buckets, so the production loader
+			// receives matching columns and can restore the retained identities directly.
 			final ValueToRecordBitmap[] persisted = {
 				new ValueToRecordBitmap(LOWER_TWIN, 1),
 				new ValueToRecordBitmap(UPPER_TWIN, 2),
@@ -211,13 +273,13 @@ class InvertedIndexSubMillisecondReloadTest {
 			};
 			final int[] persistedValueIds = {11, 12, 13};
 
-			final InvertedIndex reloaded = new InvertedIndex(
-				OffsetDateTime.class, persisted, normalizer(), normalizer(), Comparator.naturalOrder(), 0
+			final InvertedIndex reloaded = migrateInline(
+				OffsetDateTime.class, persisted, normalizer(), Comparator.naturalOrder(), 0
 			);
 			// exactly what AttributeIndexLoader does for a SINGLE (inline) filter index carrying value ids
 			reloaded.restoreValueIds(
 				14,
-				InvertedIndex.alignPersistedValueIds(
+				migratedValueIds(
 					persisted, persistedValueIds, normalizer(), Comparator.naturalOrder()
 				)
 			);
@@ -230,71 +292,54 @@ class InvertedIndexSubMillisecondReloadTest {
 				13, reloaded.getValueId(NEIGHBOUR),
 				"the bucket after the collapse must keep its own id rather than sliding onto the retired one"
 			);
-			assertEquals(14, reloaded.getNextValueId(), "the repair must mint nothing");
+			assertEquals(14, reloaded.getNextValueId(), "the migration correction must mint nothing");
 			assertArrayEquals(
 				new int[]{11, 12, 13}, persistedValueIds,
 				"the realignment must not mutate the array it was handed - it belongs to the storage part"
 			);
 		}
 
+		/** Canonical inline buckets retain their records and restore without pending changes. */
 		@Test
-		@DisplayName("hands a collision-free inline id column straight back, without copying it")
-		void shouldNotTouchACanonicalInlineValueIdColumn() {
-			final ValueToRecordBitmap[] persisted = {
-				new ValueToRecordBitmap(COLLAPSE_TARGET, 1),
-				new ValueToRecordBitmap(NEIGHBOUR, 2)
-			};
-			final int[] persistedValueIds = {11, 12};
-
-			assertSame(
-				persistedValueIds,
-				InvertedIndex.alignPersistedValueIds(
-					persisted, persistedValueIds, normalizer(), Comparator.naturalOrder()
-				),
-				"an index with nothing to repair must not pay an array copy on every catalog load"
-			);
-		}
-
-		@Test
-		@DisplayName("leaves an already-canonical index alone and does not ask to be rewritten")
+		@DisplayName("preserves canonical inline buckets and restores cleanly")
 		void shouldLeaveACanonicalIndexAlone() {
-			// the control: the very same shape with no collision in it must reload byte-for-byte as before, and in
-			// particular must NOT be flagged dirty - otherwise the repair would rewrite every temporal index in the
-			// catalog on the first commit after an upgrade
+			// Canonical input needs no migration correction and must restore without pending changes.
 			final ValueToRecordBitmap[] persisted = {
 				new ValueToRecordBitmap(COLLAPSE_TARGET, 1),
 				new ValueToRecordBitmap(NEIGHBOUR, 2)
 			};
 
-			final InvertedIndex reloaded = new InvertedIndex(
-				OffsetDateTime.class, persisted, normalizer(), normalizer(), Comparator.naturalOrder(), 0
+			final InvertedIndex reloaded = migrateInline(
+				OffsetDateTime.class, persisted, normalizer(), Comparator.naturalOrder(), 0
 			);
 
 			assertEquals(2, reloaded.getBucketCount());
 			assertArrayEquals(new int[]{1}, reloaded.getRecordsEqualTo(COLLAPSE_TARGET).getArray());
 			assertArrayEquals(new int[]{2}, reloaded.getRecordsEqualTo(NEIGHBOUR).getArray());
-			assertFalse(reloaded.isDirty(), "a reload that changed nothing must not schedule a rewrite");
+			assertFalse(reloaded.isDirty(), "a canonical tree must restore without pending changes");
 		}
 	}
 
+	/** Migration fixtures for the distinct LocalTime key codec. */
 	@Nested
-	@DisplayName("inline reload of LocalTime keys (the nano-of-day codec)")
-	class InlineLocalTimeReload {
+	@DisplayName("LocalTime migration correction followed by clean restore")
+	class InlineLocalTimeMigrationCorrection {
 
+		/** Migration unions LocalTime collisions while preserving records in the neighbouring millisecond. */
 		@Test
 		@DisplayName("merges two persisted sub-millisecond LocalTime buckets into one, keeping both records")
 		void shouldMergeCollidingPersistedLocalTimeBuckets() {
 			// a `LocalTime` key rides `LongKeyCodec.LOCAL_TIME` (nano-of-day) through its own normalizer branch, so
 			// nothing the `Instant` fixtures prove carries over: the claim that legacy twins reach the same
-			// comparator-based collision repair has to be driven, not argued
+			// comparator-based collision migration correction has to be driven, not argued
 			final ValueToRecordBitmap[] persisted = {
 				new ValueToRecordBitmap(LOWER_TWIN_TIME, 1),
 				new ValueToRecordBitmap(UPPER_TWIN_TIME, 2, 3),
 				new ValueToRecordBitmap(NEIGHBOUR_TIME, 4)
 			};
 
-			final InvertedIndex reloaded = new InvertedIndex(
-				LocalTime.class, persisted, normalizer(LocalTime.class), normalizer(LocalTime.class), Comparator.naturalOrder(), 0
+			final InvertedIndex reloaded = migrateInline(
+				LocalTime.class, persisted, normalizer(LocalTime.class), Comparator.naturalOrder(), 0
 			);
 
 			assertEquals(2, reloaded.getBucketCount(), "the two twins must share one bucket");
@@ -308,12 +353,12 @@ class InvertedIndexSubMillisecondReloadTest {
 				reloaded.getRecordsEqualTo(NEIGHBOUR_TIME).getArray(),
 				"the neighbouring millisecond must keep its own bucket"
 			);
-			assertTrue(
-				reloaded.isDirty(),
-				"a reload that collapsed two persisted buckets must ask to be rewritten in canonical form"
+			assertFalse(reloaded.isDirty(),
+				"a migrated tree loads clean"
 			);
 		}
 
+		/** The merged LocalTime bucket restores under its truncated millisecond value. */
 		@Test
 		@DisplayName("keys the merged LocalTime bucket by the truncated value, not by the one that created it")
 		void shouldKeyTheMergedLocalTimeBucketByTheTruncatedValue() {
@@ -322,8 +367,8 @@ class InvertedIndexSubMillisecondReloadTest {
 				new ValueToRecordBitmap(UPPER_TWIN_TIME, 2)
 			};
 
-			final InvertedIndex reloaded = new InvertedIndex(
-				LocalTime.class, persisted, normalizer(LocalTime.class), normalizer(LocalTime.class), Comparator.naturalOrder(), 0
+			final InvertedIndex reloaded = migrateInline(
+				LocalTime.class, persisted, normalizer(LocalTime.class), Comparator.naturalOrder(), 0
 			);
 
 			final ValueToRecordBitmap[] rehydrated = reloaded.getValueToRecordBitmap();
@@ -340,7 +385,7 @@ class InvertedIndexSubMillisecondReloadTest {
 	 * bucket order the millisecond comparison **reverses** rather than merely collapses.
 	 *
 	 * The scalar temporal move is a monotone refinement — a finer key can only split a tie, never swap a pair — so
-	 * the collapse-only repair the nests above exercise is enough for it. `DateTimeRange` is different: the move
+	 * the collapse-only correction the nests above exercise is enough for it. `DateTimeRange` is different: the move
 	 * changed which bound decides a tie, because the previous encoding compared whole seconds and derived an open
 	 * bound's threshold from the *other* bound's zone offset. Two shapes reverse, and neither needs the persisted
 	 * bytes to be malformed - both were correctly ascending when they were written:
@@ -351,12 +396,12 @@ class InvertedIndexSubMillisecondReloadTest {
 	 *   upper bound now.
 	 *
 	 * The persisted values themselves carry no thresholds — `DateTimeRangeSerializer` reconstructs a range from its
-	 * two precise bounds — so both comparison longs are recomputed at the new scale on every load, and the order
-	 * the pages were written in is the only thing that is fixed.
+	 * two precise bounds. The migration recomputes their comparison at the new scale and corrects recognized
+	 * legacy ordering before the production restore sees the pages.
 	 */
 	@Nested
-	@DisplayName("PAGED reload of a legacy DateTimeRange index whose persisted order the new comparison reverses")
-	class PagedLegacyRangeOrderReload {
+	@DisplayName("legacy DateTimeRange migration correction followed by clean paged restore")
+	class PagedLegacyRangeOrderMigrationCorrection {
 		/**
 		 * The moment the closed-range fixtures open in; its whole second is what the previous encoding compared them
 		 * by.
@@ -364,9 +409,10 @@ class InvertedIndexSubMillisecondReloadTest {
 		private static final OffsetDateTime RANGE_BASE =
 			LocalDateTime.of(2024, 1, 1, 0, 0, 0).atOffset(ZoneOffset.UTC);
 
+		/** Migration reorders closed ranges within one page and preserves every record on restore. */
 		@Test
 		@DisplayName("two closed ranges opening in one second, persisted inside a single page")
-		void shouldReloadRangeBucketsWhosePersistedOrderTheMillisecondComparisonReverses() {
+		void shouldRestoreRangeBucketsWhosePersistedOrderTheMillisecondComparisonReverses() {
 			// persisted ascending on (fromSecond, toSecond): the two share a lower SECOND, so the upper bound broke
 			// the tie and the 3-second range sorted before the 5-second one. Compared in milliseconds the lower
 			// bounds no longer tie, and 900ms sorts AFTER 100ms - the pair is inverted with nothing wrong on disk
@@ -389,12 +435,14 @@ class InvertedIndexSubMillisecondReloadTest {
 				{new ValueToRecordBitmap(DateTimeRange.since(RANGE_BASE.plusDays(1)), 3)}
 			};
 
-			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
+			final InvertedIndex reloaded = migratePages(
 				DateTimeRange.class, new int[]{0, 1}, perPageBuckets, null, 1,
-				normalizer(DateTimeRange.class), normalizer(DateTimeRange.class), Comparator.naturalOrder(), 0
+				normalizer(DateTimeRange.class), Comparator.naturalOrder(), 0
 			);
 
-			assertEquals(3, reloaded.getBucketCount(), "no bucket may be lost when the persisted order is repaired");
+			assertEquals(
+				3, reloaded.getBucketCount(), "no bucket may be lost when the migration re-sorts the persisted order"
+			);
 			assertArrayEquals(new int[]{2}, reloaded.getRecordsEqualTo(earlierInTheSecond).getArray());
 			assertArrayEquals(new int[]{1}, reloaded.getRecordsEqualTo(laterInTheSecond).getArray());
 
@@ -402,19 +450,19 @@ class InvertedIndexSubMillisecondReloadTest {
 			assertEquals(3, rehydrated.length);
 			assertEquals(
 				earlierInTheSecond, rehydrated[0].getValue(),
-				"the reloaded tree must iterate in the order the millisecond comparison sorts the keys in"
+				"the restored tree must iterate in the order the millisecond comparison sorts the keys in"
 			);
 			assertEquals(laterInTheSecond, rehydrated[1].getValue());
 			assertEquals(DateTimeRange.since(RANGE_BASE.plusDays(1)), rehydrated[2].getValue());
-			assertTrue(
-				reloaded.isDirty(),
-				"a reload that re-sorted the persisted pages must ask to be rewritten in canonical form"
+			assertFalse(reloaded.isDirty(),
+				"a migrated range tree loads clean"
 			);
 		}
 
+		/** Migration reorders open-from ranges across pages without losing records or leaving dirty state. */
 		@Test
 		@DisplayName("two open-from ranges written at different offsets, persisted across a page boundary")
-		void shouldReloadRangeBucketsWhosePersistedOrderTheMillisecondComparisonReversesAcrossAPageBoundary() {
+		void shouldRestoreRangeBucketsWhosePersistedOrderTheMillisecondComparisonReversesAcrossAPageBoundary() {
 			// this shape needs no sub-second precision at all. The previous encoding derived an open-from bound's
 			// threshold from the OTHER bound's zone offset, so `until(X)` sorted by descending offset first and by
 			// the upper bound only on a tie; both open-from bounds now sit on one offset-independent constant, and
@@ -439,12 +487,14 @@ class InvertedIndexSubMillisecondReloadTest {
 				{new ValueToRecordBitmap(atUtc, 2)}
 			};
 
-			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
+			final InvertedIndex reloaded = migratePages(
 				DateTimeRange.class, new int[]{0, 1}, perPageBuckets, null, 1,
-				normalizer(DateTimeRange.class), normalizer(DateTimeRange.class), Comparator.naturalOrder(), 0
+				normalizer(DateTimeRange.class), Comparator.naturalOrder(), 0
 			);
 
-			assertEquals(2, reloaded.getBucketCount(), "no bucket may be lost when the persisted order is repaired");
+			assertEquals(
+				2, reloaded.getBucketCount(), "no bucket may be lost when the migration re-sorts the persisted order"
+			);
 			assertArrayEquals(new int[]{2}, reloaded.getRecordsEqualTo(atUtc).getArray());
 			assertArrayEquals(new int[]{1}, reloaded.getRecordsEqualTo(atPositiveOffset).getArray());
 
@@ -452,21 +502,21 @@ class InvertedIndexSubMillisecondReloadTest {
 			assertEquals(2, rehydrated.length);
 			assertEquals(
 				atUtc, rehydrated[0].getValue(),
-				"the reloaded tree must iterate in the order the millisecond comparison sorts the keys in"
+				"the restored tree must iterate in the order the millisecond comparison sorts the keys in"
 			);
 			assertEquals(atPositiveOffset, rehydrated[1].getValue());
-			assertTrue(
-				reloaded.isDirty(),
-				"a reload that re-sorted the persisted pages must ask to be rewritten in canonical form"
+			assertFalse(reloaded.isDirty(),
+				"a migrated range tree loads clean"
 			);
 		}
 
+		/** Migration merges equal range keys while restoring the current order of the remaining ranges. */
 		@Test
 		@DisplayName("buckets that collide under the new comparison are merged while the index is re-sorted")
 		void shouldMergeCollidingBucketsWhileResortingALegacyRangeIndex() {
 			// two open-from ranges naming the SAME moment at two different zone offsets were distinct keys at second
 			// granularity - each one's open lower bound took its threshold from its own upper bound's offset - and are
-			// one key now. Reloaded together with an inverted pair they meet the re-sort, which has to merge them on
+			// one key now. Migrated together with an inverted pair they meet the re-sort, which has to merge them on
 			// the way: fresh pages carrying two equal keys are refused by the bulk load that builds them
 			final DateTimeRange atUtc = DateTimeRange.until(
 				LocalDateTime.of(2024, 3, 1, 12, 0).atOffset(ZoneOffset.UTC)
@@ -496,12 +546,13 @@ class InvertedIndexSubMillisecondReloadTest {
 				}
 			};
 
-			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
+			final InvertedIndex reloaded = migratePages(
 				DateTimeRange.class, new int[]{0, 1}, perPageBuckets, null, 1,
-				normalizer(DateTimeRange.class), normalizer(DateTimeRange.class), Comparator.naturalOrder(), 0
+				normalizer(DateTimeRange.class), Comparator.naturalOrder(), 0
 			);
 
-			assertEquals(3, reloaded.getBucketCount(), "the two twins must share one bucket, the other two keep theirs");
+			assertEquals(3, reloaded.getBucketCount(),
+				"the two twins must share one bucket, the other two keep theirs");
 			assertArrayEquals(
 				new int[]{1, 2}, reloaded.getRecordsEqualTo(atUtc).getArray(),
 				"every record of both twins must survive the merge the re-sort carried out"
@@ -514,14 +565,15 @@ class InvertedIndexSubMillisecondReloadTest {
 			assertEquals(atUtc, rehydrated[0].getValue());
 			assertEquals(earlierInTheSecond, rehydrated[1].getValue());
 			assertEquals(laterInTheSecond, rehydrated[2].getValue());
-			assertTrue(reloaded.isDirty(), "a reload that merged and re-sorted must ask to be rewritten");
+			assertFalse(reloaded.isDirty(), "a migrated tree loads clean");
 		}
 
+		/** Ranges already in current order restore with their original records and no pending changes. */
 		@Test
-		@DisplayName("a legacy range index whose persisted order the new comparison preserves reloads untouched")
+		@DisplayName("preserves canonical range order through migration correction and clean restore")
 		void shouldLeaveALegacyRangeIndexWhoseOrderSurvivesAlone() {
-			// the control: the same two-page shape with an order the millisecond comparison agrees with must reload
-			// boundary-stable and unflagged, so the repair the two cases above ask for cannot be a blanket rebuild
+			// The migration must preserve an order the current comparator already agrees with; the restored tree
+			// then starts clean rather than scheduling another rewrite.
 			final DateTimeRange first = DateTimeRange.between(RANGE_BASE, RANGE_BASE.plusSeconds(3));
 			final DateTimeRange second = DateTimeRange.between(RANGE_BASE.plusSeconds(10), RANGE_BASE.plusSeconds(20));
 			final DateTimeRange third = DateTimeRange.since(RANGE_BASE.plusDays(1));
@@ -530,29 +582,31 @@ class InvertedIndexSubMillisecondReloadTest {
 				{new ValueToRecordBitmap(third, 3)}
 			};
 
-			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
+			final InvertedIndex reloaded = migratePages(
 				DateTimeRange.class, new int[]{0, 1}, perPageBuckets, null, 1,
-				normalizer(DateTimeRange.class), normalizer(DateTimeRange.class), Comparator.naturalOrder(), 0
+				normalizer(DateTimeRange.class), Comparator.naturalOrder(), 0
 			);
 
 			assertEquals(3, reloaded.getBucketCount());
 			assertTrue(reloaded.isPaged());
-			assertFalse(reloaded.isDirty(), "a reload that changed nothing must not schedule a rewrite");
+			assertFalse(reloaded.isDirty(), "a canonical tree must restore without pending changes");
 			assertArrayEquals(new int[]{1}, reloaded.getRecordsEqualTo(first).getArray());
 			assertArrayEquals(new int[]{2}, reloaded.getRecordsEqualTo(second).getArray());
 			assertArrayEquals(new int[]{3}, reloaded.getRecordsEqualTo(third).getArray());
 		}
 	}
 
+	/** Migration fixtures exercising page boundaries, retained ids and merge targets. */
 	@Nested
-	@DisplayName("PAGED reload (one leaf per persisted page)")
-	class PagedReload {
+	@DisplayName("paged migration correction followed by clean restore")
+	class PagedMigrationCorrection {
 		/**
 		 * How many buckets the seeded index holds — comfortably more than one 256-slot leaf, so the emission really
 		 * produces several pages and the cross-page case below has a boundary to straddle.
 		 */
 		private static final int SEEDED_BUCKETS = 1_000;
 
+		/** Migration merges an intra-page collision and the corrected tree restores cleanly. */
 		@Test
 		@DisplayName("merges two sub-millisecond buckets that sit inside one persisted page")
 		void shouldMergeCollisionInsideOnePage() {
@@ -574,9 +628,10 @@ class InvertedIndexSubMillisecondReloadTest {
 				reloaded.getRecordsEqualTo(predecessor).getArray(),
 				"the absorbed bucket's record must have joined its predecessor"
 			);
-			assertTrue(reloaded.isDirty(), "a reload that collapsed two persisted buckets must ask for a rewrite");
+			assertFalse(reloaded.isDirty(), "a migrated tree loads clean");
 		}
 
+		/** Migration unions records from colliding buckets on opposite sides of a page boundary. */
 		@Test
 		@DisplayName("merges two sub-millisecond buckets that straddle a page boundary")
 		void shouldMergeCollisionAcrossAPageBoundary() {
@@ -596,9 +651,10 @@ class InvertedIndexSubMillisecondReloadTest {
 				reloaded.getRecordsEqualTo(lastOfPreviousPage).getArray(),
 				"the record of the twin that opened the next page must have joined the previous page's last bucket"
 			);
-			assertTrue(reloaded.isDirty(), "a reload that collapsed two persisted buckets must ask for a rewrite");
+			assertFalse(reloaded.isDirty(), "a migrated tree loads clean");
 		}
 
+		/** An intra-page merge cannot orphan records later merged across the same page boundary. */
 		@Test
 		@DisplayName("merges across a boundary out of a page that ALSO lost a bucket to an intra-page collision")
 		void shouldMergeAcrossABoundaryOutOfAPageThatWasAlsoTrimmed() {
@@ -643,6 +699,7 @@ class InvertedIndexSubMillisecondReloadTest {
 			);
 		}
 
+		/** Cross-page records survive when the donating page also contains an intra-page collision. */
 		@Test
 		@DisplayName("merges across a boundary INTO a page that also loses a bucket of its own")
 		void shouldMergeAcrossABoundaryIntoAPageThatIsAlsoTrimmed() {
@@ -673,6 +730,7 @@ class InvertedIndexSubMillisecondReloadTest {
 			);
 		}
 
+		/** Combined intra-page and cross-page merges retain surviving ids and the allocator high-water. */
 		@Test
 		@DisplayName("keeps the value ids straight when one page is both trimmed and merged across its boundary")
 		void shouldKeepValueIdsWhenAPageIsBothTrimmedAndMergedAcross() {
@@ -706,7 +764,7 @@ class InvertedIndexSubMillisecondReloadTest {
 				"and so must the cross-page merge target, whose slot moved down when the page was trimmed"
 			);
 			assertEquals(
-				pages.nextValueId, reloaded.getNextValueId(), "the repair must not mint anything"
+				pages.nextValueId, reloaded.getNextValueId(), "the migration correction must not mint anything"
 			);
 			// the records themselves are the thing the aliasing lost, so assert them here too
 			assertArrayEquals(
@@ -716,39 +774,21 @@ class InvertedIndexSubMillisecondReloadTest {
 			);
 		}
 
+		/** The corrected tree emits neither changed pages nor freed pages on its first restore emission. */
 		@Test
-		@DisplayName("rewrites only the pages the repair changed, and frees the records they superseded")
-		void shouldRewriteOnlyTheRepairedPage() {
-			// the repair is only correct in memory until the merged page is written back: a bulk-loaded leaf is clean,
-			// so without releasing its page identity the persisted page would keep the un-merged buckets for good
+		@DisplayName("restores corrected pages without changed or freed pages")
+		void shouldRestoreCorrectedPagesWithoutPendingChanges() {
 			final PersistedPages pages = seedAndEmit();
-			final int repairedPageIndex = pages.perPageBuckets.length / 2;
-			final int repairedPageSequence = pages.orderedPageSequences[repairedPageIndex];
-			final ValueToRecordBitmap[] buckets = pages.perPageBuckets[repairedPageIndex];
+			final ValueToRecordBitmap[] buckets = pages.perPageBuckets[1];
 			final Instant predecessor = (Instant) buckets[10].getValue();
 			buckets[11] = new ValueToRecordBitmap(predecessor.plusNanos(1), buckets[11].getRecordIds());
-
 			final InvertedIndex reloaded = pages.reload();
 			final PageEmission<InvertedIndex.LeafPage> emission = reloaded.collectChangedPages();
-
-			assertEquals(
-				1, emission.changedPages().size(),
-				"exactly the one merged page must be rewritten - the untouched leaves keep their identity"
-			);
-			assertArrayEquals(
-				new int[]{repairedPageSequence}, emission.freedPageSequences(),
-				"the superseded record of the merged page must be freed"
-			);
-			assertEquals(
-				pages.highWaterPageSequence + 1, emission.highWaterPageSequence(),
-				"the rewritten page must take a fresh, never-reused sequence"
-			);
-			assertEquals(
-				pages.orderedPageSequences.length, emission.orderedPageSequences().length,
-				"no page may disappear when nothing was absorbed whole"
-			);
+			assertTrue(emission.changedPages().isEmpty());
+			assertEquals(0, emission.freedPageSequences().length);
 		}
 
+		/** Migration retains surviving bucket ids and leaves absorbed ids retired below the allocator high-water. */
 		@Test
 		@DisplayName("keeps the surviving buckets' value ids and retires only the absorbed one's")
 		void shouldKeepValueIdsOfSurvivingBuckets() {
@@ -771,20 +811,21 @@ class InvertedIndexSubMillisecondReloadTest {
 			);
 			assertEquals(
 				successorId, reloaded.getValueId(successor),
-				"a bucket the repair did not touch must keep its id even though a lower slot vanished"
+				"a bucket the migration correction did not touch must keep its id even though a lower slot vanished"
 			);
 			assertEquals(
 				pages.nextValueId, reloaded.getNextValueId(),
-				"the repair must not mint anything - the retired id " + retiredId + " is simply never reused"
+				"the migration correction must not mint anything - the retired id " + retiredId +
+					" is simply never reused"
 			);
 		}
 
+		/** Migration compacts a fully absorbed page while retaining its records in the surviving tree. */
 		@Test
 		@DisplayName("drops a page whose every bucket was absorbed by its predecessor")
 		void shouldDropAPageAbsorbedInItsEntirety() {
-			// unreachable with production leaf occupancy (a persisted page holds at least half a leaf), but it is the
-			// one branch of the repair that changes the ROOT's page list, and an unexercised branch that rewrites a
-			// root is not a branch anybody should trust. Hand-built pages, since a real index cannot produce one
+			// The correction compacts the root's page list when every bucket of a page is absorbed.
+			// Hand-built pages exercise this branch because production leaf occupancy cannot produce this fixture.
 			final Instant base = COLLAPSE_TARGET;
 			final ValueToRecordBitmap[][] perPageBuckets = {
 				{new ValueToRecordBitmap(base, 1), new ValueToRecordBitmap(base.plusMillis(1), 2)},
@@ -793,9 +834,9 @@ class InvertedIndexSubMillisecondReloadTest {
 			};
 			final int[] orderedPageSequences = {0, 1, 2};
 
-			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
+			final InvertedIndex reloaded = migratePages(
 				OffsetDateTime.class, orderedPageSequences, perPageBuckets, null, 2,
-				normalizer(), normalizer(), Comparator.naturalOrder(), 0
+				normalizer(), Comparator.naturalOrder(), 0
 			);
 
 			assertEquals(3, reloaded.getBucketCount());
@@ -805,37 +846,34 @@ class InvertedIndexSubMillisecondReloadTest {
 			);
 			final PageEmission<InvertedIndex.LeafPage> emission = reloaded.collectChangedPages();
 			assertEquals(
-				2, emission.orderedPageSequences().length, "the emptied page must leave the root's page list"
+				2, emission.orderedPageSequences().length, "the compacted tree must use fewer pages"
 			);
-			assertArrayEquals(
-				new int[]{0, 1}, emission.freedPageSequences(),
-				"both the emptied page and the record the merged page superseded must be freed"
-			);
+			assertEquals(0, emission.freedPageSequences().length, "corrected pages restore without pending removals");
 		}
 
+		/** Canonical paged trees retain page identities and emit no changed or freed pages after restore. */
 		@Test
-		@DisplayName("a collision-free paged reload stays boundary-stable and rewrites nothing")
+		@DisplayName("preserves canonical page boundaries through migration correction and clean restore")
 		void shouldLeaveACanonicalPagedIndexAlone() {
-			// the control for both cases above: page identities, the high-water and the "nothing changed" verdict of
-			// the first post-reload commit must all survive untouched when there is nothing to repair
+			// Canonical input keeps its page identities through migration correction and the first restore emission.
 			final PersistedPages pages = seedAndEmit();
 
 			final InvertedIndex reloaded = pages.reload();
 
 			assertEquals(SEEDED_BUCKETS, reloaded.getBucketCount());
 			assertTrue(reloaded.isPaged());
-			assertFalse(reloaded.isDirty(), "a reload that changed nothing must not schedule a rewrite");
+			assertFalse(reloaded.isDirty(), "a canonical tree must restore without pending changes");
 			final PageEmission<InvertedIndex.LeafPage> afterReload = reloaded.collectChangedPages();
 			assertArrayEquals(pages.orderedPageSequences, afterReload.orderedPageSequences());
-			assertTrue(afterReload.changedPages().isEmpty(), "a boundary-stable reload must rewrite no leaf page");
+			assertTrue(
+				afterReload.changedPages().isEmpty(), "canonical migrated pages must restore without pending changes"
+			);
 			assertEquals(0, afterReload.freedPageSequences().length);
 		}
 
 		/**
 		 * Builds a millisecond-exact `OffsetDateTime`-keyed index of {@link #SEEDED_BUCKETS} single-record buckets and
-		 * emits it as leaf pages — the persisted state the reload tests then corrupt into a pre-truncation shape.
-		 *
-		 * @return the emitted pages, ready to be mutated and reloaded
+		 * emits it as leaf pages — the persisted state the migration tests then mutate into a pre-truncation shape.
 		 */
 		@Nonnull
 		private static PersistedPages seedAndEmit() {
@@ -845,9 +883,6 @@ class InvertedIndexSubMillisecondReloadTest {
 		/**
 		 * Builds a millisecond-exact `OffsetDateTime`-keyed index of {@link #SEEDED_BUCKETS} single-record buckets and
 		 * emits it as leaf pages.
-		 *
-		 * @param withValueIds whether the seeded tree carries stable value ids
-		 * @return the emitted pages, ready to be mutated and reloaded
 		 */
 		@Nonnull
 		private static PersistedPages seedAndEmit(boolean withValueIds) {
@@ -863,8 +898,10 @@ class InvertedIndexSubMillisecondReloadTest {
 			final PageEmission<InvertedIndex.LeafPage> emission = index.collectChangedPages();
 			index.getPageStreamRegistry().publishStaged();
 			final int[] orderedPageSequences = emission.orderedPageSequences();
-			final Map<Integer, ValueToRecordBitmap[]> byPageSequence = new HashMap<>();
-			final Map<Integer, int[]> valueIdsByPageSequence = new HashMap<>();
+			final Map<Integer, ValueToRecordBitmap[]> byPageSequence =
+				CollectionUtils.createHashMap(orderedPageSequences.length);
+			final Map<Integer, int[]> valueIdsByPageSequence =
+				CollectionUtils.createHashMap(orderedPageSequences.length);
 			for (final InvertedIndex.LeafPage page : emission.changedPages()) {
 				final ValueToRecord[] buckets = page.buckets();
 				final ValueToRecordBitmap[] copy = new ValueToRecordBitmap[buckets.length];
@@ -894,9 +931,6 @@ class InvertedIndexSubMillisecondReloadTest {
 	/**
 	 * The `i`-th seeded instant: one whole millisecond apart, so a `plusNanos(1)` twin of any of them stays strictly
 	 * between it and its successor.
-	 *
-	 * @param ordinal the bucket ordinal
-	 * @return the instant that bucket is keyed by
 	 */
 	@Nonnull
 	private static Instant instantOf(int ordinal) {
@@ -905,9 +939,6 @@ class InvertedIndexSubMillisecondReloadTest {
 
 	/**
 	 * The record id the seeded index assigned to a given key — the inverse of {@link #instantOf(int)}.
-	 *
-	 * @param instant a seeded key
-	 * @return its single record id
 	 */
 	private static int recordOf(@Nonnull Instant instant) {
 		return (int) (instant.toEpochMilli() - COLLAPSE_TARGET.toEpochMilli()) + 1;
@@ -917,10 +948,6 @@ class InvertedIndexSubMillisecondReloadTest {
 	 * The persisted form of a `PAGED` inverted index: the root's ordered page list, each page's buckets, and the
 	 * stream high-water — everything `AttributeIndexLoader` reads back off disk before calling
 	 * {@link InvertedIndex#fromPersistedPages}.
-	 *
-	 * @param orderedPageSequences the root's leaf-page sequences in ascending key order
-	 * @param perPageBuckets       each page's buckets, positionally aligned with `orderedPageSequences`
-	 * @param highWaterPageSequence the persisted stream high-water
 	 */
 	private record PersistedPages(
 		@Nonnull int[] orderedPageSequences,
@@ -931,21 +958,68 @@ class InvertedIndexSubMillisecondReloadTest {
 	) {
 
 		/**
-		 * Replays this persisted state through the `PAGED` reload constructor, exactly as the loader does — including
-		 * the value-id restoration the loader performs right afterwards when the pages carried ids.
-		 *
-		 * @return the reloaded index
+		 * Applies the migration correction, then restores the corrected pages through the production API and restores
+		 * the persisted allocator high-water when the pages carry value ids.
 		 */
 		@Nonnull
 		InvertedIndex reload() {
-			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
+			final InvertedIndex reloaded = migratePages(
 				OffsetDateTime.class, this.orderedPageSequences, this.perPageBuckets, this.perPageValueIds,
-				this.highWaterPageSequence, normalizer(), normalizer(), Comparator.naturalOrder(), 0
+				this.highWaterPageSequence, normalizer(), Comparator.naturalOrder(), 0
 			);
 			if (this.perPageValueIds != null) {
 				reloaded.restoreValueIds(this.nextValueId);
 			}
 			return reloaded;
 		}
+	}
+
+	/** Applies the migration correction before the inline production restore constructor. */
+	@Nonnull
+	private static InvertedIndex migrateInline(
+		@Nonnull Class<?> type, @Nonnull ValueToRecordBitmap[] buckets,
+		@Nonnull Function<Object, Serializable> normalizer, @Nonnull Comparator comparator, int scale
+	) {
+		final CorrectedBuckets corrected = LegacyInvertedIndexCorrection.correct(
+			type, scale, new ValueToRecord[][]{buckets}, null, comparator, false
+		);
+		final ValueToRecordBitmap[] migrated = corrected == null ? buckets :
+			copyOf(corrected.pages()[0], corrected.pages()[0].length, ValueToRecordBitmap[].class);
+		return new InvertedIndex(type, migrated, normalizer, comparator, scale);
+	}
+
+	/** Compacts ids in the migration, leaving the canonical column untouched. */
+	@Nonnull
+	private static int[] migratedValueIds(
+		@Nonnull ValueToRecordBitmap[] buckets, @Nonnull int[] ids,
+		@Nonnull Function<Object, Serializable> normalizer, @Nonnull Comparator comparator
+	) {
+		final CorrectedBuckets corrected = LegacyInvertedIndexCorrection.correct(
+			OffsetDateTime.class, 0, new ValueToRecord[][]{buckets}, new int[][]{ids}, comparator, false
+		);
+		return corrected == null ? ids : corrected.valueIds()[0];
+	}
+
+	/** Corrects every page before loading its new persisted identity. */
+	@Nonnull
+	private static InvertedIndex migratePages(
+		@Nonnull Class<?> type, @Nonnull int[] sequences, @Nonnull ValueToRecord[][] buckets,
+		@Nullable int[][] ids, int highWater, @Nonnull Function<Object, Serializable> normalizer,
+		@Nonnull Comparator comparator, int scale
+	) {
+		final CorrectedBuckets corrected = LegacyInvertedIndexCorrection.correct(type, scale, buckets, ids, comparator,
+			true);
+		if (corrected == null) {
+			return InvertedIndex.fromPersistedPages(type, sequences, buckets, ids, highWater, normalizer, comparator,
+				scale);
+		}
+		final int[] rewritten = new int[corrected.pages().length];
+		for (int i = 0; i < rewritten.length; i++) {
+			rewritten[i] = highWater + i + 1;
+		}
+		return InvertedIndex.fromPersistedPages(
+			type, rewritten, corrected.pages(), corrected.valueIds(), highWater + rewritten.length,
+			normalizer, comparator, scale
+		);
 	}
 }

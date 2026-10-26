@@ -312,9 +312,9 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * removed in favour of the other.** That one canonicalizes every temporal value entering through the API — through
 	 * `toSupportedStoredTypeOrItsArray` on the write path and `toSupportedType` on the query path, two entry points
 	 * over one truncating implementation — so what a client stores and what a client filters by agree. This one
-	 * canonicalizes the *index key*, whatever its provenance — including a bucket value rehydrated from a catalog
-	 * written before millisecond truncation existed, which never passes through the API boundary at all. Together
-	 * they are what makes `LongKeyCodec#INSTANT` a true bijection on the domain the tree actually sees; drop either
+	 * canonicalizes the *index key* on writes and probes. The storage migration applies the same type-level function
+	 * to legacy persisted bucket keys before publication; production restores read those keys verbatim. Together
+	 * these boundaries make `LongKeyCodec#INSTANT` a true bijection on the domain the tree actually sees; drop either
 	 * and an instant carrying sub-millisecond digits reaches a codec that silently floors it.
 	 *
 	 * @param attributeType        type of the attribute
@@ -430,10 +430,9 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * to {@link io.evitadb.index.bPlusTree.LongKeyCodec#LOCAL_TIME}, which encodes nano-of-day and is injective, so the
 	 * truncation is the only thing the key needs.
 	 *
-	 * It is what makes a legacy catalog's keys reachable again. Reload runs every persisted value through this
-	 * normalizer, so two values that differed only below the millisecond now collapse onto one key and are merged by
-	 * the comparator-based collision repair before the tree's ascending checks ever see them - the same path that
-	 * already handles sub-millisecond `Instant` twins.
+	 * The storage migration applies this type-level normalizer to legacy keys and merges values that now share a
+	 * millisecond before writing the corrected tree. Production loads restore the resulting keys verbatim, as they
+	 * do for sub-millisecond `Instant` twins corrected by the migration.
 	 *
 	 * @param value the value to normalize
 	 * @return the value truncated to whole milliseconds, or the value itself when it is not a `LocalTime`

@@ -454,12 +454,8 @@ class EntityIndexRoundTripTest {
 				final Class<?> attributeType = filterPart.getAttributeType();
 				final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
 				final InvertedIndex shared = new InvertedIndex(
-					Comparable.class,
-					filterPart.getHistogramPoints(),
-					FilterIndex.getNormalizer(plainType, 0),
-					FilterIndex.getNormalizer(plainType, 0),
-					FilterIndex.getComparator(attrKey, plainType),
-					0
+					Comparable.class, filterPart.getHistogramPoints(), FilterIndex.getNormalizer(plainType, 0),
+					FilterIndex.getComparator(attrKey, plainType), 0
 				);
 				sharedValueIndexes.put(attrKey, shared);
 				final RangeIndex rangeIndex = filterPart.getRangeIndex();
@@ -688,6 +684,7 @@ class EntityIndexRoundTripTest {
 			@SuppressWarnings("unchecked")
 			final Class<? extends Serializable> valueType =
 				(Class<? extends Serializable>) part.getValueType();
+			final Class<?> plainType = valueType.isArray() ? valueType.getComponentType() : valueType;
 			final AttributeCardinalityIndex liveCardinality = storage.histogramCardinalityParts.stream()
 				.filter(c -> c.getHistogramName().equals(part.getHistogramName()) && c.getLocale() == null)
 				.findFirst()
@@ -706,12 +703,14 @@ class EntityIndexRoundTripTest {
 					valueType,
 					// the scale is no longer persisted; these round-trips index no BigDecimal histogram, so it is 0
 					0,
-					new OwnerFilterIndex(
+					OwnerFilterIndex.fromPersistedPages(
 						new AttributeIndexKey(referenceName, part.getHistogramName(), null),
-						part.getHistogramPoints(),
-						part.getRangeIndex(),
-						part.getValueType(),
-						0
+						new InvertedIndex(
+							plainType, part.getHistogramPoints(), FilterIndex.getNormalizer(plainType, 0),
+							FilterIndex.getComparator(
+								new AttributeIndexKey(referenceName, part.getHistogramName(), null), plainType
+							), 0
+						), part.getRangeIndex(), valueType, 0
 					),
 					freshCardinality
 				)

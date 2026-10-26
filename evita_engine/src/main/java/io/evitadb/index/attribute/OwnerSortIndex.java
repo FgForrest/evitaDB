@@ -187,7 +187,7 @@ public final class OwnerSortIndex extends SortIndex {
 			// a sort-only owner tree is private to this index and no subsystem can register as a consumer of its
 			// ids, so it never carries a value id column
 			plainType, orderedPageSequences, perPageBuckets, null, highWaterPageSequence,
-			Serializable.class::cast, Serializable.class::cast, comparator, indexedDecimalPlaces
+			Serializable.class::cast, comparator, indexedDecimalPlaces
 		);
 		// the positional sortedRecords façade is not persisted for a PAGED owner; reconstruct it from the reloaded tree
 		final int[] sortedRecords = SortIndexView.reconstructSortedRecords(ownedTree);

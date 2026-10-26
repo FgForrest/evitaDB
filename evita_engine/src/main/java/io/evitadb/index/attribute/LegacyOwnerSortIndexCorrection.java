@@ -51,6 +51,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
 /**
@@ -79,11 +80,10 @@ import java.util.function.Function;
  *   way.
  * - **The order of a `DateTimeRange` element.** It compared a `DateTimeRange` element - localized index or not - at
  *   whole epoch seconds, an open bound derived from the zone offset of the other one
- *   ({@link InvertedIndex#compareAtSecondGranularity}); the current index compares milliseconds, an open bound being
- *   one constant. Two ranges opening in the same second tie then and differ now, and two ranges open at one end whose
- *   other bounds carry different offsets compare the other way now, tie or not - so a plain index is misordered too.
- *   The load path re-sorts a paged index whose every value is a `DateTimeRange`, never a compound or an inline index:
- *   a paged compound fails to load, and an inline index loads misordered.
+ *   ({@link #compareAtSecondGranularity}); the current index compares milliseconds, an open bound being one constant.
+ *   Two ranges opening in the same second tie then and differ now, and two ranges open at one end whose other bounds
+ *   carry different offsets compare the other way now, tie or not - so a plain index is misordered too.
+ *   The migration restores the current order before any production loader reads the tree.
  *
  * The rewrite brings such an index to the form and the order the current engine writes:
  *
@@ -133,10 +133,9 @@ import java.util.function.Function;
  *
  * # What it does not cover
  *
- * Nothing on the load path normalizes a raw temporal sort value or re-sorts persisted values any more, except a paged
- * index whose every value is a `DateTimeRange`, which it re-sorts at whole seconds. A catalog that reaches the load
- * path at protocol 7 holding either - which only a development build of 2026.3 can have written, directly or through
- * an archive of such a catalog - is not supported: its values are read as they are stored.
+ * Nothing on the load path normalizes a raw temporal sort value or re-sorts persisted values. A catalog that reaches
+ * the load path at protocol 7 holding either - which only a development build of 2026.3 can have written, directly or
+ * through an archive of such a catalog - is not supported: its values are read as they are stored.
  *
  * The class performs no IO: the migration reads the parts and drains the sink into the collection data store.
  *
@@ -433,9 +432,9 @@ public final class LegacyOwnerSortIndexCorrection {
 	 * the collator equates, which the current index adds ({@link EqualsConsistentLocalizedStringComparator}) - a
 	 * `Locale` element by `ComparableLocale#compareTo` of that tag, the language tag alone, with no tie-break either,
 	 * a `DateTimeRange` element by `DateTimeRange#compareTo` of that tag
-	 * ({@link InvertedIndex#compareAtSecondGranularity}), every other element in its natural order, each in its own
-	 * direction and with its own NULL handling, a compound element by element. The values are the raw ones the release
-	 * stored, so the natural order of a raw temporal value is the order of its declared type.
+	 * ({@link #compareAtSecondGranularity}), every other element in its natural order,
+	 * each in its own direction and with its own NULL handling, a compound element by element. The values are the raw
+	 * ones the release stored, so the natural order of a raw temporal value is the order of its declared type.
 	 *
 	 * @param comparatorBase one descriptor per element (a single entry for plain attributes)
 	 * @param locale         the locale of the attribute index key of the index, `null` when it is not localized
@@ -460,7 +459,7 @@ public final class LegacyOwnerSortIndexCorrection {
 			} else if (isDateTimeRange(source)) {
 				// `DateTimeRange#compareTo` of the release: whole epoch seconds, an open bound derived from the zone
 				// offset of the other one
-				natural = (Comparator<DateTimeRange>) InvertedIndex::compareAtSecondGranularity;
+				natural = (Comparator<DateTimeRange>) LegacyOwnerSortIndexCorrection::compareAtSecondGranularity;
 			} else {
 				natural = Comparator.naturalOrder();
 			}
@@ -598,6 +597,55 @@ public final class LegacyOwnerSortIndexCorrection {
 				return normalized == null ? persisted : new ComparableArray(normalized);
 			};
 		}
+	}
+
+	/**
+	 * Compares two ranges the way {@link DateTimeRange} did before its comparison moved to milliseconds: on the two
+	 * bounds' whole epoch seconds, lower bound first. Reconstructed from the precise bounds the buckets carry, which
+	 * is what makes the order a legacy writer sorted by recomputable by the storage migration.
+	 *
+	 * It is public so the storage migration's filter and histogram correction can recognize the same released order;
+	 * owner sort correction uses it for DateTimeRange elements as well.
+	 *
+	 * @param left  the range persisted first
+	 * @param right the range persisted next
+	 * @return the sign of the second-granularity comparison
+	 */
+	public static int compareAtSecondGranularity(@Nonnull DateTimeRange left, @Nonnull DateTimeRange right) {
+		final int lowerBoundComparison =
+			Long.compare(secondGranularityFrom(left), secondGranularityFrom(right));
+		return lowerBoundComparison != 0
+			? lowerBoundComparison
+			: Long.compare(secondGranularityTo(left), secondGranularityTo(right));
+	}
+
+	/**
+	 * The lower comparison bound a second-granularity release stored for the given range. An **open** lower bound
+	 * took no constant back then: it was derived from the upper bound's own zone offset, which is why two open-from
+	 * ranges written at different offsets sorted apart then and tie now.
+	 *
+	 * @param range the persisted range
+	 * @return the range's lower bound in whole epoch seconds
+	 */
+	private static long secondGranularityFrom(@Nonnull DateTimeRange range) {
+		final OffsetDateTime from = range.getPreciseFrom();
+		return from == null
+			? LocalDateTime.MIN.atOffset(Objects.requireNonNull(range.getPreciseTo()).getOffset()).toEpochSecond()
+			: from.toEpochSecond();
+	}
+
+	/**
+	 * The upper comparison bound a second-granularity release stored for the given range — the mirror of
+	 * {@link #secondGranularityFrom}, an open upper bound being derived from the lower bound's zone offset.
+	 *
+	 * @param range the persisted range
+	 * @return the range's upper bound in whole epoch seconds
+	 */
+	private static long secondGranularityTo(@Nonnull DateTimeRange range) {
+		final OffsetDateTime to = range.getPreciseTo();
+		return to == null
+			? LocalDateTime.MAX.atOffset(Objects.requireNonNull(range.getPreciseFrom()).getOffset()).toEpochSecond()
+			: to.toEpochSecond();
 	}
 
 }

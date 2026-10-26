@@ -43,8 +43,8 @@ import lombok.RequiredArgsConstructor;
  * the tail is decoded here rather than delegated. And its validity thresholds were epoch **seconds** rather than the
  * epoch **milliseconds** {@code DateTimeRange} compares at now — a difference in **meaning** that no untyped `long`
  * carries a marker for, so the scale can only be known from the serial-version-uid that routed the read here. The
- * index is therefore rescaled by {@link RangeIndex#rescaledFromSecondGranularity} on the way out; a price validity
- * index is the one range structure that needs no type routing to decide that, and
+ * index is therefore rescaled by {@link LegacyRangeIndexConversion#rescaledFromSecondGranularity} on the way out; a
+ * price validity index is the one range structure that needs no type routing to decide that, and
  * {@link PriceIndexHeaderSerializer#readWithSecondGranularityValidity} holds the full argument for why.
  *
  * This serializer only reads — writes always go through the current
@@ -73,7 +73,7 @@ public class PriceListAndCurrencyRefIndexStoragePartSerializer_2026_1 extends Se
 		final PriceIndexKey priceIndexKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 		// every format older than 2026.3 persisted the validity thresholds as epoch SECONDS - see
 		// PriceIndexHeaderSerializer#readWithSecondGranularityValidity for why the rescale needs no type routing here
-		final RangeIndex validityIndex = RangeIndex.rescaledFromSecondGranularity(
+		final RangeIndex validityIndex = LegacyRangeIndexConversion.rescaledFromSecondGranularity(
 			kryo.readObject(input, RangeIndex.class)
 		);
 

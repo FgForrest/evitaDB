@@ -1,7 +1,7 @@
 ---
 title: String attributes declare a single-pass normalization chain, and a populated index keeps the chain it was built with
 date: 2026-10-25
-updated: 2026-10-25 16:37
+updated: 2026-10-26 20:45
 status: accepted
 kind: feature
 issues: [545]
@@ -79,9 +79,12 @@ filter key (2026-10-08). There was no per-attribute key policy and no storage fo
 
 - **Two functions per site, never mixed (chosen).** The chain applies once to raw input (writes, removals, query
   values). A stored key is taken verbatim in regular processing (virtual-partition promotion / demotion, probes and
-  removals by key). Only the upgrade path - reading persisted keys, migrations - may re-canonicalize a stored key, and
-  only with the type-level legacy function (`FilterIndex#getLegacyStringNormalizer`, NFD), which is harmless for chain
-  keys because every chain ends with NFD.
+  removals by key). Only the storage migration may re-canonicalize a stored bucket key, and only with the type-level
+  function (`FilterIndex#getLegacyStringNormalizer`, NFD), which is harmless for chain keys because every chain ends
+  with NFD.
+  Filter and histogram loads restore the stored keys verbatim. Unique parts instead carry declared-type values;
+  every unique load converts those values back to keys with the type-level function, never a declared chain,
+  because a persisted `String` is already a chain-built key.
 - **Keep normalizing keys idempotently wherever convenient - declined.** Rejected because it is only correct for a
   fixed idempotent function; with a chain it re-keys values silently (with `asciiFolding(), lowercase()` on a
   Turkish tree, `I` keys as `ı` and a second pass turns that into `i`; the folding cases above likewise).
@@ -283,3 +286,5 @@ rebuild and the rows become transient.
 - **2026-10-25** — implementation, cost fix-ups, external APIs, documentation and the test-cost restructuring
   completed; an adversarial review found the local/global ownership and reference-ordering defects fixed above, and
   a code-quality pass added the reconciler, policy and serializer unit tests
+- **2026-10-26** — the filter and histogram bucket reload canonicalizer moved into `Migration_2026_3`;
+  unique loads retain the declared-value-to-key format conversion using the type-level function.

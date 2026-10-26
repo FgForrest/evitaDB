@@ -242,7 +242,6 @@ class InvertedIndexPrimitiveBucketTest {
 					new ValueToRecordBitmap(10, 2)
 				},
 				FilterIndex.NO_NORMALIZATION,
-				FilterIndex.NO_NORMALIZATION,
 				Comparator.naturalOrder(),
 				0
 			);

@@ -179,7 +179,7 @@ class EntityIndexBaselineCaptureTest implements EvitaTestSupport {
 				index.insertFilterAttribute(null, code, Collections.emptySet(), null, i, i, false);
 			}
 
-			// the capture runs while the filter tree is dirty - exactly what a load-time repair leaves behind
+			// the capture runs while the filter tree has pending changes carried across by a commit-time merge
 			index.notifyFlushed();
 			final TrappedChanges sink = new TrappedChanges();
 			index.getModifiedStorageParts(sink);

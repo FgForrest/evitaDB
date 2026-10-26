@@ -30,7 +30,6 @@ import io.evitadb.dataType.Range;
 import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.invertedIndex.InvertedIndex;
-import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.VMLayout;
@@ -118,76 +117,6 @@ public final class OwnerFilterIndex extends FilterIndex implements VoidTransacti
 			Range.class.isAssignableFrom(plainTypeOf(attributeType)) ? new RangeIndex() : null,
 			comparator,
 			normalizer
-		);
-	}
-
-	/**
-	 * Creates an owner filter index restored from persisted histogram points.
-	 *
-	 * @param attributeIndexKey key identifying the attribute
-	 * @param valueToRecords    persisted value→ValueToRecord buckets
-	 * @param rangeIndex        persisted range structure, or `null` for non-range attributes
-	 * @param attributeType     the declared attribute type (array-aware)
-	 */
-	public OwnerFilterIndex(
-		@Nonnull AttributeIndexKey attributeIndexKey,
-		@Nonnull ValueToRecordBitmap[] valueToRecords,
-		@Nullable RangeIndex rangeIndex,
-		@Nonnull Class<?> attributeType
-	) {
-		this(attributeIndexKey, valueToRecords, rangeIndex, attributeType, 0);
-	}
-
-	/**
-	 * Creates an owner filter index restored from persisted histogram points, carrying the `BigDecimal` scaling places.
-	 *
-	 * @param attributeIndexKey    key identifying the attribute
-	 * @param valueToRecords       persisted value→ValueToRecord buckets
-	 * @param rangeIndex           persisted range structure, or `null` for non-range attributes
-	 * @param attributeType        the declared attribute type (array-aware)
-	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
-	 */
-	public OwnerFilterIndex(
-		@Nonnull AttributeIndexKey attributeIndexKey,
-		@Nonnull ValueToRecordBitmap[] valueToRecords,
-		@Nullable RangeIndex rangeIndex,
-		@Nonnull Class<?> attributeType,
-		int indexedDecimalPlaces
-	) {
-		this(
-			attributeIndexKey,
-			valueToRecords,
-			rangeIndex,
-			attributeType,
-			indexedDecimalPlaces,
-			getNormalizer(plainTypeOf(attributeType), indexedDecimalPlaces),
-			getComparator(attributeIndexKey, plainTypeOf(attributeType))
-		);
-	}
-
-	/**
-	 * Telescoping helper that builds the owned {@link InvertedIndex} from persisted buckets and the already-derived
-	 * comparator / legacy canonicalizer.
-	 * Re-canonicalizing here heals keys written by older versions and must use the legacy function only.
-	 */
-	private OwnerFilterIndex(
-		@Nonnull AttributeIndexKey attributeIndexKey,
-		@Nonnull ValueToRecordBitmap[] valueToRecords,
-		@Nullable RangeIndex rangeIndex,
-		@Nonnull Class<?> attributeType,
-		int indexedDecimalPlaces,
-		@Nonnull Function<Object, Serializable> legacyCanonicalizer,
-		@Nonnull Comparator<? extends Comparable> comparator
-	) {
-		this(
-			attributeIndexKey,
-			attributeType,
-			indexedDecimalPlaces,
-			new InvertedIndex(plainTypeOf(attributeType), valueToRecords, legacyCanonicalizer, legacyCanonicalizer,
-				comparator, indexedDecimalPlaces),
-			rangeIndex,
-			comparator,
-			legacyCanonicalizer
 		);
 	}
 

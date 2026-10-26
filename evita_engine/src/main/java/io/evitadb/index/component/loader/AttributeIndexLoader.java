@@ -347,7 +347,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 
 	/**
 	 * Restores a single FILTER part (first pass). Rebuilds the owned shared value→`ValueToRecord`
-	 * tree from persisted histogram points using the legacy canonicalizer, binding the raw-input function
+	 * tree from persisted histogram points verbatim, binding the raw-input function
 	 * for future writes and probes. Keeps the optional shared range and wraps both in a
 	 * {@link FilterIndexView}. Populates `sharedValueIndexes`, `sharedRangeIndexes` and
 	 * `filterIndexes` so the second pass can detect view mode for SORT/UNIQUE under the same key.
@@ -412,7 +412,40 @@ public final class AttributeIndexLoader implements ComponentLoader {
 	}
 
 	/**
-	 * Re-canonicalizing here heals keys written by older versions and must use the legacy function only.
+	 * Loads stored filter keys and attaches the attribute identity to corruption diagnostics.
+	 *
+	 * @param catalogVersion the version to read
+	 * @param entityIndexId the owning entity index
+	 * @param service the source of persisted parts
+	 * @param part the filter root
+	 * @param attributeIndexKey the attribute identity
+	 * @param key the manifest entry naming the tree
+	 * @param plainType the declared non-array type
+	 * @param normalizer the future raw-input function
+	 * @param comparator the stored-key order
+	 * @param indexedDecimalPlaces the frozen key scale
+	 * @return the restored tree
+	 */
+	@Nonnull
+	private static InvertedIndex loadInvertedIndex(
+		long catalogVersion, int entityIndexId, @Nonnull StoragePartPersistenceService<?> service,
+		@Nonnull FilterIndexStoragePart part, @Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull AttributeIndexStorageKey key, @Nonnull Class<?> plainType,
+		@Nonnull Function<Object, Serializable> normalizer, @Nonnull Comparator<?> comparator,
+		int indexedDecimalPlaces
+	) {
+		try {
+			return restoreInvertedIndex(
+				catalogVersion, entityIndexId, service, part, attributeIndexKey, key, plainType, normalizer,
+				comparator, indexedDecimalPlaces
+			);
+		} catch (GenericEvitaInternalError ex) {
+			throw new GenericEvitaInternalError("Cannot load filter index " + key.attribute() + ": " + ex.getMessage(),
+				ex);
+		}
+	}
+
+	/**
 	 * Loads the OWNED shared value→`ValueToRecord` tree (the bucket axis) of a FILTER part. A `SINGLE` part carries its
 	 * buckets inline and is rebuilt via the standard buckets constructor; a `PAGED` part reads every listed leaf page in
 	 * order — keyed by `pack(streamId, pageSequence)`, the stream id recomputed from the sub-index identity via the read-only
@@ -433,7 +466,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 	 * @return the reloaded owned value tree
 	 */
 	@Nonnull
-	private static InvertedIndex loadInvertedIndex(
+	private static InvertedIndex restoreInvertedIndex(
 		long catalogVersion,
 		int entityIndexId,
 		@Nonnull StoragePartPersistenceService<?> service,
@@ -445,11 +478,9 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		@Nonnull Comparator<?> comparator,
 		int indexedDecimalPlaces
 	) {
-		final Function<Object, Serializable> legacyCanonicalizer =
-			FilterIndex.getNormalizer(plainType, indexedDecimalPlaces);
 		if (!part.isPaged()) {
 			final InvertedIndex inlineIndex = new InvertedIndex(
-				plainType, part.getHistogramPoints(), normalizer, legacyCanonicalizer, comparator, indexedDecimalPlaces
+				plainType, part.getHistogramPoints(), normalizer, comparator, indexedDecimalPlaces
 			);
 			// the root's high-water mark and its inline column must agree about whether the tree carries ids at all,
 			// exactly as the root and the leaf pages must in the PAGED branch below. A column under a root claiming
@@ -465,15 +496,12 @@ public final class AttributeIndexLoader implements ComponentLoader {
 					(part.getInlineValueIds() != null ? "carry" : "do not carry") + " an id column."
 			);
 			// the inline shape replays its buckets through the ordinary insert path, which carries no ids - so the
-			// persisted column is stamped back on afterwards, in the ascending key order it was written in. The
-			// column is realigned first: the replay can legitimately end up with fewer buckets than were written when
-			// two persisted values collapse onto one tree key, and the stamping refuses a column that does not align
+			// persisted column is stamped back on afterwards, unchanged and in the ascending key order it was written
+			// in: a load never merges buckets or realigns their ids
 			if (part.getInlineValueIds() != null) {
 				inlineIndex.restoreValueIds(
 					part.getNextValueId(),
-					InvertedIndex.alignPersistedValueIds(
-						part.getHistogramPoints(), part.getInlineValueIds(), legacyCanonicalizer, comparator
-					)
+					part.getInlineValueIds()
 				);
 			}
 			return inlineIndex;
@@ -527,7 +555,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		);
 		final InvertedIndex pagedIndex = InvertedIndex.fromPersistedPages(
 			plainType, orderedPageSequences, perPageBuckets, anyValueIds ? perPageValueIds : null,
-			part.getHighWaterPageSequence(), normalizer, legacyCanonicalizer, comparator, indexedDecimalPlaces
+			part.getHighWaterPageSequence(), normalizer, comparator, indexedDecimalPlaces
 		);
 		if (anyValueIds) {
 			// the ids came back inside the pages; this only re-attaches the allocator at the persisted high-water so
@@ -543,26 +571,8 @@ public final class AttributeIndexLoader implements ComponentLoader {
 	 * listed {@link RangeIndexLeafPagePart} in order — keyed by `join(rangeStreamId, pageSequence)`, the stream id resolved
 	 * with {@link StreamKind#RANGE} — and reassembles boundary-stable.
 	 *
-	 * ## Where an attribute filter index's legacy threshold scale is repaired
-	 *
-	 * A range threshold is an untyped `long`: the same {@link RangeIndex} serves `DateTimeRange` and all five
-	 * `NumberRange` subtypes, and only for `DateTimeRange` did the scale ever change (epoch seconds → epoch
-	 * milliseconds). Rescaling the wrong type would inflate a numeric range's bounds by a thousand and answer every
-	 * `attributeInRange` over it with the wrong records — silently. Two independent facts must therefore meet, and for
-	 * a filter index this method is the only place both are known: **which reader produced the part**
-	 * ({@link FilterIndexStoragePart#isSecondGranularityRangeThresholds()}, set by every backward-compatible
-	 * serializer and by none other) and **the declared attribute type** the part persists.
-	 *
-	 * Both shapes are repaired here rather than inside the serializers, because a range-`PAGED` axis keeps its
-	 * thresholds in leaf-page records the root's serializer never reads.
-	 *
-	 * **The same repair elsewhere.** Three other structures carry second-granularity thresholds and are repaired on
-	 * their own load paths, on the same reasoning but with the type decided differently — change one and check all
-	 * four: {@code HistogramIndexMapLoader#reloadOwnerFilterIndex} for a histogram's RANGE axis (same two facts,
-	 * different part), {@code PriceIndexHeaderSerializer#readWithSecondGranularityValidity} for a price validity index
-	 * (rescaled unconditionally, because its thresholds are only ever a price validity `DateTimeRange`), and
-	 * {@code Migration_2025_6}, which must rescale eagerly rather than at load because it *rewrites* the part under
-	 * the current uid and would otherwise relabel second thresholds as millisecond ones irrecoverably.
+	 * Legacy inline companions are converted by their versioned readers. Legacy paged companions must have been
+	 * replaced by the storage migration before reaching this loader; an unconverted root is refused by name.
 	 *
 	 * @param catalogVersion    the catalog version to read pages at
 	 * @param entityIndexId     the owning entity index pk (part of the page-stream key)
@@ -584,16 +594,13 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		@Nonnull AttributeIndexStorageKey key,
 		@Nonnull Class<?> plainType
 	) {
-		// a part read by a backward-compatible serializer carries second-granularity thresholds, but only a
-		// `DateTimeRange` index ever measured its thresholds in seconds - every NumberRange threshold is the bound's
-		// own numeric value and must be left exactly as persisted
-		final boolean rescaleThresholds =
-			part.isSecondGranularityRangeThresholds() && DateTimeRange.class.equals(plainType);
 		if (!part.isRangePaged()) {
-			final RangeIndex inlineRange = part.getRangeIndex();
-			return rescaleThresholds && inlineRange != null
-				? RangeIndex.rescaledFromSecondGranularity(inlineRange)
-				: inlineRange;
+			return part.getRangeIndex();
+		}
+		if (part.isSecondGranularityRangePages() && DateTimeRange.class.equals(plainType)) {
+			throw new GenericEvitaInternalError(
+				"Cannot load filter index " + attributeIndexKey + ": catalog was not migrated."
+			);
 		}
 		final int rangeStreamId = service.getReadOnlyKeyCompressor().getId(
 			new LeafStreamKey(
@@ -617,16 +624,10 @@ public final class AttributeIndexLoader implements ComponentLoader {
 			);
 			perPagePoints[i] = leafPage.getPoints();
 		}
-		// the rescaled reload is deliberately NOT boundary-stable - see the method's javadoc for why root and pages
-		// have to move to the millisecond form in one commit
-		return rescaleThresholds
-			? RangeIndex.rescaledFromSecondGranularityPages(
-				rangePageSequences, perPagePoints, part.getRangeHighWaterPageSequence()
-			)
-			: RangeIndex.fromPersistedPages(
-				"attribute " + attributeIndexKey, rangePageSequences, perPagePoints,
-				part.getRangeHighWaterPageSequence()
-			);
+		return RangeIndex.fromPersistedPages(
+			"attribute " + attributeIndexKey, rangePageSequences, perPagePoints,
+			part.getRangeHighWaterPageSequence()
+		);
 	}
 
 	/**

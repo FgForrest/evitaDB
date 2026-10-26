@@ -1,7 +1,7 @@
 ---
 title: A single-owner partition of a filtering-only reference is a row of a per-reference registry, and an index object exists only while a partition has two or more owners
 date: 2026-10-20
-updated: 2026-10-25 05:45
+updated: 2026-10-26 20:45
 status: accepted
 kind: optimization
 issues: [1615]
@@ -432,8 +432,8 @@ silently served the release's order, and kept serving it after later writes and 
 - **Persisted pages are checked by the comparator 2026.2 wrote them with**
   (`LegacyOwnerSortIndexCorrection#createReleasedComparator`: the bare collator for a localized `String` element, the
   language tag for a `Locale` element, whole seconds for a `DateTimeRange` element through
-  `InvertedIndex#compareAtSecondGranularity`, natural order otherwise), so a stale leaf-page twin is still refused as
-  damage and a valid catalog is not.
+  `LegacyOwnerSortIndexCorrection#compareAtSecondGranularity`, natural order otherwise), so a stale leaf-page twin
+  is still refused as damage and a valid catalog is not.
 - It runs before the conversion because the conversion removes the partitions it converts and its final flush is the
   one the collection is published by; the rows it writes are normalized by the registry either way.
 - Nothing on the load path normalizes or re-sorts these values any more: `SortIndex` and
@@ -441,11 +441,16 @@ silently served the release's order, and kept serving it after later writes and 
   corrected temporal values on every load; it is now `LegacyOwnerSortIndexCorrection`, deprecated for removal with the
   migration.
 - **One exception, dev's and permanent:** the load path re-sorts a *paged* inverted index whose every value is a
-  `DateTimeRange` (`InvertedIndex#isSecondGranularityRangeOrder`, `#resortSecondGranularityBuckets`); filter indexes
+  `DateTimeRange` (the former range-order guard and re-sort helpers); filter indexes
   rely on it. It never covered a compound or an inline owner sort index - those are the shapes the rewrite adds
   (`7c0a1403c2`).
-  Both use `InvertedIndex#compareAtSecondGranularity`, which is therefore public and **not** deprecated with the
-  migration.
+  Both use `LegacyOwnerSortIndexCorrection#compareAtSecondGranularity`, which is therefore public and **not**
+  deprecated with the migration.
+
+  **Changed on 2026-10-26:** `Migration_2026_3` now repairs filter and histogram bucket keys through
+  `LegacyInvertedIndexCorrection` before loading. Inline range thresholds are converted by versioned readers;
+  paged thresholds by that migration. Loaders carry no conversion. The released comparator now lives on
+  `LegacyOwnerSortIndexCorrection`; the former inverted-index order and re-sort helpers have been removed.
 
 **Owner decision B (2026-10-11): merged buckets stay merged** - the same trade PR #1621 accepted for filter indexes
 (`CollatedKeyIdentityTest.MigrationHazard`). A bucket in which 2026.2 merged two values its comparator equated - two
@@ -1151,6 +1156,9 @@ Found later in the cleanup and accepted by the maintainer on 2026-10-12:
   applies to price validity. Values written through gRPC are not affected - 2026.2's gRPC dropped fractions of a
   second - but the embedded API kept them, and so did GraphQL, which parsed bounds with `ISO_OFFSET_DATE_TIME`. The
   upgrade note on #1615 describes the effects and the repair, a re-import into a fresh catalog.
+  **Changed on 2026-10-26:** the historical re-sort described above now runs in `Migration_2026_3`, through
+  `LegacyInvertedIndexCorrection`. Inline thresholds are converted by versioned readers and paged thresholds by
+  that migration; the loaders perform no conversion. The precision limitation and declined body rebuild remain.
   - **Declined — rebuild the affected indexes from the entity parts in the migration**, behind a gate that scans the
     attribute and price parts for a bound with a non-zero millisecond part.
     - **Rejected because:** the probe estimated it at 200-400 production lines plus tests built from hand-made 2026.2

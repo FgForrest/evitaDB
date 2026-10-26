@@ -164,9 +164,10 @@ final class UniqueIndexBPlusTreeSupport {
 	 * {@link #toDistinctKeys} nothing is folded: persisted values are distinct keys of the tree that wrote them, and a
 	 * pair that is not must be refused by the caller rather than silently merged.
 	 *
-	 * Re-canonicalizing here heals keys written by older versions and must use the legacy function only.
+	 * Persisted parts carry declared-type values; every load converts them back to keys with the type-level
+	 * function, never a declared chain: a persisted `String` is already a chain-built key.
 	 *
-	 * @param normalizer the legacy type-level canonicalizer
+	 * @param normalizer the type-level conversion from declared persisted values to tree keys
 	 * @param values     the persisted values
 	 * @return the tree keys
 	 */

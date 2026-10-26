@@ -236,7 +236,8 @@ public class GlobalUniqueIndex implements
 	/**
 	 * Restores the index from its persisted leaf pages and binds the immutable raw-input key function supplied by
 	 * the owner.
-	 * Re-canonicalizing persisted keys heals keys written by older versions and must use the legacy function only.
+	 * Persisted parts carry declared-type values; each load converts them to keys with the type-level function,
+	 * never a declared chain, because a persisted `String` is already a chain-built key.
 	 *
 	 * @param scope                  scope of the owning {@link CatalogIndex}
 	 * @param attributeKey           identifies the indexed attribute (name and optional locale)
@@ -269,6 +270,8 @@ public class GlobalUniqueIndex implements
 		);
 		Assert.isPremiseValid(orderedPageSequences.length > 0, "A paged global unique index must have at least one leaf page.");
 		final Class<?> plainType = plainTypeOf(attributeType);
+		// Persisted parts carry declared-type values. Every load converts them to keys with the type-level
+		// function, never a declared chain: a persisted String is already a chain-built key.
 		final Function<Object, Serializable> legacyCanonicalizer =
 			legacyNormalizerFor(plainType, indexedDecimalPlaces);
 		final List<TransactionalBucketBPlusTree> pageTrees = new ArrayList<>(orderedPageSequences.length);
@@ -338,7 +341,8 @@ public class GlobalUniqueIndex implements
 
 	/**
 	 * Binds the immutable raw-input key function supplied by the owner.
-	 * Re-canonicalizing persisted keys heals keys written by older versions and must use the legacy function only.
+	 * Persisted parts carry declared-type values; each load converts them to keys with the type-level function,
+	 * never a declared chain, because a persisted `String` is already a chain-built key.
 	 *
 	 * @param scope                scope of the owning {@link CatalogIndex}
 	 * @param attributeKey         identifies the indexed attribute (name and optional locale)
@@ -404,7 +408,8 @@ public class GlobalUniqueIndex implements
 
 	/**
 	 * Binds the immutable raw-input key function supplied by the owner.
-	 * Re-canonicalizing persisted keys heals keys written by older versions and must use the legacy function only.
+	 * Persisted parts carry declared-type values; each load converts them to keys with the type-level function,
+	 * never a declared chain, because a persisted `String` is already a chain-built key.
 	 *
 	 * @param scope                scope of the owning {@link CatalogIndex}
 	 * @param attributeKey         identifies the indexed attribute (name and optional locale)
@@ -904,10 +909,12 @@ public class GlobalUniqueIndex implements
 	 * present, and the error is then rethrown naming both owners (see
 	 * {@link UniqueIndexBPlusTreeSupport#collidingKeysError}). Nothing is looked up on the way of a load that succeeds.
 	 *
+	 * Persisted parts carry declared-type values; every load converts them back to keys with the type-level
+	 * function, never a declared chain: a persisted `String` is already a chain-built key.
+	 *
 	 * @param values      the persisted values
 	 * @param payloads    the persisted packed payloads, positionally aligned with `values`
 	 * @param localeIndex the persisted locale ids, to name the owners of a collision
-	 * Re-canonicalizing here heals keys written by older versions and must use the legacy function only.
 	 */
 	private void seedTree(
 		@Nonnull Serializable[] values,

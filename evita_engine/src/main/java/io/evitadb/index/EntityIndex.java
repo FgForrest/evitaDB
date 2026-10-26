@@ -1231,11 +1231,8 @@ public abstract non-sealed class EntityIndex implements
 	 * {@link IndexComponent#announceKeys(EntityIndexManifest)}. Collecting is a persistence step: an emitter stamps
 	 * page sequences onto its leaves, clears their dirty flags and stages its next page list as it collects, so a
 	 * collect whose output is thrown away consumes the pending changes of every component that is dirty at that
-	 * point. A component is dirty here more often than it looks - a load-time repair (the sub-millisecond bucket
-	 * collapse and the second-granularity range re-sort in
-	 * {@link io.evitadb.index.invertedIndex.InvertedIndex#fromPersistedPages}) leaves the shared filter tree dirty with
-	 * the pages it changed released, and a tree the commit-time merge carried across by reference keeps whatever
-	 * dirtiness it had. Those changes must survive until the next flush that writes this index, which is the
+	 * point. A tree the commit-time merge carries across by reference keeps whatever dirtiness it had. Those ordinary
+	 * pending changes must survive until the next flush that writes this index, which is the
 	 * {@link #getModifiedStorageParts(TrappedChanges)} call on the flush path - and nothing else.
 	 *
 	 * The base {@link EntityIndex} constructors initialize all `original*` fields to empty placeholders

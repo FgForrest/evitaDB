@@ -117,7 +117,8 @@ public record LoadContext(
 
 	/**
 	 * Binds the raw-input function from owner metadata before constructing a tree, including orphaned String indexes.
-	 * Re-canonicalizing persisted keys heals keys written by older versions and must use the legacy function only.
+	 * Stored filter and histogram keys load verbatim. Unique loads convert declared persisted values to keys
+	 * with the type-level function, never a declared chain: a persisted `String` is already a chain-built key.
 	 *
 	 * @param key                  identity of the persisted attribute index
 	 * @param plainType            plain (non-array) type of the attribute values
