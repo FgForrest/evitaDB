@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-10-26 | [Bulk-build the price and record-id trees each load rebuilds as full leaves; keep the other B+ tree ideas out](2026-10-26-bulk-built-int-keyed-trees-at-load.md) | optimization | accepted | #1802, #1808 |
 | 2026-10-21 | [A filter names one locale per entity level, and a level without one inherits from its enclosing level](2026-10-21-one-locale-per-entity-level.md) | fix | accepted | #925 |
 | 2026-10-20 | [The filter of referenceContent is evaluated row by row over the fetched owners' references, and its index route is deleted](2026-10-20-reference-content-filter-row-by-row.md) | refactor | accepted | #1615, PR #1738 |
 | 2026-10-20 | [Tests that pin the code's structure by scanning sources or bytecode against hand-kept lists are removed; the rule goes into the javadoc of the type it constrains, the compiler where it can, and a runtime refusal where one exists](2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures.md) | process | accepted | #1615, PR #1738 |

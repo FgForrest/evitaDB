@@ -1,7 +1,7 @@
 ---
 title: Size the value tree's leaf columns to their live content instead of adding a second array-backed representation
 date: 2026-09-03
-updated: 2026-10-20 10:47
+updated: 2026-10-26 16:22
 status: accepted
 kind: optimization
 issues: [1486]
@@ -9,7 +9,19 @@ prs: []
 areas: [evita_engine/index/bPlusTree, evita_engine/index/array, evita_engine/index/map, evita_roaring_bitmap, evita_engine/index/invertedIndex, evita_engine/core/session, evita_common/dataType, evita_test/evita_performance_tests/spike/trigram]
 supersedes: []
 superseded-by: []
-relates: [2026-10-20-session-free-tree-reads-are-management-only, 2026-09-06-go-live-session-drain, 2026-08-10-catalog-and-collection-statistics, 2026-09-04-long-keyed-tree-content-sizing, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-10-more-optimized-data-structures, 2026-08-31-front-coded-column-stores-wtf8, 2026-08-31-trigram-query-path-optimization, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-09-04-millisecond-temporal-precision]
+relates:
+  - 2026-10-20-session-free-tree-reads-are-management-only
+  - 2026-09-06-go-live-session-drain
+  - 2026-08-10-catalog-and-collection-statistics
+  - 2026-09-04-long-keyed-tree-content-sizing
+  - 2026-08-01-bplustree-cursor-free-insert-path
+  - 2026-07-10-more-optimized-data-structures
+  - 2026-08-31-front-coded-column-stores-wtf8
+  - 2026-08-31-trigram-query-path-optimization
+  - 2026-08-10-stored-value-normalization-split
+  - 2026-07-18-paged-index-corruption-and-flush-failure-boundary
+  - 2026-09-04-millisecond-temporal-precision
+  - 2026-10-26-bulk-built-int-keyed-trees-at-load
 ---
 
 # Size the value tree's leaf columns to their live content instead of adding a second representation
