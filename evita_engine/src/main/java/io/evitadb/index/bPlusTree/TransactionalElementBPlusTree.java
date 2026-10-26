@@ -286,11 +286,8 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 
 	@Override
 	protected boolean splitNodesJoinTransactionalLayer() {
-		// the element-keyed price tree is bulk-rebuilt by re-inserting records during the commit-merge
-		// (newPriceRecordTree invoked from attachToCatalog), where the transaction is already finalized; a split
-		// offspring that joined the diff layer there would fail to open a fresh layer, so it must mutate in place.
-		// Outside any transaction the flag is true (the node is its own committed state); inside a transaction it is
-		// false so split offspring mutate in place, exactly as before the per-entity savepoint work.
+		// Outside a transaction split nodes belong to the committed base and must join later transactions' layers.
+		// Inside a transaction fresh split nodes mutate in place; the commit merge publishes participating copies.
 		return !Transaction.isTransactionAvailable();
 	}
 
@@ -326,6 +323,52 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			this.keyExtractor,
 			assembledRoot,
 			totalValues
+		);
+	}
+
+	/**
+	 * Builds a fresh, unpublished tree from strictly ascending elements outside any bound transaction. Leaves hold
+	 * at most `valueBlockSize - 1` elements in content-sized arrays; a short remainder borrows from its predecessor.
+	 * Every node participates in subsequent transactional layers, and leaves are dirty as repeated inserts leave them.
+	 *
+	 * @param elementType  the class of the stored elements
+	 * @param keyExtractor the function deriving each element's ordering and identity key
+	 * @param elements     strictly ascending elements, copied into the leaves
+	 * @param <E>          the element type
+	 * @return the bulk-built tree
+	 * @throws GenericEvitaInternalError if a transaction is bound or the input is not strictly ascending
+	 */
+	@Nonnull
+	public static <E> TransactionalElementBPlusTree<E> bulkBuild(
+		@Nonnull Class<E> elementType, @Nonnull ToIntFunction<E> keyExtractor, @Nonnull E[] elements
+	) {
+		Assert.isPremiseValid(!Transaction.isTransactionAvailable(), "Bulk build requires no bound transaction.");
+		for (int i = 1; i < elements.length; i++) {
+			Assert.isPremiseValid(
+				keyExtractor.applyAsInt(elements[i - 1]) < keyExtractor.applyAsInt(elements[i]),
+				"Bulk build requires strictly ascending keys."
+			);
+		}
+		final TransactionalElementBPlusTree<E> scaffold = new TransactionalElementBPlusTree<>(elementType, keyExtractor);
+		if (elements.length == 0) {
+			return scaffold;
+		}
+		final int[] leafSizes = scaffold.bulkLeafSizes(elements.length, scaffold.minValueBlockSize);
+		final List<BPlusLeafTreeNode<E>> leaves = new ArrayList<>(leafSizes.length);
+		int start = 0;
+		for (final int leafSize : leafSizes) {
+			final BPlusLeafTreeNode<E> leaf = new BPlusLeafTreeNode<>(
+				elements, scaffold.newValueArray(leafSize), scaffold.valueBlockSize, start, start + leafSize,
+				true, keyExtractor
+			);
+			leaf.dirty = true;
+			leaves.add(leaf);
+			start += leafSize;
+		}
+		return new TransactionalElementBPlusTree<>(
+			scaffold.valueBlockSize, scaffold.minValueBlockSize,
+			scaffold.internalNodeBlockSize, scaffold.minInternalNodeBlockSize,
+			elementType, keyExtractor, scaffold.buildSpine(leaves, true), elements.length
 		);
 	}
 
@@ -646,11 +689,10 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	 *   walk below is a no-op; when it is higher up, the walk follows the left neighbour's right spine. One rule covers
 	 *   both branches of the path-based {@link #predecessorLeaf(Cursor)}.
 	 *
-	 * This tree's inserts are ascending by its callers' contract — price records land at the right edge — which makes
-	 * every insert a tail insert. Capturing the cursor lazily therefore buys nothing on its own here: the assert would
-	 * demand a path every time. Answering it from the descent is what turns the guard into a real saving, and under
-	 * ascending keys the descent is rightmost at every level, so no fence is ever recorded and the tail assert becomes
-	 * a no-op as well.
+	 * Newly allocated price ids land at the right edge, while reference indexes can receive older ids in the middle
+	 * when an entity gains a reference. Answering the boundary operands during descent avoids capturing a cursor in
+	 * either case. With ascending keys the descent is rightmost at every level, so no fence is recorded and the tail
+	 * assert becomes a no-op as well.
 	 *
 	 * @param key the key whose responsible leaf is located
 	 * @return the leaf together with its boundary operands
@@ -1287,11 +1329,9 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			);
 		}
 
-		// Move half the values into the new array of the left leaf node. Split offspring are transaction-aware (see
-		// splitNodesJoinTransactionalLayer): inside an active transaction they mutate in place, so the commit-merge
-		// rebuild (newPriceRecordTree from attachToCatalog) does not try to open a diff layer on a finalized transaction.
-		// The target array is sized to the half it receives, not to the block size: under this tree's ascending-insert
-		// contract the left half never grows again, so a block-sized allocation here would be dead capacity for life.
+		// Move half the values into a content-sized array for the left leaf. New price ids grow the right edge, while
+		// reference indexes can later insert older ids into either half; the left array grows on demand in that case.
+		// Split nodes use the same transactional participation rule as the internal nodes.
 		final BPlusLeafTreeNode<E> leftLeaf = new BPlusLeafTreeNode<>(
 			originValues,
 			newValueArray(mid),

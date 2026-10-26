@@ -136,7 +136,7 @@ public class PriceListAndCurrencyPriceRefIndex
 		assertNotTerminated();
 		if (this.priceRecords == null) {
 			final PriceRecordContract[] priceRecords = superIndex.getPriceRecords(this.indexedPriceIds);
-			this.priceRecords = newPriceRecordTree(priceRecords);
+			this.priceRecords = newPriceRecordTree(priceRecords, this.priceIndexKey);
 
 			final int[] entityIds = new int[priceRecords.length];
 			for (int i = 0; i < priceRecords.length; i++) {

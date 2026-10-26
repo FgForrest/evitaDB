@@ -332,13 +332,11 @@ abstract class AbstractIntKeyedBPlusTree extends AbstractTransactionalBPlusTree
 	);
 
 	/**
-	 * The {@code transactionalLayer} flag for nodes a split creates. The {@code int→long} tree (whose nodes are
-	 * {@link io.evitadb.core.transaction.memory.Snapshotable} and which is never rebuilt by re-inserting outside an
-	 * active transaction) returns {@code true} so split offspring join the diff layer and their in-savepoint mutations
-	 * can be rolled back. A tree that is bulk-rebuilt by inserting during the commit-merge (e.g. the element-keyed price
-	 * tree's `newPriceRecordTree` invoked from `attachToCatalog`) must return {@code !Transaction.isTransactionAvailable()}
-	 * instead: inside that already-finalized transaction context a split offspring with the flag set would try to open a
-	 * fresh diff layer and fail, so it has to mutate in place.
+	 * The `transactionalLayer` flag for nodes a split creates. The int-to-long tree always lets split offspring join
+	 * the diff layer. The element tree's fresh split nodes mutate in place inside a transaction and are published as
+	 * participating copies by the commit merge. Outside a transaction both trees create participating nodes, since
+	 * these nodes already belong to the committed base. Cold-load bulk construction likewise creates participating
+	 * nodes outside any bound transaction.
 	 *
 	 * @return whether nodes produced by a split participate in the transactional memory layer
 	 */
