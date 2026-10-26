@@ -98,6 +98,9 @@ class SchemaMutationCombinationAcrossRenameTest {
 	/**
 	 * Supplies, per element kind, a statement about `X`, the renames `X -> legacyX` and `replacementX -> X`, and a second
 	 * statement about the new `X`, together with the projection of the two statements' outcome.
+	 *
+	 * @return arguments of one pipeline: label, mutations, projection of the resulting schema, and the expected
+	 *     projected values
 	 */
 	@Nonnull
 	static Stream<Arguments> entityPipelines() {
@@ -463,7 +466,14 @@ class SchemaMutationCombinationAcrossRenameTest {
 		);
 	}
 
-	/** Applies the mutations one by one, the reference meaning of the pipeline. */
+	/**
+	 * Applies the mutations one by one, the reference meaning of the pipeline.
+	 *
+	 * @param catalogSchema catalog schema the mutations are evaluated against
+	 * @param base entity schema the first mutation is applied to
+	 * @param mutations mutations applied in the given order
+	 * @return entity schema after the last mutation
+	 */
 	@Nonnull
 	private static EntitySchemaContract applyAll(
 		@Nonnull CatalogSchemaContract catalogSchema,
@@ -477,7 +487,14 @@ class SchemaMutationCombinationAcrossRenameTest {
 		return schema;
 	}
 
-	/** Applies catalog mutations one by one, tracking the entity schemas they rename or modify. */
+	/**
+	 * Applies catalog mutations one by one, tracking the entity schemas they rename or modify.
+	 *
+	 * @param base catalog schema the first mutation is applied to
+	 * @param mutations mutations applied in the given order
+	 * @return final catalog schema together with the entity schema accessor tracking the schemas the mutations renamed
+	 *     or modified
+	 */
 	@Nonnull
 	private static CatalogOutcome applyAll(
 		@Nonnull CatalogSchemaContract base,
@@ -491,7 +508,12 @@ class SchemaMutationCombinationAcrossRenameTest {
 		return new CatalogOutcome(schema, entities);
 	}
 
-	/** Builds the entity every entity pipeline starts from: two of each renamable element kind. */
+	/**
+	 * Builds the entity every entity pipeline starts from: two of each renamable element kind.
+	 *
+	 * @param catalogSchema catalog schema the entity is built within
+	 * @return the `Product` entity schema
+	 */
 	@Nonnull
 	private static EntitySchemaContract baseEntitySchema(@Nonnull CatalogSchemaContract catalogSchema) {
 		return new InternalEntitySchemaBuilder(catalogSchema, EntitySchema._internalBuild(PRODUCT))
@@ -511,7 +533,13 @@ class SchemaMutationCombinationAcrossRenameTest {
 			.toInstance();
 	}
 
-	/** Builds an entity type with one non-indexed reference `brand` to the non-managed type `Brand`. */
+	/**
+	 * Builds an entity type with one non-indexed reference `brand` to the non-managed type `Brand`.
+	 *
+	 * @param catalogSchema catalog schema the entity is built within
+	 * @param entityType name of the entity type to build
+	 * @return entity schema with the single non-indexed `brand` reference
+	 */
 	@Nonnull
 	private static EntitySchemaContract entityWithUnindexedBrand(
 		@Nonnull CatalogSchemaContract catalogSchema,
@@ -522,7 +550,13 @@ class SchemaMutationCombinationAcrossRenameTest {
 			.toInstance();
 	}
 
-	/** Creates the mutation that adds a reference to a non-managed entity type, as an entity builder produces it. */
+	/**
+	 * Creates the mutation that adds a reference to a non-managed entity type, as an entity builder produces it.
+	 *
+	 * @param name name of the reference to add
+	 * @param entityType name of the non-managed entity type the reference targets
+	 * @return the mutation creating the reference on `Product`
+	 */
 	@Nonnull
 	private static CreateReferenceSchemaMutation createReference(@Nonnull String name, @Nonnull String entityType) {
 		final CatalogSchemaContract catalogSchema = catalogSchema(Map.of(), List.of());
@@ -539,19 +573,35 @@ class SchemaMutationCombinationAcrossRenameTest {
 			.orElseThrow();
 	}
 
-	/** Creates an ordered compound element. */
+	/**
+	 * Creates an ordered compound element.
+	 *
+	 * @param attributeName name of the attribute forming the element
+	 * @return ascending element with nulls last
+	 */
 	@Nonnull
 	private static AttributeElement element(@Nonnull String attributeName) {
 		return new AttributeElement(attributeName, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
 	}
 
-	/** Creates a non-localized String global attribute without normalization. */
+	/**
+	 * Creates a non-localized String global attribute without normalization.
+	 *
+	 * @param name name of the global attribute
+	 * @return global attribute schema of type `String`
+	 */
 	@Nonnull
 	private static GlobalAttributeSchemaContract globalAttribute(@Nonnull String name) {
 		return GlobalAttributeSchema._internalBuild(name, String.class, false, ConflictResolutionOverride.ENTITY, null);
 	}
 
-	/** Supplies a standalone catalog schema carrying the given global attributes and entity schemas. */
+	/**
+	 * Supplies a standalone catalog schema carrying the given global attributes and entity schemas.
+	 *
+	 * @param attributes global attributes of the catalog, keyed by name
+	 * @param entitySchemas entity schemas the catalog exposes
+	 * @return catalog schema backed by the given entity schemas
+	 */
 	@Nonnull
 	private static CatalogSchemaContract catalogSchema(
 		@Nonnull Map<String, GlobalAttributeSchemaContract> attributes,

@@ -200,7 +200,11 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 		return orderVisitor.getComparator();
 	}
 
-	/** Returns the built-with resolver of the entity owning these reference attributes. */
+	/**
+	 * Returns the built-with resolver of the entity owning these reference attributes.
+	 *
+	 * @return resolver used to normalize the reference attribute sort keys
+	 */
 	@Nonnull
 	public AttributeNormalizationResolver getAttributeNormalizationResolver() {
 		return this.attributeNormalizationResolver;

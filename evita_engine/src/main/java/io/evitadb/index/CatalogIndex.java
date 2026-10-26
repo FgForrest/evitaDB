@@ -116,6 +116,11 @@ public class CatalogIndex implements
 
 	/**
 	 * Creates an index using the owner resolver; child structures capture String functions when they are created.
+	 *
+	 * @param scope                   the scope the index serves
+	 * @param usageStatisticsTracking whether query / update counters are maintained; when `false` the index reports
+	 *                                no activity at all
+	 * @param normalizationResolver   owner resolver supplying the String key normalizers of the unique trees
 	 */
 	public CatalogIndex(@Nonnull Scope scope, boolean usageStatisticsTracking,
 		@Nonnull AttributeNormalizationResolver normalizationResolver
@@ -163,6 +168,12 @@ public class CatalogIndex implements
 
 	/**
 	 * Creates an index using the owner resolver; child structures capture String functions when they are created.
+	 *
+	 * @param version               version of the index, incremented with each committed change
+	 * @param indexKey              key identifying the scope of the index
+	 * @param uniqueIndex           global unique indexes by attribute, adopted as the initial content
+	 * @param activity              shared activity holder, `null` when usage statistics tracking is off
+	 * @param normalizationResolver owner resolver supplying the String key normalizers of the unique trees
 	 */
 	public CatalogIndex(
 		int version,

@@ -46,6 +46,7 @@ import java.util.Map;
  * preserves step order and renders parameter values through the external API's common serialization contract.
  */
 public final class AnalysisStepConverter {
+	/** Prevents instantiation of this static holder. */
 	private AnalysisStepConverter() {
 	}
 
@@ -103,7 +104,14 @@ public final class AnalysisStepConverter {
 		throw exceptionFactory.createInvalidArgumentException("Unknown normalizing step input `" + selected.getKey() + "`.");
 	}
 
-	/** Preserves typed JSON string/Boolean boundaries while the existing mapper handles numeric and temporal types. */
+	/**
+	 * Preserves typed JSON string/Boolean boundaries while the existing mapper handles numeric and temporal types.
+	 *
+	 * @param value            raw parameter value from the input, `null` when the parameter was not supplied
+	 * @param type             declared Java type of the parameter; for an array type each item is checked against
+	 *                         the component type
+	 * @param exceptionFactory API-specific diagnostics for a value of the wrong shape
+	 */
 	private static void verifyScalarShape(
 		@Nullable Object value,
 		@Nonnull Class<?> type,

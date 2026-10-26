@@ -153,7 +153,12 @@ public final class SortIndexView extends SortIndex {
 		this.sharedTree = sharedTree;
 	}
 
-	/** Captures the shared function once; compiled String operators are borrowed without an adapter allocation. */
+	/**
+	 * Captures the shared function once; compiled String operators are borrowed without an adapter allocation.
+	 *
+	 * @param sharedTree filter value tree whose key function this view adopts
+	 * @return the tree's key function as an operator
+	 */
 	@Nonnull
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private static UnaryOperator<Serializable> bindSharedNormalizer(@Nonnull InvertedIndex sharedTree) {

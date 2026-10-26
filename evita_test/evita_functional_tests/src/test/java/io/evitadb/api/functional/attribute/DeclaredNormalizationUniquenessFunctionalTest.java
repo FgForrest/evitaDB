@@ -423,7 +423,13 @@ class DeclaredNormalizationUniquenessFunctionalTest implements EvitaTestSupport 
 		}
 	}
 
-	/** Selects the value locale independently of the unique tree's folding locale. */
+	/**
+	 * Selects the value locale independently of the unique tree's folding locale.
+	 *
+	 * @param name name of the attribute fixture
+	 * @return `true` when the attribute stores locale-specific values, i.e. everything except the `owner` and `global`
+	 *     fixtures
+	 */
 	private static boolean localized(@Nonnull String name) {
 		return !name.equals("owner") && !name.equals("global");
 	}

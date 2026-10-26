@@ -112,7 +112,11 @@ class BuiltWithNormalizationFunctionalTest implements EvitaTestSupport {
 		assertEmptyReadoptionAndReplay(count);
 	}
 
-	/** Seeds every physical role, then checks warm-up adoption and failed-batch rollback on that same engine. */
+	/**
+	 * Seeds every physical role, then checks warm-up adoption and failed-batch rollback on that same engine.
+	 *
+	 * @param count number of `Product` entities seeded by the fixture, with primary keys `1..count`
+	 */
 	private void createPolicyFixture(int count) {
 		this.evita.defineCatalog(TEST_CATALOG)
 			.withAttribute("unusedGlobal", String.class, a -> a.nullable())
@@ -173,7 +177,11 @@ class BuiltWithNormalizationFunctionalTest implements EvitaTestSupport {
 		});
 	}
 
-	/** Mutates populated declarations and verifies unchanged keys, uniqueness and old-reader policy isolation. */
+	/**
+	 * Mutates populated declarations and verifies unchanged keys, uniqueness and old-reader policy isolation.
+	 *
+	 * @param count number of `Product` entities seeded by the fixture, with primary keys `1..count`
+	 */
 	private void assertWarmUpAndLiveAdoptions(int count) {
 		assertEquals(List.of(), row("archivedOnly"), "An archived String key pins the policy");
 		assertEquals(List.of(lowercase()), row("code"));
@@ -243,7 +251,11 @@ class BuiltWithNormalizationFunctionalTest implements EvitaTestSupport {
 
 	}
 
-	/** Uses the existing single normal restart to check orphan, retyped, compound and legacy bindings. */
+	/**
+	 * Uses the existing single normal restart to check orphan, retyped, compound and legacy bindings.
+	 *
+	 * @param count number of `Product` entities seeded by the fixture, with primary keys `1..count`
+	 */
 	private void assertRetainedPoliciesAfterRestart(int count) {
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.getEntitySchemaOrThrow("Product").openForWrite()
@@ -271,7 +283,11 @@ class BuiltWithNormalizationFunctionalTest implements EvitaTestSupport {
 			.getNormalizer().apply("ORPHANX"));
 	}
 
-	/** Deletes the last keys, re-adopts declarations and checks the existing crash-copy replay checkpoint. */
+	/**
+	 * Deletes the last keys, re-adopts declarations and checks the existing crash-copy replay checkpoint.
+	 *
+	 * @param count number of `Product` entities seeded by the fixture, with primary keys `1..count`
+	 */
 	private void assertEmptyReadoptionAndReplay(int count) throws Exception {
 		// Restore declarations before deletion; base entity removal requires every stored attribute's schema.
 		// Deleting values never switches a row, even after its last key disappears.
@@ -331,7 +347,11 @@ class BuiltWithNormalizationFunctionalTest implements EvitaTestSupport {
 		assertReplayRowsAndKeys();
 	}
 
-	/** Creates the pre-545 absence shape in the same engine, without paying for another restart. */
+	/**
+	 * Creates the pre-545 absence shape in the same engine, without paying for another restart.
+	 *
+	 * @param count number of `Product` entities seeded by the fixture, with primary keys `1..count`
+	 */
 	private void createLegacyFixture(int count) throws Exception {
 		this.evita.defineCatalog("legacyPolicy")
 			.withAttribute("global", String.class, a -> a.uniqueGlobally().nullable()).updateViaNewSession(this.evita);
@@ -402,7 +422,12 @@ class BuiltWithNormalizationFunctionalTest implements EvitaTestSupport {
 		}
 	}
 
-	/** Keeps checkpoints under test control so a copied bootstrap has a demonstrable WAL replay gap. */
+	/**
+	 * Keeps checkpoints under test control so a copied bootstrap has a demonstrable WAL replay gap.
+	 *
+	 * @param testPaths storage and export locations of the test engine
+	 * @return configuration of the test engine with the periodic checkpoint effectively disabled
+	 */
 	@Nonnull
 	private EvitaConfiguration configuration(@Nonnull TestPaths testPaths) {
 		final EvitaConfiguration base = newTestEvitaConfigurationBuilder(testPaths).build();
@@ -410,7 +435,13 @@ class BuiltWithNormalizationFunctionalTest implements EvitaTestSupport {
 			.checkpointIntervalInMillis(3_600_000L).build()).build();
 	}
 
-	/** Supplies a raw value to each physical key producer, including virtual and grouped materializations. */
+	/**
+	 * Supplies a raw value to each physical key producer, including virtual and grouped materializations.
+	 *
+	 * @param session read-write session of the catalog under test
+	 * @param id primary key of the new `Product`; it also seeds each attribute value
+	 * @return builder of the not yet upserted `Product` with all of its attributes and both references set
+	 */
 	@Nonnull
 	private static EntityBuilder product(@Nonnull EvitaSessionContract session, int id) {
 		return session.createNewEntity("Product", id).setAttribute("code", "ITEM" + id)
@@ -422,7 +453,12 @@ class BuiltWithNormalizationFunctionalTest implements EvitaTestSupport {
 			.setReference("real", id, r -> r.setGroup("Category", 1).setAttribute("code", "REF" + id));
 	}
 
-	/** Defines reference scalar and compound keys. */
+	/**
+	 * Defines reference scalar and compound keys.
+	 *
+	 * @param reference editor of the reference schema to extend
+	 * @return the same editor, with the `code` attribute and the `compound` sortable compound defined
+	 */
 	@Nonnull
 	private static <T extends ReferenceSchemaEditor<T>> T reference(@Nonnull T reference) {
 		return reference.withAttribute("code", String.class,
@@ -431,7 +467,11 @@ class BuiltWithNormalizationFunctionalTest implements EvitaTestSupport {
 			.withSortableAttributeCompound("compound", element("code"), element("number"));
 	}
 
-	/** Inspects future and existing functions after schema adoption and after reload. */
+	/**
+	 * Inspects future and existing functions after schema adoption and after reload.
+	 *
+	 * @param count primary key of the highest seeded `Product`, whose key values are asserted
+	 */
 	private void assertPopulatedKeys(int count) {
 		final EntityIndex index = index();
 		assertEquals("upper", ((ComparableArray) index.getSortIndex(key("partial"))
@@ -454,7 +494,14 @@ class BuiltWithNormalizationFunctionalTest implements EvitaTestSupport {
 			new AttributeIndexKey("products", "code", null)));
 	}
 
-	/** Applies an explicit statement, including an idempotent declaration after the attribute was emptied. */
+	/**
+	 * Applies an explicit statement, including an idempotent declaration after the attribute was emptied.
+	 *
+	 * @param session read-write session of the catalog under test
+	 * @param type entity type owning the attribute
+	 * @param name name of the attribute whose declaration is set
+	 * @param steps declared normalization chain; an empty chain declares none
+	 */
 	private static void setNormalization(
 		@Nonnull EvitaSessionContract session, @Nonnull String type,
 		@Nonnull String name, @Nonnull AnalysisStep... steps
@@ -463,37 +510,64 @@ class BuiltWithNormalizationFunctionalTest implements EvitaTestSupport {
 			new SetAttributeSchemaNormalizedMutation(name, steps)));
 	}
 
-	/** Returns the current catalog snapshot. */
+	/**
+	 * Returns the current catalog snapshot.
+	 *
+	 * @return the current instance of the test catalog
+	 */
 	@Nonnull
 	private Catalog catalog() {
 		return (Catalog) this.evita.getCatalogInstanceOrThrowException(TEST_CATALOG);
 	}
 
-	/** Returns the current Product owner. */
+	/**
+	 * Returns the current Product owner.
+	 *
+	 * @return the `Product` collection of the current catalog instance
+	 */
 	@Nonnull
 	private EntityCollection productCollection() {
 		return catalog().getCollectionForEntityOrThrowException("Product");
 	}
 
-	/** Returns its live global index. */
+	/**
+	 * Returns its live global index.
+	 *
+	 * @return the global entity index of the `Product` collection
+	 */
 	@Nonnull
 	private EntityIndex index() {
 		return productCollection().getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
 	}
 
-	/** Returns an entity attribute's built-with row. */
+	/**
+	 * Returns an entity attribute's built-with row.
+	 *
+	 * @param name name of the entity attribute
+	 * @return steps the attribute keys were built with, or an empty list when no row is recorded
+	 */
 	@Nonnull
 	private List<AnalysisStep> row(@Nonnull String name) {
 		return productCollection().getNormalizationPolicy().rows().getOrDefault(key(name), List.of());
 	}
 
-	/** Scope- and locale-independent entity attribute identity. */
+	/**
+	 * Scope- and locale-independent entity attribute identity.
+	 *
+	 * @param name name of the entity attribute
+	 * @return key of the attribute without reference or locale
+	 */
 	@Nonnull
 	private static AttributeIndexKey key(@Nonnull String name) {
 		return new AttributeIndexKey(null, name, null);
 	}
 
-	/** Ascending compound element. */
+	/**
+	 * Ascending compound element.
+	 *
+	 * @param name name of the attribute forming the compound element
+	 * @return ascending element placing nulls last
+	 */
 	@Nonnull
 	private static AttributeElement element(@Nonnull String name) {
 		return new AttributeElement(name, ASC, OrderBehaviour.NULLS_LAST);

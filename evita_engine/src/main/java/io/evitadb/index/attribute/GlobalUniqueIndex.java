@@ -234,8 +234,21 @@ public class GlobalUniqueIndex implements
 	}
 
 	/**
-	 * Binds the immutable raw-input key function supplied by the owner.
+	 * Restores the index from its persisted leaf pages and binds the immutable raw-input key function supplied by
+	 * the owner.
 	 * Re-canonicalizing persisted keys heals keys written by older versions and must use the legacy function only.
+	 *
+	 * @param scope                  scope of the owning {@link CatalogIndex}
+	 * @param attributeKey           identifies the indexed attribute (name and optional locale)
+	 * @param attributeType          runtime type of the indexed attribute value
+	 * @param indexedDecimalPlaces   the attribute schema's `indexedDecimalPlaces`
+	 * @param orderedPageSequences   page sequence of each leaf page, in key order
+	 * @param perPageValues          unique values of each leaf page, aligned with `orderedPageSequences`
+	 * @param perPagePayloads        packed `long` payloads of each leaf page, positionally aligned with `perPageValues`
+	 * @param highWaterPageSequence  highest page sequence ever used, so that new pages receive fresh sequences
+	 * @param idToLocaleIndex        restored mapping of internal locale id to {@link Locale}
+	 * @param keyNormalizer          immutable function turning a raw input value into its index key
+	 * @return index restored from its persisted leaf pages
 	 */
 	@Nonnull
 	public static GlobalUniqueIndex fromPersistedPages(
@@ -326,6 +339,12 @@ public class GlobalUniqueIndex implements
 	/**
 	 * Binds the immutable raw-input key function supplied by the owner.
 	 * Re-canonicalizing persisted keys heals keys written by older versions and must use the legacy function only.
+	 *
+	 * @param scope                scope of the owning {@link CatalogIndex}
+	 * @param attributeKey         identifies the indexed attribute (name and optional locale)
+	 * @param attributeType        runtime type of the indexed attribute value
+	 * @param indexedDecimalPlaces the attribute schema's `indexedDecimalPlaces`
+	 * @param keyNormalizer        immutable function turning a raw input value into its index key
 	 */
 	public GlobalUniqueIndex(
 		@Nonnull Scope scope,
@@ -386,6 +405,15 @@ public class GlobalUniqueIndex implements
 	/**
 	 * Binds the immutable raw-input key function supplied by the owner.
 	 * Re-canonicalizing persisted keys heals keys written by older versions and must use the legacy function only.
+	 *
+	 * @param scope                scope of the owning {@link CatalogIndex}
+	 * @param attributeKey         identifies the indexed attribute (name and optional locale)
+	 * @param attributeType        runtime type of the indexed attribute value
+	 * @param indexedDecimalPlaces the attribute schema's `indexedDecimalPlaces`
+	 * @param values               restored unique values
+	 * @param payloads             restored packed `long` payloads, positionally aligned with `values`
+	 * @param localeIndex          restored mapping of internal locale id to {@link Locale}
+	 * @param keyNormalizer        immutable function turning a raw input value into its index key
 	 */
 	public GlobalUniqueIndex(
 		@Nonnull Scope scope,

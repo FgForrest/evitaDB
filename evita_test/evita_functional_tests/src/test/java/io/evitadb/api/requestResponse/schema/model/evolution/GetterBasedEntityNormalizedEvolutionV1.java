@@ -43,11 +43,19 @@ public interface GetterBasedEntityNormalizedEvolutionV1 {
 	/** Shared entity name for normalization evolution tests. */
 	String ENTITY_NAME = "NormalizedEvolution";
 
-	/** Primary key of the model. */
+	/**
+	 * Primary key of the model.
+	 *
+	 * @return primary key of the entity
+	 */
 	@PrimaryKey
 	int getId();
 
-	/** Entity attribute with an ordered normalization chain and archived-only filtering. */
+	/**
+	 * Entity attribute with an ordered normalization chain and archived-only filtering.
+	 *
+	 * @return value of the `code` attribute
+	 */
 	@Attribute(
 		normalized = {
 			@AnalysisStepDef(step = AnalysisSteps.LOWERCASE),
@@ -61,23 +69,39 @@ public interface GetterBasedEntityNormalizedEvolutionV1 {
 	@Nonnull
 	String getCode();
 
-	/** Global attribute with normalization shared across its uses. */
+	/**
+	 * Global attribute with normalization shared across its uses.
+	 *
+	 * @return value of the global `normalizedGlobalCode` attribute
+	 */
 	@Attribute(global = true, normalized = @AnalysisStepDef(step = AnalysisSteps.ASCII_FOLDING))
 	@Nonnull
 	String getNormalizedGlobalCode();
 
-	/** Unmanaged reference carrying an array attribute. */
+	/**
+	 * Unmanaged reference carrying an array attribute.
+	 *
+	 * @return the unmanaged `brand` reference
+	 */
 	@Reference(managed = false)
 	@Nonnull
 	Brand getBrand();
 
 	/** Reference model used by the annotation mapping tests. */
 	interface Brand extends Serializable {
-		/** Key of the referenced brand. */
+		/**
+		 * Key of the referenced brand.
+		 *
+		 * @return primary key of the referenced brand
+		 */
 		@ReferencedEntity
 		int getBrand();
 
-		/** Array attribute with trimming described by annotation. */
+		/**
+		 * Array attribute with trimming described by annotation.
+		 *
+		 * @return values of the `labels` reference attribute
+		 */
 		@Attribute(normalized = @AnalysisStepDef(step = AnalysisSteps.TRIM))
 		@Nonnull
 	String[] getLabels();

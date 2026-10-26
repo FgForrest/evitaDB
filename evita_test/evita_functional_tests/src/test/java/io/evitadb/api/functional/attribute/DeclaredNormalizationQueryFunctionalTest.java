@@ -111,16 +111,31 @@ class DeclaredNormalizationQueryFunctionalTest implements EvitaTestSupport {
 	private TestPaths paths;
 	private Evita evita;
 
-	/** Descriptions are reused for every physical role; functions are compiled independently for each fold locale. */
+	/**
+	 * Descriptions are reused for every physical role; functions are compiled independently for each fold locale.
+	 *
+	 * @param name short label that also prefixes the names of the attributes declared with this policy
+	 * @param steps normalization steps declared, in order, on every attribute of this policy
+	 */
 	private record Policy(@Nonnull String name, @Nonnull List<AnalysisStep> steps) {
-		/** These chains can change an already produced key, so reload must preserve every route verbatim. */
+		/**
+		 * These chains can change an already produced key, so reload must preserve every route verbatim.
+		 *
+		 * @return `true` when applying the chain to its own output can still change the key
+		 */
 		boolean unstable() {
 			return this.name.equals("allSteps") || this.name.equals("trimRemove") ||
 				this.name.equals("lowerAscii") || this.name.equals("asciiLower");
 		}
 	}
 
-	/** A filter plus its expected predicate over canonical keys. */
+	/**
+	 * A filter plus its expected predicate over canonical keys.
+	 *
+	 * @param name label shown in the failing assertion
+	 * @param constraint builds the filter constraint for the given attribute name
+	 * @param predicate expected match of a canonical (already normalized) key
+	 */
 	private record FilterCase(
 		@Nonnull String name, @Nonnull Function<String, FilterConstraint> constraint,
 			@Nonnull Predicate<String> predicate
@@ -234,7 +249,13 @@ class DeclaredNormalizationQueryFunctionalTest implements EvitaTestSupport {
 
 	}
 
-	/** Builds individually named tests so the failing operator, locale, control and storage mode are visible. */
+	/**
+	 * Builds individually named tests so the failing operator, locale, control and storage mode are visible.
+	 *
+	 * @param reloaded `true` for the reduced matrix run against the catalog reloaded from disk, `false` for the full
+	 *     pre-restart matrix
+	 * @return one named dynamic test per policy, locale, control and entity type combination
+	 */
 	@Nonnull
 	private Stream<DynamicTest> matrix(boolean reloaded) {
 		final List<DynamicTest> tests = new ArrayList<>();
@@ -373,7 +394,14 @@ class DeclaredNormalizationQueryFunctionalTest implements EvitaTestSupport {
 		return tests.stream();
 	}
 
-	/** Every filter is exercised by index, prefetch, reference row, reduced reference index and catalog filtering. */
+	/**
+	 * Every filter is exercised by index, prefetch, reference row, reduced reference index and catalog filtering.
+	 *
+	 * @param type entity collection (`Single` or `Paged`) the filter is run against
+	 * @param name name of the normalized attribute the filter targets
+	 * @param filter filter and the predicate the matching keys must satisfy
+	 * @param key normalization function of the attribute, applied to raw fixture values to compute the expectation
+	 */
 	private void assertFilter(
 		@Nonnull String type, @Nonnull String name, @Nonnull FilterCase filter, @Nonnull UnaryOperator<String> key
 	) {
@@ -406,6 +434,12 @@ class DeclaredNormalizationQueryFunctionalTest implements EvitaTestSupport {
 	/**
 	 * Telemetry proves the requested route for constraints with an alternative. Typed equality and set lookups read
 	 * the index on both plans; their matcher semantics are checked by the row and collection-less arms of assertFilter.
+	 *
+	 * @param type entity collection (`Single` or `Paged`) to query
+	 * @param route plan preference forcing index or prefetch evaluation
+	 * @param filter extra filter constraint, `null` for none
+	 * @param order ordering constraint, `null` for primary-key order
+	 * @return primary keys of the matching entities in result order
 	 */
 	@Nonnull
 	private int[] queryIds(
@@ -423,7 +457,14 @@ class DeclaredNormalizationQueryFunctionalTest implements EvitaTestSupport {
 		});
 	}
 
-	/** Normalized collisions keep the first probe's rank, including across page offsets and the in-filter variant. */
+	/**
+	 * Normalized collisions keep the first probe's rank, including across page offsets and the in-filter variant.
+	 *
+	 * @param type entity collection (`Single` or `Paged`) to query
+	 * @param name name of the normalized attribute used for the probes and the ordering
+	 * @param key normalization function of the attribute, applied to the probes and fixture values to compute the
+	 *     expectation
+	 */
 	private void assertExactOrder(@Nonnull String type, @Nonnull String name, @Nonnull UnaryOperator<String> key) {
 		final String[] probes = {" abc ", "ABC", " abc ", "ǧ", "ᴀ", "I", "TITLE", "title", "", "--- ", "- a -"};
 		final List<String> keys = Arrays.stream(probes).map(key).distinct().toList();
@@ -450,7 +491,13 @@ class DeclaredNormalizationQueryFunctionalTest implements EvitaTestSupport {
 		}
 	}
 
-	/** References themselves compare raw values through the same scalar or compound function. */
+	/**
+	 * References themselves compare raw values through the same scalar or compound function.
+	 *
+	 * @param type entity collection (`Single` or `Paged`) owning the references
+	 * @param name name of the normalized reference attribute to order by
+	 * @param expected owner primary keys in expected order; `MISSING` entries have no reference and are skipped
+	 */
 	private void assertReferenceOrder(@Nonnull String type, @Nonnull String name, @Nonnull int[] expected) {
 		this.evita.queryCatalog(TEST_CATALOG, session -> {
 			final SealedEntity owner = session.queryOne(query(collection(type),
@@ -464,7 +511,13 @@ class DeclaredNormalizationQueryFunctionalTest implements EvitaTestSupport {
 		});
 	}
 
-	/** Includes empty raw and normalized patterns, non-stable chains, comparisons and presence. */
+	/**
+	 * Includes empty raw and normalized patterns, non-stable chains, comparisons and presence.
+	 *
+	 * @param key normalization function of the attribute, applied to probe values to compute the expectation
+	 * @param comparator index comparator ordering normalized keys
+	 * @return filter cases with the keys they are expected to match
+	 */
 	@Nonnull
 	private static List<FilterCase> filters(@Nonnull UnaryOperator<String> key,
 		@Nonnull Comparator<String> comparator) {
@@ -497,13 +550,25 @@ class DeclaredNormalizationQueryFunctionalTest implements EvitaTestSupport {
 		return cases;
 	}
 
-	/** Expected IDs are calculated from raw fixture bodies, never from a query or an index result. */
+	/**
+	 * Expected IDs are calculated from raw fixture bodies, never from a query or an index result.
+	 *
+	 * @param test predicate over a normalized key
+	 * @param key normalization function applied to each raw fixture value
+	 * @return primary keys of the fixture entities whose normalized value satisfies the predicate, ascending
+	 */
 	@Nonnull
 	private static int[] expected(@Nonnull Predicate<String> test, @Nonnull UnaryOperator<String> key) {
 		return IntStream.rangeClosed(1, VALUES.length).filter(pk -> test.test(key.apply(VALUES[pk - 1]))).toArray();
 	}
 
-	/** Equal keys use ascending owner IDs, and the missing attribute is handed to the final primary-key sorter. */
+	/**
+	 * Equal keys use ascending owner IDs, and the missing attribute is handed to the final primary-key sorter.
+	 *
+	 * @param key normalization function applied to each raw fixture value
+	 * @param comparator index comparator ordering normalized keys
+	 * @return primary keys in expected ascending order, the entity without the attribute last
+	 */
 	@Nonnull
 	private static int[] sorted(@Nonnull UnaryOperator<String> key, @Nonnull Comparator<String> comparator) {
 		return IntStream.rangeClosed(1, MISSING).boxed().sorted((a, b) -> {
@@ -515,7 +580,12 @@ class DeclaredNormalizationQueryFunctionalTest implements EvitaTestSupport {
 		}).mapToInt(Integer::intValue).toArray();
 	}
 
-	/** The index comparator's locale is schema-masked, independently of the Turkish locale in every query. */
+	/**
+	 * The index comparator's locale is schema-masked, independently of the Turkish locale in every query.
+	 *
+	 * @param localized `true` to build the comparator for the localized attribute, `false` for the global one
+	 * @return comparator the attribute's filter index uses for its keys
+	 */
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	@Nonnull
 	private static Comparator<String> comparator(boolean localized) {
@@ -523,7 +593,13 @@ class DeclaredNormalizationQueryFunctionalTest implements EvitaTestSupport {
 			String.class);
 	}
 
-	/** Defines identical values on the entity, a shared reduced partition and single-owner virtual partitions. */
+	/**
+	 * Defines identical values on the entity, a shared reduced partition and single-owner virtual partitions.
+	 *
+	 * @param session read-write session used to define the schema and upsert the entities
+	 * @param type name of the entity collection to define and fill
+	 * @param count number of entities to create, with primary keys `1..count`
+	 */
 	private void fill(@Nonnull EvitaSessionContract session, @Nonnull String type, int count) {
 		EntitySchemaBuilder schema = session.defineEntitySchema(type).withoutGeneratedPrimaryKey().withLocale(TR)
 			.withGlobalAttribute("lookup").withAttribute("tie", Integer.class, a -> a.nullable())
@@ -571,7 +647,12 @@ class DeclaredNormalizationQueryFunctionalTest implements EvitaTestSupport {
 		owner.upsertVia(session);
 	}
 
-	/** The same normalizer declaration is used by reduced and virtual reference indexes. */
+	/**
+	 * The same normalizer declaration is used by reduced and virtual reference indexes.
+	 *
+	 * @param reference reference schema editor to declare the normalized attributes and compounds on
+	 * @return the same editor, for chaining
+	 */
 	@Nonnull
 	private static <T extends ReferenceSchemaEditor<T>> T referenceSchema(@Nonnull T reference) {
 		reference.withAttribute("tie", Integer.class, a -> a.nullable());
@@ -596,7 +677,12 @@ class DeclaredNormalizationQueryFunctionalTest implements EvitaTestSupport {
 			.withSortableAttributeCompound("mixedControl", element("controlRoot"), element("controlTr"));
 	}
 
-	/** Raw values, including empty Strings, are left intact in the entity body and both references. */
+	/**
+	 * Raw values, including empty Strings, are left intact in the entity body and both references.
+	 *
+	 * @param editor entity or reference attributes editor to fill
+	 * @param raw raw value written to every normalized attribute
+	 */
 	private static void populate(@Nonnull AttributesEditor<?, ?> editor, @Nonnull String raw) {
 		editor.setAttribute("tie", 0);
 		for (final Policy policy : POLICIES) {
@@ -619,7 +705,14 @@ class DeclaredNormalizationQueryFunctionalTest implements EvitaTestSupport {
 		}
 	}
 
-	/** Configures the normalized and control schemas with identical indexing and localization. */
+	/**
+	 * Configures the normalized and control schemas with identical indexing and localization.
+	 *
+	 * @param attribute attribute schema editor to configure
+	 * @param localized whether the attribute is localized
+	 * @param steps normalization steps to declare, empty for the control attribute
+	 * @return the same editor, for chaining
+	 */
 	@Nonnull
 	private static <T extends AttributeSchemaEditor<T>> T configure(
 		@Nonnull T attribute, boolean localized, @Nonnull AnalysisStep[] steps
@@ -631,19 +724,36 @@ class DeclaredNormalizationQueryFunctionalTest implements EvitaTestSupport {
 		return attribute;
 	}
 
-	/** Each policy is paired with the shared legacy control having the same indexing and localization. */
+	/**
+	 * Each policy is paired with the shared legacy control having the same indexing and localization.
+	 *
+	 * @param policy policy whose name prefixes the attribute
+	 * @param localized whether the attribute is the localized (`Tr`) variant
+	 * @param control whether to name the shared control attribute without normalization
+	 * @return attribute name for the given combination
+	 */
 	@Nonnull
 	private static String attributeName(@Nonnull Policy policy, boolean localized, boolean control) {
 		return (control ? "control" : policy.name()) + (localized ? "Tr" : "Root");
 	}
 
-	/** Makes a compound element with the same direction as the scalar ordering. */
+	/**
+	 * Makes a compound element with the same direction as the scalar ordering.
+	 *
+	 * @param name name of the attribute forming the compound element
+	 * @return ascending element with nulls last
+	 */
 	@Nonnull
 	private static AttributeElement element(@Nonnull String name) {
 		return new AttributeElement(name, ASC, NULLS_LAST);
 	}
 
-	/** Extracts result IDs without depending on fetched or indexed attribute representations. */
+	/**
+	 * Extracts result IDs without depending on fetched or indexed attribute representations.
+	 *
+	 * @param response query response to extract the identifiers from
+	 * @return primary keys of the returned references in result order
+	 */
 	@Nonnull
 	private static int[] ids(@Nonnull EvitaResponse<EntityReference> response) {
 		return response.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).toArray();

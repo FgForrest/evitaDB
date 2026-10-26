@@ -265,7 +265,12 @@ class NormalizationSchemaChangeCostTest {
 		assertEquals("title", tuple[0], "New empty compound bindings need no resolver-slot refresh");
 	}
 
-	/** Supplies one frozen scalar comparator descriptor. */
+	/**
+	 * Supplies one frozen scalar comparator descriptor.
+	 *
+	 * @param type value type of the single comparator source
+	 * @return one ascending, nulls-last comparator source of the given type
+	 */
 	@Nonnull
 	private static SortIndex.ComparatorSource[] sources(@Nonnull Class<?> type) {
 		return new SortIndex.ComparatorSource[]{
@@ -273,13 +278,22 @@ class NormalizationSchemaChangeCostTest {
 		};
 	}
 
-	/** Creates an ordered compound element. */
+	/**
+	 * Creates an ordered compound element.
+	 *
+	 * @param name name of the attribute forming the compound element
+	 * @return ascending element placing nulls last
+	 */
 	@Nonnull
 	private static AttributeElement element(@Nonnull String name) {
 		return new AttributeElement(name, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
 	}
 
-	/** Describes a compound with a nullable String and a populated numeric sibling. */
+	/**
+	 * Describes a compound with a nullable String and a populated numeric sibling.
+	 *
+	 * @return `Product` schema with the `compound` and `unchanged` sortable compounds
+	 */
 	@Nonnull
 	private static EntitySchemaContract compoundSchema() {
 		return builder().withAttribute("code", String.class, a -> a.nullable())
@@ -288,26 +302,45 @@ class NormalizationSchemaChangeCostTest {
 			.withSortableAttributeCompound("unchanged", element("untouched"), element("other")).toInstance();
 	}
 
-	/** Builds real policies without storing an empty row. */
+	/**
+	 * Builds real policies without storing an empty row.
+	 *
+	 * @param schema schema whose compounds are described in the policy
+	 * @param normalized `true` to record a `lowercase` row for the `code` attribute, `false` to record no row
+	 * @return policy built from the given schema
+	 */
 	@Nonnull
 	private static AttributeNormalizationPolicy policy(@Nonnull EntitySchemaContract schema, boolean normalized) {
 		return new AttributeNormalizationPolicy(normalized ? Map.of(CODE, List.of(lowercase())) : Map.of(),
 			AttributeNormalizationReconciler.describeCompounds(schema), Set.of());
 	}
 
-	/** Borrows an immutable policy for new wrappers. */
+	/**
+	 * Borrows an immutable policy for new wrappers.
+	 *
+	 * @param policy policy the resolver reads built-with functions from
+	 * @return resolver over the policy with a fresh step registry
+	 */
 	@Nonnull
 	private static BuiltWithAttributeNormalizationResolver resolver(@Nonnull AttributeNormalizationPolicy policy) {
 		return new BuiltWithAttributeNormalizationResolver(new AnalysisStepRegistry(), policy, Map.of());
 	}
 
-	/** Produces schema candidates without an engine. */
+	/**
+	 * Produces schema candidates without an engine.
+	 *
+	 * @return builder of an empty `Product` schema inside an in-memory catalog schema
+	 */
 	@Nonnull
 	private static InternalEntitySchemaBuilder builder() {
 		return new InternalEntitySchemaBuilder(catalogSchema(), EntitySchema._internalBuild("Product"));
 	}
 
-	/** Supplies the standalone schema accessor used by the builders. */
+	/**
+	 * Supplies the standalone schema accessor used by the builders.
+	 *
+	 * @return in-memory catalog schema with all evolution modes enabled
+	 */
 	@Nonnull
 	private static CatalogSchema catalogSchema() {
 		return CatalogSchema._internalBuild("unit", NamingConvention.generate("unit"), null,

@@ -161,7 +161,13 @@ class AnalysisStepRegistryTest {
 		assertSame(unchanged, operation.apply(unchanged));
 	}
 
-	/** Provides deterministic custom operations for registry tests without changing the installed provider set. */
+	/**
+	 * Provides deterministic custom operations for registry tests without changing the installed provider set.
+	 *
+	 * @param name step name the factory is registered under
+	 * @param operation normalization applied by every step the factory creates, regardless of parameters or fold locale
+	 * @return factory accepting no parameters
+	 */
 	@Nonnull
 	static NormalizingAnalysisStepFactory factory(@Nonnull String name, @Nonnull UnaryOperator<String> operation) {
 		return new NormalizingAnalysisStepFactory() {

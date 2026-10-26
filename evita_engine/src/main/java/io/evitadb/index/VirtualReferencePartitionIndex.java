@@ -1926,7 +1926,13 @@ public class VirtualReferencePartitionIndex
 		putSortValueByKey(attributeIndexKey, partitionPrimaryKey, normalize(sortKey, value));
 	}
 
-	/** Mirrors one stored key into the dictionary and its contained owner index verbatim. */
+	/**
+	 * Mirrors one stored key into the dictionary and its contained owner index verbatim.
+	 *
+	 * @param attributeIndexKey   declared sort key the value belongs to
+	 * @param partitionPrimaryKey primary key of the partition (the referenced entity) the value is stored for
+	 * @param normalizedValue     value that has already been normalized, stored as is
+	 */
 	private void putSortValueByKey(
 		@Nonnull AttributeIndexKey attributeIndexKey, int partitionPrimaryKey, @Nonnull Serializable normalizedValue
 	) {

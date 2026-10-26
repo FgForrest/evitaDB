@@ -403,7 +403,11 @@ public final class EntityCollection implements
 		return createNormalizationResolver();
 	}
 
-	/** Builds the resolver of {@link #getAttributeNormalizationResolver()} with its concrete type. */
+	/**
+	 * Builds the resolver of {@link #getAttributeNormalizationResolver()} with its concrete type.
+	 *
+	 * @return resolver over the current policy and the catalog's current global rows
+	 */
 	@Nonnull
 	private BuiltWithAttributeNormalizationResolver createNormalizationResolver() {
 		return new BuiltWithAttributeNormalizationResolver(this.catalog.getAnalysisStepRegistry(),
@@ -425,7 +429,11 @@ public final class EntityCollection implements
 		}
 	}
 
-	/** Writes only an actual policy transition; empty metadata has no singleton on disk. */
+	/**
+	 * Writes only an actual policy transition; empty metadata has no singleton on disk.
+	 *
+	 * @param policy the policy just adopted; the empty policy removes the stored part instead of writing it
+	 */
 	private void persistNormalizationPolicy(@Nonnull AttributeNormalizationPolicy policy) {
 		if (AttributeNormalizationPolicy.EMPTY.equals(policy)) {
 			this.dataStoreBuffer.removeByPrimaryKey(
@@ -463,7 +471,12 @@ public final class EntityCollection implements
 		return new AttributeNormalizationPolicy(policy.rows(), compounds, policy.globalAttributes());
 	}
 
-	/** Reuses the prepared compound identities while probing transaction-visible indexes. */
+	/**
+	 * Reuses the prepared compound identities while probing transaction-visible indexes.
+	 *
+	 * @param policy policy whose compound bindings (already seeded) the probe evaluates against
+	 * @return probe answering whether any index of this collection holds String keys for the given attribute identity
+	 */
 	@Nonnull
 	private Predicate<AttributeIndexKey> createStringKeyPredicate(@Nonnull AttributeNormalizationPolicy policy) {
 		return identity -> {
@@ -476,7 +489,12 @@ public final class EntityCollection implements
 		};
 	}
 
-	/** Tests retained compound tuples independently of the current schema. */
+	/**
+	 * Tests retained compound tuples independently of the current schema.
+	 *
+	 * @param identity key identifying the compound
+	 * @return `true` when any index of this collection holds sort keys for the compound
+	 */
 	private boolean hasCompoundKeys(@Nonnull AttributeIndexKey identity) {
 		for (final EntityIndex index : this.indexes.values()) {
 			if (index.hasSortKeys(identity)) {
@@ -498,7 +516,12 @@ public final class EntityCollection implements
 		});
 	}
 
-	/** Rebinds slots only for changed effective rows, never merely for changed compound descriptions. */
+	/**
+	 * Rebinds slots only for changed effective rows, never merely for changed compound descriptions.
+	 *
+	 * @param previousPolicy     the policy that was in effect before the change
+	 * @param previousGlobalRows the catalog's global rows that were in effect before the change
+	 */
 	private void refreshNormalizationResolver(
 		@Nonnull AttributeNormalizationPolicy previousPolicy,
 		@Nonnull Map<String, List<AnalysisStep>> previousGlobalRows
@@ -3168,7 +3191,13 @@ public final class EntityCollection implements
 		exchangeSchema(originalSchema, updatedSchema, true);
 	}
 
-	/** Reconciles retained collection ownership against catalog rows, using one set of compound probe bindings. */
+	/**
+	 * Reconciles retained collection ownership against catalog rows, using one set of compound probe bindings.
+	 *
+	 * @param originalSchema the schema being replaced, whose compounds seed the probe bindings
+	 * @param updatedSchema  the schema being adopted, whose declarations the policy is reconciled against
+	 * @return the policy to adopt together with the updated schema
+	 */
 	@Nonnull
 	private AttributeNormalizationPolicy reconcileNormalization(
 		@Nonnull EntitySchema originalSchema, @Nonnull EntitySchema updatedSchema

@@ -298,6 +298,9 @@ public abstract sealed class SortIndex
 
 	/**
 	 * Captures already-bound per-element key functions for a compound, independently of schema or registry.
+	 *
+	 * @param normalizers one bound key function per compound element, in element order; copied defensively
+	 * @return function normalizing a whole raw tuple by applying each element's function at its position
 	 */
 	@Nonnull
 	public static UnaryOperator<Serializable> createCompoundNormalizer(
@@ -413,7 +416,13 @@ public abstract sealed class SortIndex
 		return createNormalizerFor(comparatorBase, indexedDecimalPlaces, true);
 	}
 
-	/** Legacy type-only encoding for a single-attribute migration or synthetic owner. */
+	/**
+	 * Legacy type-only encoding for a single-attribute migration or synthetic owner.
+	 *
+	 * @param attributeType        plain type of the attribute values
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values
+	 * @return key function for the type; identity when the type needs no canonicalization
+	 */
 	@Nonnull
 	public static UnaryOperator<Serializable> createLegacyNormalizerFor(
 		@Nonnull Class<?> attributeType, int indexedDecimalPlaces
@@ -426,6 +435,10 @@ public abstract sealed class SortIndex
 	/**
 	 * Legacy type-only sort key encoding for storage migrations and standalone synthetic owners.
 	 * Attribute write/load paths must supply an owner-resolved function instead.
+	 *
+	 * @param comparatorBase       one descriptor per element; a single element yields a scalar key function
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` elements
+	 * @return key function for the elements; identity when none needs canonicalization
 	 */
 	@Nonnull
 	public static UnaryOperator<Serializable> createLegacyNormalizerFor(
@@ -638,13 +651,21 @@ public abstract sealed class SortIndex
 		}
 	}
 
-	/** Returns the comparator descriptors used by this sort tree, for partition promotion/demotion. */
+	/**
+	 * Returns the comparator descriptors used by this sort tree, for partition promotion/demotion.
+	 *
+	 * @return defensive copy of the descriptors, one per element
+	 */
 	@Nonnull
 	public ComparatorSource[] getComparatorBase() {
 		return this.comparatorBase.clone();
 	}
 
-	/** Returns the immutable function that produced this index's canonical keys, including for partition demotion. */
+	/**
+	 * Returns the immutable function that produced this index's canonical keys, including for partition demotion.
+	 *
+	 * @return the key function in effect; a view reports the one of its shared tree
+	 */
 	@Nonnull
 	public UnaryOperator<Serializable> getKeyNormalizer() {
 		return effectiveNormalizer();
@@ -718,14 +739,24 @@ public abstract sealed class SortIndex
 		removeRecordInternal(normalizedValue, recordId, sortIndexChanges);
 	}
 
-	/** Registers a key already held by another sort structure, without applying the raw-input function. */
+	/**
+	 * Registers a key already held by another sort structure, without applying the raw-input function.
+	 *
+	 * @param key      canonical key exactly as stored by the other structure
+	 * @param recordId record id to register, which must not be present yet
+	 */
 	public void addRecordByKey(@Nonnull Serializable key, int recordId) {
 		isTrue(this.sortedRecords.indexOf(recordId) < 0,
 			"Record id `" + recordId + "` is already present in the sort index!");
 		addRecordInternal(key, recordId);
 	}
 
-	/** Removes a key already held by this index, without applying the raw-input function. */
+	/**
+	 * Removes a key already held by this index, without applying the raw-input function.
+	 *
+	 * @param key      canonical key exactly as stored in this index
+	 * @param recordId record id to unregister from the key
+	 */
 	public void removeRecordByKey(@Nonnull Serializable key, int recordId) {
 		final SortIndexChanges changes = getOrCreateSortIndexChanges();
 		isTrue(valuePresentForRemoval(key, recordId),

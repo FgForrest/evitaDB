@@ -70,7 +70,11 @@ class AnalysisStepGoldenOutputTest {
 		}
 	}
 
-	/** Reads all four committed sample files; shared with the compiler corpus test. */
+	/**
+	 * Reads all four committed sample files; shared with the compiler corpus test.
+	 *
+	 * @return recorded samples of every built-in step provider
+	 */
 	@Nonnull
 	static Stream<GoldenSample> samples() {
 		return Stream.of(
@@ -79,7 +83,12 @@ class AnalysisStepGoldenOutputTest {
 		).flatMap(AnalysisStepGoldenOutputTest::readSamples);
 	}
 
-	/** Decodes versioned TSV fields represented as Unicode scalar values, preserving empty strings and controls. */
+	/**
+	 * Decodes versioned TSV fields represented as Unicode scalar values, preserving empty strings and controls.
+	 *
+	 * @param factory provider whose `<name>.tsv` sample file is read
+	 * @return recorded samples of the provider, in file order
+	 */
 	@Nonnull
 	private static Stream<GoldenSample> readSamples(@Nonnull NormalizingAnalysisStepFactory factory) {
 		final List<GoldenSample> samples = new ArrayList<>();
@@ -104,7 +113,12 @@ class AnalysisStepGoldenOutputTest {
 		return samples.stream();
 	}
 
-	/** Converts hexadecimal code points to a String; a single hyphen encodes the empty String. */
+	/**
+	 * Converts hexadecimal code points to a String; a single hyphen encodes the empty String.
+	 *
+	 * @param encoded space-separated hexadecimal code points, or `-` for the empty String
+	 * @return the decoded text
+	 */
 	@Nonnull
 	private static String decode(@Nonnull String encoded) {
 		final StringBuilder result = new StringBuilder(encoded.length());
@@ -116,7 +130,16 @@ class AnalysisStepGoldenOutputTest {
 		return result.toString();
 	}
 
-	/** One fixed input/output pair with its recorded provider version, parameters and fold locale. */
+	/**
+	 * One fixed input/output pair with its recorded provider version, parameters and fold locale.
+	 *
+	 * @param factory provider that creates the step under test
+	 * @param version provider version the sample was recorded with
+	 * @param locale fold locale the step is created for
+	 * @param characters value of the `characters` parameter; empty when the step takes none
+	 * @param input text passed to the step
+	 * @param expected output recorded for the input
+	 */
 	record GoldenSample(
 		@Nonnull NormalizingAnalysisStepFactory factory, int version, @Nonnull Locale locale,
 		@Nonnull String characters, @Nonnull String input, @Nonnull String expected

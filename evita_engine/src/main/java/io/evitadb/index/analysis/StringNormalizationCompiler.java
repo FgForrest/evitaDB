@@ -49,7 +49,11 @@ public final class StringNormalizationCompiler {
 	@Nonnull private final Map<CompilationKey, UnaryOperator<String>> functions =
 		CollectionUtils.createConcurrentHashMap(16);
 
-	/** Creates a compiler bound to one immutable provider registry. */
+	/**
+	 * Creates a compiler bound to one immutable provider registry.
+	 *
+	 * @param registry registry resolving each step description to its provider
+	 */
 	public StringNormalizationCompiler(@Nonnull AnalysisStepRegistry registry) {
 		this.registry = registry;
 	}
@@ -68,7 +72,12 @@ public final class StringNormalizationCompiler {
 		);
 	}
 
-	/** Resolves providers once and captures an immutable operation array in the compiled function. */
+	/**
+	 * Resolves providers once and captures an immutable operation array in the compiled function.
+	 *
+	 * @param key steps and locale to compile
+	 * @return immutable function accepting null values; NFD-only for an empty step list
+	 */
 	@Nonnull
 	private UnaryOperator<String> compileKey(@Nonnull CompilationKey key) {
 		if (key.steps().isEmpty()) {
@@ -92,7 +101,12 @@ public final class StringNormalizationCompiler {
 		};
 	}
 
-	/** Immutable cache identity; null locales have already been replaced with root. */
+	/**
+	 * Immutable cache identity; null locales have already been replaced with root.
+	 *
+	 * @param steps  defensively copied ordered step descriptions
+	 * @param locale fold locale, {@link Locale#ROOT} instead of `null`
+	 */
 	private record CompilationKey(@Nonnull List<AnalysisStep> steps, @Nonnull Locale locale) {
 	}
 }

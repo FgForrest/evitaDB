@@ -210,7 +210,11 @@ class DeclaredStringNormalizationIndexTest {
 		assertNull(index.getFilterIndex(new AttributeIndexKey(null, "code", null)));
 	}
 
-	/** Isolates raw function-routing tests from collection schema adoption and its separately tested policy store. */
+	/**
+	 * Isolates raw function-routing tests from collection schema adoption and its separately tested policy store.
+	 *
+	 * @return resolver compiling the chain declared by each attribute schema, independent of any stored policy
+	 */
 	@Nonnull
 	private static AttributeNormalizationResolver declaredResolver() {
 		final AnalysisStepRegistry registry = new AnalysisStepRegistry();

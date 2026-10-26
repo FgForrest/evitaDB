@@ -237,7 +237,11 @@ class BuiltWithNormalizationPolicyTest {
 		}
 	}
 
-	/** Includes numeric wrappers whose ClassSerializer payload has a flag, and ordinary reference types without it. */
+	/**
+	 * Includes numeric wrappers whose ClassSerializer payload has a flag, and ordinary reference types without it.
+	 *
+	 * @return attribute types whose serialized form is checked
+	 */
 	@Nonnull
 	private static List<Class<? extends Serializable>> attributeTypes() {
 		return List.of(Integer.class, Long.class, String.class);
@@ -246,6 +250,10 @@ class BuiltWithNormalizationPolicyTest {
 	/**
 	 * Runs the action with the reconciler's logger captured. The appender sees every thread, so only the messages
 	 * naming `owner` are returned, which keeps parallel tests out of each other's results.
+	 *
+	 * @param owner name of the schema owner that a warning must mention to be returned
+	 * @param action code that is expected to log reconciler warnings
+	 * @return formatted warning messages mentioning `owner`, in logging order
 	 */
 	@Nonnull
 	private static List<String> captureWarnings(@Nonnull String owner, @Nonnull Runnable action) {
@@ -264,7 +272,11 @@ class BuiltWithNormalizationPolicyTest {
 		}
 	}
 
-	/** Produces API schema candidates without booting an engine or creating a WAL. */
+	/**
+	 * Produces API schema candidates without booting an engine or creating a WAL.
+	 *
+	 * @return builder of an empty `Product` schema inside an in-memory catalog schema
+	 */
 	@Nonnull
 	private static InternalEntitySchemaBuilder builder() {
 		return new InternalEntitySchemaBuilder(CatalogSchema._internalBuild("unit", NamingConvention.generate("unit"),

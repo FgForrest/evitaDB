@@ -103,7 +103,13 @@ public final class AttributeNormalizationPolicyHeapSize {
 		return size;
 	}
 
-	/** Prices distinct shared immutable step lists and their complete parameter payloads. */
+	/**
+	 * Prices distinct shared immutable step lists and their complete parameter payloads.
+	 *
+	 * @param steps the step list to price
+	 * @param seen  identity set of objects already priced in this budget; priced objects are added to it
+	 * @return estimated retained bytes, `0` when the same list instance was already priced
+	 */
 	private static long steps(@Nonnull List<AnalysisStep> steps, @Nonnull Set<Object> seen) {
 		if (!seen.add(steps)) {
 			return 0L;
@@ -130,12 +136,23 @@ public final class AttributeNormalizationPolicyHeapSize {
 		return size;
 	}
 
-	/** Prices a shared description/name String at most once in this owner's budget. */
+	/**
+	 * Prices a shared description/name String at most once in this owner's budget.
+	 *
+	 * @param text the string to price, may be `null`
+	 * @param seen identity set of objects already priced in this budget; the string is added to it
+	 * @return estimated retained bytes, `0` for `null` or a string instance already priced
+	 */
 	private static long text(@Nullable String text, @Nonnull Set<Object> seen) {
 		return text != null && seen.add(text) ? EvitaDataTypes.estimateSize(text) : 0L;
 	}
 
-	/** Immutable Map1 has two slots; MapN uses an alternating-key/value array at half occupancy. */
+	/**
+	 * Immutable Map1 has two slots; MapN uses an alternating-key/value array at half occupancy.
+	 *
+	 * @param count number of entries in the map
+	 * @return estimated retained bytes of the map shell without its entries, `0` for an empty map
+	 */
 	private static long mapShell(int count) {
 		if (count == 0) {
 			return 0L;
@@ -146,7 +163,12 @@ public final class AttributeNormalizationPolicyHeapSize {
 				layout.sizeOfArray(count * 4, layout.referenceSize());
 	}
 
-	/** Immutable List12 has two slots; ListN owns its element array. */
+	/**
+	 * Immutable List12 has two slots; ListN owns its element array.
+	 *
+	 * @param count number of elements in the list
+	 * @return estimated retained bytes of the list shell without its elements, `0` for an empty list
+	 */
 	private static long listShell(int count) {
 		if (count == 0) {
 			return 0L;

@@ -789,14 +789,25 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 		assertGlobalNormalization(tester, "normalizedGlobalCode", List.of());
 	}
 
-	/** Applies a global-attribute mutation using the shared catalog fixture. */
+	/**
+	 * Applies a global-attribute mutation using the shared catalog fixture.
+	 *
+	 * @param tester GraphQL tester bound to the test catalog
+	 * @param mutation body of a single catalog schema mutation, without the surrounding braces
+	 */
 	private static void applyGlobalNormalizationMutation(@Nonnull GraphQLTester tester, @Nonnull String mutation) {
 		tester.test(TEST_CATALOG).urlPathSuffix("/schema")
 			.document("mutation { updateCatalogSchema(mutations: [{" + mutation + "}]) { version } }")
 			.executeAndExpectOkAndThen();
 	}
 
-	/** Reads the declared global chain through the schema endpoint. */
+	/**
+	 * Reads the declared global chain through the schema endpoint.
+	 *
+	 * @param tester GraphQL tester bound to the test catalog
+	 * @param attribute name of the global attribute whose chain is read
+	 * @param expected chain in output form: one map with `step` and `parameters` per step, empty for none
+	 */
 	private static void assertGlobalNormalization(
 		@Nonnull GraphQLTester tester, @Nonnull String attribute, @Nonnull List<Map<String, Object>> expected
 	) {

@@ -185,7 +185,11 @@ class AttributeNormalizationReconcilerTest {
 		assertEquals(Map.of(CODE, List.of(lowercase()), TITLE, List.of(asciiFolding())), result.rows());
 	}
 
-	/** Declares `code` through a catalog attribute whose own chain differs from any local row used here. */
+	/**
+	 * Declares `code` through a catalog attribute whose own chain differs from any local row used here.
+	 *
+	 * @return `Product` schema referencing the global attribute `code` normalized with `asciiFolding`
+	 */
 	@Nonnull
 	private static EntitySchemaContract globalCodeSchema() {
 		final GlobalAttributeSchemaContract code = GlobalAttributeSchema._internalBuild(
@@ -193,7 +197,11 @@ class AttributeNormalizationReconcilerTest {
 		return builder(catalogSchema(Map.of("code", code))).withGlobalAttribute("code").toInstance();
 	}
 
-	/** Declares `code` as a collection attribute normalized with `lowercase`. */
+	/**
+	 * Declares `code` as a collection attribute normalized with `lowercase`.
+	 *
+	 * @return `Product` schema with the collection attribute `code` normalized with `lowercase`
+	 */
 	@Nonnull
 	private static EntitySchemaContract localCodeSchema() {
 		return builder(catalogSchema(Map.of()))
@@ -201,19 +209,34 @@ class AttributeNormalizationReconcilerTest {
 			.toInstance();
 	}
 
-	/** Creates an ordered compound element. */
+	/**
+	 * Creates an ordered compound element.
+	 *
+	 * @param name name of the attribute forming the element
+	 * @return ascending element with nulls last
+	 */
 	@Nonnull
 	private static AttributeElement element(@Nonnull String name) {
 		return new AttributeElement(name, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
 	}
 
-	/** Produces schema candidates without an engine. */
+	/**
+	 * Produces schema candidates without an engine.
+	 *
+	 * @param catalogSchema catalog schema the `Product` entity is built within
+	 * @return builder over an empty `Product` schema
+	 */
 	@Nonnull
 	private static InternalEntitySchemaBuilder builder(@Nonnull CatalogSchema catalogSchema) {
 		return new InternalEntitySchemaBuilder(catalogSchema, EntitySchema._internalBuild("Product"));
 	}
 
-	/** Supplies a standalone catalog schema carrying the given global attributes. */
+	/**
+	 * Supplies a standalone catalog schema carrying the given global attributes.
+	 *
+	 * @param attributes global attributes of the catalog, keyed by name
+	 * @return catalog schema without entity schemas
+	 */
 	@Nonnull
 	private static CatalogSchema catalogSchema(@Nonnull Map<String, GlobalAttributeSchemaContract> attributes) {
 		return CatalogSchema._internalBuild(1, "unit", NamingConvention.generate("unit"), null, null,

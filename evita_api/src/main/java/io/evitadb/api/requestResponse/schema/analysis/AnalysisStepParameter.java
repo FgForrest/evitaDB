@@ -79,6 +79,9 @@ public record AnalysisStepParameter(@Nonnull String name, @Nonnull Serializable 
 
 	/**
 	 * Copies supported array values; supported scalar values are immutable.
+	 *
+	 * @param value parameter value, never `null`
+	 * @return a fresh array copy when the value is an array, otherwise the same instance
 	 */
 	@Nonnull
 	static Serializable copyValue(@Nonnull Serializable value) {

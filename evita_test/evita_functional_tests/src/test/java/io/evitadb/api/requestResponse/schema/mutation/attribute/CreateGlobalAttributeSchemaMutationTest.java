@@ -269,7 +269,12 @@ class CreateGlobalAttributeSchemaMutationTest {
 				.validate().anyMatch(error -> error.contains("normalization")));
 		}
 
-		/** Builds a complete create statement with no unrelated schema settings. */
+		/**
+		 * Builds a complete create statement with no unrelated schema settings.
+		 *
+		 * @param steps declared normalization chain, or `null` when the statement declares none
+		 * @return create mutation of a `String` global attribute carrying the given chain
+		 */
 		@Nonnull
 		private CreateGlobalAttributeSchemaMutation createWithNormalization(@Nullable AnalysisStep[] steps) {
 			return new CreateGlobalAttributeSchemaMutation(

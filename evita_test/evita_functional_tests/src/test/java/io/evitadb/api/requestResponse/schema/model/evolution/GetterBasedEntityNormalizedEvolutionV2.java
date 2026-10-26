@@ -37,32 +37,56 @@ import java.io.Serializable;
 /** Follow-up model withdrawing normalization without changing attribute identities or index declarations. */
 @Entity(name = GetterBasedEntityNormalizedEvolutionV1.ENTITY_NAME)
 public interface GetterBasedEntityNormalizedEvolutionV2 {
-	/** Primary key of the model. */
+	/**
+	 * Primary key of the model.
+	 *
+	 * @return primary key of the entity
+	 */
 	@PrimaryKey
 	int getId();
 
-	/** Entity attribute retaining its archived filter index. */
+	/**
+	 * Entity attribute retaining its archived filter index.
+	 *
+	 * @return value of the entity attribute `code`
+	 */
 	@Attribute(scope = @ScopeAttributeSettings(scope = Scope.ARCHIVED, filterable = true))
 	@Nonnull
 	String getCode();
 
-	/** Global attribute with no custom normalization. */
+	/**
+	 * Global attribute with no custom normalization.
+	 *
+	 * @return value of the global attribute `normalizedGlobalCode`
+	 */
 	@Attribute(global = true)
 	@Nonnull
 	String getNormalizedGlobalCode();
 
-	/** Unmanaged reference retaining its attribute. */
+	/**
+	 * Unmanaged reference retaining its attribute.
+	 *
+	 * @return the unmanaged `brand` reference
+	 */
 	@Reference(managed = false)
 	@Nonnull
 	Brand getBrand();
 
 	/** Reference model without custom normalization. */
 	interface Brand extends Serializable {
-		/** Key of the referenced brand. */
+		/**
+		 * Key of the referenced brand.
+		 *
+		 * @return primary key of the referenced brand
+		 */
 		@ReferencedEntity
 		int getBrand();
 
-		/** Array attribute with no custom normalization. */
+	/**
+	 * Array attribute with no custom normalization.
+	 *
+	 * @return values of the reference attribute `labels`
+	 */
 		@Attribute
 		@Nonnull
 	String[] getLabels();

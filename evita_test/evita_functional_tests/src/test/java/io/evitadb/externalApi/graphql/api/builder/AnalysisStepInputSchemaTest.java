@@ -64,7 +64,11 @@ class AnalysisStepInputSchemaTest {
 	private static final GraphQLSchema SCHEMA = createSchema();
 	private static final GraphQL EXECUTOR = GraphQL.newGraphQL(SCHEMA).build();
 
-	/** Builds a tiny executable schema around the production input types without starting an API server. */
+	/**
+	 * Builds a tiny executable schema around the production input types without starting an API server.
+	 *
+	 * @return schema whose `accept(step: InputAnalysisStep)` query reports whether the input was coerced
+	 */
 	private static GraphQLSchema createSchema() {
 		final GraphQLSchemaBuildingContext context = Mockito.mock(GraphQLSchemaBuildingContext.class);
 		final GraphQLSchemaBuilder<GraphQLSchemaBuildingContext> builder = new GraphQLSchemaBuilder<>(context) { };

@@ -5349,7 +5349,14 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 			});
 		}
 
-		/** Analyzes the candidate in memory, presenting any preceding candidate as the session's schema. */
+		/**
+		 * Analyzes the candidate in memory, presenting any preceding candidate as the session's schema.
+		 *
+		 * @param session session whose catalog schema is the base of the first analysis
+		 * @param model annotated model class to analyze
+		 * @param previous result of the preceding analysis to build upon, or `null` for the first one
+		 * @return catalog and entity schemas produced by the analysis, with the mutations that led to them
+		 */
 		@Nonnull
 		private Candidate analyzeCandidate(
 			@Nonnull EvitaSessionContract session,
@@ -5371,7 +5378,13 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 			return new Candidate(catalog.toInstance(), entity.get().toInstance(), result.mutations());
 		}
 
-		/** In-memory analyzer output used to verify schema evolution without persisting a mutation. */
+		/**
+		 * In-memory analyzer output used to verify schema evolution without persisting a mutation.
+		 *
+		 * @param catalog catalog schema after applying the analyzer output
+		 * @param entity schema of the analyzed entity after applying the analyzer output
+		 * @param mutations schema mutations emitted by the analyzer
+		 */
 		private record Candidate(
 			@Nonnull CatalogSchemaContract catalog,
 			@Nonnull EntitySchemaContract entity,

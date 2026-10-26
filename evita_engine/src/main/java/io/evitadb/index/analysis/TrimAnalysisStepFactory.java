@@ -86,7 +86,12 @@ public final class TrimAnalysisStepFactory implements NormalizingAnalysisStepFac
 		};
 	}
 
-	/** Recognizes both Java whitespace and NBSP-class Unicode spaces. */
+	/**
+	 * Recognizes both Java whitespace and NBSP-class Unicode spaces.
+	 *
+	 * @param codePoint the Unicode code point to test
+	 * @return `true` when the code point is trimmed away at the edges of a value
+	 */
 	private static boolean isSpace(int codePoint) {
 		return Character.isWhitespace(codePoint) || Character.isSpaceChar(codePoint);
 	}

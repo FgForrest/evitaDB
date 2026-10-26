@@ -119,6 +119,10 @@ public record AnalysisStep(
 
 	/**
 	 * Quotes textual values and renders array contents for diagnostics.
+	 *
+	 * @param value parameter value to render, never `null`
+	 * @return the value in the form used by {@link #toString()}: quoted and escaped for strings and characters,
+	 *         bracketed for arrays, otherwise its plain string form
 	 */
 	@Nonnull
 	private static String formatValue(@Nonnull Serializable value) {

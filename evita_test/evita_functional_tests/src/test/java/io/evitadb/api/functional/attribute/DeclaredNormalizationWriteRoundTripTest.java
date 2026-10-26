@@ -179,7 +179,12 @@ class DeclaredNormalizationWriteRoundTripTest implements EvitaTestSupport {
 		}
 	}
 
-	/** Changes independent declarations in one fixture without paying another engine setup for each role. */
+	/**
+	 * Changes independent declarations in one fixture without paying another engine setup for each role.
+	 *
+	 * @param role fixture role to change, one of the `ORPHAN_ROLES`
+	 * @param rename `true` to rename the declaring attribute, `false` to remove it
+	 */
 	private void changeDeclaration(@Nonnull String role, boolean rename) {
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			if (role.equals("global")) {
@@ -215,7 +220,12 @@ class DeclaredNormalizationWriteRoundTripTest implements EvitaTestSupport {
 		});
 	}
 
-	/** Each removed or renamed role retains its original footprint and captured raw-input function after reload. */
+	/**
+	 * Each removed or renamed role retains its original footprint and captured raw-input function after reload.
+	 *
+	 * @param role fixture role whose keys are checked, one of the `ORPHAN_ROLES`
+	 * @param rename `true` when the declaration was renamed, `false` when it was removed
+	 */
 	private void assertOrphanedKeys(@Nonnull String role, boolean rename) {
 		if (!rename) {
 			if (role.equals("global")) {
@@ -260,14 +270,22 @@ class DeclaredNormalizationWriteRoundTripTest implements EvitaTestSupport {
 		}
 	}
 
-	/** Exercises inline and paged roots for each indexed String role and both declaration changes. */
+	/**
+	 * Exercises inline and paged roots for each indexed String role and both declaration changes.
+	 *
+	 * @return pairs of the entity count (1 or 300) and the `rename` flag, covering every combination
+	 */
 	@Nonnull
 	static Stream<Arguments> schemaChanges() {
 		return Stream.of(1, 300).flatMap(count ->
 			Stream.of(false, true).map(rename -> Arguments.of(count, rename)));
 	}
 
-	/** Builds entity, reference, global and compound-only String footprints. */
+	/**
+	 * Builds entity, reference, global and compound-only String footprints.
+	 *
+	 * @param count number of `Category` and `Product` entities created, with primary keys `1..count`
+	 */
 	private void createFixture(int count) {
 		this.evita.defineCatalog(TEST_CATALOG)
 			.withAttribute("global", String.class,
@@ -318,7 +336,14 @@ class DeclaredNormalizationWriteRoundTripTest implements EvitaTestSupport {
 		});
 	}
 
-	/** Creates all attribute footprints, with independently selectable owner and referenced target. */
+	/**
+	 * Creates all attribute footprints, with independently selectable owner and referenced target.
+	 *
+	 * @param session read-write session of the catalog under test
+	 * @param id primary key of the new `Product`; it also seeds each attribute value
+	 * @param referenceId primary key of the entity targeted by the `external`, `virtual` and `real` references
+	 * @return builder of the not yet upserted `Product` with all of its attributes and references set
+	 */
 	@Nonnull
 	private static EntityBuilder product(
 		@Nonnull EvitaSessionContract session, int id, int referenceId
@@ -348,7 +373,12 @@ class DeclaredNormalizationWriteRoundTripTest implements EvitaTestSupport {
 				.setAttribute("uniqueTitle", TURKISH, "ÍTITLE" + id));
 	}
 
-	/** Defines reference key producers shared by real and virtual partitions. */
+	/**
+	 * Defines reference key producers shared by real and virtual partitions.
+	 *
+	 * @param reference editor of the reference schema to extend
+	 * @return the same editor, with the shared reference attributes and the `compound` sortable compound defined
+	 */
 	@Nonnull
 	private static <T extends ReferenceSchemaEditor<T>> T reference(@Nonnull T reference) {
 		return reference.withAttribute("code", String.class, a -> a.filterable().sortable().normalized(
@@ -361,7 +391,12 @@ class DeclaredNormalizationWriteRoundTripTest implements EvitaTestSupport {
 			.withSortableAttributeCompound("compound", element("rootElement"), element("localElement"));
 	}
 
-	/** Inspects canonical keys rather than query results. */
+	/**
+	 * Inspects canonical keys rather than query results.
+	 *
+	 * @param count number of seeded `Product` entities; a single one is expected to leave the index roots inline,
+	 *              without paged leaf sequences
+	 */
 	private void assertKeys(int count) {
 		final Catalog catalog = catalog();
 		final EntityIndex index = productIndex();
@@ -465,14 +500,22 @@ class DeclaredNormalizationWriteRoundTripTest implements EvitaTestSupport {
 		}
 	}
 
-	/** Returns the current snapshot's global product index. */
+	/**
+	 * Returns the current snapshot's global product index.
+	 *
+	 * @return the global entity index of the `Product` collection
+	 */
 	@Nonnull
 	private EntityIndex productIndex() {
 		return catalog().getCollectionForEntityOrThrowException("Product")
 			.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
 	}
 
-	/** Returns the current catalog snapshot. */
+	/**
+	 * Returns the current catalog snapshot.
+	 *
+	 * @return the current instance of the test catalog
+	 */
 	@Nonnull
 	private Catalog catalog() {
 		return (Catalog) this.evita.getCatalogInstanceOrThrowException(TEST_CATALOG);
@@ -485,19 +528,33 @@ class DeclaredNormalizationWriteRoundTripTest implements EvitaTestSupport {
 		this.evita.waitUntilFullyInitialized();
 	}
 
-	/** Uses the standard isolated persistence fixture. */
+	/**
+	 * Uses the standard isolated persistence fixture.
+	 *
+	 * @return configuration of the test engine over the isolated test paths
+	 */
 	@Nonnull
 	private EvitaConfiguration configuration() {
 		return newTestEvitaConfigurationBuilder(this.paths).build();
 	}
 
-	/** Lucene folds these lowercase letters to uppercase ASCII, so a second pass would change the key. */
+	/**
+	 * Lucene folds these lowercase letters to uppercase ASCII, so a second pass would change the key.
+	 *
+	 * @param id number making the value unique per entity
+	 * @return raw attribute value that has not been normalized yet
+	 */
 	@Nonnull
 	private static String raw(int id) {
 		return " ǧ-ᴀʀ" + id + " ";
 	}
 
-	/** Creates an ascending compound element. */
+	/**
+	 * Creates an ascending compound element.
+	 *
+	 * @param name name of the attribute forming the compound element
+	 * @return ascending element placing nulls last
+	 */
 	@Nonnull
 	private static AttributeElement element(@Nonnull String name) {
 		return new AttributeElement(name, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);

@@ -129,7 +129,12 @@ class AttributeNormalizationStoragePartSerializerTest {
 		assertEquals(policy, read.policy());
 	}
 
-	/** Serializes the part with the production registration. */
+	/**
+	 * Serializes the part with the production registration.
+	 *
+	 * @param part storage part to serialize
+	 * @return bytes of the serialized part
+	 */
 	@Nonnull
 	private byte[] write(@Nonnull Object part) {
 		try (final Output output = new Output(4096, -1)) {
@@ -138,7 +143,13 @@ class AttributeNormalizationStoragePartSerializerTest {
 		}
 	}
 
-	/** Reads one part back and checks that it consumed exactly the written bytes. */
+	/**
+	 * Reads one part back and checks that it consumed exactly the written bytes.
+	 *
+	 * @param bytes serialized part, as produced by `write`
+	 * @param type storage part type to deserialize
+	 * @return the deserialized part
+	 */
 	@Nonnull
 	private <T> T read(@Nonnull byte[] bytes, @Nonnull Class<T> type) {
 		try (final Input input = new Input(bytes)) {
@@ -148,7 +159,12 @@ class AttributeNormalizationStoragePartSerializerTest {
 		}
 	}
 
-	/** Builds a policy whose rows, compounds and global names are inserted in the order of `names`. */
+	/**
+	 * Builds a policy whose rows, compounds and global names are inserted in the order of `names`.
+	 *
+	 * @param names attribute names, in the insertion order of the rows, compounds and global names
+	 * @return policy with one row, one compound and one global name per attribute name
+	 */
 	@Nonnull
 	private static AttributeNormalizationPolicy policyOf(@Nonnull List<String> names) {
 		final Map<AttributeIndexKey, List<AnalysisStep>> rows = new LinkedHashMap<>();
@@ -163,7 +179,12 @@ class AttributeNormalizationStoragePartSerializerTest {
 		return new AttributeNormalizationPolicy(rows, compounds, globals);
 	}
 
-	/** Builds catalog rows inserted in the order of `names`. */
+	/**
+	 * Builds catalog rows inserted in the order of `names`.
+	 *
+	 * @param names attribute names, in the insertion order of the rows
+	 * @return catalog normalization rows keyed by attribute name
+	 */
 	@Nonnull
 	private static Map<String, List<AnalysisStep>> globalRowsOf(@Nonnull List<String> names) {
 		final Map<String, List<AnalysisStep>> rows = new LinkedHashMap<>();

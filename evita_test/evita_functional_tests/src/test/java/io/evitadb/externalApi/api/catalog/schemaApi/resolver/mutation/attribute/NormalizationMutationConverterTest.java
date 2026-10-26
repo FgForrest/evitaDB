@@ -107,7 +107,11 @@ class NormalizationMutationConverterTest {
 		)));
 	}
 
-	/** Supplies invalid typed selectors without creating an engine or web server. */
+	/**
+	 * Supplies invalid typed selectors without creating an engine or web server.
+	 *
+	 * @return malformed `normalization` payloads, each of which a converter must reject
+	 */
 	static Stream<Object> invalidInputs() {
 		return Stream.of(
 			List.of(Map.of()),
@@ -123,7 +127,13 @@ class NormalizationMutationConverterTest {
 		);
 	}
 
-	/** Converts through each production converter and returns its declared steps. */
+	/**
+	 * Converts through each production converter and returns its declared steps.
+	 *
+	 * @param kind which attribute mutation converter to run
+	 * @param input mutation fields as received from the external API
+	 * @return normalization chain declared by the converted mutation
+	 */
 	private AnalysisStep[] read(Kind kind, Map<String, Object> input) {
 		return switch (kind) {
 			case CREATE -> createConverter().convertFromInput(input).getNormalization();
@@ -132,7 +142,13 @@ class NormalizationMutationConverterTest {
 		};
 	}
 
-	/** Exercises reflection-based output after custom fields were pre-serialized. */
+	/**
+	 * Exercises reflection-based output after custom fields were pre-serialized.
+	 *
+	 * @param kind which attribute mutation converter to run
+	 * @param input mutation fields converted to a mutation and back
+	 * @return the mutation as rendered by the converter output
+	 */
 	@SuppressWarnings("unchecked")
 	private Map<String, Object> write(Kind kind, Map<String, Object> input) {
 		return (Map<String, Object>) switch (kind) {
@@ -154,21 +170,33 @@ class NormalizationMutationConverterTest {
 		};
 	}
 
-	/** Creates the entity/reference create converter. */
+	/**
+	 * Creates the entity/reference create converter.
+	 *
+	 * @return converter for entity and reference attribute create mutations
+	 */
 	private CreateAttributeSchemaMutationConverter createConverter() {
 		return new CreateAttributeSchemaMutationConverter(
 			PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE
 		);
 	}
 
-	/** Creates the global create converter. */
+	/**
+	 * Creates the global create converter.
+	 *
+	 * @return converter for global attribute create mutations
+	 */
 	private CreateGlobalAttributeSchemaMutationConverter globalConverter() {
 		return new CreateGlobalAttributeSchemaMutationConverter(
 			PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE
 		);
 	}
 
-	/** Creates the full-statement converter shared by all three attribute owners. */
+	/**
+	 * Creates the full-statement converter shared by all three attribute owners.
+	 *
+	 * @return converter for the full-statement normalization mutation
+	 */
 	private SetAttributeSchemaNormalizedMutationConverter setConverter() {
 		return new SetAttributeSchemaNormalizedMutationConverter(
 			PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE

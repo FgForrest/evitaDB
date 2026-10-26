@@ -82,7 +82,11 @@ public class SetAttributeSchemaNormalizedMutation
 		this.normalization = normalization == null ? new AnalysisStep[0] : normalization.clone();
 	}
 
-	/** Returns the statement with a defensive copy of its ordered steps. */
+	/**
+	 * Returns the statement with a defensive copy of its ordered steps.
+	 *
+	 * @return copy of the ordered steps; empty when only Unicode NFD applies
+	 */
 	@Nonnull
 	public AnalysisStep[] getNormalization() {
 		return this.normalization.clone();

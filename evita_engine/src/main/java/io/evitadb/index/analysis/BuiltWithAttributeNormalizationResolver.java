@@ -59,7 +59,13 @@ public record BuiltWithAttributeNormalizationResolver(
 	@Nonnull Map<String, List<AnalysisStep>> globalRows,
 	boolean catalogOwned
 ) implements AttributeNormalizationResolver {
-	/** Creates a collection resolver whose persisted adoption set determines global ownership. */
+	/**
+	 * Creates a collection resolver whose persisted adoption set determines global ownership.
+	 *
+	 * @param registry   catalog-owned step registry and compiled-function cache
+	 * @param policy     immutable collection rows and retained bindings
+	 * @param globalRows authoritative catalog rows borrowed by every adopter
+	 */
 	public BuiltWithAttributeNormalizationResolver(
 		@Nonnull AnalysisStepRegistry registry, @Nonnull AttributeNormalizationPolicy policy,
 		@Nonnull Map<String, List<AnalysisStep>> globalRows
@@ -67,7 +73,14 @@ public record BuiltWithAttributeNormalizationResolver(
 		this(registry, policy, globalRows, false);
 	}
 
-	/** Resolves the schema's identity through its retained owner binding rather than its current schema type. */
+	/**
+	 * Resolves the schema's identity through its retained owner binding rather than its current schema type.
+	 *
+	 * @param referenceName   owning reference, null for entity or global attributes
+	 * @param attributeSchema declaration supplying only the attribute name
+	 * @param foldLocale      locale for localized Strings, null for root folding
+	 * @return immutable raw String key function
+	 */
 	@Override
 	@Nonnull
 	public UnaryOperator<String> resolve(
@@ -159,7 +172,14 @@ public record BuiltWithAttributeNormalizationResolver(
 		return true;
 	}
 
-	/** Compares the effective row of one identity in this resolver and in `previous`. */
+	/**
+	 * Compares the effective row of one identity in this resolver and in `previous`.
+	 *
+	 * @param previous      resolver to compare against
+	 * @param referenceName owning reference, null for entity or global attributes
+	 * @param attributeName attribute identity
+	 * @return true when both resolvers select equal steps for the identity
+	 */
 	private boolean hasSameSteps(
 		@Nonnull BuiltWithAttributeNormalizationResolver previous,
 		@Nullable String referenceName, @Nonnull String attributeName
@@ -194,7 +214,13 @@ public record BuiltWithAttributeNormalizationResolver(
 		return false;
 	}
 
-	/** Selects the retained owner row, regardless of current schema or compound element ownership hints. */
+	/**
+	 * Selects the retained owner row, regardless of current schema or compound element ownership hints.
+	 *
+	 * @param referenceName owning reference, null for entity or global attributes
+	 * @param attributeName attribute identity
+	 * @return the catalog row for a global attribute, otherwise the collection row; empty when none is recorded
+	 */
 	@Nonnull
 	private List<AnalysisStep> steps(
 		@Nullable String referenceName, @Nonnull String attributeName

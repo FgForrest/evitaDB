@@ -56,7 +56,11 @@ import static org.mockito.Mockito.when;
 @DisplayName("REST attribute normalization serialization")
 class SchemaJsonSerializerNormalizationTest {
 
-	/** Provides empty, built-in and future typed parameter payloads. */
+	/**
+	 * Provides empty, built-in and future typed parameter payloads.
+	 *
+	 * @return chains to render, one per test invocation
+	 */
 	@Nonnull
 	static Stream<List<AnalysisStep>> chains() {
 		return Stream.of(
@@ -88,7 +92,12 @@ class SchemaJsonSerializerNormalizationTest {
 			super(new ObjectJsonSerializer(new ObjectMapper()));
 		}
 
-		/** Returns the declared step list as JSON. */
+		/**
+		 * Returns the declared step list as JSON.
+		 *
+		 * @param attribute attribute schema whose declared normalization is rendered
+		 * @return JSON array with one object per step, in declaration order
+		 */
 		@Nonnull
 		private ArrayNode render(@Nonnull AttributeSchemaContract attribute) {
 			return serializeNormalization(attribute);

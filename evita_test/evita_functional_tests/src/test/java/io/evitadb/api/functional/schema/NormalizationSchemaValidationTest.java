@@ -254,7 +254,13 @@ class NormalizationSchemaValidationTest implements EvitaTestSupport {
 		});
 	}
 
-	/** Checks that diagnostics identify both the attribute and its offending step. */
+	/**
+	 * Checks that diagnostics identify both the attribute and its offending step.
+	 *
+	 * @param attribute name of the attribute expected in the diagnostic
+	 * @param step name of the offending step expected in the diagnostic
+	 * @param action schema change expected to be rejected with `InvalidSchemaMutationException`
+	 */
 	private static void assertInvalid(@Nonnull String attribute, @Nonnull String step, @Nonnull Runnable action) {
 		final String message = assertThrows(InvalidSchemaMutationException.class, action::run).getMessage();
 		assertTrue(message.contains(attribute), message);

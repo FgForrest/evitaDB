@@ -78,7 +78,13 @@ public final class LowercaseAnalysisStepFactory implements NormalizingAnalysisSt
 		return text -> lowercase(text, turkish);
 	}
 
-	/** Applies code-point casing and the Turkish combining-dot context without tokenization. */
+	/**
+	 * Applies code-point casing and the Turkish combining-dot context without tokenization.
+	 *
+	 * @param text    the text to lowercase
+	 * @param turkish whether Turkish / Azeri dotted and dotless I rules apply
+	 * @return the lowercased text, the very same instance when nothing changed
+	 */
 	@Nonnull
 	private static String lowercase(@Nonnull String text, boolean turkish) {
 		StringBuilder result = null;
@@ -110,7 +116,13 @@ public final class LowercaseAnalysisStepFactory implements NormalizingAnalysisSt
 		return result == null ? text : result.toString();
 	}
 
-	/** Looks for a combining dot after I, allowing intervening nonspacing marks as Lucene does. */
+	/**
+	 * Looks for a combining dot after I, allowing intervening nonspacing marks as Lucene does.
+	 *
+	 * @param text   the text being lowercased
+	 * @param offset the position right after the `I` code point
+	 * @return `true` when a combining dot above follows, possibly after other nonspacing marks
+	 */
 	private static boolean isBeforeDot(@Nonnull String text, int offset) {
 		for (int index = offset; index < text.length();) {
 			final int codePoint = text.codePointAt(index);

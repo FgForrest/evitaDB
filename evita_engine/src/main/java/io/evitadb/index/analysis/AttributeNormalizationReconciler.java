@@ -84,14 +84,27 @@ public final class AttributeNormalizationReconciler {
 		return result;
 	}
 
-	/** Reads declarations safely before a reflected reference has been bound to its source. */
+	/**
+	 * Reads declarations safely before a reflected reference has been bound to its source.
+	 *
+	 * @param reference the reference whose attributes are read
+	 * @return attributes by name; only the declared ones while the reflected source is not yet available
+	 */
 	@Nonnull
 	static Map<String, AttributeSchemaContract> attributesOf(@Nonnull ReferenceSchemaContract reference) {
 		return reference instanceof ReflectedReferenceSchema reflected &&
 			!reflected.isReflectedReferenceAvailable() ? reflected.getDeclaredAttributes() : reference.getAttributes();
 	}
 
-	/** Resolves ordered names and localization without retaining schema objects. */
+	/**
+	 * Resolves ordered names and localization without retaining schema objects. A compound whose element attribute
+	 * cannot be found is skipped.
+	 *
+	 * @param result        accumulator the described compounds are put into
+	 * @param referenceName owning reference, `null` for entity-level compounds
+	 * @param compounds     the compounds to describe, by name
+	 * @param attributes    lookup of an attribute schema by name, returning `null` when unknown
+	 */
 	private static void addCompounds(
 		@Nonnull Map<AttributeIndexKey, List<ElementBinding>> result, @Nullable String referenceName,
 		@Nonnull Map<String, ? extends SortableAttributeCompoundSchemaContract> compounds,

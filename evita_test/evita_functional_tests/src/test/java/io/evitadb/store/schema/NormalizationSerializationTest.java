@@ -72,6 +72,8 @@ class NormalizationSerializationTest {
 
 	/**
 	 * Supplies empty, built-in and parameterized chains for every persisted schema shape.
+	 *
+	 * @return arguments of one case: schema class name and the schema instance
 	 */
 	@Nonnull
 	static Stream<Arguments> schemaCases() {
@@ -84,6 +86,8 @@ class NormalizationSerializationTest {
 
 	/**
 	 * Supplies absent, explicitly empty, built-in and parameterized statements for create mutations.
+	 *
+	 * @return arguments of one case: label and the step array of the create mutation (`null` when absent)
 	 */
 	@Nonnull
 	static Stream<Arguments> mutationCases() {
@@ -95,6 +99,8 @@ class NormalizationSerializationTest {
 
 	/**
 	 * Supplies chains whose order and parameter values must survive persistence.
+	 *
+	 * @return empty, built-in and parameterized chains
 	 */
 	@Nonnull
 	private static Stream<List<AnalysisStep>> normalizations() {
@@ -209,6 +215,9 @@ class NormalizationSerializationTest {
 
 	/**
 	 * Builds a create mutation with non-default preceding fields to expose any field-order mismatch.
+	 *
+	 * @param steps declared normalization chain, `null` when the statement carries none
+	 * @return create statement for the attribute `code` carrying the given chain
 	 */
 	@Nonnull
 	private static CreateAttributeSchemaMutation createAttributeMutation(@Nullable AnalysisStep[] steps) {
@@ -225,6 +234,8 @@ class NormalizationSerializationTest {
 
 	/**
 	 * Creates the same Kryo registration chain used by schema persistence.
+	 *
+	 * @return Kryo instance configured as for schema persistence
 	 */
 	@Nonnull
 	private static Kryo createSchemaKryo() {
@@ -233,6 +244,8 @@ class NormalizationSerializationTest {
 
 	/**
 	 * Creates the production WAL registration chain, including the appended normalization mutation.
+	 *
+	 * @return Kryo instance configured as for the write-ahead log
 	 */
 	@Nonnull
 	private static Kryo createWalKryo() {
@@ -241,6 +254,10 @@ class NormalizationSerializationTest {
 
 	/**
 	 * Returns bytes written through the registered serializer with its class and serial-version routing.
+	 *
+	 * @param kryo Kryo instance with the production registrations
+	 * @param value object to serialize
+	 * @return bytes of the class-and-object encoding
 	 */
 	@Nonnull
 	private static byte[] serialize(@Nonnull Kryo kryo, @Nonnull Object value) {
@@ -252,6 +269,10 @@ class NormalizationSerializationTest {
 
 	/**
 	 * Reads a registered serializer's output and checks that it consumed the entire record.
+	 *
+	 * @param kryo Kryo instance with the production registrations
+	 * @param value object to write and read back
+	 * @return the object restored from its serialized form
 	 */
 	@Nonnull
 	@SuppressWarnings("unchecked")

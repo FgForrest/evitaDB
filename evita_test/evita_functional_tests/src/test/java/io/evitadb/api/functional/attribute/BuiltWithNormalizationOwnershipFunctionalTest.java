@@ -199,7 +199,12 @@ class BuiltWithNormalizationOwnershipFunctionalTest implements EvitaTestSupport 
 		assertEquals(version, catalog().getVersion());
 	}
 
-	/** Keeps checkpoints behind the live mutation so the crash copy must replay its ownership change. */
+	/**
+	 * Keeps checkpoints behind the live mutation so the crash copy must replay its ownership change.
+	 *
+	 * @param testPaths storage and export locations of the engine being (re)started
+	 * @return configuration of the test engine with the periodic checkpoint effectively disabled
+	 */
 	@Nonnull
 	private EvitaConfiguration configuration(@Nonnull TestPaths testPaths) {
 		final EvitaConfiguration base = newTestEvitaConfigurationBuilder(testPaths).build();
@@ -207,7 +212,12 @@ class BuiltWithNormalizationOwnershipFunctionalTest implements EvitaTestSupport 
 			.checkpointIntervalInMillis(3_600_000L).build()).build();
 	}
 
-	/** Probes raw values through the public filter path, including absent keys after updates and removals. */
+	/**
+	 * Probes raw values through the public filter path, including absent keys after updates and removals.
+	 *
+	 * @param value raw value of the `code` attribute to look up
+	 * @param ids primary keys of the `Owner` entities expected to match, in result order; none when the value is absent
+	 */
 	private void assertLookup(@Nonnull String value, @Nonnull Integer... ids) {
 		this.evita.queryCatalog(TEST_CATALOG, session -> {
 			assertEquals(List.of(ids), session.queryListOfEntityReferences(query(collection("Owner"),
@@ -216,13 +226,21 @@ class BuiltWithNormalizationOwnershipFunctionalTest implements EvitaTestSupport 
 		});
 	}
 
-	/** Returns the current catalog snapshot after live or recovered mutations. */
+	/**
+	 * Returns the current catalog snapshot after live or recovered mutations.
+	 *
+	 * @return the current instance of the test catalog
+	 */
 	@Nonnull
 	private Catalog catalog() {
 		return (Catalog) this.evita.getCatalogInstanceOrThrowException(TEST_CATALOG);
 	}
 
-	/** Returns the collection whose identity is transferring ownership. */
+	/**
+	 * Returns the collection whose identity is transferring ownership.
+	 *
+	 * @return the `Owner` collection of the current catalog instance
+	 */
 	@Nonnull
 	private EntityCollection owner() {
 		return catalog().getCollectionForEntityOrThrowException("Owner");

@@ -156,7 +156,14 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 		}
 	}
 
-	/** Wraps an attribute mutation in the reference envelope only for reference-owned attributes. */
+	/**
+	 * Wraps an attribute mutation in the reference envelope only for reference-owned attributes.
+	 *
+	 * @param reference `true` when the attribute belongs to the `normalizationTags` reference, `false` for an entity
+	 *     attribute
+	 * @param mutation JSON of the attribute schema mutation
+	 * @return JSON request body for the schema endpoint
+	 */
 	@Nonnull
 	private static String wrapNormalizationMutation(boolean reference, @Nonnull String mutation) {
 		return reference ?

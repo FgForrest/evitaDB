@@ -203,6 +203,9 @@ public abstract sealed class UniqueIndex implements
 
 	/**
 	 * Returns record id by its unique value.
+	 *
+	 * @param value raw value, converted with this index's key function before lookup
+	 * @return owning record id, or `null` when no record owns the value
 	 */
 	@Nullable
 	public Integer getRecordIdByUniqueValue(@Nonnull Serializable value) {
@@ -230,11 +233,21 @@ public abstract sealed class UniqueIndex implements
 		return result;
 	}
 
-	/** Converts a raw probe with this role's bound key function once. */
+	/**
+	 * Converts a raw probe with this role's bound key function once.
+	 *
+	 * @param rawValue the raw probe as supplied by the caller
+	 * @return the canonical key to look up
+	 */
 	@Nonnull
 	protected abstract Serializable toLookupKey(@Nonnull Serializable rawValue);
 
-	/** Looks up an existing key verbatim, without applying the raw-input function. */
+	/**
+	 * Looks up an existing key verbatim, without applying the raw-input function.
+	 *
+	 * @param key canonical key as produced by {@link #toLookupKey(Serializable)}
+	 * @return owning record id, or `null` when no record owns the key
+	 */
 	@Nullable
 	protected abstract Integer getRecordIdByUniqueKey(@Nonnull Serializable key);
 

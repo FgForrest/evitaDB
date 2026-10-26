@@ -1412,7 +1412,14 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 		assertNormalization(tester, reference, attribute, List.of());
 	}
 
-	/** Applies one attribute mutation through its owning entity or reference. */
+	/**
+	 * Applies one attribute mutation through its owning entity or reference.
+	 *
+	 * @param tester GraphQL tester bound to the schema endpoint
+	 * @param reference `true` to wrap the mutation into the `normalizationReference` reference, `false` to apply it
+	 *                  to the entity
+	 * @param mutation attribute schema mutation in GraphQL input syntax, without the enclosing braces
+	 */
 	private static void applyNormalizationMutation(
 		@Nonnull GraphQLTester tester, boolean reference, @Nonnull String mutation
 	) {
@@ -1424,7 +1431,15 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.executeAndExpectOkAndThen();
 	}
 
-	/** Reads the declared chain through the schema endpoint. */
+	/**
+	 * Reads the declared chain through the schema endpoint.
+	 *
+	 * @param tester GraphQL tester bound to the schema endpoint
+	 * @param reference `true` to read the attribute of the `normalizationReference` reference, `false` for the
+	 *                  entity attribute
+	 * @param attribute name of the attribute whose declared chain is read
+	 * @param expected steps with their parameters as the schema endpoint renders them; empty for no declaration
+	 */
 	private static void assertNormalization(
 		@Nonnull GraphQLTester tester, boolean reference, @Nonnull String attribute,
 		@Nonnull List<Map<String, Object>> expected

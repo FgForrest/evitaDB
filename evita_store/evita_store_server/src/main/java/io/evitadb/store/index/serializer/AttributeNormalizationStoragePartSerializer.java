@@ -106,13 +106,23 @@ public class AttributeNormalizationStoragePartSerializer extends Serializer<Attr
 		return new AttributeNormalizationStoragePart(new AttributeNormalizationPolicy(rows, compounds, globals));
 	}
 
-	/** Writes the scope- and locale-independent identity. */
+	/**
+	 * Writes the scope- and locale-independent identity.
+	 *
+	 * @param output destination of the serialized identity
+	 * @param key    attribute identity; only its reference name and attribute name are written
+	 */
 	private static void writeKey(@Nonnull Output output, @Nonnull AttributeIndexKey key) {
 		output.writeString(key.referenceName());
 		output.writeString(key.attributeName());
 	}
 
-	/** Reads the scope- and locale-independent identity. */
+	/**
+	 * Reads the scope- and locale-independent identity.
+	 *
+	 * @param input source positioned at the identity written by {@link #writeKey}
+	 * @return identity without scope and locale
+	 */
 	@Nonnull
 	private static AttributeIndexKey readKey(@Nonnull Input input) {
 		return new AttributeIndexKey(input.readString(), input.readString(), null);

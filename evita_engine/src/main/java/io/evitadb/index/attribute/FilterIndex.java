@@ -384,6 +384,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * Legacy NFD-only String key function for migrations and type-only compatibility callers.
 	 * Attribute write/load paths bind the owner's built-with policy through AttributeNormalizationResolver; an
 	 * attribute without a built-with row keeps this function.
+	 *
+	 * @return function producing the NFD form of the textual value; `null` input yields `null`
 	 */
 	@Nonnull
 	public static Function<Object, Serializable> getLegacyStringNormalizer() {

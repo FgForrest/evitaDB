@@ -124,6 +124,9 @@ class StringNormalizationCompilerTest {
 	/**
 	 * Removal before trimming consumes the exposed whitespace and the reverse order keeps it; folding before
 	 * lowercasing exposes the Turkish dotless `ı`; Lucene's folding table maps the small `ǧ` to a capital `G`.
+	 *
+	 * @return arguments of one case: step chain, fold locale, input text and the expected normalized text (`null` for
+	 *     `null`)
 	 */
 	@Nonnull
 	static Stream<Arguments> literalChains() {
@@ -138,7 +141,11 @@ class StringNormalizationCompilerTest {
 		);
 	}
 
-	/** Enumerates all 4! declared step orderings with root, Turkish, Azeri and Lithuanian locales. */
+	/**
+	 * Enumerates all 4! declared step orderings with root, Turkish, Azeri and Lithuanian locales.
+	 *
+	 * @return arguments of one case: a permutation of the four steps and a fold locale
+	 */
 	@Nonnull
 	static Stream<Arguments> orderings() {
 		final List<Arguments> result = new ArrayList<>();
@@ -162,7 +169,11 @@ class StringNormalizationCompilerTest {
 		return result.stream();
 	}
 
-	/** Reuses all golden inputs and adds reproducible random code-point mixtures, including combining marks. */
+	/**
+	 * Reuses all golden inputs and adds reproducible random code-point mixtures, including combining marks.
+	 *
+	 * @return golden inputs followed by 200 random code-point mixtures, identical on every run
+	 */
 	@Nonnull
 	private static List<String> corpus() {
 		final List<String> result = new ArrayList<>(AnalysisStepGoldenOutputTest.samples()

@@ -145,7 +145,14 @@ class DeclaredNormalizationReferenceOrderingFunctionalTest implements EvitaTestS
 			})));
 	}
 
-	/** Reads the same owner through each query anchor and compares the actual returned reference sequence. */
+	/**
+	 * Reads the same owner through each query anchor and compares the actual returned reference sequence.
+	 *
+	 * @param attribute name of the owner's reference attribute or compound to order by
+	 * @param route query anchor: `nested` (through a referenced entity of `Root`), `qualified` (collection stated in
+	 *     the query), any other value for a collection-less query
+	 * @param paged `true` to fetch only the second reference through a page, `false` to fetch all of them
+	 */
 	private void assertOrder(@Nonnull String attribute, @Nonnull String route, boolean paged) {
 		final ReferenceContent references = referenceContentWithAttributes("targets", null,
 			orderBy(attributeNatural(attribute)), attributeContentAll(), null, null, paged ? page(2, 1) : null);

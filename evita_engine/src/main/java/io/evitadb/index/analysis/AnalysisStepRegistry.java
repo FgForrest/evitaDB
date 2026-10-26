@@ -154,13 +154,22 @@ public final class AnalysisStepRegistry {
 	/**
 	 * Returns the shared immutable key function for this exact step list and fold locale (null means root).
 	 * Null values pass through. An empty list preserves the legacy NFD-only String key function.
+	 *
+	 * @param steps      ordered normalization steps to chain
+	 * @param foldLocale locale for locale-sensitive steps such as lowercasing, `null` for the root locale
+	 * @return shared immutable key function applying the steps in order
 	 */
 	@Nonnull
 	public UnaryOperator<String> compile(@Nonnull List<AnalysisStep> steps, @Nullable Locale foldLocale) {
 		return this.compiler.compile(steps, foldLocale);
 	}
 
-	/** Validates installed providers for all entity and reference attributes before a collection exchanges schemas. */
+	/**
+	 * Validates installed providers for all entity and reference attributes before a collection exchanges schemas.
+	 *
+	 * @param schema entity schema whose attribute and reference attribute normalization steps are checked
+	 * @throws InvalidSchemaMutationException when a declared step has no usable provider or invalid parameters
+	 */
 	public void validateNormalizationDescriptions(@Nonnull EntitySchemaContract schema) {
 		for (final AttributeSchemaContract attribute : schema.getAttributes().values()) {
 			validateAttribute(attribute);
@@ -174,14 +183,23 @@ public final class AnalysisStepRegistry {
 		}
 	}
 
-	/** Validates global attributes before catalog schema exchange and propagation into collections. */
+	/**
+	 * Validates global attributes before catalog schema exchange and propagation into collections.
+	 *
+	 * @param schema catalog schema whose global attribute normalization steps are checked
+	 * @throws InvalidSchemaMutationException when a declared step has no usable provider or invalid parameters
+	 */
 	public void validateNormalizationDescriptions(@Nonnull CatalogSchemaContract schema) {
 		for (final AttributeSchemaContract attribute : schema.getAttributes().values()) {
 			validateAttribute(attribute);
 		}
 	}
 
-	/** Checks provider availability only; assembled-schema structural validation retains its existing boundaries. */
+	/**
+	 * Checks provider availability only; assembled-schema structural validation retains its existing boundaries.
+	 *
+	 * @param attribute attribute whose declared normalization steps are resolved against the installed providers
+	 */
 	private void validateAttribute(@Nonnull AttributeSchemaContract attribute) {
 		for (final AnalysisStep step : attribute.getNormalization()) {
 			try {

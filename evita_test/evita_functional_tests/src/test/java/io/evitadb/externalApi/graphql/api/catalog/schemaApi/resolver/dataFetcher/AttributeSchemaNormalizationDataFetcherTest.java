@@ -54,7 +54,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @DisplayName("GraphQL attribute normalization output")
 class AttributeSchemaNormalizationDataFetcherTest {
 
-	/** Supplies empty and ordered chains, including step parameters. */
+	/**
+	 * Supplies empty and ordered chains, including step parameters.
+	 *
+	 * @return declared chains to render
+	 */
 	static Stream<List<AnalysisStep>> chains() {
 		return Stream.of(List.of(), List.of(lowercase()), List.of(removeCharacters("- "), trim(), asciiFolding()));
 	}
@@ -74,7 +78,11 @@ class AttributeSchemaNormalizationDataFetcherTest {
 		Mockito.verify(schema).getNormalization();
 		Mockito.verifyNoMoreInteractions(schema);
 	}
-	/** Supplies free-form parameter objects with values that require evitaDB's custom scalar encodings. */
+	/**
+	 * Supplies free-form parameter objects with values that require evitaDB's custom scalar encodings.
+	 *
+	 * @return pairs of a parameter object and its expected serialized form
+	 */
 	static Stream<Arguments> parameterObjects() {
 		return Stream.of(
 			Arguments.of(Map.of(), Map.of()),

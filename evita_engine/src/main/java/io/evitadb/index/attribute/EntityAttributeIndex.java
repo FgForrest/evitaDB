@@ -56,6 +56,9 @@ public final class EntityAttributeIndex extends AttributeIndex {
 
 	/**
 	 * Creates an attribute container using the owner resolver for new child structures.
+	 *
+	 * @param entityType            type of the entity the container belongs to
+	 * @param normalizationResolver owner resolver binding the String key functions of newly created child indexes
 	 */
 	public EntityAttributeIndex(@Nonnull String entityType,
 		@Nonnull AttributeNormalizationResolver normalizationResolver
@@ -65,6 +68,16 @@ public final class EntityAttributeIndex extends AttributeIndex {
 
 	/**
 	 * Creates an attribute container using the owner resolver for new child structures.
+	 *
+	 * @param entityType            type of the entity the container belongs to
+	 * @param uniqueIndex           restored unique indexes by attribute
+	 * @param filterIndex           restored filter indexes by attribute
+	 * @param uniqueViewIndex       restored unique-view indexes by attribute
+	 * @param sortIndex             restored sort indexes by attribute
+	 * @param chainIndex            restored chain indexes by attribute
+	 * @param sharedValueIndex      restored shared value indexes by attribute
+	 * @param sharedRangeIndex      restored shared range indexes by attribute
+	 * @param normalizationResolver owner resolver binding the String key functions of newly created child indexes
 	 */
 	public EntityAttributeIndex(
 		@Nonnull String entityType,

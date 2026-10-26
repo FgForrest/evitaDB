@@ -54,25 +54,42 @@ public final class AnalysisSteps {
 	private AnalysisSteps() {
 	}
 
-	/** Describes lowercasing using the index locale, or the root locale for non-localized values. */
+	/**
+	 * Describes lowercasing using the index locale, or the root locale for non-localized values.
+	 *
+	 * @return description of the `lowercase` step without parameters
+	 */
 	@Nonnull
 	public static AnalysisStep lowercase() {
 		return step(LOWERCASE);
 	}
 
-	/** Describes folding accented and other supported characters to their ASCII equivalents. */
+	/**
+	 * Describes folding accented and other supported characters to their ASCII equivalents.
+	 *
+	 * @return description of the `ascii-folding` step without parameters
+	 */
 	@Nonnull
 	public static AnalysisStep asciiFolding() {
 		return step(ASCII_FOLDING);
 	}
 
-	/** Describes removing leading and trailing whitespace, including non-breaking spaces. */
+	/**
+	 * Describes removing leading and trailing whitespace, including non-breaking spaces.
+	 *
+	 * @return description of the `trim` step without parameters
+	 */
 	@Nonnull
 	public static AnalysisStep trim() {
 		return step(TRIM);
 	}
 
-	/** Describes removing every occurrence of the supplied nonempty set of characters. */
+	/**
+	 * Describes removing every occurrence of the supplied nonempty set of characters.
+	 *
+	 * @param characters the characters to remove, each of them independently; never `null` or empty
+	 * @return description of the `remove-characters` step carrying the `characters` parameter
+	 */
 	@Nonnull
 	public static AnalysisStep removeCharacters(@Nonnull String characters) {
 		Assert.notNull(characters, "Characters must not be null.");

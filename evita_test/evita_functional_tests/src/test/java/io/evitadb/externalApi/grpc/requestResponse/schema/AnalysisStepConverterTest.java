@@ -63,7 +63,11 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(SCHEMA)
 class AnalysisStepConverterTest {
 
-	/** Returns empty, built-in and extensible typed descriptions. */
+	/**
+	 * Returns empty, built-in and extensible typed descriptions.
+	 *
+	 * @return chains to convert, one per test invocation
+	 */
 	@Nonnull
 	static Stream<List<AnalysisStep>> chains() {
 		return Stream.of(

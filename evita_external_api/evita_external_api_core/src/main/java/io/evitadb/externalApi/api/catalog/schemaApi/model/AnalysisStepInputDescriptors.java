@@ -51,16 +51,25 @@ import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nu
 public final class AnalysisStepInputDescriptors {
 	private static final List<StepInput> STEPS = getSteps(new AnalysisStepRegistry());
 
+	/** Prevents instantiation of this static holder. */
 	private AnalysisStepInputDescriptors() {
 	}
 
-	/** Returns installed normalizing steps sorted by their stable names. */
+	/**
+	 * Returns installed normalizing steps sorted by their stable names.
+	 *
+	 * @return immutable metadata of the steps installed on this server
+	 */
 	@Nonnull
 	public static List<StepInput> getSteps() {
 		return STEPS;
 	}
 
-	/** Builds the common optional-field aggregate; each API adds its exclusivity constraint. */
+	/**
+	 * Builds the common optional-field aggregate; each API adds its exclusivity constraint.
+	 *
+	 * @return descriptor with one optional property per installed normalizing step
+	 */
 	@Nonnull
 	public static ObjectDescriptor getInputDescriptor() {
 		final ObjectDescriptor.ObjectDescriptorBuilder builder = ObjectDescriptor.builder()

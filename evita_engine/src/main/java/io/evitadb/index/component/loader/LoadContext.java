@@ -101,7 +101,12 @@ public record LoadContext(
 	@Nonnull AttributeNormalizationResolver normalizationResolver
 ) {
 
-	/** Resolves the current declaration, which may have been removed while its persisted index still exists. */
+	/**
+	 * Resolves the current declaration, which may have been removed while its persisted index still exists.
+	 *
+	 * @param key identity of the persisted attribute index
+	 * @return the declared attribute schema, or `null` when the declaration no longer exists
+	 */
 	@Nullable
 	public AttributeSchemaContract resolveAttribute(@Nonnull AttributeIndexKey key) {
 		return key.referenceName() == null
@@ -113,6 +118,11 @@ public record LoadContext(
 	/**
 	 * Binds the raw-input function from owner metadata before constructing a tree, including orphaned String indexes.
 	 * Re-canonicalizing persisted keys heals keys written by older versions and must use the legacy function only.
+	 *
+	 * @param key                  identity of the persisted attribute index
+	 * @param plainType            plain (non-array) type of the attribute values
+	 * @param indexedDecimalPlaces the attribute schema's `indexedDecimalPlaces`
+	 * @return raw-input key function; the legacy NFD-only one for a String attribute whose declaration is gone
 	 */
 	@Nonnull
 	@SuppressWarnings({"unchecked", "rawtypes"})
@@ -132,7 +142,14 @@ public record LoadContext(
 		return FilterIndex.getNormalizer(plainType, indexedDecimalPlaces);
 	}
 
-	/** Reconstructs scalar or per-element compound policy before constructing an owner sort index. */
+	/**
+	 * Reconstructs scalar or per-element compound policy before constructing an owner sort index.
+	 *
+	 * @param key                  identity of the persisted sort index
+	 * @param comparatorBase       frozen comparator descriptors of the stored tree, one per element
+	 * @param indexedDecimalPlaces frozen decimal scale of the stored tree
+	 * @return sort key function matching the stored keys
+	 */
 	@Nonnull
 	public UnaryOperator<Serializable> resolveSortNormalizer(
 		@Nonnull AttributeIndexKey key, @Nonnull SortIndex.ComparatorSource[] comparatorBase, int indexedDecimalPlaces

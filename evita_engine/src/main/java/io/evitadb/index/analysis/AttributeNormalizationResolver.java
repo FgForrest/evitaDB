@@ -57,6 +57,11 @@ public interface AttributeNormalizationResolver {
 
 	/**
 	 * Resolves an immutable String key function. Null fold locale means root, including cross-locale uniqueness.
+	 *
+	 * @param referenceName   the owning reference, `null` for entity or global attributes
+	 * @param attributeSchema the declared attribute
+	 * @param foldLocale      locale for locale-sensitive steps, `null` for root
+	 * @return the key function; passes `null` values through
 	 */
 	@Nonnull
 	UnaryOperator<String> resolve(
@@ -67,6 +72,11 @@ public interface AttributeNormalizationResolver {
 
 	/**
 	 * Binds the String policy or retains the existing type/scale encoding for a non-String attribute.
+	 *
+	 * @param referenceName   the owning reference, `null` for entity or global attributes
+	 * @param attributeSchema the declared attribute
+	 * @param foldLocale      locale for locale-sensitive steps, `null` for root
+	 * @return the key function used to build lookup keys of the attribute
 	 */
 	@Nonnull
 	@SuppressWarnings({"unchecked", "rawtypes"})
@@ -83,6 +93,11 @@ public interface AttributeNormalizationResolver {
 
 	/**
 	 * Binds a scalar sort key, retaining the existing non-String sort encoding.
+	 *
+	 * @param referenceName   the owning reference, `null` for entity or global attributes
+	 * @param attributeSchema the declared attribute
+	 * @param foldLocale      locale for locale-sensitive steps, `null` for root
+	 * @return the sort key normalizer; identity when the type needs no encoding
 	 */
 	@Nonnull
 	@SuppressWarnings({"unchecked", "rawtypes"})
@@ -105,6 +120,12 @@ public interface AttributeNormalizationResolver {
 	/**
 	 * Binds every compound element separately. Non-localized elements fold by root even in a localized compound;
 	 * BigDecimal elements retain the compound index's exact representation.
+	 *
+	 * @param referenceName           the owning reference, `null` for entity attributes
+	 * @param compoundSchema          the compound whose elements are bound
+	 * @param attributeSchemaProvider resolves each element's attribute schema by name
+	 * @param foldLocale              the compound locale, masked separately for each String element
+	 * @return the normalizer of the whole raw tuple; identity when no element needs normalization
 	 */
 	@Nonnull
 	default UnaryOperator<Serializable> resolveCompoundNormalizer(
@@ -137,7 +158,17 @@ public interface AttributeNormalizationResolver {
 		return resolveCompoundNormalizer(referenceName, compoundSchema, attributeSchemaProvider, foldLocale, true);
 	}
 
-	/** Binds per-element functions, preserving the raw-value encoding of the index or comparator role. */
+	/**
+	 * Binds per-element functions, preserving the raw-value encoding of the index or comparator role.
+	 *
+	 * @param referenceName           the owning reference, `null` for entity attributes
+	 * @param compoundSchema          the compound whose elements are bound
+	 * @param attributeSchemaProvider resolves each element's attribute schema by name
+	 * @param foldLocale              the compound locale, masked separately for each String element
+	 * @param forComparison           `true` for the comparator role, which compares raw values, `false` for the
+	 *                                index role
+	 * @return the normalizer of the whole raw tuple; identity when no element needs normalization
+	 */
 	@Nonnull
 	private UnaryOperator<Serializable> resolveCompoundNormalizer(
 		@Nullable String referenceName,

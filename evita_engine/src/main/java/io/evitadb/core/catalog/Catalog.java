@@ -776,6 +776,10 @@ public final class Catalog
 	 * references inherit their String policy from another collection, whose schema may otherwise not be installed
 	 * yet. These bound schemas are load-local; ordinary collection schema adoption still runs in `initSchema`.
 	 * Storage access stays behind the persistence SPI and no policy or schema is written here.
+	 *
+	 * @param catalog the catalog being loaded, whose persistence service supplies the stored schemas
+	 * @param header  the catalog header naming the collections and the version to read them at
+	 * @return stored entity schemas keyed by entity type, with reflected references already bound
 	 */
 	@Nonnull
 	private static Map<String, EntitySchema> loadAttributeIndexSchemas(
@@ -1009,6 +1013,18 @@ public final class Catalog
 		this.expressionTriggerRegistry = new TransactionalReference<>(CatalogExpressionTriggerRegistry.EMPTY);
 	}
 
+	/**
+	 * Creates the next catalog version over the previous one's persistence service, with the supplied global
+	 * normalization rows.
+	 *
+	 * @param catalogVersion          version of the new catalog instance
+	 * @param catalogState            lifecycle state of the new catalog instance
+	 * @param catalogIndex            index of the `LIVE` scope, carried over to the new instance
+	 * @param archiveCatalogIndex     index of the `ARCHIVED` scope, `null` when nothing is archived
+	 * @param entityCollections       collections to attach to the new instance
+	 * @param previousCatalogVersion  catalog version this one succeeds, source of the shared services
+	 * @param globalRows              built-with normalization steps of global attributes for the new instance
+	 */
 	Catalog(
 		long catalogVersion,
 		@Nonnull CatalogState catalogState,
@@ -1046,6 +1062,21 @@ public final class Catalog
 			previousCatalogVersion.getGlobalAttributeNormalizationRows());
 	}
 
+	/**
+	 * Creates the next catalog version over the supplied persistence service, with the supplied global normalization
+	 * rows.
+	 *
+	 * @param catalogVersion          version of the new catalog instance
+	 * @param catalogState            lifecycle state of the new catalog instance
+	 * @param catalogIndex            index of the `LIVE` scope, carried over to the new instance
+	 * @param archiveCatalogIndex     index of the `ARCHIVED` scope, `null` when nothing is archived
+	 * @param entityCollections       collections to attach to the new instance
+	 * @param persistenceService      persistence service the new instance reads and writes through
+	 * @param previousCatalogVersion  catalog version this one succeeds, source of the shared services
+	 * @param initSchemas             whether to initialize each collection's schema, which also rebuilds the
+	 *                                expression trigger registry once all of them are resolved
+	 * @param globalRows              built-with normalization steps of global attributes for the new instance
+	 */
 	Catalog(
 		long catalogVersion,
 		@Nonnull CatalogState catalogState,
@@ -2471,7 +2502,14 @@ public final class Catalog
 		return Objects.requireNonNull(this.globalAttributeNormalizationRows.get());
 	}
 
-	/** Checks both catalog scopes and actual adopting collections, including retained orphaned global footprints. */
+	/**
+	 * Checks both catalog scopes and actual adopting collections, including retained orphaned global footprints.
+	 *
+	 * @param name   name of the global attribute
+	 * @param probes per-collection key predicates, filled lazily so each collection is probed at most once per call
+	 *               chain
+	 * @return `true` when any scope or adopting collection holds String keys of the attribute
+	 */
 	private boolean hasGlobalStringKeys(
 		@Nonnull String name, @Nonnull Map<EntityCollection, Predicate<AttributeIndexKey>> probes
 	) {
@@ -2487,7 +2525,13 @@ public final class Catalog
 			(archived != null && hasCatalogStringKeys(archived, name));
 	}
 
-	/** Tests catalog unique trees without invoking their storage emitters. */
+	/**
+	 * Tests catalog unique trees without invoking their storage emitters.
+	 *
+	 * @param index the catalog index of one scope
+	 * @param name  name of the global attribute
+	 * @return `true` when a non-empty String unique tree of the attribute exists in the index
+	 */
 	private static boolean hasCatalogStringKeys(@Nonnull CatalogIndex index, @Nonnull String name) {
 		for (final Map.Entry<AttributeKey, GlobalUniqueIndex> entry : index.getGlobalUniqueIndexes().entrySet()) {
 			final GlobalUniqueIndex uniqueIndex = entry.getValue();
@@ -2500,7 +2544,11 @@ public final class Catalog
 		return false;
 	}
 
-	/** Reconciles global rows before cascading the new declaration to collections. */
+	/**
+	 * Reconciles global rows before cascading the new declaration to collections.
+	 *
+	 * @param updatedSchema the catalog schema whose global attribute declarations the rows are reconciled against
+	 */
 	private void reconcileGlobalNormalization(@Nonnull CatalogSchemaContract updatedSchema) {
 		final Map<String, List<AnalysisStep>> rows = new HashMap<>(getGlobalAttributeNormalizationRows());
 		final Map<EntityCollection, Predicate<AttributeIndexKey>> probes = CollectionUtils.createHashMap(
@@ -2536,7 +2584,11 @@ public final class Catalog
 		}
 	}
 
-	/** Publishes changed catalog rows and refreshes actual adopters, including compensating failed schema changes. */
+	/**
+	 * Publishes changed catalog rows and refreshes actual adopters, including compensating failed schema changes.
+	 *
+	 * @param rows the complete set of built-with global rows to publish; nothing happens when equal to the current one
+	 */
 	private void adoptGlobalNormalizationRows(@Nonnull Map<String, List<AnalysisStep>> rows) {
 		final Map<String, List<AnalysisStep>> previous = getGlobalAttributeNormalizationRows();
 		if (!rows.equals(previous)) {

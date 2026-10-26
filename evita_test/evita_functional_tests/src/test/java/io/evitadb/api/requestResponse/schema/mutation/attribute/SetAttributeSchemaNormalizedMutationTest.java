@@ -60,7 +60,11 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(SCHEMA)
 class SetAttributeSchemaNormalizedMutationTest {
 
-	/** Supplies all DTO variants to every preservation and validation test. */
+	/**
+	 * Supplies all DTO variants to every preservation and validation test.
+	 *
+	 * @return a plain, an entity and a global `String` attribute schema
+	 */
 	@Nonnull
 	static Stream<AttributeSchemaContract> schemas() {
 		return Stream.of(
