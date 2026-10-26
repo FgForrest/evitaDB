@@ -30,6 +30,7 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.PrimitiveIterator.OfInt;
 
@@ -58,6 +59,114 @@ import java.util.PrimitiveIterator.OfInt;
 abstract class AbstractIntKeyedBPlusTree extends AbstractTransactionalBPlusTree
 	implements ConsistencySensitiveDataStructure {
 	@Serial private static final long serialVersionUID = 8159528799470124133L;
+
+	/**
+	 * Computes the leaf sizes of a bulk build: full leaves of `valueBlockSize - 1` elements and a remainder. A
+	 * remainder below `minimum` is topped up from the previous leaf. The constructor guarantees that the previous
+	 * leaf can spare the missing elements without underflowing.
+	 *
+	 * @param count   the number of elements, positive
+	 * @param minimum the minimum occupancy of a non-root leaf
+	 * @return the size of each leaf in key order
+	 */
+	@Nonnull
+	protected int[] bulkLeafSizes(int count, int minimum) {
+		final int fill = this.valueBlockSize - 1;
+		final int fullLeaves = count / fill;
+		final int remainder = count % fill;
+		if (remainder == 0) {
+			final int[] sizes = new int[fullLeaves];
+			Arrays.fill(sizes, fill);
+			return sizes;
+		}
+		if (fullLeaves == 0 || remainder >= minimum) {
+			final int[] sizes = new int[fullLeaves + 1];
+			Arrays.fill(sizes, fill);
+			sizes[fullLeaves] = remainder;
+			return sizes;
+		}
+		final int missing = minimum - remainder;
+		final int[] sizes = new int[fullLeaves + 1];
+		Arrays.fill(sizes, fill);
+		sizes[fullLeaves - 1] = fill - missing;
+		sizes[fullLeaves] = minimum;
+		return sizes;
+	}
+
+	/**
+	 * Adopts the arrays of a freshly assembled internal node without copying them.
+	 *
+	 * @param keys               the full-capacity separator array
+	 * @param children           the full-capacity child array
+	 * @param peek               the last occupied child slot
+	 * @param transactionalLayer whether the node participates in transactional memory
+	 * @return the assembled internal node
+	 */
+	@Nonnull
+	protected abstract AbstractIntKeyedInternalNode<?> createAssembledInternalNode(
+		@Nonnull int[] keys, @Nonnull BPlusTreeNode<?>[] children, int peek, boolean transactionalLayer
+	);
+
+	/**
+	 * Builds one internal level over `level` and recurses until a single node (the root) remains. The level below is
+	 * partitioned into `ceil(size / maxChildren)` parents, each receiving an evenly distributed contiguous run of
+	 * children so no non-root parent underflows.
+	 *
+	 * @param level              the ordered nodes of the level immediately below the one being built
+	 * @param transactionalLayer whether the internal nodes participate in the transactional memory layer
+	 * @return the root of the assembled subtree
+	 */
+	@Nonnull
+	protected BPlusTreeNode<?> buildSpine(@Nonnull List<? extends BPlusTreeNode<?>> level, boolean transactionalLayer) {
+		if (level.size() == 1) {
+			return level.getFirst();
+		}
+		// Pack at most internalNodeBlockSize children per parent (one below the node's children capacity of
+		// internalNodeBlockSize + 1). An assembled node must be born non-full so the first child split can still call
+		// adaptToLeafSplit (which requires !isFull()) before the parent overflows and splits in turn.
+		final int maxChildren = this.internalNodeBlockSize;
+		final int childTotal = level.size();
+		final int parentCount = (childTotal + maxChildren - 1) / maxChildren;
+		final int baseChildren = childTotal / parentCount;
+		// the first `withExtra` parents take one extra child so the split is as even as possible
+		final int withExtra = childTotal % parentCount;
+		final List<AbstractIntKeyedInternalNode<?>> parents = new ArrayList<>(parentCount);
+		int childIndex = 0;
+		for (int p = 0; p < parentCount; p++) {
+			final int childCount = baseChildren + (p < withExtra ? 1 : 0);
+			parents.add(buildInternalNode(level, childIndex, childCount, transactionalLayer));
+			childIndex += childCount;
+		}
+		return buildSpine(parents, transactionalLayer);
+	}
+
+	/**
+	 * Constructs a single internal node holding `childCount` children taken from `children` starting at `from`. The
+	 * separator before child `i` (for `i >= 1`) is that child's left boundary key. The key / children arrays are
+	 * allocated at the node's full capacity (mirroring split-created nodes), leaving the unused tail at its default.
+	 *
+	 * @param children           the ordered children of the level below
+	 * @param from               the index of the first child this node owns
+	 * @param childCount         the number of children this node owns (>= 1)
+	 * @param transactionalLayer whether the node participates in the transactional memory layer
+	 * @return the assembled internal node
+	 */
+	@Nonnull
+	private AbstractIntKeyedInternalNode<?> buildInternalNode(
+		@Nonnull List<? extends BPlusTreeNode<?>> children, int from, int childCount, boolean transactionalLayer
+	) {
+		final int[] keys = new int[this.internalNodeBlockSize];
+		final BPlusTreeNode<?>[] childArray = new BPlusTreeNode[this.internalNodeBlockSize + 1];
+		for (int i = 0; i < childCount; i++) {
+			final BPlusTreeNode<?> child = children.get(from + i);
+			childArray[i] = child;
+			if (i > 0) {
+				// separator i-1 routes to child i — the left boundary key invariant the tree enforces
+				keys[i - 1] = AbstractIntKeyedInternalNode.leftBoundaryKeyOf(child);
+			}
+		}
+		return createAssembledInternalNode(keys, childArray, childCount - 1, transactionalLayer);
+	}
 
 	/**
 	 * Recursively traverses the B+ tree to find the leaf node responsible for the specified key, appending the internal

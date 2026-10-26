@@ -177,6 +177,17 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		);
 	}
 
+	/**
+	 * Adopts a bulk-assembled internal node's full-capacity arrays.
+	 */
+	@Nonnull
+	@Override
+	protected BPlusInternalTreeNode createAssembledInternalNode(
+		@Nonnull int[] keys, @Nonnull BPlusTreeNode<?>[] children, int peek, boolean transactionalLayer
+	) {
+		return new BPlusInternalTreeNode(keys, children, peek, transactionalLayer);
+	}
+
 	@Override
 	protected boolean splitNodesJoinTransactionalLayer() {
 		// the int→long tree's nodes are Snapshotable and the tree is never bulk-rebuilt by re-inserting outside an

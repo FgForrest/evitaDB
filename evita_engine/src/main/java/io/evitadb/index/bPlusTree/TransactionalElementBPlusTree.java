@@ -112,19 +112,6 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	@Nonnull private final ToIntFunction<E> keyExtractor;
 
 	/**
-	 * Returns the left boundary key of an arbitrary node reached through the key-agnostic {@link BPlusTreeNode} SPI
-	 * (e.g. an element of an internal node's children array). The primitive-key accessor lives on the per-tree
-	 * {@link IntBoundaryKeyedNode} marker so it stays out of the shared SPI (which must never expose a typed key); every
-	 * node in this tree implements it, so the cast is always safe.
-	 *
-	 * @param node the node whose left boundary key is requested
-	 * @return the left boundary (smallest) key of the node
-	 */
-	private static int leftBoundaryKeyOf(@Nonnull BPlusTreeNode<?> node) {
-		return ((IntBoundaryKeyedNode) node).getLeftBoundaryKey();
-	}
-
-	/**
 	 * The last slot index the leaf heap walk may address on the `values` array **it has already read**, given the
 	 * `peek` it has already read.
 	 *
@@ -286,6 +273,17 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		);
 	}
 
+	/**
+	 * Adopts a bulk-assembled internal node's full-capacity arrays.
+	 */
+	@Nonnull
+	@Override
+	protected BPlusInternalTreeNode createAssembledInternalNode(
+		@Nonnull int[] keys, @Nonnull BPlusTreeNode<?>[] children, int peek, boolean transactionalLayer
+	) {
+		return new BPlusInternalTreeNode(keys, children, peek, transactionalLayer);
+	}
+
 	@Override
 	protected boolean splitNodesJoinTransactionalLayer() {
 		// the element-keyed price tree is bulk-rebuilt by re-inserting records during the commit-merge
@@ -320,7 +318,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		for (final BPlusLeafTreeNode<E> orderedLeaf : orderedLeaves) {
 			totalValues += orderedLeaf.size();
 		}
-		final BPlusTreeNode<?> assembledRoot = buildSpine(new ArrayList<>(orderedLeaves));
+		final BPlusTreeNode<?> assembledRoot = buildSpine(new ArrayList<>(orderedLeaves), true);
 		return new TransactionalElementBPlusTree<>(
 			this.valueBlockSize, this.minValueBlockSize,
 			this.internalNodeBlockSize, this.minInternalNodeBlockSize,
@@ -935,65 +933,6 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 				", tree block size: " + this.valueBlockSize + ")!",
 			"Leaf is full but no cursor path was captured!"
 		);
-	}
-
-	/**
-	 * Builds one internal level over `level` and recurses until a single node (the root) remains. The level below is
-	 * partitioned into `ceil(size / maxChildren)` parents, each receiving an evenly distributed contiguous run of
-	 * children so no non-root parent underflows.
-	 *
-	 * @param level the ordered nodes of the level immediately below the one being built
-	 * @return the root of the assembled subtree
-	 */
-	@Nonnull
-	private BPlusTreeNode<?> buildSpine(@Nonnull List<? extends BPlusTreeNode<?>> level) {
-		if (level.size() == 1) {
-			return level.getFirst();
-		}
-		// Pack at most internalNodeBlockSize children per parent (one below the node's children capacity of
-		// internalNodeBlockSize + 1). An assembled node must be born non-full so the first child split can still call
-		// adaptToLeafSplit (which requires !isFull()) before the parent overflows and splits in turn.
-		final int maxChildren = this.internalNodeBlockSize;
-		final int childTotal = level.size();
-		final int parentCount = (childTotal + maxChildren - 1) / maxChildren;
-		final int baseChildren = childTotal / parentCount;
-		// the first `withExtra` parents take one extra child so the split is as even as possible
-		final int withExtra = childTotal % parentCount;
-		final List<BPlusInternalTreeNode> parents = new ArrayList<>(parentCount);
-		int childIndex = 0;
-		for (int p = 0; p < parentCount; p++) {
-			final int childCount = baseChildren + (p < withExtra ? 1 : 0);
-			parents.add(buildInternalNode(level, childIndex, childCount));
-			childIndex += childCount;
-		}
-		return buildSpine(parents);
-	}
-
-	/**
-	 * Constructs a single internal node holding `childCount` children taken from `children` starting at `from`. The
-	 * separator before child `i` (for `i >= 1`) is that child's left boundary key. The key / children arrays are
-	 * allocated at the node's full capacity (mirroring split-created nodes), leaving the unused tail at its default.
-	 *
-	 * @param children   the ordered children of the level below
-	 * @param from       the index of the first child this node owns
-	 * @param childCount the number of children this node owns (>= 1)
-	 * @return the assembled internal node
-	 */
-	@Nonnull
-	private BPlusInternalTreeNode buildInternalNode(
-		@Nonnull List<? extends BPlusTreeNode<?>> children, int from, int childCount
-	) {
-		final int[] keys = new int[this.internalNodeBlockSize];
-		final BPlusTreeNode<?>[] childArray = new BPlusTreeNode[this.internalNodeBlockSize + 1];
-		for (int i = 0; i < childCount; i++) {
-			final BPlusTreeNode<?> child = children.get(from + i);
-			childArray[i] = child;
-			if (i > 0) {
-				// separator i-1 routes to child i — the left boundary key invariant the tree enforces
-				keys[i - 1] = leftBoundaryKeyOf(child);
-			}
-		}
-		return new BPlusInternalTreeNode(keys, childArray, childCount - 1, true);
 	}
 
 	/**
