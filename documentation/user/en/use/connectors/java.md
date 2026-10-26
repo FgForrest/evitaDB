@@ -42,9 +42,8 @@ implementation 'io.evitadb:evita_java_driver:2026.1.0'
 </CodeTabs>
 
 <Note type="info">
-The driver is compiled for Java 17 and runs on Java 17 or newer; the same holds for the
-`evita_java_driver_all_in_one` artifact that bundles all of its dependencies. The evitaDB server itself
-requires Java 21, but the client application does not have to run on the server's Java version.
+The driver is compiled for Java 17 and runs on Java 17 or newer. The evitaDB server requires Java 21,
+but the client application does not have to run on the server's Java version.
 </Note>
 
 Java remote client builds on top of the [gRPC API](./grpc.md). The <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
@@ -60,6 +59,23 @@ reached you need to call some method on it. The usual scenario would be [opening
 The <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
 keeps a pool of opened resources and should be terminated by a `close()` method when you stop using it.
 </Note>
+
+### Shaded driver
+
+If your application has dependency conflicts with gRPC, Armeria, Netty, Jackson or Guava, build the
+`evita_java_driver_all_in_one` jar from the
+[shaded driver recipe](https://github.com/FgForrest/evitaDB/tree/dev/recipes/evita_java_driver_all_in_one).
+Otherwise, depend on `evita_java_driver` directly.
+
+Copy the recipe directory and run the following command inside it, replacing `<evitaDB version>` with
+a released `evita_java_driver` version:
+
+```shell
+mvn -Drevision=<evitaDB version> install
+```
+
+The recipe requires JDK 17 or newer to build and run. To deploy the jar to your own repository, configure
+that repository in the recipe POM and use `deploy` instead of `install`.
 
 ### Configuration
 
