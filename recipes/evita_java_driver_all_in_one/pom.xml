@@ -7,7 +7,7 @@
   ~             |  __/\ V /| | || (_| | |_| | |_) |
   ~              \___| \_/ |_|\__\__,_|____/|____/
   ~
-  ~   Copyright (c) 2023-2025
+  ~   Copyright (c) 2023-2026
   ~
   ~   Licensed under the Business Source License, Version 1.1 (the "License");
   ~   you may not use this file except in compliance with the License.
@@ -22,27 +22,104 @@
   ~   limitations under the License.
   -->
 
+<!--
+    Standalone recipe for a Java driver jar with its dependencies shaded.
+    Build: mvn -Drevision=<evitaDB version> install
+    The version must match a released evita_java_driver. You may change the groupId
+    when deploying the result into your own repository.
+-->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
+	<groupId>io.evitadb</groupId>
 	<artifactId>evita_java_driver_all_in_one</artifactId>
+	<version>${revision}</version>
 	<packaging>jar</packaging>
 	<name>evitaDB - Java driver all-in-one (gRPC client side)</name>
-	<description>Module contains gRPC Java driver (gRPC client) for evitaDB.</description>
-	<parent>
-		<groupId>io.evitadb</groupId>
-		<artifactId>evita_root</artifactId>
-		<version>2026.3-SNAPSHOT</version>
-		<relativePath>../../../pom.xml</relativePath>
-	</parent>
+	<description>Standalone recipe for the shaded evitaDB Java driver.</description>
+	<organization>
+		<name>FG Forrest, a.s.</name>
+		<url>https://www.fg.cz</url>
+	</organization>
+	<properties>
+		<maven.compiler.release>17</maven.compiler.release>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+	</properties>
+	<!--
+		Resolves every third-party library at the version evitaDB was built and tested with. Without this import
+		Maven's nearest-wins mediation picks other versions of the shaded libraries (e.g. Guava's `-android` flavour
+		and older Jackson and Netty patch releases). Everything is shaded into the jar, so the pins cannot leak into
+		the application that uses it.
+	-->
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>io.evitadb</groupId>
+				<artifactId>evita_root</artifactId>
+				<version>${revision}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 	<dependencies>
 		<dependency>
-			<groupId>${project.parent.groupId}</groupId>
+			<groupId>io.evitadb</groupId>
 			<artifactId>evita_java_driver</artifactId>
-			<version>${project.parent.version}</version>
+			<version>${revision}</version>
 		</dependency>
 	</dependencies>
 	<build>
 		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-clean-plugin</artifactId>
+				<version>3.5.0</version>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-resources-plugin</artifactId>
+				<version>3.5.0</version>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<version>3.16.0</version>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>3.5.5</version>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-install-plugin</artifactId>
+				<version>3.2.0</version>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-deploy-plugin</artifactId>
+				<version>3.2.0</version>
+			</plugin>
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>flatten-maven-plugin</artifactId>
+				<version>1.8.0</version>
+				<configuration>
+					<!-- Resolve the version and remove dependencies already contained in the jar.
+					     resolveCiFriendliesOnly with pomElements fails in flatten 1.8.0. -->
+					<flattenMode>fatjar</flattenMode>
+					<outputDirectory>${project.build.directory}</outputDirectory>
+				</configuration>
+				<executions>
+					<execution>
+						<id>flatten</id>
+						<phase>process-resources</phase>
+						<goals>
+							<goal>flatten</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-jar-plugin</artifactId>
@@ -57,25 +134,8 @@
 			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-javadoc-plugin</artifactId>
-				<version>3.12.0</version>
-				<executions>
-					<execution>
-						<id>attach-javadoc</id>
-						<goals>
-							<goal>jar</goal>
-						</goals>
-						<configuration>
-							<includeDependencySources>true</includeDependencySources>
-							<dependencySourceExcludes>org.projectlombok:*,com.google.code.findbugs:*</dependencySourceExcludes>
-							<additionalJOption>-quiet</additionalJOption>
-						</configuration>
-					</execution>
-				</executions>
-			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-shade-plugin</artifactId>
+				<version>3.6.2</version>
 				<executions>
 					<execution>
 						<phase>package</phase>
@@ -85,8 +145,7 @@
 					</execution>
 				</executions>
 				<configuration>
-					<!--<minimizeJar>true</minimizeJar>-->
-					<createSourcesJar>true</createSourcesJar>
+					<createDependencyReducedPom>false</createDependencyReducedPom>
 					<relocations>
 						<relocation>
 							<pattern>io.grpc</pattern>
@@ -173,7 +232,10 @@
 						<transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer" />
 						<transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
 						<transformer implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer" />
-						<transformer implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer" />
+						<transformer implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer">
+							<!-- JDK 17 still defaults to the platform charset, which mangles non-ASCII notices. -->
+							<encoding>UTF-8</encoding>
+						</transformer>
 						<transformer implementation="org.apache.maven.plugins.shade.resource.DontIncludeResourceTransformer">
 							<resource>META-INF/MANIFEST.MF</resource>
 						</transformer>
