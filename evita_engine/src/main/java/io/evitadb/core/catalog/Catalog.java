@@ -457,9 +457,25 @@ public final class Catalog
 	/** Immutable providers and compiled functions shared across this catalog's snapshots. */
 	@Nonnull private final AnalysisStepRegistry analysisStepRegistry;
 	/**
-	 * Built-with step lists of the global attributes, keyed by attribute name - the authoritative rows the catalog's
-	 * unique trees and every adopting collection key their Strings with. Resolvers are built from it on demand (see
-	 * {@link #getAttributeNormalizationResolver()}); a missing name means legacy NFD.
+	 * Built-with step lists of the global attributes, keyed by attribute name: the normalization that the String keys
+	 * already stored for each global attribute were built with. The catalog's global unique trees (both scopes) and
+	 * every collection that adopted the global attribute key their Strings with this one row, so that a value has the
+	 * same key in all of them. Resolvers are built from it on demand (see {@link #getAttributeNormalizationResolver()});
+	 * a missing name means legacy NFD.
+	 *
+	 * **Deliberately not part of the schema.** The schema holds the declaration and this map holds what the existing
+	 * keys were built with, and the two differ once a populated attribute changes its declaration: the change is
+	 * accepted, but stored keys cannot be rebuilt until reindexing exists (#409), so the row keeps the old steps and a
+	 * warning is logged. An attribute without keys adopts the declaration at once. Whether an attribute held keys at its
+	 * last schema change is a fact about the data rather than the schema - kept in the schema, the row would either
+	 * replace the declaration the schema must report, or expose index state through every external API and client
+	 * schema cache.
+	 *
+	 * The rows change only in `reconcileGlobalNormalization` during a schema change, never on a write. They are
+	 * therefore transactional and roll back with a failed schema batch, and WAL replay, which carries only the
+	 * declarations, reaches the same rows from the replayed mutation and the index state. They persist in
+	 * {@link GlobalAttributeNormalizationStoragePart}, which loads before any value tree. The counterpart for local and
+	 * reference attributes is the collection's {@link EntityCollection#getNormalizationPolicy()}.
 	 */
 	@Nonnull private final TransactionalReference<Map<String, List<AnalysisStep>>> globalAttributeNormalizationRows;
 	/**

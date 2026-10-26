@@ -374,7 +374,13 @@ public final class EntityCollection implements
 	 * the creation of the catalog copy).
 	 */
 	private Catalog catalog;
-	/** Transactional owner of built-with descriptions; no executable function is stored here. */
+	/**
+	 * Built-with step lists of this collection's local and reference attributes and its compounds: the normalization
+	 * that the String keys already stored in its indexes were built with, which differs from the schema's declaration
+	 * once a populated attribute changes it. It is kept outside the schema for the reasons given at the catalog's
+	 * global counterpart, `Catalog#globalAttributeNormalizationRows`, and changes only during a schema change. It holds
+	 * descriptions only; the executable functions are compiled from them by the catalog's analysis step registry.
+	 */
 	private final TransactionalReference<AttributeNormalizationPolicy> normalizationPolicy;
 
 	/**
