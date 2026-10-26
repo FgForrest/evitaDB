@@ -141,7 +141,9 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 		assertStateAfterCommit(
 			index,
 			tested -> {
+				assertEquals(3, tested.priceRecords.leafPageHandles().size(), "Both fixtures must start at 3 leaves.");
 				tested.addPrice(splitRecord, null);
+				assertEquals(4, tested.priceRecords.leafPageHandles().size(), "The earlier entity must split a leaf.");
 				final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
 				final Savepoint savepoint = maintainer.openSavepoint();
 				tested.removePrice(deletedKey, deletedKey, null);

@@ -29,7 +29,6 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.core.transaction.Transaction;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.TransactionalElementBPlusTree;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
@@ -43,6 +42,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import java.util.Currency;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.INDEXING;
@@ -72,14 +72,14 @@ class PriceRecordTreeBulkBuildTest {
 	@DisplayName("ascending records outside a transaction use the bulk builder")
 	void shouldBulkBuildAscendingInput() {
 		final PriceRecordContract[] input = records(129);
-		final TransactionalElementBPlusTree<PriceRecordContract> tree =
-			AbstractPriceListAndCurrencyPriceIndex.newPriceRecordTree(input, INDEX_KEY);
-		assertArrayEquals(input, tree.toArray());
-		assertEquals(3, tree.leafPageHandles().size(), "Ascending input must use the full-leaf builder.");
+		final LoggedBuild build = buildLogged(input);
+		assertArrayEquals(input, build.tree().toArray());
+		assertEquals(3, build.tree().leafPageHandles().size(), "Ascending input must use the full-leaf builder.");
+		assertTrue(build.events().isEmpty(), () -> "Ascending input must log nothing: " + build.events());
 	}
 
 	/**
-	 * Both a descending pair and a duplicate must preserve dev's insert behavior and issue exactly one diagnostic.
+	 * Both a descending pair and a duplicate must preserve insert semantics and issue exactly one diagnostic.
 	 */
 	@ParameterizedTest
 	@ValueSource(booleans = {false, true})
@@ -91,23 +91,14 @@ class PriceRecordTreeBulkBuildTest {
 		input[64] = new PriceRecord(currentId, 17, 29, 900, 800);
 		input[100] = input[2];
 		final TransactionalElementBPlusTree<PriceRecordContract> reference = insertBuilt(input);
-		final Logger logger = (Logger) LoggerFactory.getLogger(AbstractPriceListAndCurrencyPriceIndex.class);
-		final ListAppender<ILoggingEvent> appender = new ListAppender<>();
-		appender.start();
-		logger.addAppender(appender);
-		final TransactionalElementBPlusTree<PriceRecordContract> actual;
-		try {
-			actual = AbstractPriceListAndCurrencyPriceIndex.newPriceRecordTree(input, INDEX_KEY);
-		} finally {
-			logger.detachAppender(appender);
-			appender.stop();
-		}
+		final LoggedBuild build = buildLogged(input);
+		final TransactionalElementBPlusTree<PriceRecordContract> actual = build.tree();
 		assertArrayEquals(reference.toArray(), actual.toArray(), "The fallback must preserve insert semantics.");
 		assertEquals(reference.size(), actual.size());
-		assertEquals(reference.toString(), actual.toString(), "The fallback must retain the dev insert-built shape.");
+		assertEquals(reference.toString(), actual.toString(), "The fallback must retain the insert-built shape.");
 		assertEquals(input[64], actual.search(currentId), "A duplicate must retain its last record body.");
-		assertEquals(1, appender.list.size(), "Ordering violations must be logged once per tree build.");
-		final ILoggingEvent event = appender.list.getFirst();
+		assertEquals(1, build.events().size(), "Ordering violations must be logged once per tree build.");
+		final ILoggingEvent event = build.events().getFirst();
 		assertEquals(Level.ERROR, event.getLevel());
 		final String message = event.getFormattedMessage();
 		assertTrue(message.contains(INDEX_KEY.toString()), message);
@@ -128,12 +119,6 @@ class PriceRecordTreeBulkBuildTest {
 		assertStateAfterRollback(
 			new TransactionalElementBPlusTree<>(PriceRecordContract.class, PriceRecordContract::internalPriceId),
 			owner -> {
-				assertThrows(
-					GenericEvitaInternalError.class,
-					() -> TransactionalElementBPlusTree.bulkBuild(
-						PriceRecordContract.class, PriceRecordContract::internalPriceId, input
-					)
-				);
 				loaded.set(AbstractPriceListAndCurrencyPriceIndex.newPriceRecordTree(input, INDEX_KEY));
 				assertArrayEquals(input, loaded.get().toArray());
 				assertEquals(4, loaded.get().leafPageHandles().size(), "Bound input must retain insert-built leaves.");
@@ -164,7 +149,7 @@ class PriceRecordTreeBulkBuildTest {
 	}
 
 	/**
-	 * Replays the unmodified dev insert loop as a differential reference.
+	 * Replays the insert loop as a differential reference.
 	 */
 	@Nonnull
 	private static TransactionalElementBPlusTree<PriceRecordContract> insertBuilt(
@@ -176,5 +161,36 @@ class PriceRecordTreeBulkBuildTest {
 			tree.insert(record);
 		}
 		return tree;
+	}
+
+	/**
+	 * Calls the production factory with an appender attached to its logger, detaching it even when the build fails.
+	 */
+	@Nonnull
+	private static LoggedBuild buildLogged(@Nonnull PriceRecordContract[] input) {
+		final Logger logger = (Logger) LoggerFactory.getLogger(AbstractPriceListAndCurrencyPriceIndex.class);
+		final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+		appender.start();
+		logger.addAppender(appender);
+		try {
+			return new LoggedBuild(
+				AbstractPriceListAndCurrencyPriceIndex.newPriceRecordTree(input, INDEX_KEY), appender.list
+			);
+		} finally {
+			logger.detachAppender(appender);
+			appender.stop();
+		}
+	}
+
+	/**
+	 * A factory-built tree together with every event its build logged.
+	 *
+	 * @param tree   the tree the factory returned
+	 * @param events the events logged by the factory during the build
+	 */
+	private record LoggedBuild(
+		@Nonnull TransactionalElementBPlusTree<PriceRecordContract> tree,
+		@Nonnull List<ILoggingEvent> events
+	) {
 	}
 }

@@ -34,6 +34,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -60,12 +61,24 @@ import static org.junit.jupiter.api.Assertions.*;
 class TransactionalIntToLongBPlusTreeBulkBuildTest {
 
 	/**
+	 * Clears a savepoint if a failed assertion interrupted its rollback.
+	 */
+	@AfterEach
+	void closeLeakedSavepoint() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null) {
+			savepoint.commit();
+		}
+	}
+
+	/**
 	 * Compares random-order inserts with a bulk build, including signed extremes and absent point probes.
 	 * Leaf occupancy follows the stable-capacity rule: only the last two leaves may be short when the remainder
 	 * needs a top-up.
 	 */
 	@ParameterizedTest
 	@ValueSource(ints = {0, 1, 2, 62, 63, 64, 65, 127, 128, 129, 1_000, 100_000})
+	@DisplayName("bulk construction matches random-order inserts and sizes leaves exactly")
 	void shouldEqualRandomInsertBuiltTree(int count) {
 		final int[] randomKeys = randomKeys(count);
 		final TransactionalIntToLongBPlusTree inserted = new TransactionalIntToLongBPlusTree();
@@ -129,6 +142,7 @@ class TransactionalIntToLongBPlusTreeBulkBuildTest {
 	 */
 	@ParameterizedTest
 	@ValueSource(ints = {0, 1, 63, 64, 129, 1_000, 100_000})
+	@DisplayName("bulk-built trees support further inserts, deletes and commits")
 	void shouldCommitMutationsAfterBulkBuild(int count) {
 		final int[] keys = new int[count];
 		final long[] values = new long[count];
@@ -169,81 +183,16 @@ class TransactionalIntToLongBPlusTreeBulkBuildTest {
 	 * Rejects malformed input before changing the empty tree and forbids replacing a populated tree.
 	 */
 	@Test
+	@DisplayName("malformed input and a populated tree are rejected with the violated premise")
 	void shouldValidateInput() {
 		final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree();
-		assertThrows(GenericEvitaInternalError.class, () -> tree.bulkBuild(new int[]{1}, new long[0]));
-		assertThrows(GenericEvitaInternalError.class, () -> tree.bulkBuild(new int[]{2, 1}, new long[]{1, 2}));
-		assertThrows(GenericEvitaInternalError.class, () -> tree.bulkBuild(new int[]{1, 1}, new long[]{1, 2}));
+		assertRejected("parallel key and value arrays", () -> tree.bulkBuild(new int[]{1}, new long[0]));
+		assertRejected("strictly ascending keys", () -> tree.bulkBuild(new int[]{2, 1}, new long[]{1, 2}));
+		assertRejected("strictly ascending keys", () -> tree.bulkBuild(new int[]{1, 1}, new long[]{1, 2}));
 		assertEquals(0, tree.size());
 		tree.insert(1, 1L);
-		assertThrows(GenericEvitaInternalError.class, () -> tree.bulkBuild(new int[]{2}, new long[]{2}));
+		assertRejected("an empty tree", () -> tree.bulkBuild(new int[]{2}, new long[]{2}));
 		assertEquals(1L, tree.searchOrDefault(1, -1L));
-	}
-
-	/**
-	 * Generates unique, widely spread signed ids by permuting a sequence with an odd multiplier, then shuffling.
-	 */
-	@Nonnull
-	private static int[] randomKeys(int count) {
-		final int[] keys = new int[count];
-		for (int i = 0; i < count; i++) {
-			keys[i] = Integer.MIN_VALUE + i * 1_000_003;
-		}
-		if (count > 1) {
-			keys[1] = Integer.MAX_VALUE;
-		}
-		final Random random = new Random(42);
-		for (int i = count - 1; i > 0; i--) {
-			final int other = random.nextInt(i + 1);
-			final int swap = keys[i];
-			keys[i] = keys[other];
-			keys[other] = swap;
-		}
-		return keys;
-	}
-
-	/**
-	 * Returns a deterministic value spanning both words of a long.
-	 */
-	private static long value(int key) {
-		return ((long) key << 32) ^ (key * 31L + 17);
-	}
-
-	/**
-	 * Checks the tree's structural, occupancy and iterator invariants.
-	 */
-	private static void assertConsistent(@Nonnull TransactionalIntToLongBPlusTree tree) {
-		final ConsistencyReport report = tree.getConsistencyReport();
-		assertEquals(ConsistencyState.CONSISTENT, report.state(), report.report());
-	}
-
-	/**
-	 * Compares complete entries in iteration order against the insert-built reference.
-	 */
-	private static void assertMatches(
-		@Nonnull TransactionalIntToLongBPlusTree reference, @Nonnull TransactionalIntToLongBPlusTree actual
-	) {
-		assertConsistent(actual);
-		assertConsistent(reference);
-		assertEquals(reference.size(), actual.size());
-		final Iterator<TransactionalIntToLongBPlusTree.Entry> expected = reference.entryIterator();
-		final Iterator<TransactionalIntToLongBPlusTree.Entry> entries = actual.entryIterator();
-		while (expected.hasNext()) {
-			assertTrue(entries.hasNext());
-			assertEquals(expected.next(), entries.next());
-		}
-		assertFalse(entries.hasNext());
-	}
-
-	/**
-	 * Clears a savepoint if a failed assertion interrupted its rollback.
-	 */
-	@AfterEach
-	void closeLeakedSavepoint() {
-		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
-		if (savepoint != null) {
-			savepoint.commit();
-		}
 	}
 
 	/**
@@ -381,7 +330,71 @@ class TransactionalIntToLongBPlusTreeBulkBuildTest {
 	}
 
 	/**
-	 * Builds spaced positive keys either directly or through the dev insert loop.
+	 * Generates unique, widely spread signed ids by permuting a sequence with an odd multiplier, then shuffling.
+	 */
+	@Nonnull
+	private static int[] randomKeys(int count) {
+		final int[] keys = new int[count];
+		for (int i = 0; i < count; i++) {
+			keys[i] = Integer.MIN_VALUE + i * 1_000_003;
+		}
+		if (count > 1) {
+			keys[1] = Integer.MAX_VALUE;
+		}
+		final Random random = new Random(42);
+		for (int i = count - 1; i > 0; i--) {
+			final int other = random.nextInt(i + 1);
+			final int swap = keys[i];
+			keys[i] = keys[other];
+			keys[other] = swap;
+		}
+		return keys;
+	}
+
+	/**
+	 * Returns a deterministic value spanning both words of a long.
+	 */
+	private static long value(int key) {
+		return ((long) key << 32) ^ (key * 31L + 17);
+	}
+
+	/**
+	 * Checks the tree's structural, occupancy and iterator invariants.
+	 */
+	private static void assertConsistent(@Nonnull TransactionalIntToLongBPlusTree tree) {
+		final ConsistencyReport report = tree.getConsistencyReport();
+		assertEquals(ConsistencyState.CONSISTENT, report.state(), report.report());
+	}
+
+	/**
+	 * Compares complete entries in iteration order against the insert-built reference.
+	 */
+	private static void assertMatches(
+		@Nonnull TransactionalIntToLongBPlusTree reference, @Nonnull TransactionalIntToLongBPlusTree actual
+	) {
+		assertConsistent(actual);
+		assertConsistent(reference);
+		assertEquals(reference.size(), actual.size());
+		final Iterator<TransactionalIntToLongBPlusTree.Entry> expected = reference.entryIterator();
+		final Iterator<TransactionalIntToLongBPlusTree.Entry> entries = actual.entryIterator();
+		while (expected.hasNext()) {
+			assertTrue(entries.hasNext());
+			assertEquals(expected.next(), entries.next());
+		}
+		assertFalse(entries.hasNext());
+	}
+
+	/**
+	 * Expects the builder to refuse the input and to name the premise it violates, so a reordered validation cannot
+	 * pass by failing on a different premise.
+	 */
+	private static void assertRejected(@Nonnull String premise, @Nonnull Executable bulkBuild) {
+		final GenericEvitaInternalError error = assertThrows(GenericEvitaInternalError.class, bulkBuild);
+		assertTrue(error.getMessage().contains(premise), error.getMessage());
+	}
+
+	/**
+	 * Builds spaced positive keys either directly or through the insert loop.
 	 */
 	@Nonnull
 	private static TransactionalIntToLongBPlusTree spacedTree(int count, boolean bulk) {

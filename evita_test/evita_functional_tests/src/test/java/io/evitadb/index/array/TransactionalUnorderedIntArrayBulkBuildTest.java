@@ -36,6 +36,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.LoggerFactory;
 
@@ -61,6 +63,10 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(INDEXING)
 @Tag(TRANSACTION)
 class TransactionalUnorderedIntArrayBulkBuildTest {
+	/**
+	 * An odd id that {@link #recordIds(int)} never generates, so lookups of it must miss.
+	 */
+	private static final int ABSENT_RECORD_ID = 1;
 
 	/**
 	 * Clears a savepoint if a failed assertion interrupted its rollback.
@@ -77,40 +83,40 @@ class TransactionalUnorderedIntArrayBulkBuildTest {
 	 * Checks complete positional and record-id reads at all requested sizes, preserving persisted page identities.
 	 */
 	@ParameterizedTest
-	@ValueSource(ints = {0, 1, 2})
+	@MethodSource("loadPathsAndCounts")
 	@DisplayName("plain, head-aware and paged loads retain every position and page")
-	void shouldLoadEquivalentValueIndex(int path) {
-		for (final int count : new int[]{0, 1, 2, 62, 63, 64, 65, 127, 128, 129, 1_000, 100_000}) {
-			final int[] ids = recordIds(count);
-			final TransactionalUnorderedIntArray array = load(ids, path);
-			assertArrayEquals(ids, array.getArray());
-			assertArrayConsistent(array);
-			assertEquals(Integer.MIN_VALUE, array.indexOf(Integer.MAX_VALUE));
-			assertFalse(array.contains(Integer.MAX_VALUE));
-			if (path != 0 && count > 0) {
-				assertEquals(ids[0], array.findHeadCovering(count - 1).recordId());
-			}
-			if (path == 2) {
-				assertTrue(array.collectChangedPages().isEmpty());
-				final List<LeafPageInput> pages = pages(ids);
-				final List<UnorderedLookupTree.LeafPageHandle> leaves = array.leafPageHandles();
-				assertEquals(pages.size(), leaves.size());
-				for (int i = 0; i < pages.size(); i++) {
-					assertArrayEquals(pages.get(i).recordIds(), leaves.get(i).recordIds());
-					assertEquals(pages.get(i).pageSequence(), leaves.get(i).getPageSequence());
-				}
+	void shouldLoadEquivalentValueIndex(int path, int count) {
+		final int[] ids = recordIds(count);
+		final TransactionalUnorderedIntArray array = load(ids, path);
+		assertArrayEquals(ids, array.getArray());
+		assertArrayConsistent(array);
+		assertEquals(Integer.MIN_VALUE, array.indexOf(ABSENT_RECORD_ID));
+		assertFalse(array.contains(ABSENT_RECORD_ID));
+		if (path != 0 && count > 0) {
+			assertEquals(ids[0], array.findHeadCovering(count - 1).recordId());
+		}
+		if (path == 2) {
+			assertTrue(array.collectChangedPages().isEmpty());
+			final List<LeafPageInput> pages = pages(ids);
+			final List<UnorderedLookupTree.LeafPageHandle> leaves = array.leafPageHandles();
+			assertEquals(pages.size(), leaves.size());
+			for (int i = 0; i < pages.size(); i++) {
+				assertArrayEquals(pages.get(i).recordIds(), leaves.get(i).recordIds());
+				assertEquals(pages.get(i).pageSequence(), leaves.get(i).getPageSequence());
 			}
 		}
 	}
 
 	/**
-	 * Compaction must keep the last assignment across leaf boundaries and log the first repeated report once.
+	 * Compaction must keep the last assignment across leaf boundaries, also for an id reported three times, and log
+	 * the first repeated report once together with the report it repeats.
 	 */
 	@ParameterizedTest
 	@ValueSource(ints = {0, 1, 2})
 	@DisplayName("duplicate ids retain their last assignment and log one ERROR")
 	void shouldKeepLastDuplicateAssignment(int path) {
 		final int[] ids = recordIds(3_000);
+		ids[1_500] = ids[0];
 		ids[2_500] = ids[0];
 		ids[2_999] = ids[1];
 		final Logger logger = (Logger) LoggerFactory.getLogger(TransactionalUnorderedIntArray.class);
@@ -127,14 +133,14 @@ class TransactionalUnorderedIntArrayBulkBuildTest {
 		assertArrayEquals(ids, array.getArray());
 		assertEquals(2_500, array.indexOf(ids[0]), "The last duplicate assignment must win.");
 		assertEquals(2_999, array.indexOf(ids[1]), "The last duplicate assignment must win.");
-		assertEquals(2_998, array.getRecordIds().size());
+		assertEquals(2_997, array.getRecordIds().size());
 		assertEquals(1, appender.list.size(), "Duplicates must be logged once per load.");
 		final ILoggingEvent event = appender.list.getFirst();
 		assertEquals(Level.ERROR, event.getLevel());
 		final String message = event.getFormattedMessage();
 		assertTrue(message.contains(Long.toString(array.getId())));
 		assertTrue(message.contains(Integer.toString(ids[0])));
-		assertTrue(message.contains("position 2500"), message);
+		assertTrue(message.contains("position 1500 (previous position 0)"), message);
 		assertTrue(message.contains("last assignment"), message);
 		assertTrue(message.contains("correct"), message);
 		assertFalse(message.contains("damaged"), message);
@@ -150,7 +156,9 @@ class TransactionalUnorderedIntArrayBulkBuildTest {
 		for (final int position : new int[]{0, 63, 1_499}) {
 			final int[] ids = recordIds(1_500);
 			ids[position] = EvitaDataTypes.RESERVED_PRIMARY_KEY;
-			assertThrows(GenericEvitaInternalError.class, () -> load(ids, path));
+			final GenericEvitaInternalError error =
+				assertThrows(GenericEvitaInternalError.class, () -> load(ids, path));
+			assertTrue(error.getMessage().contains("is reserved by evitaDB"), error.getMessage());
 		}
 	}
 
@@ -313,13 +321,33 @@ class TransactionalUnorderedIntArrayBulkBuildTest {
 	}
 
 	/**
-	 * Produces unique signed record ids in random logical order, excluding the reserved id and absent probe.
+	 * Crosses the three load paths with empty, single-leaf, leaf-boundary and multi-level sizes.
+	 */
+	@Nonnull
+	private static List<Arguments> loadPathsAndCounts() {
+		final int[] counts = {0, 1, 2, 62, 63, 64, 65, 127, 128, 129, 1_000, 100_000};
+		final List<Arguments> arguments = new ArrayList<>(3 * counts.length);
+		for (int path = 0; path < 3; path++) {
+			for (final int count : counts) {
+				arguments.add(Arguments.of(path, count));
+			}
+		}
+		return arguments;
+	}
+
+	/**
+	 * Produces unique signed record ids in random logical order, excluding the reserved id and absent probe. From two
+	 * records on, the ids include both int extremes, so the packed record-id and ordinal sort meets its sign boundary.
 	 */
 	@Nonnull
 	private static int[] recordIds(int count) {
 		final int[] ids = new int[count];
 		for (int i = 0; i < count; i++) {
 			ids[i] = (i + 1) * 2 * (i % 2 == 0 ? 1 : -1);
+		}
+		if (count > 1) {
+			ids[0] = Integer.MIN_VALUE;
+			ids[1] = Integer.MAX_VALUE;
 		}
 		final Random random = new Random(42);
 		for (int i = count - 1; i > 0; i--) {

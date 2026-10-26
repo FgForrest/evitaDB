@@ -76,7 +76,8 @@ class TransactionalElementBPlusTreeBulkBuildTest {
 	}
 
 	/**
-	 * Compares iteration, searches, cursor-backed range walks, occupancy and exact column sizing with dev's tree.
+	 * Compares iteration, searches, cursor-backed range walks, occupancy and exact column sizing with an insert-built
+	 * tree.
 	 */
 	@ParameterizedTest
 	@ValueSource(ints = {0, 1, 2, 62, 63, 64, 65, 127, 128, 129, 1_000, 100_000})
@@ -278,8 +279,32 @@ class TransactionalElementBPlusTreeBulkBuildTest {
 	@Test
 	@DisplayName("the low-level builder requires strictly ascending elements")
 	void shouldRejectNonAscendingInput() {
-		assertThrows(GenericEvitaInternalError.class, () -> bulkBuilt(new PriceRecordContract[]{rec(5), rec(3)}));
-		assertThrows(GenericEvitaInternalError.class, () -> bulkBuilt(new PriceRecordContract[]{rec(3), rec(3)}));
+		final GenericEvitaInternalError descending = assertThrows(
+			GenericEvitaInternalError.class, () -> bulkBuilt(new PriceRecordContract[]{rec(5), rec(3)})
+		);
+		assertTrue(descending.getMessage().contains("strictly ascending"), descending.getMessage());
+		final GenericEvitaInternalError duplicate = assertThrows(
+			GenericEvitaInternalError.class, () -> bulkBuilt(new PriceRecordContract[]{rec(3), rec(3)})
+		);
+		assertTrue(duplicate.getMessage().contains("strictly ascending"), duplicate.getMessage());
+	}
+
+	/**
+	 * The low-level builder requires detached construction; the price-index factory falls back to inserts instead.
+	 */
+	@Test
+	@DisplayName("the low-level builder rejects a bound transaction")
+	void shouldRejectBoundTransaction() {
+		assertStateAfterRollback(
+			new TransactionalElementBPlusTree<>(PriceRecordContract.class, KEY),
+			tested -> {
+				final GenericEvitaInternalError error = assertThrows(
+					GenericEvitaInternalError.class, () -> bulkBuilt(records(129))
+				);
+				assertTrue(error.getMessage().contains("no bound transaction"), error.getMessage());
+			},
+			(original, discarded) -> assertEquals(0, original.size())
+		);
 	}
 
 	/**
@@ -303,7 +328,7 @@ class TransactionalElementBPlusTreeBulkBuildTest {
 	}
 
 	/**
-	 * Replays the original dev insert loop as a differential reference.
+	 * Replays the insert loop as a differential reference.
 	 */
 	@Nonnull
 	private static TransactionalElementBPlusTree<PriceRecordContract> insertBuilt(
