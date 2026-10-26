@@ -38,6 +38,7 @@ import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.facet.FacetHavingFormula;
+import io.evitadb.core.query.algebra.facet.FacetLocaleFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityToBitmapFilter;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
@@ -53,6 +54,7 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 import org.junit.jupiter.api.Tag;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -199,6 +201,20 @@ class UserFilterRelaxerTest {
 	@Nested
 	@DisplayName("FACET_IMPACT relaxation")
 	class FacetImpactGroupTest {
+
+		/** Removing a facet pick must widen its owners while preserving the independent owner locale condition. */
+		@Test
+		@DisplayName("keeps the owner locale when relaxing a facet selection")
+		void shouldRetainOwnerLocaleWhenFacetSelectionIsRelaxed() {
+			final Formula ownerLocale = new ConstantFormula(new ArrayBitmap(1, 2));
+			final Formula selection = new FacetHavingFormula("brand", new ConstantFormula(new ArrayBitmap(1, 3)));
+			final Formula filtered = new UserFilterFormula(new FacetLocaleFormula("brand", ownerLocale, selection));
+			assertArrayEquals(new int[]{1}, filtered.compute().getArray(),
+				"Fixture must distinguish the pick from its locale guard");
+			final Formula relaxed = UserFilterRelaxer.relax(filtered, RangeCarrierGroup.FACET_IMPACT).orElseThrow();
+			assertArrayEquals(new int[]{1, 2}, relaxed.compute().getArray(),
+				"Relaxing the facet must retain only the owner locale condition");
+		}
 
 		@Test
 		@DisplayName("should strip FacetHavingFormula and keep attribute-range+price carriers when relaxing FACET_IMPACT")

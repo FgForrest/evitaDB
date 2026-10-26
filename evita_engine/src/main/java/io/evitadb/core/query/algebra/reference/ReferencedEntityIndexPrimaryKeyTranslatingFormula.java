@@ -53,9 +53,7 @@ import java.util.function.UnaryOperator;
  * The formula is used when query evaluation needs to switch from the space of referenced entities
  * to the space of records stored in {@link ReferencedTypeEntityIndex}. The translation is performed
  * lazily during evaluation so that the potentially heavy computation of the inner formula is not
- * executed during query preparation. This behaviour mirrors
- * {@link ReferenceOwnerTranslatingFormula}, but the resulting bitmap contains primary keys of the
- * referenced-entity index, not owner entity primary keys.
+ * executed during query preparation.
  *
  * If the referenced entity type is managed, the translation is restricted by a precomputed superset of
  * referenced entities that exist in **any** scope. The scope of the query constrains the queried entities
@@ -63,8 +61,8 @@ import java.util.function.UnaryOperator;
  * an archived product referencing a live category), so referenced-entity existence must be checked across
  * all scopes. Only ids present in that superset are considered.
  *
- * The final result is a bitmap of primary keys that identify rows inside
- * {@link ReferencedTypeEntityIndex}.
+ * The result is a bitmap of the primary keys of rows inside {@link ReferencedTypeEntityIndex}: the candidate
+ * partitions for index discovery.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

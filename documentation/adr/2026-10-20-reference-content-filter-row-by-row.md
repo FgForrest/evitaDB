@@ -1,7 +1,7 @@
 ---
 title: The filter of referenceContent is evaluated row by row over the fetched owners' references, and its index route is deleted
 date: 2026-10-20
-updated: 2026-10-20 12:50
+updated: 2026-10-21 13:00
 status: accepted
 kind: refactor
 issues: [1615]
@@ -16,14 +16,14 @@ areas:
   - evita_engine/src/main/java/io/evitadb/index/attribute
 supersedes: []
 superseded-by: []
-relates: [2026-10-20-single-owner-partitions-as-registry-rows, 2026-09-23-reference-decode-narrowing-by-referenced-key, 2026-09-28-indexed-reference-scope-requires-entity-component, 2026-09-17-row-scoped-reference-having-body, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-scope-faithful-planning-and-facet-summary-parity]
+relates: [2026-10-21-one-locale-per-entity-level, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-09-23-reference-decode-narrowing-by-referenced-key, 2026-09-28-indexed-reference-scope-requires-entity-component, 2026-09-17-row-scoped-reference-having-body, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-scope-faithful-planning-and-facet-summary-parity]
 ---
 
 # The filter of `referenceContent` is evaluated row by row over the fetched owners' references
 
 `referenceContent(name, filterBy(...))` decides which references of the returned entities are fetched. It is now
 decided **reference row by reference row, over the rows of the owners the query fetched**: the filter is compiled once
-per fetch and reference into a small tree of row tests (`ReferenceRowFilterCompiler`), every existing row of every
+per fetch and reference into a small tree of row predicates (`ReferenceRowFilterCompiler`), every existing row of every
 fetched owner is judged by that tree alone, and an admitted row is recorded for its owner alone
 (`ValidEntityToReferenceMapping#admit`). No reduced reference index, type index, group index or virtual partition is
 read. The route that evaluated the same filter on those index structures - and everything only it reached - is deleted.
@@ -75,8 +75,8 @@ nowhere, which is the default (`ReferenceIndexType.NONE`).
 
 ### Option A - judge every row of every fetched owner by itself (chosen)
 
-The compiler turns the filter into a closed set of row tests; the fetch applies it to the raw rows of each owner. The
-verdict of a row is a function of its owner's scope, the owner's locales, the row, the existence set and the nested
+The compiler turns the filter into a closed set of row predicates; the fetch applies it to the raw rows of each owner.
+The verdict of a row is a function of its owner's scope, the owner's locales, the row, the existence set and the nested
 target sets, and of nothing else. A reference attribute leaf is built on the very normalizer and comparator of
 `FilterIndex` (plus the range encoders of the `attributeBetween` / `attributeInRange` translators), so it answers what
 the index would answer.
@@ -138,7 +138,7 @@ as tags only; every place states the decision itself.
 | Scope of the filter: apply to all owners or only to owners of scopes indexing the reference (U1/U2) | **all scopes**; `inScope(S, ...)` confines it | #1048 (`649da332f9`) stated the ignoring as intent: the filter ignored for an owner living in a scope that does not index the reference, and the targets living in such a scope added unfiltered. Both are reversed on purpose (the maintainer, 2026-10-13): the second rested on the false premise that such rows are not indexed, the bypass held only where no partition of the target had been evaluated, so the answer depended on the data and on the page mates, and `inScope(LIVE, ...)` gives an archived owner the old reading. The refusal was incidental to the trait loop of `AttributeSchemaAccessor`, not a decision |
 | Reference attribute leaves require `filterable`/`unique` (R1) | **no**, but they behave exactly as index filtering | a requirement that exists to guard an index lookup guards nothing when no index is read; the behaviour is kept identical so a user does not meet two meanings of one constraint |
 | A constraint without a meaning on a row (R6), `scope(...)` below the root | **refused** with `EvitaInvalidUsageException`, at planning and at fetch | admitting `entityPrimaryKeyBetween`, `priceBetween`, `hierarchyWithin`, ... would keep their accidental owner-level reading; omitting a nested `scope(...)` from its boolean parent leaves `not(scope(...))` without a meaning to omit into |
-| Locale of a localized leaf (Q1) | the locale of the filter's own `entityLocaleEquals`, found **exactly** as `findReferenceFilterLocale` finds it, else the owner query's | a dedicated finder that stops at `entityHaving` would split the leaves from the body fetch, the `EXISTING` gate and the ordering in exactly the shape `entityHaving(entityLocaleEquals(L))` |
+| Locale of a localized leaf (Q1) | the locale of the filter's own `entityLocaleEquals`, found **exactly** as `findReferenceFilterLocale` finds it, else the owner query's | a dedicated finder that stops at `entityHaving` would split the leaves from the body fetch, the `EXISTING` gate and the ordering in exactly the shape `entityHaving(entityLocaleEquals(L))`. **Superseded by `2026-10-21-one-locale-per-entity-level`:** a leaf reads the reference level's own locale, else the owner's; an opinion inside `entityHaving` belongs to the referenced entity's level |
 | Readings that depend on attribute flags | chosen **per owner scope** by that scope's own declaration (OQ-U) | one reading per leaf made a LIVE row's verdict change when ARCHIVED was added to the query |
 | Sharing the leaf test with the main query's prefetch predicates | **yes** (flipped by the review of #1738, 2026-10-16): one `AttributeValueMatcher` per value constraint, created by its translator (`AttributeValueMatchingTranslator`) and asked by the prefetch alternative, the entity filtering of a collection-less query and the row filter alike | separate hand-written predicates per path - what shipped first. The four-arm parity class measured 41 of 184 cases diverging between the index, the prefetch, the entity filtering and the reference row (wrong answers and internal errors on the main query), and a new attribute constraint had a second and third place to be forgotten in. **Revisit** only if the matcher has to answer something a per-value test cannot |
 | Invalid constraint values (an inverted scalar `attributeBetween`, a decimal the index key cannot encode) | **refused before any index is read, wherever the attribute schema is known**; a collection-less query refuses them per candidate entity type (Johnny, 2026-10-16: "agree - refuse") | a "do not refuse" mode that keeps today's data-dependent refusals: the index refuses only when it holds a value of the attribute, which the prefetch and the entity filtering cannot reproduce, and it keeps an answer that depends on the plan and the data - the thing this change removes. It costs one visible change: a query over an empty attribute is an error, not an empty result (upgrade note) |
@@ -166,7 +166,7 @@ table. A measured case where the index route is faster (none of the eight was) w
 
 - **Entry points.** `ReferencedEntityFetcher#admitFetchedReferences` reads the owners' raw rows, applies the existence
   gate, the compiled `ReferenceRowFilter`, and records each admitted row. `ReferenceRowFilterCompiler#compile` builds the
-  `RowTest` tree (`and`, `or`, `not`, `inScope`, the twelve attribute leaves, `entityPrimaryKeyInSet`,
+  `RowPredicate` tree (`and`, `or`, `not`, `inScope`, the twelve attribute leaves, `entityPrimaryKeyInSet`,
   `entityLocaleEquals`, `entityHaving`, `groupHaving`; a root `scope(...)` only widens the examined scopes and produces
   no node). `NestedSet` holds the target sets of `entityHaving` /
   `groupHaving` (planned by `FilterByVisitor#getMatchingEntityPrimaryKeys`).

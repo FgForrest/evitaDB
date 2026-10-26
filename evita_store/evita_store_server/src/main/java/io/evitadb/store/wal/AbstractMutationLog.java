@@ -1061,7 +1061,6 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				this.transactionMutationOutputStream,
 				TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
 				TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
-				TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
 				storageSettings.createChecksum(),
 				this.storageSettings.createCompressor().orElse(null)
 			);
@@ -2459,7 +2458,6 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 
 			final ObservableOutput<ByteArrayOutputStream> theOutput = new ObservableOutput<>(
 				this.transactionMutationOutputStream,
-				AbstractMutationLog.TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
 				AbstractMutationLog.TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
 				AbstractMutationLog.TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
 				this.storageSettings.createChecksum(),

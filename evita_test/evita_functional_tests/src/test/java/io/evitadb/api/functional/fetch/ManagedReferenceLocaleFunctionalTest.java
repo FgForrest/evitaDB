@@ -41,6 +41,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -513,13 +515,20 @@ class ManagedReferenceLocaleFunctionalTest {
 		);
 	}
 
-	@DisplayName("Should honour reference-level locale filter also for the referenced entity group")
+	/** Group fetches inherit their owner independently of the sibling entity level. */
+	@DisplayName("Group locale inherits from its owner unless the group names its own locale")
 	@UseDataSet(DATA_SET)
-	@Test
-	void shouldIncludeExistingReferenceGroupWhenReferenceLevelFilterOverridesQueryLocale(Evita evita) {
+	@ParameterizedTest(name = "group opinion: {0}")
+	@ValueSource(booleans = {false, true})
+	void shouldResolveGroupLocaleWhenSiblingEntityHasOwnOpinion(boolean groupOpinion, @Nonnull Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
+				assertEquals(
+					List.of(Locale.ENGLISH),
+					session.getEntity(Entities.PARAMETER_GROUP, 1, attributeContentAll(), dataInLocalesAll())
+						.orElseThrow().getLocales().stream().toList()
+				);
 				final SealedEntity productByPk = session.queryOneSealedEntity(
 					query(
 						collection(Entities.PRODUCT),
@@ -534,7 +543,10 @@ class ManagedReferenceLocaleFunctionalTest {
 								referenceContent(
 									ManagedReferencesBehaviour.EXISTING,
 									REFERENCE_PARAMETER,
-									filterBy(entityHaving(entityLocaleEquals(Locale.ENGLISH))),
+									filterBy(
+										entityHaving(entityLocaleEquals(Locale.ENGLISH)),
+										groupOpinion ? groupHaving(entityLocaleEquals(Locale.ENGLISH)) : null
+									),
 									entityFetch(attributeContentAll()),
 									entityGroupFetch(attributeContentAll())
 								)
@@ -543,17 +555,16 @@ class ManagedReferenceLocaleFunctionalTest {
 					)
 				).orElseThrow();
 
-				// the group body is fetched with the very same derived request as the referenced entity body, so the
-				// English-only group must be resolved against the reference-level locale (en), not the query-level (cs)
+				// The English-only group inherits Czech from the owner unless it names English itself.
 				final Collection<ReferenceContract> parameterReferences = productByPk.getReferences(REFERENCE_PARAMETER);
 				assertEquals(
 					1, parameterReferences.size(),
 					"Reference to a parameter having English data must be present, but was: " + parameterReferences
 				);
-				assertTrue(
-					parameterReferences.iterator().next().getGroupEntity().isPresent(),
-					"Group of the parameter reference must be resolved using the reference-level locale (en) - it is " +
-						"fetchable and must not be dropped by the EXISTING pre-filter."
+				assertTrue(parameterReferences.iterator().next().getReferencedEntity().isPresent());
+				assertEquals(
+					groupOpinion, parameterReferences.iterator().next().getGroupEntity().isPresent(),
+					"Group must inherit Czech from its owner unless its own level names English"
 				);
 
 				return null;

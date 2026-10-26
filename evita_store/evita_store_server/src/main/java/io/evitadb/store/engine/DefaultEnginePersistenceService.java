@@ -218,7 +218,6 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 
 		// Create output keeper for observing and managing outputs
 		this.observableOutputKeeper = new ObservableOutputKeeper(
-			this.storageSettings.outputBufferSize(),
 			this.storageSettings.lockTimeoutSeconds(),
 			this.storageSettings.waitOnCloseSeconds(),
 			scheduler
@@ -1044,12 +1043,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			// Close all resources quietly (without throwing exceptions)
 			IOUtils.closeQuietly(
 				this.offHeapMemoryManager::close,
-				// The keeper owns every output buffer this service ever borrowed - the file-output cache and the
-				// recyclable off-heap free-list, each entry holding a buffer of `outputBufferSize()`. Nothing else
-				// releases them: the only other path that drops the free-list is the keeper's own inactivity task,
-				// which runs on this engine's scheduler and is therefore already gone by the time a closing engine
-				// would need it. It is closed before the folder lock so no cached file handle outlives the claim on
-				// the directory it points into.
+				// Close cached file streams before releasing the lock on their directory.
 				this.observableOutputKeeper::close,
 				this.folderLock::close
 			);

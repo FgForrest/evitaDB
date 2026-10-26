@@ -488,7 +488,7 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 								defaultValueProvider.apply(
 									reference.getAttribute(
 										attributeName,
-										locale,
+										it,
 										(Class) itemType.getComponentType()
 									)
 								),
@@ -672,7 +672,7 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 							toTargetType(
 								reference.getAttribute(
 									attributeName,
-									locale,
+									it,
 									(Class) itemType.getComponentType()
 								),
 								(Class) itemType.getComponentType(),

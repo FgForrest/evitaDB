@@ -40,18 +40,18 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * A node of the compiled filter of the fetched references ({@link ReferenceRowFilter}): a test of one reference row of
- * one owner entity. The nodes mirror the constraints the filter admits one to one - the logical containers, the
+ * A node of the compiled filter of the fetched references ({@link ReferenceRowFilter}): a predicate over one reference
+ * row of one owner entity. The nodes mirror the constraints the filter admits one to one - the logical containers, the
  * `inScope` container, the owner locale, the referenced key, the nested `entityHaving` / `groupHaving` sets and the
- * attribute leaves - and there is no node that stands for "nothing": a constraint without a meaning on a row is
- * refused by {@link ReferenceRowFilterCompiler}, never compiled into a node answering a constant.
+ * attribute leaves - and there is no node that stands for "nothing": a constraint without a meaning on a row is refused
+ * by {@link ReferenceRowFilterCompiler}, never compiled into a node answering a constant.
  *
  * A node reads nothing but the owner's scope and locales, the row itself and the nested sets, so the verdict of a row
  * never depends on any other owner or row.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-sealed interface RowTest {
+sealed interface RowPredicate {
 
 	/**
 	 * Tests one reference row of an owner entity.
@@ -102,11 +102,11 @@ sealed interface RowTest {
 	 *
 	 * @param children the conjoined nodes
 	 */
-	record And(@Nonnull RowTest[] children) implements RowTest {
+	record And(@Nonnull RowPredicate[] children) implements RowPredicate {
 
 		@Override
 		public boolean test(@Nonnull Scope ownerScope, @Nonnull Entity owner, @Nonnull ReferenceContract row) {
-			for (RowTest child : this.children) {
+			for (RowPredicate child : this.children) {
 				if (!child.test(ownerScope, owner, row)) {
 					return false;
 				}
@@ -121,11 +121,11 @@ sealed interface RowTest {
 	 *
 	 * @param children the disjoined nodes
 	 */
-	record Or(@Nonnull RowTest[] children) implements RowTest {
+	record Or(@Nonnull RowPredicate[] children) implements RowPredicate {
 
 		@Override
 		public boolean test(@Nonnull Scope ownerScope, @Nonnull Entity owner, @Nonnull ReferenceContract row) {
-			for (RowTest child : this.children) {
+			for (RowPredicate child : this.children) {
 				if (child.test(ownerScope, owner, row)) {
 					return true;
 				}
@@ -140,7 +140,7 @@ sealed interface RowTest {
 	 *
 	 * @param child the negated node
 	 */
-	record Not(@Nonnull RowTest child) implements RowTest {
+	record Not(@Nonnull RowPredicate child) implements RowPredicate {
 
 		@Override
 		public boolean test(@Nonnull Scope ownerScope, @Nonnull Entity owner, @Nonnull ReferenceContract row) {
@@ -156,7 +156,7 @@ sealed interface RowTest {
 	 * @param scope the scope of the container
 	 * @param child the node applied in the scope
 	 */
-	record InScope(@Nonnull Scope scope, @Nonnull RowTest child) implements RowTest {
+	record InScope(@Nonnull Scope scope, @Nonnull RowPredicate child) implements RowPredicate {
 
 		@Override
 		public boolean test(@Nonnull Scope ownerScope, @Nonnull Entity owner, @Nonnull ReferenceContract row) {
@@ -171,7 +171,7 @@ sealed interface RowTest {
 	 *
 	 * @param locale the locale the owner entity must hold
 	 */
-	record OwnerLocale(@Nonnull Locale locale) implements RowTest {
+	record OwnerLocale(@Nonnull Locale locale) implements RowPredicate {
 
 		@Override
 		public boolean test(@Nonnull Scope ownerScope, @Nonnull Entity owner, @Nonnull ReferenceContract row) {
@@ -185,7 +185,7 @@ sealed interface RowTest {
 	 *
 	 * @param sortedPrimaryKeys the referenced primary keys, ascending
 	 */
-	record TargetIn(@Nonnull int[] sortedPrimaryKeys) implements RowTest {
+	record TargetIn(@Nonnull int[] sortedPrimaryKeys) implements RowPredicate {
 
 		@Override
 		public boolean test(@Nonnull Scope ownerScope, @Nonnull Entity owner, @Nonnull ReferenceContract row) {
@@ -199,7 +199,7 @@ sealed interface RowTest {
 	 *
 	 * @param nestedSet the entities the nested filter selects
 	 */
-	record TargetInNested(@Nonnull NestedSet nestedSet) implements RowTest {
+	record TargetInNested(@Nonnull NestedSet nestedSet) implements RowPredicate {
 
 		@Override
 		public boolean test(@Nonnull Scope ownerScope, @Nonnull Entity owner, @Nonnull ReferenceContract row) {
@@ -214,7 +214,7 @@ sealed interface RowTest {
 	 *
 	 * @param nestedSet the groups the nested filter selects
 	 */
-	record GroupInNested(@Nonnull NestedSet nestedSet) implements RowTest {
+	record GroupInNested(@Nonnull NestedSet nestedSet) implements RowPredicate {
 
 		@Override
 		public boolean test(@Nonnull Scope ownerScope, @Nonnull Entity owner, @Nonnull ReferenceContract row) {
@@ -237,7 +237,7 @@ sealed interface RowTest {
 	record AttributeMatch(
 		@Nonnull AttributeKey[][] keysByScope,
 		@Nonnull AttributeValueMatcher matcher
-	) implements RowTest {
+	) implements RowPredicate {
 
 		@Override
 		public boolean test(@Nonnull Scope ownerScope, @Nonnull Entity owner, @Nonnull ReferenceContract row) {
@@ -252,9 +252,9 @@ sealed interface RowTest {
 	}
 
 	/**
-	 * The `attributeIs` test: satisfied by a row that carries a value under any of the keys read in the scope of its
-	 * owner when `present` is true, and by a row that carries none when it is false. A dropped value and an empty array
-	 * are no value - the filter index keeps no entry for either.
+	 * The `attributeIs` predicate: satisfied by a row that carries a value under any of the keys read in the scope of
+	 * its owner when `present` is true, and by a row that carries none when it is false. A dropped value and an empty
+	 * array are no value - the filter index keeps no entry for either.
 	 *
 	 * @param keysByScope the keys read in each scope, indexed by {@link Scope#ordinal()}; NULL for a scope the node
 	 *                    was not compiled for
@@ -263,7 +263,7 @@ sealed interface RowTest {
 	record AttributePresence(
 		@Nonnull AttributeKey[][] keysByScope,
 		boolean present
-	) implements RowTest {
+	) implements RowPredicate {
 
 		@Override
 		public boolean test(@Nonnull Scope ownerScope, @Nonnull Entity owner, @Nonnull ReferenceContract row) {

@@ -56,17 +56,14 @@ import java.util.Locale;
  * defines the context for localized entity data. It is a {@link FilterConstraint} that narrows the result set to
  * entities that have data available in the specified locale.
  *
- * **Single Locale Restriction**
+ * **One Locale Per Entity Level**
  *
- * Only a single `entityLocaleEquals` constraint is permitted per query filter. This means you cannot build queries like
- * "find products whose English name is 'screwdriver' OR whose Czech name is 'šroubovák'" within a single filter. Each
- * query operates in exactly one locale context.
+ * Equal locale constraints may repeat within one entity level. Different locales at the same level are invalid,
+ * including alternatives joined by `or`. The children of {@link DifferentEntityFilterContainer} form a different
+ * entity level, whose own opinion takes precedence over its enclosing level's locale. A level with no opinion
+ * inherits its enclosing level; a nested-only opinion does not set the main query's locale.
  *
- * Similarly, you cannot omit the locale and ask "find products whose name is 'screwdriver' in any language." Localized
- * attributes must always be accessed in a specific locale context.
- *
- * If you need to query across multiple locales, you must execute separate queries for each locale and combine the
- * results in your application logic.
+ * Localized attributes must always be accessed in a specific locale context.
  *
  * **Effect on Query Results**
  *
@@ -78,8 +75,8 @@ import java.util.Locale;
  *
  * **Supported Constraint Domains**
  *
- * This constraint is only valid in the `ENTITY` domain — it establishes the locale context for the primary queried
- * entities. It does not apply to referenced entities or facets, which inherit the locale context from the main query.
+ * This constraint is valid in the `ENTITY` and `FACET` domains. It establishes the locale context for entities of
+ * its own level, including referenced entities and groups when placed in their entity level.
  *
  * **EvitaQL Syntax**
  *
@@ -175,7 +172,7 @@ import java.util.Locale;
 	shortDescription = "The constraint sets the locale context for the query, affecting all localized attributes and associated data." +
 		" Entities without data in the specified locale may be excluded from results.",
 	userDocsLink = "/documentation/query/filtering/locale#entity-locale-equals",
-	supportedIn = ConstraintDomain.ENTITY
+	supportedIn = {ConstraintDomain.ENTITY, ConstraintDomain.FACET}
 )
 public class EntityLocaleEquals extends AbstractFilterConstraintLeaf
 	implements EntityConstraint<FilterConstraint>, FilterConstraint {

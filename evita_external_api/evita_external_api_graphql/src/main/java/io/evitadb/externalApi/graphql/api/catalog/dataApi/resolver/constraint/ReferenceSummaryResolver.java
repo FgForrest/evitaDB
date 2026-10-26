@@ -25,6 +25,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
 import graphql.schema.DataFetchingFieldSelectionSet;
 import graphql.schema.SelectedField;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterGroupBy;
@@ -192,8 +193,11 @@ public class ReferenceSummaryResolver extends AbstractExtraResultConstraintResol
 			orderBy = null;
 		}
 
-		final EntityFetch facetEntityFetch = resolveFacetEntityFetch(field, desiredLocale, referenceName).orElse(null);
-		final EntityGroupFetch groupEntityFetch = resolveGroupEntityFetch(field, desiredLocale, referenceName).orElse(null);
+		final EntityFetch facetEntityFetch = resolveFacetEntityFetch(field,
+			Optional.ofNullable(QueryUtils.resolveLocale(filterBy)).orElse(desiredLocale), referenceName).orElse(null);
+		final EntityGroupFetch groupEntityFetch = resolveGroupEntityFetch(field,
+			Optional.ofNullable(QueryUtils.resolveLocale(filterGroupBy)).orElse(desiredLocale), referenceName
+		).orElse(null);
 
 		// detect requested histogram statistics fields — the schema indexes must be resolved for the effective scope
 		// coming from the query tree (or the default scope when no `inScope` wrapper is present). Each histogram

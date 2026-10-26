@@ -2984,6 +2984,71 @@ class EvitaDataTypesTest {
 		}
 
 		@Test
+		@DisplayName("should clamp without truncating through the public clamp-only helper")
+		void shouldClampWithoutTruncatingThroughPublicHelper() {
+			assertEquals(
+				OffsetDateTime.ofInstant(LATEST_SUPPORTED_INSTANT, ZoneOffset.MIN),
+				EvitaDataTypes.clampToSupportedWindow(OffsetDateTime.MAX)
+			);
+			assertEquals(
+				LocalDateTime.ofInstant(EARLIEST_SUPPORTED_INSTANT, ZoneOffset.UTC),
+				EvitaDataTypes.clampToSupportedWindow(LocalDateTime.MIN)
+			);
+			assertEquals(LATEST_SUPPORTED_INSTANT, EvitaDataTypes.clampToSupportedWindow(Instant.MAX));
+			assertEquals(EARLIEST_SUPPORTED_INSTANT, EvitaDataTypes.clampToSupportedWindow(Instant.MIN));
+
+			// inside the window the very same instance returns, sub-millisecond digits included
+			final OffsetDateTime nanos = OffsetDateTime.of(2030, 1, 2, 3, 4, 5, 123_456_789, ZoneOffset.UTC);
+			assertSame(nanos, EvitaDataTypes.clampToSupportedWindow(nanos));
+			final LocalDateTime localNanos = LocalDateTime.of(2030, 1, 2, 3, 4, 5, 123_456_789);
+			assertSame(localNanos, EvitaDataTypes.clampToSupportedWindow(localNanos));
+			final Instant instantNanos = nanos.toInstant();
+			assertSame(instantNanos, EvitaDataTypes.clampToSupportedWindow(instantNanos));
+		}
+
+		@Test
+		@DisplayName("should keep every moment of the edge seconds through the public clamp-only helper")
+		void shouldKeepEveryMomentOfEdgeSecondsThroughPublicHelper() {
+			// the last nanosecond of the latest supported second lies inside the window - the helper compares seconds
+			final Instant lastNanosecond =
+				Instant.ofEpochSecond(LATEST_SUPPORTED_INSTANT.getEpochSecond(), 999_999_999L);
+			assertSame(lastNanosecond, EvitaDataTypes.clampToSupportedWindow(lastNanosecond));
+			final OffsetDateTime lastOffsetNanosecond = OffsetDateTime.ofInstant(lastNanosecond, ZoneOffset.UTC);
+			assertSame(lastOffsetNanosecond, EvitaDataTypes.clampToSupportedWindow(lastOffsetNanosecond));
+			final LocalDateTime lastLocalNanosecond = LocalDateTime.ofInstant(lastNanosecond, ZoneOffset.UTC);
+			assertSame(lastLocalNanosecond, EvitaDataTypes.clampToSupportedWindow(lastLocalNanosecond));
+			// and so does the first moment of the earliest one
+			assertSame(EARLIEST_SUPPORTED_INSTANT, EvitaDataTypes.clampToSupportedWindow(EARLIEST_SUPPORTED_INSTANT));
+			final OffsetDateTime earliest = OffsetDateTime.ofInstant(EARLIEST_SUPPORTED_INSTANT, ZoneOffset.UTC);
+			assertSame(earliest, EvitaDataTypes.clampToSupportedWindow(earliest));
+			final LocalDateTime localEarliest = LocalDateTime.ofInstant(EARLIEST_SUPPORTED_INSTANT, ZoneOffset.UTC);
+			assertSame(localEarliest, EvitaDataTypes.clampToSupportedWindow(localEarliest));
+
+			// one second beyond the latest one and one nanosecond before the earliest one are clamped onto the edges
+			assertEquals(
+				LATEST_SUPPORTED_INSTANT, EvitaDataTypes.clampToSupportedWindow(lastNanosecond.plusSeconds(1L))
+			);
+			assertEquals(
+				OffsetDateTime.ofInstant(LATEST_SUPPORTED_INSTANT, ZoneOffset.UTC),
+				EvitaDataTypes.clampToSupportedWindow(lastOffsetNanosecond.plusSeconds(1L))
+			);
+			assertEquals(
+				LocalDateTime.ofInstant(LATEST_SUPPORTED_INSTANT, ZoneOffset.UTC),
+				EvitaDataTypes.clampToSupportedWindow(lastLocalNanosecond.plusSeconds(1L))
+			);
+			assertEquals(
+				LocalDateTime.ofInstant(LATEST_SUPPORTED_INSTANT, ZoneOffset.UTC),
+				EvitaDataTypes.clampToSupportedWindow(LocalDateTime.MAX)
+			);
+			assertEquals(
+				EARLIEST_SUPPORTED_INSTANT,
+				EvitaDataTypes.clampToSupportedWindow(EARLIEST_SUPPORTED_INSTANT.minusNanos(1L))
+			);
+			assertEquals(earliest, EvitaDataTypes.clampToSupportedWindow(earliest.minusNanos(1L)));
+			assertEquals(localEarliest, EvitaDataTypes.clampToSupportedWindow(localEarliest.minusNanos(1L)));
+		}
+
+		@Test
 		@DisplayName("should clamp a stored value and a query probe of the same sentinel to the same moment")
 		void shouldClampStoredValueAndQueryProbeAlike() {
 			assertEquals(

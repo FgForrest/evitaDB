@@ -68,6 +68,15 @@
 
 	<build>
 		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-source-plugin</artifactId>
+				<configuration>
+					<excludes>
+						<exclude>META-INF/lab/gui/**</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
 			<!-- downloads the latest release of evitaLab GUI -->
 			<plugin>
 				<groupId>one.edee.oss</groupId>

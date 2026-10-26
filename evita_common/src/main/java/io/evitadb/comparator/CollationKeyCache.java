@@ -31,6 +31,7 @@ import java.text.CollationKey;
 import java.text.Collator;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -114,6 +115,10 @@ public final class CollationKeyCache implements Serializable {
 	 * by the catalog schemas).
 	 */
 	private static final ConcurrentHashMap<Locale, CollationKeyCache> INSTANCES = new ConcurrentHashMap<>(8);
+	/**
+	 * Admits at most one process-wide sweep; overlapping callers skip the boundary already being established.
+	 */
+	private static final AtomicBoolean SWEEP_IN_PROGRESS = new AtomicBoolean();
 	/**
 	 * Number of slots per locale resolved once at class load; zero disables caching.
 	 */
@@ -322,6 +327,12 @@ public final class CollationKeyCache implements Serializable {
 	 * — a million reference reads for the largest supported cache — so it belongs on a housekeeping path, never on
 	 * a request path.
 	 *
+	 * Sweeps are single-flight across the process: a call overlapping an in-flight sweep returns immediately with
+	 * zero released entries, without scanning or waiting. The in-flight sweep already establishes its boundary.
+	 * This avoids competing full scans writing the same cache lines and preserves CLOCK second chance: overlapping
+	 * scans could otherwise clear reference flags and then drop those entries without any intervening lookups.
+	 * Sequential calls remain separate sweep boundaries.
+	 *
 	 * **A single sweep reclaims almost nothing, by design.** {@link #keyFor(String)} marks an entry on every hit and
 	 * one B+ tree descent re-reads its own probe several times, so practically every entry carries a set reference
 	 * flag moments after it was inserted and survives on its second chance. Releasing memory therefore takes TWO
@@ -330,14 +341,21 @@ public final class CollationKeyCache implements Serializable {
 	 * out of ~1M slots, while the same sweep preceded by one earlier sweep released ~215k. Callers wanting a bounded
 	 * footprint must therefore sweep periodically; a single well-timed sweep is not a substitute.
 	 *
-	 * @return total number of entries dropped across all locales
+	 * @return total number of entries dropped across all locales, or zero when skipped because a sweep is in flight
 	 */
 	public static int sweepAll() {
-		int dropped = 0;
-		for (final CollationKeyCache cache : INSTANCES.values()) {
-			dropped += cache.sweep();
+		if (!SWEEP_IN_PROGRESS.compareAndSet(false, true)) {
+			return 0;
 		}
-		return dropped;
+		try {
+			int dropped = 0;
+			for (final CollationKeyCache cache : INSTANCES.values()) {
+				dropped += cache.sweep();
+			}
+			return dropped;
+		} finally {
+			SWEEP_IN_PROGRESS.set(false);
+		}
 	}
 
 	/**

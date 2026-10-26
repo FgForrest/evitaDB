@@ -23,7 +23,12 @@
 
 package io.evitadb.api.query;
 
+import io.evitadb.api.query.filter.DifferentEntityFilterContainer;
+import io.evitadb.api.query.filter.EntityHaving;
+import io.evitadb.api.query.filter.EntityLocaleEquals;
+import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.query.order.EntityGroupProperty;
@@ -41,8 +46,10 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Predicate;
 
@@ -118,6 +125,80 @@ public class QueryUtils {
 
 	/** Private constructor to prevent instantiation of utility class. */
 	private QueryUtils() {
+	}
+
+	/**
+	 * Resolves only the locale opinion of this entity level, without inheriting a locale from its caller.
+	 * Repeated equal locales coalesce; different locales, even under `or`, are invalid at the same level.
+	 * Children of {@link DifferentEntityFilterContainer} belong to another level and are not searched.
+	 * Pass those children in a filter container to resolve that nested level itself.
+	 *
+	 * @param filter the level's filter, NULL when it has none
+	 * @return its own locale, or NULL when the level has no opinion
+	 * @throws EvitaInvalidUsageException when the level names conflicting locales
+	 */
+	@Nullable
+	public static Locale resolveLocale(@Nullable Constraint<?> filter) {
+		if (filter == null) {
+			return null;
+		}
+		final List<EntityLocaleEquals> constraints = FinderVisitor.findConstraints(
+			filter, EntityLocaleEquals.class::isInstance, DifferentEntityFilterContainer.class::isInstance
+		);
+		Locale locale = null;
+		for (final EntityLocaleEquals constraint : constraints) {
+			final Locale candidate = constraint.getLocale();
+			if (locale != null && !locale.equals(candidate)) {
+				throw new EvitaInvalidUsageException(
+					"Conflicting locales `" + locale.toLanguageTag() + "` and `" + candidate.toLanguageTag() +
+						"` at one entity level in constraint `" + filter + "`."
+				);
+			}
+			locale = candidate;
+		}
+		return locale;
+	}
+
+	/**
+	 * Resolves the locale the referenced entity body - or the group body - of a reference is fetched in: the body
+	 * level's own opinion, otherwise the opinion of the reference level holding it, otherwise the enclosing level's
+	 * locale. The entity and the group are separate levels, so neither inherits the other's opinion.
+	 *
+	 * The body level consists of the children of every {@link EntityHaving} (or {@link GroupHaving}) the reference
+	 * filter holds outside a nested {@link SeparateEntityScopeContainer}. The reference level is resolved by
+	 * {@link #resolveLocale(Constraint)}, which stops only at a {@link DifferentEntityFilterContainer}: it descends
+	 * into {@link ReferenceHaving} and {@link FacetHaving}, whose children stay at the owner's level; the body lookup
+	 * stops there, because an `entityHaving` below it describes the target of another reference. Both levels are
+	 * always resolved, so a conflict on either of them is refused even when the other one decides.
+	 *
+	 * @param referenceFilter the filter of the reference, NULL when it has none
+	 * @param group           true to resolve the group body, false for the referenced entity body
+	 * @param enclosingLocale the resolved locale of the level enclosing the reference, NULL when it has none
+	 * @return the locale of the body, NULL when no level names one
+	 * @throws EvitaInvalidUsageException when the reference level or the body level names conflicting locales
+	 */
+	@Nullable
+	public static Locale resolveReferenceBodyLocale(
+		@Nullable FilterBy referenceFilter, boolean group, @Nullable Locale enclosingLocale
+	) {
+		if (referenceFilter == null) {
+			return enclosingLocale;
+		}
+		final Locale referenceLocale = resolveLocale(referenceFilter);
+		final List<ConstraintContainer<FilterConstraint>> bodyLevels = FinderVisitor.findConstraints(
+			referenceFilter,
+			constraint -> group ? constraint instanceof GroupHaving : constraint instanceof EntityHaving,
+			SeparateEntityScopeContainer.class::isInstance
+		);
+		final List<FilterConstraint> bodyFilters = new ArrayList<>(bodyLevels.size());
+		for (final ConstraintContainer<FilterConstraint> bodyLevel : bodyLevels) {
+			Collections.addAll(bodyFilters, bodyLevel.getChildren());
+		}
+		final Locale bodyLocale = resolveLocale(new FilterBy(bodyFilters.toArray(FilterConstraint[]::new)));
+		if (bodyLocale != null) {
+			return bodyLocale;
+		}
+		return referenceLocale == null ? enclosingLocale : referenceLocale;
 	}
 
 	/**
@@ -404,7 +485,7 @@ public class QueryUtils {
 	 * nested in the outer one:
 	 *
 	 * - filter: every {@link io.evitadb.api.query.filter.SeparateEntityScopeContainer} except
-	 *   {@link io.evitadb.api.query.filter.ReferenceHaving}, whose body filters reference attributes kept in the
+	 *   {@link ReferenceHaving} and {@link FacetHaving}, whose bodies filter reference attributes kept in the
 	 *   owner's own indexes
 	 * - order: {@link io.evitadb.api.query.order.EntityProperty}, {@link io.evitadb.api.query.order.EntityGroupProperty}
 	 *   and every {@link io.evitadb.api.query.order.ReferenceOrderingSpecification}
@@ -486,8 +567,9 @@ public class QueryUtils {
 	 * @return true when the constraint starts a new evaluation context for its own kind
 	 */
 	private static boolean startsSeparateEntityContext(@Nonnull Constraint<?> constraint) {
-		// the children filter another entity (`referenceHaving`'s own body filters the owner's references)
-		return (constraint instanceof SeparateEntityScopeContainer && !(constraint instanceof ReferenceHaving)) ||
+		// The direct children of reference and facet filters both filter the owner's references.
+		return (constraint instanceof SeparateEntityScopeContainer &&
+			!(constraint instanceof ReferenceHaving) && !(constraint instanceof FacetHaving)) ||
 			// the children order by the properties of another entity
 			constraint instanceof EntityProperty ||
 			constraint instanceof EntityGroupProperty ||

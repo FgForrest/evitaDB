@@ -31,6 +31,7 @@ import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
@@ -76,6 +77,7 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -103,6 +105,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -1067,6 +1070,96 @@ class LegacyOwnerSortIndexCorrectionTest {
 				legacy, legacy.toCurrentOwner(),
 				index -> index.addRecord(new Serializable[]{closingAt(-1, PLUS_ONE), NINE.atOffset(PLUS_ONE)}, 100_000)
 			);
+		}
+	}
+
+	/**
+	 * The clamp the storage migration puts in front of the normalizer of every persisted temporal key: release 2026.2
+	 * stored values beyond the window of moments the current engine can hold, the JDK sentinels included.
+	 */
+	@Nested
+	@DisplayName("Clamp to the supported window")
+	class ClampToSupportedWindow {
+
+		@Test
+		@DisplayName("clamps every temporal type a persisted index holds and returns anything else as it came")
+		void shouldClampTemporalValuesAndReturnAnythingElseAsItCame() {
+			assertEquals(
+				EvitaDataTypes.clampToSupportedWindow(OffsetDateTime.MAX),
+				LegacyOwnerSortIndexCorrection.clampToSupportedWindow(OffsetDateTime.MAX)
+			);
+			assertEquals(
+				EvitaDataTypes.clampToSupportedWindow(OffsetDateTime.MIN),
+				LegacyOwnerSortIndexCorrection.clampToSupportedWindow(OffsetDateTime.MIN)
+			);
+			assertEquals(
+				EvitaDataTypes.clampToSupportedWindow(LocalDateTime.MAX),
+				LegacyOwnerSortIndexCorrection.clampToSupportedWindow(LocalDateTime.MAX)
+			);
+			assertEquals(
+				EvitaDataTypes.clampToSupportedWindow(LocalDateTime.MIN),
+				LegacyOwnerSortIndexCorrection.clampToSupportedWindow(LocalDateTime.MIN)
+			);
+			// the key 2026.2 gave such a value in a filter index
+			assertEquals(
+				EvitaDataTypes.clampToSupportedWindow(Instant.MAX),
+				LegacyOwnerSortIndexCorrection.clampToSupportedWindow(Instant.MAX)
+			);
+			assertEquals(
+				EvitaDataTypes.clampToSupportedWindow(Instant.MIN),
+				LegacyOwnerSortIndexCorrection.clampToSupportedWindow(Instant.MIN)
+			);
+
+			// inside the window the very same instance returns, sub-millisecond digits included
+			final OffsetDateTime inside = OffsetDateTime.of(2030, 1, 2, 3, 4, 5, 123_456_789, ZoneOffset.UTC);
+			assertSame(inside, LegacyOwnerSortIndexCorrection.clampToSupportedWindow(inside));
+			final LocalDateTime localInside = inside.toLocalDateTime();
+			assertSame(localInside, LegacyOwnerSortIndexCorrection.clampToSupportedWindow(localInside));
+			final Instant instantInside = inside.toInstant();
+			assertSame(instantInside, LegacyOwnerSortIndexCorrection.clampToSupportedWindow(instantInside));
+			final LocalTime time = LocalTime.of(3, 4, 5, 123_456_789);
+			assertSame(time, LegacyOwnerSortIndexCorrection.clampToSupportedWindow(time));
+			final String text = "text";
+			assertSame(text, LegacyOwnerSortIndexCorrection.clampToSupportedWindow(text));
+			assertNull(LegacyOwnerSortIndexCorrection.clampToSupportedWindow(null));
+		}
+
+		@Test
+		@DisplayName("keys a temporal value beyond the window by the edge it is clamped to")
+		void shouldKeyOutOfWindowTemporalValueByEdge() {
+			final Function<Object, Serializable> offsetNormalizer =
+				LegacyOwnerSortIndexCorrection.createClampingNormalizer(OffsetDateTime.class, 0);
+			final Function<Object, Serializable> plainOffsetNormalizer =
+				FilterIndex.getNormalizer(OffsetDateTime.class, 0);
+			final Serializable latestKey =
+				plainOffsetNormalizer.apply(EvitaDataTypes.clampToSupportedWindow(OffsetDateTime.MAX));
+			assertEquals(latestKey, offsetNormalizer.apply(OffsetDateTime.MAX));
+			// the key 2026.2 gave the sentinel lands on the same edge
+			assertEquals(latestKey, offsetNormalizer.apply(OffsetDateTime.MAX.toInstant()));
+			// inside the window it normalizes as the plain normalizer does - truncated to whole milliseconds
+			final OffsetDateTime inside = OffsetDateTime.of(2030, 1, 2, 3, 4, 5, 123_456_789, ZoneOffset.UTC);
+			assertEquals(plainOffsetNormalizer.apply(inside), offsetNormalizer.apply(inside));
+
+			final Function<Object, Serializable> localNormalizer =
+				LegacyOwnerSortIndexCorrection.createClampingNormalizer(LocalDateTime.class, 0);
+			assertEquals(
+				FilterIndex.getNormalizer(LocalDateTime.class, 0)
+					.apply(EvitaDataTypes.clampToSupportedWindow(LocalDateTime.MIN)),
+				localNormalizer.apply(LocalDateTime.MIN)
+			);
+		}
+
+		@Test
+		@DisplayName("gives a type that is not temporal the plain normalizer at the passed decimal places")
+		void shouldGivePlainNormalizerToTypeThatIsNotTemporal() {
+			final BigDecimal decimal = new BigDecimal("1.25");
+			final Serializable scaled =
+				LegacyOwnerSortIndexCorrection.createClampingNormalizer(BigDecimal.class, 2).apply(decimal);
+			assertEquals(FilterIndex.getNormalizer(BigDecimal.class, 2).apply(decimal), scaled);
+			assertNotEquals(FilterIndex.getNormalizer(BigDecimal.class, 0).apply(decimal), scaled);
+
+			final String text = "text";
+			assertSame(text, LegacyOwnerSortIndexCorrection.createClampingNormalizer(String.class, 0).apply(text));
 		}
 	}
 
