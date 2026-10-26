@@ -828,6 +828,7 @@ public class TransactionalUnorderedIntArray
 				} else if (ordinal < duplicatePosition) {
 					duplicatePosition = ordinal;
 					duplicateId = recordId;
+					// reports of one id sort by ordinal, so the sorted neighbour is this id's preceding report
 					previousPosition = previousOrdinal;
 				}
 				values[unique - 1] = this.orderKeys[ordinal];
