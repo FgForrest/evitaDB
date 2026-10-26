@@ -57,7 +57,7 @@ Below is an explanation of the individual items:
     <dt>Generation Id</dt>
     <dd>A generation number assigned to each record. This number is not actively used but can be utilized for possible data reconstruction. It typically matches the version of the <a href="#offset-index">offset index</a> that points to this record.</dd>
     <dt>Payload</dt>
-    <dd>The actual record data. This section can have variable length and contains the specific information corresponding to the record type. The payload has a maximum size limited by the size of the output buffer (see <a href="/documentation/operate/configure?lang=evitaql#storage-configuration" target="_blank">outputBufferSize</a>).</dd>
+    <dd>The actual record data. This section can have variable length and contains the specific information corresponding to the record type. The size of the output buffer (see <a href="/documentation/operate/configure?lang=evitaql#storage-configuration" target="_blank">outputBufferSize</a>) limits the payload of a single record (one frame) and any single string or binary value in it. A larger payload continues in the immediately following records (control bit no. 2), so the size of the stored data as a whole is not limited by the buffer.</dd>
     <dt>Checksum - CRC32C</dt>
     <dd>A checksum used to verify the integrity of data within the record. It is used to detect errors when reading data in the payload section.</dd>
 </dl>
@@ -254,7 +254,7 @@ On the positive side, you don’t need to handle file locking during concurrent 
 
 On the negative side, there is the gradual accumulation of “outdated” data in the files. This data must be periodically cleaned up so it does not slow down the database startup (unused records still appear in the <a href="#offset-index">offset index</a>) and so it doesn’t occupy file cache space that could otherwise be used for relevant data. This cleanup is handled by <a href="#cleaning-up-the-clutter">cleaning up the clutter</a>, which involves copying the current records into a new file (still strictly append-only). Additionally, we need to maintain an <a href="#offset-index">offset index</a> containing positional information for every record, since variable record lengths make it impossible to simply compute record positions directly.
 
-Deflate compression (part of the JDK) is used to compress data in the payload section. The payload size limit enforced by the output buffer remains in effect—compression only occurs once the buffer is filled or when the payload has been completely written. If the compressed payload ends up the same size or larger, the uncompressed version is used instead.
+Deflate compression (part of the JDK) is used to compress data in the payload section. The output buffer still limits the uncompressed payload of each record in a chain, not the stored data as a whole—compression only occurs once the buffer is filled or when the payload has been completely written. If the compressed payload ends up the same size or larger, the uncompressed version is used instead.
 
 ### Cleaning Up the Clutter
 

@@ -23,6 +23,12 @@
 
 package io.evitadb.store.offsetIndex.io;
 
+import java.util.zip.Deflater;
+import java.util.Optional;
+import java.util.ArrayList;
+import java.util.List;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.ParameterizedTest;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.store.checksum.ChecksumFactory;
@@ -45,14 +51,14 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 
@@ -75,6 +81,52 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	@AfterEach
 	void tearDown() {
 		this.outputKeeper.close();
+	}
+
+	/**
+	 * Every discarded off-heap output ends its compressor, including failed spills.
+	 *
+	 * @param disposal normal close, successful spill or failed spill
+	 * @throws IOException if the failure fixture cannot be created
+	 */
+	@ParameterizedTest
+	@ValueSource(strings = {"close", "spill", "failedSpill"})
+	@DisplayName("Should end off-heap compressors on close and every spill path")
+	void shouldEndOffHeapCompressorOnDiscard(@Nonnull String disposal) throws IOException {
+		final CompressionFactory compression = Mockito.mock(CompressionFactory.class);
+		final List<Deflater> compressors = new ArrayList<>();
+		Mockito.when(compression.createCompressor()).thenAnswer(invocation -> {
+			final Deflater compressor = Mockito.spy(new Deflater());
+			compressors.add(compressor);
+			return Optional.of(compressor);
+		});
+		final Path target = this.targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp");
+		try (
+			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
+				TEST_CATALOG, 32, 1, ChecksumFactory.NO_OP);
+			final WriteOnlyOffHeapWithFileBackupHandle handle = new WriteOnlyOffHeapWithFileBackupHandle(
+				target, 128, false, this.outputKeeper, memoryManager, ChecksumFactory.NO_OP, compression)
+		) {
+			handle.checkAndExecuteAndSync("initialize", () -> {}, output -> output.writeInt(1));
+			if (disposal.equals("close")) {
+				handle.close();
+			} else {
+				if (disposal.equals("failedSpill")) {
+					Files.createDirectories(target);
+					org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+						() -> handle.checkAndExecuteAndSync("spill", () -> {},
+							output -> output.writeBytes(new byte[64])));
+				} else {
+					handle.checkAndExecuteAndSync("spill", () -> {}, output -> output.writeBytes(new byte[64]));
+				}
+			}
+			Mockito.verify(compressors.getFirst()).end();
+		} finally {
+			compressors.forEach(Deflater::end);
+			if (Files.isDirectory(target)) {
+				Files.delete(target);
+			}
+		}
 	}
 
 	@Test
@@ -316,13 +368,12 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	}
 
 	@Test
-	@DisplayName("Should recycle the off-heap ObservableOutput instance for reuse by the next transaction")
-	void shouldRecycleObservableOutputInstanceAcrossTransactions() throws NoSuchFieldException, IllegalAccessException {
+	@DisplayName("Should create independent detached outputs for consecutive transactions")
+	void shouldCreateDetachedOutputsAcrossTransactions() throws NoSuchFieldException, IllegalAccessException {
 		try (
 			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
 				TEST_CATALOG, 1024, 2, ChecksumFactory.NO_OP)
 		) {
-			assertEquals(0, getFreeOffHeapOutputCount());
 
 			final ObservableOutput<?> instanceFromA;
 			try (final WriteOnlyOffHeapWithFileBackupHandle handleA = createWriteHandle(memoryManager)) {
@@ -330,23 +381,20 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 					"write", () -> {}, output -> output.writeString("Transaction A data")
 				);
 				instanceFromA = getOffHeapMemoryOutput(handleA);
-				assertNotNull(instanceFromA, "Handle A should have borrowed an off-heap output");
+				assertNotNull(instanceFromA, "Handle A should have created an off-heap output");
+				assertEquals(0, instanceFromA.getBuffer().length);
 
-				// closing the reference (not the handle) is what triggers the recycle
 				handleA.toReadOffHeapWithFileBackupReference().close();
 			}
-
-			assertEquals(1, getFreeOffHeapOutputCount(), "A's released instance must sit in the free-list");
 
 			try (final WriteOnlyOffHeapWithFileBackupHandle handleB = createWriteHandle(memoryManager)) {
 				handleB.checkAndExecuteAndSync(
 					"write", () -> {}, output -> output.writeString("Transaction B data")
 				);
-				assertSame(
+				assertNotSame(
 					instanceFromA, getOffHeapMemoryOutput(handleB),
-					"B must have reused the instance recycled by A instead of allocating a new one"
+					"Each transaction creates its own cheap output"
 				);
-				assertEquals(0, getFreeOffHeapOutputCount(), "B's borrow must have drained the free-list");
 
 				try (final ReadOnlyHandle readOnlyHandle = handleB.toReadOnlyHandle()) {
 					readOnlyHandle.execute(
@@ -361,62 +409,57 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	}
 
 	@Test
-	@DisplayName("Should re-arm the cumulative checksum when a recycled output is reused by the next transaction")
-	void shouldReArmChecksumWhenReusingRecycledOutputForNextTransaction() throws NoSuchFieldException, IllegalAccessException {
+	@DisplayName("Should isolate cumulative checksums between consecutive transactions")
+	void shouldIsolateChecksumsAcrossTransactions() throws NoSuchFieldException, IllegalAccessException {
 		try (
-			// large region so each payload fits off-heap; two regions so B can reuse A's recycled instance
+
 			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
 				TEST_CATALOG, 1024, 2, Crc32CChecksumFactory.INSTANCE)
 		) {
 			final byte[] bytesA = "Transaction A payload".getBytes(StandardCharsets.UTF_8);
 			final byte[] bytesB = "Different B payload!!".getBytes(StandardCharsets.UTF_8);
 
-			// transaction A writes known bytes so its cumulative checksum becomes non-zero, then recycles
 			final ObservableOutput<?> instanceFromA;
 			try (final WriteOnlyOffHeapWithFileBackupHandle handleA = createWriteHandle(memoryManager)) {
 				handleA.checkAndExecuteAndSync("write A", () -> {}, output -> output.writeBytes(bytesA));
 				instanceFromA = getOffHeapMemoryOutput(handleA);
-				// closing the reference (not the handle) recycles A's instance back to the free-list
+
 				handleA.toReadOffHeapWithFileBackupReference().close();
 			}
-			assertEquals(1, getFreeOffHeapOutputCount(), "A's instance must have been recycled");
 
-			// transaction B reuses A's recycled instance and writes different bytes
 			try (final WriteOnlyOffHeapWithFileBackupHandle handleB = createWriteHandle(memoryManager)) {
 				handleB.checkAndExecuteAndSync("write B", () -> {}, output -> output.writeBytes(bytesB));
-				assertSame(
+				assertNotSame(
 					instanceFromA, getOffHeapMemoryOutput(handleB),
-					"B must have reused A's recycled instance for this scenario to be meaningful"
+					"Each transaction must have independent checksum state"
 				);
 
 				final OffHeapWithFileBackupReference reference = handleB.toReadOffHeapWithFileBackupReference();
 				final long expectedChecksum = new Crc32CWrapper().withByteArray(bytesB).getValue();
 				assertEquals(
 					expectedChecksum, reference.getChecksum(),
-					"B's checksum must cover only B's bytes - A's cumulative checksum must not leak through the recycled instance"
+					"B's checksum must cover only B's bytes - A's cumulative checksum must not leak into B"
 				);
 			}
 		}
 	}
 
 	@Test
-	@DisplayName("Should not corrupt an open reference's off-heap region while another transaction recycles/reuses an ObservableOutput")
-	void shouldNotCorruptOpenReferenceWhenAnotherTransactionRecyclesAndReuses() throws NoSuchFieldException, IllegalAccessException {
+	@DisplayName("Should preserve an open reference while another transaction reuses frame buffers")
+	void shouldNotCorruptOpenReferenceWhenAnotherTransactionWrites() throws NoSuchFieldException, IllegalAccessException {
 		try (
 			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
 				TEST_CATALOG, 1023, 3, ChecksumFactory.NO_OP)
 		) {
-			// prime the free-list so that handle A below is likely to borrow a recycled instance
+
 			try (final WriteOnlyOffHeapWithFileBackupHandle warmUpHandle = createWriteHandle(memoryManager)) {
 				warmUpHandle.checkAndExecuteAndSync("write", () -> {}, output -> output.writeString("Warm-up data"));
 				warmUpHandle.toReadOffHeapWithFileBackupReference().close();
 			}
-			assertEquals(1, getFreeOffHeapOutputCount());
 
 			final WriteOnlyOffHeapWithFileBackupHandle handleA = createWriteHandle(memoryManager);
 			handleA.checkAndExecuteAndSync("write", () -> {}, output -> output.writeString("Transaction A data"));
 			final OffHeapWithFileBackupReference referenceA = handleA.toReadOffHeapWithFileBackupReference();
-			assertEquals(0, getFreeOffHeapOutputCount(), "A must have taken the only recycled instance, leaving none behind");
 
 			final ByteBuffer bufferA = referenceA.getBuffer().orElseThrow();
 			final byte[] snapshotBeforeB = snapshot(bufferA, referenceA.getContentLength());
@@ -433,31 +476,29 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 					);
 				}
 			}
-			assertEquals(1, getFreeOffHeapOutputCount(), "B's own instance must have been recycled on handle close");
 
 			final byte[] snapshotAfterB = snapshot(bufferA, referenceA.getContentLength());
 			assertArrayEquals(
 				snapshotBeforeB, snapshotAfterB,
-				"A's off-heap region bytes must be unaffected by B's independent borrow/recycle activity"
+				"A's off-heap region bytes must be unaffected by B's independent frame buffer reuse"
 			);
 
-			// closing the still-open reference now recycles A's instance; closing the handle afterward must no-op
 			assertDoesNotThrow(referenceA::close);
 			assertDoesNotThrow(handleA::close);
-			assertEquals(2, getFreeOffHeapOutputCount(), "both A's and B's instances must be recycled exactly once");
 		}
 	}
 
 	@Test
-	@DisplayName("Should drop (not recycle) the off-heap ObservableOutput when overflow switches to file backup")
-	void shouldNotRecycleOffHeapOutputOnOverflow() throws NoSuchFieldException, IllegalAccessException {
+	@DisplayName("Should detach the off-heap output when overflow switches to file backup")
+	void shouldDetachOffHeapOutputOnOverflow() throws NoSuchFieldException, IllegalAccessException {
 		try (
 			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
 				TEST_CATALOG, 32, 1, ChecksumFactory.NO_OP);
 			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = createWriteHandle(memoryManager)
 		) {
-			assertEquals(0, getFreeOffHeapOutputCount());
-
+			final ObservableOutput<?> original = writeHandle.checkAndExecute(
+				"initialize", () -> {}, output -> output
+			);
 			for (int i = 0; i < 5; i++) {
 				final int index = i;
 				writeHandle.checkAndExecuteAndSync(
@@ -465,10 +506,9 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 				);
 			}
 
-			// the small 32-byte region overflowed and the write switched to file backup - the half-written
-			// off-heap ObservableOutput instance must be dropped, not handed back to the free-list
-			assertEquals(0, getFreeOffHeapOutputCount(), "overflowed instance must not be recycled");
-
+			// The small region overflowed; retrying against the file must release the abandoned frame buffer.
+			assertEquals(0, original.getBuffer().length, "The abandoned off-heap output must return its array");
+			assertNull(getOffHeapMemoryOutput(writeHandle));
 			try (final ReadOnlyHandle readOnlyHandle = writeHandle.toReadOnlyHandle()) {
 				assertEquals(35, readOnlyHandle.getLastWrittenPosition());
 				readOnlyHandle.execute(
@@ -505,16 +545,6 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 		final Field field = WriteOnlyOffHeapWithFileBackupHandle.class.getDeclaredField("offHeapMemoryOutput");
 		field.setAccessible(true);
 		return (ObservableOutput<?>) field.get(handle);
-	}
-
-	/**
-	 * Reflects into the shared keeper's free-list for size assertions.
-	 */
-	private int getFreeOffHeapOutputCount() throws NoSuchFieldException, IllegalAccessException {
-		final Field field = ObservableOutputKeeper.class.getDeclaredField("freeOffHeapOutputs");
-		field.setAccessible(true);
-		final ConcurrentLinkedDeque<?> deque = (ConcurrentLinkedDeque<?>) field.get(this.outputKeeper);
-		return deque.size();
 	}
 
 	/**
