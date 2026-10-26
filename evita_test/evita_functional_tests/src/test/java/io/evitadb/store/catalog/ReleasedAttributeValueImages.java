@@ -97,7 +97,7 @@ final class ReleasedAttributeValueImages {
 				settings
 			);
 			ObservableOutputKeeper outputKeeper = new ObservableOutputKeeper(
-				catalogName, settings.outputBufferSize(), settings.lockTimeoutSeconds(), settings.waitOnCloseSeconds(),
+				catalogName, settings.lockTimeoutSeconds(), settings.waitOnCloseSeconds(),
 				scheduler
 			);
 			DefaultEntityCollectionPersistenceService collection = new ReleasedBodiesCollectionService(

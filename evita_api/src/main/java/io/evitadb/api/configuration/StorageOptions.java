@@ -55,8 +55,10 @@ import static java.util.Optional.ofNullable;
  * @param outputBufferSize                   Size in bytes of the in-memory buffer used to serialize records before
  *                                           appending them to data files. Larger records are split into chained frames,
  *                                           so this limits one frame and any single string or binary value inside a
- *                                           record, rather than the record size. Buffers of this size are kept in
- *                                           memory while catalogs are written, so larger values use more memory.
+ *                                           record, rather than the record size. Data file writers borrow a buffer of
+ *                                           this size from a JVM-wide pool only while a frame is written, and
+ *                                           compression borrows a second one while finishing it, so larger values
+ *                                           use more memory.
  * @param maxOpenedReadHandles               Maximum number of simultaneously opened `InputStream` to file offset
  *                                           index file.
  * @param syncWrites                         Determines whether the storage layer forces the operating system to flush

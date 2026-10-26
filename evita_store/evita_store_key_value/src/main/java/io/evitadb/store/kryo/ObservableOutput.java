@@ -48,11 +48,21 @@ import java.util.zip.Deflater;
 /**
  * Extends Kryo {@link Output} to compute frame checksums and write each frame's length before its contents.
  * A frame is assembled in the in-memory buffer because its length is known only when the frame is complete.
- * {@link #markEnd(byte)} writes each finished frame to the output stream immediately.
+ * {@link #markEnd(byte)} writes each finished frame to the output stream immediately. Frames whose length is
+ * already known can bypass the assembly buffer through {@link #writeDirect(byte[], int, int)}.
  *
  * A record larger than the buffer is continued in chained frames by {@link StorageRecord}, which uses
  * {@link StorageRecord#CONTINUATION_BIT} and the {@link #onBufferOverflow} handler. A single value written by
  * `writeBytes`, `writeString` or `writeAscii` is never split across frames and must fit into one frame.
+ *
+ * Outputs created with an {@link ObservableOutputBufferPool} borrow an exact-size buffer when they first need to
+ * write bytes and retain it while a frame is open or raw bytes are pending. Appending a completed frame returns
+ * the buffer, except that continuation frames keep the same buffer for the whole record. Compression scratch
+ * space is borrowed only during frame completion and returned before that call ends. Flush returns the assembly
+ * buffer when no unfinished frame or pending bytes need it; reset and close discard unfinished bytes and return
+ * the buffer. Outputs created without a pool own their buffers for their whole life.
+ * Discarding a pooled output while it holds a borrowed array without calling {@link #close()} leaves that array
+ * counted by the pool even after garbage collection reclaims it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -64,25 +74,31 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	public static final int TAIL_MANDATORY_SPACE = MemoryMeasuringConstants.LONG_SIZE;
 	static final long NULL_CRC = 0xFFFFFFFFFFFFFFFFL;
 	/**
+	 * Empty array used while a pooled output has no frame to assemble.
+	 */
+	private static final byte[] EMPTY_BUFFER = new byte[0];
+	/**
 	 * Checksum computation instance. Reused - instantiated only once.
 	 */
 	private final Checksum checksum;
 	/**
-	 * Deflater instance. Reused - instantiated only once.
+	 * Exclusively owned compressor, reused between frames and ended when this output is closed.
 	 */
 	private final Deflater deflater;
 	/**
-	 * Buffer used for compressed data.
+	 * Receives the compressed payload of a frame. An output that owns its buffers allocates it once when compression
+	 * is enabled; a pooled output borrows it in {@link #markEndInternal} and returns it before that method ends, so it
+	 * is null between frames.
 	 */
-	private final byte[] deflateBuffer;
+	@Nullable private byte[] deflateBuffer;
 	/**
-	 * Spare buffer recycled across overflow-rewinds whose active region cannot be compacted in place (see
-	 * {@link #require(int)}), instead of allocating a fresh full-size {@code byte[]} on every such rewind. Holds the
-	 * previous {@code buffer} after a swap so the two arrays ping-pong. Per-instance, and every {@link ObservableOutput}
-	 * is single-thread-confined, so this is not a shared-mutable-state hazard; cleared by {@link #reset()} so a pooled,
-	 * repeatedly-reset output never retains two full buffers.
+	 * Shared frame buffer pool, or null for outputs that own their buffers.
 	 */
-	@Nullable private byte[] spareBuffer;
+	@Nullable private final ObservableOutputBufferPool bufferPool;
+	/**
+	 * Exact configured size, including the reserved tail.
+	 */
+	private final int bufferSize;
 	/**
 	 * Accumulated count of bytes that have been saved by compress.
 	 * This number is crucial for correct file location calculation when multiple records are written to the output.
@@ -141,6 +157,16 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 * This is combined with each record's full checksum (header + payload + tail) in finishRecord().
 	 */
 	private long cumulativeChecksum;
+	/**
+	 * Set while bytes are being written to the output stream and left set when the write fails. A failed write may
+	 * have left part of its bytes in the stream, so the physical end of the stream no longer matches the byte
+	 * accounting, and every further append is refused until {@link #reset()}.
+	 */
+	private boolean appendPositionUnknown;
+	/**
+	 * Whether this output has been disposed, preventing duplicate stream and compressor cleanup.
+	 */
+	private boolean closed;
 
 	/**
 	 * Creates an ObservableOutput with a pre-allocated buffer.
@@ -148,7 +174,7 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 * @param outputStream the output stream to write serialized data to
 	 * @param buffer       the pre-allocated byte buffer for buffering writes
 	 * @param checksum     the checksum instance for computing data integrity checksums
-	 * @param deflater     the deflater for optional data compression, or null if compression is disabled
+	 * @param deflater     exclusively owned compressor ended on close, or null if compression is disabled
 	 */
 	public ObservableOutput(
 		@Nonnull T outputStream,
@@ -158,6 +184,8 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	) {
 		super(buffer);
 		super.setOutputStream(outputStream);
+		this.bufferPool = null;
+		this.bufferSize = buffer.length;
 		this.checksum = checksum;
 		this.deflater = deflater;
 		this.deflateBuffer = this.deflater == null ? null : new byte[buffer.length];
@@ -173,7 +201,7 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 * @param bufferSize      maximal size of one frame, including its header and checksum
 	 * @param currentFileSize the current size of the output file for tracking total bytes written
 	 * @param checksum        the checksum instance for computing data integrity checksums
-	 * @param deflater        the deflater for optional data compression, or null if compression is disabled
+	 * @param deflater        exclusively owned compressor ended on close, or null if compression is disabled
 	 */
 	public ObservableOutput(
 		@Nonnull T outputStream,
@@ -182,14 +210,39 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 		@Nonnull Checksum checksum,
 		@Nullable Deflater deflater
 	) {
-		super(outputStream, bufferSize);
+		this(outputStream, new byte[bufferSize], checksum, deflater);
+		this.total = currentFileSize;
+	}
+
+	/**
+	 * Creates a detached output that borrows exact-size buffers only while assembling a frame or pending raw bytes.
+	 * Compression scratch space is borrowed only while finishing a compressed frame.
+	 *
+	 * @param outputStream the output stream to write serialized data to
+	 * @param bufferSize maximal size of one frame, including its header and checksum
+	 * @param currentFileSize current physical file size used as the initial append position
+	 * @param checksum checksum instance used to verify serialized data
+	 * @param deflater exclusively owned compressor ended on close, or null to disable compression
+	 * @param bufferPool shared pool providing exclusive frame and compression buffers
+	 * @throws io.evitadb.exception.GenericEvitaInternalError if the frame size cannot fit the mandatory tail
+	 */
+	public ObservableOutput(
+		@Nonnull T outputStream,
+		int bufferSize,
+		long currentFileSize,
+		@Nonnull Checksum checksum,
+		@Nullable Deflater deflater,
+		@Nonnull ObservableOutputBufferPool bufferPool
+	) {
+		super(EMPTY_BUFFER);
+		Assert.isPremiseValid(bufferSize > TAIL_MANDATORY_SPACE, "Buffer must fit the mandatory tail!");
+		super.setOutputStream(outputStream);
 		this.total = currentFileSize;
 		this.checksum = checksum;
 		this.deflater = deflater;
-		this.deflateBuffer = this.deflater == null ? null : new byte[bufferSize];
-		// we need to hide CRC mandatory space from the Kryo output so that it asks for `require` when it reaches
-		// the end of the capacity - this way we will have reserved space for safely writing the CRC checksum
-		this.capacity = bufferSize - TAIL_MANDATORY_SPACE;
+		this.bufferPool = bufferPool;
+		this.bufferSize = bufferSize;
+		this.maxCapacity = bufferSize;
 	}
 
 	/**
@@ -201,9 +254,22 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	}
 
 	/**
+	 * Returns true when a failed write left the physical end of the output stream unknown. Such an output refuses
+	 * every further append; an output over a file must be reopened at the file's length to continue writing.
+	 *
+	 * @return true if the output refuses appends because a write failed
+	 */
+	public boolean isAppendPositionUnknown() {
+		return this.appendPositionUnknown;
+	}
+
+	/**
 	 * Initializes start position of the records - i.e. since this moment record size starts to be observed.
+	 *
+	 * @throws KryoException if a failed write left the append position unknown
 	 */
 	public void markStart() {
+		assertAppendPositionKnown();
 		this.startPosition = super.position;
 	}
 
@@ -262,7 +328,9 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 * Record is marked as finished and can be safely written to the output stream (disk).
 	 *
 	 * @param controlByte the control byte to be written along with the record
-	 * @param theDeflater the Deflater instance tobe used for compression, or null to disable compression
+	 * @param theDeflater the Deflater instance to use for compression, or null to disable compression
+	 * @return physical file location of the completed frame
+	 * @throws KryoException if the frame cannot be completed or appended
 	 */
 	@Nonnull
 	public FileLocation markEndInternal(byte controlByte, @Nullable Deflater theDeflater) {
@@ -275,6 +343,9 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 			// compress payload if requested
 			final int savedBytesByCompression;
 			if (theDeflater != null) {
+				if (this.bufferPool != null) {
+					this.deflateBuffer = this.bufferPool.borrow(this.bufferSize);
+				}
 				theDeflater.reset();
 				theDeflater.setInput(this.buffer, this.payloadStartPosition, payloadLength);
 				theDeflater.finish();
@@ -341,10 +412,58 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 				this::finishRecord
 			);
 
+			detachBuffer();
 			// return location coordinates
 			return new FileLocation(supposedRecordStartPosition, length);
 		} finally {
 			this.writingTail = false;
+			if (this.bufferPool != null) {
+				if (theDeflater != null) {
+					// Deflater retains its input array even after consuming it; do not pin a returned frame buffer.
+					theDeflater.setInput(EMPTY_BUFFER);
+				}
+				if (this.deflateBuffer != null) {
+					this.bufferPool.release(this.deflateBuffer);
+					this.deflateBuffer = null;
+				}
+			}
+		}
+	}
+
+	/**
+	 * Appends already framed bytes directly, without imposing the serialization buffer's capacity.
+	 * Callers that know the frame length can emit its header, payload chunks and tail in order. Pending
+	 * buffered bytes are flushed first, and direct bytes participate in the same physical byte accounting
+	 * and cumulative checksum as buffered frames. No frame state is opened by this operation.
+	 *
+	 * @param bytes  bytes to append verbatim
+	 * @param offset start offset in the array
+	 * @param length number of bytes to append
+	 * @throws io.evitadb.exception.EvitaInternalError if a buffered frame is open
+	 * @throws KryoException if pending bytes or the direct chunk cannot be appended, or a failed write left the append
+	 *                       position unknown
+	 */
+	public void writeDirect(@Nonnull byte[] bytes, int offset, int length) {
+		Assert.isPremiseValid(this.startPosition == -1, "Cannot append direct bytes while writing a record!");
+		assertAppendPositionKnown();
+		writeDataToOutputStream();
+		detachBuffer();
+		IOUtils.executeSafely(
+			length,
+			KryoException::new,
+			theLength -> {
+				this.appendPositionUnknown = true;
+				this.outputStream.write(bytes, offset, theLength);
+				this.total = Math.addExact(this.total, theLength);
+				this.appendPositionUnknown = false;
+			}
+		);
+		if (this.cumulatingChecksum && this.checksum != Checksum.NO_OP) {
+			this.checksum.reset();
+			this.checksum.update(bytes, offset, length);
+			this.cumulativeChecksum = Crc32CWrapper.combine(
+				this.cumulativeChecksum, this.checksum.getValue(), length
+			);
 		}
 	}
 
@@ -463,6 +582,8 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 			? thePayloadLength - theSavedBytesByCompression
 			: thePayloadLength;
 
+		// the frame takes three writes; if any of them fails, the stream holds an unknown part of the frame
+		this.appendPositionUnknown = true;
 		// write header to the output stream
 		this.outputStream.write(this.buffer, this.lastConsumedPosition, headerLength);
 
@@ -477,6 +598,7 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 
 		// write tail to the output stream (contains the per-record CRC)
 		this.outputStream.write(this.buffer, this.position - TAIL_MANDATORY_SPACE, TAIL_MANDATORY_SPACE);
+		this.appendPositionUnknown = false;
 
 		// update cumulative checksum if enabled - reuse existing checksum field
 		if (this.cumulatingChecksum && this.checksum != Checksum.NO_OP) {
@@ -516,12 +638,28 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	}
 
 	/**
-	 * This method opens writing into output in mode that handles buffer overflow situations using passed handler.
+	 * Executes serialization with an optional overflow handler and abandons only the unfinished frame on failure.
+	 * Previously appended frames and pending bytes before the unfinished frame retain their positions and checksum.
+	 * A failed stream write is the exception: it leaves the append position unknown, see
+	 * {@link #isAppendPositionUnknown()}.
+	 *
+	 * @param onBufferOverflow handler that closes continuation frames, or null to reject a frame that does not fit
+	 * @param lambda serialization logic executed with the handler installed
+	 * @param <S> type of the serialization result
+	 * @return the result returned by the serialization logic
+	 * @throws RuntimeException if serialization fails; the unfinished frame is abandoned before rethrowing
+	 * @throws Error if serialization fails with an error; the unfinished frame is abandoned before rethrowing
 	 */
-	public <S> S doWithOnBufferOverflowHandler(@Nonnull Consumer<ObservableOutput<T>> onBufferOverflow, @Nonnull Supplier<S> lambda) {
+	public <S> S doWithOnBufferOverflowHandler(
+		@Nullable Consumer<ObservableOutput<T>> onBufferOverflow,
+		@Nonnull Supplier<S> lambda
+	) {
 		try {
 			this.onBufferOverflow = onBufferOverflow;
 			return lambda.get();
+		} catch (RuntimeException | Error exception) {
+			abandonFrame();
+			throw exception;
 		} finally {
 			this.onBufferOverflow = null;
 		}
@@ -570,15 +708,21 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 */
 	public long getWrittenBytesSinceReset() {
 		final long writtenBytes = Math.subtractExact(Math.addExact(this.total, position()), this.savedBytesByCompressionSinceReset);
+		// the lazy Supplier builds the message only on failure; the compaction copy calls this once per record
 		Assert.isPremiseValid(
 			writtenBytes >= 0,
-			"Written bytes must be non-negative! Got: " + writtenBytes + ", because " +
+			() -> "Written bytes must be non-negative! Got: " + writtenBytes + ", because " +
 				"savedBytesByCompressionSinceReset is: " + this.savedBytesByCompressionSinceReset + ", " +
 				"total is: " + this.total + ", position is: " + position() + "!"
 		);
 		return writtenBytes;
 	}
 
+	/**
+	 * Discards all pending bytes and resets byte counts, frame markers and cumulative checksum state.
+	 * Use only when starting a new stream or discarding the output; serialization failures abandon just their frame.
+	 * Positions count from zero again, so an append position left unknown by a failed write is known once more.
+	 */
 	@Override
 	public void reset() {
 		super.reset();
@@ -587,9 +731,8 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 		this.payloadStartPosition = -1;
 		this.recordLengthPosition = -1;
 		this.savedBytesByCompressionSinceReset = 0;
-		// drop the recycled spare so a pooled, repeatedly-reset output does not permanently retain two full buffers
-		// (copySnapshotTo never resets mid-copy, so the compaction benefit is preserved)
-		this.spareBuffer = null;
+		this.appendPositionUnknown = false;
+		detachBuffer();
 		// reset cumulative checksum state
 		this.cumulatingChecksum = false;
 		this.cumulativeChecksum = 0L;
@@ -601,39 +744,32 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 * the buffer in a way that moves unfinished data to the start of the buffer. When the buffer is not big enough after
 	 * these operations {@link KryoException} is thrown.
 	 *
-	 * @throws KryoException - when there is no space left in the buffer, can only happen if current record size exceeds
-	 *                       `bufferSize` stated in constructor of this object.
+	 * @param required number of contiguous bytes required for the next write
+	 * @return true if a buffer was attached or its contents moved to make room
+	 * @throws KryoException if the required bytes cannot fit in a frame without a continuation handler, or if an
+	 *                       append fails or its physical position is unknown
 	 */
 	@Override
 	protected boolean require(int required) throws KryoException {
+		boolean attached = false;
+		if (this.bufferPool != null && this.buffer.length == 0) {
+			Assert.isPremiseValid(this.position == 0 && this.lastConsumedPosition == 0, "Invalid detached positions!");
+			this.buffer = this.bufferPool.borrow(this.bufferSize);
+			this.capacity = this.bufferSize - TAIL_MANDATORY_SPACE;
+			attached = true;
+		}
 		final int reserve = this.writingTail ? TAIL_MANDATORY_SPACE : 0;
 		if (this.capacity - this.position + reserve >= required) {
 			// there is enough capacity available
-			return false;
+			return attached;
 		}
 		// write data if there is enough accumulated
 		writeDataToOutputStream();
 		// we've moved far in the buffer, and we can rewind
 		if (this.lastConsumedPosition > 0) {
 			final int activeBufferSize = this.startPosition == -1 ? 0 : this.position - this.lastConsumedPosition;
-			if (activeBufferSize < this.lastConsumedPosition) {
-				// if it's safe to copy within single buffer - do it
-				System.arraycopy(this.buffer, this.lastConsumedPosition, this.buffer, 0, activeBufferSize);
-			} else {
-				// it's not safe - data would be overwritten - move the active region into a recycled spare buffer and
-				// swap, recycling the old buffer as the next spare instead of allocating a fresh full-size byte[] on
-				// every such rewind. The old buffer is dead after the swap: its consumed prefix was just flushed by
-				// writeDataToOutputStream() above (and OutputStream.write copies), and its active region is arraycopy'd
-				// out below - so nothing else references it. Safe without synchronization: every ObservableOutput is
-				// single-thread-confined (built locally for a compaction copy, or guarded by the write-handle lock).
-				final int requiredCapacity = this.capacity + TAIL_MANDATORY_SPACE;
-				final byte[] recycled = this.spareBuffer;
-				final byte[] newBuffer = recycled != null && recycled.length >= requiredCapacity
-					? recycled : new byte[requiredCapacity];
-				System.arraycopy(this.buffer, this.lastConsumedPosition, newBuffer, 0, activeBufferSize);
-				this.spareBuffer = this.buffer;
-				this.buffer = newBuffer;
-			}
+			// arraycopy preserves overlapping source bytes as if copied through a temporary array.
+			System.arraycopy(this.buffer, this.lastConsumedPosition, this.buffer, 0, activeBufferSize);
 			recomputePositionsToNewStart();
 		}
 		if (this.capacity - this.position + reserve < required) {
@@ -655,10 +791,9 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 						this.position = this.atomicPosition;
 						// let the handler resolve the situation and try again
 						this.onBufferOverflow.accept(this);
-						// now write the partially written bytes
+						// The new frame header precedes the value; a later move must preserve that header.
+						this.atomicPosition = this.position;
 						super.writeBytes(partiallyWrittenValue, 0, partiallyWrittenValue.length);
-						// reset atomic position
-						this.atomicPosition = 0;
 					}
 					require(required);
 				} finally {
@@ -670,7 +805,9 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	}
 
 	/**
-	 * Flushes finished contents of this buffer regardless of their size.
+	 * Flushes finished contents of this buffer regardless of their size and returns an idle pooled buffer.
+	 *
+	 * @throws KryoException if completed bytes or the underlying stream cannot be flushed
 	 */
 	@Override
 	public void flush() throws KryoException {
@@ -678,14 +815,111 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 			return;
 		}
 		writeDataToOutputStream();
+		detachBuffer();
 		IOUtils.close(
 			KryoException::new,
 			this.outputStream::flush
 		);
 	}
 
+	/**
+	 * Flushes completed bytes, always closes the underlying stream, abandons any pending frame or raw bytes and
+	 * returns pooled arrays. The exclusively owned compressor is ended even if flushing or stream closure fails.
+	 * Closing is terminal and repeated calls do nothing.
+	 *
+	 * A pooled output holds its assembly array while a frame is open (including a record's continuation frames)
+	 * or raw bytes remain pending. Compression scratch space is borrowed only during frame completion and returned
+	 * before that call ends. Discarding an output that still holds a borrowed array without closing it leaves the
+	 * array counted by the pool even after garbage collection reclaims it.
+	 *
+	 * @throws KryoException if flushing or closing fails; the first failure is rethrown with later failures suppressed
+	 */
 	@Override
-	public void writeBytes(byte[] bytes, int offset, int count) throws KryoException {
+	public void close() throws KryoException {
+		if (this.closed) {
+			return;
+		}
+		this.closed = true;
+		Throwable failure = null;
+		try {
+			flush();
+		} catch (RuntimeException | Error exception) {
+			failure = exception;
+		}
+		try {
+			if (this.outputStream != null) {
+				this.outputStream.close();
+			}
+		} catch (IOException | RuntimeException | Error exception) {
+			if (failure == null) {
+				failure = exception instanceof IOException ? new KryoException(exception) : exception;
+			} else if (failure != exception) {
+				failure.addSuppressed(exception);
+			}
+		} finally {
+			try {
+				// Failed raw appends cannot be retried here; discard pending bytes before returning the array.
+				this.position = this.lastConsumedPosition;
+				this.startPosition = -1;
+				abandonFrame();
+			} finally {
+				if (this.deflater != null) {
+					this.deflater.end();
+				}
+			}
+		}
+		if (failure instanceof Error error) {
+			throw error;
+		} else if (failure instanceof RuntimeException exception) {
+			throw exception;
+		}
+	}
+
+	/**
+	 * Drops only the unfinished frame and clears its markers, then returns the buffer if no bytes remain pending.
+	 * Completed bytes before the frame remain available for the next flush. Already appended continuation frames
+	 * remain unreferenced bytes in the append-only stream, so append positions and cumulative accounting stay intact
+	 * — unless a stream write failed, which leaves the append position unknown and the output refusing appends.
+	 */
+	private void abandonFrame() {
+		if (this.startPosition != -1) {
+			this.position = this.startPosition;
+		}
+		this.startPosition = -1;
+		this.payloadStartPosition = -1;
+		this.recordLengthPosition = -1;
+		this.atomicPosition = -1;
+		detachBuffer();
+	}
+
+	/**
+	 * Returns an idle pooled buffer exactly once, replacing it with the shared empty array.
+	 * An open frame, pending bytes or an executing continuation handler keeps the buffer attached so its positions
+	 * remain valid until those bytes are consumed or abandoned.
+	 */
+	private void detachBuffer() {
+		if (this.bufferPool != null && !this.overflowing && this.startPosition == -1 &&
+			this.position == this.lastConsumedPosition && this.buffer.length != 0) {
+			final byte[] released = this.buffer;
+			this.buffer = EMPTY_BUFFER;
+			this.capacity = 0;
+			this.position = 0;
+			this.lastConsumedPosition = 0;
+			this.bufferPool.release(released);
+		}
+	}
+
+	/**
+	 * Writes an indivisible binary value, moving it to a continuation frame if necessary.
+	 *
+	 * @param bytes source array
+	 * @param offset first byte to serialize
+	 * @param count number of bytes in this value
+	 * @throws KryoException if the value cannot fit in one configured frame or writing fails
+	 */
+	@Override
+	public void writeBytes(@Nonnull byte[] bytes, int offset, int count) throws KryoException {
+		assertValueFitsFrame(count);
 		// this method allows writing multiple bytes, and we need to be able to rewind when the buffer is exhausted
 		try {
 			//safely init atomic position
@@ -697,8 +931,18 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 		}
 	}
 
+	/**
+	 * Writes one indivisible Kryo string, accounting for its encoded length prefix and UTF-8 bytes.
+	 *
+	 * @param value string to serialize, or null
+	 * @throws KryoException if the encoded value cannot fit in one configured frame or writing fails
+	 */
 	@Override
-	public void writeString(String value) throws KryoException {
+	public void writeString(@Nullable String value) throws KryoException {
+		// Short strings always fit; calculate the exact encoded size only near the frame limit.
+		if (value != null && (long) value.length() * 3 + 5 > maximumValueSize()) {
+			assertValueFitsFrame(encodedStringSize(value));
+		}
 		// this method allows writing multiple bytes, and we need to be able to rewind when the buffer is exhausted
 		try {
 			//safely init atomic position
@@ -710,8 +954,15 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 		}
 	}
 
+	/**
+	 * Writes one indivisible ASCII string using Kryo's length and terminator conventions.
+	 *
+	 * @param value ASCII string to serialize, or null
+	 * @throws KryoException if the encoded value cannot fit in one configured frame or writing fails
+	 */
 	@Override
-	public void writeAscii(String value) throws KryoException {
+	public void writeAscii(@Nullable String value) throws KryoException {
+		assertValueFitsFrame(value == null || value.isEmpty() ? 1 : value.length() == 1 ? 2 : value.length());
 		// this method allows writing multiple bytes, and we need to be able to rewind when the buffer is exhausted
 		try {
 			//safely init atomic position
@@ -724,7 +975,62 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	}
 
 	/**
-	 * This method initializes positions after compacting the buffer (ie. writing current record from the buffer start).
+	 * Returns the largest indivisible value that fits alongside the current frame's header and mandatory tail.
+	 * Raw bytes outside a frame have no header.
+	 *
+	 * @return maximum encoded value size in bytes
+	 */
+	private int maximumValueSize() {
+		return this.bufferSize - TAIL_MANDATORY_SPACE -
+			(this.payloadStartPosition == -1 ? 0 : this.payloadStartPosition - this.startPosition);
+	}
+
+	/**
+	 * Rejects an oversized value before Kryo partially writes it or invokes the continuation handler.
+	 *
+	 * @param valueSize complete encoded size of the indivisible value
+	 * @throws KryoException if the value cannot fit alongside the frame header and tail
+	 */
+	private void assertValueFitsFrame(long valueSize) {
+		if (valueSize > maximumValueSize()) {
+			throw new KryoException(
+				"A single value cannot be split across frames: value size " + valueSize +
+					"B exceeds the space available with outputBufferSize=" + this.bufferSize +
+					"B (header and tail included)."
+			);
+		}
+	}
+
+	/**
+	 * Computes Kryo's encoded string size without allocating an intermediate UTF-8 array. Kryo encodes UTF-16
+	 * code units independently, and uses an ASCII terminator only for strings of two to thirty-two characters.
+	 *
+	 * @param value non-null string to size
+	 * @return encoded byte count, including its length prefix or ASCII terminator
+	 */
+	private static long encodedStringSize(@Nonnull String value) {
+		final int length = value.length();
+		if (length == 0) {
+			return 1;
+		}
+		long bytes = 0;
+		for (int i = 0; i < length; i++) {
+			final char character = value.charAt(i);
+			bytes += character <= 0x7F ? 1 : character <= 0x7FF ? 2 : 3;
+		}
+		if (length > 1 && length <= 32 && bytes == length) {
+			return bytes;
+		}
+		// The flagged varint reserves two bits in its first byte, then one bit in every subsequent byte.
+		bytes++;
+		for (long remaining = ((long) length + 1) >>> 6; remaining != 0; remaining >>>= 7) {
+			bytes++;
+		}
+		return bytes;
+	}
+
+	/**
+	 * Moves frame markers and the indivisible value's safe point after compacting consumed bytes in place.
 	 */
 	private void recomputePositionsToNewStart() {
 		// we have to align new starts
@@ -732,6 +1038,9 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 			this.startPosition = this.startPosition - this.lastConsumedPosition;
 			this.payloadStartPosition = this.payloadStartPosition == -1 ? -1 : this.payloadStartPosition - this.lastConsumedPosition;
 			this.recordLengthPosition = this.recordLengthPosition - this.lastConsumedPosition;
+		}
+		if (this.atomicPosition != -1) {
+			this.atomicPosition -= this.lastConsumedPosition;
 		}
 		this.position = this.position - this.lastConsumedPosition;
 		this.lastConsumedPosition = 0;
@@ -753,11 +1062,16 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 
 	/**
 	 * Executes the flush of the buffer from the `lastFlushedPosition` with length passed in argument.
+	 *
+	 * @throws KryoException if the bytes cannot be written, or there are bytes to write and a failed write left
+	 *                       the append position unknown
 	 */
 	private void writeDataToOutputStream() {
 		final int flushPosition = this.startPosition == -1 ? this.position : this.startPosition;
 		final int flushLength = flushPosition - this.lastConsumedPosition;
 		if (flushLength > 0) {
+			// only actual bytes are refused, so flush and close with nothing pending still close the stream
+			assertAppendPositionKnown();
 			// Update cumulative checksum for raw bytes written outside record lifecycle
 			if (this.cumulatingChecksum && this.startPosition == -1 && this.checksum != Checksum.NO_OP) {
 				this.checksum.reset();
@@ -772,11 +1086,25 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 				flushLength,
 				KryoException::new,
 				theLength -> {
+					this.appendPositionUnknown = true;
 					this.outputStream.write(this.buffer, this.lastConsumedPosition, theLength);
 					this.total += theLength;
 					this.lastConsumedPosition += theLength;
+					this.appendPositionUnknown = false;
 				}
 			);
+		}
+	}
+
+	/**
+	 * Refuses an append while a failed write has left the physical end of the stream unknown, so that no frame
+	 * location is computed from a stale position.
+	 *
+	 * @throws KryoException if a failed write left the append position unknown
+	 */
+	private void assertAppendPositionKnown() {
+		if (this.appendPositionUnknown) {
+			throw new KryoException("Append position is unknown after a failed write; the output must be reopened.");
 		}
 	}
 

@@ -52,14 +52,14 @@ final class ReferenceRowFilter {
 	/**
 	 * The root of the compiled tree, NULL when the filter has no condition on the row.
 	 */
-	@Nullable private final RowTest root;
+	@Nullable private final RowPredicate root;
 
 	/**
 	 * Creates the filter over the compiled tree.
 	 *
 	 * @param root the root of the compiled tree, NULL when the filter has no condition on the row
 	 */
-	ReferenceRowFilter(@Nullable RowTest root) {
+	ReferenceRowFilter(@Nullable RowPredicate root) {
 		this.root = root;
 	}
 

@@ -33,6 +33,7 @@ import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
+import io.evitadb.store.kryo.ObservableOutputBufferPool;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.exception.SyncFailedException;
 import io.evitadb.utils.Assert;
@@ -74,9 +75,8 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	 */
 	private final Path targetFile;
 	/**
-	 * Keeps reusable serialization outputs and their buffers. Cached file outputs are closed by the scheduled
-	 * inactivity check or by an explicit close of the file's output or the keeper. The off-heap free-list is
-	 * cleared after the same period without a borrow or recycle call, or when the keeper is closed.
+	 * Caches open file outputs until inactivity or explicit close. Off-heap outputs are created per transaction;
+	 * both kinds borrow their frame buffers only while writing.
 	 */
 	private final ObservableOutputKeeper observableOutputKeeper;
 	/**
@@ -87,7 +87,8 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	/**
 	 * Size of the in-memory buffer used to serialize records before appending them to data files, in bytes.
 	 * Larger records are split into chained frames, so this limits one frame and any single string or binary value,
-	 * rather than the record size. Buffers are retained while catalogs are written; larger buffers use more memory.
+	 * rather than the record size. A buffer of this size is borrowed from the shared pool only while a frame is
+	 * assembled; larger buffers use more memory.
 	 * Sourced from {@link io.evitadb.api.configuration.StorageOptions#outputBufferSize()}, typically defaults to 2MB.
 	 */
 	private final int outputBufferSize;
@@ -324,26 +325,13 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	}
 
 	/**
-	 * Releases the off-heap memory allocated for writing data.
-	 *
-	 * This method closes the underlying off-heap region stream (freeing the region slot) and hands the
-	 * {@link ObservableOutput} instance back to {@link #observableOutputKeeper} for reuse by a future
-	 * transaction, instead of discarding it. Safe to recycle while a read reference is outstanding: the
-	 * reference reads from the off-heap region's {@link ByteBuffer} directly (see
-	 * {@link #toReadOffHeapWithFileBackupReference()}), never from this output's heap buffer.
+	 * Releases the off-heap region and closes its detached frame output exactly once.
 	 */
 	private void releaseOffHeapMemory() {
 		final ObservableOutput<OffHeapMemoryOutputStream> output = this.offHeapMemoryOutput;
 		if (output != null) {
-			// null the field first so a second release (both the reference-close callback and handle #close()
-			// may call this) is a no-op and never double-recycles the same instance
 			this.offHeapMemoryOutput = null;
-			// flush any not-yet-written bytes, then release the off-heap region (frees the region slot) -
-			// mirrors what Output#close() would have done, without calling it (that would tear down the
-			// instance); the buffer, checksum and deflater are left untouched so the instance stays usable
-			output.flush();
-			output.getOutputStream().close();
-			this.observableOutputKeeper.recycleOffHeapOutput(output);
+			output.close();
 		}
 	}
 
@@ -382,6 +370,8 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 					new IsolatedWalFileOpenedEvent(cohmm.getCatalogName()) :
 					new IsolatedWalFileOpenedEvent()
 				).commit();
+				// Discard pending bytes before offloading; this off-heap output is never reused.
+				observableOutput.reset();
 				// we need to offload current data to the disk
 				offloadMemoryToDisk(operation, offHeapMemoryOutputStream);
 				// and retry the write logic again
@@ -421,6 +411,8 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	/**
 	 * Offloads the data from the provided off-heap memory output stream to the disk.
 	 *
+	 * The discarded off-heap output is closed on both success and failure, ending its owned compressor.
+	 *
 	 * @param operation                 The name of the operation.
 	 * @param offHeapMemoryOutputStream The off-heap memory output stream containing the data to be offloaded.
 	 * @throws EvitaIOException If there is an error offloading the data to the disk.
@@ -430,7 +422,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 		@Nonnull OffHeapMemoryOutputStream offHeapMemoryOutputStream
 	) {
 		try (
-			offHeapMemoryOutputStream;
+			final ObservableOutput<OffHeapMemoryOutputStream> discardedOutput = this.offHeapMemoryOutput;
 			final FileOutputStream fos = new FileOutputStream(getTargetFile(this.targetFile));
 			final FileChannel fileChannel = fos.getChannel()
 		) {
@@ -446,10 +438,11 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 				"Failed to offload data to the disk.",
 				e
 			);
+		} finally {
+			this.offHeapMemoryOutput = null;
 		}
 
 		// switch output streams
-		this.offHeapMemoryOutput = null;
 		this.fileOutput = this.observableOutputKeeper.getObservableOutputOrCreate(
 			this.targetFile,
 			path -> this.createObservableOutput(path, this.lastConsistentChecksum)
@@ -489,20 +482,15 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 			return this.fileOutput;
 		} else {
 			final OffHeapMemoryOutputStream stream = offHeapRegion.get();
-			this.offHeapMemoryOutput = this.observableOutputKeeper.borrowOffHeapOutput(
+			this.offHeapMemoryOutput = new ObservableOutput<>(
 				stream,
-				() -> {
-					final ObservableOutput<OffHeapMemoryOutputStream> newOutput = new ObservableOutput<>(
-						stream,
-						this.outputBufferSize,
-						0,
-						this.checksumFactory.createChecksum(),
-						this.compressionFactory.createCompressor().orElse(null)
-					);
-					newOutput.markCumulativeChecksumStart();
-					return newOutput;
-				}
+				this.outputBufferSize,
+				0,
+				this.checksumFactory.createChecksum(),
+				this.compressionFactory.createCompressor().orElse(null),
+				ObservableOutputBufferPool.INSTANCE
 			);
+			this.offHeapMemoryOutput.markCumulativeChecksumStart();
 			return this.offHeapMemoryOutput;
 		}
 	}
