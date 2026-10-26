@@ -41,11 +41,12 @@ import java.util.concurrent.TimeUnit;
  * committed contents. Every measured invocation represents one entity mutation under an ALIVE per-entity savepoint.
  * The WAL replay bypasses that savepoint and cannot measure its structural mementos.
  *
- * Trial setup builds the committed tree from spaced ascending keys. Invocation setup binds a fresh transaction and
- * replaces the existing record immediately before each insertion probe with the same value. This creates the target
- * leaves' diff layers before the savepoint opens, so splitting a full leaf captures an existing layer's memento.
- * The measured region opens the savepoint, inserts the absent probes and accepts the entity mutation. Invocation
- * teardown aborts the surrounding transaction, retaining the original leaf occupancy for every invocation.
+ * Trial setup computes the insertion probes, then builds the committed tree from spaced ascending keys. Invocation
+ * setup binds a fresh transaction and replaces the existing record immediately before each insertion probe with the
+ * same value. This creates the target leaves' diff layers before the savepoint opens, so splitting a full leaf
+ * captures an existing layer's memento. The measured region opens the savepoint, inserts the absent probes and
+ * accepts the entity mutation. Invocation teardown aborts the surrounding transaction, retaining the original leaf
+ * occupancy for every invocation.
  *
  * Time per operation covers one batch of `insertCount` inserts and its savepoint; divide by `insertCount` for time
  * per inserted record. Tree construction, transaction setup, pre-touching and transaction abort are outside the timed
@@ -128,10 +129,24 @@ public class IntKeyedBPlusTreeMiddleInsertBenchmark {
 		protected Transaction transaction;
 
 		/**
-		 * Precomputes unique absent probes with a predecessor in the same leaf before any split.
+		 * Computes the probes before building the tree, whose construction reads them. JMH orders several trial-level
+		 * helpers of one state on its own terms, so a single helper makes the order explicit.
 		 */
 		@Setup(Level.Trial)
-		public void prepareProbes() {
+		public final void setUpTrial() {
+			prepareProbes();
+			buildTree();
+		}
+
+		/**
+		 * Builds the committed tree with the selected construction strategy, after the probes are known.
+		 */
+		protected abstract void buildTree();
+
+		/**
+		 * Precomputes unique absent probes with a predecessor in the same leaf before any split.
+		 */
+		private void prepareProbes() {
 			Assert.isPremiseValid(this.insertCount <= this.treeSize / 2, "Middle probes must be distinct.");
 			this.insertionKeys = new int[this.insertCount];
 			for (int i = 0; i < this.insertCount; i++) {
@@ -165,8 +180,8 @@ public class IntKeyedBPlusTreeMiddleInsertBenchmark {
 		/**
 		 * Builds identical spaced prices with the selected construction strategy.
 		 */
-		@Setup(Level.Trial)
-		public void buildTree() {
+		@Override
+		protected void buildTree() {
 			final PriceRecordContract[] records = new PriceRecordContract[this.treeSize];
 			for (int i = 0; i < records.length; i++) {
 				records[i] = record((i + 1) * 4);
@@ -216,8 +231,8 @@ public class IntKeyedBPlusTreeMiddleInsertBenchmark {
 		/**
 		 * Builds the same key-value pairs either through the bulk builder or through ascending inserts.
 		 */
-		@Setup(Level.Trial)
-		public void buildTree() {
+		@Override
+		protected void buildTree() {
 			this.tree = new TransactionalIntToLongBPlusTree();
 			final int[] keys = new int[this.treeSize];
 			final long[] values = new long[this.treeSize];
