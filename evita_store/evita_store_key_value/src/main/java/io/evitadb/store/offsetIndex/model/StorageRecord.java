@@ -25,11 +25,11 @@ package io.evitadb.store.offsetIndex.model;
 
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.function.TriFunction;
+import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.exception.PrematureEndOfFileException;
-import io.evitadb.store.offsetIndex.exception.RecordExceedsOutputBufferException;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -356,60 +356,88 @@ public record StorageRecord<T>(
 	}
 
 	/**
-	 * Allocation-free sibling of {@link #readRaw(ObservableInput)} for streaming raw copy paths
-	 * such as `OffsetIndexSerializationService.copySnapshotTo`. The payload is read into the
-	 * caller-supplied `scratchBuffer` rather than into a freshly allocated `byte[]`, and the two scalars the
-	 * copy loop consumes (control byte + payload length) are written into the caller-supplied `cursor` instead of a
-	 * freshly allocated header object — so a whole compaction copy allocates no per-record header garbage.
+	 * Copies a raw record and all its continuation frames without decompressing or buffering a whole frame.
+	 * Each frame retains its length and control flags; enabling the target checksum sets the CRC bit just
+	 * as the buffered raw writer does. Disabling it preserves the source CRC bit and writes the blank tail.
+	 * Only the generation id is restamped. Source checksums are verified before completing each target frame.
 	 *
-	 * The caller sizes the buffer by the configured `outputBufferSize`, which caps every record fragment this
-	 * instance writes - and therefore every record it can write back out unchanged. A stored record longer than the
-	 * buffer was written by an instance configured with a larger one; it is refused with
-	 * {@link RecordExceedsOutputBufferException} before anything is read, because the configured size is the limit and
-	 * is never enlarged to fit the data.
-	 *
-	 * @param input         input stream positioned at the start of a record
-	 * @param scratchBuffer reusable buffer that will receive the payload bytes, as long as the configured output buffer
-	 * @param cursor        reusable holder that receives the record's control byte and payload length
-	 * @throws RecordExceedsOutputBufferException when the stored record is longer than the buffer
+	 * @param input        input positioned at the first frame
+	 * @param output       output receiving the copied frames
+	 * @param generationId generation id stamped on every target frame
+	 * @param chunkBuffer  reusable transfer buffer, at least large enough for the header and tail
+	 * @param checksum     target payload checksum, independent of the output's cumulative checksum calculator
+	 * @return the location spanning all copied frames
 	 */
-	public static void readRawInto(
+	@Nonnull
+	public static FileLocation copyRawRecord(
 		@Nonnull ObservableInput<?> input,
-		@Nonnull byte[] scratchBuffer,
-		@Nonnull RawRecordCursor cursor
+		@Nonnull ObservableOutput<?> output,
+		long generationId,
+		@Nonnull byte[] chunkBuffer,
+		@Nonnull Checksum checksum
 	) {
-		long startingPosition = -1L;
-		int recordLength = -1;
+		Assert.isPremiseValid(
+			chunkBuffer.length >= CRC_NOT_COVERED_PART, "Copy buffer must fit a frame header and tail!"
+		);
+		Assert.isPremiseValid(output.getStartPosition() == -1, "Cannot copy while writing a record!");
+		final long targetStart = output.getWrittenBytesSinceReset();
+		long sourceStart = -1L;
+		int frameLength = -1;
+		int recordLength = 0;
 		try {
-			startingPosition = input.markStart();
-			recordLength = input.readInt();
-			if (recordLength > scratchBuffer.length) {
-				// the whole record, not just its payload, must fit: the caller writes it back out unchanged
-				throw new RecordExceedsOutputBufferException(recordLength, scratchBuffer.length);
-			}
-			final byte originalControl = input.readByte();
-			// the generation id is read to advance the cursor past the 8-byte header field, but the raw-copy caller
-			// does not need its value (it stamps the target catalogVersion on the copied record instead)
-			input.readLong();
-			// if the data is compressed we need to override the control byte and read it uncompressed
-			byte control = setBit(originalControl, COMPRESSION_BIT, false);
-			input.markPayloadStart(recordLength, control);
-			final int payloadLength = recordLength - CRC_NOT_COVERED_PART;
-			input.readBytes(scratchBuffer, 0, payloadLength);
-			input.markEnd(originalControl);
-
-			// publish into the reusable cursor only after every read succeeded - the caller reads it solely on the
-			// normal-return path, so a throw below leaves the previous (already-consumed) cursor contents untouched
-			cursor.control = originalControl;
-			cursor.payloadLength = payloadLength;
+			byte originalControl;
+			do {
+				sourceStart = input.markStart();
+				frameLength = input.readInt();
+				originalControl = input.readByte();
+				input.readLong();
+				// Suppress inflation while still verifying the original control byte at the source tail.
+				input.markPayloadStart(frameLength, setBit(originalControl, COMPRESSION_BIT, false));
+				final byte targetControl = checksum == Checksum.NO_OP
+					? originalControl : setBit(originalControl, CRC32_BIT, true);
+				// Kryo fixed-width integers are little-endian; reuse the transfer buffer without a wrapper.
+				putLittleEndian(chunkBuffer, 0, frameLength, Integer.BYTES);
+				chunkBuffer[Integer.BYTES] = targetControl;
+				putLittleEndian(chunkBuffer, RECORD_LENGTH_CONTROL_SIZE, generationId, Long.BYTES);
+				output.writeDirect(chunkBuffer, 0, CRC_NOT_COVERED_HEAD);
+				checksum.reset();
+				int remaining = frameLength - CRC_NOT_COVERED_PART;
+				while (remaining > 0) {
+					final int chunkLength = Math.min(remaining, chunkBuffer.length);
+					input.readBytes(chunkBuffer, 0, chunkLength);
+					checksum.update(chunkBuffer, 0, chunkLength);
+					output.writeDirect(chunkBuffer, 0, chunkLength);
+					remaining -= chunkLength;
+				}
+				input.markEnd(originalControl);
+				checksum.update(targetControl);
+				final long crc = checksum == Checksum.NO_OP ? -1L : checksum.getValue();
+				putLittleEndian(chunkBuffer, 0, crc, Long.BYTES);
+				output.writeDirect(chunkBuffer, 0, Long.BYTES);
+				recordLength = Math.addExact(recordLength, frameLength);
+			} while (isBitSet(originalControl, CONTINUATION_BIT));
+			return new FileLocation(targetStart, recordLength);
 		} catch (RuntimeException ex) {
-			// reset input stream to avoid partially initialized state
 			input.reset();
-			if (startingPosition != -1L && recordLength != -1) {
-				// if we know the location, we can verify it
-				checkUnderlyingInputStreamLength(input, new FileLocation(startingPosition, recordLength), ex);
+			if (sourceStart != -1L && frameLength != -1) {
+				checkUnderlyingInputStreamLength(input, new FileLocation(sourceStart, frameLength), ex);
 			}
 			throw ex;
+		}
+	}
+
+	/**
+	 * Writes the low `byteCount` bytes of `value` in little-endian order, the byte order Kryo uses for fixed-width
+	 * integers in the frame header and tail.
+	 *
+	 * @param target    array receiving the bytes
+	 * @param offset    index of the first byte to write
+	 * @param value     value to encode
+	 * @param byteCount number of low-order bytes to write
+	 */
+	private static void putLittleEndian(@Nonnull byte[] target, int offset, long value, int byteCount) {
+		for (int i = 0; i < byteCount; i++) {
+			target[offset + i] = (byte) (value >>> (i * Byte.SIZE));
 		}
 	}
 
@@ -588,7 +616,8 @@ public record StorageRecord<T>(
 	/**
 	 * Writes raw data to the output stream without applying compression.
 	 * This method is used for writing data that were previously read using {@link #readRaw(ObservableInput)} method,
-	 * preserving the original compressed state of the data.
+	 * preserving the original compressed state of the data. On failure only the unfinished frame is abandoned;
+	 * previously appended bytes keep their positions and cumulative accounting.
 	 *
 	 * @param output       the observable output stream to write to
 	 * @param control      the control byte containing metadata flags (compression, CRC32, etc.)
@@ -596,6 +625,7 @@ public record StorageRecord<T>(
 	 * @param rawData      the raw payload data to write (possibly compressed)
 	 * @return the {@link FileLocation} specifying the position and length of the written record
 	 * @throws CorruptedRecordException if the written record length differs from expected
+	 * @throws com.esotericsoftware.kryo.KryoException if the raw frame does not fit or cannot be appended
 	 */
 	@Nonnull
 	public static FileLocation writeRaw(
@@ -604,56 +634,26 @@ public record StorageRecord<T>(
 		long generationId,
 		@Nonnull byte[] rawData
 	) {
-		return writeRaw(output, control, generationId, rawData, 0, rawData.length);
-	}
-
-	/**
-	 * Range-bounded sibling of {@link #writeRaw(ObservableOutput, byte, long, byte[])} that writes
-	 * `length` bytes from `rawData` starting at `offset`. Used by streaming raw-copy paths that
-	 * reuse a single scratch buffer across many records.
-	 *
-	 * @param output       observable output stream to write to
-	 * @param control      control byte (compression / CRC32 / continuation flags)
-	 * @param generationId generation id of the written record
-	 * @param rawData      buffer holding the raw (possibly compressed) payload data
-	 * @param offset       start offset within `rawData`
-	 * @param length       number of payload bytes to write
-	 * @return file location of the written record
-	 * @throws CorruptedRecordException if the written record length differs from expected
-	 */
-	@Nonnull
-	public static FileLocation writeRaw(
-		@Nonnull ObservableOutput<?> output,
-		byte control,
-		long generationId,
-		@Nonnull byte[] rawData,
-		int offset,
-		int length
-	) {
-		try {
+		return output.doWithOnBufferOverflowHandler(null, () -> {
 			output.markStart();
 			output.markRecordLengthPosition();
 			output.writeInt(0);
 			output.writeByte(0);
 			output.writeLong(generationId);
 			output.markPayloadStart();
-			output.writeBytes(rawData, offset, length);
+			output.writeBytes(rawData);
 			final FileLocation resultLocation = output.markEndSuppressingCompression(control);
 			//noinspection StringConcatenationMissingWhitespace
 			Assert.isPremiseValid(
-				length + CRC_NOT_COVERED_PART == resultLocation.recordLength(),
+				rawData.length + CRC_NOT_COVERED_PART == resultLocation.recordLength(),
 				() -> new CorruptedRecordException(
 					"Record length differs (" + resultLocation.recordLength() + "B, " +
-						"expected " + (length + CRC_NOT_COVERED_PART) + "B) - it's probably corrupted!",
-					resultLocation.recordLength(), length + CRC_NOT_COVERED_PART
+						"expected " + (rawData.length + CRC_NOT_COVERED_PART) + "B) - it's probably corrupted!",
+					resultLocation.recordLength(), rawData.length + CRC_NOT_COVERED_PART
 				)
 			);
 			return resultLocation;
-		} catch (Exception ex) {
-			// reset output stream to avoid partially initialized state
-			output.reset();
-			throw ex;
-		}
+		});
 	}
 
 	/**
@@ -864,7 +864,8 @@ public record StorageRecord<T>(
 	 * @param payloadWriter    The payload writer function that writes the payload to the output stream.
 	 * @param <T>              The type of the payload.
 	 * @param <OS>             The type of the output stream.
-	 * @return A {@link PayloadWithFileLocation} object containing the payload and file location of the written record.
+	 * @return payload and physical location spanning every continuation frame of the written record
+	 * @throws com.esotericsoftware.kryo.KryoException if payload serialization or appending a frame fails
 	 */
 	@Nonnull
 	private static <T, OS extends OutputStream> PayloadWithFileLocation<T> writeRecord(
@@ -885,7 +886,9 @@ public record StorageRecord<T>(
 				final FileLocation theFileLocation = output.markEnd(
 					setBit((byte) 0, GENERATION_CLOSING_BIT, closesGeneration));
 				// return both
-				return new PayloadWithFileLocation<>(thePayload, theFileLocation);
+				return new PayloadWithFileLocation<>(
+					thePayload, recordLocations.get().computeOverallFileLocation(theFileLocation)
+				);
 			}
 		);
 	}
@@ -901,6 +904,7 @@ public record StorageRecord<T>(
 	 * @param <T>              The type of the payload.
 	 * @param <OS>             The type of the output stream.
 	 * @return The file location object specifying the position and length of the written record in the file.
+	 * @throws com.esotericsoftware.kryo.KryoException if payload serialization or appending a frame fails
 	 */
 	@Nonnull
 	private static <T, OS extends OutputStream> FileLocation writeRecord(
@@ -910,28 +914,22 @@ public record StorageRecord<T>(
 		@Nonnull Kryo kryo,
 		@Nonnull T payload
 	) {
-		try {
-			final AtomicReference<FileLocationPointer> recordLocations = new AtomicReference<>(
-				FileLocationPointer.INITIAL);
-			return output.doWithOnBufferOverflowHandler(
-				new OnBufferOverflowHandler<>(recordLocations, output, generationId),
-				() -> {
-					// write storage record header
-					writeHeader(output, generationId);
-					// finally, write payload
-					kryo.writeObject(output, payload);
-					// compute crc32 and fill in record length
-					final byte controlByte = setBit((byte) 0, GENERATION_CLOSING_BIT, closesGeneration);
-					final FileLocation completeRecordLocation = output.markEnd(controlByte);
-					// return file length that possibly spans multiple records
-					return recordLocations.get().computeOverallFileLocation(completeRecordLocation);
-				}
-			);
-		} catch (Exception ex) {
-			// reset output stream to avoid partially initialized state
-			output.reset();
-			throw ex;
-		}
+		final AtomicReference<FileLocationPointer> recordLocations = new AtomicReference<>(
+			FileLocationPointer.INITIAL);
+		return output.doWithOnBufferOverflowHandler(
+			new OnBufferOverflowHandler<>(recordLocations, output, generationId),
+			() -> {
+				// write storage record header
+				writeHeader(output, generationId);
+				// finally, write payload
+				kryo.writeObject(output, payload);
+				// compute crc32 and fill in record length
+				final byte controlByte = setBit((byte) 0, GENERATION_CLOSING_BIT, closesGeneration);
+				final FileLocation completeRecordLocation = output.markEnd(controlByte);
+				// return file length that possibly spans multiple records
+				return recordLocations.get().computeOverallFileLocation(completeRecordLocation);
+			}
+		);
 	}
 
 	/**
@@ -1190,41 +1188,6 @@ public record StorageRecord<T>(
 		long generationId,
 		byte[] rawData
 	) {
-	}
-
-	/**
-	 * Reusable mutable holder filled by {@link #readRawInto(ObservableInput, byte[], RawRecordCursor)} in place of a
-	 * freshly allocated header object, so a whole `copySnapshotTo` compaction allocates no per-record header garbage.
-	 * It carries only the two scalars the raw-copy loop consumes — the control byte and the number of payload bytes
-	 * written into the caller's scratch buffer.
-	 *
-	 * Not thread-safe by design: a single instance is meant to be reused across the records of ONE single-threaded copy
-	 * loop (which runs under the offset-index write handle). It must never be shared as a static/instance field of a
-	 * type whose statics are invoked concurrently by reader threads.
-	 *
-	 * The two scalar fields are valid only after a successful
-	 * {@link #readRawInto(ObservableInput, byte[], RawRecordCursor)} — a call that throws leaves the previous
-	 * (already-consumed) contents in place rather than partially overwriting them.
-	 */
-	public static final class RawRecordCursor {
-		/** Control byte (compression / CRC32 / continuation flags) of the last record successfully read into the cursor. */
-		private byte control;
-		/** Number of payload bytes the last successful read wrote into the caller's scratch buffer. */
-		private int payloadLength;
-
-		/**
-		 * @return the control byte of the last record successfully read into the cursor
-		 */
-		public byte control() {
-			return this.control;
-		}
-
-		/**
-		 * @return the number of payload bytes the last successful read wrote into the caller's scratch buffer
-		 */
-		public int payloadLength() {
-			return this.payloadLength;
-		}
 	}
 
 	/**

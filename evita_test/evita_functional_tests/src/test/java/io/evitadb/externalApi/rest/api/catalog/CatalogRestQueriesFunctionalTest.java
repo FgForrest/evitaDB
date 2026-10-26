@@ -23,21 +23,35 @@
 
 package io.evitadb.externalApi.rest.api.catalog;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.api.testSuite.RestEndpointFunctionalTest;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.test.tester.RestTester.Request;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
+import javax.annotation.Nonnull;
+
+import static io.evitadb.externalApi.http.MimeTypes.APPLICATION_JSON;
+import static io.evitadb.externalApi.http.MimeTypes.APPLICATION_YAML;
+import static io.evitadb.externalApi.rest.api.testSuite.OpenApiAssertions.assertArraySchemasDeclareType;
+import static io.evitadb.externalApi.rest.api.testSuite.OpenApiAssertions.assertDeclaresOpenApi31;
+import static io.evitadb.externalApi.rest.api.testSuite.OpenApiAssertions.parseSpecification;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static org.hamcrest.Matchers.notNullValue;
-import static io.evitadb.test.TestTags.REST;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REST;
+import static io.evitadb.test.TestTags.SERIALIZATION;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
  * Tests for auxiliary catalog endpoints.
@@ -47,18 +61,68 @@ import static io.evitadb.test.TestTags.QUERY;
 @Tag(REST)
 @Tag(EXTERNAL_API)
 @Tag(QUERY)
+@DisplayName("Auxiliary REST catalog endpoints")
 class CatalogRestQueriesFunctionalTest extends RestEndpointFunctionalTest {
 
-	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
-	@DisplayName("Should return OpenAPI specs")
-	void shouldReturnOpenApiSpecs(Evita evita, RestTester tester) {
-		tester.test(TEST_CATALOG)
-			.httpMethod(Request.METHOD_GET)
-			.acceptHeader("application/yaml")
-			.executeAndThen()
-			.statusCode(200)
-			.body(notNullValue());
+	/**
+	 * Verifies the version and array types declared by the served OpenAPI representations.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@Tag(SERIALIZATION)
+	@DisplayName("OpenAPI specification")
+	class OpenApiSpecification {
+
+		/**
+		 * Fetches each supported representation and checks its explicit OpenAPI version.
+		 */
+		@ParameterizedTest(name = "{0}")
+		@ValueSource(strings = {APPLICATION_JSON, APPLICATION_YAML})
+		@UseDataSet(REST_THOUSAND_PRODUCTS)
+		@DisplayName("Should declare OpenAPI 3.1.0 when requesting a supported representation")
+		void shouldDeclareOpenApi31WhenRequestingSupportedRepresentation(
+			@Nonnull final String mediaType,
+			@Nonnull final RestTester tester
+		) throws JsonProcessingException {
+			assertDeclaresOpenApi31(fetchSpecification(mediaType, tester));
+		}
+
+		/**
+		 * Checks every schema with items, including property schemas, in each served representation.
+		 */
+		@ParameterizedTest(name = "{0}")
+		@ValueSource(strings = {APPLICATION_JSON, APPLICATION_YAML})
+		@UseDataSet(REST_THOUSAND_PRODUCTS)
+		@DisplayName("Should declare array types when requesting a supported representation")
+		void shouldDeclareArrayTypesWhenRequestingSupportedRepresentation(
+			@Nonnull final String mediaType,
+			@Nonnull final RestTester tester
+		) throws JsonProcessingException {
+			final JsonNode specification = fetchSpecification(mediaType, tester);
+			assertArraySchemasDeclareType(specification);
+			final JsonNode validity = specification.at("/components/schemas/Price/properties/validity");
+			assertNotNull(validity.get("items"), "Price validity must declare its range item schema.");
+			assertEquals(2, validity.path("minItems").asInt(), "Price validity must be a two-bound range scalar.");
+			assertEquals(2, validity.path("maxItems").asInt(), "Price validity must be a two-bound range scalar.");
+		}
+
+		/**
+		 * Fetches and parses an OpenAPI document using the requested representation's parser.
+		 */
+		@Nonnull
+		private JsonNode fetchSpecification(
+			@Nonnull final String mediaType,
+			@Nonnull final RestTester tester
+		) throws JsonProcessingException {
+			final String responseBody = tester.test(TEST_CATALOG)
+				.httpMethod(Request.METHOD_GET)
+				.acceptHeader(mediaType)
+				.executeAndExpectOkAndThen()
+				.contentType(mediaType)
+				.extract().asString();
+			return parseSpecification(mediaType, responseBody);
+		}
 	}
 
 	@Test

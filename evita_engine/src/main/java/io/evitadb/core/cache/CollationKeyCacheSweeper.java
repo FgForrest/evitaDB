@@ -58,10 +58,10 @@ import java.util.concurrent.TimeUnit;
  *   finished with. No "skip while a catalog is warming up" guard is therefore needed.
  *
  * The caches are process-wide (keyed by locale) whereas an instance of this class belongs to a single
- * {@link io.evitadb.core.Evita} instance, so several embedded instances in one JVM multiply the sweep rate. That is
- * deliberately accepted: a sweep is idempotent and the entries are pure derived data, so the only consequence is that
- * keys decay sooner, and the alternative - a process-wide singleton sweeper - would need a process-wide lifecycle the
- * engine does not otherwise have.
+ * {@link io.evitadb.core.Evita} instance. Concurrent sweeps from several embedded instances and catalog go-lives are
+ * coalesced by {@link CollationKeyCache#sweepAll()}: overlapping callers return without scanning or waiting.
+ * Sequential sweeps remain separate boundaries and can make keys decay sooner. A process-wide singleton sweeper
+ * would need a process-wide lifecycle the engine does not otherwise have.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @see ServerOptions#dropCollationKeysAfterSecondsOfInactivity()
@@ -102,7 +102,7 @@ public class CollationKeyCacheSweeper implements Closeable {
 	 * Performs a single sweep of every locale's collation-key cache. Exposed separately from the periodic task so that
 	 * the decay can be triggered on demand and asserted in tests.
 	 *
-	 * @return number of cached collation keys released
+	 * @return number of cached collation keys released, or zero when an in-flight sweep coalesces this call
 	 */
 	public int sweep() {
 		final int released = CollationKeyCache.sweepAll();

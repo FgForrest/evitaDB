@@ -31,6 +31,7 @@ import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.kryo.ObservableOutput;
+import io.evitadb.store.kryo.ObservableOutputBufferPool;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.exception.InvalidStoragePathException;
@@ -86,8 +87,10 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	 */
 	private final int lockTimeoutSeconds;
 	/**
-	 * Size of the memory buffer used for write operations, in bytes.
-	 * This buffer size limits the maximum size of individual records that can be written.
+	 * Size of the in-memory buffer used to serialize records before appending them to data files, in bytes.
+	 * Larger records are split into chained frames, so this limits one frame and any single string or binary value,
+	 * rather than the record size. A buffer of this size is borrowed from the shared pool only while a frame is
+	 * assembled; larger buffers use more memory.
 	 * Sourced from {@link StorageOptions#outputBufferSize()}, typically defaults to 4MB.
 	 */
 	private final int outputBufferSize;
@@ -124,15 +127,10 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	 */
 	@Getter private final Path targetFile;
 	/**
-	 * The variable `observableOutputKeeper` is an instance of the class `ObservableOutputKeeper`. It is used to keep
-	 * references to `ObservableOutput` instances that internally maintain large buffers for serialization. The need for
-	 * these buffers is determined by the number of open read-write sessions to a catalog. If there is at least one open
-	 * read-write session, the `ObservableOutput` instances need to be kept. Otherwise, if there are only read sessions,
-	 * the `ObservableOutput` instances can be disposed of.
-	 *
-	 * The `ObservableOutputKeeper` class provides methods to get or create an `ObservableOutput` for a specific target
-	 * file, free an `ObservableOutput` for a target file, prepare the holder for `ObservableOutput`, check if
-	 * the cached outputs are prepared, and free all cached `ObservableOutput` instances.
+	 * Keeps the file's output stream open between writes so that each write does not reopen the file. The cached
+	 * output borrows its frame buffer from {@link ObservableOutputBufferPool} only while writing. The keeper closes
+	 * it after a period without a lease, on an explicit close of the file's output or the keeper, or when a failed
+	 * write left the end of the file unknown.
 	 */
 	private final ObservableOutputKeeper observableOutputKeeper;
 	/**
@@ -200,10 +198,13 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	 * The method ensures the file is opened for writing, optionally computes a CRC32 checksum,
 	 * and applies compression if specified in the storage options.
 	 *
-	 * @param theFilePath The path to the target file to which data will be written.
-	 * @param outputBufferSize the size of the output buffer to use for writing data.
-	 * @param checksum The checksum calculator touse for data integrity verification.
-	 * @param deflater The deflater to use for compressing data, or {@code null} if no compression is desired.
+	 * The output exclusively owns the compressor after construction. If opening or initialization fails, this
+	 * factory closes any opened stream and ends the compressor before propagating the failure.
+	 *
+	 * @param theFilePath target file to append to
+	 * @param outputBufferSize exact size of each frame buffer, including header and tail
+	 * @param checksum checksum calculator used for data integrity verification
+	 * @param deflater exclusively owned compressor, or null if no compression is desired
 	 *
 	 * @return An {@code ObservableOutput} instance wrapping a {@code FileOutputStream} for the specified file.
 	 * @throws UnexpectedIOException If the target file cannot be opened or accessed.
@@ -218,15 +219,31 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 		try {
 			final File theFile = theFilePath.toFile();
 			final FileOutputStream targetOs = new FileOutputStream(theFile, true);
-			return new ObservableOutput<>(
-				targetOs,
-				Math.min(ObservableOutput.DEFAULT_FLUSH_SIZE, outputBufferSize),
-				outputBufferSize,
-				theFile.length(),
-				checksum,
-				deflater
-			);
+			try {
+				return new ObservableOutput<>(
+					targetOs,
+					outputBufferSize,
+					theFile.length(),
+					checksum,
+					deflater,
+					ObservableOutputBufferPool.INSTANCE
+				);
+			} catch (RuntimeException | Error exception) {
+				try {
+					targetOs.close();
+				} catch (IOException closeFailure) {
+					exception.addSuppressed(closeFailure);
+				} finally {
+					if (deflater != null) {
+						deflater.end();
+					}
+				}
+				throw exception;
+			}
 		} catch (FileNotFoundException ex) {
+			if (deflater != null) {
+				deflater.end();
+			}
 			throw new UnexpectedIOException(
 				"Target file " + theFilePath + " cannot be opened!",
 				"Target file cannot be opened.",

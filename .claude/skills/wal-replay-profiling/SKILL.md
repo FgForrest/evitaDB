@@ -124,12 +124,12 @@ thread doing most of the allocation resolves to unresolved `libc` frames. Use `c
    that builds on the lost one - 63 of 178 failed on an untouched original snapshot. Measuring per-transaction
    cost needs `evita.replay.waitForVisibility=true`. A failed transaction costs a fraction of a commit, so the
    throughput still looked fine; `evita.replay.maxFailedShare` now refuses such a run.
-6. **The output buffer is smaller than the one that wrote the snapshot.** Record fragments are capped by the
-   writer's `outputBufferSize`, and compaction copies them through a buffer of the configured size, never enlarged.
-   A snapshot from a server configured above the 4 MiB default therefore needs `evita.replay.outputBufferSize` at
-   least that large, or the first compaction of such a collection fails with `RecordExceedsOutputBufferException`
-   and suspends the catalog. (Until the embedded default was raised from 2 MiB to the server's 4 MiB, every
-   server-written snapshot holding a fragment over 2 MiB hit this - as an `ArrayIndexOutOfBoundsException`.)
+6. **Results from before the streaming compaction copy may be cut short.** Record fragments are capped by the
+   writer's `outputBufferSize`. Compaction used to copy them through a buffer of the replaying instance's size, so
+   a replay below the writer's size suspended the catalog at its first compaction of a larger fragment, with an
+   `ArrayIndexOutOfBoundsException`. The copy now streams through a 16 KiB chunk, so any
+   `evita.replay.outputBufferSize` compacts a server-written snapshot (see
+   `documentation/adr/2026-10-25-frame-scoped-output-buffers.md`).
 7. **The replay starts after the source's last version.** A WAL stream is empty when it does not hold the requested
    version, and an empty replay is an instant one. The fixture now warns about a source that yields nothing - read
    the transaction count in the result block before the throughput.

@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
@@ -54,6 +55,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -159,6 +162,53 @@ class ReferenceSchemaBuilderTest {
 			.withReferenceToEntity(referenceName, entityType, cardinality, whichIs)
 			.toInstance();
 		return schema.getReference(referenceName).orElseThrow();
+	}
+
+	/**
+	 * Verifies entity schema reconstruction accepts a reference builder with managed entity and group types.
+	 * The unmanaged entity case reaches the group name lookup independently.
+	 */
+	@ParameterizedTest
+	@ValueSource(booleans = {true, false})
+	@DisplayName("should convert reference builders with managed entity or group types to immutable schemas")
+	void shouldConvertReferenceBuilderWithManagedTypes(boolean managedEntityType) {
+		final AtomicReference<ReferenceSchemaContract> referenceBuilder = new AtomicReference<>();
+		final Consumer<ReferenceSchemaEditor.ReferenceSchemaBuilder> configureReference = reference -> {
+			reference.withGroupTypeRelatedToEntity(Entities.STORE);
+			referenceBuilder.set(reference);
+		};
+		final EntitySchemaBuilder builder = createEntitySchemaBuilder();
+		if (managedEntityType) {
+			builder.withReferenceToEntity("brand", Entities.BRAND, Cardinality.ZERO_OR_MORE, configureReference);
+		} else {
+			builder.withReferenceTo("brand", Entities.BRAND, Cardinality.ZERO_OR_MORE, configureReference);
+		}
+		final EntitySchemaContract schema = builder.toInstance();
+		final EntitySchemaContract rebuiltSchema = EntitySchema._internalBuild(
+			schema.version(), schema.getName(), schema.getNameVariants(), schema.getDescription(),
+			schema.getDeprecationNotice(), schema.getConflictResolution().orElse(null),
+			schema.isWithGeneratedPrimaryKey(),
+			schema.isWithHierarchy(), schema.getHierarchyIndexedInScopes(), schema.isWithPrice(),
+			schema.getPriceIndexedInScopes(), schema.getIndexedPricePlaces(),
+			schema.getLocales(), schema.getCurrencies(),
+			schema.getAttributes(), schema.getAssociatedData(), Map.of("brand", referenceBuilder.get()),
+			schema.getEvolutionMode(), schema.getSortableAttributeCompounds()
+		);
+
+		final ReferenceSchemaContract reference = rebuiltSchema.getReference("brand").orElseThrow();
+		assertInstanceOf(ReferenceSchema.class, reference);
+		assertEquals(Entities.BRAND, reference.getReferencedEntityType());
+		assertEquals(managedEntityType, reference.isReferencedEntityTypeManaged());
+		assertEquals(Entities.STORE, reference.getReferencedGroupType());
+		assertTrue(reference.isReferencedGroupTypeManaged());
+		assertEquals(
+			NamingConvention.generate(Entities.BRAND),
+			reference.getEntityTypeNameVariants(EntitySchema::_internalBuild)
+		);
+		assertEquals(
+			NamingConvention.generate(Entities.STORE),
+			reference.getGroupTypeNameVariants(EntitySchema::_internalBuild)
+		);
 	}
 
 	@Nested

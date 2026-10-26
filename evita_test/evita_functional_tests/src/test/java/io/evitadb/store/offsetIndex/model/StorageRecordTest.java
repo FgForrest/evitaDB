@@ -24,11 +24,13 @@
 package io.evitadb.store.offsetIndex.model;
 
 import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.KryoDataInput;
 import com.esotericsoftware.kryo.io.KryoDataOutput;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.checksum.Crc32CChecksum;
@@ -37,13 +39,13 @@ import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.compression.ZipCompressionFactory;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
+import io.evitadb.store.kryo.ObservableOutputBufferPool;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
-import io.evitadb.store.offsetIndex.exception.RecordExceedsOutputBufferException;
 import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecord;
-import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecordCursor;
 import io.evitadb.store.offsetIndex.model.StorageRecord.StorageRecordWithChecksum;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.stream.RandomAccessFileInputStream;
+import io.evitadb.utils.BitUtils;
 import io.evitadb.utils.Crc32CWrapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,11 +53,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.ParameterizedClass;
+import org.junit.jupiter.params.Parameter;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import io.evitadb.roaringbitmap.PersistentLongRoaringBitmap;
 
 import javax.annotation.Nonnull;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -64,6 +71,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -75,6 +84,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import java.util.zip.Deflater;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -91,7 +101,11 @@ import static io.evitadb.test.TestTags.MANAGEMENT;
 @SuppressWarnings({"SameParameterValue", "ResultOfMethodCallIgnored"})
 @Tag(STORAGE)
 @Tag(MANAGEMENT)
+@ParameterizedClass(name = "pooled={0}")
+@ValueSource(booleans = {false, true})
 class StorageRecordTest {
+	/** Runs every writer scenario with owned and borrowed frame buffers. */
+	@Parameter boolean pooled;
 	private final Random random = new Random();
 	private File tempFile;
 	private Kryo kryo;
@@ -114,65 +128,27 @@ class StorageRecordTest {
 	 * Creates an ObservableOutput with the specified settings.
 	 *
 	 * @param outputStream    the underlying output stream
-	 * @param bufferSize      the buffer size (also used as flush size)
+	 * @param bufferSize      the frame buffer size
 	 * @param currentFileSize the current file size offset
 	 * @param checksumCheck   whether to enable CRC32 checksum computation
 	 * @param compression     whether to enable compression
 	 * @return the configured ObservableOutput
 	 */
 	@Nonnull
-	private static <T extends OutputStream> ObservableOutput<T> createOutput(
+	private <T extends OutputStream> ObservableOutput<T> createOutput(
 		@Nonnull T outputStream,
 		int bufferSize,
 		int currentFileSize,
 		@Nonnull ChecksumCheck checksumCheck,
 		@Nonnull Compression compression
 	) {
-		return new ObservableOutput<>(
-			outputStream,
-			bufferSize,
-			currentFileSize,
-			checksumCheck == ChecksumCheck.YES ?
-				new Crc32CChecksum() : Checksum.NO_OP,
-			(compression == Compression.YES ?
-				new ZipCompressionFactory() : CompressionFactory.NO_COMPRESSION)
-				.createCompressor()
-				.orElse(null)
-		);
-	}
-
-	/**
-	 * Creates an ObservableOutput with explicit flush size for continuation record tests.
-	 *
-	 * @param outputStream    the underlying output stream
-	 * @param flushSize       the flush size (triggers buffer flush)
-	 * @param bufferSize      the buffer size
-	 * @param currentFileSize the current file size offset
-	 * @param checksumCheck   whether to enable CRC32 checksum computation
-	 * @param compression     whether to enable compression
-	 * @return the configured ObservableOutput
-	 */
-	@Nonnull
-	private static <T extends OutputStream> ObservableOutput<T> createOutputWithFlush(
-		@Nonnull T outputStream,
-		int flushSize,
-		int bufferSize,
-		int currentFileSize,
-		@Nonnull ChecksumCheck checksumCheck,
-		@Nonnull Compression compression
-	) {
-		return new ObservableOutput<>(
-			outputStream,
-			flushSize,
-			bufferSize,
-			currentFileSize,
-			checksumCheck == ChecksumCheck.YES ?
-				new Crc32CChecksum() : Checksum.NO_OP,
-			(compression == Compression.YES ?
-				new ZipCompressionFactory() : CompressionFactory.NO_COMPRESSION)
-				.createCompressor()
-				.orElse(null)
-		);
+		final Checksum checksum = checksumCheck == ChecksumCheck.YES ? new Crc32CChecksum() : Checksum.NO_OP;
+		final Deflater deflater = (compression == Compression.YES ?
+			new ZipCompressionFactory() : CompressionFactory.NO_COMPRESSION).createCompressor().orElse(null);
+		return this.pooled ?
+			new ObservableOutput<>(
+				outputStream, bufferSize, currentFileSize, checksum, deflater, ObservableOutputBufferPool.INSTANCE
+			) : new ObservableOutput<>(outputStream, bufferSize, currentFileSize, checksum, deflater);
 	}
 
 	/**
@@ -441,10 +417,8 @@ class StorageRecordTest {
 		void shouldWriteRecordWithoutCrc32CheckAndReadAvoidingCrc32EvenIfRequested() throws IOException {
 			final StorageRecord<ByteChunk> record;
 			try (
-				final ObservableOutput<?> output = new ObservableOutput<>(
-					new FileOutputStream(StorageRecordTest.this.tempFile), 16_384, 0,
-					Checksum.NO_OP,
-					null
+				final ObservableOutput<?> output = createOutput(
+					new FileOutputStream(StorageRecordTest.this.tempFile), 16_384, 0, ChecksumCheck.NO, Compression.NO
 				)
 			) {
 				record = new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, false, generateBytes(256));
@@ -475,10 +449,8 @@ class StorageRecordTest {
 		void shouldWriteAndReadRecordWithComputingButNotVerifyingCrc32Check() throws IOException {
 			final StorageRecord<ByteChunk> record;
 			try (
-				final ObservableOutput<?> output = new ObservableOutput<>(
-					new FileOutputStream(StorageRecordTest.this.tempFile), 16_384, 0,
-					Crc32CChecksumFactory.INSTANCE.createChecksum(),
-					null
+				final ObservableOutput<?> output = createOutput(
+					new FileOutputStream(StorageRecordTest.this.tempFile), 16_384, 0, ChecksumCheck.YES, Compression.NO
 				)
 			) {
 				record = new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, false, generateBytes(256));
@@ -516,8 +488,8 @@ class StorageRecordTest {
 			ChecksumCheck crc32Check, Compression compression) throws IOException {
 			final StorageRecord<LongSetChunk> record;
 			try (
-				final ObservableOutput<?> output = createOutputWithFlush(
-					new FileOutputStream(StorageRecordTest.this.tempFile), 512, 2_048, 0, crc32Check, compression
+				final ObservableOutput<?> output = createOutput(
+					new FileOutputStream(StorageRecordTest.this.tempFile), 2_048, 0, crc32Check, compression
 				)
 			) {
 				record = new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, true, generateLongSetOfSize(5000));
@@ -567,7 +539,9 @@ class StorageRecordTest {
 			final StorageRecord<PersistentLongRoaringBitmap> record;
 			try (
 				final ObservableOutput<?> output =
-					createOutputWithFlush(new FileOutputStream(StorageRecordTest.this.tempFile), 512, 1024, 0, crc32Check, compression)
+					createOutput(
+						new FileOutputStream(StorageRecordTest.this.tempFile), 1024, 0, crc32Check, compression
+					)
 			) {
 				record = new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, true, bitmap);
 			}
@@ -742,9 +716,9 @@ class StorageRecordTest {
 			assumeTrue(crc32Check == ChecksumCheck.YES, "Cumulative checksum requires checksum to be enabled");
 
 			final StorageRecord<LongSetChunk> record;
-			// use small flush/buffer sizes to force record to span multiple physical records
-			try (final ObservableOutput<?> output = createOutputWithFlush(
-				new FileOutputStream(StorageRecordTest.this.tempFile), 512, 2_048, 0, crc32Check, compression)) {
+			// use a small buffer size to force record to span multiple physical records
+			try (final ObservableOutput<?> output = createOutput(
+				new FileOutputStream(StorageRecordTest.this.tempFile), 2_048, 0, crc32Check, compression)) {
 				record = new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, true, generateLongSetOfSize(5000));
 			}
 
@@ -783,9 +757,9 @@ class StorageRecordTest {
 			}
 
 			final StorageRecord<PersistentLongRoaringBitmap> record;
-			// use small flush/buffer sizes to force record to span multiple physical records
-			try (final ObservableOutput<?> output = createOutputWithFlush(
-				new FileOutputStream(StorageRecordTest.this.tempFile), 512, 1024, 0, crc32Check, compression)) {
+			// use a small buffer size to force record to span multiple physical records
+			try (final ObservableOutput<?> output = createOutput(
+				new FileOutputStream(StorageRecordTest.this.tempFile), 1024, 0, crc32Check, compression)) {
 				record = new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, true, bitmap);
 			}
 
@@ -1160,218 +1134,6 @@ class StorageRecordTest {
 			}
 		}
 
-		@DisplayName("Should populate cursor and scratch buffer matching readRaw")
-		@Test
-		void shouldReadRawIntoCursorAndScratchBuffer() throws IOException {
-			try (final ObservableOutput<?> output = createOutput(
-				new FileOutputStream(StorageRecordTest.this.tempFile), 16_384, 0, ChecksumCheck.YES, Compression.NO)) {
-				//noinspection ResultOfObjectAllocationIgnored
-				new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, false, generateBytes(256));
-			}
-
-			// reference values obtained via the allocating readRaw sibling
-			final RawRecord expected;
-			try (final ObservableInput<?> input = createInput(
-				new FileInputStream(StorageRecordTest.this.tempFile), 8_192, ChecksumCheck.YES, Compression.NO)) {
-				expected = StorageRecord.readRaw(input);
-			}
-
-			// the allocation-free readRawInto must reproduce the same control byte, payload length and payload bytes
-			final byte[] scratch = new byte[16_384];
-			final RawRecordCursor cursor = new RawRecordCursor();
-			try (final ObservableInput<?> input = createInput(
-				new FileInputStream(StorageRecordTest.this.tempFile), 8_192, ChecksumCheck.YES, Compression.NO)) {
-				StorageRecord.readRawInto(input, scratch, cursor);
-			}
-
-			assertEquals(expected.control(), cursor.control(), "Cursor control byte must match the written record");
-			assertEquals(
-				expected.rawData().length, cursor.payloadLength(),
-				"Cursor payload length must match the written record"
-			);
-			assertArrayEquals(
-				expected.rawData(), Arrays.copyOf(scratch, cursor.payloadLength()),
-				"Scratch buffer must hold the same payload bytes as readRaw"
-			);
-		}
-
-		@DisplayName("Should reuse a single cursor across records without leaking stale state")
-		@Test
-		void shouldReuseCursorAcrossRecordsWithoutStaleState() throws IOException {
-			// first record: longer payload, generation kept open (no generation-closing bit)
-			// second record: shorter payload, generation closing (different control byte) - reading it into the same
-			// cursor and scratch must not leave any of the first record's longer tail observable
-			try (final ObservableOutput<?> output = createOutput(
-				new FileOutputStream(StorageRecordTest.this.tempFile), 16_384, 0, ChecksumCheck.YES, Compression.NO)) {
-				//noinspection ResultOfObjectAllocationIgnored
-				new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, false, generateBytes(400));
-				//noinspection ResultOfObjectAllocationIgnored
-				new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, true, generateBytes(80));
-			}
-
-			// reference values for both records via readRaw
-			final RawRecord expectedFirst;
-			final RawRecord expectedSecond;
-			try (final ObservableInput<?> input = createInput(
-				new FileInputStream(StorageRecordTest.this.tempFile), 8_192, ChecksumCheck.YES, Compression.NO)) {
-				expectedFirst = StorageRecord.readRaw(input);
-				expectedSecond = StorageRecord.readRaw(input);
-			}
-			// guard the test premise: the second record really is shorter and carries a different control byte
-			assertTrue(
-				expectedSecond.rawData().length < expectedFirst.rawData().length,
-				"Second record must be shorter so a stale tail would be detectable"
-			);
-			assertNotEquals(
-				expectedFirst.control(), expectedSecond.control(),
-				"Records must differ in their control byte"
-			);
-
-			final byte[] scratch = new byte[16_384];
-			final RawRecordCursor cursor = new RawRecordCursor();
-			try (final ObservableInput<?> input = createInput(
-				new FileInputStream(StorageRecordTest.this.tempFile), 8_192, ChecksumCheck.YES, Compression.NO)) {
-				// read the first (longer) record into the shared cursor and scratch
-				StorageRecord.readRawInto(input, scratch, cursor);
-				assertEquals(expectedFirst.control(), cursor.control());
-				assertEquals(expectedFirst.rawData().length, cursor.payloadLength());
-
-				// reuse the very same cursor and scratch for the second (shorter) record
-				StorageRecord.readRawInto(input, scratch, cursor);
-			}
-
-			// after the second read the cursor must reflect the second record exactly - no bleed from the first
-			assertEquals(expectedSecond.control(), cursor.control(), "Cursor must reflect the second record's control byte");
-			assertEquals(
-				expectedSecond.rawData().length, cursor.payloadLength(),
-				"Cursor must reflect the second (shorter) record's payload length"
-			);
-			// reads bounded by the cursor's payload length must observe only the second record's bytes
-			assertArrayEquals(
-				expectedSecond.rawData(), Arrays.copyOf(scratch, cursor.payloadLength()),
-				"Bytes within the cursor payload length must belong to the second record, not the first record's tail"
-			);
-		}
-
-		@DisplayName("Should round-trip a raw record through the cursor read path")
-		@Test
-		void shouldRoundTripViaReadRawIntoThenWriteRaw() throws IOException {
-			final StorageRecord<ByteChunk> originalRecord;
-			try (final ObservableOutput<?> output = createOutput(
-				new FileOutputStream(StorageRecordTest.this.tempFile), 16_384, 0, ChecksumCheck.YES, Compression.NO)) {
-				originalRecord = new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, false, generateBytes(256));
-			}
-
-			// read the record into a reusable cursor and scratch buffer
-			final byte[] scratch = new byte[16_384];
-			final RawRecordCursor cursor = new RawRecordCursor();
-			try (final ObservableInput<?> input = createInput(
-				new FileInputStream(StorageRecordTest.this.tempFile), 8_192, ChecksumCheck.YES, Compression.NO)) {
-				StorageRecord.readRawInto(input, scratch, cursor);
-			}
-
-			// write it back out from the cursor + scratch and verify the produced file is byte-identical
-			final File tempFile2 = Path.of(System.getProperty("java.io.tmpdir")).resolve("evita_test_file2.tmp").toFile();
-			try {
-				try (final ObservableOutput<?> output = createOutput(
-					new FileOutputStream(tempFile2), 16_384, 0, ChecksumCheck.YES, Compression.NO)) {
-					StorageRecord.writeRaw(
-						output, cursor.control(), originalRecord.generationId(), scratch, 0, cursor.payloadLength());
-				}
-
-				final byte[] originalBytes = Files.readAllBytes(StorageRecordTest.this.tempFile.toPath());
-				final byte[] copiedBytes = Files.readAllBytes(tempFile2.toPath());
-				assertArrayEquals(
-					originalBytes, copiedBytes, "Cursor-based raw round-trip should produce identical file");
-			} finally {
-				tempFile2.delete();
-			}
-		}
-
-		@DisplayName("Should refuse a record longer than the buffer, payload alone fitting or not")
-		@Test
-		void shouldThrowExceptionWhenRecordIsLongerThanBuffer() throws IOException {
-			try (final ObservableOutput<?> output = createOutput(
-				new FileOutputStream(StorageRecordTest.this.tempFile), 16_384, 0, ChecksumCheck.YES, Compression.NO)) {
-				//noinspection ResultOfObjectAllocationIgnored
-				new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, false, generateBytes(256));
-			}
-			final int recordLength;
-			try (final ObservableInput<?> input = createInput(
-				new FileInputStream(StorageRecordTest.this.tempFile), 8_192, ChecksumCheck.YES, Compression.NO)) {
-				recordLength = StorageRecord.readRaw(input).location().recordLength();
-			}
-
-			// a buffer as long as the whole record holds it
-			final RawRecordCursor cursor = new RawRecordCursor();
-			try (final ObservableInput<?> input = createInput(
-				new FileInputStream(StorageRecordTest.this.tempFile), 8_192, ChecksumCheck.YES, Compression.NO)) {
-				StorageRecord.readRawInto(input, new byte[recordLength], cursor);
-			}
-			assertEquals(recordLength - StorageRecord.CRC_NOT_COVERED_PART, cursor.payloadLength());
-
-			// one byte less refuses it, although the payload alone would still fit: the copy writes the whole record
-			// back out through a buffer of the same size
-			try (final ObservableInput<?> input = createInput(
-				new FileInputStream(StorageRecordTest.this.tempFile), 8_192, ChecksumCheck.YES, Compression.NO)) {
-				final RecordExceedsOutputBufferException exception = assertThrows(
-					RecordExceedsOutputBufferException.class,
-					() -> StorageRecord.readRawInto(input, new byte[recordLength - 1], cursor)
-				);
-				assertEquals(recordLength, exception.getRecordLength());
-				assertEquals(recordLength - 1, exception.getOutputBufferSize());
-				assertTrue(
-					exception.getMessage().contains("storage.outputBufferSize"),
-					"The message must name the setting to raise"
-				);
-			}
-		}
-
-		@DisplayName("Should leave cursor untouched when a record read fails mid-way")
-		@Test
-		void shouldLeaveCursorUntouchedWhenRecordReadFails() throws IOException {
-			// write a valid leading record followed by a second record whose checksum we corrupt below
-			try (final ObservableOutput<?> output = createOutput(
-				new FileOutputStream(StorageRecordTest.this.tempFile), 16_384, 0, ChecksumCheck.YES, Compression.NO)) {
-				//noinspection ResultOfObjectAllocationIgnored
-				new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, false, generateBytes(256));
-				//noinspection ResultOfObjectAllocationIgnored
-				new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, true, generateBytes(120));
-			}
-
-			// corrupt the CRC32 of the trailing record (last bytes of the file)
-			final byte[] fileBytes = Files.readAllBytes(StorageRecordTest.this.tempFile.toPath());
-			fileBytes[fileBytes.length - 1] ^= (byte) 0xFF;
-			fileBytes[fileBytes.length - 2] ^= (byte) 0xFF;
-			Files.write(StorageRecordTest.this.tempFile.toPath(), fileBytes);
-
-			final byte[] scratch = new byte[16_384];
-			final RawRecordCursor cursor = new RawRecordCursor();
-			try (final ObservableInput<?> input = createInput(
-				new FileInputStream(StorageRecordTest.this.tempFile), 8_192, ChecksumCheck.YES, Compression.NO)) {
-				// the first record reads cleanly and publishes its scalars into the cursor
-				StorageRecord.readRawInto(input, scratch, cursor);
-				final byte controlAfterFirst = cursor.control();
-				final int payloadLengthAfterFirst = cursor.payloadLength();
-
-				// the corrupted second record must fail before publishing anything into the cursor
-				assertThrows(
-					CorruptedRecordException.class,
-					() -> StorageRecord.readRawInto(input, scratch, cursor),
-					"Corrupted record should fail the read"
-				);
-
-				// the cursor must still carry the previous (successfully read) record's scalars
-				assertEquals(
-					controlAfterFirst, cursor.control(),
-					"Cursor control byte must be untouched after a failed read"
-				);
-				assertEquals(
-					payloadLengthAfterFirst, cursor.payloadLength(),
-					"Cursor payload length must be untouched after a failed read"
-				);
-			}
-		}
 
 	}
 
@@ -1413,6 +1175,247 @@ class StorageRecordTest {
 			}
 		}
 
+	}
+
+	/**
+	 * Streaming copies preserve frame bytes, source validation and output accounting across buffer boundaries.
+	 */
+	@Nested
+	@DisplayName("Streaming raw copies")
+	class StreamingCopyTests {
+
+		/**
+		 * Asserts the returned location spans every frame, then compares every copied byte, including CRC tails
+		 * and continuation flags, allowing only generation changes.
+		 *
+		 * @param checksumCheck whether source and copied frames include checksums
+		 * @param compression whether payloads are compressed
+		 */
+		@ParameterizedTest
+		@MethodSource("io.evitadb.store.offsetIndex.model.StorageRecordTest#combineSettings")
+		@DisplayName("Frames remain identical except for the generation id")
+		void shouldPreserveFramesWhenCopying(
+			@Nonnull ChecksumCheck checksumCheck, @Nonnull Compression compression
+		) {
+			final ByteArrayOutputStream source = new ByteArrayOutputStream();
+			final int[] sizes = {333, 26_000, 80};
+			final FileLocation[] locations = new FileLocation[sizes.length];
+			try (final ObservableOutput<?> output = createOutput(source, 8_192, 0, checksumCheck, compression)) {
+				for (int i = 0; i < sizes.length; i++) {
+					final int size = sizes[i];
+					final long start = output.getWrittenBytesSinceReset();
+					final StorageRecord<Integer> record = new StorageRecord<>(
+						output, 1L, i == sizes.length - 1, theOutput -> {
+							for (int j = 0; j < size; j++) {
+								theOutput.writeByte((byte) (j % 7));
+							}
+							return size;
+						}
+					);
+					locations[i] = record.fileLocation();
+					assertEquals(new FileLocation(
+						start, Math.toIntExact(output.getWrittenBytesSinceReset() - start)
+					), locations[i]);
+				}
+			}
+			final ByteArrayOutputStream target = new ByteArrayOutputStream();
+			try (
+				final ObservableInput<?> input = createInput(
+					new ByteArrayInputStream(source.toByteArray()), 64, checksumCheck, compression
+				);
+				final ObservableOutput<?> output = createOutput(target, 128, 0, checksumCheck, compression)
+			) {
+				final byte[] chunk = new byte[97];
+				final Checksum checksum = checksumCheck == ChecksumCheck.YES ? new Crc32CChecksum() : Checksum.NO_OP;
+				output.markCumulativeChecksumStart();
+				for (final FileLocation location : locations) {
+					assertEquals(location, StorageRecord.copyRawRecord(input, output, 2L, chunk, checksum));
+					assertEquals(-1, output.getStartPosition());
+					assertEquals(-1, output.getPayloadStartPosition());
+					assertEquals(0, output.position());
+				}
+				assertEquals(source.size(), output.getWrittenBytesSinceReset());
+				assertEquals(source.size(), output.total());
+				assertEquals(
+					checksumCheck == ChecksumCheck.YES ? computeManualCumulativeChecksum(target.toByteArray()) : 0L,
+					output.markCumulativeChecksumEnd()
+				);
+			}
+			final byte[] expected = source.toByteArray();
+			final ByteBuffer frames = ByteBuffer.wrap(expected).order(ByteOrder.LITTLE_ENDIAN);
+			int frameCount = 0;
+			int continuationCount = 0;
+			int compressedCount = 0;
+			for (int offset = 0; offset < expected.length;) {
+				final int length = frames.getInt(offset);
+				final byte control = frames.get(offset + 4);
+				frames.putLong(offset + 5, 2L);
+				frameCount++;
+				if (BitUtils.isBitSet(control, StorageRecord.CONTINUATION_BIT)) {
+					continuationCount++;
+				}
+				if (BitUtils.isBitSet(control, StorageRecord.COMPRESSION_BIT)) {
+					compressedCount++;
+				}
+				offset += length;
+			}
+			assertTrue(frameCount >= 6, "Both single frames and a multi-frame chain must be present");
+			assertTrue(continuationCount >= 3);
+			assertEquals(compression == Compression.YES ? frameCount : 0, compressedCount);
+			assertArrayEquals(expected, target.toByteArray());
+			// Reading every target frame also verifies that copied compressed payloads retain valid CRC tails.
+			try (final ObservableInput<?> input = createInput(
+				new ByteArrayInputStream(target.toByteArray()), 64, checksumCheck, compression
+			)) {
+				for (int i = 0; i < frameCount; i++) {
+					assertEquals(2L, StorageRecord.readRaw(input).generationId());
+				}
+			}
+		}
+
+		/**
+		 * Payload damage must fail with the same exception as the existing raw reader and leave no output frame open.
+		 */
+		@Test
+		@DisplayName("A flipped source payload byte fails checksum validation")
+		void shouldDetectCorruptionWhenCopying() {
+			final ByteArrayOutputStream source = new ByteArrayOutputStream();
+			try (final ObservableOutput<?> output = createOutput(source, 8_192, 0, ChecksumCheck.YES, Compression.NO)) {
+				StorageRecord.writeRaw(output, (byte) 0, 1L, new byte[4_000]);
+			}
+			final byte[] damaged = source.toByteArray();
+			damaged[StorageRecord.CRC_NOT_COVERED_HEAD + 2_000] ^= 1;
+			try (final ObservableInput<?> input = createInput(
+				new ByteArrayInputStream(damaged), 64, ChecksumCheck.YES, Compression.NO
+			)) {
+				assertThrows(CorruptedRecordException.class, () -> StorageRecord.readRaw(input));
+			}
+			try (
+				final ObservableInput<?> input = createInput(
+					new ByteArrayInputStream(damaged), 64, ChecksumCheck.YES, Compression.NO
+				);
+				final ObservableOutput<?> output = createOutput(
+					new ByteArrayOutputStream(), 128, 0, ChecksumCheck.YES, Compression.NO
+				)
+			) {
+				assertThrows(CorruptedRecordException.class, () -> StorageRecord.copyRawRecord(
+					input, output, 2L, new byte[97], new Crc32CChecksum()
+				));
+				assertEquals(-1, output.getStartPosition());
+				assertEquals(-1, output.getPayloadStartPosition());
+			}
+		}
+
+		/**
+		 * A transfer buffer that cannot hold a frame header and tail, or an output with an open frame, is refused
+		 * before the source is read or anything is appended.
+		 */
+		@Test
+		@DisplayName("Invalid copy arguments are refused before anything is copied")
+		void shouldRejectInvalidCopyArguments() {
+			final ByteArrayOutputStream source = new ByteArrayOutputStream();
+			try (final ObservableOutput<?> output = createOutput(source, 8_192, 0, ChecksumCheck.YES, Compression.NO)) {
+				StorageRecord.writeRaw(output, (byte) 0, 1L, new byte[100]);
+			}
+			final ByteArrayOutputStream target = new ByteArrayOutputStream();
+			try (
+				final ObservableInput<?> input = createInput(
+					new ByteArrayInputStream(source.toByteArray()), 64, ChecksumCheck.YES, Compression.NO
+				);
+				final ObservableOutput<?> output = createOutput(target, 128, 0, ChecksumCheck.YES, Compression.NO)
+			) {
+				assertThrows(GenericEvitaInternalError.class, () -> StorageRecord.copyRawRecord(
+					input, output, 2L, new byte[StorageRecord.CRC_NOT_COVERED_PART - 1], new Crc32CChecksum()
+				));
+				output.markStart();
+				assertThrows(GenericEvitaInternalError.class, () -> StorageRecord.copyRawRecord(
+					input, output, 2L, new byte[97], new Crc32CChecksum()
+				));
+				assertEquals(0, target.size());
+
+				// neither refusal consumed the source, so the record still copies whole
+				output.reset();
+				assertEquals(
+					new FileLocation(0L, source.size()),
+					StorageRecord.copyRawRecord(input, output, 2L, new byte[97], new Crc32CChecksum())
+				);
+			}
+		}
+
+		/**
+		 * The part of a frame copied before the source ended stays as unreferenced bytes in the target, and the next
+		 * record is located at the target's physical end.
+		 */
+		@Test
+		@DisplayName("A truncated source fails the copy and the output keeps appending at its physical end")
+		void shouldLeaveOutputUsableWhenSourceIsTruncated() {
+			final ByteArrayOutputStream source = new ByteArrayOutputStream();
+			try (final ObservableOutput<?> output = createOutput(source, 8_192, 0, ChecksumCheck.YES, Compression.NO)) {
+				StorageRecord.writeRaw(output, (byte) 0, 1L, new byte[4_000]);
+			}
+			final byte[] truncated = Arrays.copyOf(source.toByteArray(), StorageRecord.CRC_NOT_COVERED_HEAD + 2_000);
+			final ByteArrayOutputStream target = new ByteArrayOutputStream();
+			try (
+				final ObservableInput<?> input = createInput(
+					new ByteArrayInputStream(truncated), 64, ChecksumCheck.YES, Compression.NO
+				);
+				final ObservableOutput<?> output = createOutput(target, 128, 0, ChecksumCheck.YES, Compression.NO)
+			) {
+				assertThrows(KryoException.class, () -> StorageRecord.copyRawRecord(
+					input, output, 2L, new byte[97], new Crc32CChecksum()
+				));
+				assertEquals(-1, output.getStartPosition());
+				final int partialLength = target.size();
+				assertTrue(partialLength > 0, "Part of the frame must already have been appended");
+				assertEquals(partialLength, output.getWrittenBytesSinceReset());
+
+				final FileLocation next = StorageRecord.writeRaw(output, (byte) 0, 3L, new byte[16]);
+				assertEquals(partialLength, next.startingPosition());
+				assertEquals(target.size(), next.endPosition());
+			}
+		}
+
+		/**
+		 * Target checksum changes must reproduce the buffered raw writer's treatment of the CRC flag and blank tail.
+		 */
+		@ParameterizedTest
+		@MethodSource("io.evitadb.store.offsetIndex.model.StorageRecordTest#combineSettings")
+		@DisplayName("Target checksum settings match the buffered raw writer")
+		void shouldMatchBufferedWriterWhenChecksumSettingsChange(
+			@Nonnull ChecksumCheck sourceChecksum, @Nonnull Compression compression
+		) {
+			final ChecksumCheck targetChecksum = sourceChecksum == ChecksumCheck.YES ? ChecksumCheck.NO : ChecksumCheck.YES;
+			final ByteArrayOutputStream source = new ByteArrayOutputStream();
+			try (final ObservableOutput<?> output = createOutput(source, 8_192, 0, sourceChecksum, compression)) {
+				new StorageRecord<>(output, 1L, false, theOutput -> {
+					theOutput.writeBytes(new byte[400]);
+					return 400;
+				});
+			}
+			final RawRecord raw;
+			try (final ObservableInput<?> input = createInput(
+				new ByteArrayInputStream(source.toByteArray()), 64, sourceChecksum, compression
+			)) {
+				raw = StorageRecord.readRaw(input);
+			}
+			final ByteArrayOutputStream expected = new ByteArrayOutputStream();
+			try (final ObservableOutput<?> output = createOutput(expected, 8_192, 0, targetChecksum, compression)) {
+				StorageRecord.writeRaw(output, raw.control(), 2L, raw.rawData());
+			}
+			final ByteArrayOutputStream actual = new ByteArrayOutputStream();
+			try (
+				final ObservableInput<?> input = createInput(
+					new ByteArrayInputStream(source.toByteArray()), 64, sourceChecksum, compression
+				);
+				final ObservableOutput<?> output = createOutput(actual, 128, 0, targetChecksum, compression)
+			) {
+				StorageRecord.copyRawRecord(
+					input, output, 2L, new byte[97],
+					targetChecksum == ChecksumCheck.YES ? new Crc32CChecksum() : Checksum.NO_OP
+				);
+			}
+			assertArrayEquals(expected.toByteArray(), actual.toByteArray());
+		}
 	}
 
 	private enum ChecksumCheck {
