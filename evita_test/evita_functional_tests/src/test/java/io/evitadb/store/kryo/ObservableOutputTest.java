@@ -239,7 +239,7 @@ public class ObservableOutputTest {
 				 * @throws KryoException when the failure scenario is selected
 				 */
 				@Override
-				public synchronized void write(byte[] bytes, int offset, int length) {
+				public void write(byte[] bytes, int offset, int length) {
 					if (fail) {
 						throw new KryoException("Raw append failed");
 					}
@@ -283,7 +283,7 @@ public class ObservableOutputTest {
 				 * @throws KryoException always, preserving the same failure instance
 				 */
 				@Override
-				public synchronized void write(byte[] bytes, int offset, int length) {
+				public void write(byte[] bytes, int offset, int length) {
 					throw firstFailure;
 				}
 				/**
@@ -508,7 +508,7 @@ public class ObservableOutputTest {
 			final ByteArrayOutputStream stream = new ByteArrayOutputStream() {
 				/** Fails the physical append of the finished frame. */
 				@Override
-				public synchronized void write(byte[] bytes, int offset, int length) {
+				public void write(byte[] bytes, int offset, int length) {
 					throw new IllegalStateException("Append failed");
 				}
 			};
