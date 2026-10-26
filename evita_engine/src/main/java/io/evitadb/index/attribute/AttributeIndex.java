@@ -1776,15 +1776,22 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		final SortIndex theSortIndex = sortIndexes.computeIfAbsent(
 			attributeKey,
 			lookupKey -> {
+				// element attributes live where the compound is declared - the split `createAttributeKey` keys it by,
+				// which has already refused a reference compound without its reference schema
+				final Function<String, AttributeSchemaContract> elementSchemaProvider;
+				if (compoundSchema instanceof EntitySortableAttributeCompoundSchemaContract) {
+					elementSchemaProvider = name -> entitySchema.getAttribute(name).orElseThrow();
+				} else {
+					final ReferenceSchemaContract owningReference = Objects.requireNonNull(referenceSchema);
+					elementSchemaProvider = name -> owningReference.getAttribute(name).orElseThrow();
+				}
 				// a sortable attribute compound has no shared filter twin by construction, so it is always an owner
 				final SortIndex newSortIndex = new OwnerSortIndex(
 					createComparatorBase(compoundSchema, attributeTypeProvider),
 					this.referenceKey,
 					lookupKey,
 					getNormalizationResolver().resolveCompoundNormalizer(
-						lookupKey.referenceName(), compoundSchema,
-						name -> lookupKey.referenceName() == null ? entitySchema.getAttribute(name).orElseThrow()
-							: referenceSchema.getAttribute(name).orElseThrow(), lookupKey.locale())
+						lookupKey.referenceName(), compoundSchema, elementSchemaProvider, lookupKey.locale())
 				);
 				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newSortIndex));
