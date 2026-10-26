@@ -25,10 +25,13 @@ package io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound
 
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
@@ -36,19 +39,28 @@ import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.core.Evita;
+import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+
+import java.util.function.Consumer;
 
 import static io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationTest.ATTRIBUTE_COMPOUND_NAME;
 import static io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationTest.createExistingAttributeCompoundSchema;
 import static io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationTest.createMockedReferenceSchema;
+import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 
@@ -61,7 +73,7 @@ import static io.evitadb.test.TestTags.ATTRIBUTE;
 @Tag(CONTRACT)
 @Tag(SCHEMA)
 @Tag(ATTRIBUTE)
-class RemoveSortableAttributeCompoundSchemaMutationTest {
+class RemoveSortableAttributeCompoundSchemaMutationTest implements EvitaTestSupport {
 
 	@Nested
 	@DisplayName("Combine with other mutations")
@@ -167,6 +179,84 @@ class RemoveSortableAttributeCompoundSchemaMutationTest {
 			assertNotNull(newReferenceSchema);
 			assertFalse(newReferenceSchema.getAttribute(ATTRIBUTE_COMPOUND_NAME).isPresent());
 		}
+
+		/**
+		 * Verifies removal of a sortable attribute compound preserves managed type metadata. An unmanaged entity type
+		 * also exercises the managed group lookup independently of the entity lookup.
+		 */
+		@Tag(ENGINE)
+		@ParameterizedTest
+		@ValueSource(booleans = {true, false})
+		@DisplayName("Should remove sortable attribute compound from reference with managed entity or group types")
+		void shouldRemoveCompoundFromReferenceWithManagedTypes(boolean managedEntityType) {
+			final TestPaths paths = createTestPaths("RemoveSortableAttributeCompoundSchemaMutationTest");
+			try (final Evita evita = new Evita(newTestEvitaConfigurationBuilder(paths).build())) {
+				evita.defineCatalog("testCatalog");
+				evita.updateCatalog("testCatalog", session -> {
+					if (managedEntityType) {
+						session.defineEntitySchema("BrandType").updateVia(session);
+					}
+					session.defineEntitySchema("GroupType").updateVia(session);
+					final EntitySchemaBuilder builder = session.defineEntitySchema("Product");
+					final Consumer<ReferenceSchemaBuilder> configureReference = reference -> reference
+						.withGroupTypeRelatedToEntity("GroupType")
+						.withAttribute("priority", Long.class)
+						.withAttribute("label", String.class)
+						.withSortableAttributeCompound(
+							ATTRIBUTE_COMPOUND_NAME, attributeElement("priority"), attributeElement("label")
+						);
+					if (managedEntityType) {
+						builder.withReferenceToEntity(
+							"brand", "BrandType", Cardinality.ZERO_OR_MORE, configureReference
+						);
+					} else {
+						builder.withReferenceTo(
+							"brand", "BrandType", Cardinality.ZERO_OR_MORE, configureReference
+						);
+					}
+					builder.updateVia(session);
+					final EntitySchemaContract schema = session.getEntitySchemaOrThrowException("Product");
+					final ReferenceSchemaContract reference = schema.getReference("brand").orElseThrow();
+					assertTrue(reference.getSortableAttributeCompound(ATTRIBUTE_COMPOUND_NAME).isPresent());
+
+					final EntitySchemaBuilder updatedBuilder = session.getEntitySchemaOrThrowException("Product")
+						.openForWrite();
+					if (managedEntityType) {
+						updatedBuilder.withReferenceToEntity(
+							"brand", "BrandType", Cardinality.ZERO_OR_MORE,
+							thatIs -> thatIs.withoutSortableAttributeCompound(ATTRIBUTE_COMPOUND_NAME)
+						);
+					} else {
+						updatedBuilder.withReferenceTo(
+							"brand", "BrandType", Cardinality.ZERO_OR_MORE,
+							thatIs -> thatIs.withoutSortableAttributeCompound(ATTRIBUTE_COMPOUND_NAME)
+						);
+					}
+					updatedBuilder.updateVia(session);
+					final ReferenceSchemaContract updatedReference = session.getEntitySchemaOrThrowException("Product")
+						.getReference("brand")
+						.orElseThrow();
+
+					assertNotNull(updatedReference);
+					assertTrue(updatedReference.getSortableAttributeCompound(ATTRIBUTE_COMPOUND_NAME).isEmpty());
+					assertEquals("BrandType", updatedReference.getReferencedEntityType());
+					assertEquals(managedEntityType, updatedReference.isReferencedEntityTypeManaged());
+					assertEquals("GroupType", updatedReference.getReferencedGroupType());
+					assertTrue(updatedReference.isReferencedGroupTypeManaged());
+					assertEquals(
+						NamingConvention.generate("BrandType"),
+						updatedReference.getEntityTypeNameVariants(session::getEntitySchemaOrThrowException)
+					);
+					assertEquals(
+						NamingConvention.generate("GroupType"),
+						updatedReference.getGroupTypeNameVariants(session::getEntitySchemaOrThrowException)
+					);
+				});
+			} finally {
+				cleanupTestPaths(paths);
+			}
+		}
+
 	}
 
 	@Test
