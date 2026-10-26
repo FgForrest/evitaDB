@@ -150,22 +150,22 @@ public record BuiltWithAttributeNormalizationResolver(
 	 */
 	public boolean hasSameRows(@Nonnull BuiltWithAttributeNormalizationResolver previous) {
 		for (final AttributeIndexKey key : this.policy.rows().keySet()) {
-			if (!hasSameSteps(previous, key.referenceName(), key.attributeName())) {
+			if (hasChangedSteps(previous, key.referenceName(), key.attributeName())) {
 				return false;
 			}
 		}
 		for (final AttributeIndexKey key : previous.policy.rows().keySet()) {
-			if (!hasSameSteps(previous, key.referenceName(), key.attributeName())) {
+			if (hasChangedSteps(previous, key.referenceName(), key.attributeName())) {
 				return false;
 			}
 		}
 		for (final String name : this.policy.globalAttributes()) {
-			if (!hasSameSteps(previous, null, name)) {
+			if (hasChangedSteps(previous, null, name)) {
 				return false;
 			}
 		}
 		for (final String name : previous.policy.globalAttributes()) {
-			if (!hasSameSteps(previous, null, name)) {
+			if (hasChangedSteps(previous, null, name)) {
 				return false;
 			}
 		}
@@ -173,18 +173,18 @@ public record BuiltWithAttributeNormalizationResolver(
 	}
 
 	/**
-	 * Compares the effective row of one identity in this resolver and in `previous`.
+	 * Tests whether the effective row of one identity differs between this resolver and `previous`.
 	 *
 	 * @param previous      resolver to compare against
 	 * @param referenceName owning reference, null for entity or global attributes
 	 * @param attributeName attribute identity
-	 * @return true when both resolvers select equal steps for the identity
+	 * @return true when the two resolvers select different steps for the identity
 	 */
-	private boolean hasSameSteps(
+	private boolean hasChangedSteps(
 		@Nonnull BuiltWithAttributeNormalizationResolver previous,
 		@Nullable String referenceName, @Nonnull String attributeName
 	) {
-		return steps(referenceName, attributeName).equals(previous.steps(referenceName, attributeName));
+		return !steps(referenceName, attributeName).equals(previous.steps(referenceName, attributeName));
 	}
 
 	/**
