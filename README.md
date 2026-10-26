@@ -258,6 +258,7 @@ In short, you need `~/.m2/toolchains.xml` in your home directory next to `~/.m2/
   - **evita_external_api_system**: System API for server management and monitoring
   - **evita_external_api_lab**: evitaLab GUI client server support
   - **evita_external_api_observability**: Observability API with Prometheus metrics and OpenTelemetry tracing
+- **evita_bom**: Maven BOM for aligning versions of published evitaDB libraries
 - **evita_db**: Maven POM bundle for embedded evitaDB usage scenario
 - **evita_server**: standalone server with all APIs bundled
 - **evita_test**: test modules

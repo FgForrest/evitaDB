@@ -195,6 +195,7 @@
 		The shaded Java driver is built separately from recipes/evita_java_driver_all_in_one.
 	-->
 	<modules>
+		<module>evita_bom</module>
 		<module>evita_common</module>
 		<module>evita_roaring_bitmap</module>
 		<module>evita_api</module>

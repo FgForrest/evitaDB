@@ -60,6 +60,41 @@ The <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java
 keeps a pool of opened resources and should be terminated by a `close()` method when you stop using it.
 </Note>
 
+### Align versions with the BOM
+
+Import `evita_bom` to keep your evitaDB dependencies on one version. The BOM manages only evitaDB
+artifacts; your application chooses its third-party library versions.
+
+<CodeTabs>
+<CodeTabsBlock>
+```Maven
+<dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>io.evitadb</groupId>
+            <artifactId>evita_bom</artifactId>
+            <version>2026.3.0</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+    </dependencies>
+</dependencyManagement>
+<dependencies>
+    <dependency>
+        <groupId>io.evitadb</groupId>
+        <artifactId>evita_java_driver</artifactId>
+    </dependency>
+</dependencies>
+```
+</CodeTabsBlock>
+<CodeTabsBlock>
+```Gradle
+implementation platform('io.evitadb:evita_bom:2026.3.0')
+implementation 'io.evitadb:evita_java_driver'
+```
+</CodeTabsBlock>
+</CodeTabs>
+
 ### Shaded driver
 
 If your application has dependency conflicts with gRPC, Armeria, Netty, Jackson or Guava, build the
