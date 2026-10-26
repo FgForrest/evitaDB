@@ -117,7 +117,7 @@ public abstract class SchemaJsonSerializer {
 		}
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.FILTERABLE.name(), serializeFlagInScopes(attributeSchema::isFilterableInScope));
 		attributeSchemaNode.putIfAbsent(
-			AttributeSchemaDescriptor.ACCELERATORS_IN_SCOPES.name(),
+			AttributeSchemaDescriptor.ACCELERATED.name(),
 			serializeAccelerators(attributeSchema)
 		);
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.SORTABLE.name(), serializeFlagInScopes(attributeSchema::isSortableInScope));
