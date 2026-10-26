@@ -29,14 +29,13 @@ paths:
 - **Imports**: Wildcard imports (`import foo.bar.*;`) are **allowed** and follow IntelliJ's default auto-folding threshold (5+ imports from the same package). Do not flag or expand existing wildcard imports in reviews — this is not a project convention.
 - **Resource management**: Use try-with-resources for all `AutoCloseable` resources wherever applicable
 - **Documentation**: Automatically add JavaDoc to all generated classes and methods
-- **`@param` and `@return`, private methods included**: every method and constructor, in main and test code,
-  documents each parameter with `@param` and a non-void result with `@return`, whatever its visibility. A record
-  documents its components with `@param` in the record's own JavaDoc. A private helper is read by whoever changes it
-  next, and its contract - nullability, units, what an empty, negative or `null` result means - is as easy to get
-  wrong as a public one's. Say what the value means to this method, not its type: `@param index the position
-  within the posting list` - never `@param index the index`. Two exemptions: an `@Override` without its own JavaDoc
-  (the tags are inherited), and JUnit test and lifecycle methods (`@Test`, `@ParameterizedTest`, `@BeforeEach`,
-  ...), which `@DisplayName` and the test itself describe.
+- **`@param` and `@return`, private methods included**: every method and constructor in main code documents each
+  parameter with `@param` and a non-void result with `@return`, whatever its visibility. A record documents its
+  components with `@param` in the record's own JavaDoc. A private helper is read by whoever changes it next, and its
+  contract - nullability, units, what an empty, negative or `null` result means - is as easy to get wrong as a public
+  one's. Say what the value means to this method, not its type: `@param index the position within the posting
+  list` - never `@param index the index`. Two exemptions: test code (`src/test/**`), whose methods still carry
+  JavaDoc but need no tags, and an `@Override` without its own JavaDoc (the tags are inherited).
 - **Comments**: Add line comments to complex logic
 
 ## Defensive Design
