@@ -28,6 +28,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * JVM-wide pool of exact-size frame buffers, shared by all engines and catalogs. Hard references retain at most
@@ -53,6 +54,10 @@ public final class ObservableOutputBufferPool {
 	 */
 	public static final ObservableOutputBufferPool INSTANCE =
 		new ObservableOutputBufferPool(Runtime.getRuntime().availableProcessors());
+	/**
+	 * Guards idle arrays, counters and event commits.
+	 */
+	private final ReentrantLock lock = new ReentrantLock();
 	/**
 	 * Fixed-capacity store of idle arrays, ordered from oldest to most recently returned.
 	 */
@@ -85,8 +90,8 @@ public final class ObservableOutputBufferPool {
 	/**
 	 * Borrows the most recently returned array of exactly the requested size, or allocates one and reports it.
 	 * The caller exclusively owns the array until it returns it with {@link #release(byte[])}.
-	 * Allocation happens outside the pool monitor so allocating a large array does not block other borrowers or
-	 * releasers. Counters and their event are updated together under the monitor only after allocation succeeds.
+	 * Allocation happens outside the pool lock so allocating a large array does not block other borrowers or
+	 * releasers. Counters and their event are updated together under the lock only after allocation succeeds.
 	 *
 	 * @param size exact number of bytes required by the output
 	 * @return an exclusively borrowed array of the requested size
@@ -95,7 +100,8 @@ public final class ObservableOutputBufferPool {
 	@Nonnull
 	public byte[] borrow(int size) {
 		Assert.isPremiseValid(size > 0, "Buffer size must be positive!");
-		synchronized (this) {
+		this.lock.lock();
+		try {
 			for (int i = this.idleCount - 1; i >= 0; i--) {
 				if (this.idle[i].length == size) {
 					final byte[] result = this.idle[i];
@@ -104,12 +110,17 @@ public final class ObservableOutputBufferPool {
 					return result;
 				}
 			}
+		} finally {
+			this.lock.unlock();
 		}
 		final byte[] result = new byte[size];
-		synchronized (this) {
+		this.lock.lock();
+		try {
 			this.openedBuffers++;
 			this.occupiedMemoryBytes += size;
 			emitChangeEvent();
+		} finally {
+			this.lock.unlock();
 		}
 		return result;
 	}
@@ -120,20 +131,28 @@ public final class ObservableOutputBufferPool {
 	 *
 	 * @param buffer the array previously borrowed from this pool
 	 */
-	public synchronized void release(@Nonnull byte[] buffer) {
-		if (this.idleCount == this.idle.length) {
-			final byte[] dropped = this.idle[0];
-			System.arraycopy(this.idle, 1, this.idle, 0, --this.idleCount);
-			this.idle[this.idleCount] = null;
-			this.openedBuffers--;
-			this.occupiedMemoryBytes -= dropped.length;
-			emitChangeEvent();
+	public void release(@Nonnull byte[] buffer) {
+		this.lock.lock();
+		try {
+			if (this.idleCount == this.idle.length) {
+				final byte[] dropped = this.idle[0];
+				System.arraycopy(this.idle, 1, this.idle, 0, --this.idleCount);
+				this.idle[this.idleCount] = null;
+				this.openedBuffers--;
+				this.occupiedMemoryBytes -= dropped.length;
+				emitChangeEvent();
+			}
+			this.idle[this.idleCount++] = buffer;
+		} finally {
+			this.lock.unlock();
 		}
-		this.idle[this.idleCount++] = buffer;
 	}
 
 	/**
-	 * Reports coherent counts after allocating or dropping an array while holding the pool monitor.
+	 * Reports coherent counts after allocating or dropping an array while holding the pool lock.
+	 * Commit under the lock because MetricHandler sets Prometheus gauges from the last event in a RecordingStream
+	 * ordered by commit time, so committing after unlocking could reverse two threads' counter update order and leave
+	 * a gauge stale until the next allocation or drop.
 	 */
 	private void emitChangeEvent() {
 		new ObservableOutputChangeEvent(this.openedBuffers, this.occupiedMemoryBytes).commit();
