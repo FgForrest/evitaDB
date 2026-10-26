@@ -23,7 +23,7 @@ relates: [2026-10-21-one-locale-per-entity-level, 2026-10-20-single-owner-partit
 
 `referenceContent(name, filterBy(...))` decides which references of the returned entities are fetched. It is now
 decided **reference row by reference row, over the rows of the owners the query fetched**: the filter is compiled once
-per fetch and reference into a small tree of row tests (`ReferenceRowFilterCompiler`), every existing row of every
+per fetch and reference into a small tree of row predicates (`ReferenceRowFilterCompiler`), every existing row of every
 fetched owner is judged by that tree alone, and an admitted row is recorded for its owner alone
 (`ValidEntityToReferenceMapping#admit`). No reduced reference index, type index, group index or virtual partition is
 read. The route that evaluated the same filter on those index structures - and everything only it reached - is deleted.
@@ -75,8 +75,8 @@ nowhere, which is the default (`ReferenceIndexType.NONE`).
 
 ### Option A - judge every row of every fetched owner by itself (chosen)
 
-The compiler turns the filter into a closed set of row tests; the fetch applies it to the raw rows of each owner. The
-verdict of a row is a function of its owner's scope, the owner's locales, the row, the existence set and the nested
+The compiler turns the filter into a closed set of row predicates; the fetch applies it to the raw rows of each owner.
+The verdict of a row is a function of its owner's scope, the owner's locales, the row, the existence set and the nested
 target sets, and of nothing else. A reference attribute leaf is built on the very normalizer and comparator of
 `FilterIndex` (plus the range encoders of the `attributeBetween` / `attributeInRange` translators), so it answers what
 the index would answer.
@@ -166,7 +166,7 @@ table. A measured case where the index route is faster (none of the eight was) w
 
 - **Entry points.** `ReferencedEntityFetcher#admitFetchedReferences` reads the owners' raw rows, applies the existence
   gate, the compiled `ReferenceRowFilter`, and records each admitted row. `ReferenceRowFilterCompiler#compile` builds the
-  `RowTest` tree (`and`, `or`, `not`, `inScope`, the twelve attribute leaves, `entityPrimaryKeyInSet`,
+  `RowPredicate` tree (`and`, `or`, `not`, `inScope`, the twelve attribute leaves, `entityPrimaryKeyInSet`,
   `entityLocaleEquals`, `entityHaving`, `groupHaving`; a root `scope(...)` only widens the examined scopes and produces
   no node). `NestedSet` holds the target sets of `entityHaving` /
   `groupHaving` (planned by `FilterByVisitor#getMatchingEntityPrimaryKeys`).
