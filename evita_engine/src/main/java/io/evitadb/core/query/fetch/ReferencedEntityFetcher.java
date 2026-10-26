@@ -171,9 +171,9 @@ import static java.util.Optional.ofNullable;
  *
  * The filter of a `referenceContent` is evaluated row by row over the references of the fetched owners
  * (see {@link #admitFetchedReferences}). Every reference row is judged by itself, by the scope and the locales of its
- * owner, with the {@link ReferenceRowFilterCompiler row test}, so the filter needs no filterable attribute and no index
- * of the reference, and the verdict of a row never depends on the other owners fetched along. The verdicts are recorded
- * per owner in the {@link ValidEntityToReferenceMapping}.
+ * owner, with the {@link ReferenceRowFilterCompiler row predicate}, so the filter needs no filterable attribute and no
+ * index of the reference, and the verdict of a row never depends on the other owners fetched along. The verdicts are
+ * recorded per owner in the {@link ValidEntityToReferenceMapping}.
  *
  * Nested references are handled recursively - {@link #createSubReferenceFetcher} spawns another instance of this
  * class for the referenced collection, so a deep `referenceContent` requirement produces a chain of fetchers, each

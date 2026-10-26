@@ -68,12 +68,12 @@ import static java.util.Optional.ofNullable;
 
 /**
  * Compiles the filter of the fetched references (`referenceContent(..., filterBy(...))`) into a
- * {@link ReferenceRowFilter} - a tree of {@link RowTest} nodes judging one reference row of one owner entity at a time.
- * The planning check and the fetch run this one compiler, so what the check accepts the fetch evaluates. Whether a
- * leaf is refused depends on the schemas alone, in both. A nested `entityHaving` / `groupHaving` filter is validated
- * whatever the data only by a check, which resolves the nested set while compiling; a fetch resolves it when the
- * first row reaches it (see {@link NestedSet}), so on a path planned without a check (`getEntity`, an enrichment) a
- * bad nested filter fails only when some row reaches its node.
+ * {@link ReferenceRowFilter} - a tree of {@link RowPredicate} nodes judging one reference row of one owner entity at a
+ * time. The planning check and the fetch run this one compiler, so what the check accepts the fetch evaluates. Whether
+ * a leaf is refused depends on the schemas alone, in both. A nested `entityHaving` / `groupHaving` filter is validated
+ * whatever the data only by a check, which resolves the nested set while compiling; a fetch resolves it when the first
+ * row reaches it (see {@link NestedSet}), so on a path planned without a check (`getEntity`, an enrichment) a bad
+ * nested filter fails only when some row reaches its node.
  *
  * ## What the filter may contain
  *
@@ -212,7 +212,7 @@ final class ReferenceRowFilterCompiler {
 			filterBy, context.requestScopes()
 		);
 		final Set<Scope> ownerScopes = context.ownerScopes();
-		final RowTest root = compiler.compileRoot(
+		final RowPredicate root = compiler.compileRoot(
 			filterBy,
 			examinedScopes,
 			// the owners live in the examined scopes on every path that plans a query, so nothing is allocated there
@@ -281,11 +281,14 @@ final class ReferenceRowFilterCompiler {
 	 * @return the node, or NULL
 	 */
 	@Nullable
-	private static RowTest combine(@Nonnull List<RowTest> children, @Nonnull Function<RowTest[], RowTest> container) {
+	private static RowPredicate combine(
+		@Nonnull List<RowPredicate> children,
+		@Nonnull Function<RowPredicate[], RowPredicate> container
+	) {
 		return switch (children.size()) {
 			case 0 -> null;
 			case 1 -> children.getFirst();
-			default -> container.apply(children.toArray(RowTest[]::new));
+			default -> container.apply(children.toArray(RowPredicate[]::new));
 		};
 	}
 
@@ -317,19 +320,19 @@ final class ReferenceRowFilterCompiler {
 	 * @return the root node, NULL when the filter has no condition on the row
 	 */
 	@Nullable
-	private RowTest compileRoot(
+	private RowPredicate compileRoot(
 		@Nonnull FilterBy filterBy,
 		@Nonnull Set<Scope> examinedScopes,
 		@Nonnull Set<Scope> readingScopes
 	) {
 		final FilterConstraint[] children = filterBy.getChildren();
-		final List<RowTest> compiled = new ArrayList<>(children.length);
+		final List<RowPredicate> compiled = new ArrayList<>(children.length);
 		for (FilterConstraint child : children) {
 			if (!(child instanceof EntityScope)) {
 				addIfPresent(compiled, compile(child, examinedScopes, readingScopes));
 			}
 		}
-		return combine(compiled, RowTest.And::new);
+		return combine(compiled, RowPredicate.And::new);
 	}
 
 	/**
@@ -341,12 +344,12 @@ final class ReferenceRowFilterCompiler {
 	 * @return the compiled children, without those dropped
 	 */
 	@Nonnull
-	private List<RowTest> compileChildren(
+	private List<RowPredicate> compileChildren(
 		@Nonnull FilterConstraint[] children,
 		@Nonnull Set<Scope> nestedQueryScopes,
 		@Nonnull Set<Scope> readingScopes
 	) {
-		final List<RowTest> compiled = new ArrayList<>(children.length);
+		final List<RowPredicate> compiled = new ArrayList<>(children.length);
 		for (FilterConstraint child : children) {
 			addIfPresent(compiled, compile(child, nestedQueryScopes, readingScopes));
 		}
@@ -359,7 +362,7 @@ final class ReferenceRowFilterCompiler {
 	 * @param nodes the list
 	 * @param node  the node, or NULL
 	 */
-	private static void addIfPresent(@Nonnull List<RowTest> nodes, @Nullable RowTest node) {
+	private static void addIfPresent(@Nonnull List<RowPredicate> nodes, @Nullable RowPredicate node) {
 		if (node != null) {
 			nodes.add(node);
 		}
@@ -378,7 +381,7 @@ final class ReferenceRowFilterCompiler {
 	 * @throws EvitaInvalidUsageException when the constraint has no meaning on a row
 	 */
 	@Nullable
-	private RowTest compile(
+	private RowPredicate compile(
 		@Nonnull FilterConstraint constraint,
 		@Nonnull Set<Scope> nestedQueryScopes,
 		@Nonnull Set<Scope> readingScopes
@@ -388,19 +391,19 @@ final class ReferenceRowFilterCompiler {
 		}
 		return switch (constraint) {
 			case And and ->
-				combine(compileChildren(and.getChildren(), nestedQueryScopes, readingScopes), RowTest.And::new);
+				combine(compileChildren(and.getChildren(), nestedQueryScopes, readingScopes), RowPredicate.And::new);
 			case Or or ->
-				combine(compileChildren(or.getChildren(), nestedQueryScopes, readingScopes), RowTest.Or::new);
+				combine(compileChildren(or.getChildren(), nestedQueryScopes, readingScopes), RowPredicate.Or::new);
 			case Not not -> {
-				final RowTest child = compile(not.getChild(), nestedQueryScopes, readingScopes);
-				yield child == null ? null : new RowTest.Not(child);
+				final RowPredicate child = compile(not.getChild(), nestedQueryScopes, readingScopes);
+				yield child == null ? null : new RowPredicate.Not(child);
 			}
 			case FilterInScope inScope -> compileInScope(inScope, nestedQueryScopes);
-			case EntityLocaleEquals localeEquals -> new RowTest.OwnerLocale(localeEquals.getLocale());
+			case EntityLocaleEquals localeEquals -> new RowPredicate.OwnerLocale(localeEquals.getLocale());
 			case EntityPrimaryKeyInSet primaryKeyInSet -> {
 				final int[] primaryKeys = primaryKeyInSet.getPrimaryKeys();
 				Arrays.sort(primaryKeys);
-				yield new RowTest.TargetIn(primaryKeys);
+				yield new RowPredicate.TargetIn(primaryKeys);
 			}
 			case EntityHaving entityHaving -> compileEntityHaving(entityHaving, nestedQueryScopes);
 			case GroupHaving groupHaving -> compileGroupHaving(groupHaving, nestedQueryScopes);
@@ -443,15 +446,17 @@ final class ReferenceRowFilterCompiler {
 	 * @throws EvitaInvalidUsageException when the scope is not among the scopes the container is compiled in
 	 */
 	@Nullable
-	private RowTest compileInScope(@Nonnull FilterInScope inScope, @Nonnull Set<Scope> nestedQueryScopes) {
+	private RowPredicate compileInScope(@Nonnull FilterInScope inScope, @Nonnull Set<Scope> nestedQueryScopes) {
 		final Scope scope = inScope.getScope();
 		Assert.isTrue(
 			nestedQueryScopes.contains(scope),
 			() -> "Scope `" + scope + "` used in `inScope` filter container was not requested by `scope` constraint!"
 		);
 		final Set<Scope> scopes = EnumSet.of(scope);
-		final RowTest child = combine(compileChildren(inScope.getChildren(), scopes, scopes), RowTest.And::new);
-		return child == null ? null : new RowTest.InScope(scope, child);
+		final RowPredicate child = combine(
+			compileChildren(inScope.getChildren(), scopes, scopes), RowPredicate.And::new
+		);
+		return child == null ? null : new RowPredicate.InScope(scope, child);
 	}
 
 	/**
@@ -467,7 +472,7 @@ final class ReferenceRowFilterCompiler {
 	 * @throws EntityNotManagedException when the referenced entity type is not managed by evitaDB
 	 */
 	@Nonnull
-	private RowTest compileEntityHaving(@Nonnull EntityHaving entityHaving, @Nonnull Set<Scope> scopes) {
+	private RowPredicate compileEntityHaving(@Nonnull EntityHaving entityHaving, @Nonnull Set<Scope> scopes) {
 		final ReferenceSchemaContract referenceSchema = this.context.referenceSchema();
 		final String referencedEntityType = referenceSchema.getReferencedEntityType();
 		if (!referenceSchema.isReferencedEntityTypeManaged()) {
@@ -484,7 +489,7 @@ final class ReferenceRowFilterCompiler {
 		} else {
 			restriction = () -> intersect(existingTargets.get(), rootBound);
 		}
-		return new RowTest.TargetInNested(
+		return new RowPredicate.TargetInNested(
 			new NestedSet(
 				this.context.filterByVisitor(), referencedEntityType, nestedFilter, scopes,
 				this.leafLocale, restriction,
@@ -504,7 +509,7 @@ final class ReferenceRowFilterCompiler {
 	 * @throws EvitaInvalidUsageException when the reference declares no group type, or one not managed by evitaDB
 	 */
 	@Nonnull
-	private RowTest compileGroupHaving(@Nonnull GroupHaving groupHaving, @Nonnull Set<Scope> scopes) {
+	private RowPredicate compileGroupHaving(@Nonnull GroupHaving groupHaving, @Nonnull Set<Scope> scopes) {
 		final ReferenceSchemaContract referenceSchema = this.context.referenceSchema();
 		final String referencedGroupType = referenceSchema.getReferencedGroupType();
 		Assert.notNull(
@@ -519,7 +524,7 @@ final class ReferenceRowFilterCompiler {
 		);
 		final FilterConstraint nestedFilter = HavingTranslatorHelper.conjunctionOf(groupHaving.getChildren());
 		final Supplier<Bitmap> rowGroups = this.context.rowGroups();
-		return new RowTest.GroupInNested(
+		return new RowPredicate.GroupInNested(
 			new NestedSet(
 				this.context.filterByVisitor(), referencedGroupType, nestedFilter, scopes, this.leafLocale,
 				rowGroups == null ? null : () -> rowGroups.get().getArray(),
@@ -545,7 +550,7 @@ final class ReferenceRowFilterCompiler {
 	 */
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	@Nonnull
-	private RowTest compileAttributeValue(
+	private RowPredicate compileAttributeValue(
 		@Nonnull AttributeValueMatchingTranslator translator,
 		@Nonnull FilterConstraint constraint,
 		@Nonnull String attributeName,
@@ -576,7 +581,7 @@ final class ReferenceRowFilterCompiler {
 	 * @return the node
 	 */
 	@Nonnull
-	private RowTest compileEquality(
+	private RowPredicate compileEquality(
 		@Nonnull String attributeName,
 		@Nonnull Set<Scope> scopes,
 		@Nonnull BiFunction<AttributeIndexKey, AttributeSchemaContract, AttributeValueMatcher> matcherFactory
@@ -590,7 +595,7 @@ final class ReferenceRowFilterCompiler {
 			);
 			matchersByScope[scope.ordinal()] = matcherFactory.apply(indexKey, attributeSchema);
 		}
-		return new RowTest.AttributeMatch(
+		return new RowPredicate.AttributeMatch(
 			getKeysByScope(attributeSchema, scopes, scope -> isBoundToQueryLocale(attributeSchema, scope)),
 			matchersByScope
 		);
@@ -606,7 +611,7 @@ final class ReferenceRowFilterCompiler {
 	 * @return the node
 	 */
 	@Nonnull
-	private RowTest compileInLeafLocale(
+	private RowPredicate compileInLeafLocale(
 		@Nonnull String attributeName,
 		@Nonnull Set<Scope> scopes,
 		@Nonnull BiFunction<AttributeIndexKey, AttributeSchemaContract, AttributeValueMatcher> matcherFactory
@@ -617,7 +622,7 @@ final class ReferenceRowFilterCompiler {
 		for (final Scope scope : scopes) {
 			matchersByScope[scope.ordinal()] = matcher;
 		}
-		return new RowTest.AttributeMatch(
+		return new RowPredicate.AttributeMatch(
 			getKeysInEveryScope(scopes, getLeafLocaleKeys(attributeSchema)), matchersByScope
 		);
 	}
@@ -631,7 +636,7 @@ final class ReferenceRowFilterCompiler {
 	 * @return the node
 	 */
 	@Nonnull
-	private RowTest compilePresence(@Nonnull AttributeIs attributeIs, @Nonnull Set<Scope> scopes) {
+	private RowPredicate compilePresence(@Nonnull AttributeIs attributeIs, @Nonnull Set<Scope> scopes) {
 		final AttributeSchemaContract attributeSchema = getAttributeSchema(attributeIs.getAttributeName(), scopes);
 		final boolean present = switch (attributeIs.getAttributeSpecialValue()) {
 			case NULL -> false;
@@ -639,7 +644,7 @@ final class ReferenceRowFilterCompiler {
 		};
 		// without a leaf locale the carriers are read in every locale - `attributeIs` is admitted then only because
 		// a scope makes the attribute unique across locales, and reading no locale would report every row as null
-		return new RowTest.AttributePresence(
+		return new RowPredicate.AttributePresence(
 			getKeysByScope(
 				attributeSchema, scopes,
 				scope -> this.leafLocale != null && isBoundToQueryLocale(attributeSchema, scope)
