@@ -1,7 +1,7 @@
 ---
 title: Bulk-build the price and record-id trees each load rebuilds as full leaves; keep the other B+ tree ideas out
 date: 2026-10-26
-updated: 2026-10-26 16:20
+updated: 2026-10-26 16:28
 status: accepted
 kind: optimization
 issues: [1802, 1808]
@@ -94,8 +94,8 @@ takes the old insert loop and is logged at ERROR.
 **Chosen: Option A.** It takes the most memory out for the least code: one builder serves both trees and replaces the
 Element tree's private spine code, and no reader can tell a bulk-built tree from an insert-built one. The split cost
 that full leaves imply was measured on production writes and came out negative. Option B or C would win if a later
-workload shows middle inserts into freshly loaded trees dominating write latency — the per-entity savepoint benchmark
-in *Verification* is the place to see that first.
+workload shows middle inserts into freshly loaded trees dominating write latency —
+`IntKeyedBPlusTreeMiddleInsertBenchmark` is the place to see that first.
 
 ## Key technical details
 
@@ -159,7 +159,11 @@ Deterministic counters over the same replay: leaf splits +3,428 (record-id 1,138
 internal splits +520 (record-id 52 → 414, price 238 → 396), steals + merges net −282, leaf pages written 5,140 in both.
 The replay bypasses both savepoint kinds (`2026-08-26`), so it prices a split without its savepoint memento;
 `IntKeyedBPlusTreeMiddleInsertBenchmark` (ordinary transactional middle inserts with the per-entity savepoint active,
-bulk-built against insert-built, both trees) covers that half. It is compiled but has not been run yet.
+bulk-built against insert-built, both trees) prices that half. It was deliberately not run: the replay counts about
+8.5 extra splits per transaction, and each memento copies one 64-entry leaf, so by arithmetic (not measured) that is
+roughly 10 µs per transaction against a mean of about 250 ms from transaction start to visible. The replay also
+predates the #1808 fix, which makes a later write into a split node in the same transaction copy it once into the
+transactional layer; that cost is unmeasured too, and the fix ships regardless, because it is a correctness fix.
 
 Read side: a storefront query mix (70 query kinds × 100 queries, generated from the recipes in
 `documentation/user/en/solve/`, identical results in every run) shows no effect beyond its noise floor: −0.1 % overall,
@@ -252,9 +256,9 @@ Rejected at analysis, never built:
   index (Long tree, ascending thresholds, never paged), `TrigramPostingStore` (Long tree, 512-slot leaves, discovery
   order, `TrigramPostingAccumulator`), and the traffic recording's Object trees (`DiskRingBuffer`). Measure their leaf
   census before porting the builder.
-- **Run the per-entity savepoint benchmark** (`IntKeyedBPlusTreeMiddleInsertBenchmark`) in a quiet window; it has
-  not run yet. If middle inserts into full leaves cost a real share of an ordinary transaction, Option B or C gets
-  reopened.
+- **The per-entity savepoint benchmark stays compiled and unrun** (`IntKeyedBPlusTreeMiddleInsertBenchmark`). Run it
+  before reopening Option B or C: it is the measurement that would show middle inserts into full leaves costing a
+  real share of an ordinary transaction.
 - **Unexplained, not caused by this change:** a census right after go-live counts 22.1 M bucket entries, the same
   catalog reloaded 16.0 M. Every comparison above stays within one state, so no verdict depends on it.
 - **Measurement lesson:** an end-to-end query mix that starts a fresh JVM per run cannot resolve effects under about
