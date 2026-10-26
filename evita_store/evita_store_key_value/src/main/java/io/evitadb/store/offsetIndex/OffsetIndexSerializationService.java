@@ -31,12 +31,12 @@ import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
+import io.evitadb.store.kryo.ObservableOutputBufferPool;
 import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexStatistics;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.exception.IncompleteSerializationException;
 import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecordCursor;
 import io.evitadb.store.offsetIndex.model.VersionedValue;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.stream.RandomAccessFileInputStream;
@@ -46,6 +46,8 @@ import io.evitadb.utils.BitUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.io.FilterOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -92,6 +94,11 @@ public class OffsetIndexSerializationService {
 	 * Length of single mem table record is 21B: primaryKey (long), class (byte), startingPosition (long), length (int)
 	 */
 	public static final int MEM_TABLE_RECORD_SIZE = 8 + 8 + 1 + 4;
+	/**
+	 * Size of the transfer buffer the compaction copy streams frames through. 16 KiB amortizes stream calls while
+	 * keeping transfer memory independent of any writer's frame size.
+	 */
+	private static final int COPY_CHUNK_SIZE = 16_384;
 
 	/**
 	 * Estimates the size of the offset index file record based on the number of records.
@@ -218,7 +225,8 @@ public class OffsetIndexSerializationService {
 
 	/**
 	 * Copies a snapshot of an offset index to an output stream. The output stream is not closed by this method.
-	 * You are responsible for closing the output stream.
+	 * The caller remains responsible for closing both streams. The temporary serializer is always closed, ending
+	 * its exclusively owned compressor and returning any borrowed frame buffers.
 	 *
 	 * The living data set to copy is resolved as-of `catalogVersion` through {@link OffsetIndex#getEntries(long)}
 	 * (the per-version snapshot), so each copied entry already carries the location valid for that version — there
@@ -234,7 +242,7 @@ public class OffsetIndexSerializationService {
 	 *                          {@code null}
 	 * @param checksumFactory   factory for the checksum applied to the output stream
 	 * @param compressionFactory factory for the optional compressor applied to the output stream
-	 * @param outputBufferSize  output buffer size in bytes; also bounds the per-fragment record length
+	 * @param outputBufferSize  buffer size for newly serialized records; copied frames retain their source length
 	 * @return location of the last written offset-index fragment and the total number of bytes written
 	 */
 	@Nonnull
@@ -249,124 +257,112 @@ public class OffsetIndexSerializationService {
 		@Nonnull CompressionFactory compressionFactory,
 		int outputBufferSize
 	) {
-		// we don't close neither input stream nor the output stream
-		// input stream is still used in callee and the output stream is managed by the callee
-		final ObservableOutput<OutputStream> output = new ObservableOutput<>(
-			outputStream,
-			Math.min(StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, outputBufferSize),
+		// The caller owns both streams; only this temporary serializer and its compressor are disposed here.
+		try (final ObservableOutput<OutputStream> output = new ObservableOutput<>(
+			new FilterOutputStream(outputStream) {
+				/**
+				 * Delegates bulk writes without FilterOutputStream's per-byte fallback.
+				 *
+				 * @param bytes source bytes
+				 * @param offset first source byte
+				 * @param length number of bytes to append
+				 * @throws IOException if the caller's destination rejects the append
+				 */
+				@Override
+				public void write(@Nonnull byte[] bytes, int offset, int length) throws IOException {
+					this.out.write(bytes, offset, length);
+				}
+
+				/** Leaves the caller-owned stream open when the temporary serializer is closed. */
+				@Override
+				public void close() {
+				}
+			},
 			outputBufferSize,
 			0,
 			checksumFactory.createChecksum(),
-			compressionFactory.createCompressor().orElse(null)
-		);
-		// the registry resolves the exact living data set as of catalogVersion, so each entry already carries the
-		// location valid for that version - no per-key historical reconstruction is needed
-		// the live set is iterated in ChampMap hash order, which bears no relation to the physical file layout;
-		// copying in that order forces a random seek (and an input-buffer refill) for every record. Sorting the
-		// entries by their source position turns the read side into a single forward scan, so the input read buffer
-		// amortizes across many records and the OS can prefetch the source file sequentially - the dominant cost on
-		// large collections.
-		final Collection<Entry<RecordKey, FileLocation>> liveEntries = offsetIndex.getEntries(catalogVersion);
-		final List<Entry<RecordKey, FileLocation>> entries = new ArrayList<>(liveEntries);
-		entries.sort(Comparator.comparingLong(entry -> entry.getValue().startingPosition()));
-		final Collection<VersionedValue> nonFlushedValues = new ArrayList<>(entries.size());
-		// Single scratch buffer reused across every storage-record fragment in this snapshot copy.
-		// Per-fragment recordLength is bounded by `outputBufferSize`, so a single buffer of that size is always enough.
-		// Sourced from the offset index so it survives across compactions instead of being reallocated each time; the
-		// caller holds the write handle, which serializes every writer of this instance.
-		final byte[] rawCopyScratchBuffer = offsetIndex.getCompactionScratchBuffer();
-		// Single reusable cursor filled by readRawInto for every fragment, instead of allocating a header object per
-		// fragment. Safe as a stack-local: this loop is single-threaded under the offset-index write handle.
-		final RawRecordCursor rawCursor = new RawRecordCursor();
-		// position in the source file where the input cursor currently sits (i.e. the byte right after the last
-		// record copied so far); `-1` means the cursor position is unknown and a seek is mandatory. Because
-		// `entries` is sorted by source position, the common case is that the next record begins exactly here -
-		// then `seek` (which discards the whole read buffer and forces a fresh `outputBufferSize` refill for the
-		// next few-hundred-byte header) can be skipped entirely and the input read buffer is reused across many
-		// consecutive records. This turns the read side of a large compaction from one buffer-refill-per-record
-		// into a single sequential scan.
-		long nextContiguousSourcePosition = -1;
-		int counter = 0;
-		final Iterator<Entry<RecordKey, FileLocation>> it = entries.iterator();
-		while (it.hasNext()) {
-			final Entry<RecordKey, FileLocation> entry = it.next();
-			final FileLocation fileLocation = entry.getValue();
+			compressionFactory.createCompressor().orElse(null),
+			ObservableOutputBufferPool.INSTANCE
+		)) {
+			// the registry resolves the exact living data set as of catalogVersion, so each entry already carries the
+			// location valid for that version - no per-key historical reconstruction is needed
+			// the live set is iterated in ChampMap hash order, which bears no relation to the physical file layout;
+			// copying in that order forces a random seek (and an input-buffer refill) for every record. Sorting the
+			// entries by their source position turns the read side into a single forward scan, so the input read buffer
+			// amortizes across many records and the OS can prefetch the source file sequentially - the dominant cost on
+			// large collections.
+			final Collection<Entry<RecordKey, FileLocation>> liveEntries = offsetIndex.getEntries(catalogVersion);
+			final List<Entry<RecordKey, FileLocation>> entries = new ArrayList<>(liveEntries);
+			entries.sort(Comparator.comparingLong(entry -> entry.getValue().startingPosition()));
+			final Collection<VersionedValue> nonFlushedValues = new ArrayList<>(entries.size());
+			final byte[] copyBuffer = new byte[COPY_CHUNK_SIZE];
+			final Checksum copyChecksum = checksumFactory.createChecksum();
+			// position in the source file where the input cursor currently sits (i.e. the byte right after the last
+			// record copied so far); `-1` means the cursor position is unknown and a seek is mandatory. Because
+			// `entries` is sorted by source position, the common case is that the next record begins exactly here -
+			// then `seek` (which discards the whole read buffer and forces a fresh `outputBufferSize` refill for the
+			// next few-hundred-byte header) can be skipped entirely and the input read buffer is reused across many
+			// consecutive records. This turns the read side of a large compaction from one buffer-refill-per-record
+			// into a single sequential scan.
+			long nextContiguousSourcePosition = -1;
+			int counter = 0;
+			final Iterator<Entry<RecordKey, FileLocation>> it = entries.iterator();
+			while (it.hasNext()) {
+				final Entry<RecordKey, FileLocation> entry = it.next();
+				final FileLocation fileLocation = entry.getValue();
 
-			final byte[] overriddenValue = valuesToOverride.get(entry.getKey());
-			final FileLocation copiedRecordLocation;
-			if (overriddenValue == null) {
-				// only pay for a seek when the record does not start exactly where the cursor
-				// already is
-				if (fileLocation.startingPosition() != nextContiguousSourcePosition) {
-					inputStream.seekWithUnknownLength(fileLocation.startingPosition());
-				}
-				// the live FileLocation spans every continuation fragment, so its end is where the cursor lands
-				// once the do/while below has consumed the whole record - record it for the next iteration's
-				// contiguity check
-				nextContiguousSourcePosition = fileLocation.endPosition();
-				long startPosition = -1;
-				int recordLength = 0;
-				byte control;
-				do {
-					StorageRecord.readRawInto(inputStream, rawCopyScratchBuffer, rawCursor);
-					control = rawCursor.control();
-
-					final FileLocation recordLocation = StorageRecord.writeRaw(
-						output, control, catalogVersion,
-						rawCopyScratchBuffer, 0, rawCursor.payloadLength()
+				final byte[] overriddenValue = valuesToOverride.get(entry.getKey());
+				final FileLocation copiedRecordLocation;
+				if (overriddenValue == null) {
+					// only pay for a seek when the record does not start exactly where the cursor
+					// already is
+					if (fileLocation.startingPosition() != nextContiguousSourcePosition) {
+						inputStream.seekWithUnknownLength(fileLocation.startingPosition());
+					}
+					// the live FileLocation spans every continuation fragment, so its end is where the cursor lands
+					// once the raw copy has consumed the whole record - record it for the next iteration's
+					// contiguity check
+					nextContiguousSourcePosition = fileLocation.endPosition();
+					copiedRecordLocation = StorageRecord.copyRawRecord(
+						inputStream, output, catalogVersion, copyBuffer, copyChecksum
 					);
-					if (startPosition == -1) {
-						startPosition = recordLocation.startingPosition();
-					}
-					recordLength += recordLocation.recordLength();
-				} while (BitUtils.isBitSet(control, StorageRecord.CONTINUATION_BIT));
+				} else {
+					// write overridden value - this branch does not touch the source input stream, so the cursor
+					// stays put and we can no longer assume the following record is contiguous with it; force a
+					// seek next time
+					nextContiguousSourcePosition = -1;
+					copiedRecordLocation = new StorageRecord<>(
+						output, catalogVersion, !it.hasNext(),
+						theOutput -> {
+							theOutput.write(overriddenValue);
+							return overriddenValue;
+						}
+					).fileLocation();
+				}
 
-				Assert.isPremiseValid(
-					startPosition >= 0,
-					"Start position must be greater than 0!"
-				);
-				Assert.isPremiseValid(
-					recordLength > 0,
-					"Record length must be greater than 0!"
-				);
+				counter++;
+				if (progressConsumer != null) {
+					progressConsumer.accept(counter);
+				}
 
-				copiedRecordLocation = new FileLocation(startPosition, recordLength);
-			} else {
-				// write overridden value - this branch does not touch the source input stream, so the cursor
-				// stays put and we can no longer assume the following record is contiguous with it; force a
-				// seek next time
-				nextContiguousSourcePosition = -1;
-				copiedRecordLocation = new StorageRecord<>(
-					output, catalogVersion, !it.hasNext(),
-					theOutput -> {
-						theOutput.write(overriddenValue);
-						return overriddenValue;
-					}
-				).fileLocation();
+				// finally, register non-flushed value
+				final RecordKey key = entry.getKey();
+				nonFlushedValues.add(
+					new VersionedValue(
+						key.primaryKey(), key.recordType(), copiedRecordLocation
+					)
+				);
 			}
 
-			counter++;
-			if (progressConsumer != null) {
-				progressConsumer.accept(counter);
-			}
-
-			// finally, register non-flushed value
-			final RecordKey key = entry.getKey();
-			nonFlushedValues.add(
-				new VersionedValue(
-					key.primaryKey(), key.recordType(), copiedRecordLocation
-				)
+			// now serialize the information about the values to the final record of the file and return its location
+			return serialize(
+				output,
+				catalogVersion,
+				nonFlushedValues,
+				FileLocation.EMPTY,
+				outputBufferSize
 			);
 		}
-
-		// now serialize the information about the values to the final record of the file and return its location
-		return serialize(
-			output,
-			catalogVersion,
-			nonFlushedValues,
-			FileLocation.EMPTY,
-			outputBufferSize
-		);
 	}
 
 	/**

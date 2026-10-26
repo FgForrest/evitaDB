@@ -198,9 +198,13 @@ public class OffHeapTrafficRecorder
 	 */
 	private final AtomicLong finishedSessions = new AtomicLong();
 	/**
-	 * Pool of byte arrays used for storing output data and reading input data.
+	 * Pool of byte arrays used for reading and exporting recorded data.
 	 */
 	private Pool<byte[]> copyBufferPool;
+	/**
+	 * Exact frame buffer size used by session outputs.
+	 */
+	private int outputBufferSize;
 	/**
 	 * Reference to the export file service used for creating temporary files and creating export files.
 	 */
@@ -355,7 +359,7 @@ public class OffHeapTrafficRecorder
 				sessionId,
 				catalogVersion,
 				created,
-				this.copyBufferPool.obtain(),
+				this.outputBufferSize,
 				this::prepareStorageBlock,
 				this.trafficRecorderKryoPool::obtain,
 				this.trafficRecorderKryoPool::free
@@ -389,7 +393,7 @@ public class OffHeapTrafficRecorder
 	public void closeSession(@Nonnull UUID sessionId, @Nullable String finishedWithError) {
 		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.remove(sessionId);
 		if (sessionTraffic != null && !sessionTraffic.isFinished()) {
-			final byte[] bufferToReturn = sessionTraffic.finish();
+			sessionTraffic.finish();
 			sessionTraffic.record(
 				new SessionCloseContainer(
 					sessionId,
@@ -414,7 +418,6 @@ public class OffHeapTrafficRecorder
 				},
 				() -> {
 					sessionTraffic.close();
-					this.copyBufferPool.free(bufferToReturn);
 					this.finishedSessions.incrementAndGet();
 					this.finalizedSessions.offer(sessionTraffic);
 					this.freeMemoryTask.schedule();
@@ -740,6 +743,7 @@ public class OffHeapTrafficRecorder
 		long trafficFlushIntervalInMilliseconds
 	) {
 		this.catalogName = catalogName;
+		this.outputBufferSize = storageOptions.outputBufferSize();
 		this.fileManagementService = fileManagementService;
 		this.samplingPercentage = recordingOptions.trafficSamplingPercentage();
 
@@ -890,7 +894,7 @@ public class OffHeapTrafficRecorder
 	 * @param reason         the reason the session is being discarded (drives the metric dimension)
 	 */
 	private void discardSession(@Nonnull SessionTraffic sessionTraffic, @Nonnull TrafficRecorderMissReason reason) {
-		this.copyBufferPool.free(sessionTraffic.discard());
+		sessionTraffic.discard();
 		this.droppedSessionsByReason.get(reason).incrementAndGet();
 		this.missedRecordsByReason.get(reason).addAndGet(sessionTraffic.getRecordCount());
 		// when there is memory shortage, when session is closed - free the memory and throw away the data

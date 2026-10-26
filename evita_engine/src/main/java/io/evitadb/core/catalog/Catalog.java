@@ -1644,8 +1644,10 @@ public final class Catalog
 				// marks a sweep boundary at the end of bulk indexing, so the next periodic sweep reclaims what the
 				// import stopped using. Gated because a lone sweep releases almost nothing - see
 				// CollationKeyCache#sweepAll
-				if (this.evitaConfiguration.server().dropCollationKeysAfterSecondsOfInactivity() > 0) {
-					final int releasedCollationKeys = CollationKeyCache.sweepAll();
+				final int releasedCollationKeys =
+					this.evitaConfiguration.server().dropCollationKeysAfterSecondsOfInactivity() > 0 ?
+						CollationKeyCache.sweepAll() : 0;
+				if (releasedCollationKeys > 0) {
 					log.info(
 						"Catalog `{}` is now alive! (released {} collation keys unused since the previous sweep)",
 						newCatalog.getName(), releasedCollationKeys

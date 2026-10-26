@@ -71,7 +71,7 @@ public class CompressedInputOutputTest extends AbstractObservableInputOutputTest
 		final int bufferSize = BIG_PAYLOAD_SIZE + OVERHEAD_SIZE;
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream(bufferSize);
 		final ObservableOutput<?> output = new ObservableOutput<>(
-			baos, bufferSize, bufferSize, 0,
+			baos, bufferSize, 0,
 			Crc32CChecksumFactory.INSTANCE.createChecksum(),
 			ZipCompressionFactory.INSTANCE.createCompressor().orElseThrow()
 		);
@@ -110,7 +110,7 @@ public class CompressedInputOutputTest extends AbstractObservableInputOutputTest
 		final int bufferSize = PAYLOAD_SIZE + OVERHEAD_SIZE;
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream(bufferSize);
 		final ObservableOutput<?> output = new ObservableOutput<>(
-			baos, bufferSize, bufferSize, 0,
+			baos, bufferSize, 0,
 			Crc32CChecksumFactory.INSTANCE.createChecksum(),
 			ZipCompressionFactory.INSTANCE.createCompressor().orElseThrow()
 		);
@@ -183,7 +183,7 @@ public class CompressedInputOutputTest extends AbstractObservableInputOutputTest
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream(65_536);
 		baos.writeBytes(new byte[leadingBytes]);
 		final ObservableOutput<?> output = new ObservableOutput<>(
-			baos, 16_384, 16_384, 0,
+			baos, 16_384, 0,
 			Crc32CChecksumFactory.INSTANCE.createChecksum(),
 			ZipCompressionFactory.INSTANCE.createCompressor().orElseThrow()
 		);

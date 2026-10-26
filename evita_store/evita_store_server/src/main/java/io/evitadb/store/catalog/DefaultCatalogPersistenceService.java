@@ -301,9 +301,7 @@ public class DefaultCatalogPersistenceService
 	 */
 	static final ThreadLocal<LongSupplier> CURRENT_TIME_MILLIS = ThreadLocal.withInitial(() -> SYSTEM_TIME_MILLIS);
 	/**
-	 * This instance keeps references to the {@link ObservableOutput} instances that internally keep large buffers in
-	 * {@link ObservableOutput#getBuffer()} to use them for serialization. There buffers are not necessary when there are
-	 * no updates to the catalog / collection, so it's wise to get rid of them if there is no actual need.
+	 * Caches file outputs with open streams, closing them after inactivity. Frame buffers are borrowed only while writing.
 	 */
 	private final ObservableOutputKeeper observableOutputKeeper;
 	/**
@@ -1641,7 +1639,6 @@ public class DefaultCatalogPersistenceService
 		verifyDirectory(this.catalogStoragePath, true);
 		this.observableOutputKeeper = new ObservableOutputKeeper(
 			catalogName,
-			this.storageSettings.outputBufferSize(),
 			this.storageSettings.lockTimeoutSeconds(),
 			this.storageSettings.waitOnCloseSeconds(),
 			scheduler
@@ -1840,7 +1837,6 @@ public class DefaultCatalogPersistenceService
 		this.walFileNameProvider = index -> CatalogPersistenceService.getWalFileName(discoveredPrefix, index);
 		this.observableOutputKeeper = new ObservableOutputKeeper(
 			catalogName,
-			this.storageSettings.outputBufferSize(),
 			this.storageSettings.lockTimeoutSeconds(),
 			this.storageSettings.waitOnCloseSeconds(),
 			scheduler
@@ -2014,7 +2010,6 @@ public class DefaultCatalogPersistenceService
 		this.catalogStoragePath = catalogStoragePath;
 		this.observableOutputKeeper = new ObservableOutputKeeper(
 			catalogName,
-			this.storageSettings.outputBufferSize(),
 			this.storageSettings.lockTimeoutSeconds(),
 			this.storageSettings.waitOnCloseSeconds(),
 			this.scheduler
