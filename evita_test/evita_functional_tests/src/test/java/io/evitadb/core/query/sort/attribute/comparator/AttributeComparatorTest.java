@@ -49,17 +49,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @Tag(ORDER)
 @Tag(ATTRIBUTE)
 class AttributeComparatorTest {
-	/** Explicit legacy binding for fixtures without declared steps. */
-	private static final UnaryOperator<String> LEGACY_STRING_NORMALIZER =
-		text -> (String) FilterIndex.getLegacyStringNormalizer().apply(text);
+	/** Explicit type-level binding for fixtures without declared steps. */
+	private static final UnaryOperator<String> TYPE_LEVEL_STRING_NORMALIZER =
+		text -> (String) FilterIndex.getTypeLevelStringNormalizer().apply(text);
 
 	public static final String ATTRIBUTE_NAME = "test";
 	private final AttributeComparator comparator = new AttributeComparator(
 		ATTRIBUTE_NAME, Integer.class, 0, null, OrderDirection.ASC
-	, LEGACY_STRING_NORMALIZER);
+	, TYPE_LEVEL_STRING_NORMALIZER);
 	private final AttributeComparator reverseComparator = new AttributeComparator(
 		ATTRIBUTE_NAME, Integer.class, 0, null, OrderDirection.DESC
-	, LEGACY_STRING_NORMALIZER);
+	, TYPE_LEVEL_STRING_NORMALIZER);
 
 	@BeforeEach
 	void setUp() {

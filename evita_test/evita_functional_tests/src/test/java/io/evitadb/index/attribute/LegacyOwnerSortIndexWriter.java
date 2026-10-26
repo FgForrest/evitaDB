@@ -272,13 +272,13 @@ public final class LegacyOwnerSortIndexWriter {
 				null,
 				this.attributeIndexKey,
 				0,
-				SortIndex.createLegacyNormalizerFor(this.comparatorBase[0].type(), 0)
+				SortIndex.createTypeLevelNormalizerFor(this.comparatorBase[0].type(), 0)
 			) :
 			new OwnerSortIndex(
 				this.comparatorBase,
 				null,
 				this.attributeIndexKey,
-				SortIndex.createLegacyNormalizerFor(this.comparatorBase, 0)
+				SortIndex.createTypeLevelNormalizerFor(this.comparatorBase, 0)
 			);
 		for (Map.Entry<Integer, Serializable> entry : this.valuesByRecord.entrySet()) {
 			if (entry.getValue() instanceof ComparableArray(Serializable[] array)) {

@@ -48,15 +48,15 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Pins single-pass ordering, legacy compatibility, unchanged instances and immutable cache identity. */
+/** Pins single-pass ordering, type-level compatibility, unchanged instances and immutable cache identity. */
 @DisplayName("String normalization compiler")
 @Tag(ENGINE)
 @Tag(SCHEMA)
 class StringNormalizationCompilerTest {
 	/** Empty descriptions must exactly match the pre-P3 NFD function, including null. */
 	@Test
-	@DisplayName("should preserve the legacy NFD-only key function")
-	void shouldPreserveLegacyFunction() {
+	@DisplayName("should preserve the type-level NFD-only key function")
+	void shouldPreserveTypeLevelFunction() {
 		final UnaryOperator<String> function = new AnalysisStepRegistry().compile(List.of(), null);
 		assertNull(function.apply(null));
 		for (final String text : corpus()) {

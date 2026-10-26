@@ -102,11 +102,11 @@ public class AttributeCardinalityIndex
 	}
 
 	/**
-	 * Captures the owner-resolved String key function; null retains NFD-only legacy binding.
+	 * Captures the owner-resolved String key function; null retains NFD-only type-level binding.
 	 * Non-String values continue to use the scale-sensitive numeric/type cache.
 	 *
 	 * @param valueType        type of the counted attribute values
-	 * @param stringNormalizer owner-resolved String key function, `null` for the legacy NFD-only binding
+	 * @param stringNormalizer owner-resolved String key function, `null` for the type-level NFD-only binding
 	 */
 	public AttributeCardinalityIndex(@Nonnull Class<? extends Serializable> valueType,
 		@Nullable Function<Object, Serializable> stringNormalizer
@@ -125,12 +125,12 @@ public class AttributeCardinalityIndex
 	}
 
 	/**
-	 * Captures the owner-resolved String key function; null retains NFD-only legacy binding.
+	 * Captures the owner-resolved String key function; null retains NFD-only type-level binding.
 	 * Non-String values continue to use the scale-sensitive numeric/type cache.
 	 *
 	 * @param valueType        type of the counted attribute values
 	 * @param cardinalities    restored cardinality counters by canonical key
-	 * @param stringNormalizer owner-resolved String key function, `null` for the legacy NFD-only binding
+	 * @param stringNormalizer owner-resolved String key function, `null` for the type-level NFD-only binding
 	 */
 	public AttributeCardinalityIndex(
 		@Nonnull Class<? extends Serializable> valueType,
@@ -188,7 +188,7 @@ public class AttributeCardinalityIndex
 	@Nonnull
 	public Serializable normalizeKey(@Nonnull Serializable value, int indexedDecimalPlaces) {
 		if (this.valueType == String.class) {
-			return (this.stringNormalizer == null ? FilterIndex.getLegacyStringNormalizer() : this.stringNormalizer)
+			return (this.stringNormalizer == null ? FilterIndex.getTypeLevelStringNormalizer() : this.stringNormalizer)
 				.apply(value);
 		}
 		// read the pair through ONE reference so a reader can never combine a function built for one scale with

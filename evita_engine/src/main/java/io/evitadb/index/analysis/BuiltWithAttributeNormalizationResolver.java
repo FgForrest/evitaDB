@@ -45,7 +45,7 @@ import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.requestResponse.schema.OrderBehaviour.NULLS_LAST;
 
 /**
- * Binds immutable functions from owner-held built-with descriptions. A missing row always means legacy NFD,
+ * Binds immutable functions from owner-held built-with descriptions. A missing row always means type-level NFD,
  * regardless of today's declaration. Owners publish a new resolver only at schema adoption; indexes borrow it.
  *
  * @param registry catalog-owned step registry and compiled-function cache
@@ -249,7 +249,7 @@ public record BuiltWithAttributeNormalizationResolver(
 		if (bindings == null) {
 			return sources.length == 1 && sources[0].type() == String.class ?
 				(UnaryOperator) resolve(key.referenceName(), key.attributeName(), key.locale()) :
-				SortIndex.createLegacyNormalizerFor(sources, scale);
+				SortIndex.createTypeLevelNormalizerFor(sources, scale);
 		}
 		if (bindings.size() != sources.length) {
 			throw new GenericEvitaInternalError(

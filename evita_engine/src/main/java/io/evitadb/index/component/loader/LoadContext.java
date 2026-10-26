@@ -123,7 +123,7 @@ public record LoadContext(
 	 * @param key                  identity of the persisted attribute index
 	 * @param plainType            plain (non-array) type of the attribute values
 	 * @param indexedDecimalPlaces the attribute schema's `indexedDecimalPlaces`
-	 * @return raw-input key function; the legacy NFD-only one for a String attribute whose declaration is gone
+	 * @return raw-input key function; the type-level NFD-only one for a String attribute whose declaration is gone
 	 */
 	@Nonnull
 	@SuppressWarnings({"unchecked", "rawtypes"})
@@ -136,7 +136,7 @@ public record LoadContext(
 			}
 			final AttributeSchemaContract attribute = resolveAttribute(key);
 			return attribute == null || this.normalizationResolver == AttributeNormalizationResolver.LEGACY_NFD
-				? FilterIndex.getLegacyStringNormalizer()
+				? FilterIndex.getTypeLevelStringNormalizer()
 				: this.normalizationResolver.resolveKeyNormalizer(
 					key.referenceName(), attribute, key.locale());
 		}
@@ -159,13 +159,13 @@ public record LoadContext(
 			return builtWith.resolveStoredSortNormalizer(key, comparatorBase, indexedDecimalPlaces);
 		}
 		if (this.normalizationResolver == AttributeNormalizationResolver.LEGACY_NFD) {
-			return SortIndex.createLegacyNormalizerFor(comparatorBase, indexedDecimalPlaces);
+			return SortIndex.createTypeLevelNormalizerFor(comparatorBase, indexedDecimalPlaces);
 		}
 		if (comparatorBase.length == 1) {
 			if (comparatorBase[0].type() == String.class) {
 				final AttributeSchemaContract attribute = resolveAttribute(key);
 				return attribute == null
-					? SortIndex.createLegacyNormalizerFor(comparatorBase[0].type(), indexedDecimalPlaces)
+					? SortIndex.createTypeLevelNormalizerFor(comparatorBase[0].type(), indexedDecimalPlaces)
 					: this.normalizationResolver.resolveSortNormalizer(key.referenceName(), attribute, key.locale());
 			}
 			return SortIndex.createNormalizerFor(comparatorBase[0], indexedDecimalPlaces)
@@ -177,11 +177,11 @@ public record LoadContext(
 				: this.entitySchema.getReference(key.referenceName())
 					.flatMap(reference -> reference.getSortableAttributeCompound(key.attributeName())).orElse(null);
 		if (compound == null) {
-			return SortIndex.createLegacyNormalizerFor(comparatorBase, indexedDecimalPlaces);
+			return SortIndex.createTypeLevelNormalizerFor(comparatorBase, indexedDecimalPlaces);
 		}
 		for (final SortableAttributeCompoundSchemaContract.AttributeElement element : compound.getAttributeElements()) {
 			if (resolveAttribute(new AttributeIndexKey(key.referenceName(), element.attributeName(), null)) == null) {
-				return SortIndex.createLegacyNormalizerFor(comparatorBase, indexedDecimalPlaces);
+				return SortIndex.createTypeLevelNormalizerFor(comparatorBase, indexedDecimalPlaces);
 			}
 		}
 		return this.normalizationResolver.resolveCompoundNormalizer(key.referenceName(), compound,

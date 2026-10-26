@@ -71,7 +71,7 @@ class VirtualReferencePartitionIndexRemovePartitionTest {
 	 */
 	private static VirtualReferencePartitionIndex twoPartitions() {
 		final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-		index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
+		index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 0));
 		index.declareChainKey(CHAIN);
 		for (int partition = 1; partition <= 2; partition++) {
 			index.putPartitionOwner(partition, partition * 10, partition * 100);
@@ -148,7 +148,7 @@ class VirtualReferencePartitionIndexRemovePartitionTest {
 	@DisplayName("keys declared before any row exists are retired as well")
 	void shouldRetireKeysOfAnIndexWithoutRows() {
 		final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-		index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
+		index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 0));
 
 		assertTrue(index.retireAllKeysIfNoPartition());
 

@@ -86,7 +86,7 @@ class LongRunningSortIndexTest implements TimeBoundedTestSupport {
 					null,
 					new AttributeIndexKey(null, "whatever", null),
 					0,
-					SortIndex.createLegacyNormalizerFor(String.class, 0)
+					SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 				)
 			),
 			(random, testState) -> {
@@ -136,7 +136,7 @@ class LongRunningSortIndexTest implements TimeBoundedTestSupport {
 								committed.sortedRecords.getArray(),
 								committedValues,
 								committedCardinalities,
-								SortIndex.createLegacyNormalizerFor(committed.comparatorBase, 0)
+								SortIndex.createTypeLevelNormalizerFor(committed.comparatorBase, 0)
 							)
 						);
 					}
@@ -179,7 +179,7 @@ class LongRunningSortIndexTest implements TimeBoundedTestSupport {
 					null,
 					new AttributeIndexKey(null, "whatever", null),
 					0,
-					SortIndex.createLegacyNormalizerFor(String.class, 0)
+					SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 				);
 				for (final ValueRecord record : setToCompare) {
 					sortIndex.addRecord(record.value(), record.recordId());

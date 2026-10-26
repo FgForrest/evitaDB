@@ -1,7 +1,7 @@
 ---
 title: String attributes declare a single-pass normalization chain, and a populated index keeps the chain it was built with
 date: 2026-10-25
-updated: 2026-10-26 20:45
+updated: 2026-10-26 22:21
 status: accepted
 kind: feature
 issues: [545]
@@ -80,7 +80,7 @@ filter key (2026-10-08). There was no per-attribute key policy and no storage fo
 - **Two functions per site, never mixed (chosen).** The chain applies once to raw input (writes, removals, query
   values). A stored key is taken verbatim in regular processing (virtual-partition promotion / demotion, probes and
   removals by key). Only the storage migration may re-canonicalize a stored bucket key, and only with the type-level
-  function (`FilterIndex#getLegacyStringNormalizer`, NFD), which is harmless for chain keys because every chain ends
+  function (`FilterIndex#getTypeLevelStringNormalizer`, NFD), which is harmless for chain keys because every chain ends
   with NFD.
   Filter and histogram loads restore the stored keys verbatim. Unique parts instead carry declared-type values;
   every unique load converts those values back to keys with the type-level function, never a declared chain,
@@ -175,7 +175,7 @@ rebuild and the rows become transient.
 - **Compounds:** `ComparatorSource` carries no attribute identity, so each compound's ordered element bindings are
   persisted; loaders bind from them even if the compound definition changed later.
 - **Orphans:** an index that outlives its declaration (removal, rename, type change) keeps its row and binds it at
-  load (`LoadContext`, the catalog unique loader); without a row it binds the legacy function.
+  load (`LoadContext`, the catalog unique loader); without a row it binds the type-level function.
 - **The schema always reports the declaration.** External APIs never expose built-with rows.
 - **Looks like a bug, is not:** the same attribute can show `normalized(lowercase())` in its schema while its index
   is case-sensitive - that is K' on a populated attribute, and the warning says so.

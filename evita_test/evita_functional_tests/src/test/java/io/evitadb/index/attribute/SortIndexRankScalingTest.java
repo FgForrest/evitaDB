@@ -220,7 +220,7 @@ class SortIndexRankScalingTest {
 			null,
 			new AttributeIndexKey(null, "a", CZECH),
 			0,
-			SortIndex.createLegacyNormalizerFor(String.class, 0)
+			SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 		);
 		for (int i = 1; i <= distinctValues; i++) {
 			sortIndex.addRecord(valueFor(i), i);

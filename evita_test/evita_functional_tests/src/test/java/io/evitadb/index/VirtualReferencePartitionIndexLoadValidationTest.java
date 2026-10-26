@@ -182,7 +182,7 @@ class VirtualReferencePartitionIndexLoadValidationTest {
 			final long[] payloads = this.entries.values().stream().mapToLong(Long::longValue).toArray();
 			return new VirtualReferencePartitionIndex(
 				"media", keys, payloads, this.tupleIds, this.tuples, this.sortValueSlots, this.chainSlots
-			, slot -> SortIndex.createLegacyNormalizerFor(slot.comparatorBase(), slot.indexedDecimalPlaces()));
+			, slot -> SortIndex.createTypeLevelNormalizerFor(slot.comparatorBase(), slot.indexedDecimalPlaces()));
 		}
 	}
 

@@ -799,7 +799,9 @@ class PickFirstReferenceSorterTest {
 			VALUE_KEY,
 			new ComparatorSource[]{new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)},
 			0,
-			() -> SortIndex.createLegacyNormalizerFor(new ComparatorSource[]{new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)}, 0)
+			() -> SortIndex.createTypeLevelNormalizerFor(new ComparatorSource[]{
+				new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+			}, 0)
 		);
 	}
 

@@ -77,19 +77,19 @@ import static org.mockito.Mockito.*;
 @Tag(ENGINE)
 @Tag(ORDER)
 class PrefetchedRecordsSorterTest {
-	/** Explicit legacy binding for fixtures without declared steps. */
-	private static final UnaryOperator<String> LEGACY_STRING_NORMALIZER =
-		text -> (String) FilterIndex.getLegacyStringNormalizer().apply(text);
+	/** Explicit type-level binding for fixtures without declared steps. */
+	private static final UnaryOperator<String> TYPE_LEVEL_STRING_NORMALIZER =
+		text -> (String) FilterIndex.getTypeLevelStringNormalizer().apply(text);
 
 	private static final String ATTRIBUTE_NAME_FIRST = "first";
 	private static final String ATTRIBUTE_NAME_SECOND = "second";
 
 	private final EntityComparator TEST_COMPARATOR_FIRST = new AttributeComparator(
 		ATTRIBUTE_NAME_FIRST, String.class, 0, null, OrderDirection.ASC
-	, LEGACY_STRING_NORMALIZER);
+	, TYPE_LEVEL_STRING_NORMALIZER);
 	private final EntityComparator TEST_COMPARATOR_SECOND = new AttributeComparator(
 		ATTRIBUTE_NAME_SECOND, String.class, 0, null, OrderDirection.ASC
-	, LEGACY_STRING_NORMALIZER);
+	, TYPE_LEVEL_STRING_NORMALIZER);
 	private PrefetchedRecordsSorterWithContext entitySorter;
 
 	private static List<ServerEntityDecorator> createMockEntities(int... expectedOrder) {

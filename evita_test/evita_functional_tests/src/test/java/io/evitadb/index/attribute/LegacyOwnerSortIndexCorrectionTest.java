@@ -299,7 +299,7 @@ class LegacyOwnerSortIndexCorrectionTest {
 				null,
 				ATTRIBUTE_KEY,
 				0,
-				SortIndex.createLegacyNormalizerFor(OffsetDateTime.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(OffsetDateTime.class, 0)
 			);
 			current.addRecord(NINE.atOffset(PLUS_ONE), 2);
 			current.addRecord(NINE.atOffset(PLUS_TWO), 1);
@@ -1658,7 +1658,7 @@ class LegacyOwnerSortIndexCorrectionTest {
 				part.getSortedRecordsValues(),
 				part.getValueCardinalities(),
 				null,
-				SortIndex.createLegacyNormalizerFor(part.getComparatorBase(), part.getIndexedDecimalPlaces())
+				SortIndex.createTypeLevelNormalizerFor(part.getComparatorBase(), part.getIndexedDecimalPlaces())
 			)
 		);
 	}
@@ -1683,7 +1683,7 @@ class LegacyOwnerSortIndexCorrectionTest {
 			root.getLeafPageSequences(),
 			readPages(offsetIndex, catalogVersion, root),
 			root.getHighWaterPageSequence(),
-			SortIndex.createLegacyNormalizerFor(root.getComparatorBase(), root.getIndexedDecimalPlaces())
+			SortIndex.createTypeLevelNormalizerFor(root.getComparatorBase(), root.getIndexedDecimalPlaces())
 		);
 	}
 

@@ -78,7 +78,7 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.collidingKeysError;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.findFirstNonAscendingKey;
-import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.legacyNormalizerFor;
+import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.persistedValueNormalizerFor;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.plainTypeOf;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.toDeclaredValue;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.toDistinctKeys;
@@ -158,7 +158,8 @@ public class GlobalUniqueIndex implements
 	 */
 	@Getter private final int indexedDecimalPlaces;
 	/**
-	 * Converts raw values and probes to keys in {@link #tree}; persisted keys use the legacy canonicalizer separately.
+	 * Converts raw values and probes to keys in {@link #tree}; persisted keys use the type-level canonicalizer
+	 * separately.
 	 */
 	@Nonnull private final Function<Object, Serializable> normalizer;
 	/**
@@ -272,11 +273,11 @@ public class GlobalUniqueIndex implements
 		final Class<?> plainType = plainTypeOf(attributeType);
 		// Persisted parts carry declared-type values. Every load converts them to keys with the type-level
 		// function, never a declared chain: a persisted String is already a chain-built key.
-		final Function<Object, Serializable> legacyCanonicalizer =
-			legacyNormalizerFor(plainType, indexedDecimalPlaces);
+		final Function<Object, Serializable> persistedValueNormalizer =
+			persistedValueNormalizerFor(plainType, indexedDecimalPlaces);
 		final List<TransactionalBucketBPlusTree> pageTrees = new ArrayList<>(orderedPageSequences.length);
 		for (int i = 0; i < orderedPageSequences.length; i++) {
-			final Object[] keys = toPersistedKeys(legacyCanonicalizer, perPageValues[i]);
+			final Object[] keys = toPersistedKeys(persistedValueNormalizer, perPageValues[i]);
 			final long[] payloads = perPagePayloads[i];
 			// a page never exceeds a leaf's capacity, so this single-leaf tree never splits; the leaf's key/record
 			// columns are built in one bulk pass instead of `values.length` sequential addLongRecord calls, which
@@ -335,7 +336,7 @@ public class GlobalUniqueIndex implements
 			attributeKey,
 			attributeType,
 			indexedDecimalPlaces,
-			legacyNormalizerFor(plainTypeOf(attributeType), indexedDecimalPlaces)
+			persistedValueNormalizerFor(plainTypeOf(attributeType), indexedDecimalPlaces)
 		);
 	}
 
@@ -402,7 +403,7 @@ public class GlobalUniqueIndex implements
 			values,
 			payloads,
 			localeIndex,
-			legacyNormalizerFor(plainTypeOf(attributeType), indexedDecimalPlaces)
+			persistedValueNormalizerFor(plainTypeOf(attributeType), indexedDecimalPlaces)
 		);
 	}
 
@@ -921,7 +922,9 @@ public class GlobalUniqueIndex implements
 		@Nonnull long[] payloads,
 		@Nonnull Map<Integer, Locale> localeIndex
 	) {
-		final Object[] keys = toPersistedKeys(legacyNormalizerFor(this.plainType, this.indexedDecimalPlaces), values);
+		final Object[] keys = toPersistedKeys(
+			persistedValueNormalizerFor(this.plainType, this.indexedDecimalPlaces), values
+		);
 		for (int i = 0; i < keys.length; i++) {
 			try {
 				this.tree.addLongRecord((Comparable) keys[i], payloads[i]);

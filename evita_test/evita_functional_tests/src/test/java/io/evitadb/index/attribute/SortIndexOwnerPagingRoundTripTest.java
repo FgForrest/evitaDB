@@ -661,7 +661,7 @@ class SortIndexOwnerPagingRoundTripTest implements EvitaTestSupport {
 			new int[]{3, 1, 2},
 			new Serializable[]{"v00000"},
 			Map.of("v00000", 3),
-			SortIndex.createLegacyNormalizerFor(base, 0)
+			SortIndex.createTypeLevelNormalizerFor(base, 0)
 		);
 		assertArrayEquals(
 			new int[]{3, 1, 2}, source.getSortedRecords(),
@@ -701,7 +701,9 @@ class SortIndexOwnerPagingRoundTripTest implements EvitaTestSupport {
 
 	@Nonnull
 	private static OwnerSortIndex scalarOwner() {
-		return new OwnerSortIndex(String.class, null, ATTRIBUTE_KEY, 0, SortIndex.createLegacyNormalizerFor(String.class, 0));
+		return new OwnerSortIndex(
+			String.class, null, ATTRIBUTE_KEY, 0, SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+		);
 	}
 
 	@Nonnull
@@ -710,7 +712,7 @@ class SortIndexOwnerPagingRoundTripTest implements EvitaTestSupport {
 			new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 			new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
 		};
-		return new OwnerSortIndex(base, null, ATTRIBUTE_KEY, SortIndex.createLegacyNormalizerFor(base, 0));
+		return new OwnerSortIndex(base, null, ATTRIBUTE_KEY, SortIndex.createTypeLevelNormalizerFor(base, 0));
 	}
 
 	/**
@@ -856,7 +858,7 @@ class SortIndexOwnerPagingRoundTripTest implements EvitaTestSupport {
 			orderedPageSequences,
 			perPageBuckets,
 			root.getHighWaterPageSequence(),
-			SortIndex.createLegacyNormalizerFor(root.getComparatorBase(), root.getIndexedDecimalPlaces())
+			SortIndex.createTypeLevelNormalizerFor(root.getComparatorBase(), root.getIndexedDecimalPlaces())
 		);
 	}
 
@@ -873,7 +875,7 @@ class SortIndexOwnerPagingRoundTripTest implements EvitaTestSupport {
 			root.getSortedRecords(),
 			root.getSortedRecordsValues(),
 			root.getValueCardinalities(),
-			SortIndex.createLegacyNormalizerFor(root.getComparatorBase(), root.getIndexedDecimalPlaces())
+			SortIndex.createTypeLevelNormalizerFor(root.getComparatorBase(), root.getIndexedDecimalPlaces())
 		);
 	}
 

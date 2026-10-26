@@ -246,7 +246,7 @@ class DifferentialComparisonTest {
 				null,
 				KEY,
 				0,
-				SortIndex.createLegacyNormalizerFor(BigDecimalNumberRange.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(BigDecimalNumberRange.class, 0)
 			);
 			atOnePlace.addRecord(rangeAt(1), 1);
 			final SortIndex atTwoPlaces = new OwnerSortIndex(
@@ -254,7 +254,7 @@ class DifferentialComparisonTest {
 				null,
 				KEY,
 				0,
-				SortIndex.createLegacyNormalizerFor(BigDecimalNumberRange.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(BigDecimalNumberRange.class, 0)
 			);
 			atTwoPlaces.addRecord(rangeAt(2), 1);
 
@@ -290,7 +290,7 @@ class DifferentialComparisonTest {
 				null,
 				KEY,
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 			oneThenTwo.addRecord(10, 1);
 			oneThenTwo.addRecord(20, 2);
@@ -300,7 +300,7 @@ class DifferentialComparisonTest {
 				null,
 				KEY,
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 			twoThenOne.addRecord(10, 1);
 			twoThenOne.addRecord(10, 2);
@@ -326,7 +326,7 @@ class DifferentialComparisonTest {
 				null,
 				KEY,
 				0,
-				SortIndex.createLegacyNormalizerFor(Locale.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Locale.class, 0)
 			);
 			locales.addRecord(Locale.GERMAN, 2);
 			locales.addRecord(Locale.ENGLISH, 1);
@@ -347,7 +347,7 @@ class DifferentialComparisonTest {
 				null,
 				KEY,
 				0,
-				SortIndex.createLegacyNormalizerFor(Currency.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Currency.class, 0)
 			);
 			currencies.addRecord(Currency.getInstance("EUR"), 1);
 			currencies.addRecord(Currency.getInstance("CZK"), 2);
@@ -360,7 +360,7 @@ class DifferentialComparisonTest {
 				null,
 				KEY,
 				0,
-				SortIndex.createLegacyNormalizerFor(OffsetDateTime.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(OffsetDateTime.class, 0)
 			);
 			final OffsetDateTime moment = OffsetDateTime.of(2026, 10, 2, 14, 0, 0, 0, ZoneOffset.ofHours(2));
 			instants.addRecord(moment, 2);
@@ -377,7 +377,7 @@ class DifferentialComparisonTest {
 					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 					new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST),
 					new ComparatorSource(Currency.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
-				}, null, KEY, SortIndex.createLegacyNormalizerFor(new ComparatorSource[]{
+				}, null, KEY, SortIndex.createTypeLevelNormalizerFor(new ComparatorSource[]{
 					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 					new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST),
 					new ComparatorSource(Currency.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
@@ -413,7 +413,7 @@ class DifferentialComparisonTest {
 				null,
 				KEY,
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			));
 
 			assertEquals(0, walk.records().length);
@@ -443,7 +443,7 @@ class DifferentialComparisonTest {
 			return new OwnerSortIndex(new ComparatorSource[]{
 					new ComparatorSource(BigDecimalNumberRange.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 					new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
-				}, null, KEY, SortIndex.createLegacyNormalizerFor(new ComparatorSource[]{
+				}, null, KEY, SortIndex.createTypeLevelNormalizerFor(new ComparatorSource[]{
 					new ComparatorSource(BigDecimalNumberRange.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 					new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 				}, 0));

@@ -153,7 +153,7 @@ public final class AnalysisStepRegistry {
 
 	/**
 	 * Returns the shared immutable key function for this exact step list and fold locale (null means root).
-	 * Null values pass through. An empty list preserves the legacy NFD-only String key function.
+	 * Null values pass through. An empty list preserves the type-level NFD-only String key function.
 	 *
 	 * @param steps      ordered normalization steps to chain
 	 * @param foldLocale locale for locale-sensitive steps such as lowercasing, `null` for the root locale

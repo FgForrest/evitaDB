@@ -515,7 +515,8 @@ class EntityIndexRoundTripTest {
 						sortViewMode
 							? () -> sharedValueIndexes.get(attrKey)
 							: null,
-						SortIndex.createLegacyNormalizerFor(sortPart.getComparatorBase(), // the scale is no longer persisted; these round-trips index no BigDecimal attribute, so it is 0
+						// The scale is no longer persisted; these round-trips index no BigDecimal attribute, so use 0.
+						SortIndex.createTypeLevelNormalizerFor(sortPart.getComparatorBase(),
 						0)
 					)
 				);

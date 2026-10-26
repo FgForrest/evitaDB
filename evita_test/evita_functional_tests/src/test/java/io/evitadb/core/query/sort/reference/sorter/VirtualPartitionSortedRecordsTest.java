@@ -128,7 +128,9 @@ class VirtualPartitionSortedRecordsTest {
 			PRICE,
 			new ComparatorSource[]{new ComparatorSource(BigDecimal.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)},
 			2,
-			() -> SortIndex.createLegacyNormalizerFor(new ComparatorSource[]{new ComparatorSource(BigDecimal.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)}, 2)
+			() -> SortIndex.createTypeLevelNormalizerFor(new ComparatorSource[]{
+				new ComparatorSource(BigDecimal.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+			}, 2)
 		);
 		this.registry.declareChainKey(POSITION);
 	}

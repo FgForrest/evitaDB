@@ -336,7 +336,7 @@ class AttributeIndexLoaderTest {
 			null,
 			key,
 			0,
-			SortIndex.createLegacyNormalizerFor(String.class, 0)
+			SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 		);
 		// more than one leaf block (256) of distinct values so the owned tree spans multiple leaves and pages out
 		for (int i = 0; i < 1_000; i++) {

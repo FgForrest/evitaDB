@@ -95,7 +95,7 @@ class SortIndexBucketAnchorParityTest {
 			null,
 			new AttributeIndexKey(null, "a", null),
 			0,
-			SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+			SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 		);
 		final TreeMap<Integer, TreeSet<Integer>> model = new TreeMap<>();
 		final Map<Integer, Integer> valueOfRecord = new TreeMap<>();
@@ -157,7 +157,7 @@ class SortIndexBucketAnchorParityTest {
 			null,
 			new AttributeIndexKey(null, "a", null),
 			0,
-			SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+			SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 		);
 		// one value ⇒ a single multi-record bucket: the order is decided purely by record-id comparison
 		sortIndex.addRecord(1, 5);

@@ -598,7 +598,7 @@ final class LegacyOwnerSortImages {
 				root.getLeafPageSequences(),
 				readPages(catalogVersion, storage, legacy.entityIndexPrimaryKey(), root),
 				root.getHighWaterPageSequence(),
-				SortIndex.createLegacyNormalizerFor(root.getComparatorBase(), root.getIndexedDecimalPlaces())
+				SortIndex.createTypeLevelNormalizerFor(root.getComparatorBase(), root.getIndexedDecimalPlaces())
 			);
 		} else {
 			return (OwnerSortIndex) SortIndex.create(
@@ -610,7 +610,7 @@ final class LegacyOwnerSortImages {
 				root.getSortedRecordsValues(),
 				root.getValueCardinalities(),
 				null,
-				SortIndex.createLegacyNormalizerFor(root.getComparatorBase(), root.getIndexedDecimalPlaces())
+				SortIndex.createTypeLevelNormalizerFor(root.getComparatorBase(), root.getIndexedDecimalPlaces())
 			);
 		}
 	}

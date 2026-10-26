@@ -89,7 +89,7 @@ class BuiltWithNormalizationPolicyTest {
 	}
 
 	@Test
-	@DisplayName("A resolver over no persisted row keeps the legacy key function whatever today's declaration says")
+	@DisplayName("A resolver over no persisted row keeps the type-level key function whatever today's declaration says")
 	void shouldNotBorrowDeclarationWhenPersistedPolicyIsMissing() {
 		final EntitySchemaContract schema = builder().withAttribute("code", String.class,
 			a -> a.filterable().normalized(lowercase())).toInstance();

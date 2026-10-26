@@ -128,7 +128,7 @@ public abstract sealed class UniqueIndex implements
 		return UniqueIndexBPlusTreeSupport.toDeclaredValue(
 			plainType, indexedDecimalPlaces,
 			UniqueIndexBPlusTreeSupport.toKey(
-				UniqueIndexBPlusTreeSupport.legacyNormalizerFor(plainType, indexedDecimalPlaces), value
+				UniqueIndexBPlusTreeSupport.persistedValueNormalizerFor(plainType, indexedDecimalPlaces), value
 			)
 		);
 	}

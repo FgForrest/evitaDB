@@ -36,7 +36,7 @@ import java.util.Map;
 
 /**
  * Carries authoritative built-with rows shared by catalog unique indexes and adopting collections.
- * Only nonempty chains are retained; an absent row means legacy NFD-only normalization. The singleton travels
+ * Only nonempty chains are retained; an absent row means type-level NFD-only normalization. The singleton travels
  * through ordinary trapped changes and contains descriptions rather than executable index functions.
  *
  * @param rows global attribute names mapped to their built-with step lists

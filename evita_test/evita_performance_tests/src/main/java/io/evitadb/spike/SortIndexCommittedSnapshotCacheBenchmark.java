@@ -140,7 +140,7 @@ public class SortIndexCommittedSnapshotCacheBenchmark {
 			null,
 			ATTRIBUTE_KEY,
 			0,
-			SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+			SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 		);
 		for (int i = 0; i < RECORD_COUNT; i++) {
 			this.index.addRecord(shuffledValues[i], i + 1);
@@ -228,7 +228,7 @@ public class SortIndexCommittedSnapshotCacheBenchmark {
 			null,
 			ATTRIBUTE_KEY,
 			0,
-			SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+			SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 		);
 		for (int i = 0; i < RECORD_COUNT; i++) {
 			index.addRecord(shuffledValues[i], i + 1);

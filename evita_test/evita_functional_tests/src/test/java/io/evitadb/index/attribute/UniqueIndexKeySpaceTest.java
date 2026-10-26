@@ -539,7 +539,7 @@ class UniqueIndexKeySpaceTest {
 		) {
 			final GlobalUniqueIndex.InlineSnapshot snapshot = index.inlineSnapshot();
 			final Function<Object, Serializable> normalizer =
-				UniqueIndexBPlusTreeSupport.legacyNormalizerFor(keyCase.type(), keyCase.indexedDecimalPlaces());
+				UniqueIndexBPlusTreeSupport.persistedValueNormalizerFor(keyCase.type(), keyCase.indexedDecimalPlaces());
 			final Comparable<?> key = UniqueIndexBPlusTreeSupport.toKey(normalizer, value);
 			for (int i = 0; i < snapshot.values().length; i++) {
 				final Comparable<?> persisted = UniqueIndexBPlusTreeSupport.toKey(normalizer, snapshot.values()[i]);

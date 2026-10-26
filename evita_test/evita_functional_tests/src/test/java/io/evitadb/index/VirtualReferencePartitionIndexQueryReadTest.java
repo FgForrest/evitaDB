@@ -78,7 +78,7 @@ class VirtualReferencePartitionIndexQueryReadTest {
 		@DisplayName("partitions holding one value share its id, which resolves to the normalized value")
 		void shouldNameAValueByOneIdAcrossPartitions() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
+			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 0));
 			index.putSortValue(ORDER, 1, 5);
 			index.putSortValue(ORDER, 2, 5);
 			index.putSortValue(ORDER, 3, 7);
@@ -96,7 +96,7 @@ class VirtualReferencePartitionIndexQueryReadTest {
 		@DisplayName("a partition without a value, or a key not declared, has no value id")
 		void shouldReportNoValueId() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
+			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 0));
 			index.putSortValue(ORDER, 1, 5);
 
 			assertEquals(VirtualReferencePartitionIndex.NO_SORT_VALUE_ID, index.getSortValueId(ORDER, 2));
@@ -107,7 +107,7 @@ class VirtualReferencePartitionIndexQueryReadTest {
 		@DisplayName("an id not in use, or a key not declared, cannot be resolved to a value")
 		void shouldRejectAnUnknownValueId() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
+			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 0));
 			index.putSortValue(ORDER, 1, 5);
 			final int five = index.getSortValueId(ORDER, 1);
 
@@ -123,7 +123,7 @@ class VirtualReferencePartitionIndexQueryReadTest {
 		@DisplayName("an open transaction reads the value ids of its own writes")
 		void shouldReadTheTransactionsOwnValueIds() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
+			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 0));
 			index.putSortValue(ORDER, 1, 5);
 
 			assertStateAfterCommit(
@@ -155,7 +155,7 @@ class VirtualReferencePartitionIndexQueryReadTest {
 		 */
 		private static VirtualReferencePartitionIndex indexWithValues() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
+			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 0));
 			final int[] values = {7, 3, 7, 9, 3};
 			for (int i = 0; i < values.length; i++) {
 				index.putSortValue(ORDER, i + 1, values[i]);

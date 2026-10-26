@@ -61,12 +61,12 @@ import java.util.function.Function;
  * equal at the indexed scale - are therefore one unique value as well: a lookup by either finds the owner, and the
  * second is refused for anyone else. Raw registration, removal and lookup values enter {@link #toKey} with the
  * captured raw-input function.
- * Persisted keys enter {@link #toPersistedKeys} with the legacy type-level canonicalizer only.
+ * Persisted keys enter {@link #toPersistedKeys} with the type-level canonicalizer only.
  *
  * Storage parts do not carry the keys themselves. Their serializers read every inline value back as the DECLARED
  * attribute type, so {@link #toDeclaredValue} turns each key into a value of that type naming the same key - an
  * `OffsetDateTime` at UTC, a `BigDecimal` at the indexed scale, the bare `Currency` / `Locale` - and the restore
- * converts it with the legacy function. The on-disk format is the one it has always been.
+ * converts it with the type-level function. The on-disk format is the one it has always been.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -107,17 +107,21 @@ final class UniqueIndexBPlusTreeSupport {
 	}
 
 	/**
-	 * Returns the legacy type-only function converting a value to its unique-tree key (NFD-only for String),
-	 * for migrations and standalone compatibility owners. Attribute paths supply their resolved function.
+	 * Returns the type-level unique-tree key function, depending only on the attribute type and decimal scale
+	 * (NFD-only for `String`). Attributes without a built-with row, storage migrations and standalone synthetic
+	 * owners use this function. Attribute write/load paths bind the owner's resolved function through
+	 * {@link io.evitadb.index.analysis.AttributeNormalizationResolver} instead.
 	 *
 	 * @param plainType            the plain (array-unwrapped) attribute type
 	 * @param indexedDecimalPlaces the scale `BigDecimal` and `BigDecimalNumberRange` values are keyed at (ignored for
 	 *                             every other type)
-	 * @return the normalizer
+	 * @return the type-level key function for values of the declared type, including persisted values
 	 */
 	@Nonnull
-	static Function<Object, Serializable> legacyNormalizerFor(@Nonnull Class<?> plainType, int indexedDecimalPlaces) {
-		return plainType == String.class ? FilterIndex.getLegacyStringNormalizer()
+	static Function<Object, Serializable> persistedValueNormalizerFor(
+		@Nonnull Class<?> plainType, int indexedDecimalPlaces
+	) {
+		return plainType == String.class ? FilterIndex.getTypeLevelStringNormalizer()
 			: FilterIndex.getNormalizer(plainType, indexedDecimalPlaces);
 	}
 
@@ -128,7 +132,7 @@ final class UniqueIndexBPlusTreeSupport {
 	 *
 	 * The supplied function accepts raw input; a declared chain must never receive an already-stored key.
 	 *
-	 * @param normalizer the normalizer of the tree (see {@link #legacyNormalizerFor})
+	 * @param normalizer the normalizer of the tree (see {@link #persistedValueNormalizerFor})
 	 * @param value      the raw attribute value or raw probe
 	 * @return the tree key
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the key is not serializable or not comparable
@@ -145,7 +149,7 @@ final class UniqueIndexBPlusTreeSupport {
 	 * {@link #foldOntoDistinctValues}. Two elements the normalizer maps to one key (two spellings of one value in one
 	 * array) are then one tree entry, exactly as two equal elements are.
 	 *
-	 * @param normalizer the normalizer of the tree (see {@link #legacyNormalizerFor})
+	 * @param normalizer the normalizer of the tree (see {@link #persistedValueNormalizerFor})
 	 * @param values     the array elements
 	 * @return the distinct tree keys, in the encounter order of their first element
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException when a key is not serializable or not comparable
@@ -191,7 +195,7 @@ final class UniqueIndexBPlusTreeSupport {
 	 *   type already.
 	 *
 	 * Storage parts carry these values, because the inline serializers read every value back as the declared type;
-	 * the restore converts them with the legacy canonicalizer. Violation messages
+	 * the restore converts them with the type-level canonicalizer. Violation messages
 	 * show them for the same reason: they name a value of the attribute's type.
 	 *
 	 * @param plainType            the plain (array-unwrapped) attribute type

@@ -461,7 +461,7 @@ public final class Catalog
 	 * already stored for each global attribute were built with. The catalog's global unique trees (both scopes) and
 	 * every collection that adopted the global attribute key their Strings with this one row, so that a value has the
 	 * same key in all of them. Resolvers are built from it on demand (see {@link #getAttributeNormalizationResolver()});
-	 * a missing name means legacy NFD.
+	 * a missing name means type-level NFD.
 	 *
 	 * **Deliberately not part of the schema.** The schema holds the declaration and this map holds what the existing
 	 * keys were built with, and the two differ once a populated attribute changes its declaration: the change is

@@ -75,7 +75,7 @@ public final class VirtualReferencePartitionLoader implements ComponentLoader {
 	/**
 	 * Reloads the index of one referenced-type entity index on its own, without the rest of that entity index - the
 	 * way the storage protocol migration reads a registry it rewrites, holding no more than the registry itself. It
-	 * binds the legacy type-level key functions only; {@link #load(LoadContext)} goes through the overload taking the
+	 * binds the type-level key functions only; {@link #load(LoadContext)} goes through the overload taking the
 	 * owner-resolved functions instead.
 	 *
 	 * @param service        the storage part service of the collection
@@ -96,7 +96,7 @@ public final class VirtualReferencePartitionLoader implements ComponentLoader {
 			catalogVersion,
 			entityIndexId,
 			referenceName,
-			slot -> SortIndex.createLegacyNormalizerFor(slot.comparatorBase(), slot.indexedDecimalPlaces())
+			slot -> SortIndex.createTypeLevelNormalizerFor(slot.comparatorBase(), slot.indexedDecimalPlaces())
 		);
 	}
 

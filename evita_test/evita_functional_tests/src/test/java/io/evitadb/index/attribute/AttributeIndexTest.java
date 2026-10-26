@@ -304,7 +304,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 				null,
 				sortKey,
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 			sortIdx.addRecord(10, 1);
 
@@ -931,7 +931,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 				null,
 				sortKey,
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 			sortIdx.addRecord(10, 1);
 

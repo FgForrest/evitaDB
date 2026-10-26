@@ -103,7 +103,7 @@ class LongRunningSavepointSortIndexTest extends AbstractSavepointFuzzTest<List<I
 			null,
 			new AttributeIndexKey(null, "a", null),
 			0,
-			SortIndex.createLegacyNormalizerFor(String.class, 0)
+			SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 		);
 		private final TreeSet<ValueRecord> model = new TreeSet<>();
 

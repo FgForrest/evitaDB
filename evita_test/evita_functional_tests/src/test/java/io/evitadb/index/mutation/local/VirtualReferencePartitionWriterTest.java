@@ -119,7 +119,7 @@ class VirtualReferencePartitionWriterTest {
 				new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 			},
 			0,
-			() -> SortIndex.createLegacyNormalizerFor(new ComparatorSource[]{
+			() -> SortIndex.createTypeLevelNormalizerFor(new ComparatorSource[]{
 				new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 			}, 0)
 		);

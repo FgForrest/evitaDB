@@ -169,7 +169,7 @@ class SortIndexTest {
 			null,
 			new AttributeIndexKey(null, "a", null),
 			0,
-			SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+			SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 		);
 		sortIndex.addRecord(7, 2);
 		sortIndex.addRecord(3, 4);
@@ -199,7 +199,7 @@ class SortIndexTest {
 			null,
 			new AttributeIndexKey(null, "a", null),
 			0,
-			SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+			SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 		);
 		sortIndex.addRecord(7, 2);
 		sortIndex.addRecord(3, 4);
@@ -220,7 +220,7 @@ class SortIndexTest {
 			null,
 			new AttributeIndexKey(null, "a", CZECH_LOCALE),
 			0,
-			SortIndex.createLegacyNormalizerFor(String.class, 0)
+			SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 		);
 		sortIndex.addRecord("c", 2);
 		sortIndex.addRecord("č", 3);
@@ -250,7 +250,7 @@ class SortIndexTest {
 			null,
 			new AttributeIndexKey(null, "a", CZECH_LOCALE),
 			0,
-			SortIndex.createLegacyNormalizerFor(BigDecimal.class, 0)
+			SortIndex.createTypeLevelNormalizerFor(BigDecimal.class, 0)
 		);
 		sortIndex.addRecord(new BigDecimal("0"), 1);
 		sortIndex.addRecord(new BigDecimal("0"), 2);
@@ -348,7 +348,7 @@ class SortIndexTest {
 			null,
 			new AttributeIndexKey(null, "a", null),
 			0,
-			SortIndex.createLegacyNormalizerFor(String.class, 0)
+			SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 		);
 		sortIndex.addRecord("W", 49);
 		sortIndex.addRecord("Z", 150);
@@ -374,7 +374,7 @@ class SortIndexTest {
 			null,
 			new AttributeIndexKey(null, "a", CZECH_LOCALE),
 			0,
-			SortIndex.createLegacyNormalizerFor(String.class, 0)
+			SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 		);
 		sortIndex.addRecord("A", 1);
 		sortIndex.addRecord("Š", 2);
@@ -406,7 +406,7 @@ class SortIndexTest {
 			null,
 			new AttributeIndexKey(null, "a", Locale.ENGLISH),
 			0,
-			SortIndex.createLegacyNormalizerFor(String.class, 0)
+			SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 		);
 		sortIndex.addRecord("B", 5);
 		sortIndex.addRecord("A", 6);
@@ -431,7 +431,7 @@ class SortIndexTest {
 			new RepresentativeReferenceKey(new ReferenceKey("brand", 1)),
 			new AttributeIndexKey(null, "a", Locale.ENGLISH),
 			0,
-			SortIndex.createLegacyNormalizerFor(String.class, 0)
+			SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 		);
 		sortIndex.addRecord("B", 5);
 		sortIndex.addRecord("A", 6);
@@ -451,7 +451,7 @@ class SortIndexTest {
 			null,
 			new AttributeIndexKey(null, "a", Locale.ENGLISH),
 			0,
-			SortIndex.createLegacyNormalizerFor(String.class, 0)
+			SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 		);
 		sortIndex.addRecord("A", 5);
 		sortIndex.addRecord("A", 6);
@@ -469,7 +469,8 @@ class SortIndexTest {
 		final SortIndex sortIndex = new OwnerSortIndex(new ComparatorSource[]{
 				new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 				new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
-			}, null, new AttributeIndexKey(null, "a", Locale.ENGLISH), SortIndex.createLegacyNormalizerFor(new ComparatorSource[]{
+			}, null, new AttributeIndexKey(null, "a", Locale.ENGLISH),
+			SortIndex.createTypeLevelNormalizerFor(new ComparatorSource[]{
 				new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 				new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 			}, 0));
@@ -498,14 +499,14 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "x", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 			final SortIndex second = new OwnerSortIndex(
 				Integer.class,
 				null,
 				new AttributeIndexKey(null, "y", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 
 			assertNotEquals(first.getId(), second.getId());
@@ -519,7 +520,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 
 			assertStateAfterCommit(
@@ -539,7 +540,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 
 			assertStateAfterCommit(
@@ -561,7 +562,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(String.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 			);
 			sortIndex.addRecord("A", 1);
 
@@ -589,7 +590,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(String.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 			);
 			sortIndex.addRecord("X", 10);
 
@@ -617,7 +618,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(String.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 			);
 			sortIndex.addRecord("A", 1);
 			sortIndex.addRecord("B", 2);
@@ -652,7 +653,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 
 			assertTrue(sortIndex.isEmpty());
@@ -667,7 +668,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 
 			final TrappedChanges sink = new TrappedChanges();
@@ -683,7 +684,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "name", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(String.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 			);
 			sortIndex.addRecord("Alpha", 1);
 			sortIndex.addRecord("Beta", 2);
@@ -714,7 +715,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(String.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 			);
 			sortIndex.addRecord("X", 1);
 
@@ -739,7 +740,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(String.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 			);
 			sortIndex.addRecord("A", 1);
 
@@ -768,7 +769,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(String.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 			);
 			sortIndex.addRecord("A", 1);
 
@@ -785,7 +786,8 @@ class SortIndexTest {
 			final SortIndex sortIndex = new OwnerSortIndex(new ComparatorSource[]{
 					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 					new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
-				}, null, new AttributeIndexKey(null, "a", null), SortIndex.createLegacyNormalizerFor(new ComparatorSource[]{
+				}, null, new AttributeIndexKey(null, "a", null),
+				SortIndex.createTypeLevelNormalizerFor(new ComparatorSource[]{
 					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 					new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 				}, 0));
@@ -806,7 +808,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(String.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 			);
 
 			// cast to Serializable to force the scalar overload
@@ -826,7 +828,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 
 			final IllegalArgumentException ex = assertThrows(
@@ -844,7 +846,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(String.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 			);
 			sortIndex.addRecord("A", 1);
 
@@ -861,7 +863,8 @@ class SortIndexTest {
 			final SortIndex sortIndex = new OwnerSortIndex(new ComparatorSource[]{
 					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 					new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
-				}, null, new AttributeIndexKey(null, "a", null), SortIndex.createLegacyNormalizerFor(new ComparatorSource[]{
+				}, null, new AttributeIndexKey(null, "a", null),
+				SortIndex.createTypeLevelNormalizerFor(new ComparatorSource[]{
 					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 					new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 				}, 0));
@@ -882,7 +885,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(String.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 			);
 			sortIndex.addRecord("A", 1);
 
@@ -926,7 +929,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(String.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 			);
 			sortIndex.addRecord("X", 1);
 			sortIndex.addRecord("X", 2);
@@ -1293,7 +1296,8 @@ class SortIndexTest {
 				IllegalArgumentException.class,
 				() -> new OwnerSortIndex(new ComparatorSource[]{
 						new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
-					}, null, new AttributeIndexKey(null, "a", null), SortIndex.createLegacyNormalizerFor(new ComparatorSource[]{
+					}, null, new AttributeIndexKey(null, "a", null),
+					SortIndex.createTypeLevelNormalizerFor(new ComparatorSource[]{
 						new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 					}, 0))
 			);
@@ -1316,7 +1320,7 @@ class SortIndexTest {
 				new int[]{1, 2, 3},
 				new String[]{"A", "B"},
 				cardinalities,
-				SortIndex.createLegacyNormalizerFor(base, 0)
+				SortIndex.createTypeLevelNormalizerFor(base, 0)
 			);
 
 			assertEquals(3, sortIndex.size());
@@ -1334,7 +1338,7 @@ class SortIndexTest {
 				refKey,
 				new AttributeIndexKey(null, "name", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(String.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 			);
 
 			assertNotNull(sortIndex.getReferenceKey());
@@ -1349,7 +1353,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "name", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(String.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 			);
 
 			assertNull(sortIndex.getReferenceKey());
@@ -1973,7 +1977,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 			final List<int[]> pairs = new ArrayList<>(recordCount);
 			for (int recordId = 1; recordId <= recordCount; recordId++) {
@@ -2028,7 +2032,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 			final List<int[]> pairs = new ArrayList<>();
 			for (int recordId = 1; recordId <= 2_000; recordId++) {
@@ -2059,7 +2063,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 			final Random random = new Random(20260728L);
 			final List<int[]> pairs = new ArrayList<>();
@@ -2114,7 +2118,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 			sortIndex.addRecord(7, 2);
 
@@ -2134,7 +2138,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 
 			final long heap = sortIndex.getHeapSizeInBytes();
@@ -2153,7 +2157,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 			small.addRecord(7, 2);
 			final SortIndex large = new OwnerSortIndex(
@@ -2161,7 +2165,7 @@ class SortIndexTest {
 				null,
 				new AttributeIndexKey(null, "a", null),
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 			for (int recordId = 1; recordId <= 500; recordId++) {
 				large.addRecord(recordId, recordId);

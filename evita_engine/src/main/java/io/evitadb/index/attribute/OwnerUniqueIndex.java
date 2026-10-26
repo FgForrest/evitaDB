@@ -61,7 +61,7 @@ import java.util.function.Function;
 
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.collidingKeysError;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.findFirstNonAscendingKey;
-import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.legacyNormalizerFor;
+import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.persistedValueNormalizerFor;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.plainTypeOf;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.toDeclaredValue;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.toDistinctKeys;
@@ -114,7 +114,8 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 */
 	@Getter private final int indexedDecimalPlaces;
 	/**
-	 * Converts raw values and probes to keys in {@link #tree}; persisted keys use the legacy canonicalizer separately.
+	 * Converts raw values and probes to keys in {@link #tree}; persisted keys use the type-level canonicalizer
+	 * separately.
 	 */
 	@Nonnull private final Function<Object, Serializable> normalizer;
 	/**
@@ -163,7 +164,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 			attributeIndexKey,
 			attributeType,
 			indexedDecimalPlaces,
-			legacyNormalizerFor(plainTypeOf(attributeType), indexedDecimalPlaces)
+			persistedValueNormalizerFor(plainTypeOf(attributeType), indexedDecimalPlaces)
 		);
 	}
 
@@ -288,11 +289,11 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		final Class<?> plainType = plainTypeOf(attributeType);
 		// Persisted parts carry declared-type values. Every load converts them to keys with the type-level
 		// function, never a declared chain: a persisted String is already a chain-built key.
-		final Function<Object, Serializable> legacyCanonicalizer =
-			legacyNormalizerFor(plainType, indexedDecimalPlaces);
+		final Function<Object, Serializable> persistedValueNormalizer =
+			persistedValueNormalizerFor(plainType, indexedDecimalPlaces);
 		final List<TransactionalBucketBPlusTree> pageTrees = new ArrayList<>(orderedPageSequences.length);
 		for (int i = 0; i < orderedPageSequences.length; i++) {
-			final Object[] keys = toPersistedKeys(legacyCanonicalizer, perPageValues[i]);
+			final Object[] keys = toPersistedKeys(persistedValueNormalizer, perPageValues[i]);
 			final int[] records = perPageRecordIds[i];
 			// a page never exceeds a leaf's capacity, so this single-leaf tree never splits; bulk-build the leaf's
 			// columns in one pass instead of `values.length` sequential addRecord calls - see
@@ -556,7 +557,9 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * @param recordIds the persisted record ids, positionally aligned with `values`
 	 */
 	private void seedTree(@Nonnull Serializable[] values, @Nonnull int[] recordIds) {
-		final Object[] keys = toPersistedKeys(legacyNormalizerFor(this.plainType, this.indexedDecimalPlaces), values);
+		final Object[] keys = toPersistedKeys(
+			persistedValueNormalizerFor(this.plainType, this.indexedDecimalPlaces), values
+		);
 		for (int i = 0; i < keys.length; i++) {
 			this.tree.addRecord((Comparable) keys[i], recordIds[i]);
 			if (this.tree.size() != i + 1) {

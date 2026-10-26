@@ -137,7 +137,7 @@ import java.util.function.Supplier;
  * retried after the offending schema scale is corrected.
  *
  * @deprecated removable once no catalog older than the 2026 release that introduced protocol 6 is in use.
- * Re-canonicalizing here heals keys written by older versions and must use the legacy function only.
+ * Re-canonicalizing here heals keys written by older versions and must use the type-level function only.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

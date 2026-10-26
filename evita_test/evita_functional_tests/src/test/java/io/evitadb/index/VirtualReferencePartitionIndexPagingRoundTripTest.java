@@ -418,7 +418,7 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 			order,
 			VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC,
 			0,
-			() -> SortIndex.createLegacyNormalizerFor(VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC, 0)
+			() -> SortIndex.createTypeLevelNormalizerFor(VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC, 0)
 		);
 		live.declareChainKey(chain);
 		final int partitions = 300;
@@ -647,7 +647,7 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 				order,
 				VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC,
 				0,
-				() -> SortIndex.createLegacyNormalizerFor(VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC, 0)
+				() -> SortIndex.createTypeLevelNormalizerFor(VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC, 0)
 			);
 			for (int partition = 1; partition <= PARTITION_COUNT; partition++) {
 				source.putSortValue(order, partition, 1 + partition % 77);
@@ -707,7 +707,7 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 			sharedTree.addRecord(7, 6);
 
 			final VirtualReferencePartitionIndex source = new VirtualReferencePartitionIndex();
-			source.declareSortKey(priority, integerAsc, 0, () -> SortIndex.createLegacyNormalizerFor(integerAsc, 0));
+			source.declareSortKey(priority, integerAsc, 0, () -> SortIndex.createTypeLevelNormalizerFor(integerAsc, 0));
 			source.putSortValue(priority, 3, 5);
 			source.putSortValue(priority, 4, 5);
 			source.putSortValue(priority, 6, 7);
@@ -729,7 +729,7 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 				expected.values().toArray(Serializable[]::new),
 				Map.<Serializable, Integer>of(5, 2),
 				() -> sharedTree,
-				SortIndex.createLegacyNormalizerFor(integerAsc, 0)
+				SortIndex.createTypeLevelNormalizerFor(integerAsc, 0)
 			);
 			assertInstanceOf(SortIndexView.class, view);
 			assertNotEquals(
@@ -781,7 +781,7 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 				order,
 				VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC,
 				0,
-				() -> SortIndex.createLegacyNormalizerFor(VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC, 0)
+				() -> SortIndex.createTypeLevelNormalizerFor(VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC, 0)
 			);
 			final VirtualReferencePartitionIndexStoragePart root = singleRoot(flushAndPersist(source));
 			assertFalse(root.isPaged());

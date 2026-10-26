@@ -122,7 +122,7 @@ class VirtualReferencePartitionIndexStaleLeafPageTwinTest {
 			new Serializable[0][],
 			new SortValueSlot[0],
 			new ChainPredecessorSlot[0],
-			slot -> SortIndex.createLegacyNormalizerFor(slot.comparatorBase(), slot.indexedDecimalPlaces())
+			slot -> SortIndex.createTypeLevelNormalizerFor(slot.comparatorBase(), slot.indexedDecimalPlaces())
 		);
 	}
 

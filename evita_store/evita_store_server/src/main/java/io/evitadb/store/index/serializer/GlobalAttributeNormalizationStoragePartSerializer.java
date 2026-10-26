@@ -42,7 +42,7 @@ import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeAn
 /**
  * Serializes authoritative catalog normalization rows as ordered step descriptions.
  * Global attribute names and step parameter names are written deterministically. Empty chains are represented by
- * absence, matching the catalog's legacy NFD-only policy without persisting executable functions.
+ * absence, matching the catalog's type-level NFD-only policy without persisting executable functions.
  */
 public class GlobalAttributeNormalizationStoragePartSerializer
 	extends Serializer<GlobalAttributeNormalizationStoragePart> {

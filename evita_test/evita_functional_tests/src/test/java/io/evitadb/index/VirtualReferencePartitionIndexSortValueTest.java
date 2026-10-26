@@ -205,7 +205,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 				this.key,
 				this.comparatorBase,
 				this.decimalPlaces,
-				() -> SortIndex.createLegacyNormalizerFor(this.comparatorBase, this.decimalPlaces)
+				() -> SortIndex.createTypeLevelNormalizerFor(this.comparatorBase, this.decimalPlaces)
 			);
 		}
 
@@ -501,7 +501,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 		void shouldDeclareKeyWithEmptySortIndex() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
 			assertFalse(index.getDeclaredSortKeys().contains(ORDER));
-			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
+			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 0));
 
 			assertEquals(NO_VALUES, snapshotOf(index, ORDER));
 			assertEquals(0, index.getDistinctSortValueCount(ORDER));
@@ -516,7 +516,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 		@DisplayName("declaring the same key again changes nothing, declaring it differently is refused")
 		void shouldIgnoreRepeatedDeclarationAndRefuseConflictingOne() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
+			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 0));
 			index.putSortValue(ORDER, 1, 5);
 			final SortSnapshot before = snapshotOf(index, ORDER);
 			final int valueId = index.getSortValueId(ORDER, 1);
@@ -526,7 +526,9 @@ class VirtualReferencePartitionIndexSortValueTest {
 				ORDER,
 				new ComparatorSource[]{new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)},
 				0,
-				() -> SortIndex.createLegacyNormalizerFor(new ComparatorSource[]{new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)}, 0)
+				() -> SortIndex.createTypeLevelNormalizerFor(new ComparatorSource[]{
+					new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+				}, 0)
 			);
 			assertEquals(before, snapshotOf(index, ORDER));
 			assertEquals(valueId, index.getSortValueId(ORDER, 1), "A repeated declaration must keep the value ids");
@@ -538,14 +540,16 @@ class VirtualReferencePartitionIndexSortValueTest {
 					ORDER,
 					new ComparatorSource[]{new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST)},
 					0,
-					() -> SortIndex.createLegacyNormalizerFor(new ComparatorSource[]{new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST)}, 0)
+					() -> SortIndex.createTypeLevelNormalizerFor(new ComparatorSource[]{
+						new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
+					}, 0)
 				)
 			);
 			assertThrows(GenericEvitaInternalError.class, () -> index.declareSortKey(
 				ORDER,
 				INTEGER_ASC,
 				2,
-				() -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 2)
+				() -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 2)
 			));
 		}
 
@@ -603,7 +607,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 		@DisplayName("an index holding only declared keys becomes empty again once they are retired")
 		void shouldBecomeEmptyWhenTheLastKeyIsRetired() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
+			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 0));
 			index.putSortValue(ORDER, 4, 2);
 			index.retireSortKey(ORDER);
 			assertTrue(index.isEmpty());
@@ -794,7 +798,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 		@DisplayName("a value leaves the dictionary together with its last user")
 		void shouldDropValueWithItsLastUser() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
+			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 0));
 			index.putSortValue(ORDER, 1, 7);
 			index.putSortValue(ORDER, 2, 7);
 			index.putSortValue(ORDER, 3, 9);
@@ -813,7 +817,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 		@DisplayName("switching a partition to another value releases the previous one")
 		void shouldReleaseThePreviousValueWhenSwitching() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
+			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 0));
 			index.putSortValue(ORDER, 1, 7);
 			index.putSortValue(ORDER, 1, 9);
 			assertArrayEquals(new Serializable[]{9}, persistedSlot(flush(index), ORDER).values());
@@ -824,7 +828,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 		@DisplayName("re-recording the same value neither dirties the index nor adds a user")
 		void shouldIgnoreTheSameValueRecordedAgain() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
+			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 0));
 			index.putSortValue(ORDER, 1, 7);
 			index.resetDirty();
 
@@ -840,7 +844,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 		@DisplayName("value ids are handed out in ascending order and never reused while the key is declared")
 		void shouldNeverReuseValueIdsOfADeclaredKey() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
+			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 0));
 			index.putSortValue(ORDER, 1, 7);
 			index.putSortValue(ORDER, 2, 9);
 			final int[] firstIds = persistedSlot(flush(index), ORDER).valueIds();
@@ -891,7 +895,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 		@DisplayName("a transaction that only records sort values commits every sort index it touched")
 		void shouldCommitATransactionOfPutsAlone() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
+			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 0));
 			index.putSortValue(ORDER, 1, 3);
 			index.resetDirty();
 
@@ -916,7 +920,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 		@DisplayName("a transaction that only removes sort values commits every sort index it touched")
 		void shouldCommitATransactionOfRemovalsAlone() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
+			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 0));
 			index.putSortValue(ORDER, 1, 3);
 			index.putSortValue(ORDER, 2, 3);
 			index.resetDirty();
@@ -935,7 +939,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 		@DisplayName("declaring and retiring keys inside a transaction commits cleanly")
 		void shouldCommitDeclarationAndRetirement() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
+			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 0));
 			index.putSortValue(ORDER, 1, 3);
 			index.resetDirty();
 			final SortKeyFixture title = FIXTURES.get(1);
@@ -947,7 +951,9 @@ class VirtualReferencePartitionIndexSortValueTest {
 					title.put(original, 1, "hora");
 					original.retireSortKey(ORDER);
 					// declared, written and retired within the same transaction
-					original.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
+					original.declareSortKey(
+						ORDER, INTEGER_ASC, 0, () -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 0)
+					);
 					original.putSortValue(ORDER, 2, 4);
 					original.retireSortKey(ORDER);
 				},
@@ -1030,7 +1036,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 						new AttributeIndexKey(REFERENCE_NAME, "fresh", null),
 						INTEGER_ASC,
 						0,
-						() -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0)
+						() -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 0)
 					);
 				}
 			);
@@ -1051,7 +1057,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 		@DisplayName("the slot entries hold the value ids the persisted dictionary lists")
 		void shouldPersistEntriesReferringToTheDictionary() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
+			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 0));
 			index.putSortValue(ORDER, 2, 9);
 			index.putSortValue(ORDER, 5, 7);
 

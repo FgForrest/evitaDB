@@ -150,8 +150,8 @@ public abstract sealed class SortIndex
 	 * (source: <a href="https://jenkov.com/tutorials/java-internationalization/collator.html">Jenkov.com</a>)
 	 *
 	 * This is the immutable key function captured at creation/load. Attribute owners bind String policy through
-	 * {@link io.evitadb.index.analysis.AttributeNormalizationResolver}; legacy owners use type-only NFD. A view
-	 * captures the shared tree's function here, so {@link #effectiveNormalizer()} answers it in both modes.
+	 * {@link io.evitadb.index.analysis.AttributeNormalizationResolver}; owners without a built-with row use type-level
+	 * NFD. A view captures the shared tree's function here, so {@link #effectiveNormalizer()} answers it in both modes.
 	 */
 	final UnaryOperator<Serializable> normalizer;
 	/**
@@ -417,14 +417,17 @@ public abstract sealed class SortIndex
 	}
 
 	/**
-	 * Legacy type-only encoding for a single-attribute migration or synthetic owner.
+	 * Returns the type-level sort key function for a single attribute, depending only on its type and decimal
+	 * scale (NFD-only for `String`). Attributes without a built-with row, storage migrations and standalone
+	 * synthetic owners use this function. Attribute write/load paths bind the owner's resolved function through
+	 * {@link io.evitadb.index.analysis.AttributeNormalizationResolver} instead.
 	 *
 	 * @param attributeType        plain type of the attribute values
 	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values
 	 * @return key function for the type; identity when the type needs no canonicalization
 	 */
 	@Nonnull
-	public static UnaryOperator<Serializable> createLegacyNormalizerFor(
+	public static UnaryOperator<Serializable> createTypeLevelNormalizerFor(
 		@Nonnull Class<?> attributeType, int indexedDecimalPlaces
 	) {
 		return createNormalizerFor(
@@ -433,15 +436,17 @@ public abstract sealed class SortIndex
 	}
 
 	/**
-	 * Legacy type-only sort key encoding for storage migrations and standalone synthetic owners.
-	 * Attribute write/load paths must supply an owner-resolved function instead.
+	 * Returns the type-level sort key function for the comparator elements, depending only on their types and
+	 * decimal scale (NFD-only for `String`). Attributes without a built-with row, storage migrations and standalone
+	 * synthetic owners use this function. Attribute write/load paths bind the owner's resolved function through
+	 * {@link io.evitadb.index.analysis.AttributeNormalizationResolver} instead.
 	 *
 	 * @param comparatorBase       one descriptor per element; a single element yields a scalar key function
 	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` elements
 	 * @return key function for the elements; identity when none needs canonicalization
 	 */
 	@Nonnull
-	public static UnaryOperator<Serializable> createLegacyNormalizerFor(
+	public static UnaryOperator<Serializable> createTypeLevelNormalizerFor(
 		@Nonnull ComparatorSource[] comparatorBase, int indexedDecimalPlaces
 	) {
 		return comparatorBase.length == 1

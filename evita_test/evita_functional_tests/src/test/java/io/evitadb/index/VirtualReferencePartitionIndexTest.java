@@ -522,7 +522,7 @@ class VirtualReferencePartitionIndexTest {
 			final VirtualReferencePartitionIndex reloaded = new VirtualReferencePartitionIndex(
 				REFERENCE_NAME, root.getKeys(), root.getPayloads(), persistedIds, root.getTuples(),
 				root.getSortValueSlots(), root.getChainPredecessorSlots()
-			, slot -> SortIndex.createLegacyNormalizerFor(slot.comparatorBase(), slot.indexedDecimalPlaces()));
+			, slot -> SortIndex.createTypeLevelNormalizerFor(slot.comparatorBase(), slot.indexedDecimalPlaces()));
 			reloaded.putRepresentativeTuple(4, POSTER);
 
 			final int posterId = reloaded.getTupleId(POSTER);
@@ -607,7 +607,7 @@ class VirtualReferencePartitionIndexTest {
 				VirtualReferencePartitionIndexSortValueTest.ORDER,
 				VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC,
 				0,
-				() -> SortIndex.createLegacyNormalizerFor(VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC, 0)
+				() -> SortIndex.createTypeLevelNormalizerFor(VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC, 0)
 			);
 			index.declareChainKey(chain);
 			for (int partition = 1; partition <= 3; partition++) {

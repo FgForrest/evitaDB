@@ -78,7 +78,7 @@ class SortIndexValueOfRecordTest {
 				null,
 				KEY,
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 
 			assertEquals(Optional.empty(), sortIndex.getValueOfRecord(1));
@@ -92,7 +92,7 @@ class SortIndexValueOfRecordTest {
 				null,
 				KEY,
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 			sortIndex.addRecord(10, 1);
 			sortIndex.addRecord(20, 2);
@@ -109,7 +109,7 @@ class SortIndexValueOfRecordTest {
 				null,
 				KEY,
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 			sortIndex.addRecord(10, 1);
 			sortIndex.addRecord(10, 2);
@@ -132,7 +132,7 @@ class SortIndexValueOfRecordTest {
 				null,
 				KEY,
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 			sortIndex.addRecord(30, 5);
 			sortIndex.addRecord(10, 3);
@@ -155,7 +155,7 @@ class SortIndexValueOfRecordTest {
 				null,
 				KEY,
 				0,
-				SortIndex.createLegacyNormalizerFor(Locale.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Locale.class, 0)
 			);
 			locales.addRecord(Locale.GERMAN, 1);
 			locales.addRecord(Locale.ENGLISH, 2);
@@ -164,7 +164,7 @@ class SortIndexValueOfRecordTest {
 				null,
 				KEY,
 				0,
-				SortIndex.createLegacyNormalizerFor(Currency.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Currency.class, 0)
 			);
 			currencies.addRecord(Currency.getInstance("EUR"), 1);
 			currencies.addRecord(Currency.getInstance("CZK"), 2);
@@ -184,7 +184,7 @@ class SortIndexValueOfRecordTest {
 				null,
 				KEY,
 				0,
-				SortIndex.createLegacyNormalizerFor(OffsetDateTime.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(OffsetDateTime.class, 0)
 			);
 			final OffsetDateTime moment = OffsetDateTime.of(2026, 10, 2, 12, 0, 0, 0, ZoneOffset.ofHours(2));
 			sortIndex.addRecord(moment, 1);
@@ -199,7 +199,7 @@ class SortIndexValueOfRecordTest {
 					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 					new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST),
 					new ComparatorSource(Locale.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
-				}, null, KEY, SortIndex.createLegacyNormalizerFor(new ComparatorSource[]{
+				}, null, KEY, SortIndex.createTypeLevelNormalizerFor(new ComparatorSource[]{
 					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 					new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST),
 					new ComparatorSource(Locale.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
@@ -241,7 +241,7 @@ class SortIndexValueOfRecordTest {
 				KEY,
 				0,
 				() -> shared,
-				SortIndex.createLegacyNormalizerFor(OffsetDateTime.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(OffsetDateTime.class, 0)
 			);
 			assertInstanceOf(SortIndexView.class, view);
 			final OffsetDateTime first = OffsetDateTime.of(2026, 10, 2, 12, 0, 0, 0, ZoneOffset.UTC);
@@ -291,7 +291,7 @@ class SortIndexValueOfRecordTest {
 				null,
 				KEY,
 				0,
-				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 			sortIndex.addRecord(10, 1);
 			sortIndex.addRecord(20, 2);

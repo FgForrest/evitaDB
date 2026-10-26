@@ -353,7 +353,7 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 				base,
 				null,
 				sortKey.key(),
-				SortIndex.createLegacyNormalizerFor(base, 0)
+				SortIndex.createTypeLevelNormalizerFor(base, 0)
 			);
 			final Serializable[] elements = (Serializable[]) value;
 			owner.addRecord(Arrays.copyOf(elements, elements.length), 1);
@@ -365,7 +365,7 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 			null,
 			sortKey.key(),
 			sortKey.decimalPlaces(),
-			SortIndex.createLegacyNormalizerFor(type, sortKey.decimalPlaces())
+			SortIndex.createTypeLevelNormalizerFor(type, sortKey.decimalPlaces())
 		);
 		owner.addRecord(value, 1);
 		final Serializable ownerValue = owner.getValueOfRecord(1).orElseThrow();
@@ -382,7 +382,7 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 			sortKey.key(),
 			sortKey.decimalPlaces(),
 			() -> sharedTree,
-			SortIndex.createLegacyNormalizerFor(type, sortKey.decimalPlaces())
+			SortIndex.createTypeLevelNormalizerFor(type, sortKey.decimalPlaces())
 		);
 		assertInstanceOf(SortIndexView.class, view);
 		// the order the entity index writes a filterable and sortable attribute in: the sort index, then the filter

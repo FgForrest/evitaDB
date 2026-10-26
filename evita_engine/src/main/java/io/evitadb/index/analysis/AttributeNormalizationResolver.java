@@ -53,7 +53,7 @@ import static io.evitadb.api.requestResponse.schema.OrderBehaviour.NULLS_LAST;
 public interface AttributeNormalizationResolver {
 	/** Explicit NFD-only binding for release migrations and standalone synthetic index owners. */
 	AttributeNormalizationResolver LEGACY_NFD = (referenceName, attributeSchema, foldLocale) ->
-		text -> (String) FilterIndex.getLegacyStringNormalizer().apply(text);
+		text -> (String) FilterIndex.getTypeLevelStringNormalizer().apply(text);
 
 	/**
 	 * Resolves an immutable String key function. Null fold locale means root, including cross-locale uniqueness.

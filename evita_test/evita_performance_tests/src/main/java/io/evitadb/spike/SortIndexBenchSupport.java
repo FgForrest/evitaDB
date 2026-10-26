@@ -314,7 +314,7 @@ final class SortIndexBenchSupport {
 			null,
 			ATTRIBUTE_KEY,
 			0,
-			SortIndex.createLegacyNormalizerFor(blocks.get(0).value().getClass(), 0)
+			SortIndex.createTypeLevelNormalizerFor(blocks.get(0).value().getClass(), 0)
 		);
 		for (final ValueBlock block : blocks) {
 			final Serializable value = block.value();
@@ -543,7 +543,7 @@ final class SortIndexBenchSupport {
 				orderedPageSequences,
 				perPageBuckets,
 				deserializedRoot.getHighWaterPageSequence(),
-				SortIndex.createLegacyNormalizerFor(deserializedRoot.getComparatorBase(),
+				SortIndex.createTypeLevelNormalizerFor(deserializedRoot.getComparatorBase(),
 					deserializedRoot.getIndexedDecimalPlaces())
 			);
 		}
@@ -669,7 +669,7 @@ final class SortIndexBenchSupport {
 			orderedPageSequences,
 			perPageBuckets,
 			root.getHighWaterPageSequence(),
-			SortIndex.createLegacyNormalizerFor(root.getComparatorBase(), root.getIndexedDecimalPlaces())
+			SortIndex.createTypeLevelNormalizerFor(root.getComparatorBase(), root.getIndexedDecimalPlaces())
 		);
 	}
 

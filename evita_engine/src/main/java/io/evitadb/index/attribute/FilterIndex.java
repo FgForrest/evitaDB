@@ -371,7 +371,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 			// unique / filter / sort role-views. This matches SortIndex.createNormalizerFor's NFD
 			// form verbatim, so a both-flagged attribute reads and writes the very same key bytes on every path. ASCII
 			// (`code`, `ean`) is unaffected; non-ASCII filter `=` gains canonical equivalence (accepted release-note).
-			return getLegacyStringNormalizer();
+			return getTypeLevelStringNormalizer();
 		} else if (Comparable.class.isAssignableFrom(attributeType)) {
 			return NO_NORMALIZATION;
 		} else {
@@ -381,14 +381,15 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	}
 
 	/**
-	 * Legacy NFD-only String key function for migrations and type-only compatibility callers.
-	 * Attribute write/load paths bind the owner's built-with policy through AttributeNormalizationResolver; an
-	 * attribute without a built-with row keeps this function.
+	 * Returns the type-level String key function (NFD-only), independent of any declared normalization chain.
+	 * Attributes without a built-with row, storage migrations and standalone synthetic owners use this function.
+	 * Attribute write/load paths bind the owner's resolved function through
+	 * {@link io.evitadb.index.analysis.AttributeNormalizationResolver} instead.
 	 *
 	 * @return function producing the NFD form of the textual value; `null` input yields `null`
 	 */
 	@Nonnull
-	public static Function<Object, Serializable> getLegacyStringNormalizer() {
+	public static Function<Object, Serializable> getTypeLevelStringNormalizer() {
 		return text -> text == null ? null : Normalizer.normalize(String.valueOf(text), Normalizer.Form.NFD);
 	}
 

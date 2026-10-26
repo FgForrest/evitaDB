@@ -711,7 +711,7 @@ class SortIndexTreeProviderEquivalenceTest {
 			null,
 			new AttributeIndexKey(null, "a", null),
 			0,
-			SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+			SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 		);
 		final List<int[]> pairs = new ArrayList<>(recordCount);
 		final int[] presentRecordIds = new int[recordCount];

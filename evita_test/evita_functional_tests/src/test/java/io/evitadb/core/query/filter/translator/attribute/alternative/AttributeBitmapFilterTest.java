@@ -115,9 +115,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(FILTER)
 @Tag(ATTRIBUTE)
 class AttributeBitmapFilterTest {
-	/** Explicit legacy binding for fixtures without declared steps. */
-	private static final UnaryOperator<String> LEGACY_STRING_NORMALIZER =
-		text -> (String) FilterIndex.getLegacyStringNormalizer().apply(text);
+	/** Explicit type-level binding for fixtures without declared steps. */
+	private static final UnaryOperator<String> TYPE_LEVEL_STRING_NORMALIZER =
+		text -> (String) FilterIndex.getTypeLevelStringNormalizer().apply(text);
 
 	public static final String NUMBER_RANGE = "numberRange";
 	private static final Supplier<OffsetDateTime> NOW =
@@ -180,7 +180,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = createFilter(
 			DataGenerator.ATTRIBUTE_PRIORITY,
 			attributeSchema -> BETWEEN.createMatcher(constraint, attributeSchema, keyOf(attributeSchema),
-				LEGACY_STRING_NORMALIZER, NOW)
+				TYPE_LEVEL_STRING_NORMALIZER, NOW)
 		);
 
 		final Bitmap result = filter.filter(
@@ -204,7 +204,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = createFilter(
 			NUMBER_RANGE,
 			attributeSchema -> BETWEEN.createMatcher(constraint, attributeSchema, keyOf(attributeSchema),
-				LEGACY_STRING_NORMALIZER, NOW)
+				TYPE_LEVEL_STRING_NORMALIZER, NOW)
 		);
 		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
 
@@ -224,7 +224,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = createFilter(
 			DataGenerator.ATTRIBUTE_VALIDITY,
 			attributeSchema -> BETWEEN.createMatcher(constraint, attributeSchema, keyOf(attributeSchema),
-				LEGACY_STRING_NORMALIZER, NOW)
+				TYPE_LEVEL_STRING_NORMALIZER, NOW)
 		);
 
 		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
@@ -243,7 +243,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = createFilter(
 			NUMBER_RANGE,
 			attributeSchema -> IN_RANGE.createMatcher(constraint, attributeSchema, keyOf(attributeSchema),
-				LEGACY_STRING_NORMALIZER, NOW)
+				TYPE_LEVEL_STRING_NORMALIZER, NOW)
 		);
 		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
 
@@ -262,7 +262,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = createFilter(
 			DataGenerator.ATTRIBUTE_VALIDITY,
 			attributeSchema -> IN_RANGE.createMatcher(constraint, attributeSchema, keyOf(attributeSchema),
-				LEGACY_STRING_NORMALIZER, NOW)
+				TYPE_LEVEL_STRING_NORMALIZER, NOW)
 		);
 
 		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
@@ -283,7 +283,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = createFilter(
 			attributeName,
 			attributeSchema -> CONTAINS.createMatcher(constraint, attributeSchema, keyOf(attributeSchema),
-				LEGACY_STRING_NORMALIZER, NOW)
+				TYPE_LEVEL_STRING_NORMALIZER, NOW)
 		);
 
 		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
@@ -304,7 +304,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = createFilter(
 			attributeName,
 			attributeSchema -> ENDS_WITH.createMatcher(constraint, attributeSchema, keyOf(attributeSchema),
-				LEGACY_STRING_NORMALIZER, NOW)
+				TYPE_LEVEL_STRING_NORMALIZER, NOW)
 		);
 
 		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
@@ -325,7 +325,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = createFilter(
 			attributeName,
 			attributeSchema -> STARTS_WITH.createMatcher(constraint, attributeSchema, keyOf(attributeSchema),
-				LEGACY_STRING_NORMALIZER, NOW)
+				TYPE_LEVEL_STRING_NORMALIZER, NOW)
 		);
 
 		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
@@ -346,7 +346,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = createFilter(
 			attributeName,
 			attributeSchema -> GREATER_THAN_EQUALS.createMatcher(
-				constraint, attributeSchema, keyOf(attributeSchema), LEGACY_STRING_NORMALIZER, NOW
+				constraint, attributeSchema, keyOf(attributeSchema), TYPE_LEVEL_STRING_NORMALIZER, NOW
 			)
 		);
 
@@ -368,7 +368,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = createFilter(
 			attributeName,
 			attributeSchema -> GREATER_THAN.createMatcher(constraint, attributeSchema, keyOf(attributeSchema),
-				LEGACY_STRING_NORMALIZER, NOW)
+				TYPE_LEVEL_STRING_NORMALIZER, NOW)
 		);
 
 		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
@@ -389,7 +389,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = createFilter(
 			attributeName,
 			attributeSchema -> LESS_THAN.createMatcher(constraint, attributeSchema, keyOf(attributeSchema),
-				LEGACY_STRING_NORMALIZER, NOW)
+				TYPE_LEVEL_STRING_NORMALIZER, NOW)
 		);
 
 		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
@@ -410,7 +410,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = createFilter(
 			attributeName,
 			attributeSchema -> LESS_THAN_EQUALS.createMatcher(constraint, attributeSchema, keyOf(attributeSchema),
-				LEGACY_STRING_NORMALIZER, NOW)
+				TYPE_LEVEL_STRING_NORMALIZER, NOW)
 		);
 
 		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
@@ -480,7 +480,7 @@ class AttributeBitmapFilterTest {
 			attributeSchema -> {
 				created.incrementAndGet();
 				return BETWEEN.createMatcher(constraint, attributeSchema, keyOf(attributeSchema),
-					LEGACY_STRING_NORMALIZER, NOW);
+					TYPE_LEVEL_STRING_NORMALIZER, NOW);
 			}
 		);
 
@@ -496,7 +496,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = createFilter(
 			attributeName,
 			attributeSchema -> LESS_THAN.createMatcher(constraint, attributeSchema, keyOf(attributeSchema),
-				LEGACY_STRING_NORMALIZER, NOW)
+				TYPE_LEVEL_STRING_NORMALIZER, NOW)
 		);
 
 		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
@@ -516,7 +516,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBetween constraint = attributeBetween(DataGenerator.ATTRIBUTE_PRIORITY, 20000L, 80000L);
 		final Function<AttributeSchemaContract, AttributeValueMatcher> matcherFactory =
 			attributeSchema -> BETWEEN.createMatcher(constraint, attributeSchema, keyOf(attributeSchema),
-				LEGACY_STRING_NORMALIZER, NOW);
+				TYPE_LEVEL_STRING_NORMALIZER, NOW);
 		final AttributeBitmapFilter singleValueFilter = createFilter(DataGenerator.ATTRIBUTE_PRIORITY, matcherFactory);
 		final Bitmap expected = singleValueFilter.filter(
 			createTestFilterByVisitor(filterBy(constraint), singleValueFilter)
@@ -544,7 +544,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = createFilter(
 			DataGenerator.ATTRIBUTE_PRIORITY,
 			attributeSchema -> BETWEEN.createMatcher(constraint, attributeSchema, keyOf(attributeSchema),
-				LEGACY_STRING_NORMALIZER, NOW)
+				TYPE_LEVEL_STRING_NORMALIZER, NOW)
 		);
 
 		assertTrue(filter.filter(new TestQueryExecutionContext(
