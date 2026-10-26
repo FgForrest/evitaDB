@@ -1,7 +1,7 @@
 ---
 title: Output buffers are borrowed per frame from one JVM-wide pool, and the configured size stays a hard limit
 date: 2026-10-25
-updated: 2026-10-25 20:10
+updated: 2026-10-26 12:01
 status: accepted
 kind: optimization
 issues: [1792, 1793]
@@ -66,8 +66,9 @@ starts. It returns the array once the frame is on disk.
   per frame, no extra copy. The 2026-07-08 objection to pooling only the array no longer applies: the churn it
   measured was the arrays, and both of them, the compression array included, now come from the pool.
 - **Cons:** the pool is shared by every engine and catalog in the JVM, so its metrics are JVM-wide and carry no
-  catalog; every frame passes the pool's monitor twice; an array whose borrower never returns it stays counted; a
-  transaction's output still creates its own checksum and, with compression on, its own `Deflater`.
+  catalog; every frame takes the pool's lock twice, four times with compression (about 40 ns per frame without
+  contention, see option E); an array whose borrower never returns it stays counted; a transaction's output still
+  creates its own checksum and, with compression on, its own `Deflater`.
 
 ### Option B - grow buffers on demand up to the configured size (declined)
 
@@ -94,6 +95,36 @@ With 256 KiB frames no array would be humongous on any heap, and 99.99 % of reco
 
 - **Rejected because:** they avoid G1's humongous penalty but not the number of buffers, and the JVM zeroes them on
   allocation, so the memory is committed anyway.
+
+### Option E - a lock-free pool (declined)
+
+Replace the pool's lock with a non-blocking structure. A standalone JMH harness measured five pools against a
+baseline without any pool. A frame there borrows two 4 MiB arrays, does an optional amount of work and returns both.
+The pools were the former `synchronized` monitor, the `ReentrantLock` now used, a lock-free slot array updated by
+compare-and-set (CAS), `ArrayBlockingQueue` and `ConcurrentLinkedQueue`. Pool overhead per frame, in ns, is each
+pool's time minus the baseline. The machine was a 12-core / 24-thread laptop CPU, 3 forks per cell, with a background
+load average of 3-5:
+
+| pool | 1 thread | 24 threads, no work | 4 threads, 0.75 µs work | 24 threads, 0.75 µs work |
+|---|---:|---:|---:|---:|
+| `synchronized` | 36 | 16,463 | 305 ± 518 | 19,628 |
+| `ReentrantLock` | 38 | 2,399 | 1,405 | 18,426 |
+| CAS slot array | 22 | 12,415 | 0 | 11,092 |
+| `ArrayBlockingQueue` | 40 | 2,913 | 1,286 | 19,400 |
+| `ConcurrentLinkedQueue` | 45 | 14,165 | 610 | 13,347 |
+
+- **Pros:** the CAS array saves about 15 ns per uncontended frame. It is also the fastest pool when several threads
+  each finish a frame every microsecond.
+- **Cons:** of the candidates, only the CAS array is lock-free. `ArrayBlockingQueue` guards itself with one
+  `ReentrantLock` and measures the same as the lock. `ConcurrentLinkedQueue` allocates a node per return (48 B per
+  frame). Neither queue can look up an array by size. The CAS array cannot evict exactly the oldest array. Its
+  counters also move apart from its slots, so the JFR event that feeds the gauges could report counts that never
+  held at the same time. With no work between frames it is five times slower than the lock.
+- **Rejected because:** no structure wins in every column. Contention costs microseconds only when four or more
+  threads do nothing but assemble sub-microsecond frames. In evitaDB, a frame follows the serialization of its record
+  and ends with a write to the file. Only the threads committing or flushing at that moment write frames. The WAL
+  replay in *Verification* showed unchanged write throughput with the pool. Revisit if a profile of a real workload
+  shows threads parked on the pool lock.
 
 Three ways to avoid buffering a whole frame were also rejected. Writing a placeholder length and patching it later
 rewrites bytes already handed to the file, breaking append-only immutability, and a crash before the patch leaves a
@@ -123,7 +154,9 @@ Option C would win if indivisible values could span frames.
 - `ObservableOutputBufferPool` (`io.evitadb.store.kryo`): `INSTANCE` is sized by `availableProcessors()`, keeps at
   most `2 x availableProcessors()` idle arrays across all sizes and looks them up by exact size. Idle memory is
   therefore at most `2 x CPUs x outputBufferSize`. `ObservableOutputChangeEvent` fires only when the pool allocates
-  or drops an array, never on reuse. Its counters cover borrowed and idle arrays of the whole JVM.
+  or drops an array, never on reuse. Its counters cover borrowed and idle arrays of the whole JVM. The event is
+  committed while the pool's `ReentrantLock` is held. `MetricHandler` sets each gauge from the last event in commit
+  order, so committing after the unlock could leave a gauge stale.
 - `ObservableOutput`: pooled outputs start detached and borrow on their first write. They return the array once
   the frame is appended, or on flush, reset or close when nothing is pending. A record chained over continuation
   frames keeps one array for the whole record, and the compression array is borrowed only while a frame is
@@ -191,3 +224,5 @@ and `EvitaMultiFrameWalTest`, which commits a mutation larger than the buffer en
 - **2026-10-24** - a WAL replay at 2 MiB suspends, in compaction, a catalog its server wrote at 4 MB; frame census
   of the production catalog
 - **2026-10-25** - issues #1792 and #1793 filed, implemented and measured; PR #1801 opened
+- **2026-10-26** - in review, the pool and the keeper switched from `synchronized` to `ReentrantLock`; a lock-free
+  pool was measured and declined (option E)
