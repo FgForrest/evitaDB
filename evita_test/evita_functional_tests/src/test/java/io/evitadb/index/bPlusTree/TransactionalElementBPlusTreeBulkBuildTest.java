@@ -25,6 +25,8 @@ package io.evitadb.index.bPlusTree;
 
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer.Savepoint;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -40,6 +42,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Random;
 import java.util.TreeMap;
 import java.util.function.ToIntFunction;
@@ -145,6 +148,49 @@ class TransactionalElementBPlusTreeBulkBuildTest {
 			(original, committed) -> {
 				assertMatches(original, mapOf(input));
 				assertMatches(committed, after);
+			}
+		);
+	}
+
+	/**
+	 * A split by an earlier entity must leave both offspring reachable by the next entity's savepoint rollback.
+	 */
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	@DisplayName("rollback restores split leaves created before the savepoint and commit preserves the restoration")
+	void shouldRestoreSplitLeavesCreatedBeforeSavepoint(boolean bulk) {
+		final PriceRecordContract[] input = records(127);
+		final TransactionalElementBPlusTree<PriceRecordContract> tree = bulk ? bulkBuilt(input) : insertBuilt(input);
+		assertEquals(
+			bulk ? List.of(63, 33, 31) : List.of(32, 32, 63),
+			tree.enumerateLeaves().stream().map(BPlusTreeNode::size).toList()
+		);
+		final int splitKey = bulk ? 4 : 384;
+		final int deletedKey = bulk ? 6 : 381;
+		final int insertedKey = bulk ? 5 : 383;
+		final TreeMap<Integer, PriceRecordContract> expected = mapOf(input);
+		expected.put(splitKey, rec(splitKey));
+		assertStateAfterCommit(
+			tree,
+			tested -> {
+				tested.insert(rec(splitKey));
+				assertEquals(4, tested.enumerateLeaves().size());
+				final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+				final Savepoint savepoint = maintainer.openSavepoint();
+				tested.delete(deletedKey);
+				tested.insert(rec(insertedKey));
+				assertNull(tested.search(deletedKey));
+				assertEquals(rec(insertedKey), tested.search(insertedKey));
+				maintainer.rollbackSavepoint(savepoint);
+				assertAll(
+					() -> assertEquals(rec(deletedKey), tested.search(deletedKey), "Deleted record must return"),
+					() -> assertNull(tested.search(insertedKey), "Savepoint insert must disappear"),
+					() -> assertMatches(tested, expected)
+				);
+			},
+			(original, committed) -> {
+				assertMatches(original, mapOf(input));
+				assertMatches(committed, expected);
 			}
 		);
 	}

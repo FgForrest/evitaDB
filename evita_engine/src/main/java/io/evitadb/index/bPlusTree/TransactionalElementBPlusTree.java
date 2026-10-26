@@ -286,9 +286,9 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 
 	@Override
 	protected boolean splitNodesJoinTransactionalLayer() {
-		// Outside a transaction split nodes belong to the committed base and must join later transactions' layers.
-		// Inside a transaction fresh split nodes mutate in place; the commit merge publishes participating copies.
-		return !Transaction.isTransactionAvailable();
+		// Savepoints must reach nodes created by earlier entities in the same transaction.
+		// Price-index commit merges carry this tree forward and never re-insert records into it.
+		return true;
 	}
 
 	/**
@@ -1331,14 +1331,15 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 
 		// Move half the values into a content-sized array for the left leaf. New price ids grow the right edge, while
 		// reference indexes can later insert older ids into either half; the left array grows on demand in that case.
-		// Split nodes use the same transactional participation rule as the internal nodes.
+		// Both halves and a new root must join the transactional layer so a later savepoint can undo their writes.
+		final boolean splitNodesTransactional = splitNodesJoinTransactionalLayer();
 		final BPlusLeafTreeNode<E> leftLeaf = new BPlusLeafTreeNode<>(
 			originValues,
 			newValueArray(mid),
 			this.valueBlockSize,
 			0,
 			mid,
-			!Transaction.isTransactionAvailable(),
+			splitNodesTransactional,
 			this.keyExtractor
 		);
 
@@ -1357,7 +1358,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			// their content now, so an array length taken from the wrong half would end the copied range early and the
 			// leaf's tail would vanish with no exception and no failing assert — silent data loss
 			this.valueBlockSize,
-			!Transaction.isTransactionAvailable(),
+			splitNodesTransactional,
 			this.keyExtractor
 		);
 
@@ -1373,7 +1374,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 					this.internalNodeBlockSize,
 					rightLeaf.getLeftBoundaryKey(),
 					leftLeaf, rightLeaf,
-					!Transaction.isTransactionAvailable()
+					splitNodesTransactional
 				)
 			);
 		} else {
@@ -2108,9 +2109,8 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			if (layer != null) {
 				result = trimmedCommittedCopy(theValues, thePeek);
 			} else if (!this.transactionalLayer) {
-				// nodes created during splits/merges are built with transactionalLayer=false so they do
-				// not allocate STM layers mid-transaction; on commit they must be rebuilt as participating
-				// (transactionalLayer=true) nodes so subsequent transactions can layer changes over them
+				// A non-participating layer copy must become a participating committed node so subsequent
+				// transactions and their savepoints can track its writes.
 				result = trimmedCommittedCopy(theValues, thePeek);
 			} else {
 				return this;

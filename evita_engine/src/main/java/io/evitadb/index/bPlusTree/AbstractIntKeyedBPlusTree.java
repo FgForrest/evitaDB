@@ -332,11 +332,11 @@ abstract class AbstractIntKeyedBPlusTree extends AbstractTransactionalBPlusTree
 	);
 
 	/**
-	 * The `transactionalLayer` flag for nodes a split creates. The int-to-long tree always lets split offspring join
-	 * the diff layer. The element tree's fresh split nodes mutate in place inside a transaction and are published as
-	 * participating copies by the commit merge. Outside a transaction both trees create participating nodes, since
-	 * these nodes already belong to the committed base. Cold-load bulk construction likewise creates participating
-	 * nodes outside any bound transaction.
+	 * The `transactionalLayer` flag for nodes a split creates. Both trees let split offspring join the diff layer:
+	 * a savepoint opened later in the same transaction must be able to roll back writes to those nodes. Price-index
+	 * commit merges carry the existing tree forward without re-inserting records, so split nodes no longer need to
+	 * support inserts inside a finalized commit merge. Outside a transaction the nodes join later transactions' layers;
+	 * cold-load bulk construction likewise creates participating nodes outside any bound transaction.
 	 *
 	 * @return whether nodes produced by a split participate in the transactional memory layer
 	 */
@@ -484,8 +484,7 @@ abstract class AbstractIntKeyedBPlusTree extends AbstractTransactionalBPlusTree
 		final int[] originKeys = internal.getKeys();
 		final BPlusTreeNode<?>[] originChildren = internal.getChildren();
 
-		// Whether split offspring join the transactional diff layer: true for the savepoint-participating int→long tree,
-		// transaction-aware for the price tree that is bulk-rebuilt during commit-merge (see the hook's contract).
+		// Split offspring participate so savepoints opened later in this transaction can roll back their writes.
 		final boolean splitNodesTransactional = splitNodesJoinTransactionalLayer();
 
 		// Move half the keys to the new arrays of the left internal node — the split constructor always allocates fresh

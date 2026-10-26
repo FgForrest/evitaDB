@@ -25,6 +25,8 @@ package io.evitadb.index.bPlusTree;
 
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer.Savepoint;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -242,6 +244,44 @@ class TransactionalIntToLongBPlusTreeBulkBuildTest {
 		if (savepoint != null) {
 			savepoint.commit();
 		}
+	}
+
+	/**
+	 * Guards the shared rule that nodes split before a savepoint must participate in its rollback.
+	 */
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	@DisplayName("rollback restores split leaves created before the savepoint and commit preserves the restoration")
+	void shouldRestoreSplitLeavesCreatedBeforeSavepoint(boolean bulk) {
+		final TransactionalIntToLongBPlusTree tree = spacedTree(127, bulk);
+		assertEquals(
+			bulk ? List.of(63, 33, 31) : List.of(32, 32, 63),
+			tree.enumerateLeaves().stream().map(BPlusTreeNode::size).toList()
+		);
+		final int splitKey = bulk ? 4 : 384;
+		final int deletedKey = bulk ? 6 : 381;
+		final int insertedKey = bulk ? 5 : 383;
+		final TransactionalIntToLongBPlusTree expected = spacedTree(127, false);
+		expected.insert(splitKey, value(splitKey));
+		assertStateAfterCommit(
+			tree,
+			tested -> {
+				tested.insert(splitKey, value(splitKey));
+				assertEquals(4, tested.enumerateLeaves().size());
+				final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+				final Savepoint savepoint = maintainer.openSavepoint();
+				tested.delete(deletedKey);
+				tested.insert(insertedKey, value(insertedKey));
+				assertTrue(tested.search(deletedKey).isEmpty());
+				assertEquals(value(insertedKey), tested.searchOrDefault(insertedKey, -1L));
+				maintainer.rollbackSavepoint(savepoint);
+				assertMatches(expected, tested);
+			},
+			(original, committed) -> {
+				assertMatches(spacedTree(127, false), original);
+				assertMatches(expected, committed);
+			}
+		);
 	}
 
 	/**
