@@ -74,7 +74,8 @@ import java.util.PrimitiveIterator.OfInt;
  *
  * Every position-tree assignment is guarded against the reserved primary key. Incremental reports reach
  * {@link #accept}; bulk construction collects reports, sorts by record id and builds the inverse tree directly.
- * Duplicate bulk assignments keep the last order key, matching insert semantics, and are diagnosed once per load.
+ * Duplicate bulk assignments keep the last order key, matching insert semantics, and are diagnosed once per array
+ * build.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
@@ -285,8 +286,7 @@ public class TransactionalUnorderedIntArray
 	 * Incremental assignments report here; the private bulk collector applies the same reserved-primary-key guard
 	 * while collecting each assignment. The guard therefore costs no separate scan and covers every bulk entry point.
 	 * The `previousRecordId` argument of {@link #add(int, int)} is NOT routed here (it is resolved to an order key and
-	 * never becomes a record), so the
-	 * sentinel value legitimately used there cannot trip this guard.
+	 * never becomes a record), so the sentinel value legitimately used there cannot trip this guard.
 	 */
 	@Override
 	public void accept(int recordId, long orderKey) {
@@ -843,9 +843,10 @@ public class TransactionalUnorderedIntArray
 			}
 			this.recordIdsAndOrdinals = ArrayUtils.EMPTY_LONG_ARRAY;
 			this.orderKeys = ArrayUtils.EMPTY_LONG_ARRAY;
+			final boolean compacted = unique != this.count;
 			valueIndex.bulkBuild(
-				unique == this.count ? keys : Arrays.copyOf(keys, unique),
-				unique == this.count ? values : Arrays.copyOf(values, unique)
+				compacted ? Arrays.copyOf(keys, unique) : keys,
+				compacted ? Arrays.copyOf(values, unique) : values
 			);
 		}
 	}

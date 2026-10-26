@@ -572,21 +572,15 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 	protected static TransactionalElementBPlusTree<PriceRecordContract> newPriceRecordTree(
 		@Nonnull PriceRecordContract[] priceRecords, @Nonnull PriceIndexKey priceIndexKey
 	) {
-		boolean ascending = true;
-		for (int i = 1; i < priceRecords.length; i++) {
-			final int previousId = priceRecords[i - 1].internalPriceId();
-			final int currentId = priceRecords[i].internalPriceId();
-			if (previousId >= currentId) {
-				ascending = false;
-				log.error(
-					"Price index {} has non-ascending internal price ids at position {}: {} followed by {}. " +
-						"The tree was built by inserts and is correct.",
-					priceIndexKey, i, previousId, currentId
-				);
-				break;
-			}
-		}
-		if (ascending && !Transaction.isTransactionAvailable()) {
+		final int violation = firstNonAscendingPosition(priceRecords);
+		if (violation >= 0) {
+			log.error(
+				"Price index {} has non-ascending internal price ids at position {}: {} followed by {}. " +
+					"The tree was built by inserts and is correct.",
+				priceIndexKey, violation, priceRecords[violation - 1].internalPriceId(),
+				priceRecords[violation].internalPriceId()
+			);
+		} else if (!Transaction.isTransactionAvailable()) {
 			return TransactionalElementBPlusTree.bulkBuild(PriceRecordContract.class, PRICE_RECORD_KEY, priceRecords);
 		}
 		final TransactionalElementBPlusTree<PriceRecordContract> tree = newPriceRecordTree();
@@ -594,6 +588,22 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 			tree.insert(priceRecord);
 		}
 		return tree;
+	}
+
+	/**
+	 * Finds the first record whose internal price id does not exceed its predecessor's — the pair that keeps the
+	 * input away from the bulk builder.
+	 *
+	 * @param priceRecords the price records in their deserialized order
+	 * @return the position of the later record of the first non-ascending pair, or `-1` when the ids strictly ascend
+	 */
+	private static int firstNonAscendingPosition(@Nonnull PriceRecordContract[] priceRecords) {
+		for (int i = 1; i < priceRecords.length; i++) {
+			if (priceRecords[i - 1].internalPriceId() >= priceRecords[i].internalPriceId()) {
+				return i;
+			}
+		}
+		return -1;
 	}
 
 	/**
