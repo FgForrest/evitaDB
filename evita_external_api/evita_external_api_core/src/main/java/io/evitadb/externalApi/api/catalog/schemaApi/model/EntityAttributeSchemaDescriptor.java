@@ -80,7 +80,7 @@ public interface EntityAttributeSchemaDescriptor extends AttributeSchemaDescript
 			UNIQUENESS_TYPE,
 			FILTERABLE,
 			ACCELERATORS_IN_SCOPES,
-			NORMALIZATION,
+			NORMALIZED,
 			SORTABLE,
 			LOCALIZED,
 			NULLABLE,

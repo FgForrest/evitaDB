@@ -106,22 +106,22 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 				{"mutations":[{"createGlobalAttributeSchemaMutation":{"name":"normalizedGlobalCode",
 				"type":"String","normalization":[{"lowercase":true},{"removeCharacters":{"characters":"- "}}]}}]}
 				""")
-			.executeAndExpectOkAndThen().body("attributes.normalizedGlobalCode.normalization", equalTo(expected));
+			.executeAndExpectOkAndThen().body("attributes.normalizedGlobalCode.normalized", equalTo(expected));
 		tester.test(TEST_CATALOG).urlPathSuffix("/schema").httpMethod(Request.METHOD_GET)
-			.executeAndExpectOkAndThen().body("attributes.normalizedGlobalCode.normalization", equalTo(expected));
+			.executeAndExpectOkAndThen().body("attributes.normalizedGlobalCode.normalized", equalTo(expected));
 		tester.test(TEST_CATALOG).urlPathSuffix("/schema").httpMethod(Request.METHOD_PUT)
 			.requestBody("""
 				{"mutations":[{"setAttributeSchemaNormalizedMutation":{"name":"normalizedGlobalCode",
 				"normalization":[{"asciiFolding":true}]}}]}
 				""")
-			.executeAndExpectOkAndThen().body("attributes.normalizedGlobalCode.normalization",
+			.executeAndExpectOkAndThen().body("attributes.normalizedGlobalCode.normalized",
 				equalTo(List.of(Map.of("step", "ascii-folding", "parameters", Map.of()))));
 		for (final String withdrawal : List.of("\"normalization\":[]", "")) {
 			tester.test(TEST_CATALOG).urlPathSuffix("/schema").httpMethod(Request.METHOD_PUT)
 				.requestBody("""
 					{"mutations":[{"setAttributeSchemaNormalizedMutation":{"name":"normalizedGlobalCode"%s}}]}
 					""".formatted(withdrawal.isEmpty() ? "" : "," + withdrawal))
-				.executeAndExpectOkAndThen().body("attributes.normalizedGlobalCode.normalization", equalTo(List.of()));
+				.executeAndExpectOkAndThen().body("attributes.normalizedGlobalCode.normalized", equalTo(List.of()));
 		}
 		tester.test(TEST_CATALOG).urlPathSuffix("/schema").httpMethod(Request.METHOD_PUT)
 			.requestBody("""
@@ -283,7 +283,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 						.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), createGlobalAttributeUniquenessTypeDto(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG))
 						.e(AttributeSchemaDescriptor.FILTERABLE.name(), list().i(Scope.LIVE.name()))
 						.e(AttributeSchemaDescriptor.ACCELERATORS_IN_SCOPES.name(), list())
-						.e(AttributeSchemaDescriptor.NORMALIZATION.name(), list())
+						.e(AttributeSchemaDescriptor.NORMALIZED.name(), list())
 						.e(AttributeSchemaDescriptor.SORTABLE.name(), list().i(Scope.LIVE.name()))
 						.e(AttributeSchemaDescriptor.LOCALIZED.name(), false)
 						.e(AttributeSchemaDescriptor.NULLABLE.name(), false)

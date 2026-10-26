@@ -812,9 +812,9 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 		@Nonnull GraphQLTester tester, @Nonnull String attribute, @Nonnull List<Map<String, Object>> expected
 	) {
 		tester.test(TEST_CATALOG).urlPathSuffix("/schema")
-			.document("query { getCatalogSchema { allAttributes { name normalization { step parameters } } } }")
+			.document("query { getCatalogSchema { allAttributes { name normalized { step parameters } } } }")
 			.executeAndExpectOkAndThen()
-			.body(CATALOG_SCHEMA_PATH + ".allAttributes.find { it.name == '" + attribute + "' }.normalization",
+			.body(CATALOG_SCHEMA_PATH + ".allAttributes.find { it.name == '" + attribute + "' }.normalized",
 				equalTo(expected));
 	}
 

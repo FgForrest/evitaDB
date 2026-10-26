@@ -115,16 +115,16 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 		);
 		tester.test(TEST_CATALOG).urlPathSuffix("/empty/schema").httpMethod(Request.METHOD_PUT)
 			.requestBody(wrapNormalizationMutation(reference, create))
-			.executeAndExpectOkAndThen().body(path + attributeName + ".normalization", equalTo(expected));
+			.executeAndExpectOkAndThen().body(path + attributeName + ".normalized", equalTo(expected));
 		tester.test(TEST_CATALOG).urlPathSuffix("/empty/schema").httpMethod(Request.METHOD_GET)
-			.executeAndExpectOkAndThen().body(path + attributeName + ".normalization", equalTo(expected));
+			.executeAndExpectOkAndThen().body(path + attributeName + ".normalized", equalTo(expected));
 
 		final String replacement = """
 			{"setAttributeSchemaNormalizedMutation":{"name":"%s","normalization":[{"lowercase":true}]}}
 			""".formatted(attributeName);
 		tester.test(TEST_CATALOG).urlPathSuffix("/empty/schema").httpMethod(Request.METHOD_PUT)
 			.requestBody(wrapNormalizationMutation(reference, replacement))
-			.executeAndExpectOkAndThen().body(path + attributeName + ".normalization",
+			.executeAndExpectOkAndThen().body(path + attributeName + ".normalized",
 				equalTo(List.of(Map.of("step", "lowercase", "parameters", Map.of()))));
 		for (final String invalid : List.of(
 			"{}", "{\"lowercase\":null}", "{\"lowercase\":false}",
@@ -143,7 +143,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				""".formatted(attributeName, withdrawal.isEmpty() ? "" : "," + withdrawal);
 			tester.test(TEST_CATALOG).urlPathSuffix("/empty/schema").httpMethod(Request.METHOD_PUT)
 				.requestBody(wrapNormalizationMutation(reference, mutation))
-				.executeAndExpectOkAndThen().body(path + attributeName + ".normalization", equalTo(List.of()));
+				.executeAndExpectOkAndThen().body(path + attributeName + ".normalized", equalTo(List.of()));
 		}
 		tester.test(TEST_CATALOG).urlPathSuffix("/empty/schema").httpMethod(Request.METHOD_PUT)
 			.requestBody(wrapNormalizationMutation(reference,
@@ -347,7 +347,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), createAttributeUniquenessTypeDto(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION))
 						.e(AttributeSchemaDescriptor.FILTERABLE.name(), list().i(Scope.LIVE.name()))
 						.e(AttributeSchemaDescriptor.ACCELERATORS_IN_SCOPES.name(), list())
-						.e(AttributeSchemaDescriptor.NORMALIZATION.name(), list())
+						.e(AttributeSchemaDescriptor.NORMALIZED.name(), list())
 						.e(AttributeSchemaDescriptor.SORTABLE.name(), list().i(Scope.LIVE.name()))
 						.e(AttributeSchemaDescriptor.LOCALIZED.name(), false)
 						.e(AttributeSchemaDescriptor.NULLABLE.name(), false)
@@ -401,7 +401,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), createAttributeUniquenessTypeDto(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION))
 						.e(AttributeSchemaDescriptor.FILTERABLE.name(), list().i(Scope.LIVE.name()))
 						.e(AttributeSchemaDescriptor.ACCELERATORS_IN_SCOPES.name(), list())
-						.e(AttributeSchemaDescriptor.NORMALIZATION.name(), list())
+						.e(AttributeSchemaDescriptor.NORMALIZED.name(), list())
 						.e(AttributeSchemaDescriptor.SORTABLE.name(), list().i(Scope.LIVE.name()))
 						.e(AttributeSchemaDescriptor.LOCALIZED.name(), false)
 						.e(AttributeSchemaDescriptor.NULLABLE.name(), false)

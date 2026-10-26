@@ -547,7 +547,7 @@ For example, the GraphQL mutation item for an existing attribute is:
 }
 ```
 
-Read the declaration by selecting `normalization { step parameters }` on the attribute schema.
+Read the declaration by selecting `normalized { step parameters }` on the attribute schema.
 
 </LS>
 
@@ -569,7 +569,7 @@ The corresponding REST mutation item is:
 <LS to="g,r">
 
 Schema output uses step names and parameter maps rather than the input selectors. For the declaration above,
-`normalization` is:
+`normalized` is:
 
 ```json
 [

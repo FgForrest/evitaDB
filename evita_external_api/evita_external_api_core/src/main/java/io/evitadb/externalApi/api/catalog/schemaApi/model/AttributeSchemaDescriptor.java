@@ -93,8 +93,8 @@ public interface AttributeSchemaDescriptor extends NamedSchemaWithDeprecationDes
 		.build();
 
 	/** Ordered declared chain reported by schema outputs; retained built-with rows remain internal. */
-	PropertyDescriptor NORMALIZATION = PropertyDescriptor.builder()
-		.name("normalization")
+	PropertyDescriptor NORMALIZED = PropertyDescriptor.builder()
+		.name("normalized")
 		.description("""
 			Declared ordered normalization steps for String or String-array index keys. Empty means Unicode NFD only.
 			Stored attribute values remain unchanged. Populated indexes can retain an earlier built-with policy until
@@ -198,7 +198,7 @@ public interface AttributeSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			UNIQUENESS_TYPE,
 			FILTERABLE,
 			ACCELERATORS_IN_SCOPES,
-			NORMALIZATION,
+			NORMALIZED,
 			SORTABLE,
 			LOCALIZED,
 			NULLABLE,

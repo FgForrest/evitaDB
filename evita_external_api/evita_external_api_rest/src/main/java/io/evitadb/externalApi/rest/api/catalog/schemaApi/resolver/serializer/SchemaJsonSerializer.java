@@ -123,7 +123,7 @@ public abstract class SchemaJsonSerializer {
 			AttributeSchemaDescriptor.ACCELERATORS_IN_SCOPES.name(),
 			serializeAccelerators(attributeSchema)
 		);
-		attributeSchemaNode.set(AttributeSchemaDescriptor.NORMALIZATION.name(), serializeNormalization(attributeSchema));
+		attributeSchemaNode.set(AttributeSchemaDescriptor.NORMALIZED.name(), serializeNormalization(attributeSchema));
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.SORTABLE.name(), serializeFlagInScopes(attributeSchema::isSortableInScope));
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.LOCALIZED.name(), this.objectJsonSerializer.serializeObject(attributeSchema.isLocalized()));
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.NULLABLE.name(), this.objectJsonSerializer.serializeObject(attributeSchema.isNullable()));

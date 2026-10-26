@@ -1445,13 +1445,13 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 		@Nonnull List<Map<String, Object>> expected
 	) {
 		final String selection = reference ?
-			"references { normalizationReference { allAttributes { name normalization { step parameters } } } }" :
-			"allAttributes { ... on EntityAttributeSchema { name normalization { step parameters } } }";
+			"references { normalizationReference { allAttributes { name normalized { step parameters } } } }" :
+			"allAttributes { ... on EntityAttributeSchema { name normalized { step parameters } } }";
 		final String path = reference ? "references.normalizationReference.allAttributes" : "allAttributes";
 		tester.test(TEST_CATALOG).urlPathSuffix("/schema")
 			.document("query { getEmptySchema { " + selection + " } }")
 			.executeAndExpectOkAndThen()
-			.body(EMPTY_SCHEMA_PATH + "." + path + ".find { it.name == '" + attribute + "' }.normalization",
+			.body(EMPTY_SCHEMA_PATH + "." + path + ".find { it.name == '" + attribute + "' }.normalized",
 				equalTo(expected));
 	}
 
