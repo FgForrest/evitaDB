@@ -41,6 +41,7 @@ import java.nio.file.Path;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -225,7 +226,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 
 	/**
 	 * Stops scheduled cuts and closes cached outputs only after their leases end. Lease acquisition and closing
-	 * share the entry monitor, so a writer's frame buffer cannot be returned to the pool by this thread.
+	 * share the entry lock, so a writer's frame buffer cannot be returned to the pool by this thread.
 	 *
 	 * @throws RuntimeException if closing an idle output fails
 	 */
@@ -302,19 +303,22 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	/**
 	 * Ends the lease and drops an output that no longer knows where the file ends. A failed write may have left part
 	 * of its bytes in the file, and appending at the stale position would misplace every later record. Hold the entry
-	 * monitor through release, removal and closure so a writer cannot lease it between those steps.
+	 * lock through release, removal and closure so a writer cannot lease it between those steps.
 	 *
 	 * @param targetFile path the output is cached under
 	 * @param openedOutputToFile the leased output
 	 */
 	private void releaseOutput(@Nonnull Path targetFile, @Nonnull OpenedOutputToFile openedOutputToFile) {
-		synchronized (openedOutputToFile) {
+		openedOutputToFile.lock.lock();
+		try {
 			openedOutputToFile.releaseOutput();
 			if (openedOutputToFile.output.isAppendPositionUnknown()) {
 				// Remove before closing so even a disposal failure cannot leave the unusable entry cached.
 				this.cachedOutputToFiles.remove(targetFile, openedOutputToFile);
 				openedOutputToFile.close();
 			}
+		} finally {
+			openedOutputToFile.lock.unlock();
 		}
 	}
 
@@ -344,8 +348,8 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	}
 
 	/**
-	 * Cached file stream with lease and closure state guarded by its monitor. The cutter reads the volatile
-	 * last-touch time without acquiring that monitor, then uses the monitor to decide whether closure is safe.
+	 * Cached file stream with lease and closure state guarded by its lock. The cutter reads the volatile
+	 * last-touch time without acquiring that lock, then uses the lock to decide whether closure is safe.
 	 */
 	@RequiredArgsConstructor
 	private static class OpenedOutputToFile implements Closeable {
@@ -354,15 +358,19 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		 */
 		@Nonnull private final ObservableOutput<FileOutputStream> output;
 		/**
-		 * Last lease or release time, visible to the scheduled cutter without taking the entry monitor.
+		 * Guards lease and closure state, including release, removal and closure of an unusable output.
+		 */
+		private final ReentrantLock lock = new ReentrantLock();
+		/**
+		 * Last lease or release time, visible to the scheduled cutter without taking the entry lock.
 		 */
 		@Getter private volatile long lastReadTime = System.currentTimeMillis();
 		/**
-		 * Whether a writer owns the output and its frame array; guarded by this entry's monitor.
+		 * Whether a writer owns the output and its frame array; guarded by this entry's lock.
 		 */
 		private boolean leased;
 		/**
-		 * Whether the output was disposed; guarded by this entry's monitor.
+		 * Whether the output was disposed; guarded by this entry's lock.
 		 */
 		private boolean closed;
 
@@ -372,27 +380,37 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		 * @return true if leased, false if this stale entry was already closed
 		 * @throws io.evitadb.exception.GenericEvitaInternalError if the output already has a lease
 		 */
-		public synchronized boolean leaseOutput() {
-			if (this.closed) {
-				return false;
+		public boolean leaseOutput() {
+			this.lock.lock();
+			try {
+				if (this.closed) {
+					return false;
+				}
+				Assert.isPremiseValid(!this.leased, "The output is already leased");
+				this.leased = true;
+				this.lastReadTime = System.currentTimeMillis();
+				return true;
+			} finally {
+				this.lock.unlock();
 			}
-			Assert.isPremiseValid(!this.leased, "The output is already leased");
-			this.leased = true;
-			this.lastReadTime = System.currentTimeMillis();
-			return true;
 		}
 
 		/**
-		 * Ends the lease while the keeper holds this monitor through any retirement of an unusable output.
+		 * Ends the lease while the keeper holds this lock through any retirement of an unusable output.
 		 * Updating the touch time postpones the next inactivity cut for healthy outputs.
 		 *
 		 * @throws io.evitadb.exception.GenericEvitaInternalError if the entry is closed or has no lease
 		 */
-		public synchronized void releaseOutput() {
-			Assert.isPremiseValid(!this.closed, "The output is already closed");
-			Assert.isPremiseValid(this.leased, "The output is not leased");
-			this.leased = false;
-			this.lastReadTime = System.currentTimeMillis();
+		public void releaseOutput() {
+			this.lock.lock();
+			try {
+				Assert.isPremiseValid(!this.closed, "The output is already closed");
+				Assert.isPremiseValid(this.leased, "The output is not leased");
+				this.leased = false;
+				this.lastReadTime = System.currentTimeMillis();
+			} finally {
+				this.lock.unlock();
+			}
 		}
 
 		/**
@@ -400,12 +418,17 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		 *
 		 * @return true if closed or already closed, false while a writer owns the output
 		 */
-		public synchronized boolean closeIfNotLeased() {
-			if (this.leased) {
-				return false;
+		public boolean closeIfNotLeased() {
+			this.lock.lock();
+			try {
+				if (this.leased) {
+					return false;
+				}
+				close();
+				return true;
+			} finally {
+				this.lock.unlock();
 			}
-			close();
-			return true;
 		}
 
 		/**
@@ -415,11 +438,16 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		 * @throws com.esotericsoftware.kryo.KryoException if disposing of the output fails
 		 */
 		@Override
-		public synchronized void close() {
-			if (!this.closed) {
-				this.closed = true;
-				this.leased = false;
-				this.output.close();
+		public void close() {
+			this.lock.lock();
+			try {
+				if (!this.closed) {
+					this.closed = true;
+					this.leased = false;
+					this.output.close();
+				}
+			} finally {
+				this.lock.unlock();
 			}
 		}
 	}
