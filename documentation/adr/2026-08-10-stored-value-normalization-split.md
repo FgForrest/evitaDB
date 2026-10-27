@@ -9,7 +9,7 @@ prs: [1404, 1405]
 areas: [evita_common/src/main/java/io/evitadb/dataType, evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/attribute, evita_engine/src/main/java/io/evitadb/index/attribute, evita_engine/src/main/java/io/evitadb/index/bPlusTree]
 supersedes: []
 superseded-by: []
-relates: [2026-08-05-schema-handling-write-path-optimizations, 2026-09-03-content-sized-value-tree-columns, 2026-09-04-millisecond-temporal-precision, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-10-25-string-attribute-normalization]
+relates: [2026-08-05-schema-handling-write-path-optimizations, 2026-09-03-content-sized-value-tree-columns, 2026-09-04-millisecond-temporal-precision, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-10-27-string-attribute-normalization]
 ---
 
 # `LocalDateTime` keeps its declared type end to end; the UTC anchoring that makes it cheap to index moves into `FilterIndex.getNormalizer`
@@ -237,7 +237,7 @@ the one most likely to be re-proposed and is the one to read this record for.
 - [2026-09-21-cardinality-counter-normalized-keys](2026-09-21-cardinality-counter-normalized-keys.md)
   — the same `getNormalizer` seam seen from the other side: this record put a fold *into* it, that one repairs a
   structure that was never taught to read through it, and departs from the BWC-reader invariant above.
-- [2026-10-25-string-attribute-normalization](2026-10-25-string-attribute-normalization.md) — adds per-attribute String
+- [2026-10-27-string-attribute-normalization](2026-10-27-string-attribute-normalization.md) — adds per-attribute String
   chains on top of the type-level normalizer. The note above that probes are normalized more than once along a lookup
   path holds for the type-level normalizers only: a chain is not idempotent, so it is applied once to raw input and a
   stored key is never run through it again.

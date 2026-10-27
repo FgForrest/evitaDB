@@ -1,11 +1,11 @@
 ---
 title: String attributes declare a single-pass normalization chain, and a populated index keeps the chain it was built with
-date: 2026-10-25
-updated: 2026-10-27 10:47
+date: 2026-10-27
+updated: 2026-10-27 17:30
 status: accepted
 kind: feature
 issues: [545]
-prs: []
+prs: [1799]
 areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/schema/analysis, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/builder/InternalSchemaBuilderHelper.java, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaNormalizedMutation.java, evita_engine/src/main/java/io/evitadb/index/analysis, evita_engine/src/main/java/io/evitadb/spi/analysis, evita_engine/src/main/java/io/evitadb/index/attribute, evita_engine/src/main/java/io/evitadb/index/component/loader/LoadContext.java, evita_engine/src/main/java/io/evitadb/core/collection/EntityCollection.java, evita_engine/src/main/java/io/evitadb/core/catalog/Catalog.java, evita_engine/src/main/java/io/evitadb/core/query, evita_engine/src/main/java/io/evitadb/spi/store/catalog/persistence/storageParts/index, evita_store/evita_store_server/src/main/java/io/evitadb/store/index, evita_external_api]
 supersedes: []
 superseded-by: []
@@ -288,3 +288,4 @@ rebuild and the rows become transient.
   a code-quality pass added the reconciler, policy and serializer unit tests
 - **2026-10-26** — the filter and histogram bucket reload canonicalizer moved into `Migration_2026_3`;
   unique loads retain the declared-value-to-key format conversion using the type-level function.
+- **2026-10-27** — merged into `258-fulltext-support` via #1799 after its review rounds.

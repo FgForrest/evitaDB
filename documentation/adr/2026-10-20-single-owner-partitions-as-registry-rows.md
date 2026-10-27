@@ -28,7 +28,7 @@ areas:
   - documentation/developer/indexes
 supersedes: []
 superseded-by: []
-relates: [2026-10-20-reference-content-filter-row-by-row, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-17-row-scoped-reference-having-body, 2026-09-18-reference-planning-from-owner-membership, 2026-09-09-sibling-resolver-partition-cardinality, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-trapped-storage-part-content-pre-images, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-09-04-millisecond-temporal-precision, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-08-10-catalog-and-collection-statistics, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures, 2026-10-25-string-attribute-normalization]
+relates: [2026-10-20-reference-content-filter-row-by-row, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-17-row-scoped-reference-having-body, 2026-09-18-reference-planning-from-owner-membership, 2026-09-09-sibling-resolver-partition-cardinality, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-trapped-storage-part-content-pre-images, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-09-04-millisecond-temporal-precision, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-08-10-catalog-and-collection-statistics, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures, 2026-10-27-string-attribute-normalization]
 ---
 
 # A single-owner partition of a filtering-only reference is a registry row, not an index object
@@ -1259,7 +1259,7 @@ Found later in the cleanup and accepted by the maintainer on 2026-10-12:
   load-time repair now lives in the 6 → 7 migration.
 - **`2026-08-10-catalog-and-collection-statistics`:** the index cardinality statistic that `virtualPartitionCount`
   joins.
-- **`2026-10-25-string-attribute-normalization`** (#545): virtual partitions move stored keys verbatim on promotion
+- **`2026-10-27-string-attribute-normalization`** (#545): virtual partitions move stored keys verbatim on promotion
   and demotion instead of re-normalizing them, and bind each sort slot's normalization chain at load.
 - **Issues:** #1607 (multi-owner partitions stay objects, with their locale bitmaps; if they are ever derived, reuse the
   owners bitmap when every owner has the locale, never derive owners ∩ the global bitmap inside a cached formula);

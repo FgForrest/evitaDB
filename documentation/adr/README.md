@@ -33,8 +33,8 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-10-27 | [String attributes declare a single-pass normalization chain, and a populated index keeps the chain it was built with](2026-10-27-string-attribute-normalization.md) | feature | accepted | #545, PR #1799 |
 | 2026-10-26 | [Fit every release into Maven Central's limits; the shaded driver becomes a recipe, a BOM aligns versions](2026-10-26-maven-central-publishing-budget.md) | infrastructure | accepted | #1805 |
-| 2026-10-25 | [String attributes declare a single-pass normalization chain, and a populated index keeps the chain it was built with](2026-10-25-string-attribute-normalization.md) | feature | accepted | #545 |
 | 2026-10-25 | [Output buffers are borrowed per frame from one JVM-wide pool, and the configured size stays a hard limit](2026-10-25-frame-scoped-output-buffers.md) | optimization | accepted | #1792, #1793, PR #1801 |
 | 2026-10-21 | [A filter names one locale per entity level, and a level without one inherits from its enclosing level](2026-10-21-one-locale-per-entity-level.md) | fix | accepted | #925 |
 | 2026-10-20 | [The filter of referenceContent is evaluated row by row over the fetched owners' references, and its index route is deleted](2026-10-20-reference-content-filter-row-by-row.md) | refactor | accepted | #1615, PR #1738 |

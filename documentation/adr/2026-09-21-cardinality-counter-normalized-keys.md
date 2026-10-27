@@ -9,7 +9,7 @@ prs: [1621]
 areas: [evita_engine/src/main/java/io/evitadb/index/cardinality, evita_engine/src/main/java/io/evitadb/index/attribute, evita_common/src/main/java/io/evitadb/comparator, evita_common/src/main/java/io/evitadb/dataType, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_store/evita_store_server/src/main/java/io/evitadb/store/index/serializer]
 supersedes: []
 superseded-by: []
-relates: [2026-08-10-stored-value-normalization-split, 2026-09-04-millisecond-temporal-precision, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-10-25-string-attribute-normalization]
+relates: [2026-08-10-stored-value-normalization-split, 2026-09-04-millisecond-temporal-precision, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-10-27-string-attribute-normalization]
 ---
 
 # One filter-index entry has one identity, and everything that describes an entry now uses it
@@ -573,7 +573,7 @@ should be read as the trigger to supersede this record rather than to extend the
   development build wrote at protocol 7 before those were added is not told apart and must be recreated. The owner
   sort index rewrite re-sorts the localized compounds 2026.2 ordered by the bare collator and, like this record's
   *Consequences*, leaves a bucket that merged two spellings merged.
-- [2026-10-25-string-attribute-normalization](2026-10-25-string-attribute-normalization.md) — the counter binds its keys
+- [2026-10-27-string-attribute-normalization](2026-10-27-string-attribute-normalization.md) — the counter binds its keys
   through the same per-attribute chain as its filter tree; its route-parity matrix guards the prefetch / index agreement
   this record restored.
 

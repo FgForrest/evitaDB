@@ -16,7 +16,7 @@ areas:
   - evita_engine/src/main/java/io/evitadb/index/attribute
 supersedes: []
 superseded-by: []
-relates: [2026-10-21-one-locale-per-entity-level, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-09-23-reference-decode-narrowing-by-referenced-key, 2026-09-28-indexed-reference-scope-requires-entity-component, 2026-09-17-row-scoped-reference-having-body, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-scope-faithful-planning-and-facet-summary-parity, 2026-10-25-string-attribute-normalization]
+relates: [2026-10-21-one-locale-per-entity-level, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-09-23-reference-decode-narrowing-by-referenced-key, 2026-09-28-indexed-reference-scope-requires-entity-component, 2026-09-17-row-scoped-reference-having-body, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-scope-faithful-planning-and-facet-summary-parity, 2026-10-27-string-attribute-normalization]
 ---
 
 # The filter of `referenceContent` is evaluated row by row over the fetched owners' references
@@ -533,7 +533,7 @@ filterable reference attributes in the filter (Q4); the wider acceptance is avai
   filter (the main query still refuses).
 - [2026-09-17-row-scoped-reference-having-body](2026-09-17-row-scoped-reference-having-body/README.md) - the row-scoped
   evaluation of `referenceHaving` this route borrows its nested-query planning from.
-- [2026-10-25-string-attribute-normalization](2026-10-25-string-attribute-normalization.md) - keeps this record's rule
+- [2026-10-27-string-attribute-normalization](2026-10-27-string-attribute-normalization.md) - keeps this record's rule
   that typed equality has no prefetch alternative; row filters bind the attribute's chain like the indexes do.
 
 ## Timeline

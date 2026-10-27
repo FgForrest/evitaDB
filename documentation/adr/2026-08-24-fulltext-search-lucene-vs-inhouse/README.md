@@ -9,7 +9,7 @@ prs: [1453, 1483, 1647, 1704]
 areas: [evita_engine, evita_api, evita_query, evita_store, evita_external_api, evita_engine/index/trigram]
 supersedes: []
 superseded-by: []
-relates: [2026-07-07-roaring-bitmap-vendoring, 2026-07-10-more-optimized-data-structures, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-27-write-path-performance-tuning, 2026-08-31-trigram-query-path-optimization, 2026-08-31-front-coded-column-stores-wtf8, 2026-09-10-simd-vector-api-feasibility, 2026-09-08-jdk21-safe-modernization, 2026-09-10-jdk21-virtual-threads-and-scoped-values, 2026-10-05-schema-changes-never-refused-dormant-accelerator, 2026-09-04-millisecond-temporal-precision, 2026-10-25-string-attribute-normalization]
+relates: [2026-07-07-roaring-bitmap-vendoring, 2026-07-10-more-optimized-data-structures, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-27-write-path-performance-tuning, 2026-08-31-trigram-query-path-optimization, 2026-08-31-front-coded-column-stores-wtf8, 2026-09-10-simd-vector-api-feasibility, 2026-09-08-jdk21-safe-modernization, 2026-09-10-jdk21-virtual-threads-and-scoped-values, 2026-10-05-schema-changes-never-refused-dormant-accelerator, 2026-09-04-millisecond-temporal-precision, 2026-10-27-string-attribute-normalization]
 ---
 
 # Fulltext search in evitaDB: an in-house core over the bitmap algebra, not a Lucene integration
@@ -1200,7 +1200,7 @@ metric for fuzzy `contains` is decided. What is still open:
   finding that a commit re-shells every reduced index (~179 K on the catalog it measured) is why the
   trigram index's value-id allocator is scoped per shared value tree rather than being one
   catalog-global hot point.
-- [`2026-10-25-string-attribute-normalization`](../2026-10-25-string-attribute-normalization.md) — starts
+- [`2026-10-27-string-attribute-normalization`](../2026-10-27-string-attribute-normalization.md) — starts
   the `AnalysisStep` vocabulary (`AnalysisStep`, `AnalysisSteps`, ServiceLoader `NormalizingAnalysisStepFactory`)
   that the analyzer configuration is to reuse.
 
