@@ -158,7 +158,7 @@ public class GrpcAssertions {
 			assertEquals(expectedAttributeSchema.isRepresentative(), actualAttributeSchema.getRepresentative());
 			assertEquals(expectedAttributeSchema.isUniqueGlobally(), actualAttributeSchema.getUniqueGlobally());
 			assertAccelerators(
-				expectedAttributeSchema, actualAttributeSchema.getAcceleratorsInScopesList()
+				expectedAttributeSchema, actualAttributeSchema.getAcceleratedList()
 			);
 		}
 	}
@@ -240,7 +240,7 @@ public class GrpcAssertions {
 			assertEquals(EvitaDataTypesConverter.toGrpcEvitaDataType(expectedAttributeSchema.getType()), actualAttributeSchema.getType());
 			assertEquals(expectedAttributeSchema.getIndexedDecimalPlaces(), actualAttributeSchema.getIndexedDecimalPlaces());
 			assertAccelerators(
-				expectedAttributeSchema, actualAttributeSchema.getAcceleratorsInScopesList()
+				expectedAttributeSchema, actualAttributeSchema.getAcceleratedList()
 			);
 		}
 	}

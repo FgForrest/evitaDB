@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
+import graphql.GraphQLContext;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingSerializeException;
 import io.evitadb.dataType.BigDecimalNumberRange;
@@ -37,6 +38,7 @@ import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.dataType.Any;
 import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
@@ -100,28 +102,30 @@ public class AnyCoercing extends ObjectCoercing {
 	 * recursively to their contents.
 	 *
 	 * @param dataFetcherResult scalar value, object, collection or array returned by a fetcher
+	 * @param graphQLContext context of the executing request, handed on to the scalar coercings
+	 * @param locale locale of the executing request, handed on to the scalar coercings
 	 * @return JSON-compatible value
 	 */
 	@Override
-	@Nullable
-	public Object serialize(@Nullable Object dataFetcherResult) throws CoercingSerializeException {
-		if (dataFetcherResult == null) {
-			return null;
-		}
+	public Object serialize(
+		@Nonnull Object dataFetcherResult,
+		@Nonnull GraphQLContext graphQLContext,
+		@Nonnull Locale locale
+	) throws CoercingSerializeException {
 		if (dataFetcherResult instanceof Map<?, ?> object) {
 			final Map<String, Object> serialized = createHashMap(object.size());
 			for (final Map.Entry<?, ?> entry : object.entrySet()) {
 				if (!(entry.getKey() instanceof String name)) {
 					throw new CoercingSerializeException("Object property names must be strings.");
 				}
-				serialized.put(name, serialize(entry.getValue()));
+				serialized.put(name, serializeMember(entry.getValue(), graphQLContext, locale));
 			}
 			return serialized;
 		}
 		if (dataFetcherResult instanceof Iterable<?> values) {
 			final List<Object> serialized = new ArrayList<>();
 			for (final Object value : values) {
-				serialized.add(serialize(value));
+				serialized.add(serializeMember(value, graphQLContext, locale));
 			}
 			return serialized;
 		}
@@ -129,7 +133,7 @@ public class AnyCoercing extends ObjectCoercing {
 			final int length = Array.getLength(dataFetcherResult);
 			final List<Object> serialized = new ArrayList<>(length);
 			for (int i = 0; i < length; i++) {
-				serialized.add(serialize(Array.get(dataFetcherResult, i)));
+				serialized.add(serializeMember(Array.get(dataFetcherResult, i), graphQLContext, locale));
 			}
 			return serialized;
 		}
@@ -144,6 +148,24 @@ public class AnyCoercing extends ObjectCoercing {
 		if (coercing == null) {
 			throw new CoercingSerializeException("Could not find coercing for value of type `" + dataFetcherResult.getClass().getName() + "`.");
 		}
-		return coercing.serialize(dataFetcherResult);
+		return coercing.serialize(dataFetcherResult, graphQLContext, locale);
+	}
+
+	/**
+	 * Serializes one member of an object, collection or array. Unlike a fetcher's result, which GraphQL never hands
+	 * to a coercing as `null`, a member may legitimately be `null` and stays so.
+	 *
+	 * @param member property value or element to serialize
+	 * @param graphQLContext context of the executing request
+	 * @param locale locale of the executing request
+	 * @return JSON-compatible value, `null` for a `null` member
+	 */
+	@Nullable
+	private Object serializeMember(
+		@Nullable Object member,
+		@Nonnull GraphQLContext graphQLContext,
+		@Nonnull Locale locale
+	) {
+		return member == null ? null : serialize(member, graphQLContext, locale);
 	}
 }

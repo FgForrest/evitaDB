@@ -305,6 +305,17 @@ class EvitaClientConfigurationTest {
 
 			assertEquals(150_000, config.connection().idleTimeoutMillis());
 		}
+
+		@Test
+		@DisplayName("should set connect timeout via top-level builder setter")
+		void shouldSetConnectTimeoutViaBuilder() {
+			final EvitaClientConfiguration config =
+				EvitaClientConfiguration.builder()
+					.connectTimeoutMillis(20_000)
+					.build();
+
+			assertEquals(20_000, config.connection().connectTimeoutMillis());
+		}
 	}
 
 	@Nested
@@ -450,6 +461,18 @@ class EvitaClientConfigurationTest {
 
 			assertEquals(120_000, config.idleTimeoutMillis());
 			assertEquals(config.connection().idleTimeoutMillis(), config.idleTimeoutMillis());
+		}
+
+		@Test
+		@DisplayName("should delegate connectTimeoutMillis() to connection().connectTimeoutMillis()")
+		void shouldDelegateConnectTimeoutToConnectionConnectTimeout() {
+			final EvitaClientConfiguration config =
+				EvitaClientConfiguration.builder()
+					.connection(ClientConnectionOptions.builder().connectTimeoutMillis(7_000).build())
+					.build();
+
+			assertEquals(7_000, config.connectTimeoutMillis());
+			assertEquals(config.connection().connectTimeoutMillis(), config.connectTimeoutMillis());
 		}
 	}
 

@@ -23,7 +23,10 @@
 
 package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
+import graphql.GraphQLContext;
+import graphql.execution.CoercedVariables;
 import graphql.language.StringValue;
+import graphql.language.Value;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
 import graphql.schema.CoercingParseValueException;
@@ -48,12 +51,16 @@ import java.util.Objects;
 public class LocaleCoercing implements Coercing<Locale, String> {
 
     @Override
-    public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
-        if (!(dataFetcherResult instanceof Locale locale)) {
+    public String serialize(
+        @Nonnull Object dataFetcherResult,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingSerializeException {
+        if (!(dataFetcherResult instanceof Locale localeValue)) {
             throw new CoercingSerializeException("Locale data fetcher result is not a Locale.");
         }
         try {
-            return locale.toLanguageTag();
+            return localeValue.toLanguageTag();
         } catch (DateTimeException ex) {
             throw new CoercingSerializeException(ex.getMessage(), ex);
         }
@@ -61,7 +68,11 @@ public class LocaleCoercing implements Coercing<Locale, String> {
 
     @Nonnull
     @Override
-    public Locale parseValue(@Nonnull Object input) throws CoercingParseValueException {
+    public Locale parseValue(
+        @Nonnull Object input,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingParseValueException {
         if (!(input instanceof String stringInput)) {
             throw new CoercingParseValueException("Locale input is not a string.");
         }
@@ -74,7 +85,12 @@ public class LocaleCoercing implements Coercing<Locale, String> {
 
     @Nonnull
     @Override
-    public Locale parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
+    public Locale parseLiteral(
+        @Nonnull Value<?> input,
+        @Nonnull CoercedVariables variables,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingParseLiteralException {
         if (!(input instanceof StringValue stringValue)) {
             throw new CoercingParseValueException("Locale input is not a StringValue.");
         }

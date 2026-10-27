@@ -215,6 +215,15 @@ Connection settings are configured via
         lives until closed by the peer, a ping failure, or the connection pool). Keep this value strictly above
         `pingIntervalMillis`.</p>
     </dd>
+    <dt>connectTimeoutMillis</dt>
+    <dd>
+        <p>**Default: `10000` (10 s)**</p>
+        <p>How long opening a new connection to the server may take. The limit covers the whole setup of the
+        connection: the TCP connect, the TLS handshake and the HTTP/2 negotiation. A call whose connection does not
+        finish them in time fails before it reaches the server. A busy client host or a slow network stretches the
+        handshake, which is why the default is well above the 3.2 s the underlying HTTP client would use on its own.
+        The setup cannot be left unbounded: any value of `0` or below falls back to the default.</p>
+    </dd>
 </dl>
 
 #### TLS options

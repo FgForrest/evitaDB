@@ -59,6 +59,9 @@ public class EntitySchemaObjectBuilder {
 	@Nonnull private final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
 	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
 
+	/**
+	 * Registers reusable schema metadata types, including their mutation input variants.
+	 */
 	public void buildCommonTypes() {
 		// build common reusable objects
 		AnalysisStepInputObjectBuilder.registerTypes(this.buildingContext, this.objectBuilderTransformer);
@@ -95,6 +98,12 @@ public class EntitySchemaObjectBuilder {
 		);
 		this.buildingContext.registerType(
 			ScopedHistogramIndexDefinitionDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedFacetedPartiallyDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedFacetedPartiallyDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build()
 		);
 		this.buildingContext.registerType(
 			ScopedBucketedPartiallyDescriptor.THIS.to(this.objectBuilderTransformer).build()

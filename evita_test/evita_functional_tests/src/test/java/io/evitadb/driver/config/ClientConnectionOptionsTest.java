@@ -59,6 +59,8 @@ class ClientConnectionOptionsTest {
 		assertEquals(30_000, options.pingIntervalMillis());
 		assertEquals(ClientConnectionOptions.DEFAULT_IDLE_TIMEOUT_MILLIS, options.idleTimeoutMillis());
 		assertEquals(300_000, options.idleTimeoutMillis());
+		assertEquals(ClientConnectionOptions.DEFAULT_CONNECT_TIMEOUT_MILLIS, options.connectTimeoutMillis());
+		assertEquals(10_000, options.connectTimeoutMillis());
 	}
 
 	@Test
@@ -72,6 +74,7 @@ class ClientConnectionOptionsTest {
 		assertEquals(5555, options.systemApiPort());
 		assertEquals(30_000, options.pingIntervalMillis());
 		assertEquals(300_000, options.idleTimeoutMillis());
+		assertEquals(10_000, options.connectTimeoutMillis());
 	}
 
 	@Nested
@@ -192,6 +195,35 @@ class ClientConnectionOptionsTest {
 
 			assertEquals(0, options.idleTimeoutMillis());
 		}
+
+		@Test
+		@DisplayName("should set custom connect timeout via builder")
+		void shouldSetCustomConnectTimeout() {
+			final ClientConnectionOptions options =
+				ClientConnectionOptions.builder()
+					.connectTimeoutMillis(25_000)
+					.build();
+
+			assertEquals(25_000, options.connectTimeoutMillis());
+		}
+
+		@Test
+		@DisplayName("should fall back to the default for a zero connect timeout, which cannot leave the setup unbounded")
+		void shouldFallBackToDefaultForZeroConnectTimeout() {
+			assertEquals(
+				ClientConnectionOptions.DEFAULT_CONNECT_TIMEOUT_MILLIS,
+				ClientConnectionOptions.builder().connectTimeoutMillis(0).build().connectTimeoutMillis()
+			);
+		}
+
+		@Test
+		@DisplayName("should fall back to the default for a negative connect timeout")
+		void shouldFallBackToDefaultForNegativeConnectTimeout() {
+			assertEquals(
+				ClientConnectionOptions.DEFAULT_CONNECT_TIMEOUT_MILLIS,
+				ClientConnectionOptions.builder().connectTimeoutMillis(-1).build().connectTimeoutMillis()
+			);
+		}
 	}
 
 	@Nested
@@ -209,6 +241,7 @@ class ClientConnectionOptionsTest {
 					.systemApiPort(5678)
 					.pingIntervalMillis(2500)
 					.idleTimeoutMillis(90_000)
+					.connectTimeoutMillis(4_000)
 					.build();
 
 			final ClientConnectionOptions copy = ClientConnectionOptions.builder(source).build();
@@ -219,6 +252,7 @@ class ClientConnectionOptionsTest {
 			assertEquals(5678, copy.systemApiPort());
 			assertEquals(2500, copy.pingIntervalMillis());
 			assertEquals(90_000, copy.idleTimeoutMillis());
+			assertEquals(4_000, copy.connectTimeoutMillis());
 		}
 
 		@Test

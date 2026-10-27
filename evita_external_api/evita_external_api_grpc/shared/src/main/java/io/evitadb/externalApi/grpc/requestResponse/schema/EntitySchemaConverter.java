@@ -305,7 +305,7 @@ public class EntitySchemaConverter {
 					.toList()
 			)
 			.addAllNormalized(toGrpcAnalysisSteps(attributeSchema.getNormalization()))
-			.addAllAcceleratorsInScopes(
+			.addAllAccelerated(
 				toGrpcScopedAttributeFilterAccelerators(
 					AttributeSchema.toAcceleratorsArray(attributeSchema.getAcceleratorsInScopes())
 				)
@@ -677,7 +677,7 @@ public class EntitySchemaConverter {
 		final Scope[] filterableInScopes = toBooleanScopes(attributeSchema.getFilterableInScopesList(), attributeSchema.getFilterable());
 		// absent on the wire for an older server - proto3 renders that as an empty list, which converts to `null`
 		final ScopedAttributeFilterAccelerators[] acceleratorsInScopes =
-			toScopedAttributeFilterAccelerators(attributeSchema.getAcceleratorsInScopesList());
+			toScopedAttributeFilterAccelerators(attributeSchema.getAcceleratedList());
 		// searchability has no gRPC mirror, so a schema converted from the wire reports no attribute as searchable
 		final Scope[] searchableInScopes = null;
 		final Scope[] sortableInScopes = toBooleanScopes(attributeSchema.getSortableInScopesList(), attributeSchema.getSortable());

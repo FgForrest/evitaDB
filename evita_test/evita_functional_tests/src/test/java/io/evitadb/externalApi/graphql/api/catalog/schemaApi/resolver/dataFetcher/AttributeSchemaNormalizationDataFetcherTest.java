@@ -24,6 +24,7 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher;
 
+import graphql.GraphQLContext;
 import graphql.schema.DataFetchingEnvironment;
 import graphql.schema.DataFetchingEnvironmentImpl;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
@@ -40,6 +41,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -55,6 +57,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @Tag(SCHEMA)
 @DisplayName("GraphQL attribute normalization output")
 class AttributeSchemaNormalizationDataFetcherTest {
+
+	private static final GraphQLContext GRAPHQL_CONTEXT = GraphQLContext.getDefault();
+	private static final Locale LOCALE = Locale.ENGLISH;
 
 	/**
 	 * Supplies empty and ordered chains, including step parameters.
@@ -99,7 +104,7 @@ class AttributeSchemaNormalizationDataFetcherTest {
 	@MethodSource("parameterObjects")
 	@DisplayName("serializes parameter objects through ANY using custom scalar encodings")
 	void shouldSerializeParameters(Map<String, Object> parameters, Map<String, Object> expected) {
-		assertEquals(expected, GraphQLScalars.ANY.getCoercing().serialize(parameters));
+		assertEquals(expected, GraphQLScalars.ANY.getCoercing().serialize(parameters, GRAPHQL_CONTEXT, LOCALE));
 	}
 
 }
