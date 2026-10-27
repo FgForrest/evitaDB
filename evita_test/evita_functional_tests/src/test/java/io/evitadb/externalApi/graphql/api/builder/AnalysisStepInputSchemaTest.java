@@ -72,7 +72,7 @@ class AnalysisStepInputSchemaTest {
 	private static GraphQLSchema createSchema() {
 		final GraphQLSchemaBuildingContext context = Mockito.mock(GraphQLSchemaBuildingContext.class);
 		final GraphQLSchemaBuilder<GraphQLSchemaBuildingContext> builder = new GraphQLSchemaBuilder<>(context) { };
-		builder.buildAnalysisStepTypes(true);
+		builder.registerAnalysisStepInputTypes();
 		final ArgumentCaptor<GraphQLType> types = ArgumentCaptor.forClass(GraphQLType.class);
 		Mockito.verify(context, Mockito.atLeastOnce()).registerType(types.capture());
 		final GraphQLSchema.Builder schema = GraphQLSchema.newSchema().query(newObject().name("Query")

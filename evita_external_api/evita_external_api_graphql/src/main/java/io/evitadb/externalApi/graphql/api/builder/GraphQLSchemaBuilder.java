@@ -123,30 +123,24 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 
 
 	/**
-	 * Registers declared analysis-step output and, for a writable schema API, installed typed normalizer inputs.
-	 *
-	 * @param includeInput whether the API accepts schema mutations
+	 * Registers the typed analysis-step input of a schema API that accepts schema mutations: the parameter object of
+	 * every installed normalizing step that takes parameters and the `@oneOf` selector over all installed steps.
 	 */
-	protected void buildAnalysisStepTypes(boolean includeInput) {
-		this.buildingContext.registerType(AnalysisStepDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		if (includeInput) {
-			for (final AnalysisStepInputDescriptors.StepInput step : AnalysisStepInputDescriptors.getSteps()) {
-				if (step.parameters() != null) {
-					this.buildingContext.registerType(step.parameters().to(this.inputObjectBuilderTransformer).build());
-				}
+	protected void registerAnalysisStepInputTypes() {
+		final ObjectDescriptor descriptor = AnalysisStepDescriptor.THIS_INPUT;
+		final GraphQLInputObjectType.Builder input = descriptor.to(this.inputObjectBuilderTransformer)
+			.clearFields()
+			.withAppliedDirective(Directives.OneOfDirective.toAppliedDirective());
+		// ObjectDescriptor normalizes fields through a map; retain the registry's step-name order explicitly.
+		for (final AnalysisStepInputDescriptors.StepInput step : AnalysisStepInputDescriptors.getSteps()) {
+			if (step.parameters() != null) {
+				this.buildingContext.registerType(step.parameters().to(this.inputObjectBuilderTransformer).build());
 			}
-			final ObjectDescriptor descriptor = AnalysisStepDescriptor.THIS_INPUT;
-			final GraphQLInputObjectType.Builder input = descriptor.to(this.inputObjectBuilderTransformer)
-				.clearFields()
-				.withAppliedDirective(Directives.OneOfDirective.toAppliedDirective());
-			// ObjectDescriptor normalizes fields through a map; retain the registry's step-name order explicitly.
-			for (final AnalysisStepInputDescriptors.StepInput step : AnalysisStepInputDescriptors.getSteps()) {
-				input.field(descriptor.staticProperties().stream()
-					.filter(property -> property.name().equals(step.fieldName()))
-					.findFirst().orElseThrow().to(this.inputFieldBuilderTransformer));
-			}
-			this.buildingContext.registerType(input.build());
+			input.field(descriptor.staticProperties().stream()
+				.filter(property -> property.name().equals(step.fieldName()))
+				.findFirst().orElseThrow().to(this.inputFieldBuilderTransformer));
 		}
+		this.buildingContext.registerType(input.build());
 	}
 
 
