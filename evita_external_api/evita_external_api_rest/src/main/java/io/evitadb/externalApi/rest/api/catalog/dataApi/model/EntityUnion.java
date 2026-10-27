@@ -30,14 +30,15 @@ import io.evitadb.externalApi.api.model.UnionDescriptor;
 /**
  * Descriptors of unions of {@link EntityContract}s of all collections present in evitaDB for schema-based external
  * APIs. The unions are the response types of the endpoints fetching an entity of unknown collection by a globally
- * unique attribute, therefore they are registered only when the catalog has at least one collection.
+ * unique attribute, therefore they are registered only when the catalog has at least one collection and a globally
+ * unique attribute.
  *
  * The unions are deliberately named apart from the common base object `Entity`
  * ({@link EntityDescriptor#THIS_CLASSIFIER}) that every entity object extends via `allOf`. Sharing the name would make
  * every entity object extend the union containing it.
  *
- * Note: this descriptor is meant be template for generated specific DTOs base on internal data. Fields in this
- * descriptor are supposed to be dynamically registered to target generated DTO.
+ * The descriptors carry no member types: the builder adds the entity object of every collection when it registers
+ * the union.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */

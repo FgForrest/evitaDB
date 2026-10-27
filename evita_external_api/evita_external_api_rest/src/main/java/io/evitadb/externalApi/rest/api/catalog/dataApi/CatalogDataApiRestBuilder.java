@@ -205,8 +205,9 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 	}
 
 	/**
-	 * Builds collection endpoints, the entity unions returned by the unknown-entity endpoints (only when the catalog
-	 * has at least one collection) and the unknown-entity endpoints themselves.
+	 * Builds collection endpoints and, when the catalog has globally unique attributes, the unknown-entity endpoints
+	 * together with the entity unions they return. Without such endpoints nothing references the unions, so they are
+	 * not registered.
 	 */
 	private void buildEndpoints() {
 		this.buildingContext.registerEndpoint(this.endpointBuilder.buildCollectionsEndpoint());
@@ -237,9 +238,6 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			this.buildingContext.registerEndpoint(this.endpointBuilder.buildDeleteEntitiesByQueryEndpoint(entitySchema));
 		});
 
-		buildEntityUnion(false).ifPresent(this.buildingContext::registerType);
-		buildEntityUnion(true).ifPresent(this.buildingContext::registerType);
-
 		final List<GlobalAttributeSchemaContract> globallyUniqueAttributes = this.buildingContext.getSchema()
 			.getAttributes()
 			.values()
@@ -247,6 +245,9 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			.filter(GlobalAttributeSchemaContract::isUniqueGloballyInAnyScope)
 			.toList();
 		if(!globallyUniqueAttributes.isEmpty()) {
+			buildEntityUnion(false).ifPresent(this.buildingContext::registerType);
+			buildEntityUnion(true).ifPresent(this.buildingContext::registerType);
+
 			this.endpointBuilder.buildGetUnknownEntityEndpoint(globallyUniqueAttributes, false)
 				.ifPresent(this.buildingContext::registerEndpoint);
 			this.endpointBuilder.buildListUnknownEntityEndpoint(globallyUniqueAttributes, false)

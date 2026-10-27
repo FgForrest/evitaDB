@@ -50,6 +50,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.StreamSupport;
@@ -77,6 +78,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CatalogRestQueriesFunctionalTest extends RestEndpointFunctionalTest {
 
 	private static final String REST_EMPTY_OPEN_API = "RestEmptyOpenApi";
+
+	private static final String REST_NO_GLOBALLY_UNIQUE_OPEN_API = "RestNoGloballyUniqueOpenApi";
 
 	private static final String REST_OPEN_API_REFERENCES = REST_THOUSAND_PRODUCTS + "OpenApiReferences";
 
@@ -115,6 +118,22 @@ class CatalogRestQueriesFunctionalTest extends RestEndpointFunctionalTest {
 			session.getCatalogSchema().openForWrite()
 				.withAttribute("code", String.class, attribute -> attribute.uniqueGlobally())
 				.withAttribute("url", String.class, attribute -> attribute.localized().uniqueGloballyWithinLocale())
+				.updateVia(session);
+		});
+		return new DataCarrier();
+	}
+
+	/**
+	 * Prepares a catalog with a localized collection but without any globally unique attribute, so no unknown-entity
+	 * endpoint is built.
+	 */
+	@DataSet(value = REST_NO_GLOBALLY_UNIQUE_OPEN_API, openWebApi = RestProvider.CODE, destroyAfterClass = true)
+	@Nonnull
+	protected DataCarrier setUpNoGloballyUniqueOpenApi(@Nonnull Evita evita) {
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.defineEntitySchema(Entities.PRODUCT)
+				.withLocale(Locale.ENGLISH)
+				.withAttribute("name", String.class, attribute -> attribute.localized())
 				.updateVia(session);
 		});
 		return new DataCarrier();
@@ -188,7 +207,7 @@ class CatalogRestQueriesFunctionalTest extends RestEndpointFunctionalTest {
 		@Test
 		@UseDataSet(REST_EMPTY_OPEN_API)
 		@DisplayName("Should serve the Entity base object when empty and add the union after creating a collection")
-		void shouldServeGenericEntityWhenCatalogHasNoCollections(
+		void shouldServeEntityBaseObjectWhenCatalogHasNoCollections(
 			@Nonnull Evita evita, @Nonnull RestTester tester
 		) throws IOException {
 			assertTrue(evita.getCatalogInstanceOrThrowException(TEST_CATALOG).getSchema().getEntitySchemas().isEmpty());
@@ -232,6 +251,8 @@ class CatalogRestQueriesFunctionalTest extends RestEndpointFunctionalTest {
 				assertTrue(members.isArray() && !members.isEmpty(), unionName + " must be a non-empty oneOf union");
 				for (JsonNode member : members) {
 					final String memberRef = member.path("$ref").asText();
+					assertTrue(memberRef.startsWith("#/components/schemas/"),
+						unionName + " members must reference component schemas, got `" + memberRef + "`");
 					final JsonNode entityObject = document.at(memberRef.substring(1));
 					assertTrue(
 						StreamSupport.stream(entityObject.path("allOf").spliterator(), false)
@@ -253,6 +274,30 @@ class CatalogRestQueriesFunctionalTest extends RestEndpointFunctionalTest {
 			assertSuccessResponseReferences(successResponses, "listEntity", ENTITY_UNION);
 			assertSuccessResponseReferences(successResponses, "getEntityLocalized", LOCALIZED_ENTITY_UNION);
 			assertSuccessResponseReferences(successResponses, "listEntityLocalized", LOCALIZED_ENTITY_UNION);
+		}
+
+		/**
+		 * Without globally unique attributes there is no unknown-entity endpoint, so the entity unions it would return
+		 * are not registered either, while entity objects still extend the `Entity` base object.
+		 */
+		@Test
+		@UseDataSet(REST_NO_GLOBALLY_UNIQUE_OPEN_API)
+		@DisplayName("Should not register entity unions when no endpoint returns them")
+		void shouldNotRegisterEntityUnionsWithoutGloballyUniqueAttributes(@Nonnull RestTester tester)
+			throws IOException {
+			final JsonNode document = RestOpenApiAssertions.fetchDocument(tester, TEST_CATALOG);
+			RestOpenApiAssertions.assertReferencesResolve(document, TEST_CATALOG);
+			assertEntityBaseObject(document);
+			assertTrue(document.at(SCHEMAS + ENTITY_UNION).isMissingNode(), "EntityUnion must not be registered");
+			assertTrue(document.at(SCHEMAS + LOCALIZED_ENTITY_UNION).isMissingNode(),
+				"LocalizedEntityUnion must not be registered");
+			for (String entityObject : List.of("Product", "ProductLocalized")) {
+				assertTrue(
+					StreamSupport.stream(document.at(SCHEMAS + entityObject + "/allOf").spliterator(), false)
+						.anyMatch(item -> ENTITY_REF.equals(item.path("$ref").asText())),
+					entityObject + " must extend " + ENTITY_REF + " via allOf"
+				);
+			}
 		}
 
 		/**
