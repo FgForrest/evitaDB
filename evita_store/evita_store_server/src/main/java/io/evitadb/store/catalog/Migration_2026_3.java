@@ -63,36 +63,8 @@ import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AbstractLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeCardinalityIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.*;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.CatalogIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexLeafPageRemoval;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexLeafPageRemoval;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueLeafStreamKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexLeafPageRemoval;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramLeafStreamKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramRangeIndexLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.LeafStreamKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPageRemoval;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPageRemoval;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
 import io.evitadb.store.catalog.LegacyInvertedIndexCorrection.CorrectedBuckets;
 import io.evitadb.store.catalog.Migration_2025_6.NoChangeHeaderInfoSupplier;
@@ -116,23 +88,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.PrimitiveIterator.OfInt;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -1207,11 +1166,12 @@ public interface Migration_2026_3 {
 	}
 
 	/**
-	 * Tells whether the canonical form of a unique value of `plainType` depends on `indexedDecimalPlaces` at all -
-	 * only `BigDecimal` and `BigDecimalNumberRange` do (see {@link #resolveScale}).
+	 * Tells whether the canonical form of a unique value of `plainType` is independent of `indexedDecimalPlaces` -
+	 * true for every type except `BigDecimal` and `BigDecimalNumberRange` (see {@link #resolveScale}).
 	 */
-	private static boolean isScaleDependent(@Nonnull Class<?> plainType) {
-		return BigDecimal.class.isAssignableFrom(plainType) || BigDecimalNumberRange.class.isAssignableFrom(plainType);
+	private static boolean isNotScaleDependent(@Nonnull Class<?> plainType) {
+		return !BigDecimal.class.isAssignableFrom(plainType) &&
+			!BigDecimalNumberRange.class.isAssignableFrom(plainType);
 	}
 
 	/**
@@ -1228,7 +1188,7 @@ public interface Migration_2026_3 {
 		@Nonnull String attributeName,
 		@Nonnull Class<?> plainType
 	) {
-		if (!isScaleDependent(plainType)) {
+		if (isNotScaleDependent(plainType)) {
 			return OptionalInt.of(0);
 		}
 		for (final CollectionUnderUpgrade collection : collections) {
@@ -1255,7 +1215,7 @@ public interface Migration_2026_3 {
 		@Nonnull String attributeName,
 		@Nonnull Class<?> plainType
 	) {
-		if (!isScaleDependent(plainType)) {
+		if (isNotScaleDependent(plainType)) {
 			return OptionalInt.of(0);
 		}
 		// `Migration_2026_2` is deprecated ahead of this class: when it is removed, move `resolveIndexedDecimalPlaces`
@@ -2000,7 +1960,7 @@ public interface Migration_2026_3 {
 						"Missing filter leaf " + sequences[i] + " of " + storageKey + "."
 					);
 				}
-				if ((ids != null) != (leaf.getValueIds() != null)) {
+				if ((ids == null) == (leaf.getValueIds() != null)) {
 					throw new GenericEvitaInternalError(
 						"Filter index " + storageKey.attribute() + " root and leaf " + sequences[i] +
 							" disagree about value ids."

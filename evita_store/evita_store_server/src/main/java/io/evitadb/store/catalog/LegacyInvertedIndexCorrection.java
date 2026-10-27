@@ -69,7 +69,7 @@ final class LegacyInvertedIndexCorrection {
 	 * @return corrected pages and ids, or `null` when unchanged or when a paged order no release wrote stays as is
 	 */
 	@Nullable
-	@SuppressWarnings({"rawtypes", "unchecked"})
+	@SuppressWarnings({"rawtypes", "unchecked", "NonShortCircuitBooleanExpression"})
 	static CorrectedBuckets correct(
 		@Nonnull Class<?> plainType,
 		int indexedDecimalPlaces,
