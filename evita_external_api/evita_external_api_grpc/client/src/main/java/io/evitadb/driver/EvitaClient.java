@@ -761,11 +761,16 @@ public class EvitaClient implements EvitaContract {
 		// keepAliveOnPing = true makes acknowledged keep-alive pings count as connection activity, so a healthy
 		// connection is never reaped by the idle timeout — set explicitly rather than riding Armeria's global
 		// Flags.defaultClientKeepAliveOnPing (false by default, and flippable by a system property).
+		//
+		// The connect timeout bounds the TLS handshake and the HTTP/2 negotiation of a new connection as well as the TCP
+		// connect, so it is set explicitly rather than left at Armeria's 3200 ms default, which a loaded client host
+		// can exceed - the call then fails before it ever reaches the server.
 		ClientFactoryBuilder clientFactoryBuilder = ClientFactory
 			.builder()
 			.workerGroup(workerGroup, true)
 			.idleTimeoutMillis(idleTimeoutMillis, true)
-			.pingIntervalMillis(pingIntervalMillis);
+			.pingIntervalMillis(pingIntervalMillis)
+			.connectTimeoutMillis(configuration.connection().connectTimeoutMillis());
 
 		final String uriScheme;
 		final ClientTlsOptions tlsOptions = configuration.tls();
