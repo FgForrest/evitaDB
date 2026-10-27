@@ -519,7 +519,7 @@ class ChampMapTest {
 		void shouldNotEqualNonMapObject() {
 			final ChampMap<Integer, Integer> map = mapOf(1, 2, 3);
 			assertNotEquals("not a map", map);
-			assertNotEquals(map, 1);
+			assertNotEquals(1, map);
 		}
 
 		@Test

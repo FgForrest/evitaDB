@@ -589,7 +589,7 @@ public class HistogramHavingMultiGroupFunctionalTest implements EvitaTestSupport
 		assertFalse(
 			expected.isEmpty(), "The fixture must make this shape match something, or the test proves nothing."
 		);
-		assertNotEquals(allOwners(scopes), expected, "The fixture must make this shape reject some owner.");
+		assertNotEquals(expected, allOwners(scopes), "The fixture must make this shape reject some owner.");
 	}
 
 	/**

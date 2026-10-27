@@ -134,7 +134,7 @@ class NormalizationMutationConverterTest {
 	 * @param input mutation fields as received from the external API
 	 * @return normalization chain declared by the converted mutation
 	 */
-	private AnalysisStep[] read(Kind kind, Map<String, Object> input) {
+	private static AnalysisStep[] read(Kind kind, Map<String, Object> input) {
 		return switch (kind) {
 			case CREATE -> createConverter().convertFromInput(input).getNormalization();
 			case CREATE_GLOBAL -> globalConverter().convertFromInput(input).getNormalization();
@@ -150,7 +150,7 @@ class NormalizationMutationConverterTest {
 	 * @return the mutation as rendered by the converter output
 	 */
 	@SuppressWarnings("unchecked")
-	private Map<String, Object> write(Kind kind, Map<String, Object> input) {
+	private static Map<String, Object> write(Kind kind, Map<String, Object> input) {
 		return (Map<String, Object>) switch (kind) {
 			case CREATE -> {
 				final CreateAttributeSchemaMutationConverter converter = createConverter();
@@ -175,7 +175,7 @@ class NormalizationMutationConverterTest {
 	 *
 	 * @return converter for entity and reference attribute create mutations
 	 */
-	private CreateAttributeSchemaMutationConverter createConverter() {
+	private static CreateAttributeSchemaMutationConverter createConverter() {
 		return new CreateAttributeSchemaMutationConverter(
 			PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE
 		);
@@ -186,7 +186,7 @@ class NormalizationMutationConverterTest {
 	 *
 	 * @return converter for global attribute create mutations
 	 */
-	private CreateGlobalAttributeSchemaMutationConverter globalConverter() {
+	private static CreateGlobalAttributeSchemaMutationConverter globalConverter() {
 		return new CreateGlobalAttributeSchemaMutationConverter(
 			PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE
 		);
@@ -197,7 +197,7 @@ class NormalizationMutationConverterTest {
 	 *
 	 * @return converter for the full-statement normalization mutation
 	 */
-	private SetAttributeSchemaNormalizedMutationConverter setConverter() {
+	private static SetAttributeSchemaNormalizedMutationConverter setConverter() {
 		return new SetAttributeSchemaNormalizedMutationConverter(
 			PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE
 		);

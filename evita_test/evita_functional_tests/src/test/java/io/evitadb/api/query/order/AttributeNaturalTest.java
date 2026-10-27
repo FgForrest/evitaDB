@@ -225,7 +225,7 @@ class AttributeNaturalTest {
 		@Test
 		@DisplayName("should not be equal to non-applicable instance")
 		void shouldNotBeEqualToNonApplicable() {
-			assertNotEquals(attributeNatural("married"), new AttributeNatural(null));
+			assertNotEquals(new AttributeNatural(null), attributeNatural("married"));
 			assertNotEquals(attributeNatural("married").hashCode(), new AttributeNatural(null).hashCode());
 		}
 	}

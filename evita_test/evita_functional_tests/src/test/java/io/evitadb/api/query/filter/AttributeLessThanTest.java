@@ -183,8 +183,8 @@ class AttributeLessThanTest {
 			assertNotSame(attributeLessThan("abc", "def"), attributeLessThan("abc", "def"));
 			assertEquals(attributeLessThan("abc", "def"), attributeLessThan("abc", "def"));
 			assertNotEquals(attributeLessThan("abc", "def"), attributeLessThan("abc", "defe"));
-			assertNotEquals(attributeLessThan("abc", "def"), new AttributeLessThan("abc", null));
-			assertNotEquals(attributeLessThan("abc", "def"), new AttributeLessThan(null, "abc"));
+			assertNotEquals(new AttributeLessThan("abc", null), attributeLessThan("abc", "def"));
+			assertNotEquals(new AttributeLessThan(null, "abc"), attributeLessThan("abc", "def"));
 			assertEquals(
 				attributeLessThan("abc", "def").hashCode(),
 				attributeLessThan("abc", "def").hashCode()

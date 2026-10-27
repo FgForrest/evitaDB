@@ -90,7 +90,7 @@ class MemoryMeasuringConstantsTest {
 		void shouldHaveCorrectReferenceSize() {
 			// measured as what one extra reference slot costs in an array - NOT `VM.addressSize()`, which reports
 			// the 64-bit native word and stays 8 even while compressed oops make a reference 4
-			assertEquals(JolHeapSize.referenceSize(), MemoryMeasuringConstants.REFERENCE_SIZE);
+			assertEquals(MemoryMeasuringConstants.REFERENCE_SIZE, JolHeapSize.referenceSize());
 		}
 
 		@Test
@@ -136,8 +136,8 @@ class MemoryMeasuringConstantsTest {
 			// size IS the whole object. That is the case `BIG_DECIMAL_WHOLE_SIZE` describes
 			final BigDecimal compact = BigDecimal.valueOf(12345L, 2);
 			assertEquals(
-				JolHeapSize.shallowSize(compact),
-				MemoryMeasuringConstants.BIG_DECIMAL_WHOLE_SIZE
+				MemoryMeasuringConstants.BIG_DECIMAL_WHOLE_SIZE,
+				JolHeapSize.shallowSize(compact)
 			);
 		}
 
@@ -153,10 +153,10 @@ class MemoryMeasuringConstantsTest {
 				"the whole size must exceed the payload by at least the object header"
 			);
 			assertEquals(
+				MemoryMeasuringConstants.BIG_DECIMAL_WHOLE_SIZE,
 				MemoryMeasuringConstants.align(
 					MemoryMeasuringConstants.OBJECT_HEADER_SIZE + MemoryMeasuringConstants.BIG_DECIMAL_SIZE
-				),
-				MemoryMeasuringConstants.BIG_DECIMAL_WHOLE_SIZE
+				)
 			);
 		}
 

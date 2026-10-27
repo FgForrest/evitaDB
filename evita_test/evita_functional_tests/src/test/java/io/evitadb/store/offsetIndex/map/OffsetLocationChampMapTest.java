@@ -527,8 +527,8 @@ class OffsetLocationChampMapTest {
 		void shouldNotEqualNonMapObject() {
 			final OffsetLocationChampMap map = mapOf(1, 2, 3);
 			assertNotEquals("not a map", map);
-			assertNotEquals(map, "not a map");
-			assertNotEquals(map, 1);
+			assertNotEquals("not a map", map);
+			assertNotEquals(1, map);
 		}
 
 		@Test

@@ -120,8 +120,8 @@ class ReferenceSummaryOfReferenceTest {
 		@DisplayName("should create from EntityFetchRequire array")
 		void shouldCreateFromRequirements() {
 			assertEquals(
-				referenceSummaryOfReference("parameter", FacetStatisticsDepth.COUNTS),
-				new ReferenceSummaryOfReference("parameter", FacetStatisticsDepth.COUNTS)
+				new ReferenceSummaryOfReference("parameter", FacetStatisticsDepth.COUNTS),
+				referenceSummaryOfReference("parameter", FacetStatisticsDepth.COUNTS)
 			);
 			assertEquals(
 				referenceSummaryOfReference("parameter", FacetStatisticsDepth.COUNTS, entityFetch(attributeContent("code"))),

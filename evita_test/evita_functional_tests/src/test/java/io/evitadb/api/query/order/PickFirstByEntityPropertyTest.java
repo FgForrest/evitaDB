@@ -306,8 +306,8 @@ class PickFirstByEntityPropertyTest implements EvitaTestSupport {
 				pickFirstByEntityProperty(attributeNatural("order"))
 			);
 			assertNotEquals(
-				pickFirstByEntityProperty(attributeNatural("code")),
-				new PickFirstByEntityProperty()
+				new PickFirstByEntityProperty(),
+				pickFirstByEntityProperty(attributeNatural("code"))
 			);
 			assertEquals(
 				pickFirstByEntityProperty(attributeNatural("code")).hashCode(),

@@ -445,8 +445,8 @@ class TraverseByEntityPropertyTest implements EvitaTestSupport {
 				traverseByEntityProperty(attributeNatural("order"))
 			);
 			assertNotEquals(
-				traverseByEntityProperty(attributeNatural("code")),
-				new TraverseByEntityProperty(null)
+				new TraverseByEntityProperty(null),
+				traverseByEntityProperty(attributeNatural("code"))
 			);
 			assertEquals(
 				traverseByEntityProperty(attributeNatural("code")).hashCode(),

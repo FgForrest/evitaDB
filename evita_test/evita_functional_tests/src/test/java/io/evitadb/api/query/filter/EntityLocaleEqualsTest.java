@@ -157,7 +157,7 @@ class EntityLocaleEqualsTest {
 			assertNotSame(entityLocaleEquals(Locale.ENGLISH), entityLocaleEquals(Locale.ENGLISH));
 			assertEquals(entityLocaleEquals(Locale.ENGLISH), entityLocaleEquals(Locale.ENGLISH));
 			assertNotEquals(entityLocaleEquals(Locale.ENGLISH), entityLocaleEquals(Locale.FRANCE));
-			assertNotEquals(entityLocaleEquals(Locale.ENGLISH), new EntityLocaleEquals(null));
+			assertNotEquals(new EntityLocaleEquals(null), entityLocaleEquals(Locale.ENGLISH));
 			assertEquals(
 				entityLocaleEquals(Locale.ENGLISH).hashCode(),
 				entityLocaleEquals(Locale.ENGLISH).hashCode()

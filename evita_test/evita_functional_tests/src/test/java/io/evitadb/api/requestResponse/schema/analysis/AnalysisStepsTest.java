@@ -68,11 +68,11 @@ class AnalysisStepsTest {
 		assertEquals(Map.of("limit", 2, "factor", new BigDecimal("1.5")), step.parameters());
 		assertEquals("custom(limit=2, factor=1.5)", step.toString());
 		assertNotEquals(step, lowercase());
-		assertNotEquals(step, "custom");
+		assertNotEquals("custom", step);
 		assertEquals(parameter("limit", 2), parameter("limit", 2));
 		assertNotEquals(parameter("limit", 2), parameter("limit", 3));
 		assertNotEquals(parameter("limit", 2), parameter("other", 2));
-		assertNotEquals(parameter("limit", 2), "limit");
+		assertNotEquals("limit", parameter("limit", 2));
 	}
 
 	/** Descriptions own the map and any supported mutable array values. */

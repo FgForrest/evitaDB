@@ -85,8 +85,8 @@ class AnalysisStepConverterTest {
 	@DisplayName("Preserves declared order and typed parameters through protobuf bytes")
 	void shouldRoundTripSteps(@Nonnull List<AnalysisStep> steps) throws Exception {
 		final List<GrpcAnalysisStep> wire = AnalysisStepConverter.toGrpcAnalysisSteps(steps);
-		for (int i = 0; i < wire.size(); i++) {
-			assertEquals(wire.get(i), GrpcAnalysisStep.parseFrom(wire.get(i).toByteArray()));
+		for (GrpcAnalysisStep grpcAnalysisStep : wire) {
+			assertEquals(grpcAnalysisStep, GrpcAnalysisStep.parseFrom(grpcAnalysisStep.toByteArray()));
 		}
 		assertEquals(steps, AnalysisStepConverter.toAnalysisSteps(wire));
 	}
@@ -112,7 +112,7 @@ class AnalysisStepConverterTest {
 			SetAttributeSchemaNormalizedMutationConverter.INSTANCE;
 		final SetAttributeSchemaNormalizedMutation replacement = converter.convert(
 			GrpcSetAttributeSchemaNormalizedMutation.newBuilder().setName("code")
-				.addNormalization(AnalysisStepConverter.toGrpcAnalysisSteps(List.of(asciiFolding())).get(0)).build());
+				.addNormalization(AnalysisStepConverter.toGrpcAnalysisSteps(List.of(asciiFolding())).getFirst()).build());
 		final AttributeSchemaContract updated = replacement.mutate(null, schema, AttributeSchemaContract.class);
 		assertEquals(List.of(asciiFolding()), updated.getNormalization());
 		final SetAttributeSchemaNormalizedMutation removal = converter.convert(

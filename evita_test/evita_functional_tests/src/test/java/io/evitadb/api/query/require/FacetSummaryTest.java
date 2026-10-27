@@ -119,8 +119,8 @@ class FacetSummaryTest {
 		@DisplayName("should create from EntityFetchRequire array")
 		void shouldCreateFromRequirements() {
 			assertEquals(
-				facetSummary(FacetStatisticsDepth.COUNTS),
-				new FacetSummary(FacetStatisticsDepth.COUNTS, new EntityFetchRequire[0])
+				new FacetSummary(FacetStatisticsDepth.COUNTS, new EntityFetchRequire[0]),
+				facetSummary(FacetStatisticsDepth.COUNTS)
 			);
 			assertEquals(
 				facetSummary(FacetStatisticsDepth.COUNTS, entityFetch(attributeContent("code"))),

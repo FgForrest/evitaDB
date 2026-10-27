@@ -115,8 +115,8 @@ class ReferenceSummaryTest {
 		@DisplayName("should create from EntityFetchRequire array")
 		void shouldCreateFromRequirements() {
 			assertEquals(
-				referenceSummary(FacetStatisticsDepth.COUNTS),
-				new ReferenceSummary(FacetStatisticsDepth.COUNTS, new EntityFetchRequire[0])
+				new ReferenceSummary(FacetStatisticsDepth.COUNTS, new EntityFetchRequire[0]),
+				referenceSummary(FacetStatisticsDepth.COUNTS)
 			);
 			assertEquals(
 				referenceSummary(FacetStatisticsDepth.COUNTS, entityFetch(attributeContent("code"))),
