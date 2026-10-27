@@ -23,16 +23,8 @@
 
 package io.evitadb.externalApi.rest.api.openApi;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linecorp.armeria.server.Server;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.HeaderOptions;
-import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.builder.RestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogEndpointBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
@@ -44,26 +36,19 @@ import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperatio
 import io.evitadb.externalApi.rest.api.system.builder.SystemEndpointBuilder;
 import io.evitadb.externalApi.rest.api.system.builder.SystemRestBuildingContext;
 import io.evitadb.externalApi.rest.configuration.RestOptions;
-import io.evitadb.externalApi.rest.io.RestRouter;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
-import io.evitadb.test.tester.RestOpenApiAssertions;
-import io.evitadb.test.tester.RestTester;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
-import java.io.IOException;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiObject.newObject;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiProperty.newProperty;
@@ -75,7 +60,7 @@ import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Verifies that OpenAPI documentation errors are reported without preventing REST service.
+ * Verifies that an OpenAPI document with a dangling schema reference fails to build.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -83,7 +68,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(REST)
 @Tag(EXTERNAL_API)
 @Tag(SCHEMA)
-@DisplayName("REST document validation availability")
+@DisplayName("REST document reference validation")
 class RestBuildingContextTest {
 
 	private static final String EMPTY_CATALOG = "RestBuildingContextEmptyCatalog";
@@ -98,7 +83,7 @@ class RestBuildingContextTest {
 	}
 
 	/**
-	 * Uses real building contexts, specification handlers and the REST router.
+	 * Uses real building contexts with their specification endpoints.
 	 *
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
@@ -107,66 +92,27 @@ class RestBuildingContextTest {
 	class DanglingReferences {
 
 		/**
-		 * A dangling reference remains visible in served JSON and produces a diagnostic with every missing name.
+		 * A dangling reference fails the build with an error naming the document and every missing schema.
 		 */
 		@ParameterizedTest(name = "{0}")
 		@ValueSource(strings = {TEST_CATALOG, "system"})
 		@UseDataSet(EMPTY_CATALOG)
-		@DisplayName("Should log missing schemas and serve the document when references dangle")
-		void shouldLogAndServeWhenReferencesDangle(@Nonnull String documentName, @Nonnull Evita evita)
-			throws IOException {
-			final RestOptions options = new RestOptions("localhost:5555");
-			final HeaderOptions headers = HeaderOptions.builder().build();
-			final RestBuildingContext context = createContext(documentName, options, headers, evita);
+		@DisplayName("Should fail building the document when references dangle")
+		void shouldFailWhenReferencesDangle(@Nonnull String documentName, @Nonnull Evita evita) {
+			final RestBuildingContext context = createContext(
+				documentName, new RestOptions("localhost:5555"), HeaderOptions.builder().build(), evita
+			);
 			context.registerType(newObject().name("DanglingContainer")
 				.property(newProperty().name("first").type(typeRefTo("MissingFirst")))
 				.property(newProperty().name("second").type(typeRefTo("MissingSecond")))
 				.build());
 
-			final Logger logger = assertInstanceOf(Logger.class, LoggerFactory.getLogger(RestBuildingContext.class));
-			final List<ILoggingEvent> events = new CopyOnWriteArrayList<>();
-			final ListAppender<ILoggingEvent> appender = new ListAppender<>() {
-				/**
-				 * Materializes lazy log event fields before retaining the event for assertions.
-				 */
-				@Override
-				protected void append(@Nonnull ILoggingEvent event) {
-					event.prepareForDeferredProcessing();
-					events.add(event);
-				}
-			};
-			appender.start();
-			logger.addAppender(appender);
-			try {
-				final Rest rest = assertDoesNotThrow(context::buildRest,
-					"Dangling documentation references must not prevent REST API construction");
-				assertEquals(Set.of("MissingFirst", "MissingSecond"),
-					new OpenApiReferenceValidator(rest.openApi()).validateSchemaReferences());
-				assertTrue(events.stream().anyMatch(event -> event.getLevel() == Level.ERROR
-					&& event.getFormattedMessage().contains("document `" + documentName + "`")
-					&& event.getFormattedMessage().contains("MissingFirst")
-					&& event.getFormattedMessage().contains("MissingSecond")),
-					"The error must name the document and every missing schema");
-				final Server server = createServer(documentName, rest, options, headers);
-				try {
-					server.start().join();
-					final JsonNode served = RestOpenApiAssertions.fetchDocument(
-						new RestTester("http://localhost:" + server.activeLocalPort()), documentName
-					);
-					assertEquals("#/components/schemas/MissingFirst",
-						served.at("/components/schemas/DanglingContainer/properties/first/$ref").asText());
-					assertEquals("#/components/schemas/MissingSecond",
-						served.at("/components/schemas/DanglingContainer/properties/second/$ref").asText());
-					assertThrows(AssertionError.class,
-						() -> RestOpenApiAssertions.assertReferencesResolve(served, documentName),
-						"The shared strict check must reject the served dangling reference");
-				} finally {
-					server.stop().join();
-				}
-			} finally {
-				logger.detachAppender(appender);
-				appender.stop();
-			}
+			final OpenApiBuildingError error = assertThrows(OpenApiBuildingError.class, context::buildRest);
+			assertTrue(error.getPrivateMessage().contains("document `" + documentName + "`"),
+				"The error must name the document");
+			assertTrue(error.getPrivateMessage().contains("MissingFirst")
+					&& error.getPrivateMessage().contains("MissingSecond"),
+				"The error must name every missing schema");
 		}
 
 		/**
@@ -203,25 +149,6 @@ class RestBuildingContextTest {
 				)
 			)).build());
 			return context;
-		}
-
-		/**
-		 * Creates an unstarted server on an ephemeral port that serves the document through the production router.
-		 */
-		@Nonnull
-		private Server createServer(
-			@Nonnull String documentName,
-			@Nonnull Rest rest,
-			@Nonnull RestOptions options,
-			@Nonnull HeaderOptions headers
-		) {
-			final RestRouter router = new RestRouter(new ObjectMapper(), headers, options);
-			if ("system".equals(documentName)) {
-				router.registerSystemApi(rest);
-			} else {
-				router.registerCatalogApi(documentName, rest);
-			}
-			return Server.builder().http(0).serviceUnder("/", router).build();
 		}
 	}
 }

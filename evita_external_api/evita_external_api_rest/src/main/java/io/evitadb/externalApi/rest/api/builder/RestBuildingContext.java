@@ -54,7 +54,6 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.servers.Server;
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Collections;
@@ -74,7 +73,6 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@Slf4j
 public abstract class RestBuildingContext {
 
 	@Nonnull protected final AbstractApiOptions restConfig;
@@ -184,8 +182,8 @@ public abstract class RestBuildingContext {
 	/**
 	 * Builds the OpenAPI document and the endpoint handlers from everything registered so far.
 	 *
-	 * A reference to a component schema the document does not define is logged at ERROR, naming the document, and
-	 * the API is still built: a documentation defect must not take the REST API down.
+	 * A reference to a component schema the document does not define fails the build with
+	 * {@link OpenApiBuildingError} naming the document and every missing schema.
 	 */
 	@Nonnull
 	public Rest buildRest() {
@@ -255,16 +253,16 @@ public abstract class RestBuildingContext {
 	}
 
 	/**
-	 * Reports documentation defects without preventing endpoint registration.
+	 * Fails the build when the document references a component schema it does not define.
 	 */
 	private void validateReferences(@Nonnull OpenAPI openApi) {
 		final OpenApiReferenceValidator referenceValidator = new OpenApiReferenceValidator(openApi);
 		final Set<String> missingSchemas = referenceValidator.validateSchemaReferences();
 
 		if (!missingSchemas.isEmpty()) {
-			log.error(
-				"OpenAPI document `{}` references missing schemas: {}.",
-				getOpenApiDocumentName(), String.join(", ", missingSchemas)
+			throw new OpenApiBuildingError(
+				"OpenAPI document `" + getOpenApiDocumentName() + "` references missing schemas: " +
+					String.join(", ", missingSchemas) + "."
 			);
 		}
 	}
