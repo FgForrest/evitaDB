@@ -61,7 +61,7 @@ public class AnalysisStepConverter {
 			step.getParametersMap().entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(
 				entry -> parameters.put(entry.getKey(), EvitaDataTypesConverter.toEvitaValue(entry.getValue()))
 			);
-			result.add(new AnalysisStep(step.getName(), parameters));
+			result.add(new AnalysisStep(step.getStep(), parameters));
 		}
 		return List.copyOf(result);
 	}
@@ -87,7 +87,7 @@ public class AnalysisStepConverter {
 	public static List<GrpcAnalysisStep> toGrpcAnalysisSteps(@Nonnull List<AnalysisStep> steps) {
 		final List<GrpcAnalysisStep> result = new ArrayList<>(steps.size());
 		for (final AnalysisStep step : steps) {
-			final GrpcAnalysisStep.Builder builder = GrpcAnalysisStep.newBuilder().setName(step.name());
+			final GrpcAnalysisStep.Builder builder = GrpcAnalysisStep.newBuilder().setStep(step.name());
 			step.parameters().entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(
 				entry -> builder.putParameters(entry.getKey(), EvitaDataTypesConverter.toGrpcEvitaValue(entry.getValue()))
 			);

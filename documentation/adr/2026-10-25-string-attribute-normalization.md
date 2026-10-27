@@ -1,7 +1,7 @@
 ---
 title: String attributes declare a single-pass normalization chain, and a populated index keeps the chain it was built with
 date: 2026-10-25
-updated: 2026-10-26 22:21
+updated: 2026-10-27 10:47
 status: accepted
 kind: feature
 issues: [545]
@@ -128,8 +128,8 @@ filter key (2026-10-08). There was no per-attribute key policy and no storage fo
 
 - **Typed inputs generated from the installed normalizing providers (chosen):** GraphQL `@oneOf`
   `[{lowercase: true}, {removeCharacters: {characters: "- "}}]` (parameterless steps take `true`: GraphQL forbids
-  empty input objects), the same shape as OpenAPI `oneOf` in REST, generic `GrpcAnalysisStep {name, parameters}` in
-  gRPC. Output everywhere is the declared list `{step, parameters}`.
+  empty input objects), the same shape as OpenAPI `oneOf` in REST, generic `GrpcAnalysisStep {step, parameters}` in
+  gRPC. Output everywhere is the declared list `{step, parameters}`, under the schema property `normalized`.
 - **Generic `{step, parameters}` input in GraphQL / REST, typed later - declined.** Rejected because a generic input
   leaves step names and parameter types to runtime validation and gives clients no discovery of the installed steps;
   graphql-java 25.0 supports `@oneOf` natively, so the typed form cost little to build now.

@@ -101,10 +101,10 @@ class AnalysisStepConverterTest {
 		final GrpcAttributeSchema wire = GrpcAttributeSchema.newBuilder()
 			.setName("code").setSchemaType(type)
 			.setType(EvitaDataTypesConverter.toGrpcEvitaDataType(String.class))
-			.addAllNormalization(AnalysisStepConverter.toGrpcAnalysisSteps(steps)).build();
+			.addAllNormalized(AnalysisStepConverter.toGrpcAnalysisSteps(steps)).build();
 		assertEquals(steps, EntitySchemaConverter.toAttributeSchema(wire, AttributeSchemaContract.class)
 			.getNormalization());
-		assertTrue(EntitySchemaConverter.toAttributeSchema(wire.toBuilder().clearNormalization().build(),
+		assertTrue(EntitySchemaConverter.toAttributeSchema(wire.toBuilder().clearNormalized().build(),
 			AttributeSchemaContract.class).getNormalization().isEmpty());
 		final AttributeSchemaContract schema = EntitySchemaConverter.toAttributeSchema(
 			wire, AttributeSchemaContract.class);

@@ -36,20 +36,20 @@ public interface GrpcAnalysisStepOrBuilder extends
    * Stable installed step name, for example `lowercase`, `ascii-folding`, `trim` or `remove-characters`.
    * </pre>
    *
-   * <code>string name = 1;</code>
-   * @return The name.
+   * <code>string step = 1;</code>
+   * @return The step.
    */
-  java.lang.String getName();
+  java.lang.String getStep();
   /**
    * <pre>
    * Stable installed step name, for example `lowercase`, `ascii-folding`, `trim` or `remove-characters`.
    * </pre>
    *
-   * <code>string name = 1;</code>
-   * @return The bytes for name.
+   * <code>string step = 1;</code>
+   * @return The bytes for step.
    */
   com.google.protobuf.ByteString
-      getNameBytes();
+      getStepBytes();
 
   /**
    * <pre>

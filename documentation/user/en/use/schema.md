@@ -585,8 +585,9 @@ JSON). An empty list in `setAttributeSchemaNormalizedMutation` removes all custo
 
 <LS to="j,g,r">
 
-In gRPC, `normalization` is an ordered, repeated `GrpcAnalysisStep` field. Each item has a `name` (such as
-`ascii-folding` or `remove-characters`) and a `parameters` map of `GrpcEvitaValue` values. Parameterless steps have
+In gRPC, the attribute schema's `normalized` field and the mutations' `normalization` field are ordered, repeated
+`GrpcAnalysisStep` fields. Each item has a `step` (such as `ascii-folding` or `remove-characters`) and a
+`parameters` map of `GrpcEvitaValue` values. Parameterless steps have
 an empty map. `GrpcSetAttributeSchemaNormalizedMutation` replaces the list; an empty repeated field clears it.
 The wire messages are defined in
 <SourceClass>evita_external_api/evita_external_api_grpc/shared/src/main/resources/META-INF/io/evitadb/externalApi/grpc/GrpcEvitaDataTypes.proto</SourceClass>

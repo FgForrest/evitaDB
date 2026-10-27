@@ -622,7 +622,7 @@ message GrpcScopedBucketedPartially {
 // not executable code. Normalization accepts only operations registered by the server as normalizing steps.
 message GrpcAnalysisStep {
   // Stable installed step name, for example `lowercase`, `ascii-folding`, `trim` or `remove-characters`.
-  string name = 1;
+  string step = 1;
   // Step-specific parameters using evitaDB value types. Empty for parameterless steps. Unknown parameters
   // and values incompatible with the installed step's parameter descriptors are rejected by the server.
   map<string, GrpcEvitaValue> parameters = 2;

@@ -304,7 +304,7 @@ public class EntitySchemaConverter {
 					.map(EvitaEnumConverter::toGrpcScope)
 					.toList()
 			)
-			.addAllNormalization(toGrpcAnalysisSteps(attributeSchema.getNormalization()))
+			.addAllNormalized(toGrpcAnalysisSteps(attributeSchema.getNormalization()))
 			.addAllAcceleratorsInScopes(
 				toGrpcScopedAttributeFilterAccelerators(
 					AttributeSchema.toAcceleratorsArray(attributeSchema.getAcceleratorsInScopes())
@@ -703,7 +703,7 @@ public class EntitySchemaConverter {
 					attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
 					attributeSchema.getIndexedDecimalPlaces(),
 					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
-					toAnalysisSteps(attributeSchema.getNormalizationList())
+					toAnalysisSteps(attributeSchema.getNormalizedList())
 				);
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
@@ -728,7 +728,7 @@ public class EntitySchemaConverter {
 					attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
 					attributeSchema.getIndexedDecimalPlaces(),
 					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
-					toAnalysisSteps(attributeSchema.getNormalizationList())
+					toAnalysisSteps(attributeSchema.getNormalizedList())
 				);
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
@@ -753,7 +753,7 @@ public class EntitySchemaConverter {
 					attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
 					attributeSchema.getIndexedDecimalPlaces(),
 					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
-					toAnalysisSteps(attributeSchema.getNormalizationList())
+					toAnalysisSteps(attributeSchema.getNormalizedList())
 				);
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");

@@ -564,7 +564,7 @@ public final class GrpcEvitaDataTypes {
       "Partially\022E\n\005scope\030\001 \001(\01626.io.evitadb.ex" +
       "ternalApi.grpc.generated.GrpcEntityScope" +
       "\0220\n\nexpression\030\002 \001(\0132\034.google.protobuf.S" +
-      "tringValue\"\347\001\n\020GrpcAnalysisStep\022\014\n\004name\030" +
+      "tringValue\"\347\001\n\020GrpcAnalysisStep\022\014\n\004step\030" +
       "\001 \001(\t\022[\n\nparameters\030\002 \003(\0132G.io.evitadb.e" +
       "xternalApi.grpc.generated.GrpcAnalysisSt" +
       "ep.ParametersEntry\032h\n\017ParametersEntry\022\013\n" +
@@ -896,7 +896,7 @@ public final class GrpcEvitaDataTypes {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcAnalysisStep_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcAnalysisStep_descriptor,
-        new java.lang.String[] { "Name", "Parameters", });
+        new java.lang.String[] { "Step", "Parameters", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcAnalysisStep_ParametersEntry_descriptor =
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcAnalysisStep_descriptor.getNestedTypes().get(0);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcAnalysisStep_ParametersEntry_fieldAccessorTable = new

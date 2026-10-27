@@ -149,7 +149,7 @@ public class GrpcAssertions {
 			assertEquals(expectedAttributeSchema.isUnique(), actualAttributeSchema.getUnique());
 			assertEquals(expectedAttributeSchema.isFilterable(), actualAttributeSchema.getFilterable());
 			assertEquals(expectedAttributeSchema.getNormalization(),
-				toAnalysisSteps(actualAttributeSchema.getNormalizationList()));
+				toAnalysisSteps(actualAttributeSchema.getNormalizedList()));
 			assertEquals(expectedAttributeSchema.isSortable(), actualAttributeSchema.getSortable());
 			assertEquals(expectedAttributeSchema.isLocalized(), actualAttributeSchema.getLocalized());
 			assertEquals(expectedAttributeSchema.isNullable(), actualAttributeSchema.getNullable());
@@ -233,7 +233,7 @@ public class GrpcAssertions {
 			assertEquals(expectedAttributeSchema.isUnique(), actualAttributeSchema.getUnique());
 			assertEquals(expectedAttributeSchema.isFilterable(), actualAttributeSchema.getFilterable());
 			assertEquals(expectedAttributeSchema.getNormalization(),
-				toAnalysisSteps(actualAttributeSchema.getNormalizationList()));
+				toAnalysisSteps(actualAttributeSchema.getNormalizedList()));
 			assertEquals(expectedAttributeSchema.isSortable(), actualAttributeSchema.getSortable());
 			assertEquals(expectedAttributeSchema.isLocalized(), actualAttributeSchema.getLocalized());
 			assertEquals(expectedAttributeSchema.isNullable(), actualAttributeSchema.getNullable());

@@ -150,5 +150,5 @@ message GrpcGlobalAttributeSchema {
   // Declared normalization steps, applied once in this order to String index keys. Empty means no declared
   // normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
   // A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
-  repeated GrpcAnalysisStep normalization = 21;
+  repeated GrpcAnalysisStep normalized = 21;
 }

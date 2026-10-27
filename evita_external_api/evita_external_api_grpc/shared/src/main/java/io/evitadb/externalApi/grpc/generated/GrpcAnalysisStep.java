@@ -45,7 +45,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcAnalysisStep() {
-    name_ = "";
+    step_ = "";
   }
 
   @java.lang.Override
@@ -80,27 +80,27 @@ private static final long serialVersionUID = 0L;
             io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep.class, io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep.Builder.class);
   }
 
-  public static final int NAME_FIELD_NUMBER = 1;
+  public static final int STEP_FIELD_NUMBER = 1;
   @SuppressWarnings("serial")
-  private volatile java.lang.Object name_ = "";
+  private volatile java.lang.Object step_ = "";
   /**
    * <pre>
    * Stable installed step name, for example `lowercase`, `ascii-folding`, `trim` or `remove-characters`.
    * </pre>
    *
-   * <code>string name = 1;</code>
-   * @return The name.
+   * <code>string step = 1;</code>
+   * @return The step.
    */
   @java.lang.Override
-  public java.lang.String getName() {
-    java.lang.Object ref = name_;
+  public java.lang.String getStep() {
+    java.lang.Object ref = step_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
       com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      name_ = s;
+      step_ = s;
       return s;
     }
   }
@@ -109,18 +109,18 @@ private static final long serialVersionUID = 0L;
    * Stable installed step name, for example `lowercase`, `ascii-folding`, `trim` or `remove-characters`.
    * </pre>
    *
-   * <code>string name = 1;</code>
-   * @return The bytes for name.
+   * <code>string step = 1;</code>
+   * @return The bytes for step.
    */
   @java.lang.Override
   public com.google.protobuf.ByteString
-      getNameBytes() {
-    java.lang.Object ref = name_;
+      getStepBytes() {
+    java.lang.Object ref = step_;
     if (ref instanceof java.lang.String) {
       com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      name_ = b;
+      step_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -240,8 +240,8 @@ io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue) {
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, name_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(step_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, step_);
     }
     com.google.protobuf.GeneratedMessageV3
       .serializeStringMapTo(
@@ -258,8 +258,8 @@ io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue) {
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, name_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(step_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, step_);
     }
     for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue> entry
          : internalGetParameters().getMap().entrySet()) {
@@ -286,8 +286,8 @@ io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue) {
     }
     io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep other = (io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep) obj;
 
-    if (!getName()
-        .equals(other.getName())) return false;
+    if (!getStep()
+        .equals(other.getStep())) return false;
     if (!internalGetParameters().equals(
         other.internalGetParameters())) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
@@ -301,8 +301,8 @@ io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue) {
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
-    hash = (37 * hash) + NAME_FIELD_NUMBER;
-    hash = (53 * hash) + getName().hashCode();
+    hash = (37 * hash) + STEP_FIELD_NUMBER;
+    hash = (53 * hash) + getStep().hashCode();
     if (!internalGetParameters().getMap().isEmpty()) {
       hash = (37 * hash) + PARAMETERS_FIELD_NUMBER;
       hash = (53 * hash) + internalGetParameters().hashCode();
@@ -465,7 +465,7 @@ io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue) {
     public Builder clear() {
       super.clear();
       bitField0_ = 0;
-      name_ = "";
+      step_ = "";
       internalGetMutableParameters().clear();
       return this;
     }
@@ -501,7 +501,7 @@ io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue) {
     private void buildPartial0(io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep result) {
       int from_bitField0_ = bitField0_;
       if (((from_bitField0_ & 0x00000001) != 0)) {
-        result.name_ = name_;
+        result.step_ = step_;
       }
       if (((from_bitField0_ & 0x00000002) != 0)) {
         result.parameters_ = internalGetParameters().build(ParametersDefaultEntryHolder.defaultEntry);
@@ -552,8 +552,8 @@ io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue) {
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep.getDefaultInstance()) return this;
-      if (!other.getName().isEmpty()) {
-        name_ = other.name_;
+      if (!other.getStep().isEmpty()) {
+        step_ = other.step_;
         bitField0_ |= 0x00000001;
         onChanged();
       }
@@ -587,7 +587,7 @@ io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue) {
               done = true;
               break;
             case 10: {
-              name_ = input.readStringRequireUtf8();
+              step_ = input.readStringRequireUtf8();
               bitField0_ |= 0x00000001;
               break;
             } // case 10
@@ -617,22 +617,22 @@ io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue) {
     }
     private int bitField0_;
 
-    private java.lang.Object name_ = "";
+    private java.lang.Object step_ = "";
     /**
      * <pre>
      * Stable installed step name, for example `lowercase`, `ascii-folding`, `trim` or `remove-characters`.
      * </pre>
      *
-     * <code>string name = 1;</code>
-     * @return The name.
+     * <code>string step = 1;</code>
+     * @return The step.
      */
-    public java.lang.String getName() {
-      java.lang.Object ref = name_;
+    public java.lang.String getStep() {
+      java.lang.Object ref = step_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        name_ = s;
+        step_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -643,17 +643,17 @@ io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue) {
      * Stable installed step name, for example `lowercase`, `ascii-folding`, `trim` or `remove-characters`.
      * </pre>
      *
-     * <code>string name = 1;</code>
-     * @return The bytes for name.
+     * <code>string step = 1;</code>
+     * @return The bytes for step.
      */
     public com.google.protobuf.ByteString
-        getNameBytes() {
-      java.lang.Object ref = name_;
+        getStepBytes() {
+      java.lang.Object ref = step_;
       if (ref instanceof String) {
         com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        name_ = b;
+        step_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -664,14 +664,14 @@ io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue) {
      * Stable installed step name, for example `lowercase`, `ascii-folding`, `trim` or `remove-characters`.
      * </pre>
      *
-     * <code>string name = 1;</code>
-     * @param value The name to set.
+     * <code>string step = 1;</code>
+     * @param value The step to set.
      * @return This builder for chaining.
      */
-    public Builder setName(
+    public Builder setStep(
         java.lang.String value) {
       if (value == null) { throw new NullPointerException(); }
-      name_ = value;
+      step_ = value;
       bitField0_ |= 0x00000001;
       onChanged();
       return this;
@@ -681,11 +681,11 @@ io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue) {
      * Stable installed step name, for example `lowercase`, `ascii-folding`, `trim` or `remove-characters`.
      * </pre>
      *
-     * <code>string name = 1;</code>
+     * <code>string step = 1;</code>
      * @return This builder for chaining.
      */
-    public Builder clearName() {
-      name_ = getDefaultInstance().getName();
+    public Builder clearStep() {
+      step_ = getDefaultInstance().getStep();
       bitField0_ = (bitField0_ & ~0x00000001);
       onChanged();
       return this;
@@ -695,15 +695,15 @@ io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue) {
      * Stable installed step name, for example `lowercase`, `ascii-folding`, `trim` or `remove-characters`.
      * </pre>
      *
-     * <code>string name = 1;</code>
-     * @param value The bytes for name to set.
+     * <code>string step = 1;</code>
+     * @param value The bytes for step to set.
      * @return This builder for chaining.
      */
-    public Builder setNameBytes(
+    public Builder setStepBytes(
         com.google.protobuf.ByteString value) {
       if (value == null) { throw new NullPointerException(); }
       checkByteStringIsUtf8(value);
-      name_ = value;
+      step_ = value;
       bitField0_ |= 0x00000001;
       onChanged();
       return this;

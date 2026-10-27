@@ -193,7 +193,7 @@ public class CatalogSchemaConverter {
 					.map(EvitaEnumConverter::toGrpcScope)
 					.toList()
 			)
-			.addAllNormalization(toGrpcAnalysisSteps(attributeSchema.getNormalization()))
+			.addAllNormalized(toGrpcAnalysisSteps(attributeSchema.getNormalization()))
 			.addAllAcceleratorsInScopes(
 				toGrpcScopedAttributeFilterAccelerators(
 					AttributeSchema.toAcceleratorsArray(attributeSchema.getAcceleratorsInScopes())
@@ -261,7 +261,7 @@ public class CatalogSchemaConverter {
 			attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
 			attributeSchema.getIndexedDecimalPlaces(),
 			EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
-			toAnalysisSteps(attributeSchema.getNormalizationList())
+			toAnalysisSteps(attributeSchema.getNormalizedList())
 		);
 	}
 

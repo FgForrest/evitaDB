@@ -692,10 +692,10 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 21;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalized = 21;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep> 
-      getNormalizationList();
+      getNormalizedList();
   /**
    * <pre>
    * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
@@ -703,9 +703,9 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 21;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalized = 21;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep getNormalization(int index);
+  io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep getNormalized(int index);
   /**
    * <pre>
    * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
@@ -713,9 +713,9 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 21;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalized = 21;</code>
    */
-  int getNormalizationCount();
+  int getNormalizedCount();
   /**
    * <pre>
    * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
@@ -723,10 +723,10 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 21;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalized = 21;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAnalysisStepOrBuilder> 
-      getNormalizationOrBuilderList();
+      getNormalizedOrBuilderList();
   /**
    * <pre>
    * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
@@ -734,8 +734,8 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 21;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalized = 21;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcAnalysisStepOrBuilder getNormalizationOrBuilder(
+  io.evitadb.externalApi.grpc.generated.GrpcAnalysisStepOrBuilder getNormalizedOrBuilder(
       int index);
 }
