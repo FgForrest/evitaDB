@@ -80,13 +80,13 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 	public static final String GRAPHQL_EMPTY_SYSTEM_FOR_SYSTEM_API = "GraphQLEmptySystemForSystemApi";
 
 	/**
-	 * Overall budget for the live-tail host-event retry loop in
-	 * {@link #shouldReceiveCatalogSchemaUpdatedFromHostSubscription(Evita, GraphQLTester)}. Kept
-	 * under the tester's own 30-second await so a genuinely broken CDC pipeline still fails.
+	 * Overall budget for the retry loops that re-fire their trigger until the asynchronously
+	 * registered subscription delivers it. Kept under the tester's own await so a genuinely broken
+	 * CDC pipeline still fails.
 	 */
 	private static final Duration SUBSCRIPTION_LIVENESS_BUDGET = Duration.ofSeconds(20);
 	/**
-	 * Per-attempt wait for the coalesced host event before the retry loop re-fires the schema bump.
+	 * Per-attempt wait for the awaited envelope before a retry loop fires its trigger again.
 	 */
 	private static final Duration SUBSCRIPTION_LIVENESS_POLL = Duration.ofSeconds(2);
 
@@ -395,18 +395,15 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 	@DisplayName("Should receive system capture without body")
 	void shouldReceiveSystemCaptureWithoutBody(Evita evita, GraphQLTester tester) {
 		final String subscriptionId = createSubscriptionId();
-		final String newCatalogName = "myCatalog" + subscriptionId;
 
 		tester.testWebSocket(
 			SYSTEM_URL,
 			ctx -> {
 				ctx.writer().write(createConnectionInitMessage());
 				ctx.writer().write(createSubscriptionQueryMessage(subscriptionId, "onSystemChange { version index operation }"));
-				// wait for connection_ack so the server has time to register the CDC subscription
 				ctx.awaitEvents(1);
 
-				// apply operation to trigger a new event
-				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
+				createCatalogsUntilCaptured(ctx, evita, "myCatalog" + subscriptionId);
 			},
 			3, receivedEvents -> {
 				assertConnectionAckEvent(receivedEvents.get(0));
@@ -425,18 +422,15 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 	@DisplayName("Should receive system capture without body (untyped)")
 	void shouldReceiveSystemCaptureWithoutBodyUntyped(Evita evita, GraphQLTester tester) {
 		final String subscriptionId = createSubscriptionId();
-		final String newCatalogName = "myCatalog" + subscriptionId;
 
 		tester.testWebSocket(
 			SYSTEM_URL,
 			ctx -> {
 				ctx.writer().write(createConnectionInitMessage());
 				ctx.writer().write(createSubscriptionQueryMessage(subscriptionId, "onSystemChangeUntyped { version index operation }"));
-				// wait for connection_ack so the server has time to register the CDC subscription
 				ctx.awaitEvents(1);
 
-				// apply operation to trigger a new event
-				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
+				createCatalogsUntilCaptured(ctx, evita, "myCatalog" + subscriptionId);
 			},
 			3, receivedEvents -> {
 				assertConnectionAckEvent(receivedEvents.get(0));
@@ -448,6 +442,37 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 						.isEqualTo(Operation.UPSERT);
 			}
 		);
+	}
+
+	/**
+	 * Creates a fresh catalog of {@code catalogFamily} per attempt until the subscription delivers
+	 * the `TRANSACTION` and `UPSERT` envelopes of one of them, or the liveness budget elapses.
+	 *
+	 * A subscription opened without `sinceVersion` starts after the engine version current when the
+	 * server registers it, and `connection_ack` only proves `connection_init` was processed, NOT that
+	 * the separate `subscribe` message was registered. A single mutation fired after the ack can
+	 * therefore commit first and is never delivered — a lost event, not a slow one, so no longer
+	 * await could fix it. The stream starts at a transaction boundary and delivers in version order,
+	 * so the first two envelopes after the ack belong to one attempt, whichever attempt won.
+	 *
+	 * @param ctx           the websocket context of the open subscription
+	 * @param evita         the engine the catalogs are created in
+	 * @param catalogFamily the catalog name prefix, made unique by the attempt number
+	 */
+	private static void createCatalogsUntilCaptured(
+		@Nonnull GraphQLTester.WebSocketContext ctx,
+		@Nonnull Evita evita,
+		@Nonnull String catalogFamily
+	) {
+		final long deadlineNanos = System.nanoTime() + SUBSCRIPTION_LIVENESS_BUDGET.toNanos();
+		int attempt = 0;
+		boolean captured = false;
+		while (!captured && System.nanoTime() < deadlineNanos) {
+			evita.applyMutation(new CreateCatalogSchemaMutation(catalogFamily + attempt++))
+				.onCompletion().toCompletableFuture().join();
+			// connection_ack + TRANSACTION + UPSERT
+			captured = ctx.tryAwaitEvents(3, SUBSCRIPTION_LIVENESS_POLL);
+		}
 	}
 
 	@Test
