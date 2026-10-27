@@ -136,6 +136,12 @@ public abstract class RestBuildingContext {
 	protected abstract String getOpenApiTitle();
 
 	/**
+	 * Identifies the catalog or system document in validation diagnostics.
+	 */
+	@Nonnull
+	protected abstract String getOpenApiDocumentName();
+
+	/**
 	 * Registers new custom enum if there is not enum with same name.
 	 */
 	public void registerCustomEnumIfAbsent(@Nonnull OpenApiEnum customEnum) {
@@ -178,6 +184,12 @@ public abstract class RestBuildingContext {
 	}
 
 
+	/**
+	 * Builds the OpenAPI document and the endpoint handlers from everything registered so far.
+	 *
+	 * A reference to a component schema the document does not define fails the build with
+	 * {@link OpenApiBuildingError} naming the document and every missing schema.
+	 */
 	@Nonnull
 	public Rest buildRest() {
 		final OpenAPI openApi = buildOpenApi();
@@ -249,14 +261,18 @@ public abstract class RestBuildingContext {
 		return Collections.unmodifiableList(builtEndpoints);
 	}
 
-	private static void validateReferences(OpenAPI openApi) {
+	/**
+	 * Fails the build when the document references a component schema it does not define.
+	 */
+	private void validateReferences(@Nonnull OpenAPI openApi) {
 		final OpenApiReferenceValidator referenceValidator = new OpenApiReferenceValidator(openApi);
 		final Set<String> missingSchemas = referenceValidator.validateSchemaReferences();
 
 		if (!missingSchemas.isEmpty()) {
-			final StringBuilder errorMessageBuilder = new StringBuilder("Found missing schema in OpenAPI :`\n");
-			missingSchemas.forEach(it -> errorMessageBuilder.append("- `").append(it).append("`\n"));
-			throw new OpenApiBuildingError(errorMessageBuilder.toString());
+			throw new OpenApiBuildingError(
+				"OpenAPI document `" + getOpenApiDocumentName() + "` references missing schemas: " +
+					String.join(", ", missingSchemas) + "."
+			);
 		}
 	}
 }
