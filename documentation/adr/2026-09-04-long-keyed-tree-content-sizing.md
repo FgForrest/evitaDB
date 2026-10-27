@@ -1,7 +1,7 @@
 ---
 title: Rank the index-footprint work on a production catalog, and take 4.2 GB out of its resident heap
 date: 2026-09-04
-updated: 2026-10-20 10:47
+updated: 2026-10-26 16:22
 status: accepted
 kind: optimization
 issues: [1486, 1455]
@@ -9,7 +9,15 @@ prs: []
 areas: [evita_engine/index/bPlusTree, evita_engine/index/range, evita_engine/index/price, evita_engine/index/attribute, evita_engine/index/hierarchy, evita_engine/index/array, evita_engine/index/invertedIndex, evita_engine/index/bitmap, evita_engine/core/query/algebra, evita_test/evita_performance_tests/spike/trigram]
 supersedes: []
 superseded-by: []
-relates: [2026-10-20-session-free-tree-reads-are-management-only, 2026-09-03-content-sized-value-tree-columns, 2026-08-01-bplustree-cursor-free-insert-path, 2026-09-04-millisecond-temporal-precision, 2026-07-10-more-optimized-data-structures, 2026-08-31-trigram-query-path-optimization, 2026-08-16-per-index-usage-statistics]
+relates:
+  - 2026-10-20-session-free-tree-reads-are-management-only
+  - 2026-09-03-content-sized-value-tree-columns
+  - 2026-08-01-bplustree-cursor-free-insert-path
+  - 2026-09-04-millisecond-temporal-precision
+  - 2026-07-10-more-optimized-data-structures
+  - 2026-08-31-trigram-query-path-optimization
+  - 2026-08-16-per-index-usage-statistics
+  - 2026-10-26-bulk-built-int-keyed-trees-at-load
 ---
 
 # Rank the index-footprint work on a production catalog, and take 4.2 GB out of its resident heap
