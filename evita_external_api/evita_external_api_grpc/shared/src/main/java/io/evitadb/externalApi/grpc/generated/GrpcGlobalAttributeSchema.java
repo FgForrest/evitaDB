@@ -66,7 +66,7 @@ private static final long serialVersionUID = 0L;
     sortableInScopes_ = java.util.Collections.emptyList();
     uniqueGloballyInScopes_ = java.util.Collections.emptyList();
     conflictResolutionOverride_ = 0;
-    acceleratorsInScopes_ = java.util.Collections.emptyList();
+    accelerated_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -917,9 +917,9 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.UNRECOGNIZED : result;
   }
 
-  public static final int ACCELERATORSINSCOPES_FIELD_NUMBER = 20;
+  public static final int ACCELERATED_FIELD_NUMBER = 20;
   @SuppressWarnings("serial")
-  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators> acceleratorsInScopes_;
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators> accelerated_;
   /**
    * <pre>
    * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
@@ -927,11 +927,11 @@ private static final long serialVersionUID = 0L;
    * server sends - means no acceleration anywhere.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
    */
   @java.lang.Override
-  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators> getAcceleratorsInScopesList() {
-    return acceleratorsInScopes_;
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators> getAcceleratedList() {
+    return accelerated_;
   }
   /**
    * <pre>
@@ -940,12 +940,12 @@ private static final long serialVersionUID = 0L;
    * server sends - means no acceleration anywhere.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
    */
   @java.lang.Override
   public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder> 
-      getAcceleratorsInScopesOrBuilderList() {
-    return acceleratorsInScopes_;
+      getAcceleratedOrBuilderList() {
+    return accelerated_;
   }
   /**
    * <pre>
@@ -954,11 +954,11 @@ private static final long serialVersionUID = 0L;
    * server sends - means no acceleration anywhere.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
    */
   @java.lang.Override
-  public int getAcceleratorsInScopesCount() {
-    return acceleratorsInScopes_.size();
+  public int getAcceleratedCount() {
+    return accelerated_.size();
   }
   /**
    * <pre>
@@ -967,11 +967,11 @@ private static final long serialVersionUID = 0L;
    * server sends - means no acceleration anywhere.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators getAcceleratorsInScopes(int index) {
-    return acceleratorsInScopes_.get(index);
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators getAccelerated(int index) {
+    return accelerated_.get(index);
   }
   /**
    * <pre>
@@ -980,12 +980,12 @@ private static final long serialVersionUID = 0L;
    * server sends - means no acceleration anywhere.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder getAcceleratorsInScopesOrBuilder(
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder getAcceleratedOrBuilder(
       int index) {
-    return acceleratorsInScopes_.get(index);
+    return accelerated_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
@@ -1068,8 +1068,8 @@ private static final long serialVersionUID = 0L;
     if (conflictResolutionOverride_ != io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.CONFLICT_RESOLUTION_OVERRIDE_INHERITED.getNumber()) {
       output.writeEnum(19, conflictResolutionOverride_);
     }
-    for (int i = 0; i < acceleratorsInScopes_.size(); i++) {
-      output.writeMessage(20, acceleratorsInScopes_.get(i));
+    for (int i = 0; i < accelerated_.size(); i++) {
+      output.writeMessage(20, accelerated_.get(i));
     }
     getUnknownFields().writeTo(output);
   }
@@ -1171,9 +1171,9 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(19, conflictResolutionOverride_);
     }
-    for (int i = 0; i < acceleratorsInScopes_.size(); i++) {
+    for (int i = 0; i < accelerated_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(20, acceleratorsInScopes_.get(i));
+        .computeMessageSize(20, accelerated_.get(i));
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -1231,8 +1231,8 @@ private static final long serialVersionUID = 0L;
     if (!getUniqueGloballyInScopesList()
         .equals(other.getUniqueGloballyInScopesList())) return false;
     if (conflictResolutionOverride_ != other.conflictResolutionOverride_) return false;
-    if (!getAcceleratorsInScopesList()
-        .equals(other.getAcceleratorsInScopesList())) return false;
+    if (!getAcceleratedList()
+        .equals(other.getAcceleratedList())) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -1303,9 +1303,9 @@ private static final long serialVersionUID = 0L;
     }
     hash = (37 * hash) + CONFLICTRESOLUTIONOVERRIDE_FIELD_NUMBER;
     hash = (53 * hash) + conflictResolutionOverride_;
-    if (getAcceleratorsInScopesCount() > 0) {
-      hash = (37 * hash) + ACCELERATORSINSCOPES_FIELD_NUMBER;
-      hash = (53 * hash) + getAcceleratorsInScopesList().hashCode();
+    if (getAcceleratedCount() > 0) {
+      hash = (37 * hash) + ACCELERATED_FIELD_NUMBER;
+      hash = (53 * hash) + getAcceleratedList().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -1459,7 +1459,7 @@ private static final long serialVersionUID = 0L;
         getNameVariantFieldBuilder();
         getUniqueInScopesFieldBuilder();
         getUniqueGloballyInScopesFieldBuilder();
-        getAcceleratorsInScopesFieldBuilder();
+        getAcceleratedFieldBuilder();
       }
     }
     @java.lang.Override
@@ -1517,11 +1517,11 @@ private static final long serialVersionUID = 0L;
       }
       bitField0_ = (bitField0_ & ~0x00020000);
       conflictResolutionOverride_ = 0;
-      if (acceleratorsInScopesBuilder_ == null) {
-        acceleratorsInScopes_ = java.util.Collections.emptyList();
+      if (acceleratedBuilder_ == null) {
+        accelerated_ = java.util.Collections.emptyList();
       } else {
-        acceleratorsInScopes_ = null;
-        acceleratorsInScopesBuilder_.clear();
+        accelerated_ = null;
+        acceleratedBuilder_.clear();
       }
       bitField0_ = (bitField0_ & ~0x00080000);
       return this;
@@ -1594,14 +1594,14 @@ private static final long serialVersionUID = 0L;
       } else {
         result.uniqueGloballyInScopes_ = uniqueGloballyInScopesBuilder_.build();
       }
-      if (acceleratorsInScopesBuilder_ == null) {
+      if (acceleratedBuilder_ == null) {
         if (((bitField0_ & 0x00080000) != 0)) {
-          acceleratorsInScopes_ = java.util.Collections.unmodifiableList(acceleratorsInScopes_);
+          accelerated_ = java.util.Collections.unmodifiableList(accelerated_);
           bitField0_ = (bitField0_ & ~0x00080000);
         }
-        result.acceleratorsInScopes_ = acceleratorsInScopes_;
+        result.accelerated_ = accelerated_;
       } else {
-        result.acceleratorsInScopes_ = acceleratorsInScopesBuilder_.build();
+        result.accelerated_ = acceleratedBuilder_.build();
       }
     }
 
@@ -1848,29 +1848,29 @@ private static final long serialVersionUID = 0L;
       if (other.conflictResolutionOverride_ != 0) {
         setConflictResolutionOverrideValue(other.getConflictResolutionOverrideValue());
       }
-      if (acceleratorsInScopesBuilder_ == null) {
-        if (!other.acceleratorsInScopes_.isEmpty()) {
-          if (acceleratorsInScopes_.isEmpty()) {
-            acceleratorsInScopes_ = other.acceleratorsInScopes_;
+      if (acceleratedBuilder_ == null) {
+        if (!other.accelerated_.isEmpty()) {
+          if (accelerated_.isEmpty()) {
+            accelerated_ = other.accelerated_;
             bitField0_ = (bitField0_ & ~0x00080000);
           } else {
-            ensureAcceleratorsInScopesIsMutable();
-            acceleratorsInScopes_.addAll(other.acceleratorsInScopes_);
+            ensureAcceleratedIsMutable();
+            accelerated_.addAll(other.accelerated_);
           }
           onChanged();
         }
       } else {
-        if (!other.acceleratorsInScopes_.isEmpty()) {
-          if (acceleratorsInScopesBuilder_.isEmpty()) {
-            acceleratorsInScopesBuilder_.dispose();
-            acceleratorsInScopesBuilder_ = null;
-            acceleratorsInScopes_ = other.acceleratorsInScopes_;
+        if (!other.accelerated_.isEmpty()) {
+          if (acceleratedBuilder_.isEmpty()) {
+            acceleratedBuilder_.dispose();
+            acceleratedBuilder_ = null;
+            accelerated_ = other.accelerated_;
             bitField0_ = (bitField0_ & ~0x00080000);
-            acceleratorsInScopesBuilder_ = 
+            acceleratedBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
-                 getAcceleratorsInScopesFieldBuilder() : null;
+                 getAcceleratedFieldBuilder() : null;
           } else {
-            acceleratorsInScopesBuilder_.addAllMessages(other.acceleratorsInScopes_);
+            acceleratedBuilder_.addAllMessages(other.accelerated_);
           }
         }
       }
@@ -2054,11 +2054,11 @@ private static final long serialVersionUID = 0L;
                   input.readMessage(
                       io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.parser(),
                       extensionRegistry);
-              if (acceleratorsInScopesBuilder_ == null) {
-                ensureAcceleratorsInScopesIsMutable();
-                acceleratorsInScopes_.add(m);
+              if (acceleratedBuilder_ == null) {
+                ensureAcceleratedIsMutable();
+                accelerated_.add(m);
               } else {
-                acceleratorsInScopesBuilder_.addMessage(m);
+                acceleratedBuilder_.addMessage(m);
               }
               break;
             } // case 162
@@ -4895,17 +4895,17 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators> acceleratorsInScopes_ =
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators> accelerated_ =
       java.util.Collections.emptyList();
-    private void ensureAcceleratorsInScopesIsMutable() {
+    private void ensureAcceleratedIsMutable() {
       if (!((bitField0_ & 0x00080000) != 0)) {
-        acceleratorsInScopes_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators>(acceleratorsInScopes_);
+        accelerated_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators>(accelerated_);
         bitField0_ |= 0x00080000;
        }
     }
 
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder> acceleratorsInScopesBuilder_;
+        io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder> acceleratedBuilder_;
 
     /**
      * <pre>
@@ -4914,13 +4914,13 @@ private static final long serialVersionUID = 0L;
      * server sends - means no acceleration anywhere.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators> getAcceleratorsInScopesList() {
-      if (acceleratorsInScopesBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(acceleratorsInScopes_);
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators> getAcceleratedList() {
+      if (acceleratedBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(accelerated_);
       } else {
-        return acceleratorsInScopesBuilder_.getMessageList();
+        return acceleratedBuilder_.getMessageList();
       }
     }
     /**
@@ -4930,13 +4930,13 @@ private static final long serialVersionUID = 0L;
      * server sends - means no acceleration anywhere.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
      */
-    public int getAcceleratorsInScopesCount() {
-      if (acceleratorsInScopesBuilder_ == null) {
-        return acceleratorsInScopes_.size();
+    public int getAcceleratedCount() {
+      if (acceleratedBuilder_ == null) {
+        return accelerated_.size();
       } else {
-        return acceleratorsInScopesBuilder_.getCount();
+        return acceleratedBuilder_.getCount();
       }
     }
     /**
@@ -4946,13 +4946,13 @@ private static final long serialVersionUID = 0L;
      * server sends - means no acceleration anywhere.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators getAcceleratorsInScopes(int index) {
-      if (acceleratorsInScopesBuilder_ == null) {
-        return acceleratorsInScopes_.get(index);
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators getAccelerated(int index) {
+      if (acceleratedBuilder_ == null) {
+        return accelerated_.get(index);
       } else {
-        return acceleratorsInScopesBuilder_.getMessage(index);
+        return acceleratedBuilder_.getMessage(index);
       }
     }
     /**
@@ -4962,19 +4962,19 @@ private static final long serialVersionUID = 0L;
      * server sends - means no acceleration anywhere.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
      */
-    public Builder setAcceleratorsInScopes(
+    public Builder setAccelerated(
         int index, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators value) {
-      if (acceleratorsInScopesBuilder_ == null) {
+      if (acceleratedBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        ensureAcceleratorsInScopesIsMutable();
-        acceleratorsInScopes_.set(index, value);
+        ensureAcceleratedIsMutable();
+        accelerated_.set(index, value);
         onChanged();
       } else {
-        acceleratorsInScopesBuilder_.setMessage(index, value);
+        acceleratedBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -4985,16 +4985,16 @@ private static final long serialVersionUID = 0L;
      * server sends - means no acceleration anywhere.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
      */
-    public Builder setAcceleratorsInScopes(
+    public Builder setAccelerated(
         int index, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder builderForValue) {
-      if (acceleratorsInScopesBuilder_ == null) {
-        ensureAcceleratorsInScopesIsMutable();
-        acceleratorsInScopes_.set(index, builderForValue.build());
+      if (acceleratedBuilder_ == null) {
+        ensureAcceleratedIsMutable();
+        accelerated_.set(index, builderForValue.build());
         onChanged();
       } else {
-        acceleratorsInScopesBuilder_.setMessage(index, builderForValue.build());
+        acceleratedBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -5005,18 +5005,18 @@ private static final long serialVersionUID = 0L;
      * server sends - means no acceleration anywhere.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
      */
-    public Builder addAcceleratorsInScopes(io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators value) {
-      if (acceleratorsInScopesBuilder_ == null) {
+    public Builder addAccelerated(io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators value) {
+      if (acceleratedBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        ensureAcceleratorsInScopesIsMutable();
-        acceleratorsInScopes_.add(value);
+        ensureAcceleratedIsMutable();
+        accelerated_.add(value);
         onChanged();
       } else {
-        acceleratorsInScopesBuilder_.addMessage(value);
+        acceleratedBuilder_.addMessage(value);
       }
       return this;
     }
@@ -5027,19 +5027,19 @@ private static final long serialVersionUID = 0L;
      * server sends - means no acceleration anywhere.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
      */
-    public Builder addAcceleratorsInScopes(
+    public Builder addAccelerated(
         int index, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators value) {
-      if (acceleratorsInScopesBuilder_ == null) {
+      if (acceleratedBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        ensureAcceleratorsInScopesIsMutable();
-        acceleratorsInScopes_.add(index, value);
+        ensureAcceleratedIsMutable();
+        accelerated_.add(index, value);
         onChanged();
       } else {
-        acceleratorsInScopesBuilder_.addMessage(index, value);
+        acceleratedBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -5050,16 +5050,16 @@ private static final long serialVersionUID = 0L;
      * server sends - means no acceleration anywhere.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
      */
-    public Builder addAcceleratorsInScopes(
+    public Builder addAccelerated(
         io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder builderForValue) {
-      if (acceleratorsInScopesBuilder_ == null) {
-        ensureAcceleratorsInScopesIsMutable();
-        acceleratorsInScopes_.add(builderForValue.build());
+      if (acceleratedBuilder_ == null) {
+        ensureAcceleratedIsMutable();
+        accelerated_.add(builderForValue.build());
         onChanged();
       } else {
-        acceleratorsInScopesBuilder_.addMessage(builderForValue.build());
+        acceleratedBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -5070,16 +5070,16 @@ private static final long serialVersionUID = 0L;
      * server sends - means no acceleration anywhere.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
      */
-    public Builder addAcceleratorsInScopes(
+    public Builder addAccelerated(
         int index, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder builderForValue) {
-      if (acceleratorsInScopesBuilder_ == null) {
-        ensureAcceleratorsInScopesIsMutable();
-        acceleratorsInScopes_.add(index, builderForValue.build());
+      if (acceleratedBuilder_ == null) {
+        ensureAcceleratedIsMutable();
+        accelerated_.add(index, builderForValue.build());
         onChanged();
       } else {
-        acceleratorsInScopesBuilder_.addMessage(index, builderForValue.build());
+        acceleratedBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -5090,17 +5090,17 @@ private static final long serialVersionUID = 0L;
      * server sends - means no acceleration anywhere.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
      */
-    public Builder addAllAcceleratorsInScopes(
+    public Builder addAllAccelerated(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators> values) {
-      if (acceleratorsInScopesBuilder_ == null) {
-        ensureAcceleratorsInScopesIsMutable();
+      if (acceleratedBuilder_ == null) {
+        ensureAcceleratedIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, acceleratorsInScopes_);
+            values, accelerated_);
         onChanged();
       } else {
-        acceleratorsInScopesBuilder_.addAllMessages(values);
+        acceleratedBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -5111,15 +5111,15 @@ private static final long serialVersionUID = 0L;
      * server sends - means no acceleration anywhere.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
      */
-    public Builder clearAcceleratorsInScopes() {
-      if (acceleratorsInScopesBuilder_ == null) {
-        acceleratorsInScopes_ = java.util.Collections.emptyList();
+    public Builder clearAccelerated() {
+      if (acceleratedBuilder_ == null) {
+        accelerated_ = java.util.Collections.emptyList();
         bitField0_ = (bitField0_ & ~0x00080000);
         onChanged();
       } else {
-        acceleratorsInScopesBuilder_.clear();
+        acceleratedBuilder_.clear();
       }
       return this;
     }
@@ -5130,15 +5130,15 @@ private static final long serialVersionUID = 0L;
      * server sends - means no acceleration anywhere.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
      */
-    public Builder removeAcceleratorsInScopes(int index) {
-      if (acceleratorsInScopesBuilder_ == null) {
-        ensureAcceleratorsInScopesIsMutable();
-        acceleratorsInScopes_.remove(index);
+    public Builder removeAccelerated(int index) {
+      if (acceleratedBuilder_ == null) {
+        ensureAcceleratedIsMutable();
+        accelerated_.remove(index);
         onChanged();
       } else {
-        acceleratorsInScopesBuilder_.remove(index);
+        acceleratedBuilder_.remove(index);
       }
       return this;
     }
@@ -5149,11 +5149,11 @@ private static final long serialVersionUID = 0L;
      * server sends - means no acceleration anywhere.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder getAcceleratorsInScopesBuilder(
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder getAcceleratedBuilder(
         int index) {
-      return getAcceleratorsInScopesFieldBuilder().getBuilder(index);
+      return getAcceleratedFieldBuilder().getBuilder(index);
     }
     /**
      * <pre>
@@ -5162,13 +5162,13 @@ private static final long serialVersionUID = 0L;
      * server sends - means no acceleration anywhere.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder getAcceleratorsInScopesOrBuilder(
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder getAcceleratedOrBuilder(
         int index) {
-      if (acceleratorsInScopesBuilder_ == null) {
-        return acceleratorsInScopes_.get(index);  } else {
-        return acceleratorsInScopesBuilder_.getMessageOrBuilder(index);
+      if (acceleratedBuilder_ == null) {
+        return accelerated_.get(index);  } else {
+        return acceleratedBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -5178,14 +5178,14 @@ private static final long serialVersionUID = 0L;
      * server sends - means no acceleration anywhere.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder> 
-         getAcceleratorsInScopesOrBuilderList() {
-      if (acceleratorsInScopesBuilder_ != null) {
-        return acceleratorsInScopesBuilder_.getMessageOrBuilderList();
+         getAcceleratedOrBuilderList() {
+      if (acceleratedBuilder_ != null) {
+        return acceleratedBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(acceleratorsInScopes_);
+        return java.util.Collections.unmodifiableList(accelerated_);
       }
     }
     /**
@@ -5195,10 +5195,10 @@ private static final long serialVersionUID = 0L;
      * server sends - means no acceleration anywhere.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder addAcceleratorsInScopesBuilder() {
-      return getAcceleratorsInScopesFieldBuilder().addBuilder(
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder addAcceleratedBuilder() {
+      return getAcceleratedFieldBuilder().addBuilder(
           io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.getDefaultInstance());
     }
     /**
@@ -5208,11 +5208,11 @@ private static final long serialVersionUID = 0L;
      * server sends - means no acceleration anywhere.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder addAcceleratorsInScopesBuilder(
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder addAcceleratedBuilder(
         int index) {
-      return getAcceleratorsInScopesFieldBuilder().addBuilder(
+      return getAcceleratedFieldBuilder().addBuilder(
           index, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.getDefaultInstance());
     }
     /**
@@ -5222,25 +5222,25 @@ private static final long serialVersionUID = 0L;
      * server sends - means no acceleration anywhere.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 20;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder> 
-         getAcceleratorsInScopesBuilderList() {
-      return getAcceleratorsInScopesFieldBuilder().getBuilderList();
+         getAcceleratedBuilderList() {
+      return getAcceleratedFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder> 
-        getAcceleratorsInScopesFieldBuilder() {
-      if (acceleratorsInScopesBuilder_ == null) {
-        acceleratorsInScopesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+        getAcceleratedFieldBuilder() {
+      if (acceleratedBuilder_ == null) {
+        acceleratedBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder>(
-                acceleratorsInScopes_,
+                accelerated_,
                 ((bitField0_ & 0x00080000) != 0),
                 getParentForChildren(),
                 isClean());
-        acceleratorsInScopes_ = null;
+        accelerated_ = null;
       }
-      return acceleratorsInScopesBuilder_;
+      return acceleratedBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(
