@@ -248,7 +248,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 		setInputStream(inputStream);
 		this.checksum = checksum;
 		this.inflater = inflater;
-		if (this.inflater == null) {
+		if (this.inflater != null) {
 			this.decompressionBuffer = new byte[buffer.length];
 		}
 	}

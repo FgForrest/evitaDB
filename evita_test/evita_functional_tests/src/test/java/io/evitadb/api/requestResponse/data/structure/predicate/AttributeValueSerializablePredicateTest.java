@@ -630,6 +630,9 @@ class AttributeValueSerializablePredicateTest {
 			);
 		}
 
+		/**
+		 * Adding an explicit locale widens a predicate that previously fetched only global data.
+		 */
 		@Test
 		@DisplayName(
 			"creates richer copy when request adds new locales"
@@ -637,7 +640,7 @@ class AttributeValueSerializablePredicateTest {
 		void shouldCreateRicherCopyForGlobalAttributes() {
 			final AttributeValueSerializablePredicate predicate =
 				new AttributeValueSerializablePredicate(
-					null, null, Collections.emptySet(),
+					null, null, null,
 					Collections.emptySet(), true
 				);
 

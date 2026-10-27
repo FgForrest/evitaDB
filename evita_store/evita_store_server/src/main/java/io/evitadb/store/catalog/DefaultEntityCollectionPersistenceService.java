@@ -493,7 +493,10 @@ public class DefaultEntityCollectionPersistenceService
 	}
 
 	/**
-	 * Fetches associated data container(s) from OffsetIndex if it hasn't (they haven't) been already loaded before.
+	 * Fetches associated data containers not covered by the previous predicate.
+	 * Localized associated data are selected in the implicit and the explicitly requested locales together, as
+	 * attributes are. An empty explicit set includes every stored locale for each requested name; with neither an
+	 * implicit nor an explicit locale only global associated data are included.
 	 */
 	@Nonnull
 	private static <T> List<T> fetchAssociatedData(
@@ -506,7 +509,7 @@ public class DefaultEntityCollectionPersistenceService
 		// if there is single request for associated data
 		if (newAssociatedDataValuePredicate.isRequiresEntityAssociatedData()) {
 			final Set<AssociatedDataKey> missingAssociatedDataSet = createHashSet(allAssociatedDataKeys.size());
-			final Set<Locale> requestedLocales = newAssociatedDataValuePredicate.getLocales();
+			final Set<Locale> requestedLocales = newAssociatedDataValuePredicate.getAllLocales();
 			final Set<String> requestedAssociatedDataSet = newAssociatedDataValuePredicate.getAssociatedDataSet();
 			final Predicate<AssociatedDataKey> wasNotFetched =
 				associatedDataKey -> previousAssociatedDataValuePredicate == null || !previousAssociatedDataValuePredicate.wasFetched(associatedDataKey);
@@ -524,7 +527,16 @@ public class DefaultEntityCollectionPersistenceService
 					if (allAssociatedDataKeys.contains(globalKey) && wasNotFetched.test(globalKey)) {
 						missingAssociatedDataSet.add(globalKey);
 					}
-					if (requestedLocales != null) {
+					// an empty set requests every locale, so the stored keys of the name are scanned - the per-locale
+					// lookup below would iterate no locale at all and load nothing
+					if (requestedLocales != null && requestedLocales.isEmpty()) {
+						for (AssociatedDataKey key : allAssociatedDataKeys) {
+							if (key.localized() && associatedDataName.equals(key.associatedDataName()) &&
+								wasNotFetched.test(key)) {
+								missingAssociatedDataSet.add(key);
+							}
+						}
+					} else if (requestedLocales != null) {
 						for (Locale requestedLocale : requestedLocales) {
 							final AssociatedDataKey localizedKey = new AssociatedDataKey(associatedDataName, requestedLocale);
 							if (allAssociatedDataKeys.contains(localizedKey) && wasNotFetched.test(localizedKey)) {

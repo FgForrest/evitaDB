@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.GroupConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.utils.ArrayUtils;
@@ -47,9 +48,11 @@ import java.io.Serializable;
  * This constraint requires the reference schema to have the `REFERENCED_GROUP_ENTITY` component enabled in its indexed
  * components configuration and a group type defined.
  *
- * This constraint is a {@link GroupConstraint} (it targets the group entity of a faceted reference) and
- * {@link SeparateEntityScopeContainer} (declaring a separate filtering context for a different entity type than
- * the query's primary collection). It is supported in the {@code REFERENCE}, {@code INLINE_REFERENCE},
+ * This constraint is a {@link GroupConstraint} (it targets the group entity of a faceted reference) and a
+ * {@link DifferentEntityFilterContainer} (which extends {@link SeparateEntityScopeContainer}), declaring that its
+ * children filter the group entity rather than the entity or reference enclosing it. They form a locale level of
+ * their own: an {@link EntityLocaleEquals} among them is the group entity's locale, and without one they inherit
+ * the enclosing level's locale. It is supported in the {@code REFERENCE}, {@code INLINE_REFERENCE},
  * {@code FACET}, and {@code SEGMENT} constraint domains.
  *
  * ## Basic Usage
@@ -92,22 +95,10 @@ import java.io.Serializable;
  * - **Entity attribute**: `referenceHaving("brand", entityHaving(attributeEquals("name", "Apple")))` -- filters on brand entity's attribute.
  * - **Group attribute**: `referenceHaving("brand", groupHaving(attributeEquals("code", "london")))` -- filters on group (Store) entity's attribute.
  *
- * ## Single Child Constraint
+ * ## Several children are combined with logical AND
  *
- * The `groupHaving` container accepts exactly one child constraint. If you need multiple filtering conditions, use
- * a logical container like {@link And} or {@link Or}:
- *
- * ```
- * referenceHaving(
- *     "brand",
- *     groupHaving(
- *         or(
- *             attributeEquals("code", "store-london"),
- *             attributeEquals("code", "store-paris")
- *         )
- *     )
- * )
- * ```
+ * All child constraints must be satisfied by the same group entity. Multiple children have the same meaning
+ * as a single {@link And} containing those children. Use {@link Or} to express alternatives.
  *
  * ## Relationship to Other Constraints
  *
@@ -127,20 +118,37 @@ import java.io.Serializable;
 	userDocsLink = "/documentation/query/filtering/references#group-having",
 	supportedIn = { ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE, ConstraintDomain.FACET, ConstraintDomain.SEGMENT }
 )
-public class GroupHaving extends AbstractFilterConstraintContainer implements GroupConstraint<FilterConstraint>, SeparateEntityScopeContainer {
+public class GroupHaving extends AbstractFilterConstraintContainer
+	implements GroupConstraint<FilterConstraint>, DifferentEntityFilterContainer {
 	@Serial private static final long serialVersionUID = 5484727724544395858L;
 
-	private GroupHaving() {}
-
+	/**
+	 * Creates a scope filter whose children must all match the same group entity.
+	 * Null children are omitted, as in {@link FilterBy}.
+	 *
+	 * @param children the filters combined with logical AND
+	 */
 	@Creator
-	public GroupHaving(@Nonnull FilterConstraint child) {
-		super(child);
+	public GroupHaving(@Nonnull @Child(uniqueChildren = true) FilterConstraint... children) {
+		super(children);
 	}
 
+	/**
+	 * Returns the sole child, an {@link And} combining several children, or `null` for an empty container.
+	 *
+	 * @deprecated Use {@link #getChildren()} to access all filters in their original order.
+	 */
+	@Deprecated(since = "2026.3")
 	@Nullable
 	public FilterConstraint getChild() {
 		final FilterConstraint[] children = getChildren();
-		return children.length > 0 ? children[0] : null;
+		if (children.length == 0) {
+			return null;
+		} else if (children.length == 1) {
+			return children[0];
+		} else {
+			return new And(children);
+		}
 	}
 
 	@Override
@@ -148,18 +156,20 @@ public class GroupHaving extends AbstractFilterConstraintContainer implements Gr
 		return getChildren().length > 0;
 	}
 
+	/**
+	 * Copies this scope filter with all supplied children, preserving their order.
+	 */
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public FilterConstraint getCopyWithNewChildren(
+		@Nonnull FilterConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		Assert.isPremiseValid(
 			ArrayUtils.isEmpty(additionalChildren),
 			"GroupHaving cannot have additional children."
 		);
-		Assert.isPremiseValid(
-			children.length <= 1,
-			"GroupHaving can have only one child."
-		);
-		return children.length == 0 ? new GroupHaving() : new GroupHaving(children[0]);
+		return new GroupHaving(children);
 	}
 
 	@Nonnull

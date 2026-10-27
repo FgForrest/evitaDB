@@ -32,6 +32,7 @@ import io.evitadb.store.checksum.Crc32CChecksum;
 import io.evitadb.store.compression.ZipCompressionFactory;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
+import io.evitadb.store.kryo.ObservableOutputBufferPool;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,6 +40,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.ParameterizedClass;
+import org.junit.jupiter.params.Parameter;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -59,6 +63,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 import java.util.stream.Stream;
+import java.util.zip.Deflater;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
@@ -84,7 +89,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("Storage record chained over several physical records")
 @Tag(STORAGE)
 @Tag(SERIALIZATION)
+@ParameterizedClass(name = "pooled={0}")
+@ValueSource(booleans = {false, true})
 class ChainedStorageRecordTest {
+	/** Runs every writer scenario with owned and borrowed frame buffers. */
+	@Parameter boolean pooled;
 	/**
 	 * Size of the header a physical record starts with: length (4), control byte (1) and generation id (8).
 	 */
@@ -114,24 +123,24 @@ class ChainedStorageRecordTest {
 	 * Writer and reader buffer sizes the records are written and read with. Each one puts the reader's buffer edges
 	 * differently against the physical records of the chain.
 	 *
-	 * @return arguments: description, flush size, writer buffer size, reader buffer size, records written, compression
+	 * @return arguments: description, writer buffer size, reader buffer size, records written, compression
 	 */
 	@Nonnull
 	static Stream<Arguments> bufferConfigurations() {
 		return Stream.of(
 			// a whole physical part fits into the reader's buffer when its payload starts
-			Arguments.of("2 KB writer, 8 KB reader", 512, 2_048, 8_192, 40),
+			Arguments.of("2 KB writer, 8 KB reader", 2_048, 8_192, 40),
 			// the reader's buffer regularly ends inside the CRC32C tail of a physical part
-			Arguments.of("16 KB writer, 16 KB reader", 16_384, 16_384, 16_384, 40),
+			Arguments.of("16 KB writer, 16 KB reader", 16_384, 16_384, 40),
 			// a reader buffer much smaller than the parts
-			Arguments.of("8 KB writer, 1 KB reader", 8_192, 8_192, 1_024, 40),
+			Arguments.of("8 KB writer, 1 KB reader", 8_192, 1_024, 40),
 			// the writer's buffer far larger than the reader's, the proportion production storage has
-			Arguments.of("64 KB writer, 16 KB reader", 32_768, 65_536, 16_384, 200)
+			Arguments.of("64 KB writer, 16 KB reader", 65_536, 16_384, 200)
 		).flatMap(
 			it -> Stream.of(false, true).map(
 				compression -> Arguments.of(
-					it.get()[0] + (compression ? ", compressed" : ""), it.get()[1], it.get()[2], it.get()[3],
-					it.get()[4], compression
+					it.get()[0] + (compression ? ", compressed" : ""), it.get()[1], it.get()[2],
+					it.get()[3], compression
 				)
 			)
 		);
@@ -148,7 +157,6 @@ class ChainedStorageRecordTest {
 	@DisplayName("should read every value back, including single-byte reads right after a split")
 	void shouldReadEveryValueOfAChainedRecordBack(
 		@Nonnull String description,
-		int flushSize,
 		int writerBufferSize,
 		int readerBufferSize,
 		int recordCount,
@@ -159,7 +167,7 @@ class ChainedStorageRecordTest {
 		for (int sample = 0; sample < recordCount; sample++) {
 			final ValueSequence written = generateValues(new Random(sample));
 			final File file = this.tempDir.resolve("record-" + sample + ".bin").toFile();
-			final StorageRecord<ValueSequence> record = write(file, written, flushSize, writerBufferSize, compression);
+			final StorageRecord<ValueSequence> record = write(file, written, writerBufferSize, compression);
 
 			final int[] splitPoints = readSplitPoints(file);
 			final ValueLayout layout = ValueLayout.of(written);
@@ -192,7 +200,6 @@ class ChainedStorageRecordTest {
 	@DisplayName("should split a chained record only between two values, never inside one")
 	void shouldNeverSplitAValueBetweenPhysicalRecords(
 		@Nonnull String description,
-		int flushSize,
 		int writerBufferSize,
 		int readerBufferSize,
 		int recordCount,
@@ -202,7 +209,7 @@ class ChainedStorageRecordTest {
 		for (int sample = 0; sample < recordCount; sample++) {
 			final ValueSequence written = generateValues(new Random(sample));
 			final File file = this.tempDir.resolve("record-" + sample + ".bin").toFile();
-			write(file, written, flushSize, writerBufferSize, compression);
+			write(file, written, writerBufferSize, compression);
 
 			final ValueLayout layout = ValueLayout.of(written);
 			for (int splitPoint : readSplitPoints(file)) {
@@ -218,20 +225,23 @@ class ChainedStorageRecordTest {
 		assertTrue(splits > 0, "No record was chained - the configuration tests nothing.");
 	}
 
+	/** Reports the indivisible encoded string size and the configured frame limit. */
 	@Test
 	@DisplayName("should refuse a string longer than the writer's buffer instead of splitting it")
 	void shouldRefuseAStringLargerThanTheWriterBuffer() {
 		final ValueSequence values = new ValueSequence(List.of("lead", text(new Random(1), 3 * 2_048, false)));
 		final File file = this.tempDir.resolve("oversized-string.bin").toFile();
 		final KryoException exception = assertThrows(
-			KryoException.class, () -> write(file, values, 512, 2_048, false)
+			KryoException.class, () -> write(file, values, 2_048, false)
 		);
 		assertTrue(
-			exception.getMessage().contains("exceeds buffer size"),
+			exception.getMessage().contains("single value cannot be split across frames"),
 			"Unexpected failure: " + exception.getMessage()
 		);
+		assertTrue(exception.getMessage().contains("outputBufferSize=2048"));
 	}
 
+	/** Reports the indivisible byte-array size and the configured frame limit. */
 	@Test
 	@DisplayName("should refuse a byte array longer than the writer's buffer instead of splitting it")
 	void shouldRefuseAByteArrayLargerThanTheWriterBuffer() {
@@ -240,12 +250,13 @@ class ChainedStorageRecordTest {
 		final ValueSequence values = new ValueSequence(List.of("lead", oversized));
 		final File file = this.tempDir.resolve("oversized-bytes.bin").toFile();
 		final KryoException exception = assertThrows(
-			KryoException.class, () -> write(file, values, 512, 2_048, false)
+			KryoException.class, () -> write(file, values, 2_048, false)
 		);
 		assertTrue(
-			exception.getMessage().contains("exceeds buffer size"),
+			exception.getMessage().contains("single value cannot be split across frames"),
 			"Unexpected failure: " + exception.getMessage()
 		);
+		assertTrue(exception.getMessage().contains("outputBufferSize=2048"));
 	}
 
 	/**
@@ -255,16 +266,16 @@ class ChainedStorageRecordTest {
 	private StorageRecord<ValueSequence> write(
 		@Nonnull File file,
 		@Nonnull ValueSequence values,
-		int flushSize,
 		int writerBufferSize,
 		boolean compression
 	) throws IOException {
-		try (
-			final ObservableOutput<FileOutputStream> output = new ObservableOutput<>(
-				new FileOutputStream(file), flushSize, writerBufferSize, 0, new Crc32CChecksum(),
-				compression ? new ZipCompressionFactory().createCompressor().orElseThrow() : null
-			)
-		) {
+		final FileOutputStream stream = new FileOutputStream(file);
+		final Deflater deflater = compression ?
+			new ZipCompressionFactory().createCompressor().orElseThrow() : null;
+		try (final ObservableOutput<FileOutputStream> output = this.pooled ?
+			new ObservableOutput<>(
+				stream, writerBufferSize, 0, new Crc32CChecksum(), deflater, ObservableOutputBufferPool.INSTANCE
+			) : new ObservableOutput<>(stream, writerBufferSize, 0, new Crc32CChecksum(), deflater)) {
 			return new StorageRecord<>(this.kryo, output, 1L, true, values);
 		}
 	}

@@ -33,6 +33,9 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-10-26 | [Fit every release into Maven Central's limits; the shaded driver becomes a recipe, a BOM aligns versions](2026-10-26-maven-central-publishing-budget.md) | infrastructure | accepted | #1805 |
+| 2026-10-25 | [Output buffers are borrowed per frame from one JVM-wide pool, and the configured size stays a hard limit](2026-10-25-frame-scoped-output-buffers.md) | optimization | accepted | #1792, #1793, PR #1801 |
+| 2026-10-21 | [A filter names one locale per entity level, and a level without one inherits from its enclosing level](2026-10-21-one-locale-per-entity-level.md) | fix | accepted | #925 |
 | 2026-10-20 | [The filter of referenceContent is evaluated row by row over the fetched owners' references, and its index route is deleted](2026-10-20-reference-content-filter-row-by-row.md) | refactor | accepted | #1615, PR #1738 |
 | 2026-10-20 | [Tests that pin the code's structure by scanning sources or bytecode against hand-kept lists are removed; the rule goes into the javadoc of the type it constrains, the compiler where it can, and a runtime refusal where one exists](2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures.md) | process | accepted | #1615, PR #1738 |
 | 2026-10-20 | [Only the management reads of the B+ trees are session-free, so only their walks keep reader-side guards](2026-10-20-session-free-tree-reads-are-management-only.md) | refactor | accepted | #1761, PR #1764 |
@@ -75,7 +78,7 @@ filename date that disagrees with `date:`.
 | 2026-09-06 | [The engine-level go-live drains its catalog's sessions itself, and publishes the ALIVE bootstrap only behind that drain](2026-09-06-go-live-session-drain.md) | fix | accepted | #1495 |
 | 2026-09-05 | [Fold duplicate content requirements once per request, refuse the pairs that contradict, widen only the prefetch](2026-09-05-duplicate-content-requirements-reduction.md) | fix | accepted | #1493, PR #1499 |
 | 2026-09-04 | [Rank the index-footprint work on a production catalog, and take 4.2 GB out of its resident heap](2026-09-04-long-keyed-tree-content-sizing.md) | optimization | accepted | #1486, #1455 |
-| 2026-09-04 | [Cut every temporal value to whole milliseconds as it enters, and carry every temporal index key in one long column](2026-09-04-millisecond-temporal-precision.md) | feature | accepted | #1486 |
+| 2026-09-04 | [Cut every temporal value to whole milliseconds as it enters, and carry every temporal index key in one long column](2026-09-04-millisecond-temporal-precision.md) | feature | accepted | #1486, #1696 |
 | 2026-09-03 | [Size the value tree's leaf columns to their live content instead of adding a second array-backed representation](2026-09-03-content-sized-value-tree-columns.md) | optimization | accepted | #1486 |
 | 2026-08-31 | [Store front-coded String keys as WTF-8 rather than refusing values UTF-8 cannot carry](2026-08-31-front-coded-column-stores-wtf8.md) | fix | accepted | #1454 |
 | 2026-08-31 | [Gate cross-entity histogram removal on a pre-mutation condition pre-pass, not bucket membership](2026-08-31-cross-entity-histogram-removal-pre-pass.md) | fix | accepted | #1467, PR #1468, PR #1469 |

@@ -1170,11 +1170,15 @@ public class EvitaDataTypes {
 	 * `OffsetDateTime.MAX`. The comparison is a plain bounds check: exceptions are not used for control flow, and
 	 * multiplying the epoch second by 1000 is the only step that could overflow.
 	 *
-	 * @param value the moment to clamp, already truncated to whole milliseconds
+	 * The method is public because stored data written before the window existed must be brought into it by the
+	 * storage migration. It clamps only and never truncates, so a caller that wants the millisecond granularity of
+	 * {@link #toSupportedType(Serializable)} must truncate first.
+	 *
+	 * @param value the moment to clamp
 	 * @return the moment itself when it lies inside the window, otherwise the nearest edge at the moment's offset
 	 */
 	@Nonnull
-	private static OffsetDateTime clampToSupportedWindow(@Nonnull OffsetDateTime value) {
+	public static OffsetDateTime clampToSupportedWindow(@Nonnull OffsetDateTime value) {
 		final long epochSecond = value.toEpochSecond();
 		if (epochSecond > MAX_SUPPORTED_EPOCH_SECOND) {
 			return OffsetDateTime.ofInstant(LATEST_SUPPORTED_INSTANT, value.getOffset());
@@ -1190,16 +1194,36 @@ public class EvitaDataTypes {
 	 * the anchor evitaDB uses wherever it turns a `LocalDateTime` into an instant - so the edges are
 	 * {@link #EARLIEST_SUPPORTED_LOCAL_DATE_TIME} and {@link #LATEST_SUPPORTED_LOCAL_DATE_TIME}.
 	 *
-	 * @param value the local date-time to clamp, already truncated to whole milliseconds
+	 * @param value the local date-time to clamp
 	 * @return the local date-time itself when it lies inside the window, otherwise the nearest edge
 	 */
 	@Nonnull
-	private static LocalDateTime clampToSupportedWindow(@Nonnull LocalDateTime value) {
+	public static LocalDateTime clampToSupportedWindow(@Nonnull LocalDateTime value) {
 		final long epochSecond = value.toEpochSecond(ZoneOffset.UTC);
 		if (epochSecond > MAX_SUPPORTED_EPOCH_SECOND) {
 			return LATEST_SUPPORTED_LOCAL_DATE_TIME;
 		} else if (epochSecond < MIN_SUPPORTED_EPOCH_SECOND) {
 			return EARLIEST_SUPPORTED_LOCAL_DATE_TIME;
+		} else {
+			return value;
+		}
+	}
+
+	/**
+	 * The `Instant` twin of {@link #clampToSupportedWindow(OffsetDateTime)}. An `Instant` read from a legacy index
+	 * may lie beyond what an `OffsetDateTime` can express at all, so the clamp compares epoch seconds and never
+	 * converts the value.
+	 *
+	 * @param value the instant to clamp
+	 * @return the instant itself when it lies inside the window, otherwise the nearest edge
+	 */
+	@Nonnull
+	public static Instant clampToSupportedWindow(@Nonnull Instant value) {
+		final long epochSecond = value.getEpochSecond();
+		if (epochSecond > MAX_SUPPORTED_EPOCH_SECOND) {
+			return LATEST_SUPPORTED_INSTANT;
+		} else if (epochSecond < MIN_SUPPORTED_EPOCH_SECOND) {
+			return EARLIEST_SUPPORTED_INSTANT;
 		} else {
 			return value;
 		}

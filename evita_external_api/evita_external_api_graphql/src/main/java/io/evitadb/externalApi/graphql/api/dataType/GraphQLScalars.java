@@ -24,9 +24,6 @@
 package io.evitadb.externalApi.graphql.api.dataType;
 
 import graphql.Scalars;
-import graphql.scalar.GraphqlBooleanCoercing;
-import graphql.scalar.GraphqlIntCoercing;
-import graphql.scalar.GraphqlStringCoercing;
 import graphql.schema.Coercing;
 import graphql.schema.GraphQLScalarType;
 import io.evitadb.externalApi.graphql.api.dataType.coercing.*;
@@ -47,10 +44,10 @@ import static graphql.schema.GraphQLScalarType.newScalar;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class GraphQLScalars {
 
-    public static final Coercing<?, ?> STRING_COERCING = new GraphqlStringCoercing();
+    public static final Coercing<?, ?> STRING_COERCING = Scalars.GraphQLString.getCoercing();
     public static final GraphQLScalarType STRING = Scalars.GraphQLString;
 
-    public static final Coercing<?, ?> BOOLEAN_COERCING = new GraphqlBooleanCoercing();
+    public static final Coercing<?, ?> BOOLEAN_COERCING = Scalars.GraphQLBoolean.getCoercing();
     public static final GraphQLScalarType BOOLEAN = Scalars.GraphQLBoolean;
 
     public static final Coercing<?, ?> BYTE_COERCING = new ByteCoercing();
@@ -67,7 +64,7 @@ public class GraphQLScalars {
         .coercing(SHORT_COERCING)
         .build();
 
-    public static final Coercing<?, ?> INT_COERCING = new GraphqlIntCoercing();
+    public static final Coercing<?, ?> INT_COERCING = Scalars.GraphQLInt.getCoercing();
     public static final GraphQLScalarType INT = Scalars.GraphQLInt;
 
     public static final Coercing<?, ?> LONG_COERCING = new LongCoercing();

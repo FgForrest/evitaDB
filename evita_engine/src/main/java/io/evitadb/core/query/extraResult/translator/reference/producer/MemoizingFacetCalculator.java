@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.facet.FacetLocaleFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.extraResult.translator.reference.FilterFormulaFacetOptimizeVisitor;
 import io.evitadb.index.bitmap.Bitmap;
@@ -63,6 +64,11 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 	 */
 	private final Formula baseFormulaWithoutUserFilter;
 	/**
+	 * Contains true if {@link #baseFormula} holds an owner guard of a localized facet filter. It is decided once, so
+	 * that a summary without one projects no owner condition for each of its facet groups.
+	 */
+	private final boolean ownerLocaleGuarded;
+	/**
 	 * Contains current match count (the base-line).
 	 */
 	private final int baseMatchCount;
@@ -89,6 +95,7 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 		// now replace common parts of the formula with cached counterparts
 		this.executionContext = queryContext;
 		this.baseFormula = queryContext.analyse(optimizedFormula);
+		this.ownerLocaleGuarded = FacetLocaleFormula.containsOwnerGuard(this.baseFormula);
 		this.baseFormulaWithoutUserFilter = baseFormulaWithoutUserFilter;
 		this.baseMatchCount = baseFormula.compute().size();
 		this.facetFormulaGenerator = new FacetFormulaGenerator(
@@ -173,6 +180,15 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 				this.baseFormulaWithoutUserFilter,
 				allFacetEntityIds
 			);
+		}
+		final Formula ownerCondition = this.ownerLocaleGuarded ?
+			FacetLocaleFormula.retainOwnerConditions(
+				this.baseFormula, referenceSchema.getName(), this.baseFormulaWithoutUserFilter
+			) : null;
+		if (ownerCondition != null) {
+			final Formula guardedFormula = FormulaFactory.and(hypotheticalFormula, ownerCondition);
+			guardedFormula.initialize(this.executionContext);
+			return guardedFormula;
 		}
 		// initialize the formula
 		hypotheticalFormula.initialize(this.executionContext);
