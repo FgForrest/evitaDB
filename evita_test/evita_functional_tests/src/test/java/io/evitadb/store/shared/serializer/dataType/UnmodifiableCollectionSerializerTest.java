@@ -45,10 +45,7 @@ import java.util.Set;
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.SERIALIZATION;
 import static io.evitadb.test.TestTags.STORAGE;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Kryo round-trip coverage for the unmodifiable collection views registered by {@link KryoFactory} -
@@ -125,7 +122,7 @@ class UnmodifiableCollectionSerializerTest {
 			@SuppressWarnings("unchecked") final List<String> deserialized = (List<String>) roundTrip(original);
 
 			assertEquals(original, deserialized);
-			assertEquals(original.getClass(), deserialized.getClass());
+			assertSame(original.getClass(), deserialized.getClass());
 			assertThrows(UnsupportedOperationException.class, () -> deserialized.add("delta"));
 		}
 
@@ -137,7 +134,7 @@ class UnmodifiableCollectionSerializerTest {
 			@SuppressWarnings("unchecked") final List<String> deserialized = (List<String>) roundTrip(original);
 
 			assertTrue(deserialized.isEmpty());
-			assertEquals(original.getClass(), deserialized.getClass());
+			assertSame(original.getClass(), deserialized.getClass());
 			assertThrows(UnsupportedOperationException.class, () -> deserialized.add("delta"));
 		}
 
@@ -179,7 +176,7 @@ class UnmodifiableCollectionSerializerTest {
 				(Map<String, Integer>) roundTrip(original);
 
 			assertEquals(original, deserialized);
-			assertEquals(original.getClass(), deserialized.getClass());
+			assertSame(original.getClass(), deserialized.getClass());
 			assertThrows(UnsupportedOperationException.class, () -> deserialized.put("four", 4));
 		}
 
@@ -192,7 +189,7 @@ class UnmodifiableCollectionSerializerTest {
 				(Map<String, Integer>) roundTrip(original);
 
 			assertTrue(deserialized.isEmpty());
-			assertEquals(original.getClass(), deserialized.getClass());
+			assertSame(original.getClass(), deserialized.getClass());
 			assertThrows(UnsupportedOperationException.class, () -> deserialized.put("four", 4));
 		}
 
@@ -229,7 +226,7 @@ class UnmodifiableCollectionSerializerTest {
 			@SuppressWarnings("unchecked") final Set<String> deserialized = (Set<String>) roundTrip(original);
 
 			assertEquals(original, deserialized);
-			assertEquals(original.getClass(), deserialized.getClass());
+			assertSame(original.getClass(), deserialized.getClass());
 			assertThrows(UnsupportedOperationException.class, () -> deserialized.add("yellow"));
 		}
 
@@ -241,7 +238,7 @@ class UnmodifiableCollectionSerializerTest {
 			@SuppressWarnings("unchecked") final Set<String> deserialized = (Set<String>) roundTrip(original);
 
 			assertTrue(deserialized.isEmpty());
-			assertEquals(original.getClass(), deserialized.getClass());
+			assertSame(original.getClass(), deserialized.getClass());
 			assertThrows(UnsupportedOperationException.class, () -> deserialized.add("yellow"));
 		}
 

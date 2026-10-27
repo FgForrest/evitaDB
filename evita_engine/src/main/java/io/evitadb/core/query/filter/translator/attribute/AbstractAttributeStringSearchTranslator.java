@@ -70,6 +70,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
+import java.util.function.UnaryOperator;
 
 
 /**
@@ -143,16 +144,19 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 	 *
 	 * @param attributeConstraint the string search constraint
 	 * @param attributeSchema     the schema of the attribute the constraint is applied to
+	 * @param stringNormalizer the effective String key function for the filter locale
 	 * @return the matcher
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the attribute is not a string
 	 */
 	@Nonnull
 	protected AttributeValueMatcher createStringSearchMatcher(
 		@Nonnull AbstractAttributeFilterStringSearchConstraintLeaf attributeConstraint,
-		@Nonnull AttributeSchemaContract attributeSchema
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull UnaryOperator<String> stringNormalizer
 	) {
 		assertStringType(attributeConstraint, attributeSchema);
-		return AttributeValueMatcher.searching(attributeConstraint.getTextToSearch(), this.stringPredicate);
+		return AttributeValueMatcher.searching(attributeConstraint.getTextToSearch(), stringNormalizer,
+			this.stringPredicate);
 	}
 
 	/**

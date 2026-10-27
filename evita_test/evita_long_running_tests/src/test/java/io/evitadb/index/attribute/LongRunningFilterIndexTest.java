@@ -26,6 +26,7 @@ package io.evitadb.index.attribute;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.NumberRange;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.range.TransactionalRangePoint;
@@ -142,11 +143,14 @@ class LongRunningFilterIndexTest implements TimeBoundedTestSupport {
 						);
 
 						committedResult.set(
-							new OwnerFilterIndex(
-								new AttributeIndexKey(null, "a", null),
-								committed.getInvertedIndex().getValueToRecordBitmap(),
-								committed.getRangeIndex(),
-								IntegerNumberRange.class
+							OwnerFilterIndex.fromPersistedPages(
+								new AttributeIndexKey(null, "a", null), new InvertedIndex(
+									IntegerNumberRange.class, committed.getInvertedIndex().getValueToRecordBitmap(),
+									FilterIndex.getNormalizer(IntegerNumberRange.class, 0),
+									FilterIndex.getComparator(
+										new AttributeIndexKey(null, "a", null), IntegerNumberRange.class
+									), 0
+								), committed.getRangeIndex(), IntegerNumberRange.class, 0
 							)
 						);
 					}

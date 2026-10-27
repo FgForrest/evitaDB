@@ -1,7 +1,7 @@
 ---
 title: A single-owner partition of a filtering-only reference is a row of a per-reference registry, and an index object exists only while a partition has two or more owners
 date: 2026-10-20
-updated: 2026-10-20 12:51
+updated: 2026-10-26 20:45
 status: accepted
 kind: optimization
 issues: [1615]
@@ -28,7 +28,7 @@ areas:
   - documentation/developer/indexes
 supersedes: []
 superseded-by: []
-relates: [2026-10-20-reference-content-filter-row-by-row, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-17-row-scoped-reference-having-body, 2026-09-18-reference-planning-from-owner-membership, 2026-09-09-sibling-resolver-partition-cardinality, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-trapped-storage-part-content-pre-images, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-09-04-millisecond-temporal-precision, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-08-10-catalog-and-collection-statistics, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures]
+relates: [2026-10-20-reference-content-filter-row-by-row, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-17-row-scoped-reference-having-body, 2026-09-18-reference-planning-from-owner-membership, 2026-09-09-sibling-resolver-partition-cardinality, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-trapped-storage-part-content-pre-images, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-09-04-millisecond-temporal-precision, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-08-10-catalog-and-collection-statistics, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures, 2026-10-25-string-attribute-normalization]
 ---
 
 # A single-owner partition of a filtering-only reference is a registry row, not an index object
@@ -432,8 +432,8 @@ silently served the release's order, and kept serving it after later writes and 
 - **Persisted pages are checked by the comparator 2026.2 wrote them with**
   (`LegacyOwnerSortIndexCorrection#createReleasedComparator`: the bare collator for a localized `String` element, the
   language tag for a `Locale` element, whole seconds for a `DateTimeRange` element through
-  `InvertedIndex#compareAtSecondGranularity`, natural order otherwise), so a stale leaf-page twin is still refused as
-  damage and a valid catalog is not.
+  `LegacyOwnerSortIndexCorrection#compareAtSecondGranularity`, natural order otherwise), so a stale leaf-page twin
+  is still refused as damage and a valid catalog is not.
 - It runs before the conversion because the conversion removes the partitions it converts and its final flush is the
   one the collection is published by; the rows it writes are normalized by the registry either way.
 - Nothing on the load path normalizes or re-sorts these values any more: `SortIndex` and
@@ -441,11 +441,16 @@ silently served the release's order, and kept serving it after later writes and 
   corrected temporal values on every load; it is now `LegacyOwnerSortIndexCorrection`, deprecated for removal with the
   migration.
 - **One exception, dev's and permanent:** the load path re-sorts a *paged* inverted index whose every value is a
-  `DateTimeRange` (`InvertedIndex#isSecondGranularityRangeOrder`, `#resortSecondGranularityBuckets`); filter indexes
+  `DateTimeRange` (the former range-order guard and re-sort helpers); filter indexes
   rely on it. It never covered a compound or an inline owner sort index - those are the shapes the rewrite adds
   (`7c0a1403c2`).
-  Both use `InvertedIndex#compareAtSecondGranularity`, which is therefore public and **not** deprecated with the
-  migration.
+  Both use `LegacyOwnerSortIndexCorrection#compareAtSecondGranularity`, which is therefore public and **not**
+  deprecated with the migration.
+
+  **Changed on 2026-10-26:** `Migration_2026_3` now repairs filter and histogram bucket keys through
+  `LegacyInvertedIndexCorrection` before loading. Inline range thresholds are converted by versioned readers;
+  paged thresholds by that migration. Loaders carry no conversion. The released comparator now lives on
+  `LegacyOwnerSortIndexCorrection`; the former inverted-index order and re-sort helpers have been removed.
 
 **Owner decision B (2026-10-11): merged buckets stay merged** - the same trade PR #1621 accepted for filter indexes
 (`CollatedKeyIdentityTest.MigrationHazard`). A bucket in which 2026.2 merged two values its comparator equated - two
@@ -1151,6 +1156,9 @@ Found later in the cleanup and accepted by the maintainer on 2026-10-12:
   applies to price validity. Values written through gRPC are not affected - 2026.2's gRPC dropped fractions of a
   second - but the embedded API kept them, and so did GraphQL, which parsed bounds with `ISO_OFFSET_DATE_TIME`. The
   upgrade note on #1615 describes the effects and the repair, a re-import into a fresh catalog.
+  **Changed on 2026-10-26:** the historical re-sort described above now runs in `Migration_2026_3`, through
+  `LegacyInvertedIndexCorrection`. Inline thresholds are converted by versioned readers and paged thresholds by
+  that migration; the loaders perform no conversion. The precision limitation and declined body rebuild remain.
   - **Declined — rebuild the affected indexes from the entity parts in the migration**, behind a gate that scans the
     attribute and price parts for a bound with a non-zero millisecond part.
     - **Rejected because:** the probe estimated it at 200-400 production lines plus tests built from hand-made 2026.2
@@ -1251,6 +1259,8 @@ Found later in the cleanup and accepted by the maintainer on 2026-10-12:
   load-time repair now lives in the 6 → 7 migration.
 - **`2026-08-10-catalog-and-collection-statistics`:** the index cardinality statistic that `virtualPartitionCount`
   joins.
+- **`2026-10-25-string-attribute-normalization`** (#545): virtual partitions move stored keys verbatim on promotion
+  and demotion instead of re-normalizing them, and bind each sort slot's normalization chain at load.
 - **Issues:** #1607 (multi-owner partitions stay objects, with their locale bitmaps; if they are ever derived, reuse the
   owners bitmap when every owner has the locale, never derive owners ∩ the global bitmap inside a cached formula);
   #1677 (prices never live in a filtering partition; the formula-cache constraints of this work came from that

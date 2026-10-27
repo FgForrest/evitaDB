@@ -24,6 +24,9 @@
 package io.evitadb.test.extension;
 
 import io.evitadb.test.extension.TestTagPolicyFilter.Mode;
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.DynamicType;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -39,6 +42,7 @@ import org.junit.platform.launcher.core.LauncherFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.lang.invoke.MethodHandles;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
@@ -49,6 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClass;
+import static org.junit.platform.engine.discovery.DiscoverySelectors.selectPackage;
 
 /**
  * Verifies that {@link TestTagPolicyFilter} really aborts a run when a discovered test method is
@@ -60,14 +65,35 @@ import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
  * unit test of its tag logic stayed green. Every test here therefore drives a real {@link Launcher}
  * and asserts on what escapes it.
  *
- * The fixtures are plain static nested classes, deliberately **not** `@Nested`, so the surrounding
- * suite never discovers them — only the launchers built here select them explicitly.
+ * The fixtures must stay invisible to every other run, or the ambient gate rejects them. Being static
+ * nested classes rather than `@Nested` keeps them out of Surefire, which skips nested classes by name,
+ * but not out of a package or module run in an IDE: Jupiter's classpath scan treats any non-private
+ * static nested class with test methods as a test class. The fixtures are therefore `abstract`, which
+ * the scan skips, and {@link #requestFor(Class)} selects a concrete subclass generated at runtime —
+ * a class that exists in no classpath root, so no scan can find it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Tag(TEST_HARNESS)
 @DisplayName("Test tag policy gate")
 class TestTagPolicyFilterTest {
+
+	/**
+	 * Concrete subclass of each abstract fixture, generated on first use. A subclass inherits the
+	 * fixture's test methods, and its class-level tags too, because `@Tag` is `@Inherited`. It is
+	 * defined in this class's package and class loader so that it can reach the fixture's
+	 * package-private constructor.
+	 */
+	private static final ClassValue<Class<?>> CONCRETE_FIXTURES = new ClassValue<>() {
+		@Override
+		protected Class<?> computeValue(@Nonnull Class<?> fixture) {
+			try (DynamicType.Unloaded<?> subclass = new ByteBuddy().subclass(fixture).make()) {
+				return subclass
+					.load(fixture.getClassLoader(), ClassLoadingStrategy.UsingLookup.of(MethodHandles.lookup()))
+					.getLoaded();
+			}
+		}
+	};
 
 	/**
 	 * Builds a launcher with *only* the tag-policy filter registered, in the requested mode.
@@ -87,11 +113,32 @@ class TestTagPolicyFilterTest {
 		return LauncherFactory.create(config);
 	}
 
+	/**
+	 * Builds a request selecting the runtime-generated concrete subclass of the abstract `fixture`.
+	 */
 	@Nonnull
 	private static LauncherDiscoveryRequest requestFor(@Nonnull Class<?> fixture) {
 		return LauncherDiscoveryRequestBuilder.request()
-			.selectors(selectClass(fixture))
+			.selectors(selectClass(CONCRETE_FIXTURES.get(fixture)))
 			.build();
+	}
+
+	@Nested
+	@Tag(TEST_HARNESS)
+	@DisplayName("Fixture isolation")
+	class FixtureIsolation {
+
+		@Test
+		@DisplayName("keeps the fixtures out of a package scan, which is how an IDE runs a package or module")
+		void shouldHideFixturesFromPackageScan() {
+			final Launcher launcher = launcherWithPolicyGate(Mode.STRICT);
+			final LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
+				.selectors(selectPackage(TestTagPolicyFilterTest.class.getPackageName()))
+				.build();
+
+			final TestPlan plan = assertDoesNotThrow(() -> launcher.discover(request));
+			assertTrue(plan.containsTests(), "the scan must still find the tests of this class");
+		}
 	}
 
 	@Nested
@@ -233,10 +280,10 @@ class TestTagPolicyFilterTest {
 	}
 
 	/* ------------------------------------------------------------------ */
-	/* Fixtures - never discovered by the surrounding suite, see class doc */
+	/* Fixtures - abstract so that no scan discovers them, see class doc   */
 	/* ------------------------------------------------------------------ */
 
-	static class UntaggedFixture {
+	abstract static class UntaggedFixture {
 
 		@Test
 		void shouldDoNothing() {
@@ -250,7 +297,7 @@ class TestTagPolicyFilterTest {
 	}
 
 	@Tag(ENGINE)
-	static class LayerOnlyFixture {
+	abstract static class LayerOnlyFixture {
 
 		@Test
 		void shouldDoNothing() {
@@ -258,7 +305,7 @@ class TestTagPolicyFilterTest {
 		}
 	}
 
-	static class UntaggedParameterizedFixture {
+	abstract static class UntaggedParameterizedFixture {
 
 		@ParameterizedTest
 		@ValueSource(ints = {1, 2})
@@ -269,7 +316,7 @@ class TestTagPolicyFilterTest {
 
 	@Tag(ENGINE)
 	@Tag(QUERY)
-	static class TaggedFixture {
+	abstract static class TaggedFixture {
 
 		@Test
 		void shouldDoNothing() {
@@ -278,7 +325,7 @@ class TestTagPolicyFilterTest {
 	}
 
 	@Tag(ENGINE)
-	static class MethodTaggedFixture {
+	abstract static class MethodTaggedFixture {
 
 		@Test
 		@Tag(QUERY)

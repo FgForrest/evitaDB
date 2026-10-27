@@ -2280,7 +2280,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 					thatIs -> thatIs.nullable().representative()
 				).withAttribute(
 					ATTRIBUTE_COUNTRY, String.class,
-					thatIs -> thatIs.representative()
+					AttributeSchemaEditor::representative
 				)
 			)
 			.toInstance();

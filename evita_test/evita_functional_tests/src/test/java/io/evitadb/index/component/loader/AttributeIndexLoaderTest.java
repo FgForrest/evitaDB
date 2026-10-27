@@ -24,6 +24,7 @@
 package io.evitadb.index.component.loader;
 
 import io.evitadb.api.APITestConstants;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -35,13 +36,11 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.DateTimeRange;
-import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.FilterIndex;
-import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.attribute.OwnerSortIndex;
 import io.evitadb.index.attribute.OwnerUniqueIndex;
 import io.evitadb.index.attribute.SortIndex;
@@ -50,14 +49,14 @@ import io.evitadb.index.attribute.SortIndexView;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.attribute.UniqueIndexView;
 import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.component.loader.LoadedComponentBundle.AttributeIndexes;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueIdAllocator;
-import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.page.PageEmission;
-import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.range.TransactionalRangePoint;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
@@ -72,14 +71,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -121,6 +120,48 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(STORAGE)
 @Tag(ATTRIBUTE)
 class AttributeIndexLoaderTest {
+
+	/** An inline duplicate must be reported with its attribute identity instead of being silently unioned. */
+	@Test
+	@DisplayName("refuses equal inline stored keys and names the attribute")
+	void shouldRefuseDuplicateInlineStoredKeys() {
+		final AttributeIndexKey key = new AttributeIndexKey(null, "sku", null);
+		final SeededStorage storage = new SeededStorage();
+		storage.seed(AttributeIndexType.FILTER, key, new FilterIndexStoragePart(
+			INDEX_PK, key, String.class,
+			new ValueToRecordBitmap[]{new ValueToRecordBitmap("same", 1), new ValueToRecordBitmap("same", 2)}, null
+		));
+		final GenericEvitaInternalError error = assertThrows(GenericEvitaInternalError.class, () -> load(storage, key));
+		assertTrue(error.getMessage().contains("sku"));
+		assertTrue(error.getMessage().contains("duplicate stored key 'same'"));
+	}
+
+	/** Both cross-leaf collisions and inversions must remain corruption on the production load path. */
+	@ParameterizedTest(name = "collision={0}")
+	@ValueSource(booleans = {true, false})
+	@DisplayName("refuses colliding or inverted persisted pages and names the attribute")
+	void shouldRefuseCollidingOrInvertedStoredPages(boolean collision) {
+		final AttributeIndexKey key = new AttributeIndexKey(null, "brokenPages", null);
+		final SeededStorage storage = new SeededStorage();
+		final AttributeKeyWithIndexType streamKey = new AttributeKeyWithIndexType(key, AttributeIndexType.FILTER);
+		final int streamId = storage.keyCompressor.getId(new LeafStreamKey(INDEX_PK, streamKey));
+		storage.seed(AttributeIndexType.FILTER, key, new FilterIndexStoragePart(
+			INDEX_PK, key, String.class, new ValueToRecordBitmap[0], null, 0, true, 2, new int[]{1, 2},
+			false, -1, new int[0], null
+		));
+		storage.partsById.put(AbstractLeafPagePart.computeUniquePartId(streamId, 1), new FilterIndexLeafPagePart(
+			streamId, 1, new ValueToRecordBitmap[]{new ValueToRecordBitmap("b", 1)}, null,
+			AbstractLeafPagePart.computeUniquePartId(streamId, 1)
+		));
+		storage.partsById.put(AbstractLeafPagePart.computeUniquePartId(streamId, 2), new FilterIndexLeafPagePart(
+			streamId, 2, new ValueToRecordBitmap[]{new ValueToRecordBitmap(collision ? "b" : "a", 2)}, null,
+			AbstractLeafPagePart.computeUniquePartId(streamId, 2)
+		));
+		final GenericEvitaInternalError error = assertThrows(GenericEvitaInternalError.class, () -> load(storage, key));
+		assertTrue(error.getMessage().contains("brokenPages"));
+		assertTrue(error.getMessage().contains("Corrupted persisted"));
+		assertTrue(error.getMessage().contains("index corruption"));
+	}
 
 	/**
 	 * The analyzer registry every load context carries. These manifests list no fulltext index, so it is never asked
@@ -290,7 +331,13 @@ class AttributeIndexLoaderTest {
 	@DisplayName("loads a granular PAGED owner sort part by reading its leaf pages and reconstructs the owner tree")
 	void shouldLoadPagedSortAndReconstructTree() {
 		final AttributeIndexKey key = new AttributeIndexKey(null, ATTRIBUTE_PRIORITY, null);
-		final OwnerSortIndex source = new OwnerSortIndex(String.class, key);
+		final OwnerSortIndex source = new OwnerSortIndex(
+			String.class,
+			null,
+			key,
+			0,
+			SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+		);
 		// more than one leaf block (256) of distinct values so the owned tree spans multiple leaves and pages out
 		for (int i = 0; i < 1_000; i++) {
 			source.addRecord(String.format("value-%05d", i), i + 1);
@@ -353,7 +400,9 @@ class AttributeIndexLoaderTest {
 			Map.of(),
 			storage,
 			null,
-			ANALYZER_REGISTRY
+			true,
+			ANALYZER_REGISTRY,
+			AttributeNormalizationResolver.LEGACY_NFD
 		);
 		final LoadedComponentBundle bundle = new AttributeIndexLoader().load(context);
 		return assertInstanceOf(AttributeIndexes.class, bundle, "Loader must return an AttributeIndexes bundle");
@@ -450,36 +499,9 @@ class AttributeIndexLoaderTest {
 		}
 
 		/**
-		 * Seeds a FILTER part carrying an inline range companion whose thresholds are epoch **seconds**, exactly as
-		 * every format written before {@code DateTimeRange} moved to millisecond comparison granularity persisted
-		 * them, and marks it with the read-path provenance flag a backward-compatible serializer sets.
-		 *
-		 * @param key         the attribute key
-		 * @param type        the declared attribute type (what decides whether the rescale applies at all)
-		 * @param points      the inline bucket points
-		 * @param rangePoints the range points, in ascending threshold order and at second granularity
-		 */
-		void seedLegacySecondGranularityFilter(
-			@Nonnull AttributeIndexKey key, @Nonnull Class<?> type,
-			@Nonnull ValueToRecordBitmap[] points, @Nonnull TransactionalRangePoint[] rangePoints
-		) {
-			final FilterIndexStoragePart part = new FilterIndexStoragePart(
-				INDEX_PK, key, type, points, new RangeIndex(rangePoints)
-			);
-			part.setSecondGranularityRangeThresholds(true);
-			seed(AttributeIndexType.FILTER, key, part);
-		}
-
-		/**
 		 * Seeds a range-`PAGED` FILTER part whose range leaf pages hold epoch-**second** thresholds: the pages are
 		 * emitted from a live index built at second granularity, stored under the RANGE stream, and the root is
 		 * marked with the read-path provenance flag.
-		 *
-		 * @param key         the attribute key
-		 * @param type        the declared attribute type
-		 * @param points      the inline bucket points
-		 * @param rangePoints the range points, in ascending threshold order and at second granularity
-		 * @param pageSize    how many range points to place on each persisted leaf page
 		 */
 		void seedLegacySecondGranularityPagedFilter(
 			@Nonnull AttributeIndexKey key, @Nonnull Class<?> type,
@@ -510,7 +532,7 @@ class AttributeIndexLoaderTest {
 				true, pageCount - 1, pageSequences,
 				null
 			);
-			part.setSecondGranularityRangeThresholds(true);
+			part.setSecondGranularityRangePages(true);
 			seed(AttributeIndexType.FILTER, key, part);
 		}
 
@@ -982,21 +1004,11 @@ class AttributeIndexLoaderTest {
 				assertNotNull(key);
 			}
 			final EntityIndexStoragePart manifest = storage.buildManifest(REFERENCED_TYPE_INDEX_KEY);
-			final LoadContext context = new LoadContext(
-				CATALOG_VERSION,
-				INDEX_PK,
-				buildReferenceSchema(),
-				REFERENCED_TYPE_INDEX_KEY,
-				manifest,
-				manifest.getVersion(),
-				EmptyBitmap.INSTANCE,
-				Map.of(),
-				storage,
+			final LoadContext context = new LoadContext(CATALOG_VERSION, INDEX_PK, buildReferenceSchema(),
+				REFERENCED_TYPE_INDEX_KEY, manifest, manifest.getVersion(), EmptyBitmap.INSTANCE, Map.of(), storage,
 				// REFERENCED_ENTITY_TYPE indexes carry a String discriminator and a `null` referenceKey, exactly as the
 				// engine's DefaultEntityCollectionPersistenceService builds the context
-				null,
-				ANALYZER_REGISTRY
-			);
+				null, true, ANALYZER_REGISTRY, AttributeNormalizationResolver.LEGACY_NFD);
 			final LoadedComponentBundle bundle = new AttributeIndexLoader().load(context);
 			return assertInstanceOf(AttributeIndexes.class, bundle, "Loader must return an AttributeIndexes bundle");
 		}
@@ -1279,205 +1291,22 @@ class AttributeIndexLoaderTest {
 		}
 	}
 
-	/**
-	 * The legacy threshold-scale repair, driven through the production loader.
-	 *
-	 * Every catalog format written before {@code DateTimeRange} moved from second to millisecond comparison
-	 * granularity persisted its range-index thresholds as epoch **seconds**. A threshold is an untyped `long` shared
-	 * with all five `NumberRange` subtypes, whose thresholds are the bounds' own numeric values and were never
-	 * rescaled — so the repair has to be routed on the declared attribute type, and applying it to the wrong one
-	 * inflates a numeric range's bounds by a thousand and answers every query over it with the wrong records,
-	 * silently.
-	 *
-	 * These tests seed thresholds a pre-change writer would have produced and assert on **what a query returns**,
-	 * which is the only assertion that fails when the rescale is dropped, doubled, or aimed at the wrong type.
-	 */
-	@Nested
-	@DisplayName("legacy second-granularity range thresholds")
-	class LegacyRangeThresholdScale {
-
-		/** The moment the seeded ranges are built around; the fixture is a full day wide on each side of it. */
-		private static final OffsetDateTime VALID_FROM = OffsetDateTime.parse("2026-05-20T12:19:26Z");
-		/** A moment inside the seeded range, used as the query probe. */
-		private static final OffsetDateTime INSIDE = OffsetDateTime.parse("2026-05-21T00:00:00Z");
-		/** A moment after the seeded range, used as the negative query probe. */
-		private static final OffsetDateTime OUTSIDE = OffsetDateTime.parse("2026-06-01T00:00:00Z");
-
-		@Test
-		@DisplayName("an inline second-granularity range is rescaled and answers queries at the right moments")
-		void shouldRescaleAnInlineSecondGranularityDateTimeRange() {
-			final AttributeIndexKey key = new AttributeIndexKey(null, "validity", null);
-			final DateTimeRange validity = DateTimeRange.between(VALID_FROM, VALID_FROM.plusDays(5));
-			// what a pre-change writer left on disk: the very thresholds `getFrom()` / `getTo()` returned then,
-			// which were whole epoch SECONDS
-			final SeededStorage storage = new SeededStorage();
-			storage.seedLegacySecondGranularityFilter(
-				key, DateTimeRange.class,
-				new ValueToRecordBitmap[]{new ValueToRecordBitmap(validity, 1)},
-				secondGranularityPoints(
-					VALID_FROM.toEpochSecond(), VALID_FROM.plusDays(5).toEpochSecond(), 1
-				)
-			);
-
-			final FilterIndex loaded = load(storage, key).filterIndexes().get(key);
-			assertNotNull(loaded, "the FILTER part must reload");
-
-			// THE assertion: a probe reduced by the CURRENT converter must find the record. Without the rescale the
-			// stored thresholds sit a thousand times below the probe and this returns nothing
-			assertArrayEquals(
-				new int[]{1},
-				loaded.getRecordsValidInFormula(DateTimeRange.toComparableLong(INSIDE)).compute().getArray(),
-				"a moment inside the reloaded validity must select the record"
-			);
-			// ... and a moment outside must still select nothing, so the test cannot pass by matching everything
-			assertArrayEquals(
-				new int[0],
-				loaded.getRecordsValidInFormula(DateTimeRange.toComparableLong(OUTSIDE)).compute().getArray(),
-				"a moment after the reloaded validity must select nothing"
-			);
-			// a probe left in the OLD scale must now miss, which is what says the thresholds really moved
-			assertArrayEquals(
-				new int[0],
-				loaded.getRecordsValidInFormula(INSIDE.toEpochSecond()).compute().getArray(),
-				"a second-granularity probe must no longer land inside the rescaled range"
-			);
-		}
-
-		@Test
-		@DisplayName("an open-ended second-granularity range is rescaled onto the constant sentinels")
-		void shouldRescaleAnOpenEndedSecondGranularityDateTimeRange() {
-			final AttributeIndexKey key = new AttributeIndexKey(null, "validity", null);
-			final DateTimeRange openEnded = DateTimeRange.since(VALID_FROM);
-			// a pre-change open-ended range ended on `LocalDateTime.MAX.atOffset(from.getOffset()).toEpochSecond()`,
-			// which collides with the index's own `Long.MAX_VALUE` border point once rescaled - the collision the
-			// repair has to MERGE rather than trip over
-			final long legacyOpenTo = java.time.LocalDateTime.MAX.atOffset(ZoneOffset.UTC).toEpochSecond();
-			final SeededStorage storage = new SeededStorage();
-			storage.seedLegacySecondGranularityFilter(
-				key, DateTimeRange.class,
-				new ValueToRecordBitmap[]{new ValueToRecordBitmap(openEnded, 1)},
-				secondGranularityPoints(VALID_FROM.toEpochSecond(), legacyOpenTo, 1)
-			);
-
-			final FilterIndex loaded = load(storage, key).filterIndexes().get(key);
-			assertNotNull(loaded, "the FILTER part must reload");
-			assertArrayEquals(
-				new int[]{1},
-				loaded.getRecordsValidInFormula(DateTimeRange.toComparableLong(INSIDE)).compute().getArray(),
-				"a moment inside the open-ended validity must select the record"
-			);
-			assertArrayEquals(
-				new int[]{1},
-				loaded.getRecordsValidInFormula(DateTimeRange.toComparableLong(OUTSIDE)).compute().getArray(),
-				"a moment far after the lower bound must still select an open-ended record"
-			);
-			assertArrayEquals(
-				new int[0],
-				loaded.getRecordsValidInFormula(
-					DateTimeRange.toComparableLong(VALID_FROM.minusDays(1))
-				).compute().getArray(),
-				"a moment before the lower bound must select nothing"
-			);
-			// the open bound really did land on the constant sentinel, merged into the index's own border point
-			final RangeIndex reloadedRange = load(storage, key).sharedRangeIndexes().get(key);
-			assertNotNull(reloadedRange, "the range companion must reload");
-			assertEquals(
-				DateTimeRange.OPEN_TO_THRESHOLD, reloadedRange.getRanges()[reloadedRange.getRanges().length - 1]
-					.getThreshold(),
-				"the legacy open sentinel and the border point must have merged onto one threshold"
-			);
-		}
-
-		@Test
-		@DisplayName("a range-PAGED second-granularity range is rescaled across its leaf pages")
-		void shouldRescaleAPagedSecondGranularityDateTimeRange() {
-			final AttributeIndexKey key = new AttributeIndexKey(null, "validity", null);
-			final DateTimeRange validity = DateTimeRange.between(VALID_FROM, VALID_FROM.plusDays(5));
-			final SeededStorage storage = new SeededStorage();
-			// two points per page, so the repair has to walk pages and reassemble - and the border sentinels sit on
-			// different pages from the payload thresholds
-			storage.seedLegacySecondGranularityPagedFilter(
-				key, DateTimeRange.class,
-				new ValueToRecordBitmap[]{new ValueToRecordBitmap(validity, 1)},
-				secondGranularityPoints(
-					VALID_FROM.toEpochSecond(), VALID_FROM.plusDays(5).toEpochSecond(), 1
-				),
-				2
-			);
-
-			final FilterIndex loaded = load(storage, key).filterIndexes().get(key);
-			assertNotNull(loaded, "the FILTER part must reload");
-			assertArrayEquals(
-				new int[]{1},
-				loaded.getRecordsValidInFormula(DateTimeRange.toComparableLong(INSIDE)).compute().getArray(),
-				"a moment inside the reloaded paged validity must select the record"
-			);
-			assertArrayEquals(
-				new int[0],
-				loaded.getRecordsValidInFormula(DateTimeRange.toComparableLong(OUTSIDE)).compute().getArray(),
-				"a moment after the reloaded paged validity must select nothing"
-			);
-			assertArrayEquals(
-				new int[0],
-				loaded.getRecordsValidInFormula(INSIDE.toEpochSecond()).compute().getArray(),
-				"a second-granularity probe must no longer land inside the rescaled paged range"
-			);
-		}
-
-		@Test
-		@DisplayName("a numeric range index read from the same legacy format keeps its thresholds untouched")
-		void shouldLeaveANumericRangeIndexUntouched() {
-			// the control, and the one that matters most: the provenance flag is set on this part exactly as it is
-			// on the three above, so ONLY the declared attribute type keeps the rescale away from it. An
-			// `IntegerNumberRange` threshold is the caller's own number and was never in seconds
-			final AttributeIndexKey key = new AttributeIndexKey(null, "quantity", null);
-			final IntegerNumberRange range = IntegerNumberRange.between(10, 20);
-			final SeededStorage storage = new SeededStorage();
-			storage.seedLegacySecondGranularityFilter(
-				key, IntegerNumberRange.class,
-				new ValueToRecordBitmap[]{new ValueToRecordBitmap(range, 1)},
-				secondGranularityPoints(10L, 20L, 1)
-			);
-
-			final FilterIndex loaded = load(storage, key).filterIndexes().get(key);
-			assertNotNull(loaded, "the FILTER part must reload");
-			assertArrayEquals(
-				new int[]{1}, loaded.getRecordsValidInFormula(15L).compute().getArray(),
-				"the numeric thresholds must be read back verbatim - 15 lies inside [10, 20]"
-			);
-			assertArrayEquals(
-				new int[0], loaded.getRecordsValidInFormula(15_000L).compute().getArray(),
-				"a rescaled numeric index would have moved [10, 20] to [10000, 20000] and matched here instead"
-			);
-			final RangeIndex reloadedRange = load(storage, key).sharedRangeIndexes().get(key);
-			assertNotNull(reloadedRange, "the range companion must reload");
-			final long[] thresholds = new long[reloadedRange.getRanges().length];
-			for (int i = 0; i < thresholds.length; i++) {
-				thresholds[i] = reloadedRange.getRanges()[i].getThreshold();
-			}
-			assertArrayEquals(
-				new long[]{Long.MIN_VALUE, 10L, 20L, Long.MAX_VALUE}, thresholds,
-				"every numeric threshold must survive byte for byte"
-			);
-		}
-
-		/**
-		 * Builds the range points a pre-change writer would have persisted for one record whose range spans
-		 * `[from, to]`, including the two border sentinels the index always carries.
-		 *
-		 * @param from     the lower threshold, in the scale the writer used
-		 * @param to       the upper threshold, in the scale the writer used
-		 * @param recordId the record the range belongs to
-		 * @return the four range points, in ascending threshold order
-		 */
-		@Nonnull
-		private static TransactionalRangePoint[] secondGranularityPoints(long from, long to, int recordId) {
-			return new TransactionalRangePoint[]{
-				new TransactionalRangePoint(Long.MIN_VALUE),
-				new TransactionalRangePoint(from, new int[]{recordId}, new int[0]),
-				new TransactionalRangePoint(to, new int[0], new int[]{recordId}),
-				new TransactionalRangePoint(Long.MAX_VALUE)
-			};
-		}
+	/** A paged temporal companion that bypassed migration must fail before any legacy threshold can serve a query. */
+	@Test
+	@DisplayName("refuses unmigrated paged DateTimeRange companions by attribute name")
+	void shouldRefuseUnmigratedRangePages() {
+		final AttributeIndexKey key = new AttributeIndexKey(null, "validity", null);
+		final SeededStorage storage = new SeededStorage();
+		storage.seedLegacySecondGranularityPagedFilter(
+			key, DateTimeRange.class, new ValueToRecordBitmap[0],
+			new TransactionalRangePoint[]{
+				new TransactionalRangePoint(Long.MIN_VALUE), new TransactionalRangePoint(Long.MAX_VALUE)
+			}, 1
+		);
+		final GenericEvitaInternalError failure = assertThrows(
+			GenericEvitaInternalError.class, () -> load(storage, key)
+		);
+		assertTrue(failure.getMessage().contains("validity"));
+		assertTrue(failure.getMessage().contains("catalog was not migrated"));
 	}
 }

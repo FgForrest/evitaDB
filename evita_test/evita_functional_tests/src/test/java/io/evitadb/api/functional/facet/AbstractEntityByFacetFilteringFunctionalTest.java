@@ -5030,7 +5030,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 							extendedSelection.put(REF_TAG, selection);
 							extendedSelection.merge(
 								referenceName, new int[]{tagId},
-								(selected, added) -> ArrayUtils.mergeArrays(selected, added)
+								ArrayUtils::mergeArrays
 							);
 							final int extendedSize = resultSize.applyAsInt(extendedSelection);
 							// the option alone in each of its groups, next to the selection of the other groups

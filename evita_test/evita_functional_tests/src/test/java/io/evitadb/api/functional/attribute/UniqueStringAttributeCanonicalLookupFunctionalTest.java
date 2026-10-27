@@ -27,6 +27,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -130,7 +131,7 @@ public class UniqueStringAttributeCanonicalLookupFunctionalTest {
 		assertEquals(RIVER_NFD, Normalizer.normalize(RIVER_NFC, Normalizer.Form.NFD));
 
 		evita.defineCatalog(TEST_CATALOG)
-			.withAttribute(GLOBAL_URL, String.class, thatIs -> thatIs.uniqueGlobally())
+			.withAttribute(GLOBAL_URL, String.class, GlobalAttributeSchemaEditor::uniqueGlobally)
 			.withAttribute(GLOBAL_LOCAL_URL, String.class, thatIs -> thatIs.localized().uniqueGloballyWithinLocale())
 			.updateViaNewSession(evita);
 		evita.updateCatalog(

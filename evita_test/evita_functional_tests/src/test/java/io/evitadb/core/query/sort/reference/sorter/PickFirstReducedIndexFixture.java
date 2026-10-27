@@ -43,6 +43,7 @@ import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartitionIndex;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.utils.ArrayUtils;
 
@@ -267,11 +268,14 @@ final class PickFirstReducedIndexFixture {
 	 */
 	void addGroupIndex(@Nonnull Scope scope, int primaryKey, int group, @Nonnull int... owners) {
 		final ReducedGroupEntityIndex index = new ReducedGroupEntityIndex(
-			primaryKey, OWNER_TYPE,
+			primaryKey,
+			OWNER_TYPE,
 			new EntityIndexKey(
 				EntityIndexType.REFERENCED_GROUP_ENTITY, scope,
 				new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, group))
-			)
+			),
+			true,
+			AttributeNormalizationResolver.LEGACY_NFD
 		);
 		for (int owner : owners) {
 			index.insertPrimaryKeyIfMissing(owner, group);

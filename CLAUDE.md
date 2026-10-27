@@ -171,5 +171,6 @@ Czech mirror is machine-translated, never hand-edited — see `.claude/rules/doc
 
 ## Java Code Style
 
-Indentation, annotations, `Optional` placement, defensive design, collection factories and the rules for
-performance-critical code live in `.claude/rules/code-style.md`, which loads whenever a `.java` file is in play.
+Indentation, annotations, `Optional` placement, defensive design, locking (`ReentrantLock`, never `synchronized`),
+collection factories and the rules for performance-critical code live in `.claude/rules/code-style.md`, which loads
+whenever a `.java` file is in play.

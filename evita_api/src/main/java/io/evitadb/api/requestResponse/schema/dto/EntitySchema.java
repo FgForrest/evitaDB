@@ -486,7 +486,8 @@ public final class EntitySchema implements EntitySchemaContract {
 				(Class) attributeSchemaContract.getType(),
 				attributeSchemaContract.getDefaultValue(),
 				attributeSchemaContract.getIndexedDecimalPlaces(),
-				attributeSchemaContract.getConflictResolutionOverride()
+				attributeSchemaContract.getConflictResolutionOverride(),
+				attributeSchemaContract.getNormalization()
 			);
 		}
 	}
@@ -526,7 +527,8 @@ public final class EntitySchema implements EntitySchemaContract {
 				(Class) attributeSchemaContract.getType(),
 				attributeSchemaContract.getDefaultValue(),
 				attributeSchemaContract.getIndexedDecimalPlaces(),
-				attributeSchemaContract.getConflictResolutionOverride()
+				attributeSchemaContract.getConflictResolutionOverride(),
+				attributeSchemaContract.getNormalization()
 			);
 	}
 
@@ -586,11 +588,13 @@ public final class EntitySchema implements EntitySchemaContract {
 				referenceSchemaContract.getDescription(),
 				referenceSchemaContract.getDeprecationNotice(),
 				referenceSchemaContract.getReferencedEntityType(),
-				referenceSchemaContract.getEntityTypeNameVariants(entityType -> null),
+				referenceSchemaContract.isReferencedEntityTypeManaged() ?
+					Collections.emptyMap() : referenceSchemaContract.getEntityTypeNameVariants(s -> null),
 				referenceSchemaContract.isReferencedEntityTypeManaged(),
 				referenceSchemaContract.getCardinality(),
 				referenceSchemaContract.getReferencedGroupType(),
-				referenceSchemaContract.getGroupTypeNameVariants(entityType -> null),
+				referenceSchemaContract.isReferencedGroupTypeManaged() ?
+					Collections.emptyMap() : referenceSchemaContract.getGroupTypeNameVariants(s -> null),
 				referenceSchemaContract.isReferencedGroupTypeManaged(),
 				referenceSchemaContract.getReferenceIndexTypeInScopes()
 					.entrySet()

@@ -40,6 +40,8 @@ import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.core.query.sort.Sorter.SortingContext;
 import io.evitadb.core.query.sort.attribute.comparator.AbstractReferenceCompoundAttributeComparator;
 import io.evitadb.core.query.sort.attribute.comparator.AttributeComparator;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
+import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,16 +56,18 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.core.query.sort.utils.SortUtilsTest.asResult;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.ORDER;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
-import static io.evitadb.test.TestTags.ENGINE;
-import static io.evitadb.test.TestTags.ORDER;
 
 /**
  * This test verifies {@link PrefetchedRecordsSorter} behaviour.
@@ -73,15 +77,19 @@ import static io.evitadb.test.TestTags.ORDER;
 @Tag(ENGINE)
 @Tag(ORDER)
 class PrefetchedRecordsSorterTest {
+	/** Explicit type-level binding for fixtures without declared steps. */
+	private static final UnaryOperator<String> TYPE_LEVEL_STRING_NORMALIZER =
+		text -> (String) FilterIndex.getTypeLevelStringNormalizer().apply(text);
+
 	private static final String ATTRIBUTE_NAME_FIRST = "first";
 	private static final String ATTRIBUTE_NAME_SECOND = "second";
 
 	private final EntityComparator TEST_COMPARATOR_FIRST = new AttributeComparator(
 		ATTRIBUTE_NAME_FIRST, String.class, 0, null, OrderDirection.ASC
-	);
+	, TYPE_LEVEL_STRING_NORMALIZER);
 	private final EntityComparator TEST_COMPARATOR_SECOND = new AttributeComparator(
 		ATTRIBUTE_NAME_SECOND, String.class, 0, null, OrderDirection.ASC
-	);
+	, TYPE_LEVEL_STRING_NORMALIZER);
 	private PrefetchedRecordsSorterWithContext entitySorter;
 
 	private static List<ServerEntityDecorator> createMockEntities(int... expectedOrder) {
@@ -195,7 +203,11 @@ class PrefetchedRecordsSorterTest {
 			"category", "category", false, Cardinality.ZERO_OR_ONE, null, false, null, null
 		);
 		final AbstractReferenceCompoundAttributeComparator comparator = new AbstractReferenceCompoundAttributeComparator(
-			compoundSchema, referenceSchema, null, attributeName -> mock(AttributeSchemaContract.class), OrderDirection.ASC
+			compoundSchema, referenceSchema, null, attributeName -> mock(AttributeSchemaContract.class),
+				OrderDirection.ASC,
+			AttributeNormalizationResolver.LEGACY_NFD.resolveCompoundComparatorNormalizer(
+				referenceSchema.getName(), compoundSchema, attributeName -> mock(AttributeSchemaContract.class), null
+			)
 		) {
 			// every entity is missing the reference we sort by, so every compare() call adds it to nonSortedEntities
 			@Nonnull

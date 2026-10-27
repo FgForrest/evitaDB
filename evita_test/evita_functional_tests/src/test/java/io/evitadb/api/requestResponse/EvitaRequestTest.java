@@ -278,10 +278,7 @@ class EvitaRequestTest {
 				query(collection("product"))
 			);
 
-			assertEquals(
-				SealedEntity.class,
-				request.getExpectedType()
-			);
+			assertSame(SealedEntity.class, request.getExpectedType());
 		}
 	}
 

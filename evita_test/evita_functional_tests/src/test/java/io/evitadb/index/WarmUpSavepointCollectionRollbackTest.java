@@ -428,7 +428,7 @@ class WarmUpSavepointCollectionRollbackTest {
 			final TransactionalBoolean original = new TransactionalBoolean(true);
 			final PersistentTransactionalProducerMap<String, TransactionalBoolean> map =
 				PersistentTransactionalProducerMap.withExplicitDirtyKeyMerge(
-					new HashMap<>(Map.of("a", original)), mergedState -> (TransactionalBoolean) mergedState
+					new HashMap<>(Map.of("a", original)), TransactionalBoolean.class::cast
 				);
 
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
@@ -714,7 +714,7 @@ class WarmUpSavepointCollectionRollbackTest {
 			// only two honest options are to journal it or to refuse it - and silently losing it is neither
 			assertThrows(UnsupportedOperationException.class, () -> view.set(0, "z"));
 			assertThrows(UnsupportedOperationException.class, () -> view.add("z"));
-			assertThrows(UnsupportedOperationException.class, () -> view.removeFirst());
+			assertThrows(UnsupportedOperationException.class, view::removeFirst);
 			savepoint.rollback();
 
 			assertEquals(List.of("a", "b", "c"), new ArrayList<>(list), "Nothing was written, so nothing is rewound.");

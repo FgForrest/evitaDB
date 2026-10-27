@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.core.Evita;
@@ -245,7 +246,9 @@ public abstract class AbstractEntityByReferenceAttributeOrderingFunctionalTest {
 									whichIs ->
 										/* we can specify special attributes on relation */
 										makeReferenceIndexed(whichIs)
-											.withAttribute(ATTRIBUTE_BRAND_PRIORITY, Long.class, thatIs -> thatIs.sortable())
+											.withAttribute(ATTRIBUTE_BRAND_PRIORITY, Long.class,
+											               AttributeSchemaEditor::sortable
+											)
 								)
 								.withReferenceToEntity(
 									Entities.STORE,

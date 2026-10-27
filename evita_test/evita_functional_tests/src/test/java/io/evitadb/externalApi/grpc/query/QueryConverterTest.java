@@ -257,7 +257,7 @@ class QueryConverterTest {
 		final List<Object> parameters = QueryConverter.convertQueryParamsList(
 			stringWithParameters.parameters()
 				.stream()
-				.map((Serializable parameter) -> QueryConverter.convertQueryParam(parameter))
+				.map(QueryConverter::convertQueryParam)
 				.toList()
 		);
 

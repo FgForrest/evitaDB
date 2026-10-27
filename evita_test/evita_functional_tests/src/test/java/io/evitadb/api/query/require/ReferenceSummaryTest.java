@@ -25,6 +25,7 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintVisitor;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FilterBy;
@@ -114,8 +115,8 @@ class ReferenceSummaryTest {
 		@DisplayName("should create from EntityFetchRequire array")
 		void shouldCreateFromRequirements() {
 			assertEquals(
-				referenceSummary(FacetStatisticsDepth.COUNTS),
-				new ReferenceSummary(FacetStatisticsDepth.COUNTS, new EntityFetchRequire[0])
+				new ReferenceSummary(FacetStatisticsDepth.COUNTS, new EntityFetchRequire[0]),
+				referenceSummary(FacetStatisticsDepth.COUNTS)
 			);
 			assertEquals(
 				referenceSummary(FacetStatisticsDepth.COUNTS, entityFetch(attributeContent("code"))),
@@ -336,7 +337,7 @@ class ReferenceSummaryTest {
 		@Test
 		@DisplayName("should return RequireConstraint class as type")
 		void shouldReturnRequireConstraintClassAsType() {
-			assertEquals(RequireConstraint.class, referenceSummary().getType());
+			assertSame(RequireConstraint.class, QueryConstraints.referenceSummary().getType());
 		}
 
 		@Test

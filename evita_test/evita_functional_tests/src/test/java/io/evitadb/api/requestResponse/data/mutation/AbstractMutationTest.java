@@ -111,7 +111,8 @@ public abstract class AbstractMutationTest {
 						"categoryPriority",
 						Long.class,
 						false,
-						ConflictResolutionOverride.INHERITED
+						ConflictResolutionOverride.INHERITED,
+						null
 					)
 				),
 				Map.of(),

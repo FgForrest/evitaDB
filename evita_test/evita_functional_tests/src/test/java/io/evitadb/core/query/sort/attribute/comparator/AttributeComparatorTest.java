@@ -27,15 +27,18 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.index.attribute.FilterIndex;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.function.UnaryOperator;
+
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.ORDER;
-import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * This test verifies {@link AttributeComparator} behaviour.
@@ -46,13 +49,17 @@ import static io.evitadb.test.TestTags.ATTRIBUTE;
 @Tag(ORDER)
 @Tag(ATTRIBUTE)
 class AttributeComparatorTest {
+	/** Explicit type-level binding for fixtures without declared steps. */
+	private static final UnaryOperator<String> TYPE_LEVEL_STRING_NORMALIZER =
+		text -> (String) FilterIndex.getTypeLevelStringNormalizer().apply(text);
+
 	public static final String ATTRIBUTE_NAME = "test";
 	private final AttributeComparator comparator = new AttributeComparator(
 		ATTRIBUTE_NAME, Integer.class, 0, null, OrderDirection.ASC
-	);
+	, TYPE_LEVEL_STRING_NORMALIZER);
 	private final AttributeComparator reverseComparator = new AttributeComparator(
 		ATTRIBUTE_NAME, Integer.class, 0, null, OrderDirection.DESC
-	);
+	, TYPE_LEVEL_STRING_NORMALIZER);
 
 	@BeforeEach
 	void setUp() {

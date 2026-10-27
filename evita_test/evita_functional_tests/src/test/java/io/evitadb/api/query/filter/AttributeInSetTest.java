@@ -166,7 +166,7 @@ class AttributeInSetTest {
 		void shouldReturnCorrectType() {
 			final AttributeInSet constraint = attributeInSet("refs", 1);
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 	}
 

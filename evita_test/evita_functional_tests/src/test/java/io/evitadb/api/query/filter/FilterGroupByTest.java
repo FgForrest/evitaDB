@@ -191,7 +191,7 @@ class FilterGroupByTest {
 		void shouldReturnFilterConstraintClassAsType() {
 			final FilterGroupBy filterGroupBy = new FilterGroupBy(attributeEquals("abc", "def"));
 
-			assertEquals(FilterConstraint.class, filterGroupBy.getType());
+			assertSame(FilterConstraint.class, filterGroupBy.getType());
 		}
 
 		@Test

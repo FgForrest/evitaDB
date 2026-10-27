@@ -41,6 +41,7 @@ import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatisti
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.core.exception.ReferenceComponentNotIndexedException;
@@ -672,7 +673,7 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 						.openForWrite()
 						.withReflectedReferenceToEntity(
 							REF_REFLECTED_GROUP_ONLY, PRODUCT, REF_GROUP_ONLY,
-							whichIs -> whichIs.withAttributesInherited()
+							ReflectedReferenceSchemaEditor::withAttributesInherited
 						)
 						.updateVia(session);
 					// the reflected rows are written from the category side, where the attribute is a

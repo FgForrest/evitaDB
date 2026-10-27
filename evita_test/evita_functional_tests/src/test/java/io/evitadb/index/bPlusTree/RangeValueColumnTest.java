@@ -600,7 +600,7 @@ class RangeValueColumnTest {
 			assertEquals(
 				987_000_000, decoded.getPreciseTo().getNano(), "the rebuilt bound carries whole milliseconds"
 			);
-			assertNotEquals(offset, ZoneOffset.UTC, "the fixture must not write at UTC or the next line is vacuous");
+			assertNotEquals(ZoneOffset.UTC, offset, "the fixture must not write at UTC or the next line is vacuous");
 			assertEquals(ZoneOffset.UTC, decoded.getPreciseFrom().getOffset(), "and is re-anchored at UTC");
 			assertEquals(
 				original.getPreciseFrom().toInstant().truncatedTo(java.time.temporal.ChronoUnit.MILLIS),

@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.EntityReferenceWithLocale;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
@@ -65,17 +66,18 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.index.mutation.local.AttributeIndexMutator.executeAttributeDelta;
 import static io.evitadb.index.mutation.local.AttributeIndexMutator.executeAttributeRemoval;
 import static io.evitadb.index.mutation.local.AttributeIndexMutator.executeAttributeUpsert;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.SCHEMA;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_EAN;
 import static org.junit.jupiter.api.Assertions.*;
-import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SCHEMA;
-import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * This test verifies {@link AttributeIndexMutator} contract.
@@ -225,7 +227,9 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		shouldInsertNewAttribute();
 
 		final AttributeKey codeAttributeKey = new AttributeKey(ATTRIBUTE_CODE);
-		final AttributeSchema codeSchema = AttributeSchema._internalBuild(ATTRIBUTE_CODE, String.class, false, ConflictResolutionOverride.INHERITED);
+		final AttributeSchema codeSchema = AttributeSchema._internalBuild(
+			ATTRIBUTE_CODE, String.class, false, ConflictResolutionOverride.INHERITED, null
+		);
 		this.containerAccessor.getAttributeStoragePart(ENTITY_NAME, 1)
 			.upsertAttribute(codeAttributeKey, codeSchema, attributeValue -> new AttributeValue(codeAttributeKey, "A"));
 
@@ -241,7 +245,9 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		);
 
 		final AttributeKey eanAttributeKey = new AttributeKey(ATTRIBUTE_EAN);
-		final AttributeSchema eanSchema = AttributeSchema._internalBuild(ATTRIBUTE_EAN, String.class, false, ConflictResolutionOverride.INHERITED);
+		final AttributeSchema eanSchema = AttributeSchema._internalBuild(
+			ATTRIBUTE_EAN, String.class, false, ConflictResolutionOverride.INHERITED, null
+		);
 		this.containerAccessor.getAttributeStoragePart(ENTITY_NAME, 1)
 			.upsertAttribute(eanAttributeKey, eanSchema, attributeValue -> new AttributeValue(eanAttributeKey, "EAN-001"));
 
@@ -257,7 +263,9 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		);
 
 		final AttributeKey globalCodeAttributeKey = new AttributeKey(ATTRIBUTE_GLOBAL_CODE);
-		final AttributeSchema globalCodeSchema = AttributeSchema._internalBuild(ATTRIBUTE_GLOBAL_CODE, String.class, false, ConflictResolutionOverride.INHERITED);
+		final AttributeSchema globalCodeSchema = AttributeSchema._internalBuild(
+			ATTRIBUTE_GLOBAL_CODE, String.class, false, ConflictResolutionOverride.INHERITED, null
+		);
 		this.containerAccessor.getAttributeStoragePart(ENTITY_NAME, 1)
 			.upsertAttribute(globalCodeAttributeKey, globalCodeSchema, attributeValue -> new AttributeValue(globalCodeAttributeKey, "GA"));
 
@@ -309,7 +317,9 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	@DisplayName("Should update simple value to array value in filter index")
 	void shouldInsertSimpleAndThenUpdateWithArrayAttribute() {
 		final AttributeKey charArrayAttr = new AttributeKey(ATTRIBUTE_CHAR_ARRAY);
-		final AttributeSchema charArraySchema = AttributeSchema._internalBuild(ATTRIBUTE_CHAR_ARRAY, Character[].class, false, ConflictResolutionOverride.INHERITED);
+		final AttributeSchema charArraySchema = AttributeSchema._internalBuild(
+			ATTRIBUTE_CHAR_ARRAY, Character[].class, false, ConflictResolutionOverride.INHERITED, null
+		);
 
 		executeAttributeUpsert(
 			this.executor,
@@ -353,7 +363,9 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	@DisplayName("Should replace array attribute values in filter index")
 	void shouldInsertAndThenUpdateNewArrayAttribute() {
 		final AttributeKey charArrayAttr = new AttributeKey(ATTRIBUTE_CHAR_ARRAY);
-		final AttributeSchema charArraySchema = AttributeSchema._internalBuild(ATTRIBUTE_CHAR_ARRAY, Character[].class, false, ConflictResolutionOverride.INHERITED);
+		final AttributeSchema charArraySchema = AttributeSchema._internalBuild(
+			ATTRIBUTE_CHAR_ARRAY, Character[].class, false, ConflictResolutionOverride.INHERITED, null
+		);
 
 		executeAttributeUpsert(
 			this.executor,
@@ -436,7 +448,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						this.classifierResolver,
 						this.usageRegistry,
 						this.catalogUsageRegistry,
-						new FulltextAnalyzerRegistry(),
+						new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 						true,
 						new PartitionReservations()
 					),
@@ -469,7 +481,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						this.classifierResolver,
 						this.usageRegistry,
 						this.catalogUsageRegistry,
-						new FulltextAnalyzerRegistry(),
+						new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 						true,
 						new PartitionReservations()
 					),
@@ -507,7 +519,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.classifierResolver,
 				this.usageRegistry,
 				this.catalogUsageRegistry,
-				new FulltextAnalyzerRegistry(),
+				new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 				true,
 				new PartitionReservations()
 			),
@@ -535,7 +547,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.classifierResolver,
 				this.usageRegistry,
 				this.catalogUsageRegistry,
-				new FulltextAnalyzerRegistry(),
+				new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 				true,
 				new PartitionReservations()
 			),
@@ -642,7 +654,9 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	@DisplayName("Should apply delta to numeric attribute and update filter and sort indices")
 	void shouldApplyDeltaToAttribute() {
 		final AttributeKey attrVariantCount = new AttributeKey(ATTRIBUTE_VARIANT_COUNT);
-		final AttributeSchema variantSchema = AttributeSchema._internalBuild(ATTRIBUTE_VARIANT_COUNT, Integer.class, false, ConflictResolutionOverride.INHERITED);
+		final AttributeSchema variantSchema = AttributeSchema._internalBuild(
+			ATTRIBUTE_VARIANT_COUNT, Integer.class, false, ConflictResolutionOverride.INHERITED, null
+		);
 
 		executeAttributeUpsert(
 			this.executor,
@@ -668,7 +682,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.classifierResolver,
 				this.usageRegistry,
 				this.catalogUsageRegistry,
-				new FulltextAnalyzerRegistry(),
+				new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 				true,
 				new PartitionReservations()
 			),

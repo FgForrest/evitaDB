@@ -24,12 +24,15 @@
 package io.evitadb.api.functional.schema;
 
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaAcceleratedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
@@ -349,7 +352,7 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 							.withoutGeneratedPrimaryKey()
 							.withReflectedReferenceToEntity(
 								REFERENCE_REFLECTED_PRODUCTS, Entities.PRODUCT, NON_EXISTING_REFERENCE_NAME,
-								whichIs -> whichIs.withAttributesInherited()
+								ReflectedReferenceSchemaEditor::withAttributesInherited
 							)
 							.updateVia(session);
 					}
@@ -379,7 +382,7 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 						.withoutGeneratedPrimaryKey()
 						.withReferenceToEntity(
 							REFERENCE_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-							whichIs -> whichIs.indexedForFilteringAndPartitioning()
+							ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 						)
 						.updateVia(session);
 				}
@@ -391,7 +394,7 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 						.openForWrite()
 						.withReflectedReferenceToEntity(
 							REFERENCE_REFLECTED_PRODUCTS, Entities.PRODUCT, REFERENCE_CATEGORY,
-							whichIs -> whichIs.withAttributesInherited()
+							ReflectedReferenceSchemaEditor::withAttributesInherited
 						)
 						.updateVia(session);
 				}
@@ -850,9 +853,7 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 	private Set<String> readEntityTypes() {
 		return this.evita.queryCatalog(
 			TEST_CATALOG,
-			session -> {
-				return session.getAllEntityTypes();
-			}
+			EvitaSessionContract::getAllEntityTypes
 		);
 	}
 
@@ -876,7 +877,7 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 					.withoutGeneratedPrimaryKey()
 					.withReferenceToEntity(
 						REFERENCE_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-						whichIs -> whichIs.indexedForFilteringAndPartitioning()
+						ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 					)
 					.updateVia(session);
 			}
@@ -888,7 +889,7 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 					.openForWrite()
 					.withReflectedReferenceToEntity(
 						REFERENCE_REFLECTED_PRODUCTS, Entities.PRODUCT, REFERENCE_CATEGORY,
-						whichIs -> whichIs.withAttributesInherited()
+						ReflectedReferenceSchemaEditor::withAttributesInherited
 					)
 					.updateVia(session);
 				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, CATEGORY_PK));

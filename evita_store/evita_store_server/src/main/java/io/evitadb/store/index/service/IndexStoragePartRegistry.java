@@ -79,7 +79,9 @@ public class IndexStoragePartRegistry implements StoragePartRegistry {
 			new StoragePartRecord((byte) 48, VirtualReferencePartitionIndexLeafPagePart.class, StoragePartGroup.REFERENCE_INDEX),
 			new StoragePartRecord((byte) 53, FulltextIndexStoragePart.class, StoragePartGroup.FULLTEXT_INDEX),
 			new StoragePartRecord((byte) 54, FulltextDictionaryLeafPagePart.class, StoragePartGroup.FULLTEXT_INDEX),
-			new StoragePartRecord((byte) 55, FulltextFieldLengthBlockPart.class, StoragePartGroup.FULLTEXT_INDEX)
+			new StoragePartRecord((byte) 55, FulltextFieldLengthBlockPart.class, StoragePartGroup.FULLTEXT_INDEX),
+			new StoragePartRecord((byte) 56, AttributeNormalizationStoragePart.class, StoragePartGroup.ATTRIBUTE_INDEX),
+			new StoragePartRecord((byte) 57, GlobalAttributeNormalizationStoragePart.class, StoragePartGroup.ATTRIBUTE_INDEX)
 		);
 	}
 

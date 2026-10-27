@@ -63,6 +63,9 @@ import static io.evitadb.utils.StringUtils.serializableArrayToString;
  * {@link ReferenceKey} instance from the pair (referenceName, primaryKey) to normalize any extra
  * flags the original instance might carry. This guarantees consistent equality and hashing semantics.
  *
+ * Representative attribute values retain their raw spelling for reference identity. String attribute index-key
+ * normalization does not apply to this identity or the virtual partition tuple dictionary.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public record RepresentativeReferenceKey(

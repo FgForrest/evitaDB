@@ -173,7 +173,7 @@ class DataDeserializerTest {
 	void shouldDeserializeCurrency() {
 		final Object deserialized = this.dataDeserializer.deserializeValue(scalarFrom(Currency.class).toSchema(), new String[]{"CZK"});
 		if (deserialized instanceof Currency val) {
-			assertEquals(Currency.getInstance("CZK"), val);
+			assertSame(Currency.getInstance("CZK"), val);
 		} else {
 			fail();
 		}

@@ -189,7 +189,7 @@ class NotTest {
 		void shouldReturnFilterConstraintClassAsType() {
 			final Not not = new Not(attributeEquals("abc", "def"));
 
-			assertEquals(FilterConstraint.class, not.getType());
+			assertSame(FilterConstraint.class, not.getType());
 		}
 
 		@Test

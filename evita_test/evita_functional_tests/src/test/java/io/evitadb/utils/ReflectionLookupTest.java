@@ -176,10 +176,10 @@ class ReflectionLookupTest {
 
 	@Test
 	void shouldRecognizeGenericsFromBasicCollections() {
-		assertEquals(String.class, this.tested.extractGenericType(this.tested.findGetter(GenericsExample.class, "set").getGenericReturnType(), 0));
-		assertEquals(String.class, this.tested.extractGenericType(this.tested.findGetter(GenericsExample.class, "list").getGenericReturnType(), 0));
-		assertEquals(String.class, this.tested.extractGenericType(this.tested.findGetter(GenericsExample.class, "map").getGenericReturnType(), 0));
-		assertEquals(Integer.class, this.tested.extractGenericType(this.tested.findGetter(GenericsExample.class, "map").getGenericReturnType(), 1));
+		assertSame(String.class, this.tested.extractGenericType(this.tested.findGetter(GenericsExample.class, "set").getGenericReturnType(), 0));
+		assertSame(String.class, this.tested.extractGenericType(this.tested.findGetter(GenericsExample.class, "list").getGenericReturnType(), 0));
+		assertSame(String.class, this.tested.extractGenericType(this.tested.findGetter(GenericsExample.class, "map").getGenericReturnType(), 0));
+		assertSame(Integer.class, this.tested.extractGenericType(this.tested.findGetter(GenericsExample.class, "map").getGenericReturnType(), 1));
 	}
 
 	@Test

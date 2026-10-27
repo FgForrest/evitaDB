@@ -279,12 +279,12 @@ The in-memory structures above are independent of the on-disk catalog format:
   index rebuilds its tree (and its leaf columns) by **ordered inserts** at load; a `PAGED` one
   bulk-loads instead, each persisted leaf page becoming one leaf, so page identity survives a restart
   and only pages that actually changed are re-emitted on the next flush.
-- **Bulk loading assumes the persisted order is still the order the keys compare in**, which a key
-  type's comparison can break across releases. `InvertedIndex.fromPersistedPages` repairs the two
-  shapes that arise — buckets that now collapse onto one key, and a legacy `DateTimeRange` ordering
-  the millisecond comparison inverts — and refuses to repair anything else, because an unexplained
-  inversion is the signature of a stale leaf-page twin, whose "repair" would resurrect deleted
-  records. Read that method's javadoc before touching either path.
+- **Bulk loading requires strictly ascending, distinct persisted keys.** `Migration_2026_3` corrects
+  legacy bucket collisions and recognized second-granularity `DateTimeRange` inversions before loading,
+  through `LegacyInvertedIndexCorrection`. `InvertedIndex.fromPersistedPages` restores keys verbatim and
+  rejects unexplained inversions, including stale leaf-page twins. Inline restore re-inserts distinct keys in
+  comparator order and rejects duplicates, without validating stored order. Inline temporal range thresholds are
+  converted by versioned root readers; paged companions are replaced by the migration before loading.
 - `indexedDecimalPlaces` is persisted into three storage parts (`FilterIndexStoragePart`,
   `SortIndexStoragePart`, `HistogramIndexStoragePart`) and read back verbatim at load.
 - `SingleRecordBitmap` / `ValueToRecordPrimitive` are runtime-only compaction representations; the

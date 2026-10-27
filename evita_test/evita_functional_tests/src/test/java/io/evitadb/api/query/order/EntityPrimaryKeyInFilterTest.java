@@ -26,6 +26,7 @@ package io.evitadb.api.query.order;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -85,7 +86,7 @@ class EntityPrimaryKeyInFilterTest {
 		@Test
 		@DisplayName("should return OrderConstraint class as type")
 		void shouldReturnCorrectType() {
-			assertEquals(OrderConstraint.class, entityPrimaryKeyInFilter().getType());
+			assertSame(OrderConstraint.class, QueryConstraints.entityPrimaryKeyInFilter().getType());
 		}
 
 		@Test

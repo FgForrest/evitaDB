@@ -33,12 +33,14 @@ import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.Index;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -51,6 +53,22 @@ import java.util.function.Predicate;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class AbstractAttributeTranslator {
+
+	/**
+	 * Coerces a raw query probe to the attribute's plain type without producing an index key. Legacy String
+	 * lookups stringify an array-valued scalar probe too; keep that conversion outside the bound String function.
+	 *
+	 * @param value the raw query value, null for an open bound
+	 * @param plainType the declared non-array attribute type
+	 * @return the type-coerced raw value; no normalization step has run
+	 */
+	@Nullable
+	public static Serializable toAttributeProbeValue(
+		@Nullable Serializable value, @Nonnull Class<? extends Serializable> plainType
+	) {
+		final Serializable converted = EvitaDataTypes.toTargetType(value, plainType);
+		return plainType == String.class && converted != null ? converted.toString() : converted;
+	}
 
 	/**
 	 * Generates an AttributeKey object based on the provided filterByVisitor and attributeDefinition.

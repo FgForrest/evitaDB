@@ -91,7 +91,7 @@ class HierarchyExcludingRootTest {
 		void shouldReturnFilterConstraintType() {
 			final HierarchyExcludingRoot constraint = new HierarchyExcludingRoot();
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 
 		@Test

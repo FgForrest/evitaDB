@@ -103,7 +103,8 @@ mvn -pl evita_test/evita_functional_tests test -Dgroups="(query | indexing) & !s
 
 Other profiles select a single specialised module: `-P documentation` runs only the documentation
 suite, `-P longRunning` only the long-running suite (see the sections below), and `-P full` adds the
-heavy out-of-reactor modules (performance tests, all-in-one driver, the jacoco aggregator).
+heavy modules (performance tests and the jacoco aggregator). The shaded Java driver is built separately
+from the [standalone recipe](../../recipes/evita_java_driver_all_in_one).
 
 To run tests from IntelliJ IDEA, add these arguments to the JUnit configuration template — they open
 the JDK internals the engine and serialization tests reflect over:

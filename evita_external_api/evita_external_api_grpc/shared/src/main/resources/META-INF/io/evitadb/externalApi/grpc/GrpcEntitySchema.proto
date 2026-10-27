@@ -261,6 +261,11 @@ message GrpcAttributeSchema {
   // filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
   // server sends - means no acceleration anywhere.
   repeated GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 22;
+
+  // Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+  // normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+  // A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+  repeated GrpcAnalysisStep normalized = 23;
 }
 
 // This is the definition object for associated data that is stored along with

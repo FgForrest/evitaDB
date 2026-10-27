@@ -69,7 +69,9 @@ public final class EntityAttributeSchemaBuilder
 		@Nonnull String name,
 		@Nonnull Class<? extends Serializable> ofType
 	) {
-		super(null, entitySchema, EntityAttributeSchema._internalBuild(name, ofType, false, ConflictResolutionOverride.INHERITED));
+		super(null, entitySchema,
+			EntityAttributeSchema._internalBuild(name, ofType, false, ConflictResolutionOverride.INHERITED, null)
+		);
 		this.mutations.add(
 			new CreateAttributeSchemaMutation(
 				this.baseSchema.getName(),
@@ -81,13 +83,17 @@ public final class EntityAttributeSchemaBuilder
 					.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
 					.toArray(ScopedAttributeUniquenessType[]::new),
 				Arrays.stream(Scope.values()).filter(this.baseSchema::isFilterableInScope).toArray(Scope[]::new),
+				null,
+				null,
 				Arrays.stream(Scope.values()).filter(this.baseSchema::isSortableInScope).toArray(Scope[]::new),
 				this.baseSchema.isLocalized(),
 				this.baseSchema.isNullable(),
 				this.baseSchema.isRepresentative(),
 				this.baseSchema.getType(),
 				this.baseSchema.getDefaultValue(),
-				this.baseSchema.getIndexedDecimalPlaces()
+				this.baseSchema.getIndexedDecimalPlaces(),
+				ConflictResolutionOverride.INHERITED,
+				null
 			)
 		);
 	}

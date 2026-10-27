@@ -54,6 +54,7 @@ import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
  * Drives the v6→v7 counter repair over real bytes, end to end: a storage part written the way 2026.2 wrote it,
@@ -142,7 +143,7 @@ class Migration_2026_3_RepairRoundTripTest {
 			"the key must count TWO - a count of one drops the shared entry on the first owner's departure, " +
 				"which is the defect this migration exists to repair"
 		);
-		assertEquals(
+		assertSame(
 			BigDecimal.class, reloaded.getCardinalityIndex().getValueType(),
 			"the declared value type stays what the schema says, only the KEYS are canonical"
 		);

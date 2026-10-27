@@ -32,6 +32,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.OwnerFilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.index.invertedIndex.ValueToRecord;
@@ -45,16 +46,17 @@ import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.ToIntFunction;
+
 import org.junit.jupiter.api.Tag;
 
+import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static io.evitadb.test.TestTags.ENGINE;
-import static io.evitadb.test.TestTags.QUERY;
-import static io.evitadb.test.TestTags.HISTOGRAM;
-import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * This test verifies {@link AttributeHistogramProducer} contract.
@@ -341,11 +343,12 @@ class AttributeHistogramProducerTest {
 
 	@Nonnull
 	private static FilterIndex filterIndex() {
-		return new OwnerFilterIndex(
-			new AttributeIndexKey(null, ATTRIBUTE_NAME, null),
-			new ValueToRecordBitmap[]{new ValueToRecordBitmap(1, 1)},
-			new RangeIndex(),
-			Integer.class
+		return OwnerFilterIndex.fromPersistedPages(
+			new AttributeIndexKey(null, ATTRIBUTE_NAME, null), new InvertedIndex(
+				Integer.class, new ValueToRecordBitmap[]{new ValueToRecordBitmap(1, 1)},
+					FilterIndex.getNormalizer(Integer.class, 0),
+				FilterIndex.getComparator(new AttributeIndexKey(null, ATTRIBUTE_NAME, null), Integer.class), 0
+			), new RangeIndex(), Integer.class, 0
 		);
 	}
 
@@ -362,7 +365,8 @@ class AttributeHistogramProducerTest {
 	) {
 		producer.addAttributeHistogramRequest(
 			AttributeSchema._internalBuild(
-				ATTRIBUTE_NAME, Integer.class, false, ConflictResolutionOverride.INHERITED
+				ATTRIBUTE_NAME, Integer.class, false, ConflictResolutionOverride.INHERITED,
+				null
 			),
 			bucketCount,
 			behavior,

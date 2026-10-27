@@ -949,14 +949,14 @@ public interface AttributeIndexMutator {
 				);
 				if (mirroredValues != null) {
 					VirtualReferencePartitionWriter.compoundValueAdded(
-						executor, entitySchema, referenceSchema, compound, attributeTypeProvider, partition, locale,
+						executor, entitySchema, referenceSchema, compound, partition, locale,
 						mirroredValues
 					);
 				}
 			} else {
 				// nothing normalizes the array of a virtual partition, so the registry takes the array itself
 				VirtualReferencePartitionWriter.compoundValueAdded(
-					executor, entitySchema, referenceSchema, compound, attributeTypeProvider, partition, locale,
+					executor, entitySchema, referenceSchema, compound, partition, locale,
 					newCompoundValues
 				);
 			}

@@ -31,6 +31,10 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeS
 
 import java.io.Serializable;
 
+import static com.esotericsoftware.kryo.util.Util.getPrimitiveClass;
+import static com.esotericsoftware.kryo.util.Util.getWrapperClass;
+import static com.esotericsoftware.kryo.util.Util.isWrapperClass;
+
 /**
  * Serializer for {@link ModifyAttributeSchemaTypeMutation}.
  *
@@ -48,8 +52,13 @@ public class ModifyAttributeSchemaTypeMutationSerializer extends Serializer<Modi
 	@Override
 	public ModifyAttributeSchemaTypeMutation read(Kryo kryo, Input input, Class<? extends ModifyAttributeSchemaTypeMutation> type) {
 		final String name = input.readString();
+		final Class<?> registeredType = kryo.readClass(input).getType();
+		// write() goes through ClassSerializer, which appends a primitive/wrapper flag that readClass leaves unread
 		//noinspection unchecked
-		final Class<? extends Serializable> theType = kryo.readClass(input).getType();
+		final Class<? extends Serializable> theType = (Class<? extends Serializable>) (
+			registeredType.isPrimitive() || isWrapperClass(registeredType) ?
+				(input.readBoolean() ? getPrimitiveClass(registeredType) : getWrapperClass(registeredType)) : registeredType
+		);
 		final int indexedDecimalPlaces = input.readVarInt(true);
 		return new ModifyAttributeSchemaTypeMutation(
 			name,

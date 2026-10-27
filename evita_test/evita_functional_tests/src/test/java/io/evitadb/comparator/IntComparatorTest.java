@@ -59,9 +59,9 @@ class IntComparatorTest {
 			"should return zero when both values are equal"
 		)
 		void shouldReturnZeroWhenBothValuesAreEqual() {
-			assertEquals(0, comparator.compare(5, 5));
-			assertEquals(0, comparator.compare(0, 0));
-			assertEquals(0, comparator.compare(-1, -1));
+			assertEquals(0, this.comparator.compare(5, 5));
+			assertEquals(0, this.comparator.compare(0, 0));
+			assertEquals(0, this.comparator.compare(-1, -1));
 		}
 
 		@Test
@@ -69,9 +69,9 @@ class IntComparatorTest {
 			"should return negative when first is less than second"
 		)
 		void shouldReturnNegativeWhenFirstIsLessThanSecond() {
-			assertTrue(comparator.compare(1, 5) < 0);
-			assertTrue(comparator.compare(-10, 10) < 0);
-			assertTrue(comparator.compare(0, 1) < 0);
+			assertTrue(this.comparator.compare(1, 5) < 0);
+			assertTrue(this.comparator.compare(-10, 10) < 0);
+			assertTrue(this.comparator.compare(0, 1) < 0);
 		}
 
 		@Test
@@ -79,9 +79,9 @@ class IntComparatorTest {
 			"should return positive when first is greater than second"
 		)
 		void shouldReturnPositiveWhenFirstIsGreaterThanSecond() {
-			assertTrue(comparator.compare(5, 1) > 0);
-			assertTrue(comparator.compare(10, -10) > 0);
-			assertTrue(comparator.compare(1, 0) > 0);
+			assertTrue(this.comparator.compare(5, 1) > 0);
+			assertTrue(this.comparator.compare(10, -10) > 0);
+			assertTrue(this.comparator.compare(1, 0) > 0);
 		}
 
 		@Test
@@ -90,16 +90,16 @@ class IntComparatorTest {
 		)
 		void shouldHandleMinValueCorrectly() {
 			assertTrue(
-				comparator.compare(
+				this.comparator.compare(
 					Integer.MIN_VALUE, Integer.MAX_VALUE
 				) < 0
 			);
 			assertTrue(
-				comparator.compare(Integer.MIN_VALUE, 0) < 0
+				this.comparator.compare(Integer.MIN_VALUE, 0) < 0
 			);
 			assertEquals(
 				0,
-				comparator.compare(
+				this.comparator.compare(
 					Integer.MIN_VALUE, Integer.MIN_VALUE
 				)
 			);
@@ -111,16 +111,16 @@ class IntComparatorTest {
 		)
 		void shouldHandleMaxValueCorrectly() {
 			assertTrue(
-				comparator.compare(
+				this.comparator.compare(
 					Integer.MAX_VALUE, Integer.MIN_VALUE
 				) > 0
 			);
 			assertTrue(
-				comparator.compare(Integer.MAX_VALUE, 0) > 0
+				this.comparator.compare(Integer.MAX_VALUE, 0) > 0
 			);
 			assertEquals(
 				0,
-				comparator.compare(
+				this.comparator.compare(
 					Integer.MAX_VALUE, Integer.MAX_VALUE
 				)
 			);
@@ -131,11 +131,11 @@ class IntComparatorTest {
 			"should handle comparisons with zero"
 		)
 		void shouldHandleComparisonsWithZero() {
-			assertTrue(comparator.compare(0, 1) < 0);
-			assertTrue(comparator.compare(1, 0) > 0);
-			assertEquals(0, comparator.compare(0, 0));
-			assertTrue(comparator.compare(-1, 0) < 0);
-			assertTrue(comparator.compare(0, -1) > 0);
+			assertTrue(this.comparator.compare(0, 1) < 0);
+			assertTrue(this.comparator.compare(1, 0) > 0);
+			assertEquals(0, this.comparator.compare(0, 0));
+			assertTrue(this.comparator.compare(-1, 0) < 0);
+			assertTrue(this.comparator.compare(0, -1) > 0);
 		}
 
 		@Test
@@ -162,9 +162,9 @@ class IntComparatorTest {
 			"should return zero when both values are equal"
 		)
 		void shouldReturnZeroWhenBothValuesAreEqual() {
-			assertEquals(0, comparator.compare(5, 5));
-			assertEquals(0, comparator.compare(0, 0));
-			assertEquals(0, comparator.compare(-1, -1));
+			assertEquals(0, this.comparator.compare(5, 5));
+			assertEquals(0, this.comparator.compare(0, 0));
+			assertEquals(0, this.comparator.compare(-1, -1));
 		}
 
 		@Test
@@ -174,9 +174,9 @@ class IntComparatorTest {
 		void shouldReturnPositiveWhenFirstIsLessThanSecond() {
 			// descending: smaller first value means it should
 			// come after, so compare returns positive
-			assertTrue(comparator.compare(1, 5) > 0);
-			assertTrue(comparator.compare(-10, 10) > 0);
-			assertTrue(comparator.compare(0, 1) > 0);
+			assertTrue(this.comparator.compare(1, 5) > 0);
+			assertTrue(this.comparator.compare(-10, 10) > 0);
+			assertTrue(this.comparator.compare(0, 1) > 0);
 		}
 
 		@Test
@@ -187,9 +187,9 @@ class IntComparatorTest {
 		void shouldReturnNegativeWhenFirstIsGreaterThanSecond() {
 			// descending: larger first value means it should
 			// come before, so compare returns negative
-			assertTrue(comparator.compare(5, 1) < 0);
-			assertTrue(comparator.compare(10, -10) < 0);
-			assertTrue(comparator.compare(1, 0) < 0);
+			assertTrue(this.comparator.compare(5, 1) < 0);
+			assertTrue(this.comparator.compare(10, -10) < 0);
+			assertTrue(this.comparator.compare(1, 0) < 0);
 		}
 
 		@Test
@@ -199,12 +199,12 @@ class IntComparatorTest {
 		)
 		void shouldReverseTheOrderOfMinValueAndMaxValue() {
 			assertTrue(
-				comparator.compare(
+				this.comparator.compare(
 					Integer.MIN_VALUE, Integer.MAX_VALUE
 				) > 0
 			);
 			assertTrue(
-				comparator.compare(
+				this.comparator.compare(
 					Integer.MAX_VALUE, Integer.MIN_VALUE
 				) < 0
 			);
@@ -215,11 +215,11 @@ class IntComparatorTest {
 			"should handle comparisons with zero"
 		)
 		void shouldHandleComparisonsWithZero() {
-			assertTrue(comparator.compare(0, 1) > 0);
-			assertTrue(comparator.compare(1, 0) < 0);
-			assertEquals(0, comparator.compare(0, 0));
-			assertTrue(comparator.compare(-1, 0) > 0);
-			assertTrue(comparator.compare(0, -1) < 0);
+			assertTrue(this.comparator.compare(0, 1) > 0);
+			assertTrue(this.comparator.compare(1, 0) < 0);
+			assertEquals(0, this.comparator.compare(0, 0));
+			assertTrue(this.comparator.compare(-1, 0) > 0);
+			assertTrue(this.comparator.compare(0, -1) < 0);
 		}
 
 		@Test

@@ -29,13 +29,13 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverri
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CollectionUtils;
@@ -49,11 +49,12 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
-import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -114,6 +115,10 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	 * {@link AttributeSchemaContract#isSearchableInScope(Scope)}.
 	 */
 	@Getter protected final Set<Scope> searchableInScopes;
+	/**
+	 * Ordered normalization descriptions shared by all scopes. Empty means Unicode NFD only.
+	 */
+	@Getter @Nonnull protected final List<AnalysisStep> normalization;
 	/**
 	 * Number of fractional places important for indexing numeric values (especially {@link java.math.BigDecimal}).
 	 * Values are scaled by 10^indexedDecimalPlaces and stored as integers, therefore the scaled value must fit into
@@ -281,7 +286,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nonnull String name,
 		@Nonnull Class<? extends Serializable> type,
 		boolean localized,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable List<AnalysisStep> normalization
 	) {
 		return new AttributeSchema(
 			name, NamingConvention.generate(name),
@@ -294,53 +300,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			localized, false, false,
 			type, null,
 			0,
-			conflictResolutionOverride
-		);
-	}
-
-	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of AttributeSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
-	 *
-	 * Do not use this method from in the client code!
-	 */
-	@Nonnull
-	public static <T extends Serializable> AttributeSchema _internalBuild(
-		@Nonnull String name,
-		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
-		@Nullable Scope[] filterableInScopes,
-		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
-		@Nullable Scope[] searchableInScopes,
-		@Nullable Scope[] sortableInScopes,
-		boolean localized,
-		boolean nullable,
-		boolean representative,
-		@Nonnull Class<T> type,
-		@Nullable T defaultValue,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
-	) {
-		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
-		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
-		final EnumSet<Scope> theSortableInScopes = ArrayUtils.toEnumSet(Scope.class, sortableInScopes);
-
-		if ((!theFilterableInScopes.isEmpty() || !theSortableInScopes.isEmpty()) && BigDecimal.class.equals(type)) {
-			throw new EvitaInvalidUsageException(
-				"IndexedDecimalPlaces must be specified for attributes of type BigDecimal (attribute: " + name + ")!"
-			);
-		}
-
-		return new AttributeSchema(
-			name, NamingConvention.generate(name),
-			null, null,
-			theUniquenessType,
-			theFilterableInScopes,
-			toAcceleratorsEnumMap(acceleratorsInScopes),
-			ArrayUtils.toEnumSet(Scope.class, searchableInScopes),
-			theSortableInScopes,
-			localized, nullable, representative,
-			type, defaultValue,
-			0,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			normalization
 		);
 	}
 
@@ -366,7 +327,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable List<AnalysisStep> normalization
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -383,7 +345,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			localized, nullable, representative,
 			type, defaultValue,
 			indexedDecimalPlaces,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			normalization
 		);
 	}
 
@@ -409,7 +372,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable List<AnalysisStep> normalization
 	) {
 		return new AttributeSchema(
 			name, NamingConvention.generate(name),
@@ -422,7 +386,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			localized, nullable, representative,
 			type, defaultValue,
 			indexedDecimalPlaces,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			normalization
 		);
 	}
 
@@ -449,7 +414,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable List<AnalysisStep> normalization
 	) {
 		return new AttributeSchema(
 			name, nameVariants,
@@ -462,7 +428,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			localized, nullable, representative,
 			type, defaultValue,
 			indexedDecimalPlaces,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			normalization
 		);
 	}
 
@@ -489,7 +456,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable List<AnalysisStep> normalization
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -506,10 +474,12 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			localized, nullable, representative,
 			type, defaultValue,
 			indexedDecimalPlaces,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			normalization
 		);
 	}
 
+	/** Creates an immutable attribute schema, including its ordered normalization descriptions. */
 	<T extends Serializable> AttributeSchema(
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
@@ -526,8 +496,11 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable List<AnalysisStep> normalization
 	) {
+		this.normalization = normalization == null ? List.of() :
+			Collections.unmodifiableList(new ArrayList<>(normalization));
 		this.name = name;
 		this.nameVariants = CollectionUtils.toUnmodifiableMap(nameVariants);
 		this.description = description;
@@ -762,7 +735,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 				ReferencedEntityPredecessor.class,
 				null,
 				this.indexedDecimalPlaces,
-				this.conflictResolutionOverride
+				this.conflictResolutionOverride,
+				this.normalization
 			);
 		} else if (ReferencedEntityPredecessor.class.equals(this.plainType)) {
 			return new AttributeSchema(
@@ -781,7 +755,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 				Predecessor.class,
 				null,
 				this.indexedDecimalPlaces,
-				this.conflictResolutionOverride
+				this.conflictResolutionOverride,
+				this.normalization
 			);
 		} else {
 			throw new GenericEvitaInternalError(
@@ -803,6 +778,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			(this.searchableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.searchableInScopes) + ")") +
 			", sortable=" +
 			(this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.sortableInScopes) + ")") +
+			", normalization=" + this.normalization +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +
 			", representative=" + this.representative +

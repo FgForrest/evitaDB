@@ -24,6 +24,8 @@
 package io.evitadb.core.query.sort.attribute.translator;
 
 import io.evitadb.api.query.order.AttributeSetExact;
+import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
@@ -32,7 +34,6 @@ import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.sorter.AttributeExactSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
-import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.core.query.sort.reference.sorter.VirtualPartitionSortedRecords;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
@@ -53,6 +54,9 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
+import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttributes;
+import static io.evitadb.core.query.filter.translator.attribute.AbstractAttributeTranslator.toAttributeProbeValue;
+import static io.evitadb.core.query.sort.EntityReferenceSensitiveComparator.getReferenceByRepresentativeReferenceKey;
 
 /**
  * This implementation of {@link OrderingConstraintTranslator} converts {@link AttributeSetExact} to {@link Sorter}.
@@ -69,17 +73,84 @@ public class AttributeSetExactTranslator implements OrderingConstraintTranslator
 		final AttributeSchemaContract attributeSchema = processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE);
 
 		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
-		orderByVisitor.addRequirementToPrefetch(attributeContentAll());
+		addRequirementsToPrefetch(orderByVisitor);
 
 		return Stream.of(
-			new AttributeExactSorter(
-				attributeName,
+			createExactSorter(
+				orderByVisitor, attributeSchema,
 				Arrays.stream(attributeSetExact.getAttributeValues())
-					.map(it -> EvitaDataTypes.toTargetType(it, attributeSchema.getPlainType()))
+					.map(it -> toAttributeProbeValue(it, attributeSchema.getPlainType()))
 					.toArray(Serializable[]::new),
-				getRecordsEqualTo(orderByVisitor, attributeSchema, "")
+				""
 			)
 		);
+	}
+
+	/**
+	 * Creates the sorter ordering by the position of each entity's value among the probe values, reading the same
+	 * index and attribute values both exact orderings read.
+	 *
+	 * @param visitor         the visitor planning the ordering
+	 * @param attributeSchema the sorted attribute
+	 * @param probeValues     the probe values converted to the attribute's type, in the requested order
+	 * @param hint            the advice appended to the error raised when the ordering reads more than one index
+	 * @return the exact sorter
+	 */
+	@Nonnull
+	static AttributeExactSorter createExactSorter(
+		@Nonnull OrderByVisitor visitor,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Serializable[] probeValues,
+		@Nonnull String hint
+	) {
+		final ReferenceSchema referenceSchema = visitor.getProcessingScope().referenceSchema();
+		final String referenceName = referenceSchema == null ? null : referenceSchema.getName();
+		return new AttributeExactSorter(
+			probeValues,
+			getRecordsEqualTo(visitor, attributeSchema, hint),
+			getAttributeValueFetcher(visitor, attributeSchema),
+			visitor.getAttributeNormalizationResolver().resolveSortNormalizer(
+				referenceName, attributeSchema, attributeSchema.isLocalized() ? visitor.getLocale() : null
+			)
+		);
+	}
+
+	/**
+	 * Requests the body values the exact comparator reads, including raw representative attributes used to select
+	 * a duplicate reference. Reference identity stays raw, independently of normalized attribute lookup keys.
+	 *
+	 * @param visitor the visitor planning the ordering
+	 */
+	static void addRequirementsToPrefetch(@Nonnull OrderByVisitor visitor) {
+		final ReferenceSchema referenceSchema = visitor.getProcessingScope().referenceSchema();
+		visitor.addRequirementToPrefetch(referenceSchema == null ? attributeContentAll() :
+			referenceContentWithAttributes(referenceSchema.getName()));
+	}
+
+	/**
+	 * Binds extraction to the same entity attribute or single reference partition the index lookup reads.
+	 *
+	 * @param visitor the visitor planning the ordering
+	 * @param schema the sorted attribute
+	 * @return the raw value extractor with the attribute's read locale
+	 */
+	@Nonnull
+	static Function<EntityContract, Serializable> getAttributeValueFetcher(
+		@Nonnull OrderByVisitor visitor, @Nonnull AttributeSchemaContract schema
+	) {
+		final String name = schema.getName();
+		final Locale locale = schema.isLocalized() ? visitor.getLocale() : null;
+		final ReferenceSchema referenceSchema = visitor.getProcessingScope().referenceSchema();
+		if (referenceSchema == null) {
+			return entity -> locale == null ? entity.getAttribute(name) : entity.getAttribute(name, locale);
+		}
+		final ReferencePartition[] partitions = visitor.getPartitionsForSort();
+		Assert.isTrue(partitions.length == 1, "Exact reference ordering requires exactly one partition.");
+		final RepresentativeReferenceKey key = partitions[0].getRepresentativeReferenceKey();
+		return entity -> getReferenceByRepresentativeReferenceKey(entity, referenceSchema, key)
+			.<Serializable>map(reference -> locale == null ?
+				reference.getAttribute(name) : reference.getAttribute(name, locale))
+			.orElse(null);
 	}
 
 	/**

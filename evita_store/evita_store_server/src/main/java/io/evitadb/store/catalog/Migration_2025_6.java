@@ -26,12 +26,11 @@ package io.evitadb.store.catalog;
 
 import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.IntIntMap;
-import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
-import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.core.collection.EntityCollection;
-import io.evitadb.dataType.DateTimeRange;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -43,8 +42,11 @@ import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.range.RangePoint;
 import io.evitadb.index.range.TransactionalRangePoint;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeCardinalityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart;
@@ -54,12 +56,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexSt
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePartDeprecated;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceNameKey;
-import io.evitadb.core.buffer.TrappedChanges;
-import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
-
-import java.util.Iterator;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
 import io.evitadb.store.model.header.CollectionFileReference;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
 import io.evitadb.store.model.reference.LogFileRecordReference;
@@ -70,14 +67,13 @@ import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
 import io.evitadb.utils.NumberUtils;
 import lombok.RequiredArgsConstructor;
-import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
-import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -90,7 +86,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
-import static java.util.Optional.ofNullable;
 
 /**
  * Migration interface containing one-time migration logic for upgrading data storage structures from version 3
@@ -175,9 +170,6 @@ public interface Migration_2025_6 {
 			);
 			final OffsetIndexStoragePartPersistenceService collectionStoragePartService =
 				collectionPersistenceService.getStoragePartPersistenceService();
-			final EntitySchema entitySchema = Objects.requireNonNull(
-				collectionStoragePartService.getStoragePart(catalogVersion, 1, EntitySchemaStoragePart.class)
-			).entitySchema();
 			// first prepare map of referenced entity ids to their reduced entity index primary keys
 			final Map<String, Set<Long>> referencedEntityIdToReducedEntityIndexPrimaryKey = new HashMap<>(256);
 			final Set<Integer> indexIds = new HashSet<>(entityCollectionHeader.usedEntityIndexPrimaryKeys());
@@ -236,9 +228,7 @@ public interface Migration_2025_6 {
 									indexPrimaryKey,
 									attributeIndexKey,
 									collectionStoragePartService,
-									referencedEntityToIndexIdMap,
-									referenceName,
-									entitySchema
+									referencedEntityToIndexIdMap
 								);
 								case CARDINALITY -> migrateAttributeCardinalityIndex(
 									catalogVersion, indexPrimaryKey, attributeIndexKey, collectionStoragePartService,
@@ -405,14 +395,12 @@ public interface Migration_2025_6 {
 	 * @param referencedEntityToIndexIdMap A mapping of referenced entity IDs to their corresponding reduced index IDs,
 	 *                                     utilized during migration.
 	 */
-	private static void migrateFilterIndex(
+	static void migrateFilterIndex(
 		long catalogVersion,
 		int indexPrimaryKey,
 		@Nonnull AttributeIndexStorageKey attributeIndexKey,
 		@Nonnull OffsetIndexStoragePartPersistenceService collectionStoragePartService,
-		@Nonnull IntIntMap referencedEntityToIndexIdMap,
-		@Nonnull String referenceName,
-		@Nonnull EntitySchema entitySchema
+		@Nonnull IntIntMap referencedEntityToIndexIdMap
 	) {
 		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(
 			indexPrimaryKey,
@@ -438,16 +426,6 @@ public interface Migration_2025_6 {
 				)
 			);
 		}
-		//noinspection rawtypes,unchecked
-		final Class attributeType = ofNullable(filterIndexCnt.getAttributeType())
-			.orElseGet(
-				() -> (Class) entitySchema
-					.getReferenceOrThrowException(referenceName)
-					.getAttribute(attributeIndexKey.attribute().attributeName())
-					.orElseThrow()
-					.getType()
-			);
-		final Class<?> plainAttributeType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
 		final RangeIndex rangeIndex = filterIndexCnt.getRangeIndex();
 		final RangeIndex migratedRangeIndex;
 		if (rangeIndex == null) {
@@ -458,25 +436,20 @@ public interface Migration_2025_6 {
 			for (int i = 0; i < ranges.length; i++) {
 				final RangePoint<?> range = ranges[i];
 				migratedRanges[i] = new TransactionalRangePoint(
+					// The versioned reader already converted the thresholds; copy them unchanged.
 					range.getThreshold(),
 					migrateReferencedEntityIdsBitmap(range.getStarts(), referencedEntityToIndexIdMap),
 					migrateReferencedEntityIdsBitmap(range.getEnds(), referencedEntityToIndexIdMap)
 				);
 			}
-			// this part is about to be REWRITTEN through the current serializer, which stamps the current
-			// serial-version-uid on it - the marker that says "these thresholds are epoch milliseconds". A pre-2025.6
-			// catalog holds them as epoch SECONDS, so a `DateTimeRange` index has to be rescaled here or the rewrite
-			// would silently relabel second thresholds as millisecond ones and no later reader could tell
-			migratedRangeIndex = DateTimeRange.class.equals(plainAttributeType)
-				? RangeIndex.rescaledFromSecondGranularity(new RangeIndex(migratedRanges))
-				: new RangeIndex(migratedRanges);
+			migratedRangeIndex = new RangeIndex(migratedRanges);
 		}
 		collectionStoragePartService.putStoragePart(
 			catalogVersion,
 			new FilterIndexStoragePart(
 				indexPrimaryKey,
 				filterIndexCnt.getAttributeIndexKey(),
-				attributeType,
+				filterIndexCnt.getAttributeType(),
 				migratedHistogramPoints,
 				migratedRangeIndex,
 				filterIndexCnt.getStoragePartPK()

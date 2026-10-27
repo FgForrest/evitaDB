@@ -173,7 +173,8 @@ public class ModifyAttributeSchemaTypeMutation
 					.map(it -> EvitaDataTypes.toTargetType(it, newType))
 					.orElse(null),
 				this.indexedDecimalPlaces,
-				globalAttributeSchema.getConflictResolutionOverride()
+				globalAttributeSchema.getConflictResolutionOverride(),
+				globalAttributeSchema.getNormalization()
 			);
 		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
 			//noinspection unchecked
@@ -195,7 +196,8 @@ public class ModifyAttributeSchemaTypeMutation
 					.map(it -> EvitaDataTypes.toTargetType(it, newType))
 					.orElse(null),
 				this.indexedDecimalPlaces,
-				entityAttributeSchema.getConflictResolutionOverride()
+				entityAttributeSchema.getConflictResolutionOverride(),
+				entityAttributeSchema.getNormalization()
 			);
 		} else  {
 			//noinspection unchecked
@@ -217,7 +219,8 @@ public class ModifyAttributeSchemaTypeMutation
 					.map(it -> EvitaDataTypes.toTargetType(it, newType))
 					.orElse(null),
 				this.indexedDecimalPlaces,
-				attributeSchema.getConflictResolutionOverride()
+				attributeSchema.getConflictResolutionOverride(),
+				attributeSchema.getNormalization()
 			);
 		}
 	}

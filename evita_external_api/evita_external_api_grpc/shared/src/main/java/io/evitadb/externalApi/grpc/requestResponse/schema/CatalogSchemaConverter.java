@@ -57,6 +57,8 @@ import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.*;
+import static io.evitadb.externalApi.grpc.requestResponse.schema.AnalysisStepConverter.toAnalysisSteps;
+import static io.evitadb.externalApi.grpc.requestResponse.schema.AnalysisStepConverter.toGrpcAnalysisSteps;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -191,6 +193,7 @@ public class CatalogSchemaConverter {
 					.map(EvitaEnumConverter::toGrpcScope)
 					.toList()
 			)
+			.addAllNormalized(toGrpcAnalysisSteps(attributeSchema.getNormalization()))
 			.addAllAcceleratorsInScopes(
 				toGrpcScopedAttributeFilterAccelerators(
 					AttributeSchema.toAcceleratorsArray(attributeSchema.getAcceleratorsInScopes())
@@ -257,7 +260,8 @@ public class CatalogSchemaConverter {
 			EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
 			attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
 			attributeSchema.getIndexedDecimalPlaces(),
-			EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride())
+			EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
+			toAnalysisSteps(attributeSchema.getNormalizedList())
 		);
 	}
 

@@ -23,7 +23,6 @@
 
 package io.evitadb.index.attribute;
 
-import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -93,6 +92,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
+import java.util.stream.Stream;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 import static io.evitadb.utils.Assert.isTrue;
@@ -312,9 +312,9 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * removed in favour of the other.** That one canonicalizes every temporal value entering through the API — through
 	 * `toSupportedStoredTypeOrItsArray` on the write path and `toSupportedType` on the query path, two entry points
 	 * over one truncating implementation — so what a client stores and what a client filters by agree. This one
-	 * canonicalizes the *index key*, whatever its provenance — including a bucket value rehydrated from a catalog
-	 * written before millisecond truncation existed, which never passes through the API boundary at all. Together
-	 * they are what makes `LongKeyCodec#INSTANT` a true bijection on the domain the tree actually sees; drop either
+	 * canonicalizes the *index key* on writes and probes. The storage migration applies the same type-level function
+	 * to legacy persisted bucket keys before publication; production restores read those keys verbatim. Together
+	 * these boundaries make `LongKeyCodec#INSTANT` a true bijection on the domain the tree actually sees; drop either
 	 * and an instant carrying sub-millisecond digits reaches a codec that silently floors it.
 	 *
 	 * @param attributeType        type of the attribute
@@ -371,15 +371,26 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 			// unique / filter / sort role-views. This matches SortIndex.createNormalizerFor's NFD
 			// form verbatim, so a both-flagged attribute reads and writes the very same key bytes on every path. ASCII
 			// (`code`, `ean`) is unaffected; non-ASCII filter `=` gains canonical equivalence (accepted release-note).
-			return text -> text == null
-				? null
-				: Normalizer.normalize(String.valueOf(text), Normalizer.Form.NFD);
+			return getTypeLevelStringNormalizer();
 		} else if (Comparable.class.isAssignableFrom(attributeType)) {
 			return NO_NORMALIZATION;
 		} else {
 			throw new EvitaInvalidUsageException(
 				"Unsupported attribute type `" + attributeType + "`! The type is not comparable!");
 		}
+	}
+
+	/**
+	 * Returns the type-level String key function (NFD-only), independent of any declared normalization chain.
+	 * Attributes without a built-with row, storage migrations and standalone synthetic owners use this function.
+	 * Attribute write/load paths bind the owner's resolved function through
+	 * {@link io.evitadb.index.analysis.AttributeNormalizationResolver} instead.
+	 *
+	 * @return function producing the NFD form of the textual value; `null` input yields `null`
+	 */
+	@Nonnull
+	public static Function<Object, Serializable> getTypeLevelStringNormalizer() {
+		return text -> text == null ? null : Normalizer.normalize(String.valueOf(text), Normalizer.Form.NFD);
 	}
 
 	/**
@@ -420,10 +431,9 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * to {@link io.evitadb.index.bPlusTree.LongKeyCodec#LOCAL_TIME}, which encodes nano-of-day and is injective, so the
 	 * truncation is the only thing the key needs.
 	 *
-	 * It is what makes a legacy catalog's keys reachable again. Reload runs every persisted value through this
-	 * normalizer, so two values that differed only below the millisecond now collapse onto one key and are merged by
-	 * the comparator-based collision repair before the tree's ascending checks ever see them - the same path that
-	 * already handles sub-millisecond `Instant` twins.
+	 * The storage migration applies this type-level normalizer to legacy keys and merges values that now share a
+	 * millisecond before writing the corrected tree. Production loads restore the resulting keys verbatim, as they
+	 * do for sub-millisecond `Instant` twins corrected by the migration.
 	 *
 	 * @param value the value to normalize
 	 * @return the value truncated to whole milliseconds, or the value itself when it is not a `LocalTime`
@@ -861,9 +871,9 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	/**
 	 * Returns formula of record ids whose String attribute starts with particular prefix.
 	 *
-	 * The prefix is canonicalized through the index normalizer (Unicode NFD for String attributes) so a
-	 * caller-supplied precomposed (NFC) term matches the decomposed keys actually stored in the index - the same
-	 * canonical equivalence the `=` operator already provides.
+	 * The prefix is turned into a key by the key function the index is bound to - the attribute's normalization
+	 * chain, NFC in and NFD out, or NFD alone when it has none - so a caller-supplied precomposed (NFC) term matches
+	 * the decomposed keys actually stored in the index, the same canonical equivalence the `=` operator provides.
 	 *
 	 * When the index uses the natural codepoint comparator, any value that starts with the normalized prefix sorts
 	 * greater than or equal to it and no non-matching value can sort between the prefix and a matching value, so the
@@ -872,6 +882,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * whole-array materialization and no backward scan. Under a localized (collation) comparator that contiguity
 	 * assumption does not hold - codepoint-`startsWith` matches may sort before the anchor or be interleaved with
 	 * non-matches - so we fall back to a full predicate scan that visits every bucket.
+	 *
+	 * An empty normalized pattern matches every present String value, including an empty key.
 	 */
 	@Nonnull
 	public Formula getRecordsWhoseValuesStartWith(@Nonnull String prefix) {
@@ -891,8 +903,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	/**
 	 * Returns formula of record ids whose String attribute ends with particular suffix.
 	 *
-	 * The suffix is canonicalized through the index normalizer (Unicode NFD for String attributes) so a
-	 * caller-supplied precomposed (NFC) term matches the decomposed keys stored in the index.
+	 * The suffix is turned into a key by the key function the index is bound to (see
+	 * {@link #getRecordsWhoseValuesStartWith(String)}), so a precomposed (NFC) term matches the decomposed keys.
 	 */
 	@Nonnull
 	public Formula getRecordsWhoseValuesEndsWith(@Nonnull String suffix) {
@@ -904,8 +916,10 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	/**
 	 * Returns formula of record ids whose String attribute contains particular text.
 	 *
-	 * The text is canonicalized through the index normalizer (Unicode NFD for String attributes) so a
-	 * caller-supplied precomposed (NFC) term matches the decomposed keys stored in the index.
+	 * The text is turned into a key by the key function the index is bound to (see
+	 * {@link #getRecordsWhoseValuesStartWith(String)}), so a precomposed (NFC) term matches the decomposed keys.
+	 *
+	 * An empty normalized pattern matches every present String value, including an empty key.
 	 */
 	@Nonnull
 	public Formula getRecordsWhoseValuesContains(@Nonnull String text) {
@@ -1205,6 +1219,25 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	}
 
 	/**
+	 * Resolves type-coerced raw set probes with this role's bound function once. Collisions keep their first
+	 * position; the resulting keys are probed verbatim and never normalized again.
+	 *
+	 * @param rawValues raw probes in request order
+	 * @return one equality formula per distinct key, in first-position order
+	 */
+	@Nonnull
+	public Stream<Formula> getRecordsEqualToFormula(@Nonnull Serializable[] rawValues) {
+		final Set<Serializable> keys = CollectionUtils.createLinkedHashSet(rawValues.length);
+		for (final Serializable rawValue : rawValues) {
+			keys.add(this.normalizer.apply(NumberUtils.normalizeIfBigDecimal(rawValue)));
+		}
+		return keys.stream().map(key -> {
+			final Bitmap records = this.invertedIndex.getRecordsEqualTo(key);
+			return records.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(records);
+		});
+	}
+
+	/**
 	 * Returns all records present in filter index in the form of {@link InvertedIndexSubSet}.
 	 */
 	public InvertedIndexSubSet getHistogramOfAllRecords() {
@@ -1436,7 +1469,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * Returns all records greater than attribute value passed in the argument in the form of {@link AbstractFormula}.
 	 */
 	public Formula getRecordsGreaterThanFormula(@Nonnull Serializable from) {
-		return getHistogramOfRecordsGreaterThan(this.normalizer.apply(from)).getFormula();
+		return getHistogramOfRecordsGreaterThan(from).getFormula();
 	}
 
 	/**

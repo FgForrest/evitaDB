@@ -78,7 +78,9 @@ public final class GlobalAttributeSchemaBuilder
 		@Nonnull String name,
 		@Nonnull Class<? extends Serializable> ofType
 	) {
-		super(catalogSchema, null, GlobalAttributeSchema._internalBuild(name, ofType, false, ConflictResolutionOverride.INHERITED));
+		super(catalogSchema, null,
+			GlobalAttributeSchema._internalBuild(name, ofType, false, ConflictResolutionOverride.INHERITED, null)
+		);
 		this.catalogSchema = catalogSchema;
 		this.mutations.add(
 			new CreateGlobalAttributeSchemaMutation(
@@ -96,13 +98,17 @@ public final class GlobalAttributeSchemaBuilder
 					.filter(it -> it.uniquenessType() != GlobalAttributeUniquenessType.NOT_UNIQUE)
 					.toArray(ScopedGlobalAttributeUniquenessType[]::new),
 				Arrays.stream(Scope.values()).filter(this.baseSchema::isFilterableInScope).toArray(Scope[]::new),
+				null,
+				null,
 				Arrays.stream(Scope.values()).filter(this.baseSchema::isSortableInScope).toArray(Scope[]::new),
 				this.baseSchema.isLocalized(),
 				this.baseSchema.isNullable(),
 				this.baseSchema.isRepresentative(),
 				this.baseSchema.getType(),
 				this.baseSchema.getDefaultValue(),
-				this.baseSchema.getIndexedDecimalPlaces()
+				this.baseSchema.getIndexedDecimalPlaces(),
+				ConflictResolutionOverride.INHERITED,
+				null
 			)
 		);
 	}

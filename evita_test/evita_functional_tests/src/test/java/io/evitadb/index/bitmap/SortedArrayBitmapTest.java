@@ -391,11 +391,11 @@ class SortedArrayBitmapTest {
 		void shouldCompareByContentWithinTheType() {
 			final SortedArrayBitmap bitmap = new SortedArrayBitmap(1, 2, 3);
 
-			assertEquals(bitmap, new SortedArrayBitmap(1, 2, 3));
+			assertEquals(new SortedArrayBitmap(1, 2, 3), bitmap);
 			assertEquals(bitmap.hashCode(), new SortedArrayBitmap(1, 2, 3).hashCode());
-			assertNotEquals(bitmap, new SortedArrayBitmap(1, 2, 4));
-			assertNotEquals(bitmap, new SortedArrayBitmap(1, 2));
-			assertNotEquals(bitmap, new BaseBitmap(1, 2, 3), "content equality across representations is getContentHash's job");
+			assertNotEquals(new SortedArrayBitmap(1, 2, 4), bitmap);
+			assertNotEquals(new SortedArrayBitmap(1, 2), bitmap);
+			assertNotEquals(new BaseBitmap(1, 2, 3), bitmap, "content equality across representations is getContentHash's job");
 		}
 
 		@Test

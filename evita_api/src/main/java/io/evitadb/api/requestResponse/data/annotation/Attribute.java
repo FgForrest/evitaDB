@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 
+import javax.annotation.Nonnull;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -52,6 +53,15 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD, ElementType.METHOD, ElementType.RECORD_COMPONENT})
 public @interface Attribute {
+
+	/**
+	 * Ordered normalization descriptions, applied to `String` / `String[]` values in every scope.
+	 * Changes equality, uniqueness, sort order and substring search without changing stored values.
+	 * Steps apply once in declared order after Unicode NFC entry; NFD is always last. Indexes that already hold
+	 * values keep the normalization they were built with until they are reindexed, which is not available yet.
+	 */
+	@Nonnull
+	AnalysisStepDef[] normalized() default {};
 
 	/**
 	 * Name of the attribute. Use camel-case naming style.

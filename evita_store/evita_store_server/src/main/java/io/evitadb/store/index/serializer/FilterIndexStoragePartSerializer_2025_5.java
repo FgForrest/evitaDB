@@ -44,12 +44,8 @@ import lombok.RequiredArgsConstructor;
  * It only reads: {@link #write} throws, because the current
  * {@link FilterIndexStoragePartSerializer} owns every write and this shape must never be produced again.
  *
- * Like every format that predates the millisecond move, it persisted its range thresholds at **second** granularity,
- * so it marks each part it produces with {@link FilterIndexStoragePart#isSecondGranularityRangeThresholds()}. The
- * rescale deliberately does not happen here: a range index whose axis is `PAGED` keeps its thresholds in leaf-page
- * records this serializer never sees, and a threshold is an untyped `long` shared by `DateTimeRange` and every
- * `NumberRange` subtype, so only the declared attribute type can decide which parts to repair — both facts belong to
- * the load path. See {@code AttributeIndexLoader#loadRangeIndex}.
+ * Inline DateTimeRange companions are converted here using the record's persisted plain type, including array
+ * component types. The persisted type is required. Numeric range thresholds stay unchanged.
  *
  * @deprecated only for backward compatibility purposes; can be removed once no catalog written by release 2025.5 or
  *             earlier is still in use.
@@ -81,15 +77,10 @@ public class FilterIndexStoragePartSerializer_2025_5 extends Serializer<FilterIn
 
 		final boolean hasRangeIndex = input.readBoolean();
 		final RangeIndex intRangeIndex = hasRangeIndex ? kryo.readObject(input, RangeIndex.class) : null;
-		final FilterIndexStoragePart part = new FilterIndexStoragePart(
-			entityIndexPrimaryKey, attributeKey, attributeType, points, intRangeIndex, uniquePartId
+		return new FilterIndexStoragePart(
+			entityIndexPrimaryKey, attributeKey, attributeType, points,
+			LegacyRangeIndexConversion.convertInline(attributeType, intRangeIndex), uniquePartId
 		);
-		// every FilterIndexStoragePart format older than the millisecond change persisted its range thresholds as
-		// epoch SECONDS; mark the provenance so AttributeIndexLoader can rescale the ones that belong to a
-		// `DateTimeRange` attribute (a threshold is an untyped long shared with every NumberRange subtype, so the
-		// declared attribute type - not this flag alone - decides)
-		part.setSecondGranularityRangeThresholds(true);
-		return part;
 	}
 
 }

@@ -53,14 +53,14 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.MANAGEMENT;
-import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link ReferencedTypeEntityIndex} verifying cardinality-aware primary key tracking,
@@ -112,7 +112,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		@Nonnull String name, @Nonnull Class<? extends Serializable> type
 	) {
 		return AttributeSchema._internalBuild(
-			name,
+			name, null, null,
 			null,
 			new Scope[]{Scope.LIVE},
 			null,
@@ -120,7 +120,8 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 			null,
 			false, false, false,
 			type, null,
-			ConflictResolutionOverride.INHERITED
+			0, ConflictResolutionOverride.INHERITED,
+			null
 		);
 	}
 

@@ -274,7 +274,7 @@ class TraverseByEntityPropertyTest implements EvitaTestSupport {
 				attributeNatural("code")
 			);
 
-			assertEquals(OrderConstraint.class, constraint.getType());
+			assertSame(OrderConstraint.class, constraint.getType());
 		}
 
 		@Test
@@ -445,8 +445,8 @@ class TraverseByEntityPropertyTest implements EvitaTestSupport {
 				traverseByEntityProperty(attributeNatural("order"))
 			);
 			assertNotEquals(
-				traverseByEntityProperty(attributeNatural("code")),
-				new TraverseByEntityProperty(null)
+				new TraverseByEntityProperty(null),
+				traverseByEntityProperty(attributeNatural("code"))
 			);
 			assertEquals(
 				traverseByEntityProperty(attributeNatural("code")).hashCode(),

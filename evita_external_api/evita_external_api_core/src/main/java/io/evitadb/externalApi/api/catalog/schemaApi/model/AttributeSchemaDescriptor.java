@@ -79,8 +79,8 @@ public interface AttributeSchemaDescriptor extends NamedSchemaWithDeprecationDes
 		.type(nonNull(Scope[].class))
 		.build();
 
-	PropertyDescriptor ACCELERATORS_IN_SCOPES = PropertyDescriptor.builder()
-		.name("acceleratorsInScopes")
+	PropertyDescriptor ACCELERATED = PropertyDescriptor.builder()
+		.name("accelerated")
 		.description("""
 			Optional accelerations the attribute's filter index maintains, per scope. Each accelerator costs
 			additional memory and additional write-path work, so none of them is implied by marking the attribute
@@ -90,6 +90,17 @@ public interface AttributeSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			at all.
 			""")
 		.type(nonNullListRef(ScopedAttributeFilterAcceleratorsDescriptor.THIS))
+		.build();
+
+	/** Ordered declared chain reported by schema outputs; retained built-with rows remain internal. */
+	PropertyDescriptor NORMALIZED = PropertyDescriptor.builder()
+		.name("normalized")
+		.description("""
+			Declared ordered normalization steps for String or String-array index keys. Empty means Unicode NFD only.
+			Stored attribute values remain unchanged. Populated indexes can retain an earlier built-with policy until
+			reindexing; this field always reports the declaration, never that internal policy.
+			""")
+		.type(nonNullListRef(AnalysisStepDescriptor.THIS))
 		.build();
 
 	PropertyDescriptor SORTABLE = PropertyDescriptor.builder()
@@ -186,7 +197,8 @@ public interface AttributeSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			DEPRECATION_NOTICE,
 			UNIQUENESS_TYPE,
 			FILTERABLE,
-			ACCELERATORS_IN_SCOPES,
+			ACCELERATED,
+			NORMALIZED,
 			SORTABLE,
 			LOCALIZED,
 			NULLABLE,

@@ -86,8 +86,12 @@ public interface CombinableLocalEntitySchemaMutation extends LocalEntitySchemaMu
 	 * compared against each existing mutation in the pipeline. If a conflict or redundancy is detected, this method
 	 * returns a {@link MutationCombinationResult} describing which mutations to remove and which to add.
 	 *
-	 * @param currentCatalogSchema current catalog schema state, can be consulted for validation or context
-	 * @param currentEntitySchema  current entity schema state, can be consulted for validation or context
+	 * The schemas passed in are the base schemas of the builder - the state before any collected mutation. A name the
+	 * pipeline renames may mean another element there: a combiner that judges a mutation against the base schema's
+	 * element of the same name must be listed in `InternalSchemaBuilderHelper#isJudgedAgainstBaseSchema`.
+	 *
+	 * @param currentCatalogSchema the base catalog schema of the builder, before any collected mutation
+	 * @param currentEntitySchema  the base entity schema of the builder, before any collected mutation
 	 * @param existingMutation     the existing mutation in the pipeline to compare against
 	 * @return `null` if no changes are needed (mutations can coexist), or a `MutationCombinationResult` describing
 	 * which mutations to discard and which to replace them with

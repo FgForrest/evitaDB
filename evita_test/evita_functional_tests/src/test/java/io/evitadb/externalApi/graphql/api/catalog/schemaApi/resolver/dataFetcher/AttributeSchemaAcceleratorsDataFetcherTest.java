@@ -97,7 +97,8 @@ class AttributeSchemaAcceleratorsDataFetcherTest {
 			Scope.NO_SCOPE,
 			false, false, false,
 			String.class, null, 0,
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null
 		);
 
 		assertEquals(
@@ -122,7 +123,8 @@ class AttributeSchemaAcceleratorsDataFetcherTest {
 			Scope.NO_SCOPE,
 			false, false, false,
 			String.class, null, 0,
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null
 		);
 
 		assertTrue(fetch(attributeSchema).isEmpty());

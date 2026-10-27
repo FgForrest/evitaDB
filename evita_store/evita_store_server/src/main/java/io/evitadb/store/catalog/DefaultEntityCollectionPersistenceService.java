@@ -56,11 +56,11 @@ import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.OffsetIndexHistoryKeptEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedEvent;
-import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
@@ -116,7 +116,6 @@ import io.evitadb.store.shared.kryo.VersionedKryoFactory;
 import io.evitadb.store.shared.model.PersistentStorageDescriptor;
 import io.evitadb.store.wal.TransactionalStoragePartPersistenceService;
 import io.evitadb.utils.Functions;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
@@ -980,7 +979,8 @@ public class DefaultEntityCollectionPersistenceService
 		int entityIndexId,
 		@Nonnull EntitySchema entitySchema,
 		boolean usageStatisticsTracking,
-		@Nonnull FulltextAnalyzerRegistry fulltextAnalyzerRegistry
+		@Nonnull FulltextAnalyzerRegistry fulltextAnalyzerRegistry,
+		@Nonnull AttributeNormalizationResolver normalizationResolver
 	) {
 		final EntityIndexStoragePart manifest = this.storagePartPersistenceService.getStoragePart(
 			catalogVersion, entityIndexId, EntityIndexStoragePart.class
@@ -1031,7 +1031,8 @@ public class DefaultEntityCollectionPersistenceService
 		final LoadContext context = new LoadContext(
 			catalogVersion, entityIndexId, entitySchema, entityIndexKey, manifest,
 			effectiveVersion, entityIds, entityIdsByLanguage,
-			this.storagePartPersistenceService, referenceKey, usageStatisticsTracking, fulltextAnalyzerRegistry
+			this.storagePartPersistenceService, referenceKey, usageStatisticsTracking, fulltextAnalyzerRegistry,
+			normalizationResolver
 		);
 
 		return resolvePlanFor(entityIndexKey.type()).run(context);

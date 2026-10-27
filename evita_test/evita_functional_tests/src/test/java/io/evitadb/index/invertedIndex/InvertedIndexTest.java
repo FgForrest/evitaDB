@@ -109,7 +109,11 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 				new ValueToRecordBitmap(10, 40, 50)
 			};
 			final InvertedIndex index = new InvertedIndex(
-				buckets, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder()
+				Comparable.class,
+				buckets,
+				FilterIndex.NO_NORMALIZATION,
+				Comparator.naturalOrder(),
+				0
 			);
 
 			assertEquals(3, index.getBucketCount());
@@ -194,6 +198,57 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			final String[] naturalOrder = {"chladný", "hora", "cibule", "auto"};
 			Arrays.sort(naturalOrder);
 			assertArrayEquals(new String[]{"auto", "chladný", "cibule", "hora"}, naturalOrder);
+		}
+	}
+
+	/** Restoring stored buckets brings their keys back as stored and leaves nothing to persist. */
+	@Nested
+	@DisplayName("Restoring stored buckets")
+	class RestoreFromStoredBucketsTest {
+
+		/** Inline restore re-inserts distinct keys, so stored buckets out of comparator order are sorted, not lost. */
+		@Test
+		@DisplayName("re-inserts distinct stored keys in comparator order and restores clean")
+		void shouldSortDistinctStoredKeysOnInlineRestore() {
+			final ValueToRecordBitmap[] stored = {
+				new ValueToRecordBitmap(30, 3),
+				new ValueToRecordBitmap(10, 1, 4),
+				new ValueToRecordBitmap(20, 2)
+			};
+
+			final InvertedIndex restored = new InvertedIndex(
+				Integer.class, stored, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
+			);
+
+			final ValueToRecordBitmap[] buckets = restored.getValueToRecordBitmap();
+			assertArrayEquals(
+				new Serializable[]{10, 20, 30},
+				Arrays.stream(buckets).map(ValueToRecordBitmap::getValue).toArray(Serializable[]::new)
+			);
+			assertArrayEquals(new int[]{1, 4}, restored.getRecordsEqualTo(10).getArray());
+			assertFalse(restored.isDirty(), "a restored index carries no pending changes");
+		}
+
+		/** Stored String keys must never pass through the raw-input declared normalization chain during restore. */
+		@Test
+		@DisplayName("restores keys verbatim without invoking the raw-input function")
+		void shouldRestoreStoredKeysWithoutApplyingAnyFunction() {
+			final Function<Object, Serializable> forbidden = value -> {
+				throw new AssertionError("A stored key reached the raw-input normalizer: " + value);
+			};
+			final InvertedIndex inline = new InvertedIndex(
+				String.class, new ValueToRecordBitmap[]{new ValueToRecordBitmap("I", 1)}, forbidden,
+				Comparator.naturalOrder(), 0
+			);
+			final InvertedIndex paged = InvertedIndex.fromPersistedPages(
+				String.class, new int[]{1},
+				new ValueToRecordBitmap[][]{{new ValueToRecordBitmap("I", 1)}}, null, 1, forbidden,
+				Comparator.naturalOrder(), 0
+			);
+			assertEquals("I", inline.getValueToRecordBitmap()[0].getValue());
+			assertEquals("I", paged.getValueToRecordBitmap()[0].getValue());
+			assertFalse(inline.isDirty());
+			assertFalse(paged.isDirty());
 		}
 	}
 
@@ -1281,20 +1336,24 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("equals: same buckets with different dirty state are equal")
 		void shouldBeEqualRegardlessOfDirtyState() {
 			final InvertedIndex index1 = new InvertedIndex(
+				Comparable.class,
 				new ValueToRecordBitmap[]{
 					new ValueToRecordBitmap(1, 10),
 					new ValueToRecordBitmap(2, 20)
 				},
 				FilterIndex.NO_NORMALIZATION,
-				Comparator.naturalOrder()
+				Comparator.naturalOrder(),
+				0
 			);
 			final InvertedIndex index2 = new InvertedIndex(
+				Comparable.class,
 				new ValueToRecordBitmap[]{
 					new ValueToRecordBitmap(1, 10),
 					new ValueToRecordBitmap(2, 20)
 				},
 				FilterIndex.NO_NORMALIZATION,
-				Comparator.naturalOrder()
+				Comparator.naturalOrder(),
+				0
 			);
 
 			// one dirty, one not — should still be equal (dirty excluded)
@@ -1309,20 +1368,24 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("hashCode: structurally identical indexes have same hashCode")
 		void shouldHaveSameHashCodeForIdenticalIndexes() {
 			final InvertedIndex index1 = new InvertedIndex(
+				Comparable.class,
 				new ValueToRecordBitmap[]{
 					new ValueToRecordBitmap(5, 1, 20),
 					new ValueToRecordBitmap(10, 3)
 				},
 				FilterIndex.NO_NORMALIZATION,
-				Comparator.naturalOrder()
+				Comparator.naturalOrder(),
+				0
 			);
 			final InvertedIndex index2 = new InvertedIndex(
+				Comparable.class,
 				new ValueToRecordBitmap[]{
 					new ValueToRecordBitmap(5, 1, 20),
 					new ValueToRecordBitmap(10, 3)
 				},
 				FilterIndex.NO_NORMALIZATION,
-				Comparator.naturalOrder()
+				Comparator.naturalOrder(),
+				0
 			);
 
 			assertEquals(index1.hashCode(), index2.hashCode());

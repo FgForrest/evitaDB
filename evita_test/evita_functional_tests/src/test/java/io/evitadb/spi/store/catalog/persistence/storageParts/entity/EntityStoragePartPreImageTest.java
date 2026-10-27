@@ -101,7 +101,8 @@ class EntityStoragePartPreImageTest {
 	 * A localized attribute schema of type String.
 	 */
 	private static final AttributeSchemaContract NAME_SCHEMA = AttributeSchema._internalBuild(
-		"name", String.class, true, ConflictResolutionOverride.INHERITED
+		"name", String.class, true, ConflictResolutionOverride.INHERITED,
+		null
 	);
 	/**
 	 * Fields that a pre-image shares with its source on purpose, keyed by the declaring class. Every other array or

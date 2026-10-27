@@ -261,7 +261,8 @@ public class ReferenceNarrowingDecodeBenchmark {
 			Map.of(
 				ATTRIBUTE_VARIANT,
 				AttributeSchema._internalBuild(
-					ATTRIBUTE_VARIANT, String.class, false, ConflictResolutionOverride.INHERITED
+					ATTRIBUTE_VARIANT, String.class, false, ConflictResolutionOverride.INHERITED,
+					null
 				)
 			),
 			Collections.emptyMap(),

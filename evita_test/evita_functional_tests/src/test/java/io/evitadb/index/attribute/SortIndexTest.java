@@ -164,7 +164,13 @@ class SortIndexTest {
 
 	@Test
 	void shouldIndexRecordsAndReturnInAscendingOrder() {
-		final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+		final SortIndex sortIndex = new OwnerSortIndex(
+			Integer.class,
+			null,
+			new AttributeIndexKey(null, "a", null),
+			0,
+			SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
+		);
 		sortIndex.addRecord(7, 2);
 		sortIndex.addRecord(3, 4);
 		sortIndex.addRecord(4, 3);
@@ -188,7 +194,13 @@ class SortIndexTest {
 
 	@Test
 	void shouldIndexRecordsAndReturnInDescendingOrder() {
-		final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+		final SortIndex sortIndex = new OwnerSortIndex(
+			Integer.class,
+			null,
+			new AttributeIndexKey(null, "a", null),
+			0,
+			SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
+		);
 		sortIndex.addRecord(7, 2);
 		sortIndex.addRecord(3, 4);
 		sortIndex.addRecord(4, 3);
@@ -203,7 +215,13 @@ class SortIndexTest {
 
 	@Test
 	void shouldCorrectlyOrderLocalizedStrings() {
-		final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", CZECH_LOCALE));
+		final SortIndex sortIndex = new OwnerSortIndex(
+			String.class,
+			null,
+			new AttributeIndexKey(null, "a", CZECH_LOCALE),
+			0,
+			SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+		);
 		sortIndex.addRecord("c", 2);
 		sortIndex.addRecord("č", 3);
 		sortIndex.addRecord("a", 1);
@@ -227,7 +245,13 @@ class SortIndexTest {
 	@Test
 	void shouldCorrectlyOrderBigDecimals() {
 		// values are pre-normalized (stripTrailingZeros) as they would be by EntityIndexLocalMutationExecutor
-		final SortIndex sortIndex = new OwnerSortIndex(BigDecimal.class, new AttributeIndexKey(null, "a", CZECH_LOCALE));
+		final SortIndex sortIndex = new OwnerSortIndex(
+			BigDecimal.class,
+			null,
+			new AttributeIndexKey(null, "a", CZECH_LOCALE),
+			0,
+			SortIndex.createTypeLevelNormalizerFor(BigDecimal.class, 0)
+		);
 		sortIndex.addRecord(new BigDecimal("0"), 1);
 		sortIndex.addRecord(new BigDecimal("0"), 2);
 		sortIndex.addRecord(new BigDecimal("0"), 3);
@@ -319,7 +343,13 @@ class SortIndexTest {
 
 	@Test
 	void shouldPassGenerationalTest1() {
-		final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
+		final SortIndex sortIndex = new OwnerSortIndex(
+			String.class,
+			null,
+			new AttributeIndexKey(null, "a", null),
+			0,
+			SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+		);
 		sortIndex.addRecord("W", 49);
 		sortIndex.addRecord("Z", 150);
 		sortIndex.addRecord("[", 175);
@@ -339,7 +369,13 @@ class SortIndexTest {
 
 	@Test
 	void shouldSortNationalCharactersCorrectly() {
-		final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", CZECH_LOCALE));
+		final SortIndex sortIndex = new OwnerSortIndex(
+			String.class,
+			null,
+			new AttributeIndexKey(null, "a", CZECH_LOCALE),
+			0,
+			SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+		);
 		sortIndex.addRecord("A", 1);
 		sortIndex.addRecord("Š", 2);
 		sortIndex.addRecord("T", 3);
@@ -365,7 +401,13 @@ class SortIndexTest {
 
 	@Nonnull
 	private static SortIndex createIndexWithBaseCardinalities() {
-		final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", Locale.ENGLISH));
+		final SortIndex sortIndex = new OwnerSortIndex(
+			String.class,
+			null,
+			new AttributeIndexKey(null, "a", Locale.ENGLISH),
+			0,
+			SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+		);
 		sortIndex.addRecord("B", 5);
 		sortIndex.addRecord("A", 6);
 		sortIndex.addRecord("C", 3);
@@ -387,7 +429,9 @@ class SortIndexTest {
 		final SortIndex sortIndex = new OwnerSortIndex(
 			String.class,
 			new RepresentativeReferenceKey(new ReferenceKey("brand", 1)),
-			new AttributeIndexKey(null, "a", Locale.ENGLISH)
+			new AttributeIndexKey(null, "a", Locale.ENGLISH),
+			0,
+			SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 		);
 		sortIndex.addRecord("B", 5);
 		sortIndex.addRecord("A", 6);
@@ -402,7 +446,13 @@ class SortIndexTest {
 
 	@Nonnull
 	private static SortIndex createIndexWithSingleCardinality() {
-		final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", Locale.ENGLISH));
+		final SortIndex sortIndex = new OwnerSortIndex(
+			String.class,
+			null,
+			new AttributeIndexKey(null, "a", Locale.ENGLISH),
+			0,
+			SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+		);
 		sortIndex.addRecord("A", 5);
 		sortIndex.addRecord("A", 6);
 		sortIndex.addRecord("A", 3);
@@ -416,13 +466,14 @@ class SortIndexTest {
 
 	@Nonnull
 	private static SortIndex createCompoundIndexWithBaseCardinalities() {
-		final SortIndex sortIndex = new OwnerSortIndex(
-			new ComparatorSource[]{
+		final SortIndex sortIndex = new OwnerSortIndex(new ComparatorSource[]{
 				new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 				new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
-			},
-			new AttributeIndexKey(null, "a", Locale.ENGLISH)
-		);
+			}, null, new AttributeIndexKey(null, "a", Locale.ENGLISH),
+			SortIndex.createTypeLevelNormalizerFor(new ComparatorSource[]{
+				new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
+				new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
+			}, 0));
 
 		sortIndex.addRecord(new Serializable[]{"B", 1}, 5);
 		sortIndex.addRecord(new Serializable[]{"A", 4}, 6);
@@ -443,8 +494,20 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should assign unique id to each instance")
 		void shouldAssignUniqueIdToEachInstance() {
-			final SortIndex first = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "x", null));
-			final SortIndex second = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "y", null));
+			final SortIndex first = new OwnerSortIndex(
+				Integer.class,
+				null,
+				new AttributeIndexKey(null, "x", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
+			);
+			final SortIndex second = new OwnerSortIndex(
+				Integer.class,
+				null,
+				new AttributeIndexKey(null, "y", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
+			);
 
 			assertNotEquals(first.getId(), second.getId());
 		}
@@ -452,7 +515,13 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should return same instance when no mutations applied")
 		void shouldReturnSameInstanceWhenNoMutationsApplied() {
-			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(
+				Integer.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
+			);
 
 			assertStateAfterCommit(
 				sortIndex,
@@ -466,7 +535,13 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should return new instance when dirty after commit")
 		void shouldReturnNewInstanceWhenDirtyAfterCommit() {
-			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(
+				Integer.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
+			);
 
 			assertStateAfterCommit(
 				sortIndex,
@@ -482,7 +557,13 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should leave original unchanged after commit")
 		void shouldLeaveOriginalUnchangedAfterCommit() {
-			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(
+				String.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+			);
 			sortIndex.addRecord("A", 1);
 
 			assertStateAfterCommit(
@@ -504,7 +585,13 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should discard changes after rollback")
 		void shouldDiscardChangesAfterRollback() {
-			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(
+				String.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+			);
 			sortIndex.addRecord("X", 10);
 
 			assertStateAfterRollback(
@@ -526,7 +613,13 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should deterministically commit add and remove")
 		void shouldDeterministicallyCommitAddAndRemove() {
-			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(
+				String.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+			);
 			sortIndex.addRecord("A", 1);
 			sortIndex.addRecord("B", 2);
 			sortIndex.addRecord("C", 3);
@@ -555,7 +648,13 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should report empty index correctly")
 		void shouldReportEmptyIndexCorrectly() {
-			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(
+				Integer.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
+			);
 
 			assertTrue(sortIndex.isEmpty());
 			assertEquals(0, sortIndex.size());
@@ -564,7 +663,13 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should append nothing when not dirty")
 		void shouldAppendNothingWhenNotDirty() {
-			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(
+				Integer.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
+			);
 
 			final TrappedChanges sink = new TrappedChanges();
 			sortIndex.appendStorageParts(1, sink);
@@ -574,7 +679,13 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should append SortIndexStoragePart when dirty")
 		void shouldAppendStoragePartWhenDirty() {
-			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "name", null));
+			final SortIndex sortIndex = new OwnerSortIndex(
+				String.class,
+				null,
+				new AttributeIndexKey(null, "name", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+			);
 			sortIndex.addRecord("Alpha", 1);
 			sortIndex.addRecord("Beta", 2);
 
@@ -599,7 +710,13 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should reset dirty flag via resetDirty()")
 		void shouldResetDirtyFlag() {
-			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(
+				String.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+			);
 			sortIndex.addRecord("X", 1);
 
 			// dirty after add
@@ -618,7 +735,13 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should cache sortIndexChanges in non-transactional mode")
 		void shouldCacheSortIndexChangesNonTransactional() {
-			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(
+				String.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+			);
 			sortIndex.addRecord("A", 1);
 
 			// first call to ascending supplier creates changes
@@ -641,7 +764,13 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should throw on duplicate recordId in scalar addRecord")
 		void shouldThrowOnDuplicateRecordIdScalar() {
-			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(
+				String.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+			);
 			sortIndex.addRecord("A", 1);
 
 			final IllegalArgumentException ex = assertThrows(
@@ -654,13 +783,14 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should throw on duplicate recordId in array addRecord")
 		void shouldThrowOnDuplicateRecordIdArray() {
-			final SortIndex sortIndex = new OwnerSortIndex(
-				new ComparatorSource[]{
+			final SortIndex sortIndex = new OwnerSortIndex(new ComparatorSource[]{
 					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 					new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
-				},
-				new AttributeIndexKey(null, "a", null)
-			);
+				}, null, new AttributeIndexKey(null, "a", null),
+				SortIndex.createTypeLevelNormalizerFor(new ComparatorSource[]{
+					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+					new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+				}, 0));
 			sortIndex.addRecord(new Serializable[]{"A", 1}, 10);
 
 			final IllegalArgumentException ex = assertThrows(
@@ -673,7 +803,13 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should throw when array passed as scalar value")
 		void shouldThrowWhenArrayPassedAsScalarValue() {
-			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(
+				String.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+			);
 
 			// cast to Serializable to force the scalar overload
 			final Serializable arrayValue = new String[]{"A", "B"};
@@ -687,7 +823,13 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should throw when wrong type passed to addRecord")
 		void shouldThrowWhenWrongTypePassed() {
-			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(
+				Integer.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
+			);
 
 			final IllegalArgumentException ex = assertThrows(
 				IllegalArgumentException.class,
@@ -699,7 +841,13 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should throw when removing non-existent scalar value")
 		void shouldThrowOnRemoveNonExistentScalarValue() {
-			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(
+				String.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+			);
 			sortIndex.addRecord("A", 1);
 
 			final IllegalArgumentException ex = assertThrows(
@@ -712,13 +860,14 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should throw when removing non-existent array value")
 		void shouldThrowOnRemoveNonExistentArrayValue() {
-			final SortIndex sortIndex = new OwnerSortIndex(
-				new ComparatorSource[]{
+			final SortIndex sortIndex = new OwnerSortIndex(new ComparatorSource[]{
 					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 					new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
-				},
-				new AttributeIndexKey(null, "a", null)
-			);
+				}, null, new AttributeIndexKey(null, "a", null),
+				SortIndex.createTypeLevelNormalizerFor(new ComparatorSource[]{
+					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+					new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+				}, 0));
 			sortIndex.addRecord(new Serializable[]{"A", 1}, 10);
 
 			final IllegalArgumentException ex = assertThrows(
@@ -731,7 +880,13 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should throw when cardinality requested for value absent from owned tree")
 		void shouldThrowWhenCardinalityRequestedForValueAbsentFromOwnedTree() {
-			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(
+				String.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+			);
 			sortIndex.addRecord("A", 1);
 
 			// owner mode owns every present value in its tree, so a cardinality miss is a broken invariant, not a query
@@ -769,7 +924,13 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should handle cardinality exactly 2 removal correctly")
 		void shouldHandleCardinalityExactly2Removal() {
-			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(
+				String.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+			);
 			sortIndex.addRecord("X", 1);
 			sortIndex.addRecord("X", 2);
 
@@ -1133,12 +1294,12 @@ class SortIndexTest {
 		void shouldThrowWhenSingleComparatorPassedToMultiField() {
 			assertThrows(
 				IllegalArgumentException.class,
-				() -> new OwnerSortIndex(
-					new ComparatorSource[]{
+				() -> new OwnerSortIndex(new ComparatorSource[]{
 						new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
-					},
-					new AttributeIndexKey(null, "a", null)
-				)
+					}, null, new AttributeIndexKey(null, "a", null),
+					SortIndex.createTypeLevelNormalizerFor(new ComparatorSource[]{
+						new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+					}, 0))
 			);
 		}
 
@@ -1152,11 +1313,14 @@ class SortIndexTest {
 			cardinalities.put("B", 2);
 
 			final SortIndex sortIndex = new OwnerSortIndex(
-				base, null,
+				base,
+				null,
 				new AttributeIndexKey(null, "a", null),
+				0,
 				new int[]{1, 2, 3},
 				new String[]{"A", "B"},
-				cardinalities
+				cardinalities,
+				SortIndex.createTypeLevelNormalizerFor(base, 0)
 			);
 
 			assertEquals(3, sortIndex.size());
@@ -1170,7 +1334,11 @@ class SortIndexTest {
 		void shouldReturnReferenceKeyFromConstructor() {
 			final RepresentativeReferenceKey refKey = new RepresentativeReferenceKey(new ReferenceKey("brand", 1));
 			final SortIndex sortIndex = new OwnerSortIndex(
-				String.class, refKey, new AttributeIndexKey(null, "name", null)
+				String.class,
+				refKey,
+				new AttributeIndexKey(null, "name", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
 			);
 
 			assertNotNull(sortIndex.getReferenceKey());
@@ -1180,7 +1348,13 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should return null referenceKey for non-reference constructor")
 		void shouldReturnNullReferenceKeyForNonReference() {
-			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "name", null));
+			final SortIndex sortIndex = new OwnerSortIndex(
+				String.class,
+				null,
+				new AttributeIndexKey(null, "name", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+			);
 
 			assertNull(sortIndex.getReferenceKey());
 		}
@@ -1565,7 +1739,7 @@ class SortIndexTest {
 					// instance (see SortIndex#createCopyWithMergedTransactionalMemory) - its warm cache carries over
 					original.getAscendingOrderRecordsSupplier().getSortedRecordIds();
 				},
-				(original, committed) -> assertSame(original, committed)
+				Assertions::assertSame
 			);
 		}
 
@@ -1799,7 +1973,11 @@ class SortIndexTest {
 		) {
 			final Random random = new Random(seed);
 			final SortIndex sortIndex = new OwnerSortIndex(
-				Integer.class, new AttributeIndexKey(null, "a", null)
+				Integer.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 			final List<int[]> pairs = new ArrayList<>(recordCount);
 			for (int recordId = 1; recordId <= recordCount; recordId++) {
@@ -1850,7 +2028,11 @@ class SortIndexTest {
 			// the physical array length instead of the logical record count over-claims by tens of positions.
 			final Random random = new Random(31337L);
 			final SortIndex sortIndex = new OwnerSortIndex(
-				Integer.class, new AttributeIndexKey(null, "a", null)
+				Integer.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 			final List<int[]> pairs = new ArrayList<>();
 			for (int recordId = 1; recordId <= 2_000; recordId++) {
@@ -1877,7 +2059,11 @@ class SortIndexTest {
 		@DisplayName("should order records identically when the inserts run inside a transaction")
 		void shouldOrderIdenticallyUnderTransaction() {
 			final SortIndex sortIndex = new OwnerSortIndex(
-				Integer.class, new AttributeIndexKey(null, "a", null)
+				Integer.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
 			);
 			final Random random = new Random(20260728L);
 			final List<int[]> pairs = new ArrayList<>();
@@ -1927,7 +2113,13 @@ class SortIndexTest {
 		@Test
 		@DisplayName("a one-record sort index stays under the content-sized gate")
 		void shouldKeepAOneRecordSortIndexUnderTheGate() {
-			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(
+				Integer.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
+			);
 			sortIndex.addRecord(7, 2);
 
 			final long heap = sortIndex.getHeapSizeInBytes();
@@ -1941,7 +2133,13 @@ class SortIndexTest {
 		@Test
 		@DisplayName("an empty sort index no longer pays for two full leaf blocks")
 		void shouldKeepAnEmptySortIndexUnderTheGate() {
-			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(
+				Integer.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
+			);
 
 			final long heap = sortIndex.getHeapSizeInBytes();
 			assertTrue(
@@ -1954,9 +2152,21 @@ class SortIndexTest {
 		@Test
 		@DisplayName("the footprint still grows with the records the index actually holds")
 		void shouldStillGrowWithTheRecordCount() {
-			final SortIndex small = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex small = new OwnerSortIndex(
+				Integer.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
+			);
 			small.addRecord(7, 2);
-			final SortIndex large = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex large = new OwnerSortIndex(
+				Integer.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
+			);
 			for (int recordId = 1; recordId <= 500; recordId++) {
 				large.addRecord(recordId, recordId);
 			}

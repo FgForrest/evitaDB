@@ -43,7 +43,6 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
@@ -313,11 +312,12 @@ class SchemaSerializationServiceTest {
 		final GlobalAttributeSchema globalAttribute = GlobalAttributeSchema._internalBuild(
 			"title", null, null,
 			// the untyped nulls would leave the inherited AttributeSchema overload equally applicable
-			(ScopedAttributeUniquenessType[]) null, (ScopedGlobalAttributeUniquenessType[]) null,
+			null, (ScopedGlobalAttributeUniquenessType[]) null,
 			Scope.NO_SCOPE, null, new Scope[]{Scope.ARCHIVED}, Scope.NO_SCOPE,
 			true, false, false,
 			String.class, null, 0,
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null
 		);
 		final CatalogSchema createdCatalogSchema = CatalogSchema._internalBuild(
 			1,
@@ -369,7 +369,8 @@ class SchemaSerializationServiceTest {
 		// a global attribute embedded in the catalog schema carrying a non-default override — a serializer that silently
 		// dropped the override on GlobalAttributeSchema would still pass every catalog-level ConflictResolution test
 		final GlobalAttributeSchema globalAttribute = GlobalAttributeSchema._internalBuild(
-			"url", String.class, false, ConflictResolutionOverride.GRANULAR
+			"url", String.class, false, ConflictResolutionOverride.GRANULAR,
+			null
 		);
 		final Map<String, GlobalAttributeSchemaContract> attributes = Map.of("url", globalAttribute);
 		final CatalogSchema createdSchema = CatalogSchema._internalBuild(

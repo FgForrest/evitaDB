@@ -42,6 +42,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcEvitaValue;
 import io.evitadb.externalApi.grpc.generated.GrpcStringArray;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -54,15 +55,11 @@ import java.util.Currency;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
-import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.QUERY;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies functionalities of methods in {@link EvitaDataTypesConverter} class.
@@ -375,14 +372,17 @@ class EvitaDataTypesConverterTest {
 
 	@Test
 	void getSupportedDataType() {
-		assertEquals(BigDecimal.class, EvitaDataTypesConverter.toEvitaDataType(GrpcEvitaDataType.BIG_DECIMAL));
-		assertEquals(Short.class, EvitaDataTypesConverter.toEvitaDataType(GrpcEvitaDataType.SHORT));
-		assertEquals(DateTimeRange.class, EvitaDataTypesConverter.toEvitaDataType(GrpcEvitaDataType.DATE_TIME_RANGE));
-		assertEquals(ByteNumberRange.class, EvitaDataTypesConverter.toEvitaDataType(GrpcEvitaDataType.BYTE_NUMBER_RANGE));
-		assertEquals(Long[].class, EvitaDataTypesConverter.toEvitaDataType(GrpcEvitaDataType.LONG_ARRAY));
-		assertEquals(Boolean[].class, EvitaDataTypesConverter.toEvitaDataType(GrpcEvitaDataType.BOOLEAN_ARRAY));
+		assertSame(BigDecimal.class, EvitaDataTypesConverter.toEvitaDataType(GrpcEvitaDataType.BIG_DECIMAL));
+		assertSame(Short.class, EvitaDataTypesConverter.toEvitaDataType(GrpcEvitaDataType.SHORT));
+		assertSame(DateTimeRange.class, EvitaDataTypesConverter.toEvitaDataType(GrpcEvitaDataType.DATE_TIME_RANGE));
+		assertSame(ByteNumberRange.class, EvitaDataTypesConverter.toEvitaDataType(GrpcEvitaDataType.BYTE_NUMBER_RANGE));
+		assertSame(Long[].class, EvitaDataTypesConverter.toEvitaDataType(GrpcEvitaDataType.LONG_ARRAY));
+		assertSame(Boolean[].class, EvitaDataTypesConverter.toEvitaDataType(GrpcEvitaDataType.BOOLEAN_ARRAY));
 
-		assertEquals(ComplexDataObject.class, EvitaDataTypesConverter.toEvitaDataType(GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType.COMPLEX_DATA_OBJECT));
+		assertSame(
+			ComplexDataObject.class,
+			EvitaDataTypesConverter.toEvitaDataType(GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType.COMPLEX_DATA_OBJECT)
+		);
 	}
 
 	@Test

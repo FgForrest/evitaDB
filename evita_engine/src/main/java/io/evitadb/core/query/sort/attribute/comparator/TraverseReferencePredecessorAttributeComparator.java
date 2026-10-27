@@ -52,6 +52,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static io.evitadb.core.query.sort.attribute.comparator.PredecessorAttributeComparator.comparePositionsAcrossProviders;
 import static io.evitadb.core.query.sort.attribute.sorter.MergedSortedRecordsSupplierSorter.createSortedRecordsOffsets;
@@ -113,7 +114,8 @@ public class TraverseReferencePredecessorAttributeComparator
 			0,
 			referenceSchema,
 			locale,
-			orderDirection
+			orderDirection,
+			UnaryOperator.identity()
 		);
 		this.sortedRecordsSupplier = sortedRecordsSupplier;
 		if (referenceSchema.getCardinality().allowsDuplicates()) {

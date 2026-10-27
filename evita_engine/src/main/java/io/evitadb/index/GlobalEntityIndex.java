@@ -38,6 +38,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.EntityAttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
@@ -300,24 +301,30 @@ public class GlobalEntityIndex extends EntityIndex
 		@Nonnull String entityType,
 		@Nonnull EntityIndexKey entityIndexKey
 	) {
-		this(primaryKey, entityType, entityIndexKey, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING);
+		this(
+			primaryKey, entityType, entityIndexKey, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING,
+			AttributeNormalizationResolver.LEGACY_NFD
+		);
 	}
 
 	/**
-	 * Creates a fresh index, stating whether it counts its own usage.
+	 * Creates a fresh index using the owner resolver; child structures capture String functions when they are
+	 * created.
 	 *
 	 * @param primaryKey              the primary key of this index
 	 * @param entityType              the type of entity being indexed
 	 * @param entityIndexKey          the key identifying this index
 	 * @param usageStatisticsTracking whether to allocate an {@link io.evitadb.index.IndexActivity} holder for it
+	 * @param normalizationResolver   the owner's resolver new attribute structures bind their key functions from
 	 */
 	public GlobalEntityIndex(
 		int primaryKey,
 		@Nonnull String entityType,
 		@Nonnull EntityIndexKey entityIndexKey,
-		boolean usageStatisticsTracking
+		boolean usageStatisticsTracking,
+		@Nonnull AttributeNormalizationResolver normalizationResolver
 	) {
-		super(primaryKey, entityType, entityIndexKey, usageStatisticsTracking);
+		super(primaryKey, entityType, entityIndexKey, usageStatisticsTracking, normalizationResolver);
 		this.priceIndex = new PriceSuperIndex();
 		addComponent(new PriceIndexComponent(this.priceIndex));
 		// a HashMap allocates its table on the first put, so an index whose collection declares the accelerator
@@ -463,7 +470,7 @@ public class GlobalEntityIndex extends EntityIndex
 					attributes.sortIndexes(),
 					attributes.chainIndexes(),
 					attributes.sharedValueIndexes(),
-					attributes.sharedRangeIndexes()
+					attributes.sharedRangeIndexes(), context.normalizationResolver()
 				),
 				new PriceSuperIndex(prices.priceIndexes()),
 				hierarchy.hierarchyIndex(),

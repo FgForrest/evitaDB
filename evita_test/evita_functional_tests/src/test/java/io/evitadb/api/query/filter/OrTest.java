@@ -151,7 +151,7 @@ class OrTest {
 		void shouldReturnFilterConstraintClassAsType() {
 			final Or or = new Or(attributeEquals("abc", "def"));
 
-			assertEquals(FilterConstraint.class, or.getType());
+			assertSame(FilterConstraint.class, or.getType());
 		}
 
 		@Test

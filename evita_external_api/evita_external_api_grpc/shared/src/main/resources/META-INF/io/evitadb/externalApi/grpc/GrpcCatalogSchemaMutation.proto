@@ -11,7 +11,7 @@ import "GrpcEntitySchemaMutation.proto";
 
 // Contains all possible catalog schema mutations.
 message GrpcLocalCatalogSchemaMutation {
-  // The used local catalog mutation.
+  // Exactly one member must be set: the local catalog mutation to execute.
   oneof mutation {
     // Mutation is responsible for setting value to a `CatalogSchema.description` in `CatalogSchema`.
     GrpcModifyCatalogSchemaDescriptionMutation modifyCatalogSchemaDescriptionMutation = 1;
@@ -79,5 +79,7 @@ message GrpcLocalCatalogSchemaMutation {
     // Mutation is responsible for setting the filter accelerators of a `GlobalAttributeSchema` in `CatalogSchema`.
     // Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
     GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 36;
+    // Replaces the declared normalization chain; an empty chain removes normalization.
+    GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 37;
   }
 }

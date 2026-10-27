@@ -27,6 +27,7 @@ import com.github.javafaker.Faker;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
@@ -174,7 +175,7 @@ public class AbstractHundredProductsFunctionalTest {
 						session,
 						builder -> {
 							builder.withAttribute(
-								ATTRIBUTE_PRIORITY, Long.class, thatIs -> thatIs.filterable()
+								ATTRIBUTE_PRIORITY, Long.class, AttributeSchemaEditor::filterable
 							).updateVia(session);
 							return builder.toInstance();
 						}
@@ -202,8 +203,12 @@ public class AbstractHundredProductsFunctionalTest {
 									whichIs ->
 										whichIs.indexedForFilteringAndPartitioning()
 											.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, thatIs -> thatIs.sortable().nullable())
-											.withAttribute(ATTRIBUTE_CATEGORY_LABEL, String.class, thatIs -> thatIs.localized())
-											.withAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class, thatIs -> thatIs.filterable())
+											.withAttribute(ATTRIBUTE_CATEGORY_LABEL, String.class,
+											               AttributeSchemaEditor::localized
+											)
+											.withAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class,
+											               AttributeSchemaEditor::filterable
+											)
 								)
 								.withReferenceToEntity(
 									Entities.PARAMETER, Entities.PARAMETER, Cardinality.ONE_OR_MORE,
@@ -243,7 +248,7 @@ public class AbstractHundredProductsFunctionalTest {
 										).withAttribute(
 											ATTRIBUTE_PRODUCT_LABEL,
 											String.class,
-											thatIs -> thatIs.localized()
+											AttributeSchemaEditor::localized
 										)
 								)
 								.withReferenceTo(

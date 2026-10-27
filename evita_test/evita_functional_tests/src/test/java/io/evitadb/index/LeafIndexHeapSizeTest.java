@@ -40,6 +40,7 @@ import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.OwnerSortIndex;
 import io.evitadb.index.attribute.OwnerUniqueIndex;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
+import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex;
@@ -693,7 +694,13 @@ class LeafIndexHeapSizeTest {
 		@Nonnull
 		private static OwnerSortIndex ownerSortIndex(int records) {
 			final AttributeIndexKey key = new AttributeIndexKey(null, "priority", null);
-			final OwnerSortIndex index = new OwnerSortIndex(String.class, key);
+			final OwnerSortIndex index = new OwnerSortIndex(
+				String.class,
+				null,
+				key,
+				0,
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+			);
 			// primary keys start above the autobox cache: inside it two structures boxing the same count share one
 			// JVM-cached Integer, which an identity walk counts once while the arithmetic charges it per holder
 			for (int i = 0; i < records; i++) {
@@ -1002,8 +1009,11 @@ class LeafIndexHeapSizeTest {
 		@Nonnull
 		private static OwnerUniqueIndex ownerUniqueIndex(int records) {
 			final OwnerUniqueIndex index = new OwnerUniqueIndex(
-				"Product", new AttributeIndexKey(null, "code", null), String.class
-			, 0);
+				"Product",
+				new AttributeIndexKey(null, "code", null),
+				String.class,
+				0
+			);
 			for (int i = 0; i < records; i++) {
 				index.registerUniqueKey(String.format("code-%05d", i), i + 1);
 			}
@@ -1216,7 +1226,9 @@ class LeafIndexHeapSizeTest {
 		) {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
 			final AttributeIndexKey key = new AttributeIndexKey("media", "mediaOrder", null);
-			index.declareSortKey(key, comparatorBase, 0);
+			index.declareSortKey(
+				key, comparatorBase, 0, () -> SortIndex.createTypeLevelNormalizerFor(comparatorBase, 0)
+			);
 			if (value instanceof Serializable[] compound) {
 				index.putSortValue(key, 1, compound);
 			} else {
@@ -1240,7 +1252,10 @@ class LeafIndexHeapSizeTest {
 			index.declareSortKey(
 				key,
 				new ComparatorSource[]{new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)},
-				0
+				0,
+				() -> SortIndex.createTypeLevelNormalizerFor(new ComparatorSource[]{
+					new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+				}, 0)
 			);
 			for (int partition = 1; partition <= partitions; partition++) {
 				// values and partitions above the autobox cache, so no JVM-cached box is shared by accident

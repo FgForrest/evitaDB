@@ -13,6 +13,15 @@ The constant ordering constraints are particularly useful when you have a sorted
 the entity primary keys provided by an external system that needs to be maintained in the evitaDB output (for example,
 it represents a relevance of those entities from the full-text engine).
 
+<Note type="info">
+For string attributes, [normalization](../../use/schema.md#normalization) applies to both the attribute keys and the
+requested values - those of the [`attributeInSet`](../filtering/comparable.md#attribute-in-set) filter used by
+[`attributeSetInFilter`](#exact-entity-attribute-value-order-used-in-filter) and the arguments of
+[`attributeSetExact`](#exact-entity-attribute-value-order). Requested values that normalize to one key keep the
+**first requested position**. With the `lowercase` step, `"ABC", "def", "abc"` places the `abc` key first and `def`
+second.
+</Note>
+
 ## Exact entity primary key order used in filter
 
 ```evitaql-syntax

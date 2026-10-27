@@ -43,6 +43,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Range;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
@@ -52,6 +53,10 @@ import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexDataStructure;
+import io.evitadb.index.analysis.AttributeNormalizationPolicy;
+import io.evitadb.index.analysis.AttributeNormalizationReconciler;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
+import io.evitadb.index.analysis.BuiltWithAttributeNormalizationResolver;
 import io.evitadb.index.attribute.AttributeIndex.AttributeIndexChanges;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.index.bitmap.Bitmap;
@@ -153,6 +158,100 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	Serializable
 	permits EntityAttributeIndex, ReferenceAttributeIndex {
 	@Serial private static final long serialVersionUID = 479979988960202298L;
+	/**
+	 * Scans physical in-memory key stores in every locale, including non-null compound elements.
+	 *
+	 * @param identity scope/locale-free attribute identity
+	 * @param policy retained compound bindings supplemented with legacy declarations
+	 * @return true if an indexed non-null String key survives
+	 */
+	public boolean hasIndexedStringKeys(
+		@Nonnull AttributeIndexKey identity, @Nonnull AttributeNormalizationPolicy policy
+	) {
+		final boolean[] found = {false};
+		forEachInFamily(this.sharedValueIndex, (key, tree) -> {
+			if (!found[0] && AttributeNormalizationReconciler.isSameIdentity(key, identity) && !tree.isEmpty()) {
+				found[0] = tree.getPlainType() == String.class;
+			}
+		});
+		forEachInFamily(this.uniqueIndex, (key, index) -> {
+			if (AttributeNormalizationReconciler.isSameIdentity(key, identity) && !index.isEmpty()) {
+				final Class<?> type = index.getType();
+				final Class<?> plainType = type.isArray() ? type.getComponentType() : type;
+				if (plainType == String.class) {
+					found[0] = true;
+				}
+			}
+		});
+		forEachInFamily(this.sortIndex, (key, index) -> {
+			if (!found[0]) {
+				found[0] = AttributeNormalizationReconciler.containsStringKey(key, index, identity, policy);
+			}
+		});
+		return found[0];
+	}
+
+	/**
+	 * Tests a compound identity without consulting the current declaration.
+	 *
+	 * @param identity scope/locale-free compound identity
+	 * @return true if any tuple survives
+	 */
+	public boolean hasSortKeys(@Nonnull AttributeIndexKey identity) {
+		final boolean[] found = {false};
+		forEachInFamily(this.sortIndex, (key, index) -> {
+			if (AttributeNormalizationReconciler.isSameIdentity(key, identity) && !index.isEmpty()) {
+				found[0] = true;
+			}
+		});
+		return found[0];
+	}
+
+	/** Resolver consulted only when binding new attribute-key structures. */
+	@Nonnull protected volatile AttributeNormalizationResolver normalizationResolver;
+
+	/**
+	 * Returns the immutable binding selected by this transaction or committed snapshot.
+	 *
+	 * @return the resolver for future child creation
+	 */
+	@Nonnull
+	public AttributeNormalizationResolver getNormalizationResolver() {
+		final AttributeIndexChanges layer = Transaction.getTransactionalMemoryLayerIfExists(this);
+		return layer == null || layer.normalizationResolver == null ? this.normalizationResolver :
+			layer.normalizationResolver;
+	}
+
+	/**
+	 * Changes future child bindings and replaces compound wrappers only for changed String functions.
+	 *
+	 * @param resolver new effective owner policy for future children and changed compound functions
+	 */
+	public void useNormalizationResolver(@Nonnull AttributeNormalizationResolver resolver) {
+		final AttributeNormalizationResolver previousResolver = getNormalizationResolver();
+		final AttributeIndexChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+		if (layer == null) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null) {
+				final AttributeNormalizationResolver previous = this.normalizationResolver;
+				savepoint.push(() -> this.normalizationResolver = previous);
+			}
+			this.normalizationResolver = resolver;
+		} else {
+			layer.normalizationResolver = resolver;
+		}
+		if (resolver instanceof BuiltWithAttributeNormalizationResolver builtWith) {
+			final Map<AttributeIndexKey, SortIndex> replacements = CollectionUtils.createHashMap(4);
+			forEachInFamily(this.sortIndex, (key, index) -> {
+				if (index instanceof OwnerSortIndex owner && builtWith.hasChangedCompoundSteps(key, previousResolver)) {
+					replacements.put(key, owner.withKeyNormalizer(builtWith.resolveStoredSortNormalizer(
+						key, owner.getComparatorBase(), owner.getIndexedDecimalPlaces())));
+				}
+			});
+			replacements.forEach((key, index) -> getOrCreateSortIndexMap().put(key, index));
+		}
+	}
+
 	/**
 	 * Unique identity of this transactional producer instance, used by the transactional layer to track changes to
 	 * this index. Assigned from a process-wide monotonic sequence at construction.
@@ -687,10 +786,14 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * section of the class javadoc sets out. A freshly built index therefore costs its own object and nothing else.
 	 *
 	 * @param entityType   the entity type this index belongs to
-	 * @param referenceKey the reference discriminator when this index backs a reference-scoped index, or `null` for
-	 *                     the global entity index
+	 * @param referenceKey          the reference discriminator when this index backs a reference-scoped index, or
+	 *                              `null` for the global entity index
+	 * @param normalizationResolver the owner's resolver new sub-indexes bind their key functions from
 	 */
-	protected AttributeIndex(@Nonnull String entityType, @Nullable RepresentativeReferenceKey referenceKey) {
+	protected AttributeIndex(@Nonnull String entityType, @Nullable RepresentativeReferenceKey referenceKey,
+		@Nonnull AttributeNormalizationResolver normalizationResolver
+	) {
+		this.normalizationResolver = normalizationResolver;
 		this.entityType = entityType;
 		this.referenceKey = referenceKey;
 		// every sub-index map is left null - the first write to a family allocates it through its getOrCreate...Map()
@@ -720,6 +823,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * @param chainIndex       the chain sub-index map
 	 * @param sharedValueIndex the shared value→ValueToRecord tree map
 	 * @param sharedRangeIndex the shared range-structure map for range-typed attributes
+	 * @param normalizationResolver the owner's resolver new sub-indexes bind their key functions from
 	 */
 	protected AttributeIndex(
 		@Nonnull String entityType,
@@ -730,8 +834,10 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		@Nonnull Map<AttributeIndexKey, SortIndex> sortIndex,
 		@Nonnull Map<AttributeIndexKey, ChainIndex> chainIndex,
 		@Nonnull Map<AttributeIndexKey, InvertedIndex> sharedValueIndex,
-		@Nonnull Map<AttributeIndexKey, RangeIndex> sharedRangeIndex
+		@Nonnull Map<AttributeIndexKey, RangeIndex> sharedRangeIndex,
+		@Nonnull AttributeNormalizationResolver normalizationResolver
 	) {
+		this.normalizationResolver = normalizationResolver;
 		this.entityType = entityType;
 		this.referenceKey = referenceKey;
 		// an empty committed family is left ABSENT rather than resurrected as an empty map: this constructor runs on
@@ -1144,7 +1250,9 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 					this.entityType,
 					ownerKey,
 					attributeSchema.getType(),
-					attributeSchema.getIndexedDecimalPlaces()
+					attributeSchema.getIndexedDecimalPlaces(),
+					getNormalizationResolver().resolveKeyNormalizer(
+						ownerKey.referenceName(), attributeSchema, ownerKey.locale())
 				);
 				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newUniqueIndex));
@@ -1554,7 +1662,9 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 					final SortIndex newSortIndex = SortIndex.create(
 						attributeSchema.getPlainType(), this.referenceKey, lookupKey,
 						attributeSchema.getIndexedDecimalPlaces(),
-						() -> entryOf(this.sharedValueIndex, lookupKey)
+						() -> entryOf(this.sharedValueIndex, lookupKey),
+						getNormalizationResolver().resolveSortNormalizer(
+							lookupKey.referenceName(), attributeSchema, lookupKey.locale())
 					);
 					ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 						.ifPresent(it -> it.addCreatedItem(newSortIndex));
@@ -1666,11 +1776,22 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		final SortIndex theSortIndex = sortIndexes.computeIfAbsent(
 			attributeKey,
 			lookupKey -> {
+				// element attributes live where the compound is declared - the split `createAttributeKey` keys it by,
+				// which has already refused a reference compound without its reference schema
+				final Function<String, AttributeSchemaContract> elementSchemaProvider;
+				if (compoundSchema instanceof EntitySortableAttributeCompoundSchemaContract) {
+					elementSchemaProvider = name -> entitySchema.getAttribute(name).orElseThrow();
+				} else {
+					final ReferenceSchemaContract owningReference = Objects.requireNonNull(referenceSchema);
+					elementSchemaProvider = name -> owningReference.getAttribute(name).orElseThrow();
+				}
 				// a sortable attribute compound has no shared filter twin by construction, so it is always an owner
 				final SortIndex newSortIndex = new OwnerSortIndex(
 					createComparatorBase(compoundSchema, attributeTypeProvider),
 					this.referenceKey,
-					lookupKey
+					lookupKey,
+					getNormalizationResolver().resolveCompoundNormalizer(
+						lookupKey.referenceName(), compoundSchema, elementSchemaProvider, lookupKey.locale())
 				);
 				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newSortIndex));
@@ -1923,7 +2044,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		final TransactionalMap<AttributeIndexKey, FilterIndex> filterViews = this.filterIndex;
 		final TransactionalMap<AttributeIndexKey, UniqueIndex> uniqueViews = this.uniqueViewIndex;
 		// id, then the entityType / referenceKey slots, the seven sub-index maps and the five leaf-page snapshots
-		return layout.sizeOfObject(Long.BYTES + 14L * layout.referenceSize())
+		return layout.sizeOfObject(Long.BYTES + 15L * layout.referenceSize())
 			+ (uniqueIndexes == null ?
 				0L : uniqueIndexes.getHeapSizeInBytes(ownedKey, UniqueIndex::getHeapSizeInBytes))
 			+ (sortIndexes == null ? 0L : sortIndexes.getHeapSizeInBytes(ownedKey, SortIndex::getHeapSizeInBytes))
@@ -2184,7 +2305,8 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * {@link AttributeIndexChanges} is pure in-transaction bookkeeping — it records which contained sub-indexes a
 	 * commit-merge has to visit — so outside a transaction there is no layer to create and the delegate branch writes
 	 * nothing of its own (every call site is `ofNullable(layer).ifPresent(...)`). The real state a mutation touches
-	 * lives in the contained unique / filter / sort / chain indexes, which journal their own warm-up writes.
+	 * lives in contained indexes, which journal their own warm-up writes. Future-child resolver changes journal
+	 * their inverse in {@link #useNormalizationResolver(AttributeNormalizationResolver)}.
 	 *
 	 * @return always `true` — see above
 	 */
@@ -2228,7 +2350,8 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			committedFamilyCopy(transactionalLayer, this.sortIndex),
 			committedFamilyCopy(transactionalLayer, this.chainIndex),
 			committedFamilyCopy(transactionalLayer, this.sharedValueIndex),
-			committedFamilyCopy(transactionalLayer, this.sharedRangeIndex)
+			committedFamilyCopy(transactionalLayer, this.sharedRangeIndex),
+			layer == null || layer.normalizationResolver == null ? this.normalizationResolver : layer.normalizationResolver
 		);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return attributeIndex;
@@ -2260,6 +2383,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * @param chainIndex       the merged chain sub-index map
 	 * @param sharedValueIndex the merged shared value→ValueToRecord tree map
 	 * @param sharedRangeIndex the merged shared range-structure map
+	 * @param normalizationResolver the resolver the committed transaction adopted, else the current one
 	 * @return a freshly built subclass-typed copy
 	 */
 	@Nonnull
@@ -2272,7 +2396,8 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		@Nonnull Map<AttributeIndexKey, SortIndex> sortIndex,
 		@Nonnull Map<AttributeIndexKey, ChainIndex> chainIndex,
 		@Nonnull Map<AttributeIndexKey, InvertedIndex> sharedValueIndex,
-		@Nonnull Map<AttributeIndexKey, RangeIndex> sharedRangeIndex
+		@Nonnull Map<AttributeIndexKey, RangeIndex> sharedRangeIndex,
+		@Nonnull AttributeNormalizationResolver normalizationResolver
 	);
 
 	/**
@@ -2402,7 +2527,8 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		final int indexedDecimalPlaces = attributeSchema.getIndexedDecimalPlaces();
 		final InvertedIndex shared = new InvertedIndex(
 			plainType,
-			FilterIndex.getNormalizer(plainType, indexedDecimalPlaces),
+			getNormalizationResolver().resolveKeyNormalizer(
+				lookupKey.referenceName(), attributeSchema, lookupKey.locale()),
 			FilterIndex.getComparator(lookupKey, plainType),
 			indexedDecimalPlaces
 		);
@@ -2684,6 +2810,9 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * caches ({@link #filterIndex}, {@link #uniqueViewIndex}) hold no producer state and are not tracked here.
 	 */
 	public static class AttributeIndexChanges implements Snapshotable<AttributeIndexChanges.AttributeIndexChangesMemento> {
+		/** Transaction-local future-child binding; absent when this transaction never adopted policy. */
+		@Nullable private AttributeNormalizationResolver normalizationResolver;
+
 		// five producer containers: UNIQUE is standalone, FILTER data lives in the shared value-index container, the
 		// range structure is its own producer container, plus sort and chain.
 		private final TransactionalContainerChanges<UniqueIndex, UniqueIndex> uniqueIndexChanges = new TransactionalContainerChanges<>();
@@ -2756,7 +2885,8 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 				this.sharedValueIndexChanges.snapshot(),
 				this.sharedRangeIndexChanges.snapshot(),
 				this.sortIndexChanges.snapshot(),
-				this.chainIndexChanges.snapshot()
+				this.chainIndexChanges.snapshot(),
+				this.normalizationResolver
 			);
 		}
 
@@ -2767,6 +2897,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			this.sharedRangeIndexChanges.restore(memento.sharedRangeIndexChanges());
 			this.sortIndexChanges.restore(memento.sortIndexChanges());
 			this.chainIndexChanges.restore(memento.chainIndexChanges());
+			this.normalizationResolver = memento.normalizationResolver();
 		}
 
 		/**
@@ -2778,13 +2909,15 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		 * @param sharedRangeIndexChanges snapshot of the shared range-index created/removed bookkeeping
 		 * @param sortIndexChanges        snapshot of the sort-index created/removed bookkeeping
 		 * @param chainIndexChanges       snapshot of the chain-index created/removed bookkeeping
+		 * @param normalizationResolver   transaction-local future-child binding, null when unchanged
 		 */
 		public record AttributeIndexChangesMemento(
 			@Nonnull ContainerChangesMemento<UniqueIndex> uniqueIndexChanges,
 			@Nonnull ContainerChangesMemento<InvertedIndex> sharedValueIndexChanges,
 			@Nonnull ContainerChangesMemento<RangeIndex> sharedRangeIndexChanges,
 			@Nonnull ContainerChangesMemento<SortIndex> sortIndexChanges,
-			@Nonnull ContainerChangesMemento<ChainIndex> chainIndexChanges
+			@Nonnull ContainerChangesMemento<ChainIndex> chainIndexChanges,
+			@Nullable AttributeNormalizationResolver normalizationResolver
 		) {
 		}
 

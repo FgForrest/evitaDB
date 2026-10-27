@@ -56,21 +56,23 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REST;
+import static io.evitadb.test.TestTags.SCHEMA;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static io.evitadb.test.TestTags.REST;
-import static io.evitadb.test.TestTags.EXTERNAL_API;
-import static io.evitadb.test.TestTags.QUERY;
-import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Functional tests for REST endpoints managing internal evitaDB entity schemas.
@@ -89,6 +91,43 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 	@DataSet(value = REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE, openWebApi = RestProvider.CODE, readOnly = false, destroyAfterClass = true)
 	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
 		return super.setUpData(evita, evitaServer, 20, false);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
+	@DisplayName("round-trips typed normalization for global attributes")
+	void shouldRoundTripGlobalAttributeNormalization(RestTester tester) {
+		final List<Map<String, Object>> expected = List.of(
+			Map.of("step", "lowercase", "parameters", Map.of()),
+			Map.of("step", "remove-characters", "parameters", Map.of("characters", "- "))
+		);
+		tester.test(TEST_CATALOG).urlPathSuffix("/schema").httpMethod(Request.METHOD_PUT)
+			.requestBody("""
+				{"mutations":[{"createGlobalAttributeSchemaMutation":{"name":"normalizedGlobalCode",
+				"type":"String","normalization":[{"lowercase":true},{"removeCharacters":{"characters":"- "}}]}}]}
+				""")
+			.executeAndExpectOkAndThen().body("attributes.normalizedGlobalCode.normalized", equalTo(expected));
+		tester.test(TEST_CATALOG).urlPathSuffix("/schema").httpMethod(Request.METHOD_GET)
+			.executeAndExpectOkAndThen().body("attributes.normalizedGlobalCode.normalized", equalTo(expected));
+		tester.test(TEST_CATALOG).urlPathSuffix("/schema").httpMethod(Request.METHOD_PUT)
+			.requestBody("""
+				{"mutations":[{"setAttributeSchemaNormalizedMutation":{"name":"normalizedGlobalCode",
+				"normalization":[{"asciiFolding":true}]}}]}
+				""")
+			.executeAndExpectOkAndThen().body("attributes.normalizedGlobalCode.normalized",
+				equalTo(List.of(Map.of("step", "ascii-folding", "parameters", Map.of()))));
+		for (final String withdrawal : List.of("\"normalization\":[]", "")) {
+			tester.test(TEST_CATALOG).urlPathSuffix("/schema").httpMethod(Request.METHOD_PUT)
+				.requestBody("""
+					{"mutations":[{"setAttributeSchemaNormalizedMutation":{"name":"normalizedGlobalCode"%s}}]}
+					""".formatted(withdrawal.isEmpty() ? "" : "," + withdrawal))
+				.executeAndExpectOkAndThen().body("attributes.normalizedGlobalCode.normalized", equalTo(List.of()));
+		}
+		tester.test(TEST_CATALOG).urlPathSuffix("/schema").httpMethod(Request.METHOD_PUT)
+			.requestBody("""
+				{"mutations":[{"removeAttributeSchemaMutation":{"name":"normalizedGlobalCode"}}]}
+				""")
+			.executeAndExpectOkAndThen();
 	}
 
 	@Test
@@ -243,7 +282,8 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 						.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), createAttributeUniquenessTypeDto(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION))
 						.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), createGlobalAttributeUniquenessTypeDto(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG))
 						.e(AttributeSchemaDescriptor.FILTERABLE.name(), list().i(Scope.LIVE.name()))
-						.e(AttributeSchemaDescriptor.ACCELERATORS_IN_SCOPES.name(), list())
+						.e(AttributeSchemaDescriptor.ACCELERATED.name(), list())
+						.e(AttributeSchemaDescriptor.NORMALIZED.name(), list())
 						.e(AttributeSchemaDescriptor.SORTABLE.name(), list().i(Scope.LIVE.name()))
 						.e(AttributeSchemaDescriptor.LOCALIZED.name(), false)
 						.e(AttributeSchemaDescriptor.NULLABLE.name(), false)

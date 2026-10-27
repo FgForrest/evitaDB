@@ -39,6 +39,7 @@ import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.VirtualReferencePartitionIndexEntries;
 import io.evitadb.index.attribute.ReferenceSortedRecordsProvider;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
+import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -126,7 +127,10 @@ class VirtualPartitionSortedRecordsTest {
 		this.registry.declareSortKey(
 			PRICE,
 			new ComparatorSource[]{new ComparatorSource(BigDecimal.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)},
-			2
+			2,
+			() -> SortIndex.createTypeLevelNormalizerFor(new ComparatorSource[]{
+				new ComparatorSource(BigDecimal.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+			}, 2)
 		);
 		this.registry.declareChainKey(POSITION);
 	}

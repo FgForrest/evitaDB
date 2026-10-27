@@ -212,8 +212,16 @@ class UniqueIndexKeySpaceTest {
 			assertDeclaredType(keyCase, values);
 
 			final OwnerUniqueIndex reloaded = new OwnerUniqueIndex(
-				PRODUCT, OWNER_KEY, part.getType(), keyCase.indexedDecimalPlaces(), values,
-				Objects.requireNonNull(part.getRecordIds())
+				PRODUCT,
+				OWNER_KEY,
+				part.getType(),
+				keyCase.indexedDecimalPlaces(),
+				values,
+				Objects.requireNonNull(part.getRecordIds()),
+				FilterIndex.getNormalizer(
+					part.getType().isArray() ? part.getType().getComponentType() : part.getType(),
+					keyCase.indexedDecimalPlaces()
+				)
 			);
 			assertEquals(1, reloaded.getRecordIdByUniqueValue(keyCase.value(1)));
 			assertEquals(2, reloaded.getRecordIdByUniqueValue(keyCase.spelling(2)));
@@ -251,8 +259,18 @@ class UniqueIndexKeySpaceTest {
 			}
 
 			final OwnerUniqueIndex reloaded = OwnerUniqueIndex.fromPersistedPages(
-				PRODUCT, OWNER_KEY, keyCase.type(), keyCase.indexedDecimalPlaces(), pageSequences, values, recordIds,
-				root.getHighWaterPageSequence()
+				PRODUCT,
+				OWNER_KEY,
+				keyCase.type(),
+				keyCase.indexedDecimalPlaces(),
+				pageSequences,
+				values,
+				recordIds,
+				root.getHighWaterPageSequence(),
+				FilterIndex.getNormalizer(
+					keyCase.type().isArray() ? keyCase.type().getComponentType() : keyCase.type(),
+					keyCase.indexedDecimalPlaces()
+				)
 			);
 			assertTrue(reloaded.isPaged());
 			for (int i = 1; i <= PAGED_COUNT; i++) {
@@ -269,8 +287,16 @@ class UniqueIndexKeySpaceTest {
 			final GenericEvitaInternalError ex = assertThrows(
 				GenericEvitaInternalError.class,
 				() -> new OwnerUniqueIndex(
-					PRODUCT, OWNER_KEY, keyCase.type(), keyCase.indexedDecimalPlaces(),
-					new Serializable[]{keyCase.value(2), keyCase.value(1), keyCase.spelling(1)}, new int[]{8, 5, 7}
+					PRODUCT,
+					OWNER_KEY,
+					keyCase.type(),
+					keyCase.indexedDecimalPlaces(),
+					new Serializable[]{keyCase.value(2), keyCase.value(1), keyCase.spelling(1)},
+					new int[]{8, 5, 7},
+					FilterIndex.getNormalizer(
+						keyCase.type().isArray() ? keyCase.type().getComponentType() : keyCase.type(),
+						keyCase.indexedDecimalPlaces()
+					)
 				)
 			);
 			assertTrue(ex.getMessage().contains("`code`"), ex.getMessage());
@@ -286,9 +312,18 @@ class UniqueIndexKeySpaceTest {
 			final GenericEvitaInternalError ex = assertThrows(
 				GenericEvitaInternalError.class,
 				() -> OwnerUniqueIndex.fromPersistedPages(
-					PRODUCT, OWNER_KEY, keyCase.type(), keyCase.indexedDecimalPlaces(), new int[]{1},
+					PRODUCT,
+					OWNER_KEY,
+					keyCase.type(),
+					keyCase.indexedDecimalPlaces(),
+					new int[]{1},
 					new Serializable[][]{{keyCase.value(1), keyCase.spelling(1), keyCase.value(2)}},
-					new int[][]{{5, 7, 8}}, 1
+					new int[][]{{5, 7, 8}},
+					1,
+					FilterIndex.getNormalizer(
+						keyCase.type().isArray() ? keyCase.type().getComponentType() : keyCase.type(),
+						keyCase.indexedDecimalPlaces()
+					)
 				)
 			);
 			assertTrue(ex.getMessage().contains("`code`"), ex.getMessage());
@@ -416,8 +451,19 @@ class UniqueIndexKeySpaceTest {
 			}
 
 			final GlobalUniqueIndex reloaded = GlobalUniqueIndex.fromPersistedPages(
-				Scope.LIVE, GLOBAL_KEY, keyCase.type(), keyCase.indexedDecimalPlaces(), pageSequences, values, payloads,
-				root.getHighWaterPageSequence(), root.getLocaleIndex()
+				Scope.LIVE,
+				GLOBAL_KEY,
+				keyCase.type(),
+				keyCase.indexedDecimalPlaces(),
+				pageSequences,
+				values,
+				payloads,
+				root.getHighWaterPageSequence(),
+				root.getLocaleIndex(),
+				FilterIndex.getNormalizer(
+					keyCase.type().isArray() ? keyCase.type().getComponentType() : keyCase.type(),
+					keyCase.indexedDecimalPlaces()
+				)
 			);
 			assertTrue(reloaded.isPaged());
 			for (int i = 1; i <= PAGED_COUNT; i++) {
@@ -464,9 +510,19 @@ class UniqueIndexKeySpaceTest {
 			final GenericEvitaInternalError ex = assertThrows(
 				GenericEvitaInternalError.class,
 				() -> GlobalUniqueIndex.fromPersistedPages(
-					Scope.LIVE, GLOBAL_KEY, keyCase.type(), keyCase.indexedDecimalPlaces(), new int[]{1},
+					Scope.LIVE,
+					GLOBAL_KEY,
+					keyCase.type(),
+					keyCase.indexedDecimalPlaces(),
+					new int[]{1},
 					new Serializable[][]{{keyCase.value(1), keyCase.spelling(1)}},
-					new long[][]{{productPayload, categoryPayload}}, 1, Map.of()
+					new long[][]{{productPayload, categoryPayload}},
+					1,
+					Map.of(),
+					FilterIndex.getNormalizer(
+						keyCase.type().isArray() ? keyCase.type().getComponentType() : keyCase.type(),
+						keyCase.indexedDecimalPlaces()
+					)
 				)
 			);
 			assertTrue(ex.getMessage().contains("`code`"), ex.getMessage());
@@ -483,7 +539,7 @@ class UniqueIndexKeySpaceTest {
 		) {
 			final GlobalUniqueIndex.InlineSnapshot snapshot = index.inlineSnapshot();
 			final Function<Object, Serializable> normalizer =
-				UniqueIndexBPlusTreeSupport.normalizerFor(keyCase.type(), keyCase.indexedDecimalPlaces());
+				UniqueIndexBPlusTreeSupport.persistedValueNormalizerFor(keyCase.type(), keyCase.indexedDecimalPlaces());
 			final Comparable<?> key = UniqueIndexBPlusTreeSupport.toKey(normalizer, value);
 			for (int i = 0; i < snapshot.values().length; i++) {
 				final Comparable<?> persisted = UniqueIndexBPlusTreeSupport.toKey(normalizer, snapshot.values()[i]);

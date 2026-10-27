@@ -458,7 +458,8 @@ class PublishRestoredCatalogTaskTest {
 			// between. Swapping on the name alone would destroy it on the strength of an observation made before
 			// it existed, so the swap has to say it expected the name to be free rather than merely to be free of
 			// anything it recognises.
-			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
+			when(
+				PublishRestoredCatalogTaskTest.this.evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
 			stubSwap();
 			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), noOpSteps(), null);
 			task.transitionToIssued();
@@ -480,7 +481,8 @@ class PublishRestoredCatalogTaskTest {
 			// target name while the restore ran is a different catalog, and replacing it was never what the client
 			// asked for - so the expectation is pinned to the folder, which never repeats for a name.
 			final CatalogFolderId targetAtSubmission = new CatalogFolderId(SOURCE_CATALOG + "_7");
-			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
+			when(
+				PublishRestoredCatalogTaskTest.this.evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
 			stubSwap();
 			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), noOpSteps(), targetAtSubmission);
 			task.transitionToIssued();
@@ -504,14 +506,15 @@ class PublishRestoredCatalogTaskTest {
 			// claim is released, so another operation may drop this restore's scratch catalog and create its own
 			// under the same name. Publishing that one under the target name would serve a stranger's data as the
 			// restored result.
-			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
+			when(
+				PublishRestoredCatalogTaskTest.this.evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
 			stubSwap();
 			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), noOpSteps(), null);
 			task.transitionToIssued();
 
 			task.execute();
 
-			final CatalogFolderId ourScratch = scratchFolderBinding.get();
+			final CatalogFolderId ourScratch = PublishRestoredCatalogTaskTest.this.scratchFolderBinding.get();
 			assertNotNull(ourScratch, "The restoration steps must have recorded the folder they allocated.");
 			final List<EngineMutationPrecondition> preconditions = capturedPreconditions();
 			assertTrue(
@@ -526,7 +529,8 @@ class PublishRestoredCatalogTaskTest {
 		@Test
 		@DisplayName("Removes the intermediate archive once the swap has committed")
 		void shouldRemoveTheArchiveOnceTheSwapCommits() {
-			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
+			when(
+				PublishRestoredCatalogTaskTest.this.evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
 			stubSwap();
 			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), noOpSteps());
 			task.transitionToIssued();
@@ -536,10 +540,10 @@ class PublishRestoredCatalogTaskTest {
 			// asserted here rather than end-to-end because a listing that comes back empty cannot tell "the archive
 			// was removed" apart from "no archive was ever created"
 			assertEquals(
-				List.of(archive.fileId()), exportService.deletedFiles,
+				List.of(PublishRestoredCatalogTaskTest.this.archive.fileId()), PublishRestoredCatalogTaskTest.this.exportService.deletedFiles,
 				"The intermediate archive must be removed exactly once, by id."
 			);
-			verify(evita, never()).deleteCatalogIfExistsWithProgress(anyString());
+			verify(PublishRestoredCatalogTaskTest.this.evita, never()).deleteCatalogIfExistsWithProgress(anyString());
 			assertEquals(TaskSimplifiedState.FINISHED, task.getStatus().simplifiedState());
 			assertEquals(100, task.getStatus().progress());
 		}
@@ -550,17 +554,18 @@ class PublishRestoredCatalogTaskTest {
 			// The scratch name is minted per invocation rather than chosen by a client, so it is the one name that
 			// escapes the bound the engine's generation counters are otherwise kept under - a counter left behind
 			// is an entry carried for the rest of the process, once per restore ever performed.
-			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
+			when(
+				PublishRestoredCatalogTaskTest.this.evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
 			stubSwap();
 			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), noOpSteps());
 			task.transitionToIssued();
 
 			task.execute();
 
-			verify(evita).retireCatalogGenerationSequence(TEMPORARY_CATALOG);
+			verify(PublishRestoredCatalogTaskTest.this.evita).retireCatalogGenerationSequence(TEMPORARY_CATALOG);
 			// the other half of the rule, and the dangerous one: a client-chosen name may have an expectation
 			// outstanding against it for as long as a backup, an unpack and a load take
-			verify(evita, never()).retireCatalogGenerationSequence(SOURCE_CATALOG);
+			verify(PublishRestoredCatalogTaskTest.this.evita, never()).retireCatalogGenerationSequence(SOURCE_CATALOG);
 		}
 
 		@Test
@@ -572,7 +577,8 @@ class PublishRestoredCatalogTaskTest {
 			// the longest stretch a monitoring client sees without a single update.
 			final List<Integer> reportedProgress = new ArrayList<>(1);
 			final AtomicReference<PublishRestoredCatalogTask> holder = new AtomicReference<>();
-			final CatalogFolderContext folderContext = TestCatalogFolderContexts.onDirectory(storageDirectory);
+			final CatalogFolderContext folderContext = TestCatalogFolderContexts.onDirectory(
+				PublishRestoredCatalogTaskTest.this.storageDirectory);
 			final RestorationStepsFactory reportingSteps =
 				(catalogName, fileId, pathToFile, totalBytesExpected, deleteAfterRestore) -> {
 					final RestoreFolderClaim claim = new RestoreFolderClaim();
@@ -581,7 +587,7 @@ class PublishRestoredCatalogTaskTest {
 							"restoreCatalog", "unpack", null,
 							step -> {
 								claim.allocate(folderContext, catalogName);
-								scratchFolderBinding.set(claim.allocatedFolderId());
+								PublishRestoredCatalogTaskTest.this.scratchFolderBinding.set(claim.allocatedFolderId());
 								// read from inside the step, the only moment the sequence is in flight - the phase
 								// runs inline on this very thread, so there is no later point to observe it from
 								step.updateProgress(100);
@@ -593,7 +599,8 @@ class PublishRestoredCatalogTaskTest {
 						claim
 					);
 				};
-			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
+			when(
+				PublishRestoredCatalogTaskTest.this.evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
 			stubSwap();
 			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), reportingSteps);
 			holder.set(task);
@@ -616,7 +623,7 @@ class PublishRestoredCatalogTaskTest {
 			// reordered constant surfaces only as a progress bar jumping backwards on a live monitoring client
 			final List<Integer> reportedProgress = new ArrayList<>(2);
 			final AtomicReference<PublishRestoredCatalogTask> holder = new AtomicReference<>();
-			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(
+			when(PublishRestoredCatalogTaskTest.this.evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(
 				progressFeeding(
 					listener -> {
 						listener.accept(0);
@@ -647,9 +654,10 @@ class PublishRestoredCatalogTaskTest {
 		@Test
 		@DisplayName("Drops the temporary catalog and keeps the archive when the swap fails")
 		void shouldDropTheTemporaryCatalogAndKeepTheArchiveWhenTheSwapFails() {
-			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
+			when(
+				PublishRestoredCatalogTaskTest.this.evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
 			stubFailingSwap(new IllegalStateException("the swap failed"));
-			when(evita.deleteCatalogIfExistsWithProgress(TEMPORARY_CATALOG))
+			when(PublishRestoredCatalogTaskTest.this.evita.deleteCatalogIfExistsWithProgress(TEMPORARY_CATALOG))
 				.thenReturn(Optional.of(completedProgress()));
 			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), noOpSteps());
 			task.transitionToIssued();
@@ -657,11 +665,11 @@ class PublishRestoredCatalogTaskTest {
 			final CompletionException thrown = assertThrows(CompletionException.class, task::execute);
 
 			assertEquals("the swap failed", thrown.getCause().getMessage());
-			verify(evita).deleteCatalogIfExistsWithProgress(TEMPORARY_CATALOG);
+			verify(PublishRestoredCatalogTaskTest.this.evita).deleteCatalogIfExistsWithProgress(TEMPORARY_CATALOG);
 			// the kept archive is a promise made to the operator in writing: a failed run leaves it listed among
 			// the files to fetch, so the restore can be retried from it by hand
 			assertTrue(
-				exportService.deletedFiles.isEmpty(),
+				PublishRestoredCatalogTaskTest.this.exportService.deletedFiles.isEmpty(),
 				"A failed restore must keep its archive - it is the operator's cheapest way to retry."
 			);
 			assertEquals(TaskSimplifiedState.FAILED, task.getStatus().simplifiedState());
@@ -672,24 +680,25 @@ class PublishRestoredCatalogTaskTest {
 		void shouldRetireTheScratchGenerationCounterWhenTheSwapFailed() {
 			// a failed restore mints a scratch name exactly as a successful one does, so a retirement attached to
 			// the success path alone would move the leak rather than close it
-			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
+			when(
+				PublishRestoredCatalogTaskTest.this.evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
 			stubFailingSwap(new IllegalStateException("the swap failed"));
-			when(evita.deleteCatalogIfExistsWithProgress(TEMPORARY_CATALOG))
+			when(PublishRestoredCatalogTaskTest.this.evita.deleteCatalogIfExistsWithProgress(TEMPORARY_CATALOG))
 				.thenReturn(Optional.of(completedProgress()));
 			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), noOpSteps());
 			task.transitionToIssued();
 
 			assertThrows(CompletionException.class, task::execute);
 
-			verify(evita).retireCatalogGenerationSequence(TEMPORARY_CATALOG);
+			verify(PublishRestoredCatalogTaskTest.this.evita).retireCatalogGenerationSequence(TEMPORARY_CATALOG);
 		}
 
 		@Test
 		@DisplayName("Drops the temporary catalog when the load fails before the swap is attempted")
 		void shouldDropTheTemporaryCatalogWhenTheActivationFails() {
-			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG))
+			when(PublishRestoredCatalogTaskTest.this.evita.activateCatalogWithProgress(TEMPORARY_CATALOG))
 				.thenReturn(failedProgress(new IllegalStateException("the catalog could not be loaded")));
-			when(evita.deleteCatalogIfExistsWithProgress(TEMPORARY_CATALOG))
+			when(PublishRestoredCatalogTaskTest.this.evita.deleteCatalogIfExistsWithProgress(TEMPORARY_CATALOG))
 				.thenReturn(Optional.of(completedProgress()));
 			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), noOpSteps());
 			task.transitionToIssued();
@@ -697,17 +706,17 @@ class PublishRestoredCatalogTaskTest {
 			final CompletionException thrown = assertThrows(CompletionException.class, task::execute);
 
 			assertEquals("the catalog could not be loaded", thrown.getCause().getMessage());
-			verify(evita, never()).replaceCatalogWithProgress(
+			verify(PublishRestoredCatalogTaskTest.this.evita, never()).replaceCatalogWithProgress(
 				anyString(), anyString(), any(EngineMutationPrecondition[].class));
-			verify(evita).deleteCatalogIfExistsWithProgress(TEMPORARY_CATALOG);
-			assertTrue(exportService.deletedFiles.isEmpty());
+			verify(PublishRestoredCatalogTaskTest.this.evita).deleteCatalogIfExistsWithProgress(TEMPORARY_CATALOG);
+			assertTrue(PublishRestoredCatalogTaskTest.this.exportService.deletedFiles.isEmpty());
 		}
 
 		@Test
 		@DisplayName("Names the export retention when the archive disappeared before it could be read back")
 		void shouldNameTheExportRetentionWhenTheArchiveDisappeared() {
-			final UUID missingFileId = archive.fileId();
-			exportService.beforeFetch = () -> {
+			final UUID missingFileId = PublishRestoredCatalogTaskTest.this.archive.fileId();
+			PublishRestoredCatalogTaskTest.this.exportService.beforeFetch = () -> {
 				throw new FileForFetchNotFoundException(missingFileId);
 			};
 			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), noOpSteps());
@@ -731,7 +740,7 @@ class PublishRestoredCatalogTaskTest {
 		@Test
 		@DisplayName("Names the catalog when the archive cannot be copied into the work directory")
 		void shouldNameTheCatalogWhenTheArchiveCannotBeReadBack() {
-			exportService.contentSupplier = () -> new InputStream() {
+			PublishRestoredCatalogTaskTest.this.exportService.contentSupplier = () -> new InputStream() {
 				@Override
 				public int read() throws IOException {
 					throw new IOException("no space left on device");
@@ -760,15 +769,15 @@ class PublishRestoredCatalogTaskTest {
 			// broken invariant rather than a runtime outcome - and it must be named as one before anything is touched
 			final ClientCallableTask<Void, FileForFetch> neverRunBackup = new ClientCallableTask<>(
 				"backupCatalog", "Backing up catalog `" + SOURCE_CATALOG + "`.", null,
-				theTask -> archive, TaskTrait.CAN_BE_CANCELLED
+				theTask -> PublishRestoredCatalogTaskTest.this.archive, TaskTrait.CAN_BE_CANCELLED
 			);
 			final PublishRestoredCatalogTask task = taskWith(neverRunBackup, noOpSteps());
 			task.transitionToIssued();
 
 			assertThrows(GenericEvitaInternalError.class, task::execute);
 
-			assertTrue(exportService.fetchedFiles.isEmpty(), "Nothing may be fetched before the premise holds.");
-			verifyNoInteractions(evita);
+			assertTrue(PublishRestoredCatalogTaskTest.this.exportService.fetchedFiles.isEmpty(), "Nothing may be fetched before the premise holds.");
+			verifyNoInteractions(PublishRestoredCatalogTaskTest.this.evita);
 		}
 
 		@Test
@@ -789,9 +798,9 @@ class PublishRestoredCatalogTaskTest {
 
 			assertThrows(IllegalStateException.class, task::execute);
 
-			verify(evita, never()).deleteCatalogIfExistsWithProgress(anyString());
+			verify(PublishRestoredCatalogTaskTest.this.evita, never()).deleteCatalogIfExistsWithProgress(anyString());
 			assertTrue(
-				exportService.deletedFiles.isEmpty(),
+				PublishRestoredCatalogTaskTest.this.exportService.deletedFiles.isEmpty(),
 				"A restore that failed must keep its archive so it can be retried by hand."
 			);
 		}
@@ -803,7 +812,8 @@ class PublishRestoredCatalogTaskTest {
 			// scratch name is an ordinary catalog name: another operation may drop this restore's catalog and
 			// create its own under it. That catalog is bound to a folder of its own, which is what tells the two
 			// apart - "this restore once allocated something" cannot, and would delete a stranger's catalog.
-			final CatalogFolderContext folderContext = TestCatalogFolderContexts.onDirectory(storageDirectory);
+			final CatalogFolderContext folderContext = TestCatalogFolderContexts.onDirectory(
+				PublishRestoredCatalogTaskTest.this.storageDirectory);
 			final RestorationStepsFactory hijackedSteps =
 				(catalogName, fileId, pathToFile, totalBytesExpected, deleteAfterRestore) -> {
 					final RestoreFolderClaim claim = new RestoreFolderClaim();
@@ -813,7 +823,7 @@ class PublishRestoredCatalogTaskTest {
 							() -> {
 								claim.allocate(folderContext, catalogName);
 								// the name now denotes somebody else's folder, not the one just allocated
-								scratchFolderBinding.set(new CatalogFolderId(catalogName + "_99"));
+								PublishRestoredCatalogTaskTest.this.scratchFolderBinding.set(new CatalogFolderId(catalogName + "_99"));
 							},
 							TaskTrait.CAN_BE_CANCELLED
 						),
@@ -821,22 +831,24 @@ class PublishRestoredCatalogTaskTest {
 						claim
 					);
 				};
-			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
+			when(
+				PublishRestoredCatalogTaskTest.this.evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
 			stubFailingSwap(new IllegalStateException("the swap failed"));
 			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), hijackedSteps);
 			task.transitionToIssued();
 
 			assertThrows(CompletionException.class, task::execute);
 
-			verify(evita, never()).deleteCatalogIfExistsWithProgress(anyString());
+			verify(PublishRestoredCatalogTaskTest.this.evita, never()).deleteCatalogIfExistsWithProgress(anyString());
 		}
 
 		@Test
 		@DisplayName("Lets the original failure out when the clean-up fails as well")
 		void shouldNotMaskTheOriginalFailureWhenTheCleanUpAlsoFails() {
-			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
+			when(
+				PublishRestoredCatalogTaskTest.this.evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
 			stubFailingSwap(new IllegalStateException("the swap failed"));
-			when(evita.deleteCatalogIfExistsWithProgress(TEMPORARY_CATALOG))
+			when(PublishRestoredCatalogTaskTest.this.evita.deleteCatalogIfExistsWithProgress(TEMPORARY_CATALOG))
 				.thenThrow(new IllegalStateException("the temporary catalog could not be dropped"));
 			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), noOpSteps());
 			task.transitionToIssued();
@@ -864,7 +876,7 @@ class PublishRestoredCatalogTaskTest {
 			final AtomicReference<PublishRestoredCatalogTask> holder = new AtomicReference<>();
 			// cancelling from inside the fetch puts the cancel at a boundary the test names, instead of wherever a
 			// second thread would have happened to land
-			exportService.beforeFetch = () -> holder.get().cancel();
+			PublishRestoredCatalogTaskTest.this.exportService.beforeFetch = () -> holder.get().cancel();
 			final PublishRestoredCatalogTask task = taskWith(
 				completedBackupTask(), noOpSteps(unpackRan, registerRan)
 			);
@@ -876,14 +888,14 @@ class PublishRestoredCatalogTaskTest {
 			assertTrue(task.getFutureResult().isCancelled(), "The result future was not cancelled.");
 			assertFalse(unpackRan.get(), "The archive was unpacked after the task had been cancelled.");
 			assertFalse(registerRan.get(), "The temporary catalog was registered after the task was cancelled.");
-			verify(evita, never()).replaceCatalogWithProgress(
+			verify(PublishRestoredCatalogTaskTest.this.evita, never()).replaceCatalogWithProgress(
 				anyString(), anyString(), any(EngineMutationPrecondition[].class));
 			// cancelled before the unpacking step, so the folder was never allocated and nothing was ever
 			// registered under this name. Removing it regardless would be removing whatever else happens to
 			// answer to it - see the clean-up's ownership test below
-			verify(evita, never()).deleteCatalogIfExistsWithProgress(anyString());
+			verify(PublishRestoredCatalogTaskTest.this.evita, never()).deleteCatalogIfExistsWithProgress(anyString());
 			assertTrue(
-				exportService.deletedFiles.isEmpty(),
+				PublishRestoredCatalogTaskTest.this.exportService.deletedFiles.isEmpty(),
 				"A cancelled restore keeps its archive on the same terms as a failed one."
 			);
 		}
@@ -892,7 +904,7 @@ class PublishRestoredCatalogTaskTest {
 		@DisplayName("Leaves no local copy of the archive in the work directory when cancelled")
 		void shouldNotLeaveTheFetchedArchiveInTheWorkDirectoryWhenCancelled() {
 			final AtomicReference<PublishRestoredCatalogTask> holder = new AtomicReference<>();
-			exportService.beforeFetch = () -> holder.get().cancel();
+			PublishRestoredCatalogTaskTest.this.exportService.beforeFetch = () -> holder.get().cancel();
 			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), noOpSteps());
 			holder.set(task);
 			task.transitionToIssued();
@@ -903,7 +915,7 @@ class PublishRestoredCatalogTaskTest {
 			// DELETE_ON_CLOSE - so a cancel landing before that step would orphan a full compressed copy of the
 			// catalog in the work directory, and repeating a cancelled restore would grow it without bound
 			assertFalse(
-				Files.exists(workDirectory.resolve(archive.fileId() + ".zip")),
+				Files.exists(PublishRestoredCatalogTaskTest.this.workDirectory.resolve(PublishRestoredCatalogTaskTest.this.archive.fileId() + ".zip")),
 				"A cancelled restore must take its local copy of the archive with it."
 			);
 		}
@@ -916,9 +928,11 @@ class PublishRestoredCatalogTaskTest {
 		@Test
 		@DisplayName("Releases the folder claim once the archive has been unpacked")
 		void shouldReleaseTheFolderClaimWhenTheUnpackingSucceeded() {
-			final CatalogFolderContext folderContext = TestCatalogFolderContexts.onDirectory(storageDirectory);
+			final CatalogFolderContext folderContext = TestCatalogFolderContexts.onDirectory(
+				PublishRestoredCatalogTaskTest.this.storageDirectory);
 			final RestoreFolderClaim claim = new RestoreFolderClaim();
-			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
+			when(
+				PublishRestoredCatalogTaskTest.this.evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
 			stubSwap();
 			final PublishRestoredCatalogTask task = taskWith(
 				completedBackupTask(), claimingSteps(claim, folderContext, () -> null)
@@ -933,9 +947,10 @@ class PublishRestoredCatalogTaskTest {
 		@Test
 		@DisplayName("Releases the folder claim even when the unpacking threw")
 		void shouldReleaseTheFolderClaimWhenTheUnpackingThrew() {
-			final CatalogFolderContext folderContext = TestCatalogFolderContexts.onDirectory(storageDirectory);
+			final CatalogFolderContext folderContext = TestCatalogFolderContexts.onDirectory(
+				PublishRestoredCatalogTaskTest.this.storageDirectory);
 			final RestoreFolderClaim claim = new RestoreFolderClaim();
-			when(evita.deleteCatalogIfExistsWithProgress(TEMPORARY_CATALOG))
+			when(PublishRestoredCatalogTaskTest.this.evita.deleteCatalogIfExistsWithProgress(TEMPORARY_CATALOG))
 				.thenReturn(Optional.of(completedProgress()));
 			final PublishRestoredCatalogTask task = taskWith(
 				completedBackupTask(),

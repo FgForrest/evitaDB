@@ -23,15 +23,20 @@
 
 package io.evitadb.store.offsetIndex;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.zip.Deflater;
+import org.junit.jupiter.params.provider.ValueSource;
 import com.esotericsoftware.kryo.io.Input;
 import com.github.javafaker.Faker;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.function.Functions;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
@@ -66,12 +71,15 @@ import org.mockito.Mockito;
 import org.opentest4j.AssertionFailedError;
 
 import javax.annotation.Nonnull;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -94,6 +102,7 @@ import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.compu
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.MEM_TABLE_RECORD_SIZE;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -108,6 +117,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
+@DisplayName("Offset index operations")
 @Tag(STORAGE)
 @Tag(MANAGEMENT)
 class OffsetIndexTest implements EvitaTestSupport {
@@ -432,6 +442,133 @@ class OffsetIndexTest implements EvitaTestSupport {
 	@Nested
 	@DisplayName("Persistence round-trip")
 	class PersistenceRoundTrip {
+
+		/**
+		 * Snapshot-local serializers own their compressors but must leave the caller's stream open.
+		 *
+		 * @param fail whether progress reporting aborts the snapshot
+		 * @throws IOException if the storage fixture cannot be created
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Snapshot serializers end compressors on success and failure without closing the caller stream")
+		void shouldEndSnapshotCompressors(boolean fail) throws IOException {
+			final StorageSettings settings = Mockito.spy(configure(
+				StorageOptions.builder().outputBufferSize(4096).build(), ChecksumCheck.YES, Compression.YES));
+			final List<Deflater> compressors = new ArrayList<>();
+			Mockito.doAnswer(invocation -> {
+				final Deflater compressor = Mockito.spy(new Deflater());
+				compressors.add(compressor);
+				return Optional.of(compressor);
+			}).when(settings).createCompressor();
+			final AtomicBoolean closed = new AtomicBoolean();
+			try (final ObservableOutputKeeper keeper = createMockedObservableOutputKeeper()) {
+				final OffsetIndex index = createNewOffsetIndex(
+					0L, settings, createWriteOnlyFileHandle(OffsetIndexTest.this.targetFile, settings, keeper),
+					OffsetIndexTest.this.offsetIndexRecordTypeRegistry);
+				try {
+					index.put(1L, new EntityBodyStoragePart(1));
+					index.flush(1L);
+					final int initialCompressors = compressors.size();
+					final ByteArrayOutputStream target = new ByteArrayOutputStream() {
+						/** Observes whether the snapshot closes the caller-owned destination. */
+						@Override
+						public void close() {
+							closed.set(true);
+						}
+					};
+					if (fail) {
+						assertThrows(IllegalStateException.class, () -> index.copySnapshotTo(
+							target, count -> { throw new IllegalStateException("Progress failed"); },
+							1L, new EntityBodyStoragePart(1)));
+					} else {
+						index.copySnapshotTo(target, null, 1L, new EntityBodyStoragePart(1));
+					}
+					assertFalse(closed.get());
+					assertEquals(initialCompressors + 2, compressors.size());
+					for (int i = initialCompressors; i < compressors.size(); i++) {
+						Mockito.verify(compressors.get(i)).end();
+					}
+				} finally {
+					IOUtils.closeQuietly(index::close);
+				}
+			} finally {
+				compressors.forEach(Deflater::end);
+			}
+		}
+
+		/**
+		 * Copies records written with a larger frame buffer, including a record spanning several frames.
+		 */
+		@Test
+		@DisplayName("Snapshot copy accepts source frames larger than the copying buffer")
+		void shouldCopySnapshotWithFramesLargerThanOutputBuffer() throws IOException {
+			final StorageSettings writerSettings = configure(
+				StorageOptions.builder().outputBufferSize(1_048_576).build(), ChecksumCheck.YES, Compression.NO
+			);
+			final StorageSettings copierSettings = configure(
+				StorageOptions.builder().outputBufferSize(65_536).build(), ChecksumCheck.YES, Compression.NO
+			);
+			final AssociatedDataStoragePart[] parts = new AssociatedDataStoragePart[3];
+			final long[] ids = new long[parts.length];
+			final Path snapshot = Files.createTempFile("snapshot-large-frames", ".kryo");
+			try (final ObservableOutputKeeper keeper = createMockedObservableOutputKeeper()) {
+				final OffsetIndexDescriptor descriptor;
+				final OffsetIndex writer = createNewOffsetIndex(
+					0L, writerSettings,
+					createWriteOnlyFileHandle(OffsetIndexTest.this.targetFile, writerSettings, keeper),
+					OffsetIndexTest.this.offsetIndexRecordTypeRegistry
+				);
+				try {
+					for (int i = 0; i < parts.length; i++) {
+						final String[] value = new String[i == 2 ? 400 : 40 + i * 10];
+						for (int j = 0; j < value.length; j++) {
+							value[j] = "payload".repeat(1_170) + j;
+						}
+						parts[i] = new AssociatedDataStoragePart(i + 1, new AssociatedDataKey("largePayload"));
+						parts[i].replaceAssociatedData(new AssociatedDataValue(new AssociatedDataKey("largePayload"), value));
+						ids[i] = writer.put(1L, parts[i]);
+					}
+					descriptor = writer.flush(1L);
+					assertTrue(writer.getEntries(1L).stream().allMatch(
+						entry -> entry.getValue().recordLength() > copierSettings.outputBufferSize()
+					));
+					assertTrue(writer.getEntries(1L).stream().anyMatch(
+						entry -> entry.getValue().recordLength() > 3 * writerSettings.outputBufferSize()
+					));
+				} finally {
+					IOUtils.closeQuietly(writer::close);
+				}
+				final OffsetIndexDescriptor copiedDescriptor;
+				final OffsetIndex copier = loadOffsetIndex(
+					1L, descriptor, copierSettings,
+					createWriteOnlyFileHandle(OffsetIndexTest.this.targetFile, copierSettings, keeper),
+					OffsetIndexTest.this.offsetIndexRecordTypeRegistry
+				);
+				try (final FileOutputStream output = new FileOutputStream(snapshot.toFile())) {
+					copiedDescriptor = copier.copySnapshotTo(output, null, 2L);
+				} finally {
+					IOUtils.closeQuietly(copier::close);
+				}
+				final OffsetIndex copied = loadOffsetIndex(
+					2L, copiedDescriptor, copierSettings, createWriteOnlyFileHandle(snapshot, copierSettings, keeper),
+					OffsetIndexTest.this.offsetIndexRecordTypeRegistry
+				);
+				try {
+					assertEquals(parts.length, copied.count(2L));
+					for (int i = 0; i < parts.length; i++) {
+						final AssociatedDataStoragePart actual = copied.get(2L, ids[i], AssociatedDataStoragePart.class);
+						assertEquals(parts[i], actual);
+						assertNotNull(actual);
+						assertArrayEquals((String[]) parts[i].getValue().value(), (String[]) actual.getValue().value());
+					}
+				} finally {
+					IOUtils.closeQuietly(copied::close);
+				}
+			} finally {
+				Files.deleteIfExists(snapshot);
+			}
+		}
 
 		@DisplayName("Offset index can be stored empty.")
 		@ParameterizedTest

@@ -31,7 +31,9 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
@@ -75,6 +77,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -95,6 +98,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.HISTOGRAM;
@@ -5294,6 +5298,99 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 			assertNotNull(current, "Expected a refusal saying `" + expectedMessagePart + "`, got: " + thrown);
 		}
 
+	}
+
+
+	/** Exercises normalization annotations on candidate schemas without reaching later-phase WAL serialization. */
+	@Nested
+	@DisplayName("Normalized attributes declared by annotation")
+	class NormalizedAttributes {
+
+		/** Entity, global and reference steps preserve declared order and string-valued parameters. */
+		@Test
+		@DisplayName("Normalization maps to every attribute location alongside scoped indexing")
+		void shouldMapNormalizationAnnotations() {
+			ClassSchemaAnalyzerTest.this.evita.queryCatalog(TEST_CATALOG, session -> {
+				final Candidate candidate = analyzeCandidate(
+					session, GetterBasedEntityNormalizedEvolutionV1.class, null
+				);
+				final EntitySchemaContract schema = candidate.entity();
+				final AttributeSchemaContract code = schema.getAttribute("code").orElseThrow();
+				assertEquals(List.of(lowercase(), removeCharacters("- ")), code.getNormalization());
+				assertFalse(code.isFilterableInScope(Scope.LIVE));
+				assertTrue(code.isFilterableInScope(Scope.ARCHIVED));
+				assertEquals(List.of(asciiFolding()), candidate.catalog()
+					.getAttribute("normalizedGlobalCode").orElseThrow().getNormalization());
+				assertEquals(List.of(asciiFolding()), schema.getAttribute("normalizedGlobalCode")
+					.orElseThrow().getNormalization());
+				assertEquals(List.of(trim()), schema.getReference("brand").orElseThrow()
+					.getAttribute("labels").orElseThrow().getNormalization());
+				assertEquals(0, analyzeCandidate(session, GetterBasedEntityNormalizedEvolutionV1.class, candidate)
+					.mutations().length);
+			});
+		}
+
+		/** Omitting normalization in a later model withdraws it on all three attribute locations. */
+		@Test
+		@DisplayName("Removing normalization annotations removes the declarations")
+		void shouldWithdrawNormalizationOmittedByLaterModel() {
+			ClassSchemaAnalyzerTest.this.evita.queryCatalog(TEST_CATALOG, session -> {
+				final Candidate original = analyzeCandidate(
+					session, GetterBasedEntityNormalizedEvolutionV1.class, null
+				);
+				final Candidate changed = analyzeCandidate(
+					session, GetterBasedEntityNormalizedEvolutionV2.class, original
+				);
+				assertTrue(changed.entity().getAttribute("code").orElseThrow().getNormalization().isEmpty());
+				assertTrue(changed.catalog().getAttribute("normalizedGlobalCode")
+					.orElseThrow().getNormalization().isEmpty());
+				assertTrue(changed.entity().getReference("brand").orElseThrow()
+					.getAttribute("labels").orElseThrow().getNormalization().isEmpty());
+			});
+		}
+
+		/**
+		 * Analyzes the candidate in memory, presenting any preceding candidate as the session's schema.
+		 *
+		 * @param session session whose catalog schema is the base of the first analysis
+		 * @param model annotated model class to analyze
+		 * @param previous result of the preceding analysis to build upon, or `null` for the first one
+		 * @return catalog and entity schemas produced by the analysis, with the mutations that led to them
+		 */
+		@Nonnull
+		private Candidate analyzeCandidate(
+			@Nonnull EvitaSessionContract session,
+			@Nonnull Class<?> model,
+			@Nullable Candidate previous
+		) {
+			final CatalogSchemaBuilder catalog = previous == null ? session.getCatalogSchema().openForWrite() :
+				new InternalCatalogSchemaBuilder(previous.catalog());
+			final EvitaSessionContract candidateSession = Mockito.mock(EvitaSessionContract.class);
+			Mockito.when(candidateSession.getEntitySchema(GetterBasedEntityNormalizedEvolutionV1.ENTITY_NAME))
+				.thenReturn(previous == null ? Optional.empty() : Optional.of(
+					new EntitySchemaDecorator(previous::catalog, (EntitySchema) previous.entity())
+				));
+			final AtomicReference<EntitySchemaBuilder> entity = new AtomicReference<>();
+			final ClassSchemaAnalyzer analyzer = new ClassSchemaAnalyzer(
+				model, ReflectionLookup.NO_CACHE_INSTANCE, (catalogBuilder, entityBuilder) -> entity.set(entityBuilder)
+			);
+			final ClassSchemaAnalyzer.AnalysisResult result = analyzer.analyze(candidateSession, catalog);
+			return new Candidate(catalog.toInstance(), entity.get().toInstance(), result.mutations());
+		}
+
+		/**
+		 * In-memory analyzer output used to verify schema evolution without persisting a mutation.
+		 *
+		 * @param catalog catalog schema after applying the analyzer output
+		 * @param entity schema of the analyzed entity after applying the analyzer output
+		 * @param mutations schema mutations emitted by the analyzer
+		 */
+		private record Candidate(
+			@Nonnull CatalogSchemaContract catalog,
+			@Nonnull EntitySchemaContract entity,
+			@Nonnull LocalCatalogSchemaMutation[] mutations
+		) {
+		}
 	}
 
 }

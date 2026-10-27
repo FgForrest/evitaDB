@@ -777,6 +777,33 @@ public interface GrpcEntitySchemaMutationOrBuilder extends
 
   /**
    * <pre>
+   * Replaces the declared normalization chain; an empty chain removes normalization.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 127;</code>
+   * @return Whether the setAttributeSchemaNormalizedMutation field is set.
+   */
+  boolean hasSetAttributeSchemaNormalizedMutation();
+  /**
+   * <pre>
+   * Replaces the declared normalization chain; an empty chain removes normalization.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 127;</code>
+   * @return The setAttributeSchemaNormalizedMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation getSetAttributeSchemaNormalizedMutation();
+  /**
+   * <pre>
+   * Replaces the declared normalization chain; an empty chain removes normalization.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 127;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutationOrBuilder getSetAttributeSchemaNormalizedMutationOrBuilder();
+
+  /**
+   * <pre>
    * Mutation is responsible for adding one or more currencies to a `EntitySchema.currencies` in `EntitySchema`.
    * </pre>
    *

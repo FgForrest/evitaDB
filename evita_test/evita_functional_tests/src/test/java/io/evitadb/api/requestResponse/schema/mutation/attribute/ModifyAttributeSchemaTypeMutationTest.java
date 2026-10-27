@@ -45,6 +45,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+
 import org.mockito.Mockito;
 import org.junit.jupiter.api.Tag;
 
@@ -53,11 +54,11 @@ import java.util.EnumSet;
 import java.util.Set;
 
 import static io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutationTest.*;
-import static java.util.Optional.of;
-import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.SCHEMA;
-import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static java.util.Optional.of;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Test verifies {@link ModifyAttributeSchemaTypeMutation} class.
@@ -86,7 +87,7 @@ class ModifyAttributeSchemaTypeMutationTest {
 		assertNull(result.origin());
 		assertNotNull(result.current());
 		assertInstanceOf(ModifyAttributeSchemaTypeMutation.class, result.current()[0]);
-		assertEquals(String.class, ((ModifyAttributeSchemaTypeMutation) result.current()[0]).getType());
+		assertSame(String.class, ((ModifyAttributeSchemaTypeMutation) result.current()[0]).getType());
 		assertEquals(0, ((ModifyAttributeSchemaTypeMutation) result.current()[0]).getIndexedDecimalPlaces());
 	}
 
@@ -117,7 +118,7 @@ class ModifyAttributeSchemaTypeMutationTest {
 		assertNull(result.origin());
 		assertNotNull(result.current());
 		assertInstanceOf(ModifyAttributeSchemaTypeMutation.class, result.current()[0]);
-		assertEquals(String.class, ((ModifyAttributeSchemaTypeMutation) result.current()[0]).getType());
+		assertSame(String.class, ((ModifyAttributeSchemaTypeMutation) result.current()[0]).getType());
 		assertEquals(0, ((ModifyAttributeSchemaTypeMutation) result.current()[0]).getIndexedDecimalPlaces());
 	}
 
@@ -145,7 +146,7 @@ class ModifyAttributeSchemaTypeMutationTest {
 		final AttributeSchemaContract mutatedSchema = mutation.mutate(
 			Mockito.mock(CatalogSchemaContract.class), createExistingAttributeSchema(), AttributeSchemaContract.class);
 		assertNotNull(mutatedSchema);
-		assertEquals(Integer.class, mutatedSchema.getType());
+		assertSame(Integer.class, mutatedSchema.getType());
 	}
 
 	@Test
@@ -159,7 +160,7 @@ class ModifyAttributeSchemaTypeMutationTest {
 			EntityAttributeSchemaContract.class
 		);
 		assertNotNull(mutatedSchema);
-		assertEquals(String.class, mutatedSchema.getType());
+		assertSame(String.class, mutatedSchema.getType());
 		assertEquals(0, mutatedSchema.getIndexedDecimalPlaces());
 	}
 
@@ -180,7 +181,7 @@ class ModifyAttributeSchemaTypeMutationTest {
 		assertEquals(2, newCatalogSchema.version());
 		final GlobalAttributeSchemaContract newAttributeSchema = newCatalogSchema.getAttribute(ATTRIBUTE_NAME)
 			.orElseThrow();
-		assertEquals(String.class, newAttributeSchema.getType());
+		assertSame(String.class, newAttributeSchema.getType());
 		assertEquals(0, newAttributeSchema.getIndexedDecimalPlaces());
 	}
 
@@ -199,7 +200,7 @@ class ModifyAttributeSchemaTypeMutationTest {
 		);
 		assertEquals(2, newEntitySchema.version());
 		final AttributeSchemaContract newAttributeSchema = newEntitySchema.getAttribute(ATTRIBUTE_NAME).orElseThrow();
-		assertEquals(String.class, newAttributeSchema.getType());
+		assertSame(String.class, newAttributeSchema.getType());
 		assertEquals(0, newAttributeSchema.getIndexedDecimalPlaces());
 	}
 
@@ -218,7 +219,7 @@ class ModifyAttributeSchemaTypeMutationTest {
 		);
 		assertNotNull(mutatedSchema);
 		final AttributeSchemaContract newAttributeSchema = mutatedSchema.getAttribute(ATTRIBUTE_NAME).orElseThrow();
-		assertEquals(String.class, newAttributeSchema.getType());
+		assertSame(String.class, newAttributeSchema.getType());
 		assertEquals(0, newAttributeSchema.getIndexedDecimalPlaces());
 	}
 
@@ -311,7 +312,7 @@ class ModifyAttributeSchemaTypeMutationTest {
 				ATTRIBUTE_NAME, String[].class, 0
 			).mutate(null, accelerated, EntityAttributeSchemaContract.class);
 
-			assertEquals(String[].class, mutated.getType());
+			assertSame(String[].class, mutated.getType());
 			assertEquals(
 				Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH), mutated.getAcceleratorsInScope(Scope.LIVE)
 			);
@@ -350,7 +351,8 @@ class ModifyAttributeSchemaTypeMutationTest {
 					null,
 					false, false, false,
 					Integer.class, null, 0,
-					ConflictResolutionOverride.INHERITED
+					ConflictResolutionOverride.INHERITED,
+					null
 				)
 			);
 		}

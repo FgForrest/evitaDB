@@ -40,6 +40,7 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FacetIndexStoragePart;
 import io.evitadb.test.Entities;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -637,7 +638,7 @@ class FacetIndexTest {
 				original -> {
 					// no mutations -- dirty indexes remains empty
 				},
-				(original, committed) -> assertSame(original, committed)
+				Assertions::assertSame
 			);
 		}
 

@@ -267,8 +267,19 @@ public final class LegacyOwnerSortIndexWriter {
 	@Nonnull
 	public OwnerSortIndex toCurrentOwner() {
 		final OwnerSortIndex owner = this.comparatorBase.length == 1 ?
-			new OwnerSortIndex(this.comparatorBase[0].type(), this.attributeIndexKey) :
-			new OwnerSortIndex(this.comparatorBase, this.attributeIndexKey);
+			new OwnerSortIndex(
+				this.comparatorBase[0].type(),
+				null,
+				this.attributeIndexKey,
+				0,
+				SortIndex.createTypeLevelNormalizerFor(this.comparatorBase[0].type(), 0)
+			) :
+			new OwnerSortIndex(
+				this.comparatorBase,
+				null,
+				this.attributeIndexKey,
+				SortIndex.createTypeLevelNormalizerFor(this.comparatorBase, 0)
+			);
 		for (Map.Entry<Integer, Serializable> entry : this.valuesByRecord.entrySet()) {
 			if (entry.getValue() instanceof ComparableArray(Serializable[] array)) {
 				final Serializable[] elements = array.clone();

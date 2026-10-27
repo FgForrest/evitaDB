@@ -300,14 +300,14 @@ root:
    trees all have this method; `OwnerSortIndex` reloads through `InvertedIndex#fromPersistedPages`, and
    `ChainIndex` through `UnorderedLookupTree#assembleFromLeafPages`;
 4. restores the registry with `PageStreamRegistry.restoredFrom`, which clears every leaf's dirty flag and
-   seeds both the live set and the ordered baseline from the reassembled leaves (a repairing reload of
-   `InvertedIndex` seeds it from the root's own list instead, so its first flush frees the legacy pages).
+   seeds both the live set and the ordered baseline from the reassembled leaves.
 
 The result is a boundary-stable reload: in-memory leaf *i* is persisted page *i*, a no-op commit after the
-load writes nothing, and the first real mutation rewrites only the leaves it touches. What happens when the
-persisted order no longer matches the key comparison, and why only two shapes of that are repaired, is in
-the [persistence contract](bplus-tree-bucket-store.md#persistence-contract) and the javadoc of
-`InvertedIndex#fromPersistedPages`.
+load writes nothing, and the first real mutation rewrites only the leaves it touches. Legacy key correction
+belongs to `Migration_2026_3`, through `LegacyInvertedIndexCorrection`; loaders restore keys verbatim and
+reject duplicate keys and paged order violations. Inline restore re-inserts distinct keys in comparator order.
+Temporal range companions are converted by versioned readers when inline, and by the
+migration when paged. See the [persistence contract](bplus-tree-bucket-store.md#persistence-contract).
 
 ---
 

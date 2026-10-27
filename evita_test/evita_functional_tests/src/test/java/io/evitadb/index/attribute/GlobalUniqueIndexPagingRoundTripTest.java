@@ -241,9 +241,16 @@ class GlobalUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 			}
 
 			final GlobalUniqueIndex restored = GlobalUniqueIndex.fromPersistedPages(
-				Scope.LIVE, attributeKey, String.class, 0,
-				orderedPageSequences, perPageValues, perPagePayloads,
-				root.getHighWaterPageSequence(), root.getLocaleIndex()
+				Scope.LIVE,
+				attributeKey,
+				String.class,
+				0,
+				orderedPageSequences,
+				perPageValues,
+				perPagePayloads,
+				root.getHighWaterPageSequence(),
+				root.getLocaleIndex(),
+				FilterIndex.getNormalizer(String.class, 0)
 			);
 
 			// every value -> packed (entityType, pk, locale) payload survives the page round-trip, in identical key order
@@ -627,9 +634,16 @@ class GlobalUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 			perPagePayloads[i] = leafPage.getPayloads();
 		}
 		return GlobalUniqueIndex.fromPersistedPages(
-			Scope.LIVE, attributeKey, String.class, 0,
-			orderedPageSequences, perPageValues, perPagePayloads,
-			root.getHighWaterPageSequence(), root.getLocaleIndex()
+			Scope.LIVE,
+			attributeKey,
+			String.class,
+			0,
+			orderedPageSequences,
+			perPageValues,
+			perPagePayloads,
+			root.getHighWaterPageSequence(),
+			root.getLocaleIndex(),
+			FilterIndex.getNormalizer(String.class, 0)
 		);
 	}
 

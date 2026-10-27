@@ -1038,14 +1038,14 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * The load path merges adjacent equal keys of a paged tree across the boundary of two leaf pages.
+	 * The migration merges adjacent equal keys of a paged tree across the boundary of two leaf pages.
 	 */
 	@Nested
 	@DisplayName("Two different values beyond the window on adjacent leaf pages")
 	class DifferentValuesOnAdjacentLeafPages {
 
 		@Test
-		@DisplayName("loads the tree, merges the buckets across the page boundary and finds both owners")
+		@DisplayName("migrates the tree, merges buckets across the page boundary and finds both owners")
 		void shouldMergeBucketsAcrossLeafPages() {
 			final EvitaConfiguration configuration = configurationOf(allocatePaths("mergeAcrossPages"));
 			writeTwoValues(configuration, Shape.PAGED.owners(), false);
@@ -1110,13 +1110,13 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("refuses the upgrade when a clamped value loads under the millisecond of another owner's value")
+		@DisplayName("refuses the upgrade when a clamped value migrates to the millisecond of another owner's value")
 		void shouldRefuseUpgradeWhenClampedKeyMeetsInWindowKeyOfAnotherOwner() {
 			final EvitaConfiguration configuration = configurationOf(allocatePaths("foldedEdgeCollision"));
 			final OffsetDateTime earlierPlaceholder = EARLIEST_PLACEHOLDER;
 			final OffsetDateTime laterPlaceholder = EARLIEST_PLACEHOLDER.plusDays(1);
 			// one nanosecond after the edge `OffsetDateTime.MIN` is clamped onto: inside the window, so not clamped,
-			// yet truncated onto that very edge when the filter tree loads
+			// yet truncated onto that very edge when the migration corrects the filter tree
 			final OffsetDateTime justInsideEdge = OffsetDateTime.ofInstant(
 				EvitaDataTypes.clampToSupportedWindow(OffsetDateTime.MIN).toInstant().plusNanos(1), ZoneOffset.UTC
 			);

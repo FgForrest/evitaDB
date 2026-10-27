@@ -191,7 +191,7 @@ class FilterByTest {
 		void shouldReturnFilterConstraintClassAsType() {
 			final FilterBy filterBy = new FilterBy(attributeEquals("abc", "def"));
 
-			assertEquals(FilterConstraint.class, filterBy.getType());
+			assertSame(FilterConstraint.class, filterBy.getType());
 		}
 
 		@Test

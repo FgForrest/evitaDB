@@ -154,7 +154,8 @@ class CreateReferenceSchemaMutationTest {
 					Integer.class,
 					null,
 					2,
-					ConflictResolutionOverride.INHERITED
+					ConflictResolutionOverride.INHERITED,
+					null
 				),
 				REFERENCE_ATTRIBUTE_QUANTITY,
 				AttributeSchema._internalBuild(
@@ -176,7 +177,8 @@ class CreateReferenceSchemaMutationTest {
 					Integer.class,
 					null,
 					2,
-					ConflictResolutionOverride.INHERITED
+					ConflictResolutionOverride.INHERITED,
+					null
 				)
 			),
 			Map.of(

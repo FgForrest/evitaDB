@@ -76,6 +76,9 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.BiIntConsumer;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.IndexActivity;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
+import io.evitadb.index.analysis.BuiltWithAttributeNormalizationResolver;
+import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
@@ -178,6 +181,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -297,9 +301,7 @@ public class DefaultCatalogPersistenceService
 	 */
 	static final ThreadLocal<LongSupplier> CURRENT_TIME_MILLIS = ThreadLocal.withInitial(() -> SYSTEM_TIME_MILLIS);
 	/**
-	 * This instance keeps references to the {@link ObservableOutput} instances that internally keep large buffers in
-	 * {@link ObservableOutput#getBuffer()} to use them for serialization. There buffers are not necessary when there are
-	 * no updates to the catalog / collection, so it's wise to get rid of them if there is no actual need.
+	 * Caches file outputs with open streams, closing them after inactivity. Frame buffers are borrowed only while writing.
 	 */
 	private final ObservableOutputKeeper observableOutputKeeper;
 	/**
@@ -1637,7 +1639,6 @@ public class DefaultCatalogPersistenceService
 		verifyDirectory(this.catalogStoragePath, true);
 		this.observableOutputKeeper = new ObservableOutputKeeper(
 			catalogName,
-			this.storageSettings.outputBufferSize(),
 			this.storageSettings.lockTimeoutSeconds(),
 			this.storageSettings.waitOnCloseSeconds(),
 			scheduler
@@ -1836,7 +1837,6 @@ public class DefaultCatalogPersistenceService
 		this.walFileNameProvider = index -> CatalogPersistenceService.getWalFileName(discoveredPrefix, index);
 		this.observableOutputKeeper = new ObservableOutputKeeper(
 			catalogName,
-			this.storageSettings.outputBufferSize(),
 			this.storageSettings.lockTimeoutSeconds(),
 			this.storageSettings.waitOnCloseSeconds(),
 			scheduler
@@ -2010,7 +2010,6 @@ public class DefaultCatalogPersistenceService
 		this.catalogStoragePath = catalogStoragePath;
 		this.observableOutputKeeper = new ObservableOutputKeeper(
 			catalogName,
-			this.storageSettings.outputBufferSize(),
 			this.storageSettings.lockTimeoutSeconds(),
 			this.storageSettings.waitOnCloseSeconds(),
 			this.scheduler
@@ -2261,10 +2260,30 @@ public class DefaultCatalogPersistenceService
 					"Shared unique index not found for attribute `" + attributeKey + "`!"
 				);
 				final GlobalAttributeSchemaContract attributeSchema = catalog.getSchema().getAttribute(
-						attributeKey.attributeName())
-					.orElseThrow(
-						() -> new EvitaInvalidUsageException(
-							"Catalog index references attribute `" + attributeKey.attributeName() + "` but such attribute is not found in catalog schema!"));
+					attributeKey.attributeName()).orElse(null);
+				final Class<? extends Serializable> storedType = sharedUniqueIndexStoragePart.getType();
+				final Class<?> plainType = storedType.isArray() ? storedType.getComponentType() : storedType;
+				if (attributeSchema == null && plainType != String.class) {
+					throw new EvitaInvalidUsageException(
+						"Catalog index references attribute `" + attributeKey.attributeName() +
+							"` but such attribute is not found in catalog schema!");
+				}
+				final Class<? extends Serializable> attributeType = plainType == String.class || attributeSchema == null ?
+					storedType : attributeSchema.getPlainType();
+				final int indexedDecimalPlaces = attributeSchema == null ? 0 : attributeSchema.getIndexedDecimalPlaces();
+				final AttributeNormalizationResolver catalogResolver = catalog.getAttributeNormalizationResolver();
+				final Function<Object, Serializable> rawKeyNormalizer;
+				if (plainType == String.class &&
+					catalogResolver instanceof BuiltWithAttributeNormalizationResolver builtWith) {
+					rawKeyNormalizer = (Function) builtWith.resolve(
+						null, attributeKey.attributeName(), attributeKey.locale());
+				} else if (attributeSchema == null) {
+					rawKeyNormalizer = FilterIndex.getNormalizer(plainType, indexedDecimalPlaces);
+				} else {
+					rawKeyNormalizer = catalogResolver.resolveKeyNormalizer(
+						null, attributeSchema, attributeKey.locale());
+				}
+
 				final GlobalUniqueIndex globalUniqueIndex;
 				if (sharedUniqueIndexStoragePart.isPaged()) {
 					// PAGED: the value→tuple tree was persisted as individual leaf pages. Resolve the stream id from the
@@ -2275,7 +2294,7 @@ public class DefaultCatalogPersistenceService
 						new GlobalUniqueLeafStreamKey(scope, attributeKey)
 					);
 					final int[] orderedPageSequences = sharedUniqueIndexStoragePart.getLeafPageSequences();
-					final java.io.Serializable[][] perPageValues = new java.io.Serializable[orderedPageSequences.length][];
+					final Serializable[][] perPageValues = new Serializable[orderedPageSequences.length][];
 					final long[][] perPagePayloads = new long[orderedPageSequences.length][];
 					for (int i = 0; i < orderedPageSequences.length; i++) {
 						final int pageSequence = orderedPageSequences[i];
@@ -2295,20 +2314,21 @@ public class DefaultCatalogPersistenceService
 					globalUniqueIndex = GlobalUniqueIndex.fromPersistedPages(
 						scope,
 						attributeKey,
-						attributeSchema.getPlainType(),
-						attributeSchema.getIndexedDecimalPlaces(),
+						attributeType,
+						indexedDecimalPlaces,
 						orderedPageSequences,
 						perPageValues,
 						perPagePayloads,
 						sharedUniqueIndexStoragePart.getHighWaterPageSequence(),
-						sharedUniqueIndexStoragePart.getLocaleIndex()
+						sharedUniqueIndexStoragePart.getLocaleIndex(),
+						rawKeyNormalizer
 					);
 				} else {
 					globalUniqueIndex = new GlobalUniqueIndex(
 						scope,
 						attributeKey,
-						attributeSchema.getPlainType(),
-						attributeSchema.getIndexedDecimalPlaces(),
+						attributeType,
+						indexedDecimalPlaces,
 						java.util.Objects.requireNonNull(
 							sharedUniqueIndexStoragePart.getValues(),
 							"A SINGLE global unique part must carry the inline value column!"
@@ -2317,7 +2337,8 @@ public class DefaultCatalogPersistenceService
 							sharedUniqueIndexStoragePart.getPayloads(),
 							"A SINGLE global unique part must carry the inline payload column!"
 						),
-						sharedUniqueIndexStoragePart.getLocaleIndex()
+						sharedUniqueIndexStoragePart.getLocaleIndex(),
+						rawKeyNormalizer
 					);
 				}
 				sharedUniqueIndexes.put(attributeKey, globalUniqueIndex);
@@ -2329,7 +2350,8 @@ public class DefaultCatalogPersistenceService
 					sharedUniqueIndexes,
 					// loaded from disk — the activity counters start over, which is what "since catalog load" means,
 					// and are not opened at all when the server does not track usage statistics
-					catalog.isUsageStatisticsTracked() ? new IndexActivity() : null
+					catalog.isUsageStatisticsTracked() ? new IndexActivity() : null,
+					catalog.getAttributeNormalizationResolver()
 				)
 			);
 		}

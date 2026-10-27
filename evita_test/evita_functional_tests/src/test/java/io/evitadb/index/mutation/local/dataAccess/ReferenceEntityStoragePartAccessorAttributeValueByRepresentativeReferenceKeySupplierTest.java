@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
@@ -586,9 +587,10 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 		boolean representative
 	) {
 		return AttributeSchema._internalBuild(
-			name, null, null, null, null, null,
+			name, null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null,
 			localized, false, representative,
-			String.class, null, ConflictResolutionOverride.INHERITED
+			String.class, null, 0, ConflictResolutionOverride.INHERITED,
+			null
 		);
 	}
 

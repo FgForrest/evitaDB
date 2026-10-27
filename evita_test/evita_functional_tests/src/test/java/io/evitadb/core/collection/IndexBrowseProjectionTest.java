@@ -36,6 +36,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexActivity;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -727,7 +728,7 @@ class IndexBrowseProjectionTest {
 		@Nonnull
 		private Map.Entry<EntityIndexKey, EntityIndex> untracked(@Nonnull EntityIndexKey key, int entityCount) {
 			final GlobalEntityIndex index = new GlobalEntityIndex(
-				INDEX_PRIMARY_KEYS.incrementAndGet(), ENTITY_TYPE, key, false
+				INDEX_PRIMARY_KEYS.incrementAndGet(), ENTITY_TYPE, key, false, AttributeNormalizationResolver.LEGACY_NFD
 			);
 			for (int entityPrimaryKey = 1; entityPrimaryKey <= entityCount; entityPrimaryKey++) {
 				index.insertPrimaryKeyIfMissing(entityPrimaryKey);

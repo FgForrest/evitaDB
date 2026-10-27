@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
@@ -51,6 +52,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -86,6 +88,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -426,6 +429,13 @@ class ReducedIndexSubstringAccelerationTest {
 				return Answers.RETURNS_DEFAULTS.answer(invocation);
 			};
 			final QueryPlanningContext queryContext = mock(QueryPlanningContext.class, memoAnswer);
+			when(queryContext.getAttributeNormalizationResolver())
+				.thenReturn(AttributeNormalizationResolver.LEGACY_NFD);
+			final EntityCollection owner = mock(EntityCollection.class);
+			when(owner.getAttributeNormalizationResolver()).thenReturn(AttributeNormalizationResolver.LEGACY_NFD);
+			when(queryContext.getEntityCollectionOrThrowException(eq(SCHEMA.getName()), anyString())).thenReturn(owner);
+			// the owner-routing overload picks between the two stubs above, so it runs for real
+			when(queryContext.getAttributeNormalizationResolver(any(), anyString())).thenCallRealMethod();
 			when(queryContext.getGlobalEntityIndexIfExists(anyString(), any(Scope.class)))
 				.thenAnswer(
 					invocation -> {
@@ -447,6 +457,7 @@ class ReducedIndexSubstringAccelerationTest {
 			when(processingScope.getScopes()).thenReturn(scopesOfTargetSet);
 			when(processingScope.getReferenceSchema()).thenReturn(referenceSchema);
 			when(processingScope.getEntitySchemaOrThrowException()).thenReturn(SCHEMA);
+			when(processingScope.getEntitySchema()).thenReturn(SCHEMA);
 
 			// the second varargs method, answered the same matcher-free way - both of its overloads return an
 			// `AttributeSchemaContract`, so one answer covers either

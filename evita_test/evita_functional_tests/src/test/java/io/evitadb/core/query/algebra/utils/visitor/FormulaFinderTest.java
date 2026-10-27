@@ -210,7 +210,7 @@ class FormulaFinderTest {
 
 			final Collection<ConstantFormula> result = FormulaFinder.findAmongChildren(
 				root,
-				formula -> formula instanceof ConstantFormula,
+				ConstantFormula.class::isInstance,
 				LookUp.SHALLOW
 			);
 
@@ -249,7 +249,7 @@ class FormulaFinderTest {
 
 			final Collection<Formula> result = FormulaFinder.findAmongChildren(
 				tree,
-				formula -> formula instanceof ConstantFormula,
+				ConstantFormula.class::isInstance,
 				LookUp.DEEP
 			);
 
@@ -274,8 +274,8 @@ class FormulaFinderTest {
 			// Skip UserFilterFormula and everything below it
 			final Collection<ConstantFormula> result = FormulaFinder.find(
 				tree,
-				formula -> formula instanceof ConstantFormula,
-				formula -> formula instanceof UserFilterFormula,
+				ConstantFormula.class::isInstance,
+				UserFilterFormula.class::isInstance,
 				LookUp.DEEP
 			);
 
@@ -294,8 +294,8 @@ class FormulaFinderTest {
 			// Skip OrFormula (root) so nothing should be found
 			final Collection<ConstantFormula> result = FormulaFinder.find(
 				tree,
-				formula -> formula instanceof ConstantFormula,
-				formula -> formula instanceof OrFormula,
+				ConstantFormula.class::isInstance,
+				OrFormula.class::isInstance,
 				LookUp.DEEP
 			);
 
@@ -318,8 +318,8 @@ class FormulaFinderTest {
 			// Skip UserFilterFormula subtrees, find ConstantFormulas among children
 			final Collection<ConstantFormula> result = FormulaFinder.findAmongChildren(
 				tree,
-				formula -> formula instanceof ConstantFormula,
-				formula -> formula instanceof UserFilterFormula,
+				ConstantFormula.class::isInstance,
+				UserFilterFormula.class::isInstance,
 				LookUp.DEEP
 			);
 

@@ -314,7 +314,7 @@ class CompositeObjectArrayTest {
 			}
 			// Search for value 100 using a comparator that compares Integer to Integer
 			final int index = array.indexOf(
-				100, (element, target) -> Integer.compare(element, target)
+				100, Integer::compare
 			);
 			assertEquals(50, index); // 100 is at index 50 (100/2)
 		}
@@ -328,7 +328,7 @@ class CompositeObjectArrayTest {
 			assertFalse(array.isMonotonic());
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> array.indexOf(1, (element, target) -> Integer.compare(element, target))
+				() -> array.indexOf(1, Integer::compare)
 			);
 		}
 	}

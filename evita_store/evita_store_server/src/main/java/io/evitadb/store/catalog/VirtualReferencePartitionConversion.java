@@ -40,6 +40,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.VirtualReferencePartitionIndex;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.component.loader.VirtualReferencePartitionLoader;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.mutation.local.VirtualReferencePartitionWriter;
@@ -322,7 +323,8 @@ final class VirtualReferencePartitionConversion {
 		while (it.hasNext()) {
 			final int partitionPrimaryKey = it.nextInt();
 			final EntityIndex index = collectionService.readEntityIndex(
-				catalogVersion, partitionPrimaryKey, entitySchema, false, fulltextAnalyzerRegistry
+				catalogVersion, partitionPrimaryKey, entitySchema, false, fulltextAnalyzerRegistry,
+				AttributeNormalizationResolver.LEGACY_NFD
 			);
 			final ReferencePartition partition = ReferencePartitions.asPartition(index);
 			if (partition == null) {

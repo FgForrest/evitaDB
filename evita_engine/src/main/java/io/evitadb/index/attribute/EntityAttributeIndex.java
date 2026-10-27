@@ -24,6 +24,7 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -54,26 +55,29 @@ public final class EntityAttributeIndex extends AttributeIndex {
 	@Serial private static final long serialVersionUID = 5712368294736210501L;
 
 	/**
-	 * Builds an empty entity-scoped attribute index.
+	 * Creates an attribute container using the owner resolver for new child structures.
 	 *
-	 * @param entityType the owning entity type
+	 * @param entityType            type of the entity the container belongs to
+	 * @param normalizationResolver owner resolver binding the String key functions of newly created child indexes
 	 */
-	public EntityAttributeIndex(@Nonnull String entityType) {
-		super(entityType, null);
+	public EntityAttributeIndex(@Nonnull String entityType,
+		@Nonnull AttributeNormalizationResolver normalizationResolver
+	) {
+		super(entityType, null, normalizationResolver);
 	}
 
 	/**
-	 * Builds an entity-scoped attribute index pre-populated from deserialized maps. Used by the
-	 * persistence reload path in [io.evitadb.store.catalog.DefaultEntityCollectionPersistenceService].
+	 * Creates an attribute container using the owner resolver for new child structures.
 	 *
-	 * @param entityType   the owning entity type
-	 * @param uniqueIndex  pre-loaded standalone (owner) unique sub-index map
-	 * @param filterIndex  filter VIEW map (carries each key's attributeType; rebuilt over the shared trees)
-	 * @param uniqueViewIndex folded-unique VIEW map (carries each foldable key; rebuilt over the shared trees)
-	 * @param sortIndex    pre-loaded sort sub-index map
-	 * @param chainIndex   pre-loaded chain sub-index map
-	 * @param sharedValueIndex pre-loaded shared value→ValueToRecord tree map
-	 * @param sharedRangeIndex pre-loaded shared range-structure map
+	 * @param entityType            type of the entity the container belongs to
+	 * @param uniqueIndex           restored unique indexes by attribute
+	 * @param filterIndex           restored filter indexes by attribute
+	 * @param uniqueViewIndex       restored unique-view indexes by attribute
+	 * @param sortIndex             restored sort indexes by attribute
+	 * @param chainIndex            restored chain indexes by attribute
+	 * @param sharedValueIndex      restored shared value indexes by attribute
+	 * @param sharedRangeIndex      restored shared range indexes by attribute
+	 * @param normalizationResolver owner resolver binding the String key functions of newly created child indexes
 	 */
 	public EntityAttributeIndex(
 		@Nonnull String entityType,
@@ -83,9 +87,21 @@ public final class EntityAttributeIndex extends AttributeIndex {
 		@Nonnull Map<AttributeIndexKey, SortIndex> sortIndex,
 		@Nonnull Map<AttributeIndexKey, ChainIndex> chainIndex,
 		@Nonnull Map<AttributeIndexKey, InvertedIndex> sharedValueIndex,
-		@Nonnull Map<AttributeIndexKey, RangeIndex> sharedRangeIndex
+		@Nonnull Map<AttributeIndexKey, RangeIndex> sharedRangeIndex,
+		@Nonnull AttributeNormalizationResolver normalizationResolver
 	) {
-		super(entityType, null, uniqueIndex, filterIndex, uniqueViewIndex, sortIndex, chainIndex, sharedValueIndex, sharedRangeIndex);
+		super(
+			entityType,
+			null,
+			uniqueIndex,
+			filterIndex,
+			uniqueViewIndex,
+			sortIndex,
+			chainIndex,
+			sharedValueIndex,
+			sharedRangeIndex,
+			normalizationResolver
+		);
 	}
 
 	@Nonnull
@@ -105,10 +121,12 @@ public final class EntityAttributeIndex extends AttributeIndex {
 		@Nonnull Map<AttributeIndexKey, SortIndex> sortIndex,
 		@Nonnull Map<AttributeIndexKey, ChainIndex> chainIndex,
 		@Nonnull Map<AttributeIndexKey, InvertedIndex> sharedValueIndex,
-		@Nonnull Map<AttributeIndexKey, RangeIndex> sharedRangeIndex
+		@Nonnull Map<AttributeIndexKey, RangeIndex> sharedRangeIndex,
+		@Nonnull AttributeNormalizationResolver normalizationResolver
 	) {
 		return new EntityAttributeIndex(
-			entityType, uniqueIndex, filterIndex, uniqueViewIndex, sortIndex, chainIndex, sharedValueIndex, sharedRangeIndex
+			entityType, uniqueIndex, filterIndex, uniqueViewIndex, sortIndex, chainIndex,
+			sharedValueIndex, sharedRangeIndex, normalizationResolver
 		);
 	}
 

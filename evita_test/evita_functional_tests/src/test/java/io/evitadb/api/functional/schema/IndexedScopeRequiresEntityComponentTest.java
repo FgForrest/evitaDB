@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
@@ -557,7 +558,7 @@ class IndexedScopeRequiresEntityComponentTest implements EvitaTestSupport {
 						)
 						.withReflectedReferenceToEntity(
 							"inheritedProducts", Entities.PRODUCT, "secondaryCategories",
-							whichIs -> whichIs.withAttributesInherited()
+							ReflectedReferenceSchemaEditor::withAttributesInherited
 						)
 						.updateVia(session);
 					return describeReferences(session, Entities.CATEGORY);

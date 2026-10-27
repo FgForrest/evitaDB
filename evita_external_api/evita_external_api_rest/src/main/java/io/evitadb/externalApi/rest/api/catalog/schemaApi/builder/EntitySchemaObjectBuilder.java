@@ -61,6 +61,7 @@ public class EntitySchemaObjectBuilder {
 
 	public void buildCommonTypes() {
 		// build common reusable objects
+		AnalysisStepInputObjectBuilder.registerTypes(this.buildingContext, this.objectBuilderTransformer);
 		this.buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT.to(
 			this.objectBuilderTransformer).build()

@@ -37,9 +37,11 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.AnalysisStepDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ConflictResolutionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntityAttributeSchemaDescriptor;
@@ -64,6 +66,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
@@ -117,9 +120,10 @@ public abstract class SchemaJsonSerializer {
 		}
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.FILTERABLE.name(), serializeFlagInScopes(attributeSchema::isFilterableInScope));
 		attributeSchemaNode.putIfAbsent(
-			AttributeSchemaDescriptor.ACCELERATORS_IN_SCOPES.name(),
+			AttributeSchemaDescriptor.ACCELERATED.name(),
 			serializeAccelerators(attributeSchema)
 		);
+		attributeSchemaNode.set(AttributeSchemaDescriptor.NORMALIZED.name(), serializeNormalization(attributeSchema));
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.SORTABLE.name(), serializeFlagInScopes(attributeSchema::isSortableInScope));
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.LOCALIZED.name(), this.objectJsonSerializer.serializeObject(attributeSchema.isLocalized()));
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.NULLABLE.name(), this.objectJsonSerializer.serializeObject(attributeSchema.isNullable()));
@@ -227,6 +231,29 @@ public abstract class SchemaJsonSerializer {
 			acceleratorsArray.add(acceleratorNode);
 		}
 		return acceleratorsArray;
+	}
+
+	/**
+	 * Serializes the declared normalization chain in its execution order. Indexes may retain a different built-with
+	 * policy after a schema change; that internal policy is never exposed by schema endpoints.
+	 *
+	 * @param attributeSchema attribute whose declared normalization is returned
+	 * @return ordered step objects with a free-form parameter object, including an empty object for parameterless steps
+	 */
+	@Nonnull
+	protected ArrayNode serializeNormalization(@Nonnull AttributeSchemaContract attributeSchema) {
+		final ArrayNode steps = this.objectJsonSerializer.arrayNode();
+		for (final AnalysisStep step : attributeSchema.getNormalization()) {
+			final ObjectNode node = this.objectJsonSerializer.objectNode();
+			node.put(AnalysisStepDescriptor.STEP.name(), step.name());
+			final ObjectNode parameters = this.objectJsonSerializer.objectNode();
+			for (final Map.Entry<String, Serializable> parameter : step.parameters().entrySet()) {
+				parameters.set(parameter.getKey(), this.objectJsonSerializer.serializeObject(parameter.getValue()));
+			}
+			node.set(AnalysisStepDescriptor.PARAMETERS.name(), parameters);
+			steps.add(node);
+		}
+		return steps;
 	}
 
 	/**

@@ -40,15 +40,16 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.util.Locale;
 import java.util.Set;
+
 import org.junit.jupiter.api.Tag;
 
+import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static io.evitadb.test.TestTags.CONTRACT;
-import static io.evitadb.test.TestTags.QUERY;
-import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for InitialEntityAttributesBuilder built on top of
@@ -117,44 +118,48 @@ class InitialEntityAttributesBuilderTest
 
 			assertEquals(
 				EntityAttributeSchema._internalBuild(
-					"abc", null,
+					"abc", null, null, null,
 					Scope.NO_SCOPE, null, null, Scope.NO_SCOPE,
 					false, false, false,
 					Integer.class, null,
-					ConflictResolutionOverride.INHERITED
+					0, ConflictResolutionOverride.INHERITED,
+					null
 				),
 				attributes.getAttributeSchema("abc")
 					.orElse(null)
 			);
 			assertEquals(
 				EntityAttributeSchema._internalBuild(
-					"def", null,
+					"def", null, null, null,
 					Scope.NO_SCOPE, null, null, Scope.NO_SCOPE,
 					false, false, false,
 					IntegerNumberRange.class, null,
-					ConflictResolutionOverride.INHERITED
+					0, ConflictResolutionOverride.INHERITED,
+					null
 				),
 				attributes.getAttributeSchema("def")
 					.orElse(null)
 			);
 			assertEquals(
 				EntityAttributeSchema._internalBuild(
-					"dd", null,
+					"dd", null, null, null,
 					Scope.NO_SCOPE, null, null, Scope.NO_SCOPE,
 					false, false, false,
 					BigDecimal.class, null,
-					ConflictResolutionOverride.INHERITED
+					0, ConflictResolutionOverride.INHERITED,
+					null
 				),
 				attributes.getAttributeSchema("dd")
 					.orElse(null)
 			);
 			assertEquals(
 				EntityAttributeSchema._internalBuild(
-					"greetings", null,
+					"greetings", null, null, null,
 					Scope.NO_SCOPE, null, null, Scope.NO_SCOPE,
 					true, false, false,
 					String.class, null,
-					ConflictResolutionOverride.INHERITED
+					0, ConflictResolutionOverride.INHERITED,
+					null
 				),
 				attributes
 					.getAttributeSchema("greetings")

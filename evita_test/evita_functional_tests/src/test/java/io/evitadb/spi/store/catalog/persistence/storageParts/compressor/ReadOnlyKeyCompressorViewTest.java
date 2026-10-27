@@ -75,29 +75,29 @@ class ReadOnlyKeyCompressorViewTest {
 		@Test
 		@DisplayName("getId() returns the integer ID assigned to a known key")
 		void shouldReturnCorrectIdForKnownKey() {
-			final int expectedId = delegate.getId(KEY_NAME);
-			assertEquals(expectedId, view.getId(KEY_NAME));
+			final int expectedId = ReadOnlyKeyCompressorViewTest.this.delegate.getId(KEY_NAME);
+			assertEquals(expectedId, ReadOnlyKeyCompressorViewTest.this.view.getId(KEY_NAME));
 		}
 
 		@Test
 		@DisplayName("getKeyForId() returns the original key for a known integer ID")
 		void shouldReturnCorrectKeyForKnownId() {
-			final int id = delegate.getId(KEY_CODE);
-			final AttributeKey result = view.getKeyForId(id);
+			final int id = ReadOnlyKeyCompressorViewTest.this.delegate.getId(KEY_CODE);
+			final AttributeKey result = ReadOnlyKeyCompressorViewTest.this.view.getKeyForId(id);
 			assertEquals(KEY_CODE, result);
 		}
 
 		@Test
 		@DisplayName("getKeyForIdIfExists() returns null when no key is mapped to the given ID")
 		void shouldReturnNullForUnknownIdViaGetKeyForIdIfExists() {
-			assertNull(view.getKeyForIdIfExists(99999));
+			assertNull(ReadOnlyKeyCompressorViewTest.this.view.getKeyForIdIfExists(99999));
 		}
 
 		@Test
 		@DisplayName("getIdIfExists() returns present optional with correct ID for a known key")
 		void shouldReturnPresentOptionalForKnownKeyViaGetIdIfExists() {
-			final int expectedId = delegate.getId(KEY_DESC);
-			final OptionalInt result = view.getIdIfExists(KEY_DESC);
+			final int expectedId = ReadOnlyKeyCompressorViewTest.this.delegate.getId(KEY_DESC);
+			final OptionalInt result = ReadOnlyKeyCompressorViewTest.this.view.getIdIfExists(KEY_DESC);
 			assertTrue(result.isPresent());
 			assertEquals(expectedId, result.getAsInt());
 		}
@@ -105,7 +105,7 @@ class ReadOnlyKeyCompressorViewTest {
 		@Test
 		@DisplayName("getIdIfExists() returns empty optional for an unregistered key")
 		void shouldReturnEmptyOptionalForUnknownKeyViaGetIdIfExists() {
-			final OptionalInt result = view.getIdIfExists(KEY_UNKNOWN);
+			final OptionalInt result = ReadOnlyKeyCompressorViewTest.this.view.getIdIfExists(KEY_UNKNOWN);
 			assertTrue(result.isEmpty());
 		}
 
@@ -120,7 +120,7 @@ class ReadOnlyKeyCompressorViewTest {
 		void shouldThrowCompressionKeyUnknownExceptionForUnknownKey() {
 			final CompressionKeyUnknownException ex = assertThrows(
 				CompressionKeyUnknownException.class,
-				() -> view.getId(KEY_UNKNOWN)
+				() -> ReadOnlyKeyCompressorViewTest.this.view.getId(KEY_UNKNOWN)
 			);
 			assertTrue(ex.getMessage().contains(KEY_UNKNOWN.toString()));
 		}
@@ -128,18 +128,18 @@ class ReadOnlyKeyCompressorViewTest {
 		@Test
 		@DisplayName("getId() does not allocate a new ID in the underlying compressor for an unknown key")
 		void shouldNotAllocateNewIdWhenGetIdCalledWithUnknownKey() {
-			final int keyCountBefore = delegate.getKeys().size();
+			final int keyCountBefore = ReadOnlyKeyCompressorViewTest.this.delegate.getKeys().size();
 
-			assertThrows(CompressionKeyUnknownException.class, () -> view.getId(KEY_UNKNOWN));
+			assertThrows(CompressionKeyUnknownException.class, () -> ReadOnlyKeyCompressorViewTest.this.view.getId(KEY_UNKNOWN));
 
-			assertEquals(keyCountBefore, delegate.getKeys().size());
-			assertTrue(delegate.getIdIfExists(KEY_UNKNOWN).isEmpty());
+			assertEquals(keyCountBefore, ReadOnlyKeyCompressorViewTest.this.delegate.getKeys().size());
+			assertTrue(ReadOnlyKeyCompressorViewTest.this.delegate.getIdIfExists(KEY_UNKNOWN).isEmpty());
 		}
 
 		@Test
 		@DisplayName("getKeys() returns an unmodifiable map")
 		void shouldReturnUnmodifiableMapFromGetKeys() {
-			final Map<Integer, Object> keys = view.getKeys();
+			final Map<Integer, Object> keys = ReadOnlyKeyCompressorViewTest.this.view.getKeys();
 			assertThrows(UnsupportedOperationException.class, () -> keys.put(99999, KEY_UNKNOWN));
 		}
 
@@ -153,9 +153,9 @@ class ReadOnlyKeyCompressorViewTest {
 		@DisplayName("getKeys() reflects keys added to the underlying compressor after view creation")
 		void shouldReflectKeysAddedToUnderlyingCompressorAfterViewCreation() {
 			final AttributeKey newKey = new AttributeKey("rating");
-			final int newId = delegate.getId(newKey);
+			final int newId = ReadOnlyKeyCompressorViewTest.this.delegate.getId(newKey);
 
-			final Map<Integer, Object> viewKeys = view.getKeys();
+			final Map<Integer, Object> viewKeys = ReadOnlyKeyCompressorViewTest.this.view.getKeys();
 			assertTrue(viewKeys.containsKey(newId));
 			assertEquals(newKey, viewKeys.get(newId));
 		}
@@ -164,10 +164,10 @@ class ReadOnlyKeyCompressorViewTest {
 		@DisplayName("getId() and getKeyForId() resolve keys added to the underlying compressor after view creation")
 		void shouldReflectIdLookupForKeysAddedAfterViewCreation() {
 			final AttributeKey newKey = new AttributeKey("weight");
-			final int newId = delegate.getId(newKey);
+			final int newId = ReadOnlyKeyCompressorViewTest.this.delegate.getId(newKey);
 
-			assertEquals(newId, view.getId(newKey));
-			assertEquals(newKey, view.getKeyForId(newId));
+			assertEquals(newId, ReadOnlyKeyCompressorViewTest.this.view.getId(newKey));
+			assertEquals(newKey, ReadOnlyKeyCompressorViewTest.this.view.getKeyForId(newId));
 		}
 
 	}

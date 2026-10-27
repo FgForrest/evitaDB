@@ -26,6 +26,7 @@ package io.evitadb.index;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.component.AttributeCardinalityIndexMapComponent;
 import io.evitadb.index.component.AttributeIndexComponent;
 import io.evitadb.index.component.GroupCardinalityComponent;
@@ -155,7 +156,13 @@ class EntityIndexReloadPlanSymmetryTest {
 				new io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey(REFERENCE_NAME, 1)
 			)
 		);
-		final ReducedGroupEntityIndex index = new ReducedGroupEntityIndex(INDEX_PK, ENTITY_TYPE, key);
+		final ReducedGroupEntityIndex index = new ReducedGroupEntityIndex(
+			INDEX_PK,
+			ENTITY_TYPE,
+			key,
+			true,
+			AttributeNormalizationResolver.LEGACY_NFD
+		);
 		assertReloadPlanCovers(index, ReducedGroupEntityIndex.reloadPlan());
 	}
 

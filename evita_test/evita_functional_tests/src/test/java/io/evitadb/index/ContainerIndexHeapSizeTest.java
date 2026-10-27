@@ -37,6 +37,7 @@ import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.EntityAttributeIndex;
@@ -49,7 +50,6 @@ import io.evitadb.index.attribute.SortIndexView;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
-import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.NamingConvention;
@@ -206,7 +206,7 @@ class ContainerIndexHeapSizeTest {
 			"persistedUniqueLeafPages", "persistedSortLeafPages"
 		};
 		private static final String[] OWN_EXCLUSIONS = {
-			"entityType",
+			"entityType", "normalizationResolver",
 			"uniqueIndex.transactionalLayerWrapper", "sortIndex.transactionalLayerWrapper",
 			"chainIndex.transactionalLayerWrapper", "sharedValueIndex.transactionalLayerWrapper",
 			"sharedRangeIndex.transactionalLayerWrapper", "filterIndex.transactionalLayerWrapper",
@@ -222,7 +222,7 @@ class ContainerIndexHeapSizeTest {
 		 */
 		@Nonnull
 		private static EntityAttributeIndex seededIndex(int records) {
-			final EntityAttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final EntityAttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			for (int i = 0; i < records; i++) {
 				final int pk = AUTOBOX_CACHE_CEILING + i + 1;
 				insertFilter(index, "code", "code-" + pk, pk);
@@ -365,7 +365,8 @@ class ContainerIndexHeapSizeTest {
 				familyOf(live, "sortIndex"),
 				familyOf(live, "chainIndex"),
 				familyOf(live, "sharedValueIndex"),
-				familyOf(live, "sharedRangeIndex")
+				familyOf(live, "sharedRangeIndex"),
+				AttributeNormalizationResolver.LEGACY_NFD
 			);
 		}
 
@@ -395,7 +396,7 @@ class ContainerIndexHeapSizeTest {
 
 		@Test
 		void shouldMeasureAnEmptyIndexExactly() {
-			final EntityAttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final EntityAttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			assertExactlyMeasured(index);
 		}
 

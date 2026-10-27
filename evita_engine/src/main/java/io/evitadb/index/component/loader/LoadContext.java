@@ -23,22 +23,31 @@
 
 package io.evitadb.index.component.loader;
 
-import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.IndexActivity;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
+import io.evitadb.index.analysis.BuiltWithAttributeNormalizationResolver;
+import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 /**
  * Immutable per-call bundle of everything a {@link ComponentLoader} needs to reload one sub-index
@@ -69,11 +78,12 @@ import java.util.Map;
  *                               `REFERENCED_GROUP_ENTITY` indexes; `null` for `GLOBAL` and
  *                               `REFERENCED_*_TYPE` indexes
  * @param usageStatisticsTracking whether the reloaded index allocates an
- *                               {@link io.evitadb.index.IndexActivity} holder — carried through the reload
+ *                               {@link IndexActivity} holder — carried through the reload
  *                               because an index restored from disk starts a fresh observation window, and
  *                               a server running with `server.usageStatisticsTracking` off must not open one
  * @param fulltextAnalyzerRegistry the catalog's analyzer registry, through which the fulltext indexes resolve the
  *                               analyzer they were built with by its persisted name
+ * @param normalizationResolver owner resolver used to bind String functions before any attribute tree is constructed
  */
 public record LoadContext(
 	long catalogVersion,
@@ -87,31 +97,95 @@ public record LoadContext(
 	@Nonnull StoragePartPersistenceService<?> storagePartService,
 	@Nullable RepresentativeReferenceKey referenceKey,
 	boolean usageStatisticsTracking,
-	@Nonnull FulltextAnalyzerRegistry fulltextAnalyzerRegistry
+	@Nonnull FulltextAnalyzerRegistry fulltextAnalyzerRegistry,
+	@Nonnull AttributeNormalizationResolver normalizationResolver
 ) {
 
 	/**
-	 * Builds a context that tracks usage statistics — the default, and the form every caller that has no opinion on
-	 * the matter should use.
+	 * Resolves the current declaration, which may have been removed while its persisted index still exists.
+	 *
+	 * @param key identity of the persisted attribute index
+	 * @return the declared attribute schema, or `null` when the declaration no longer exists
 	 */
-	public LoadContext(
-		long catalogVersion,
-		int entityIndexId,
-		@Nonnull EntitySchema entitySchema,
-		@Nonnull EntityIndexKey entityIndexKey,
-		@Nonnull EntityIndexStoragePart entityIndexStoragePart,
-		int version,
-		@Nonnull Bitmap entityIds,
-		@Nonnull Map<Locale, TransactionalBitmap> entityIdsByLanguage,
-		@Nonnull StoragePartPersistenceService<?> storagePartService,
-		@Nullable RepresentativeReferenceKey referenceKey,
-		@Nonnull FulltextAnalyzerRegistry fulltextAnalyzerRegistry
+	@Nullable
+	public AttributeSchemaContract resolveAttribute(@Nonnull AttributeIndexKey key) {
+		return key.referenceName() == null
+			? this.entitySchema.getAttribute(key.attributeName()).orElse(null)
+			: this.entitySchema.getReference(key.referenceName())
+				.flatMap(reference -> reference.getAttribute(key.attributeName())).orElse(null);
+	}
+
+	/**
+	 * Binds the raw-input function from owner metadata before constructing a tree, including orphaned String indexes.
+	 * Stored filter and histogram keys load verbatim. Unique loads convert declared persisted values to keys
+	 * with the type-level function, never a declared chain: a persisted `String` is already a chain-built key.
+	 *
+	 * @param key                  identity of the persisted attribute index
+	 * @param plainType            plain (non-array) type of the attribute values
+	 * @param indexedDecimalPlaces the attribute schema's `indexedDecimalPlaces`
+	 * @return raw-input key function; the type-level NFD-only one for a String attribute whose declaration is gone
+	 */
+	@Nonnull
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	public Function<Object, Serializable> resolveKeyNormalizer(
+		@Nonnull AttributeIndexKey key, @Nonnull Class<?> plainType, int indexedDecimalPlaces
 	) {
-		this(
-			catalogVersion, entityIndexId, entitySchema, entityIndexKey, entityIndexStoragePart,
-			version, entityIds, entityIdsByLanguage, storagePartService, referenceKey,
-			ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING, fulltextAnalyzerRegistry
-		);
+		if (plainType == String.class) {
+			if (this.normalizationResolver instanceof BuiltWithAttributeNormalizationResolver builtWith) {
+				return (Function) builtWith.resolve(key.referenceName(), key.attributeName(), key.locale());
+			}
+			final AttributeSchemaContract attribute = resolveAttribute(key);
+			return attribute == null || this.normalizationResolver == AttributeNormalizationResolver.LEGACY_NFD
+				? FilterIndex.getTypeLevelStringNormalizer()
+				: this.normalizationResolver.resolveKeyNormalizer(
+					key.referenceName(), attribute, key.locale());
+		}
+		return FilterIndex.getNormalizer(plainType, indexedDecimalPlaces);
+	}
+
+	/**
+	 * Reconstructs scalar or per-element compound policy before constructing an owner sort index.
+	 *
+	 * @param key                  identity of the persisted sort index
+	 * @param comparatorBase       frozen comparator descriptors of the stored tree, one per element
+	 * @param indexedDecimalPlaces frozen decimal scale of the stored tree
+	 * @return sort key function matching the stored keys
+	 */
+	@Nonnull
+	public UnaryOperator<Serializable> resolveSortNormalizer(
+		@Nonnull AttributeIndexKey key, @Nonnull SortIndex.ComparatorSource[] comparatorBase, int indexedDecimalPlaces
+	) {
+		if (this.normalizationResolver instanceof BuiltWithAttributeNormalizationResolver builtWith) {
+			return builtWith.resolveStoredSortNormalizer(key, comparatorBase, indexedDecimalPlaces);
+		}
+		if (this.normalizationResolver == AttributeNormalizationResolver.LEGACY_NFD) {
+			return SortIndex.createTypeLevelNormalizerFor(comparatorBase, indexedDecimalPlaces);
+		}
+		if (comparatorBase.length == 1) {
+			if (comparatorBase[0].type() == String.class) {
+				final AttributeSchemaContract attribute = resolveAttribute(key);
+				return attribute == null
+					? SortIndex.createTypeLevelNormalizerFor(comparatorBase[0].type(), indexedDecimalPlaces)
+					: this.normalizationResolver.resolveSortNormalizer(key.referenceName(), attribute, key.locale());
+			}
+			return SortIndex.createNormalizerFor(comparatorBase[0], indexedDecimalPlaces)
+				.orElseGet(UnaryOperator::identity);
+		}
+		final SortableAttributeCompoundSchemaContract compound =
+			key.referenceName() == null
+				? this.entitySchema.getSortableAttributeCompound(key.attributeName()).orElse(null)
+				: this.entitySchema.getReference(key.referenceName())
+					.flatMap(reference -> reference.getSortableAttributeCompound(key.attributeName())).orElse(null);
+		if (compound == null) {
+			return SortIndex.createTypeLevelNormalizerFor(comparatorBase, indexedDecimalPlaces);
+		}
+		for (final SortableAttributeCompoundSchemaContract.AttributeElement element : compound.getAttributeElements()) {
+			if (resolveAttribute(new AttributeIndexKey(key.referenceName(), element.attributeName(), null)) == null) {
+				return SortIndex.createTypeLevelNormalizerFor(comparatorBase, indexedDecimalPlaces);
+			}
+		}
+		return this.normalizationResolver.resolveCompoundNormalizer(key.referenceName(), compound,
+			name -> resolveAttribute(new AttributeIndexKey(key.referenceName(), name, null)), key.locale());
 	}
 
 	/**

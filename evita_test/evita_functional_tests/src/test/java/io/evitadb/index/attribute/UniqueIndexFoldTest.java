@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -145,7 +146,7 @@ class UniqueIndexFoldTest {
 		@Test
 		@DisplayName("folded view resolves a unique value to its single record and counts all records")
 		void shouldResolveFoldedUniqueValueToRecord() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final EntityAttributeSchemaContract schema = FOLDABLE_SCALAR_CODE;
 
 			insertFolded(index, schema, "ABC", 1);
@@ -161,7 +162,7 @@ class UniqueIndexFoldTest {
 		@Test
 		@DisplayName("removing the last value drops the folded view")
 		void shouldDropViewWhenTreeEmpties() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final EntityAttributeSchemaContract schema = FOLDABLE_SCALAR_CODE;
 
 			insertFolded(index, schema, "ABC", 1);
@@ -179,7 +180,7 @@ class UniqueIndexFoldTest {
 		@Test
 		@DisplayName("a second record claiming the same value is rejected")
 		void shouldRejectDuplicateAcrossRecords() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final EntityAttributeSchemaContract schema = FOLDABLE_SCALAR_CODE;
 
 			insertFolded(index, schema, "ABC", 1);
@@ -198,7 +199,7 @@ class UniqueIndexFoldTest {
 		@Test
 		@DisplayName("a re-claim by the record already holding the value is rejected")
 		void shouldRejectReclaimBySameRecord() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final EntityAttributeSchemaContract schema = FOLDABLE_SCALAR_CODE;
 
 			insertFolded(index, schema, "ABC", 1);
@@ -216,7 +217,7 @@ class UniqueIndexFoldTest {
 		@Test
 		@DisplayName("the same record may change its value (remove old, insert new)")
 		void shouldAllowSameRecordValueReplace() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final EntityAttributeSchemaContract schema = FOLDABLE_SCALAR_CODE;
 
 			insertFolded(index, schema, "ABC", 1);
@@ -233,7 +234,7 @@ class UniqueIndexFoldTest {
 		@Test
 		@DisplayName("the filter write self-registers the folded view and enforces, without any prior unique-insert")
 		void shouldSelfContainFoldedHandlingInFilterWrite() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final EntityAttributeSchemaContract schema = FOLDABLE_SCALAR_CODE;
 
 			// call the filter write DIRECTLY with foldedUnique=true and NO preceding insertUniqueAttribute: the write is
@@ -256,7 +257,7 @@ class UniqueIndexFoldTest {
 		@Test
 		@DisplayName("each array element is globally unique; one record owns many values")
 		void shouldFoldArrayPerElement() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final EntityAttributeSchemaContract schema = FOLDABLE_ARRAY_TAGS;
 
 			insertFolded(index, schema, new String[]{"a", "b"}, 1);
@@ -269,7 +270,7 @@ class UniqueIndexFoldTest {
 		@Test
 		@DisplayName("an element overlapping another record's array is rejected and leaves no element half-applied")
 		void shouldRejectOverlappingArrayElementAtomically() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final EntityAttributeSchemaContract schema = FOLDABLE_ARRAY_TAGS;
 
 			insertFolded(index, schema, new String[]{"a", "b"}, 1);
@@ -291,7 +292,7 @@ class UniqueIndexFoldTest {
 		@Test
 		@DisplayName("delta-add of a fresh element to an existing record is allowed and enforced")
 		void shouldEnforceArrayDeltaAdd() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final EntityAttributeSchemaContract schema = FOLDABLE_ARRAY_TAGS;
 
 			insertFolded(index, schema, new String[]{"a"}, 1);
@@ -318,7 +319,7 @@ class UniqueIndexFoldTest {
 		@Test
 		@DisplayName("a folded unique lookup folds canonically-equivalent Unicode forms (NFC vs NFD)")
 		void shouldNormalizeFoldedLookup() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final EntityAttributeSchemaContract schema = FOLDABLE_SCALAR_CODE;
 
 			final String nfc = Normalizer.normalize("Café", Normalizer.Form.NFC); // "Café" precomposed

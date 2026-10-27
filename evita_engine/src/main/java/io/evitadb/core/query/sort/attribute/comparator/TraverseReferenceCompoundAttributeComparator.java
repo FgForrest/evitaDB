@@ -39,9 +39,11 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.io.Serializable;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 import static io.evitadb.core.query.sort.EntityReferenceSensitiveComparator.getReferenceByRepresentativeReferenceKey;
 
@@ -66,19 +68,32 @@ public class TraverseReferenceCompoundAttributeComparator
 	 */
 	@Nullable private RepresentativeReferenceKey referenceKey;
 
+	/**
+	 * Creates a compound comparator with the effective key function bound separately for every element.
+	 * Non-localized elements fold by root even when the compound is localized.
+	 *
+	 * @param compoundSchemaContract the compound whose element order and directions are compared
+	 * @param locale the schema-masked read and collation locale of the compound
+	 * @param attributeSchemaExtractor resolves each element's type and decimal scale
+	 * @param orderDirection direction of the overall compound ordering
+	 * @param referenceSchema the reference whose raw values are read
+	 * @param normalizer the bound compound key function; raw tuples are passed through it once
+	 */
 	public TraverseReferenceCompoundAttributeComparator(
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull Function<String, AttributeSchemaContract> attributeSchemaExtractor,
-		@Nonnull OrderDirection orderDirection
+		@Nonnull OrderDirection orderDirection,
+		@Nonnull UnaryOperator<Serializable> normalizer
 	) {
 		super(
 			compoundSchemaContract,
 			referenceSchema,
 			locale,
 			attributeSchemaExtractor,
-			orderDirection
+			orderDirection,
+			normalizer
 		);
 		this.referenceName = referenceSchema.getName();
 	}
@@ -110,7 +125,8 @@ public class TraverseReferenceCompoundAttributeComparator
 		final boolean bothAttributesSpecified = attribute1 != ReferenceAttributeValue.MISSING && attribute2 != ReferenceAttributeValue.MISSING;
 		final boolean attributesExistOnSameReference = bothAttributesSpecified && attribute1.referencedEntityPrimaryKey() == attribute2.referencedEntityPrimaryKey();
 		if (attributesExistOnSameReference) {
-			return attribute1.compareTo(attribute2);
+			final int comparison = attribute1.compareTo(attribute2);
+			return comparison == 0 ? this.pkComparator.compare(o1, o2) : comparison;
 		} else if (bothAttributesSpecified) {
 			return Integer.compare(attribute1.referencedEntityPrimaryKey(), attribute2.referencedEntityPrimaryKey());
 		} else {

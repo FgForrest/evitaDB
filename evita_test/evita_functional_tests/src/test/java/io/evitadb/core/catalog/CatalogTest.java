@@ -24,6 +24,7 @@
 package io.evitadb.core.catalog;
 
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
@@ -68,7 +69,7 @@ class CatalogTest implements EvitaTestSupport {
 					evitaSession.defineEntitySchema(Entities.PRODUCT)
 						.withGlobalAttribute("code")
 						.withGlobalAttribute("name")
-						.withAttribute("catalogNumber", String.class, whichIs -> whichIs.filterable())
+						.withAttribute("catalogNumber", String.class, AttributeSchemaEditor::filterable)
 						.withPrice()
 						.updateVia(evitaSession);
 				});

@@ -104,7 +104,7 @@ public final class SortIndexView extends SortIndex {
 			referenceKey,
 			attributeIndexKey,
 			indexedDecimalPlaces,
-			new TransactionalUnorderedIntArray()
+			new TransactionalUnorderedIntArray(), bindSharedNormalizer(sharedTree)
 		);
 		this.sharedTree = sharedTree;
 	}
@@ -130,7 +130,7 @@ public final class SortIndexView extends SortIndex {
 	) {
 		super(
 			comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces,
-			new TransactionalUnorderedIntArray(sortedRecords)
+			new TransactionalUnorderedIntArray(sortedRecords), bindSharedNormalizer(sharedTree)
 		);
 		this.sharedTree = sharedTree;
 	}
@@ -145,22 +145,30 @@ public final class SortIndexView extends SortIndex {
 		@Nonnull AttributeIndexKey attributeIndexKey,
 		int indexedDecimalPlaces,
 		@Nonnull TransactionalUnorderedIntArray sortedRecords,
-		@Nullable InvertedIndex sharedTree
+		@Nullable InvertedIndex sharedTree,
+		@Nonnull UnaryOperator<Serializable> keyNormalizer
 	) {
-		super(comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces, sortedRecords);
+		super(comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces, sortedRecords,
+			keyNormalizer);
 		this.sharedTree = sharedTree;
+	}
+
+	/**
+	 * Captures the shared function once; compiled String operators are borrowed without an adapter allocation.
+	 *
+	 * @param sharedTree filter value tree whose key function this view adopts
+	 * @return the tree's key function as an operator
+	 */
+	@Nonnull
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private static UnaryOperator<Serializable> bindSharedNormalizer(@Nonnull InvertedIndex sharedTree) {
+		final Function<Object, Serializable> function = sharedTree.getNormalizer();
+		return (Object) function instanceof UnaryOperator<?> operator ? (UnaryOperator) operator : function::apply;
 	}
 
 	@Nonnull
 	@Override
 	protected UnaryOperator<Serializable> effectiveNormalizer() {
-		final InvertedIndex shared = this.sharedTree;
-		if (shared != null) {
-			final Function<Object, Serializable> sharedNormalizer = shared.getNormalizer();
-			return sharedNormalizer::apply;
-		}
-		// shared tree transiently absent - fall back to this index's own normalizer; the value is only used to
-		// drive sortedRecords removal, where the exact normalization no longer matters (the shared tree is empty)
 		return this.normalizer;
 	}
 
@@ -200,7 +208,7 @@ public final class SortIndexView extends SortIndex {
 			getAttributeIndexKey(),
 			getIndexedDecimalPlaces(),
 			this.sortedRecords,
-			committedSharedTree
+			committedSharedTree, this.normalizer
 		);
 	}
 
@@ -314,7 +322,7 @@ public final class SortIndexView extends SortIndex {
 			getAttributeIndexKey(),
 			getIndexedDecimalPlaces(),
 			mergedSortedRecords,
-			this.sharedTree
+			this.sharedTree, this.normalizer
 		);
 	}
 

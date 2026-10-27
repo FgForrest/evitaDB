@@ -28,6 +28,7 @@ import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -48,6 +49,7 @@ import java.util.regex.Pattern;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -119,6 +121,34 @@ class FormulaClassIdUniquenessTest implements EvitaTestSupport {
 		}
 	}
 
+	@DisplayName("A checkout nested inside the repository is left out of the scan")
+	@Test
+	void shouldSkipNestedCheckout(@TempDir Path repository) throws IOException {
+		Files.createDirectories(repository.resolve(".git"));
+		final Path declaration = writeClassIdDeclaration(repository.resolve("evita_engine"));
+		final Path nestedWorktree = repository.resolve(".claude/worktrees/feature");
+		Files.createDirectories(nestedWorktree);
+		Files.writeString(nestedWorktree.resolve(".git"), "gitdir: /elsewhere/.git/worktrees/feature\n");
+		writeClassIdDeclaration(nestedWorktree.resolve("evita_engine"));
+
+		assertEquals(Map.of(1L, List.of(declaration)), collectClassIdDeclarations(repository));
+	}
+
+	/**
+	 * Writes a source file declaring `CLASS_ID = 1L` into the passed directory.
+	 *
+	 * @param directory directory to create the source file in
+	 * @return path of the written source file
+	 */
+	@Nonnull
+	private static Path writeClassIdDeclaration(@Nonnull Path directory) throws IOException {
+		Files.createDirectories(directory);
+		return Files.writeString(
+			directory.resolve("SomeFormula.java"),
+			"class SomeFormula { private static final long CLASS_ID = 1L; }\n"
+		);
+	}
+
 	/**
 	 * Walks every `*.java` file below the passed root and indexes the declared `CLASS_ID` values by value.
 	 *
@@ -133,8 +163,15 @@ class FormulaClassIdUniquenessTest implements EvitaTestSupport {
 				@Nonnull
 				@Override
 				public FileVisitResult preVisitDirectory(@Nonnull Path directory, @Nonnull BasicFileAttributes attrs) {
-					return IGNORED_DIRECTORIES.contains(directory.getFileName().toString()) ?
-						FileVisitResult.SKIP_SUBTREE : FileVisitResult.CONTINUE;
+					if (IGNORED_DIRECTORIES.contains(directory.getFileName().toString())) {
+						return FileVisitResult.SKIP_SUBTREE;
+					}
+					// a checkout or worktree nested inside the repository - such as `.claude/worktrees/<branch>` -
+					// carries its own copy of every source, so each of its declarations would clash with the original
+					if (!directory.equals(rootDirectory) && Files.exists(directory.resolve(".git"))) {
+						return FileVisitResult.SKIP_SUBTREE;
+					}
+					return FileVisitResult.CONTINUE;
 				}
 
 				@Nonnull

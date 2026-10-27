@@ -1025,7 +1025,7 @@ class InitialReferencesBuilderTest extends AbstractBuilderTest {
 			// InsertReferenceMutation
 			final long insertCount = mutations.stream()
 				.filter(
-					m -> m instanceof InsertReferenceMutation
+					InsertReferenceMutation.class::isInstance
 				)
 				.count();
 			assertEquals(2, insertCount);
@@ -1059,17 +1059,17 @@ class InitialReferencesBuilderTest extends AbstractBuilderTest {
 			assertTrue(mutations.size() >= 3);
 			assertTrue(
 				mutations.stream().anyMatch(
-					m -> m instanceof InsertReferenceMutation
+					InsertReferenceMutation.class::isInstance
 				)
 			);
 			assertTrue(
 				mutations.stream().anyMatch(
-					m -> m instanceof SetReferenceGroupMutation
+					SetReferenceGroupMutation.class::isInstance
 				)
 			);
 			assertTrue(
 				mutations.stream().anyMatch(
-					m -> m instanceof ReferenceAttributeMutation
+					ReferenceAttributeMutation.class::isInstance
 				)
 			);
 		}

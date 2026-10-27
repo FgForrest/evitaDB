@@ -463,5 +463,32 @@ public interface GrpcAttributeSchemaMutationOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutationOrBuilder getSetAttributeSchemaAcceleratedMutationOrBuilder();
 
+  /**
+   * <pre>
+   * Replaces the declared normalization chain; an empty chain removes normalization.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 19;</code>
+   * @return Whether the setAttributeSchemaNormalizedMutation field is set.
+   */
+  boolean hasSetAttributeSchemaNormalizedMutation();
+  /**
+   * <pre>
+   * Replaces the declared normalization chain; an empty chain removes normalization.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 19;</code>
+   * @return The setAttributeSchemaNormalizedMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation getSetAttributeSchemaNormalizedMutation();
+  /**
+   * <pre>
+   * Replaces the declared normalization chain; an empty chain removes normalization.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 19;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutationOrBuilder getSetAttributeSchemaNormalizedMutationOrBuilder();
+
   io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation.MutationCase getMutationCase();
 }

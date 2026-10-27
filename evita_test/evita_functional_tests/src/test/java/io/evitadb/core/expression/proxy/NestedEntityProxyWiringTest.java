@@ -162,7 +162,9 @@ class NestedEntityProxyWiringTest {
 		for (final AttributeValue value : values) {
 			part.upsertAttribute(
 				value.key(),
-				AttributeSchema._internalBuild(value.key().attributeName(), String.class, false, ConflictResolutionOverride.INHERITED),
+				AttributeSchema._internalBuild(
+					value.key().attributeName(), String.class, false, ConflictResolutionOverride.INHERITED, null
+				),
 				existing -> value
 			);
 		}

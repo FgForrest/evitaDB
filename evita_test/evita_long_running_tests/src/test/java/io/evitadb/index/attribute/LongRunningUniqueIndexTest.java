@@ -110,9 +110,15 @@ class LongRunningUniqueIndexTest implements TimeBoundedTestSupport {
 							new OwnerUniqueIndex(
 								committed.getEntityType(),
 								committed.getAttributeIndexKey(),
-								committed.getType(), 0,
+								committed.getType(),
+								0,
 								snap.values(),
-								snap.recordIds()
+								snap.recordIds(),
+								FilterIndex.getNormalizer(
+									committed.getType().isArray()
+										? committed.getType().getComponentType() : committed.getType(),
+									0
+								)
 							)
 						);
 					}

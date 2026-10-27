@@ -405,6 +405,14 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			index++
 		);
 
+		// New singleton records are appended so all preceding persisted registration ids remain stable.
+		kryo.register(AttributeNormalizationStoragePart.class,
+			new SerialVersionBasedSerializer<>(new AttributeNormalizationStoragePartSerializer(),
+				AttributeNormalizationStoragePart.class), index++);
+		kryo.register(GlobalAttributeNormalizationStoragePart.class,
+			new SerialVersionBasedSerializer<>(new GlobalAttributeNormalizationStoragePartSerializer(),
+				GlobalAttributeNormalizationStoragePart.class), index++);
+
 		Assert.isPremiseValid(index < 700, "Index count overflow.");
 	}
 

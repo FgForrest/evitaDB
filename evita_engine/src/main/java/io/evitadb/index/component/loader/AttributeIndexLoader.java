@@ -137,7 +137,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 			if (key.indexType() == AttributeIndexType.FILTER) {
 				fetchFilter(
 					catalogVersion, entityIndexId, service, filterIndexes,
-					sharedValueIndexes, sharedRangeIndexes, key
+					sharedValueIndexes, sharedRangeIndexes, key, context
 				);
 			}
 		}
@@ -147,7 +147,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 			switch (key.indexType()) {
 				case UNIQUE -> fetchUnique(
 					catalogVersion, entityIndexId, context.entitySchema(), service,
-					uniqueIndexes, uniqueViewIndexes, filterIndexes, sharedValueIndexes, key
+					uniqueIndexes, uniqueViewIndexes, filterIndexes, sharedValueIndexes, key, context
 				);
 				case FILTER, CARDINALITY -> {
 					// FILTER handled above; CARDINALITY handled by AttributeCardinalityIndexMapLoader
@@ -182,6 +182,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 	 * @param filterIndexes     first-pass filter views, source of the wrapped view for foldable keys
 	 * @param sharedValueIndexes first-pass shared trees, probed to detect the foldable case
 	 * @param key               manifest key identifying the UNIQUE part to fetch
+	 * @param context           the load context carrying the owner's resolver
 	 */
 	private static void fetchUnique(
 		long catalogVersion,
@@ -192,7 +193,8 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		@Nonnull Map<AttributeIndexKey, UniqueIndex> uniqueViewIndexes,
 		@Nonnull Map<AttributeIndexKey, FilterIndex> filterIndexes,
 		@Nonnull Map<AttributeIndexKey, InvertedIndex> sharedValueIndexes,
-		@Nonnull AttributeIndexStorageKey key
+		@Nonnull AttributeIndexStorageKey key,
+		@Nonnull LoadContext context
 	) {
 		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(
 			entityIndexId, AttributeIndexType.UNIQUE, key.attribute(), service.getReadOnlyKeyCompressor()
@@ -249,7 +251,8 @@ public final class AttributeIndexLoader implements ComponentLoader {
 				OwnerUniqueIndex.fromPersistedPages(
 					entityType, attributeIndexKey, part.getType(),
 					resolveUniqueIndexedDecimalPlaces(entitySchema, attributeIndexKey, part.getType()),
-					orderedPageSequences, perPageValues, perPageRecordIds, part.getHighWaterPageSequence()
+					orderedPageSequences, perPageValues, perPageRecordIds, part.getHighWaterPageSequence(),
+					uniqueKeyNormalizer(context, entitySchema, attributeIndexKey, part)
 				)
 			);
 		} else {
@@ -268,10 +271,35 @@ public final class AttributeIndexLoader implements ComponentLoader {
 					Objects.requireNonNull(
 						part.getRecordIds(),
 						"Owner unique part must carry the inline payload column!"
-					)
+					),
+					uniqueKeyNormalizer(context, entitySchema, attributeIndexKey, part)
 				)
 			);
 		}
+	}
+
+	/**
+	 * Binds the key function a standalone unique index restores its persisted values with: the owner-resolved
+	 * function for a String, the type-level function at the attribute's scale otherwise.
+	 *
+	 * @param context           the load context carrying the owner's resolver
+	 * @param entitySchema      schema of the entity type the index belongs to
+	 * @param attributeIndexKey the key of the restored unique index
+	 * @param part              the restored unique part
+	 * @return the raw-input key function of the index
+	 */
+	@Nonnull
+	private static Function<Object, Serializable> uniqueKeyNormalizer(
+		@Nonnull LoadContext context,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull UniqueIndexStoragePart part
+	) {
+		final Class<?> type = part.getType();
+		return context.resolveKeyNormalizer(
+			attributeIndexKey, type.isArray() ? type.getComponentType() : type,
+			resolveUniqueIndexedDecimalPlaces(entitySchema, attributeIndexKey, type)
+		);
 	}
 
 	/**
@@ -319,8 +347,8 @@ public final class AttributeIndexLoader implements ComponentLoader {
 
 	/**
 	 * Restores a single FILTER part (first pass). Rebuilds the owned shared value→`ValueToRecord`
-	 * tree from the persisted histogram points (using the canonical NFD/Instant normalizer and the
-	 * key's comparator), keeps the optional shared range, and wraps both in a
+	 * tree from persisted histogram points verbatim, binding the raw-input function
+	 * for future writes and probes. Keeps the optional shared range and wraps both in a
 	 * {@link FilterIndexView}. Populates `sharedValueIndexes`, `sharedRangeIndexes` and
 	 * `filterIndexes` so the second pass can detect view mode for SORT/UNIQUE under the same key.
 	 *
@@ -328,6 +356,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 	 * @param sharedValueIndexes shared value-tree target map (the owned tree the view wraps)
 	 * @param sharedRangeIndexes shared range target map (populated only when the part carries a range)
 	 * @param key                manifest key identifying the FILTER part to fetch
+	 * @param context            the load context carrying the owner's resolver
 	 */
 	private static void fetchFilter(
 		long catalogVersion,
@@ -336,7 +365,8 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		@Nonnull Map<AttributeIndexKey, FilterIndex> filterIndexes,
 		@Nonnull Map<AttributeIndexKey, InvertedIndex> sharedValueIndexes,
 		@Nonnull Map<AttributeIndexKey, RangeIndex> sharedRangeIndexes,
-		@Nonnull AttributeIndexStorageKey key
+		@Nonnull AttributeIndexStorageKey key,
+		@Nonnull LoadContext context
 	) {
 		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(
 			entityIndexId, AttributeIndexType.FILTER, key.attribute(), service.getReadOnlyKeyCompressor()
@@ -357,7 +387,8 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		// the freeze rationale on FilterIndexStoragePart#indexedDecimalPlaces). A later schema change to the scale is
 		// surfaced as drift on the next modification rather than silently reinterpreting the persisted keys.
 		final int indexedDecimalPlaces = part.getIndexedDecimalPlaces();
-		final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(plainType, indexedDecimalPlaces);
+		final Function<Object, Serializable> normalizer =
+			context.resolveKeyNormalizer(attributeIndexKey, plainType, indexedDecimalPlaces);
 		final Comparator<?> comparator = FilterIndex.getComparator(attributeIndexKey, plainType);
 
 		// the OWNED shared value→ValueToRecord tree (bucket axis) and the optional shared range companion (range axis)
@@ -381,6 +412,40 @@ public final class AttributeIndexLoader implements ComponentLoader {
 	}
 
 	/**
+	 * Loads stored filter keys and attaches the attribute identity to corruption diagnostics.
+	 *
+	 * @param catalogVersion the version to read
+	 * @param entityIndexId the owning entity index
+	 * @param service the source of persisted parts
+	 * @param part the filter root
+	 * @param attributeIndexKey the attribute identity
+	 * @param key the manifest entry naming the tree
+	 * @param plainType the declared non-array type
+	 * @param normalizer the future raw-input function
+	 * @param comparator the stored-key order
+	 * @param indexedDecimalPlaces the frozen key scale
+	 * @return the restored tree
+	 */
+	@Nonnull
+	private static InvertedIndex loadInvertedIndex(
+		long catalogVersion, int entityIndexId, @Nonnull StoragePartPersistenceService<?> service,
+		@Nonnull FilterIndexStoragePart part, @Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull AttributeIndexStorageKey key, @Nonnull Class<?> plainType,
+		@Nonnull Function<Object, Serializable> normalizer, @Nonnull Comparator<?> comparator,
+		int indexedDecimalPlaces
+	) {
+		try {
+			return restoreInvertedIndex(
+				catalogVersion, entityIndexId, service, part, attributeIndexKey, key, plainType, normalizer,
+				comparator, indexedDecimalPlaces
+			);
+		} catch (GenericEvitaInternalError ex) {
+			throw new GenericEvitaInternalError("Cannot load filter index " + key.attribute() + ": " + ex.getMessage(),
+				ex);
+		}
+	}
+
+	/**
 	 * Loads the OWNED shared value→`ValueToRecord` tree (the bucket axis) of a FILTER part. A `SINGLE` part carries its
 	 * buckets inline and is rebuilt via the standard buckets constructor; a `PAGED` part reads every listed leaf page in
 	 * order — keyed by `pack(streamId, pageSequence)`, the stream id recomputed from the sub-index identity via the read-only
@@ -395,13 +460,13 @@ public final class AttributeIndexLoader implements ComponentLoader {
 	 * @param attributeIndexKey    the sub-index identity (part of the page-stream key)
 	 * @param key                  the manifest key, used only for failure messages
 	 * @param plainType            the non-array value type used to build the tree
-	 * @param normalizer           the canonical value normalizer (NFD / Instant / scaled-int)
+	 * @param normalizer           the raw-input key function retained for subsequent writes and probes
 	 * @param comparator           the value ordering comparator
 	 * @param indexedDecimalPlaces the frozen scale for `BigDecimal` keys (0 otherwise)
 	 * @return the reloaded owned value tree
 	 */
 	@Nonnull
-	private static InvertedIndex loadInvertedIndex(
+	private static InvertedIndex restoreInvertedIndex(
 		long catalogVersion,
 		int entityIndexId,
 		@Nonnull StoragePartPersistenceService<?> service,
@@ -431,15 +496,12 @@ public final class AttributeIndexLoader implements ComponentLoader {
 					(part.getInlineValueIds() != null ? "carry" : "do not carry") + " an id column."
 			);
 			// the inline shape replays its buckets through the ordinary insert path, which carries no ids - so the
-			// persisted column is stamped back on afterwards, in the ascending key order it was written in. The
-			// column is realigned first: the replay can legitimately end up with fewer buckets than were written when
-			// two persisted values collapse onto one tree key, and the stamping refuses a column that does not align
+			// persisted column is stamped back on afterwards, unchanged and in the ascending key order it was written
+			// in: a load never merges buckets or realigns their ids
 			if (part.getInlineValueIds() != null) {
 				inlineIndex.restoreValueIds(
 					part.getNextValueId(),
-					InvertedIndex.alignPersistedValueIds(
-						part.getHistogramPoints(), part.getInlineValueIds(), normalizer, comparator
-					)
+					part.getInlineValueIds()
 				);
 			}
 			return inlineIndex;
@@ -509,26 +571,8 @@ public final class AttributeIndexLoader implements ComponentLoader {
 	 * listed {@link RangeIndexLeafPagePart} in order — keyed by `join(rangeStreamId, pageSequence)`, the stream id resolved
 	 * with {@link StreamKind#RANGE} — and reassembles boundary-stable.
 	 *
-	 * ## Where an attribute filter index's legacy threshold scale is repaired
-	 *
-	 * A range threshold is an untyped `long`: the same {@link RangeIndex} serves `DateTimeRange` and all five
-	 * `NumberRange` subtypes, and only for `DateTimeRange` did the scale ever change (epoch seconds → epoch
-	 * milliseconds). Rescaling the wrong type would inflate a numeric range's bounds by a thousand and answer every
-	 * `attributeInRange` over it with the wrong records — silently. Two independent facts must therefore meet, and for
-	 * a filter index this method is the only place both are known: **which reader produced the part**
-	 * ({@link FilterIndexStoragePart#isSecondGranularityRangeThresholds()}, set by every backward-compatible
-	 * serializer and by none other) and **the declared attribute type** the part persists.
-	 *
-	 * Both shapes are repaired here rather than inside the serializers, because a range-`PAGED` axis keeps its
-	 * thresholds in leaf-page records the root's serializer never reads.
-	 *
-	 * **The same repair elsewhere.** Three other structures carry second-granularity thresholds and are repaired on
-	 * their own load paths, on the same reasoning but with the type decided differently — change one and check all
-	 * four: {@code HistogramIndexMapLoader#reloadOwnerFilterIndex} for a histogram's RANGE axis (same two facts,
-	 * different part), {@code PriceIndexHeaderSerializer#readWithSecondGranularityValidity} for a price validity index
-	 * (rescaled unconditionally, because its thresholds are only ever a price validity `DateTimeRange`), and
-	 * {@code Migration_2025_6}, which must rescale eagerly rather than at load because it *rewrites* the part under
-	 * the current uid and would otherwise relabel second thresholds as millisecond ones irrecoverably.
+	 * Legacy inline companions are converted by their versioned readers. Legacy paged companions must have been
+	 * replaced by the storage migration before reaching this loader; an unconverted root is refused by name.
 	 *
 	 * @param catalogVersion    the catalog version to read pages at
 	 * @param entityIndexId     the owning entity index pk (part of the page-stream key)
@@ -550,16 +594,13 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		@Nonnull AttributeIndexStorageKey key,
 		@Nonnull Class<?> plainType
 	) {
-		// a part read by a backward-compatible serializer carries second-granularity thresholds, but only a
-		// `DateTimeRange` index ever measured its thresholds in seconds - every NumberRange threshold is the bound's
-		// own numeric value and must be left exactly as persisted
-		final boolean rescaleThresholds =
-			part.isSecondGranularityRangeThresholds() && DateTimeRange.class.equals(plainType);
 		if (!part.isRangePaged()) {
-			final RangeIndex inlineRange = part.getRangeIndex();
-			return rescaleThresholds && inlineRange != null
-				? RangeIndex.rescaledFromSecondGranularity(inlineRange)
-				: inlineRange;
+			return part.getRangeIndex();
+		}
+		if (part.isSecondGranularityRangePages() && DateTimeRange.class.equals(plainType)) {
+			throw new GenericEvitaInternalError(
+				"Cannot load filter index " + attributeIndexKey + ": catalog was not migrated."
+			);
 		}
 		final int rangeStreamId = service.getReadOnlyKeyCompressor().getId(
 			new LeafStreamKey(
@@ -583,16 +624,10 @@ public final class AttributeIndexLoader implements ComponentLoader {
 			);
 			perPagePoints[i] = leafPage.getPoints();
 		}
-		// the rescaled reload is deliberately NOT boundary-stable - see the method's javadoc for why root and pages
-		// have to move to the millisecond form in one commit
-		return rescaleThresholds
-			? RangeIndex.rescaledFromSecondGranularityPages(
-				rangePageSequences, perPagePoints, part.getRangeHighWaterPageSequence()
-			)
-			: RangeIndex.fromPersistedPages(
-				"attribute " + attributeIndexKey, rangePageSequences, perPagePoints,
-				part.getRangeHighWaterPageSequence()
-			);
+		return RangeIndex.fromPersistedPages(
+			"attribute " + attributeIndexKey, rangePageSequences, perPagePoints,
+			part.getRangeHighWaterPageSequence()
+		);
 	}
 
 	/**
@@ -646,7 +681,8 @@ public final class AttributeIndexLoader implements ComponentLoader {
 			sortIndex = SortIndex.create(
 				comparatorBase, context.referenceKey(), attributeIndexKey, indexedDecimalPlaces,
 				sortedRecords, part.getSortedRecordsValues(), part.getValueCardinalities(),
-				() -> sharedValueIndexes.get(attributeIndexKey)
+				() -> sharedValueIndexes.get(attributeIndexKey),
+				context.resolveSortNormalizer(attributeIndexKey, comparatorBase, indexedDecimalPlaces)
 			);
 		} else if (part.isPaged()) {
 			// OWNER, PAGED: standalone (sort-only / compound) sort index whose owned value tree was persisted as individual
@@ -673,7 +709,8 @@ public final class AttributeIndexLoader implements ComponentLoader {
 			}
 			sortIndex = OwnerSortIndex.fromPersistedPages(
 				comparatorBase, context.referenceKey(), attributeIndexKey, indexedDecimalPlaces,
-				orderedPageSequences, perPageBuckets, part.getHighWaterPageSequence()
+				orderedPageSequences, perPageBuckets, part.getHighWaterPageSequence(),
+				context.resolveSortNormalizer(attributeIndexKey, comparatorBase, indexedDecimalPlaces)
 			);
 		} else {
 			// OWNER, SINGLE / legacy: standalone sort index restored from its full inline part - adopt the persisted
@@ -681,7 +718,8 @@ public final class AttributeIndexLoader implements ComponentLoader {
 			// blocks may be non-ascending)
 			sortIndex = SortIndex.create(
 				comparatorBase, context.referenceKey(), attributeIndexKey, indexedDecimalPlaces,
-				part.getSortedRecords(), part.getSortedRecordsValues(), part.getValueCardinalities(), null
+				part.getSortedRecords(), part.getSortedRecordsValues(), part.getValueCardinalities(), null,
+				context.resolveSortNormalizer(attributeIndexKey, comparatorBase, indexedDecimalPlaces)
 			);
 		}
 		sortIndexes.put(attributeIndexKey, sortIndex);

@@ -479,7 +479,13 @@ class WarmUpSavepointUnorderedLookupRollbackTest {
 		 */
 		@Nonnull
 		private static SortIndex newIndex(int count) {
-			final SortIndex index = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex index = new OwnerSortIndex(
+				String.class,
+				null,
+				new AttributeIndexKey(null, "a", null),
+				0,
+				SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+			);
 			for (int i = 0; i < count; i++) {
 				index.addRecord(String.format("v%05d", i), i + 1);
 			}

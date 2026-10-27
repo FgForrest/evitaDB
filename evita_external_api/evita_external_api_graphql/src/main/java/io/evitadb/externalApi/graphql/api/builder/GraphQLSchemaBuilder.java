@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.builder;
 
+import graphql.Directives;
 import graphql.schema.GraphQLEnumType;
 import graphql.schema.GraphQLInputObjectType;
 import graphql.schema.GraphQLInterfaceType;
@@ -39,6 +40,8 @@ import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.AnalysisStepDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.AnalysisStepInputDescriptors;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.TypeDescriptor;
@@ -116,6 +119,28 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 		this.objectBuilderTransformer = new ObjectDescriptorToGraphQLObjectTransformer(this.fieldBuilderTransformer);
 		this.unionBuilderTransformer = new UnionDescriptorToGraphQLUnionTransformer();
 		this.inputObjectBuilderTransformer = new ObjectDescriptorToGraphQLInputObjectTransformer(this.inputFieldBuilderTransformer);
+	}
+
+
+	/**
+	 * Registers the typed analysis-step input of a schema API that accepts schema mutations: the parameter object of
+	 * every installed normalizing step that takes parameters and the `@oneOf` selector over all installed steps.
+	 */
+	protected void registerAnalysisStepInputTypes() {
+		final ObjectDescriptor descriptor = AnalysisStepDescriptor.THIS_INPUT;
+		final GraphQLInputObjectType.Builder input = descriptor.to(this.inputObjectBuilderTransformer)
+			.clearFields()
+			.withAppliedDirective(Directives.OneOfDirective.toAppliedDirective());
+		// ObjectDescriptor normalizes fields through a map; retain the registry's step-name order explicitly.
+		for (final AnalysisStepInputDescriptors.StepInput step : AnalysisStepInputDescriptors.getSteps()) {
+			if (step.parameters() != null) {
+				this.buildingContext.registerType(step.parameters().to(this.inputObjectBuilderTransformer).build());
+			}
+			input.field(descriptor.staticProperties().stream()
+				.filter(property -> property.name().equals(step.fieldName()))
+				.findFirst().orElseThrow().to(this.inputFieldBuilderTransformer));
+		}
+		this.buildingContext.registerType(input.build());
 	}
 
 

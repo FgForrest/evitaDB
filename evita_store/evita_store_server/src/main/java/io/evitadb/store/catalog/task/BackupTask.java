@@ -516,7 +516,6 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 		final ObservableOutput<ZipOutputStream> boostrapOutput = new ObservableOutput<>(
 			zipOutputStream,
-			CatalogBootstrap.BOOTSTRAP_RECORD_SIZE,
 			CatalogBootstrap.BOOTSTRAP_RECORD_SIZE << 1,
 			0L,
 			catalogPersistenceService.createChecksum(),

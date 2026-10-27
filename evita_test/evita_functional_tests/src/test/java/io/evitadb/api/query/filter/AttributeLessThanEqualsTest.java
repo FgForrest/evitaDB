@@ -159,7 +159,7 @@ class AttributeLessThanEqualsTest {
 		void shouldReturnCorrectType() {
 			final AttributeLessThanEquals constraint = attributeLessThanEquals("abc", "def");
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 	}
 
@@ -190,12 +190,12 @@ class AttributeLessThanEqualsTest {
 				attributeLessThanEquals("abc", "defe")
 			);
 			assertNotEquals(
-				attributeLessThanEquals("abc", "def"),
-				new AttributeLessThanEquals("abc", null)
+				new AttributeLessThanEquals("abc", null),
+				attributeLessThanEquals("abc", "def")
 			);
 			assertNotEquals(
-				attributeLessThanEquals("abc", "def"),
-				new AttributeLessThanEquals(null, "abc")
+				new AttributeLessThanEquals(null, "abc"),
+				attributeLessThanEquals("abc", "def")
 			);
 			assertEquals(
 				attributeLessThanEquals("abc", "def").hashCode(),

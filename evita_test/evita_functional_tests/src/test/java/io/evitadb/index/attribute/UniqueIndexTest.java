@@ -126,13 +126,15 @@ class UniqueIndexTest {
 			final UniqueIndex first = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 			final UniqueIndex second = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 
 			// stable — same value on repeated calls
 			assertEquals(first.getId(), first.getId());
@@ -146,8 +148,9 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 			index.registerUniqueKey("pre-existing", 100);
 
 			assertStateAfterCommit(
@@ -176,8 +179,9 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 			index.registerUniqueKey("A", 1);
 
 			// rollback implicitly calls removeLayer on nested producers
@@ -203,8 +207,9 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 
 			assertStateAfterCommit(
 				index,
@@ -231,8 +236,9 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 
 			assertStateAfterCommit(
 				index,
@@ -247,8 +253,9 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 
 			assertStateAfterCommit(
 				index,
@@ -265,8 +272,9 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 
 			final AtomicReference<UniqueIndex> committedRef = new AtomicReference<>();
 
@@ -298,8 +306,9 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 			index.registerUniqueKey("X", 10);
 			index.registerUniqueKey("Y", 20);
 
@@ -341,8 +350,9 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 			// the key carries no locale, so record 1 owns its english and its german value in this one index
 			index.registerUniqueKey("en-A", 1);
 			index.registerUniqueKey("de-A", 1);
@@ -358,8 +368,9 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 			// the same shape as a type-level index, whose record is a partition several owners' values map to
 			index.registerUniqueKey("en-A", 1);
 			index.registerUniqueKey("de-A", 1);
@@ -380,8 +391,9 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 			index.registerUniqueKey("en-A", 1);
 			index.registerUniqueKey("de-A", 1);
 
@@ -440,8 +452,9 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 			// an owner index also serves type-level indexes whose record is not an entity primary key, so every int is
 			// a legitimate record id
 			index.registerUniqueKey("min", Integer.MIN_VALUE);
@@ -464,8 +477,9 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 			index.registerUniqueKey("en-A", 1);
 			index.registerUniqueKey("de-A", 1);
 
@@ -487,8 +501,9 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 			index.registerUniqueKey("en-A", 1);
 			index.registerUniqueKey("de-A", 1);
 			index.registerUniqueKey("en-B", 2);
@@ -511,8 +526,9 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 
 			assertTrue(index.isEmpty());
 			assertEquals(0, index.size());
@@ -524,8 +540,9 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 
 			final TrappedChanges sink = new TrappedChanges();
 			index.appendStorageParts(1, sink);
@@ -538,8 +555,9 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 			index.registerUniqueKey("A", 1);
 
 			final TrappedChanges sink = new TrappedChanges();
@@ -564,8 +582,9 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 			index.registerUniqueKey("A", 1);
 
 			// dirty — a part is emitted
@@ -588,8 +607,9 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 			// register "B" owned by record 99
 			index.registerUniqueKey("B", 99);
 
@@ -612,8 +632,9 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 			index.registerUniqueKey("B", 1);
 
 			// the same record claiming "B" a second time is a second occurrence of the value, exactly as another
@@ -636,8 +657,9 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 			index.registerUniqueKey("A", 1);
 
 			final UniqueIndex.InlineSnapshot snapshot = index.inlineSnapshot();
@@ -654,9 +676,11 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class, 0,
+				String.class,
+				0,
 				values,
-				recordIds
+				recordIds,
+				FilterIndex.getNormalizer(String.class, 0)
 			);
 
 			assertFalse(index.isEmpty());
@@ -675,8 +699,9 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class
-			, 0);
+				String.class,
+				0
+			);
 			index.registerUniqueKey(new String[]{"A", "B"}, 1);
 
 			// try to unregister with wrong owner — should throw before any removal
@@ -751,8 +776,11 @@ class UniqueIndexTest {
 		@Nonnull
 		private UniqueIndex temporalIndex(@Nonnull Class<? extends Serializable> attributeType) {
 			return new OwnerUniqueIndex(
-				Entities.PRODUCT, new AttributeIndexKey(null, "validFrom", null), attributeType
-			, 0);
+				Entities.PRODUCT,
+				new AttributeIndexKey(null, "validFrom", null),
+				attributeType,
+				0
+			);
 		}
 
 		@Test
@@ -879,8 +907,13 @@ class UniqueIndexTest {
 			assertEquals(ZoneOffset.UTC, ((OffsetDateTime) values[0]).getOffset());
 
 			final UniqueIndex reloaded = new OwnerUniqueIndex(
-				Entities.PRODUCT, part.getAttributeIndexKey(), part.getType(), 0, values,
-				Objects.requireNonNull(part.getRecordIds())
+				Entities.PRODUCT,
+				part.getAttributeIndexKey(),
+				part.getType(),
+				0,
+				values,
+				Objects.requireNonNull(part.getRecordIds()),
+				FilterIndex.getNormalizer(part.getType().isArray() ? part.getType().getComponentType() : part.getType(), 0)
 			);
 			assertEquals(1, reloaded.getRecordIdByUniqueValue(NOON_AT_PLUS_TWO));
 		}
@@ -890,8 +923,13 @@ class UniqueIndexTest {
 		void shouldFindAValuePersistedAtAnotherOffset() {
 			// a part written before the index keyed by instant holds the value exactly as it was written
 			final UniqueIndex reloaded = new OwnerUniqueIndex(
-				Entities.PRODUCT, new AttributeIndexKey(null, "validFrom", null), OffsetDateTime.class, 0,
-				new Serializable[]{NOON_AT_PLUS_TWO, NOON_PLUS_ONE_MILLI}, new int[]{1, 2}
+				Entities.PRODUCT,
+				new AttributeIndexKey(null, "validFrom", null),
+				OffsetDateTime.class,
+				0,
+				new Serializable[]{NOON_AT_PLUS_TWO, NOON_PLUS_ONE_MILLI},
+				new int[]{1, 2},
+				FilterIndex.getNormalizer(OffsetDateTime.class, 0)
 			);
 
 			assertEquals(1, reloaded.getRecordIdByUniqueValue(NOON));
@@ -906,8 +944,13 @@ class UniqueIndexTest {
 			final GenericEvitaInternalError ex = assertThrows(
 				GenericEvitaInternalError.class,
 				() -> new OwnerUniqueIndex(
-					Entities.PRODUCT, new AttributeIndexKey(null, "validFrom", null), OffsetDateTime.class, 0,
-					new Serializable[]{NOON, NOON_AT_PLUS_TWO}, new int[]{1, 2}
+					Entities.PRODUCT,
+					new AttributeIndexKey(null, "validFrom", null),
+					OffsetDateTime.class,
+					0,
+					new Serializable[]{NOON, NOON_AT_PLUS_TWO},
+					new int[]{1, 2},
+					FilterIndex.getNormalizer(OffsetDateTime.class, 0)
 				)
 			);
 			assertTrue(ex.getMessage().contains("`validFrom`"), ex.getMessage());

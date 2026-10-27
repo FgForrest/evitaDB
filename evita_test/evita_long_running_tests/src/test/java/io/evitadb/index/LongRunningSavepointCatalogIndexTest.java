@@ -31,6 +31,7 @@ import io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.LongRunningCatalogIndexTest.CatalogSnapshot;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 
@@ -155,7 +156,7 @@ class LongRunningSavepointCatalogIndexTest extends AbstractSavepointFuzzTest<Cat
 		private int forcedRecordSeq = 1_000_000;
 
 		CatalogState(@Nonnull Random random) {
-			this.index = new CatalogIndex(Scope.LIVE);
+			this.index = new CatalogIndex(Scope.LIVE, true, AttributeNormalizationResolver.LEGACY_NFD);
 			final Catalog catalog = createMockCatalog();
 			this.classifierResolver = new EntityTypeClassifierResolver() {
 				@Override

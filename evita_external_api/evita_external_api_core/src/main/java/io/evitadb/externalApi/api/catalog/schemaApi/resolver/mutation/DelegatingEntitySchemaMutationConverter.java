@@ -131,6 +131,10 @@ public class DelegatingEntitySchemaMutationConverter extends
 			SetAttributeSchemaAcceleratedMutation.class,
 			new SetAttributeSchemaAcceleratedMutationConverter(objectMapper, exceptionFactory)
 		);
+		registerConverter(
+			SetAttributeSchemaNormalizedMutation.class,
+			new SetAttributeSchemaNormalizedMutationConverter(objectMapper, exceptionFactory)
+		);
 		registerConverter(SetAttributeSchemaLocalizedMutation.class, new SetAttributeSchemaLocalizedMutationConverter(objectMapper, exceptionFactory));
 		registerConverter(SetAttributeSchemaNullableMutation.class, new SetAttributeSchemaNullableMutationConverter(objectMapper, exceptionFactory));
 		registerConverter(SetAttributeSchemaConflictResolutionOverrideMutation.class, new SetAttributeSchemaConflictResolutionOverrideMutationConverter(objectMapper, exceptionFactory));

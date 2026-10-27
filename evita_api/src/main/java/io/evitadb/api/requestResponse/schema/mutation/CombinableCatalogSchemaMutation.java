@@ -60,11 +60,12 @@ public interface CombinableCatalogSchemaMutation extends LocalCatalogSchemaMutat
 	 * - Replace existing mutations with optimized variants
 	 * - Signal that they should be discarded as redundant
 	 *
-	 * The combination logic can consult the current schema state to make intelligent decisions about
-	 * whether mutations are truly conflicting or can coexist.
+	 * The combination logic can consult the base schema of the builder - the state before any collected mutation -
+	 * to decide whether mutations are truly conflicting or can coexist. A name the pipeline renames may mean another
+	 * element there: a combiner that judges a mutation against the base schema's element of the same name must be
+	 * listed in `InternalSchemaBuilderHelper#isJudgedAgainstBaseSchema`.
 	 *
-	 * @param currentCatalogSchema the current state of the schema that can be consulted for
-	 *                             context-aware combination decisions
+	 * @param currentCatalogSchema the base catalog schema of the builder, before any collected mutation
 	 * @param existingMutation     the existing mutation in the pipeline to check for conflicts or
 	 *                             combination opportunities
 	 * @return NULL if the pipeline should not be changed, or a {@link MutationCombinationResult}

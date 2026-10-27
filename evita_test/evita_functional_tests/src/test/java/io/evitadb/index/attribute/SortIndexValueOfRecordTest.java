@@ -73,7 +73,13 @@ class SortIndexValueOfRecordTest {
 		@Test
 		@DisplayName("an empty index holds no value for any record")
 		void shouldReturnAbsenceFromAnEmptyIndex() {
-			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, KEY);
+			final SortIndex sortIndex = new OwnerSortIndex(
+				Integer.class,
+				null,
+				KEY,
+				0,
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
+			);
 
 			assertEquals(Optional.empty(), sortIndex.getValueOfRecord(1));
 		}
@@ -81,7 +87,13 @@ class SortIndexValueOfRecordTest {
 		@Test
 		@DisplayName("a record the index does not hold is absent, not an error")
 		void shouldReturnAbsenceForARecordTheIndexDoesNotHold() {
-			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, KEY);
+			final SortIndex sortIndex = new OwnerSortIndex(
+				Integer.class,
+				null,
+				KEY,
+				0,
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
+			);
 			sortIndex.addRecord(10, 1);
 			sortIndex.addRecord(20, 2);
 
@@ -92,7 +104,13 @@ class SortIndexValueOfRecordTest {
 		@Test
 		@DisplayName("a removed record is absent")
 		void shouldReturnAbsenceForARemovedRecord() {
-			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, KEY);
+			final SortIndex sortIndex = new OwnerSortIndex(
+				Integer.class,
+				null,
+				KEY,
+				0,
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
+			);
 			sortIndex.addRecord(10, 1);
 			sortIndex.addRecord(10, 2);
 			sortIndex.removeRecord(10, 1);
@@ -109,7 +127,13 @@ class SortIndexValueOfRecordTest {
 		@Test
 		@DisplayName("every record, in every block, reads the value of its own block")
 		void shouldReturnTheValueOfEveryRecordsBlock() {
-			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, KEY);
+			final SortIndex sortIndex = new OwnerSortIndex(
+				Integer.class,
+				null,
+				KEY,
+				0,
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
+			);
 			sortIndex.addRecord(30, 5);
 			sortIndex.addRecord(10, 3);
 			sortIndex.addRecord(20, 1);
@@ -126,10 +150,22 @@ class SortIndexValueOfRecordTest {
 		@Test
 		@DisplayName("a locale and a currency come back in their comparable form")
 		void shouldReturnTheNormalizedFormOfWrappedValues() {
-			final SortIndex locales = new OwnerSortIndex(Locale.class, KEY);
+			final SortIndex locales = new OwnerSortIndex(
+				Locale.class,
+				null,
+				KEY,
+				0,
+				SortIndex.createTypeLevelNormalizerFor(Locale.class, 0)
+			);
 			locales.addRecord(Locale.GERMAN, 1);
 			locales.addRecord(Locale.ENGLISH, 2);
-			final SortIndex currencies = new OwnerSortIndex(Currency.class, KEY);
+			final SortIndex currencies = new OwnerSortIndex(
+				Currency.class,
+				null,
+				KEY,
+				0,
+				SortIndex.createTypeLevelNormalizerFor(Currency.class, 0)
+			);
 			currencies.addRecord(Currency.getInstance("EUR"), 1);
 			currencies.addRecord(Currency.getInstance("CZK"), 2);
 
@@ -143,7 +179,13 @@ class SortIndexValueOfRecordTest {
 		@Test
 		@DisplayName("an offset date time comes back as the instant it is ordered by")
 		void shouldReturnTheInstantOfAnOffsetDateTime() {
-			final SortIndex sortIndex = new OwnerSortIndex(OffsetDateTime.class, KEY);
+			final SortIndex sortIndex = new OwnerSortIndex(
+				OffsetDateTime.class,
+				null,
+				KEY,
+				0,
+				SortIndex.createTypeLevelNormalizerFor(OffsetDateTime.class, 0)
+			);
 			final OffsetDateTime moment = OffsetDateTime.of(2026, 10, 2, 12, 0, 0, 0, ZoneOffset.ofHours(2));
 			sortIndex.addRecord(moment, 1);
 
@@ -153,14 +195,15 @@ class SortIndexValueOfRecordTest {
 		@Test
 		@DisplayName("a compound with a descending, a nulls-first and a missing element comes back whole")
 		void shouldReturnTheWholeCompound() {
-			final SortIndex sortIndex = new OwnerSortIndex(
-				new ComparatorSource[]{
+			final SortIndex sortIndex = new OwnerSortIndex(new ComparatorSource[]{
 					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 					new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST),
 					new ComparatorSource(Locale.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
-				},
-				KEY
-			);
+				}, null, KEY, SortIndex.createTypeLevelNormalizerFor(new ComparatorSource[]{
+					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
+					new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST),
+					new ComparatorSource(Locale.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+				}, 0));
 			sortIndex.addRecord(new Serializable[]{"B", 1, Locale.ENGLISH}, 1);
 			sortIndex.addRecord(new Serializable[]{null, 3, null}, 2);
 			sortIndex.addRecord(new Serializable[]{"B", 9, Locale.ENGLISH}, 3);
@@ -192,7 +235,14 @@ class SortIndexValueOfRecordTest {
 				FilterIndex.getNormalizer(OffsetDateTime.class, 0),
 				FilterIndex.getComparator(KEY, OffsetDateTime.class)
 			);
-			final SortIndex view = SortIndex.create(OffsetDateTime.class, null, KEY, 0, () -> shared);
+			final SortIndex view = SortIndex.create(
+				OffsetDateTime.class,
+				null,
+				KEY,
+				0,
+				() -> shared,
+				SortIndex.createTypeLevelNormalizerFor(OffsetDateTime.class, 0)
+			);
 			assertInstanceOf(SortIndexView.class, view);
 			final OffsetDateTime first = OffsetDateTime.of(2026, 10, 2, 12, 0, 0, 0, ZoneOffset.UTC);
 			final OffsetDateTime second = first.plusHours(1);
@@ -236,7 +286,13 @@ class SortIndexValueOfRecordTest {
 		@Test
 		@DisplayName("the open transaction reads its own writes, the committed index keeps its own values")
 		void shouldReadTheTransactionsOwnWrites() {
-			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, KEY);
+			final SortIndex sortIndex = new OwnerSortIndex(
+				Integer.class,
+				null,
+				KEY,
+				0,
+				SortIndex.createTypeLevelNormalizerFor(Integer.class, 0)
+			);
 			sortIndex.addRecord(10, 1);
 			sortIndex.addRecord(20, 2);
 

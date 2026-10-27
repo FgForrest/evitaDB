@@ -175,7 +175,7 @@ class HierarchyWithinTest {
 		void shouldReturnFilterConstraintType() {
 			final HierarchyWithin constraint = hierarchyWithin("brand", entityPrimaryKeyInSet(1));
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 
 		@Test

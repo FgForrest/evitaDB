@@ -265,11 +265,11 @@ class ValueToRecordArrayTest {
 		void shouldIdentifyByValue() {
 			final ValueToRecordArray bucket = new ValueToRecordArray(VALUE, 1, 2, 3);
 
-			assertEquals(bucket, new ValueToRecordArray(VALUE, 7, 8));
+			assertEquals(new ValueToRecordArray(VALUE, 7, 8), bucket);
 			assertEquals(bucket.hashCode(), new ValueToRecordArray(VALUE, 7, 8).hashCode());
 			assertEquals(VALUE.hashCode(), bucket.hashCode());
-			assertNotEquals(bucket, new ValueToRecordArray("beta", 1, 2, 3));
-			assertNotEquals(bucket, new ValueToRecordBitmap(VALUE, 1, 2, 3));
+			assertNotEquals(new ValueToRecordArray("beta", 1, 2, 3), bucket);
+			assertNotEquals(new ValueToRecordBitmap(VALUE, 1, 2, 3), bucket);
 			assertNotEquals(null, bucket);
 		}
 

@@ -152,7 +152,7 @@ class WalReadResultTest {
 			TemporalDataNotAvailableException.class,
 			() -> WalReadResult.assertPositionRetained(READ_START, 11L, RetentionFailureFactory.PLAIN)
 		);
-		assertEquals(
+		assertSame(
 			TemporalDataNotAvailableException.class, notAvailable.getClass(),
 			"A stream that belongs to no catalog incarnation has no identity to report."
 		);

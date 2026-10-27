@@ -108,6 +108,7 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 	 * @param referenceSchema      the schema of the reference the attribute belongs to
 	 * @param locale               the locale to use when reading localized attribute values, or `null` when the
 	 *                             attribute is not localized
+	 * @param stringNormalizer     the effective String key function, with schema-masked fold locale
 	 * @param orderDirection       the direction to sort in
 	 */
 	public AbstractReferenceAttributeComparator(
@@ -116,7 +117,8 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 		int indexedDecimalPlaces,
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
-		@Nonnull OrderDirection orderDirection
+		@Nonnull OrderDirection orderDirection,
+		@Nonnull UnaryOperator<String> stringNormalizer
 	) {
 		this.referenceSchema = referenceSchema;
 		this.referenceName = referenceSchema.getName();
@@ -133,9 +135,10 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 			final ComparatorSource comparatorSource = new ComparatorSource(
 				type, orderDirection, OrderBehaviour.NULLS_LAST
 			);
-			final Optional<UnaryOperator<Serializable>> normalizerFor =
-				createComparatorNormalizerFor(comparatorSource, indexedDecimalPlaces);
-			normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
+			normalizer = type == String.class ?
+				value -> value == null ? null : stringNormalizer.apply((String) value) :
+				createComparatorNormalizerFor(comparatorSource,
+					indexedDecimalPlaces).orElseGet(UnaryOperator::identity);
 			valueComparator = createComparatorFor(locale, comparatorSource);
 		} else {
 			normalizer = UnaryOperator.identity();

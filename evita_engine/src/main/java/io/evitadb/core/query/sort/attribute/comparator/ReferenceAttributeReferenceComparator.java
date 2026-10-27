@@ -36,7 +36,6 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Comparator;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
@@ -79,6 +78,7 @@ public class ReferenceAttributeReferenceComparator implements ReferenceComparato
 	 * @param indexedDecimalPlaces the `indexedDecimalPlaces` of the attribute schema - the scale a range value is
 	 *                             compared at
 	 * @param locale               the locale to read a localized attribute in, or `null`
+	 * @param stringNormalizer     the effective String key function, with schema-masked fold locale
 	 * @param orderDirection       the direction to sort in
 	 */
 	public ReferenceAttributeReferenceComparator(
@@ -86,9 +86,10 @@ public class ReferenceAttributeReferenceComparator implements ReferenceComparato
 		@Nonnull Class<?> type,
 		int indexedDecimalPlaces,
 		@Nullable Locale locale,
-		@Nonnull OrderDirection orderDirection
+		@Nonnull OrderDirection orderDirection,
+		@Nonnull UnaryOperator<String> stringNormalizer
 	) {
-		this(attributeName, type, indexedDecimalPlaces, locale, orderDirection, null);
+		this(attributeName, type, indexedDecimalPlaces, locale, orderDirection, stringNormalizer, null);
 	}
 
 	/**
@@ -100,6 +101,7 @@ public class ReferenceAttributeReferenceComparator implements ReferenceComparato
 	 * @param indexedDecimalPlaces the `indexedDecimalPlaces` of the attribute schema - the scale a range value is
 	 *                             compared at
 	 * @param locale               the locale to read a localized attribute in, or `null`
+	 * @param stringNormalizer     the effective String key function, with schema-masked fold locale
 	 * @param orderDirection       the direction to sort in
 	 * @param nextComparator       the comparator of the references the attribute does not order, or `null`
 	 */
@@ -109,14 +111,15 @@ public class ReferenceAttributeReferenceComparator implements ReferenceComparato
 		int indexedDecimalPlaces,
 		@Nullable Locale locale,
 		@Nonnull OrderDirection orderDirection,
+		@Nonnull UnaryOperator<String> stringNormalizer,
 		@Nullable ReferenceComparator nextComparator
 	) {
 		final ComparatorSource comparatorSource = new ComparatorSource(
 			type, orderDirection, OrderBehaviour.NULLS_LAST
 		);
-		final Optional<UnaryOperator<Serializable>> normalizerFor =
-			createComparatorNormalizerFor(comparatorSource, indexedDecimalPlaces);
-		final UnaryOperator<Serializable> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
+		final UnaryOperator<Serializable> normalizer = type == String.class ?
+			value -> value == null ? null : stringNormalizer.apply((String) value) :
+			createComparatorNormalizerFor(comparatorSource, indexedDecimalPlaces).orElseGet(UnaryOperator::identity);
 		//noinspection unchecked
 		this.comparator = createComparatorFor(locale, comparatorSource);
 		this.attributeValueFetcher = locale == null ?

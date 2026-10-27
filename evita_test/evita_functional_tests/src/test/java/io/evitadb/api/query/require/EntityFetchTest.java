@@ -119,9 +119,7 @@ class EntityFetchTest {
 			final EntityFetch entityFetch = entityFetch(attributeContentAll());
 			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
 
-			entityFetch.accept(c -> {
-				visited.set(c);
-			});
+			entityFetch.accept(visited::set);
 
 			assertSame(entityFetch, visited.get());
 		}
@@ -131,7 +129,7 @@ class EntityFetchTest {
 		void shouldReturnRequireConstraintType() {
 			final EntityFetch entityFetch = entityFetch();
 
-			assertEquals(RequireConstraint.class, entityFetch.getType());
+			assertSame(RequireConstraint.class, entityFetch.getType());
 		}
 	}
 

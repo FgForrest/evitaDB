@@ -80,6 +80,8 @@ import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.export.file.ExportFileService;
 import io.evitadb.export.file.ExportFileService.ExportFileHandleLocal;
 import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
@@ -217,6 +219,9 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	@Nonnull
 	private static Catalog getMockCatalog(SealedCatalogSchema catalogSchema, @Nonnull SealedEntitySchema schema) {
 		final Catalog mockCatalog = mock(Catalog.class);
+		when(mockCatalog.getAttributeNormalizationResolver()).thenReturn(AttributeNormalizationResolver.LEGACY_NFD);
+		when(mockCatalog.getAnalysisStepRegistry()).thenReturn(new AnalysisStepRegistry());
+		when(mockCatalog.getGlobalAttributeNormalizationRows()).thenReturn(Map.of());
 		when(mockCatalog.getSchema()).thenReturn(catalogSchema);
 		when(mockCatalog.getEntitySchema(schema.getName())).thenReturn(of(schema));
 		when(mockCatalog.getEntityIndexIfExists(ArgumentMatchers.eq(schema.getName()), any(EntityIndexKey.class), any(Class.class))).thenReturn(empty());

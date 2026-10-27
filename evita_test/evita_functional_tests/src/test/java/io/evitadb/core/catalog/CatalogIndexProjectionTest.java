@@ -38,6 +38,7 @@ import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.IndexActivity;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -406,7 +407,7 @@ class CatalogIndexProjectionTest {
 		@Test
 		@DisplayName("describes an empty catalog index without inventing readings for it")
 		void shouldDescribeAnEmptyCatalogIndex() {
-			final IndexDetail detail = CatalogIndexProjection.describe(empty(Scope.LIVE));
+			final IndexDetail detail = CatalogIndexProjection.describe(empty(Scope.LIVE), 0L);
 
 			assertNull(detail.entityType());
 			assertEquals(0, detail.indexPrimaryKey());
@@ -439,7 +440,7 @@ class CatalogIndexProjectionTest {
 			index.getActivity().recordQuery(SECOND_MILLIS);
 			index.getActivity().recordUpdate(THIRD_MILLIS);
 
-			final IndexDetail detail = CatalogIndexProjection.describe(index);
+			final IndexDetail detail = CatalogIndexProjection.describe(index, 0L);
 
 			assertEquals(2L, detail.queryCount());
 			assertEquals(1L, detail.updateCount(), "A query must not be counted as maintenance");
@@ -454,7 +455,7 @@ class CatalogIndexProjectionTest {
 			// taken after the fixture is built, so the window has already opened by now
 			final OffsetDateTime now = OffsetDateTime.now();
 
-			final IndexDetail detail = CatalogIndexProjection.describe(index);
+			final IndexDetail detail = CatalogIndexProjection.describe(index, 0L);
 
 			assertObservationWindowOf(index, detail.observedSince(), now);
 		}
@@ -462,7 +463,7 @@ class CatalogIndexProjectionTest {
 		@Test
 		@DisplayName("reports one attribute reading per global unique index, locale included")
 		void shouldReportOneReadingPerGlobalUniqueIndex() {
-			final IndexDetail detail = CatalogIndexProjection.describe(seeded(Scope.ARCHIVED));
+			final IndexDetail detail = CatalogIndexProjection.describe(seeded(Scope.ARCHIVED), 0L);
 
 			assertEquals(1, detail.indexPrimaryKey());
 			assertNull(detail.entityType());
@@ -497,10 +498,14 @@ class CatalogIndexProjectionTest {
 			final Map<AttributeKey, GlobalUniqueIndex> uniqueIndexes = new HashMap<>();
 			uniqueIndexes.put(attributeKey, uniqueIndex);
 			final CatalogIndex index = new CatalogIndex(
-				1, new CatalogIndexKey(Scope.LIVE), uniqueIndexes, new IndexActivity()
+				1,
+				new CatalogIndexKey(Scope.LIVE),
+				uniqueIndexes,
+				new IndexActivity(),
+				AttributeNormalizationResolver.LEGACY_NFD
 			);
 
-			final AttributeCardinality[] attributes = CatalogIndexProjection.describe(index).cardinality().attributes();
+			final AttributeCardinality[] attributes = CatalogIndexProjection.describe(index, 0L).cardinality().attributes();
 
 			assertEquals(1, attributes.length);
 			final AttributeCardinality code = readingOf(attributes, "code");
@@ -657,7 +662,7 @@ class CatalogIndexProjectionTest {
 	 */
 	@Nonnull
 	private static CatalogIndex empty(@Nonnull Scope scope) {
-		return new CatalogIndex(scope);
+		return new CatalogIndex(scope, true, AttributeNormalizationResolver.LEGACY_NFD);
 	}
 
 	/**
@@ -701,7 +706,13 @@ class CatalogIndexProjectionTest {
 			new AttributeKey("code"),
 			globalUniqueIndex(scope, new AttributeKey("code"), null, 2)
 		);
-		return new CatalogIndex(1, new CatalogIndexKey(scope), uniqueIndexes, new IndexActivity());
+		return new CatalogIndex(
+			1,
+			new CatalogIndexKey(scope),
+			uniqueIndexes,
+			new IndexActivity(),
+			AttributeNormalizationResolver.LEGACY_NFD
+		);
 	}
 
 	/**

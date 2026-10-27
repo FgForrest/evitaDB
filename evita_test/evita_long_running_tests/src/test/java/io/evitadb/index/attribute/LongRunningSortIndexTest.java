@@ -81,7 +81,13 @@ class LongRunningSortIndexTest implements TimeBoundedTestSupport {
 			1_000,
 			new TestState(
 				new StringBuilder(256),
-				new OwnerSortIndex(String.class, new AttributeIndexKey(null, "whatever", null))
+				new OwnerSortIndex(
+					String.class,
+					null,
+					new AttributeIndexKey(null, "whatever", null),
+					0,
+					SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+				)
 			),
 			(random, testState) -> {
 				final StringBuilder ops = testState.code();
@@ -126,9 +132,11 @@ class LongRunningSortIndexTest implements TimeBoundedTestSupport {
 								committed.comparatorBase,
 								null,
 								committed.getAttributeIndexKey(),
+								0,
 								committed.sortedRecords.getArray(),
 								committedValues,
-								committedCardinalities
+								committedCardinalities,
+								SortIndex.createTypeLevelNormalizerFor(committed.comparatorBase, 0)
 							)
 						);
 					}
@@ -166,7 +174,13 @@ class LongRunningSortIndexTest implements TimeBoundedTestSupport {
 			new StringBuilder(256),
 			(random, ops) -> {
 				// rebuild a fresh index from the (random-walking) reference model that the rollback must return to
-				final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "whatever", null));
+				final SortIndex sortIndex = new OwnerSortIndex(
+					String.class,
+					null,
+					new AttributeIndexKey(null, "whatever", null),
+					0,
+					SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+				);
 				for (final ValueRecord record : setToCompare) {
 					sortIndex.addRecord(record.value(), record.recordId());
 				}

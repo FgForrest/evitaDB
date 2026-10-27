@@ -49,12 +49,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.ToIntFunction;
+import java.util.function.UnaryOperator;
 
+import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -63,10 +66,8 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class AttributeExactSorter implements Sorter {
-	/**
-	 * Name of the attribute the sorter sorts along.
-	 */
-	private final String attributeName;
+	/** Reads the raw scalar value from the entity or the selected reference partition. */
+	@Nonnull private final Function<EntityContract, Serializable> attributeValueFetcher;
 	/**
 	 * Translates an attribute value to the primary keys of the entities carrying it - the lookup of a {@link SortIndex}
 	 * for the indexed entities and materialized reference partitions, of the registry row for a virtual reference
@@ -77,21 +78,33 @@ public class AttributeExactSorter implements Sorter {
 	 * The attribute values whose order must be maintained in the sorted result.
 	 */
 	private final Serializable[] exactOrder;
+	/** Canonical requested keys in first-position order. Keys never pass through the normalizer again. */
+	private final Serializable[] normalizedExactOrder;
+	/** Bound raw-input key function shared with the sort index role. */
+	@Nonnull private final UnaryOperator<Serializable> normalizer;
 
 	/**
 	 * Creates the sorter.
 	 *
-	 * @param attributeName  the name of the attribute the sorter sorts along
 	 * @param exactOrder     the attribute values whose order must be maintained in the sorted result
+	 * @param attributeValueFetcher reads the raw value from the sorted entity or reference
+	 * @param normalizer the effective raw-input key function of the sort role
 	 * @param recordsEqualTo translates an attribute value to the primary keys of the entities carrying it
 	 */
 	public AttributeExactSorter(
-		@Nonnull String attributeName,
 		@Nonnull Serializable[] exactOrder,
-		@Nonnull Function<Serializable, Bitmap> recordsEqualTo
+		@Nonnull Function<Serializable, Bitmap> recordsEqualTo,
+		@Nonnull Function<EntityContract, Serializable> attributeValueFetcher,
+		@Nonnull UnaryOperator<Serializable> normalizer
 	) {
-		this.attributeName = attributeName;
-		this.exactOrder = exactOrder;
+		this.attributeValueFetcher = attributeValueFetcher;
+		final Map<Serializable, Serializable> firstRawValues = createLinkedHashMap(exactOrder.length);
+		for (final Serializable rawValue : exactOrder) {
+			firstRawValues.putIfAbsent(normalizer.apply(rawValue), rawValue);
+		}
+		this.exactOrder = firstRawValues.values().toArray(Serializable[]::new);
+		this.normalizedExactOrder = firstRawValues.keySet().toArray(Serializable[]::new);
+		this.normalizer = normalizer;
 		this.recordsEqualTo = recordsEqualTo;
 	}
 
@@ -131,6 +144,7 @@ public class AttributeExactSorter implements Sorter {
 		final int[] exactPkOrder = Arrays.stream(this.exactOrder)
 			.map(this.recordsEqualTo)
 			.flatMapToInt(Bitmap::stream)
+			.distinct()
 			.toArray();
 
 		// now sort the real result by the exactPkOrder
@@ -200,7 +214,7 @@ public class AttributeExactSorter implements Sorter {
 
 		// create the comparator instance
 		final AttributePositionComparator entityComparator = new AttributePositionComparator(
-			this.attributeName, this.exactOrder
+			this.normalizedExactOrder, this.attributeValueFetcher, this.normalizer
 		);
 
 		// sort the entities by the comparator
@@ -251,8 +265,9 @@ public class AttributeExactSorter implements Sorter {
 		 * Marker of an entity whose position has not been resolved yet - no resolved position can be negative.
 		 */
 		private static final int NOT_RESOLVED = Integer.MIN_VALUE;
-		private final String attributeName;
 		private final Serializable[] attributeValues;
+		@Nonnull private final Function<EntityContract, Serializable> attributeValueFetcher;
+		@Nonnull private final UnaryOperator<Serializable> normalizer;
 		private int estimatedCount = 100;
 		private ObjectIntMap<Serializable> cache;
 		/**
@@ -278,7 +293,10 @@ public class AttributeExactSorter implements Sorter {
 
 		@Override
 		public int compare(EntityContract o1, EntityContract o2) {
-			return Integer.compare(getPosition(o1), getPosition(o2));
+			final int comparison = Integer.compare(getPosition(o1), getPosition(o2));
+			return comparison == 0 ? Integer.compare(
+				o1.getPrimaryKeyOrThrowException(), o2.getPrimaryKeyOrThrowException()
+			) : comparison;
 		}
 
 		/**
@@ -299,7 +317,8 @@ public class AttributeExactSorter implements Sorter {
 				return resolvedPosition;
 			}
 
-			final Serializable attribute = entity.getAttribute(this.attributeName);
+			final Serializable rawValue = this.attributeValueFetcher.apply(entity);
+			final Serializable attribute = rawValue == null ? null : this.normalizer.apply(rawValue);
 			final int position;
 			if (attribute == null) {
 				position = -1;

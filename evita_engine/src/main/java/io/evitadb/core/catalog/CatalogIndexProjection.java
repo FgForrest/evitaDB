@@ -252,11 +252,13 @@ final class CatalogIndexProjection {
 	 * resolving addresses an index whose counters begin at zero - see {@link io.evitadb.index.IndexActivity} for the
 	 * general since-catalog-load rule this is one case of.
 	 *
-	 * @param catalogIndex the index to describe, already resolved by the caller from its handle
+	 * @param catalogIndex    the index to describe, already resolved by the caller from its handle
+	 * @param ownerPolicyHeap heap of the catalog's global normalization rows, added to the reported heap; the catalog
+	 *                        charges it to its `LIVE` index only
 	 * @return the full description of that one index
 	 */
 	@Nonnull
-	static IndexDetail describe(@Nonnull CatalogIndex catalogIndex) {
+	static IndexDetail describe(@Nonnull CatalogIndex catalogIndex, long ownerPolicyHeap) {
 		final Scope scope = catalogIndex.getIndexKey().scope();
 		final IndexActivity activity = catalogIndex.getActivity();
 		// `forEach`, never `entrySet()`: asking a map for a view parks it on the map for the lifetime of the index -
@@ -288,7 +290,7 @@ final class CatalogIndexProjection {
 		return new IndexDetail(
 			null,
 			toIndexPrimaryKey(scope),
-			catalogIndex.getHeapSizeInBytes(),
+			catalogIndex.getHeapSizeInBytes() + ownerPolicyHeap,
 			new IndexCardinality(
 				// a catalog index has no entity-index kind, no sibling to be discriminated from, no primary-key bitmap
 				// to count entities off, no reference dimension and no registry of reference partitions - all five

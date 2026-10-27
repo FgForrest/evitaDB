@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.test.EvitaTestSupport;
@@ -803,7 +804,7 @@ class TrappedStoragePartRollbackFunctionalTest implements EvitaTestSupport {
 						.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().nullable())
 						.withReferenceTo(
 							REFERENCE_OWNER, ENTITY_OWNER, Cardinality.EXACTLY_ONE,
-							whichIs -> whichIs.indexedForFiltering()
+							ReferenceSchemaEditor::indexedForFiltering
 						);
 				}
 				categorySchema.updateVia(session);

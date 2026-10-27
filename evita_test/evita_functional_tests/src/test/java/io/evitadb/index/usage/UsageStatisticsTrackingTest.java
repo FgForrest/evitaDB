@@ -40,6 +40,7 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -116,10 +117,12 @@ class UsageStatisticsTrackingTest {
 		@DisplayName("allocate no activity holder at all, rather than a holder that counts nothing")
 		void shouldAllocateNoHolderWhenOff() {
 			final GlobalEntityIndex tracked = new GlobalEntityIndex(
-				1, "product", new EntityIndexKey(EntityIndexType.GLOBAL), true
+				1, "product", new EntityIndexKey(EntityIndexType.GLOBAL), true,
+				AttributeNormalizationResolver.LEGACY_NFD
 			);
 			final GlobalEntityIndex untracked = new GlobalEntityIndex(
-				2, "product", new EntityIndexKey(EntityIndexType.GLOBAL), false
+				2, "product", new EntityIndexKey(EntityIndexType.GLOBAL), false,
+				AttributeNormalizationResolver.LEGACY_NFD
 			);
 
 			assertNotNull(tracked.getActivity());
@@ -133,10 +136,12 @@ class UsageStatisticsTrackingTest {
 		@DisplayName("charge nothing for a holder that does not exist")
 		void shouldNotChargeHeapForAbsentHolder() {
 			final GlobalEntityIndex tracked = new GlobalEntityIndex(
-				1, "product", new EntityIndexKey(EntityIndexType.GLOBAL), true
+				1, "product", new EntityIndexKey(EntityIndexType.GLOBAL), true,
+				AttributeNormalizationResolver.LEGACY_NFD
 			);
 			final GlobalEntityIndex untracked = new GlobalEntityIndex(
-				2, "product", new EntityIndexKey(EntityIndexType.GLOBAL), false
+				2, "product", new EntityIndexKey(EntityIndexType.GLOBAL), false,
+				AttributeNormalizationResolver.LEGACY_NFD
 			);
 
 			// the two indexes are identical but for the holder, so the whole difference is the holder's own weight -
@@ -154,11 +159,13 @@ class UsageStatisticsTrackingTest {
 				EntityIndexType.REFERENCED_ENTITY, Scope.LIVE,
 				new RepresentativeReferenceKey(new ReferenceKey("categories", 42), new Serializable[0])
 			);
-			assertNull(new ReducedEntityIndex(3, "product", reducedKey, false).getActivity());
-			assertNotNull(new ReducedEntityIndex(4, "product", reducedKey, true).getActivity());
+			assertNull(new ReducedEntityIndex(
+				3, "product", reducedKey, false, AttributeNormalizationResolver.LEGACY_NFD).getActivity());
+			assertNotNull(new ReducedEntityIndex(
+				4, "product", reducedKey, true, AttributeNormalizationResolver.LEGACY_NFD).getActivity());
 
-			assertNull(new CatalogIndex(Scope.LIVE, false).getActivity());
-			assertNotNull(new CatalogIndex(Scope.LIVE, true).getActivity());
+			assertNull(new CatalogIndex(Scope.LIVE, false, AttributeNormalizationResolver.LEGACY_NFD).getActivity());
+			assertNotNull(new CatalogIndex(Scope.LIVE, true, AttributeNormalizationResolver.LEGACY_NFD).getActivity());
 		}
 	}
 

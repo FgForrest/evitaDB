@@ -95,7 +95,7 @@ class CollectorUtilsTest {
 
 			assertThrows(UnsupportedOperationException.class, () -> result.add("d"));
 			assertThrows(UnsupportedOperationException.class, () -> result.remove("a"));
-			assertThrows(UnsupportedOperationException.class, () -> result.clear());
+			assertThrows(UnsupportedOperationException.class, result::clear);
 		}
 
 		@Test

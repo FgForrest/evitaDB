@@ -140,18 +140,12 @@ public class HistogramIndexStoragePart extends AbstractHistogramStoragePart {
 	 */
 	@Getter @Nonnull private final int[] rangeLeafPageSequences;
 	/**
-	 * Read-path provenance, never persisted: `true` when this part was decoded by a backward-compatible serializer of
-	 * a format written before {@link io.evitadb.dataType.DateTimeRange} moved from second to millisecond comparison
-	 * granularity. The {@link #rangeIndex} of such a part — and, when {@link #rangePaged}, the range leaf pages listed
-	 * on it — hold epoch-**second** thresholds and must be rescaled before the index goes live.
-	 *
-	 * The twin of {@link FilterIndexStoragePart#isSecondGranularityRangeThresholds()}, and it works the same way: it
-	 * records **which reader produced this instance**, so the current serializer never sets it and every
-	 * backward-compatible one does. Only a range index over `DateTimeRange` is affected — a threshold is an untyped
-	 * `long` shared with every `NumberRange` subtype — so the flag is a necessary, never a sufficient, condition; the
-	 * persisted {@link #valueType} decides the rest.
+	 * Transient provenance for a PAGED DateTimeRange companion whose unversioned leaves still contain epoch-second
+	 * thresholds. Only a legacy root reader sets this flag, after checking the persisted plain type. Inline
+	 * companions are converted by that reader; numeric ranges and current roots never carry this flag.
+	 * Migration_2026_3 replaces these pages and the owning root before any production loader may use them.
 	 */
-	@Getter @Setter private boolean secondGranularityRangeThresholds;
+	@Getter @Setter private boolean secondGranularityRangePages;
 
 	/**
 	 * Creates a fresh `SINGLE`-shaped histogram root part whose storage part PK is not yet assigned (computed before

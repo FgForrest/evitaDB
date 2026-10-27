@@ -349,13 +349,24 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 	static Serializable normalizedBySortIndex(@Nonnull SortKeyFixture sortKey, @Nonnull Serializable value) {
 		final ComparatorSource[] base = sortKey.comparatorBase();
 		if (sortKey.compound()) {
-			final OwnerSortIndex owner = new OwnerSortIndex(base, null, sortKey.key());
+			final OwnerSortIndex owner = new OwnerSortIndex(
+				base,
+				null,
+				sortKey.key(),
+				SortIndex.createTypeLevelNormalizerFor(base, 0)
+			);
 			final Serializable[] elements = (Serializable[]) value;
 			owner.addRecord(Arrays.copyOf(elements, elements.length), 1);
 			return owner.getValueOfRecord(1).orElseThrow();
 		}
 		final Class<?> type = base[0].type();
-		final OwnerSortIndex owner = new OwnerSortIndex(type, null, sortKey.key(), sortKey.decimalPlaces());
+		final OwnerSortIndex owner = new OwnerSortIndex(
+			type,
+			null,
+			sortKey.key(),
+			sortKey.decimalPlaces(),
+			SortIndex.createTypeLevelNormalizerFor(type, sortKey.decimalPlaces())
+		);
 		owner.addRecord(value, 1);
 		final Serializable ownerValue = owner.getValueOfRecord(1).orElseThrow();
 
@@ -365,7 +376,14 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 			FilterIndex.getComparator(sortKey.key(), type),
 			sortKey.decimalPlaces()
 		);
-		final SortIndex view = SortIndex.create(type, null, sortKey.key(), sortKey.decimalPlaces(), () -> sharedTree);
+		final SortIndex view = SortIndex.create(
+			type,
+			null,
+			sortKey.key(),
+			sortKey.decimalPlaces(),
+			() -> sharedTree,
+			SortIndex.createTypeLevelNormalizerFor(type, sortKey.decimalPlaces())
+		);
 		assertInstanceOf(SortIndexView.class, view);
 		// the order the entity index writes a filterable and sortable attribute in: the sort index, then the filter
 		view.addRecord(value, 1);

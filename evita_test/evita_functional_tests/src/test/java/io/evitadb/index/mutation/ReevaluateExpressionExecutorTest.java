@@ -54,6 +54,7 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.facet.FacetGroupIndex;
@@ -84,12 +85,13 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
 import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.SCHEMA;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 /**
  * Tests for {@link ReevaluateExpressionExecutor} verifying condition evaluation logic,
@@ -1692,13 +1694,16 @@ class ReevaluateExpressionExecutorTest {
 	@Nonnull
 	private static ReducedGroupEntityIndex createReducedGroupEntityIndex(int storagePk, int groupPK) {
 		return new ReducedGroupEntityIndex(
-			storagePk, ENTITY_TYPE,
+			storagePk,
+			ENTITY_TYPE,
 			new EntityIndexKey(
 				EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE,
 				new RepresentativeReferenceKey(
 					new ReferenceKey(REFERENCE_NAME, groupPK), new Serializable[0]
 				)
-			)
+			),
+			true,
+			AttributeNormalizationResolver.LEGACY_NFD
 		);
 	}
 

@@ -26,6 +26,7 @@ package io.evitadb.index;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.utils.VMLayout;
 import org.junit.jupiter.api.DisplayName;
@@ -94,7 +95,7 @@ class CatalogIndexHeapSizeTest {
 	 * class.
 	 */
 	private static final String[] CATALOG_EXCLUSIONS = {
-		"indexKey.scope", "uniqueIndex.transactionalLayerWrapper"
+		"indexKey.scope", "uniqueIndex.transactionalLayerWrapper", "normalizationResolver"
 	};
 
 	/**
@@ -131,7 +132,7 @@ class CatalogIndexHeapSizeTest {
 	@Test
 	@DisplayName("an empty catalog index is measured exactly")
 	void shouldMeasureAnEmptyCatalogIndexExactly() {
-		final CatalogIndex index = new CatalogIndex(Scope.LIVE);
+		final CatalogIndex index = new CatalogIndex(Scope.LIVE, true, AttributeNormalizationResolver.LEGACY_NFD);
 		assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, CATALOG_EXCLUSIONS);
 	}
 
@@ -140,8 +141,8 @@ class CatalogIndexHeapSizeTest {
 	void shouldChargeBothScopesAlike() {
 		// the scope is a shared enum constant either way, so a catalog that has archived something must not pay more
 		// for holding a second index than the arithmetic says it does
-		final CatalogIndex live = new CatalogIndex(Scope.LIVE);
-		final CatalogIndex archived = new CatalogIndex(Scope.ARCHIVED);
+		final CatalogIndex live = new CatalogIndex(Scope.LIVE, true, AttributeNormalizationResolver.LEGACY_NFD);
+		final CatalogIndex archived = new CatalogIndex(Scope.ARCHIVED, true, AttributeNormalizationResolver.LEGACY_NFD);
 		assertMatchesMeasuredHeap(archived.getHeapSizeInBytes(), archived, CATALOG_EXCLUSIONS);
 		assertEquals(live.getHeapSizeInBytes(), archived.getHeapSizeInBytes());
 	}
@@ -245,7 +246,13 @@ class CatalogIndexHeapSizeTest {
 			}
 			uniqueIndexes.put(attributeKey, globalUniqueIndex);
 		}
-		return new CatalogIndex(1, new CatalogIndexKey(Scope.LIVE), uniqueIndexes, new IndexActivity());
+		return new CatalogIndex(
+			1,
+			new CatalogIndexKey(Scope.LIVE),
+			uniqueIndexes,
+			new IndexActivity(),
+			AttributeNormalizationResolver.LEGACY_NFD
+		);
 	}
 
 	/**

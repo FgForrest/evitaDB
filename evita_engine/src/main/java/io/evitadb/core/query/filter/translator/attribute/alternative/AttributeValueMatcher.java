@@ -35,12 +35,15 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.text.Normalizer;
 import java.util.Comparator;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
+import java.util.function.UnaryOperator;
+
+import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
 
 /**
  * Tells whether a single value of an attribute satisfies one attribute constraint - the per-value test of the
@@ -48,7 +51,8 @@ import java.util.function.IntPredicate;
  *
  * The verdict is the one the attribute indexes give for the same value, because the matcher is built on the
  * definitions the indexes are built on: the constraint value is converted by {@link EvitaDataTypes#toTargetType} and
- * both sides are normalized and compared by {@link FilterIndex#getNormalizer(Class, int)} and
+ * both raw String sides use the injected effective key function once. Other types use
+ * {@link FilterIndex#getNormalizer(Class, int)}, and comparison uses
  * {@link FilterIndex#getComparator(AttributeIndexKey, Class)}. Two operators are not a comparison at all and reproduce
  * the operator of the {@link io.evitadb.index.range.RangeIndex} instead - the overlap of an `attributeBetween` over a
  * range-typed attribute and the envelope of an `attributeInRange` - over the thresholds the attribute translators
@@ -101,6 +105,7 @@ public sealed interface AttributeValueMatcher {
 	 *
 	 * @param attributeIndexKey    key of the filter index the attribute is read from, its locale selects the comparator
 	 * @param plainType            the plain type of the attribute
+	 * @param stringNormalizer     the effective String key function, bound to the lookup role and fold locale
 	 * @param indexedDecimalPlaces the decimal places the attribute's numbers are indexed with
 	 * @param value                the value of the constraint
 	 * @param resultPredicate      the test of the result of comparing the attribute value with the constraint value
@@ -111,10 +116,12 @@ public sealed interface AttributeValueMatcher {
 		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull Class<? extends Serializable> plainType,
 		int indexedDecimalPlaces,
+		@Nonnull UnaryOperator<String> stringNormalizer,
 		@Nonnull Serializable value,
 		@Nonnull IntPredicate resultPredicate
 	) {
-		final Function<Object, Serializable> normalizer = getNormalizer(plainType, indexedDecimalPlaces);
+		final Function<Object, Serializable> normalizer = getNormalizer(plainType, indexedDecimalPlaces,
+			stringNormalizer);
 		return new Comparing(
 			getComparator(attributeIndexKey, plainType),
 			normalizer,
@@ -128,6 +135,7 @@ public sealed interface AttributeValueMatcher {
 	 *
 	 * @param attributeIndexKey    key of the filter index the attribute is read from, its locale selects the comparator
 	 * @param plainType            the plain type of the attribute
+	 * @param stringNormalizer     the effective String key function, bound to the lookup role and fold locale
 	 * @param indexedDecimalPlaces the decimal places the attribute's numbers are indexed with
 	 * @param values               the values of the constraint
 	 * @return the matcher
@@ -137,14 +145,17 @@ public sealed interface AttributeValueMatcher {
 		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull Class<? extends Serializable> plainType,
 		int indexedDecimalPlaces,
+		@Nonnull UnaryOperator<String> stringNormalizer,
 		@Nonnull Serializable[] values
 	) {
-		final Function<Object, Serializable> normalizer = getNormalizer(plainType, indexedDecimalPlaces);
-		final Serializable[] normalizedValues = new Serializable[values.length];
-		for (int i = 0; i < values.length; i++) {
-			normalizedValues[i] = normalizeConstraintValue(normalizer, plainType, values[i]);
+		final Function<Object, Serializable> normalizer = getNormalizer(plainType, indexedDecimalPlaces,
+			stringNormalizer);
+		final Set<Serializable> normalizedValues = createLinkedHashSet(values.length);
+		for (final Serializable value : values) {
+			normalizedValues.add(normalizeConstraintValue(normalizer, plainType, value));
 		}
-		return new EqualToAny(getComparator(attributeIndexKey, plainType), normalizer, normalizedValues);
+		return new EqualToAny(getComparator(attributeIndexKey, plainType), normalizer,
+			normalizedValues.toArray(Serializable[]::new));
 	}
 
 	/**
@@ -154,6 +165,7 @@ public sealed interface AttributeValueMatcher {
 	 *
 	 * @param attributeIndexKey    key of the filter index the attribute is read from, its locale selects the comparator
 	 * @param plainType            the plain type of the attribute
+	 * @param stringNormalizer     the effective String key function, bound to the lookup role and fold locale
 	 * @param indexedDecimalPlaces the decimal places the attribute's numbers are indexed with
 	 * @param from                 the lower bound, NULL when the interval is open from below
 	 * @param to                   the upper bound, NULL when the interval is open from above
@@ -165,10 +177,12 @@ public sealed interface AttributeValueMatcher {
 		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull Class<? extends Serializable> plainType,
 		int indexedDecimalPlaces,
+		@Nonnull UnaryOperator<String> stringNormalizer,
 		@Nullable Serializable from,
 		@Nullable Serializable to
 	) {
-		final Function<Object, Serializable> normalizer = getNormalizer(plainType, indexedDecimalPlaces);
+		final Function<Object, Serializable> normalizer = getNormalizer(plainType, indexedDecimalPlaces,
+			stringNormalizer);
 		final Comparator<Object> comparator = getComparator(attributeIndexKey, plainType);
 		final Serializable normalizedFrom = normalizer.apply(EvitaDataTypes.toTargetType(from, plainType));
 		final Serializable normalizedTo = normalizer.apply(EvitaDataTypes.toTargetType(to, plainType));
@@ -197,7 +211,7 @@ public sealed interface AttributeValueMatcher {
 		long from,
 		long to
 	) {
-		return new Overlapping(getNormalizer(plainType, indexedDecimalPlaces), from, to);
+		return new Overlapping(FilterIndex.getNormalizer(plainType, indexedDecimalPlaces), from, to);
 	}
 
 	/**
@@ -214,51 +228,53 @@ public sealed interface AttributeValueMatcher {
 		int indexedDecimalPlaces,
 		long point
 	) {
-		return new Enveloping(getNormalizer(plainType, indexedDecimalPlaces), point);
+		return new Enveloping(FilterIndex.getNormalizer(plainType, indexedDecimalPlaces), point);
 	}
 
 	/**
 	 * Creates the matcher of a string search - `attributeStartsWith`, `attributeEndsWith` or `attributeContains`.
-	 * Both the value and the searched text are compared in Unicode NFD, the form the filter index keeps its keys and
-	 * normalizes its searched text in, and the comparison is case-sensitive as there.
+	 * Both raw sides use the bound String key function once, just as the filter index does.
+	 * An empty normalized pattern matches every present String value.
 	 *
+	 * @param stringNormalizer the effective String key function
 	 * @param textToSearch the text of the constraint
-	 * @param predicate    the test of a value against the searched text, both already in NFD
+	 * @param predicate    the test of a value against the searched text, both already keys
 	 * @return the matcher
 	 */
 	@Nonnull
 	static AttributeValueMatcher searching(
 		@Nonnull String textToSearch,
+		@Nonnull UnaryOperator<String> stringNormalizer,
 		@Nonnull BiPredicate<String, String> predicate
 	) {
-		return new Searching(toNfd(textToSearch), predicate);
+		return new Searching(stringNormalizer.apply(textToSearch), stringNormalizer, predicate);
 	}
 
 	/**
 	 * Returns the normalizer the attribute values and the constraint values are compared in:
 	 * {@link FilterIndex#getNormalizer(Class, int)}, except that a `BigDecimal` becomes
 	 * {@link NumberUtils#scaleToInteger(BigDecimal, int)} instead of its `int` encoding (see the class
-	 * documentation), and that a `String` already in NFD is passed through without being normalized again - the
-	 * result is the same, only the work is skipped. Anything else reaching the normalizer of a string attribute -
+	 * documentation). Strings use the injected key function on raw values once. Anything else reaching the normalizer
+	 * of a string attribute -
 	 * an array passed as the value of a scalar comparison - is stringified by the index's normalizer, exactly as the
 	 * index stringifies it, and so matches no row, as the index lookup finds nothing.
 	 *
 	 * @param plainType            the plain type of the attribute
+	 * @param stringNormalizer     the effective String key function, bound to the lookup role and fold locale
 	 * @param indexedDecimalPlaces the decimal places the attribute's numbers are indexed with
 	 * @return the normalizer
 	 */
 	@Nonnull
 	private static Function<Object, Serializable> getNormalizer(
 		@Nonnull Class<? extends Serializable> plainType,
-		int indexedDecimalPlaces
+		int indexedDecimalPlaces,
+		@Nonnull UnaryOperator<String> stringNormalizer
 	) {
 		if (BigDecimal.class.isAssignableFrom(plainType)) {
 			return value -> value instanceof BigDecimal number ?
 				NumberUtils.scaleToInteger(number, indexedDecimalPlaces) : (Serializable) value;
 		} else if (String.class.isAssignableFrom(plainType)) {
-			final Function<Object, Serializable> indexNormalizer =
-				FilterIndex.getNormalizer(plainType, indexedDecimalPlaces);
-			return value -> value instanceof String text ? toNfd(text) : indexNormalizer.apply(value);
+			return value -> value == null ? null : stringNormalizer.apply(value.toString());
 		} else {
 			return FilterIndex.getNormalizer(plainType, indexedDecimalPlaces);
 		}
@@ -295,18 +311,6 @@ public sealed interface AttributeValueMatcher {
 		@Nonnull Class<? extends Serializable> plainType
 	) {
 		return (Comparator) FilterIndex.getComparator(attributeIndexKey, plainType);
-	}
-
-	/**
-	 * Returns the text in Unicode NFD, the very text when it is in that form already: the JDK normalizer spans the
-	 * quick check of the text and hands a text that passes it back as it is, so no check of our own precedes it.
-	 *
-	 * @param text the text to normalize
-	 * @return the text in NFD
-	 */
-	@Nonnull
-	private static String toNfd(@Nonnull String text) {
-		return Normalizer.normalize(text, Normalizer.Form.NFD);
 	}
 
 	/**
@@ -427,19 +431,21 @@ public sealed interface AttributeValueMatcher {
 	}
 
 	/**
-	 * Matches a string passing the string search against the searched text, both in Unicode NFD.
+	 * Matches a string passing the search against the searched key, using the bound function once on raw values.
 	 *
-	 * @param textToSearch the searched text in NFD
+	 * @param stringNormalizer the effective String key function for raw attribute values
+	 * @param textToSearch the searched key
 	 * @param predicate    the test of a value against the searched text
 	 */
 	record Searching(
 		@Nonnull String textToSearch,
+		@Nonnull UnaryOperator<String> stringNormalizer,
 		@Nonnull BiPredicate<String, String> predicate
 	) implements AttributeValueMatcher {
 
 		@Override
 		public boolean matchesElement(@Nonnull Object value) {
-			return this.predicate.test(toNfd((String) value), this.textToSearch);
+			return this.predicate.test(this.stringNormalizer.apply((String) value), this.textToSearch);
 		}
 
 	}

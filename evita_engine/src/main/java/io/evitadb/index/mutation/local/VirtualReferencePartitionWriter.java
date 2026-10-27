@@ -21,7 +21,6 @@
  *   limitations under the License.
  */
 
-
 package io.evitadb.index.mutation.local;
 
 import io.evitadb.api.query.order.OrderDirection;
@@ -43,6 +42,7 @@ import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.VirtualReferencePartitionIndex;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.SortIndex;
@@ -383,16 +383,10 @@ public final class VirtualReferencePartitionWriter {
 				final Optional<Serializable> value = sortIndex == null ?
 					Optional.empty() : sortIndex.getValueOfRecord(ownerPrimaryKey);
 				if (value.isPresent()) {
-					final Optional<? extends SortableAttributeCompoundSchemaContract> compoundSchema =
-						referenceSchema.getSortableAttributeCompound(key.attributeName());
-					if (compoundSchema.isPresent()) {
-						declareSortKey(
-							registry, key, compoundSchema.get(),
-							attributeName -> schemaProvider.getAttributeSchema(attributeName).getPlainType()
-						);
-					} else {
-						declareSortKey(registry, key, schemaProvider.getAttributeSchema(key.attributeName()));
-					}
+					registry.declareSortKey(
+						key, sortIndex.getComparatorBase(), sortIndex.getIndexedDecimalPlaces(),
+						sortIndex::getKeyNormalizer
+					);
 					registry.putNormalizedSortValue(key, partitionPrimaryKey, value.get());
 				}
 			}
@@ -427,18 +421,21 @@ public final class VirtualReferencePartitionWriter {
 	 *
 	 * @param registry        the registry
 	 * @param key             the sort key
-	 * @param attributeSchema the attribute
+	 * @param attributeSchema       the attribute
+	 * @param normalizationResolver collection owner resolver consulted only for a new declaration
 	 */
 	private static void declareSortKey(
 		@Nonnull VirtualReferencePartitionIndex registry,
 		@Nonnull AttributeIndexKey key,
-		@Nonnull AttributeSchemaContract attributeSchema
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull AttributeNormalizationResolver normalizationResolver
 	) {
 		final ComparatorSource comparatorSource = new ComparatorSource(
 			attributeSchema.getPlainType(), OrderDirection.ASC, OrderBehaviour.NULLS_LAST
 		);
 		registry.declareSortKey(
-			key, new ComparatorSource[]{comparatorSource}, attributeSchema.getIndexedDecimalPlaces()
+			key, new ComparatorSource[]{comparatorSource}, attributeSchema.getIndexedDecimalPlaces(),
+			() -> normalizationResolver.resolveSortNormalizer(key.referenceName(), attributeSchema, key.locale())
 		);
 	}
 
@@ -449,16 +446,23 @@ public final class VirtualReferencePartitionWriter {
 	 * @param registry              the registry
 	 * @param key                   the sort key
 	 * @param compoundSchema        the compound
-	 * @param attributeTypeProvider resolves the value type of each element attribute by name
+	 * @param attributeSchemaProvider resolves each element's schema by name
+	 * @param normalizationResolver   collection owner resolver consulted only for a new declaration
 	 */
 	private static void declareSortKey(
 		@Nonnull VirtualReferencePartitionIndex registry,
 		@Nonnull AttributeIndexKey key,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
-		@Nonnull Function<String, Class<?>> attributeTypeProvider
+		@Nonnull Function<String, AttributeSchemaContract> attributeSchemaProvider,
+		@Nonnull AttributeNormalizationResolver normalizationResolver
 	) {
 		// a compound's sort index keeps its `BigDecimal` elements exact, so no decimal places apply
-		registry.declareSortKey(key, AttributeIndex.createComparatorBase(compoundSchema, attributeTypeProvider), 0);
+		registry.declareSortKey(
+			key, AttributeIndex.createComparatorBase(compoundSchema,
+				name -> attributeSchemaProvider.apply(name).getPlainType()), 0,
+			() -> normalizationResolver.resolveCompoundNormalizer(
+				key.referenceName(), compoundSchema, attributeSchemaProvider, key.locale())
+		);
 	}
 
 	/**
@@ -543,7 +547,8 @@ public final class VirtualReferencePartitionWriter {
 				registry.declareChainKey(key);
 				registry.putChainPredecessor(key, partitionPrimaryKey, predecessor.predecessorPk());
 			} else {
-				declareSortKey(registry, key, attributeSchema);
+				declareSortKey(registry, key, attributeSchema,
+					executor.getNormalizationResolver());
 				assertNoSortValue(registry, key, partitionPrimaryKey, value);
 				registry.putSortValue(key, partitionPrimaryKey, value);
 			}
@@ -627,7 +632,6 @@ public final class VirtualReferencePartitionWriter {
 	 * @param entitySchema          the entity schema
 	 * @param referenceSchema       the reference the compound belongs to, `null` for an entity compound
 	 * @param compoundSchema        the sortable attribute compound
-	 * @param attributeTypeProvider resolves the value type of each element attribute by name
 	 * @param written               the partition the value was written into, `null` when it was written into an index
 	 *                              that is not a partition
 	 * @param locale                the locale of the value, `null` for a language-agnostic compound
@@ -639,7 +643,6 @@ public final class VirtualReferencePartitionWriter {
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
-		@Nonnull Function<String, Class<?>> attributeTypeProvider,
 		@Nullable ReferencePartition written,
 		@Nullable Locale locale,
 		@Nonnull Serializable[] values
@@ -654,7 +657,10 @@ public final class VirtualReferencePartitionWriter {
 		final VirtualReferencePartitionIndex registry = getRegistryRecordingCompound(executor, partition, key);
 		if (registry != null) {
 			final int partitionPrimaryKey = partition.getPrimaryKey();
-			declareSortKey(registry, key, compoundSchema, attributeTypeProvider);
+			declareSortKey(registry, key, compoundSchema,
+				name -> key.referenceName() == null ? entitySchema.getAttribute(name).orElseThrow()
+					: referenceSchema.getAttribute(name).orElseThrow(),
+				executor.getNormalizationResolver());
 			assertNoSortValue(registry, key, partitionPrimaryKey, values);
 			registry.putSortValue(key, partitionPrimaryKey, values);
 		}

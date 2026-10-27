@@ -225,7 +225,7 @@ class FacetIncludingChildrenExceptTest {
 		@Test
 		@DisplayName("should return FilterConstraint type")
 		void shouldReturnFilterConstraintType() {
-			assertEquals(FilterConstraint.class, new FacetIncludingChildrenExcept().getType());
+			assertSame(FilterConstraint.class, new FacetIncludingChildrenExcept().getType());
 		}
 
 		@Test
@@ -236,7 +236,7 @@ class FacetIncludingChildrenExceptTest {
 			);
 			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
 
-			constraint.accept(c -> visited.set(c));
+			constraint.accept(visited::set);
 
 			assertSame(constraint, visited.get());
 		}

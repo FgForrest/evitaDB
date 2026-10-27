@@ -65,7 +65,7 @@ class UpsertReferenceGroupMutationTest extends AbstractMutationTest {
 			this.productSchema,
 			new Reference(
 				this.productSchema,
-				ReferencesBuilder.createImplicitSchema(productSchema, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
+				ReferencesBuilder.createImplicitSchema(this.productSchema, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
 				new ReferenceKey("brand", 5),
 				null
 			)
@@ -96,7 +96,7 @@ class UpsertReferenceGroupMutationTest extends AbstractMutationTest {
 			this.productSchema,
 			new Reference(
 				this.productSchema,
-				ReferencesBuilder.createImplicitSchema(productSchema, "brand", "brand", Cardinality.ZERO_OR_ONE, group),
+				ReferencesBuilder.createImplicitSchema(this.productSchema, "brand", "brand", Cardinality.ZERO_OR_ONE, group),
 				new ReferenceKey("brand", 5),
 				group
 			)

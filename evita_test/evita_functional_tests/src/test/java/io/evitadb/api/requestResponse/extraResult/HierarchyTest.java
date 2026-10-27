@@ -129,7 +129,7 @@ public class HierarchyTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should collect all hierarchy level infos")
 		void shouldCollectAllHierarchyLevelInfos() {
-			final Set<Integer> allIds = levelInfo.collectAll(Functions.alwaysTrue())
+			final Set<Integer> allIds = HierarchyTest.this.levelInfo.collectAll(Functions.alwaysTrue())
 				.map(it -> it.entity().getPrimaryKey())
 				.collect(Collectors.toSet());
 			assertEquals(9, allIds.size());
@@ -138,7 +138,7 @@ public class HierarchyTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should collect certain hierarchy level infos")
 		void shouldCollectCertainHierarchyLevelInfos() {
-			final Set<Integer> allIds = levelInfo.collectAll(li -> li.entity().getPrimaryKey() % 2 == 0)
+			final Set<Integer> allIds = HierarchyTest.this.levelInfo.collectAll(li -> li.entity().getPrimaryKey() % 2 == 0)
 				.map(it -> it.entity().getPrimaryKey())
 				.collect(Collectors.toSet());
 			assertEquals(4, allIds.size());
@@ -153,7 +153,7 @@ public class HierarchyTest implements EvitaTestSupport {
 		@DisplayName("should return self hierarchy")
 		void shouldReturnSelfHierarchy() {
 			final Hierarchy hierarchy = new Hierarchy(
-				Map.of("megaMenu", List.of(levelInfo)),
+				Map.of("megaMenu", List.of(HierarchyTest.this.levelInfo)),
 				Collections.emptyMap()
 			);
 			final Map<String, List<LevelInfo>> selfHierarchy = hierarchy.getSelfHierarchy();
@@ -166,7 +166,7 @@ public class HierarchyTest implements EvitaTestSupport {
 		@DisplayName("should return self hierarchy by output name")
 		void shouldReturnSelfHierarchyByOutputName() {
 			final Hierarchy hierarchy = new Hierarchy(
-				Map.of("megaMenu", List.of(levelInfo)),
+				Map.of("megaMenu", List.of(HierarchyTest.this.levelInfo)),
 				Collections.emptyMap()
 			);
 			final List<LevelInfo> result = hierarchy.getSelfHierarchy("megaMenu");
@@ -177,7 +177,7 @@ public class HierarchyTest implements EvitaTestSupport {
 		@DisplayName("should return empty list for unknown output name")
 		void shouldReturnEmptyListForUnknownOutputName() {
 			final Hierarchy hierarchy = new Hierarchy(
-				Map.of("megaMenu", List.of(levelInfo)),
+				Map.of("megaMenu", List.of(HierarchyTest.this.levelInfo)),
 				Collections.emptyMap()
 			);
 			final List<LevelInfo> result = hierarchy.getSelfHierarchy("nonExistent");
@@ -196,7 +196,7 @@ public class HierarchyTest implements EvitaTestSupport {
 		void shouldReturnReferenceHierarchy() {
 			final Hierarchy hierarchy = new Hierarchy(
 				null,
-				Map.of("categories", Map.of("megaMenu", List.of(levelInfo)))
+				Map.of("categories", Map.of("megaMenu", List.of(HierarchyTest.this.levelInfo)))
 			);
 			final List<LevelInfo> result = hierarchy.getReferenceHierarchy("categories", "megaMenu");
 			assertEquals(1, result.size());
@@ -214,7 +214,7 @@ public class HierarchyTest implements EvitaTestSupport {
 		void shouldReturnReferenceHierarchiesMap() {
 			final Hierarchy hierarchy = new Hierarchy(
 				null,
-				Map.of("categories", Map.of("megaMenu", List.of(levelInfo)))
+				Map.of("categories", Map.of("megaMenu", List.of(HierarchyTest.this.levelInfo)))
 			);
 			final Map<String, Map<String, List<LevelInfo>>> refs = hierarchy.getReferenceHierarchies();
 			assertEquals(1, refs.size());
@@ -230,11 +230,11 @@ public class HierarchyTest implements EvitaTestSupport {
 		@DisplayName("should be equal when same data")
 		void shouldBeEqualWhenSameData() {
 			final Hierarchy one = new Hierarchy(
-				Map.of("megaMenu", List.of(levelInfo)),
+				Map.of("megaMenu", List.of(HierarchyTest.this.levelInfo)),
 				Collections.emptyMap()
 			);
 			final Hierarchy two = new Hierarchy(
-				Map.of("megaMenu", List.of(levelInfo)),
+				Map.of("megaMenu", List.of(HierarchyTest.this.levelInfo)),
 				Collections.emptyMap()
 			);
 			assertEquals(one, two);
@@ -245,7 +245,7 @@ public class HierarchyTest implements EvitaTestSupport {
 		@DisplayName("should be equal to itself")
 		void shouldBeEqualToItself() {
 			final Hierarchy hierarchy = new Hierarchy(
-				Map.of("megaMenu", List.of(levelInfo)),
+				Map.of("megaMenu", List.of(HierarchyTest.this.levelInfo)),
 				Collections.emptyMap()
 			);
 			assertEquals(hierarchy, hierarchy);
@@ -255,7 +255,7 @@ public class HierarchyTest implements EvitaTestSupport {
 		@DisplayName("should not be equal to null")
 		void shouldNotBeEqualToNull() {
 			final Hierarchy hierarchy = new Hierarchy(
-				Map.of("megaMenu", List.of(levelInfo)),
+				Map.of("megaMenu", List.of(HierarchyTest.this.levelInfo)),
 				Collections.emptyMap()
 			);
 			assertNotEquals(null, hierarchy);
@@ -265,7 +265,7 @@ public class HierarchyTest implements EvitaTestSupport {
 		@DisplayName("should not be equal when different self statistics")
 		void shouldNotBeEqualWhenDifferentSelfStatistics() {
 			final Hierarchy one = new Hierarchy(
-				Map.of("megaMenu", List.of(levelInfo)),
+				Map.of("megaMenu", List.of(HierarchyTest.this.levelInfo)),
 				Collections.emptyMap()
 			);
 			final LevelInfo otherLevelInfo = new LevelInfo(
@@ -284,7 +284,7 @@ public class HierarchyTest implements EvitaTestSupport {
 		void shouldHandleNullVsNonNullSelfStatistics() {
 			final Hierarchy withNull = new Hierarchy(null, Collections.emptyMap());
 			final Hierarchy withData = new Hierarchy(
-				Map.of("megaMenu", List.of(levelInfo)),
+				Map.of("megaMenu", List.of(HierarchyTest.this.levelInfo)),
 				Collections.emptyMap()
 			);
 			assertNotEquals(withNull, withData);
@@ -295,14 +295,14 @@ public class HierarchyTest implements EvitaTestSupport {
 		@DisplayName("should not be equal when different number of reference hierarchies")
 		void shouldNotBeEqualWhenDifferentNumberOfReferenceHierarchies() {
 			final Hierarchy fewer = new Hierarchy(
-				Map.of("megaMenu", List.of(levelInfo)),
-				Map.of("categories", Map.of("megaMenu", List.of(levelInfo)))
+				Map.of("megaMenu", List.of(HierarchyTest.this.levelInfo)),
+				Map.of("categories", Map.of("megaMenu", List.of(HierarchyTest.this.levelInfo)))
 			);
 			final Hierarchy more = new Hierarchy(
-				Map.of("megaMenu", List.of(levelInfo)),
+				Map.of("megaMenu", List.of(HierarchyTest.this.levelInfo)),
 				Map.of(
-					"categories", Map.of("megaMenu", List.of(levelInfo)),
-					"brands", Map.of("megaMenu", List.of(levelInfo))
+					"categories", Map.of("megaMenu", List.of(HierarchyTest.this.levelInfo)),
+					"brands", Map.of("megaMenu", List.of(HierarchyTest.this.levelInfo))
 				)
 			);
 			assertNotEquals(fewer, more);
@@ -317,12 +317,12 @@ public class HierarchyTest implements EvitaTestSupport {
 				false, 1, 0, List.of()
 			);
 			final Hierarchy fewer = new Hierarchy(
-				Map.of("megaMenu", List.of(levelInfo)),
+				Map.of("megaMenu", List.of(HierarchyTest.this.levelInfo)),
 				Collections.emptyMap()
 			);
 			final Hierarchy more = new Hierarchy(
 				Map.of(
-					"megaMenu", List.of(levelInfo),
+					"megaMenu", List.of(HierarchyTest.this.levelInfo),
 					"sideMenu", List.of(otherLevelInfo)
 				),
 				Collections.emptyMap()
@@ -340,7 +340,7 @@ public class HierarchyTest implements EvitaTestSupport {
 		@DisplayName("should produce non-empty string for self hierarchy")
 		void shouldProduceNonEmptyStringForSelfHierarchy() {
 			final Hierarchy hierarchy = new Hierarchy(
-				Map.of("megaMenu", List.of(levelInfo)),
+				Map.of("megaMenu", List.of(HierarchyTest.this.levelInfo)),
 				Collections.emptyMap()
 			);
 			final String result = hierarchy.toString();
@@ -354,7 +354,7 @@ public class HierarchyTest implements EvitaTestSupport {
 		void shouldProduceStringForReferenceHierarchies() {
 			final Hierarchy hierarchy = new Hierarchy(
 				null,
-				Map.of("categories", Map.of("megaMenu", List.of(levelInfo)))
+				Map.of("categories", Map.of("megaMenu", List.of(HierarchyTest.this.levelInfo)))
 			);
 			final String result = hierarchy.toString();
 			assertTrue(result.contains("categories"));

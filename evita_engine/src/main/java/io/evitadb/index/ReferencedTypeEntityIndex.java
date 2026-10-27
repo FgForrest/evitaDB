@@ -33,6 +33,9 @@ import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.analysis.AttributeNormalizationPolicy;
+import io.evitadb.index.analysis.AttributeNormalizationReconciler;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
@@ -283,24 +286,30 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull String entityType,
 		@Nonnull EntityIndexKey entityIndexKey
 	) {
-		this(primaryKey, entityType, entityIndexKey, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING);
+		this(
+			primaryKey, entityType, entityIndexKey, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING,
+			AttributeNormalizationResolver.LEGACY_NFD
+		);
 	}
 
 	/**
-	 * Creates a fresh index, stating whether it counts its own usage.
+	 * Creates a fresh index using the owner resolver; child structures capture String functions when they are
+	 * created.
 	 *
 	 * @param primaryKey              the primary key of this index
 	 * @param entityType              the type of entity being indexed
 	 * @param entityIndexKey          the key identifying this index
 	 * @param usageStatisticsTracking whether to allocate an {@link io.evitadb.index.IndexActivity} holder for it
+	 * @param normalizationResolver   the owner's resolver new attribute structures bind their key functions from
 	 */
 	public ReferencedTypeEntityIndex(
 		int primaryKey,
 		@Nonnull String entityType,
 		@Nonnull EntityIndexKey entityIndexKey,
-		boolean usageStatisticsTracking
+		boolean usageStatisticsTracking,
+		@Nonnull AttributeNormalizationResolver normalizationResolver
 	) {
-		super(primaryKey, entityType, entityIndexKey, usageStatisticsTracking);
+		super(primaryKey, entityType, entityIndexKey, usageStatisticsTracking, normalizationResolver);
 		this.indexPrimaryKeyCardinality = new ReferenceTypeCardinalityIndex();
 		this.virtualReferencePartitionIndex = new VirtualReferencePartitionIndex();
 		this.cardinalityIndexes = new TransactionalMap<>(
@@ -353,6 +362,47 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		// re-capture the change-detection baseline from the components now that every subclass
 		// sub-index map is populated, so the baseline includes CARDINALITY and histogram keys
 		captureOriginalsFromComponents();
+	}
+
+	/**
+	 * Includes cardinality-only String contributions in the schema-time population check.
+	 *
+	 * @param identity scope/locale-free attribute identity
+	 * @param policy retained compound bindings supplemented with legacy declarations
+	 * @return true if an indexed non-null String key survives
+	 */
+	@Override
+	public boolean hasIndexedStringKeys(
+		@Nonnull AttributeIndexKey identity, @Nonnull AttributeNormalizationPolicy policy
+	) {
+		if (super.hasIndexedStringKeys(identity, policy)) {
+			return true;
+		}
+		return AttributeNormalizationReconciler.hasStringCardinalityKeys(this.cardinalityIndexes, identity) ||
+			this.virtualReferencePartitionIndex.hasIndexedStringKeys(identity, policy);
+	}
+
+	/**
+	 * Includes virtual dictionaries in compound footprint detection.
+	 *
+	 * @param identity scope/locale-free compound identity
+	 * @return true if any materialized or virtual tuple survives
+	 */
+	@Override
+	public boolean hasSortKeys(@Nonnull AttributeIndexKey identity) {
+		return super.hasSortKeys(identity) || this.virtualReferencePartitionIndex.hasSortKeys(identity);
+	}
+
+	/**
+	 * Empty virtual slots are retired at schema adoption so their next declaration captures the new policy.
+	 *
+	 * @param resolver new effective owner policy
+	 */
+	@Override
+	public void useNormalizationResolver(@Nonnull AttributeNormalizationResolver resolver) {
+		final AttributeNormalizationResolver previous = this.attributeIndex.getNormalizationResolver();
+		super.useNormalizationResolver(resolver);
+		this.virtualReferencePartitionIndex.useNormalizationResolver(previous, resolver);
 	}
 
 	/**
@@ -412,7 +462,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 					attributes.sortIndexes(),
 					attributes.chainIndexes(),
 					attributes.sharedValueIndexes(),
-					attributes.sharedRangeIndexes()
+					attributes.sharedRangeIndexes(), context.normalizationResolver()
 				),
 				hierarchy.hierarchyIndex(),
 				facet.facetIndex(),
@@ -655,7 +705,13 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		// first retrieve or create the cardinality index for given attribute
 		final AttributeCardinalityIndex theCardinalityIndex = this.cardinalityIndexes.computeIfAbsent(
 			createAttributeKey(referenceSchema, attributeSchema, allowedLocales, locale, value),
-			lookupKey -> new AttributeCardinalityIndex(attributeSchema.getPlainType())
+			lookupKey -> new AttributeCardinalityIndex(
+				attributeSchema.getPlainType(),
+				attributeSchema.getPlainType() == String.class
+					? this.attributeIndex.getNormalizationResolver().resolveKeyNormalizer(
+						lookupKey.referenceName(), attributeSchema, lookupKey.locale())
+					: null
+			)
 		);
 		final int indexedDecimalPlaces = attributeSchema.getIndexedDecimalPlaces();
 		if (value instanceof Serializable[] valueArray) {

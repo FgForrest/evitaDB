@@ -106,13 +106,15 @@ public interface IndexingTestSupport {
 	// Pre-built attribute schema for EAN attribute assertions
 	AttributeSchema ATTRIBUTE_EAN_SCHEMA = AttributeSchema._internalBuild(
 		ATTRIBUTE_EAN, String.class, false,
-		ConflictResolutionOverride.INHERITED
+		ConflictResolutionOverride.INHERITED,
+		null
 	);
 
 	// Pre-built attribute schema for categoryPriority reference attribute assertions
 	AttributeSchema ATTRIBUTE_CATEGORY_PRIORITY_SCHEMA = AttributeSchema._internalBuild(
 		ATTRIBUTE_CATEGORY_PRIORITY, Long.class, false,
-		ConflictResolutionOverride.INHERITED
+		ConflictResolutionOverride.INHERITED,
+		null
 	);
 
 	/**

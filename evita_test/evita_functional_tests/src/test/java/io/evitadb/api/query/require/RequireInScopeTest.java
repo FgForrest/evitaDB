@@ -170,7 +170,7 @@ class RequireInScopeTest {
 		void shouldReturnRequireConstraintClassAsType() {
 			final RequireInScope requireInScope = inScope(Scope.LIVE, facetSummary());
 
-			assertEquals(RequireConstraint.class, requireInScope.getType());
+			assertSame(RequireConstraint.class, requireInScope.getType());
 		}
 
 		@Test

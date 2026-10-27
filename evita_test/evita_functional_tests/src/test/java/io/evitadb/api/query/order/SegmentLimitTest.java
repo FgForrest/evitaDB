@@ -117,7 +117,7 @@ class SegmentLimitTest {
 		void shouldReturnOrderConstraintClassAsType() {
 			final SegmentLimit segmentLimit = new SegmentLimit(5);
 
-			assertEquals(OrderConstraint.class, segmentLimit.getType());
+			assertSame(OrderConstraint.class, segmentLimit.getType());
 		}
 
 		@Test

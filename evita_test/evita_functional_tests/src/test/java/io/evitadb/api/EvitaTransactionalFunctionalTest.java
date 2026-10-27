@@ -52,6 +52,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
+import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -1919,7 +1920,9 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				session.getEntitySchema(productSchema.getName())
 					.orElseThrow()
 					.openForWrite()
-					.withAssociatedData(ASSOCIATED_DATA_FEED_HEUREKA, String.class, whichIs -> whichIs.nullable())
+					.withAssociatedData(ASSOCIATED_DATA_FEED_HEUREKA, String.class,
+					                    AssociatedDataSchemaEditor::nullable
+					)
 					.updateVia(session);
 			}
 		);

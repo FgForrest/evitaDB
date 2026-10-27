@@ -24,8 +24,10 @@
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
@@ -33,19 +35,25 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.List;
+
 import org.junit.jupiter.api.Tag;
 
-import static io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutationTest.createExistingGlobalAttributeSchema;
-import static java.util.Optional.of;
-import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
+import static io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutationTest.*;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.SCHEMA;
-import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static java.util.Optional.of;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies {@link CreateGlobalAttributeSchemaMutation} class.
@@ -94,17 +102,18 @@ class CreateGlobalAttributeSchemaMutationTest {
 		assertNotNull(result);
 		assertFalse(result.discarded());
 		assertEquals(11, result.current().length);
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof ModifyAttributeSchemaDescriptionMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof ModifyAttributeSchemaDeprecationNoticeMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof ModifyAttributeSchemaTypeMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof ModifyAttributeSchemaDefaultValueMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof SetAttributeSchemaLocalizedMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof SetAttributeSchemaNullableMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof SetAttributeSchemaUniqueMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof SetAttributeSchemaGloballyUniqueMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof SetAttributeSchemaFilterableMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof SetAttributeSchemaSortableMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof SetAttributeSchemaRepresentativeMutation));
+		assertTrue(Arrays.stream(result.current()).anyMatch(ModifyAttributeSchemaDescriptionMutation.class::isInstance));
+		assertTrue(Arrays.stream(result.current()).anyMatch(
+			ModifyAttributeSchemaDeprecationNoticeMutation.class::isInstance));
+		assertTrue(Arrays.stream(result.current()).anyMatch(ModifyAttributeSchemaTypeMutation.class::isInstance));
+		assertTrue(Arrays.stream(result.current()).anyMatch(ModifyAttributeSchemaDefaultValueMutation.class::isInstance));
+		assertTrue(Arrays.stream(result.current()).anyMatch(SetAttributeSchemaLocalizedMutation.class::isInstance));
+		assertTrue(Arrays.stream(result.current()).anyMatch(SetAttributeSchemaNullableMutation.class::isInstance));
+		assertTrue(Arrays.stream(result.current()).anyMatch(SetAttributeSchemaUniqueMutation.class::isInstance));
+		assertTrue(Arrays.stream(result.current()).anyMatch(SetAttributeSchemaGloballyUniqueMutation.class::isInstance));
+		assertTrue(Arrays.stream(result.current()).anyMatch(SetAttributeSchemaFilterableMutation.class::isInstance));
+		assertTrue(Arrays.stream(result.current()).anyMatch(SetAttributeSchemaSortableMutation.class::isInstance));
+		assertTrue(Arrays.stream(result.current()).anyMatch(SetAttributeSchemaRepresentativeMutation.class::isInstance));
 	}
 
 	@Test
@@ -132,7 +141,7 @@ class CreateGlobalAttributeSchemaMutationTest {
 		assertEquals(ATTRIBUTE_NAME, attributeSchema.getName());
 		assertEquals("description", attributeSchema.getDescription());
 		assertEquals("deprecationNotice", attributeSchema.getDeprecationNotice());
-		assertEquals(String.class, attributeSchema.getType());
+		assertSame(String.class, attributeSchema.getType());
 		assertTrue(attributeSchema.isLocalized());
 		assertTrue(attributeSchema.isNullable());
 		assertFalse(attributeSchema.isSortable());
@@ -163,7 +172,7 @@ class CreateGlobalAttributeSchemaMutationTest {
 		assertEquals(ATTRIBUTE_NAME, attributeSchema.getName());
 		assertEquals("description", attributeSchema.getDescription());
 		assertEquals("deprecationNotice", attributeSchema.getDeprecationNotice());
-		assertEquals(String.class, attributeSchema.getType());
+		assertSame(String.class, attributeSchema.getType());
 		assertTrue(attributeSchema.isLocalized());
 		assertTrue(attributeSchema.isNullable());
 		assertFalse(attributeSchema.isSortable());
@@ -191,6 +200,89 @@ class CreateGlobalAttributeSchemaMutationTest {
 				mutation.mutate(catalogSchema, Mockito.mock(EntitySchemaProvider.class));
 			}
 		);
+	}
+
+
+	/** Covers normalization carried directly by create statements, including remove/create combination. */
+	@Nested
+	@DisplayName("Normalization descriptions")
+	class Normalization {
+
+		/** The create statement owns its description array and transfers it to the DTO. */
+		@Test
+		@DisplayName("Create statements carry normalization and include it in equality and diagnostics")
+		void shouldCarryNormalizationInCreatedSchema() {
+			final AnalysisStep[] steps = {lowercase(), trim()};
+			final CreateGlobalAttributeSchemaMutation mutation = createWithNormalization(steps);
+			steps[0] = asciiFolding();
+			mutation.getNormalization()[0] = asciiFolding();
+			final GlobalAttributeSchemaContract schema = mutation.mutate(
+				null, null, GlobalAttributeSchemaContract.class
+			);
+			assertEquals(List.of(lowercase(), trim()), schema.getNormalization());
+			assertEquals(createWithNormalization(new AnalysisStep[]{lowercase(), trim()}), mutation);
+			assertEquals(
+				createWithNormalization(new AnalysisStep[]{lowercase(), trim()}).hashCode(), mutation.hashCode()
+			);
+			assertNotEquals(createWithNormalization(null), mutation);
+			assertTrue(mutation.toString().contains("normalization=[lowercase, trim]"));
+			assertTrue(createWithNormalization(null).mutate(null, null, GlobalAttributeSchemaContract.class)
+				.getNormalization().isEmpty());
+		}
+
+		/** Schema difference generation must include both setting and withdrawing the axis. */
+		@Test
+		@DisplayName("Remove/create combination emits the normalization difference")
+		void shouldEmitNormalizationDifferenceWhenCombinedWithRemoval() {
+			for (final boolean remove : new boolean[]{false, true}) {
+				final CreateGlobalAttributeSchemaMutation mutation = createWithNormalization(
+					remove ? null : new AnalysisStep[]{lowercase()}
+				);
+				final GlobalAttributeSchemaContract original = createStringGlobalAttributeSchema();
+				final GlobalAttributeSchemaContract existing = remove ?
+					new SetAttributeSchemaNormalizedMutation(ATTRIBUTE_NAME, lowercase())
+						.mutate(null, original, GlobalAttributeSchemaContract.class) : original;
+				final CatalogSchemaContract owner = Mockito.mock(CatalogSchemaContract.class);
+				Mockito.when(owner.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(existing));
+				final MutationCombinationResult<LocalCatalogSchemaMutation> combined =
+					mutation.combineWith(owner, new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME));
+				assertNotNull(combined);
+				assertTrue(Arrays.stream(combined.current()).anyMatch(change ->
+					change instanceof SetAttributeSchemaNormalizedMutation normalized &&
+						Arrays.equals(
+							remove ? new AnalysisStep[0] : new AnalysisStep[]{lowercase()},
+							normalized.getNormalization()
+						)
+				));
+			}
+		}
+
+		/** Direct create statements leave cross-field type checks to assembled-schema validation. */
+		@Test
+		@DisplayName("Created attributes validate normalization against their final type")
+		void shouldValidateNormalizationOnCreatedAttributeType() {
+			final CreateGlobalAttributeSchemaMutation mutation = new CreateGlobalAttributeSchemaMutation(
+				ATTRIBUTE_NAME, null, null, null, null, null, null, null, null,
+				false, false, false, Integer.class, null, 0, ConflictResolutionOverride.INHERITED,
+				new AnalysisStep[]{lowercase()}
+			);
+			assertTrue(mutation.mutate(null, null, GlobalAttributeSchemaContract.class)
+				.validate().anyMatch(error -> error.contains("normalization")));
+		}
+
+		/**
+		 * Builds a complete create statement with no unrelated schema settings.
+		 *
+		 * @param steps declared normalization chain, or `null` when the statement declares none
+		 * @return create mutation of a `String` global attribute carrying the given chain
+		 */
+		@Nonnull
+		private CreateGlobalAttributeSchemaMutation createWithNormalization(@Nullable AnalysisStep[] steps) {
+			return new CreateGlobalAttributeSchemaMutation(
+				ATTRIBUTE_NAME, null, null, null, null, null, null, null, null,
+				false, false, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, steps
+			);
+		}
 	}
 
 }

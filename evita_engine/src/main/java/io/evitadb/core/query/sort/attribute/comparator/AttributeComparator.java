@@ -41,7 +41,6 @@ import java.io.Serializable;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
@@ -86,6 +85,7 @@ public class AttributeComparator implements EntityComparator {
 	 * @param indexedDecimalPlaces the `indexedDecimalPlaces` of the attribute schema - the scale a range value is
 	 *                             compared at, so the comparator orders the entities as the sort index does
 	 * @param locale               the locale to read a localized attribute in, or `null`
+	 * @param stringNormalizer     the effective String key function, with schema-masked fold locale
 	 * @param orderDirection       the direction to sort in
 	 */
 	public AttributeComparator(
@@ -93,14 +93,15 @@ public class AttributeComparator implements EntityComparator {
 		@Nonnull Class<?> type,
 		int indexedDecimalPlaces,
 		@Nullable Locale locale,
-		@Nonnull OrderDirection orderDirection
+		@Nonnull OrderDirection orderDirection,
+		@Nonnull UnaryOperator<String> stringNormalizer
 	) {
 		final ComparatorSource comparatorSource = new ComparatorSource(
 			type, orderDirection, OrderBehaviour.NULLS_LAST
 		);
-		final Optional<UnaryOperator<Serializable>> normalizerFor =
-			createComparatorNormalizerFor(comparatorSource, indexedDecimalPlaces);
-		final UnaryOperator<Serializable> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
+		final UnaryOperator<Serializable> normalizer = type == String.class ?
+			value -> value == null ? null : stringNormalizer.apply((String) value) :
+			createComparatorNormalizerFor(comparatorSource, indexedDecimalPlaces).orElseGet(UnaryOperator::identity);
 		this.pkComparator = orderDirection == OrderDirection.ASC ?
 			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException) :
 			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException).reversed();

@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
@@ -112,7 +113,7 @@ class EntityIndexManifestInvariantTest {
 		@Nonnull String name, @Nonnull Class<? extends Serializable> type
 	) {
 		return AttributeSchema._internalBuild(
-			name,
+			name, null, null,
 			null,
 			new Scope[]{Scope.LIVE},
 			null,
@@ -120,7 +121,8 @@ class EntityIndexManifestInvariantTest {
 			new Scope[]{Scope.LIVE},
 			false, false, false,
 			type, null,
-			ConflictResolutionOverride.INHERITED
+			0, ConflictResolutionOverride.INHERITED,
+			null
 		);
 	}
 
@@ -535,7 +537,9 @@ class EntityIndexManifestInvariantTest {
 			this.index = new ReducedGroupEntityIndex(
 				INDEX_PK,
 				ENTITY_TYPE,
-				new EntityIndexKey(EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE, rrk)
+				new EntityIndexKey(EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE, rrk),
+				true,
+				AttributeNormalizationResolver.LEGACY_NFD
 			);
 			this.referenceSchema = mock(ReferenceSchemaContract.class);
 		}

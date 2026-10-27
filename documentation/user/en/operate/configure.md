@@ -628,8 +628,12 @@ This section contains configuration options for the storage layer of the databas
     <dt>outputBufferSize</dt>
     <dd>
         <p>**Default:** `4MB`</p>
-        <p>The output buffer size determines how large a buffer is kept in memory for output purposes. The size of the 
-        buffer limits the maximum size of an individual record in the key/value data store.</p>
+        <p>Records are serialized into an in-memory buffer of this size before they are appended to the data files.
+        A record that does not fit is split into several chained frames, so this value does not limit record size.
+        It limits the size of one frame and of any single string or binary value inside a record. A buffer of this size
+        exists only for each frame being written at that moment, plus at most two idle buffers per CPU core across all configured sizes in a
+        JVM-wide pool. Every buffer keeps its exact configured size. Compression borrows an additional buffer while
+        finishing a frame; the idle limit accommodates both arrays even on a single CPU.</p>
     </dd>
     <dt>maxOpenedReadHandles</dt>
     <dd>

@@ -51,6 +51,7 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.RequestImpact;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.core.query.indexSelection.TargetIndexes.EligibilityObstacle;
@@ -559,7 +560,7 @@ public class InScopeReducedIndexPlanFunctionalTest {
 					.withoutGeneratedPrimaryKey()
 					.withHierarchyIndexedInScope(BOTH_SCOPES)
 					.withLocale(LOCALE)
-					.withAttribute(ATTR_NAME, String.class, thatIs -> thatIs.localized())
+					.withAttribute(ATTR_NAME, String.class, AttributeSchemaEditor::localized)
 					.withAttribute(ATTR_CODE, String.class, thatIs -> thatIs.nullable().uniqueInScope(BOTH_SCOPES))
 					.withGlobalAttribute(ATTR_GLOBAL_CODE)
 					.withAttribute(
@@ -582,7 +583,7 @@ public class InScopeReducedIndexPlanFunctionalTest {
 				session.defineEntitySchema(ENTITY_PRODUCT)
 					.withoutGeneratedPrimaryKey()
 					.withLocale(LOCALE, OTHER_LOCALE)
-					.withAttribute(ATTR_NAME, String.class, thatIs -> thatIs.localized())
+					.withAttribute(ATTR_NAME, String.class, AttributeSchemaEditor::localized)
 					.withAttribute(ATTR_VISIBLE, Boolean.class, thatIs -> thatIs.filterableInScope(BOTH_SCOPES))
 					.withPriceInCurrencyIndexedInScope(2, new Currency[]{CZK}, BOTH_SCOPES)
 					.withReferenceToEntity(

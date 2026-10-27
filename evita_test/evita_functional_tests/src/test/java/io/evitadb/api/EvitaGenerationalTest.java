@@ -28,6 +28,7 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
@@ -143,7 +144,7 @@ class EvitaGenerationalTest implements EvitaTestSupport {
 			session -> {
 				session.getCatalogSchema()
 					.openForWrite()
-					.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally())
+					.withAttribute(ATTRIBUTE_CODE, String.class, GlobalAttributeSchemaEditor::uniqueGlobally)
 					.updateVia(session);
 
 				this.dataGenerator.generateEntities(

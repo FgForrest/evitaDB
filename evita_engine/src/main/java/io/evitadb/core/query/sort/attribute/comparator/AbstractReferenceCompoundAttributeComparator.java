@@ -55,7 +55,6 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.index.attribute.SortIndex.createCombinedComparatorFor;
-import static io.evitadb.index.attribute.SortIndex.createComparatorNormalizerFor;
 
 /**
  * Comparator for sorting entities according to a sortable compound attribute value. It combines multiple attribute
@@ -104,12 +103,24 @@ public abstract class AbstractReferenceCompoundAttributeComparator implements En
 	 */
 	private CompositeObjectArray<EntityContract> nonSortedEntities;
 
+	/**
+	 * Creates a compound comparator with the effective key function bound separately for every element.
+	 * Non-localized elements fold by root even when the compound is localized.
+	 *
+	 * @param compoundSchemaContract the compound whose element order and directions are compared
+	 * @param locale the schema-masked read and collation locale of the compound
+	 * @param attributeSchemaExtractor resolves each element's type and decimal scale
+	 * @param orderDirection direction of the overall compound ordering
+	 * @param referenceSchema the reference whose raw values are read
+	 * @param normalizer the bound compound key function; raw tuples are passed through it once
+	 */
 	public AbstractReferenceCompoundAttributeComparator(
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull Function<String, AttributeSchemaContract> attributeSchemaExtractor,
-		@Nonnull OrderDirection orderDirection
+		@Nonnull OrderDirection orderDirection,
+		@Nonnull UnaryOperator<Serializable> normalizer
 	) {
 		this.referenceSchema = referenceSchema;
 		this.pkComparator = orderDirection == OrderDirection.ASC ?
@@ -126,17 +137,7 @@ public abstract class AbstractReferenceCompoundAttributeComparator implements En
 			))
 			.toArray(ComparatorSource[]::new);
 
-		// initialize normalizers
-		this.normalizer = createComparatorNormalizerFor(
-			this.comparatorSource,
-			attributeElements
-				.stream()
-				.mapToInt(
-					attributeElement -> attributeSchemaExtractor.apply(attributeElement.attributeName())
-						.getIndexedDecimalPlaces()
-				)
-				.toArray()
-		);
+		this.normalizer = normalizer;
 		final Comparator<ComparableArray> baseComparator = createCombinedComparatorFor(locale, this.comparatorSource);
 		this.comparator = orderDirection == OrderDirection.ASC ? baseComparator : baseComparator.reversed();
 		this.attributeValueFetcher = locale == null ?

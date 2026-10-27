@@ -94,7 +94,7 @@ public final class JolHeapSize {
 	 * no hermeticity gain. Add a type here when its subgraph can grow after construction, not merely because it is
 	 * shared.
 	 */
-	private static final Predicate<Object> JVM_FLYWEIGHT = object -> object instanceof Locale;
+	private static final Predicate<Object> JVM_FLYWEIGHT = Locale.class::isInstance;
 
 	private JolHeapSize() {
 	}

@@ -1176,8 +1176,8 @@ class ValueIdTest {
 			);
 
 			// a run that switched the id column off without rewriting the pages it had already written: the array is
-			// there, one page's column is not. Without the premise this loads SILENTLY - the plain path hands the
-			// null column straight to `bulkLoadPage` and the page comes back with no ids under a root that restores
+			// there, one page's column is not. Without the premise this loads SILENTLY - the null column reaches
+			// `bulkLoadPage` and the page comes back with no ids under a root that restores
 			// the persisted high-water, so the next allocation re-mints ids the previous run had already published
 			final int[][] oneColumnMissing = intactValueIds.clone();
 			oneColumnMissing[1] = null;
@@ -1189,9 +1189,8 @@ class ValueIdTest {
 				)
 			);
 
-			// one page paired with a column one id short - the shape that reads past the end of the column (an
-			// out-of-bounds read on the repair path, a short leaf on the plain one) and so hands the ids of one
-			// generation to the buckets of another
+			// one page paired with a column one id short - refused before any leaf is built, so the ids of one
+			// generation never reach the buckets of another through a short leaf
 			final int[][] oneColumnShort = intactValueIds.clone();
 			oneColumnShort[1] = Arrays.copyOf(intactValueIds[1], intactValueIds[1].length - 1);
 			assertThrows(

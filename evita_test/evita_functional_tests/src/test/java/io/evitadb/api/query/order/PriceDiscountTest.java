@@ -266,7 +266,7 @@ class PriceDiscountTest {
 		void shouldReturnCorrectType() {
 			final PriceDiscount constraint = priceDiscount("discount");
 
-			assertEquals(OrderConstraint.class, constraint.getType());
+			assertSame(OrderConstraint.class, constraint.getType());
 		}
 	}
 
