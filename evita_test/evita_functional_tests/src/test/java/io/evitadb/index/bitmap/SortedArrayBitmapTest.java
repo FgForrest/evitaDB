@@ -388,6 +388,7 @@ class SortedArrayBitmapTest {
 
 		@Test
 		@DisplayName("equals and hashCode are content-based and type-sensitive")
+		@SuppressWarnings({"SimplifiableAssertion", "EqualsBetweenInconvertibleTypes"})
 		void shouldCompareByContentWithinTheType() {
 			final SortedArrayBitmap bitmap = new SortedArrayBitmap(1, 2, 3);
 
@@ -395,7 +396,11 @@ class SortedArrayBitmapTest {
 			assertEquals(bitmap.hashCode(), new SortedArrayBitmap(1, 2, 3).hashCode());
 			assertNotEquals(new SortedArrayBitmap(1, 2, 4), bitmap);
 			assertNotEquals(new SortedArrayBitmap(1, 2), bitmap);
-			assertNotEquals(new BaseBitmap(1, 2, 3), bitmap, "content equality across representations is getContentHash's job");
+			// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
+			// fix moves the `new BaseBitmap` there, so `BaseBitmap.equals` would be tested instead of this class's
+			assertFalse(
+				bitmap.equals(new BaseBitmap(1, 2, 3)), "content equality across representations is getContentHash's job"
+			);
 		}
 
 		@Test

@@ -63,16 +63,20 @@ class AnalysisStepsTest {
 	/** Generic steps permit names supplied by future server providers and typed parameters. */
 	@Test
 	@DisplayName("Generic steps preserve supported parameter values")
+	@SuppressWarnings({"SimplifiableAssertion", "EqualsBetweenInconvertibleTypes"})
 	void shouldDescribeCustomStepsAndTypedParameters() {
 		final AnalysisStep step = step("custom", parameter("limit", 2), parameter("factor", new BigDecimal("1.5")));
 		assertEquals(Map.of("limit", 2, "factor", new BigDecimal("1.5")), step.parameters());
 		assertEquals("custom(limit=2, factor=1.5)", step.toString());
 		assertNotEquals(step, lowercase());
-		assertNotEquals("custom", step);
+		// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
+		// fix moves the string literal there, so `String.equals` would be tested instead of the step's (and below,
+		// the parameter's)
+		assertFalse(step.equals("custom"));
 		assertEquals(parameter("limit", 2), parameter("limit", 2));
 		assertNotEquals(parameter("limit", 2), parameter("limit", 3));
 		assertNotEquals(parameter("limit", 2), parameter("other", 2));
-		assertNotEquals("limit", parameter("limit", 2));
+		assertFalse(parameter("limit", 2).equals("limit"));
 	}
 
 	/** Descriptions own the map and any supported mutable array values. */

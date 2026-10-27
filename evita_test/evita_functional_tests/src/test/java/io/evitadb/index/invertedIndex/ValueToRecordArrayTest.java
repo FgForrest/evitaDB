@@ -262,6 +262,7 @@ class ValueToRecordArrayTest {
 
 		@Test
 		@DisplayName("equals and hashCode identify a bucket by its value alone")
+		@SuppressWarnings({"SimplifiableAssertion", "EqualsBetweenInconvertibleTypes", "ObjectEqualsNull"})
 		void shouldIdentifyByValue() {
 			final ValueToRecordArray bucket = new ValueToRecordArray(VALUE, 1, 2, 3);
 
@@ -269,8 +270,11 @@ class ValueToRecordArrayTest {
 			assertEquals(bucket.hashCode(), new ValueToRecordArray(VALUE, 7, 8).hashCode());
 			assertEquals(VALUE.hashCode(), bucket.hashCode());
 			assertNotEquals(new ValueToRecordArray("beta", 1, 2, 3), bucket);
-			assertNotEquals(new ValueToRecordBitmap(VALUE, 1, 2, 3), bucket);
-			assertNotEquals(null, bucket);
+			// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
+			// fix moves the `new ValueToRecordBitmap` there, so `ValueToRecordBitmap.equals` would be tested instead of
+			// this class's `instanceof` check - and with `null` first it calls no `equals` at all
+			assertFalse(bucket.equals(new ValueToRecordBitmap(VALUE, 1, 2, 3)));
+			assertFalse(bucket.equals(null));
 		}
 
 		@Test
