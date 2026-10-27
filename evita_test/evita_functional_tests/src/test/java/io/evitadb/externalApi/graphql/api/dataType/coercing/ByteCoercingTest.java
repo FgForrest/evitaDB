@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
+import graphql.GraphQLContext;
+import graphql.execution.CoercedVariables;
 import graphql.language.IntValue;
 import graphql.language.StringValue;
 import graphql.schema.CoercingParseLiteralException;
@@ -32,6 +34,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+
+import java.util.Locale;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
@@ -54,6 +58,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @Tag(DATA_TYPE)
 class ByteCoercingTest {
 
+	private static final GraphQLContext GRAPHQL_CONTEXT = GraphQLContext.getDefault();
+	private static final Locale LOCALE = Locale.ENGLISH;
+	private static final CoercedVariables VARIABLES = CoercedVariables.emptyVariables();
+
 	private final ByteCoercing coercing = new ByteCoercing();
 
 	@Nested
@@ -63,7 +71,7 @@ class ByteCoercingTest {
 		@Test
 		@DisplayName("converts a byte data fetcher result into an integer")
 		void shouldSerializeByteWhenResultIsByte() {
-			final Integer serialized = ByteCoercingTest.this.coercing.serialize((byte) 42);
+			final Integer serialized = ByteCoercingTest.this.coercing.serialize((byte) 42, GRAPHQL_CONTEXT, LOCALE);
 			assertInstanceOf(Integer.class, serialized);
 			assertEquals(Integer.valueOf(42), serialized);
 		}
@@ -71,18 +79,18 @@ class ByteCoercingTest {
 		@Test
 		@DisplayName("preserves the whole byte domain including its sign")
 		void shouldSerializeBoundaryValuesWhenResultIsByte() {
-			assertEquals(Integer.valueOf(Byte.MIN_VALUE), ByteCoercingTest.this.coercing.serialize(Byte.MIN_VALUE));
-			assertEquals(Integer.valueOf(Byte.MAX_VALUE), ByteCoercingTest.this.coercing.serialize(Byte.MAX_VALUE));
-			assertEquals(Integer.valueOf(0), ByteCoercingTest.this.coercing.serialize((byte) 0));
-			assertEquals(Integer.valueOf(-1), ByteCoercingTest.this.coercing.serialize((byte) -1));
+			assertEquals(Integer.valueOf(Byte.MIN_VALUE), ByteCoercingTest.this.coercing.serialize(Byte.MIN_VALUE, GRAPHQL_CONTEXT, LOCALE));
+			assertEquals(Integer.valueOf(Byte.MAX_VALUE), ByteCoercingTest.this.coercing.serialize(Byte.MAX_VALUE, GRAPHQL_CONTEXT, LOCALE));
+			assertEquals(Integer.valueOf(0), ByteCoercingTest.this.coercing.serialize((byte) 0, GRAPHQL_CONTEXT, LOCALE));
+			assertEquals(Integer.valueOf(-1), ByteCoercingTest.this.coercing.serialize((byte) -1, GRAPHQL_CONTEXT, LOCALE));
 		}
 
 		@Test
 		@DisplayName("rejects a data fetcher result that is not a byte")
 		void shouldThrowExceptionWhenResultIsNotByte() {
-			assertThrows(CoercingSerializeException.class, () -> ByteCoercingTest.this.coercing.serialize("42"));
-			assertThrows(CoercingSerializeException.class, () -> ByteCoercingTest.this.coercing.serialize(42));
-			assertThrows(CoercingSerializeException.class, () -> ByteCoercingTest.this.coercing.serialize((short) 42));
+			assertThrows(CoercingSerializeException.class, () -> ByteCoercingTest.this.coercing.serialize("42", GRAPHQL_CONTEXT, LOCALE));
+			assertThrows(CoercingSerializeException.class, () -> ByteCoercingTest.this.coercing.serialize(42, GRAPHQL_CONTEXT, LOCALE));
+			assertThrows(CoercingSerializeException.class, () -> ByteCoercingTest.this.coercing.serialize((short) 42, GRAPHQL_CONTEXT, LOCALE));
 		}
 	}
 
@@ -93,29 +101,29 @@ class ByteCoercingTest {
 		@Test
 		@DisplayName("converts an integer input into a byte")
 		void shouldParseIntegerInputWhenInputFitsIntoByte() {
-			assertEquals(Byte.valueOf((byte) 42), ByteCoercingTest.this.coercing.parseValue(42));
-			assertEquals(Byte.valueOf((byte) -42), ByteCoercingTest.this.coercing.parseValue(-42));
+			assertEquals(Byte.valueOf((byte) 42), ByteCoercingTest.this.coercing.parseValue(42, GRAPHQL_CONTEXT, LOCALE));
+			assertEquals(Byte.valueOf((byte) -42), ByteCoercingTest.this.coercing.parseValue(-42, GRAPHQL_CONTEXT, LOCALE));
 		}
 
 		@Test
 		@DisplayName("accepts both ends of the byte domain")
 		void shouldParseBoundaryValuesWhenInputFitsIntoByte() {
-			assertEquals(Byte.valueOf(Byte.MIN_VALUE), ByteCoercingTest.this.coercing.parseValue((int) Byte.MIN_VALUE));
-			assertEquals(Byte.valueOf(Byte.MAX_VALUE), ByteCoercingTest.this.coercing.parseValue((int) Byte.MAX_VALUE));
+			assertEquals(Byte.valueOf(Byte.MIN_VALUE), ByteCoercingTest.this.coercing.parseValue((int) Byte.MIN_VALUE, GRAPHQL_CONTEXT, LOCALE));
+			assertEquals(Byte.valueOf(Byte.MAX_VALUE), ByteCoercingTest.this.coercing.parseValue((int) Byte.MAX_VALUE, GRAPHQL_CONTEXT, LOCALE));
 		}
 
 		@Test
 		@DisplayName("rejects an integer that overflows the byte domain")
 		void shouldThrowExceptionWhenInputOverflowsByte() {
-			assertThrows(CoercingParseValueException.class, () -> ByteCoercingTest.this.coercing.parseValue(Byte.MAX_VALUE + 1));
-			assertThrows(CoercingParseValueException.class, () -> ByteCoercingTest.this.coercing.parseValue(Byte.MIN_VALUE - 1));
+			assertThrows(CoercingParseValueException.class, () -> ByteCoercingTest.this.coercing.parseValue(Byte.MAX_VALUE + 1, GRAPHQL_CONTEXT, LOCALE));
+			assertThrows(CoercingParseValueException.class, () -> ByteCoercingTest.this.coercing.parseValue(Byte.MIN_VALUE - 1, GRAPHQL_CONTEXT, LOCALE));
 		}
 
 		@Test
 		@DisplayName("rejects an input that is not an integer")
 		void shouldThrowExceptionWhenInputIsNotInteger() {
-			assertThrows(CoercingParseValueException.class, () -> ByteCoercingTest.this.coercing.parseValue("42"));
-			assertThrows(CoercingParseValueException.class, () -> ByteCoercingTest.this.coercing.parseValue((byte) 42));
+			assertThrows(CoercingParseValueException.class, () -> ByteCoercingTest.this.coercing.parseValue("42", GRAPHQL_CONTEXT, LOCALE));
+			assertThrows(CoercingParseValueException.class, () -> ByteCoercingTest.this.coercing.parseValue((byte) 42, GRAPHQL_CONTEXT, LOCALE));
 		}
 	}
 
@@ -126,8 +134,8 @@ class ByteCoercingTest {
 		@Test
 		@DisplayName("converts an int literal into a byte")
 		void shouldParseIntLiteralWhenLiteralFitsIntoByte() {
-			assertEquals(Byte.valueOf((byte) 42), ByteCoercingTest.this.coercing.parseLiteral(IntValue.of(42)));
-			assertEquals(Byte.valueOf((byte) -42), ByteCoercingTest.this.coercing.parseLiteral(IntValue.of(-42)));
+			assertEquals(Byte.valueOf((byte) 42), ByteCoercingTest.this.coercing.parseLiteral(IntValue.of(42), VARIABLES, GRAPHQL_CONTEXT, LOCALE));
+			assertEquals(Byte.valueOf((byte) -42), ByteCoercingTest.this.coercing.parseLiteral(IntValue.of(-42), VARIABLES, GRAPHQL_CONTEXT, LOCALE));
 		}
 
 		@Test
@@ -135,11 +143,11 @@ class ByteCoercingTest {
 		void shouldParseBoundaryLiteralsWhenLiteralFitsIntoByte() {
 			assertEquals(
 				Byte.valueOf(Byte.MIN_VALUE),
-				ByteCoercingTest.this.coercing.parseLiteral(IntValue.of(Byte.MIN_VALUE))
+				ByteCoercingTest.this.coercing.parseLiteral(IntValue.of(Byte.MIN_VALUE), VARIABLES, GRAPHQL_CONTEXT, LOCALE)
 			);
 			assertEquals(
 				Byte.valueOf(Byte.MAX_VALUE),
-				ByteCoercingTest.this.coercing.parseLiteral(IntValue.of(Byte.MAX_VALUE))
+				ByteCoercingTest.this.coercing.parseLiteral(IntValue.of(Byte.MAX_VALUE), VARIABLES, GRAPHQL_CONTEXT, LOCALE)
 			);
 		}
 
@@ -148,11 +156,11 @@ class ByteCoercingTest {
 		void shouldThrowExceptionWhenLiteralOverflowsByte() {
 			assertThrows(
 				CoercingParseLiteralException.class,
-				() -> ByteCoercingTest.this.coercing.parseLiteral(IntValue.of(Byte.MAX_VALUE + 1))
+				() -> ByteCoercingTest.this.coercing.parseLiteral(IntValue.of(Byte.MAX_VALUE + 1), VARIABLES, GRAPHQL_CONTEXT, LOCALE)
 			);
 			assertThrows(
 				CoercingParseLiteralException.class,
-				() -> ByteCoercingTest.this.coercing.parseLiteral(IntValue.of(Byte.MIN_VALUE - 1))
+				() -> ByteCoercingTest.this.coercing.parseLiteral(IntValue.of(Byte.MIN_VALUE - 1), VARIABLES, GRAPHQL_CONTEXT, LOCALE)
 			);
 		}
 
@@ -163,7 +171,7 @@ class ByteCoercingTest {
 			// of this coercing - the assertion pins it so that a future change to the exception type is deliberate
 			assertThrows(
 				CoercingParseValueException.class,
-				() -> ByteCoercingTest.this.coercing.parseLiteral(StringValue.of("42"))
+				() -> ByteCoercingTest.this.coercing.parseLiteral(StringValue.of("42"), VARIABLES, GRAPHQL_CONTEXT, LOCALE)
 			);
 		}
 	}
