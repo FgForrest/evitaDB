@@ -23,7 +23,10 @@
 
 package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
+import graphql.GraphQLContext;
+import graphql.execution.CoercedVariables;
 import graphql.language.IntValue;
+import graphql.language.Value;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
 import graphql.schema.CoercingParseValueException;
@@ -31,6 +34,7 @@ import graphql.schema.CoercingSerializeException;
 
 import javax.annotation.Nonnull;
 import java.math.BigInteger;
+import java.util.Locale;
 
 /**
  * {@link Coercing} for converting between Java's side {@link Byte} and client int.
@@ -41,7 +45,11 @@ public class ByteCoercing implements Coercing<Byte, Integer> {
 
     @Nonnull
     @Override
-    public Integer serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
+    public Integer serialize(
+        @Nonnull Object dataFetcherResult,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingSerializeException {
         if (!(dataFetcherResult instanceof Byte byteValue)) {
             throw new CoercingSerializeException("Byte data fetcher result is not a byte.");
         }
@@ -50,7 +58,11 @@ public class ByteCoercing implements Coercing<Byte, Integer> {
 
     @Nonnull
     @Override
-    public Byte parseValue(@Nonnull Object input) throws CoercingParseValueException {
+    public Byte parseValue(
+        @Nonnull Object input,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingParseValueException {
         if (!(input instanceof Integer)) {
             throw new CoercingParseValueException("Byte input value is not a integer.");
         }
@@ -63,7 +75,12 @@ public class ByteCoercing implements Coercing<Byte, Integer> {
 
     @Nonnull
     @Override
-    public Byte parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
+    public Byte parseLiteral(
+        @Nonnull Value<?> input,
+        @Nonnull CoercedVariables variables,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingParseLiteralException {
         if (!(input instanceof IntValue intValue)) {
             throw new CoercingParseValueException("Byte input value is not a integer.");
         }
