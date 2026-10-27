@@ -195,6 +195,8 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 		this.buildingContext.registerType(PaginatedListDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(StripListDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
 
+		// the common base of all entity objects (their `allOf`) and the item type of `RecordPage` / `RecordStrip`
+		this.buildingContext.registerType(EntityDescriptor.THIS_CLASSIFIER.to(this.objectBuilderTransformer).build());
 		this.entityObjectBuilder.buildCommonTypes();
 		// should be used interface builder, but that is doable once we have a robust framework for creating interfaces in OpenAPI
 		this.buildingContext.registerType(ReferenceDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
@@ -203,7 +205,8 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 	}
 
 	/**
-	 * Builds collection endpoints and their entity unions, using the generic classifier for an empty catalog.
+	 * Builds collection endpoints, the entity unions returned by the unknown-entity endpoints (only when the catalog
+	 * has at least one collection) and the unknown-entity endpoints themselves.
 	 */
 	private void buildEndpoints() {
 		this.buildingContext.registerEndpoint(this.endpointBuilder.buildCollectionsEndpoint());
@@ -234,12 +237,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			this.buildingContext.registerEndpoint(this.endpointBuilder.buildDeleteEntitiesByQueryEndpoint(entitySchema));
 		});
 
-		buildEntityUnion(false).ifPresentOrElse(
-			this.buildingContext::registerType,
-			() -> this.buildingContext.registerType(
-				EntityDescriptor.THIS_CLASSIFIER.to(this.objectBuilderTransformer).build()
-			)
-		);
+		buildEntityUnion(false).ifPresent(this.buildingContext::registerType);
 		buildEntityUnion(true).ifPresent(this.buildingContext::registerType);
 
 		final List<GlobalAttributeSchemaContract> globallyUniqueAttributes = this.buildingContext.getSchema()

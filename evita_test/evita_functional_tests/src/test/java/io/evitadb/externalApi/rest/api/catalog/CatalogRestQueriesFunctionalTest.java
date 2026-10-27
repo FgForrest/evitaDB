@@ -47,7 +47,10 @@ import org.junit.jupiter.params.provider.ValueSource;
 import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.StreamSupport;
 
@@ -59,7 +62,7 @@ import static io.evitadb.test.TestTags.REST;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -76,6 +79,11 @@ class CatalogRestQueriesFunctionalTest extends RestEndpointFunctionalTest {
 	private static final String REST_EMPTY_OPEN_API = "RestEmptyOpenApi";
 
 	private static final String REST_OPEN_API_REFERENCES = REST_THOUSAND_PRODUCTS + "OpenApiReferences";
+
+	private static final String SCHEMAS = "/components/schemas/";
+	private static final String ENTITY_REF = "#/components/schemas/Entity";
+	private static final String ENTITY_UNION = "EntityUnion";
+	private static final String LOCALIZED_ENTITY_UNION = "LocalizedEntityUnion";
 
 	/**
 	 * Reuses the REST fixtures with a small catalog and a reference configured for partial faceting.
@@ -174,28 +182,23 @@ class CatalogRestQueriesFunctionalTest extends RestEndpointFunctionalTest {
 		}
 
 		/**
-		 * Empty catalogs expose the generic entity until the first collection triggers a REST schema refresh.
+		 * Empty catalogs expose the plain `Entity` base object, and the entity unions appear only once the first
+		 * collection triggers a REST schema refresh, without ever taking the base object's name.
 		 */
 		@Test
 		@UseDataSet(REST_EMPTY_OPEN_API)
-		@DisplayName("Should serve the generic entity when empty and refresh it after creating a collection")
+		@DisplayName("Should serve the Entity base object when empty and add the union after creating a collection")
 		void shouldServeGenericEntityWhenCatalogHasNoCollections(
 			@Nonnull Evita evita, @Nonnull RestTester tester
 		) throws IOException {
 			assertTrue(evita.getCatalogInstanceOrThrowException(TEST_CATALOG).getSchema().getEntitySchemas().isEmpty());
 			final JsonNode document = RestOpenApiAssertions.fetchDocument(tester, TEST_CATALOG);
 			RestOpenApiAssertions.assertReferencesResolve(document, TEST_CATALOG);
-			final JsonNode entity = document.at("/components/schemas/Entity");
-			assertEquals("object", entity.path("type").asText());
-			final Set<String> properties = new HashSet<>();
-			entity.path("properties").fieldNames().forEachRemaining(properties::add);
-			assertEquals(Set.of("primaryKey", "type", "version", "scope"), properties);
-			assertTrue(entity.path("oneOf").isMissingNode());
+			assertEntityBaseObject(document);
 			assertTrue(document.findValues("$ref").stream()
-				.anyMatch(ref -> "#/components/schemas/Entity".equals(ref.asText())));
-			assertTrue(document.at("/components/schemas/LocalizedEntity").isMissingNode());
-			assertFalse(document.findValues("$ref").stream()
-				.anyMatch(ref -> "#/components/schemas/LocalizedEntity".equals(ref.asText())));
+				.anyMatch(ref -> ENTITY_REF.equals(ref.asText())));
+			assertTrue(document.at(SCHEMAS + ENTITY_UNION).isMissingNode());
+			assertTrue(document.at(SCHEMAS + LOCALIZED_ENTITY_UNION).isMissingNode());
 			tester.test(TEST_CATALOG).httpMethod(Request.METHOD_GET).urlPathSuffix("/collections")
 				.executeAndThen().statusCode(200);
 
@@ -204,12 +207,81 @@ class CatalogRestQueriesFunctionalTest extends RestEndpointFunctionalTest {
 			});
 			await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
 				final JsonNode refreshed = RestOpenApiAssertions.fetchDocument(tester, TEST_CATALOG);
-				final JsonNode union = refreshed.at("/components/schemas/Entity/oneOf");
+				final JsonNode union = refreshed.at(SCHEMAS + ENTITY_UNION + "/oneOf");
 				assertTrue(union.isArray() && union.size() == 1,
-					"Entity must become a oneOf union after collection creation");
+					"EntityUnion must be a oneOf union after collection creation");
 				assertEquals("#/components/schemas/Product", union.get(0).path("$ref").asText());
+				assertEntityBaseObject(refreshed);
 				RestOpenApiAssertions.assertReferencesResolve(refreshed, TEST_CATALOG);
 			});
+		}
+
+		/**
+		 * In a populated catalog every entity object extends the `Entity` base object, which is never a union, and
+		 * the unknown-entity endpoints return the entity unions instead.
+		 */
+		@Test
+		@UseDataSet(REST_OPEN_API_REFERENCES)
+		@DisplayName("Should keep the Entity base object apart from the entity unions in a populated catalog")
+		void shouldKeepEntityBaseObjectApartFromEntityUnions(@Nonnull RestTester tester) throws IOException {
+			final JsonNode document = RestOpenApiAssertions.fetchDocument(tester, TEST_CATALOG);
+			assertEntityBaseObject(document);
+
+			for (String unionName : List.of(ENTITY_UNION, LOCALIZED_ENTITY_UNION)) {
+				final JsonNode members = document.at(SCHEMAS + unionName + "/oneOf");
+				assertTrue(members.isArray() && !members.isEmpty(), unionName + " must be a non-empty oneOf union");
+				for (JsonNode member : members) {
+					final String memberRef = member.path("$ref").asText();
+					final JsonNode entityObject = document.at(memberRef.substring(1));
+					assertTrue(
+						StreamSupport.stream(entityObject.path("allOf").spliterator(), false)
+							.anyMatch(item -> ENTITY_REF.equals(item.path("$ref").asText())),
+						memberRef + " must extend " + ENTITY_REF + " via allOf"
+					);
+				}
+			}
+
+			final Map<String, JsonNode> successResponses = new HashMap<>();
+			document.path("paths").forEach(path -> path.forEach(operation -> {
+				if (operation.has("operationId")) {
+					successResponses.put(
+						operation.get("operationId").asText(), operation.path("responses").path("200")
+					);
+				}
+			}));
+			assertSuccessResponseReferences(successResponses, "getEntity", ENTITY_UNION);
+			assertSuccessResponseReferences(successResponses, "listEntity", ENTITY_UNION);
+			assertSuccessResponseReferences(successResponses, "getEntityLocalized", LOCALIZED_ENTITY_UNION);
+			assertSuccessResponseReferences(successResponses, "listEntityLocalized", LOCALIZED_ENTITY_UNION);
+		}
+
+		/**
+		 * Asserts that `Entity` is the plain base object with the common entity properties, not a union.
+		 */
+		private static void assertEntityBaseObject(@Nonnull JsonNode document) {
+			final JsonNode entity = document.at(SCHEMAS + "Entity");
+			assertEquals("object", entity.path("type").asText());
+			final Set<String> properties = new HashSet<>();
+			entity.path("properties").fieldNames().forEachRemaining(properties::add);
+			assertEquals(Set.of("primaryKey", "type", "version", "scope"), properties);
+			assertTrue(entity.path("oneOf").isMissingNode(), "Entity must not be a oneOf union");
+			assertTrue(entity.path("anyOf").isMissingNode(), "Entity must not be an anyOf union");
+		}
+
+		/**
+		 * Asserts that the 200 response of the given operation references exactly the given union.
+		 */
+		private static void assertSuccessResponseReferences(
+			@Nonnull Map<String, JsonNode> successResponses,
+			@Nonnull String operationId,
+			@Nonnull String unionName
+		) {
+			final JsonNode response = successResponses.get(operationId);
+			assertNotNull(response, "Operation " + operationId + " must be served");
+			final Set<String> refs = new HashSet<>();
+			response.findValues("$ref").forEach(ref -> refs.add(ref.asText()));
+			assertEquals(Set.of("#/components/schemas/" + unionName), refs,
+				"Operation " + operationId + " must return " + unionName);
 		}
 	}
 }
