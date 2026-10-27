@@ -528,9 +528,9 @@ The attribute schema's `getNormalization()` returns the declared list of `Analys
 <LS to="g,r">
 
 GraphQL and REST schema mutations accept the list in `normalization`, both when creating an attribute and when
-replacing its declaration with `setAttributeSchemaNormalizedMutation`. Each list item selects exactly one step.
-Parameterless steps use `true`; parameterized steps use a typed parameter object. GraphQL enforces this with
-`@oneOf`, and REST describes it with OpenAPI `oneOf`.
+replacing its declaration with `setAttributeSchemaNormalizedMutation`; the schema output reports it in `normalized`.
+Each list item selects exactly one step. Parameterless steps use `true`; parameterized steps use a typed parameter
+object. GraphQL enforces this with `@oneOf`, and REST describes it with OpenAPI `oneOf`.
 
 </LS>
 
@@ -670,19 +670,21 @@ trigrams from those same canonical keys, so accelerated and scanned searches agr
 
 <Note type="warning">
 
-<NoteTitle toggles="false">
+<NoteTitle toggles="true">
 
 ##### Changing normalization on an attribute with data
 </NoteTitle>
+
+This is a temporary limitation that lasts until reindexing is available
+([issue #409](https://github.com/FgForrest/evitaDB/issues/409)).
 
 A valid normalization change is always accepted, and the schema immediately reports the new list. If the attribute
 already holds indexed values, however, its indexes keep the normalization they were **built with**, for both
 existing and newly written values. Queries use that same retained normalization. evitaDB logs a warning when the
 declaration differs from it. This applies to adding, replacing and removing the steps.
 
-Applying the new declaration to a populated index requires reindexing, which is not available yet. For example,
-adding `lowercase()` to an existing unique attribute does not start enforcing case-insensitive uniqueness while
-its indexes retain the old normalization.
+Until then, a populated index cannot switch to the new declaration. For example, adding `lowercase()` to an existing
+unique attribute does not start enforcing case-insensitive uniqueness while its indexes retain the old normalization.
 
 An attribute without indexed values adopts the declared list at schema-change time. The check covers all locales
 and both scopes, including values held only in sortable compounds; a non-null element counts, while a null element

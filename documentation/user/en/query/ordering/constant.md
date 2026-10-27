@@ -13,6 +13,15 @@ The constant ordering constraints are particularly useful when you have a sorted
 the entity primary keys provided by an external system that needs to be maintained in the evitaDB output (for example,
 it represents a relevance of those entities from the full-text engine).
 
+<Note type="info">
+For string attributes, [normalization](../../use/schema.md#normalization) applies to both the attribute keys and the
+requested values - those of the [`attributeInSet`](../filtering/comparable.md#attribute-in-set) filter used by
+[`attributeSetInFilter`](#exact-entity-attribute-value-order-used-in-filter) and the arguments of
+[`attributeSetExact`](#exact-entity-attribute-value-order). Requested values that normalize to one key keep the
+**first requested position**. With the `lowercase` step, `"ABC", "def", "abc"` places the `abc` key first and `def`
+second.
+</Note>
+
 ## Exact entity primary key order used in filter
 
 ```evitaql-syntax
@@ -136,10 +145,6 @@ they were filtered. The constraint requires the presence of exactly one [`attrib
 in the filter part of the query, referring to the attribute with the same name as used in the first argument of this
 constraint. It uses the specified array of attribute values to sort the result returned by the query.
 
-For string attributes, [normalization](../../use/schema.md#normalization) applies to both the attribute keys and
-the values requested by `attributeInSet`. Requested values that normalize to one key keep the **first requested
-position**. With the `lowercase` step, `"ABC", "def", "abc"` places the `abc` key first and `def` second.
-
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Entities sorted by order `code` attribute of the filtered entities](/documentation/user/en/query/ordering/examples/constant/attribute-set-in-filter.evitaql)
@@ -199,10 +204,6 @@ attributeSetExact(
 
 The constraint allows output entities to be sorted by attribute values in the exact order specified in the 2nd through
 Nth arguments of this constraint.
-
-For string attributes, [normalization](../../use/schema.md#normalization) applies to both the attribute keys and
-the requested ordering values. Requested values that normalize to one key keep the **first requested position**.
-With the `lowercase` step, `attributeSetExact("code", "ABC", "def", "abc")` places the `abc` key first and `def` second.
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 

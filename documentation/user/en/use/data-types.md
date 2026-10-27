@@ -329,9 +329,6 @@ different ranges, even when the boundaries fall within the same second.
 
 `LocalDate` is the only date/time type left out — it carries no sub-day component, so there is nothing to truncate.
 
-A catalog written by evitaDB 2026.2 or older is upgraded when evitaDB 2026.3 first opens it. Index entries whose
-values now fall into the same millisecond are merged during this upgrade, so every record stays findable.
-
 evitaDB holds every temporal value as a whole number of milliseconds since the epoch in a 64-bit number. That window
 spans roughly ±292 million years around 1970, so every realistic calendar date fits comfortably. A value outside it is
 clamped to its nearest edge — in practice only the JDK's own extreme sentinels such as `OffsetDateTime.MAX`, which
