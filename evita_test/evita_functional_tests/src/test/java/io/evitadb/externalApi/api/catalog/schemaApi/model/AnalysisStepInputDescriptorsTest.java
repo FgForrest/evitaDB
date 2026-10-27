@@ -30,11 +30,16 @@ import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.spi.analysis.AnalysisStepFactory;
 import io.evitadb.spi.analysis.AnalysisStepParameterDescriptor;
 import io.evitadb.spi.analysis.NormalizingAnalysisStepFactory;
+import io.evitadb.spi.analysis.StringNormalizationStep;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -42,7 +47,6 @@ import java.util.stream.Collectors;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
 /** Provider metadata coverage independent of engines, web servers and the built-in step implementations. */
 @Tag(EXTERNAL_API)
@@ -52,17 +56,12 @@ class AnalysisStepInputDescriptorsTest {
 	@Test
 	@DisplayName("Generates typed required and optional parameters for installed extensions")
 	void shouldGenerateMetadataFromInstalledProviders() {
-		final NormalizingAnalysisStepFactory extension = mock(NormalizingAnalysisStepFactory.class);
-		when(extension.getName()).thenReturn("custom-fold");
-		when(extension.getParameters()).thenReturn(List.of(
+		final NormalizingAnalysisStepFactory extension = new InstalledNormalizer("custom-fold", List.of(
 			new AnalysisStepParameterDescriptor("optionalLimit", Integer.class, false, "Optional limit."),
 			new AnalysisStepParameterDescriptor("characters", String[].class, true, "Required characters.")
 		));
-		final NormalizingAnalysisStepFactory parameterless = mock(NormalizingAnalysisStepFactory.class);
-		when(parameterless.getName()).thenReturn("ascii-fallback");
-		when(parameterless.getParameters()).thenReturn(List.of());
-		final AnalysisStepFactory unsafe = mock(AnalysisStepFactory.class);
-		when(unsafe.getName()).thenReturn("not-normalizing");
+		final NormalizingAnalysisStepFactory parameterless = new InstalledNormalizer("ascii-fallback", List.of());
+		final AnalysisStepFactory unsafe = new InstalledTokenizer("not-normalizing");
 		final List<AnalysisStepInputDescriptors.StepInput> result = AnalysisStepInputDescriptors.getSteps(
 			new AnalysisStepRegistry(List.of(unsafe, extension, parameterless))
 		);
@@ -86,12 +85,8 @@ class AnalysisStepInputDescriptorsTest {
 	@Test
 	@DisplayName("Refuses installed provider names that collide in camel case")
 	void shouldRejectCollidingInputNames() {
-		final NormalizingAnalysisStepFactory first = mock(NormalizingAnalysisStepFactory.class);
-		when(first.getName()).thenReturn("custom-fold");
-		when(first.getParameters()).thenReturn(List.of());
-		final NormalizingAnalysisStepFactory second = mock(NormalizingAnalysisStepFactory.class);
-		when(second.getName()).thenReturn("custom_fold");
-		when(second.getParameters()).thenReturn(List.of());
+		final NormalizingAnalysisStepFactory first = new InstalledNormalizer("custom-fold", List.of());
+		final NormalizingAnalysisStepFactory second = new InstalledNormalizer("custom_fold", List.of());
 		assertThrows(ExternalApiInternalError.class, () -> AnalysisStepInputDescriptors.getSteps(
 			new AnalysisStepRegistry(List.of(first, second))
 		));
@@ -106,5 +101,69 @@ class AnalysisStepInputDescriptorsTest {
 		assertEquals("InputAnalysisStep", AnalysisStepDescriptor.THIS_INPUT.name());
 		assertTrue(AnalysisStepDescriptor.THIS_INPUT.staticProperties().stream()
 			.noneMatch(it -> it.type().nonNull()));
+	}
+
+	/**
+	 * Installed extension that declares itself safe as a normalizer. The descriptors read only its name and
+	 * parameters, so it never builds a step.
+	 *
+	 * @param name name of the step as written in a schema
+	 * @param parameters parameters the step declares
+	 */
+	private record InstalledNormalizer(
+		@Nonnull String name,
+		@Nonnull List<AnalysisStepParameterDescriptor> parameters
+	) implements NormalizingAnalysisStepFactory {
+
+		@Nonnull
+		@Override
+		public String getName() {
+			return this.name;
+		}
+
+		@Nonnull
+		@Override
+		public List<AnalysisStepParameterDescriptor> getParameters() {
+			return this.parameters;
+		}
+
+		@Override
+		public void validate(@Nonnull Map<String, Serializable> parameters) {
+			// every parameter set is accepted - the descriptors never validate one
+		}
+
+		@Nonnull
+		@Override
+		public StringNormalizationStep create(
+			@Nonnull Map<String, Serializable> parameters,
+			@Nullable Locale foldLocale
+		) {
+			throw new UnsupportedOperationException("The descriptors never build a step.");
+		}
+	}
+
+	/**
+	 * Installed extension that does not declare itself safe as a normalizer, so the descriptors must leave it out.
+	 *
+	 * @param name name of the step as written in a schema
+	 */
+	private record InstalledTokenizer(@Nonnull String name) implements AnalysisStepFactory {
+
+		@Nonnull
+		@Override
+		public String getName() {
+			return this.name;
+		}
+
+		@Nonnull
+		@Override
+		public List<AnalysisStepParameterDescriptor> getParameters() {
+			return List.of();
+		}
+
+		@Override
+		public void validate(@Nonnull Map<String, Serializable> parameters) {
+			// every parameter set is accepted - the descriptors never validate one
+		}
 	}
 }

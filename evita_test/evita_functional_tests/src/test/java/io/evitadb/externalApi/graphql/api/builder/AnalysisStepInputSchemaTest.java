@@ -32,62 +32,78 @@ import graphql.schema.GraphQLInputObjectField;
 import graphql.schema.GraphQLInputObjectType;
 import graphql.schema.GraphQLNonNull;
 import graphql.schema.GraphQLSchema;
-import graphql.schema.GraphQLType;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AnalysisStepInputDescriptors;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AnalysisStepInputDescriptors.StepInput;
+import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
+import io.evitadb.test.EvitaTestSupport;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 
+import javax.annotation.Nonnull;
 import java.util.Map;
 
 import static graphql.Scalars.GraphQLBoolean;
-import static graphql.schema.FieldCoordinates.coordinates;
 import static graphql.schema.GraphQLArgument.newArgument;
-import static graphql.schema.GraphQLCodeRegistry.newCodeRegistry;
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
-import static graphql.schema.GraphQLObjectType.newObject;
 import static graphql.schema.GraphQLTypeReference.typeRef;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.GRAPHQL;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Verifies graphql-java's native one-of validation using the production descriptor registration path. */
+/**
+ * Verifies graphql-java's native one-of validation using the production descriptor registration path. The input types
+ * are registered into a real building context, which assembles the executable schema the same way the API does.
+ */
 @Tag(EXTERNAL_API)
 @Tag(GRAPHQL)
 @Tag(SCHEMA)
 @DisplayName("Typed GraphQL normalization input")
-class AnalysisStepInputSchemaTest {
-	private static final GraphQLSchema SCHEMA = createSchema();
-	private static final GraphQL EXECUTOR = GraphQL.newGraphQL(SCHEMA).build();
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+class AnalysisStepInputSchemaTest implements EvitaTestSupport {
+	private GraphQLSchema schema;
+	private GraphQL executor;
 
 	/**
-	 * Builds a tiny executable schema around the production input types without starting an API server.
+	 * Builds a tiny executable schema around the production input types without starting an API server. The engine
+	 * only satisfies the building context; nothing is read from it, so it is closed as soon as the schema exists.
+	 */
+	@BeforeAll
+	void setUp() {
+		final TestPaths paths = createTestPaths("AnalysisStepInputSchema");
+		try (final Evita evita = new Evita(newTestEvitaConfigurationBuilder(paths).build())) {
+			this.schema = createSchema(evita);
+		} finally {
+			cleanupTestPaths(paths);
+		}
+		this.executor = GraphQL.newGraphQL(this.schema).build();
+	}
+
+	/**
+	 * Registers the production input types and one probing query field into a real building context.
 	 *
+	 * @param evita engine the building context is created for
 	 * @return schema whose `accept(step: InputAnalysisStep)` query reports whether the input was coerced
 	 */
-	private static GraphQLSchema createSchema() {
-		final GraphQLSchemaBuildingContext context = Mockito.mock(GraphQLSchemaBuildingContext.class);
+	@Nonnull
+	private static GraphQLSchema createSchema(@Nonnull Evita evita) {
+		final GraphQLSchemaBuildingContext context = new GraphQLSchemaBuildingContext(new GraphQLOptions(), evita);
 		final GraphQLSchemaBuilder<GraphQLSchemaBuildingContext> builder = new GraphQLSchemaBuilder<>(context) { };
 		builder.registerAnalysisStepInputTypes();
-		final ArgumentCaptor<GraphQLType> types = ArgumentCaptor.forClass(GraphQLType.class);
-		Mockito.verify(context, Mockito.atLeastOnce()).registerType(types.capture());
-		final GraphQLSchema.Builder schema = GraphQLSchema.newSchema().query(newObject().name("Query")
-			.field(newFieldDefinition().name("accept").type(GraphQLBoolean)
-				.argument(newArgument().name("step").type(typeRef("InputAnalysisStep")))));
-		for (final GraphQLType type : types.getAllValues()) {
-			if (type instanceof GraphQLInputObjectType) {
-				schema.additionalType(type);
-			}
-		}
 		final DataFetcher<Boolean> fetcher = environment -> environment.getArgument("step") != null;
-		return schema.codeRegistry(newCodeRegistry()
-			.dataFetcher(coordinates("Query", "accept"), fetcher).build()).build();
+		context.registerQueryField(new BuiltFieldDescriptor(
+			newFieldDefinition().name("accept").type(GraphQLBoolean)
+				.argument(newArgument().name("step").type(typeRef("InputAnalysisStep")))
+				.build(),
+			fetcher
+		));
+		return context.buildGraphQLSchema();
 	}
 
 	@ParameterizedTest
@@ -105,7 +121,7 @@ class AnalysisStepInputSchemaTest {
 		""")
 	@DisplayName("enforces one selected field and typed required parameters for literals")
 	void shouldValidateLiteral(String input, boolean valid) {
-		final ExecutionResult result = EXECUTOR.execute("{ accept(step: " + input + ") }");
+		final ExecutionResult result = this.executor.execute("{ accept(step: " + input + ") }");
 		assertEquals(valid, result.getErrors().isEmpty(), result.getErrors().toString());
 	}
 
@@ -114,7 +130,7 @@ class AnalysisStepInputSchemaTest {
 	@DisplayName("enforces one-of selection for variables")
 	void shouldValidateVariables(boolean single, boolean valid) {
 		final Map<String, Object> value = single ? Map.of("trim", true) : Map.of("trim", true, "lowercase", true);
-		final ExecutionResult result = EXECUTOR.execute(ExecutionInput.newExecutionInput()
+		final ExecutionResult result = this.executor.execute(ExecutionInput.newExecutionInput()
 			.query("query($step: InputAnalysisStep) { accept(step: $step) }")
 			.variables(Map.of("step", value)).build());
 		assertEquals(valid, result.getErrors().isEmpty(), result.getErrors().toString());
@@ -123,13 +139,13 @@ class AnalysisStepInputSchemaTest {
 	@Test
 	@DisplayName("exposes every installed normalizer as a nullable one-of choice")
 	void shouldDescribeInstalledSteps() {
-		final GraphQLInputObjectType input = (GraphQLInputObjectType) SCHEMA.getType("InputAnalysisStep");
+		final GraphQLInputObjectType input = (GraphQLInputObjectType) this.schema.getType("InputAnalysisStep");
 		assertTrue(input.isOneOf());
 		assertEquals(AnalysisStepInputDescriptors.getSteps().stream().map(StepInput::fieldName).toList(),
 			input.getFields().stream().map(GraphQLInputObjectField::getName).toList());
 		input.getFields().forEach(field -> assertFalse(field.getType() instanceof GraphQLNonNull));
 		final GraphQLInputObjectType parameters =
-			(GraphQLInputObjectType) SCHEMA.getType("InputRemoveCharactersAnalysisStepParameters");
+			(GraphQLInputObjectType) this.schema.getType("InputRemoveCharactersAnalysisStepParameters");
 		assertEquals("String!", parameters.getField("characters").getType().toString());
 	}
 }

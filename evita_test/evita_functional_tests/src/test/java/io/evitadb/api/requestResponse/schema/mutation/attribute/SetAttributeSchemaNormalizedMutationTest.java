@@ -23,29 +23,35 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
+import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import java.util.EnumSet;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
@@ -151,8 +157,8 @@ class SetAttributeSchemaNormalizedMutationTest {
 	@Test
 	@DisplayName("Later entity and catalog statements win only for the same attribute")
 	void shouldCombineStatementsForTheSameAttribute() {
-		final CatalogSchemaContract catalog = Mockito.mock(CatalogSchemaContract.class);
-		final EntitySchemaContract entity = Mockito.mock(EntitySchemaContract.class);
+		final CatalogSchemaContract catalog = catalogSchema(Map.of());
+		final EntitySchemaContract entity = EntitySchema._internalBuild("product");
 		final SetAttributeSchemaNormalizedMutation earlier = new SetAttributeSchemaNormalizedMutation(
 			ATTRIBUTE_NAME, lowercase()
 		);
@@ -214,20 +220,19 @@ class SetAttributeSchemaNormalizedMutationTest {
 	@Test
 	@DisplayName("Normalization statements update entity and catalog schemas")
 	void shouldMutateHoldingSchemas() {
-		final CatalogSchemaContract catalog = Mockito.mock(CatalogSchemaContract.class);
-		Mockito.when(catalog.getAttribute(ATTRIBUTE_NAME))
-			.thenReturn(Optional.of(createStringGlobalAttributeSchema()));
-		Mockito.when(catalog.version()).thenReturn(1);
+		final CatalogSchemaContract catalog = catalogSchema(
+			Map.of(ATTRIBUTE_NAME, createStringGlobalAttributeSchema())
+		);
 		final SetAttributeSchemaNormalizedMutation mutation = new SetAttributeSchemaNormalizedMutation(
 			ATTRIBUTE_NAME, trim()
 		);
 		assertEquals(List.of(trim()), mutation.mutate(catalog).updatedCatalogSchema()
 			.getAttribute(ATTRIBUTE_NAME).orElseThrow().getNormalization());
-		final EntitySchemaContract entity = Mockito.mock(EntitySchemaContract.class);
-		Mockito.when(entity.getAttribute(ATTRIBUTE_NAME))
-			.thenReturn(Optional.of(createStringEntityAttributeSchema()));
-		Mockito.when(entity.version()).thenReturn(1);
-		assertEquals(List.of(trim()), mutation.mutate(catalog, entity)
+		final CatalogSchemaContract entityCatalog = catalogSchema(Map.of());
+		final EntitySchemaContract entity = new InternalEntitySchemaBuilder(
+			entityCatalog, EntitySchema._internalBuild("product")
+		).withAttribute(ATTRIBUTE_NAME, String.class).toInstance();
+		assertEquals(List.of(trim()), mutation.mutate(entityCatalog, entity)
 			.getAttribute(ATTRIBUTE_NAME).orElseThrow().getNormalization());
 	}
 
@@ -239,6 +244,20 @@ class SetAttributeSchemaNormalizedMutationTest {
 			ATTRIBUTE_NAME, new AnalysisStep[]{null}
 		).mutate(null, createStringAttributeSchema(), AttributeSchemaContract.class);
 		assertTrue(invalid.validate().anyMatch(error -> error.contains("null normalization step")));
+	}
+
+	/**
+	 * Builds an in-memory catalog schema holding the passed global attributes.
+	 *
+	 * @param attributes global attributes of the catalog, keyed by name
+	 * @return catalog schema with all evolution modes enabled
+	 */
+	@Nonnull
+	private static CatalogSchema catalogSchema(@Nonnull Map<String, GlobalAttributeSchemaContract> attributes) {
+		return CatalogSchema._internalBuild(
+			1, "unit", NamingConvention.generate("unit"), null, null,
+			EnumSet.allOf(CatalogEvolutionMode.class), attributes, EmptyEntitySchemaAccessor.INSTANCE
+		);
 	}
 
 }

@@ -24,13 +24,11 @@
 
 package io.evitadb.index.analysis;
 
-import io.evitadb.api.CatalogState;
-import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
-import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
@@ -38,26 +36,23 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaNormalizedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.core.Evita;
 import io.evitadb.core.buffer.TrappedChanges;
-import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
-import io.evitadb.core.sequence.SequenceService;
-import io.evitadb.core.traffic.TrafficRecordingEngine;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.attribute.EntityAttributeIndex;
 import io.evitadb.index.attribute.OwnerSortIndex;
 import io.evitadb.index.attribute.SortIndex;
-import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
-import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
-import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
-import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeNormalizationStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
+import io.evitadb.store.catalog.OffsetIndexStoragePartPersistenceService;
+import io.evitadb.store.offsetIndex.OffsetIndex;
+import io.evitadb.store.offsetIndex.model.RecordKey;
+import io.evitadb.store.shared.model.FileLocation;
+import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -66,10 +61,13 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.lowercase;
@@ -78,12 +76,17 @@ import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-/** Bounded schema-adoption probes and writes, using in-memory stores and mocked persistence only. */
+/**
+ * Bounded schema-adoption probes and writes. Index-level probes run on in-memory indexes; the schema-change path runs
+ * on a real engine and reads the effects from its storage. The one mock left proves that a probe never iterates a
+ * sort index - {@link SortIndex} is sealed, so no real index can report that it was not iterated.
+ */
 @Tag(INDEXING)
 @DisplayName("Normalization schema changes pay only for changed effective policy")
-class NormalizationSchemaChangeCostTest {
+class NormalizationSchemaChangeCostTest implements EvitaTestSupport {
 	private static final AttributeIndexKey CODE = new AttributeIndexKey(null, "code", null);
 	private static final AttributeIndexKey COMPOUND = new AttributeIndexKey(null, "compound", null);
+	private static final String PRODUCT = "Product";
 
 	@Test
 	@DisplayName("should never iterate scalar sort values or inspect another attribute")
@@ -186,60 +189,61 @@ class NormalizationSchemaChangeCostTest {
 	}
 
 	@Test
-	@SuppressWarnings({"rawtypes", "unchecked"})
 	@DisplayName("should keep no op schema and unnormalized additions free of policy writes and index refreshes")
 	void shouldKeepNoOpSchemaAndUnnormalizedAdditionsFreeOfPolicyWritesAndIndexRefreshes() {
-		final CatalogSchema catalogSchema = catalogSchema();
-		final EntitySchema schema = EntitySchema._internalBuild("Product");
-		final Catalog catalog = mock(Catalog.class);
-		when(catalog.getSchema()).thenReturn(new CatalogSchemaDecorator(catalogSchema));
-		when(catalog.getGlobalAttributeNormalizationRows()).thenReturn(Map.of());
-		when(catalog.getAnalysisStepRegistry()).thenReturn(new AnalysisStepRegistry());
-		final EntityCollectionPersistenceService persistence = mock(EntityCollectionPersistenceService.class);
-		final StoragePartPersistenceService<StorageDescriptor> storage = mock(StoragePartPersistenceService.class);
-		final EntityCollectionHeader header = mock(EntityCollectionHeader.class);
-		when(header.entityType()).thenReturn("Product");
-		when(persistence.getEntityCollectionHeader()).thenReturn(header);
-		when(persistence.getStoragePartPersistenceService()).thenReturn(storage);
-		when(storage.getStoragePart(0, 1, EntitySchemaStoragePart.class))
-			.thenReturn(new EntitySchemaStoragePart(schema));
-		final EntityCollection collection = new EntityCollection("unit", 0, CatalogState.ALIVE, 1, "Product", 0,
-			mock(CatalogPersistenceService.class), persistence, mock(CacheSupervisor.class), new SequenceService(),
-			mock(TrafficRecordingEngine.class));
-		collection.attachToCatalog(null, catalog);
-		final GlobalEntityIndex index = mock(GlobalEntityIndex.class);
-		when(index.getIndexKey()).thenReturn(new EntityIndexKey(EntityIndexType.GLOBAL));
-		when(index.getPrimaryKey()).thenReturn(1);
-		collection.addIndex(index);
-		final Object originalSchema = collection.getSchema();
-		collection.updateSchema(null, catalogSchema);
-		assertSame(originalSchema, collection.getSchema());
-		verify(catalog, never()).entitySchemaUpdated(any());
-		verify(storage, never()).putStoragePart(anyLong(), isA(AttributeNormalizationStoragePart.class));
-		collection.updateSchema(null, catalogSchema, builder().withAttribute("code", String.class)
-			.toMutation().orElseThrow().getSchemaMutations());
-		assertEquals(AttributeNormalizationPolicy.EMPTY, collection.getNormalizationPolicy());
-		verify(storage, never()).putStoragePart(anyLong(), isA(AttributeNormalizationStoragePart.class));
-		collection.updateSchema(null, catalogSchema, builder().withAttribute("code", String.class)
-			.withAttribute("other", Integer.class)
-			.withSortableAttributeCompound("compound", element("code"), element("other"))
-			.toMutation().orElseThrow().getSchemaMutations());
-		assertTrue(collection.getNormalizationPolicy().rows().isEmpty());
-		assertEquals(1, collection.getNormalizationPolicy().compounds().size(), "Bindings remain durable metadata");
-		verify(storage).putStoragePart(anyLong(), isA(AttributeNormalizationStoragePart.class));
-		verify(index, never()).useNormalizationResolver(any());
-		verify(index, never()).hasIndexedStringKeys(any(), any());
-		clearInvocations(storage, catalog);
-		final Object beforeNoOp = collection.getSchema();
-		collection.updateSchema(null, catalogSchema, new SetAttributeSchemaNormalizedMutation("code"));
-		assertSame(beforeNoOp, collection.getSchema());
-		verify(catalog, never()).entitySchemaUpdated(any());
-		verify(storage, never()).putStoragePart(anyLong(), isA(AttributeNormalizationStoragePart.class));
-		collection.adoptNormalizationPolicy(AttributeNormalizationPolicy.EMPTY);
-		verify(storage).removeStoragePart(0, 1, AttributeNormalizationStoragePart.class);
-		clearInvocations(storage);
-		collection.adoptNormalizationPolicy(AttributeNormalizationPolicy.EMPTY);
-		verifyNoInteractions(storage);
+		final TestPaths paths = createTestPaths("NormalizationSchemaChangeCost");
+		final EvitaConfiguration configuration = newTestEvitaConfigurationBuilder(paths).build();
+		try {
+			try (final Evita evita = new Evita(configuration)) {
+				evita.defineCatalog(TEST_CATALOG);
+				evita.updateCatalog(TEST_CATALOG, session -> {
+					session.defineEntitySchema(PRODUCT).withoutGeneratedPrimaryKey()
+						.withAttribute("code", String.class, AttributeSchemaEditor::sortable)
+						.updateVia(session);
+					session.upsertEntity(session.createNewEntity(PRODUCT, 1).setAttribute("code", "Code"));
+				});
+				final SortIndex codeIndex = sortIndex(evita);
+				final int schemaVersion = schemaVersion(evita);
+
+				// a statement keeping the attribute unnormalized changes neither the schema nor the stored policy
+				keepCodeUnnormalized(evita);
+				assertEquals(schemaVersion, schemaVersion(evita));
+				assertNull(storedPolicyLocation(evita));
+
+				// an unnormalized compound stores its bindings, but no row, and leaves the existing sort index alone
+				evita.updateCatalog(TEST_CATALOG, session -> {
+					session.getEntitySchemaOrThrowException(PRODUCT).openForWrite()
+						.withAttribute("other", Integer.class)
+						.withSortableAttributeCompound("compound", element("code"), element("other"))
+						.updateVia(session);
+				});
+				assertTrue(policy(evita).rows().isEmpty());
+				assertEquals(1, policy(evita).compounds().size(), "Bindings remain durable metadata");
+				assertSame(codeIndex, sortIndex(evita));
+				final FileLocation stored = storedPolicyLocation(evita);
+				assertNotNull(stored);
+
+				// repeating the statement rewrites nothing - the append-only record keeps its address
+				final int compoundSchemaVersion = schemaVersion(evita);
+				keepCodeUnnormalized(evita);
+				assertEquals(compoundSchemaVersion, schemaVersion(evita));
+				assertEquals(stored, storedPolicyLocation(evita));
+			}
+			try (final Evita evita = new Evita(configuration)) {
+				evita.waitUntilFullyInitialized();
+				assertEquals(1, policy(evita).compounds().size(), "Bindings survive a restart");
+				// dropping the only compound empties the policy, which removes the stored record
+				evita.updateCatalog(TEST_CATALOG, session -> {
+					session.getEntitySchemaOrThrowException(PRODUCT).openForWrite()
+						.withoutSortableAttributeCompound("compound")
+						.updateVia(session);
+				});
+				assertEquals(AttributeNormalizationPolicy.EMPTY, policy(evita));
+				assertNull(storedPolicyLocation(evita));
+			}
+		} finally {
+			cleanupTestPaths(paths);
+		}
 	}
 
 	@Test
@@ -264,6 +268,83 @@ class NormalizationSchemaChangeCostTest {
 		retainedSlot.resolveCompoundNormalizer(null, schema.getSortableAttributeCompound("compound").orElseThrow(),
 			name -> schema.getAttribute(name).orElseThrow(), null).apply(tuple);
 		assertEquals("title", tuple[0], "New empty compound bindings need no resolver-slot refresh");
+	}
+
+	/**
+	 * Applies a statement declaring no normalization on `code`, which is what the attribute already declares.
+	 *
+	 * @param evita engine holding the test catalog
+	 */
+	private static void keepCodeUnnormalized(@Nonnull Evita evita) {
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.updateEntitySchema(
+				new ModifyEntitySchemaMutation(PRODUCT, new SetAttributeSchemaNormalizedMutation("code"))
+			);
+		});
+	}
+
+	/**
+	 * Looks up the live product collection.
+	 *
+	 * @param evita engine holding the test catalog
+	 * @return the product collection of the current catalog instance
+	 */
+	@Nonnull
+	private static EntityCollection product(@Nonnull Evita evita) {
+		return ((Catalog) evita.getCatalogInstanceOrThrowException(TEST_CATALOG))
+			.getCollectionForEntityOrThrowException(PRODUCT);
+	}
+
+	/**
+	 * Reads the version of the product schema.
+	 *
+	 * @param evita engine holding the test catalog
+	 * @return current version of the product schema
+	 */
+	private static int schemaVersion(@Nonnull Evita evita) {
+		return product(evita).getSchema().version();
+	}
+
+	/**
+	 * Reads the built-with policy the product collection has adopted.
+	 *
+	 * @param evita engine holding the test catalog
+	 * @return the adopted policy
+	 */
+	@Nonnull
+	private static AttributeNormalizationPolicy policy(@Nonnull Evita evita) {
+		return product(evita).getNormalizationPolicy();
+	}
+
+	/**
+	 * Looks up the sort index of `code` in the product's global index.
+	 *
+	 * @param evita engine holding the test catalog
+	 * @return the sort index instance currently serving `code`
+	 */
+	@Nonnull
+	private static SortIndex sortIndex(@Nonnull Evita evita) {
+		return Objects.requireNonNull(product(evita).getGlobalIndexIfExists().orElseThrow().getSortIndex(CODE));
+	}
+
+	/**
+	 * Finds where the product collection's stored policy record sits in its data file. The file is append-only, so
+	 * a rewrite of the record, even with equal content, moves it to a new address.
+	 *
+	 * @param evita engine holding the test catalog
+	 * @return address of the stored policy record, or `null` when no policy is stored
+	 */
+	@Nullable
+	private static FileLocation storedPolicyLocation(@Nonnull Evita evita) {
+		final StoragePartPersistenceService<?> parts = product(evita).getStoragePartPersistenceService();
+		final OffsetIndex store = ((OffsetIndexStoragePartPersistenceService) parts).getOffsetIndex();
+		final byte policyType = store.getIdForRecordType(AttributeNormalizationStoragePart.class);
+		for (final Entry<RecordKey, FileLocation> entry : store.getEntries()) {
+			if (entry.getKey().recordType() == policyType) {
+				return entry.getValue();
+			}
+		}
+		return null;
 	}
 
 	/**

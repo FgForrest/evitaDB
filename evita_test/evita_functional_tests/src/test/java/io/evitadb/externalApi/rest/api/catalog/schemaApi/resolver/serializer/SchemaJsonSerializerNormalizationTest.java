@@ -26,8 +26,10 @@ package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -45,8 +47,6 @@ import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.REST;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /** Tests the ordered declared normalization output without booting a server or consulting index policy. */
 @Tag(EXTERNAL_API)
@@ -74,8 +74,9 @@ class SchemaJsonSerializerNormalizationTest {
 	@MethodSource("chains")
 	@DisplayName("renders step order and typed parameter payloads, including an empty chain")
 	void shouldRenderDeclaredNormalization(@Nonnull List<AnalysisStep> chain) {
-		final AttributeSchemaContract attribute = mock(AttributeSchemaContract.class);
-		when(attribute.getNormalization()).thenReturn(chain);
+		final AttributeSchemaContract attribute = AttributeSchema._internalBuild(
+			"code", String.class, false, ConflictResolutionOverride.INHERITED, chain
+		);
 		final ArrayNode output = new TestSerializer().render(attribute);
 		assertEquals(chain.size(), output.size());
 		final ObjectMapper mapper = new ObjectMapper();

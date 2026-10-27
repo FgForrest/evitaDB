@@ -25,15 +25,17 @@
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher;
 
 import graphql.schema.DataFetchingEnvironment;
+import graphql.schema.DataFetchingEnvironmentImpl;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.Mockito;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -67,16 +69,16 @@ class AttributeSchemaNormalizationDataFetcherTest {
 	@MethodSource("chains")
 	@DisplayName("renders declared names, order and parameter objects")
 	void shouldRenderDeclaredChain(List<AnalysisStep> chain) {
-		final AttributeSchemaContract schema = Mockito.mock(AttributeSchemaContract.class);
-		Mockito.when(schema.getNormalization()).thenReturn(chain);
-		final DataFetchingEnvironment environment = Mockito.mock(DataFetchingEnvironment.class);
-		Mockito.doReturn(schema).when(environment).getSource();
+		final AttributeSchemaContract schema = AttributeSchema._internalBuild(
+			"code", String.class, false, ConflictResolutionOverride.INHERITED, chain
+		);
+		final DataFetchingEnvironment environment = DataFetchingEnvironmentImpl.newDataFetchingEnvironment()
+			.source(schema)
+			.build();
 		final List<Map<String, Object>> expected = chain.stream()
 			.<Map<String, Object>>map(step -> Map.of("step", step.name(), "parameters", step.parameters()))
 			.toList();
 		assertEquals(expected, AttributeSchemaNormalizationDataFetcher.getInstance().get(environment));
-		Mockito.verify(schema).getNormalization();
-		Mockito.verifyNoMoreInteractions(schema);
 	}
 	/**
 	 * Supplies free-form parameter objects with values that require evitaDB's custom scalar encodings.

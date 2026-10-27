@@ -24,58 +24,49 @@
 
 package io.evitadb.externalApi.rest.api.catalog.schemaApi.builder;
 
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AnalysisStepDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AnalysisStepInputDescriptors;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-import io.evitadb.externalApi.rest.api.builder.RestBuildingContext;
-import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
-import io.evitadb.externalApi.rest.api.model.PropertyDataTypeDescriptorToOpenApiTypeTransformer;
-import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
-import io.evitadb.externalApi.rest.api.openApi.OpenApiComplexType;
+import io.evitadb.externalApi.configuration.HeaderOptions;
+import io.evitadb.externalApi.rest.api.system.SystemRestBuilder;
+import io.evitadb.externalApi.rest.configuration.RestOptions;
+import io.evitadb.test.EvitaTestSupport;
 import io.swagger.v3.oas.models.media.Schema;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
+import javax.annotation.Nonnull;
 import java.util.List;
+import java.util.Map;
 
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.REST;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
-/** Verifies the served typed normalization contract without starting a server. */
+/**
+ * Verifies the served typed normalization contract without starting a server: the types are read from the OpenAPI
+ * specification the system REST API is built with.
+ */
 @Tag(EXTERNAL_API)
 @Tag(REST)
 @Tag(SCHEMA)
 @DisplayName("REST typed normalization input schema")
-class AnalysisStepInputObjectBuilderTest {
+class AnalysisStepInputObjectBuilderTest implements EvitaTestSupport {
 
+	@SuppressWarnings("rawtypes")
 	@Test
 	@DisplayName("registers sorted exclusive branches and descriptor-driven parameter types")
 	void shouldBuildExclusiveTypedInput() {
-		final RestBuildingContext context = mock(RestBuildingContext.class);
-		final ObjectDescriptorToOpenApiObjectTransformer transformer = new ObjectDescriptorToOpenApiObjectTransformer(
-			new PropertyDescriptorToOpenApiPropertyTransformer(
-				new PropertyDataTypeDescriptorToOpenApiTypeTransformer(context)
-			)
-		);
-		AnalysisStepInputObjectBuilder.registerTypes(context, transformer);
-		final ArgumentCaptor<OpenApiComplexType> registered = ArgumentCaptor.forClass(OpenApiComplexType.class);
-		verify(context, atLeastOnce()).registerType(registered.capture());
-		final List<OpenApiComplexType> types = registered.getAllValues();
-		final Schema<?> output = types.stream()
-			.filter(type -> type.getName().equals(AnalysisStepDescriptor.THIS.name()))
-			.findFirst().orElseThrow().toSchema();
+		final Map<String, Schema> types = systemApiTypes();
+		final Schema<?> output = types.get(AnalysisStepDescriptor.THIS.name());
 		final Schema<?> outputParameters = output.getProperties().get(AnalysisStepDescriptor.PARAMETERS.name());
 		assertEquals("object", outputParameters.getType());
 		assertNull(outputParameters.getAnyOf());
 		assertNotEquals(Boolean.FALSE, outputParameters.getAdditionalProperties());
-		final Schema<?> input = types.stream()
-			.filter(type -> type.getName().equals(AnalysisStepDescriptor.THIS_INPUT.name()))
-			.findFirst().orElseThrow().toSchema();
+		final Schema<?> input = types.get(AnalysisStepDescriptor.THIS_INPUT.name());
 		final List<AnalysisStepInputDescriptors.StepInput> steps = AnalysisStepInputDescriptors.getSteps();
 		assertEquals(steps.size(), input.getOneOf().size());
 		assertEquals(steps.stream().map(AnalysisStepInputDescriptors.StepInput::stepName).sorted().toList(),
@@ -92,14 +83,33 @@ class AnalysisStepInputObjectBuilderTest {
 				assertEquals(List.of(Boolean.TRUE), value.getEnum());
 			} else {
 				assertTrue(value.get$ref().endsWith("/" + step.parameters().name()));
-				final Schema<?> parameters = types.stream()
-					.filter(type -> type.getName().equals(step.parameters().name()))
-					.findFirst().orElseThrow().toSchema();
+				final Schema<?> parameters = types.get(step.parameters().name());
 				assertEquals(Boolean.FALSE, parameters.getAdditionalProperties());
 				for (final PropertyDescriptor property : step.parameters().staticProperties()) {
 					assertNotNull(parameters.getProperties().get(property.name()));
 				}
 			}
+		}
+	}
+
+	/**
+	 * Builds the OpenAPI specification of the system REST API over an empty engine. The engine only satisfies the
+	 * builder; nothing is read from it.
+	 *
+	 * @return schemas of the specification's components, keyed by type name
+	 */
+	@SuppressWarnings("rawtypes")
+	@Nonnull
+	private Map<String, Schema> systemApiTypes() {
+		final TestPaths paths = createTestPaths("AnalysisStepInputObjectBuilder");
+		try (final Evita evita = new Evita(newTestEvitaConfigurationBuilder(paths).build())) {
+			return new SystemRestBuilder(
+				new RestOptions(true, "localhost:5555", null, null, null, "rest", null),
+				HeaderOptions.builder().build(),
+				evita
+			).build().openApi().getComponents().getSchemas();
+		} finally {
+			cleanupTestPaths(paths);
 		}
 	}
 }
