@@ -1346,10 +1346,10 @@ public class QuerySerializationTest {
 				// that silently replays as `queryTelemetry()` reproduces something else - see QueryTelemetrySerializer
 				final ByteArrayOutputStream os = new ByteArrayOutputStream(64);
 				try (final Output output = new Output(os, 64)) {
-					kryo.writeObject(output, queryTelemetry(QueryTelemetryContent.PLAN));
+					QuerySerializationTest.this.kryo.writeObject(output, queryTelemetry(QueryTelemetryContent.PLAN));
 				}
 				try (final Input input = new Input(os.toByteArray())) {
-					final QueryTelemetry deserialized = kryo.readObject(input, QueryTelemetry.class);
+					final QueryTelemetry deserialized = QuerySerializationTest.this.kryo.readObject(input, QueryTelemetry.class);
 					assertEquals(queryTelemetry(QueryTelemetryContent.PLAN), deserialized);
 					assertTrue(deserialized.isPlanRequested());
 				}
@@ -1682,7 +1682,7 @@ public class QuerySerializationTest {
 
 			assertArrayEquals(bytes(explicit), recorded);
 			try (final Input input = new Input(recorded)) {
-				assertEquals(explicit, kryo.readObject(input, several.getClass()));
+				assertEquals(explicit, QuerySerializationTest.this.kryo.readObject(input, several.getClass()));
 			}
 		}
 
@@ -1704,7 +1704,7 @@ public class QuerySerializationTest {
 		@Nonnull
 		private byte[] bytes(@Nonnull Object constraint) {
 			try (final Output output = new Output(256, -1)) {
-				kryo.writeObject(output, constraint);
+				QuerySerializationTest.this.kryo.writeObject(output, constraint);
 				return output.toBytes();
 			}
 		}

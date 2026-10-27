@@ -102,7 +102,7 @@ class ObservabilityTracingBlockReferenceTest {
 			"ends span with OK status on close()"
 		)
 		void shouldEndSpanWithStatusOkOnClose() {
-			final Span span = tracer.spanBuilder("test-span")
+			final Span span = ObservabilityTracingBlockReferenceTest.this.tracer.spanBuilder("test-span")
 				.startSpan();
 			final Scope scope = span.makeCurrent();
 
@@ -114,7 +114,7 @@ class ObservabilityTracingBlockReferenceTest {
 			ref.close();
 
 			final List<SpanData> spans =
-				spanExporter.getFinishedSpanItems();
+				ObservabilityTracingBlockReferenceTest.this.spanExporter.getFinishedSpanItems();
 			assertEquals(1, spans.size());
 			assertEquals(
 				StatusCode.OK,
@@ -127,7 +127,7 @@ class ObservabilityTracingBlockReferenceTest {
 			"records error and ERROR status on close()"
 		)
 		void shouldRecordErrorOnClose() {
-			final Span span = tracer.spanBuilder("test-span")
+			final Span span = ObservabilityTracingBlockReferenceTest.this.tracer.spanBuilder("test-span")
 				.startSpan();
 			final Scope scope = span.makeCurrent();
 			final RuntimeException error =
@@ -142,7 +142,7 @@ class ObservabilityTracingBlockReferenceTest {
 			ref.close();
 
 			final List<SpanData> spans =
-				spanExporter.getFinishedSpanItems();
+				ObservabilityTracingBlockReferenceTest.this.spanExporter.getFinishedSpanItems();
 			assertEquals(1, spans.size());
 
 			final SpanData spanData = spans.getFirst();
@@ -173,7 +173,7 @@ class ObservabilityTracingBlockReferenceTest {
 		void shouldCoverFullAsyncDurationInSpanTiming()
 			throws InterruptedException {
 
-			final Span span = tracer.spanBuilder("async-span")
+			final Span span = ObservabilityTracingBlockReferenceTest.this.tracer.spanBuilder("async-span")
 				.startSpan();
 			final Scope scope = span.makeCurrent();
 
@@ -192,7 +192,7 @@ class ObservabilityTracingBlockReferenceTest {
 			ref.end();
 
 			final List<SpanData> spans =
-				spanExporter.getFinishedSpanItems();
+				ObservabilityTracingBlockReferenceTest.this.spanExporter.getFinishedSpanItems();
 			assertEquals(1, spans.size());
 
 			final SpanData spanData = spans.getFirst();
@@ -213,7 +213,7 @@ class ObservabilityTracingBlockReferenceTest {
 		void shouldEndSpanFromDifferentThread()
 			throws Exception {
 
-			final Span span = tracer.spanBuilder("cross-thread")
+			final Span span = ObservabilityTracingBlockReferenceTest.this.tracer.spanBuilder("cross-thread")
 				.startSpan();
 			final Scope scope = span.makeCurrent();
 
@@ -236,7 +236,7 @@ class ObservabilityTracingBlockReferenceTest {
 			}
 
 			final List<SpanData> spans =
-				spanExporter.getFinishedSpanItems();
+				ObservabilityTracingBlockReferenceTest.this.spanExporter.getFinishedSpanItems();
 			assertEquals(1, spans.size());
 			assertEquals(
 				StatusCode.OK,
@@ -250,7 +250,7 @@ class ObservabilityTracingBlockReferenceTest {
 		)
 		void shouldRecordErrorWhenSetErrorCalledBeforeEnd() {
 			final Span span =
-				tracer.spanBuilder("error-async").startSpan();
+				ObservabilityTracingBlockReferenceTest.this.tracer.spanBuilder("error-async").startSpan();
 			final Scope scope = span.makeCurrent();
 			final RuntimeException error =
 				new RuntimeException("async failure");
@@ -265,7 +265,7 @@ class ObservabilityTracingBlockReferenceTest {
 			ref.end();
 
 			final List<SpanData> spans =
-				spanExporter.getFinishedSpanItems();
+				ObservabilityTracingBlockReferenceTest.this.spanExporter.getFinishedSpanItems();
 			assertEquals(1, spans.size());
 
 			final SpanData spanData = spans.getFirst();
@@ -291,7 +291,7 @@ class ObservabilityTracingBlockReferenceTest {
 		)
 		void shouldHandleNullAttributeSupplier() {
 			final Span span =
-				tracer.spanBuilder("null-attrs").startSpan();
+				ObservabilityTracingBlockReferenceTest.this.tracer.spanBuilder("null-attrs").startSpan();
 			final Scope scope = span.makeCurrent();
 
 			final ObservabilityTracingBlockReference ref =
@@ -303,7 +303,7 @@ class ObservabilityTracingBlockReferenceTest {
 			ref.close();
 
 			final List<SpanData> spans =
-				spanExporter.getFinishedSpanItems();
+				ObservabilityTracingBlockReferenceTest.this.spanExporter.getFinishedSpanItems();
 			assertEquals(1, spans.size());
 		}
 
@@ -313,7 +313,7 @@ class ObservabilityTracingBlockReferenceTest {
 		)
 		void shouldHandleNullCloseCallback() {
 			final Span span =
-				tracer.spanBuilder("null-callback").startSpan();
+				ObservabilityTracingBlockReferenceTest.this.tracer.spanBuilder("null-callback").startSpan();
 			final Scope scope = span.makeCurrent();
 
 			final ObservabilityTracingBlockReference ref =
@@ -325,7 +325,7 @@ class ObservabilityTracingBlockReferenceTest {
 			ref.close();
 
 			final List<SpanData> spans =
-				spanExporter.getFinishedSpanItems();
+				ObservabilityTracingBlockReferenceTest.this.spanExporter.getFinishedSpanItems();
 			assertEquals(1, spans.size());
 		}
 
@@ -335,7 +335,7 @@ class ObservabilityTracingBlockReferenceTest {
 		)
 		void shouldHandleAttributeSupplierReturningNull() {
 			final Span span =
-				tracer.spanBuilder("null-attrs-ret").startSpan();
+				ObservabilityTracingBlockReferenceTest.this.tracer.spanBuilder("null-attrs-ret").startSpan();
 			final Scope scope = span.makeCurrent();
 
 			final ObservabilityTracingBlockReference ref =
@@ -347,7 +347,7 @@ class ObservabilityTracingBlockReferenceTest {
 			ref.close();
 
 			final List<SpanData> spans =
-				spanExporter.getFinishedSpanItems();
+				ObservabilityTracingBlockReferenceTest.this.spanExporter.getFinishedSpanItems();
 			assertEquals(1, spans.size());
 		}
 
@@ -357,7 +357,7 @@ class ObservabilityTracingBlockReferenceTest {
 		)
 		void shouldInvokeCloseCallback() {
 			final Span span =
-				tracer.spanBuilder("callback-test").startSpan();
+				ObservabilityTracingBlockReferenceTest.this.tracer.spanBuilder("callback-test").startSpan();
 			final Scope scope = span.makeCurrent();
 			final AtomicBoolean callbackInvoked =
 				new AtomicBoolean(false);
@@ -389,7 +389,7 @@ class ObservabilityTracingBlockReferenceTest {
 		)
 		void shouldOnlyInvokeCloseCallbackOnceOnMultipleEndCalls() {
 			final Span span =
-				tracer.spanBuilder("idempotent-end").startSpan();
+				ObservabilityTracingBlockReferenceTest.this.tracer.spanBuilder("idempotent-end").startSpan();
 			final Scope scope = span.makeCurrent();
 			final AtomicInteger counter = new AtomicInteger(0);
 
@@ -417,7 +417,7 @@ class ObservabilityTracingBlockReferenceTest {
 		)
 		void shouldOnlyInvokeCloseCallbackOnceOnMultipleCloseCalls() {
 			final Span span =
-				tracer.spanBuilder("idempotent-close").startSpan();
+				ObservabilityTracingBlockReferenceTest.this.tracer.spanBuilder("idempotent-close").startSpan();
 			final Scope scope = span.makeCurrent();
 			final AtomicInteger counter = new AtomicInteger(0);
 

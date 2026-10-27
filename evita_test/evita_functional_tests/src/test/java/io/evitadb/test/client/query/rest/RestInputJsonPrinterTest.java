@@ -52,7 +52,7 @@ class RestInputJsonPrinterTest {
 		final ObjectNode node = JsonNodeFactory.instance.objectNode();
 		node.put("name", "value");
 
-		final String printed = printer.print(node);
+		final String printed = this.printer.print(node);
 
 		assertTrue(printed.contains("\"name\""));
 		assertTrue(printed.contains("\"value\""));

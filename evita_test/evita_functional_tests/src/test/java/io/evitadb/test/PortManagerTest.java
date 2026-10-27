@@ -78,7 +78,7 @@ class PortManagerTest {
 		@Test
 		@DisplayName("allocates sequential ports starting from the base port")
 		void shouldAllocateSequentialPortsFromBase() {
-			final int[] ports = portManager.allocatePorts("dataset", 3);
+			final int[] ports = PortManagerTest.this.portManager.allocatePorts("dataset", 3);
 
 			assertArrayEquals(new int[]{BASE_PORT, BASE_PORT + 1, BASE_PORT + 2}, ports);
 		}
@@ -86,8 +86,8 @@ class PortManagerTest {
 		@Test
 		@DisplayName("skips ports already allocated to another dataset")
 		void shouldSkipAlreadyAllocatedPortsAcrossDatasets() {
-			final int[] first = portManager.allocatePorts("first", 2);
-			final int[] second = portManager.allocatePorts("second", 2);
+			final int[] first = PortManagerTest.this.portManager.allocatePorts("first", 2);
+			final int[] second = PortManagerTest.this.portManager.allocatePorts("second", 2);
 
 			assertArrayEquals(new int[]{BASE_PORT, BASE_PORT + 1}, first);
 			assertArrayEquals(new int[]{BASE_PORT + 2, BASE_PORT + 3}, second);
@@ -96,32 +96,32 @@ class PortManagerTest {
 		@Test
 		@DisplayName("increments the counter by the number of requested ports")
 		void shouldIncrementCounterByRequestedCount() {
-			portManager.allocatePorts("first", 3);
-			portManager.allocatePorts("second", 2);
+			PortManagerTest.this.portManager.allocatePorts("first", 3);
+			PortManagerTest.this.portManager.allocatePorts("second", 2);
 
-			assertEquals(5, portManager.getCounter());
+			assertEquals(5, PortManagerTest.this.portManager.getCounter());
 		}
 
 		@Test
 		@DisplayName("tracks the peak of live ports sampled at the start of each allocation")
 		void shouldTrackPeakOfAllocatedPorts() {
-			portManager.allocatePorts("first", 3);
+			PortManagerTest.this.portManager.allocatePorts("first", 3);
 			// peak is sampled before the just-requested ports are added, so it is still zero here
-			assertEquals(0, portManager.getPeak());
+			assertEquals(0, PortManagerTest.this.portManager.getPeak());
 
-			portManager.allocatePorts("second", 2);
+			PortManagerTest.this.portManager.allocatePorts("second", 2);
 			// the second call observes the 3 ports left live by the first allocation
-			assertEquals(3, portManager.getPeak());
+			assertEquals(3, PortManagerTest.this.portManager.getPeak());
 		}
 
 		@Test
 		@DisplayName("throws when the same dataset is allocated twice")
 		void shouldThrowWhenDatasetAllocatedTwice() {
-			portManager.allocatePorts("dataset", 1);
+			PortManagerTest.this.portManager.allocatePorts("dataset", 1);
 
 			final GenericEvitaInternalError error = assertThrows(
 				GenericEvitaInternalError.class,
-				() -> portManager.allocatePorts("dataset", 1)
+				() -> PortManagerTest.this.portManager.allocatePorts("dataset", 1)
 			);
 			assertTrue(error.getMessage().contains("dataset"));
 		}
@@ -136,10 +136,10 @@ class PortManagerTest {
 		@Test
 		@DisplayName("releases ports making them available for a later allocation")
 		void shouldReleasePortsMakingThemAvailableAgain() {
-			portManager.allocatePorts("first", 2);
-			portManager.releasePorts("first");
+			PortManagerTest.this.portManager.allocatePorts("first", 2);
+			PortManagerTest.this.portManager.releasePorts("first");
 
-			final int[] reused = portManager.allocatePorts("second", 2);
+			final int[] reused = PortManagerTest.this.portManager.allocatePorts("second", 2);
 
 			assertArrayEquals(new int[]{BASE_PORT, BASE_PORT + 1}, reused);
 		}
@@ -147,21 +147,21 @@ class PortManagerTest {
 		@Test
 		@DisplayName("does nothing when releasing an unknown dataset")
 		void shouldNoOpWhenReleasingUnknownDataset() {
-			assertDoesNotThrow(() -> portManager.releasePorts("never-allocated"));
+			assertDoesNotThrow(() -> PortManagerTest.this.portManager.releasePorts("never-allocated"));
 
-			final int[] ports = portManager.allocatePorts("dataset", 2);
+			final int[] ports = PortManagerTest.this.portManager.allocatePorts("dataset", 2);
 			assertArrayEquals(new int[]{BASE_PORT, BASE_PORT + 1}, ports);
 		}
 
 		@Test
 		@DisplayName("drains already-completed pending releases on the next allocation")
 		void shouldDrainCompletedPendingReleasesOnNextAllocation() {
-			portManager.allocatePorts("first", 2);
+			PortManagerTest.this.portManager.allocatePorts("first", 2);
 			// register a release keyed on an already-completed future - it must be drained
 			// deterministically on the very next allocation, freeing the ports for reuse
-			portManager.releasePortsOnCompletion("first", CompletableFuture.completedFuture(null));
+			PortManagerTest.this.portManager.releasePortsOnCompletion("first", CompletableFuture.completedFuture(null));
 
-			final int[] reused = portManager.allocatePorts("second", 2);
+			final int[] reused = PortManagerTest.this.portManager.allocatePorts("second", 2);
 
 			assertArrayEquals(new int[]{BASE_PORT, BASE_PORT + 1}, reused);
 		}

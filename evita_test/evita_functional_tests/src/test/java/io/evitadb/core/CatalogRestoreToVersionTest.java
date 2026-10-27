@@ -155,14 +155,14 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("The catalog keeps its name and holds exactly the state of the requested version")
 		void shouldReplaceTheCatalogWithItsOwnEarlierVersion() throws Exception {
-			final long thirdVersion = versions.get(2);
+			final long thirdVersion = CatalogRestoreToVersionTest.this.versions.get(2);
 
 			awaitCompletion(
-				evita.management().restoreCatalogToVersion(TEST_CATALOG, null, thirdVersion, null)
+				CatalogRestoreToVersionTest.this.evita.management().restoreCatalogToVersion(TEST_CATALOG, null, thirdVersion, null)
 			);
 
 			assertEquals(
-				Set.of(TEST_CATALOG), evita.getCatalogNames(),
+				Set.of(TEST_CATALOG), CatalogRestoreToVersionTest.this.evita.getCatalogNames(),
 				"The restore must leave exactly the catalog it replaced - no temporary catalog may survive it!"
 			);
 			assertEquals(CatalogState.ALIVE, catalogState(TEST_CATALOG));
@@ -176,16 +176,16 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@DisplayName("Selecting the state by moment lands on the same version as selecting it by number")
 		void shouldRestoreToTheSameStateWhenSelectedByMoment() throws Exception {
 			// the moment recorded after the third brand was committed and before the fourth one was
-			final OffsetDateTime momentAfterThirdBrand = momentsAfterCommit.get(2);
+			final OffsetDateTime momentAfterThirdBrand = CatalogRestoreToVersionTest.this.momentsAfterCommit.get(2);
 			// Pinned down first, so a failure below can only mean the restore landed somewhere other than where
 			// the engine itself resolves this moment to - rather than the fixture having picked an ambiguous one.
 			assertEquals(
-				versions.get(2).longValue(), versionValidAt(momentAfterThirdBrand),
+				CatalogRestoreToVersionTest.this.versions.get(2).longValue(), versionValidAt(momentAfterThirdBrand),
 				"The fixture's moment must unambiguously identify the third version!"
 			);
 
 			awaitCompletion(
-				evita.management().restoreCatalogToVersion(TEST_CATALOG, momentAfterThirdBrand, null, null)
+				CatalogRestoreToVersionTest.this.evita.management().restoreCatalogToVersion(TEST_CATALOG, momentAfterThirdBrand, null, null)
 			);
 
 			assertEquals(3, brandCount(TEST_CATALOG));
@@ -194,11 +194,11 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("An explicit version wins over a moment naming a different one")
 		void shouldPreferTheVersionOverTheMoment() throws Exception {
-			final OffsetDateTime momentOfTheFifthBrand = momentsAfterCommit.get(4);
+			final OffsetDateTime momentOfTheFifthBrand = CatalogRestoreToVersionTest.this.momentsAfterCommit.get(4);
 
 			awaitCompletion(
-				evita.management().restoreCatalogToVersion(
-					TEST_CATALOG, momentOfTheFifthBrand, versions.get(1), null
+				CatalogRestoreToVersionTest.this.evita.management().restoreCatalogToVersion(
+					TEST_CATALOG, momentOfTheFifthBrand, CatalogRestoreToVersionTest.this.versions.get(1), null
 				)
 			);
 
@@ -212,10 +212,10 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@DisplayName("The restored catalog accepts writes again and they survive a restart")
 		void shouldLeaveTheRestoredCatalogWritable() throws Exception {
 			awaitCompletion(
-				evita.management().restoreCatalogToVersion(TEST_CATALOG, null, versions.get(2), null)
+				CatalogRestoreToVersionTest.this.evita.management().restoreCatalogToVersion(TEST_CATALOG, null, CatalogRestoreToVersionTest.this.versions.get(2), null)
 			);
 
-			evita.updateCatalog(
+			CatalogRestoreToVersionTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.upsertEntity(session.createNewEntity(Entities.BRAND, 100));
@@ -223,9 +223,9 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 			);
 			assertEquals(4, brandCount(TEST_CATALOG));
 
-			evita.close();
-			evita = new Evita(getEvitaConfiguration(true));
-			evita.waitUntilFullyInitialized();
+			CatalogRestoreToVersionTest.this.evita.close();
+			CatalogRestoreToVersionTest.this.evita = new Evita(getEvitaConfiguration(true));
+			CatalogRestoreToVersionTest.this.evita.waitUntilFullyInitialized();
 
 			assertEquals(
 				4, brandCount(TEST_CATALOG),
@@ -244,12 +244,12 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 			final String targetCatalogName = TEST_CATALOG + "Copy";
 
 			awaitCompletion(
-				evita.management().restoreCatalogToVersion(
-					TEST_CATALOG, null, versions.get(1), targetCatalogName
+				CatalogRestoreToVersionTest.this.evita.management().restoreCatalogToVersion(
+					TEST_CATALOG, null, CatalogRestoreToVersionTest.this.versions.get(1), targetCatalogName
 				)
 			);
 
-			assertEquals(Set.of(TEST_CATALOG, targetCatalogName), evita.getCatalogNames());
+			assertEquals(Set.of(TEST_CATALOG, targetCatalogName), CatalogRestoreToVersionTest.this.evita.getCatalogNames());
 			assertEquals(CatalogState.ALIVE, catalogState(targetCatalogName));
 			assertEquals(2, brandCount(targetCatalogName));
 			assertEquals(
@@ -262,8 +262,8 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@DisplayName("An occupied target name is replaced on the same terms as the source would be")
 		void shouldReplaceAnUnrelatedExistingCatalog() throws Exception {
 			final String targetCatalogName = TEST_CATALOG + "Other";
-			evita.defineCatalog(targetCatalogName);
-			evita.updateCatalog(
+			CatalogRestoreToVersionTest.this.evita.defineCatalog(targetCatalogName);
+			CatalogRestoreToVersionTest.this.evita.updateCatalog(
 				targetCatalogName,
 				session -> {
 					session.defineEntitySchema(Entities.BRAND);
@@ -275,12 +275,12 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 			assertEquals(42, brandCount(targetCatalogName));
 
 			awaitCompletion(
-				evita.management().restoreCatalogToVersion(
-					TEST_CATALOG, null, versions.get(3), targetCatalogName
+				CatalogRestoreToVersionTest.this.evita.management().restoreCatalogToVersion(
+					TEST_CATALOG, null, CatalogRestoreToVersionTest.this.versions.get(3), targetCatalogName
 				)
 			);
 
-			assertEquals(Set.of(TEST_CATALOG, targetCatalogName), evita.getCatalogNames());
+			assertEquals(Set.of(TEST_CATALOG, targetCatalogName), CatalogRestoreToVersionTest.this.evita.getCatalogNames());
 			assertEquals(
 				4, brandCount(targetCatalogName),
 				"The catalog holding the target name must have been replaced by the restored state!"
@@ -292,12 +292,12 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@DisplayName("Naming the source catalog explicitly is the same as not naming a target at all")
 		void shouldTreatTheSourceNameAsAnInPlaceRestore() throws Exception {
 			awaitCompletion(
-				evita.management().restoreCatalogToVersion(
-					TEST_CATALOG, null, versions.getFirst(), TEST_CATALOG
+				CatalogRestoreToVersionTest.this.evita.management().restoreCatalogToVersion(
+					TEST_CATALOG, null, CatalogRestoreToVersionTest.this.versions.getFirst(), TEST_CATALOG
 				)
 			);
 
-			assertEquals(Set.of(TEST_CATALOG), evita.getCatalogNames());
+			assertEquals(Set.of(TEST_CATALOG), CatalogRestoreToVersionTest.this.evita.getCatalogNames());
 			assertEquals(1, brandCount(TEST_CATALOG));
 		}
 	}
@@ -309,18 +309,18 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("A version that is no longer retained is refused before any work is started")
 		void shouldRefuseAVersionThatIsNoLongerAvailable() {
-			final EvitaManagement management = evita.management();
-			final Set<String> catalogsBefore = evita.getCatalogNames();
+			final EvitaManagement management = CatalogRestoreToVersionTest.this.evita.management();
+			final Set<String> catalogsBefore = CatalogRestoreToVersionTest.this.evita.getCatalogNames();
 
 			assertThrows(
 				TemporalDataNotAvailableException.class,
 				() -> management.restoreCatalogToVersion(
-					TEST_CATALOG, null, versions.getLast() + 1_000L, null
+					TEST_CATALOG, null, CatalogRestoreToVersionTest.this.versions.getLast() + 1_000L, null
 				)
 			);
 
 			assertEquals(
-				catalogsBefore, evita.getCatalogNames(),
+				catalogsBefore, CatalogRestoreToVersionTest.this.evita.getCatalogNames(),
 				"A refused restore must not leave a temporary catalog behind!"
 			);
 			assertTrue(
@@ -333,7 +333,7 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("An unknown source catalog is refused")
 		void shouldRefuseAnUnknownSourceCatalog() {
-			final EvitaManagement management = evita.management();
+			final EvitaManagement management = CatalogRestoreToVersionTest.this.evita.management();
 			assertThrows(
 				CatalogNotFoundException.class,
 				() -> management.restoreCatalogToVersion("nonExistingCatalog", null, 1L, null)
@@ -343,22 +343,22 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("A malformed target name is refused before any work is started")
 		void shouldRefuseAMalformedTargetName() {
-			final EvitaManagement management = evita.management();
-			final Set<String> catalogsBefore = evita.getCatalogNames();
+			final EvitaManagement management = CatalogRestoreToVersionTest.this.evita.management();
+			final Set<String> catalogsBefore = CatalogRestoreToVersionTest.this.evita.getCatalogNames();
 
 			assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> management.restoreCatalogToVersion(TEST_CATALOG, null, versions.get(1), "not a name!")
+				() -> management.restoreCatalogToVersion(TEST_CATALOG, null, CatalogRestoreToVersionTest.this.versions.get(1), "not a name!")
 			);
 
-			assertEquals(catalogsBefore, evita.getCatalogNames());
+			assertEquals(catalogsBefore, CatalogRestoreToVersionTest.this.evita.getCatalogNames());
 			assertTrue(management.listFilesToFetch(1, 100, Set.of()).getData().isEmpty());
 		}
 
 		@Test
 		@DisplayName("A new target name colliding with an existing catalog in some naming convention is refused")
 		void shouldRefuseATargetNameCollidingInANamingConvention() {
-			final EvitaManagement management = evita.management();
+			final EvitaManagement management = CatalogRestoreToVersionTest.this.evita.management();
 			// `testCatalog` and `test_catalog` are the same name in the snake-case convention, so registering the
 			// second one would be refused - and this is exactly the check the replacement skips when it overwrites,
 			// which is why the operation has to make it itself
@@ -366,10 +366,10 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 
 			assertThrows(
 				CatalogAlreadyPresentException.class,
-				() -> management.restoreCatalogToVersion(TEST_CATALOG, null, versions.get(1), collidingName)
+				() -> management.restoreCatalogToVersion(TEST_CATALOG, null, CatalogRestoreToVersionTest.this.versions.get(1), collidingName)
 			);
 
-			assertEquals(Set.of(TEST_CATALOG), evita.getCatalogNames());
+			assertEquals(Set.of(TEST_CATALOG), CatalogRestoreToVersionTest.this.evita.getCatalogNames());
 		}
 	}
 
@@ -380,9 +380,9 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("The operation is listed under a stable task type and finishes at full progress")
 		void shouldExposeTheOperationAsOneTask() throws Exception {
-			final EvitaManagement management = evita.management();
+			final EvitaManagement management = CatalogRestoreToVersionTest.this.evita.management();
 			final Task<?, Void> task = management.restoreCatalogToVersion(
-				TEST_CATALOG, null, versions.get(2), null
+				TEST_CATALOG, null, CatalogRestoreToVersionTest.this.versions.get(2), null
 			);
 
 			assertEquals(EvitaManagement.RESTORE_TO_VERSION_TASK_TYPE, task.getStatus().taskType());
@@ -414,9 +414,9 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("Cancelling leaves the engine in one of the two legal end states, never in between")
 		void shouldLeaveNoResidueWhenCancelled() {
-			final EvitaManagement management = evita.management();
+			final EvitaManagement management = CatalogRestoreToVersionTest.this.evita.management();
 			final Task<?, Void> task = management.restoreCatalogToVersion(
-				TEST_CATALOG, null, versions.get(2), null
+				TEST_CATALOG, null, CatalogRestoreToVersionTest.this.versions.get(2), null
 			);
 
 			task.cancel();
@@ -425,7 +425,7 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 			awaitSettled(task);
 
 			assertEquals(
-				Set.of(TEST_CATALOG), evita.getCatalogNames(),
+				Set.of(TEST_CATALOG), CatalogRestoreToVersionTest.this.evita.getCatalogNames(),
 				"A cancelled restore must never leave its scratch catalog behind!"
 			);
 			final int brands = brandCount(TEST_CATALOG);
@@ -439,10 +439,10 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("The intermediate backup archive is gone once the operation succeeds")
 		void shouldRemoveTheIntermediateArchiveOnSuccess() throws Exception {
-			final EvitaManagement management = evita.management();
+			final EvitaManagement management = CatalogRestoreToVersionTest.this.evita.management();
 
 			awaitCompletion(
-				management.restoreCatalogToVersion(TEST_CATALOG, null, versions.get(2), null)
+				management.restoreCatalogToVersion(TEST_CATALOG, null, CatalogRestoreToVersionTest.this.versions.get(2), null)
 			);
 
 			final List<FileForFetch> filesLeft = management.listFilesToFetch(1, 100, Set.of()).getData();
@@ -471,14 +471,14 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("The backup task is built unqueued, so only the sequence that owns it can run it")
 		void shouldNotQueueTheBackupTaskItCreates() {
-			final EvitaManagement management = evita.management();
-			final CatalogContract sourceCatalog = evita.getCatalogInstanceOrThrowException(TEST_CATALOG);
-			final CatalogConsumerControl consumerControl = evita.obtainCatalogSessionRegistry(TEST_CATALOG)
+			final EvitaManagement management = CatalogRestoreToVersionTest.this.evita.management();
+			final CatalogContract sourceCatalog = CatalogRestoreToVersionTest.this.evita.getCatalogInstanceOrThrowException(TEST_CATALOG);
+			final CatalogConsumerControl consumerControl = CatalogRestoreToVersionTest.this.evita.obtainCatalogSessionRegistry(TEST_CATALOG)
 				.map(registry -> registry.createCatalogConsumerControl(TEST_CATALOG))
 				.orElseThrow();
 
 			final ServerTask<?, FileForFetch> backupTask = sourceCatalog.createBackupTask(
-				null, versions.get(2), false, consumerControl::pinCatalogVersion
+				null, CatalogRestoreToVersionTest.this.versions.get(2), false, consumerControl::pinCatalogVersion
 			);
 			try {
 				assertEquals(
@@ -506,8 +506,8 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@DisplayName("A source that never went live comes back in the state it was left in")
 		void shouldLeaveTheRestoredCatalogInTheStateTheSourceHeld() throws Exception {
 			final String warmUpCatalogName = TEST_CATALOG + "WarmUp";
-			evita.defineCatalog(warmUpCatalogName);
-			evita.updateCatalog(
+			CatalogRestoreToVersionTest.this.evita.defineCatalog(warmUpCatalogName);
+			CatalogRestoreToVersionTest.this.evita.updateCatalog(
 				warmUpCatalogName,
 				session -> {
 					session.defineEntitySchema(Entities.BRAND);
@@ -517,7 +517,7 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 			assertEquals(CatalogState.WARMING_UP, catalogState(warmUpCatalogName));
 
 			awaitCompletion(
-				evita.management().restoreCatalogToVersion(warmUpCatalogName, null, null, null)
+				CatalogRestoreToVersionTest.this.evita.management().restoreCatalogToVersion(warmUpCatalogName, null, null, null)
 			);
 
 			// the archive carries whatever state the source held, registering applies the schema only, and
@@ -539,13 +539,13 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("Restoring the current state still works when no history is retained")
 		void shouldStillRestoreTheCurrentState() throws Exception {
-			evita.close();
-			evita = new Evita(getEvitaConfiguration(false));
-			evita.waitUntilFullyInitialized();
+			CatalogRestoreToVersionTest.this.evita.close();
+			CatalogRestoreToVersionTest.this.evita = new Evita(getEvitaConfiguration(false));
+			CatalogRestoreToVersionTest.this.evita.waitUntilFullyInitialized();
 
 			final String targetCatalogName = TEST_CATALOG + "Copy";
 			awaitCompletion(
-				evita.management().restoreCatalogToVersion(TEST_CATALOG, null, null, targetCatalogName)
+				CatalogRestoreToVersionTest.this.evita.management().restoreCatalogToVersion(TEST_CATALOG, null, null, targetCatalogName)
 			);
 
 			assertEquals(
@@ -580,12 +580,12 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("A collection moved by a later commit is copied as it stood at the captured version")
 		void shouldCopyTheCapturedVersionWhenACollectionMovesAfterIt() throws Exception {
-			final long capturedVersion = versions.get(BRAND_COUNT - 1);
+			final long capturedVersion = CatalogRestoreToVersionTest.this.versions.get(BRAND_COUNT - 1);
 
 			final String restoredCatalogName = backUpCurrentStateAndRestore(
 				capturedVersion,
 				false,
-				() -> evita.updateCatalog(
+				() -> CatalogRestoreToVersionTest.this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
 						session.upsertEntity(session.createNewEntity(Entities.BRAND, BRAND_COUNT + 1));
@@ -604,12 +604,12 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("A collection created by a later commit is not part of the copy")
 		void shouldNotCopyACollectionCreatedAfterTheCapturedVersion() throws Exception {
-			final long capturedVersion = versions.get(BRAND_COUNT - 1);
+			final long capturedVersion = CatalogRestoreToVersionTest.this.versions.get(BRAND_COUNT - 1);
 
 			final String restoredCatalogName = backUpCurrentStateAndRestore(
 				capturedVersion,
 				false,
-				() -> evita.updateCatalog(
+				() -> CatalogRestoreToVersionTest.this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
 						session.defineEntitySchema(Entities.PRODUCT).withGeneratedPrimaryKey().updateVia(session);
@@ -631,7 +631,7 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		void shouldCopyTheCollectionCountersOfTheCapturedVersion() throws Exception {
 			// a product referencing a brand through an indexed reference - every further brand it references gets an
 			// entity index of its own, which is what the collection header lists among its counters
-			evita.updateCatalog(
+			CatalogRestoreToVersionTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.defineEntitySchema(Entities.PRODUCT)
@@ -644,13 +644,13 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 					session.upsertEntity(session.createNewEntity(Entities.PRODUCT).setReference(REFERENCE_BRAND, 1));
 				}
 			);
-			final long capturedVersion = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion);
+			final long capturedVersion = CatalogRestoreToVersionTest.this.evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion);
 
 			// the later commit assigns the next product primary key and creates an entity index for the second brand
 			final String restoredCatalogName = backUpCurrentStateAndRestore(
 				capturedVersion,
 				false,
-				() -> evita.updateCatalog(
+				() -> CatalogRestoreToVersionTest.this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
 						session.upsertEntity(session.createNewEntity(Entities.PRODUCT).setReference(REFERENCE_BRAND, 2));
@@ -662,7 +662,7 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 			assertEquals(1, productCount(restoredCatalogName));
 			// the primary key sequence continues from the counter of the captured version - a counter copied from the
 			// later state would skip the key the later commit consumed in the source catalog
-			final int nextProductPrimaryKey = evita.updateCatalog(
+			final int nextProductPrimaryKey = CatalogRestoreToVersionTest.this.evita.updateCatalog(
 				restoredCatalogName,
 				session -> {
 					return session.upsertEntity(
@@ -680,7 +680,7 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@Tag(WAL)
 		@DisplayName("An activated restore of a backup including the WAL serves the state the WAL was replayed to")
 		void shouldServeTheReplayedStateWhenTheRestoredBackupIncludesTheWal() throws Exception {
-			final long capturedVersion = versions.get(BRAND_COUNT - 1);
+			final long capturedVersion = CatalogRestoreToVersionTest.this.versions.get(BRAND_COUNT - 1);
 
 			final String restoredCatalogName = backUpCurrentStateAndRestore(
 				capturedVersion,
@@ -709,7 +709,7 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 
 			// the next commit continues the replayed history - one version further, nothing lost and nothing doubled
 			final int nextBrandId = walHeadBrandCount + 1;
-			evita.updateCatalog(
+			CatalogRestoreToVersionTest.this.evita.updateCatalog(
 				restoredCatalogName,
 				session -> {
 					session.upsertEntity(session.createNewEntity(Entities.BRAND, nextBrandId));
@@ -723,7 +723,7 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@Tag(WAL)
 		@DisplayName("The load of a restored backup including the WAL yields the instance the WAL was replayed to")
 		void shouldYieldTheReplayedInstanceFromTheLoadOfARestoredBackupIncludingTheWal() throws Exception {
-			final long capturedVersion = versions.get(BRAND_COUNT - 1);
+			final long capturedVersion = CatalogRestoreToVersionTest.this.versions.get(BRAND_COUNT - 1);
 
 			final String restoredCatalogName = backUpCurrentStateAndRestoreInactive(
 				capturedVersion,
@@ -740,8 +740,8 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 			// the activation installs whatever this future yields, so the future must yield the replayed instance
 			// itself - reading it back from the engine state instead is not reliable, because the load publishes it
 			// there without the engine state lock and a concurrent engine mutation can overwrite that publication
-			final ProgressingFuture<Catalog> load = evita.loadCatalogInternal(restoredCatalogName, false);
-			load.execute(ProgressingFuture.unrejectableExecutor(evita.getRequestExecutor()));
+			final ProgressingFuture<Catalog> load = CatalogRestoreToVersionTest.this.evita.loadCatalogInternal(restoredCatalogName, false);
+			load.execute(ProgressingFuture.unrejectableExecutor(CatalogRestoreToVersionTest.this.evita.getRequestExecutor()));
 			final Catalog loadedCatalog = load.get(OPERATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
 			assertEquals(
@@ -749,7 +749,7 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 				"The load must yield the instance its WAL was replayed to, not the one loaded at the captured version!"
 			);
 			assertSame(
-				evita.getCatalogInstance(restoredCatalogName).orElseThrow(), loadedCatalog,
+				CatalogRestoreToVersionTest.this.evita.getCatalogInstance(restoredCatalogName).orElseThrow(), loadedCatalog,
 				"The load must yield the very instance its replay published into the engine state!"
 			);
 		}
@@ -761,7 +761,7 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		private void commitBrandsAfterCapture() {
 			for (int i = 1; i <= BRANDS_COMMITTED_AFTER_CAPTURE; i++) {
 				final int brandId = BRAND_COUNT + i;
-				evita.updateCatalog(
+				CatalogRestoreToVersionTest.this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
 						session.upsertEntity(session.createNewEntity(Entities.BRAND, brandId));
@@ -789,7 +789,7 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 			final String restoredCatalogName = backUpCurrentStateAndRestoreInactive(
 				capturedVersion, includingWAL, commitAfterCapture
 			);
-			evita.activateCatalog(restoredCatalogName);
+			CatalogRestoreToVersionTest.this.evita.activateCatalog(restoredCatalogName);
 			return restoredCatalogName;
 		}
 
@@ -810,8 +810,8 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		) throws Exception {
 			// precondition - the task below captures the published version, which must be the one the test expects
 			assertEquals(capturedVersion, catalogVersion(TEST_CATALOG));
-			final CatalogContract sourceCatalog = evita.getCatalogInstanceOrThrowException(TEST_CATALOG);
-			final CatalogConsumerControl consumerControl = evita.obtainCatalogSessionRegistry(TEST_CATALOG)
+			final CatalogContract sourceCatalog = CatalogRestoreToVersionTest.this.evita.getCatalogInstanceOrThrowException(TEST_CATALOG);
+			final CatalogConsumerControl consumerControl = CatalogRestoreToVersionTest.this.evita.obtainCatalogSessionRegistry(TEST_CATALOG)
 				.map(registry -> registry.createCatalogConsumerControl(TEST_CATALOG))
 				.orElseThrow();
 			// the actual branch: no past moment and no version, the task copies whatever is published right now
@@ -838,10 +838,10 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 				backupTask.cancel();
 			}
 
-			final Path backupPath = backupFile.path(paths.export());
+			final Path backupPath = backupFile.path(CatalogRestoreToVersionTest.this.paths.export());
 			final String restoredCatalogName = TEST_CATALOG + "Restored";
 			try (final InputStream inputStream = Files.newInputStream(backupPath)) {
-				evita.management()
+				CatalogRestoreToVersionTest.this.evita.management()
 					.restoreCatalog(restoredCatalogName, Files.size(backupPath), inputStream)
 					.getFutureResult()
 					.get(OPERATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);

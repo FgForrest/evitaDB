@@ -82,7 +82,7 @@ class ConsoleWriterTest {
 		void shouldNotWriteWhenQuiet() {
 			ConsoleWriter.setQuiet(true);
 			ConsoleWriter.write("test");
-			final String output = outputCapture.toString();
+			final String output = ConsoleWriterTest.this.outputCapture.toString();
 			assertTrue(output.isEmpty(), "Output should be empty when quiet mode is enabled");
 		}
 
@@ -91,7 +91,7 @@ class ConsoleWriterTest {
 		void shouldWriteWhenNotQuiet() {
 			ConsoleWriter.setQuiet(false);
 			ConsoleWriter.write("test");
-			final String output = outputCapture.toString();
+			final String output = ConsoleWriterTest.this.outputCapture.toString();
 			assertTrue(output.contains("test"), "Output should contain the message when quiet mode is disabled");
 		}
 
@@ -100,7 +100,7 @@ class ConsoleWriterTest {
 		void shouldNotWriteLineWhenQuiet() {
 			ConsoleWriter.setQuiet(true);
 			ConsoleWriter.writeLine("test");
-			final String output = outputCapture.toString();
+			final String output = ConsoleWriterTest.this.outputCapture.toString();
 			assertTrue(output.isEmpty(), "Output should be empty when quiet mode is enabled");
 		}
 	}
@@ -113,7 +113,7 @@ class ConsoleWriterTest {
 		@DisplayName("Should write simple string")
 		void shouldWriteSimpleString() {
 			ConsoleWriter.write("Hello World");
-			final String output = outputCapture.toString();
+			final String output = ConsoleWriterTest.this.outputCapture.toString();
 			assertTrue(output.contains("Hello World"));
 		}
 
@@ -121,7 +121,7 @@ class ConsoleWriterTest {
 		@DisplayName("Should write with format args")
 		void shouldWriteWithFormatArgs() {
 			ConsoleWriter.write("Value: %d", new Object[]{42});
-			final String output = outputCapture.toString();
+			final String output = ConsoleWriterTest.this.outputCapture.toString();
 			assertTrue(output.contains("Value: 42"));
 		}
 
@@ -131,7 +131,7 @@ class ConsoleWriterTest {
 			// without arguments the text is not a format string - printf would parse `% o` as a conversion and
 			// throw DuplicateFormatFlagsException, taking down whatever was writing the message
 			ConsoleWriter.write("residency actually wanted: 61.5% - 45.8% of the run");
-			final String output = outputCapture.toString();
+			final String output = ConsoleWriterTest.this.outputCapture.toString();
 			assertTrue(output.contains("61.5% - 45.8% of the run"), "Literal percent signs must survive untouched");
 		}
 
@@ -139,7 +139,7 @@ class ConsoleWriterTest {
 		@DisplayName("Should still honour the printf contract when arguments are given")
 		void shouldStillHonourPrintfContractWhenArgumentsAreGiven() {
 			ConsoleWriter.write("%d%% of %s", new Object[]{50, "the run"});
-			final String output = outputCapture.toString();
+			final String output = ConsoleWriterTest.this.outputCapture.toString();
 			assertTrue(output.contains("50% of the run"), "Callers passing arguments keep the full printf contract");
 		}
 
@@ -147,7 +147,7 @@ class ConsoleWriterTest {
 		@DisplayName("Should write line with newline")
 		void shouldWriteLineWithNewline() {
 			ConsoleWriter.writeLine("Line1");
-			final String output = outputCapture.toString();
+			final String output = ConsoleWriterTest.this.outputCapture.toString();
 			assertTrue(output.contains("Line1"));
 			assertTrue(output.contains(System.lineSeparator()));
 		}
@@ -156,7 +156,7 @@ class ConsoleWriterTest {
 		@DisplayName("Should write with color")
 		void shouldWriteWithColor() {
 			ConsoleWriter.write("Colored", ConsoleColor.BRIGHT_RED);
-			final String output = outputCapture.toString();
+			final String output = ConsoleWriterTest.this.outputCapture.toString();
 			assertTrue(output.contains("Colored"));
 			assertTrue(output.contains(ConsoleColor.BRIGHT_RED.getControlChar()));
 			assertTrue(output.contains(ConsoleWriter.ANSI_RESET));
@@ -166,7 +166,7 @@ class ConsoleWriterTest {
 		@DisplayName("Should write with decoration")
 		void shouldWriteWithDecoration() {
 			ConsoleWriter.write("Bold", ConsoleColor.WHITE, ConsoleDecoration.BOLD);
-			final String output = outputCapture.toString();
+			final String output = ConsoleWriterTest.this.outputCapture.toString();
 			assertTrue(output.contains("Bold"));
 			assertTrue(output.contains(ConsoleDecoration.BOLD.getControlChar()));
 			assertTrue(output.contains(ConsoleWriter.ANSI_RESET));
@@ -176,7 +176,7 @@ class ConsoleWriterTest {
 		@DisplayName("Should write with multiple decorations")
 		void shouldWriteWithMultipleDecorations() {
 			ConsoleWriter.write("Styled", ConsoleColor.BRIGHT_GREEN, ConsoleDecoration.BOLD, ConsoleDecoration.UNDERLINE);
-			final String output = outputCapture.toString();
+			final String output = ConsoleWriterTest.this.outputCapture.toString();
 			assertTrue(output.contains("Styled"));
 			assertTrue(output.contains(ConsoleDecoration.BOLD.getControlChar()));
 			assertTrue(output.contains(ConsoleDecoration.UNDERLINE.getControlChar()));
@@ -186,7 +186,7 @@ class ConsoleWriterTest {
 		@DisplayName("Should write with null color")
 		void shouldWriteWithNullColor() {
 			ConsoleWriter.write("No Color", (ConsoleColor) null);
-			final String output = outputCapture.toString();
+			final String output = ConsoleWriterTest.this.outputCapture.toString();
 			assertTrue(output.contains("No Color"));
 			assertFalse(output.contains("\u001B[3"), "Should not contain ANSI color codes");
 		}
@@ -195,7 +195,7 @@ class ConsoleWriterTest {
 		@DisplayName("Should write with null arguments")
 		void shouldWriteWithNullArguments() {
 			ConsoleWriter.write("Simple", (Object[]) null, null);
-			final String output = outputCapture.toString();
+			final String output = ConsoleWriterTest.this.outputCapture.toString();
 			assertTrue(output.contains("Simple"));
 		}
 
@@ -203,7 +203,7 @@ class ConsoleWriterTest {
 		@DisplayName("Should write line with all parameters")
 		void shouldWriteLineWithAllParameters() {
 			ConsoleWriter.writeLine("Full", new Object[]{}, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
-			final String output = outputCapture.toString();
+			final String output = ConsoleWriterTest.this.outputCapture.toString();
 			assertTrue(output.contains("Full"));
 			assertTrue(output.contains(System.lineSeparator()));
 			assertTrue(output.contains(ConsoleColor.DARK_BLUE.getControlChar()));

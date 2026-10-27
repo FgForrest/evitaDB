@@ -110,10 +110,10 @@ class ExistingReferenceAttributesBuilderTest
 				builder =
 				new ExistingReferenceAttributesBuilder(
 					PRODUCT_SCHEMA,
-					referenceSchema,
-					initialAttributes
+					ExistingReferenceAttributesBuilderTest.this.referenceSchema,
+					ExistingReferenceAttributesBuilderTest.this.initialAttributes
 						.getAttributeValues(),
-					attributeTypes
+					ExistingReferenceAttributesBuilderTest.this.attributeTypes
 				).setAttribute("priority", 200L);
 
 			assertEquals(
@@ -146,10 +146,10 @@ class ExistingReferenceAttributesBuilderTest
 				builder =
 				new ExistingReferenceAttributesBuilder(
 					PRODUCT_SCHEMA,
-					referenceSchema,
-					initialAttributes
+					ExistingReferenceAttributesBuilderTest.this.referenceSchema,
+					ExistingReferenceAttributesBuilderTest.this.initialAttributes
 						.getAttributeValues(),
-					attributeTypes
+					ExistingReferenceAttributesBuilderTest.this.attributeTypes
 				)
 					.setAttribute("priority", 154L)
 					.setAttribute(
@@ -173,10 +173,10 @@ class ExistingReferenceAttributesBuilderTest
 				builder =
 				new ExistingReferenceAttributesBuilder(
 					PRODUCT_SCHEMA,
-					referenceSchema,
-					initialAttributes
+					ExistingReferenceAttributesBuilderTest.this.referenceSchema,
+					ExistingReferenceAttributesBuilderTest.this.initialAttributes
 						.getAttributeValues(),
-					attributeTypes
+					ExistingReferenceAttributesBuilderTest.this.attributeTypes
 				).setAttribute("score", 42);
 
 			assertEquals(
@@ -202,10 +202,10 @@ class ExistingReferenceAttributesBuilderTest
 				builder =
 				new ExistingReferenceAttributesBuilder(
 					PRODUCT_SCHEMA,
-					referenceSchema,
-					initialAttributes
+					ExistingReferenceAttributesBuilderTest.this.referenceSchema,
+					ExistingReferenceAttributesBuilderTest.this.initialAttributes
 						.getAttributeValues(),
-					attributeTypes
+					ExistingReferenceAttributesBuilderTest.this.attributeTypes
 				).setAttribute(
 					"country",
 					Locale.FRENCH, "France"
@@ -246,10 +246,10 @@ class ExistingReferenceAttributesBuilderTest
 				builder =
 				new ExistingReferenceAttributesBuilder(
 					PRODUCT_SCHEMA,
-					referenceSchema,
-					initialAttributes
+					ExistingReferenceAttributesBuilderTest.this.referenceSchema,
+					ExistingReferenceAttributesBuilderTest.this.initialAttributes
 						.getAttributeValues(),
-					attributeTypes
+					ExistingReferenceAttributesBuilderTest.this.attributeTypes
 				).removeAttribute("priority");
 
 			assertNull(
@@ -279,10 +279,10 @@ class ExistingReferenceAttributesBuilderTest
 				builder =
 				new ExistingReferenceAttributesBuilder(
 					PRODUCT_SCHEMA,
-					referenceSchema,
-					initialAttributes
+					ExistingReferenceAttributesBuilderTest.this.referenceSchema,
+					ExistingReferenceAttributesBuilderTest.this.initialAttributes
 						.getAttributeValues(),
-					attributeTypes
+					ExistingReferenceAttributesBuilderTest.this.attributeTypes
 				).removeAttribute(
 					"country", Locale.GERMAN
 				);
@@ -331,10 +331,10 @@ class ExistingReferenceAttributesBuilderTest
 				withRemovedAttribute =
 				new ExistingReferenceAttributesBuilder(
 					PRODUCT_SCHEMA,
-					referenceSchema,
-					initialAttributes
+					ExistingReferenceAttributesBuilderTest.this.referenceSchema,
+					ExistingReferenceAttributesBuilderTest.this.initialAttributes
 						.getAttributeValues(),
-					attributeTypes
+					ExistingReferenceAttributesBuilderTest.this.attributeTypes
 				).removeAttribute("priority").build();
 			assertTrue(
 				withRemovedAttribute.getAttributeValue(
@@ -346,10 +346,10 @@ class ExistingReferenceAttributesBuilderTest
 				builder =
 				new ExistingReferenceAttributesBuilder(
 					PRODUCT_SCHEMA,
-					referenceSchema,
+					ExistingReferenceAttributesBuilderTest.this.referenceSchema,
 					withRemovedAttribute
 						.getAttributeValues(),
-					attributeTypes
+					ExistingReferenceAttributesBuilderTest.this.attributeTypes
 				).removeAttribute("priority");
 
 			assertNull(
@@ -374,10 +374,10 @@ class ExistingReferenceAttributesBuilderTest
 				builder =
 				new ExistingReferenceAttributesBuilder(
 					PRODUCT_SCHEMA,
-					referenceSchema,
-					initialAttributes
+					ExistingReferenceAttributesBuilderTest.this.referenceSchema,
+					ExistingReferenceAttributesBuilderTest.this.initialAttributes
 						.getAttributeValues(),
-					attributeTypes
+					ExistingReferenceAttributesBuilderTest.this.attributeTypes
 				)
 					.setAttribute("priority", 999L)
 					.removeAttribute(
@@ -404,10 +404,10 @@ class ExistingReferenceAttributesBuilderTest
 				builder =
 				new ExistingReferenceAttributesBuilder(
 					PRODUCT_SCHEMA,
-					referenceSchema,
-					initialAttributes
+					ExistingReferenceAttributesBuilderTest.this.referenceSchema,
+					ExistingReferenceAttributesBuilderTest.this.initialAttributes
 						.getAttributeValues(),
-					attributeTypes
+					ExistingReferenceAttributesBuilderTest.this.attributeTypes
 				)
 					.setAttribute("priority", 154L)
 					.setAttribute(
@@ -436,10 +436,10 @@ class ExistingReferenceAttributesBuilderTest
 				builder =
 				new ExistingReferenceAttributesBuilder(
 					PRODUCT_SCHEMA,
-					referenceSchema,
-					initialAttributes
+					ExistingReferenceAttributesBuilderTest.this.referenceSchema,
+					ExistingReferenceAttributesBuilderTest.this.initialAttributes
 						.getAttributeValues(),
-					attributeTypes
+					ExistingReferenceAttributesBuilderTest.this.attributeTypes
 				);
 
 			assertEquals(
@@ -457,10 +457,10 @@ class ExistingReferenceAttributesBuilderTest
 				builder =
 				new ExistingReferenceAttributesBuilder(
 					PRODUCT_SCHEMA,
-					referenceSchema,
-					initialAttributes
+					ExistingReferenceAttributesBuilderTest.this.referenceSchema,
+					ExistingReferenceAttributesBuilderTest.this.initialAttributes
 						.getAttributeValues(),
-					attributeTypes
+					ExistingReferenceAttributesBuilderTest.this.attributeTypes
 				)
 					.setAttribute("priority", 999L);
 

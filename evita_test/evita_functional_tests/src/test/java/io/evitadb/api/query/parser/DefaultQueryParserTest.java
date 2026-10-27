@@ -79,7 +79,7 @@ class DefaultQueryParserTest {
 					collection("a"),
 					filterBy(attributeEqualsTrue("b"))
 				),
-				parser.parseQuery(
+				DefaultQueryParserTest.this.parser.parseQuery(
 					"query(collection(?),filterBy(attributeEqualsTrue(?)))",
 					"a", "b"
 				)
@@ -94,7 +94,7 @@ class DefaultQueryParserTest {
 					collection("a"),
 					filterBy(attributeEqualsTrue("b"))
 				),
-				parser.parseQuery(
+				DefaultQueryParserTest.this.parser.parseQuery(
 					"query(collection(?),filterBy(attributeEqualsTrue(?)))",
 					List.of("a", "b")
 				)
@@ -109,7 +109,7 @@ class DefaultQueryParserTest {
 					collection("a"),
 					filterBy(attributeEqualsTrue("b"))
 				),
-				parser.parseQuery(
+				DefaultQueryParserTest.this.parser.parseQuery(
 					"query(collection(@collection),filterBy(attributeEqualsTrue(@attr)))",
 					Map.of("collection", "a", "attr", "b")
 				)
@@ -124,7 +124,7 @@ class DefaultQueryParserTest {
 					collection("a"),
 					filterBy(attributeEqualsTrue("b"))
 				),
-				parser.parseQuery(
+				DefaultQueryParserTest.this.parser.parseQuery(
 					"query(collection(@collection),filterBy(attributeEqualsTrue(?)))",
 					Map.of("collection", "a"),
 					"b"
@@ -140,7 +140,7 @@ class DefaultQueryParserTest {
 					collection("a"),
 					filterBy(attributeEqualsTrue("b"))
 				),
-				parser.parseQuery(
+				DefaultQueryParserTest.this.parser.parseQuery(
 					"query(collection(@collection),filterBy(attributeEqualsTrue(?)))",
 					Map.of("collection", "a"),
 					List.of("b")
@@ -156,7 +156,7 @@ class DefaultQueryParserTest {
 					collection("a"),
 					filterBy(attributeEqualsTrue("b"))
 				),
-				parser.parseQuery("""
+				DefaultQueryParserTest.this.parser.parseQuery("""
 						query(
 							collection(?),
 							filterBy(
@@ -164,7 +164,7 @@ class DefaultQueryParserTest {
 							)
 						)
 						""",
-					"a", "b"
+				                                              "a", "b"
 				)
 			);
 		}
@@ -186,7 +186,7 @@ class DefaultQueryParserTest {
 						)
 					)
 				),
-				parser.parseQuery("""
+				DefaultQueryParserTest.this.parser.parseQuery("""
 						query(
 							collection(?),
 							filterBy(
@@ -203,7 +203,7 @@ class DefaultQueryParserTest {
 							)
 						)
 						""",
-					"PRODUCT", 1
+				                                              "PRODUCT", 1
 				)
 			);
 		}
@@ -217,7 +217,7 @@ class DefaultQueryParserTest {
 					filterBy(attributeEqualsTrue("b")),
 					orderBy(attributeNatural("c"))
 				),
-				parser.parseQuery(
+				DefaultQueryParserTest.this.parser.parseQuery(
 					"""
 						query(
 							collection(?),
@@ -249,7 +249,7 @@ class DefaultQueryParserTest {
 						)
 					)
 				),
-				parser.parseQuery("""
+				DefaultQueryParserTest.this.parser.parseQuery("""
 						// this is a comment
 						query(
 							collection(?),
@@ -268,7 +268,7 @@ class DefaultQueryParserTest {
 							)
 						)
 						""",
-					"PRODUCT", 1
+				                                              "PRODUCT", 1
 				)
 			);
 		}
@@ -281,7 +281,7 @@ class DefaultQueryParserTest {
 					collection("Product"),
 					filterBy(attributeEquals("a", "b"))
 				),
-				parser.parseQueryUnsafe("""
+				DefaultQueryParserTest.this.parser.parseQueryUnsafe("""
 					query(
 						collection('Product'),
 						filterBy(
@@ -296,7 +296,7 @@ class DefaultQueryParserTest {
 					collection("Product"),
 					filterBy(attributeEquals("a", "b"))
 				),
-				parser.parseQueryUnsafe("""
+				DefaultQueryParserTest.this.parser.parseQueryUnsafe("""
 					query(
 						collection("Product"),
 						filterBy(
@@ -311,7 +311,7 @@ class DefaultQueryParserTest {
 					collection("Product"),
 					filterBy(attributeEquals("a", "b"))
 				),
-				parser.parseQueryUnsafe("""
+				DefaultQueryParserTest.this.parser.parseQueryUnsafe("""
 					query(
 						collection('Product'),
 						filterBy(
@@ -327,20 +327,20 @@ class DefaultQueryParserTest {
 		void shouldNotParseInvalidQueryStrings() {
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseQuery("query(filterBy(attributeEquals('a','b')))")
+				() -> DefaultQueryParserTest.this.parser.parseQuery("query(filterBy(attributeEquals('a','b')))")
 			);
-			assertThrows(EvitaSyntaxException.class, () -> parser.parseQuery("query(collection(?))"));
-			assertThrows(EvitaSyntaxException.class, () -> parser.parseQuery("query(collection(@collection))"));
+			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParserTest.this.parser.parseQuery("query(collection(?))"));
+			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParserTest.this.parser.parseQuery("query(collection(@collection))"));
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseQuery("query(collection(@collection))", Map.of("attr", "some"))
+				() -> DefaultQueryParserTest.this.parser.parseQuery("query(collection(@collection))", Map.of("attr", "some"))
 			);
-			assertThrows(EvitaSyntaxException.class, () -> parser.parseQuery(""));
-			assertThrows(EvitaSyntaxException.class, () -> parser.parseQuery("'b'"));
-			assertThrows(EvitaSyntaxException.class, () -> parser.parseQuery("attributeEqualsTrue('a')"));
+			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParserTest.this.parser.parseQuery(""));
+			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParserTest.this.parser.parseQuery("'b'"));
+			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParserTest.this.parser.parseQuery("attributeEqualsTrue('a')"));
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseQuery("query(collection('a')) query(collection('b'))")
+				() -> DefaultQueryParserTest.this.parser.parseQuery("query(collection('a')) query(collection('b'))")
 			);
 		}
 
@@ -349,7 +349,7 @@ class DefaultQueryParserTest {
 		void shouldRejectMismatchedQuotationMarks() {
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseQueryUnsafe("query(collection('a\"))")
+				() -> DefaultQueryParserTest.this.parser.parseQueryUnsafe("query(collection('a\"))")
 			);
 		}
 
@@ -358,7 +358,7 @@ class DefaultQueryParserTest {
 		void shouldParseQueryUnsafeWithLiteralValues() {
 			assertEquals(
 				query(collection("a")),
-				parser.parseQueryUnsafe("query(collection('a'))")
+				DefaultQueryParserTest.this.parser.parseQueryUnsafe("query(collection('a'))")
 			);
 
 			assertEquals(
@@ -368,7 +368,7 @@ class DefaultQueryParserTest {
 					orderBy(random()),
 					require(attributeContentAll())
 				),
-				parser.parseQueryUnsafe(
+				DefaultQueryParserTest.this.parser.parseQueryUnsafe(
 					"query(collection('a'),filterBy(attributeEqualsTrue('b')),orderBy(random()),require(attributeContentAll()))"
 				)
 			);
@@ -382,7 +382,7 @@ class DefaultQueryParserTest {
 					collection("a"),
 					filterBy(attributeEqualsTrue("b"))
 				),
-				parser.parseQueryUnsafe(
+				DefaultQueryParserTest.this.parser.parseQueryUnsafe(
 					"query(collection(?),filterBy(attributeEqualsTrue(?)))",
 					"a", "b"
 				)
@@ -397,7 +397,7 @@ class DefaultQueryParserTest {
 					collection("a"),
 					filterBy(attributeEqualsTrue("b"))
 				),
-				parser.parseQueryUnsafe(
+				DefaultQueryParserTest.this.parser.parseQueryUnsafe(
 					"query(collection(?),filterBy(attributeEqualsTrue(?)))",
 					List.of("a", "b")
 				)
@@ -412,7 +412,7 @@ class DefaultQueryParserTest {
 					collection("a"),
 					filterBy(attributeEqualsTrue("b"))
 				),
-				parser.parseQueryUnsafe(
+				DefaultQueryParserTest.this.parser.parseQueryUnsafe(
 					"query(collection(@collection),filterBy(attributeEqualsTrue(@attr)))",
 					Map.of("collection", "a", "attr", "b")
 				)
@@ -427,7 +427,7 @@ class DefaultQueryParserTest {
 					collection("a"),
 					filterBy(attributeEqualsTrue("b"))
 				),
-				parser.parseQueryUnsafe(
+				DefaultQueryParserTest.this.parser.parseQueryUnsafe(
 					"query(collection(@collection),filterBy(attributeEqualsTrue(?)))",
 					Map.of("collection", "a"),
 					"b"
@@ -443,7 +443,7 @@ class DefaultQueryParserTest {
 					collection("a"),
 					filterBy(attributeEqualsTrue("b"))
 				),
-				parser.parseQueryUnsafe(
+				DefaultQueryParserTest.this.parser.parseQueryUnsafe(
 					"query(collection(@collection),filterBy(attributeEqualsTrue(?)))",
 					Map.of("collection", "a"),
 					List.of("b")
@@ -459,7 +459,7 @@ class DefaultQueryParserTest {
 					collection("a"),
 					filterBy(attributeEqualsTrue("b"))
 				),
-				parser.parseQueryUnsafe("""
+				DefaultQueryParserTest.this.parser.parseQueryUnsafe("""
 					query(
 						collection('a'),
 						filterBy(
@@ -467,7 +467,7 @@ class DefaultQueryParserTest {
 						)
 					)
 					""",
-					"b"
+				                                                    "b"
 				)
 			);
 		}
@@ -475,21 +475,21 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should not parse invalid unsafe query strings")
 		void shouldNotParseInvalidUnsafeQueryStrings() {
-			assertThrows(EvitaSyntaxException.class, () -> parser.parseQueryUnsafe("query(collection(?))"));
+			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParserTest.this.parser.parseQueryUnsafe("query(collection(?))"));
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseQueryUnsafe("query(collection(@collection))")
+				() -> DefaultQueryParserTest.this.parser.parseQueryUnsafe("query(collection(@collection))")
 			);
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseQueryUnsafe("query(collection(@collection))", Map.of("attr", "some"))
+				() -> DefaultQueryParserTest.this.parser.parseQueryUnsafe("query(collection(@collection))", Map.of("attr", "some"))
 			);
-			assertThrows(EvitaSyntaxException.class, () -> parser.parseQueryUnsafe(""));
-			assertThrows(EvitaSyntaxException.class, () -> parser.parseQueryUnsafe("'b'"));
-			assertThrows(EvitaSyntaxException.class, () -> parser.parseQueryUnsafe("attributeEqualsTrue('a')"));
+			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParserTest.this.parser.parseQueryUnsafe(""));
+			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParserTest.this.parser.parseQueryUnsafe("'b'"));
+			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParserTest.this.parser.parseQueryUnsafe("attributeEqualsTrue('a')"));
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseQueryUnsafe("query(collection('a')) query(collection('b'))")
+				() -> DefaultQueryParserTest.this.parser.parseQueryUnsafe("query(collection('a')) query(collection('b'))")
 			);
 		}
 	}
@@ -502,7 +502,7 @@ class DefaultQueryParserTest {
 		@DisplayName("should parse head constraint list unsafe with literals")
 		void shouldParseHeadConstraintListUnsafe() {
 			final List<HeadConstraint> result =
-				parser.parseHeadConstraintListUnsafe("collection('product'),collection('brand')");
+				DefaultQueryParserTest.this.parser.parseHeadConstraintListUnsafe("collection('product'),collection('brand')");
 
 			assertEquals(List.of(collection("product"), collection("brand")), result);
 		}
@@ -510,7 +510,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse head constraint list with positional varargs")
 		void shouldParseHeadConstraintListWithPosVarargs() {
-			final List<HeadConstraint> result = parser.parseHeadConstraintList("collection(?)", "product");
+			final List<HeadConstraint> result = DefaultQueryParserTest.this.parser.parseHeadConstraintList("collection(?)", "product");
 
 			assertEquals(List.of(collection("product")), result);
 		}
@@ -519,7 +519,7 @@ class DefaultQueryParserTest {
 		@DisplayName("should parse head constraint list with positional List")
 		void shouldParseHeadConstraintListWithPosList() {
 			final List<HeadConstraint> result =
-				parser.parseHeadConstraintList("collection(?)", List.of("product"));
+				DefaultQueryParserTest.this.parser.parseHeadConstraintList("collection(?)", List.of("product"));
 
 			assertEquals(List.of(collection("product")), result);
 		}
@@ -527,7 +527,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse head constraint list with named arguments")
 		void shouldParseHeadConstraintListWithNamedArgs() {
-			final List<HeadConstraint> result = parser.parseHeadConstraintList(
+			final List<HeadConstraint> result = DefaultQueryParserTest.this.parser.parseHeadConstraintList(
 				"collection(@product),collection(@col)",
 				Map.of("product", "product", "col", "brand")
 			);
@@ -538,7 +538,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse head constraint list with named and positional varargs")
 		void shouldParseHeadConstraintListWithMixedArgs() {
-			final List<HeadConstraint> result = parser.parseHeadConstraintList(
+			final List<HeadConstraint> result = DefaultQueryParserTest.this.parser.parseHeadConstraintList(
 				"collection(?),collection(@col)",
 				Map.of("col", "brand"),
 				"product"
@@ -550,7 +550,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse head constraint list with named and positional List")
 		void shouldParseHeadConstraintListWithNamedAndList() {
-			final List<HeadConstraint> result = parser.parseHeadConstraintList(
+			final List<HeadConstraint> result = DefaultQueryParserTest.this.parser.parseHeadConstraintList(
 				"collection(?),collection(@col)",
 				Map.of("col", "brand"),
 				List.of("product")
@@ -564,11 +564,11 @@ class DefaultQueryParserTest {
 		void shouldNotParseInvalidHeadConstraintList() {
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseHeadConstraintList("attributeEqualsTrue('code')")
+				() -> DefaultQueryParserTest.this.parser.parseHeadConstraintList("attributeEqualsTrue('code')")
 			);
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseHeadConstraintList("collection('product'),attributeEqualsTrue('code')")
+				() -> DefaultQueryParserTest.this.parser.parseHeadConstraintList("collection('product'),attributeEqualsTrue('code')")
 			);
 		}
 
@@ -576,7 +576,7 @@ class DefaultQueryParserTest {
 		@DisplayName("should parse head constraint list unsafe with positional varargs")
 		void shouldParseHeadUnsafeWithPosVarargs() {
 			final List<HeadConstraint> result =
-				parser.parseHeadConstraintListUnsafe("collection(?)", "product");
+				DefaultQueryParserTest.this.parser.parseHeadConstraintListUnsafe("collection(?)", "product");
 
 			assertEquals(List.of(collection("product")), result);
 		}
@@ -585,7 +585,7 @@ class DefaultQueryParserTest {
 		@DisplayName("should parse head constraint list unsafe with positional List")
 		void shouldParseHeadUnsafeWithPosList() {
 			final List<HeadConstraint> result =
-				parser.parseHeadConstraintListUnsafe("collection(?)", List.of("product"));
+				DefaultQueryParserTest.this.parser.parseHeadConstraintListUnsafe("collection(?)", List.of("product"));
 
 			assertEquals(List.of(collection("product")), result);
 		}
@@ -594,7 +594,7 @@ class DefaultQueryParserTest {
 		@DisplayName("should parse head constraint list unsafe with named arguments")
 		void shouldParseHeadUnsafeWithNamedArgs() {
 			final List<HeadConstraint> result =
-				parser.parseHeadConstraintListUnsafe("collection(@name)", Map.of("name", "product"));
+				DefaultQueryParserTest.this.parser.parseHeadConstraintListUnsafe("collection(@name)", Map.of("name", "product"));
 
 			assertEquals(List.of(collection("product")), result);
 		}
@@ -602,7 +602,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse head constraint list unsafe with named and positional varargs")
 		void shouldParseHeadUnsafeWithNamedAndPosVarargs() {
-			final List<HeadConstraint> result = parser.parseHeadConstraintListUnsafe(
+			final List<HeadConstraint> result = DefaultQueryParserTest.this.parser.parseHeadConstraintListUnsafe(
 				"collection(?),collection(@col)",
 				Map.of("col", "brand"),
 				"product"
@@ -614,7 +614,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse head constraint list unsafe with named and positional List")
 		void shouldParseHeadUnsafeWithNamedAndPosList() {
-			final List<HeadConstraint> result = parser.parseHeadConstraintListUnsafe(
+			final List<HeadConstraint> result = DefaultQueryParserTest.this.parser.parseHeadConstraintListUnsafe(
 				"collection(?),collection(@col)",
 				Map.of("col", "brand"),
 				List.of("product")
@@ -628,11 +628,11 @@ class DefaultQueryParserTest {
 		void shouldNotParseInvalidHeadUnsafeList() {
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseHeadConstraintListUnsafe("attributeEqualsTrue('code')")
+				() -> DefaultQueryParserTest.this.parser.parseHeadConstraintListUnsafe("attributeEqualsTrue('code')")
 			);
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseHeadConstraintListUnsafe("collection('product'),attributeEqualsTrue('code')")
+				() -> DefaultQueryParserTest.this.parser.parseHeadConstraintListUnsafe("collection('product'),attributeEqualsTrue('code')")
 			);
 		}
 	}
@@ -644,7 +644,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse filter constraint list unsafe with literals")
 		void shouldParseFilterConstraintListUnsafe() {
-			final List<FilterConstraint> result = parser.parseFilterConstraintListUnsafe(
+			final List<FilterConstraint> result = DefaultQueryParserTest.this.parser.parseFilterConstraintListUnsafe(
 				"attributeEqualsTrue('code'),attributeEqualsTrue('age')"
 			);
 
@@ -655,7 +655,7 @@ class DefaultQueryParserTest {
 		@DisplayName("should parse filter constraint list with positional varargs")
 		void shouldParseFilterListWithPosVarargs() {
 			final List<FilterConstraint> result =
-				parser.parseFilterConstraintList("attributeEqualsTrue(?)", "code");
+				DefaultQueryParserTest.this.parser.parseFilterConstraintList("attributeEqualsTrue(?)", "code");
 
 			assertEquals(List.of(attributeEqualsTrue("code")), result);
 		}
@@ -664,7 +664,7 @@ class DefaultQueryParserTest {
 		@DisplayName("should parse filter constraint list with positional List")
 		void shouldParseFilterListWithPosList() {
 			final List<FilterConstraint> result =
-				parser.parseFilterConstraintList("attributeEqualsTrue(?)", List.of("code"));
+				DefaultQueryParserTest.this.parser.parseFilterConstraintList("attributeEqualsTrue(?)", List.of("code"));
 
 			assertEquals(List.of(attributeEqualsTrue("code")), result);
 		}
@@ -672,7 +672,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse filter constraint list with named arguments")
 		void shouldParseFilterListWithNamedArgs() {
-			final List<FilterConstraint> result = parser.parseFilterConstraintList(
+			final List<FilterConstraint> result = DefaultQueryParserTest.this.parser.parseFilterConstraintList(
 				"attributeEqualsTrue(@code),attributeEqualsTrue(@name)",
 				Map.of("code", "code", "name", "age")
 			);
@@ -683,7 +683,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse filter constraint list with named and positional varargs")
 		void shouldParseFilterListWithMixedArgs() {
-			final List<FilterConstraint> result = parser.parseFilterConstraintList(
+			final List<FilterConstraint> result = DefaultQueryParserTest.this.parser.parseFilterConstraintList(
 				"attributeEqualsTrue(?),attributeEqualsTrue(@name)",
 				Map.of("name", "age"),
 				"code"
@@ -695,7 +695,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse filter constraint list with named and positional List")
 		void shouldParseFilterListWithNamedAndPosList() {
-			final List<FilterConstraint> result = parser.parseFilterConstraintList(
+			final List<FilterConstraint> result = DefaultQueryParserTest.this.parser.parseFilterConstraintList(
 				"attributeEqualsTrue(?),attributeEqualsTrue(@name)",
 				Map.of("name", "age"),
 				List.of("code")
@@ -709,22 +709,22 @@ class DefaultQueryParserTest {
 		void shouldNotParseInvalidFilterList() {
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseFilterConstraintList("collection('code')")
+				() -> DefaultQueryParserTest.this.parser.parseFilterConstraintList("collection('code')")
 			);
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseFilterConstraintList("attributeEqualsTrue('product'),collection('code')")
+				() -> DefaultQueryParserTest.this.parser.parseFilterConstraintList("attributeEqualsTrue('product'),collection('code')")
 			);
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseFilterConstraintList("attributeEquals('code',2)")
+				() -> DefaultQueryParserTest.this.parser.parseFilterConstraintList("attributeEquals('code',2)")
 			);
 		}
 
 		@Test
 		@DisplayName("should parse filter constraint list unsafe with literal values")
 		void shouldParseFilterUnsafeWithLiterals() {
-			final List<FilterConstraint> result = parser.parseFilterConstraintListUnsafe(
+			final List<FilterConstraint> result = DefaultQueryParserTest.this.parser.parseFilterConstraintListUnsafe(
 				"attributeEquals('code', 1),attributeEquals('age', 2)"
 			);
 
@@ -735,7 +735,7 @@ class DefaultQueryParserTest {
 		@DisplayName("should parse filter constraint list unsafe with positional varargs")
 		void shouldParseFilterUnsafeWithPosVarargs() {
 			final List<FilterConstraint> result =
-				parser.parseFilterConstraintListUnsafe("attributeEqualsTrue(?)", "code");
+				DefaultQueryParserTest.this.parser.parseFilterConstraintListUnsafe("attributeEqualsTrue(?)", "code");
 
 			assertEquals(List.of(attributeEqualsTrue("code")), result);
 		}
@@ -744,7 +744,7 @@ class DefaultQueryParserTest {
 		@DisplayName("should parse filter constraint list unsafe with positional List")
 		void shouldParseFilterUnsafeWithPosList() {
 			final List<FilterConstraint> result =
-				parser.parseFilterConstraintListUnsafe("attributeEqualsTrue(?)", List.of("code"));
+				DefaultQueryParserTest.this.parser.parseFilterConstraintListUnsafe("attributeEqualsTrue(?)", List.of("code"));
 
 			assertEquals(List.of(attributeEqualsTrue("code")), result);
 		}
@@ -752,7 +752,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse filter constraint list unsafe with named arguments")
 		void shouldParseFilterUnsafeWithNamedArgs() {
-			final List<FilterConstraint> result = parser.parseFilterConstraintListUnsafe(
+			final List<FilterConstraint> result = DefaultQueryParserTest.this.parser.parseFilterConstraintListUnsafe(
 				"attributeEqualsTrue(@code)",
 				Map.of("code", "code")
 			);
@@ -763,7 +763,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse filter constraint list unsafe with named and positional varargs")
 		void shouldParseFilterUnsafeWithMixedVarargs() {
-			final List<FilterConstraint> result = parser.parseFilterConstraintListUnsafe(
+			final List<FilterConstraint> result = DefaultQueryParserTest.this.parser.parseFilterConstraintListUnsafe(
 				"attributeEqualsTrue(?),attributeEqualsTrue(@name)",
 				Map.of("name", "age"),
 				"code"
@@ -775,7 +775,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse filter constraint list unsafe with named and positional List")
 		void shouldParseFilterUnsafeWithNamedAndPosList() {
-			final List<FilterConstraint> result = parser.parseFilterConstraintListUnsafe(
+			final List<FilterConstraint> result = DefaultQueryParserTest.this.parser.parseFilterConstraintListUnsafe(
 				"attributeEqualsTrue(?),attributeEqualsTrue(@name)",
 				Map.of("name", "age"),
 				List.of("code")
@@ -789,11 +789,11 @@ class DefaultQueryParserTest {
 		void shouldNotParseInvalidFilterUnsafeList() {
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseFilterConstraintListUnsafe("collection('code')")
+				() -> DefaultQueryParserTest.this.parser.parseFilterConstraintListUnsafe("collection('code')")
 			);
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseFilterConstraintListUnsafe("attributeEqualsTrue('product'),collection('code')")
+				() -> DefaultQueryParserTest.this.parser.parseFilterConstraintListUnsafe("attributeEqualsTrue('product'),collection('code')")
 			);
 		}
 	}
@@ -805,7 +805,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse order constraint list unsafe with literals")
 		void shouldParseOrderConstraintListUnsafe() {
-			final List<OrderConstraint> result = parser.parseOrderConstraintListUnsafe(
+			final List<OrderConstraint> result = DefaultQueryParserTest.this.parser.parseOrderConstraintListUnsafe(
 				"attributeNatural('code'),attributeNatural('age')"
 			);
 
@@ -816,7 +816,7 @@ class DefaultQueryParserTest {
 		@DisplayName("should parse order constraint list with positional varargs")
 		void shouldParseOrderListWithPosVarargs() {
 			final List<OrderConstraint> result =
-				parser.parseOrderConstraintList("attributeNatural(?)", "code");
+				DefaultQueryParserTest.this.parser.parseOrderConstraintList("attributeNatural(?)", "code");
 
 			assertEquals(List.of(attributeNatural("code")), result);
 		}
@@ -825,7 +825,7 @@ class DefaultQueryParserTest {
 		@DisplayName("should parse order constraint list with positional List")
 		void shouldParseOrderListWithPosList() {
 			final List<OrderConstraint> result =
-				parser.parseOrderConstraintList("attributeNatural(?)", List.of("code"));
+				DefaultQueryParserTest.this.parser.parseOrderConstraintList("attributeNatural(?)", List.of("code"));
 
 			assertEquals(List.of(attributeNatural("code")), result);
 		}
@@ -833,7 +833,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse order constraint list with named arguments")
 		void shouldParseOrderListWithNamedArgs() {
-			final List<OrderConstraint> result = parser.parseOrderConstraintList(
+			final List<OrderConstraint> result = DefaultQueryParserTest.this.parser.parseOrderConstraintList(
 				"attributeNatural(@code),attributeNatural(@name)",
 				Map.of("code", "code", "name", "age")
 			);
@@ -844,7 +844,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse order constraint list with named and positional varargs")
 		void shouldParseOrderListWithMixedArgs() {
-			final List<OrderConstraint> result = parser.parseOrderConstraintList(
+			final List<OrderConstraint> result = DefaultQueryParserTest.this.parser.parseOrderConstraintList(
 				"attributeNatural(?),attributeNatural(@name)",
 				Map.of("name", "age"),
 				"code"
@@ -856,7 +856,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse order constraint list with named and positional List")
 		void shouldParseOrderListWithNamedAndPosList() {
-			final List<OrderConstraint> result = parser.parseOrderConstraintList(
+			final List<OrderConstraint> result = DefaultQueryParserTest.this.parser.parseOrderConstraintList(
 				"attributeNatural(?),attributeNatural(@name)",
 				Map.of("name", "age"),
 				List.of("code")
@@ -870,22 +870,22 @@ class DefaultQueryParserTest {
 		void shouldNotParseInvalidOrderList() {
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseOrderConstraintList("collection('code')")
+				() -> DefaultQueryParserTest.this.parser.parseOrderConstraintList("collection('code')")
 			);
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseOrderConstraintList("attributeNatural('product'),collection('code')")
+				() -> DefaultQueryParserTest.this.parser.parseOrderConstraintList("attributeNatural('product'),collection('code')")
 			);
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseOrderConstraintList("attributeNatural('code',DESC)")
+				() -> DefaultQueryParserTest.this.parser.parseOrderConstraintList("attributeNatural('code',DESC)")
 			);
 		}
 
 		@Test
 		@DisplayName("should parse order constraint list unsafe with enum direction")
 		void shouldParseOrderUnsafeWithEnumDirection() {
-			final List<OrderConstraint> result = parser.parseOrderConstraintListUnsafe(
+			final List<OrderConstraint> result = DefaultQueryParserTest.this.parser.parseOrderConstraintListUnsafe(
 				"attributeNatural('code',ASC),attributeNatural('age',DESC)"
 			);
 
@@ -902,7 +902,7 @@ class DefaultQueryParserTest {
 		@DisplayName("should parse order constraint list unsafe with positional varargs")
 		void shouldParseOrderUnsafeWithPosVarargs() {
 			final List<OrderConstraint> result =
-				parser.parseOrderConstraintListUnsafe("attributeNatural(?)", "code");
+				DefaultQueryParserTest.this.parser.parseOrderConstraintListUnsafe("attributeNatural(?)", "code");
 
 			assertEquals(List.of(attributeNatural("code")), result);
 		}
@@ -911,7 +911,7 @@ class DefaultQueryParserTest {
 		@DisplayName("should parse order constraint list unsafe with positional List")
 		void shouldParseOrderUnsafeWithPosList() {
 			final List<OrderConstraint> result =
-				parser.parseOrderConstraintListUnsafe("attributeNatural(?)", List.of("code"));
+				DefaultQueryParserTest.this.parser.parseOrderConstraintListUnsafe("attributeNatural(?)", List.of("code"));
 
 			assertEquals(List.of(attributeNatural("code")), result);
 		}
@@ -919,7 +919,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse order constraint list unsafe with named arguments")
 		void shouldParseOrderUnsafeWithNamedArgs() {
-			final List<OrderConstraint> result = parser.parseOrderConstraintListUnsafe(
+			final List<OrderConstraint> result = DefaultQueryParserTest.this.parser.parseOrderConstraintListUnsafe(
 				"attributeNatural(@code)",
 				Map.of("code", "code")
 			);
@@ -930,7 +930,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse order constraint list unsafe with named and positional varargs")
 		void shouldParseOrderUnsafeWithMixedVarargs() {
-			final List<OrderConstraint> result = parser.parseOrderConstraintListUnsafe(
+			final List<OrderConstraint> result = DefaultQueryParserTest.this.parser.parseOrderConstraintListUnsafe(
 				"attributeNatural(?),attributeNatural(@name)",
 				Map.of("name", "age"),
 				"code"
@@ -942,7 +942,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse order constraint list unsafe with named and positional List")
 		void shouldParseOrderUnsafeWithNamedAndPosList() {
-			final List<OrderConstraint> result = parser.parseOrderConstraintListUnsafe(
+			final List<OrderConstraint> result = DefaultQueryParserTest.this.parser.parseOrderConstraintListUnsafe(
 				"attributeNatural(?),attributeNatural(@name)",
 				Map.of("name", "age"),
 				List.of("code")
@@ -956,11 +956,11 @@ class DefaultQueryParserTest {
 		void shouldNotParseInvalidOrderUnsafeList() {
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseOrderConstraintListUnsafe("collection('code')")
+				() -> DefaultQueryParserTest.this.parser.parseOrderConstraintListUnsafe("collection('code')")
 			);
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseOrderConstraintListUnsafe("attributeNatural('product'),collection('code')")
+				() -> DefaultQueryParserTest.this.parser.parseOrderConstraintListUnsafe("attributeNatural('product'),collection('code')")
 			);
 		}
 	}
@@ -972,7 +972,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse require constraint list unsafe with literals")
 		void shouldParseRequireConstraintListUnsafe() {
-			final List<RequireConstraint> result = parser.parseRequireConstraintListUnsafe(
+			final List<RequireConstraint> result = DefaultQueryParserTest.this.parser.parseRequireConstraintListUnsafe(
 				"attributeContent('code'),attributeContent('age')"
 			);
 
@@ -983,7 +983,7 @@ class DefaultQueryParserTest {
 		@DisplayName("should parse require constraint list with positional varargs")
 		void shouldParseRequireListWithPosVarargs() {
 			final List<RequireConstraint> result =
-				parser.parseRequireConstraintList("attributeContent(?)", "code");
+				DefaultQueryParserTest.this.parser.parseRequireConstraintList("attributeContent(?)", "code");
 
 			assertEquals(List.of(attributeContent("code")), result);
 		}
@@ -992,7 +992,7 @@ class DefaultQueryParserTest {
 		@DisplayName("should parse require constraint list with positional List")
 		void shouldParseRequireListWithPosList() {
 			final List<RequireConstraint> result =
-				parser.parseRequireConstraintList("attributeContent(?)", List.of("code"));
+				DefaultQueryParserTest.this.parser.parseRequireConstraintList("attributeContent(?)", List.of("code"));
 
 			assertEquals(List.of(attributeContent("code")), result);
 		}
@@ -1000,7 +1000,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse require constraint list with named arguments")
 		void shouldParseRequireListWithNamedArgs() {
-			final List<RequireConstraint> result = parser.parseRequireConstraintList(
+			final List<RequireConstraint> result = DefaultQueryParserTest.this.parser.parseRequireConstraintList(
 				"attributeContent(@code),attributeContent(@name)",
 				Map.of("code", "code", "name", "age")
 			);
@@ -1011,7 +1011,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse require constraint list with named and positional varargs")
 		void shouldParseRequireListWithMixedArgs() {
-			final List<RequireConstraint> result = parser.parseRequireConstraintList(
+			final List<RequireConstraint> result = DefaultQueryParserTest.this.parser.parseRequireConstraintList(
 				"attributeContent(?),attributeContent(@name)",
 				Map.of("name", "age"),
 				"code"
@@ -1023,7 +1023,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse require constraint list with named and positional List")
 		void shouldParseRequireListWithNamedAndPosList() {
-			final List<RequireConstraint> result = parser.parseRequireConstraintList(
+			final List<RequireConstraint> result = DefaultQueryParserTest.this.parser.parseRequireConstraintList(
 				"attributeContent(?),attributeContent(@name)",
 				Map.of("name", "age"),
 				List.of("code")
@@ -1037,22 +1037,22 @@ class DefaultQueryParserTest {
 		void shouldNotParseInvalidRequireList() {
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseRequireConstraintList("collection('product')")
+				() -> DefaultQueryParserTest.this.parser.parseRequireConstraintList("collection('product')")
 			);
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseRequireConstraintList("attributeContent('code'),collection('product')")
+				() -> DefaultQueryParserTest.this.parser.parseRequireConstraintList("attributeContent('code'),collection('product')")
 			);
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseRequireConstraintList("priceType(WITH_TAX)")
+				() -> DefaultQueryParserTest.this.parser.parseRequireConstraintList("priceType(WITH_TAX)")
 			);
 		}
 
 		@Test
 		@DisplayName("should parse require constraint list unsafe with enum")
 		void shouldParseRequireUnsafeWithEnum() {
-			final List<RequireConstraint> result = parser.parseRequireConstraintListUnsafe(
+			final List<RequireConstraint> result = DefaultQueryParserTest.this.parser.parseRequireConstraintListUnsafe(
 				"priceType(WITH_TAX),attributeContent('age')"
 			);
 
@@ -1063,7 +1063,7 @@ class DefaultQueryParserTest {
 		@DisplayName("should parse require constraint list unsafe with positional varargs")
 		void shouldParseRequireUnsafeWithPosVarargs() {
 			final List<RequireConstraint> result =
-				parser.parseRequireConstraintListUnsafe("attributeContent(?)", "code");
+				DefaultQueryParserTest.this.parser.parseRequireConstraintListUnsafe("attributeContent(?)", "code");
 
 			assertEquals(List.of(attributeContent("code")), result);
 		}
@@ -1072,7 +1072,7 @@ class DefaultQueryParserTest {
 		@DisplayName("should parse require constraint list unsafe with positional List")
 		void shouldParseRequireUnsafeWithPosList() {
 			final List<RequireConstraint> result =
-				parser.parseRequireConstraintListUnsafe("attributeContent(?)", List.of("code"));
+				DefaultQueryParserTest.this.parser.parseRequireConstraintListUnsafe("attributeContent(?)", List.of("code"));
 
 			assertEquals(List.of(attributeContent("code")), result);
 		}
@@ -1080,7 +1080,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse require constraint list unsafe with named arguments")
 		void shouldParseRequireUnsafeWithNamedArgs() {
-			final List<RequireConstraint> result = parser.parseRequireConstraintListUnsafe(
+			final List<RequireConstraint> result = DefaultQueryParserTest.this.parser.parseRequireConstraintListUnsafe(
 				"attributeContent(@code)",
 				Map.of("code", "code")
 			);
@@ -1091,7 +1091,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse require constraint list unsafe with named and positional varargs")
 		void shouldParseRequireUnsafeWithMixedVarargs() {
-			final List<RequireConstraint> result = parser.parseRequireConstraintListUnsafe(
+			final List<RequireConstraint> result = DefaultQueryParserTest.this.parser.parseRequireConstraintListUnsafe(
 				"attributeContent(?),attributeContent(@name)",
 				Map.of("name", "age"),
 				"code"
@@ -1103,7 +1103,7 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse require constraint list unsafe with named and positional List")
 		void shouldParseRequireUnsafeWithNamedAndPosList() {
-			final List<RequireConstraint> result = parser.parseRequireConstraintListUnsafe(
+			final List<RequireConstraint> result = DefaultQueryParserTest.this.parser.parseRequireConstraintListUnsafe(
 				"attributeContent(?),attributeContent(@name)",
 				Map.of("name", "age"),
 				List.of("code")
@@ -1117,11 +1117,11 @@ class DefaultQueryParserTest {
 		void shouldNotParseInvalidRequireUnsafeList() {
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseRequireConstraintListUnsafe("collection('product')")
+				() -> DefaultQueryParserTest.this.parser.parseRequireConstraintListUnsafe("collection('product')")
 			);
 			assertThrows(
 				EvitaSyntaxException.class,
-				() -> parser.parseRequireConstraintListUnsafe("attributeContent('code'),collection('product')")
+				() -> DefaultQueryParserTest.this.parser.parseRequireConstraintListUnsafe("attributeContent('code'),collection('product')")
 			);
 		}
 	}
@@ -1133,50 +1133,50 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse string literal")
 		void shouldParseStringLiteral() {
-			assertEquals("a", parser.parseValue("'a'"));
+			assertEquals("a", DefaultQueryParserTest.this.parser.parseValue("'a'"));
 		}
 
 		@Test
 		@DisplayName("should parse numeric literal")
 		void shouldParseNumericLiteral() {
-			assertEquals(123L, (Long) parser.parseValue("123"));
+			assertEquals(123L, (Long) DefaultQueryParserTest.this.parser.parseValue("123"));
 		}
 
 		@Test
 		@DisplayName("should parse enum literal")
 		void shouldParseEnumLiteral() {
-			assertEquals(EnumWrapper.fromString("SOME_ENUM"), parser.parseValue("SOME_ENUM"));
+			assertEquals(EnumWrapper.fromString("SOME_ENUM"), DefaultQueryParserTest.this.parser.parseValue("SOME_ENUM"));
 		}
 
 		@Test
 		@DisplayName("should parse value with positional argument")
 		void shouldParseValueWithPositionalArgument() {
-			assertEquals("a", parser.parseValue("?", "a"));
+			assertEquals("a", DefaultQueryParserTest.this.parser.parseValue("?", "a"));
 		}
 
 		@Test
 		@DisplayName("should parse value with named argument")
 		void shouldParseValueWithNamedArgument() {
-			assertEquals("a", parser.parseValue("@name", Map.of("name", "a")));
+			assertEquals("a", DefaultQueryParserTest.this.parser.parseValue("@name", Map.of("name", "a")));
 		}
 
 		@Test
 		@DisplayName("should parse value with named and positional arguments")
 		void shouldParseValueWithNamedAndPositionalArgs() {
-			assertEquals("a", parser.parseValue("@name", Map.of("name", "a"), "unused"));
+			assertEquals("a", DefaultQueryParserTest.this.parser.parseValue("@name", Map.of("name", "a"), "unused"));
 		}
 
 		@Test
 		@DisplayName("should not parse invalid value strings")
 		void shouldNotParseInvalidValueStrings() {
-			assertThrows(EvitaSyntaxException.class, () -> parser.parseValue("?"));
-			assertThrows(EvitaSyntaxException.class, () -> parser.parseValue("@name"));
-			assertThrows(EvitaSyntaxException.class, () -> parser.parseValue("@name", Map.of("col", "some")));
-			assertThrows(EvitaSyntaxException.class, () -> parser.parseValue(""));
-			assertThrows(EvitaSyntaxException.class, () -> parser.parseValue("_"));
-			assertThrows(EvitaSyntaxException.class, () -> parser.parseValue("attributeEqualsTrue('a')"));
-			assertThrows(EvitaSyntaxException.class, () -> parser.parseValue("12 24"));
-			assertThrows(EvitaSyntaxException.class, () -> parser.parseValue("query(collection('a'))"));
+			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParserTest.this.parser.parseValue("?"));
+			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParserTest.this.parser.parseValue("@name"));
+			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParserTest.this.parser.parseValue("@name", Map.of("col", "some")));
+			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParserTest.this.parser.parseValue(""));
+			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParserTest.this.parser.parseValue("_"));
+			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParserTest.this.parser.parseValue("attributeEqualsTrue('a')"));
+			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParserTest.this.parser.parseValue("12 24"));
+			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParserTest.this.parser.parseValue("query(collection('a'))"));
 		}
 	}
 }

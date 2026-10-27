@@ -232,7 +232,7 @@ class HtmlMarkupStrippingAnalysisTest {
 					"p", "class", "dynamik", "dat", "valu", "valu", "fals", "dat", "2026",
 					"cern", "pansk", "obuv", "p"
 				),
-				terms(production, PAYLOAD_BODY)
+				terms(HtmlMarkupStrippingAnalysisTest.this.production, PAYLOAD_BODY)
 			);
 		}
 
@@ -243,11 +243,12 @@ class HtmlMarkupStrippingAnalysisTest {
 			// non-breaking space costs a position gap as well as a term
 			assertIterableEquals(
 				List.of("quot", "cern", "quot", "lt", "obuv", "gt", "amp", "nbsp"),
-				terms(production, "&quot;Černá&quot; &lt;obuv&gt; &amp; k&nbsp;tomu")
+				terms(HtmlMarkupStrippingAnalysisTest.this.production, "&quot;Černá&quot; &lt;obuv&gt; &amp; k&nbsp;tomu")
 			);
 			// a numeric entity is worse than a named one: the code point becomes a number term and the word it
 			// belonged to is torn apart
-			assertIterableEquals(List.of("268", "ern", "225", "obuv"), terms(production, "&#268;ern&#225; obuv"));
+			assertIterableEquals(List.of("268", "ern", "225", "obuv"), terms(
+				HtmlMarkupStrippingAnalysisTest.this.production, "&#268;ern&#225; obuv"));
 		}
 
 		@Test
@@ -255,7 +256,8 @@ class HtmlMarkupStrippingAnalysisTest {
 		void shouldTearWordApartAtInlineTag() {
 			// `Čer` and `ná` are each stemmed as if they were words - two garbage stems and two `b` terms instead
 			// of the one term `cern` the word would have produced
-			assertIterableEquals(List.of("cr", "b", "na", "b", "obuv"), terms(production, "Čer<b>ná</b> obuv"));
+			assertIterableEquals(List.of("cr", "b", "na", "b", "obuv"), terms(
+				HtmlMarkupStrippingAnalysisTest.this.production, "Čer<b>ná</b> obuv"));
 		}
 
 		@Test
@@ -263,13 +265,13 @@ class HtmlMarkupStrippingAnalysisTest {
 		void shouldIndexScriptStyleAndCommentBodies() {
 			assertIterableEquals(
 				List.of("script", "typ", "application", "json", "titl", "skryt", "script", "viditeln"),
-				terms(production, "<script type=\"application/json\">{\"title\": \"Skryté\"}</script>Viditelné")
+				terms(HtmlMarkupStrippingAnalysisTest.this.production, "<script type=\"application/json\">{\"title\": \"Skryté\"}</script>Viditelné")
 			);
 			assertIterableEquals(
 				List.of("styl", "x", "color:rd", "styl", "viditeln"),
-				terms(production, "<style>.x{color:red}</style>Viditelné")
+				terms(HtmlMarkupStrippingAnalysisTest.this.production, "<style>.x{color:red}</style>Viditelné")
 			);
-			assertIterableEquals(List.of("komentar", "viditeln"), terms(production, "<!-- komentář --> Viditelné"));
+			assertIterableEquals(List.of("komentar", "viditeln"), terms(HtmlMarkupStrippingAnalysisTest.this.production, "<!-- komentář --> Viditelné"));
 		}
 
 	}
@@ -281,9 +283,9 @@ class HtmlMarkupStrippingAnalysisTest {
 		@Test
 		@DisplayName("Drops tags, attributes and the attribute payload, keeping only the prose")
 		void shouldDropMarkupAndAttributePayload() {
-			assertIterableEquals(List.of("cern", "pansk", "obuv"), terms(stripped, PAYLOAD_BODY));
+			assertIterableEquals(List.of("cern", "pansk", "obuv"), terms(HtmlMarkupStrippingAnalysisTest.this.stripped, PAYLOAD_BODY));
 			// none of the review's markup vocabulary survives
-			final Set<String> survivors = distinctTerms(stripped, PAYLOAD_BODY);
+			final Set<String> survivors = distinctTerms(HtmlMarkupStrippingAnalysisTest.this.stripped, PAYLOAD_BODY);
 			for (final String markupTerm : List.of("p", "class", "dynamik", "dat", "valu", "fals", "quot")) {
 				assertFalse(survivors.contains(markupTerm), "Markup term `" + markupTerm + "` survived stripping.");
 			}
@@ -294,8 +296,8 @@ class HtmlMarkupStrippingAnalysisTest {
 		void shouldShrinkDistinctTermSetToProse() {
 			// the review measured -79 % distinct terms on 972,611 articles; on this single body the same ratio is
 			// 10 to 3. The body is the unit the dictionary pays per, so the shape of the saving is the same
-			assertEquals(10, distinctTerms(production, PAYLOAD_BODY).size());
-			assertEquals(3, distinctTerms(stripped, PAYLOAD_BODY).size());
+			assertEquals(10, distinctTerms(HtmlMarkupStrippingAnalysisTest.this.production, PAYLOAD_BODY).size());
+			assertEquals(3, distinctTerms(HtmlMarkupStrippingAnalysisTest.this.stripped, PAYLOAD_BODY).size());
 		}
 
 		@Test
@@ -303,18 +305,18 @@ class HtmlMarkupStrippingAnalysisTest {
 		void shouldDecodeEntities() {
 			// `k` and `tomu` are Czech stop words, so once `&nbsp;` is a space again both disappear as words should
 			assertIterableEquals(
-				List.of("cern", "obuv"), terms(stripped, "&quot;Černá&quot; &lt;obuv&gt; &amp; k&nbsp;tomu")
+				List.of("cern", "obuv"), terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "&quot;Černá&quot; &lt;obuv&gt; &amp; k&nbsp;tomu")
 			);
 			// a precomposed code point decodes to a letter the stemmer reads - `Černá` stems as if typed
-			assertIterableEquals(List.of("cern", "obuv"), terms(stripped, "&#268;ern&#225; obuv"));
+			assertIterableEquals(List.of("cern", "obuv"), terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "&#268;ern&#225; obuv"));
 		}
 
 		@Test
 		@DisplayName("Joins the halves of a word an inline tag split, so it stems as one word")
 		void shouldJoinWordSplitByInlineTag() {
 			// an inline tag is removed without a separator: `Čer<b>ná</b>` reads `Černá` and stems to `cern`
-			assertIterableEquals(List.of("cern", "obuv"), terms(stripped, "Čer<b>ná</b> obuv"));
-			assertIterableEquals(List.of("cern"), terms(stripped, "Č<!--x-->erná"));
+			assertIterableEquals(List.of("cern", "obuv"), terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "Čer<b>ná</b> obuv"));
+			assertIterableEquals(List.of("cern"), terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "Č<!--x-->erná"));
 		}
 
 		@Test
@@ -322,10 +324,10 @@ class HtmlMarkupStrippingAnalysisTest {
 		void shouldSeparateWordsSplitByBlockTag() {
 			// a block-level tag (`<p>`, `<br>`, `<div>`...) is replaced by whitespace, so two adjacent paragraphs
 			// never fuse into one token even when the source carries no whitespace between them
-			assertIterableEquals(List.of("cern", "obuv"), terms(stripped, "<p>Černá</p><p>obuv</p>"));
-			assertIterableEquals(List.of("cern", "obuv"), terms(stripped, "Černá<br>obuv"));
+			assertIterableEquals(List.of("cern", "obuv"), terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "<p>Černá</p><p>obuv</p>"));
+			assertIterableEquals(List.of("cern", "obuv"), terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "Černá<br>obuv"));
 			// the flip side: a block tag INSIDE a word splits it, exactly as the whitespace it stands for would
-			assertIterableEquals(List.of("cr", "na"), terms(stripped, "Čer<p>ná</p>"));
+			assertIterableEquals(List.of("cr", "na"), terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "Čer<p>ná</p>"));
 		}
 
 		@Test
@@ -333,20 +335,20 @@ class HtmlMarkupStrippingAnalysisTest {
 		void shouldDropScriptStyleAndCommentBodies() {
 			assertIterableEquals(
 				List.of("viditeln"),
-				terms(stripped, "<script type=\"application/json\">{\"title\": \"Skryté\"}</script>Viditelné")
+				terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "<script type=\"application/json\">{\"title\": \"Skryté\"}</script>Viditelné")
 			);
-			assertIterableEquals(List.of("viditeln"), terms(stripped, "<style>.x{color:red}</style>Viditelné"));
-			assertIterableEquals(List.of("viditeln"), terms(stripped, "<!-- komentář --> Viditelné"));
+			assertIterableEquals(List.of("viditeln"), terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "<style>.x{color:red}</style>Viditelné"));
+			assertIterableEquals(List.of("viditeln"), terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "<!-- komentář --> Viditelné"));
 			// a JSON payload in an attribute goes with the attribute - the review's `data-` case
 			assertIterableEquals(
 				List.of("viditeln"),
-				terms(stripped, "<div data-json='{&quot;title&quot;:&quot;Skryté&quot;}'>Viditelné</div>")
+				terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "<div data-json='{&quot;title&quot;:&quot;Skryté&quot;}'>Viditelné</div>")
 			);
 			// what is NOT dropped: the section marker of a CDATA block goes, its content stays; `<title>` and
 			// `<textarea>` are ordinary elements to this filter
-			assertIterableEquals(List.of("uvnitr", "venk"), terms(stripped, "<![CDATA[ Uvnitř ]]> Venku"));
+			assertIterableEquals(List.of("uvnitr", "venk"), terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "<![CDATA[ Uvnitř ]]> Venku"));
 			assertIterableEquals(
-				List.of("titulk", "uvnitr"), terms(stripped, "<title>Titulek</title><textarea>uvnitř</textarea>")
+				List.of("titulk", "uvnitr"), terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "<title>Titulek</title><textarea>uvnitř</textarea>")
 			);
 		}
 
@@ -356,7 +358,7 @@ class HtmlMarkupStrippingAnalysisTest {
 			// an attribute is an attribute: nothing distinguishes `alt` from `class` to a markup stripper, so the
 			// one attribute that does carry prose is lost with the rest. A wiring wanting alt text indexed has to
 			// extract it before stripping - the filter has no hook for it
-			assertTrue(terms(stripped, "<img src=\"x.png\" alt=\"Popisek obrázku\">").isEmpty());
+			assertTrue(terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "<img src=\"x.png\" alt=\"Popisek obrázku\">").isEmpty());
 		}
 
 		@Test
@@ -364,7 +366,7 @@ class HtmlMarkupStrippingAnalysisTest {
 		void shouldLeaveNoPositionGapForRemovedMarkup() {
 			// removed markup is not a dropped token, so a phrase spanning a tag boundary still matches: `černá obuv`
 			// as a phrase finds `<p>Černá</p>\n<p>obuv</p>`
-			for (final AnalyzedTerm analyzedTerm : stripped.getTerms("<p>Černá</p>\n<p>obuv</p>")) {
+			for (final AnalyzedTerm analyzedTerm : HtmlMarkupStrippingAnalysisTest.this.stripped.getTerms("<p>Černá</p>\n<p>obuv</p>")) {
 				assertEquals(
 					1, analyzedTerm.positionIncrement(), "Unexpected gap before `" + analyzedTerm.term() + "`."
 				);
@@ -386,7 +388,7 @@ class HtmlMarkupStrippingAnalysisTest {
 				"{\"title\": \"Černá obuv\", \"price\": 100}"
 			)) {
 				assertIterableEquals(
-					production.getTerms(plainText), stripped.getTerms(plainText),
+					HtmlMarkupStrippingAnalysisTest.this.production.getTerms(plainText), HtmlMarkupStrippingAnalysisTest.this.stripped.getTerms(plainText),
 					"Stripping changed the analysis of the markup-free text `" + plainText + "`."
 				);
 			}
@@ -403,7 +405,7 @@ class HtmlMarkupStrippingAnalysisTest {
 		void shouldKeepStartOffsetsInOriginalText() {
 			// the filter corrects offsets back through the removed runs, so a term still knows where in the STORED
 			// value it begins - the property highlighting depends on
-			final List<AnalyzedTerm> analyzed = stripped.getTerms("<p>Černá <b>pánská</b> obuv</p>");
+			final List<AnalyzedTerm> analyzed = HtmlMarkupStrippingAnalysisTest.this.stripped.getTerms("<p>Černá <b>pánská</b> obuv</p>");
 			assertEquals(3, analyzed.size());
 			assertEquals(3, analyzed.get(0).startOffset());
 			assertEquals(12, analyzed.get(1).startOffset());
@@ -420,7 +422,7 @@ class HtmlMarkupStrippingAnalysisTest {
 			// and the surface form cut from those offsets carries the tag. A term followed by whitespace before its
 			// tag (`Černá <b>`) is unaffected. Any consumer of `surfaceForm()` - the suggester, highlighting - has to
 			// either tolerate trailing markup or trim it; the term itself is correct
-			final List<AnalyzedTerm> analyzed = stripped.getTerms("<p>Černá <b>pánská</b> obuv</p>");
+			final List<AnalyzedTerm> analyzed = HtmlMarkupStrippingAnalysisTest.this.stripped.getTerms("<p>Černá <b>pánská</b> obuv</p>");
 			assertEquals(new AnalyzedTerm("cern", "Černá", 3, 8, 1), analyzed.get(0));
 			assertEquals(new AnalyzedTerm("pansk", "pánská</b>", 12, 22, 1), analyzed.get(1));
 			assertEquals(new AnalyzedTerm("obuv", "obuv", 23, 27, 1), analyzed.get(2));
@@ -433,8 +435,10 @@ class HtmlMarkupStrippingAnalysisTest {
 		void shouldReportWholeSpanOfWordJoinedAcrossInlineTag() {
 			// consistent with the previous test: the term is right, the surface form is the raw slice of the stored
 			// value between the corrected offsets and therefore contains the markup the filter removed
-			assertIterableEquals(List.of("Čer<b>ná</b>", "obuv"), surfaceForms(stripped, "Čer<b>ná</b> obuv"));
-			assertIterableEquals(List.of("&#268;ern&#225;", "obuv"), surfaceForms(stripped, "&#268;ern&#225; obuv"));
+			assertIterableEquals(List.of("Čer<b>ná</b>", "obuv"), surfaceForms(
+				HtmlMarkupStrippingAnalysisTest.this.stripped, "Čer<b>ná</b> obuv"));
+			assertIterableEquals(List.of("&#268;ern&#225;", "obuv"), surfaceForms(
+				HtmlMarkupStrippingAnalysisTest.this.stripped, "&#268;ern&#225; obuv"));
 		}
 
 	}
@@ -449,12 +453,12 @@ class HtmlMarkupStrippingAnalysisTest {
 			// `<` followed by a space, a digit or nothing tag-like is not a tag and is left alone - a product text
 			// comparing sizes or prices is safe in the common shapes
 			final List<String> sizes = List.of("velikost", "5", "10", "10", "5");
-			assertIterableEquals(sizes, terms(stripped, "Velikost 5 < 10 a 10 > 5"));
-			assertIterableEquals(sizes, terms(stripped, "Velikost 5<10 a 10>5"));
-			assertIterableEquals(List.of("3", "bot"), terms(stripped, "<3 boty"));
+			assertIterableEquals(sizes, terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "Velikost 5 < 10 a 10 > 5"));
+			assertIterableEquals(sizes, terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "Velikost 5<10 a 10>5"));
+			assertIterableEquals(List.of("3", "bot"), terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "<3 boty"));
 			// an opened tag that never closes and runs into more prose is given back as text
 			assertIterableEquals(
-				List.of("text", "neuzavrn", "tag", "dal"), terms(stripped, "Text s neuzavřeným <tagem a dál")
+				List.of("text", "neuzavrn", "tag", "dal"), terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "Text s neuzavřeným <tagem a dál")
 			);
 		}
 
@@ -464,10 +468,10 @@ class HtmlMarkupStrippingAnalysisTest {
 			// SHARP EDGE, pinned as observed: `<L` at end of input is consumed as a tag that never closed, so the `l`
 			// term the unstripped chain produces is gone. This is the concrete reason the step must be opt-in: a
 			// size range written `S<M<L` in a product description loses its last size
-			assertIterableEquals(List.of("velikost", "m", "l"), terms(production, "Velikost S<M<L"));
-			assertIterableEquals(List.of("velikost", "m"), terms(stripped, "Velikost S<M<L"));
+			assertIterableEquals(List.of("velikost", "m", "l"), terms(HtmlMarkupStrippingAnalysisTest.this.production, "Velikost S<M<L"));
+			assertIterableEquals(List.of("velikost", "m"), terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "Velikost S<M<L"));
 			// and a letter between angle brackets in prose IS a tag: `a<b>c` joins into `ac`
-			assertIterableEquals(List.of("ak"), terms(stripped, "a<b>c"));
+			assertIterableEquals(List.of("ak"), terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "a<b>c"));
 		}
 
 		@Test
@@ -479,12 +483,12 @@ class HtmlMarkupStrippingAnalysisTest {
 			// The term comes out neither stemmed nor folded. A production wiring must therefore run NFC after the
 			// character filter (or re-normalize inside wrapReader), otherwise entity-encoded diacritics silently
 			// escape the guarantee FulltextAnalyzer#analyze documents
-			final List<String> terms = terms(stripped, "c&#780;erna&#769; obuv");
+			final List<String> terms = terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "c&#780;erna&#769; obuv");
 			assertEquals(2, terms.size());
 			assertNotEquals("cern", terms.get(0));
 			assertEquals("černá", terms.get(0));
 			// the same word with precomposed entities is fine, which is what makes the gap easy to miss
-			assertIterableEquals(List.of("cern", "obuv"), terms(stripped, "&#269;ern&#225; obuv"));
+			assertIterableEquals(List.of("cern", "obuv"), terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "&#269;ern&#225; obuv"));
 		}
 
 	}
@@ -498,8 +502,10 @@ class HtmlMarkupStrippingAnalysisTest {
 		void shouldMeetIndexWhenQueryCarriesMarkup() {
 			// a pasted query with markup in it analyses to the same variants as the bare word, and those contain
 			// the index term of the stripped value
-			assertIterableEquals(terms(strippedSearch, "cerna"), terms(strippedSearch, "<b>cerna</b>"));
-			assertTrue(terms(strippedSearch, "<b>cerna</b>").containsAll(terms(stripped, "<p>Černá</p>")));
+			assertIterableEquals(terms(HtmlMarkupStrippingAnalysisTest.this.strippedSearch, "cerna"), terms(
+				HtmlMarkupStrippingAnalysisTest.this.strippedSearch, "<b>cerna</b>"));
+			assertTrue(terms(HtmlMarkupStrippingAnalysisTest.this.strippedSearch, "<b>cerna</b>").containsAll(terms(
+				HtmlMarkupStrippingAnalysisTest.this.stripped, "<p>Černá</p>")));
 		}
 
 		@Test
@@ -508,8 +514,10 @@ class HtmlMarkupStrippingAnalysisTest {
 			// the argument for declaring the step AnalysisMode.ALL: it carries no dictionary, no runtime state, and
 			// produces the same terms whichever side asks - on markup-free text both sides agree with production
 			for (final String plainText : List.of("černá pánská obuv", "cerna panska obuv", "Velikost 5 < 10")) {
-				assertIterableEquals(production.getTerms(plainText), stripped.getTerms(plainText));
-				assertIterableEquals(productionSearch.getTerms(plainText), strippedSearch.getTerms(plainText));
+				assertIterableEquals(HtmlMarkupStrippingAnalysisTest.this.production.getTerms(plainText), HtmlMarkupStrippingAnalysisTest.this.stripped.getTerms(plainText));
+				assertIterableEquals(
+					HtmlMarkupStrippingAnalysisTest.this.productionSearch.getTerms(plainText),
+					HtmlMarkupStrippingAnalysisTest.this.strippedSearch.getTerms(plainText));
 			}
 		}
 

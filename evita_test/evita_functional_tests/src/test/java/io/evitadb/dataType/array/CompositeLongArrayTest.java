@@ -86,12 +86,12 @@ class CompositeLongArrayTest {
 
 				@Override
 				public int nextInt() {
-					return source[index++];
+					return source[this.index++];
 				}
 
 				@Override
 				public boolean hasNext() {
-					return index < source.length;
+					return this.index < source.length;
 				}
 			};
 

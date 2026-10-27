@@ -101,8 +101,8 @@ class CancellationSupportTest {
 
 			final CompletableFuture<String> result =
 				CancellationSupport.submitWithCancellation(
-					requestContext,
-					executor,
+					CancellationSupportTest.this.requestContext,
+					CancellationSupportTest.this.executor,
 					() -> "hello"
 				);
 
@@ -125,8 +125,8 @@ class CancellationSupportTest {
 
 			final CompletableFuture<String> result =
 				CancellationSupport.submitWithCancellation(
-					requestContext,
-					executor,
+					CancellationSupportTest.this.requestContext,
+					CancellationSupportTest.this.executor,
 					() -> {
 						throw new RuntimeException("boom");
 					}
@@ -159,13 +159,13 @@ class CancellationSupportTest {
 
 			final CompletableFuture<String> result =
 				CancellationSupport.submitWithCancellation(
-					requestContext,
-					executor,
+					CancellationSupportTest.this.requestContext,
+					CancellationSupportTest.this.executor,
 					() -> "never"
 				);
 
 			// trigger request cancellation
-			cancelFuture.complete(
+			CancellationSupportTest.this.cancelFuture.complete(
 				new TimeoutException("client timeout")
 			);
 
@@ -208,8 +208,8 @@ class CancellationSupportTest {
 			final CompletableFuture<String> result =
 				CancellationSupport
 					.submitAsyncWithCancellation(
-						requestContext,
-						executor,
+						CancellationSupportTest.this.requestContext,
+						CancellationSupportTest.this.executor,
 						() -> innerFuture
 					);
 
@@ -242,8 +242,8 @@ class CancellationSupportTest {
 			final CompletableFuture<String> result =
 				CancellationSupport
 					.submitAsyncWithCancellation(
-						requestContext,
-						executor,
+						CancellationSupportTest.this.requestContext,
+						CancellationSupportTest.this.executor,
 						() -> innerFuture
 					);
 
@@ -281,13 +281,13 @@ class CancellationSupportTest {
 			final CompletableFuture<String> result =
 				CancellationSupport
 					.submitAsyncWithCancellation(
-						requestContext,
-						executor,
+						CancellationSupportTest.this.requestContext,
+						CancellationSupportTest.this.executor,
 						() -> innerFuture
 					);
 
 			// trigger request cancellation
-			cancelFuture.complete(
+			CancellationSupportTest.this.cancelFuture.complete(
 				new TimeoutException("cancelled")
 			);
 
@@ -311,8 +311,8 @@ class CancellationSupportTest {
 			final CompletableFuture<String> result =
 				CancellationSupport
 					.submitAsyncWithCancellation(
-						requestContext,
-						executor,
+						CancellationSupportTest.this.requestContext,
+						CancellationSupportTest.this.executor,
 						() -> {
 							throw new RuntimeException(
 								"sync setup fail"
@@ -346,10 +346,10 @@ class CancellationSupportTest {
 				new TestCancellableRunnable(() -> {});
 
 			CancellationSupport.wireCancellation(
-				requestContext, task
+				CancellationSupportTest.this.requestContext, task
 			);
 
-			cancelFuture.complete(
+			CancellationSupportTest.this.cancelFuture.complete(
 				new TimeoutException("client timeout")
 			);
 
@@ -370,10 +370,10 @@ class CancellationSupportTest {
 			task.run();
 
 			CancellationSupport.wireCancellation(
-				requestContext, task
+				CancellationSupportTest.this.requestContext, task
 			);
 
-			cancelFuture.complete(
+			CancellationSupportTest.this.cancelFuture.complete(
 				new TimeoutException("late cancel")
 			);
 
@@ -420,13 +420,13 @@ class CancellationSupportTest {
 				new CompletableFuture<>();
 
 			CancellationSupport.wireCancellation(
-				requestContext, task, result
+				CancellationSupportTest.this.requestContext, task, result
 			);
 
 			// trigger request cancellation before task finishes
 			final TimeoutException cause =
 				new TimeoutException("timeout");
-			cancelFuture.complete(cause);
+			CancellationSupportTest.this.cancelFuture.complete(cause);
 
 			// fire task completion stage
 			task.markFinished();
@@ -457,7 +457,7 @@ class CancellationSupportTest {
 				new CompletableFuture<>();
 
 			CancellationSupport.wireCancellation(
-				requestContext, task, result
+				CancellationSupportTest.this.requestContext, task, result
 			);
 
 			// mark task finished without request cancellation
@@ -482,7 +482,7 @@ class CancellationSupportTest {
 				new CompletableFuture<>();
 
 			CancellationSupport.wireCancellation(
-				requestContext, task, result
+				CancellationSupportTest.this.requestContext, task, result
 			);
 
 			// complete result first with a normal value

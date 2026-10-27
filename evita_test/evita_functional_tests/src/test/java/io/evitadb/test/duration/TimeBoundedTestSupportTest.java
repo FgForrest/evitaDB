@@ -86,7 +86,7 @@ class TimeBoundedTestSupportTest {
 		void shouldRunSingleIterationWhenIntervalIsZero() {
 			final AtomicInteger iterations = new AtomicInteger();
 
-			support.runFor(singleIteration(1), "state", (random, state) -> {
+			TimeBoundedTestSupportTest.this.support.runFor(singleIteration(1), "state", (random, state) -> {
 				iterations.incrementAndGet();
 				return state;
 			});
@@ -97,7 +97,7 @@ class TimeBoundedTestSupportTest {
 		@Test
 		@DisplayName("returns the state accumulated by the single test-body invocation")
 		void shouldReturnAccumulatedState() {
-			final int result = support.runFor(
+			final int result = TimeBoundedTestSupportTest.this.support.runFor(
 				singleIteration(7), 10, (random, state) -> state + 5
 			);
 
@@ -110,7 +110,7 @@ class TimeBoundedTestSupportTest {
 			final int seed = 42;
 			final List<Integer> drawn = new ArrayList<>(5);
 
-			support.runFor(singleIteration(seed), "state", (random, state) -> {
+			TimeBoundedTestSupportTest.this.support.runFor(singleIteration(seed), "state", (random, state) -> {
 				for (int i = 0; i < 5; i++) {
 					drawn.add(random.nextInt());
 				}
@@ -139,7 +139,7 @@ class TimeBoundedTestSupportTest {
 
 			final AssertionFailedError thrown = assertThrows(
 				AssertionFailedError.class,
-				() -> support.runFor(singleIteration(seed), "state", (random, state) -> {
+				() -> TimeBoundedTestSupportTest.this.support.runFor(singleIteration(seed), "state", (random, state) -> {
 					throw original;
 				})
 			);
@@ -160,7 +160,7 @@ class TimeBoundedTestSupportTest {
 
 			final RuntimeException thrown = assertThrows(
 				RuntimeException.class,
-				() -> support.runFor(singleIteration(seed), "state", (random, state) -> {
+				() -> TimeBoundedTestSupportTest.this.support.runFor(singleIteration(seed), "state", (random, state) -> {
 					throw original;
 				})
 			);
@@ -187,7 +187,7 @@ class TimeBoundedTestSupportTest {
 
 			assertThrows(
 				RuntimeException.class,
-				() -> support.<String>runFor(
+				() -> TimeBoundedTestSupportTest.this.support.<String>runFor(
 					singleIteration(99),
 					0,
 					"initial",
@@ -210,7 +210,7 @@ class TimeBoundedTestSupportTest {
 		void shouldNotInvokeCallbackOnSuccess() {
 			final AtomicBoolean invoked = new AtomicBoolean(false);
 
-			final String result = support.<String>runFor(
+			final String result = TimeBoundedTestSupportTest.this.support.<String>runFor(
 				singleIteration(3),
 				0,
 				"state",

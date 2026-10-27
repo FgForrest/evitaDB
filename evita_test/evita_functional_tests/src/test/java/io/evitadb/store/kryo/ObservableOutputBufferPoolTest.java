@@ -23,7 +23,6 @@
 
 package io.evitadb.store.kryo;
 
-import java.util.zip.Deflater;
 import io.evitadb.core.metric.event.storage.ObservableOutputChangeEvent;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.checksum.Checksum;
@@ -49,13 +48,14 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.Deflater;
 
-import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.SERIALIZATION;
+import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -80,26 +80,26 @@ class ObservableOutputBufferPoolTest {
 		@Test
 		@DisplayName("Should reuse arrays and keep exact sizes apart")
 		void shouldReuseArraysAndKeepExactSizesApart() {
-			final byte[] first = pool.borrow(137);
-			final byte[] second = pool.borrow(139);
+			final byte[] first = ObservableOutputBufferPoolTest.this.pool.borrow(137);
+			final byte[] second = ObservableOutputBufferPoolTest.this.pool.borrow(139);
 			assertEquals(137, first.length);
 			assertEquals(139, second.length);
-			pool.release(first);
-			pool.release(second);
-			final byte[] reusedFirst = pool.borrow(137);
-			final byte[] reusedSecond = pool.borrow(139);
+			ObservableOutputBufferPoolTest.this.pool.release(first);
+			ObservableOutputBufferPoolTest.this.pool.release(second);
+			final byte[] reusedFirst = ObservableOutputBufferPoolTest.this.pool.borrow(137);
+			final byte[] reusedSecond = ObservableOutputBufferPoolTest.this.pool.borrow(139);
 			assertSame(first, reusedFirst);
 			assertSame(second, reusedSecond);
-			pool.release(reusedFirst);
-			pool.release(reusedSecond);
+			ObservableOutputBufferPoolTest.this.pool.release(reusedFirst);
+			ObservableOutputBufferPoolTest.this.pool.release(reusedSecond);
 		}
 
 		/** A buffer that could not hold a single byte is a caller error, not an empty borrow. */
 		@Test
 		@DisplayName("Should reject borrowing a non-positive size")
 		void shouldRejectNonPositiveSize() {
-			assertThrows(GenericEvitaInternalError.class, () -> pool.borrow(0));
-			assertThrows(GenericEvitaInternalError.class, () -> pool.borrow(-1));
+			assertThrows(GenericEvitaInternalError.class, () -> ObservableOutputBufferPoolTest.this.pool.borrow(0));
+			assertThrows(GenericEvitaInternalError.class, () -> ObservableOutputBufferPoolTest.this.pool.borrow(-1));
 		}
 
 		/** Excess idle arrays are discarded instead of increasing the retained ceiling. */
@@ -110,18 +110,18 @@ class ObservableOutputBufferPoolTest {
 			final List<byte[]> borrowed = new ArrayList<>(cores + 2);
 			final Set<byte[]> originals = Collections.newSetFromMap(new IdentityHashMap<>());
 			for (int i = 0; i < cores + 2; i++) {
-				final byte[] buffer = pool.borrow(149);
+				final byte[] buffer = ObservableOutputBufferPoolTest.this.pool.borrow(149);
 				borrowed.add(buffer);
 				originals.add(buffer);
 			}
-			borrowed.forEach(pool::release);
+			borrowed.forEach(ObservableOutputBufferPoolTest.this.pool::release);
 			borrowed.clear();
 			for (int i = 0; i < cores + 1; i++) {
-				final byte[] buffer = pool.borrow(149);
+				final byte[] buffer = ObservableOutputBufferPoolTest.this.pool.borrow(149);
 				borrowed.add(buffer);
 				assertEquals(i < cores, originals.contains(buffer));
 			}
-			borrowed.forEach(pool::release);
+			borrowed.forEach(ObservableOutputBufferPoolTest.this.pool::release);
 		}
 
 		/**
@@ -134,7 +134,8 @@ class ObservableOutputBufferPoolTest {
 			try {
 				for (int i = 0; i < 200; i++) {
 					outputs.add(new ObservableOutput<>(
-						new ByteArrayOutputStream(), 163, 0L, Checksum.NO_OP, null, pool
+						new ByteArrayOutputStream(), 163, 0L, Checksum.NO_OP, null,
+						ObservableOutputBufferPoolTest.this.pool
 					));
 				}
 				for (ObservableOutput<ByteArrayOutputStream> output : outputs) {
@@ -177,14 +178,14 @@ class ObservableOutputBufferPoolTest {
 				try {
 					for (int i = 0; i < holders; i++) {
 						futures.add(executor.submit(() -> {
-							final byte[] buffer = pool.borrow(151);
+							final byte[] buffer = ObservableOutputBufferPoolTest.this.pool.borrow(151);
 							try {
 								assertTrue(active.add(buffer));
 								borrowed.countDown();
 								assertTrue(release.await(30, TimeUnit.SECONDS));
 							} finally {
 								active.remove(buffer);
-								pool.release(buffer);
+								ObservableOutputBufferPoolTest.this.pool.release(buffer);
 							}
 							return null;
 						}));
@@ -213,9 +214,10 @@ class ObservableOutputBufferPoolTest {
 		@Test
 		@DisplayName("Should reuse both compressed frame arrays after warm-up on one CPU")
 		void shouldReuseBothCompressedArraysOnOneCpu() throws Exception {
-			final Path recordingPath = directory.resolve("compressed.jfr");
+			final Path recordingPath = ObservableOutputBufferPoolTest.this.directory.resolve("compressed.jfr");
 			try (final ObservableOutput<ByteArrayOutputStream> output = new ObservableOutput<>(
-				new ByteArrayOutputStream(), 1024, 0, Checksum.NO_OP, new Deflater(), pool
+				new ByteArrayOutputStream(), 1024, 0, Checksum.NO_OP, new Deflater(),
+				ObservableOutputBufferPoolTest.this.pool
 			)) {
 				new StorageRecord<>(output, 1L, false, out -> {
 					out.writeBytes(new byte[500]);
@@ -245,12 +247,12 @@ class ObservableOutputBufferPoolTest {
 		@Test
 		@DisplayName("Should bound idle memory across many distinct sizes")
 		void shouldBoundIdleMemoryAcrossManySizes() throws Exception {
-			final Path recordingPath = directory.resolve("many-sizes.jfr");
+			final Path recordingPath = ObservableOutputBufferPoolTest.this.directory.resolve("many-sizes.jfr");
 			try (final Recording recording = new Recording()) {
 				recording.enable(ObservableOutputChangeEvent.class).withoutStackTrace();
 				recording.start();
 				for (int size = 100; size < 200; size++) {
-					pool.release(pool.borrow(size));
+					ObservableOutputBufferPoolTest.this.pool.release(ObservableOutputBufferPoolTest.this.pool.borrow(size));
 				}
 				recording.stop();
 				recording.dump(recordingPath);
@@ -273,16 +275,16 @@ class ObservableOutputBufferPoolTest {
 			final int count = 3;
 			final int size = 157;
 			final List<byte[]> buffers = new ArrayList<>(count);
-			final Path recordingPath = directory.resolve("buffers.jfr");
+			final Path recordingPath = ObservableOutputBufferPoolTest.this.directory.resolve("buffers.jfr");
 			try (final Recording recording = new Recording()) {
 				recording.enable(ObservableOutputChangeEvent.class).withoutStackTrace();
 				recording.start();
 				for (int i = 0; i < count; i++) {
-					buffers.add(pool.borrow(size));
+					buffers.add(ObservableOutputBufferPoolTest.this.pool.borrow(size));
 				}
-				buffers.forEach(pool::release);
+				buffers.forEach(ObservableOutputBufferPoolTest.this.pool::release);
 				for (int i = 0; i < count * 2; i++) {
-					pool.release(pool.borrow(size));
+					ObservableOutputBufferPoolTest.this.pool.release(ObservableOutputBufferPoolTest.this.pool.borrow(size));
 				}
 				recording.stop();
 				recording.dump(recordingPath);

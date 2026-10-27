@@ -126,7 +126,7 @@ class JsonApiTracingContextAsyncTest {
 				final String value = result.get();
 				assertEquals("done", value);
 
-				final List<SpanData> spans = spanExporter.getFinishedSpanItems();
+				final List<SpanData> spans = JsonApiTracingContextAsyncTest.this.spanExporter.getFinishedSpanItems();
 				assertFalse(spans.isEmpty(), "At least one span should be exported");
 
 				final SpanData spanData = spans.getLast();
@@ -162,7 +162,7 @@ class JsonApiTracingContextAsyncTest {
 
 				assertTrue(result.isCompletedExceptionally());
 
-				final List<SpanData> spans = spanExporter.getFinishedSpanItems();
+				final List<SpanData> spans = JsonApiTracingContextAsyncTest.this.spanExporter.getFinishedSpanItems();
 				assertFalse(spans.isEmpty());
 
 				final SpanData spanData = spans.getLast();
@@ -202,7 +202,7 @@ class JsonApiTracingContextAsyncTest {
 				}
 
 				// span should be ended with ERROR status
-				final List<SpanData> spans = spanExporter.getFinishedSpanItems();
+				final List<SpanData> spans = JsonApiTracingContextAsyncTest.this.spanExporter.getFinishedSpanItems();
 				assertFalse(spans.isEmpty());
 
 				final SpanData spanData = spans.getLast();
@@ -241,7 +241,7 @@ class JsonApiTracingContextAsyncTest {
 				}
 
 				// span should still be ended properly
-				final List<SpanData> spans = spanExporter.getFinishedSpanItems();
+				final List<SpanData> spans = JsonApiTracingContextAsyncTest.this.spanExporter.getFinishedSpanItems();
 				assertFalse(spans.isEmpty(), "Span should be ended even when lambda returns null");
 			}
 		}
@@ -271,7 +271,7 @@ class JsonApiTracingContextAsyncTest {
 				assertEquals("result", result.get());
 
 				// no spans should be exported
-				final List<SpanData> spans = spanExporter.getFinishedSpanItems();
+				final List<SpanData> spans = JsonApiTracingContextAsyncTest.this.spanExporter.getFinishedSpanItems();
 				assertTrue(spans.isEmpty());
 			}
 		}

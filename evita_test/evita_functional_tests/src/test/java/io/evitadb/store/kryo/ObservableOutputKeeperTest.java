@@ -80,15 +80,15 @@ class ObservableOutputKeeperTest {
 		@Test
 		@DisplayName("Should cache a detached output between leases")
 		void shouldCacheDetachedOutputBetweenLeases() {
-			final Path path = directory.resolve("data.bin");
-			final ObservableOutput<?> first = keeper.executeWithOutput(path, ObservableOutputKeeperTest.this::createOutput,
-				output -> {
+			final Path path = ObservableOutputKeeperTest.this.directory.resolve("data.bin");
+			final ObservableOutput<?> first = ObservableOutputKeeperTest.this.keeper.executeWithOutput(path, ObservableOutputKeeperTest.this::createOutput,
+			                                                                                           output -> {
 					output.writeInt(123);
 					output.flush();
 					return output;
 				});
 			assertEquals(0, first.getBuffer().length);
-			keeper.executeWithOutput(path, ObservableOutputKeeperTest.this::createOutput, output -> {
+			ObservableOutputKeeperTest.this.keeper.executeWithOutput(path, ObservableOutputKeeperTest.this::createOutput, output -> {
 				assertSame(first, output);
 			});
 		}
@@ -97,13 +97,13 @@ class ObservableOutputKeeperTest {
 		@Test
 		@DisplayName("Should close a cached stream explicitly")
 		void shouldCloseCachedStreamExplicitly() {
-			final Path path = directory.resolve("data.bin");
-			final ObservableOutput<FileOutputStream> first = keeper.executeWithOutput(
+			final Path path = ObservableOutputKeeperTest.this.directory.resolve("data.bin");
+			final ObservableOutput<FileOutputStream> first = ObservableOutputKeeperTest.this.keeper.executeWithOutput(
 				path, ObservableOutputKeeperTest.this::createOutput, output -> output
 			);
-			keeper.close(path);
+			ObservableOutputKeeperTest.this.keeper.close(path);
 			assertFalse(first.getOutputStream().getChannel().isOpen());
-			keeper.executeWithOutput(path, ObservableOutputKeeperTest.this::createOutput, output -> {
+			ObservableOutputKeeperTest.this.keeper.executeWithOutput(path, ObservableOutputKeeperTest.this::createOutput, output -> {
 				assertNotSame(first, output);
 			});
 		}
@@ -112,19 +112,19 @@ class ObservableOutputKeeperTest {
 		@Test
 		@DisplayName("Should close inactive streams")
 		void shouldCloseInactiveStreams() throws ReflectiveOperationException {
-			final Path path = directory.resolve("data.bin");
-			final ObservableOutput<FileOutputStream> output = keeper.executeWithOutput(
+			final Path path = ObservableOutputKeeperTest.this.directory.resolve("data.bin");
+			final ObservableOutput<FileOutputStream> output = ObservableOutputKeeperTest.this.keeper.executeWithOutput(
 				path, ObservableOutputKeeperTest.this::createOutput, stream -> stream
 			);
 			final Field cache = ObservableOutputKeeper.class.getDeclaredField("cachedOutputToFiles");
 			cache.setAccessible(true);
-			final Object entry = ((Map<?, ?>) cache.get(keeper)).get(path);
+			final Object entry = ((Map<?, ?>) cache.get(ObservableOutputKeeperTest.this.keeper)).get(path);
 			final Field touched = entry.getClass().getDeclaredField("lastReadTime");
 			touched.setAccessible(true);
 			touched.setLong(entry, System.currentTimeMillis() - 400_000L);
 			final Method cut = ObservableOutputKeeper.class.getDeclaredMethod("cutOutputCache");
 			cut.setAccessible(true);
-			assertEquals(-1L, cut.invoke(keeper));
+			assertEquals(-1L, cut.invoke(ObservableOutputKeeperTest.this.keeper));
 			assertFalse(output.getOutputStream().getChannel().isOpen());
 		}
 
@@ -136,8 +136,8 @@ class ObservableOutputKeeperTest {
 		@Test
 		@DisplayName("Should retry leasing when the cutter closed the entry after lookup")
 		void shouldRetryLeaseWhenCutClosesEntryAfterLookup() throws ReflectiveOperationException {
-			final Path path = directory.resolve("lease-race.bin");
-			final ObservableOutput<FileOutputStream> original = keeper.executeWithOutput(
+			final Path path = ObservableOutputKeeperTest.this.directory.resolve("lease-race.bin");
+			final ObservableOutput<FileOutputStream> original = ObservableOutputKeeperTest.this.keeper.executeWithOutput(
 				path, ObservableOutputKeeperTest.this::createOutput, output -> output);
 			final Field cache = ObservableOutputKeeper.class.getDeclaredField("cachedOutputToFiles");
 			cache.setAccessible(true);
@@ -163,9 +163,10 @@ class ObservableOutputKeeperTest {
 						return entry;
 					}
 				};
-			((Map<?, ?>) cache.get(keeper)).forEach((key, entry) -> interleavingCache.put((Path) key, entry));
-			cache.set(keeper, interleavingCache);
-			keeper.executeWithOutput(path, ObservableOutputKeeperTest.this::createOutput, output -> {
+			((Map<?, ?>) cache.get(
+				ObservableOutputKeeperTest.this.keeper)).forEach((key, entry) -> interleavingCache.put((Path) key, entry));
+			cache.set(ObservableOutputKeeperTest.this.keeper, interleavingCache);
+			ObservableOutputKeeperTest.this.keeper.executeWithOutput(path, ObservableOutputKeeperTest.this::createOutput, output -> {
 				assertNotSame(original, output);
 				new StorageRecord<>(output, 1L, false, out -> {
 					out.writeInt(42);
@@ -183,15 +184,15 @@ class ObservableOutputKeeperTest {
 		@Test
 		@DisplayName("Should preserve a leased output and its frame during a cut")
 		void shouldPreserveLeasedOutputDuringCut() throws ReflectiveOperationException {
-			final Path path = directory.resolve("held-lease.bin");
-			keeper.executeWithOutput(path, ObservableOutputKeeperTest.this::createOutput, output -> {
+			final Path path = ObservableOutputKeeperTest.this.directory.resolve("held-lease.bin");
+			ObservableOutputKeeperTest.this.keeper.executeWithOutput(path, ObservableOutputKeeperTest.this::createOutput, output -> {
 				output.markStart();
 				output.writeInt(42);
 				final byte[] buffer = output.getBuffer();
 				try {
 					final Field cache = ObservableOutputKeeper.class.getDeclaredField("cachedOutputToFiles");
 					cache.setAccessible(true);
-					expireAndCut(((Map<?, ?>) cache.get(keeper)).get(path));
+					expireAndCut(((Map<?, ?>) cache.get(ObservableOutputKeeperTest.this.keeper)).get(path));
 				} catch (ReflectiveOperationException exception) {
 					throw new IllegalStateException(exception);
 				}
@@ -205,12 +206,12 @@ class ObservableOutputKeeperTest {
 		@Test
 		@DisplayName("Should reopen the output at the file length after a frame was partially appended")
 		void shouldReopenOutputAfterPartiallyAppendedFrame() {
-			final Path path = directory.resolve("data.bin");
+			final Path path = ObservableOutputKeeperTest.this.directory.resolve("data.bin");
 			final AtomicInteger openedOutputs = new AtomicInteger();
 			final Function<Path, ObservableOutput<FileOutputStream>> createFct =
 				target -> createOutputAtFileLength(target, openedOutputs.getAndIncrement() == 0);
 			final AtomicReference<ObservableOutput<?>> failed = new AtomicReference<>();
-			assertThrows(KryoException.class, () -> keeper.executeWithOutput(path, createFct, output -> {
+			assertThrows(KryoException.class, () -> ObservableOutputKeeperTest.this.keeper.executeWithOutput(path, createFct, output -> {
 				failed.set(output);
 				new StorageRecord<>(output, 1L, false, out -> {
 					out.writeBytes(new byte[32]);
@@ -220,7 +221,7 @@ class ObservableOutputKeeperTest {
 			final long partialLength = path.toFile().length();
 			assertEquals(StorageRecord.CRC_NOT_COVERED_HEAD, partialLength);
 
-			final FileLocation location = keeper.executeWithOutput(path, createFct, output -> {
+			final FileLocation location = ObservableOutputKeeperTest.this.keeper.executeWithOutput(path, createFct, output -> {
 				assertNotSame(failed.get(), output);
 				return new StorageRecord<>(output, 2L, false, out -> {
 					out.writeBytes(new byte[8]);
