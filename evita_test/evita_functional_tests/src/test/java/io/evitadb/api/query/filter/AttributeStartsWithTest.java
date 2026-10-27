@@ -142,7 +142,7 @@ class AttributeStartsWithTest {
 		void shouldReturnCorrectType() {
 			final AttributeStartsWith constraint = attributeStartsWith("abc", "def");
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 	}
 

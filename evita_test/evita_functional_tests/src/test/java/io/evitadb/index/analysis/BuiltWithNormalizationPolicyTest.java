@@ -32,6 +32,7 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
@@ -122,7 +123,7 @@ class BuiltWithNormalizationPolicyTest {
 	@DisplayName("A partial NULL compound pins only its non-null String elements")
 	void shouldReportStringKeysOnlyForNonNullStringCompoundElements(boolean present) {
 		final EntitySchemaContract schema = builder()
-			.withAttribute("code", String.class, a -> a.nullable())
+			.withAttribute("code", String.class, AttributeSchemaEditor::nullable)
 			.withAttribute("other", Integer.class)
 			.withSortableAttributeCompound("compound",
 				new AttributeElement("code", OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
@@ -230,7 +231,7 @@ class BuiltWithNormalizationPolicyTest {
 			try (final Input input = new Input(output.toBytes())) {
 				final ModifyAttributeSchemaTypeMutation mutation =
 					(ModifyAttributeSchemaTypeMutation) kryo.readClassAndObject(input);
-				assertEquals(type, mutation.getType());
+				assertSame(type, mutation.getType());
 				assertEquals(2, mutation.getIndexedDecimalPlaces());
 				assertEquals(output.position(), input.position());
 			}

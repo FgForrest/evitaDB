@@ -25,6 +25,7 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.QueryConstraints;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -120,7 +121,7 @@ class EntityLocaleEqualsTest {
 		@Test
 		@DisplayName("should return FilterConstraint type")
 		void shouldReturnFilterConstraintType() {
-			assertEquals(FilterConstraint.class, entityLocaleEquals(Locale.ENGLISH).getType());
+			assertSame(FilterConstraint.class, QueryConstraints.entityLocaleEquals(Locale.ENGLISH).getType());
 		}
 
 		@Test
@@ -129,7 +130,7 @@ class EntityLocaleEqualsTest {
 			final EntityLocaleEquals constraint = entityLocaleEquals(Locale.ENGLISH);
 			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
 
-			constraint.accept(c -> visited.set(c));
+			constraint.accept(visited::set);
 
 			assertSame(constraint, visited.get());
 		}

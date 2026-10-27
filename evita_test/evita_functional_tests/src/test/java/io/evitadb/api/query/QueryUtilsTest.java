@@ -74,8 +74,8 @@ class QueryUtilsTest {
 	@Nonnull
 	static Stream<Arguments> differentEntityContainers() {
 		return Stream.of(
-			Arguments.of("entityHaving", (Function<FilterConstraint, FilterConstraint>) it -> entityHaving(it)),
-			Arguments.of("groupHaving", (Function<FilterConstraint, FilterConstraint>) it -> groupHaving(it)),
+			Arguments.of("entityHaving", (Function<FilterConstraint, FilterConstraint>) QueryConstraints::entityHaving),
+			Arguments.of("groupHaving", (Function<FilterConstraint, FilterConstraint>) QueryConstraints::groupHaving),
 			Arguments.of(
 				"hierarchyWithin", (Function<FilterConstraint, FilterConstraint>) it -> hierarchyWithin("category", it)
 			),
@@ -390,7 +390,7 @@ class QueryUtilsTest {
 			);
 			final List<Constraint<?>> found = QueryUtils.findConstraints(
 				filterBy,
-				c -> c instanceof AttributeEquals
+				AttributeEquals.class::isInstance
 			);
 			assertEquals(2, found.size());
 		}

@@ -29,6 +29,7 @@ import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.IndexNotFoundException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.statistics.AttributeIndexType;
 import io.evitadb.api.statistics.BrowsedIndex;
 import io.evitadb.api.statistics.CollectionIndexCardinality.AttributeCardinality;
@@ -403,7 +404,7 @@ class IndexDetailTest implements EvitaTestSupport {
 					.withAttribute("code", String.class, AttributeSchemaEditor::filterable)
 					.withReferenceToEntity(
 						"categories", ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.indexedForFilteringAndPartitioning()
+						ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 					)
 					.updateVia(session);
 				for (int i = 1; i <= CATEGORY_COUNT; i++) {

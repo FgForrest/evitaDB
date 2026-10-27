@@ -89,7 +89,7 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 					.withAttribute(
 						"greetings",
 						String.class,
-						whichIs -> whichIs.localized()
+						AttributeSchemaEditor::localized
 					)
 					.toInstance()
 			)

@@ -188,7 +188,7 @@ class AttributeBetweenTest {
 		void shouldReturnCorrectType() {
 			final AttributeBetween constraint = attributeBetween("abc", 1, 10);
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 	}
 

@@ -144,7 +144,7 @@ class EntityPropertyTest implements EvitaTestSupport {
 		void shouldReturnOrderConstraintClassAsType() {
 			final EntityProperty constraint = entityProperty(priceNatural());
 
-			assertEquals(OrderConstraint.class, constraint.getType());
+			assertSame(OrderConstraint.class, constraint.getType());
 		}
 
 		@Test

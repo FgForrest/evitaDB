@@ -96,6 +96,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -108,14 +109,14 @@ import java.time.OffsetDateTime;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.UUID;
-import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.WAL;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
  * This test verifies serialization and deserialization of all mutation serializers configured in WalKryoConfigurer.
@@ -171,7 +172,7 @@ public class WalMutationSerializationTest {
 			"testAttribute", attributeType, 2
 		);
 		final ModifyAttributeSchemaTypeMutation deserialized = deserialize(mutation);
-		assertEquals(attributeType, deserialized.getType());
+		assertSame(attributeType, deserialized.getType());
 		assertEquals(2, deserialized.getIndexedDecimalPlaces());
 		assertEquals(mutation, deserialized);
 	}

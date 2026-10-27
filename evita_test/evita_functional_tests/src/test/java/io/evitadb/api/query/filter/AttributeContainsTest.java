@@ -142,7 +142,7 @@ class AttributeContainsTest {
 		void shouldReturnCorrectType() {
 			final AttributeContains constraint = attributeContains("abc", "def");
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 	}
 

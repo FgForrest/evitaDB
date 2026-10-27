@@ -34,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.PROXY;
 import static io.evitadb.test.TestTags.CACHE;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
  * Tests for {@link ProxyEntityCacheKey} record which serves as cache key for proxy recipe lookup.
@@ -99,9 +100,9 @@ class ProxyEntityCacheKeyTest {
 		final ProxyEntityCacheKey key = new ProxyEntityCacheKey(
 			String.class, "product", Integer.class, "brand"
 		);
-		assertEquals(String.class, key.type());
+		assertSame(String.class, key.type());
 		assertEquals("product", key.entityName());
-		assertEquals(Integer.class, key.subType());
+		assertSame(Integer.class, key.subType());
 		assertEquals("brand", key.referenceName());
 	}
 

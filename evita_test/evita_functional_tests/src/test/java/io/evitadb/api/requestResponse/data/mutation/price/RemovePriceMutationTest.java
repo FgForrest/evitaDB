@@ -29,19 +29,20 @@ import io.evitadb.api.requestResponse.data.mutation.AbstractMutationTest;
 import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.dataType.DateTimeRange;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Currency;
-import org.junit.jupiter.api.Tag;
 
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.PRICE;
+import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static io.evitadb.test.TestTags.CONTRACT;
-import static io.evitadb.test.TestTags.QUERY;
-import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * This test verifies contract of {@link RemovePriceMutation} mutation.
@@ -71,7 +72,7 @@ class RemovePriceMutationTest extends AbstractMutationTest {
 		assertEquals(2L, removedPrice.version());
 		assertEquals(1, removedPrice.priceId());
 		assertEquals("basic", removedPrice.priceList());
-		assertEquals(CZK, removedPrice.currency());
+		assertSame(CZK, removedPrice.currency());
 		assertEquals(2, removedPrice.innerRecordId());
 		assertEquals(BigDecimal.ONE, removedPrice.priceWithoutTax());
 		assertEquals(BigDecimal.ZERO, removedPrice.taxRate());

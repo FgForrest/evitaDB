@@ -159,7 +159,7 @@ class AttributeGreaterThanEqualsTest {
 		void shouldReturnCorrectType() {
 			final AttributeGreaterThanEquals constraint = attributeGreaterThanEquals("abc", "def");
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 	}
 

@@ -500,7 +500,7 @@ class ChampMapTest {
 			assertThrows(UnsupportedOperationException.class, () -> map.computeIfAbsent(3, k -> 30));
 			assertThrows(UnsupportedOperationException.class, () -> map.computeIfPresent(1, (k, v) -> 111));
 			assertThrows(UnsupportedOperationException.class, () -> map.computeIfPresent(99, (k, v) -> 1));
-			assertThrows(UnsupportedOperationException.class, () -> map.merge(1, 5, (a, b) -> a + b));
+			assertThrows(UnsupportedOperationException.class, () -> map.merge(1, 5, Integer::sum));
 			assertThrows(UnsupportedOperationException.class, () -> map.merge(99, 1, (a, b) -> a));
 			assertThrows(UnsupportedOperationException.class, () -> map.replaceAll((k, v) -> v));
 		}

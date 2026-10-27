@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -546,7 +547,7 @@ class SchemaMutationCombinationAcrossRenameTest {
 		@Nonnull String entityType
 	) {
 		return new InternalEntitySchemaBuilder(catalogSchema, EntitySchema._internalBuild(entityType))
-			.withReferenceTo("brand", "Brand", Cardinality.ZERO_OR_MORE, whichIs -> whichIs.nonIndexed())
+			.withReferenceTo("brand", "Brand", Cardinality.ZERO_OR_MORE, ReferenceSchemaEditor::nonIndexed)
 			.toInstance();
 	}
 

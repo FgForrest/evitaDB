@@ -27,6 +27,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.test.EvitaTestSupport;
@@ -85,7 +86,7 @@ class FacetPrimaryKeyInFilterFunctionalTest implements EvitaTestSupport {
 					.withReferenceToEntity(
 						BRAND, BRAND, Cardinality.EXACTLY_ONE,
 						whichIs -> whichIs.indexedForFiltering().faceted()
-							.withAttribute("code", String.class, attribute -> attribute.filterable())
+							.withAttribute("code", String.class, AttributeSchemaEditor::filterable)
 					)
 					.updateVia(session);
 				session.upsertEntity(session.createNewEntity(BRAND, 5));

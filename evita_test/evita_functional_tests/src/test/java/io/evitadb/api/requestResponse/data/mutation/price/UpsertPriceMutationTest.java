@@ -28,20 +28,17 @@ import io.evitadb.api.requestResponse.data.mutation.AbstractMutationTest;
 import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.dataType.DateTimeRange;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Currency;
-import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
-import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.PRICE;
+import static io.evitadb.test.TestTags.QUERY;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies contract of {@link UpsertPriceMutation} mutation.
@@ -71,7 +68,7 @@ class UpsertPriceMutationTest extends AbstractMutationTest {
 		assertEquals(1L, createdPrice.version());
 		assertEquals(1, createdPrice.priceId());
 		assertEquals("basic", createdPrice.priceList());
-		assertEquals(CZK, createdPrice.currency());
+		assertSame(CZK, createdPrice.currency());
 		assertEquals(2, createdPrice.innerRecordId());
 		assertEquals(BigDecimal.ONE, createdPrice.priceWithoutTax());
 		assertEquals(BigDecimal.ZERO, createdPrice.taxRate());
@@ -94,7 +91,7 @@ class UpsertPriceMutationTest extends AbstractMutationTest {
 		assertEquals(1L, createdPrice.version());
 		assertEquals(1, createdPrice.priceId());
 		assertEquals("basic", createdPrice.priceList());
-		assertEquals(CZK, createdPrice.currency());
+		assertSame(CZK, createdPrice.currency());
 		assertEquals(2, createdPrice.innerRecordId());
 		assertEquals(BigDecimal.ONE, createdPrice.priceWithoutTax());
 		assertEquals(BigDecimal.ZERO, createdPrice.taxRate());
@@ -128,7 +125,7 @@ class UpsertPriceMutationTest extends AbstractMutationTest {
 		assertEquals(2L, updatedPrice.version());
 		assertEquals(1, updatedPrice.priceId());
 		assertEquals("basic", updatedPrice.priceList());
-		assertEquals(CZK, updatedPrice.currency());
+		assertSame(CZK, updatedPrice.currency());
 		assertEquals(5, updatedPrice.innerRecordId());
 		assertEquals(BigDecimal.TEN, updatedPrice.priceWithoutTax());
 		assertEquals(BigDecimal.ONE, updatedPrice.taxRate());

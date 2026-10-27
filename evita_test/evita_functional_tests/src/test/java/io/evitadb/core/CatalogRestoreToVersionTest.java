@@ -35,6 +35,7 @@ import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
@@ -637,7 +638,7 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 						.withGeneratedPrimaryKey()
 						.withReferenceToEntity(
 							REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
-							whichIs -> whichIs.indexedForFiltering()
+							ReferenceSchemaEditor::indexedForFiltering
 						)
 						.updateVia(session);
 					session.upsertEntity(session.createNewEntity(Entities.PRODUCT).setReference(REFERENCE_BRAND, 1));

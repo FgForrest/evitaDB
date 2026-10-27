@@ -1714,7 +1714,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
 					entity.getPrices(CURRENCY_CZK).stream()
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
-			.map(entity -> entity.getPrimaryKey())
+			.map(EntityContract::getPrimaryKey)
 			.findFirst()
 			.orElseThrow();
 
@@ -1783,7 +1783,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
 					entity.getPrices(CURRENCY_CZK).stream()
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
-			.map(entity -> entity.getPrimaryKey())
+			.map(EntityContract::getPrimaryKey)
 			.findFirst()
 			.orElseThrow();
 
@@ -1847,7 +1847,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
 					entity.getPrices(CURRENCY_CZK).stream()
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
-			.map(entity -> entity.getPrimaryKey())
+			.map(EntityContract::getPrimaryKey)
 			.findFirst()
 			.orElseThrow();
 
@@ -1891,7 +1891,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
 					entity.getPrices(CURRENCY_CZK).stream()
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
-			.map(entity -> entity.getPrimaryKey())
+			.map(EntityContract::getPrimaryKey)
 			.findFirst()
 			.orElseThrow();
 
@@ -1940,7 +1940,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
 					entity.getPrices(CURRENCY_CZK).stream()
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
-			.map(entity -> entity.getPrimaryKey())
+			.map(EntityContract::getPrimaryKey)
 			.findFirst()
 			.orElseThrow();
 

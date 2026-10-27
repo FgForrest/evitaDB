@@ -203,7 +203,7 @@ class PriceBetweenTest {
 		void shouldReturnCorrectType() {
 			final PriceBetween between = priceBetween(new BigDecimal("1"), new BigDecimal("2"));
 
-			assertEquals(FilterConstraint.class, between.getType());
+			assertSame(FilterConstraint.class, between.getType());
 		}
 	}
 

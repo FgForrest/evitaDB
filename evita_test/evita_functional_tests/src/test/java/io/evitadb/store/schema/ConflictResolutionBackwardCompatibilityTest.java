@@ -31,6 +31,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -528,8 +529,8 @@ class ConflictResolutionBackwardCompatibilityTest {
 			),
 			EntitySchema._internalBuild(Entities.PRODUCT)
 		)
-			.withAttribute("code", String.class, whichIs -> whichIs.sortable())
-			.withAttribute("name", String.class, whichIs -> whichIs.sortable())
+			.withAttribute("code", String.class, AttributeSchemaEditor::sortable)
+			.withAttribute("name", String.class, AttributeSchemaEditor::sortable)
 			.withSortableAttributeCompound(
 				"codeName",
 				new AttributeElement("code", OrderDirection.ASC, OrderBehaviour.NULLS_LAST),

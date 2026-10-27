@@ -156,7 +156,7 @@ class AttributeLessThanTest {
 		void shouldReturnCorrectType() {
 			final AttributeLessThan constraint = attributeLessThan("abc", "def");
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 	}
 

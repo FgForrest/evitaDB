@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -121,7 +122,7 @@ abstract class AbstractConstraintResolverTest {
 		)
 			.withPrice()
 			.withAttribute("CODE", String.class)
-			.withAttribute("AGE", Integer.class, thatIs -> thatIs.filterable())
+			.withAttribute("AGE", Integer.class, AttributeSchemaEditor::filterable)
 			.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, thatIs -> thatIs
 				.withAttribute("CODE", String.class)
 				.withGroupTypeRelatedToEntity("categoryGroup"))

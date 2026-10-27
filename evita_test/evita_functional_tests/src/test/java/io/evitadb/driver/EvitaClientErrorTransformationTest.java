@@ -48,10 +48,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.DRIVER;
 import static io.evitadb.test.TestTags.OBSERVABILITY;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link EvitaClient#transformStatusRuntimeException(StatusRuntimeException, Runnable)} — the point where
@@ -198,7 +195,7 @@ class EvitaClientErrorTransformationTest {
 
 			final RuntimeException result = transformSentByServer(other);
 
-			assertEquals(EvitaInvalidUsageException.class, result.getClass());
+			assertSame(EvitaInvalidUsageException.class, result.getClass());
 			assertEquals(other.getErrorCode(), ((EvitaInvalidUsageException) result).getErrorCode());
 		}
 

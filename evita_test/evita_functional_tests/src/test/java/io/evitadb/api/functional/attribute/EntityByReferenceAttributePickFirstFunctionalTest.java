@@ -31,6 +31,7 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -334,25 +335,25 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 				REFERENCE_TARGETS_FILTERING, ENTITY_TARGET, Cardinality.ZERO_OR_MORE,
 				whichIs -> whichIs.indexedForFiltering()
 					.withAttribute(ATTRIBUTE_ORDER, Integer.class, thatIs -> thatIs.filterable().sortable().nullable())
-					.withAttribute(ATTRIBUTE_KIND, String.class, thatIs -> thatIs.filterable())
+					.withAttribute(ATTRIBUTE_KIND, String.class, AttributeSchemaEditor::filterable)
 			)
 			.withReferenceToEntity(
 				REFERENCE_TARGETS_PARTITIONING, ENTITY_TARGET, Cardinality.ZERO_OR_MORE,
 				whichIs -> whichIs.indexedForFilteringAndPartitioning()
 					.withAttribute(ATTRIBUTE_ORDER, Integer.class, thatIs -> thatIs.filterable().sortable().nullable())
-					.withAttribute(ATTRIBUTE_KIND, String.class, thatIs -> thatIs.filterable())
+					.withAttribute(ATTRIBUTE_KIND, String.class, AttributeSchemaEditor::filterable)
 			)
 			.withReferenceToEntity(
 				REFERENCE_VARIANTS_FILTERING, ENTITY_TARGET, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
 				whichIs -> whichIs.indexedForFiltering()
 					.withAttribute(ATTRIBUTE_VARIANT, String.class, thatIs -> thatIs.filterable().representative())
-					.withAttribute(ATTRIBUTE_ORDER, Integer.class, thatIs -> thatIs.sortable())
+					.withAttribute(ATTRIBUTE_ORDER, Integer.class, AttributeSchemaEditor::sortable)
 			)
 			.withReferenceToEntity(
 				REFERENCE_VARIANTS_PARTITIONING, ENTITY_TARGET, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
 				whichIs -> whichIs.indexedForFilteringAndPartitioning()
 					.withAttribute(ATTRIBUTE_VARIANT, String.class, thatIs -> thatIs.filterable().representative())
-					.withAttribute(ATTRIBUTE_ORDER, Integer.class, thatIs -> thatIs.sortable())
+					.withAttribute(ATTRIBUTE_ORDER, Integer.class, AttributeSchemaEditor::sortable)
 			)
 			// no owner ever sets this reference, so it has no reduced index at all
 			.withReferenceToEntity(

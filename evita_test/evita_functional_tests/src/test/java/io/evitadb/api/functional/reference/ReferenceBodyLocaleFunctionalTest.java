@@ -43,7 +43,10 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
+import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.annotation.DataSet;
@@ -102,24 +105,25 @@ class ReferenceBodyLocaleFunctionalTest implements EvitaTestSupport {
 				.withHierarchy()
 				.withoutGeneratedPrimaryKey()
 				.withLocale(Locale.ENGLISH, Locale.GERMAN)
-				.withAttribute("code", String.class, thatIs -> thatIs.filterable())
+				.withAttribute("code", String.class, AttributeSchemaEditor::filterable)
 				.withAttribute("name", String.class, thatIs -> thatIs.localized().filterable())
-				.withAssociatedData("description", String.class, thatIs -> thatIs.localized())
+				.withAssociatedData("description", String.class, AssociatedDataSchemaEditor::localized)
 				.updateVia(session);
 			session.defineEntitySchema("BrandGroup")
 				.withoutGeneratedPrimaryKey()
 				.withLocale(Locale.ENGLISH, Locale.GERMAN)
-				.withAttribute("name", String.class, thatIs -> thatIs.localized())
-				.withAssociatedData("description", String.class, thatIs -> thatIs.localized())
+				.withAttribute("name", String.class, AttributeSchemaEditor::localized)
+				.withAssociatedData("description", String.class, AssociatedDataSchemaEditor::localized)
 				.updateVia(session);
 			session.defineEntitySchema("Product")
 				.withoutGeneratedPrimaryKey()
 				.withLocale(Locale.ENGLISH, Locale.GERMAN)
-				.withAttribute("name", String.class, thatIs -> thatIs.localized())
+				.withAttribute("name", String.class, AttributeSchemaEditor::localized)
 				.withReferenceToEntity("brand", "Brand", Cardinality.EXACTLY_ONE,
 					thatIs -> thatIs.indexedForFilteringAndPartitioning().faceted().withGroupTypeRelatedToEntity("BrandGroup"))
 				.withReferenceToEntity("manufacturer", "Brand", Cardinality.EXACTLY_ONE,
-					thatIs -> thatIs.indexedForFilteringAndPartitioning())
+				                       ReferenceSchemaEditor::indexedForFilteringAndPartitioning
+				)
 				.updateVia(session);
 			for (int pk = 1; pk <= 2; pk++) {
 				session.upsertEntity(session.createNewEntity("Brand", pk)
@@ -135,7 +139,7 @@ class ReferenceBodyLocaleFunctionalTest implements EvitaTestSupport {
 					.setAssociatedData("description", Locale.GERMAN, "Deutsche Beschreibung " + pk));
 			}
 			session.defineEntitySchema("Brand")
-				.withReferenceToEntity("leaf", "BrandGroup", Cardinality.EXACTLY_ONE, thatIs -> thatIs.indexed())
+				.withReferenceToEntity("leaf", "BrandGroup", Cardinality.EXACTLY_ONE, ReferenceSchemaEditor::indexed)
 				.updateVia(session);
 			for (int pk = 1; pk <= 2; pk++) {
 				session.getEntity("Brand", pk, referenceContentAll()).orElseThrow().openForWrite()

@@ -87,7 +87,7 @@ class ExistingEntityAttributesBuilderTest
 					)
 					.withAttribute(
 						"greetings", String.class,
-						whichIs -> whichIs.localized()
+						AttributeSchemaEditor::localized
 					)
 					.toInstance()
 			)
@@ -266,9 +266,8 @@ class ExistingEntityAttributesBuilderTest
 				attributes.getAttributeSchema("short")
 					.isPresent()
 			);
-			assertEquals(
-				Short.class,
-				attributes.getAttributeSchema("short")
+			assertSame(
+				Short.class, attributes.getAttributeSchema("short")
 					.orElseThrow().getType()
 			);
 		}

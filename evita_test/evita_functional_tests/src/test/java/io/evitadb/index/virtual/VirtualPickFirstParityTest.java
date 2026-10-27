@@ -27,6 +27,7 @@ package io.evitadb.index.virtual;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -251,7 +252,7 @@ class VirtualPickFirstParityTest implements EvitaTestSupport {
 			new OrderingCase(
 				"localized compound orderLabel", true, null, direction -> attributeNatural(orderLabel, direction)
 			),
-			new OrderingCase("entityPrimaryKeyNatural", false, null, direction -> entityPrimaryKeyNatural(direction)),
+			new OrderingCase("entityPrimaryKeyNatural", false, null, QueryConstraints::entityPrimaryKeyNatural),
 			new OrderingCase(
 				"order, targets by primary key descending", false,
 				pickFirstByEntityProperty(entityPrimaryKeyNatural(OrderDirection.DESC)),
@@ -267,7 +268,7 @@ class VirtualPickFirstParityTest implements EvitaTestSupport {
 			),
 			new OrderingCase(
 				"entityPrimaryKeyNatural, targets by seeded random", false,
-				pickFirstByEntityProperty(randomWithSeed(7)), direction -> entityPrimaryKeyNatural(direction)
+				pickFirstByEntityProperty(randomWithSeed(7)), QueryConstraints::entityPrimaryKeyNatural
 			)
 		);
 	}

@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -180,7 +181,7 @@ class OrderByTest {
 		void shouldReturnOrderConstraintClassAsType() {
 			final OrderBy orderBy = new OrderBy(attributeNatural("abc"));
 
-			assertEquals(OrderConstraint.class, orderBy.getType());
+			assertSame(OrderConstraint.class, orderBy.getType());
 		}
 
 		@Test
@@ -311,7 +312,7 @@ class OrderByTest {
 	private static OrderBy createOrderBy(@Nullable String... values) {
 		return orderBy(
 			Arrays.stream(values)
-				.map(it -> attributeNatural(it))
+				.map(QueryConstraints::attributeNatural)
 				.toArray(OrderConstraint[]::new)
 		);
 	}

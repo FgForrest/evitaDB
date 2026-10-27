@@ -128,7 +128,7 @@ class NormalizationSerializationTest {
 			final AttributeSchema restored = roundTrip(kryo, schema);
 			assertEquals(schema, restored);
 			assertEquals(schema.getNormalization(), restored.getNormalization());
-			assertEquals(schema.getClass(), restored.getClass());
+			assertSame(schema.getClass(), restored.getClass());
 			assertThrows(IllegalArgumentException.class, () -> kryo.getRegistration(AnalysisStep.class));
 		}
 	}

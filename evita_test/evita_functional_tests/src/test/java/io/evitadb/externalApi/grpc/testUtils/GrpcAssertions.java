@@ -302,7 +302,7 @@ public class GrpcAssertions {
 
 			// assert bucketed histogram definitions
 			final long expectedBucketedCount = expectedReferenceSchema.getAllHistogramIndexDefinitions()
-				.values().stream().mapToLong(m -> m.size()).sum();
+				.values().stream().mapToLong(Map::size).sum();
 			assertEquals(
 				expectedBucketedCount,
 				actualReferenceSchema.getBucketedList().size(),

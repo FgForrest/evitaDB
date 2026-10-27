@@ -32,7 +32,9 @@ import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.ExpressionEvaluationException;
@@ -425,12 +427,12 @@ public class ExpressionWithEntityDataTest {
 					.withoutHierarchy()
 					.withPrice()
 					.withLocale(Locale.ENGLISH, LOCALE_CZECH)
-					.withAttribute("code", String.class, whichIs -> whichIs.unique())
+					.withAttribute("code", String.class, AttributeSchemaEditor::unique)
 					.withAttribute("url", String.class, whichIs -> whichIs.unique().localized())
 					.withAttribute("prevUrl", String.class, whichIs -> whichIs.nullable().unique().localized())
-					.withAttribute("tags", String[].class, whichIs -> whichIs.filterable())
-					.withAttribute("priority", Long.class, whichIs -> whichIs.sortable())
-					.withAttribute("ean", String.class, whichIs -> whichIs.nullable())
+					.withAttribute("tags", String[].class, AttributeSchemaEditor::filterable)
+					.withAttribute("priority", Long.class, AttributeSchemaEditor::sortable)
+					.withAttribute("ean", String.class, AttributeSchemaEditor::nullable)
 					.withReferenceToEntity(
 						CATEGORIES,
 						CATEGORIES,
@@ -438,20 +440,20 @@ public class ExpressionWithEntityDataTest {
 						whichIs ->
 							/* we can specify special attributes on relation */
 							whichIs.indexedForFilteringAndPartitioning()
-								.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
-								.withAttribute("categoryTag", String.class, thatIs -> thatIs.nullable())
+								.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::sortable)
+								.withAttribute("categoryTag", String.class, AttributeSchemaEditor::nullable)
 					)
 					.withReferenceToEntity(
 						BRAND,
 						BRAND,
 						Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs.faceted()
-							.withAttribute("brandTag", String.class, thatIs -> thatIs.nullable()))
+							.withAttribute("brandTag", String.class, AttributeSchemaEditor::nullable))
 					.withReferenceTo(
 						STOCK,
 						STOCK,
 						Cardinality.ZERO_OR_ONE,
-						whichIs -> whichIs.faceted()
+						ReferenceSchemaEditor::faceted
 					)
 					/* finally apply schema changes */
 					.updateVia(session);

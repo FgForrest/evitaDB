@@ -53,7 +53,7 @@ import java.util.Map;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -108,7 +108,7 @@ class Migration_2025_6_RangeThresholdTest {
 		verify(parts).putStoragePart(eq(1L), rewritten.capture());
 		final FilterIndexStoragePart current = StoragePartSerializerTestSupport.roundTrip(kryo, rewritten.getValue(),
 			FilterIndexStoragePart.class);
-		assertEquals(DateTimeRange.class, current.getAttributeType());
+		assertSame(DateTimeRange.class, current.getAttributeType());
 		assertArrayEquals(new long[]{Long.MIN_VALUE, 10_000L, 20_000L, Long.MAX_VALUE},
 			thresholds(current.getRangeIndex()));
 		assertArrayEquals(new int[]{101}, current.getRangeIndex().getRecordsEnvelopingInclusive(15_000L)

@@ -28,6 +28,7 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -296,8 +297,10 @@ class NormalizationSchemaChangeCostTest {
 	 */
 	@Nonnull
 	private static EntitySchemaContract compoundSchema() {
-		return builder().withAttribute("code", String.class, a -> a.nullable())
-			.withAttribute("other", Integer.class).withAttribute("untouched", String.class, a -> a.nullable())
+		return builder().withAttribute("code", String.class, AttributeSchemaEditor::nullable)
+			.withAttribute("other", Integer.class).withAttribute("untouched", String.class,
+			                                                     AttributeSchemaEditor::nullable
+			)
 			.withSortableAttributeCompound("compound", element("code"), element("other"))
 			.withSortableAttributeCompound("unchanged", element("untouched"), element("other")).toInstance();
 	}

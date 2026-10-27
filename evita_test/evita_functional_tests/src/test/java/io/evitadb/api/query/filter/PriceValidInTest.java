@@ -246,7 +246,7 @@ class PriceValidInTest {
 		void shouldReturnCorrectType() {
 			final PriceValidIn constraint = priceValidInNow();
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 	}
 

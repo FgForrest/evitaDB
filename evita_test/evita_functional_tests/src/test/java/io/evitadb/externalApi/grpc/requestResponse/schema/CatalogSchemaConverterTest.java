@@ -60,6 +60,7 @@ import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
  * This test verifies functionalities of methods in {@link CatalogSchemaConverter} class.
@@ -166,8 +167,8 @@ class CatalogSchemaConverterTest {
 		assertEquals(expected.isFilterable(), actual.isFilterable());
 		assertEquals(expected.isSortable(), actual.isSortable());
 		assertEquals(expected.isNullable(), actual.isNullable());
-		assertEquals(expected.getType(), actual.getType());
-		assertEquals(expected.getPlainType(), actual.getPlainType());
+		assertSame(expected.getType(), actual.getType());
+		assertSame(expected.getPlainType(), actual.getPlainType());
 		assertEquals(expected.getDefaultValue(), actual.getDefaultValue());
 		assertEquals(expected.getIndexedDecimalPlaces(), actual.getIndexedDecimalPlaces());
 		assertEquals(expected.getConflictResolutionOverride(), actual.getConflictResolutionOverride());

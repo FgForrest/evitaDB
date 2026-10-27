@@ -102,17 +102,18 @@ class CreateGlobalAttributeSchemaMutationTest {
 		assertNotNull(result);
 		assertFalse(result.discarded());
 		assertEquals(11, result.current().length);
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof ModifyAttributeSchemaDescriptionMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof ModifyAttributeSchemaDeprecationNoticeMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof ModifyAttributeSchemaTypeMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof ModifyAttributeSchemaDefaultValueMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof SetAttributeSchemaLocalizedMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof SetAttributeSchemaNullableMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof SetAttributeSchemaUniqueMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof SetAttributeSchemaGloballyUniqueMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof SetAttributeSchemaFilterableMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof SetAttributeSchemaSortableMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof SetAttributeSchemaRepresentativeMutation));
+		assertTrue(Arrays.stream(result.current()).anyMatch(ModifyAttributeSchemaDescriptionMutation.class::isInstance));
+		assertTrue(Arrays.stream(result.current()).anyMatch(
+			ModifyAttributeSchemaDeprecationNoticeMutation.class::isInstance));
+		assertTrue(Arrays.stream(result.current()).anyMatch(ModifyAttributeSchemaTypeMutation.class::isInstance));
+		assertTrue(Arrays.stream(result.current()).anyMatch(ModifyAttributeSchemaDefaultValueMutation.class::isInstance));
+		assertTrue(Arrays.stream(result.current()).anyMatch(SetAttributeSchemaLocalizedMutation.class::isInstance));
+		assertTrue(Arrays.stream(result.current()).anyMatch(SetAttributeSchemaNullableMutation.class::isInstance));
+		assertTrue(Arrays.stream(result.current()).anyMatch(SetAttributeSchemaUniqueMutation.class::isInstance));
+		assertTrue(Arrays.stream(result.current()).anyMatch(SetAttributeSchemaGloballyUniqueMutation.class::isInstance));
+		assertTrue(Arrays.stream(result.current()).anyMatch(SetAttributeSchemaFilterableMutation.class::isInstance));
+		assertTrue(Arrays.stream(result.current()).anyMatch(SetAttributeSchemaSortableMutation.class::isInstance));
+		assertTrue(Arrays.stream(result.current()).anyMatch(SetAttributeSchemaRepresentativeMutation.class::isInstance));
 	}
 
 	@Test
@@ -140,7 +141,7 @@ class CreateGlobalAttributeSchemaMutationTest {
 		assertEquals(ATTRIBUTE_NAME, attributeSchema.getName());
 		assertEquals("description", attributeSchema.getDescription());
 		assertEquals("deprecationNotice", attributeSchema.getDeprecationNotice());
-		assertEquals(String.class, attributeSchema.getType());
+		assertSame(String.class, attributeSchema.getType());
 		assertTrue(attributeSchema.isLocalized());
 		assertTrue(attributeSchema.isNullable());
 		assertFalse(attributeSchema.isSortable());
@@ -171,7 +172,7 @@ class CreateGlobalAttributeSchemaMutationTest {
 		assertEquals(ATTRIBUTE_NAME, attributeSchema.getName());
 		assertEquals("description", attributeSchema.getDescription());
 		assertEquals("deprecationNotice", attributeSchema.getDeprecationNotice());
-		assertEquals(String.class, attributeSchema.getType());
+		assertSame(String.class, attributeSchema.getType());
 		assertTrue(attributeSchema.isLocalized());
 		assertTrue(attributeSchema.isNullable());
 		assertFalse(attributeSchema.isSortable());

@@ -109,13 +109,13 @@ class EmptyBitmapTest {
 		@Test
 		@DisplayName("should throw on getFirst")
 		void shouldThrowOnGetFirst() {
-			assertThrows(IndexOutOfBoundsException.class, () -> EmptyBitmap.INSTANCE.getFirst());
+			assertThrows(IndexOutOfBoundsException.class, EmptyBitmap.INSTANCE::getFirst);
 		}
 
 		@Test
 		@DisplayName("should throw on getLast")
 		void shouldThrowOnGetLast() {
-			assertThrows(IndexOutOfBoundsException.class, () -> EmptyBitmap.INSTANCE.getLast());
+			assertThrows(IndexOutOfBoundsException.class, EmptyBitmap.INSTANCE::getLast);
 		}
 
 		@Test

@@ -156,7 +156,7 @@ class AttributeEqualsTest {
 		void shouldReturnCorrectType() {
 			final AttributeEquals eq = attributeEquals("abc", "def");
 
-			assertEquals(FilterConstraint.class, eq.getType());
+			assertSame(FilterConstraint.class, eq.getType());
 		}
 	}
 

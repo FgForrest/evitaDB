@@ -2448,7 +2448,7 @@ class AttributeSchemaBuilderTest {
 				.anyMatch(SetAttributeSchemaNormalizedMutation.class::isInstance));
 			assertEquals(List.of(lowercase(), trim()), builder.toInstance()
 				.getAttribute("code").orElseThrow().getNormalization());
-			builder.withAttribute("code", String.class, attribute -> attribute.normalized());
+			builder.withAttribute("code", String.class, AttributeSchemaEditor::normalized);
 			assertTrue(builder.toInstance()
 				.getAttribute("code").orElseThrow().getNormalization().isEmpty());
 		}

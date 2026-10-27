@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
@@ -247,7 +248,7 @@ class Migration_2026_3_RangeThresholdTest implements EvitaTestSupport {
 		final int indexPk = collection().getIndexByKeyIfExists(key).getPrimaryKey();
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(Entities.PRODUCT)
-				.withReferenceTo("brand", "brand", Cardinality.ZERO_OR_MORE, ref -> ref.indexedForFiltering())
+				.withReferenceTo("brand", "brand", Cardinality.ZERO_OR_MORE, ReferenceSchemaEditor::indexedForFiltering)
 				.updateVia(session);
 		});
 		this.evita.close();

@@ -144,7 +144,7 @@ class HierarchyWithinRootTest {
 		void shouldReturnFilterConstraintType() {
 			final HierarchyWithinRoot constraint = hierarchyWithinRoot("brand");
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 
 		@Test

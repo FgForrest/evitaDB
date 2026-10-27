@@ -29,12 +29,13 @@ import com.esotericsoftware.kryo.io.ByteBufferInput;
 import com.esotericsoftware.kryo.io.ByteBufferOutput;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.store.entity.exception.StoredVersionNotSupportedException;
 import io.evitadb.store.schema.serializer.AttributeSchemaSerializer;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import lombok.Data;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -43,13 +44,13 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.Serial;
 import java.io.Serializable;
-import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.SERIALIZATION;
+import static io.evitadb.test.TestTags.STORAGE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * This test verifies whether it is possible to use special instance for deserializing old versions of the class
@@ -89,7 +90,7 @@ class SerialVersionBasedSerializerTest {
 		try (final ByteBufferInput input = new ByteBufferInput(new ByteArrayInputStream(baos.toByteArray()))) {
 			final AttributeSchema attributeSchema = this.kryo.readObject(input, AttributeSchema.class);
 			assertEquals("A", attributeSchema.getName());
-			assertEquals(String.class, attributeSchema.getType());
+			assertSame(String.class, attributeSchema.getType());
 		}
 	}
 

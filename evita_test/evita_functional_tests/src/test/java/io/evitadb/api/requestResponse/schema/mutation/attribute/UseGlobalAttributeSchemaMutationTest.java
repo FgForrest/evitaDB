@@ -70,7 +70,7 @@ class UseGlobalAttributeSchemaMutationTest {
 		assertEquals(ATTRIBUTE_NAME, attributeSchema.getName());
 		assertEquals("description", attributeSchema.getDescription());
 		assertEquals("deprecationNotice", attributeSchema.getDeprecationNotice());
-		assertEquals(Integer.class, attributeSchema.getType());
+		assertSame(Integer.class, attributeSchema.getType());
 		assertFalse(attributeSchema.isLocalized());
 		assertFalse(attributeSchema.isNullable());
 		assertFalse(attributeSchema.isSortable());
@@ -100,7 +100,7 @@ class UseGlobalAttributeSchemaMutationTest {
 		assertEquals(ATTRIBUTE_NAME, attributeSchema.getName());
 		assertEquals("description", attributeSchema.getDescription());
 		assertEquals("deprecationNotice", attributeSchema.getDeprecationNotice());
-		assertEquals(Integer.class, attributeSchema.getType());
+		assertSame(Integer.class, attributeSchema.getType());
 		assertFalse(attributeSchema.isLocalized());
 		assertFalse(attributeSchema.isNullable());
 		assertFalse(attributeSchema.isSortable());

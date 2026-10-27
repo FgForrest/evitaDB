@@ -93,8 +93,7 @@ class ExportOptionsTest {
 		@DisplayName("should not throw on validateWhenEnabled")
 		void shouldNotThrowOnValidateWhenEnabled() {
 			assertDoesNotThrow(
-				() -> DefaultExportOptions.INSTANCE
-					.validateWhenEnabled()
+				DefaultExportOptions.INSTANCE::validateWhenEnabled
 			);
 		}
 	}

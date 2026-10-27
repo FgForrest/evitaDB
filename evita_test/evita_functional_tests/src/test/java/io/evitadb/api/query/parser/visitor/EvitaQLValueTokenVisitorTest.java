@@ -161,7 +161,7 @@ class EvitaQLValueTokenVisitorTest {
     @Test
     void shouldParsePositionalParameterAsValue() {
         final Value value1 = parseValue("?", 1L);
-        assertEquals(Long.class, value1.getType());
+        assertSame(Long.class, value1.getType());
         assertEquals(1L, value1.asNumber().longValue());
     }
 
@@ -174,7 +174,7 @@ class EvitaQLValueTokenVisitorTest {
     @Test
     void shouldParseNamedParameterAsValue() {
         final Value value1 = parseValue("@name", Map.of("name", "code"));
-        assertEquals(String.class, value1.getType());
+        assertSame(String.class, value1.getType());
         assertEquals("code", value1.asString());
     }
 
@@ -189,7 +189,7 @@ class EvitaQLValueTokenVisitorTest {
     @MethodSource("validStringLiterals")
     void shouldParseStringLiteral(String stringLiteral, String expectedJavaString) {
         final Value value = parseValueUnsafe(stringLiteral);
-        assertEquals(String.class, value.getType());
+        assertSame(String.class, value.getType());
         assertEquals(expectedJavaString, value.asString());
     }
 
@@ -220,19 +220,19 @@ class EvitaQLValueTokenVisitorTest {
     @Test
     void shouldParseIntLiteral() {
         final Value value1 = parseValueUnsafe("100");
-        assertEquals(Long.class, value1.getType());
+        assertSame(Long.class, value1.getType());
         assertEquals(100L, value1.asNumber().longValue());
 
         final Value value2 = parseValueUnsafe(formatValue(100L));
-        assertEquals(Long.class, value2.getType());
+        assertSame(Long.class, value2.getType());
         assertEquals(100L, value2.asNumber().longValue());
 
         final Value value3 = parseValueUnsafe("-100");
-        assertEquals(Long.class, value3.getType());
+        assertSame(Long.class, value3.getType());
         assertEquals(-100L, value3.asNumber().longValue());
 
         final Value value4 = parseValueUnsafe(formatValue(-100L));
-        assertEquals(Long.class, value4.getType());
+        assertSame(Long.class, value4.getType());
         assertEquals(-100L, value4.asNumber().longValue());
     }
 
@@ -248,19 +248,19 @@ class EvitaQLValueTokenVisitorTest {
     @Test
     void shouldParseFloatLiteral() {
         final Value value1 = parseValueUnsafe("100.55");
-        assertEquals(BigDecimal.class, value1.getType());
+        assertSame(BigDecimal.class, value1.getType());
         assertEquals(BigDecimal.valueOf(100.55), value1.asBigDecimal());
 
         final Value value2 = parseValueUnsafe(formatValue(BigDecimal.valueOf(100.55)));
-        assertEquals(BigDecimal.class, value2.getType());
+        assertSame(BigDecimal.class, value2.getType());
         assertEquals(BigDecimal.valueOf(100.55), value2.asBigDecimal());
 
         final Value value3 = parseValueUnsafe("-100.55");
-        assertEquals(BigDecimal.class, value3.getType());
+        assertSame(BigDecimal.class, value3.getType());
         assertEquals(BigDecimal.valueOf(-100.55), value3.asBigDecimal());
 
         final Value value4 = parseValueUnsafe(formatValue(BigDecimal.valueOf(-100.55)));
-        assertEquals(BigDecimal.class, value4.getType());
+        assertSame(BigDecimal.class, value4.getType());
         assertEquals(BigDecimal.valueOf(-100.55), value4.asBigDecimal());
     }
 
@@ -276,19 +276,19 @@ class EvitaQLValueTokenVisitorTest {
     @Test
     void shouldParseBooleanLiteral() {
         final Value valueTrue1 = parseValueUnsafe("true");
-        assertEquals(Boolean.class, valueTrue1.getType());
+        assertSame(Boolean.class, valueTrue1.getType());
         assertTrue(valueTrue1.asBoolean());
 
         final Value valueFalse1 = parseValueUnsafe("false");
-        assertEquals(Boolean.class, valueFalse1.getType());
+        assertSame(Boolean.class, valueFalse1.getType());
         assertFalse(valueFalse1.asBoolean());
 
         final Value valueTrue2 = parseValueUnsafe(formatValue(true));
-        assertEquals(Boolean.class, valueTrue2.getType());
+        assertSame(Boolean.class, valueTrue2.getType());
         assertTrue(valueTrue2.asBoolean());
 
         final Value valueFalse2 = parseValueUnsafe(formatValue(false));
-        assertEquals(Boolean.class, valueFalse2.getType());
+        assertSame(Boolean.class, valueFalse2.getType());
         assertFalse(valueFalse2.asBoolean());
     }
 
@@ -302,11 +302,11 @@ class EvitaQLValueTokenVisitorTest {
     @Test
     void shouldParseDateLiteral() {
         final Value value1 = parseValueUnsafe("2020-02-08");
-        assertEquals(LocalDate.class, value1.getType());
+        assertSame(LocalDate.class, value1.getType());
         assertEquals(LocalDate.of(2020, 2, 8), value1.asLocalDate());
 
         final Value value2 = parseValueUnsafe(formatValue(LocalDate.of(2020, 2, 8)));
-        assertEquals(LocalDate.class, value2.getType());
+        assertSame(LocalDate.class, value2.getType());
         assertEquals(LocalDate.of(2020, 2, 8), value2.asLocalDate());
     }
 
@@ -322,23 +322,23 @@ class EvitaQLValueTokenVisitorTest {
     @Test
     void shouldParseTimeLiteral() {
         final Value value1 = parseValueUnsafe("13:30:55");
-        assertEquals(LocalTime.class, value1.getType());
+        assertSame(LocalTime.class, value1.getType());
         assertEquals(LocalTime.of(13, 30, 55), value1.asLocalTime());
 
         final Value value2 = parseValueUnsafe(formatValue(LocalTime.of(13, 30, 55)));
-        assertEquals(LocalTime.class, value2.getType());
+        assertSame(LocalTime.class, value2.getType());
         assertEquals(LocalTime.of(13, 30, 55), value2.asLocalTime());
 
         final Value value3 = parseValueUnsafe("13:30:55.123");
-        assertEquals(LocalTime.class, value3.getType());
+        assertSame(LocalTime.class, value3.getType());
         assertEquals(LocalTime.of(13, 30, 55, 123000000), value3.asLocalTime());
 
         final Value value4 = parseValueUnsafe(formatValue(LocalTime.of(13, 30, 55, 123000000)));
-        assertEquals(LocalTime.class, value4.getType());
+        assertSame(LocalTime.class, value4.getType());
         assertEquals(LocalTime.of(13, 30, 55, 123000000), value4.asLocalTime());
 
         final Value value5 = parseValueUnsafe("13:30:55.12345");
-        assertEquals(LocalTime.class, value5.getType());
+        assertSame(LocalTime.class, value5.getType());
         assertEquals(LocalTime.of(13, 30, 55, 123000000), value5.asLocalTime());
     }
 
@@ -354,35 +354,35 @@ class EvitaQLValueTokenVisitorTest {
     @Test
     void shouldParseDateTimeLiteral() {
         final Value value1 = parseValueUnsafe("2020-02-08T13:30:55");
-        assertEquals(LocalDateTime.class, value1.getType());
+        assertSame(LocalDateTime.class, value1.getType());
         assertEquals(
                 LocalDateTime.of(2020, 2, 8, 13, 30, 55),
                 value1.asLocalDateTime()
         );
 
         final Value value2 = parseValueUnsafe(formatValue(LocalDateTime.of(2020, 2, 8, 13, 30, 55)));
-        assertEquals(LocalDateTime.class, value2.getType());
+        assertSame(LocalDateTime.class, value2.getType());
         assertEquals(
                 LocalDateTime.of(2020, 2, 8, 13, 30, 55),
                 value2.asLocalDateTime()
         );
 
         final Value value3 = parseValueUnsafe("2020-02-08T13:30:55.123");
-        assertEquals(LocalDateTime.class, value3.getType());
+        assertSame(LocalDateTime.class, value3.getType());
         assertEquals(
             LocalDateTime.of(2020, 2, 8, 13, 30, 55, 123000000),
             value3.asLocalDateTime()
         );
 
         final Value value4 = parseValueUnsafe(formatValue(LocalDateTime.of(2020, 2, 8, 13, 30, 55, 123000000)));
-        assertEquals(LocalDateTime.class, value4.getType());
+        assertSame(LocalDateTime.class, value4.getType());
         assertEquals(
             LocalDateTime.of(2020, 2, 8, 13, 30, 55, 123000000),
             value4.asLocalDateTime()
         );
 
         final Value value5 = parseValueUnsafe("2020-02-08T13:30:55.12345");
-        assertEquals(LocalDateTime.class, value5.getType());
+        assertSame(LocalDateTime.class, value5.getType());
         assertEquals(
             LocalDateTime.of(2020, 2, 8, 13, 30, 55, 123000000),
             value5.asLocalDateTime()
@@ -401,35 +401,35 @@ class EvitaQLValueTokenVisitorTest {
     @Test
     void shouldParseOffsetDateTimeLiteral() {
         final Value value1 = parseValueUnsafe("2020-02-08T13:30:55+01:00");
-        assertEquals(OffsetDateTime.class, value1.getType());
+        assertSame(OffsetDateTime.class, value1.getType());
         assertEquals(
             OffsetDateTime.of(2020, 2, 8, 13, 30, 55, 0, ZoneOffset.of("+01:00")),
                 value1.asOffsetDateTime()
         );
 
         final Value value2 = parseValueUnsafe(formatValue(OffsetDateTime.of(2020, 2, 8, 13, 30, 55, 0, ZoneOffset.of("+01:00"))));
-        assertEquals(OffsetDateTime.class, value2.getType());
+        assertSame(OffsetDateTime.class, value2.getType());
         assertEquals(
             OffsetDateTime.of(2020, 2, 8, 13, 30, 55, 0, ZoneOffset.of("+01:00")),
                 value2.asOffsetDateTime()
         );
 
         final Value value3 = parseValueUnsafe("2020-02-08T13:30:55.123+01:00");
-        assertEquals(OffsetDateTime.class, value3.getType());
+        assertSame(OffsetDateTime.class, value3.getType());
         assertEquals(
             OffsetDateTime.of(2020, 2, 8, 13, 30, 55, 123000000, ZoneOffset.of("+01:00")),
             value3.asOffsetDateTime()
         );
 
         final Value value4 = parseValueUnsafe(formatValue(OffsetDateTime.of(2020, 2, 8, 13, 30, 55, 123000000, ZoneOffset.of("+01:00"))));
-        assertEquals(OffsetDateTime.class, value4.getType());
+        assertSame(OffsetDateTime.class, value4.getType());
         assertEquals(
             OffsetDateTime.of(2020, 2, 8, 13, 30, 55, 123000000, ZoneOffset.of("+01:00")),
             value4.asOffsetDateTime()
         );
 
         final Value value5 = parseValueUnsafe("2020-02-08T13:30:55.12345+01:00");
-        assertEquals(OffsetDateTime.class, value5.getType());
+        assertSame(OffsetDateTime.class, value5.getType());
         assertEquals(
             OffsetDateTime.of(2020, 2, 8, 13, 30, 55, 123000000, ZoneOffset.of("+01:00")),
             value5.asOffsetDateTime()
@@ -448,15 +448,15 @@ class EvitaQLValueTokenVisitorTest {
     @Test
     void shouldParseFloatNumberRangeLiteral() {
         final Value valueFull1 = parseValueUnsafe("[102.2,500.1]");
-        assertEquals(BigDecimalNumberRange.class, valueFull1.getType());
+        assertSame(BigDecimalNumberRange.class, valueFull1.getType());
         assertEquals(BigDecimalNumberRange.between(BigDecimal.valueOf(102.2), BigDecimal.valueOf(500.1), 1), valueFull1.asBigDecimalNumberRange());
 
         final Value valueWithoutEnd1 = parseValueUnsafe("[102.3,]");
-        assertEquals(BigDecimalNumberRange.class, valueWithoutEnd1.getType());
+        assertSame(BigDecimalNumberRange.class, valueWithoutEnd1.getType());
         assertEquals(BigDecimalNumberRange.from(BigDecimal.valueOf(102.3), 1), valueWithoutEnd1.asBigDecimalNumberRange());
 
         final Value valueWithoutStart1 = parseValueUnsafe("[,500.1]");
-        assertEquals(BigDecimalNumberRange.class, valueWithoutStart1.getType());
+        assertSame(BigDecimalNumberRange.class, valueWithoutStart1.getType());
         assertEquals(BigDecimalNumberRange.to(BigDecimal.valueOf(500.1), 1), valueWithoutStart1.asBigDecimalNumberRange());
     }
 
@@ -473,15 +473,15 @@ class EvitaQLValueTokenVisitorTest {
     @Test
     void shouldParseIntNumberRangeLiteral() {
         final Value valueFull1 = parseValueUnsafe("[102,500]");
-        assertEquals(LongNumberRange.class, valueFull1.getType());
+        assertSame(LongNumberRange.class, valueFull1.getType());
         assertEquals(LongNumberRange.between(102L, 500L), valueFull1.asLongNumberRange());
 
         final Value valueWithoutEnd1 = parseValueUnsafe("[102,]");
-        assertEquals(LongNumberRange.class, valueWithoutEnd1.getType());
+        assertSame(LongNumberRange.class, valueWithoutEnd1.getType());
         assertEquals(LongNumberRange.from(102L), valueWithoutEnd1.asLongNumberRange());
 
         final Value valueWithoutStart1 = parseValueUnsafe("[,500]");
-        assertEquals(LongNumberRange.class, valueWithoutStart1.getType());
+        assertSame(LongNumberRange.class, valueWithoutStart1.getType());
         assertEquals(LongNumberRange.to(500L), valueWithoutStart1.asLongNumberRange());
     }
 
@@ -498,7 +498,7 @@ class EvitaQLValueTokenVisitorTest {
     @Test
     void shouldParseOffsetDateTimeRangeLiteral() {
         final Value valueFull1 = parseValueUnsafe("[2020-02-08T13:30:55+01:00,2020-02-09T13:30:55+01:00]");
-        assertEquals(DateTimeRange.class, valueFull1.getType());
+        assertSame(DateTimeRange.class, valueFull1.getType());
         assertEquals(
                 DateTimeRange.between(
                     OffsetDateTime.of(2020, 2, 8, 13, 30, 55, 0, ZoneOffset.of("+01:00")),
@@ -508,7 +508,7 @@ class EvitaQLValueTokenVisitorTest {
         );
 
         final Value valueWithoutEnd1 = parseValueUnsafe("[2020-02-08T13:30:55+01:00,]");
-        assertEquals(DateTimeRange.class, valueWithoutEnd1.getType());
+        assertSame(DateTimeRange.class, valueWithoutEnd1.getType());
         assertEquals(
                 DateTimeRange.since(
                     OffsetDateTime.of(2020, 2, 8, 13, 30, 55, 0, ZoneOffset.of("+01:00"))
@@ -517,7 +517,7 @@ class EvitaQLValueTokenVisitorTest {
         );
 
         final Value valueWithoutStart1 = parseValueUnsafe("[,2020-02-09T13:30:55+01:00]");
-        assertEquals(DateTimeRange.class, valueWithoutStart1.getType());
+        assertSame(DateTimeRange.class, valueWithoutStart1.getType());
         assertEquals(
                 DateTimeRange.until(
                     OffsetDateTime.of(2020, 2, 9, 13, 30, 55, 0, ZoneOffset.of("+01:00"))
@@ -531,7 +531,7 @@ class EvitaQLValueTokenVisitorTest {
                     OffsetDateTime.of(2020, 2, 9, 13, 30, 55, 0, ZoneOffset.of("+01:00"))
                 )
         ));
-        assertEquals(DateTimeRange.class, valueFull2.getType());
+        assertSame(DateTimeRange.class, valueFull2.getType());
         assertEquals(
                 DateTimeRange.between(
                     OffsetDateTime.of(2020, 2, 8, 13, 30, 55, 0, ZoneOffset.of("+01:00")),
@@ -545,7 +545,7 @@ class EvitaQLValueTokenVisitorTest {
                     OffsetDateTime.of(2020, 2, 8, 13, 30, 55, 0, ZoneOffset.of("+01:00"))
                 )
         ));
-        assertEquals(DateTimeRange.class, valueWithoutEnd2.getType());
+        assertSame(DateTimeRange.class, valueWithoutEnd2.getType());
         assertEquals(
                 DateTimeRange.since(
                     OffsetDateTime.of(2020, 2, 8, 13, 30, 55, 0, ZoneOffset.of("+01:00"))
@@ -558,7 +558,7 @@ class EvitaQLValueTokenVisitorTest {
                     OffsetDateTime.of(2020, 2, 9, 13, 30, 55, 0, ZoneOffset.of("+01:00"))
                 )
         ));
-        assertEquals(DateTimeRange.class, valueWithoutStart2.getType());
+        assertSame(DateTimeRange.class, valueWithoutStart2.getType());
         assertEquals(
                 DateTimeRange.until(
                     OffsetDateTime.of(2020, 2, 9, 13, 30, 55, 0, ZoneOffset.of("+01:00"))
@@ -567,7 +567,7 @@ class EvitaQLValueTokenVisitorTest {
         );
 
         final Value valueFull3 = parseValueUnsafe("[2020-02-08T13:30:55.123+01:00,2020-02-09T13:30:55.123+01:00]");
-        assertEquals(DateTimeRange.class, valueFull3.getType());
+        assertSame(DateTimeRange.class, valueFull3.getType());
         assertEquals(
             DateTimeRange.between(
                 OffsetDateTime.of(2020, 2, 8, 13, 30, 55, 123000000, ZoneOffset.of("+01:00")),
@@ -582,7 +582,7 @@ class EvitaQLValueTokenVisitorTest {
                 OffsetDateTime.of(2020, 2, 9, 13, 30, 55, 123450000, ZoneOffset.of("+01:00"))
             )
         ));
-        assertEquals(DateTimeRange.class, valueFull4.getType());
+        assertSame(DateTimeRange.class, valueFull4.getType());
         assertEquals(
             DateTimeRange.between(
                 OffsetDateTime.of(2020, 2, 8, 13, 30, 55, 123000000, ZoneOffset.of("+01:00")),
@@ -604,7 +604,7 @@ class EvitaQLValueTokenVisitorTest {
     @Test
     void shouldParseEnumLiteral() {
         final Value value1 = parseValueUnsafe("WITH_TAX");
-        assertEquals(EnumWrapper.class, value1.getType());
+        assertSame(EnumWrapper.class, value1.getType());
         assertEquals(QueryPriceMode.WITH_TAX, value1.asEnum(QueryPriceMode.class));
     }
 
@@ -619,7 +619,7 @@ class EvitaQLValueTokenVisitorTest {
     @Test
     void shouldParseUuidLiteral() {
         final Value value1 = parseValueUnsafe("2fbbfcf2-d4bb-4db9-9658-acf1d287cbe9");
-        assertEquals(UUID.class, value1.getType());
+        assertSame(UUID.class, value1.getType());
         assertEquals(UUID.fromString("2fbbfcf2-d4bb-4db9-9658-acf1d287cbe9"), value1.asUuid());
     }
 

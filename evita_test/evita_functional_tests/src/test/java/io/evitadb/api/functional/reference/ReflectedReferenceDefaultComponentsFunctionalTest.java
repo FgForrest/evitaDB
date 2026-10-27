@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
@@ -162,7 +163,7 @@ class ReflectedReferenceDefaultComponentsFunctionalTest implements EvitaTestSupp
 				session.getEntitySchemaOrThrowException(CATEGORY)
 					.openForWrite()
 					.withReflectedReferenceToEntity(
-						REF_PRODUCTS, PRODUCT, REF_CATEGORIES, whichIs -> whichIs.withAttributesInherited()
+						REF_PRODUCTS, PRODUCT, REF_CATEGORIES, ReflectedReferenceSchemaEditor::withAttributesInherited
 					)
 					.updateVia(session);
 				// scopes stay inherited (NULL), components become explicit for LIVE alone
@@ -208,7 +209,7 @@ class ReflectedReferenceDefaultComponentsFunctionalTest implements EvitaTestSupp
 				session.getEntitySchemaOrThrowException(CATEGORY)
 					.openForWrite()
 					.withReflectedReferenceToEntity(
-						REF_PRODUCTS, PRODUCT, REF_CATEGORIES, whichIs -> whichIs.withAttributesInherited()
+						REF_PRODUCTS, PRODUCT, REF_CATEGORIES, ReflectedReferenceSchemaEditor::withAttributesInherited
 					)
 					.updateVia(session);
 				session.updateEntitySchema(
@@ -344,7 +345,7 @@ class ReflectedReferenceDefaultComponentsFunctionalTest implements EvitaTestSupp
 				session.getEntitySchemaOrThrowException(CATEGORY)
 					.openForWrite()
 					.withReflectedReferenceToEntity(
-						REF_RELATED_BY, CATEGORY, REF_RELATED, whichIs -> whichIs.withAttributesInherited()
+						REF_RELATED_BY, CATEGORY, REF_RELATED, ReflectedReferenceSchemaEditor::withAttributesInherited
 					)
 					.updateVia(session);
 				// scopes stay inherited (NULL), components become explicit for LIVE alone

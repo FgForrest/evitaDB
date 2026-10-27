@@ -28,11 +28,13 @@ import graphql.ExecutionInput;
 import graphql.ExecutionResult;
 import graphql.GraphQL;
 import graphql.schema.DataFetcher;
+import graphql.schema.GraphQLInputObjectField;
 import graphql.schema.GraphQLInputObjectType;
 import graphql.schema.GraphQLNonNull;
 import graphql.schema.GraphQLSchema;
 import graphql.schema.GraphQLType;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AnalysisStepInputDescriptors;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.AnalysisStepInputDescriptors.StepInput;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -123,8 +125,8 @@ class AnalysisStepInputSchemaTest {
 	void shouldDescribeInstalledSteps() {
 		final GraphQLInputObjectType input = (GraphQLInputObjectType) SCHEMA.getType("InputAnalysisStep");
 		assertTrue(input.isOneOf());
-		assertEquals(AnalysisStepInputDescriptors.getSteps().stream().map(it -> it.fieldName()).toList(),
-			input.getFields().stream().map(it -> it.getName()).toList());
+		assertEquals(AnalysisStepInputDescriptors.getSteps().stream().map(StepInput::fieldName).toList(),
+			input.getFields().stream().map(GraphQLInputObjectField::getName).toList());
 		input.getFields().forEach(field -> assertFalse(field.getType() instanceof GraphQLNonNull));
 		final GraphQLInputObjectType parameters =
 			(GraphQLInputObjectType) SCHEMA.getType("InputRemoveCharactersAnalysisStepParameters");

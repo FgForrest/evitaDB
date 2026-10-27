@@ -25,6 +25,7 @@ package io.evitadb.api.functional.attribute;
 
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
@@ -221,7 +222,7 @@ class BuiltWithNormalizationOwnershipFunctionalTest implements EvitaTestSupport 
 	private void assertLookup(@Nonnull String value, @Nonnull Integer... ids) {
 		this.evita.queryCatalog(TEST_CATALOG, session -> {
 			assertEquals(List.of(ids), session.queryListOfEntityReferences(query(collection("Owner"),
-				filterBy(attributeEquals("code", value)))).stream().map(it -> it.getPrimaryKey()).toList());
+				filterBy(attributeEquals("code", value)))).stream().map(EntityReferenceContract::getPrimaryKey).toList());
 			return null;
 		});
 	}

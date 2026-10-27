@@ -1796,9 +1796,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		final EvitaManagementContract management = evitaClient.management();
 		final String targetCatalogName = TEST_CATALOG + "Snapshot";
 		final Long currentVersion = evitaClient.queryCatalog(
-			TEST_CATALOG, session -> {
-				return session.getCatalogVersion();
-			}
+			TEST_CATALOG, EvitaSessionContract::getCatalogVersion
 		);
 
 		final Task<?, Void> task = management.restoreCatalogToVersion(

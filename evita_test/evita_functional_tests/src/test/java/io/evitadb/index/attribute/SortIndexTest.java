@@ -1739,7 +1739,7 @@ class SortIndexTest {
 					// instance (see SortIndex#createCopyWithMergedTransactionalMemory) - its warm cache carries over
 					original.getAscendingOrderRecordsSupplier().getSortedRecordIds();
 				},
-				(original, committed) -> assertSame(original, committed)
+				Assertions::assertSame
 			);
 		}
 

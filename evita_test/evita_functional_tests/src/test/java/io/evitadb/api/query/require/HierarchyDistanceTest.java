@@ -24,6 +24,7 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
@@ -100,7 +101,7 @@ class HierarchyDistanceTest {
 			final HierarchyDistance constraint = distance(1);
 			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
 
-			constraint.accept(c -> visited.set(c));
+			constraint.accept(visited::set);
 
 			assertSame(constraint, visited.get());
 		}
@@ -108,7 +109,7 @@ class HierarchyDistanceTest {
 		@Test
 		@DisplayName("should return RequireConstraint type")
 		void shouldReturnRequireConstraintType() {
-			assertEquals(RequireConstraint.class, distance(1).getType());
+			assertSame(RequireConstraint.class, QueryConstraints.distance(1).getType());
 		}
 	}
 

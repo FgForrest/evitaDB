@@ -103,7 +103,7 @@ class SortUtilsTest {
 	) {
 		final List<Integer> skipped = new ArrayList<>();
 		SortUtils.appendNotFoundResult(
-			new int[resultSize], 0, startIndex, endIndex, rest, value -> skipped.add(value)
+			new int[resultSize], 0, startIndex, endIndex, rest, skipped::add
 		);
 		return skipped;
 	}
@@ -183,7 +183,7 @@ class SortUtilsTest {
 			final int[] rest = {5, 6, 7, 8, 9};
 			final int[] result = new int[10];
 			final List<Integer> skipped = new ArrayList<>();
-			final IntConsumer consumer = value -> skipped.add(value);
+			final IntConsumer consumer = skipped::add;
 
 			final int written = SortUtils.appendNotFoundResult(result, 0, 3, 5, rest, consumer);
 
@@ -198,7 +198,7 @@ class SortUtilsTest {
 			final int[] rest = {1, 2, 3, 4};
 			final int[] result = new int[10];
 			final List<Integer> skipped = new ArrayList<>();
-			final IntConsumer consumer = value -> skipped.add(value);
+			final IntConsumer consumer = skipped::add;
 
 			final int written = SortUtils.appendNotFoundResult(result, 0, 4, 4, rest, consumer);
 
@@ -268,7 +268,7 @@ class SortUtilsTest {
 			// several batches; the fixed code must not re-report records from earlier batches
 			final int[] buffer = new int[16];
 			final List<Integer> skipped = new ArrayList<>();
-			final IntConsumer consumer = value -> skipped.add(value);
+			final IntConsumer consumer = skipped::add;
 
 			final int written = SortUtils.appendNotFoundResult(
 				result, 0, 50, 1000, bitmap, buffer, consumer
@@ -296,7 +296,7 @@ class SortUtilsTest {
 			final int[] result = new int[10];
 			final int[] buffer = new int[16];
 			final List<Integer> skipped = new ArrayList<>();
-			final IntConsumer consumer = value -> skipped.add(value);
+			final IntConsumer consumer = skipped::add;
 
 			SortUtils.appendNotFoundResult(result, 0, 20, 30, bitmap, buffer, consumer);
 

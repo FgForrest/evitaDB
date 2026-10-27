@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.facet.FacetGroupIndex;
@@ -1061,7 +1062,7 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 							Entities.BRAND,
 							Entities.BRAND,
 							Cardinality.ZERO_OR_ONE,
-							whichIs -> whichIs.indexedForFilteringAndPartitioning()
+							ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 						)
 						// indexed AND faceted sibling sitting on the very same entity
 						.withReferenceToEntity(
@@ -1132,7 +1133,7 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 							Entities.BRAND,
 							Entities.BRAND,
 							Cardinality.ZERO_OR_ONE,
-							whichIs -> whichIs.indexedForFilteringAndPartitioning()
+							ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 						)
 						.withReferenceToEntity(
 							Entities.CATEGORY,

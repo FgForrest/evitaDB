@@ -35,6 +35,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
+import io.evitadb.test.generator.DataGenerator;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -57,13 +58,10 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.*;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.PRICE;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Functional tests for entity price fetch operations including all prices,
@@ -163,12 +161,12 @@ class EntityPriceFetchFunctionalTest extends AbstractEntityFetchingFunctionalTes
 				final Optional<PriceContract> priceForSale = product.getPriceForSale();
 
 				assertTrue(priceForSale.isPresent(), "Product should have a price for sale!");
-				assertEquals(CURRENCY_EUR, priceForSale.get().currency());
+				assertSame(DataGenerator.CURRENCY_EUR, priceForSale.get().currency());
 				assertEquals(PRICE_LIST_BASIC, priceForSale.get().priceList());
 
 				final Optional<PriceContract> accompanyingPrice = product.getAccompanyingPrice();
 				assertTrue(accompanyingPrice.isPresent(), "Product should have an accompanying price!");
-				assertEquals(CURRENCY_EUR, accompanyingPrice.get().currency());
+				assertSame(DataGenerator.CURRENCY_EUR, accompanyingPrice.get().currency());
 				assertEquals(PRICE_LIST_B2B, accompanyingPrice.get().priceList());
 
 				return null;
@@ -220,17 +218,17 @@ class EntityPriceFetchFunctionalTest extends AbstractEntityFetchingFunctionalTes
 				final Optional<PriceContract> priceForSale = product.getPriceForSale();
 
 				assertTrue(priceForSale.isPresent(), "Product should have a price for sale!");
-				assertEquals(CURRENCY_EUR, priceForSale.get().currency());
+				assertSame(DataGenerator.CURRENCY_EUR, priceForSale.get().currency());
 				assertEquals(PRICE_LIST_BASIC, priceForSale.get().priceList());
 
 				final Optional<PriceContract> accompanyingPrice = product.getAccompanyingPrice();
 				assertTrue(accompanyingPrice.isPresent(), "Product should have an accompanying price!");
-				assertEquals(CURRENCY_EUR, accompanyingPrice.get().currency());
+				assertSame(DataGenerator.CURRENCY_EUR, accompanyingPrice.get().currency());
 				assertEquals(PRICE_LIST_B2B, accompanyingPrice.get().priceList());
 
 				final Optional<PriceContract> myAccompanyingPrice = product.getAccompanyingPrice("myPrice");
 				assertTrue(myAccompanyingPrice.isPresent(), "Product should have an accompanying price!");
-				assertEquals(CURRENCY_EUR, myAccompanyingPrice.get().currency());
+				assertSame(DataGenerator.CURRENCY_EUR, myAccompanyingPrice.get().currency());
 				assertEquals(PRICE_LIST_VIP, myAccompanyingPrice.get().priceList());
 
 				assertArrayEquals(
@@ -338,12 +336,12 @@ class EntityPriceFetchFunctionalTest extends AbstractEntityFetchingFunctionalTes
 				final Optional<PriceContract> priceForSale = product.getPriceForSale();
 
 				assertTrue(priceForSale.isPresent(), "Product should have a price for sale!");
-				assertEquals(CURRENCY_EUR, priceForSale.get().currency());
+				assertSame(DataGenerator.CURRENCY_EUR, priceForSale.get().currency());
 				assertEquals(PRICE_LIST_BASIC, priceForSale.get().priceList());
 
 				final Optional<PriceContract> accompanyingPrice = product.getAccompanyingPrice();
 				assertTrue(accompanyingPrice.isPresent(), "Product should have an accompanying price!");
-				assertEquals(CURRENCY_EUR, accompanyingPrice.get().currency());
+				assertSame(DataGenerator.CURRENCY_EUR, accompanyingPrice.get().currency());
 				assertEquals(PRICE_LIST_B2B, accompanyingPrice.get().priceList());
 
 				assertTrue(product.getAccompanyingPrice(secondPriceList).isEmpty());
@@ -358,7 +356,7 @@ class EntityPriceFetchFunctionalTest extends AbstractEntityFetchingFunctionalTes
 
 				final Optional<PriceContract> myAccompanyingPrice = nestedProduct.getAccompanyingPrice("myPrice");
 				assertTrue(myAccompanyingPrice.isPresent(), "Product should have an accompanying price!");
-				assertEquals(CURRENCY_EUR, myAccompanyingPrice.get().currency());
+				assertSame(DataGenerator.CURRENCY_EUR, myAccompanyingPrice.get().currency());
 				assertEquals(secondPriceList, myAccompanyingPrice.get().priceList());
 
 				assertArrayEquals(
@@ -589,7 +587,7 @@ class EntityPriceFetchFunctionalTest extends AbstractEntityFetchingFunctionalTes
 				// parent product has priceForSale in EUR / basic
 				final Optional<PriceContract> priceForSale = product.getPriceForSale();
 				assertTrue(priceForSale.isPresent(), "Product should have a price for sale!");
-				assertEquals(CURRENCY_EUR, priceForSale.get().currency());
+				assertSame(DataGenerator.CURRENCY_EUR, priceForSale.get().currency());
 				assertEquals(PRICE_LIST_BASIC, priceForSale.get().priceList());
 
 				// returned PRODUCT references contain only PKs from expectedMatchingRefPks
@@ -622,8 +620,8 @@ class EntityPriceFetchFunctionalTest extends AbstractEntityFetchingFunctionalTes
 						nestedPriceForSale.isPresent(),
 						"Nested product " + ref.getReferencedPrimaryKey() + " should have price for sale!"
 					);
-					assertEquals(
-						CURRENCY_USD, nestedPriceForSale.get().currency(),
+					assertSame(
+						DataGenerator.CURRENCY_USD, nestedPriceForSale.get().currency(),
 						"Nested product price for sale should be in USD!"
 					);
 					assertEquals(

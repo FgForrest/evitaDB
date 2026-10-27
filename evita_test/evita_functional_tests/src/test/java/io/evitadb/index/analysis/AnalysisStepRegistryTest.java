@@ -63,7 +63,7 @@ class AnalysisStepRegistryTest {
 		}
 		final AnalysisStepParameterDescriptor descriptor = registry.resolve(removeCharacters("-")).getParameters().get(0);
 		assertEquals("characters", descriptor.name());
-		assertEquals(String.class, descriptor.type());
+		assertSame(String.class, descriptor.type());
 		assertTrue(descriptor.required());
 		assertFalse(descriptor.description().isBlank());
 	}

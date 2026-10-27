@@ -25,6 +25,7 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintVisitor;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FilterBy;
@@ -336,7 +337,7 @@ class ReferenceSummaryOfReferenceTest {
 		@Test
 		@DisplayName("should return RequireConstraint class as type")
 		void shouldReturnRequireConstraintClassAsType() {
-			assertEquals(RequireConstraint.class, referenceSummaryOfReference("parameter").getType());
+			assertSame(RequireConstraint.class, QueryConstraints.referenceSummaryOfReference("parameter").getType());
 		}
 
 		@Test

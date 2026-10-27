@@ -431,7 +431,7 @@ class PricesTest extends AbstractBuilderTest {
 
 			assertThrows(
 				EntityHasNoPricesException.class,
-				() -> prices.getPrices()
+				prices::getPrices
 			);
 		}
 

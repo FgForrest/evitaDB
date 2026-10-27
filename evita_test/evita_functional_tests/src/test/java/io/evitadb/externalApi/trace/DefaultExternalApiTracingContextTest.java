@@ -59,7 +59,7 @@ class DefaultExternalApiTracingContextTest {
 	@Test
 	@DisplayName("returns Object.class as context type")
 	void shouldReturnObjectClassAsContextType() {
-		assertEquals(Object.class, DefaultExternalApiTracingContext.INSTANCE.contextType());
+		assertSame(Object.class, DefaultExternalApiTracingContext.INSTANCE.contextType());
 	}
 
 	@Test

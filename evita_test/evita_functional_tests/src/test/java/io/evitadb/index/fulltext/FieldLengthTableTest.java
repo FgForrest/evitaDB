@@ -24,6 +24,7 @@
 package io.evitadb.index.fulltext;
 
 import io.evitadb.exception.GenericEvitaInternalError;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -405,7 +406,7 @@ class FieldLengthTableTest {
 			assertStateAfterCommit(
 				table,
 				t -> assertEquals(4, t.getLength(1)),
-				(original, committed) -> assertSame(original, committed)
+				Assertions::assertSame
 			);
 		}
 

@@ -166,7 +166,7 @@ class SegmentsTest {
 				segment(orderBy(attributeNatural("code")))
 			);
 
-			assertEquals(OrderConstraint.class, segments.getType());
+			assertSame(OrderConstraint.class, segments.getType());
 		}
 
 		@Test

@@ -49,6 +49,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
@@ -2135,7 +2136,7 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 					session.defineEntitySchema(ENTITY_CATEGORY)
 						.withReflectedReferenceToEntity(
 							REFERENCE_PRODUCTS_OF_CATEGORY, ENTITY_PRODUCT, REFERENCE_CATEGORIES,
-							whichIs -> whichIs.withAttributesInherited()
+							ReflectedReferenceSchemaEditor::withAttributesInherited
 						)
 						.updateVia(session);
 					for (int i = PRODUCT_COUNT + 1; i <= 2 * PRODUCT_COUNT; i++) {

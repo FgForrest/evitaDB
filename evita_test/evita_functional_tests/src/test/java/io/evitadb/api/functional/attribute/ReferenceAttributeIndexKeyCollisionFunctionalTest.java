@@ -28,6 +28,7 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.SealedInstance;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
@@ -217,7 +218,7 @@ public class ReferenceAttributeIndexKeyCollisionFunctionalTest implements EvitaT
 		@Nonnull String label
 	) {
 		session.getEntity(ENTITY_PRODUCT, productPk, referenceContentAllWithAttributes())
-			.map(it -> it.openForWrite())
+			.map(SealedInstance::openForWrite)
 			.orElseGet(() -> session.createNewEntity(ENTITY_PRODUCT, productPk))
 			.setReference(
 				REFERENCE_STOCKS, SHARED_STOCK_PK,
@@ -263,7 +264,7 @@ public class ReferenceAttributeIndexKeyCollisionFunctionalTest implements EvitaT
 		@Nonnull java.io.Serializable value
 	) {
 		session.getEntity(ENTITY_PRODUCT, productPk, referenceContentAllWithAttributes())
-			.map(it -> it.openForWrite())
+			.map(SealedInstance::openForWrite)
 			.orElseGet(() -> session.createNewEntity(ENTITY_PRODUCT, productPk))
 			.setReference(
 				REFERENCE_STOCKS, SHARED_STOCK_PK,
@@ -292,7 +293,7 @@ public class ReferenceAttributeIndexKeyCollisionFunctionalTest implements EvitaT
 		@Nonnull BigDecimal quantity
 	) {
 		session.getEntity(ENTITY_PRODUCT, productPk, referenceContentAllWithAttributes())
-			.map(it -> it.openForWrite())
+			.map(SealedInstance::openForWrite)
 			.orElseGet(() -> session.createNewEntity(ENTITY_PRODUCT, productPk))
 			.setReference(
 				REFERENCE_STOCKS, SHARED_STOCK_PK,
@@ -890,7 +891,7 @@ public class ReferenceAttributeIndexKeyCollisionFunctionalTest implements EvitaT
 		@Nonnull BigDecimal quantity
 	) {
 		session.getEntity(ENTITY_PRODUCT, GROUPED_OWNER_PK, referenceContentAllWithAttributes())
-			.map(it -> it.openForWrite())
+			.map(SealedInstance::openForWrite)
 			.orElseGet(() -> session.createNewEntity(ENTITY_PRODUCT, GROUPED_OWNER_PK))
 			.setReference(
 				REFERENCE_STOCKS, stockPk,

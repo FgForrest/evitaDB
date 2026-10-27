@@ -602,7 +602,7 @@ class DeclaredNormalizationQueryFunctionalTest implements EvitaTestSupport {
 	 */
 	private void fill(@Nonnull EvitaSessionContract session, @Nonnull String type, int count) {
 		EntitySchemaBuilder schema = session.defineEntitySchema(type).withoutGeneratedPrimaryKey().withLocale(TR)
-			.withGlobalAttribute("lookup").withAttribute("tie", Integer.class, a -> a.nullable())
+			.withGlobalAttribute("lookup").withAttribute("tie", Integer.class, AttributeSchemaEditor::nullable)
 			.withAttribute("marker", String.class, a -> a.localized().nullable());
 		for (final Policy policy : POLICIES) {
 			for (final boolean localized : List.of(false, true)) {
@@ -655,7 +655,7 @@ class DeclaredNormalizationQueryFunctionalTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private static <T extends ReferenceSchemaEditor<T>> T referenceSchema(@Nonnull T reference) {
-		reference.withAttribute("tie", Integer.class, a -> a.nullable());
+		reference.withAttribute("tie", Integer.class, AttributeSchemaEditor::nullable);
 		for (final Policy policy : POLICIES) {
 			for (final boolean localized : List.of(false, true)) {
 				for (final boolean control : List.of(false, true)) {

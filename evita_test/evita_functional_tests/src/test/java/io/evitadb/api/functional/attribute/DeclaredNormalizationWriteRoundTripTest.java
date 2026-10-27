@@ -29,6 +29,7 @@ import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -436,15 +437,15 @@ class DeclaredNormalizationWriteRoundTripTest implements EvitaTestSupport {
 			for (final String attribute : List.of("code", "globalArray")) {
 				assertEquals(List.of(1), session.queryListOfEntityReferences(query(collection("Product"),
 					filterBy(attributeEquals(attribute, raw(1)))))
-					.stream().map(it -> it.getPrimaryKey()).toList());
+					.stream().map(EntityReferenceContract::getPrimaryKey).toList());
 			}
 			for (final String attribute : List.of("owner", "within", "global", "globalLocale")) {
 				assertEquals(List.of(1), session.queryListOfEntityReferences(query(collection("Product"),
 					filterBy(entityLocaleEquals(TURKISH), attributeEquals(attribute, "ÍTITLE1"))))
-					.stream().map(it -> it.getPrimaryKey()).toList());
+					.stream().map(EntityReferenceContract::getPrimaryKey).toList());
 				assertEquals(List.of(1), session.queryListOfEntityReferences(query(collection("Product"),
 					filterBy(entityLocaleEquals(TURKISH), attributeInSet(attribute, "ÍTITLE1"))))
-					.stream().map(it -> it.getPrimaryKey()).toList());
+					.stream().map(EntityReferenceContract::getPrimaryKey).toList());
 			}
 		});
 

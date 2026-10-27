@@ -165,7 +165,7 @@ class TimeBoundedTestSupportTest {
 				})
 			);
 
-			assertEquals(RuntimeException.class, thrown.getClass());
+			assertSame(RuntimeException.class, thrown.getClass());
 			assertTrue(thrown.getMessage().contains("seed " + seed));
 			assertTrue(thrown.getMessage().contains("-Dtest.seed=" + seed));
 			assertTrue(thrown.getMessage().contains("kaboom"));

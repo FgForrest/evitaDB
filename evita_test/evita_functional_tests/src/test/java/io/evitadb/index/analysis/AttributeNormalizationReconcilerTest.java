@@ -27,6 +27,7 @@ package io.evitadb.index.analysis;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
@@ -138,7 +139,7 @@ class AttributeNormalizationReconcilerTest {
 			final AttributeNormalizationPolicy previous = new AttributeNormalizationPolicy(
 				Map.of(), Map.of(COMPOUND, retained), Set.of());
 			final EntitySchemaContract schema = builder(catalogSchema(Map.of()))
-				.withAttribute("code", String.class, a -> a.nullable())
+				.withAttribute("code", String.class, AttributeSchemaEditor::nullable)
 				.withAttribute("other", Integer.class)
 				.withSortableAttributeCompound("compound", element("other"), element("code"))
 				.toInstance();
@@ -159,7 +160,7 @@ class AttributeNormalizationReconcilerTest {
 			final AttributeNormalizationPolicy previous = new AttributeNormalizationPolicy(
 				Map.of(), Map.of(COMPOUND, List.of(CODE_ELEMENT, OTHER_ELEMENT)), Set.of());
 			final EntitySchemaContract schema = builder(catalogSchema(Map.of()))
-				.withAttribute("code", String.class, a -> a.nullable())
+				.withAttribute("code", String.class, AttributeSchemaEditor::nullable)
 				.withAttribute("other", Integer.class)
 				.toInstance();
 

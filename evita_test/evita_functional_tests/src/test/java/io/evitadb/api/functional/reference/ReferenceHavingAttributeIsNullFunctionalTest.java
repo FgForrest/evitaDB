@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -288,14 +289,14 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 				session.defineEntitySchema(ENTITY_OWNER)
 					.withoutGeneratedPrimaryKey()
 					.withLocale(Locale.ENGLISH, Locale.GERMAN)
-					.withAttribute(ATTR_NAME, String.class, thatIs -> thatIs.localized())
+					.withAttribute(ATTR_NAME, String.class, AttributeSchemaEditor::localized)
 					.withReferenceToEntity(
 						REF_ROWS, ENTITY_TARGET, Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs
 							.indexedForFilteringAndPartitioning()
 							.faceted()
 							.withAttribute(A, Long.class, thatIs -> thatIs.filterable().nullable())
-							.withAttribute(B, Long.class, thatIs -> thatIs.filterable())
+							.withAttribute(B, Long.class, AttributeSchemaEditor::filterable)
 							.withAttribute(U, String.class, thatIs -> thatIs.unique().nullable())
 					)
 					.withReferenceToEntity(

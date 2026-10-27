@@ -30,7 +30,9 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
@@ -119,7 +121,7 @@ class BuiltWithNormalizationFunctionalTest implements EvitaTestSupport {
 	 */
 	private void createPolicyFixture(int count) {
 		this.evita.defineCatalog(TEST_CATALOG)
-			.withAttribute("unusedGlobal", String.class, a -> a.nullable())
+			.withAttribute("unusedGlobal", String.class, AttributeSchemaEditor::nullable)
 			.withAttribute("globalRetyped", String.class, a -> a.uniqueGlobally().nullable().normalized(lowercase()))
 			.withAttribute("global", String.class, a -> a.uniqueGlobally().sortable().nullable()
 				.normalized(lowercase()))
@@ -134,7 +136,7 @@ class BuiltWithNormalizationFunctionalTest implements EvitaTestSupport {
 				.withAttribute("sortOnly", String.class, a -> a.sortable().nullable().normalized(lowercase()))
 				.withAttribute("owner", String.class, a -> a.localized().unique().nullable().normalized(lowercase()))
 				.withAttribute("compoundOnly", String.class, a -> a.nullable().normalized(lowercase()))
-				.withAttribute("nullElement", String.class, a -> a.nullable())
+				.withAttribute("nullElement", String.class, AttributeSchemaEditor::nullable)
 				.withAttribute("empty", String.class, a -> a.filterable().nullable())
 				.withAttribute("vacant", String.class, a -> a.filterable().nullable())
 				.withAttribute("unstable", String.class, a -> a.filterable().sortable().nullable()
@@ -143,7 +145,7 @@ class BuiltWithNormalizationFunctionalTest implements EvitaTestSupport {
 				.withAttribute("orphan", String.class,
 					a -> a.filterable().sortable().nullable().normalized(lowercase()))
 				.withAttribute("archivedOnly", String.class, a -> a.filterableInScope(Scope.values()).nullable())
-				.withAttribute("number", Integer.class, a -> a.nullable())
+				.withAttribute("number", Integer.class, AttributeSchemaEditor::nullable)
 				.withSortableAttributeCompound("compound", element("compoundOnly"), element("number"))
 				.withSortableAttributeCompound("partial", element("nullElement"), element("number"))
 				.withReferenceToEntity("virtual", "Category", Cardinality.ZERO_OR_MORE,
@@ -227,7 +229,7 @@ class BuiltWithNormalizationFunctionalTest implements EvitaTestSupport {
 			assertTrue(session.getEntitySchemaOrThrow("Product").getAttribute("code").orElseThrow()
 				.getNormalization().isEmpty(), "Schema reports the accepted declaration");
 			assertEquals(List.of(1), session.queryListOfEntityReferences(query(collection("Product"),
-				filterBy(attributeEquals("code", "ITEM1")))).stream().map(it -> it.getPrimaryKey()).toList());
+				filterBy(attributeEquals("code", "ITEM1")))).stream().map(EntityReferenceContract::getPrimaryKey).toList());
 		});
 		assertThrows(UniqueValueViolationException.class, () -> this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.createNewEntity("Product", 10000).setAttribute("code", "item1").upsertVia(session);
@@ -267,7 +269,7 @@ class BuiltWithNormalizationFunctionalTest implements EvitaTestSupport {
 		this.evita.waitUntilFullyInitialized();
 		assertLegacyFixture();
 		assertPopulatedKeys(count + 1);
-		assertEquals(Integer.class, productCollection().getSchema().getAttribute("retyped").orElseThrow().getType());
+		assertSame(Integer.class, productCollection().getSchema().getAttribute("retyped").orElseThrow().getType());
 		assertEquals("retype1", index().getFilterIndex(key("retyped")).getInvertedIndex()
 			.getNormalizer().apply("RETYPE1"));
 		assertEquals(1, catalog().getCatalogIndex(Scope.LIVE).getGlobalUniqueIndexes().entrySet().stream()
@@ -463,7 +465,7 @@ class BuiltWithNormalizationFunctionalTest implements EvitaTestSupport {
 	private static <T extends ReferenceSchemaEditor<T>> T reference(@Nonnull T reference) {
 		return reference.withAttribute("code", String.class,
 				a -> a.filterable().sortable().nullable().normalized(lowercase()))
-			.withAttribute("number", Integer.class, a -> a.nullable())
+			.withAttribute("number", Integer.class, AttributeSchemaEditor::nullable)
 			.withSortableAttributeCompound("compound", element("code"), element("number"));
 	}
 

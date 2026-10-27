@@ -80,7 +80,7 @@ class AttributeCardinalityIndexTest {
 		@DisplayName("should store value type from constructor")
 		void shouldStoreValueType() {
 			final AttributeCardinalityIndex index = new AttributeCardinalityIndex(Integer.class);
-			assertEquals(Integer.class, index.getValueType());
+			assertSame(Integer.class, index.getValueType());
 		}
 	}
 

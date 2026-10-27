@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.IntegerNumberRange;
@@ -147,17 +148,21 @@ public class CombinedEntityFilteringFunctionalTest {
 								.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.unique().sortable())
 								.withAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class, whichIs -> whichIs.filterable().sortable().indexDecimalPlaces(2))
 								.withAttribute(ATTRIBUTE_PRIORITY, Long.class, whichIs -> whichIs.sortable().filterable())
-								.withAttribute(ATTRIBUTE_SIZE, IntegerNumberRange[].class, whichIs -> whichIs.filterable())
+								.withAttribute(ATTRIBUTE_SIZE, IntegerNumberRange[].class,
+								               AttributeSchemaEditor::filterable
+								)
 								.withAttribute(ATTRIBUTE_CREATED, OffsetDateTime.class, whichIs -> whichIs.filterable().sortable())
 								.withAttribute(ATTRIBUTE_MANUFACTURED, LocalDate.class, whichIs -> whichIs.filterable().sortable())
 								.withAttribute(ATTRIBUTE_COMBINED_PRIORITY, Long.class, whichIs -> whichIs.filterable().sortable())
-								.withAttribute(ATTRIBUTE_TARGET_MARKET, String.class, whichIs -> whichIs.filterable())
+								.withAttribute(ATTRIBUTE_TARGET_MARKET, String.class, AttributeSchemaEditor::filterable)
 								.withReferenceToEntity(
 									Entities.BRAND,
 									Entities.BRAND,
 									Cardinality.ZERO_OR_ONE,
 									whichIs -> whichIs
-										.withAttribute(ATTRIBUTE_BRAND_LOCATED_AT, String.class, thatIs -> thatIs.filterable())
+										.withAttribute(ATTRIBUTE_BRAND_LOCATED_AT, String.class,
+										               AttributeSchemaEditor::filterable
+										)
 										.withAttribute(ATTRIBUTE_MARKET_SHARE, BigDecimal.class, thatIs -> thatIs.filterable().sortable())
 										.withAttribute(ATTRIBUTE_FOUNDED, OffsetDateTime.class, thatIs -> thatIs.filterable().sortable())
 								)
@@ -166,7 +171,9 @@ public class CombinedEntityFilteringFunctionalTest {
 									Entities.STORE,
 									Cardinality.ZERO_OR_MORE,
 									whichIs -> whichIs
-										.withAttribute(ATTRIBUTE_STORE_LOCATED_AT, String.class, thatIs -> thatIs.filterable())
+										.withAttribute(ATTRIBUTE_STORE_LOCATED_AT, String.class,
+										               AttributeSchemaEditor::filterable
+										)
 										.withAttribute(ATTRIBUTE_CAPACITY, Long.class, thatIs -> thatIs.filterable().sortable().nullable())
 								);
 						}

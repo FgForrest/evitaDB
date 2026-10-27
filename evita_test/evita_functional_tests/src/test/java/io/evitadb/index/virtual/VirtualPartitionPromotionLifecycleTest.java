@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttribute
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
@@ -1543,7 +1544,7 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 				whichIs -> whichIs
 					.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
 					.withAttribute(ATTRIBUTE_BRAND_LABEL, String.class, thatIs -> thatIs.localized().nullable())
-					.withAttribute(ATTRIBUTE_PRIORITY, Integer.class, thatIs -> thatIs.nullable())
+					.withAttribute(ATTRIBUTE_PRIORITY, Integer.class, AttributeSchemaEditor::nullable)
 					.withSortableAttributeCompound(
 						COMPOUND_BRAND_LABEL_AND_PRIORITY,
 						new AttributeElement(ATTRIBUTE_BRAND_LABEL, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),

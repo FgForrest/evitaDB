@@ -94,7 +94,7 @@ class JsonApiTracingContextAsyncTest {
 	@DisplayName("returns HttpRequest.class as context type")
 	void shouldReturnHttpRequestClassAsContextType() {
 		final JsonApiTracingContext ctx = new JsonApiTracingContext(DefaultTracingContext.INSTANCE);
-		assertEquals(HttpRequest.class, ctx.contextType());
+		assertSame(HttpRequest.class, ctx.contextType());
 	}
 
 	@Nested

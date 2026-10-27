@@ -142,7 +142,7 @@ class AttributeEndsWithTest {
 		void shouldReturnCorrectType() {
 			final AttributeEndsWith constraint = attributeEndsWith("abc", "def");
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 	}
 

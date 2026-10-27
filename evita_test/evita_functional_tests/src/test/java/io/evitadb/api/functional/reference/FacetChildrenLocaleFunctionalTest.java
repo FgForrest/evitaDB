@@ -27,6 +27,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.test.annotation.DataSet;
@@ -79,7 +80,7 @@ class FacetChildrenLocaleFunctionalTest {
 			session.upsertEntity(session.createNewEntity("Category", 3).setParent(1)
 				.setAttribute("match", Locale.ENGLISH, "yes"));
 			session.defineEntitySchema("Product").withoutGeneratedPrimaryKey().withLocale(CS, Locale.ENGLISH)
-				.withAttribute("name", String.class, attribute -> attribute.localized())
+				.withAttribute("name", String.class, AttributeSchemaEditor::localized)
 				.withReferenceToEntity("category", "Category", Cardinality.EXACTLY_ONE,
 					reference -> reference.indexedForFiltering().faceted()).updateVia(session);
 			for (int pk = 1; pk <= 3; pk++) {

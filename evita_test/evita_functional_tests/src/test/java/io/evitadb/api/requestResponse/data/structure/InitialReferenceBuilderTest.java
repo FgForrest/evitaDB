@@ -42,22 +42,18 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REFERENCE;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies contract of
@@ -209,17 +205,13 @@ class InitialReferenceBuilderTest extends AbstractBuilderTest {
 			final AttributeSchemaContract brandPriority =
 				brandRefAttributes.get("brandPriority");
 			assertNotNull(brandPriority);
-			assertEquals(
-				Long.class, brandPriority.getType()
-			);
+			assertSame(Long.class, brandPriority.getType());
 			assertFalse(brandPriority.isLocalized());
 
 			final AttributeSchemaContract brandCountry =
 				brandRefAttributes.get("country");
 			assertNotNull(brandCountry);
-			assertEquals(
-				String.class, brandCountry.getType()
-			);
+			assertSame(String.class, brandCountry.getType());
 			assertTrue(brandCountry.isLocalized());
 		}
 

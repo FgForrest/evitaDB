@@ -76,11 +76,11 @@ class AnalysisStepInputDescriptorsTest {
 		final Map<String, PropertyDescriptor> properties = result.getLast().parameters().staticProperties().stream()
 			.collect(Collectors.toMap(PropertyDescriptor::name, Function.identity()));
 		assertTrue(properties.get("characters").type().nonNull());
-		assertEquals(String[].class, properties.get("characters").primitiveType().javaType());
+		assertSame(String[].class, properties.get("characters").primitiveType().javaType());
 		assertEquals("Required characters.", properties.get("characters").description());
 		assertFalse(properties.get("optionalLimit").type().nonNull());
-		assertEquals(Integer.class, properties.get("optionalLimit").primitiveType().javaType());
-		assertThrows(UnsupportedOperationException.class, () -> result.clear());
+		assertSame(Integer.class, properties.get("optionalLimit").primitiveType().javaType());
+		assertThrows(UnsupportedOperationException.class, result::clear);
 	}
 
 	@Test

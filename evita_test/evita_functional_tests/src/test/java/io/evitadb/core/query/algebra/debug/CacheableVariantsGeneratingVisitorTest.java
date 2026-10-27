@@ -64,6 +64,7 @@ import static io.evitadb.test.TestTags.PRICE;
 import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -253,7 +254,7 @@ class CacheableVariantsGeneratingVisitorTest {
 		// FlattenedFormulaWithFilteredPricesAndFilteredOutRecords, so a permissive instanceof
 		// would still pass if a plain LP were wrongly upgraded to the histogram payload —
 		// which is exactly the regression this test guards against.
-		assertEquals(FlattenedFormulaWithFilteredPricesAndFilteredOutRecords.class, variants.getFirst().getClass());
+		assertSame(FlattenedFormulaWithFilteredPricesAndFilteredOutRecords.class, variants.getFirst().getClass());
 	}
 
 	/**

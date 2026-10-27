@@ -68,10 +68,7 @@ import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.PRICE;
 import static io.evitadb.test.TestTags.SERIALIZATION;
 import static io.evitadb.test.TestTags.STORAGE;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Backward-compatibility coverage for the one format change that is invisible in the bytes: every catalog written
@@ -588,7 +585,7 @@ class LegacyRangeThresholdScaleSerializerTest {
 				decoded.isSecondGranularityRangePages(),
 				"inline companions have already been converted"
 			);
-			assertEquals(DateTimeRange.class, decoded.getValueType(), "the value type must survive the read");
+			assertSame(DateTimeRange.class, decoded.getValueType(), "the value type must survive the read");
 			assertArrayEquals(
 				new long[]{Long.MIN_VALUE, 1_779_279_566_000L, 1_779_711_566_000L, Long.MAX_VALUE},
 				thresholdsOf(decoded.getRangeIndex()),
