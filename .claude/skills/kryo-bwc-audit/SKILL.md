@@ -77,9 +77,15 @@ that registers the class, not just once globally.**
    - `*** MISSING READER: <uid>` — bumped (or churned) but no BWC reader for that old UID. **Fix.**
    - `*** MULTI-CONFIGURER: reader ... absent here` — the override trap above. **Fix** by adding the
      reader to *this* configurer's registration too.
-   - `*** SERIALIZER CHANGED WITHOUT UID BUMP` — the current serializer body changed on this branch
-     but the UID equals the released value → silent-corruption risk. Either the change is
-     byte-neutral (confirm by reading the diff) or a bump + reader is missing. **Investigate.**
+   - `*** SERIALIZER CHANGED WITHOUT UID BUMP` — the current serializer's code changed on this branch
+     but the UID equals the released value → silent-corruption risk. Comments and whitespace are
+     ignored, so a JavaDoc edit does not trigger it. Either the change is byte-neutral (confirm by
+     reading the diff) or a bump + reader is missing. **Investigate.**
+   - `*** UNPARSED: <configurer>:<line>` — a `new SerialVersionBasedSerializer<>(...)` whose
+     arguments are not a `new XSerializer(...)` and a `Y.class`, or an
+     `.addBackwardCompatibleSerializer(...)` not chained onto one (attached through a variable or
+     helper, or keyed by a constant instead of a `...L` literal). Its class or reader is left out of
+     every check above. **Verify by hand**, or rewrite the registration in the chained form.
    - `*** UNVERIFIED: ...` — the tool could not resolve the class to a `serialVersionUID` **and** the
      class's serializer changed on this branch, so a real change may be hiding. **Resolve by hand**
      (nested class? ambiguous name? no explicit UID?) before shipping.
@@ -132,9 +138,11 @@ Then a full-reactor `install -DskipTests` makes `.m2` coherent at that version, 
   on a persisted path and reproduce the trap kryo. It cannot detect a double-bump whose intermediate
   UID was never persisted, nor a layout change hidden inside an unchanged-signature serializer body
   (limb 2 flags the file-changed case; a byte-neutral refactor there is a false positive to dismiss).
-- It keys registrations off the literal `new SerialVersionBasedSerializer<>(new XSerializer(), Y.class)`
-  shape. A registration written differently won't be parsed — grep for `SerialVersionBasedSerializer`
-  to sanity-check the scanned set matches reality.
+- It parses each configurer as whole-file text with comments blanked, so serializers built with
+  arguments (`new XSerializer(this.keyCompressor)`), registrations spread over several lines and
+  comments between chained readers are all read. The header prints how many registrations and
+  readers it parsed; anything it could not tie together is an `UNPARSED` finding, never a silent
+  skip.
 - **Running the audit *on* `dev` at release time degenerates the `--fork` anchor** (`merge-base HEAD
   origin/dev` becomes HEAD, so the orphan-UID check is a no-op). When auditing a release branch or dev
   itself, pass `--fork` explicitly to the dev tip *before* the release work, or omit it and rely on
