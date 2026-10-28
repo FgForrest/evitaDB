@@ -42,6 +42,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.nio.file.Path;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -83,6 +84,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(STORAGE)
 @Tag(ATTRIBUTE)
 class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
+	/** A moment inside both open-bound twins. */
+	private static final OffsetDateTime MID_2025 = BASE.minusMonths(7);
 
 	private final ReleaseFixtureHarness harness = new ReleaseFixtureHarness(this);
 
@@ -221,6 +224,64 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 			}
 		}
 	}
+
+	/** Tests shared counters whose released keys become equal. */
+	@Nested
+	@DisplayName("Reference counters keyed by open-bound twins at different offsets")
+	@Tag(REFERENCE)
+	class OpenBoundCounters {
+
+		/** Verifies reference removal preserves the remaining contributions. */
+		@Test
+		@DisplayName("removing one owner's reference keeps the other owner findable through the shared counter")
+		void shouldKeepSecondOwnerFindableWhenFirstOwnerLeavesCollidingCounter() {
+			Release2026_2UpgradeDefectsTest.this.harness.assertOnFreshThenUpgraded("d1a", evita -> {
+				final Query byValidity = query(
+					collection(PRODUCT), filterBy(referenceHaving(BRAND, attributeInRange("validity", MID_2025)))
+				);
+				assertEquals(List.of(1, 2), pks(evita, "d1a", byValidity));
+				update(evita, "d1a", session -> removeBrand(session, 1, 1));
+				assertEquals(List.of(2), pks(evita, "d1a", byValidity));
+			});
+		}
+
+		/** Verifies reference removal preserves the remaining contributions. */
+		@Test
+		@DisplayName("after one owner leaves, the other owner is still found by an exact match on its value")
+		void shouldKeepSecondOwnerFindableByEqualityWhenFirstOwnerLeaves() {
+			Release2026_2UpgradeDefectsTest.this.harness.assertOnFreshThenUpgraded("d1a", evita -> {
+				update(evita, "d1a", session -> removeBrand(session, 1, 1));
+				assertEquals(
+					List.of(2),
+					pks(
+						evita, "d1a",
+						query(collection(PRODUCT), filterBy(referenceHaving(BRAND, attributeEquals("validity", U2))))
+					)
+				);
+			});
+		}
+
+		/** Verifies reference removal preserves the remaining contributions. */
+		@Test
+		@DisplayName("both owners can drop their colliding reference one after another")
+		void shouldRemoveBothCollidingReferencesWhenOwnersLeaveInTurn() {
+			Release2026_2UpgradeDefectsTest.this.harness.assertOnFreshThenUpgraded("d1a", evita -> {
+				update(evita, "d1a", session -> removeBrand(session, 1, 1));
+				update(evita, "d1a", session -> removeBrand(session, 2, 1));
+				assertEquals(
+					List.of(),
+					pks(
+						evita, "d1a",
+						query(
+							collection(PRODUCT),
+							filterBy(referenceHaving(BRAND, attributeInRange("validity", MID_2025)))
+						)
+					)
+				);
+			});
+		}
+	}
+
 
 	@Nested
 	@DisplayName("D1c - a FILTER holding the open-bound twins until(10:00+01:00) and until(11:00+02:00)")
