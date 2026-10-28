@@ -585,7 +585,8 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	 * when {@link #TAILS} lists one.
 	 */
 	private static void upsertOwner(@Nonnull EvitaSessionContract session, int primaryKey, @Nonnull Row... rows) {
-		final EntityBuilder builder = session.createNewEntity(ENTITY_OWNER, primaryKey);
+		final EntityBuilder builder = session.createNewEntity(ENTITY_OWNER, primaryKey)
+			.setAttribute(ATTRIBUTE_ORDER, 30);
 		final Integer tail = TAILS.get(primaryKey);
 		if (tail != null) {
 			builder.setAttribute(ATTRIBUTE_TAIL, tail);
@@ -781,7 +782,8 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 			.updateVia(session);
 		final EntitySchemaBuilder owner = session.defineEntitySchema(ENTITY_OWNER)
 			.withoutGeneratedPrimaryKey()
-			.withAttribute(ATTRIBUTE_TAIL, Integer.class, thatIs -> thatIs.sortableInScope(BOTH_SCOPES).nullable());
+			.withAttribute(ATTRIBUTE_TAIL, Integer.class, thatIs -> thatIs.sortableInScope(BOTH_SCOPES).nullable())
+			.withAttribute(ATTRIBUTE_ORDER, Integer.class, thatIs -> thatIs.nullable());
 		// the main references are faceted, so that `facetHaving` can be shown not to bound the traversal
 		owner.withReferenceToEntity(
 			REFERENCE_CATEGORIES_PARTITIONING, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
@@ -834,7 +836,10 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 		owner.withReferenceToEntity(
 			REFERENCE_DECIMAL_VARIANTS, ENTITY_BRAND, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
 			whichIs -> whichIs.indexedForFilteringAndPartitioningInScope(BOTH_SCOPES)
-				.withAttribute(ATTRIBUTE_SCALE, BigDecimal.class, thatIs -> thatIs.representative())
+				.withAttribute(
+					ATTRIBUTE_SCALE, BigDecimal.class,
+					thatIs -> thatIs.representative().sortableInScope(BOTH_SCOPES).indexDecimalPlaces(1)
+				)
 				.withAttribute(ATTRIBUTE_ORDER, Integer.class, thatIs -> thatIs.sortableInScope(BOTH_SCOPES).nullable())
 		);
 		owner.withReferenceToEntity(
@@ -2685,6 +2690,148 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 			);
 		}
 		assertAll(assertions);
+	}
+
+	/**
+	 * Listed values claim owners block by block; unlisted and missing values reach later blocks and the tail.
+	 * The owner's own `order` is deliberately 30, distinct from the representing reference value.
+	 */
+	@UseDataSet(TRAVERSE_REFERENCES)
+	@ParameterizedTest(name = "{0} via {1}")
+	@MethodSource("hierarchicalRoutes")
+	void shouldOrderExactValuesBlockByBlock(String referenceName, SortRoute route, EvitaSessionContract session) {
+		final OrderConstraint ordering = traverseOrdering(
+			referenceName, attributeSetExact(ATTRIBUTE_ORDER, 20, 30, 7, 1, 3, 2)
+		);
+		for (final int pageSize : new int[]{2, 4}) {
+			assertOrder(
+				new int[]{3, 9, 2, 10, 6, 5, 7, 8, 4, 1, 11},
+				queryAllPages(
+					session, route, BASIC_OWNERS, NO_FILTER, BASIC_OWNERS.length, pageSize,
+					ordering, attributeNatural(ATTRIBUTE_TAIL)
+				), "Exact blocks, page size " + pageSize
+			);
+		}
+	}
+
+	/**
+	 * referenceHaving selects owners of target 5, but owner 6 is placed by its earlier row at target 1.
+	 */
+	@UseDataSet(TRAVERSE_REFERENCES)
+	@ParameterizedTest(name = "{0} via {1}")
+	@MethodSource("hierarchicalRoutes")
+	void shouldKeepEarlierExactBlockUnderReferenceHaving(
+		String referenceName, SortRoute route, EvitaSessionContract session
+	) {
+		assertOrder(
+			new int[]{6, 5, 11, 4},
+			queryOrder(
+				session, route, BASIC_OWNERS,
+				new FilterConstraint[]{referenceHaving(referenceName, entityPrimaryKeyInSet(5))},
+				traverseOrdering(referenceName, attributeSetExact(ATTRIBUTE_ORDER, 3, 9, 1, 50))
+			), "referenceHaving must not narrow exact blocks"
+		);
+	}
+
+	/**
+	 * Owner 73's first valued row is b=60 (unlisted), so its later c=5 must never claim it.
+	 * Owner 72 skips its value-less a row; owner 74's unlisted target 1 row leaves it for target 2 or a child sorter.
+	 */
+	@UseDataSet(TRAVERSE_REFERENCES)
+	@ParameterizedTest(name = "{0} via {1}")
+	@MethodSource("duplicateRoutes")
+	void shouldUseFirstValuedRowForExactOrder(String referenceName, SortRoute route, EvitaSessionContract session) {
+		assertOrder(
+			new int[]{70, 71, 72, 74, 73},
+			queryOrder(
+				session, route, DUPLICATE_OWNERS, NO_FILTER,
+				traverseOrdering(referenceName, attributeSetExact(ATTRIBUTE_ORDER, 5, 1, 100, 50, 3))
+			), "An unlisted first valued row blocks a later listed row"
+		);
+		assertOrder(
+			new int[]{74, 70, 71, 72, 73},
+			queryOrder(
+				session, route, DUPLICATE_OWNERS, NO_FILTER,
+				traverseOrdering(
+					referenceName, attributeSetExact(ATTRIBUTE_ORDER, 5, 1, 100, 50, 3),
+					entityPrimaryKeyNatural(OrderDirection.DESC)
+				)
+			), "Unclaimed owners reach the next child sorter in the same block"
+		);
+	}
+
+	/**
+	 * Both scopes merge by listed position and ascending primary key for ties, including every page boundary.
+	 */
+	@UseDataSet(TRAVERSE_REFERENCES)
+	@ParameterizedTest(name = "{0} via {1}")
+	@MethodSource("hierarchicalRoutes")
+	void shouldMergeExactValuesAcrossScopes(String referenceName, SortRoute route, EvitaSessionContract session) {
+		for (final int pageSize : new int[]{2, 4}) {
+			assertOrder(
+				new int[]{54, 52, 53, 50, 51, 55},
+				queryAllPages(
+					session, route, SCOPE_OWNERS, new FilterConstraint[]{scope(BOTH_SCOPES)}, SCOPE_OWNERS.length,
+					pageSize, traverseOrdering(referenceName, attributeSetExact(ATTRIBUTE_ORDER, 30, 20, 10, 5, 1))
+				), "Exact ordering across both scopes, page size " + pageSize
+			);
+		}
+	}
+
+	/**
+	 * The hierarchy bound excludes earlier rows outside the subtree, including an otherwise listed value.
+	 */
+	@UseDataSet(TRAVERSE_REFERENCES)
+	@ParameterizedTest(name = "{0} via {1}")
+	@MethodSource("hierarchicalRoutes")
+	void shouldBoundExactBlocksByHierarchy(String referenceName, SortRoute route, EvitaSessionContract session) {
+		assertOrder(
+			new int[]{21, 27, 20, 28, 29, 24, 23, 22, 25},
+			queryOrder(
+				session, route, HIERARCHY_OWNERS,
+				new FilterConstraint[]{hierarchyWithin(referenceName, entityPrimaryKeyInSet(4))},
+				traverseOrdering(referenceName, attributeSetExact(ATTRIBUTE_ORDER, 60, 50, 40, 30, 20, 10, 5, 1, 99))
+			), "Exact blocks bounded to targets 4, 6, 7"
+		);
+	}
+
+	/**
+	 * Target 2 has no sort index of second; its only selected owner must fall through without failing.
+	 */
+	@UseDataSet(TRAVERSE_REFERENCES)
+	@ParameterizedTest(name = "{0} via {1}")
+	@MethodSource("hierarchicalRoutes")
+	void shouldPassOnExactBlockWithoutSortIndex(
+		String referenceName, SortRoute route, EvitaSessionContract session
+	) {
+		assertOrder(
+			new int[]{14},
+			queryOrder(
+				session, route, LONE_OWNERS,
+				new FilterConstraint[]{hierarchyWithin(referenceName, entityPrimaryKeyInSet(2), directRelation())},
+				traverseOrdering(referenceName, attributeSetExact(ATTRIBUTE_SECOND, 7))
+			), "An exact block without a sort index claims nothing"
+		);
+	}
+
+	/**
+	 * Listed values and representing rows use the index's decimal scale on prefetch as on the index route.
+	 * A descending child sorter makes a missed exact match observable even when both owners share the value.
+	 */
+	@UseDataSet(TRAVERSE_REFERENCES)
+	@ParameterizedTest(name = "via {0}")
+	@MethodSource("sortRoutes")
+	void shouldNormalizeExactReferenceValues(SortRoute route, EvitaSessionContract session) {
+		assertOrder(
+			new int[]{140, 141},
+			queryOrder(
+				session, route, DECIMAL_VARIANT_OWNERS, NO_FILTER,
+				traverseOrdering(
+					REFERENCE_DECIMAL_VARIANTS, attributeSetExact(ATTRIBUTE_SCALE, new BigDecimal("1.04")),
+					entityPrimaryKeyNatural(OrderDirection.DESC)
+				)
+			), "Exact values compare at the attribute's indexed decimal scale"
+		);
 	}
 
 }
