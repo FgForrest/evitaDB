@@ -34,7 +34,9 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.Not;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.query.order.ReferenceOrderingSpecification;
 import io.evitadb.api.query.order.ReferenceProperty;
+import io.evitadb.api.query.order.TraverseByEntityProperty;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -82,6 +84,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
+import static io.evitadb.core.query.sort.reference.ReferenceOrderingHelper.resolveOrderingSpecification;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 
@@ -340,13 +343,10 @@ public class BidirectionalReferenceRewriter {
 		if (split == null) {
 			return null;
 		}
-		// `orderBy(referenceProperty(R, ...))` in its block-by-block forms - `traverseByEntityProperty` and chain
-		// attributes - sorts owners among the reduced indexes index selection picked for R
-		// (`ReferencePropertyTranslator#selectPlanningReducedIndexes`). Taking the rewrite removes that entry, and the
-		// sorter silently falls back to *every* reduced index of R, which changes the blocks. Leave those queries alone.
-		// A pick-first ordering by a comparable value reads no candidate set (it resolves its indexes from the
-		// selection), so for that shape the guard is conservative rather than necessary.
-		if (orderedByTheSameReference(queryContext, ownerReference.getName())) {
+		// Traverse partitions depend only on the resolved hierarchy bound, which this reference-having rewrite
+		// does not change. Only implicit pick-first chains still read the candidate set removed by the rewrite,
+		// so guard 4 remains in place for non-traverse orderings.
+		if (orderedByTheSameReference(queryContext, ownerReference)) {
 			return null;
 		}
 
@@ -551,16 +551,18 @@ public class BidirectionalReferenceRewriter {
 	}
 
 	/**
-	 * Tells whether the query sorts by a property of the very reference the rewrite would take over.
+	 * Tells whether a non-traverse ordering of the reference still requires the owner-side candidate set.
+	 * Traverse orderings, including the default for hierarchical targets, use the resolved hierarchy bound and
+	 * remain unchanged when the rewrite removes reference-having candidates. The guard is retained for other
+	 * reference orderings because implicit pick-first chains still consume those candidates at planning time.
 	 *
-	 * The block-by-block reference orderings read the reduced index set index selection registered for that reference
-	 * name, so removing the entry changes the ordering rather than merely the plan - see
-	 * {@code ReferencePropertyTranslator#selectPlanningReducedIndexes}. The check does not tell those orderings apart
-	 * from a pick-first ordering by a comparable value, which no longer depends on the entry, and declines both.
+	 * @param queryContext the context supplying the order and target schema
+	 * @param reference the reference the rewrite would answer from its counterpart
+	 * @return true when guard 4 must preserve the owner-side candidates
 	 */
 	private static boolean orderedByTheSameReference(
 		@Nonnull QueryPlanningContext queryContext,
-		@Nonnull String referenceName
+		@Nonnull ReferenceSchemaContract reference
 	) {
 		final OrderConstraint orderBy = queryContext.getOrderBy();
 		if (orderBy == null) {
@@ -570,8 +572,13 @@ public class BidirectionalReferenceRewriter {
 			orderBy, ReferenceProperty.class
 		);
 		for (final ReferenceProperty referenceProperty : referenceProperties) {
-			if (referenceName.equals(referenceProperty.getReferenceName())) {
-				return true;
+			if (reference.getName().equals(referenceProperty.getReferenceName())) {
+				final ReferenceOrderingSpecification specification = resolveOrderingSpecification(
+					referenceProperty, reference, queryContext
+				);
+				if (!(specification instanceof TraverseByEntityProperty)) {
+					return true;
+				}
 			}
 		}
 		return false;

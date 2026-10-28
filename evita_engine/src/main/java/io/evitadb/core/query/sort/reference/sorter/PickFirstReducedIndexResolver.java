@@ -289,10 +289,10 @@ public final class PickFirstReducedIndexResolver {
 	}
 
 	/**
-	 * Returns the partitions for the consumers that need a partition array at planning time, before any selection
-	 * exists - the block-by-block orderings of chain attributes and the single-index orderings - which therefore keep
-	 * the planning-time index set of the block orderings: the candidates of a `referenceHaving` on the same reference
-	 * when there are any, the whole family otherwise. Resolved once per instance, and only when asked for.
+	 * Returns planning-time partitions for implicit pick-first chains and constraints requiring a single partition.
+	 * Only implicit pick-first chains use index-selection candidates for ordering: the candidates of a filter on the
+	 * same reference when available, the whole family otherwise. Traversal resolves its own hierarchy-bounded
+	 * partitions independently. Resolved once per instance, and only when asked for.
 	 *
 	 * @return the planning-time partitions in target order - reduced entity indexes and virtual partitions
 	 */

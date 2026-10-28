@@ -169,7 +169,7 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 				targetEntitySchema
 			);
 		};
-		return queryContext.getEntityIndex(
+		final Formula nodes = queryContext.getEntityIndex(
 				targetEntitySchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL, scope), EntityIndex.class
 			)
 			.map(
@@ -190,6 +190,8 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 					return EmptyFormula.INSTANCE;
 				}
 			);
+		queryContext.setResolvedHierarchyNodes(entitySchema, hierarchyWithin, scope, nodes);
+		return nodes;
 	}
 
 	/**

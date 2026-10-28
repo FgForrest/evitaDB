@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.core.query.indexSelection.TargetIndexes.EligibilityObstacle;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.annotation.DataSet;
@@ -1912,6 +1913,49 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	}
 
 	/**
+	 * Checks that the complete node union resolved over the filter scopes bounds every covered owner scope, even
+	 * when the ordering covers fewer scopes. A live owner can reference an archived target admitted by that union.
+	 */
+	@DisplayName("Should retain nodes from every target tree resolved by a conjunctive hierarchy filter")
+	@UseDataSet(TRAVERSE_REFERENCES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("sortRoutes")
+	void shouldRetainResolvedTargetsOutsideOrderingScope(SortRoute route, EvitaSessionContract session) {
+		final OrderConstraint withinArchivedRoot = referenceProperty(
+			REFERENCE_CATEGORIES_ACROSS_SCOPES, traverseByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+			attributeNatural(ATTRIBUTE_ORDER)
+		);
+		final OrderConstraint fromArchivedRoots = referenceProperty(
+			REFERENCE_SCOPED_CATEGORIES,
+			traverseByEntityProperty(entityPrimaryKeyNatural(OrderDirection.DESC)), attributeNatural(ATTRIBUTE_ORDER)
+		);
+		// Owners 62 and 60 carry 1 and 5 in archived target 10; bounding their live partitions by the live tree
+		// alone drops both blocks and falls back to [60, 62]. The filter resolves target 10 in the archived tree.
+		final FilterConstraint[] within = {
+			scope(BOTH_SCOPES), hierarchyWithin(REFERENCE_CATEGORIES_ACROSS_SCOPES, entityPrimaryKeyInSet(10))
+		};
+		final FilterConstraint[] fromRoot = {scope(BOTH_SCOPES), hierarchyWithinRoot(REFERENCE_SCOPED_CATEGORIES)};
+		assertAll(
+			selectsAndOrders(
+				session, route, ACROSS_SCOPES_OWNERS, within, withinArchivedRoot,
+				new int[]{62, 60}, "within archived root over both owner scopes"
+			),
+			selectsAndOrders(
+				session, route, ACROSS_SCOPES_OWNERS, within, inScope(Scope.LIVE, withinArchivedRoot),
+				new int[]{62, 60}, "within archived root ordered in the live scope only"
+			),
+			selectsAndOrders(
+				session, route, SCOPED_CATEGORY_OWNERS, fromRoot, fromArchivedRoots,
+				new int[]{132, 131}, "from root over both owner scopes"
+			),
+			selectsAndOrders(
+				session, route, SCOPED_CATEGORY_OWNERS, fromRoot, inScope(Scope.LIVE, fromArchivedRoots),
+				new int[]{132, 131}, "from root ordered in the live scope only"
+			)
+		);
+	}
+
+	/**
 	 * Checks the rule "Should place each owner once among rows sharing one target, by its first valued row".
 	 */
 	@DisplayName("Should place each owner once among rows sharing one target, by its first valued row")
@@ -2556,8 +2600,9 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	 * Checks the rule "Should order identically on every alternative plan": the bound, the selection and therefore
 	 * the order must not depend on which index set the planner picks. `VERIFY_ALTERNATIVE_INDEX_RESULTS` executes every
 	 * eligible alternative and fails the query when two of them answer differently; each scenario also asserts that at
-	 * least two plans were built, or the verification would have compared nothing. This is the plan-choice
-	 * counterfactual of P5: the hierarchy bound must come from the resolved node set, not from whichever
+	 * least two plans were built, or the verification would have compared nothing - except a scenario whose alternative
+	 * is not eligible for a plan of its own, which asserts the single plan and the reason instead. This is the
+	 * plan-choice counterfactual of P5: the hierarchy bound must come from the resolved node set, not from whichever
 	 * `TargetIndexes` the chosen plan happened to register.
 	 */
 	@DisplayName("Should order identically on every alternative plan")
@@ -2602,24 +2647,38 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 				"inScope(LIVE, within 2) over both scopes",
 				ArrayUtils.mergeArrays(HIERARCHY_OWNERS, new Integer[]{33, 34}),
 				new FilterConstraint[]{scope(BOTH_SCOPES), inScope(Scope.LIVE, within2)}, ascending,
-				new int[]{33, 34, 23, 32, 30, 31}
+				new int[]{33, 34, 23, 32, 30, 31},
+				// the candidate of a constraint inside `inScope` covers one of the two queried scopes, so #1681 makes
+				// it ineligible for a plan of its own and the global plan is the only one built - this scenario pins
+				// the order of that plan. Do not demand a second plan here until such a candidate can be planned:
+				// a correct engine fails that assertion
+				EligibilityObstacle.PARTIAL_SCOPE_COVERAGE
 			}
 		};
 		final List<Executable> assertions = new ArrayList<>(scenarios.length);
 		for (Object[] scenario : scenarios) {
 			final String label = (String) scenario[0] + " (VERIFY_ALTERNATIVE_INDEX_RESULTS)";
+			final EligibilityObstacle singlePlanReason = scenario.length > 5 ? (EligibilityObstacle) scenario[5] : null;
 			assertions.add(
 				() -> {
 					final RoutedResult result = queryPage(
 						session, route, (Integer[]) scenario[1], (FilterConstraint[]) scenario[2], 1, 100,
 						new DebugMode[]{DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS}, (OrderConstraint) scenario[3]
 					);
-					assertAll(
+					final Executable planCount = singlePlanReason == null ?
 						() -> assertTrue(
 							result.builtPlans() >= 2,
 							() -> label + ": only " + result.builtPlans() + " plan(s) built, the verification " +
 								"compared nothing; alternatives: " + result.alternatives()
-						),
+						) :
+						() -> assertTrue(
+							result.builtPlans() == 1 &&
+								result.alternatives().stream().anyMatch(it -> it.contains(singlePlanReason.name())),
+							() -> label + ": expected the single plan " + singlePlanReason + " leaves, but " +
+								result.builtPlans() + " plan(s) were built; alternatives: " + result.alternatives()
+						);
+					assertAll(
+						planCount,
 						() -> assertOrder((int[]) scenario[4], result, label)
 					);
 				}
