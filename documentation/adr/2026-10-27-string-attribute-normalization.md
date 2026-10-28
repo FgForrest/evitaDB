@@ -1,7 +1,7 @@
 ---
 title: String attributes declare a single-pass normalization chain, and a populated index keeps the chain it was built with
 date: 2026-10-27
-updated: 2026-10-27 17:30
+updated: 2026-10-28 09:30
 status: accepted
 kind: feature
 issues: [545]
@@ -9,7 +9,7 @@ prs: [1799]
 areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/schema/analysis, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/builder/InternalSchemaBuilderHelper.java, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaNormalizedMutation.java, evita_engine/src/main/java/io/evitadb/index/analysis, evita_engine/src/main/java/io/evitadb/spi/analysis, evita_engine/src/main/java/io/evitadb/index/attribute, evita_engine/src/main/java/io/evitadb/index/component/loader/LoadContext.java, evita_engine/src/main/java/io/evitadb/core/collection/EntityCollection.java, evita_engine/src/main/java/io/evitadb/core/catalog/Catalog.java, evita_engine/src/main/java/io/evitadb/core/query, evita_engine/src/main/java/io/evitadb/spi/store/catalog/persistence/storageParts/index, evita_store/evita_store_server/src/main/java/io/evitadb/store/index, evita_external_api]
 supersedes: []
 superseded-by: []
-relates: [2026-10-05-schema-changes-never-refused-dormant-accelerator, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-08-10-stored-value-normalization-split, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-20-reference-content-filter-row-by-row, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-08-24-fulltext-search-lucene-vs-inhouse]
+relates: [2026-10-05-schema-changes-never-refused-dormant-accelerator, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-08-10-stored-value-normalization-split, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-20-reference-content-filter-row-by-row, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-08-24-fulltext-search-lucene-vs-inhouse, 2026-09-04-millisecond-temporal-precision]
 ---
 
 # String attributes declare a single-pass normalization chain, and a populated index keeps the chain it was built with
@@ -51,6 +51,9 @@ filter key (2026-10-08). There was no per-attribute key policy and no storage fo
   unique check. Revisit if profiles land for fulltext and a cheap non-stream execution exists.
 - **The issue's own flags (`caseInsensitive()`, `asciiOnly()`) - declined.** Rejected because it creates a second
   vocabulary next to fulltext's for the same operations.
+- **Scope-aware normalization, like `filterableInScope(...)` - declined.** Rejected because index existence is per
+  scope but the canonical form is not: an attribute cannot mean one thing live and another archived (the issue's
+  own argument). `normalized(...)` takes no scope.
 
 ### Fold locale
 
@@ -114,6 +117,22 @@ filter key (2026-10-08). There was no per-attribute key policy and no storage fo
   attribute becomes unusable. **Retire the indexes (as fulltext does on an index-side analyzer change) - declined**:
   `attributeIsNull` would match every old entity and uniqueness would vanish.
 
+### Where the built-with row lives
+
+- **One row per logical attribute, owned by its collection, and one catalog row per global attribute (chosen).**
+  One catalog row serves every adopting collection because typed equality on a globally unique attribute is
+  answered by the catalog's `GlobalUniqueIndex` even in a collection-qualified query (`FilterByVisitor`). A
+  collection that switched its own row while the shared catalog tree kept old keys would build its filter and sort
+  keys with one chain and answer equality and uniqueness with another.
+- **Freeze the chain in every tree root, as `indexedDecimalPlaces` is - declined.** Rejected because trees are
+  created independently: a reduced, referenced-type or virtual-partition tree created after a declaration change
+  would bind the new chain beside populated siblings holding old keys, and a String key cannot show which chain
+  built it. It would also change the layouts of index parts the release reads unchanged. A per-tree copy could
+  serve as a diagnostic, never as the authority.
+- **Keep the built-with list on the attribute schema - declined.** Rejected because declaration and physical state
+  live differently: one global attribute schema serves several collections, and whether a row stays pinned depends
+  on their data, not on the declaration.
+
 ### Query routing of typed equality
 
 - **The index answers typed `attributeEquals` / `attributeInSet` with no prefetch alternative (kept).** Each index
@@ -148,6 +167,10 @@ rebuild and the rows become transient.
 - **Compiler:** `StringNormalizationCompiler` (NFC → steps once → NFD; returns the input instance when unchanged);
   `AnalysisStepRegistry` (catalog-owned) validates declarations; the compiler caches functions per (steps, fold
   locale).
+- **Collation and fulltext:** a localized sort index orders the chain-built keys with its locale collator and a
+  `String#compareTo` tie-break (`EqualsConsistentLocalizedStringComparator`, which relies on the NFD exit); no
+  comparator runs the chain, so nothing is applied twice. Fulltext analysis keeps its own NFC boundary and never
+  sees the chain (`FulltextAnalyzer`).
 - **Seam:** every tree, counter, compound, matcher and comparator binds its function through
   `AttributeNormalizationResolver`; the implementation is `BuiltWithAttributeNormalizationResolver` over
   `AttributeNormalizationPolicy` (collection) and the catalog's global rows. Functions are bound when a structure is
@@ -171,7 +194,10 @@ rebuild and the rows become transient.
   never functions. Absent part = empty rows = NFD only, which is what every catalog written before #545 holds; an
   EMPTY policy removes its part, so a catalog using neither normalization nor sortable compounds stores exactly
   what it stored before. Rows load before any value tree and before WAL replay; replay reaches the same rows because
-  the decision depends only on the replayed schema mutation and the index state.
+  the decision depends only on the replayed schema mutation and the index state. Catalog load reads each
+  collection's stored schema once more before the parallel index loaders (`Catalog#loadAttributeIndexSchemas`), so
+  the attributes a reflected reference inherits are bound before any String tree of theirs is built - that second
+  read is not redundant.
 - **Compounds:** `ComparatorSource` carries no attribute identity, so each compound's ordered element bindings are
   persisted; loaders bind from them even if the compound definition changed later.
 - **Orphans:** an index that outlives its declaration (removal, rename, type change) keeps its row and binds it at
@@ -233,6 +259,13 @@ rebuild and the rows become transient.
   `writeObject(Class)` (which appends ClassSerializer's primitive/wrapper flag) but read it with `readClass`, leaving
   the flag unread - replaying a type change to `Integer` or another wrapper misread `indexedDecimalPlaces`. The
   reader now consumes the flag; the writer and layout are unchanged. The same fix goes to `dev` separately (#1794).
+- **Pre-existing implicit-creation bug fixed on the way** (`098c0b0a9a`): a hand-built batch whose
+  `ModifyEntitySchemaMutation` created its collection implicitly left the catalog schema version unchanged and
+  unstored, and a later catalog mutation in the batch failed with "Invalid current schema used!";
+  `ImplicitEntityCollectionCreationTest` pins it. A WAL written before the fix replays such a batch to a higher
+  catalog schema version than its writer reached; nothing compares the two today. Still open, no issue filed: in
+  warm-up a failed batch is not atomic - a collection it created stays created and flushed, on the explicit
+  creation path as well.
 - **Pre-existing builder combination bugs fixed on the way.** The API-lane review found that a schema builder could
   combine a `normalized(...)` statement with a later one across an attribute rename. The renamed attribute then lost
   its chain, and every `Set*` / `Modify*` statement and every element kind behaved the same way.
@@ -247,13 +280,25 @@ rebuild and the rows become transient.
   - **Still open:** #1800 - merged entity edits moving past catalog mutations, entity-level removals swallowing
     reference statements, and builders deciding create-vs-modify against the base schema.
   - **Verification:** `SchemaMutationCombinationAcrossRenameTest`, 18 cases, each red before its rule.
-- **Known and not changed here:** removing an attribute of a reference to a managed entity type throws an NPE in
-  `RemoveAttributeSchemaMutation#mutate` (pre-existing on the base; fixed on `dev` by #1795);
-  `RepresentativeReferenceKey` identity stays on raw values; collection-less equality lookups of a cross-locale
-  unique attribute read only the requested locale, as before.
+- **Known and not changed here:**
+  - removing an attribute of a reference to a managed entity type throws an NPE in
+    `RemoveAttributeSchemaMutation#mutate` (pre-existing on the base; fixed on `dev` by #1795);
+  - `RepresentativeReferenceKey` identity stays on raw values: representative values discriminate reference
+    partitions and key the virtual tuple dictionary, so folding them would re-partition references (partition
+    identity, tuple ids, reference selection, a storage migration) rather than swap a key function. Two references
+    whose representative values differ only in case stay distinct under `lowercase()`;
+  - collection-less equality lookups of a cross-locale unique attribute read only the requested locale, as before;
+  - entity removal looks up the schema of every attribute the entity stores (`AttributeNotFoundException`
+    otherwise), so the entities behind an orphaned index cannot be deleted until the declaration returns;
+    `BuiltWithNormalizationFunctionalTest` restores a removed and a retyped declaration before its cleanup;
+  - `ModifyAttributeSchemaNameMutation` keeps the renamed-from attribute beside the new one (pinned by
+    `AttributeFilterAcceleratorRefusalTest`), so after a rename the old identity is still declared and keeps its row.
 - **Extension point:** a third-party `NormalizingAnalysisStepFactory` must produce stable output (keys are
-  persisted), keep NFD-compatible output and be installed whenever the catalog loads; GraphQL and REST generate its
-  typed input automatically.
+  persisted), keep NFD-compatible output and be installed whenever the catalog loads: loading validates every
+  declaration and compiles every retained built-with row before any value tree is built (`Catalog`), so a missing
+  provider fails the load - also for a step the schema no longer declares but a populated attribute's row still
+  holds, until that row is gone. The strictness is deliberate: binding another function would silently re-key the
+  data. GraphQL and REST generate its typed input automatically.
 - **No provider version is recorded.** Built-with rows hold step descriptions only. A behaviour version on the SPI
   was drafted, but nothing read it, so it was removed with the other members that had no production caller. A
   built-in step whose output changes with a dependency upgrade (Lucene's folding table, the JDK's Unicode data)
@@ -278,6 +323,11 @@ rebuild and the rows become transient.
   virtual partitions now move stored keys verbatim on promotion / demotion.
 - [2026-08-24-fulltext-search-lucene-vs-inhouse](2026-08-24-fulltext-search-lucene-vs-inhouse/README.md) - the
   `AnalysisStep` vocabulary #545 starts and the fulltext analyzer configuration will reuse.
+- [2026-09-04-millisecond-temporal-precision](2026-09-04-millisecond-temporal-precision.md) - the 2026-10-26 move
+  of filter / histogram bucket-key repair and of temporal range-threshold conversion out of production loads (into
+  `Migration_2026_3` and the versioned readers) was made under this line of work to uphold the stored-key rule;
+  its ordering is recorded there: refusals before any write, one tree drained at a time, every drain before the
+  cardinality audit.
 
 ## Timeline
 
@@ -286,6 +336,7 @@ rebuild and the rows become transient.
 - **2026-10-25** — implementation, cost fix-ups, external APIs, documentation and the test-cost restructuring
   completed; an adversarial review found the local/global ownership and reference-ordering defects fixed above, and
   a code-quality pass added the reconciler, policy and serializer unit tests
-- **2026-10-26** — the filter and histogram bucket reload canonicalizer moved into `Migration_2026_3`;
-  unique loads retain the declared-value-to-key format conversion using the type-level function.
+- **2026-10-26** — the filter and histogram bucket reload canonicalizer moved into `Migration_2026_3`, and the
+  temporal range-threshold conversion into the versioned readers and the migration; unique loads retain the
+  declared-value-to-key format conversion using the type-level function.
 - **2026-10-27** — merged into `258-fulltext-support` via #1799 after its review rounds.

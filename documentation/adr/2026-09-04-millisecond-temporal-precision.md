@@ -1,7 +1,7 @@
 ---
 title: Cut every temporal value to whole milliseconds as it enters, and carry every temporal index key in one long column
 date: 2026-09-04
-updated: 2026-10-26 20:45
+updated: 2026-10-28 09:30
 status: accepted
 kind: feature
 issues: [1486, 1696]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_common/src/main/java/io/evitadb/dataType, evita_api/src/main/java/io/evitadb/api/query, evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure, evita_engine/src/main/java/io/evitadb/index/bPlusTree, evita_engine/src/main/java/io/evitadb/index/attribute, evita_engine/src/main/java/io/evitadb/index/range, evita_engine/src/main/java/io/evitadb/index/invertedIndex, evita_store/evita_store_server/src/main/java/io/evitadb/store/index, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_store/evita_store_entity/src/main/java/io/evitadb/store/entity/serializer, evita_external_api/evita_external_api_grpc, documentation/user]
 supersedes: []
 superseded-by: []
-relates: [2026-09-03-content-sized-value-tree-columns, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-05-schema-handling-write-path-optimizations, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-08-24-fulltext-search-lucene-vs-inhouse]
+relates: [2026-09-03-content-sized-value-tree-columns, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-05-schema-handling-write-path-optimizations, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-08-24-fulltext-search-lucene-vs-inhouse, 2026-10-27-string-attribute-normalization]
 ---
 
 # Temporal precision is millisecond, stated once and enforced at the boundary
@@ -508,6 +508,9 @@ catalog a test reads was written by the current writer.
   temporal cardinality counters were unauditable from parts; that is no longer true. The audit normalizes the
   stored bucket as well as the counter key, so both sides land in one key space whatever wrote them, and
   `OffsetDateTime` is audited like every other collision-prone type.
+- [2026-10-27-string-attribute-normalization](2026-10-27-string-attribute-normalization.md) - the two 2026-10-26
+  moves in the timeline below were made under #545: a declared String chain is not idempotent, so production loads
+  may no longer re-canonicalize stored keys, and only the migration does, with the type-level function.
 
 ## Timeline
 
