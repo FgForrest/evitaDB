@@ -850,7 +850,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 				);
 
 				assertEquals(1, categories.size());
-				final SealedEntity c = categories.get(0);
+				final SealedEntity c = categories.getFirst();
 				// check that it has at least 2 parents
 				assertTrue(c.getParentEntity().isPresent());
 				assertTrue(c.getParentEntity().get().getParentEntity().isPresent());
@@ -908,7 +908,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 				);
 
 				assertEquals(1, categories.size());
-				final SealedEntity c = categories.get(0);
+				final SealedEntity c = categories.getFirst();
 				// check that it has at least 2 parents
 				assertTrue(c.getParentEntity().isPresent());
 				assertTrue(c.getParentEntity().get().getParentEntity().isPresent());
@@ -968,7 +968,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 				);
 
 				assertEquals(1, categories.size());
-				final SealedEntity c = categories.get(0);
+				final SealedEntity c = categories.getFirst();
 				// check that it has only one direct parent
 				assertTrue(c.getParentEntity().isPresent());
 				assertTrue(c.getParentEntity().get().getParentEntity().isEmpty());
@@ -1035,7 +1035,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 				);
 
 				assertEquals(1, products.size());
-				final SealedEntity p = products.get(0);
+				final SealedEntity p = products.getFirst();
 				// check that it has at least 2 referenced parents
 				assertTrue(p.getReferences(Entities.CATEGORY)
 					.iterator()
@@ -1118,7 +1118,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 				);
 
 				assertEquals(1, products.size());
-				final SealedEntity p = products.get(0);
+				final SealedEntity p = products.getFirst();
 				// check that it has at least 2 referenced parents
 				assertTrue(p.getReferences(Entities.CATEGORY)
 					.iterator()
@@ -1203,7 +1203,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 				);
 
 				assertEquals(1, products.size());
-				final SealedEntity p = products.get(0);
+				final SealedEntity p = products.getFirst();
 				// check that it has only one referenced parents
 				assertTrue(p.getReferences(Entities.CATEGORY)
 					.iterator()
@@ -3087,9 +3087,9 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 										attributeEquals(ATTRIBUTE_ALIAS, false),
 										attributeInSet(
 											ATTRIBUTE_PRIORITY,
-											(Long)withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
-											(Long)withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
-											(Long)withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
+											withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
+											withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
+											withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
 											(Long)withFalseAlias.get(3).getAttribute(ATTRIBUTE_PRIORITY)
 										)
 									)
@@ -3148,10 +3148,10 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 				withTrueAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
 				withTrueAlias.get(1).getAttribute(ATTRIBUTE_ALIAS),
 				withTrueAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long)withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long)withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long)withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long)withFalseAlias.get(3).getAttribute(ATTRIBUTE_PRIORITY),
+				withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
+				withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
+				withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
+				withFalseAlias.get(3).getAttribute(ATTRIBUTE_PRIORITY),
 				withFalseAlias.get(4).getAttribute(ATTRIBUTE_CODE),
 				Integer.MAX_VALUE
 			)

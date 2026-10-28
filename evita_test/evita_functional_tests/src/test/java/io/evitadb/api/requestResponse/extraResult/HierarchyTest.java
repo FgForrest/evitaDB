@@ -253,12 +253,15 @@ public class HierarchyTest implements EvitaTestSupport {
 
 		@Test
 		@DisplayName("should not be equal to null")
+		@SuppressWarnings({"SimplifiableAssertion", "ObjectEqualsNull"})
 		void shouldNotBeEqualToNull() {
 			final Hierarchy hierarchy = new Hierarchy(
 				Map.of("megaMenu", List.of(levelInfo)),
 				Collections.emptyMap()
 			);
-			assertNotEquals(null, hierarchy);
+			// deliberately not `assertNotEquals`: with `null` as its first argument it calls no `equals` at all, so
+			// the null check of the class under test would never run
+			assertFalse(hierarchy.equals(null));
 		}
 
 		@Test

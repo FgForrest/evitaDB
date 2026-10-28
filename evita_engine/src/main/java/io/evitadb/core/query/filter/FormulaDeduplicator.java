@@ -72,12 +72,17 @@ public class FormulaDeduplicator extends FormulaCloner implements FormulaPostPro
 	 * in the formula tree and can be thus deduplicated - i.e. existing instance can be reused on multiple places.
 	 * This deduplication optimizes the final calculation performance by allowing to reuse the memoized result of
 	 * the formula on different places of the tree.
+	 *
+	 * Two formulas are the same only when both their hash and their transactional id hash match: the hash describes
+	 * the computation, the transactional ids the data it reads. Structurally equal formulas over different indexes -
+	 * the hierarchy nodes from the roots of the live and of the archived tree - share the hash but read different
+	 * data, and replacing one with the other would silently drop what the other selects.
 	 */
 	private static class Deduplicator implements BiFunction<FormulaCloner, Formula, Formula> {
 		/**
 		 * Cache of formulas.
 		 */
-		private final Map<Long, Formula> formulaCache = CollectionUtils.createHashMap(64);
+		private final Map<FormulaIdentity, Formula> formulaCache = CollectionUtils.createHashMap(64);
 
 		@Override
 		public Formula apply(FormulaCloner formulaCloner, Formula formula) {
@@ -85,7 +90,9 @@ public class FormulaDeduplicator extends FormulaCloner implements FormulaPostPro
 			if (clonerInstance.originalFormula == null) {
 				clonerInstance.originalFormula = formula;
 			}
-			final Formula existingFormula = this.formulaCache.putIfAbsent(formula.getHash(), formula);
+			final Formula existingFormula = this.formulaCache.putIfAbsent(
+				new FormulaIdentity(formula.getHash(), formula.getTransactionalIdHash()), formula
+			);
 			if (existingFormula != null) {
 				clonerInstance.deduplicationHappened = true;
 				return existingFormula;
@@ -100,6 +107,16 @@ public class FormulaDeduplicator extends FormulaCloner implements FormulaPostPro
 		 */
 		void clear() {
 			this.formulaCache.clear();
+		}
+
+		/**
+		 * Identity of a formula for deduplication purposes.
+		 *
+		 * @param hash                hash of the computation, see {@link Formula#getHash()}
+		 * @param transactionalIdHash hash of the data the computation reads, see
+		 *                            {@link Formula#getTransactionalIdHash()}
+		 */
+		private record FormulaIdentity(long hash, long transactionalIdHash) {
 		}
 
 	}

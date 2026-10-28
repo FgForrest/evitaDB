@@ -35,26 +35,27 @@ import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
-import io.evitadb.core.query.algebra.prefetch.MultipleEntityFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.Index;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
-import static io.evitadb.core.query.filter.translator.attribute.AbstractAttributeComparisonTranslator.createAlternativeBitmapFilter;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -63,7 +64,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class AttributeEqualsTranslator extends AbstractAttributeTranslator
-	implements FilteringConstraintTranslator<AttributeEquals> {
+	implements FilteringConstraintTranslator<AttributeEquals>, AttributeValueMatchingTranslator<AttributeEquals> {
 
 	/**
 	 * Creates an {@link AttributeFormula} that looks the value up in a unique index - O(1) hash map lookup instead of
@@ -96,15 +97,8 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 				referenceSchema,
 				attributeSchema,
 				index -> index.getEntityReferenceByUniqueValue(
-						comparedValue, attributeKey.locale(), filterByVisitor.getEntityTypeClassifierResolver()
-					)
-					.map(
-						it -> (Formula) new MultipleEntityFormula(
-							new long[]{index.getId()},
-							filterByVisitor.translateEntityReference(it)
-						)
-					)
-					.orElse(EmptyFormula.INSTANCE),
+					comparedValue, attributeKey.locale(), filterByVisitor.getEntityTypeClassifierResolver()
+				),
 				index -> ofNullable(index.getRecordIdByUniqueValue(comparedValue))
 					.map(it -> (Formula) new ConstantFormula(new ArrayBitmap(it)))
 					.orElse(EmptyFormula.INSTANCE)
@@ -151,18 +145,21 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 		final Serializable attributeValue = attributeEquals.getAttributeValue();
 		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE);
 
-		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
+		if (isTypedLookupPossible(filterByVisitor, optionalGlobalAttributeSchema.orElse(null))) {
 			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
 			final Set<Scope> scopes = processingScope.getScopes();
 			final AttributeSchemaContract attributeSchema = optionalGlobalAttributeSchema
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
+			// refused before any index is read, so a value the attribute cannot hold is refused whatever it stores
+			assertIndexable(attributeEquals, attributeSchema, scopes);
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
 
 			final Class<? extends Serializable> plainType = attributeSchema.getPlainType();
 			// Normalize the probe with the filter normalizer (NFD strings, instant-folded OffsetDateTime, scaled-int
-			// BigDecimal). The scaled-int form is what the filter value tree stores, and because that normalizer is
-			// idempotent the filter index re-normalizes the already-scaled Integer without a ClassCastException.
+			// BigDecimal). That form is what every value tree of the attribute stores - the filter tree and the
+			// standalone unique trees alike - and because the normalizer is idempotent each index re-normalizes the
+			// already-normalized probe without a ClassCastException.
 			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(
 				plainType, attributeSchema.getIndexedDecimalPlaces()
 			);
@@ -172,11 +169,8 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 			final Serializable comparedValue = normalizer.apply(targetValue);
 
 			if (scopes.stream().anyMatch(scope -> isUniqueInScope(attributeSchema, scope))) {
-				// uniqueness stays exact BigDecimal: the unique index never scales its keys, so a BigDecimal attribute is
-				// probed with the exact value; other types share the canonical (NFD/instant) form used by the unique index
 				return createUniqueAttributeFormula(
-					filterByVisitor, processingScope.getReferenceSchema(), attributeSchema, attributeKey,
-					plainType == BigDecimal.class ? targetValue : comparedValue
+					filterByVisitor, processingScope.getReferenceSchema(), attributeSchema, attributeKey, comparedValue
 				);
 			} else {
 				return createFilterableAttributeFormula(
@@ -186,9 +180,34 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 		} else {
 			return new EntityFilteringFormula(
 				"attribute equals filter",
-				createAlternativeBitmapFilter(filterByVisitor, attributeName, attributeValue, result -> result == 0)
+				createEntityFilteringBitmapFilter(attributeEquals, filterByVisitor)
 			);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public AttributeValueMatcher createMatcher(
+		@Nonnull AttributeEquals attributeEquals,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Supplier<OffsetDateTime> now
+	) {
+		return AttributeValueMatcher.comparing(
+			attributeIndexKey, attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces(),
+			attributeEquals.getAttributeValue(), result -> result == 0
+		);
+	}
+
+	@Nonnull
+	@Override
+	public Serializable[] getIndexProbeValues(@Nonnull AttributeEquals attributeEquals) {
+		return new Serializable[]{attributeEquals.getAttributeValue()};
+	}
+
+	@Override
+	public boolean isAnsweredByUniqueIndex() {
+		return true;
 	}
 
 }

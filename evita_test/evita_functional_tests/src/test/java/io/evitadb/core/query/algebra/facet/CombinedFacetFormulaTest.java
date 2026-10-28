@@ -122,26 +122,6 @@ class CombinedFacetFormulaTest {
 	class AccessorTest {
 
 		@Test
-		@DisplayName("should return and-formula via getAndFormula")
-		void shouldReturnAndFormulaViaGetAndFormula() {
-			final ConstantFormula andPart = new ConstantFormula(new ArrayBitmap(10));
-			final ConstantFormula orPart = new ConstantFormula(new ArrayBitmap(20));
-			final CombinedFacetFormula formula = new CombinedFacetFormula(andPart, orPart);
-
-			assertSame(andPart, formula.getAndFormula());
-		}
-
-		@Test
-		@DisplayName("should return or-formula via getOrFormula")
-		void shouldReturnOrFormulaViaGetOrFormula() {
-			final ConstantFormula andPart = new ConstantFormula(new ArrayBitmap(10));
-			final ConstantFormula orPart = new ConstantFormula(new ArrayBitmap(20));
-			final CombinedFacetFormula formula = new CombinedFacetFormula(andPart, orPart);
-
-			assertSame(orPart, formula.getOrFormula());
-		}
-
-		@Test
 		@DisplayName("should have exactly two inner formulas")
 		void shouldHaveExactlyTwoInnerFormulas() {
 			final ConstantFormula andPart = new ConstantFormula(new ArrayBitmap(10));
@@ -169,8 +149,8 @@ class CombinedFacetFormulaTest {
 
 			assertInstanceOf(CombinedFacetFormula.class, clone);
 			final CombinedFacetFormula clonedFormula = (CombinedFacetFormula) clone;
-			assertSame(newAndPart, clonedFormula.getAndFormula());
-			assertSame(newOrPart, clonedFormula.getOrFormula());
+			assertSame(newAndPart, clonedFormula.getInnerFormulas()[0]);
+			assertSame(newOrPart, clonedFormula.getInnerFormulas()[1]);
 		}
 
 		@Test

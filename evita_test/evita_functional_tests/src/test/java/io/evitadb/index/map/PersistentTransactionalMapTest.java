@@ -617,8 +617,11 @@ class PersistentTransactionalMapTest {
 
 		@Test
 		@DisplayName("not equal to a map with different entries")
+		@SuppressWarnings("SimplifiableAssertion")
 		void shouldNotEqualMapWithDifferentEntries() {
-			assertNotEquals(new HashMap<>(Map.of("a", 9, "b", 9)), PersistentTransactionalMapTest.this.tested);
+			// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
+			// fix moves the `new HashMap` there, so `HashMap.equals` would be tested instead of this map's
+			assertFalse(PersistentTransactionalMapTest.this.tested.equals(new HashMap<>(Map.of("a", 9, "b", 9))));
 		}
 
 		@Test

@@ -289,7 +289,7 @@ public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenc
 								userFilter(
 									histogramHaving(
 										REF_PARAM_VALUES, HISTOGRAM_MARKET_SHARE,
-										50, (Integer) null
+										50, null
 									)
 								)
 							),

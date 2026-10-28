@@ -61,17 +61,20 @@ public class PickFirstReferenceAttributeComparator extends AbstractReferenceAttr
 	 * Creates the comparator for the given attribute and wires it to the resolver that provides the target order
 	 * its index-route twin ({@link PickFirstReducedIndexResolver}) walks.
 	 *
-	 * @param attributeName   the name of the sortable attribute
-	 * @param type            the type of the attribute value
-	 * @param referenceSchema the schema of the reference the attribute belongs to
-	 * @param locale          the locale to use when reading localized attribute values, or `null` when the attribute
-	 *                        is not localized
-	 * @param orderDirection  the direction to sort in
-	 * @param indexResolver   resolver providing the target order the index route walks
+	 * @param attributeName        the name of the sortable attribute
+	 * @param type                 the type of the attribute value
+	 * @param indexedDecimalPlaces the `indexedDecimalPlaces` of the attribute schema - the scale a range value is
+	 *                             compared at, so the comparator orders the entities as the sort index does
+	 * @param referenceSchema      the schema of the reference the attribute belongs to
+	 * @param locale               the locale to use when reading localized attribute values, or `null` when the
+	 *                             attribute is not localized
+	 * @param orderDirection       the direction to sort in
+	 * @param indexResolver        resolver providing the target order the index route walks
 	 */
 	public PickFirstReferenceAttributeComparator(
 		@Nonnull String attributeName,
 		@Nonnull Class<?> type,
+		int indexedDecimalPlaces,
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull OrderDirection orderDirection,
@@ -80,6 +83,7 @@ public class PickFirstReferenceAttributeComparator extends AbstractReferenceAttr
 		super(
 			attributeName,
 			type,
+			indexedDecimalPlaces,
 			referenceSchema,
 			locale,
 			orderDirection

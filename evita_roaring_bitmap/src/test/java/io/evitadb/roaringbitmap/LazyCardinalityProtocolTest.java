@@ -142,7 +142,7 @@ public class LazyCardinalityProtocolTest {
 		}
 
 		final Container intersected = lazy.iand(other);
-		assertTrue(intersected instanceof BitmapContainer, "a lazy intersection never demotes on its own");
+		assertInstanceOf(BitmapContainer.class, intersected, "a lazy intersection never demotes on its own");
 		assertEquals(-1, ((BitmapContainer) intersected).cardinality, "the lazy protocol must survive iand");
 		assertEquals(5000, intersected.repairAfterLazy().getCardinality());
 	}
@@ -163,7 +163,7 @@ public class LazyCardinalityProtocolTest {
 				bitmap.add(COMMON_VALUES[c]);
 			}
 			final int blockStart = 10000 + i * PRIVATE_BLOCK_SIZE;
-			bitmap.add((long) blockStart, (long) (blockStart + PRIVATE_BLOCK_SIZE));
+			bitmap.add(blockStart, (long) (blockStart + PRIVATE_BLOCK_SIZE));
 			inputs[i] = bitmap;
 		}
 		return inputs;

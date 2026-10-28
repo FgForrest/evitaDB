@@ -316,7 +316,7 @@ answer is a miss rather than a wrong bucket -- until the next write happens to r
 | Memoized caches -- `FilterIndex`, `SortIndex`, `HierarchyIndex`, `RangeIndex`, `ReferenceTypeCardinalityIndex`, `UnorderedLookupTree`, the price indexes, and `InvertedIndex`'s value id directory | first touch, recorded through `pushPostRestoreInvalidation` | *none* -- the inverse is a re-invalidation, see [Derived state does not belong in the journal](#derived-state-does-not-belong-in-the-journal) and [Accepted residues](#accepted-residues). Where the cache lives in a helper (`SortIndexChanges`, `ChainIndexChanges`) the helper is the `Snapshotable` that registers itself. |
 | Index population counters (`IndexPopulation`) | first touch, self-captured | a clone of the fixed-size per-`(EntityIndexType, Scope)` count array |
 | `ValueIdAllocator` | first touch, self-captured | the `int` high-water mark, restored absolutely rather than decremented -- the ids minted inside the savepoint go back to the pool |
-| `DataStoreChanges` | first touch, `Snapshotable` **plus** per-write record inverses | a **journal position** for its in-memory state, a **stored record's pre-image** for each direct write -- see below |
+| `DataStoreChanges` | first touch, `Snapshotable` **plus** per-write record inverses **plus** per-read content inverses | a **journal position** for its in-memory state, a **stored record's pre-image** for each direct write, a **content copy** of each trapped part it hands out -- see below |
 
 `DataStoreChanges` is worth singling out because it is what makes the entity *body* atomic with its
 indexes, and because it is the one participant that needs **both** granularities at once.
@@ -324,7 +324,18 @@ indexes, and because it is the one participant that needs **both** granularities
 Its memento is `DataStoreChangesMemento(int mark)`, an `O(1)` position in its own internal journal, and
 its `snapshot()` is what lazily allocates that journal -- which is precisely why `recordFirstTouch` must
 run at the *entry* of a mutating method rather than after the fact. That mark rewinds the layer's
-**in-memory** state: the dirty-index bookkeeping and the trapped storage-part cache.
+**in-memory** state: the dirty-index bookkeeping and *which instance* each trapped storage-part slot holds.
+
+It does **not** by itself rewind the *content* of a trapped part. `getStoragePart` hands out the trapped
+instance itself, and the storage executor mutates it in place, so restoring the slot to that instance
+restores nothing. The first read of a trapped slot inside a savepoint therefore journals an inverse that
+installs `EntityStoragePart#createPreImage()` -- an `O(part size)` content copy -- back into the slot
+(`DataStoreChanges#journalTrappedContent`). Only the first read per slot and savepoint copies: the
+earliest pre-image replays last and wins, so later ones would be dead weight. Parts the root executor
+fetched before the bracket opened are journalled by `journalPartsHeldBeforeSavepoint` once it is open,
+and in a transaction the buffer resolves the layer through the *write*-variant accessor, so the snapshot
+mark precedes the push. Reasoning and measurements:
+`documentation/adr/2026-10-08-trapped-storage-part-content-pre-images.md`.
 
 It does **not** rewind a write that reached the persistence service, and root entity mutations issue
 exactly those: they run with `trapChanges == false`, so `ContainerizedLocalMutationExecutor#commit`
@@ -355,11 +366,12 @@ absent. Since `Transaction#getTransactionalLayerMaintainer()` is `null` exactly 
 A great deal rests on this. Every index mutator whose journalling sits behind an
 `if (!isTransactionAvailable())` gate is correct only because that gate is always taken while a
 savepoint is open, and the delegate-branch backstop below guards only the no-transaction path for the
-same reason. A second opening site would invalidate all of it at once, so the invariant is **asserted
-rather than assumed**: `WarmUpRollbackConformanceTest` scans the engine sources and pins the single
-opening site, the maintainer-absence guard on it, and an allowlist of the `io.evitadb.index` sources
-permitted to branch on transaction availability at all -- each allowlist entry carrying the reason its
-gates are not a rollback hole.
+same reason. A second opening site would invalidate all of it at once, so `WarmUpSavepoint#open()` must
+keep its single caller, and an index structure must not branch on transaction availability to choose
+what it writes outside a transaction. The javadoc of `WarmUpSavepoint#open()` and of
+`Transaction#isTransactionAvailable()` state both rules, together with the kinds of gate that remain
+and why none of them lets a write escape the journal. Nothing checks them mechanically; why, see
+`documentation/adr/2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures.md`.
 
 ### Enforcement -- declared, not inferred
 
@@ -497,7 +509,6 @@ The warm-up mechanism additionally has:
 | `WarmUpSavepoint*RollbackTest` (per structure family) | the journalling itself: a savepoint opened directly, mutations applied, rollback compared against the pre-image |
 | `WarmUpSavepointTest` | the savepoint's own contract -- nesting rejected, detach-before-work, the `Snapshotable` / self-capture exclusivity |
 | `WarmUpRollbackBackstopTest` | that an undeclared structure mutated inside a savepoint fails loudly |
-| `WarmUpRollbackConformanceTest` | the source-level invariants: the single opening site, its maintainer-absence guard, the `supportsWarmUpRollback()` declarations, and the transaction-availability allowlist |
 | `EntityAtomicMutationRollbackWarmUpFunctionalTest` | the end-to-end behaviour -- a failed entity in a bulk load leaves neither index entries nor a storage body behind |
 
 The warm-up fuzz methods run on their own budget (`-DwarmUpFuzz.seconds`) rather than the

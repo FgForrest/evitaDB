@@ -51,15 +51,16 @@ import io.evitadb.core.query.sort.primaryKey.comparator.ReferencePrimaryKeyCompa
 import io.evitadb.core.query.sort.primaryKey.sorter.ReversedPrimaryKeySorter;
 import io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver;
 import io.evitadb.core.query.sort.reference.sorter.PickFirstReferenceSorter;
+import io.evitadb.core.query.sort.reference.sorter.PickFirstVirtualSortValues;
+import io.evitadb.core.query.sort.reference.sorter.VirtualPartitionSortedRecords;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.dataType.iterator.EmptyIterator;
-import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.attribute.ReferenceSortedRecordsProvider;
-import io.evitadb.index.attribute.SortedRecordsSupplier;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -67,10 +68,9 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.referenceContent;
@@ -128,6 +128,7 @@ public class EntityPrimaryKeyNaturalTranslator
 				new PickFirstReferenceSorter(
 					pickFirstIndexResolver,
 					index -> () -> createReferencedPrimaryKeyProvider(index, orderDirection),
+					PickFirstVirtualSortValues.ofReferencedPrimaryKey(),
 					orderDirection == OrderDirection.DESC ? Comparator.naturalOrder().reversed() : Comparator.naturalOrder(),
 					orderDirection
 				)
@@ -136,7 +137,7 @@ public class EntityPrimaryKeyNaturalTranslator
 			// if prefetch happens, the traversal comparator classifies every owner of a block by whether it has a row
 			// to the block's referenced entity - it reads the rows, never their attributes
 			orderByVisitor.addRequirementToPrefetch(referenceContent(referenceSchema.getName()));
-			final EntityIndex[] entityIndices = processingScope.entityIndex();
+			final ReferencePartition[] partitions = orderByVisitor.getPartitionsForSort();
 			// every owner of a block carries the same value, so both routes order a block by the owner primary key in
 			// the direction of the ordering: the comparator breaks the tie that way and each provider lists its
 			// owners that way
@@ -154,20 +155,7 @@ public class EntityPrimaryKeyNaturalTranslator
 						.orElse(MergeMode.APPEND_FIRST),
 					orderDirection == OrderDirection.DESC ? Comparator.naturalOrder().reversed() : Comparator.naturalOrder(),
 					orderDirection,
-					() -> Arrays.stream(entityIndices)
-						.map(
-							entityIndex -> {
-								if (entityIndex instanceof ReducedEntityIndex reducedEntityIndex) {
-									return createReferencedPrimaryKeyProvider(reducedEntityIndex, orderDirection);
-								} else {
-									throw new GenericEvitaInternalError(
-										"Entity index " + entityIndex + " is expected to be ReducedEntityIndex with ReferenceKey as discriminator!"
-									);
-								}
-							}
-						)
-						.filter(Objects::nonNull)
-						.toArray(SortedRecordsSupplier[]::new)
+					() -> createReferencedPrimaryKeyProviders(partitions, orderDirection)
 				)
 			);
 		}
@@ -213,6 +201,29 @@ public class EntityPrimaryKeyNaturalTranslator
 	}
 
 	/**
+	 * Creates the providers of a traversal's partitions, keeping their order and the owner primary key tie-break
+	 * in the ordering direction. Virtual partitions supply their singleton directly from the registry row handle.
+	 *
+	 * @param partitions the partitions in target and representative key order
+	 * @param orderDirection the owner primary key tie-break direction
+	 * @return the providers of non-empty partitions
+	 */
+	@Nonnull
+	private static SortedRecordsProvider[] createReferencedPrimaryKeyProviders(
+		@Nonnull ReferencePartition[] partitions,
+		@Nonnull OrderDirection orderDirection
+	) {
+		final List<SortedRecordsProvider> providers = new ArrayList<>(partitions.length);
+		for (final ReferencePartition partition : partitions) {
+			final SortedRecordsProvider provider = createReferencedPrimaryKeyProvider(partition, orderDirection);
+			if (provider != null) {
+				providers.add(provider);
+			}
+		}
+		return providers.toArray(SortedRecordsProvider[]::new);
+	}
+
+	/**
 	 * Creates the provider of one reduced index for an ordering by the referenced primary key - a `pickFirst` one or a
 	 * traversal: every owner of the index carries the same value, the primary key of the index's referenced entity,
 	 * and owners follow in the order of their own primary keys in the direction of the ordering - the order the merge
@@ -220,15 +231,18 @@ public class EntityPrimaryKeyNaturalTranslator
 	 * sorting anything. The provider carries the representative reference key of the index, which the traversal uses
 	 * to find the providers of a block. The owners are read from the index's bitmap whatever its implementation.
 	 *
-	 * @param index          the reduced index
+	 * @param index          the partition whose owners are ordered
 	 * @param orderDirection the direction of the ordering
 	 * @return the provider or `null` when the index holds no owner
 	 */
 	@Nullable
-	private static ReferenceSortedRecordsProvider createReferencedPrimaryKeyProvider(
-		@Nonnull ReducedEntityIndex index,
+	private static SortedRecordsProvider createReferencedPrimaryKeyProvider(
+		@Nonnull ReferencePartition index,
 		@Nonnull OrderDirection orderDirection
 	) {
+		if (index instanceof VirtualReferencePartition virtualPartition) {
+			return VirtualPartitionSortedRecords.ofReferencedPrimaryKey(virtualPartition);
+		}
 		final Bitmap owners = index.getAllPrimaryKeys();
 		final int size = owners.size();
 		if (size == 0) {

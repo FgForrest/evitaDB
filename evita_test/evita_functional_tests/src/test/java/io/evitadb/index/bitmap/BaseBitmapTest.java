@@ -633,7 +633,7 @@ class BaseBitmapTest {
 		@DisplayName("should remove none on small bitmap")
 		void shouldRemoveAllWithPredicateOnSmallBitmapRemovingNone() {
 			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.removeAll((IntPredicate) value -> false);
+			tested.removeAll(value -> false);
 			assertEquals(4, tested.size());
 			assertArrayEquals(new int[]{3, 5, 8, 10}, tested.getArray());
 		}
@@ -729,7 +729,7 @@ class BaseBitmapTest {
 				large.add(i);
 			}
 			assertEquals(150, large.size());
-			large.removeAll((IntPredicate) value -> false);
+			large.removeAll(value -> false);
 			assertEquals(150, large.size());
 			final int[] result = large.getArray();
 			for (int i = 0; i < result.length; i++) {
@@ -927,7 +927,7 @@ class BaseBitmapTest {
 		@DisplayName("should retain none on small bitmap")
 		void shouldRetainAllWithPredicateOnSmallBitmapRetainingNone() {
 			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.retainAll((IntPredicate) value -> false);
+			tested.retainAll(value -> false);
 			assertEquals(0, tested.size());
 			assertArrayEquals(new int[]{}, tested.getArray());
 		}
@@ -1026,7 +1026,7 @@ class BaseBitmapTest {
 				large.add(i);
 			}
 			assertEquals(150, large.size());
-			large.retainAll((IntPredicate) value -> false);
+			large.retainAll(value -> false);
 			assertEquals(0, large.size());
 			assertArrayEquals(new int[]{}, large.getArray());
 		}
@@ -1218,9 +1218,12 @@ class BaseBitmapTest {
 
 		@Test
 		@DisplayName("should not be equal to null")
+		@SuppressWarnings({"SimplifiableAssertion", "ObjectEqualsNull"})
 		void shouldNotBeEqualToNull() {
 			final BaseBitmap bitmap = new BaseBitmap(1, 2, 3);
-			assertNotEquals(null, bitmap);
+			// deliberately not `assertNotEquals`: with `null` as its first argument it calls no `equals` at all, so
+			// the null check of the class under test would never run
+			assertFalse(bitmap.equals(null));
 		}
 
 		@Test
@@ -1615,7 +1618,7 @@ class BaseBitmapTest {
 		void shouldInvalidateHashWhenRemoveAllAppliesPredicate() {
 			final CountingHashFunction hashFunction = new CountingHashFunction();
 			final BaseBitmap bitmap = seedAndHash(hashFunction);
-			bitmap.removeAll((IntPredicate) value -> value % 2 == 0);
+			bitmap.removeAll(value -> value % 2 == 0);
 			assertHashRecomputedAndCorrect(bitmap, hashFunction);
 		}
 
@@ -1624,7 +1627,7 @@ class BaseBitmapTest {
 		void shouldInvalidateHashWhenRetainAllAppliesPredicate() {
 			final CountingHashFunction hashFunction = new CountingHashFunction();
 			final BaseBitmap bitmap = seedAndHash(hashFunction);
-			bitmap.retainAll((IntPredicate) value -> value > 1);
+			bitmap.retainAll(value -> value > 1);
 			assertHashRecomputedAndCorrect(bitmap, hashFunction);
 		}
 

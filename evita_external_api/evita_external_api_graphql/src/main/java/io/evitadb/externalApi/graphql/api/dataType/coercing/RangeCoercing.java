@@ -23,9 +23,12 @@
 
 package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
+import graphql.GraphQLContext;
+import graphql.execution.CoercedVariables;
 import graphql.language.ArrayValue;
 import graphql.language.Node;
 import graphql.language.NullValue;
+import graphql.language.Value;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
 import graphql.schema.CoercingParseValueException;
@@ -41,6 +44,7 @@ import java.time.format.DateTimeParseException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -59,7 +63,11 @@ public abstract class RangeCoercing<E, R extends Range<E>, T> implements Coercin
     protected abstract Class<T> getTupleComponentClass();
 
     @Override
-    public T[] serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
+    public T[] serialize(
+        @Nonnull Object dataFetcherResult,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingSerializeException {
         if (!getRangeClass().isAssignableFrom(dataFetcherResult.getClass())) {
             throw new CoercingSerializeException("Range data fetcher result is not a '" + getRangeClass().getName() + "'.");
         }
@@ -77,7 +85,11 @@ public abstract class RangeCoercing<E, R extends Range<E>, T> implements Coercin
 
     @Nonnull
     @Override
-    public R parseValue(@Nonnull Object input) throws CoercingParseValueException {
+    public R parseValue(
+        @Nonnull Object input,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingParseValueException {
         if (!(input instanceof Collection<?>)) {
             throw new CoercingParseValueException("Range input value is not a tuple (array).");
         }
@@ -99,7 +111,12 @@ public abstract class RangeCoercing<E, R extends Range<E>, T> implements Coercin
 
     @Nonnull
     @Override
-    public R parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
+    public R parseLiteral(
+        @Nonnull Value<?> input,
+        @Nonnull CoercedVariables variables,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingParseLiteralException {
         if (!(input instanceof ArrayValue arrayValue)) {
             throw new CoercingParseLiteralException("Range input value is not a tuple (list).");
         }

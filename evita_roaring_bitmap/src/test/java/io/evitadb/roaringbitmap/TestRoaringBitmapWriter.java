@@ -200,6 +200,93 @@ public class TestRoaringBitmapWriter {
 	}
 
 	/**
+	 * Pins reset without a preceding flush, so discarded bits cannot reappear on the next add.
+	 */
+	@ParameterizedTest
+	@MethodSource("params")
+	@DisplayName("reset() discards unflushed values before another add in the same chunk")
+	public void resetDiscardsUnflushedValues(
+		Supplier<RoaringBitmapWriter<? extends BitmapDataProvider>> supplier
+	) {
+		RoaringBitmapWriter<? extends BitmapDataProvider> writer = supplier.get();
+		writer.add(1);
+		writer.reset();
+		writer.add(2);
+		assertArrayEquals(new int[]{2}, writer.get().toArray());
+	}
+
+	/**
+	 * Pins reset before moving to a higher chunk, where stale buffer words would acquire the new key.
+	 */
+	@ParameterizedTest
+	@MethodSource("params")
+	@DisplayName("reset() discards unflushed values from a lower chunk")
+	public void resetDiscardsUnflushedValuesFromLowerChunk(
+		Supplier<RoaringBitmapWriter<? extends BitmapDataProvider>> supplier
+	) {
+		RoaringBitmapWriter<? extends BitmapDataProvider> writer = supplier.get();
+		writer.add(5);
+		writer.reset();
+		writer.add((1 << 16) | 3);
+		assertArrayEquals(new int[]{(1 << 16) | 3}, writer.get().toArray());
+	}
+
+	/**
+	 * Pins reset before moving to a lower chunk, so the old key and its buffered bits are discarded.
+	 */
+	@ParameterizedTest
+	@MethodSource("params")
+	@DisplayName("reset() discards unflushed values from a higher chunk")
+	public void resetDiscardsUnflushedValuesFromHigherChunk(
+		Supplier<RoaringBitmapWriter<? extends BitmapDataProvider>> supplier
+	) {
+		RoaringBitmapWriter<? extends BitmapDataProvider> writer = supplier.get();
+		writer.add((1 << 16) | 5);
+		writer.reset();
+		writer.add(3);
+		assertArrayEquals(new int[]{3}, writer.get().toArray());
+	}
+
+	/**
+	 * Pins reset of addChunk's reused scratch buffer across its first, middle and last words,
+	 * including when the next write also uses addChunk.
+	 */
+	@ParameterizedTest
+	@MethodSource("params")
+	@DisplayName("reset() discards unflushed chunk words before another addChunk")
+	public void resetDiscardsUnflushedChunkWords(
+		Supplier<RoaringBitmapWriter<? extends BitmapDataProvider>> supplier
+	) {
+		RoaringBitmapWriter<? extends BitmapDataProvider> writer = supplier.get();
+		final long[] words = new long[1024];
+		words[0] = 1L << 1;
+		words[512] = 1L << 31;
+		words[1023] = Long.MIN_VALUE;
+		writer.addChunk((char) 1, words, 0, words.length);
+		writer.reset();
+		final long[] nextWords = new long[1024];
+		nextWords[0] = 1L << 2;
+		writer.addChunk((char) 0, nextWords, 0, 1);
+		assertArrayEquals(new int[]{2}, writer.get().toArray());
+	}
+
+	/**
+	 * Pins get immediately after reset, so neither flushed nor buffered values survive without new writes.
+	 */
+	@ParameterizedTest
+	@MethodSource("params")
+	@DisplayName("reset() leaves an empty bitmap when nothing else is added")
+	public void resetWithoutFurtherAddsIsEmpty(
+		Supplier<RoaringBitmapWriter<? extends BitmapDataProvider>> supplier
+	) {
+		RoaringBitmapWriter<? extends BitmapDataProvider> writer = supplier.get();
+		writer.add(1);
+		writer.add((1 << 16) | 5);
+		writer.reset();
+		assertTrue(writer.get().isEmpty());
+	}
+
+	/**
 	 * `addChunk` is an evita-local addition to the fork rather than upstream API (see
 	 * `UPSTREAM_SYNC.md`), so it is re-applied by hand on every upstream re-sync. These three cases
 	 * pin the parts of its contract a re-apply could get wrong silently, for every writer

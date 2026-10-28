@@ -1114,7 +1114,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 					{
 						final boolean isDirectParent = allowedParents.contains(entity.getPrimaryKey());
 						final boolean isRoot = parentItems.isEmpty();
-						final boolean isChildOfAnyParent = !isRoot && allowedParents.contains(Integer.parseInt(parentItems.get(parentItems.size() - 1).getCode()));
+						final boolean isChildOfAnyParent = !isRoot && allowedParents.contains(Integer.parseInt(parentItems.getLast().getCode()));
 						final boolean isChildOfRequestedCategory = parentItems.stream().anyMatch(it -> it.getCode().equals("53"));
 						return entity.getLocales().contains(CZECH_LOCALE) &&
 							(isDirectParent || isRoot || isChildOfAnyParent || isChildOfRequestedCategory);
@@ -1210,7 +1210,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						final boolean isDirectParent = allowedParents.contains(entity.getPrimaryKey());
 						final boolean isRoot = parentItems.isEmpty();
 						final boolean isNotInDisallowedParents = !disallowedParents.contains(entity.getPrimaryKey()) && parentItems.stream().noneMatch(it -> disallowedParents.contains(Integer.parseInt(it.getCode())));
-						final boolean isChildOfAnyParent = !isRoot && allowedParents.contains(Integer.parseInt(parentItems.get(parentItems.size() - 1).getCode()));
+						final boolean isChildOfAnyParent = !isRoot && allowedParents.contains(Integer.parseInt(parentItems.getLast().getCode()));
 						final boolean isChildOfRequestedCategory = parentItems.stream().anyMatch(it -> it.getCode().equals("53"));
 						return entity.getLocales().contains(CZECH_LOCALE) && isNotInDisallowedParents &&
 							(isDirectParent || isRoot || isChildOfAnyParent || isChildOfRequestedCategory);
@@ -1286,7 +1286,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 					(entity, parentItems) -> {
 						final boolean isDirectParent = allowedParents.contains(entity.getPrimaryKey());
 						final boolean isRoot = parentItems.isEmpty();
-						final boolean isChildOfAnyParent = !isRoot && allowedParents.contains(Integer.parseInt(parentItems.get(parentItems.size() - 1).getCode()));
+						final boolean isChildOfAnyParent = !isRoot && allowedParents.contains(Integer.parseInt(parentItems.getLast().getCode()));
 						final boolean isChildOfAnySibling = parentItems.size() == 1 || (parentItems.size() > 1 && allowedParents.contains(Integer.parseInt(parentItems.get(parentItems.size() - 2).getCode())));
 						final boolean isChildOfRequestedCategory = parentItems.stream().anyMatch(it -> it.getCode().equals("30"));
 						return entity.getLocales().contains(CZECH_LOCALE) &&
@@ -1481,7 +1481,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate categoryPredicate = (sealedEntity, parentItems) -> {
 					// has parent node 1
-					return parentItems.size() == 1 && "1".equals(parentItems.get(0).getCode());
+					return parentItems.size() == 1 && "1".equals(parentItems.getFirst().getCode());
 				};
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalCategoryIndex,
@@ -2433,7 +2433,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 					(sealedEntity, parentItems) -> sealedEntity.getLocales().contains(CZECH_LOCALE) &&
 						!sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
 				final TestHierarchyPredicate scopePredicate = (sealedEntity, parentItems) -> {
-					final boolean childOfCategory1 = parentItems.size() == 1 && Objects.equals(1, Integer.parseInt(parentItems.get(0).getCode()));
+					final boolean childOfCategory1 = parentItems.size() == 1 && Objects.equals(1, Integer.parseInt(parentItems.getFirst().getCode()));
 					return filterPredicate.test(sealedEntity, parentItems) && childOfCategory1;
 				};
 

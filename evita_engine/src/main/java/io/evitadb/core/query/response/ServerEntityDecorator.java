@@ -50,6 +50,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.fetch.ReferencedEntityFetcher;
 import io.evitadb.dataType.DataChunk;
+import io.evitadb.function.Functions;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService.ReadRecord;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -659,7 +660,11 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 							Objects.requireNonNull(rck.instanceName())
 						);
 						final Function<Integer, SealedEntity> entityFetcher = mrf.getEntityFetcher(referenceSchema);
-						final Function<Integer, SealedEntity> entityGroupFetcher = mrf.getEntityGroupFetcher(referenceSchema);
+						// a fetcher that can only answer NULL is swapped for the no-op one,
+						// which `fetchReference` skips
+						final Function<Integer, SealedEntity> entityGroupFetcher =
+							mrf.mayCarryGroupBodies(referenceSchema) ?
+								mrf.getEntityGroupFetcher(referenceSchema) : Functions.noOpFunction();
 						final BiPredicate<Integer, ReferenceContract> referenceFilter = mrf.getEntityFilter(referenceSchema);
 						final ReferenceComparator fetchedReferenceComparator = mrf.getEntityComparator(referenceSchema);
 						final AttributeContent attributeContentToPrefetch = mrf.getAttributeContentToPrefetch(referenceSchema);

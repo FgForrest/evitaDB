@@ -106,7 +106,7 @@ class PrefetchedRecordsSorterClassificationTest {
 	@Nonnull
 	private static TraverseReferenceAttributeComparator orderComparator(@Nonnull OrderDirection direction) {
 		return new TraverseReferenceAttributeComparator(
-			ATTRIBUTE_ORDER, Integer.class, REFERENCE_SCHEMA, null, direction
+			ATTRIBUTE_ORDER, Integer.class, 0, REFERENCE_SCHEMA, null, direction
 		);
 	}
 
@@ -255,7 +255,7 @@ class PrefetchedRecordsSorterClassificationTest {
 			// the entity-level attribute comparator keeps the default classification and detects owner 12 lacking
 			// `tail` only while comparing - that channel must keep working
 			final SortResult sorted = sort(
-				new AttributeComparator(ATTRIBUTE_TAIL, Integer.class, null, OrderDirection.ASC), null, 0, 10,
+				new AttributeComparator(ATTRIBUTE_TAIL, Integer.class, 0, null, OrderDirection.ASC), null, 0, 10,
 				11, 12, 13, 14
 			);
 
@@ -536,7 +536,7 @@ class PrefetchedRecordsSorterClassificationTest {
 		@Nonnull
 		private static TraverseReferenceAttributeComparator variantsOrderComparator(@Nonnull OrderDirection direction) {
 			return new TraverseReferenceAttributeComparator(
-				ATTRIBUTE_ORDER, Integer.class, VARIANTS_REFERENCE_SCHEMA, null, direction
+				ATTRIBUTE_ORDER, Integer.class, 0, VARIANTS_REFERENCE_SCHEMA, null, direction
 			);
 		}
 

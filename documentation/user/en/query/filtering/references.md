@@ -211,16 +211,16 @@ entityHaving(
 <dl>
     <dt>filterConstraint:any+</dt>
     <dd>
-        one or more filter constraints that must be satisfied by the target referenced entity of any of the source
-        entity references identified by the parent `referenceHaving` constraint
+        one or more filter constraints combined with logical AND that must all be satisfied by the same target
+        referenced entity of any source entity reference identified by the parent `referenceHaving` constraint
     </dd>
 </dl>
 
 The `entityHaving` constraint is used to examine the attributes or other filterable properties of the referenced entity.
 It can only be used within the [`referenceHaving`](#reference-having) constraint, which defines the name of the entity
 reference that identifies the target entity to be subjected to the filtering restrictions in the `entityHaving`
-constraint. The filtering constraints for the entity can use entire range
-of [filtering operators](../basics.md#filter-by).
+constraint. Several children are combined with logical AND. The filtering constraints for the entity can use the entire
+range of [filtering operators](../basics.md#filter-by).
 
 Let's use our previous example to query for products that relate to `brand` with particular attribute `code`:
 
@@ -271,8 +271,8 @@ groupHaving(
 <dl>
     <dt>filterConstraint:any+</dt>
     <dd>
-        one or more filter constraints that must be satisfied by the group entity of any of the source
-        entity references identified by the parent `referenceHaving` constraint
+        one or more filter constraints combined with logical AND that must all be satisfied by the same group entity
+        of any source entity reference identified by the parent `referenceHaving` constraint
     </dd>
 </dl>
 
@@ -280,7 +280,8 @@ The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query
 is used to examine the attributes or other filterable properties of the **group entity** associated with a reference.
 It can only be used within the [`referenceHaving`](#reference-having) constraint, which defines the name of the entity
 reference whose group entity is subjected to the filtering restrictions in the `groupHaving` constraint. The filtering
-constraints for the group entity can use the entire range of [filtering operators](../basics.md#filter-by).
+constraints for the group entity are combined with logical AND and can use the entire range
+of [filtering operators](../basics.md#filter-by).
 
 This constraint requires the reference to be configured with a group type and to have the `REFERENCED_GROUP_ENTITY`
 [indexed component](../../use/schema.md#indexed-components) enabled. The three sibling constraints address different
@@ -377,6 +378,51 @@ matched through a selected facet whether or not its own reference satisfies the 
 
 Reading the constraints per facet keeps the result consistent with the facet statistics, which are counted per facet.
 Use [`referenceHaving`](#reference-having) when the constraint has to hold for the entity's own reference.
+
+A direct `entityLocaleEquals` tests the **owner** of the reference. For example,
+`facetHaving('brand', entityLocaleEquals('cs'), entityPrimaryKeyInSet(1))` requires the product to hold Czech data
+and to reference brand 1. With only `entityLocaleEquals('cs')`, the product must hold Czech data and reference any
+facet of `brand`. Under `or` and `not`, the locale leaf retains its boolean meaning: it does not restrict a sibling
+branch of an `or`. The locale is an owner-level opinion; `entityHaving` and `groupHaving` establish independent
+entity levels whose opinions flow only down to their children. The filters of `includingChildrenHaving` and
+`includingChildrenExcept` also establish a subcategory level: a locale inside them applies to the hierarchy nodes,
+leaves the product's locale unchanged, and does not require the product to hold that locale.
+
+Facet counts and impact predictions retain the owner-locale condition when evaluating a facet selection.
+
+When the referenced entity type is not managed by evitaDB, the facets can be selected only by their primary keys and
+by the reference attributes, and a nested `entityHaving` makes the query fail.
+
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Facet groups belong to references
+</NoteTitle>
+
+The group of a facet is a property of the reference, not of the facet: each reference names its own group, so one
+facet may be referenced under several groups — one product referencing it in group *A*, another one in group *B* or
+without a group. A selected facet takes part in every group it is referenced under in the searched scopes, each time
+with the entities referencing it under that group, and these groups are combined by their relations like the groups of
+any other selected facet. With the default relations, a facet referenced in groups *A* and *B* selected alone matches
+only the entities that reference it in both groups. The reference summary lists such a facet in each of its groups:
+each of these entries counts the entities that reference the facet under its own group, and the impact of every entry
+predicts the same selection. If a facet is meant to act as a single option, reference it under a single group.
+
+A selected facet that no entity of the searched scope references has no reference to take a group from, so it is
+a facet without a group there. It matches no entity and follows the relations of the facets without a group: with the
+default conjunction between groups it empties the result, with a disjunction it changes nothing, and with a negation
+it excludes nothing. The relations of the group the facet has in another scope do not apply. When a query over several
+scopes selects the facet once for all of them, the facet takes the groups of every scope that references it. When the
+same selection is placed in [`inScope`](behavioral.md#in-scope) containers, each scope composes the facet by its own
+groups, so the two queries may return different entities.
+
+Only a nested filter consisting of exactly one `entityPrimaryKeyInSet` — the way a client selects options by their
+primary keys — selects a facet that the searched scope does not reference. Any other nested filter (reference
+attributes, `entityHaving`, logical containers, a primary key set next to another constraint, or a filter including
+the children of hierarchical facets) selects only among the facets that the searched scope references.
 
 </Note>
 
@@ -521,6 +567,11 @@ the child entities that are included in the `facetHaving` parent constraint. Thi
 filters in the [`referenceSummary`](../requirements/reference.md#reference-summary-of-reference) and your selection
 logic needs to match it.
 
+The child filter resolves its own locale. For example, a product query in English can use
+`includingChildrenHaving(entityLocaleEquals('cs'))` to include Czech subcategories while returning English products.
+Without a product locale, that child locale leaves the products without a locale. A localized subcategory attribute
+filter with no locale of its own inherits the product query's locale.
+
 To better understand how the `includingChildrenHaving` constraint works, let's look at an example (the query is also
 restricted to the products of the `ASUS` manufacturer so that the facet summary is not too long):
 
@@ -593,6 +644,10 @@ match it.
 You can also combine the `includingChildrenExcept` constraint with the `includingChildrenHaving` constraint. 
 In this case, the `includingChildrenHaving` constraint is evaluated first and the `includingChildrenExcept` constraint 
 is applied to the result of the `includingChildrenHaving` constraint.
+
+The exclusion filter has its own subcategory locale level, with the same inheritance as
+[`includingChildrenHaving`](#including-children-having). For example,
+`includingChildrenExcept(entityLocaleEquals('cs'))` excludes Czech subcategories without changing the product's locale.
 
 To better understand how the `includingChildrenExcept` constraint works, let's look at an example (the query is also
 restricted to the products of the `ASUS` manufacturer so that the facet summary is not too long):

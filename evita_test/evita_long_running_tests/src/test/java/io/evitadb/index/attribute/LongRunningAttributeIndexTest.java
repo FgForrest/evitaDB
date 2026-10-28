@@ -194,13 +194,13 @@ class LongRunningAttributeIndexTest implements TimeBoundedTestSupport {
 			if (random.nextInt(4) == 0) {
 				// CHAIN op: tail append or tail removal keeps the single chain consistent
 				if (chain.isEmpty() || (chain.size() < CHAIN_CAP && random.nextBoolean())) {
-					final int predecessorId = chain.isEmpty() ? 0 : chain.get(chain.size() - 1);
-					final int recordId = chain.isEmpty() ? CHAIN_BASE : chain.get(chain.size() - 1) + 1;
+					final int predecessorId = chain.isEmpty() ? 0 : chain.getLast();
+					final int recordId = chain.isEmpty() ? CHAIN_BASE : chain.getLast() + 1;
 					code.append("chainInsert(index, ").append(predecessorId).append(", ").append(recordId).append(");\n");
 					chainInsert(index, predecessorId, recordId);
 					chain.add(recordId);
 				} else {
-					final int recordId = chain.remove(chain.size() - 1);
+					final int recordId = chain.removeLast();
 					code.append("chainRemove(index, ").append(recordId).append(");\n");
 					chainRemove(index, recordId);
 				}
@@ -317,7 +317,7 @@ class LongRunningAttributeIndexTest implements TimeBoundedTestSupport {
 		final SortIndex sortIndex = index.getSortIndex(null, SORTABLE_PRIORITY, null);
 		final ChainIndex chainIndex = index.getChainIndex(null, CHAIN_ORDER, null);
 		return new AttributeSnapshot(
-			uniqueIndex == null ? List.of() : toList(uniqueIndex.getRecordIds().getArray()),
+			uniqueIndex == null ? List.of() : toList(UniqueIndexTestSupport.ownerRecordIds(uniqueIndex)),
 			filterIndex == null ? List.of() : toList(filterIndex.getAllRecords().getArray()),
 			sortIndex == null ? List.of() : toList(sortIndex.getSortedRecords()),
 			chainIndex == null ? List.of() : toList(chainIndex.getUnorderedLookup().getArray())

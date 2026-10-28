@@ -288,6 +288,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 	private BuiltFieldDescriptor buildOnCatalogSchemaChangeField() {
 		final GraphQLFieldDefinition onCatalogSchemaChangeField = GraphQLCatalogSchemaApiRootDescriptor.ON_CATALOG_SCHEMA_CHANGE
 			.to(this.staticEndpointBuilderTransformer)
+			.argument(OnCatalogSchemaChangeHeaderDescriptor.CATALOG_ID.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogSchemaChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogSchemaChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogSchemaChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
@@ -305,6 +306,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 	private BuiltFieldDescriptor buildOnCatalogSchemaChangeUntypedField() {
 		final GraphQLFieldDefinition onCatalogSchemaChangeField = GraphQLCatalogSchemaApiRootDescriptor.ON_CATALOG_SCHEMA_UNTYPED_CHANGE
 			.to(this.staticEndpointBuilderTransformer)
+			.argument(OnCatalogSchemaChangeHeaderDescriptor.CATALOG_ID.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogSchemaChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogSchemaChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogSchemaChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))

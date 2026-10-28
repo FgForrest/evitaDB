@@ -36,6 +36,7 @@ import java.util.Locale;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -251,11 +252,14 @@ class ComparableLocaleTest {
 
 		@Test
 		@DisplayName("should not be equal to null")
+		@SuppressWarnings({"SimplifiableAssertion", "ObjectEqualsNull"})
 		void shouldNotBeEqualToNull() {
 			final ComparableLocale en =
 				new ComparableLocale(Locale.ENGLISH);
 
-			assertNotEquals(null, en);
+			// deliberately not `assertNotEquals`: with `null` as its first argument it calls no `equals` at all, so
+			// the null check of the class under test would never run
+			assertFalse(en.equals(null));
 		}
 
 		@Test
@@ -289,11 +293,14 @@ class ComparableLocaleTest {
 		@DisplayName(
 			"should not be equal to object of different type"
 		)
+		@SuppressWarnings({"SimplifiableAssertion", "EqualsBetweenInconvertibleTypes"})
 		void shouldNotBeEqualToDifferentType() {
 			final ComparableLocale en =
 				new ComparableLocale(Locale.ENGLISH);
 
-			assertNotEquals("en", en);
+			// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
+			// fix moves the literal there, so `String.equals` would be tested instead of the class under test
+			assertFalse(en.equals("en"));
 		}
 	}
 

@@ -165,7 +165,7 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 				registry.getTriggersFor(PARAMETER_GROUP, DependencyType.GROUP_ENTITY_ATTRIBUTE);
 
 			assertEquals(1, result.size());
-			assertEquals(PRODUCT, result.get(0).getOwnerEntityType());
+			assertEquals(PRODUCT, result.getFirst().getOwnerEntityType());
 		}
 
 		@Test
@@ -235,9 +235,9 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 				registry.getTriggersFor(BRAND, DependencyType.REFERENCED_ENTITY_ATTRIBUTE);
 
 			assertEquals(1, groupTriggers.size());
-			assertEquals(PRODUCT, groupTriggers.get(0).getOwnerEntityType());
+			assertEquals(PRODUCT, groupTriggers.getFirst().getOwnerEntityType());
 			assertEquals(1, brandTriggers.size());
-			assertEquals(CATEGORY, brandTriggers.get(0).getOwnerEntityType());
+			assertEquals(CATEGORY, brandTriggers.getFirst().getOwnerEntityType());
 		}
 
 		@Test
@@ -316,9 +316,9 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 			);
 
 			assertEquals(1, statusTriggers.size());
-			assertEquals(PARAMETER_REF, statusTriggers.get(0).getReferenceName());
+			assertEquals(PARAMETER_REF, statusTriggers.getFirst().getReferenceName());
 			assertEquals(1, priorityTriggers.size());
-			assertEquals(ALT_PARAMETER_REF, priorityTriggers.get(0).getReferenceName());
+			assertEquals(ALT_PARAMETER_REF, priorityTriggers.getFirst().getReferenceName());
 		}
 
 		@Test
@@ -444,7 +444,7 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 			final List<ExpressionIndexTrigger> result =
 				rebuilt.getTriggersFor(PARAMETER_GROUP, DependencyType.GROUP_ENTITY_ATTRIBUTE);
 			assertEquals(1, result.size());
-			assertTrue(result.get(0).getDependentAttributes().contains("priority"));
+			assertTrue(result.getFirst().getDependentAttributes().contains("priority"));
 		}
 
 		@Test
@@ -519,7 +519,7 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 			final List<ExpressionIndexTrigger> result =
 				rebuilt.getTriggersFor(PARAMETER_GROUP, DependencyType.GROUP_ENTITY_ATTRIBUTE);
 			assertEquals(1, result.size());
-			assertEquals(PRODUCT, result.get(0).getOwnerEntityType());
+			assertEquals(PRODUCT, result.getFirst().getOwnerEntityType());
 		}
 
 		@Test
@@ -580,7 +580,7 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 					PARAMETER_GROUP, DependencyType.GROUP_ENTITY_ATTRIBUTE, "weight"
 				);
 			assertEquals(1, weightTriggers.size());
-			assertEquals(PRODUCT, weightTriggers.get(0).getOwnerEntityType());
+			assertEquals(PRODUCT, weightTriggers.getFirst().getOwnerEntityType());
 
 			// verify: old "status" attribute is no longer dependent for product
 			final List<ExpressionIndexTrigger> statusTriggers =
@@ -887,7 +887,7 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 			final List<ExpressionIndexTrigger> remaining =
 				rebuilt.getTriggersFor(PARAMETER_GROUP, DependencyType.GROUP_ENTITY_ATTRIBUTE);
 			assertEquals(1, remaining.size());
-			assertEquals(CATEGORY, remaining.get(0).getOwnerEntityType());
+			assertEquals(CATEGORY, remaining.getFirst().getOwnerEntityType());
 		}
 
 		@Test
@@ -931,7 +931,7 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 			final List<ExpressionIndexTrigger> remaining =
 				rebuilt.getTriggersFor(PRODUCT, DependencyType.GROUP_ENTITY_ATTRIBUTE);
 			assertEquals(1, remaining.size());
-			assertEquals(CATEGORY, remaining.get(0).getOwnerEntityType());
+			assertEquals(CATEGORY, remaining.getFirst().getOwnerEntityType());
 		}
 
 	}
@@ -1018,8 +1018,8 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 			final List<ExpressionIndexTrigger> result =
 				registry.getTriggersFor(PARAMETER_TYPE, DependencyType.REFERENCED_ENTITY_ATTRIBUTE);
 			assertEquals(1, result.size());
-			assertEquals(PRODUCT, result.get(0).getOwnerEntityType());
-			assertEquals(Scope.LIVE, result.get(0).getScope());
+			assertEquals(PRODUCT, result.getFirst().getOwnerEntityType());
+			assertEquals(Scope.LIVE, result.getFirst().getScope());
 		}
 
 		@Test
@@ -1184,7 +1184,7 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 			);
 
 			assertEquals(1, statusTriggers.size());
-			assertEquals(PARAMETER_REF, statusTriggers.get(0).getReferenceName());
+			assertEquals(PARAMETER_REF, statusTriggers.getFirst().getReferenceName());
 		}
 
 	}
@@ -1233,7 +1233,7 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 			final List<ExpressionIndexTrigger> remaining =
 				rebuilt.getTriggersFor(PARAMETER_GROUP, DependencyType.GROUP_ENTITY_ATTRIBUTE);
 			assertEquals(1, remaining.size());
-			assertEquals(CATEGORY, remaining.get(0).getOwnerEntityType());
+			assertEquals(CATEGORY, remaining.getFirst().getOwnerEntityType());
 		}
 
 	}

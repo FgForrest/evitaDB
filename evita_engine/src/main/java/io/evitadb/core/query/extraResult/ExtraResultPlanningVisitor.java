@@ -29,6 +29,8 @@ import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.QueryConstraints;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.FilterBy;
@@ -50,6 +52,7 @@ import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
 import io.evitadb.core.query.algebra.facet.FacetHavingFormula;
@@ -65,9 +68,6 @@ import io.evitadb.core.query.extraResult.translator.RequireInScopeTranslator;
 import io.evitadb.core.query.extraResult.translator.RequireTranslator;
 import io.evitadb.core.query.extraResult.translator.facet.FacetSummaryOfReferenceTranslator;
 import io.evitadb.core.query.extraResult.translator.facet.FacetSummaryTranslator;
-import io.evitadb.core.query.extraResult.translator.reference.ReferenceHistogramStatisticsTranslator;
-import io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryOfReferenceTranslator;
-import io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchyChildrenTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchyFromNodeTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchyFromRootTranslator;
@@ -84,6 +84,9 @@ import io.evitadb.core.query.extraResult.translator.reference.EntityGroupFetchTr
 import io.evitadb.core.query.extraResult.translator.reference.HierarchyContentTranslator;
 import io.evitadb.core.query.extraResult.translator.reference.PriceContentTranslator;
 import io.evitadb.core.query.extraResult.translator.reference.ReferenceContentTranslator;
+import io.evitadb.core.query.extraResult.translator.reference.ReferenceHistogramStatisticsTranslator;
+import io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryOfReferenceTranslator;
+import io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.NestedContextSorter;
@@ -349,13 +352,40 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Formula getFilteringFormulaWithoutUserFilter() {
 		if (this.filteringFormulaWithoutUserFilter == null) {
-			this.filteringFormulaWithoutUserFilter = ofNullable(
-				FormulaCloner.clone(
-					this.filteringFormula,
-					formula -> formula instanceof UserFilterFormula ? null : formula
-				)).orElseGet(this::getSuperSetFormula);
+			final Formula superSetFormula = getSuperSetFormula();
+			this.filteringFormulaWithoutUserFilter = ofNullable(withoutUserFilter(this.filteringFormula, superSetFormula))
+				.orElse(superSetFormula);
 		}
 		return this.filteringFormulaWithoutUserFilter;
+	}
+
+	/**
+	 * Returns the passed formula stripped of all {@link UserFilterFormula} parts. A negated constraint next to the user
+	 * filter is planned as a {@link NotFormula} subtracting the constraint from the user filter, and stripping the user
+	 * filter from it would leave nothing to subtract from and drop the negated constraint as well - so the constraint
+	 * is subtracted from the superset instead, as if the user filter had never been there.
+	 *
+	 * @param formula         the formula to strip
+	 * @param superSetFormula the formula of all entities the filtering formula is planned over
+	 * @return the stripped formula, or NULL when nothing but the user filter is left
+	 */
+	@Nullable
+	private static Formula withoutUserFilter(@Nonnull Formula formula, @Nonnull Formula superSetFormula) {
+		return FormulaCloner.clone(
+			formula,
+			examinedFormula -> {
+				if (examinedFormula instanceof UserFilterFormula) {
+					return null;
+				} else if (examinedFormula instanceof NotFormula notFormula &&
+					notFormula.getSupersetFormula() instanceof UserFilterFormula) {
+					final Formula subtractedFormula = withoutUserFilter(notFormula.getSubtractedFormula(), superSetFormula);
+					return subtractedFormula == null ?
+						superSetFormula : notFormula.getCloneWithInnerFormulas(subtractedFormula, superSetFormula);
+				} else {
+					return examinedFormula;
+				}
+			}
+		);
 	}
 
 	/**
@@ -432,7 +462,9 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 *    - Reference-hierarchy with a non-partitioned reference schema — REDUCED_ENTITY of the same reference is
 	 *      tagged with `EligibilityObstacle.NOT_PARTITIONED_INDEX` and is not picked as the primary plan.
 	 *    - Reference-hierarchy whose schema is `FOR_FILTERING_AND_PARTITIONING` for every active scope — the
-	 *      planner may have selected REDUCED_ENTITY of the same reference, breaking this prerequisite.
+	 *      planner may have selected REDUCED_ENTITY of the same reference, breaking this prerequisite. (A
+	 *      REDUCED_ENTITY built inside `inScope(...)` for fewer scopes than the query requests is tagged with
+	 *      `EligibilityObstacle.PARTIAL_SCOPE_COVERAGE` and never selected, but the gate does not rely on it.)
 	 *
 	 * 2. **No having/excluding filter to preserve** — when the user's `hierarchyWithin` / `hierarchyWithinRoot`
 	 *    carries a `having(...)` or `excluding(...)` clause, those predicates are baked into the
@@ -448,8 +480,10 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 * `UserFilterFormula.getCloneWithInnerFormulas([])` collapses into {@link EmptyFormula} (the "empty result"
 	 * sentinel). {@link FormulaCloner} now generalises this: any wrapper whose `getCloneWithInnerFormulas([])`
 	 * returns {@link EmptyFormula} is dropped as the identity element of its parent — covering not only
-	 * `UserFilterFormula` but also nested `AndFormula`/`OrFormula`/`ScopeContainerFormula` chains that the
-	 * strip mutators can empty out, so the shortcut handles all three modes safely.
+	 * `UserFilterFormula` but also nested `AndFormula`/`OrFormula` chains that the strip mutators can empty out.
+	 * A `ScopeContainerFormula` built by `restrictingScope` takes a third path when emptied this way: it is
+	 * replaced by a substitute standing for its whole scope rather than dropped, so a scope whose only constraint
+	 * was stripped is still counted in full instead of disappearing from the statistics base.
 	 */
 	private boolean canUseShortcut(@Nullable ReferenceSchemaContract referenceSchema) {
 		final String referenceName = referenceSchema == null ? null : referenceSchema.getName();
@@ -930,6 +964,64 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				.filter(Objects::nonNull),
 			Stream.of(current)
 		);
+	}
+
+	/**
+	 * Derives the request of the body containing the requirement, from the outermost fetch inward. Each body resolves
+	 * its own locale before inheriting its enclosing body's locale; a fetch without its own `dataInLocales` inherits
+	 * the requirement of the enclosing fetch (see {@link #deriveBodyRequest}). Reference attributes remain at their
+	 * owner's body level. A body no level resolves a locale for gets a request without one.
+	 *
+	 * @param current the content requirement being validated
+	 * @return the request that will fetch its data
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when a reference filter names conflicting locales on one
+	 *                                                         level
+	 */
+	@Nonnull
+	public EvitaRequest getEntityFetchRequest(@Nonnull EntityContentRequire current) {
+		EvitaRequest request = getEvitaRequest();
+		ReferenceContent enclosing = null;
+		final Iterator<RequireConstraint> chain = getEntityContentRequireChain(current).iterator();
+		while (chain.hasNext()) {
+			final RequireConstraint requirement = chain.next();
+			if (requirement instanceof ReferenceContent referenceContent) {
+				enclosing = referenceContent;
+			} else if (requirement instanceof EntityFetchRequire fetch) {
+				final Locale locale = enclosing == null ? request.getRequiredOrImplicitLocale() :
+					QueryUtils.resolveReferenceBodyLocale(
+						enclosing.getFilterBy().orElse(null), fetch instanceof EntityGroupFetch,
+						request.getRequiredOrImplicitLocale()
+					);
+				request = deriveBodyRequest(
+					request, request.getEntityType(), new FilterBy(QueryConstraints.entityLocaleEquals(locale)), fetch
+				);
+				enclosing = null;
+			}
+		}
+		return request;
+	}
+
+	/**
+	 * Derives the request of a nested body from the request of its enclosing level. The derived copy takes over the
+	 * memoized required locales of `parent` instead of computing them, so they are computed here first: a fetch that
+	 * names no `dataInLocales` then inherits the requirement of the enclosing fetch, as the bodies do when they are
+	 * fetched after their owners.
+	 *
+	 * @param parent     the request of the enclosing level
+	 * @param entityType the entity type of the body
+	 * @param filterBy   the filter supplying the locale of the body, NULL to keep the locale of `parent`
+	 * @param fetch      the fetch requirement of the body
+	 * @return the request fetching the body
+	 */
+	@Nonnull
+	public static EvitaRequest deriveBodyRequest(
+		@Nonnull EvitaRequest parent,
+		@Nullable String entityType,
+		@Nullable FilterBy filterBy,
+		@Nonnull EntityFetchRequire fetch
+	) {
+		parent.getRequiredLocales();
+		return parent.deriveCopyWith(entityType, filterBy, null, fetch);
 	}
 
 	/**

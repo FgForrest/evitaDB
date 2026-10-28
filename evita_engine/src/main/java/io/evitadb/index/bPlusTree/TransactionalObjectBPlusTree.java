@@ -2744,42 +2744,37 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		 * @return true if the key was found and removed, false otherwise
 		 */
 		public boolean delete(@Nonnull M key) {
+			// presence is settled on the current state BEFORE a write layer is resolved, so deleting an absent key stays
+			// a pure read: no layer opened, no array copied and no savepoint memento taken for a call that changes nothing
+			final int index = getValueIndex(key);
+			if (index < 0) {
+				return false;
+			}
+			// the index stays valid below: a freshly opened layer shares this node's arrays and peek, and the
+			// decouple copies them without reordering
 			final BPlusLeafTreeNode<M, N> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
-				final int index = findKeyIndex(key, this.keys, 0, this.peek + 1);
-
-				if (index >= 0) {
-					// the value is discarded from the tree - release its transactional diff layer (if any)
-					// so it is not left ALIVE and detected as stale during commit; outside a transaction the
-					// guard short-circuits and this is a no-op
-					discardRemovedValueLayer(this.values[index]);
-					removeRecordFromSameArrayOnIndex(this.keys, index);
-					removeRecordFromSameArrayOnIndex(this.values, index);
-					this.keys[this.peek] = null;
-					this.values[this.peek] = null;
-					this.peek--;
-					return true;
-				} else {
-					return false;
-				}
+				// the value is discarded from the tree - release its transactional diff layer (if any)
+				// so it is not left ALIVE and detected as stale during commit; outside a transaction the
+				// guard short-circuits and this is a no-op
+				discardRemovedValueLayer(this.values[index]);
+				removeRecordFromSameArrayOnIndex(this.keys, index);
+				removeRecordFromSameArrayOnIndex(this.values, index);
+				this.keys[this.peek] = null;
+				this.values[this.peek] = null;
+				this.peek--;
 			} else {
 				decoupleTransactionalArrays();
-				final int index = findKeyIndex(key, layer.keys, 0, layer.peek + 1);
-
-				if (index >= 0) {
-					// the value is discarded from the tree - release its transactional diff layer (if any)
-					// so it is not left ALIVE and detected as stale during commit
-					discardRemovedValueLayer(layer.values[index]);
-					removeRecordFromSameArrayOnIndex(layer.keys, index);
-					removeRecordFromSameArrayOnIndex(layer.values, index);
-					layer.keys[layer.peek] = null;
-					layer.values[layer.peek] = null;
-					layer.peek--;
-					return true;
-				} else {
-					return false;
-				}
+				// the value is discarded from the tree - release its transactional diff layer (if any)
+				// so it is not left ALIVE and detected as stale during commit
+				discardRemovedValueLayer(layer.values[index]);
+				removeRecordFromSameArrayOnIndex(layer.keys, index);
+				removeRecordFromSameArrayOnIndex(layer.values, index);
+				layer.keys[layer.peek] = null;
+				layer.values[layer.peek] = null;
+				layer.peek--;
 			}
+			return true;
 		}
 
 		/**

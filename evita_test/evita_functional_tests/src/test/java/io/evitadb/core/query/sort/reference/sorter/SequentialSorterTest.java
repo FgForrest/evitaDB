@@ -28,7 +28,6 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.query.QueryExecutionContext;
-import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.Sorter.SortingContext;
@@ -58,6 +57,9 @@ import static io.evitadb.test.TestTags.ORDER;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 /**
  * Verifies how {@link SequentialSorter} drives its embedded sorters block by block: a block holding none of the
@@ -97,7 +99,7 @@ class SequentialSorterTest {
 	/**
 	 * The reduced indexes of the blocks, in traversal order.
 	 */
-	private CountingReducedEntityIndex[] indexes;
+	private ReducedEntityIndex[] indexes;
 	/**
 	 * The blocks, one reduced index each, in traversal order.
 	 */
@@ -110,10 +112,10 @@ class SequentialSorterTest {
 	@BeforeEach
 	void setUp() {
 		this.fixture = new PickFirstReducedIndexFixture();
-		this.indexes = new CountingReducedEntityIndex[]{
-			new CountingReducedEntityIndex(1, 1, 1, 2),
-			new CountingReducedEntityIndex(2, 2, 1, 2, 3),
-			new CountingReducedEntityIndex(3, 3, 4)
+		this.indexes = new ReducedEntityIndex[]{
+			createIndex(1, 1, 1, 2),
+			createIndex(2, 2, 1, 2, 3),
+			createIndex(3, 3, 4)
 		};
 		this.blocks = new ReducedEntityIndex[][]{{this.indexes[0]}, {this.indexes[1]}, {this.indexes[2]}};
 		this.invokedBlocks = new ArrayList<>(4);
@@ -149,10 +151,9 @@ class SequentialSorterTest {
 			() -> assertArrayEquals(new int[0], outcome.remaining()),
 			() -> assertEquals(List.of(this.blocks[0][0].getRepresentativeReferenceKey()), this.invokedBlocks),
 			// the blocks after the one claiming the last record are not even intersected with the selection
-			() -> assertArrayEquals(
-				new int[]{1, 0, 0}, formulaReads(),
-				"the owner formulas of blocks 2 and 3 must never be read"
-			)
+			() -> verify(this.indexes[0]).getAllPrimaryKeysFormula(),
+			() -> verify(this.indexes[1], never()).getAllPrimaryKeysFormula(),
+			() -> verify(this.indexes[2], never()).getAllPrimaryKeysFormula()
 		);
 	}
 
@@ -206,15 +207,6 @@ class SequentialSorterTest {
 		);
 	}
 
-	/**
-	 * Returns how many times the owner formula of each block's index was read, in block order.
-	 *
-	 * @return the read counts
-	 */
-	@Nonnull
-	private int[] formulaReads() {
-		return Arrays.stream(this.indexes).mapToInt(CountingReducedEntityIndex::getFormulaReads).toArray();
-	}
 
 	/**
 	 * Creates the sorter over the blocks of the fixture, recording each invocation of its embedded sorter.
@@ -330,50 +322,27 @@ class SequentialSorterTest {
 	}
 
 	/**
-	 * A real reduced index of the `items` reference in the live scope that counts how often its owner formula is
-	 * read - the read {@link SequentialSorter} makes to intersect a block with the records still to be sorted.
+	 * Creates a real reduced index of the `items` reference in the live scope, then spies on it so the test can verify
+	 * whether its owner formula was read. A spy keeps the sealed partition implementation and its real bitmap.
+	 *
+	 * @param primaryKey primary key of the index
+	 * @param target primary key of the referenced entity
+	 * @param owners owners the index holds
+	 * @return the spied index
 	 */
-	private static final class CountingReducedEntityIndex extends ReducedEntityIndex {
-		/**
-		 * How many times {@link #getAllPrimaryKeysFormula()} was called.
-		 */
-		private int formulaReads;
-
-		/**
-		 * Creates the index and fills it with the owners.
-		 *
-		 * @param primaryKey primary key of the index
-		 * @param target     primary key of the referenced entity
-		 * @param owners     owners the index holds
-		 */
-		CountingReducedEntityIndex(int primaryKey, int target, @Nonnull int... owners) {
-			super(
-				primaryKey, PickFirstReducedIndexFixture.OWNER_TYPE,
-				new EntityIndexKey(
-					EntityIndexType.REFERENCED_ENTITY, Scope.LIVE,
-					new RepresentativeReferenceKey(new ReferenceKey(PickFirstReducedIndexFixture.REFERENCE_NAME, target))
-				)
-			);
-			for (int owner : owners) {
-				insertPrimaryKeyIfMissing(owner);
-			}
+	@Nonnull
+	private static ReducedEntityIndex createIndex(int primaryKey, int target, @Nonnull int... owners) {
+		final ReducedEntityIndex index = new ReducedEntityIndex(
+			primaryKey, PickFirstReducedIndexFixture.OWNER_TYPE,
+			new EntityIndexKey(
+				EntityIndexType.REFERENCED_ENTITY, Scope.LIVE,
+				new RepresentativeReferenceKey(new ReferenceKey(PickFirstReducedIndexFixture.REFERENCE_NAME, target))
+			)
+		);
+		for (final int owner : owners) {
+			index.insertPrimaryKeyIfMissing(owner);
 		}
-
-		@Nonnull
-		@Override
-		public Formula getAllPrimaryKeysFormula() {
-			this.formulaReads++;
-			return super.getAllPrimaryKeysFormula();
-		}
-
-		/**
-		 * Returns how many times the owner formula was read.
-		 *
-		 * @return the number of reads
-		 */
-		int getFormulaReads() {
-			return this.formulaReads;
-		}
+		return spy(index);
 	}
 
 	/**

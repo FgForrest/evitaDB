@@ -301,7 +301,7 @@ class FilterInScopeTest {
 			final FilterInScope constraint = inScope(Scope.LIVE, entityPrimaryKeyInSet(1));
 			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
 
-			constraint.accept(c -> visited.set((Constraint<?>) c));
+			constraint.accept(c -> visited.set(c));
 
 			assertSame(constraint, visited.get());
 		}
@@ -390,6 +390,36 @@ class FilterInScopeTest {
 				inScope(Scope.LIVE, entityPrimaryKeyInSet(1)).hashCode(),
 				inScope(Scope.LIVE, entityLocaleEquals(Locale.ENGLISH)).hashCode()
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Nesting")
+	class NestingTest {
+
+		/**
+		 * A nested `inScope` is refused - but by the query, not by the constraint. The documentation's "the query is
+		 * rejected with an error" happens when the query is executed: the engine calls
+		 * {@link io.evitadb.api.query.QueryUtils#assertNoNestedScopeContainers(io.evitadb.api.query.Query)} before it
+		 * plans the query. The constructor must not throw, for two reasons:
+		 *
+		 * - a stored query of this shape (a traffic recording, for example) is rebuilt through this constructor when
+		 *   it is read back, and must stay readable;
+		 * - a constructor check would miss the trees assembled after construction - copies made by
+		 *   `getCopyWithNewChildren` and normalized queries - which the check on the final query tree covers.
+		 *
+		 * The rejection itself is covered by `QueryUtilsTest.AssertNoNestedScopeContainersTest#shouldRejectFilterInScopeOfOtherScopeNestedDirectly` and,
+		 * end to end through a session, by `InScopeReducedIndexPlanFunctionalTest.NestedInScopeRejection`.
+		 */
+		@Test
+		@DisplayName("should build inScope nested in another inScope and leave its rejection to query execution")
+		void shouldDeferNestedInScopeRejectionToExecution() {
+			final FilterInScope constraint = assertDoesNotThrow(
+				() -> inScope(Scope.LIVE, inScope(Scope.ARCHIVED, entityPrimaryKeyInSet(1)))
+			);
+
+			assertEquals(Scope.LIVE, constraint.getScope());
+			assertInstanceOf(FilterInScope.class, constraint.getFiltering()[0]);
 		}
 	}
 }

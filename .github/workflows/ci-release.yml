@@ -157,7 +157,7 @@ jobs:
         fi
 
     - name: Setup Java JDK
-      uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1  # setup JDK 21 for building
+      uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0  # setup JDK 21 for building
       with:
         distribution: 'temurin'
         java-version: '21'
@@ -174,15 +174,13 @@ jobs:
         export NEW_VERSION="$( echo "${SANITIZED_VERSION}" | sed 's/^v//; s/-.*//')"
         echo $NEW_VERSION > version.txt
         echo "Version: $(cat version.txt)"
-        # `full` must be active for versions:set so the heavy modules
-        # (jacoco, performance tests, all-in-one driver) get their parent
-        # version rewritten too — otherwise the deploy below fails resolving
-        # the now-mismatched -SNAPSHOT parent reference.
-        mvn -P full versions:set -DnewVersion=$NEW_VERSION
+        # The default reactor contains every published artifact. Coverage and benchmarks
+        # belong to the `full` profile and are not needed for a release.
+        mvn versions:set -DnewVersion=$NEW_VERSION
         # `evita_long_running_tests` is excluded from the release deploy: it depends on the `test-jar` of
         # `evita_functional_tests`, which is not produced under `-Dmaven.test.skip=true`, so it would fail
         # dependency resolution. It is a non-published leaf test module, so excluding it is safe.
-        mvn -T 1C -B -P release-sign-artifacts,full -Dmaven.test.skip=true javadoc:jar source:jar deploy -pl '!:evita_long_running_tests' --file pom.xml
+        mvn -T 1C -B -P release-sign-artifacts -Dmaven.test.skip=true javadoc:jar source:jar deploy -pl '!:evita_long_running_tests' --file pom.xml
       env:
         EVITA_BUILD_VERSION: ${{ steps.release_version.outputs.version }}
         MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
@@ -395,14 +393,14 @@ jobs:
         asset_content_type: application/gzip
 
     - name: Upload evitaDB server artifact
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       if: success()
       with:
         name: evita-server.jar
         path: 'evita_server/target/evita-server.jar'
 
     - name: Upload evitaDB version.txt
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       if: success()
       with:
         name: version.txt
@@ -543,7 +541,7 @@ jobs:
     - name: Upload release-notes.md artifact
       if: always() && hashFiles('release-notes.md') != ''
       continue-on-error: true
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: release-notes-${{ steps.release_version.outputs.version }}
         path: release-notes.md

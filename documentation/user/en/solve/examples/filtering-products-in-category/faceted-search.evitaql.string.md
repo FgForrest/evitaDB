@@ -5,9 +5,9 @@ Facet summary:
 		[ ] 'aluminum alloy' (1) -268
 		[ ] 'classic edition' (1) -268
 		[ ] 'Gunmetal' (1) -268
-		[ ] 'Red' (1) -268
-		[ ] 'Gold' (17) -252
-		[ ] 'Pink' (9) -260
+		[-] 'Red' (1) -269
+		[-] 'Gold' (17) -269
+		[-] 'Pink' (9) -269
 	parameterValues: 'Material' [16]:
 		[ ] 'Stainless steel' (16) -253
 	parameterValues: 'Processor' [1]:

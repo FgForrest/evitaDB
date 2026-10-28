@@ -44,9 +44,8 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencePartitions;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -117,17 +116,19 @@ public class EntityByDuplicateReferencesFunctionalTest {
 	private final static int BRAND_COUNT = 10;
 
 	/**
-	 * Retrieves the referenced entity index based on the provided parameters.
+	 * Retrieves the partition of the referenced entity based on the provided parameters - its index object, or the
+	 * virtual handle of its registry row when the partition is a single-owner one. Meant for checking that the
+	 * partition exists, not for reading what it holds.
 	 *
 	 * @param evita                         the evita instance, must not be null
 	 * @param scope                         the scope in which the index resides, must not be null
 	 * @param entityType                    the type of the entity for which the index is being retrieved, must not be null
 	 * @param recordId                      the unique record identifier of the entity
 	 * @param representativeAttributeValues an array of representative attribute values used as part of the reference key, must not be null
-	 * @return the referenced entity index if it exists, or null if it does not exist
+	 * @return the partition if it exists, or null if it does not exist
 	 */
 	@Nullable
-	static EntityIndex getReferencedEntityIndex(
+	static ReferencePartition getReferencedEntityIndex(
 		@Nonnull Evita evita,
 		@Nonnull Scope scope,
 		@Nonnull String entityType,
@@ -138,15 +139,10 @@ public class EntityByDuplicateReferencesFunctionalTest {
 		final Catalog catalog = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 		final EntityCollectionContract collection = catalog.getCollectionForEntity(entityType).orElseThrow();
 		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
-		return ((EntityCollection) collection).getIndexByKeyIfExists(
-			new EntityIndexKey(
-				EntityIndexType.REFERENCED_ENTITY,
-				scope,
-				new RepresentativeReferenceKey(
-					new ReferenceKey(referenceName, recordId),
-					representativeAttributeValues
-				)
-			)
+		return ReferencePartitions.resolverByKeyForOwnerRead(
+			((EntityCollection) collection).getDataStoreReader(), scope, referenceName
+		).apply(
+			new RepresentativeReferenceKey(new ReferenceKey(referenceName, recordId), representativeAttributeValues)
 		);
 	}
 
@@ -894,7 +890,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				"""
 					Schema `CATEGORY` contains validation errors:
 						Reference schema `products` contains validation errors:
-						Reflected reference `products` cannot disallow duplicates, because the original reflected reference `categories` in entity `PRODUCT` allows them!""",
+						Reflected reference `products` cannot disallow duplicates, because the original reflected reference `categories` in entity `PRODUCT` allows them! Align the cardinality of both references, for example by letting the reflected reference inherit the cardinality of the original one.""",
 				cause.getMessage()
 			);
 		}
@@ -931,7 +927,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				"""
 					Schema `CATEGORY` contains validation errors:
 						Reference schema `products` contains validation errors:
-						Reflected reference `products` must contain all representative attributes of the original reflected reference `categories` in entity `PRODUCT`! Missing representative attributes: country
+						Reflected reference `products` must inherit all representative attributes of the original reflected reference `categories` in entity `PRODUCT`! Representative attributes not inherited: country
 						Reference schema `products` allows duplicates but has no representative attribute defined! This would effectively prevent multiple references to the same entity if the duplicates need to be uniquely identified by their representative attributes.""",
 				cause.getMessage()
 			);
@@ -1341,7 +1337,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				// product can be found by new country in category 1
 				final List<EntityReferenceContract> foundProducts = getProductByCategoryCountry(session, "FR");
 				assertEquals(1, foundProducts.size());
-				assertEquals(1, foundProducts.get(0).getPrimaryKey());
+				assertEquals(1, foundProducts.getFirst().getPrimaryKey());
 
 				// product cannot be found by old country in category 1
 				final List<EntityReferenceContract> notFoundProducts = getProductByCategoryCountry(session, "DE");
@@ -1410,10 +1406,10 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				// product can be found by empty country in category 1
 				final List<EntityReferenceContract> foundProducts = getProductByNullCategoryCountry(session);
 				assertEquals(1, foundProducts.size());
-				assertEquals(1, foundProducts.get(0).getPrimaryKey());
+				assertEquals(1, foundProducts.getFirst().getPrimaryKey());
 				final List<EntityReferenceContract> foundProductsUS = getProductByCategoryCountry(session, "US");
 				assertEquals(1, foundProductsUS.size());
-				assertEquals(1, foundProductsUS.get(0).getPrimaryKey());
+				assertEquals(1, foundProductsUS.getFirst().getPrimaryKey());
 
 				// product cannot be found by old country in category 1
 				final List<EntityReferenceContract> notFoundProductsDE = getProductByCategoryCountry(session, "DE");
@@ -1461,11 +1457,11 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				// product can be found by restored country in category 1
 				final List<EntityReferenceContract> foundProductsDE = getProductByCategoryCountry(session, "DE");
 				assertEquals(1, foundProductsDE.size());
-				assertEquals(1, foundProductsDE.get(0).getPrimaryKey());
+				assertEquals(1, foundProductsDE.getFirst().getPrimaryKey());
 
 				final List<EntityReferenceContract> foundProductsUSAfterRestore = getProductByCategoryCountry(session, "US");
 				assertEquals(1, foundProductsUSAfterRestore.size());
-				assertEquals(1, foundProductsUSAfterRestore.get(0).getPrimaryKey());
+				assertEquals(1, foundProductsUSAfterRestore.getFirst().getPrimaryKey());
 
 				// product cannot be found by empty country in category 1
 				final List<EntityReferenceContract> notFoundProductsNull = getProductByNullCategoryCountry(session);

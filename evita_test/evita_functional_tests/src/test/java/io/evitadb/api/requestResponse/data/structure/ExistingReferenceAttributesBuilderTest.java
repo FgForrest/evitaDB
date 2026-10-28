@@ -320,6 +320,45 @@ class ExistingReferenceAttributesBuilderTest
 			assertEquals(1L, english.version());
 			assertFalse(english.dropped());
 		}
+
+		@Test
+		@DisplayName(
+			"Should ignore removal of already"
+				+ " removed attribute"
+		)
+		void shouldIgnoreRemovalOfAlreadyRemovedAttribute() {
+			final Attributes<AttributeSchemaContract>
+				withRemovedAttribute =
+				new ExistingReferenceAttributesBuilder(
+					PRODUCT_SCHEMA,
+					referenceSchema,
+					initialAttributes
+						.getAttributeValues(),
+					attributeTypes
+				).removeAttribute("priority").build();
+			assertTrue(
+				withRemovedAttribute.getAttributeValue(
+					new AttributeKey("priority")
+				).orElseThrow().dropped()
+			);
+
+			final ExistingReferenceAttributesBuilder
+				builder =
+				new ExistingReferenceAttributesBuilder(
+					PRODUCT_SCHEMA,
+					referenceSchema,
+					withRemovedAttribute
+						.getAttributeValues(),
+					attributeTypes
+				).removeAttribute("priority");
+
+			assertNull(
+				builder.getAttribute("priority")
+			);
+			assertEquals(
+				0, builder.buildChangeSet().count()
+			);
+		}
 	}
 
 	@Nested

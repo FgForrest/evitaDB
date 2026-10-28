@@ -127,10 +127,13 @@ class PriceRecordTest {
 
 			@Test
 			@DisplayName("should not be equal to null")
+			@SuppressWarnings({"SimplifiableAssertion", "ObjectEqualsNull"})
 			void shouldNotBeEqualToNull() {
 				final PriceRecord record = new PriceRecord(1, 10, 100, 5000, 4200);
 
-				assertNotEquals(null, record);
+				// deliberately not `assertNotEquals`: with `null` as its first argument it calls no `equals` at all, so
+				// the null check of the class under test would never run
+				assertFalse(record.equals(null));
 			}
 
 			@Test

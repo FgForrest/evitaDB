@@ -25,6 +25,7 @@ package io.evitadb.core.query.sort.attribute.translator;
 
 import io.evitadb.api.query.order.AttributeSetExact;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
@@ -32,12 +33,24 @@ import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.sorter.AttributeExactSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.Scope;
+import io.evitadb.core.query.sort.reference.sorter.VirtualPartitionSortedRecords;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.VirtualReferencePartition;
+import io.evitadb.index.attribute.AttributeIndex;
+import io.evitadb.index.attribute.SortIndex;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Locale;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
@@ -59,30 +72,109 @@ public class AttributeSetExactTranslator implements OrderingConstraintTranslator
 		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
 		orderByVisitor.addRequirementToPrefetch(attributeContentAll());
 
-		final EntityIndex[] indexForSort = orderByVisitor.getIndexesForSort();
-		if (indexForSort.length == 0) {
-			// the ordered scope holds no entity of the collection, so there is nothing to sort and all are passed on
+		final RecordsEqualTo recordsEqualTo = getRecordsEqualTo(orderByVisitor, attributeSchema, "");
+		if (recordsEqualTo == null) {
 			return Stream.empty();
 		}
-		Assert.isTrue(
-			indexForSort.length == 1,
-			"Expected exactly one index for sorting, but " + indexForSort.length + " were found."
-		);
-
 		return Stream.of(
 			new AttributeExactSorter(
 				attributeName,
 				Arrays.stream(attributeSetExact.getAttributeValues())
 					.map(it -> EvitaDataTypes.toTargetType(it, attributeSchema.getPlainType()))
 					.toArray(Serializable[]::new),
-				indexForSort[0].getSortIndex(
-					processingScope.referenceSchema(),
-					attributeSchema,
-					orderByVisitor.getLocale()
-				),
-				indexForSort[0].getIndexKey().scope()
+				recordsEqualTo.lookup(),
+				recordsEqualTo.scope()
 			)
 		);
+	}
+
+	/**
+	 * Returns the lookup translating an attribute value to the primary keys of the entities carrying it, from the only
+	 * index (partition) the ordering sorts by: the sort index of the attribute for the indexed entities and for a
+	 * materialized reference partition, the registry row for a virtual reference partition (see
+	 * {@link VirtualPartitionSortedRecords#getRecordsEqualTo}) - `O(log n)` per value, never a walk of the registry's
+	 * sort index of the key.
+	 *
+	 * @param orderByVisitor  the visitor of the planned query
+	 * @param attributeSchema the attribute the sorter sorts along
+	 * @param hint            appended to the message when there is not exactly one index (partition)
+	 * @return the lookup and its scope, or `null` when the ordered scope has no index or partition
+	 */
+	@Nullable
+	static RecordsEqualTo getRecordsEqualTo(
+		@Nonnull OrderByVisitor orderByVisitor,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull String hint
+	) {
+		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
+		final ReferenceSchema referenceSchema = processingScope.referenceSchema();
+		final Locale locale = orderByVisitor.getLocale();
+		if (referenceSchema == null) {
+			final EntityIndex[] indexForSort = orderByVisitor.getIndexesForSort();
+			if (indexForSort.length == 0) {
+				return null;
+			}
+			Assert.isTrue(
+				indexForSort.length == 1,
+				"Expected exactly one index for sorting, but " + indexForSort.length + " were found." + hint
+			);
+			return new RecordsEqualTo(
+				indexForSort[0].getIndexKey().scope(),
+				getRecordsEqualToOfIndex(indexForSort[0], null, attributeSchema, locale)
+			);
+		} else {
+			final ReferencePartition[] partitionsForSort = orderByVisitor.getPartitionsForSort();
+			if (partitionsForSort.length == 0) {
+				return null;
+			}
+			Assert.isTrue(
+				partitionsForSort.length == 1,
+				"Expected exactly one index for sorting, but " + partitionsForSort.length + " were found." + hint
+			);
+			final Function<Serializable, Bitmap> lookup = switch (partitionsForSort[0]) {
+				case ReducedEntityIndex reducedEntityIndex ->
+					getRecordsEqualToOfIndex(reducedEntityIndex, referenceSchema, attributeSchema, locale);
+				case VirtualReferencePartition virtualPartition -> {
+					final AttributeIndexKey key = AttributeIndex.createAttributeKey(
+						referenceSchema, attributeSchema, locale
+					);
+					yield value -> VirtualPartitionSortedRecords.getRecordsEqualTo(virtualPartition, key, value);
+				}
+			};
+			return new RecordsEqualTo(partitionsForSort[0].getIndexKey().scope(), lookup);
+		}
+	}
+
+	/**
+	 * Returns the lookup of the sort index of the attribute the index keeps.
+	 *
+	 * @param index           the index of the sorted entities or a materialized reference partition
+	 * @param referenceSchema the reference the attribute belongs to, `null` for an entity attribute
+	 * @param attributeSchema the attribute the sorter sorts along
+	 * @param locale          the locale of the ordering
+	 * @return the lookup
+	 */
+	@Nonnull
+	private static Function<Serializable, Bitmap> getRecordsEqualToOfIndex(
+		@Nonnull EntityIndex index,
+		@Nullable ReferenceSchema referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nullable Locale locale
+	) {
+		final SortIndex sortIndex = index.getSortIndex(referenceSchema, attributeSchema, locale);
+		// a lambda rather than a method reference keeps a missing sort index failing where it always failed - when
+		// the sorter reads it
+		return value -> sortIndex.getRecordsEqualTo(value);
+	}
+
+	/**
+	 * The value lookup of the only index or partition an exact ordering sorts by, with its scope so the prefetch
+	 * comparator admits exactly the same entities.
+	 *
+	 * @param scope the scope of the sort data
+	 * @param lookup translates a value to the entities carrying it
+	 */
+	record RecordsEqualTo(@Nonnull Scope scope, @Nonnull Function<Serializable, Bitmap> lookup) {
 	}
 
 }

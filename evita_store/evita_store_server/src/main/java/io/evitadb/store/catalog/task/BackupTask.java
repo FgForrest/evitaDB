@@ -78,7 +78,6 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.STORAGE_PROTOCOL_VERSION;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.WAL_FILE_SUFFIX;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getCatalogBootstrapFileName;
 import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.serializeBootstrapRecord;
@@ -124,7 +123,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 			"Catalog " + catalogName + " backup" +
 				(pastMoment == null ? " with current data" : " snapshot at " + pastMoment) +
 				(catalogVersion == null ? "" : " for version " + catalogVersion) +
-				(includingWAL ? "" : ", including WAL"),
+				(includingWAL ? ", including WAL" : ""),
 			new BackupSettings(pastMoment, catalogVersion, includingWAL),
 			(task) -> ((BackupTask) task).doBackup(),
 			TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED
@@ -214,7 +213,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 						"historical_" + (thePastMoment == null ? theHistoricalCatalogVersion : thePastMoment.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME))
 					) + ".zip",
 				"The backup of the " +
-					(thePastMoment == null && theHistoricalCatalogVersion == null ? "actual " : "historical " + (thePastMoment == null ? theHistoricalCatalogVersion : thePastMoment)) +
+					(thePastMoment == null && theHistoricalCatalogVersion == null ? "actual " : "historical " + (thePastMoment == null ? theHistoricalCatalogVersion : thePastMoment) + " ") +
 					"catalog `" + this.catalogName + "`" + (theIncludingWAL ? " including WAL." : "."),
 				"application/zip",
 				this.getClass().getSimpleName()
@@ -269,7 +268,8 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 						// finally, store the catalog bootstrap
 						backupBootstrapRecord(
-							catalogVersion, zipOutputStream, catalogDataFileDescriptor, defaultCatalogPersistenceService
+							catalogVersion, catalogHeader.storageProtocolVersion(), zipOutputStream,
+							catalogDataFileDescriptor, defaultCatalogPersistenceService
 						);
 					} catch (IOException e) {
 						throw new UnexpectedIOException(
@@ -354,6 +354,12 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 	/**
 	 * Copies the active contents of the catalog data file to the backup.
+	 *
+	 * The rewritten catalog header keeps the storage protocol of the `catalogHeader` it is derived from rather than
+	 * stamping the engine's current one. The parts are copied verbatim, so a point-in-time backup of a version written
+	 * before a storage-protocol migration holds them in the older format - and the header protocol is what a restore
+	 * reads to decide which migrations still have to run over them. Claiming the current protocol would make the
+	 * restored catalog skip exactly those migrations.
 	 */
 	@Interruptible
 	@Nonnull
@@ -374,7 +380,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				Stream.concat(
 						Stream.of(
 							new CatalogHeader<>(
-								STORAGE_PROTOCOL_VERSION,
+								catalogHeader.storageProtocolVersion(),
 								catalogHeader.version(),
 								catalogHeader.walFileReference(),
 								entityHeaders.values().stream()
@@ -427,9 +433,11 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 			0
 		);
 		zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/" + entityDataFileName));
-		final DefaultEntityCollectionPersistenceService entityCollectionPersistenceService = servicesAndStatistics.getServiceByEntityTypePrimaryKey(entityTypeFileIndex.entityTypePrimaryKey());
+		final ServiceWithStatistics serviceWithStatistics = servicesAndStatistics.getServiceByEntityTypePrimaryKey(
+			entityTypeFileIndex.entityTypePrimaryKey()
+		);
 		final int finalBackedUpRecords = backedUpRecords;
-		final EntityCollectionFileHeader newEntityCollectionHeader = entityCollectionPersistenceService
+		final EntityCollectionFileHeader newEntityCollectionHeader = serviceWithStatistics.service()
 			.copySnapshotTo(
 				catalogVersion,
 				new CollectionFileReference(
@@ -438,6 +446,9 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 					0,
 					entityTypeFileIndex.fileLocation()
 				),
+				// the counters must come from the version being copied - the live service of the actual branch knows
+				// only its newest header, which may list entity indexes the copied data does not contain yet
+				serviceWithStatistics.headerAtVersion(),
 				zipOutputStream,
 				recordsCopied -> doUpdateProgress(finalBackedUpRecords + recordsCopied, servicesAndStatistics.totalRecords())
 			);
@@ -481,10 +492,21 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 	/**
 	 * Stores the catalog bootstrap record to the backup.
+	 *
+	 * The record carries the same storage protocol as the catalog header written by
+	 * {@link #backupCatalogDataFile}, so the backup describes one protocol throughout: the protocol of the data it
+	 * contains, which the restore's migrations then advance as they do for any catalog written by an older engine.
+	 *
+	 * @param catalogVersion            the backed-up catalog version
+	 * @param storageProtocolVersion    the storage protocol of the backed-up catalog version
+	 * @param zipOutputStream           the archive the record is written to
+	 * @param catalogDataFileDescriptor the descriptor of the catalog data file written to the archive
+	 * @param catalogPersistenceService the persistence service supplying the checksum
 	 */
 	@Interruptible
 	private void backupBootstrapRecord(
 		long catalogVersion,
+		int storageProtocolVersion,
 		@Nonnull ZipOutputStream zipOutputStream,
 		@Nonnull OffsetIndexDescriptor catalogDataFileDescriptor,
 		@Nonnull DefaultCatalogPersistenceService catalogPersistenceService
@@ -494,7 +516,6 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 		final ObservableOutput<ZipOutputStream> boostrapOutput = new ObservableOutput<>(
 			zipOutputStream,
-			CatalogBootstrap.BOOTSTRAP_RECORD_SIZE,
 			CatalogBootstrap.BOOTSTRAP_RECORD_SIZE << 1,
 			0L,
 			catalogPersistenceService.createChecksum(),
@@ -503,6 +524,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		final StorageRecord<CatalogBootstrap> catalogBootstrapStorageRecord = serializeBootstrapRecord(
 			boostrapOutput,
 			new CatalogBootstrap(
+				storageProtocolVersion,
 				catalogVersion,
 				0,
 				OffsetDateTime.now(),
@@ -559,7 +581,9 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 			);
 			// the stored header may name a data file generation a compaction has already replaced; the historical
 			// branch below opens the collection from it directly, so it has to be reconciled with the catalog header
-			// of the very same version first (see EntityCollectionHeaderReconciler)
+			// of the very same version first (see EntityCollectionHeaderReconciler). Both sides are read at
+			// `catalogVersion` - the catalog header too, even on the actual branch where commits keep landing while
+			// this task runs - otherwise a collection that merely moved after that version reads as a disagreement
 			final EntityCollectionFileHeader entityCollectionHeader = EntityCollectionHeaderReconciler.reconcile(
 				catalogHeader.catalogName(), entityTypeFileIndex, storedCollectionHeader
 			);
@@ -572,6 +596,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				);
 			final ServiceWithStatistics serviceStats = new ServiceWithStatistics(
 				entityCollectionPersistenceService,
+				entityCollectionHeader,
 				entityCollectionPersistenceService.getStoragePartPersistenceService().countStorageParts(catalogVersion)
 			);
 			entityCollectionPersistenceServices.put(
@@ -611,8 +636,8 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 	) {
 
 		@Nonnull
-		public DefaultEntityCollectionPersistenceService getServiceByEntityTypePrimaryKey(int entityTypePrimaryKey) {
-			return ofNullable(this.serviceIndex.get(entityTypePrimaryKey)).map(ServiceWithStatistics::service).orElseThrow();
+		public ServiceWithStatistics getServiceByEntityTypePrimaryKey(int entityTypePrimaryKey) {
+			return ofNullable(this.serviceIndex.get(entityTypePrimaryKey)).orElseThrow();
 		}
 
 		public int getServiceRecordCount(int entityTypePrimaryKey) {
@@ -623,9 +648,16 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 	/**
 	 * Record contains reference to service along with total record count it manages.
+	 *
+	 * @param service          the service reading the collection data file
+	 * @param headerAtVersion  the collection header valid at the backed up catalog version - the source of the counters
+	 *                         written into the backup, which the live header of `service` cannot provide once newer
+	 *                         versions were committed
+	 * @param totalRecordCount number of records the collection holds at the backed up catalog version
 	 */
 	private record ServiceWithStatistics(
 		@Nonnull DefaultEntityCollectionPersistenceService service,
+		@Nonnull EntityCollectionFileHeader headerAtVersion,
 		int totalRecordCount
 	) {
 	}

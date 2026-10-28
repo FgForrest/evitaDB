@@ -87,6 +87,7 @@ public record RepresentativeReferenceKey(
 	 * them as equal. Such keys are ordered by the values themselves (see
 	 * {@link #compareRepresentativeValuesStrictly(Serializable[], Serializable[])}), so the order of two keys never
 	 * depends on which of them was met first, and two orderings of the same keys line them up the same way.
+	 * This engine ordering detail is an internal contract and may change without notice to client code.
 	 */
 	@Internal(
 		"order keys by `GENERIC_COMPARATOR` or their natural order - the strict order is internal to the reference " +

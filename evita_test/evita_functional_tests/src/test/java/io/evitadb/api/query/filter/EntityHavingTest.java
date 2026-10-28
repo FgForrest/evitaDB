@@ -76,6 +76,7 @@ class EntityHavingTest {
 
 		@Test
 		@DisplayName("should return child constraint")
+		@SuppressWarnings("deprecation")
 		void shouldReturnChildConstraint() {
 			final EntityHaving constraint = entityHaving(attributeEquals("code", "apple"));
 
@@ -87,6 +88,7 @@ class EntityHavingTest {
 
 		@Test
 		@DisplayName("should return null child when empty")
+		@SuppressWarnings("deprecation")
 		void shouldReturnNullChildWhenEmpty() {
 			final EntityHaving empty = (EntityHaving) new EntityHaving(attributeEquals("x", "y"))
 				.getCopyWithNewChildren(new FilterConstraint[0], new Constraint<?>[0]);
@@ -173,22 +175,6 @@ class EntityHavingTest {
 				)
 			);
 		}
-
-		@Test
-		@DisplayName("should reject more than one child")
-		void shouldRejectMoreThanOneChild() {
-			final EntityHaving original = entityHaving(attributeEquals("x", "y"));
-
-			assertThrows(GenericEvitaInternalError.class, () ->
-				original.getCopyWithNewChildren(
-					new FilterConstraint[]{
-						attributeEquals("a", "b"),
-						attributeEquals("c", "d")
-					},
-					new Constraint<?>[0]
-				)
-			);
-		}
 	}
 
 	@Nested
@@ -225,7 +211,7 @@ class EntityHavingTest {
 			final EntityHaving constraint = entityHaving(attributeEquals("x", "y"));
 			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
 
-			constraint.accept(c -> visited.set((Constraint<?>) c));
+			constraint.accept(c -> visited.set(c));
 
 			assertSame(constraint, visited.get());
 		}
@@ -270,6 +256,154 @@ class EntityHavingTest {
 				createEntityHaving("def").hashCode(),
 				createEntityHaving(null).hashCode()
 			);
+		}
+	}
+
+	/**
+	 * Verifies ordered conjunctions and optional children in the entity scope.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Several children")
+	class SeveralChildrenTest {
+
+		/**
+		 * Every child survives construction in the supplied order, and the container stays applicable.
+		 */
+		@Test
+		@DisplayName("Keeps all children in their order")
+		void shouldKeepAllChildrenInOrderWhenSeveralAreProvided() {
+			final FilterConstraint first = attributeEquals("first", true);
+			final FilterConstraint second = attributeEquals("second", true);
+
+			final EntityHaving constraint = entityHaving(first, second);
+
+			assertNotNull(constraint);
+			assertArrayEquals(new FilterConstraint[]{first, second}, constraint.getChildren());
+			assertTrue(constraint.isApplicable());
+			assertTrue(constraint.isNecessary());
+		}
+
+		/**
+		 * The EvitaQL form lists every child, so no filter disappears from a printed query.
+		 */
+		@Test
+		@DisplayName("Formats all children")
+		void shouldFormatAllChildrenWhenSeveralAreProvided() {
+			final EntityHaving constraint = entityHaving(
+				attributeEquals("first", true), attributeEquals("second", true)
+			);
+
+			assertNotNull(constraint);
+			assertEquals(
+				"entityHaving(attributeEquals('first',true),attributeEquals('second',true))",
+				constraint.toString()
+			);
+		}
+
+		/**
+		 * Two containers are equal only when they hold the same children in the same order.
+		 */
+		@Test
+		@DisplayName("Equality depends on every child and their order")
+		void shouldCompareAllChildrenInOrderWhenSeveralAreProvided() {
+			final FilterConstraint first = attributeEquals("first", true);
+			final FilterConstraint second = attributeEquals("second", true);
+
+			final EntityHaving constraint = entityHaving(first, second);
+
+			assertEquals(entityHaving(first, second), constraint);
+			assertEquals(entityHaving(first, second).hashCode(), constraint.hashCode());
+			assertNotEquals(entityHaving(first), constraint);
+			assertNotEquals(entityHaving(second, first), constraint);
+		}
+
+		/**
+		 * A copy takes every supplied child in the supplied order, not only the first one.
+		 */
+		@Test
+		@DisplayName("Copies all supplied children in their order")
+		void shouldCopyAllChildrenInOrderWhenSeveralAreSupplied() {
+			final FilterConstraint first = attributeEquals("first", true);
+			final FilterConstraint second = attributeEquals("second", true);
+			final EntityHaving constraint = entityHaving(first, second);
+			assertNotNull(constraint);
+
+			final FilterConstraint copy = constraint.getCopyWithNewChildren(
+				new FilterConstraint[]{second, first}, new Constraint<?>[0]
+			);
+
+			assertEquals(entityHaving(second, first), copy);
+		}
+
+		/**
+		 * The deprecated accessor still returns the whole filter: several children come back as their conjunction.
+		 */
+		@Test
+		@DisplayName("getChild() combines several children into one and")
+		@SuppressWarnings("deprecation")
+		void shouldReturnConjunctionWhenGetChildReadsSeveralChildren() {
+			final FilterConstraint first = attributeEquals("first", true);
+			final FilterConstraint second = attributeEquals("second", true);
+			final EntityHaving constraint = entityHaving(first, second);
+			assertNotNull(constraint);
+
+			final FilterConstraint child = constraint.getChild();
+
+			assertEquals(new And(first, second), child);
+		}
+
+		/**
+		 * A single child is returned as it is, without a wrapping conjunction.
+		 */
+		@Test
+		@DisplayName("getChild() returns the sole child itself")
+		@SuppressWarnings("deprecation")
+		void shouldReturnSoleChildWhenGetChildReadsOneChild() {
+			final FilterConstraint first = attributeEquals("first", true);
+			final EntityHaving constraint = entityHaving(first);
+			assertNotNull(constraint);
+
+			final FilterConstraint child = constraint.getChild();
+
+			assertSame(first, child);
+		}
+
+		/**
+		 * The varargs constructor called without children creates an empty, inapplicable container.
+		 */
+		@Test
+		@DisplayName("Container without children is empty")
+		@SuppressWarnings("deprecation")
+		void shouldBeEmptyWhenConstructedWithoutChildren() {
+			final EntityHaving empty = new EntityHaving();
+
+			assertNull(empty.getChild());
+			assertFalse(empty.isApplicable());
+			assertFalse(empty.isNecessary());
+		}
+
+		/**
+		 * Optional child expressions are omitted exactly as in the other filter containers.
+		 */
+		@Test
+		@DisplayName("Omits null children while preserving the remaining order")
+		void shouldOmitNullChildrenWhenMixedWithFilters() {
+			final FilterConstraint first = attributeEquals("first", true);
+			final FilterConstraint second = attributeEquals("second", true);
+			assertEquals(entityHaving(first, second), new EntityHaving(null, first, null, second, null));
+		}
+
+		/**
+		 * An absent filter list produces no scope constraint from the factory.
+		 */
+		@Test
+		@DisplayName("Returns no constraint for null, empty or all-null input")
+		void shouldReturnNullWhenNoFiltersProvided() {
+			assertNull(entityHaving((FilterConstraint[]) null));
+			assertNull(entityHaving());
+			assertNull(entityHaving(null, null));
 		}
 	}
 

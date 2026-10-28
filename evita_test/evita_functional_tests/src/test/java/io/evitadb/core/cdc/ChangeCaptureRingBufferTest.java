@@ -40,6 +40,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -429,11 +430,17 @@ class ChangeCaptureRingBufferTest {
     }
 
     /**
+     * Identity of the catalog incarnation the captures of the tests belong to - the ring buffer does not interpret it.
+     */
+    private static final UUID CATALOG_ID = UUID.fromString("4b3f2c1d-8e7a-4f6b-9c5d-2a1e0f9b8c7d");
+
+    /**
      * Helper method to create a ChangeCatalogCapture instance.
      */
 	@Nonnull
     private static ChangeCatalogCapture createCapture(long version, int index, String entityType) {
         return new ChangeCatalogCapture(
+            CATALOG_ID,
             version,
             index,
             OffsetDateTime.now(),
@@ -1062,11 +1069,11 @@ class ChangeCaptureRingBufferTest {
 
             // If the control list is larger than the buffer size, remove the oldest items
             while (controlList.size() > bufferSize) {
-                controlList.remove(0);
+                controlList.removeFirst();
             }
         }
 
-        final ChangeCatalogCapture firstActive = controlList.get(0);
+        final ChangeCatalogCapture firstActive = controlList.getFirst();
 
         // Verify the buffer state
         assertEquals(firstActive.version(), buffer.getEffectiveStartCatalogVersion());
@@ -1075,8 +1082,8 @@ class ChangeCaptureRingBufferTest {
         // Perform 10 random copy-to operations
         for (int i = 0; i < 10; i++) {
             // Generate a random start index for the copy operation
-            final int startIndex = random.nextInt(captureCount - controlList.get(0).index());
-            int startSequenceNo = controlList.get(0).index() + startIndex;
+            final int startIndex = random.nextInt(captureCount - controlList.getFirst().index());
+            int startSequenceNo = controlList.getFirst().index() + startIndex;
 
             // Create a WAL pointer for the start index
             final WalPointer walPointer = new WalPointer(1L, startSequenceNo);

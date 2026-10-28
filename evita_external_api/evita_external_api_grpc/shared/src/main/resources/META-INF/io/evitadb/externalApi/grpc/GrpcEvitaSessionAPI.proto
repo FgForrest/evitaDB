@@ -117,6 +117,14 @@ message GetMutationsHistoryPageRequest {
   // enough information (e.g. `mutationCount` on the transaction header) to verify a transaction was
   // received in full.
   GrpcChangeCaptureContent content = 7;
+  // Identity of the catalog incarnation the traversal's anchor (`sinceVersion`/`sinceIndex`) was recorded on -
+  // the `catalogId` a client stored together with a position it took from an earlier page or capture. Catalog
+  // versions mean something only within one incarnation: replacing, restoring or duplicating a catalog starts
+  // a different version sequence under the same name. When set and the session's catalog is a different
+  // incarnation, the call fails with `ChangeCaptureResumePositionInvalidException` (reason
+  // `DIFFERENT_INCARNATION`) instead of reading an unrelated version sequence. If unset, no identity is
+  // checked - the request is served from whatever catalog currently carries the session's catalog name.
+  GrpcUuid catalogId = 8;
 }
 
 // Response to GetMutationsHistoryPage request. Unlike `GrpcPaginatedList`/`GrpcDataChunk` elsewhere in
@@ -177,6 +185,15 @@ message GetMutationsHistoryRequest {
   // enough information (e.g. `mutationCount` on the transaction header) to verify a transaction was
   // received in full.
   GrpcChangeCaptureContent content = 4;
+  // Identity of the catalog incarnation `sinceVersion`/`sinceIndex` was recorded on - the `catalogId` a client
+  // stored together with the position. Catalog versions mean something only within one incarnation: replacing,
+  // restoring or duplicating a catalog starts a different version sequence under the same name. When set and
+  // the session's catalog is a different incarnation, the stream fails with
+  // `ChangeCaptureResumePositionInvalidException` (reason `DIFFERENT_INCARNATION`) instead of streaming an
+  // unrelated version sequence - or, for a version the new incarnation has not reached yet, an empty one. If
+  // unset, no identity is checked. The streamed captures do not carry the identity themselves; it is the
+  // `catalogId` of the session the request was sent in.
+  GrpcUuid catalogId = 5;
 }
 
 // Response to GetMutationsHistory / GetMutationsHistoryForward request. The server sends one such message
@@ -204,6 +221,18 @@ message GrpcRegisterChangeCatalogCaptureRequest {
   // Whether delivered captures carry only mutation headers (`CHANGE_HEADER`, the default - proto3 zero
   // value - when this field is left unset) or full mutation bodies (`CHANGE_BODY`).
   GrpcChangeCaptureContent content = 4;
+  // Identity of the catalog incarnation `sinceVersion`/`sinceIndex` was recorded on - together they form the
+  // resume position of a consumer continuing a stream it consumed before. Catalog versions mean something only
+  // within one incarnation: replacing, restoring or duplicating a catalog starts a different version sequence
+  // under the same name, and a position from the previous one would otherwise wait - silently, with heartbeats
+  // flowing - for a version the new catalog may reach much later. When set and the session's catalog is a
+  // different incarnation, the stream fails before its acknowledgement with
+  // `ChangeCaptureResumePositionInvalidException` (reason `DIFFERENT_INCARNATION`). If unset, no identity is
+  // checked; a `sinceVersion` more than one version past the catalog is refused either way (reason
+  // `AHEAD_OF_CATALOG`). Servers that predate this field ignore it - a client recognises such a server by the
+  // absence of `GrpcRegisterChangeCatalogCaptureResponse.catalogId` on the acknowledgement and has to compare
+  // the identity itself.
+  GrpcUuid catalogId = 5;
 }
 
 // Request to GetTransactionOverview request.
@@ -272,8 +301,8 @@ message GrpcEntityCollectionChanges {
 // `CHANGE` (`capture` populated, `heartBeat` is not), or `HEARTBEAT` (`heartBeat` populated, `capture`
 // is not) - the periodic keep-alive sent while no matching mutation has occurred.
 message GrpcRegisterChangeCatalogCaptureResponse {
-  // Identification of the registered subscription. Present on every message, not just the initial
-  // acknowledgement.
+  // Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` messages (when a
+  // subscription id is available), unset on `CHANGE` messages.
   GrpcUuid uuid = 1;
   // The single mutation (CDC event) delivered by this message. Populated only when `responseType` is
   // `CHANGE`; unset otherwise.
@@ -284,6 +313,14 @@ message GrpcRegisterChangeCatalogCaptureResponse {
   // Heartbeat information. Populated when `responseType` is `ACKNOWLEDGEMENT` or `HEARTBEAT`; unset when
   // `responseType` is `CHANGE`.
   GrpcHeartBeat heartBeat = 4;
+  // Identity of the catalog incarnation the subscription is bound to - every capture of the stream belongs to
+  // its version sequence, so a consumer storing `capture.version`/`capture.index` as its resume position stores
+  // this value with it and passes it back as `GrpcRegisterChangeCatalogCaptureRequest.catalogId`. Populated
+  // when `responseType` is `ACKNOWLEDGEMENT` or `HEARTBEAT`; unset on `CHANGE` messages, whose captures
+  // belong to the incarnation the acknowledgement named. Its presence on the acknowledgement also tells the
+  // client that the server checked `GrpcRegisterChangeCatalogCaptureRequest.catalogId`; an acknowledgement
+  // without it comes from a server that predates the field and ignored the requested identity.
+  GrpcUuid catalogId = 5;
 }
 
 // Request to GetCatalogSchema request.

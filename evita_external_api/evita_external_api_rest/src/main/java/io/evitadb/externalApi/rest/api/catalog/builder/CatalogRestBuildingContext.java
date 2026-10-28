@@ -101,6 +101,15 @@ public class CatalogRestBuildingContext extends RestBuildingContext {
 			.toList();
 	}
 
+	/**
+	 * Identifies this document in OpenAPI validation diagnostics.
+	 */
+	@Nonnull
+	@Override
+	protected String getOpenApiDocumentName() {
+		return this.catalog.getName();
+	}
+
 	@Nonnull
 	@Override
 	protected String getOpenApiTitle() {

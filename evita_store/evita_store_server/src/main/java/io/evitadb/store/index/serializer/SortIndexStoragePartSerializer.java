@@ -89,12 +89,7 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 		output.writeVarInt(this.keyCompressor.getId(sortIndex.getAttributeIndexKey()), true);
 
 		final ComparatorSource[] comparatorBase = sortIndex.getComparatorBase();
-		output.writeVarInt(comparatorBase.length, true);
-		for (final ComparatorSource comparatorSource : comparatorBase) {
-			kryo.writeClass(output, comparatorSource.type());
-			kryo.writeObject(output, comparatorSource.orderDirection());
-			kryo.writeObject(output, comparatorSource.orderBehaviour());
-		}
+		writeComparatorBase(kryo, output, comparatorBase);
 
 		// a both-filterable-and-sortable (view-mode) sort index derives its distinct values and per-value cardinalities
 		// from the shared FilterIndexStoragePart, so a slim part carries none of them. The marker records whether the
@@ -173,15 +168,8 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 		final long uniquePartId = input.readVarLong(true);
 		final AttributeIndexKey attributeIndexKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 
-		final int comparatorBaseLength = input.readVarInt(true);
-		final ComparatorSource[] comparatorBase = new ComparatorSource[comparatorBaseLength];
-		for (int i = 0; i < comparatorBaseLength; i++) {
-			comparatorBase[i] = new ComparatorSource(
-				kryo.readClass(input).getType(),
-				kryo.readObject(input, OrderDirection.class),
-				kryo.readObject(input, OrderBehaviour.class)
-			);
-		}
+		final ComparatorSource[] comparatorBase = readComparatorBase(kryo, input);
+		final int comparatorBaseLength = comparatorBase.length;
 
 		// the values + cardinalities sections precede sortedRecords so the per-value block lengths are known before the
 		// blocks are delta-decoded; a slim (view-mode) part wrote a `false` marker and omitted them — they are re-derived
@@ -258,6 +246,48 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 			entityIndexPrimaryKey, attributeIndexKey, comparatorBase,
 			sortedRecords, sortedRecordValues, cardinalities, indexedDecimalPlaces, uniquePartId
 		);
+	}
+
+	/**
+	 * Writes the comparator base of a sort index - its length, then the type, direction and NULL handling of each
+	 * element.
+	 *
+	 * @param kryo           the kryo instance to write with
+	 * @param output         the output to write to
+	 * @param comparatorBase one descriptor per sorted element
+	 */
+	static void writeComparatorBase(
+		@Nonnull Kryo kryo,
+		@Nonnull Output output,
+		@Nonnull ComparatorSource[] comparatorBase
+	) {
+		output.writeVarInt(comparatorBase.length, true);
+		for (final ComparatorSource comparatorSource : comparatorBase) {
+			kryo.writeClass(output, comparatorSource.type());
+			kryo.writeObject(output, comparatorSource.orderDirection());
+			kryo.writeObject(output, comparatorSource.orderBehaviour());
+		}
+	}
+
+	/**
+	 * Reads a comparator base written by {@link #writeComparatorBase(Kryo, Output, ComparatorSource[])} - the exact
+	 * inverse.
+	 *
+	 * @param kryo  the kryo instance to read with
+	 * @param input the input to read from
+	 * @return one descriptor per sorted element
+	 */
+	@Nonnull
+	static ComparatorSource[] readComparatorBase(@Nonnull Kryo kryo, @Nonnull Input input) {
+		final ComparatorSource[] comparatorBase = new ComparatorSource[input.readVarInt(true)];
+		for (int i = 0; i < comparatorBase.length; i++) {
+			comparatorBase[i] = new ComparatorSource(
+				kryo.readClass(input).getType(),
+				kryo.readObject(input, OrderDirection.class),
+				kryo.readObject(input, OrderBehaviour.class)
+			);
+		}
+		return comparatorBase;
 	}
 
 	/**

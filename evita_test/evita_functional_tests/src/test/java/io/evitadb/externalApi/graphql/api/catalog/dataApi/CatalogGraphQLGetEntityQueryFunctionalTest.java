@@ -971,7 +971,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	                    }
 	                }
 					""",
-				(String)entity.getAttribute(ATTRIBUTE_CODE, String.class)
+				entity.getAttribute(ATTRIBUTE_CODE, String.class)
 			)
 			.executeAndThen()
 			.statusCode(200)
@@ -1596,7 +1596,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			SealedEntity.class
 		);
 
-		final Map<String, Object> expectedBody = Optional.of(exampleResponse.getRecordData().get(0))
+		final Map<String, Object> expectedBody = Optional.of(exampleResponse.getRecordData().getFirst())
 			.map(this::createEntityDtoWithAccompanyingPricesForSinglePriceForSale)
 			.orElseThrow();
 
@@ -1669,7 +1669,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			SealedEntity.class
 		);
 
-		final Map<String, Object> expectedBody = Optional.of(exampleResponse.getRecordData().get(0))
+		final Map<String, Object> expectedBody = Optional.of(exampleResponse.getRecordData().getFirst())
 			.map(this::createEntityDtoWithAccompanyingPricesForSinglePriceForSale)
 			.orElseThrow();
 
@@ -1736,7 +1736,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			SealedEntity.class
 		);
 
-		final Map<String, Object> expectedBody = Optional.of(exampleResponse.getRecordData().get(0))
+		final Map<String, Object> expectedBody = Optional.of(exampleResponse.getRecordData().getFirst())
 			.map(this::createEntityDtoWithAccompanyingPricesForAllPricesForSale)
 			.orElseThrow();
 
@@ -1803,7 +1803,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			SealedEntity.class
 		);
 
-		final Map<String, Object> expectedBody = Optional.of(exampleResponse.getRecordData().get(0))
+		final Map<String, Object> expectedBody = Optional.of(exampleResponse.getRecordData().getFirst())
 			.map(this::createEntityDtoWithAccompanyingPricesForAllPricesForSale)
 			.orElseThrow();
 

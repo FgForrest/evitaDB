@@ -107,12 +107,13 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public abstract class EntityIndex implements
+public abstract non-sealed class EntityIndex implements
 	Index<EntityIndexKey>,
 	AttributeIndexEditorContract,
 	PriceIndexContract,
 	Versioned,
-	IndexDataStructure
+	IndexDataStructure,
+	IndexWriteTarget
 {
 	/**
 	 * Capacity the {@link #components} list is pre-sized to — chosen to hold the three intrinsic components plus
@@ -1132,6 +1133,14 @@ public abstract class EntityIndex implements
 	 * already refresh the baseline through the merge-copy constructor (which calls
 	 * {@link #captureOriginalsFromComponents()}); routing the refresh through this flush hook closes the same
 	 * gap on the warm-up -> transactional hand-off where the instance is reused rather than copied.
+	 *
+	 * The refresh asks the components to announce their keys again rather than reusing the manifest the collect
+	 * just built: nothing mutates the index between the two calls, and every component's collect announces through
+	 * the very same {@link IndexComponent#announceKeys(EntityIndexManifest)}, so the two manifests are equal by
+	 * construction while {@link #getModifiedStorageParts(TrappedChanges)} keeps no state between calls. The refresh
+	 * does not collect again either: the collect that just ran has already advanced every emitter's own bookkeeping
+	 * (leaf page sequences, staged page lists, the value-id high-water mark), and a staged page list is published by
+	 * the commit-time merge or by the next collect of its emitter, exactly as it is for any other flush.
 	 */
 	@Override
 	public final void notifyFlushed() {
@@ -1174,10 +1183,21 @@ public abstract class EntityIndex implements
 
 	/**
 	 * Rebuilds the change-detection baseline (`originalAttributeIndexes`, `originalPriceIndexes`,
-	 * `originalFacetIndexes`, `originalHistogramKeys`, `originalHierarchyIndexEmpty`) by running every
-	 * registered {@link IndexComponent} once against a discardable {@link EntityIndexManifest}. The
+	 * `originalFacetIndexes`, `originalHistogramKeys`, `originalHierarchyIndexEmpty`) by letting every
+	 * registered {@link IndexComponent} announce its keys into a fresh {@link EntityIndexManifest}. The
 	 * resulting snapshot is the "what was on disk" reference against which
 	 * {@link #getModifiedStorageParts(TrappedChanges)} diffs current state.
+	 *
+	 * **The capture only announces keys, it never collects storage parts** - see
+	 * {@link IndexComponent#announceKeys(EntityIndexManifest)}. Collecting is a persistence step: an emitter stamps
+	 * page sequences onto its leaves, clears their dirty flags and stages its next page list as it collects, so a
+	 * collect whose output is thrown away consumes the pending changes of every component that is dirty at that
+	 * point. A component is dirty here more often than it looks - a load-time repair (the sub-millisecond bucket
+	 * collapse and the second-granularity range re-sort in
+	 * {@link io.evitadb.index.invertedIndex.InvertedIndex#fromPersistedPages}) leaves the shared filter tree dirty with
+	 * the pages it changed released, and a tree the commit-time merge carried across by reference keeps whatever
+	 * dirtiness it had. Those changes must survive until the next flush that writes this index, which is the
+	 * {@link #getModifiedStorageParts(TrappedChanges)} call on the flush path - and nothing else.
 	 *
 	 * The base {@link EntityIndex} constructors initialize all `original*` fields to empty placeholders
 	 * and do not capture any baseline themselves — the component list is only partially populated at
@@ -1189,11 +1209,8 @@ public abstract class EntityIndex implements
 	 */
 	protected final void captureOriginalsFromComponents() {
 		final EntityIndexManifest baseline = new EntityIndexManifest();
-		// the trapped-changes sink is intentionally discarded — only the manifest is captured;
-		// any storage parts a clean (just-loaded) component would emit are dropped on the floor
-		final TrappedChanges sink = new TrappedChanges();
 		for (IndexComponent component : this.components) {
-			component.collectModifiedStorageParts(this.primaryKey, baseline, sink);
+			component.announceKeys(baseline);
 		}
 		this.originalHierarchyIndexEmpty = !baseline.isHierarchyPresent();
 		this.originalAttributeIndexes = Set.copyOf(baseline.getAttributeKeys());

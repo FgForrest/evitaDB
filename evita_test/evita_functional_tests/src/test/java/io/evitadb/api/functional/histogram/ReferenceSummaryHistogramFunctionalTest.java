@@ -552,8 +552,8 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 						// oracle reads raw unscaled BigDecimals straight from SealedEntity
 						final List<BigDecimal> referencedPrices = collectReferencedPrices(session, groupPk);
 						referencedPrices.sort(Comparator.naturalOrder());
-						final BigDecimal expectedMin = referencedPrices.get(0);
-						final BigDecimal expectedMax = referencedPrices.get(referencedPrices.size() - 1);
+						final BigDecimal expectedMin = referencedPrices.getFirst();
+						final BigDecimal expectedMax = referencedPrices.getLast();
 						assertEquals(0, expectedMin.compareTo(histogram.getMin()),
 							"Histogram min " + histogram.getMin()
 								+ " must equal lowest referenced price " + expectedMin

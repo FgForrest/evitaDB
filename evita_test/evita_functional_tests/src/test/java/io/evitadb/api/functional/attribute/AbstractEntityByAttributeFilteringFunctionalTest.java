@@ -3533,11 +3533,11 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 				session -> {
 					final EvitaResponse<EntityReference> result = getByAttributeSize(session, 900);
 					assertEquals(1, result.getTotalRecordCount());
-					assertEquals(updatedProductId.get(), result.getRecordData().get(0).getPrimaryKeyOrThrowException());
+					assertEquals(updatedProductId.get(), result.getRecordData().getFirst().getPrimaryKeyOrThrowException());
 
 					final EvitaResponse<EntityReference> anotherResult = getByAttributeSize(session, 1400);
 					assertEquals(1, anotherResult.getTotalRecordCount());
-					assertEquals(updatedProductId.get(), anotherResult.getRecordData().get(0).getPrimaryKeyOrThrowException());
+					assertEquals(updatedProductId.get(), anotherResult.getRecordData().getFirst().getPrimaryKeyOrThrowException());
 					return null;
 				}
 			);
@@ -3548,7 +3548,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 			evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
-					final SealedEntity alteredProduct = originalProductEntities.get(0);
+					final SealedEntity alteredProduct = originalProductEntities.getFirst();
 					updatedProductId.set(alteredProduct.getPrimaryKeyOrThrowException());
 					session.upsertEntity(
 						alteredProduct.openForWrite().setAttribute(
@@ -3857,7 +3857,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 
 				assertEquals(
 					lookedUpProduct,
-					result.getRecordData().get(0)
+					result.getRecordData().getFirst()
 				);
 				return null;
 			}
@@ -3906,7 +3906,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 
 				assertEquals(
 					lookedUpProduct,
-					result.getRecordData().get(0)
+					result.getRecordData().getFirst()
 				);
 				return null;
 			}
@@ -4090,7 +4090,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 					SealedEntity.class
 				);
 				assertEquals(1, result.getRecordData().size());
-				final SealedEntity sealedEntity = result.getRecordData().get(0);
+				final SealedEntity sealedEntity = result.getRecordData().getFirst();
 				assertEquals(2, sealedEntity.getLocales().size());
 				assertTrue(sealedEntity.getLocales().contains(Locale.ENGLISH));
 				assertTrue(sealedEntity.getLocales().contains(CZECH_LOCALE));
@@ -4118,7 +4118,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 							)
 						)
 					)
-				).get(0);
+				).getFirst();
 			}
 		);
 		final String productUrl = product.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
@@ -4137,7 +4137,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 							)
 						)
 					)
-				).get(0);
+				).getFirst();
 			}
 		);
 		final String categoryUrl = category.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
@@ -5984,7 +5984,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> {
 						final Boolean alias = sealedEntity.getAttribute(ATTRIBUTE_ALIAS);
-						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						final Long priority = sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
 						return Boolean.TRUE.equals(alias) &&
 							priority != null &&
 							!(priority > priorityHigh) &&
@@ -6030,7 +6030,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> {
 						final Boolean alias = sealedEntity.getAttribute(ATTRIBUTE_ALIAS);
-						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						final Long priority = sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
 						return Boolean.TRUE.equals(alias) &&
 							priority != null &&
 							(priority > priorityAttribute || !(priority < priorityAttribute));
@@ -6078,7 +6078,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> {
 						final Boolean alias = sealedEntity.getAttribute(ATTRIBUTE_ALIAS);
-						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						final Long priority = sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
 						return Boolean.TRUE.equals(alias) &&
 							priority != null &&
 							(!(priority > priorityHigh) || !(priority < priorityLow));
@@ -6124,7 +6124,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> {
 						final Boolean alias = sealedEntity.getAttribute(ATTRIBUTE_ALIAS);
-						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						final Long priority = sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
 						return Boolean.TRUE.equals(alias) &&
 							priority != null &&
 							!(priority > priorityHigh || priority < priorityLow);
@@ -6243,7 +6243,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 				assertResultIs(
 					originalProductEntities,
 					sealedEntity -> {
-						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						final Long priority = sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
 						final boolean isSizeNull = ofNullable((IntegerNumberRange[]) sealedEntity.getAttributeArray(ATTRIBUTE_SIZE))
 							.map(it -> it.length == 0)
 							.orElse(true);
@@ -6290,7 +6290,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> {
 						final Boolean alias = sealedEntity.getAttribute(ATTRIBUTE_ALIAS);
-						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						final Long priority = sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
 						final boolean isSizeNotNull = ofNullable((IntegerNumberRange[]) sealedEntity.getAttributeArray(ATTRIBUTE_SIZE))
 							.map(it -> it.length > 0)
 							.orElse(false);
@@ -6453,7 +6453,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> {
 						final Boolean alias = sealedEntity.getAttribute(ATTRIBUTE_ALIAS);
-						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						final Long priority = sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
 						final Boolean visible = sealedEntity.getAttribute(ATTRIBUTE_VISIBLE);
 						return Boolean.TRUE.equals(alias) &&
 							((priority != null && priority > priorityAttribute) || !Boolean.TRUE.equals(visible));

@@ -33,6 +33,21 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-10-26 | [Fit every release into Maven Central's limits; the shaded driver becomes a recipe, a BOM aligns versions](2026-10-26-maven-central-publishing-budget.md) | infrastructure | accepted | #1805 |
+| 2026-10-26 | [Bulk-build the price and record-id trees each load rebuilds as full leaves; keep the other B+ tree ideas out](2026-10-26-bulk-built-int-keyed-trees-at-load.md) | optimization | accepted | #1802, #1808 |
+| 2026-10-25 | [Output buffers are borrowed per frame from one JVM-wide pool, and the configured size stays a hard limit](2026-10-25-frame-scoped-output-buffers.md) | optimization | accepted | #1792, #1793, PR #1801 |
+| 2026-10-21 | [A filter names one locale per entity level, and a level without one inherits from its enclosing level](2026-10-21-one-locale-per-entity-level.md) | fix | accepted | #925 |
+| 2026-10-20 | [The filter of referenceContent is evaluated row by row over the fetched owners' references, and its index route is deleted](2026-10-20-reference-content-filter-row-by-row.md) | refactor | accepted | #1615, PR #1738 |
+| 2026-10-20 | [Tests that pin the code's structure by scanning sources or bytecode against hand-kept lists are removed; the rule goes into the javadoc of the type it constrains, the compiler where it can, and a runtime refusal where one exists](2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures.md) | process | accepted | #1615, PR #1738 |
+| 2026-10-20 | [Only the management reads of the B+ trees are session-free, so only their walks keep reader-side guards](2026-10-20-session-free-tree-reads-are-management-only.md) | refactor | accepted | #1761, PR #1764 |
+| 2026-10-20 | [A single-owner partition of a filtering-only reference is a row of a per-reference registry, and an index object exists only while a partition has two or more owners](2026-10-20-single-owner-partitions-as-registry-rows.md) | optimization | accepted | #1615, PR #1738 |
+| 2026-10-08 | [Standalone unique indexes key every value exactly as the filter index does](2026-10-08-unique-indexes-normalize-like-filter-indexes.md) | fix | accepted | #1712, #1713, PR #1722 |
+| 2026-10-08 | [Restore the content of a trapped storage part on rollback from a pre-image journalled when the part is read inside a savepoint](2026-10-08-trapped-storage-part-content-pre-images.md) | fix | accepted | #1678, PR #1724 |
+| 2026-10-08 | [Every requested scope is planned, checked and counted as if it were queried alone, and the facet summary predicts exactly what facetHaving selects](2026-10-08-scope-faithful-planning-and-facet-summary-parity.md) | fix | accepted | #1681, #1686, #1695, PR #1720 |
+| 2026-10-08 | [A cross-entity condition pins a reference axis it does not read only when it needs it to tell rows apart](2026-10-08-cross-entity-condition-pins-only-what-it-reads.md) | fix | accepted | #1726, PR #1727 |
+| 2026-10-08 | [A catalog CDC resume position names the catalog incarnation it belongs to, and a position the catalog cannot serve is refused with a typed reason](2026-10-08-cdc-resume-position-carries-catalog-identity.md) | fix | accepted | #1680, PR #1729 |
+| 2026-10-06 | [Unique indexes keep no record-id set, and a unique value occurs once whatever the locale](2026-10-06-unique-indexes-keep-no-record-set.md) | refactor | accepted | #1658, PR #1676 |
+| 2026-10-01 | [A CDC subscriber catching up from the WAL is served everything it is owed or told why not](2026-10-01-cdc-catch-up-delivers-everything-owed-or-fails.md) | fix | accepted | #1687, #1446, #1690, PR #1688 |
 | 2026-09-28 | [Every scope a reference is indexed in must carry REFERENCED_ENTITY; a stored catalog lacking it loads, and every query and schema change over it refuses loudly](2026-09-28-indexed-reference-scope-requires-entity-component.md) | fix | accepted | #1601, #1583, PR #1657 |
 | 2026-09-25 | [attributeIsNull inside referenceHaving widens candidate discovery and is answered one reference row at a time](2026-09-25-attribute-is-null-in-reference-having.md) | fix | accepted | #1584, PR #1664 |
 | 2026-09-23 | [Mark members that are public only for cross-module reach with @Internal, and enforce it from bytecode](2026-09-23-internal-member-annotation.md) | infrastructure | accepted | #1640, PR #1642 |
@@ -64,7 +79,7 @@ filename date that disagrees with `date:`.
 | 2026-09-06 | [The engine-level go-live drains its catalog's sessions itself, and publishes the ALIVE bootstrap only behind that drain](2026-09-06-go-live-session-drain.md) | fix | accepted | #1495 |
 | 2026-09-05 | [Fold duplicate content requirements once per request, refuse the pairs that contradict, widen only the prefetch](2026-09-05-duplicate-content-requirements-reduction.md) | fix | accepted | #1493, PR #1499 |
 | 2026-09-04 | [Rank the index-footprint work on a production catalog, and take 4.2 GB out of its resident heap](2026-09-04-long-keyed-tree-content-sizing.md) | optimization | accepted | #1486, #1455 |
-| 2026-09-04 | [Cut every temporal value to whole milliseconds as it enters, and carry every temporal index key in one long column](2026-09-04-millisecond-temporal-precision.md) | feature | accepted | #1486 |
+| 2026-09-04 | [Cut every temporal value to whole milliseconds as it enters, and carry every temporal index key in one long column](2026-09-04-millisecond-temporal-precision.md) | feature | accepted | #1486, #1696 |
 | 2026-09-03 | [Size the value tree's leaf columns to their live content instead of adding a second array-backed representation](2026-09-03-content-sized-value-tree-columns.md) | optimization | accepted | #1486 |
 | 2026-08-31 | [Store front-coded String keys as WTF-8 rather than refusing values UTF-8 cannot carry](2026-08-31-front-coded-column-stores-wtf8.md) | fix | accepted | #1454 |
 | 2026-08-31 | [Gate cross-entity histogram removal on a pre-mutation condition pre-pass, not bucket membership](2026-08-31-cross-entity-histogram-removal-pre-pass.md) | fix | accepted | #1467, PR #1468, PR #1469 |

@@ -35,7 +35,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
@@ -43,11 +42,10 @@ import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.dataType.Scope;
-import io.evitadb.function.Functions;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.bitmap.SingleRecordBitmap;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -95,16 +93,21 @@ public class HierarchyOfReferenceTranslator
 				extraResultPlanner.getProcessingScope(), referencedEntitySchema
 			);
 
-			final HierarchyFilterConstraint hierarchyWithin = evitaRequest.getHierarchyWithin(referenceName);
+			// a `hierarchyWithin` no occurrence of which covers the scope leaves its statistics unfiltered
+			final HierarchyFilterConstraint hierarchyWithin = extraResultPlanner.getQueryContext()
+				.getHierarchyFilterForScope(evitaRequest.getHierarchyWithin(referenceName), scope);
 			final Optional<EntityCollection> targetCollectionRef = extraResultPlanner.getEntityCollection(entityType);
-			final GlobalEntityIndex globalIndex = targetCollectionRef
-				.map(entityCollection -> entityCollection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)))
-				.map(GlobalEntityIndex.class::cast)
-				.orElse(null);
-
-			if (globalIndex != null) {
-				// safe: globalIndex != null implies the optional was present
-				final EntityCollection targetCollection = targetCollectionRef.orElseThrow();
+			if (targetCollectionRef.isPresent()) {
+				final EntityCollection targetCollection = targetCollectionRef.get();
+				final GlobalEntityIndex existingIndex = (GlobalEntityIndex) targetCollection.getIndexByKeyIfExists(
+					new EntityIndexKey(EntityIndexType.GLOBAL, scope)
+				);
+				// a scope holding no entity of the hierarchy has no tree to describe - its statistics are planned over
+				// an empty index for checking only, so that the nested constraints are checked against the schema
+				// whether or not an entity happens to live there, and they produce no output
+				final boolean checkOnly = existingIndex == null;
+				final GlobalEntityIndex globalIndex = checkOnly ?
+					GlobalEntityIndex.createEmptyIndex(entityType, scope) : existingIndex;
 				final OrderBy orderBy = hierarchyOfReference.getOrderBy().orElse(null);
 				final NestedContextSorter sorter = orderBy == null ?
 					null :
@@ -115,7 +118,7 @@ public class HierarchyOfReferenceTranslator
 
 				// the request is more complex
 				hierarchyStatisticsProducer.interpret(
-					() -> extraResultPlanner.getQueryContext().getRootHierarchyNodes(hierarchyWithin),
+					() -> extraResultPlanner.getQueryContext().getRootHierarchyNodes(hierarchyWithin, scope),
 					referencedEntitySchema,
 					referenceSchema,
 					extraResultPlanner.getAttributeSchemaAccessor().withReferenceSchemaAccessor(referenceName),
@@ -131,27 +134,14 @@ public class HierarchyOfReferenceTranslator
 						// same result regardless of how the index was carved up
 						final Formula cachedGlobal = extraResultPlanner
 							.getFilteringFormulaForStatisticsBase(statisticsBase, referenceSchema);
-						final List<ReducedEntityIndex> reducedIndexes = extraResultPlanner
+						// the partitions of the node split by representation - the registered single-owner ones join
+						// as one constant over their owners read out of the registry, intersected with the base once
+						return extraResultPlanner
 							.getQueryContext()
-							.getReducedEntityIndexes(
-								scope, nodeId, entitySchema, referenceSchema, Functions.noOpBiFunction()
+							.resolvePartitionsOfTargetsForRead(
+								entitySchema, referenceSchema, List.of(scope), new SingleRecordBitmap(nodeId)
 							)
-							.toList();
-
-						final Formula[] formulas = new Formula[reducedIndexes.size()];
-						if (cachedGlobal == null) {
-							for (int i = 0; i < reducedIndexes.size(); i++) {
-								formulas[i] = reducedIndexes.get(i).getAllPrimaryKeysFormula();
-							}
-						} else {
-							for (int i = 0; i < reducedIndexes.size(); i++) {
-								formulas[i] = FormulaFactory.and(
-									reducedIndexes.get(i).getAllPrimaryKeysFormula(),
-									cachedGlobal
-								);
-							}
-						}
-						return FormulaFactory.or(formulas);
+							.createOwnersFormula(cachedGlobal);
 					},
 					null,
 					hierarchyOfReference.getEmptyHierarchicalEntityBehaviour(),
@@ -161,7 +151,8 @@ public class HierarchyOfReferenceTranslator
 						for (RequireConstraint child : hierarchyOfReference) {
 							child.accept(extraResultPlanner);
 						}
-					}
+					},
+					checkOnly
 				);
 			}
 		}

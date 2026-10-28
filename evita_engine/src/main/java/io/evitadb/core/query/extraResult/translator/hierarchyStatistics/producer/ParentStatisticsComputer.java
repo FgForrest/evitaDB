@@ -89,6 +89,10 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 		if (this.context.hierarchyFilter() instanceof HierarchyWithin) {
 			final EntityIndex entityIndex = this.context.entityIndex();
 			final Bitmap hierarchyNodes = this.context.rootHierarchyNodesSupplier().get();
+			if (hierarchyNodes.isEmpty()) {
+				// the `hierarchyWithin` selects no node in this scope, so there is no path to describe
+				return Collections.emptyList();
+			}
 
 			final ChildrenStatisticsHierarchyVisitor childVisitor = new ChildrenStatisticsHierarchyVisitor(
 				executionContext,
@@ -122,7 +126,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 			}
 
 			Assert.isPremiseValid(children.size() == 1, "Expected exactly one node but found `" + children.size() + "`!");
-			final Accumulator startNode = children.get(0);
+			final Accumulator startNode = children.getFirst();
 
 			final SiblingsStatisticsTravelingComputer siblingsComputerToUse;
 			if (this.siblingsStatisticsComputer != null) {

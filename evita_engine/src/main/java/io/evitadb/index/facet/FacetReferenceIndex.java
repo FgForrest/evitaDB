@@ -363,6 +363,10 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	 * in ascending facet-id order of first appearance rather than in the hash order this method used to
 	 * return them in.
 	 *
+	 * A facet this index does not know is left out: the groups of a facet are the groups the references to it are
+	 * filed under, and an index holding no reference to the facet cannot say which they are - another index of the
+	 * same query may know them.
+	 *
 	 * @param formulaFactory builds one formula per group from its id, its facets and their entity-id indexes
 	 * @param facetId        the facets to compute for
 	 * @return one formula per distinct group the given facets belong to; empty when none of them is indexed
@@ -386,12 +390,21 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 			final int[] groupIds = this.facetToGroupIndex.get(facetPrimaryKey);
 			if (groupIds == null) {
 				// the facet belongs to no group - it is indexed in the single ungrouped index, under the
-				// `null` key
-				collect(facetsByGroup, null, this.notGroupedFacets.get(), facetPrimaryKey);
+				// `null` key; a facet this index does not know at all has no group here, and it must not be
+				// given one: another index may know it in its own groups
+				final FacetGroupIndex notGroupedFacetIndex = this.notGroupedFacets.get();
+				if (notGroupedFacetIndex != null && notGroupedFacetIndex.getFacetIdIndex(facetPrimaryKey) != null) {
+					collect(facetsByGroup, null, notGroupedFacetIndex, facetPrimaryKey);
+				}
 			} else {
 				for (int i = 0; i < groupIds.length; i++) {
 					final int groupId = groupIds[i];
 					collect(facetsByGroup, groupId, this.groupedFacets.get(groupId), facetPrimaryKey);
+				}
+				// the group is a property of the reference, so the facet may be referenced without a group as well
+				final FacetGroupIndex notGroupedFacetIndex = this.notGroupedFacets.get();
+				if (notGroupedFacetIndex != null && notGroupedFacetIndex.getFacetIdIndex(facetPrimaryKey) != null) {
+					collect(facetsByGroup, null, notGroupedFacetIndex, facetPrimaryKey);
 				}
 			}
 		}
@@ -440,6 +453,52 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 		} else {
 			bucket.facetIds().add(facetPrimaryKey);
 		}
+	}
+
+	/**
+	 * Returns the groups the references to the facet are filed under - the group is a property of a reference, so
+	 * a facet may be referenced under several groups, without a group included.
+	 *
+	 * @param facetId the primary key of the facet
+	 * @return the groups in ascending order, NULL (last) standing for the references without a group; empty when no
+	 * reference to the facet is indexed here
+	 */
+	@Nonnull
+	public List<Integer> getGroupsOfFacet(int facetId) {
+		final int[] groupIds = this.facetToGroupIndex.get(facetId);
+		final FacetGroupIndex notGroupedFacetIndex = this.notGroupedFacets.get();
+		final boolean referencedWithoutGroup = notGroupedFacetIndex != null &&
+			notGroupedFacetIndex.getFacetIdIndex(facetId) != null;
+		final List<Integer> groups = new ArrayList<>((groupIds == null ? 0 : groupIds.length) + 1);
+		if (groupIds != null) {
+			for (final int groupId : groupIds) {
+				groups.add(groupId);
+			}
+		}
+		if (referencedWithoutGroup) {
+			groups.add(null);
+		}
+		return groups;
+	}
+
+	/**
+	 * Returns true if every reference to the facet indexed here is filed under the passed group, and at least one is -
+	 * i.e. {@link #getGroupsOfFacet(int)} lists that group alone. Unlike that method it allocates nothing, so that it
+	 * can be asked about every facet of the reference summary, the most of which have a single group.
+	 *
+	 * @param facetId the primary key of the facet
+	 * @param groupId the group, NULL for the references without a group
+	 * @return true if the facet is referenced under the passed group only
+	 */
+	public boolean isReferencedOnlyUnder(int facetId, @Nullable Integer groupId) {
+		final int[] groupIds = this.facetToGroupIndex.get(facetId);
+		final int groupCount = groupIds == null ? 0 : groupIds.length;
+		final FacetGroupIndex notGroupedFacetIndex = this.notGroupedFacets.get();
+		final boolean referencedWithoutGroup = notGroupedFacetIndex != null &&
+			notGroupedFacetIndex.getFacetIdIndex(facetId) != null;
+		return groupId == null ?
+			groupCount == 0 && referencedWithoutGroup :
+			groupCount == 1 && groupIds[0] == groupId && !referencedWithoutGroup;
 	}
 
 	/**

@@ -38,6 +38,7 @@ import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -902,12 +903,104 @@ class SortIndexTest {
 		}
 
 		@Test
-		@DisplayName("should not scale BigDecimal in the query-comparator normalizer (raw natural order is correct)")
-		void shouldNotCreateNormalizerForBigDecimal() {
+		@DisplayName("should round BigDecimal half up to the schema scale in the query-comparator normalizer")
+		void shouldRoundBigDecimalInComparatorNormalizer() {
 			final ComparatorSource source =
 				new ComparatorSource(BigDecimal.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
-			// the query-side overload leaves BigDecimal unscaled - sorting result rows by raw BigDecimal is order-correct
-			assertTrue(SortIndex.createNormalizerFor(source).isEmpty());
+			final UnaryOperator<Serializable> normalizer =
+				SortIndex.createComparatorNormalizerFor(source, 2).orElseThrow();
+
+			// values differing only past the schema scale tie, as their scaled int keys tie in the sort index
+			final BigDecimal low = (BigDecimal) normalizer.apply(new BigDecimal("1.231"));
+			final BigDecimal high = (BigDecimal) normalizer.apply(new BigDecimal("1.234"));
+			assertEquals(0, low.compareTo(high));
+			// half up, as the sort index rounds, and the value stays a BigDecimal
+			assertEquals(new BigDecimal("1.24"), normalizer.apply(new BigDecimal("1.235")));
+			assertEquals(new BigDecimal("-1.24"), normalizer.apply(new BigDecimal("-1.235")));
+			assertNull(normalizer.apply(null));
+		}
+
+		@Test
+		@DisplayName("should keep a BigDecimal compound element exact in the query-comparator normalizer")
+		void shouldKeepBigDecimalCompoundElementExactInComparatorNormalizer() {
+			final ComparatorSource[] sources = {
+				new ComparatorSource(BigDecimal.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+				new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+			};
+			// the sort index of a compound keeps a BigDecimal element exact, so the comparators must not round it
+			final UnaryOperator<Serializable> normalizer =
+				SortIndex.createComparatorNormalizerFor(sources, new int[]{2, 0});
+			final Serializable[] values = {new BigDecimal("1.231"), 7};
+			assertArrayEquals(values, (Serializable[]) normalizer.apply(values));
+		}
+
+		@Test
+		@DisplayName("should refuse compound decimal places that do not match the compound elements")
+		void shouldThrowWhenCompoundDecimalPlacesDoNotMatchElements() {
+			final ComparatorSource[] sources = {
+				new ComparatorSource(BigDecimal.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+				new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+			};
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> SortIndex.createComparatorNormalizerFor(sources, new int[]{2})
+			);
+		}
+
+		@Test
+		@DisplayName("should leave a compound without any normalized element untouched")
+		void shouldReturnIdentityWhenNoCompoundElementNeedsNormalization() {
+			final ComparatorSource[] sources = {
+				new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+				new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
+			};
+			final UnaryOperator<Serializable> normalizer =
+				SortIndex.createComparatorNormalizerFor(sources, new int[]{0, 0});
+			final Serializable[] values = {7, 8};
+			assertSame(values, normalizer.apply(values), "a compound needing no normalization must not be copied");
+		}
+
+		@Test
+		@DisplayName("should re-encode a BigDecimalNumberRange at the schema scale in the query-comparator normalizer")
+		void shouldReencodeRangeInComparatorNormalizer() {
+			final ComparatorSource source =
+				new ComparatorSource(BigDecimalNumberRange.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
+			final UnaryOperator<Serializable> normalizer =
+				SortIndex.createComparatorNormalizerFor(source, 2).orElseThrow();
+
+			// a range of one decimal place (bounds 34..45) and one of two decimal places (bounds 225..250) compare
+			// in the wrong order as they are, and in the right one once both are encoded at two decimal places
+			final BigDecimalNumberRange oneDecimal =
+				BigDecimalNumberRange.between(new BigDecimal("3.4"), new BigDecimal("4.5"));
+			final BigDecimalNumberRange twoDecimals =
+				BigDecimalNumberRange.between(new BigDecimal("2.25"), new BigDecimal("2.50"));
+			assertTrue(oneDecimal.compareTo(twoDecimals) < 0);
+			final BigDecimalNumberRange normalizedOneDecimal = (BigDecimalNumberRange) normalizer.apply(oneDecimal);
+			final BigDecimalNumberRange normalizedTwoDecimals = (BigDecimalNumberRange) normalizer.apply(twoDecimals);
+			assertTrue(normalizedOneDecimal.compareTo(normalizedTwoDecimals) > 0);
+			assertEquals(340L, normalizedOneDecimal.getFrom());
+			// the precise bounds are kept, and a range already at the scale passes through untouched
+			assertEquals(new BigDecimal("3.4"), normalizedOneDecimal.getPreciseFrom());
+			assertSame(twoDecimals, normalizedTwoDecimals);
+			assertNull(normalizer.apply(null));
+		}
+
+		@Test
+		@DisplayName("should re-encode a BigDecimalNumberRange compound element at its own scale")
+		void shouldReencodeRangeElementInCompoundComparatorNormalizer() {
+			final ComparatorSource[] sources = {
+				new ComparatorSource(BigDecimalNumberRange.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+				new ComparatorSource(BigDecimalNumberRange.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+				new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+			};
+			final UnaryOperator<Serializable> normalizer =
+				SortIndex.createComparatorNormalizerFor(sources, new int[]{2, 3, 0});
+
+			final BigDecimalNumberRange range = BigDecimalNumberRange.between(new BigDecimal("3.4"), new BigDecimal("4.5"));
+			final Serializable[] normalized = (Serializable[]) normalizer.apply(new Serializable[]{range, range, 7});
+			assertEquals(340L, ((BigDecimalNumberRange) normalized[0]).getFrom());
+			assertEquals(3400L, ((BigDecimalNumberRange) normalized[1]).getFrom());
+			assertEquals(7, normalized[2]);
 		}
 
 		@Test
@@ -929,7 +1022,7 @@ class SortIndexTest {
 		void shouldCreateNormalizerForLocale() {
 			final ComparatorSource source =
 				new ComparatorSource(Locale.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
-			final UnaryOperator<Serializable> normalizer = SortIndex.createNormalizerFor(source).orElseThrow();
+			final UnaryOperator<Serializable> normalizer = SortIndex.createComparatorNormalizerFor(source, 2).orElseThrow();
 
 			final Serializable result = normalizer.apply(Locale.ENGLISH);
 			assertInstanceOf(ComparableLocale.class, result);
@@ -941,7 +1034,7 @@ class SortIndexTest {
 		void shouldCreateNormalizerForCurrency() {
 			final ComparatorSource source =
 				new ComparatorSource(Currency.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
-			final UnaryOperator<Serializable> normalizer = SortIndex.createNormalizerFor(source).orElseThrow();
+			final UnaryOperator<Serializable> normalizer = SortIndex.createComparatorNormalizerFor(source, 2).orElseThrow();
 
 			final Serializable result = normalizer.apply(Currency.getInstance("USD"));
 			assertInstanceOf(ComparableCurrency.class, result);
@@ -953,7 +1046,7 @@ class SortIndexTest {
 		void shouldCreateNormalizerForString() {
 			final ComparatorSource source =
 				new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
-			final UnaryOperator<Serializable> normalizer = SortIndex.createNormalizerFor(source).orElseThrow();
+			final UnaryOperator<Serializable> normalizer = SortIndex.createComparatorNormalizerFor(source, 2).orElseThrow();
 
 			final Serializable result = normalizer.apply("é"); // e-acute
 			assertNotNull(result);
@@ -965,7 +1058,7 @@ class SortIndexTest {
 		void shouldReturnEmptyNormalizerForInteger() {
 			final ComparatorSource source =
 				new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
-			assertTrue(SortIndex.createNormalizerFor(source).isEmpty());
+			assertTrue(SortIndex.createComparatorNormalizerFor(source, 2).isEmpty());
 		}
 
 		@SuppressWarnings({"rawtypes", "unchecked"})
@@ -1136,11 +1229,15 @@ class SortIndexTest {
 
 		@Test
 		@DisplayName("should handle null and different type in equals")
+		@SuppressWarnings({"SimplifiableAssertion", "EqualsBetweenInconvertibleTypes", "ObjectEqualsNull"})
 		void shouldHandleNullAndDifferentTypeInEquals() {
 			final ComparableArray a = new ComparableArray(new Serializable[]{"X"});
 
-			assertNotEquals(null, a);
-			assertNotEquals("not-a-comparable-array", a);
+			// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
+			// fix moves the literal there, so `String.equals` would be tested instead of the class under test - and
+			// with `null` first it calls no `equals` at all
+			assertFalse(a.equals(null));
+			assertFalse(a.equals("not-a-comparable-array"));
 		}
 
 		/**
@@ -1416,7 +1513,7 @@ class SortIndexTest {
 
 			Transaction.executeInTransactionIfProvided(
 				new Transaction(sortIndex),
-				(Runnable) () -> {
+				() -> {
 					// warms the committed-snapshot cache fast path (nothing written yet in this transaction)
 					final int[] beforeWrite = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
 					assertFalse(ArrayUtils.contains(beforeWrite, 8));
@@ -1443,7 +1540,7 @@ class SortIndexTest {
 
 			Transaction.executeInTransactionIfProvided(
 				new Transaction(sortIndex),
-				(Runnable) () -> {
+				() -> {
 					final int[] first = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
 
 					// writing to a DIFFERENT SortIndex must not disturb this one's cache eligibility - the

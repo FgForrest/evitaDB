@@ -29,6 +29,7 @@ import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.externalApi.grpc.exception.ClosedGrpcStreamException;
 import io.evitadb.externalApi.grpc.generated.GrpcHeartBeat;
+import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.utils.GrpcTimeoutUtil;
 import io.evitadb.utils.IOUtils;
 import io.grpc.Status;
@@ -114,7 +115,9 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 	 */
 	private final ServerCallStreamObserver<RESPONSE> responseObserver;
 	/**
-	 * Supplier that provides the current version for heartbeat messages.
+	 * Supplier that provides the current version for heartbeat messages. It must never throw: it is called from
+	 * {@link #onSubscribe} and from the scheduled {@link #sendHeartbeat()}, neither of which treats a failure of it
+	 * as a terminal stream error - an exception would escape into the publisher or silently stop the heartbeat.
 	 */
 	private final LongSupplier versionSupplier;
 	/**
@@ -278,11 +281,20 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 		this.subscription.request(1);
 	}
 
+	/**
+	 * Terminates the stream with the publisher's failure, translated to a gRPC status exactly the way a failure of
+	 * a unary call is - the status code, the evitaDB error code and the {@link com.google.rpc.ErrorInfo} detail
+	 * whose metadata lets the client rebuild a recognised exception (a refused resume position, data out of
+	 * retention) as itself. Handing the raw throwable to the observer instead would reach the client as `UNKNOWN`
+	 * with no error code, indistinguishable from a broken connection.
+	 *
+	 * @param throwable the failure reported by the publisher
+	 */
 	@Override
 	public final void onError(Throwable throwable) {
 		if (markStreamDead(throwable)) {
 			try {
-				this.responseObserver.onError(throwable);
+				GlobalExceptionHandlerInterceptor.sendErrorToClient(throwable, this.responseObserver);
 			} catch (Exception ex) {
 				log.debug("Failed to emit onError to CDC client: {}", ex.getMessage(), ex);
 			}

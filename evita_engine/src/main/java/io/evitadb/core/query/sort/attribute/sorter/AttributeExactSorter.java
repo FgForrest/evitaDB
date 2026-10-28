@@ -50,6 +50,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.PrimitiveIterator.OfInt;
+import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.ToIntFunction;
 
@@ -64,35 +65,37 @@ public class AttributeExactSorter implements Sorter {
 	 */
 	private final String attributeName;
 	/**
-	 * Sort index that could be used for translation of attribute values to entity primary keys.
+	 * Translates an attribute value to the primary keys of the entities carrying it - the lookup of a {@link SortIndex}
+	 * for the indexed entities and materialized reference partitions, of the registry row for a virtual reference
+	 * partition.
 	 */
-	private final SortIndex sortIndex;
+	private final Function<Serializable, Bitmap> recordsEqualTo;
 	/**
 	 * The attribute values whose order must be maintained in the sorted result.
 	 */
 	private final Serializable[] exactOrder;
 	/**
-	 * The scope of the {@link #sortIndex} - only its entities are sorted, on the prefetch route as on the index route.
+	 * The scope of the sort data lookup - only its entities are sorted, on the prefetch route as on the index route.
 	 */
 	private final Scope scope;
 
 	/**
 	 * Creates the sorter.
 	 *
-	 * @param attributeName name of the sorted attribute
-	 * @param exactOrder    the attribute values in the requested order
-	 * @param sortIndex     the sort index of the attribute
-	 * @param scope         the scope of the sort index, whose entities alone the sorter sorts
+	 * @param attributeName  the name of the attribute the sorter sorts along
+	 * @param exactOrder     the attribute values whose order must be maintained in the sorted result
+	 * @param recordsEqualTo translates an attribute value to the primary keys of the entities carrying it
+	 * @param scope          the scope whose entities alone the sorter sorts
 	 */
 	public AttributeExactSorter(
 		@Nonnull String attributeName,
 		@Nonnull Serializable[] exactOrder,
-		@Nonnull SortIndex sortIndex,
+		@Nonnull Function<Serializable, Bitmap> recordsEqualTo,
 		@Nonnull Scope scope
 	) {
 		this.attributeName = attributeName;
 		this.exactOrder = exactOrder;
-		this.sortIndex = sortIndex;
+		this.recordsEqualTo = recordsEqualTo;
 		this.scope = scope;
 	}
 
@@ -130,7 +133,7 @@ public class AttributeExactSorter implements Sorter {
 
 		// retrieve array of "sorted" primary keys based on data from index
 		final int[] exactPkOrder = Arrays.stream(this.exactOrder)
-			.map(this.sortIndex::getRecordsEqualTo)
+			.map(this.recordsEqualTo)
 			.flatMapToInt(Bitmap::stream)
 			.toArray();
 

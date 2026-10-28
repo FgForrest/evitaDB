@@ -146,7 +146,7 @@ class SegmentTest {
 		@Test
 		@DisplayName("should return null from factory when null OrderBy provided")
 		void shouldReturnNullFromFactoryWhenNullOrderByProvided() {
-			final Segment result = segment((OrderBy) null);
+			final Segment result = segment(null);
 
 			assertNull(result);
 		}
@@ -154,7 +154,7 @@ class SegmentTest {
 		@Test
 		@DisplayName("should return null from two-arg factory when null OrderBy provided")
 		void shouldReturnNullFromTwoArgFactoryWhenNullOrderByProvided() {
-			final Segment result = segment((OrderBy) null, limit(5));
+			final Segment result = segment(null, limit(5));
 
 			assertNull(result);
 		}
@@ -164,7 +164,7 @@ class SegmentTest {
 		void shouldReturnNullFromEntityHavingOrderByFactoryWhenNullOrderByProvided() {
 			final Segment result = segment(
 				entityHaving(attributeEquals("code", "123")),
-				(OrderBy) null
+				null
 			);
 
 			assertNull(result);
@@ -175,7 +175,7 @@ class SegmentTest {
 		void shouldReturnNullFromThreeArgFactoryWhenNullOrderByProvided() {
 			final Segment result = segment(
 				entityHaving(attributeEquals("code", "123")),
-				(OrderBy) null,
+				null,
 				limit(5)
 			);
 
@@ -223,7 +223,7 @@ class SegmentTest {
 		@Test
 		@DisplayName("should not be applicable when null OrderBy provided")
 		void shouldNotBeApplicableWhenNullOrderByProvided() {
-			final Segment segment = new Segment((OrderBy) null);
+			final Segment segment = new Segment(null);
 
 			assertFalse(segment.isApplicable());
 		}
@@ -255,7 +255,7 @@ class SegmentTest {
 		@Test
 		@DisplayName("should throw when getOrderBy called on segment without OrderBy")
 		void shouldThrowWhenGetOrderByCalledOnSegmentWithoutOrderBy() {
-			final Segment segment = new Segment((OrderBy) null);
+			final Segment segment = new Segment(null);
 
 			assertThrows(EvitaInvalidUsageException.class, segment::getOrderBy);
 		}

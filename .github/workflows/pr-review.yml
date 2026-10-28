@@ -12,6 +12,7 @@ on:
       - evita*/**/*.java
       - evita*/**/pom.xml
       - pom.xml
+      - recipes/**
       - .github/**
       - tools/verify-driver-on-jdk.sh
       - tools/driver-smoke/**
@@ -50,7 +51,7 @@ jobs:
           fi
 
       - name: Setup Java JDK
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -76,7 +77,7 @@ jobs:
           jacoco/jacoco-summary.sh jacoco/target/site/jacoco-aggregate/jacoco.csv
 
       - name: Upload test results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: success() || failure()
         with:
           name: test-results
@@ -88,22 +89,28 @@ jobs:
         if: success() || failure()
 
       - name: Upload evitaDB server artifact   # consumed by the `driver-jdk17` job below
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: success()
         with:
           name: evita-server.jar
           path: 'evita_server/target/evita-server.jar'
           retention-days: 3
 
+      - name: Build shaded Java driver from recipe
+        run: |
+          mvn -T 1C -B -Dmaven.test.skip=true -pl :evita_java_driver -am install
+          EVITA_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          mvn -B -Dmaven.test.skip=true -f recipes/evita_java_driver_all_in_one/pom.xml -Drevision="$EVITA_VERSION" install
+
       - name: Upload shaded Java driver artifact   # consumed by the `driver-jdk17` job below
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: success()
         with:
           name: evita_java_driver_all_in_one.jar
           path: |
-            evita_external_api/evita_external_api_grpc/client_all_in_one/target/evita_java_driver_all_in_one-*.jar
-            !evita_external_api/evita_external_api_grpc/client_all_in_one/target/*-sources.jar
-            !evita_external_api/evita_external_api_grpc/client_all_in_one/target/*-javadoc.jar
+            recipes/evita_java_driver_all_in_one/target/evita_java_driver_all_in_one-*.jar
+            !recipes/evita_java_driver_all_in_one/target/*-sources.jar
+            !recipes/evita_java_driver_all_in_one/target/*-javadoc.jar
           retention-days: 3
 
   driver-jdk17:                    # the Java driver must keep running on JDK 17 while the server needs 21
@@ -153,7 +160,7 @@ jobs:
           # fail loudly here rather than let the reviewer discover a missing ref mid-review
           git rev-parse --verify "refs/remotes/origin/${BASE_REF}"
 
-      - uses: anthropics/claude-code-action@756cc22e19660d20e8cc9496b4f242475a7f7790 # v1.0.235
+      - uses: anthropics/claude-code-action@16f9f71ab9c490faf367f94dd294897edc25be33 # v1.0.261
         with:
           claude_code_oauth_token: ${{ secrets.ANTHROPIC_API_KEY }}
           show_full_output: true

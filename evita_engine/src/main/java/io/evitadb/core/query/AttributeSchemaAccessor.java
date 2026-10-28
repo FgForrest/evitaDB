@@ -94,9 +94,9 @@ public class AttributeSchemaAccessor {
 	@Nullable private final Function<EntitySchemaContract, ReferenceSchemaContract> referenceSchemaAccessor;
 	/**
 	 * Context of the query being planned, which collects the capabilities this accessor hands out - NULL for an
-	 * accessor built outside a query plan, and for the accessors serving another collection's structures, whose
-	 * requests belong to a registry this one cannot reach. Such an accessor works exactly as before and records
-	 * nothing.
+	 * accessor built outside a query plan, which works exactly as before and records nothing. The context counts each
+	 * request on the registry of the collection whose schema declares the element, so an accessor resolving against
+	 * another collection's schema reports to the context of the query all the same.
 	 */
 	@Nullable private final QueryPlanningContext queryContext;
 
@@ -182,8 +182,7 @@ public class AttributeSchemaAccessor {
 	}
 
 	/**
-	 * Creates an accessor that records nothing - for looking a schema up outside a query plan, or for looking one up
-	 * on behalf of a collection whose usage registry the enclosing plan does not own.
+	 * Creates an accessor that records nothing - for looking a schema up outside a query plan.
 	 *
 	 * @param catalogSchema the catalog schema holding the globally defined attributes
 	 * @param entitySchema  the entity schema to resolve attributes against, NULL for a collection-less lookup
@@ -450,10 +449,9 @@ public class AttributeSchemaAccessor {
 	 * that is zero *by construction*, which reads as *"nothing maintains this flag, drop it"* about a flag that is
 	 * actively maintained - the exact misreading this whole surface exists to prevent.
 	 *
-	 * The request is therefore not counted anywhere, rather than counted somewhere wrong. That is the same trade-off
-	 * {@link QueryPlanningContext#recordRequestedCapability} makes for a filter evaluated against another collection's
-	 * structures, and it costs nothing in the ordinary case: a query that **names** its collection records the
-	 * `SORTABLE` on that collection, which is also where its maintenance is counted.
+	 * The request is therefore not counted anywhere, rather than counted somewhere wrong. It costs nothing in the
+	 * ordinary case: a query that **names** its collection records the `SORTABLE` on that collection, which is also
+	 * where its maintenance is counted.
 	 *
 	 * @param queryContext    the query being planned, NULL outside a plan - which turns the whole recording off
 	 * @param owner           the entity schema the attribute was resolved against, NULL when it was resolved against

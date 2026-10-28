@@ -52,7 +52,7 @@ public class TestSerializedSize {
 	public void testRange() {
 		for (int k = 0; k < 100000; k += 100) {
 			PersistentRoaringBitmap rb = new PersistentRoaringBitmap();
-			rb.add(0L, (long) (k + 1));
+			rb.add(0L, k + 1);
 			long c = PersistentRoaringBitmap.maximumSerializedSize(rb.getCardinality(), k + 1);
 			long ac = rb.serializedSizeInBytes();
 			assertTrue(ac <= c);

@@ -197,7 +197,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 	                                                             @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final OpenApiSimpleType itemType = buildPrimitiveConstraintValue(
 			buildContext,
-			valueParameters.get(0),
+			valueParameters.getFirst(),
 			false,
 			valueTypeSupplier
 		);

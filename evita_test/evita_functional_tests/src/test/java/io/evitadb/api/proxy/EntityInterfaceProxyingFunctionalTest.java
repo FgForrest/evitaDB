@@ -509,7 +509,7 @@ if (currency != null) {
 		assertEquals(2, productsWithCzkSellingPrice.size());
 
 		return dataCarrier
-			.put("productWithCzkSellingPrice", productsWithCzkSellingPrice.get(0))
+			.put("productWithCzkSellingPrice", productsWithCzkSellingPrice.getFirst())
 			.put("productsWithCzkSellingPrice", productsWithCzkSellingPrice);
 	}
 

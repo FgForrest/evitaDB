@@ -112,38 +112,21 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	@Nonnull private final ToIntFunction<E> keyExtractor;
 
 	/**
-	 * Returns the left boundary key of an arbitrary node reached through the key-agnostic {@link BPlusTreeNode} SPI
-	 * (e.g. an element of an internal node's children array). The primitive-key accessor lives on the per-tree
-	 * {@link IntBoundaryKeyedNode} marker so it stays out of the shared SPI (which must never expose a typed key); every
-	 * node in this tree implements it, so the cast is always safe.
-	 *
-	 * @param node the node whose left boundary key is requested
-	 * @return the left boundary (smallest) key of the node
-	 */
-	private static int leftBoundaryKeyOf(@Nonnull BPlusTreeNode<?> node) {
-		return ((IntBoundaryKeyedNode) node).getLeftBoundaryKey();
-	}
-
-	/**
-	 * The last slot index a reader may address on the `values` array **it has already read**, given the `peek` it has
-	 * already read.
+	 * The last slot index the leaf heap walk may address on the `values` array **it has already read**, given the
+	 * `peek` it has already read.
 	 *
 	 * **This is a concurrency bound, not a consistency check.** For any caller sharing a happens-before edge with the
-	 * writer — the whole write path, every descent under a transaction, and the page-emission flush (thread-confined,
-	 * see {@code AbstractTransactionalBPlusTree.LeafPageHandleImpl}) — it returns `peek` unchanged and is a pure
-	 * no-op: {@link BPlusLeafTreeNode#ensurePhysicalLength} grows the array before any path advances `peek`, every
-	 * shrink lowers `peek` and leaves the array alone, and the commit-merge trim builds a **new** leaf rather than
-	 * shortening this one. The bound can never truncate a view that was consistent to begin with.
+	 * writer it returns `peek` unchanged: {@link BPlusLeafTreeNode#ensurePhysicalLength} grows the array before any
+	 * path advances `peek`, every shrink lowers `peek` and leaves the array alone, and the commit-merge trim builds a
+	 * **new** leaf rather than shortening this one.
 	 *
-	 * It exists for the genuinely cross-thread reader: a query thread walking price records out of a
-	 * {@link io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex} shares no transaction binding with a
-	 * warm-up thread growing the same leaf, so it can pair a freshly-read `peek` with the array that preceded the
-	 * growth which raised it.
-	 *
-	 * **This became necessary when the leaf array started following its content.** While every leaf was allocated at
-	 * the full block size and never replaced, the same torn read landed inside a fixed-length array and merely
-	 * returned a stale element; now it runs off the end. Only one array is asked here, unlike the long-keyed sibling:
-	 * this leaf holds no key array, deriving each key from its element through the extractor.
+	 * It exists for the one reader that has no such edge: {@code EntityCollection#describeIndex} takes no snapshot
+	 * and walks a live price index for its heap size from a management thread while a warm-up bulk load may be
+	 * growing the same leaf, so it can pair a freshly-read `peek` with the array that preceded the growth which
+	 * raised it - and a management read must return rather than throw. Point lookups, iterators and the verbose
+	 * rendering are never taken without a happens-before edge to the writer, so they take no bound. Only one array
+	 * is asked here, unlike the long-keyed sibling: this leaf holds no key array, deriving each key from its element
+	 * through the extractor.
 	 *
 	 * **Not to be applied to the `peek >= values.length` corruption guard** that precedes the boundary-key reads.
 	 * That check is not asking a capacity question — it is what turns a torn pair into a typed
@@ -155,9 +138,9 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	 * A green concurrent sweep on an x86 box is **evidence about the box, not about this code**: x86's total store
 	 * order forbids the reordering this guards, while the Java memory model permits it regardless and AArch64 —
 	 * which evitaDB is also built for — reaches it in silicon. The deterministic half is what pins this instead:
-	 * {@code TransactionalElementBPlusTreeTest.TornLeafReaderBoundTest} builds the torn shape directly and gives each
-	 * guarded reader its own test, so no one of them can be proven by another throwing first. This mirrors
-	 * {@code TransactionalLongBPlusTree#observableLeafPeek} and {@code TransactionalBucketBPlusTree#observableLeafPeek}.
+	 * {@code TransactionalElementBPlusTreeTest.TornLeafReaderBoundTest} builds the torn shape directly and runs the
+	 * heap walk over it. This mirrors {@code TransactionalLongBPlusTree#observableLeafPeek} and
+	 * {@code TransactionalBucketBPlusTree#observableLeafPeek}.
 	 *
 	 * @param peek   the leaf's own last-occupied slot index, as the caller read it
 	 * @param values the leaf's value array, as the caller read it
@@ -290,14 +273,22 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		);
 	}
 
+	/**
+	 * Adopts a bulk-assembled internal node's full-capacity arrays.
+	 */
+	@Nonnull
+	@Override
+	protected BPlusInternalTreeNode createAssembledInternalNode(
+		@Nonnull int[] keys, @Nonnull BPlusTreeNode<?>[] children, int peek, boolean transactionalLayer
+	) {
+		return new BPlusInternalTreeNode(keys, children, peek, transactionalLayer);
+	}
+
 	@Override
 	protected boolean splitNodesJoinTransactionalLayer() {
-		// the element-keyed price tree is bulk-rebuilt by re-inserting records during the commit-merge
-		// (newPriceRecordTree invoked from attachToCatalog), where the transaction is already finalized; a split
-		// offspring that joined the diff layer there would fail to open a fresh layer, so it must mutate in place.
-		// Outside any transaction the flag is true (the node is its own committed state); inside a transaction it is
-		// false so split offspring mutate in place, exactly as before the per-entity savepoint work.
-		return !Transaction.isTransactionAvailable();
+		// Savepoints must reach nodes created by earlier entities in the same transaction.
+		// Price-index commit merges carry this tree forward and never re-insert records into it.
+		return true;
 	}
 
 	/**
@@ -324,7 +315,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		for (final BPlusLeafTreeNode<E> orderedLeaf : orderedLeaves) {
 			totalValues += orderedLeaf.size();
 		}
-		final BPlusTreeNode<?> assembledRoot = buildSpine(new ArrayList<>(orderedLeaves));
+		final BPlusTreeNode<?> assembledRoot = buildSpine(new ArrayList<>(orderedLeaves), true);
 		return new TransactionalElementBPlusTree<>(
 			this.valueBlockSize, this.minValueBlockSize,
 			this.internalNodeBlockSize, this.minInternalNodeBlockSize,
@@ -332,6 +323,52 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			this.keyExtractor,
 			assembledRoot,
 			totalValues
+		);
+	}
+
+	/**
+	 * Builds a fresh, unpublished tree from strictly ascending elements outside any bound transaction. Leaves hold
+	 * at most `valueBlockSize - 1` elements in content-sized arrays; a short remainder borrows from its predecessor.
+	 * Every node participates in subsequent transactional layers, and leaves are dirty as repeated inserts leave them.
+	 *
+	 * @param elementType  the class of the stored elements
+	 * @param keyExtractor the function deriving each element's ordering and identity key
+	 * @param elements     strictly ascending elements, copied into the leaves
+	 * @param <E>          the element type
+	 * @return the bulk-built tree
+	 * @throws GenericEvitaInternalError if a transaction is bound or the input is not strictly ascending
+	 */
+	@Nonnull
+	public static <E> TransactionalElementBPlusTree<E> bulkBuild(
+		@Nonnull Class<E> elementType, @Nonnull ToIntFunction<E> keyExtractor, @Nonnull E[] elements
+	) {
+		Assert.isPremiseValid(!Transaction.isTransactionAvailable(), "Bulk build requires no bound transaction.");
+		for (int i = 1; i < elements.length; i++) {
+			Assert.isPremiseValid(
+				keyExtractor.applyAsInt(elements[i - 1]) < keyExtractor.applyAsInt(elements[i]),
+				"Bulk build requires strictly ascending keys."
+			);
+		}
+		final TransactionalElementBPlusTree<E> scaffold = new TransactionalElementBPlusTree<>(elementType, keyExtractor);
+		if (elements.length == 0) {
+			return scaffold;
+		}
+		final int[] leafSizes = scaffold.bulkLeafSizes(elements.length, scaffold.minValueBlockSize);
+		final List<BPlusLeafTreeNode<E>> leaves = new ArrayList<>(leafSizes.length);
+		int start = 0;
+		for (final int leafSize : leafSizes) {
+			final BPlusLeafTreeNode<E> leaf = new BPlusLeafTreeNode<>(
+				elements, scaffold.newValueArray(leafSize), scaffold.valueBlockSize, start, start + leafSize,
+				true, keyExtractor
+			);
+			leaf.dirty = true;
+			leaves.add(leaf);
+			start += leafSize;
+		}
+		return new TransactionalElementBPlusTree<>(
+			scaffold.valueBlockSize, scaffold.minValueBlockSize,
+			scaffold.internalNodeBlockSize, scaffold.minInternalNodeBlockSize,
+			elementType, keyExtractor, scaffold.buildSpine(leaves, true), elements.length
 		);
 	}
 
@@ -578,7 +615,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	@Nullable
 	BPlusLeafTreeNode<E> predecessorLeaf(@Nonnull Cursor cursor) {
 		final List<CursorLevel> path = cursor.path();
-		final CursorLevel leafLevel = path.get(path.size() - 1);
+		final CursorLevel leafLevel = path.getLast();
 		final int leafIndex = leafLevel.index();
 		if (leafIndex > 0) {
 			//noinspection unchecked
@@ -652,11 +689,10 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	 *   walk below is a no-op; when it is higher up, the walk follows the left neighbour's right spine. One rule covers
 	 *   both branches of the path-based {@link #predecessorLeaf(Cursor)}.
 	 *
-	 * This tree's inserts are ascending by its callers' contract — price records land at the right edge — which makes
-	 * every insert a tail insert. Capturing the cursor lazily therefore buys nothing on its own here: the assert would
-	 * demand a path every time. Answering it from the descent is what turns the guard into a real saving, and under
-	 * ascending keys the descent is rightmost at every level, so no fence is ever recorded and the tail assert becomes
-	 * a no-op as well.
+	 * Newly allocated price ids land at the right edge, while reference indexes can receive older ids in the middle
+	 * when an entity gains a reference. Answering the boundary operands during descent avoids capturing a cursor in
+	 * either case. With ascending keys the descent is rightmost at every level, so no fence is recorded and the tail
+	 * assert becomes a no-op as well.
 	 *
 	 * @param key the key whose responsible leaf is located
 	 * @return the leaf together with its boundary operands
@@ -939,65 +975,6 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 				", tree block size: " + this.valueBlockSize + ")!",
 			"Leaf is full but no cursor path was captured!"
 		);
-	}
-
-	/**
-	 * Builds one internal level over `level` and recurses until a single node (the root) remains. The level below is
-	 * partitioned into `ceil(size / maxChildren)` parents, each receiving an evenly distributed contiguous run of
-	 * children so no non-root parent underflows.
-	 *
-	 * @param level the ordered nodes of the level immediately below the one being built
-	 * @return the root of the assembled subtree
-	 */
-	@Nonnull
-	private BPlusTreeNode<?> buildSpine(@Nonnull List<? extends BPlusTreeNode<?>> level) {
-		if (level.size() == 1) {
-			return level.get(0);
-		}
-		// Pack at most internalNodeBlockSize children per parent (one below the node's children capacity of
-		// internalNodeBlockSize + 1). An assembled node must be born non-full so the first child split can still call
-		// adaptToLeafSplit (which requires !isFull()) before the parent overflows and splits in turn.
-		final int maxChildren = this.internalNodeBlockSize;
-		final int childTotal = level.size();
-		final int parentCount = (childTotal + maxChildren - 1) / maxChildren;
-		final int baseChildren = childTotal / parentCount;
-		// the first `withExtra` parents take one extra child so the split is as even as possible
-		final int withExtra = childTotal % parentCount;
-		final List<BPlusInternalTreeNode> parents = new ArrayList<>(parentCount);
-		int childIndex = 0;
-		for (int p = 0; p < parentCount; p++) {
-			final int childCount = baseChildren + (p < withExtra ? 1 : 0);
-			parents.add(buildInternalNode(level, childIndex, childCount));
-			childIndex += childCount;
-		}
-		return buildSpine(parents);
-	}
-
-	/**
-	 * Constructs a single internal node holding `childCount` children taken from `children` starting at `from`. The
-	 * separator before child `i` (for `i >= 1`) is that child's left boundary key. The key / children arrays are
-	 * allocated at the node's full capacity (mirroring split-created nodes), leaving the unused tail at its default.
-	 *
-	 * @param children   the ordered children of the level below
-	 * @param from       the index of the first child this node owns
-	 * @param childCount the number of children this node owns (>= 1)
-	 * @return the assembled internal node
-	 */
-	@Nonnull
-	private BPlusInternalTreeNode buildInternalNode(
-		@Nonnull List<? extends BPlusTreeNode<?>> children, int from, int childCount
-	) {
-		final int[] keys = new int[this.internalNodeBlockSize];
-		final BPlusTreeNode<?>[] childArray = new BPlusTreeNode[this.internalNodeBlockSize + 1];
-		for (int i = 0; i < childCount; i++) {
-			final BPlusTreeNode<?> child = children.get(from + i);
-			childArray[i] = child;
-			if (i > 0) {
-				// separator i-1 routes to child i — the left boundary key invariant the tree enforces
-				keys[i - 1] = leftBoundaryKeyOf(child);
-			}
-		}
-		return new BPlusInternalTreeNode(keys, childArray, childCount - 1, true);
 	}
 
 	/**
@@ -1352,18 +1329,17 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			);
 		}
 
-		// Move half the values into the new array of the left leaf node. Split offspring are transaction-aware (see
-		// splitNodesJoinTransactionalLayer): inside an active transaction they mutate in place, so the commit-merge
-		// rebuild (newPriceRecordTree from attachToCatalog) does not try to open a diff layer on a finalized transaction.
-		// The target array is sized to the half it receives, not to the block size: under this tree's ascending-insert
-		// contract the left half never grows again, so a block-sized allocation here would be dead capacity for life.
+		// Move half the values into a content-sized array for the left leaf. New price ids grow the right edge, while
+		// reference indexes can later insert older ids into either half; the left array grows on demand in that case.
+		// Both halves and a new root must join the transactional layer so a later savepoint can undo their writes.
+		final boolean splitNodesTransactional = splitNodesJoinTransactionalLayer();
 		final BPlusLeafTreeNode<E> leftLeaf = new BPlusLeafTreeNode<>(
 			originValues,
 			newValueArray(mid),
 			this.valueBlockSize,
 			0,
 			mid,
-			!Transaction.isTransactionAvailable(),
+			splitNodesTransactional,
 			this.keyExtractor
 		);
 
@@ -1382,7 +1358,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			// their content now, so an array length taken from the wrong half would end the copied range early and the
 			// leaf's tail would vanish with no exception and no failing assert — silent data loss
 			this.valueBlockSize,
-			!Transaction.isTransactionAvailable(),
+			splitNodesTransactional,
 			this.keyExtractor
 		);
 
@@ -1398,7 +1374,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 					this.internalNodeBlockSize,
 					rightLeaf.getLeftBoundaryKey(),
 					leftLeaf, rightLeaf,
-					!Transaction.isTransactionAvailable()
+					splitNodesTransactional
 				)
 			);
 		} else {
@@ -1810,10 +1786,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			sb.append(" ".repeat(level * indentSpaces));
 			final BPlusLeafTreeNode<E> current = currentState();
 			final E[] theValues = current.values;
-			// bounded like every other reader, and this one especially: a debugger or a log statement is exactly how a
-			// live tree gets read from a thread that never wrote to it, and an out-of-bounds thrown out of a toString
-			// would break the diagnostics being used to investigate
-			final int thePeek = observableLeafPeek(current.peek, theValues);
+			final int thePeek = current.peek;
 
 			for (int i = 0; i <= thePeek; i++) {
 				sb.append(this.keyExtractor.applyAsInt(theValues[i])).append(":").append(theValues[i]);
@@ -2006,11 +1979,8 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		@Nullable
 		public E getValue(int key) {
 			final BPlusLeafTreeNode<E> current = currentState();
-			// the array and the peek are two reads of two mutable fields; a cross-thread reader can hold a peek that
-			// belongs to a growth whose longer array it has not seen, so bound the search by what it actually holds
 			final E[] theValues = current.values;
-			final InsertionPosition insertionPosition =
-				searchKey(key, theValues, observableLeafPeek(current.peek, theValues));
+			final InsertionPosition insertionPosition = searchKey(key, theValues, current.peek);
 			return insertionPosition.alreadyPresent() ? theValues[insertionPosition.position()] : null;
 		}
 
@@ -2023,9 +1993,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		 */
 		public int getValueIndex(int key) {
 			final BPlusLeafTreeNode<E> current = currentState();
-			final E[] theValues = current.values;
-			final InsertionPosition insertionPosition =
-				searchKey(key, theValues, observableLeafPeek(current.peek, theValues));
+			final InsertionPosition insertionPosition = searchKey(key, current.values, current.peek);
 			return insertionPosition.alreadyPresent() ? insertionPosition.position() : -1;
 		}
 
@@ -2039,8 +2007,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		@Nonnull
 		public InsertionPosition findKeyPosition(int key) {
 			final BPlusLeafTreeNode<E> current = currentState();
-			final E[] theValues = current.values;
-			return searchKey(key, theValues, observableLeafPeek(current.peek, theValues));
+			return searchKey(key, current.values, current.peek);
 		}
 
 		@Override
@@ -2142,9 +2109,8 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			if (layer != null) {
 				result = trimmedCommittedCopy(theValues, thePeek);
 			} else if (!this.transactionalLayer) {
-				// nodes created during splits/merges are built with transactionalLayer=false so they do
-				// not allocate STM layers mid-transaction; on commit they must be rebuilt as participating
-				// (transactionalLayer=true) nodes so subsequent transactions can layer changes over them
+				// A non-participating layer copy must become a participating committed node so subsequent
+				// transactions and their savepoints can track its writes.
 				result = trimmedCommittedCopy(theValues, thePeek);
 			} else {
 				return this;
@@ -2323,34 +2289,31 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		 * @return true if the key was found and removed, false otherwise
 		 */
 		public boolean delete(int key) {
+			// presence is settled on the current state BEFORE a write layer is resolved, so deleting an absent key stays
+			// a pure read: no layer opened, no array copied and no page flagged for re-emission for a call that changes nothing
+			final int index = getValueIndex(key);
+			if (index < 0) {
+				return false;
+			}
+			// the index stays valid below: a freshly opened layer shares this node's array and peek, and the decouple
+			// copies it without reordering
 			final BPlusLeafTreeNode<E> layer = perOperationWriteLayer(this, this.transactionalLayer);
-			// deleting an entry mutates this leaf's page: flag it for re-emission (a no-op delete over-reports at worst)
+			// deleting an entry mutates this leaf's page: flag it for re-emission
 			if (layer == null) {
 				this.dirty = true;
-				final InsertionPosition insertionPosition = searchKey(key, this.values, this.peek);
-				if (insertionPosition.alreadyPresent()) {
-					// journalled BEFORE the first write, as WarmUpSavepoint#push requires of every inverse
-					journalElementDeletionIfOpen(this.values[insertionPosition.position()]);
-					removeRecordFromSameArrayOnIndex(this.values, insertionPosition.position());
-					this.values[this.peek] = null;
-					this.peek--;
-					return true;
-				} else {
-					return false;
-				}
+				// journalled BEFORE the first write, as WarmUpSavepoint#push requires of every inverse
+				journalElementDeletionIfOpen(this.values[index]);
+				removeRecordFromSameArrayOnIndex(this.values, index);
+				this.values[this.peek] = null;
+				this.peek--;
 			} else {
 				decoupleTransactionalArrays();
 				layer.dirty = true;
-				final InsertionPosition insertionPosition = searchKey(key, layer.values, layer.peek);
-				if (insertionPosition.alreadyPresent()) {
-					removeRecordFromSameArrayOnIndex(layer.values, insertionPosition.position());
-					layer.values[layer.peek] = null;
-					layer.peek--;
-					return true;
-				} else {
-					return false;
-				}
+				removeRecordFromSameArrayOnIndex(layer.values, index);
+				layer.values[layer.peek] = null;
+				layer.peek--;
 			}
+			return true;
 		}
 
 		@Override
@@ -2476,12 +2439,8 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		protected void loadCurrentLeaf() {
 			//noinspection unchecked
 			final BPlusLeafTreeNode<E> leaf = (BPlusLeafTreeNode<E>) currentLeafNode();
-			// two independent accessors, each resolving the leaf's state for itself, so the peek can belong to a later
-			// growth than the array cached beside it. Bounded once per leaf — never per element, since the iterators
-			// index these two fields directly
-			final E[] values = leaf.getValues();
-			this.leafValues = values;
-			this.leafPeek = observableLeafPeek(leaf.getPeek(), values);
+			this.leafValues = leaf.getValues();
+			this.leafPeek = leaf.getPeek();
 		}
 	}
 
@@ -2532,12 +2491,8 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		protected void loadCurrentLeaf() {
 			//noinspection unchecked
 			final BPlusLeafTreeNode<E> leaf = (BPlusLeafTreeNode<E>) currentLeafNode();
-			// two independent accessors, each resolving the leaf's state for itself, so the peek can belong to a later
-			// growth than the array cached beside it. Bounded once per leaf — never per element, since the iterators
-			// index these two fields directly
-			final E[] values = leaf.getValues();
-			this.leafValues = values;
-			this.leafPeek = observableLeafPeek(leaf.getPeek(), values);
+			this.leafValues = leaf.getValues();
+			this.leafPeek = leaf.getPeek();
 		}
 	}
 

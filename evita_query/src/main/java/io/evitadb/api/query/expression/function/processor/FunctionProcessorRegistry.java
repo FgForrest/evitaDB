@@ -40,19 +40,15 @@ import java.util.stream.Collectors;
  */
 public class FunctionProcessorRegistry {
 
-	private static FunctionProcessorRegistry INSTANCE;
-
 	private final Map<String, FunctionProcessor> functionProcessors;
 
 	/**
-	 * Returns the shared singleton instance, creating it on first access.
+	 * Returns the shared singleton instance, creating it on first access. The class loader initializes the holder
+	 * exactly once, so concurrent first calls all receive the same instance.
 	 */
 	@Nonnull
 	public static FunctionProcessorRegistry getInstance() {
-		if (INSTANCE == null) {
-			INSTANCE = new FunctionProcessorRegistry();
-		}
-		return INSTANCE;
+		return InstanceHolder.INSTANCE;
 	}
 
 	private FunctionProcessorRegistry() {
@@ -75,4 +71,12 @@ public class FunctionProcessorRegistry {
 	public Optional<FunctionProcessor> getFunctionProcessor(@Nonnull String functionName) {
 		return Optional.ofNullable(this.functionProcessors.get(functionName));
 	}
+
+	/**
+	 * Holds the singleton, created when {@link #getInstance()} first touches this class.
+	 */
+	private static final class InstanceHolder {
+		private static final FunctionProcessorRegistry INSTANCE = new FunctionProcessorRegistry();
+	}
+
 }

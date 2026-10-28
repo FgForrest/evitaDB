@@ -84,7 +84,7 @@ class EntityReferencesPartialTest {
 		all[partials.length] = CatchAllPartial.OBJECT_METHODS;
 		all[partials.length + 1] = CatchAllPartial.INSTANCE;
 
-		return (EntityContract) ByteBuddyProxyGenerator.instantiate(
+		return ByteBuddyProxyGenerator.instantiate(
 			new ByteBuddyDispatcherInvocationHandler<>(state, all),
 			new Class<?>[]{ ReferencesTestEntity.class },
 			EMPTY_CLASS_ARRAY,

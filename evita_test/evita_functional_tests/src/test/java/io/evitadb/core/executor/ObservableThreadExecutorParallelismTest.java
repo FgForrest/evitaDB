@@ -401,7 +401,7 @@ class ObservableThreadExecutorParallelismTest {
 				// the first emit must report the whole batch as the delta against the (zero) baseline
 				executor.emitStatistics();
 				assertEquals(
-					(long) batch, lastEmittedCompleted.get(),
+					batch, lastEmittedCompleted.get(),
 					"the first emit must report all completed tasks as the per-tick delta"
 				);
 

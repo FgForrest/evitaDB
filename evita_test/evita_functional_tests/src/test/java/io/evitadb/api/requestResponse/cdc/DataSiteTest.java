@@ -32,6 +32,7 @@ import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -408,22 +409,28 @@ class DataSiteTest implements EvitaTestSupport {
 
 		@Test
 		@DisplayName("should not be equal to null")
+		@SuppressWarnings({"SimplifiableAssertion", "ObjectEqualsNull"})
 		void shouldNotBeEqualToNull() {
 			final DataSite site = DataSite.builder()
 				.entityType("product")
 				.build();
 
-			assertNotEquals(null, site);
+			// deliberately not `assertNotEquals`: with `null` as its first argument it calls no `equals` at all, so
+			// the null check of the class under test would never run
+			assertFalse(site.equals(null));
 		}
 
 		@Test
 		@DisplayName("should not be equal to different type")
+		@SuppressWarnings({"SimplifiableAssertion", "EqualsBetweenInconvertibleTypes"})
 		void shouldNotBeEqualToDifferentType() {
 			final DataSite site = DataSite.builder()
 				.entityType("product")
 				.build();
 
-			assertNotEquals("not a site", site);
+			// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
+			// fix moves the literal there, so `String.equals` would be tested instead of the class under test
+			assertFalse(site.equals("not a site"));
 		}
 
 		@Test

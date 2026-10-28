@@ -271,6 +271,65 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent.UNRECOGNIZED : result;
   }
 
+  public static final int CATALOGID_FIELD_NUMBER = 5;
+  private io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId_;
+  /**
+   * <pre>
+   * Identity of the catalog incarnation `sinceVersion`/`sinceIndex` was recorded on - the `catalogId` a client
+   * stored together with the position. Catalog versions mean something only within one incarnation: replacing,
+   * restoring or duplicating a catalog starts a different version sequence under the same name. When set and
+   * the session's catalog is a different incarnation, the stream fails with
+   * `ChangeCaptureResumePositionInvalidException` (reason `DIFFERENT_INCARNATION`) instead of streaming an
+   * unrelated version sequence - or, for a version the new incarnation has not reached yet, an empty one. If
+   * unset, no identity is checked. The streamed captures do not carry the identity themselves; it is the
+   * `catalogId` of the session the request was sent in.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 5;</code>
+   * @return Whether the catalogId field is set.
+   */
+  @java.lang.Override
+  public boolean hasCatalogId() {
+    return ((bitField0_ & 0x00000004) != 0);
+  }
+  /**
+   * <pre>
+   * Identity of the catalog incarnation `sinceVersion`/`sinceIndex` was recorded on - the `catalogId` a client
+   * stored together with the position. Catalog versions mean something only within one incarnation: replacing,
+   * restoring or duplicating a catalog starts a different version sequence under the same name. When set and
+   * the session's catalog is a different incarnation, the stream fails with
+   * `ChangeCaptureResumePositionInvalidException` (reason `DIFFERENT_INCARNATION`) instead of streaming an
+   * unrelated version sequence - or, for a version the new incarnation has not reached yet, an empty one. If
+   * unset, no identity is checked. The streamed captures do not carry the identity themselves; it is the
+   * `catalogId` of the session the request was sent in.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 5;</code>
+   * @return The catalogId.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcUuid getCatalogId() {
+    return catalogId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : catalogId_;
+  }
+  /**
+   * <pre>
+   * Identity of the catalog incarnation `sinceVersion`/`sinceIndex` was recorded on - the `catalogId` a client
+   * stored together with the position. Catalog versions mean something only within one incarnation: replacing,
+   * restoring or duplicating a catalog starts a different version sequence under the same name. When set and
+   * the session's catalog is a different incarnation, the stream fails with
+   * `ChangeCaptureResumePositionInvalidException` (reason `DIFFERENT_INCARNATION`) instead of streaming an
+   * unrelated version sequence - or, for a version the new incarnation has not reached yet, an empty one. If
+   * unset, no identity is checked. The streamed captures do not carry the identity themselves; it is the
+   * `catalogId` of the session the request was sent in.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 5;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getCatalogIdOrBuilder() {
+    return catalogId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : catalogId_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -297,6 +356,9 @@ private static final long serialVersionUID = 0L;
     if (content_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent.CHANGE_HEADER.getNumber()) {
       output.writeEnum(4, content_);
     }
+    if (((bitField0_ & 0x00000004) != 0)) {
+      output.writeMessage(5, getCatalogId());
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -321,6 +383,10 @@ private static final long serialVersionUID = 0L;
     if (content_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent.CHANGE_HEADER.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(4, content_);
+    }
+    if (((bitField0_ & 0x00000004) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(5, getCatalogId());
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -350,6 +416,11 @@ private static final long serialVersionUID = 0L;
     if (!getCriteriaList()
         .equals(other.getCriteriaList())) return false;
     if (content_ != other.content_) return false;
+    if (hasCatalogId() != other.hasCatalogId()) return false;
+    if (hasCatalogId()) {
+      if (!getCatalogId()
+          .equals(other.getCatalogId())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -375,6 +446,10 @@ private static final long serialVersionUID = 0L;
     }
     hash = (37 * hash) + CONTENT_FIELD_NUMBER;
     hash = (53 * hash) + content_;
+    if (hasCatalogId()) {
+      hash = (37 * hash) + CATALOGID_FIELD_NUMBER;
+      hash = (53 * hash) + getCatalogId().hashCode();
+    }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -516,6 +591,7 @@ private static final long serialVersionUID = 0L;
         getSinceVersionFieldBuilder();
         getSinceIndexFieldBuilder();
         getCriteriaFieldBuilder();
+        getCatalogIdFieldBuilder();
       }
     }
     @java.lang.Override
@@ -540,6 +616,11 @@ private static final long serialVersionUID = 0L;
       }
       bitField0_ = (bitField0_ & ~0x00000004);
       content_ = 0;
+      catalogId_ = null;
+      if (catalogIdBuilder_ != null) {
+        catalogIdBuilder_.dispose();
+        catalogIdBuilder_ = null;
+      }
       return this;
     }
 
@@ -601,6 +682,12 @@ private static final long serialVersionUID = 0L;
       }
       if (((from_bitField0_ & 0x00000008) != 0)) {
         result.content_ = content_;
+      }
+      if (((from_bitField0_ & 0x00000010) != 0)) {
+        result.catalogId_ = catalogIdBuilder_ == null
+            ? catalogId_
+            : catalogIdBuilder_.build();
+        to_bitField0_ |= 0x00000004;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -684,6 +771,9 @@ private static final long serialVersionUID = 0L;
       if (other.content_ != 0) {
         setContentValue(other.getContentValue());
       }
+      if (other.hasCatalogId()) {
+        mergeCatalogId(other.getCatalogId());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -742,6 +832,13 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000008;
               break;
             } // case 32
+            case 42: {
+              input.readMessage(
+                  getCatalogIdFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000010;
+              break;
+            } // case 42
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -1561,6 +1658,226 @@ private static final long serialVersionUID = 0L;
       content_ = 0;
       onChanged();
       return this;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> catalogIdBuilder_;
+    /**
+     * <pre>
+     * Identity of the catalog incarnation `sinceVersion`/`sinceIndex` was recorded on - the `catalogId` a client
+     * stored together with the position. Catalog versions mean something only within one incarnation: replacing,
+     * restoring or duplicating a catalog starts a different version sequence under the same name. When set and
+     * the session's catalog is a different incarnation, the stream fails with
+     * `ChangeCaptureResumePositionInvalidException` (reason `DIFFERENT_INCARNATION`) instead of streaming an
+     * unrelated version sequence - or, for a version the new incarnation has not reached yet, an empty one. If
+     * unset, no identity is checked. The streamed captures do not carry the identity themselves; it is the
+     * `catalogId` of the session the request was sent in.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 5;</code>
+     * @return Whether the catalogId field is set.
+     */
+    public boolean hasCatalogId() {
+      return ((bitField0_ & 0x00000010) != 0);
+    }
+    /**
+     * <pre>
+     * Identity of the catalog incarnation `sinceVersion`/`sinceIndex` was recorded on - the `catalogId` a client
+     * stored together with the position. Catalog versions mean something only within one incarnation: replacing,
+     * restoring or duplicating a catalog starts a different version sequence under the same name. When set and
+     * the session's catalog is a different incarnation, the stream fails with
+     * `ChangeCaptureResumePositionInvalidException` (reason `DIFFERENT_INCARNATION`) instead of streaming an
+     * unrelated version sequence - or, for a version the new incarnation has not reached yet, an empty one. If
+     * unset, no identity is checked. The streamed captures do not carry the identity themselves; it is the
+     * `catalogId` of the session the request was sent in.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 5;</code>
+     * @return The catalogId.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcUuid getCatalogId() {
+      if (catalogIdBuilder_ == null) {
+        return catalogId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : catalogId_;
+      } else {
+        return catalogIdBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Identity of the catalog incarnation `sinceVersion`/`sinceIndex` was recorded on - the `catalogId` a client
+     * stored together with the position. Catalog versions mean something only within one incarnation: replacing,
+     * restoring or duplicating a catalog starts a different version sequence under the same name. When set and
+     * the session's catalog is a different incarnation, the stream fails with
+     * `ChangeCaptureResumePositionInvalidException` (reason `DIFFERENT_INCARNATION`) instead of streaming an
+     * unrelated version sequence - or, for a version the new incarnation has not reached yet, an empty one. If
+     * unset, no identity is checked. The streamed captures do not carry the identity themselves; it is the
+     * `catalogId` of the session the request was sent in.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 5;</code>
+     */
+    public Builder setCatalogId(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
+      if (catalogIdBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        catalogId_ = value;
+      } else {
+        catalogIdBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Identity of the catalog incarnation `sinceVersion`/`sinceIndex` was recorded on - the `catalogId` a client
+     * stored together with the position. Catalog versions mean something only within one incarnation: replacing,
+     * restoring or duplicating a catalog starts a different version sequence under the same name. When set and
+     * the session's catalog is a different incarnation, the stream fails with
+     * `ChangeCaptureResumePositionInvalidException` (reason `DIFFERENT_INCARNATION`) instead of streaming an
+     * unrelated version sequence - or, for a version the new incarnation has not reached yet, an empty one. If
+     * unset, no identity is checked. The streamed captures do not carry the identity themselves; it is the
+     * `catalogId` of the session the request was sent in.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 5;</code>
+     */
+    public Builder setCatalogId(
+        io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder builderForValue) {
+      if (catalogIdBuilder_ == null) {
+        catalogId_ = builderForValue.build();
+      } else {
+        catalogIdBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Identity of the catalog incarnation `sinceVersion`/`sinceIndex` was recorded on - the `catalogId` a client
+     * stored together with the position. Catalog versions mean something only within one incarnation: replacing,
+     * restoring or duplicating a catalog starts a different version sequence under the same name. When set and
+     * the session's catalog is a different incarnation, the stream fails with
+     * `ChangeCaptureResumePositionInvalidException` (reason `DIFFERENT_INCARNATION`) instead of streaming an
+     * unrelated version sequence - or, for a version the new incarnation has not reached yet, an empty one. If
+     * unset, no identity is checked. The streamed captures do not carry the identity themselves; it is the
+     * `catalogId` of the session the request was sent in.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 5;</code>
+     */
+    public Builder mergeCatalogId(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
+      if (catalogIdBuilder_ == null) {
+        if (((bitField0_ & 0x00000010) != 0) &&
+          catalogId_ != null &&
+          catalogId_ != io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance()) {
+          getCatalogIdBuilder().mergeFrom(value);
+        } else {
+          catalogId_ = value;
+        }
+      } else {
+        catalogIdBuilder_.mergeFrom(value);
+      }
+      if (catalogId_ != null) {
+        bitField0_ |= 0x00000010;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Identity of the catalog incarnation `sinceVersion`/`sinceIndex` was recorded on - the `catalogId` a client
+     * stored together with the position. Catalog versions mean something only within one incarnation: replacing,
+     * restoring or duplicating a catalog starts a different version sequence under the same name. When set and
+     * the session's catalog is a different incarnation, the stream fails with
+     * `ChangeCaptureResumePositionInvalidException` (reason `DIFFERENT_INCARNATION`) instead of streaming an
+     * unrelated version sequence - or, for a version the new incarnation has not reached yet, an empty one. If
+     * unset, no identity is checked. The streamed captures do not carry the identity themselves; it is the
+     * `catalogId` of the session the request was sent in.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 5;</code>
+     */
+    public Builder clearCatalogId() {
+      bitField0_ = (bitField0_ & ~0x00000010);
+      catalogId_ = null;
+      if (catalogIdBuilder_ != null) {
+        catalogIdBuilder_.dispose();
+        catalogIdBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Identity of the catalog incarnation `sinceVersion`/`sinceIndex` was recorded on - the `catalogId` a client
+     * stored together with the position. Catalog versions mean something only within one incarnation: replacing,
+     * restoring or duplicating a catalog starts a different version sequence under the same name. When set and
+     * the session's catalog is a different incarnation, the stream fails with
+     * `ChangeCaptureResumePositionInvalidException` (reason `DIFFERENT_INCARNATION`) instead of streaming an
+     * unrelated version sequence - or, for a version the new incarnation has not reached yet, an empty one. If
+     * unset, no identity is checked. The streamed captures do not carry the identity themselves; it is the
+     * `catalogId` of the session the request was sent in.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 5;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder getCatalogIdBuilder() {
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return getCatalogIdFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Identity of the catalog incarnation `sinceVersion`/`sinceIndex` was recorded on - the `catalogId` a client
+     * stored together with the position. Catalog versions mean something only within one incarnation: replacing,
+     * restoring or duplicating a catalog starts a different version sequence under the same name. When set and
+     * the session's catalog is a different incarnation, the stream fails with
+     * `ChangeCaptureResumePositionInvalidException` (reason `DIFFERENT_INCARNATION`) instead of streaming an
+     * unrelated version sequence - or, for a version the new incarnation has not reached yet, an empty one. If
+     * unset, no identity is checked. The streamed captures do not carry the identity themselves; it is the
+     * `catalogId` of the session the request was sent in.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 5;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getCatalogIdOrBuilder() {
+      if (catalogIdBuilder_ != null) {
+        return catalogIdBuilder_.getMessageOrBuilder();
+      } else {
+        return catalogId_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : catalogId_;
+      }
+    }
+    /**
+     * <pre>
+     * Identity of the catalog incarnation `sinceVersion`/`sinceIndex` was recorded on - the `catalogId` a client
+     * stored together with the position. Catalog versions mean something only within one incarnation: replacing,
+     * restoring or duplicating a catalog starts a different version sequence under the same name. When set and
+     * the session's catalog is a different incarnation, the stream fails with
+     * `ChangeCaptureResumePositionInvalidException` (reason `DIFFERENT_INCARNATION`) instead of streaming an
+     * unrelated version sequence - or, for a version the new incarnation has not reached yet, an empty one. If
+     * unset, no identity is checked. The streamed captures do not carry the identity themselves; it is the
+     * `catalogId` of the session the request was sent in.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 5;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> 
+        getCatalogIdFieldBuilder() {
+      if (catalogIdBuilder_ == null) {
+        catalogIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>(
+                getCatalogId(),
+                getParentForChildren(),
+                isClean());
+        catalogId_ = null;
+      }
+      return catalogIdBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

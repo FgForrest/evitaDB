@@ -73,15 +73,22 @@ and language tag in order to be used.
 
 <Note type="warning">
 
-Only a single occurrence of `entityLocaleEquals` is allowed in the filter part of the query. Currently, there is no way
-to switch context between different parts of the filter and build queries such as *find a product whose name in `en-US`
-is "screwdriver" or in `cs` is "šroubovák"*.
+An entity level may contain several `entityLocaleEquals` constraints when they all name the same locale.
+Different locales at one level are rejected, including alternatives joined by `or`.
 
-Also, it's not possible to omit the language specification for a localized attribute and ask questions like: *find
+The children of `entityHaving`, `groupHaving`, `hierarchyWithin` and `hierarchyWithinRoot` form a separate entity
+level. Each level uses its own locale when specified, otherwise it inherits its enclosing level's resolved locale.
+A locale specified only inside a nested entity level does not set the main query's locale. Direct children of
+`referenceHaving` and `facetHaving` use the owner's locale, including their localized reference attributes.
+
+In a `referenceContent` filter, the direct children use the reference filter's locale, falling back to the owner.
+Referenced entity bodies and their ordering use the `entityHaving` level's locale when specified, otherwise the
+reference filter's locale, otherwise the owner. Group filters and bodies resolve their `groupHaving` level the same
+way. A reference-level `cs` and a nested entity-level `en` may therefore coexist. Summary entity and group filters
+also supply the locale for their fetched bodies and ordering.
+
+It is not possible to omit the language specification for a localized attribute and ask questions like: *find
 a product whose name in any language is "screwdriver"*.
-
-While it's technically possible to implement support for these tasks in evitaDB, they represent edge cases, and there
-were more important scenarios to handle.
 
 </Note>
 

@@ -327,10 +327,17 @@ level is limited.
 
 Enabling hierarchy placement implies the creation of a new
 <SourceClass>evita_engine/src/main/java/io/evitadb/index/hierarchy/HierarchyIndex.java</SourceClass> for the involved
-entity type. When another entity references a hierarchy entity and the reference is marked as *indexed*, the special
-<SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass> is created for each hierarchical entity. This index will
-hold reduced attribute and price indices of the referencing entity, allowing quick evaluation of
-[`withinHierarchy`](../query/filtering/hierarchy.md) filter conditions.
+entity type. When another entity references a hierarchy entity and the reference is marked as *indexed*, the entities
+referencing each hierarchical entity are indexed separately, allowing quick evaluation of
+[`withinHierarchy`](../query/filtering/hierarchy.md) filter conditions. With the `FOR_FILTERING_AND_PARTITIONING`
+[indexing level](#reference-indexing), every referenced hierarchical entity gets its own
+<SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass>, which also holds
+reduced attribute and price indices of the referencing entities. With the `FOR_FILTERING` level, a hierarchical entity
+referenced by several entities gets its own
+<SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass> too, while one
+referenced by a single entity is kept as a row of the
+<SourceClass>evita_engine/src/main/java/io/evitadb/index/VirtualReferencePartitionIndex.java</SourceClass> of the
+reference.
 
 ##### Orphan hierarchy nodes
 
@@ -920,6 +927,24 @@ Each reference schema has a certain cardinality. The cardinality describes the e
 When you allow definition of *duplicate* references using one of the cardinality types: `ZERO_OR_MORE_WITH_DUPLICATES` or `ONE_OR_MORE_WITH_DUPLICATES`, you'll be able to define two references to the same target entity within a single entity instance. In such a case you need to select at least one reference attribute that would make the two references distinguishable and set it as `representative`. The representative attribute would then be used to identify the specific reference when querying or manipulating the entity. If no representative attribute is defined, an exception is thrown when you try to create duplicate references.
 
 There are situations when duplicate references come in handy. Imagine you have an entity type `Product` that has a reference `medias` to an entity of type `Media`. You want to be able to link multiple media items to a single product, and you also want to be able to distinguish between them based on their role (e.g., "thumbnail", "gallery", "video", etc.). In such a case you can define reference attribute `role` as `representative`, and then you'll be able to create multiple references to the same `Media` entity with different `role` values.
+
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### Representative attributes should have low cardinality
+</NoteTitle>
+
+Representative attributes are expected to have a small, closed set of values that usually mirrors an enumeration in
+your application, such as the media role or the type of relation between two products. evitaDB keeps the distinct
+combinations of representative values of a reference in a shared dictionary, which stays small and cheap to maintain
+as long as the values repeat across many references. Do not use a value that is unique to each reference (an
+identifier, a timestamp or free text) as a representative attribute: the dictionary would then grow with every
+reference created, and each new value would make writes more expensive.
+
+</Note>
+
+A [reflected reference](#reference-directionality) allows duplicates exactly when the original reference it reflects does. It inherits the cardinality of the original reference by default; when it declares its own cardinality, both cardinalities must either allow duplicates or disallow them, and a reflected reference allowing duplicates must also inherit all representative attributes of the original reference. A schema whose two references disagree - whether the mismatch is declared directly or arises later by changing the cardinality of either reference - is refused with an `InvalidSchemaMutationException` when the session that changed the schema closes.
 
 ## Scopes
 

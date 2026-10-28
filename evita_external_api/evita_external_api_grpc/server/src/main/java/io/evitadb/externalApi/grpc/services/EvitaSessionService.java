@@ -2271,7 +2271,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				ChangeCatalogCaptureRecords.groupIntoRecords(mutationsHistoryStream)
 		) {
 			final List<List<ChangeCatalogCapture>> fetchedRecords = recordStream
-				.takeWhile(changeCaptureRecord -> withinBounds.test(changeCaptureRecord.get(0).version()))
+				.takeWhile(changeCaptureRecord -> withinBounds.test(changeCaptureRecord.getFirst().version()))
 				.skip(firstRecordNumber)
 				// one extra record fetched to detect whether a following page exists
 				.limit(pageSize + 1L)
@@ -2626,12 +2626,16 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		// without entering the async block.
 		final EvitaInternalSessionContract session = ServerSessionInterceptor.SESSION.get();
 		final String catalogName = session.getCatalogName();
+		// the subscription is bound to the incarnation of the session's catalog, and so are its heartbeats: looking
+		// the version up by name would report another catalog's version after a replacement and fail after
+		// a rename - and the heartbeat has no error path for a failing lookup
 		final ChangeCatalogCaptureSubscriber subscriber = new ChangeCatalogCaptureSubscriber(
 			this.evita.getServiceExecutor(),
 			catalogName,
+			session.getCatalogId(),
 			serverCallObserver,
 			clientVersion,
-			() -> this.evita.getCatalogInstanceOrThrowException(catalogName).getVersion(),
+			session.createLiveCatalogVersionSupplier(),
 			serviceRequestContext
 		);
 		serverCallObserver.setOnCancelHandler(subscriber::onTransportTerminated);

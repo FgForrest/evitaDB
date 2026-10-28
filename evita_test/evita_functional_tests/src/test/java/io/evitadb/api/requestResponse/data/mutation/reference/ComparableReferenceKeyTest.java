@@ -33,7 +33,6 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.REFERENCE;
@@ -218,19 +217,24 @@ class ComparableReferenceKeyTest {
 
 		@Test
 		@DisplayName("should return false when compared to null")
+		@SuppressWarnings({"SimplifiableAssertion", "ObjectEqualsNull"})
 		void shouldReturnFalseWhenComparedToNull() {
 			final ComparableReferenceKey key = new ComparableReferenceKey(new ReferenceKey("brand", 10));
 
-			assertNotEquals(null, key);
+			// deliberately not `assertNotEquals`: with `null` as its first argument it calls no `equals` at all, so
+			// the null check of the class under test would never run
+			assertFalse(key.equals(null));
 		}
 
 		@Test
 		@DisplayName("should return false when compared to a different type")
+		@SuppressWarnings({"SimplifiableAssertion", "EqualsBetweenInconvertibleTypes"})
 		void shouldReturnFalseWhenComparedToDifferentType() {
 			final ComparableReferenceKey key = new ComparableReferenceKey(new ReferenceKey("brand", 10));
 
-			//noinspection AssertBetweenInconvertibleTypes
-			assertNotEquals("brand: 10", key);
+			// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
+			// fix moves the literal there, so `String.equals` would be tested instead of the class under test
+			assertFalse(key.equals("brand: 10"));
 		}
 	}
 }

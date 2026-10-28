@@ -50,6 +50,12 @@ It's obvious that the `inScope` container is not necessary if we are only queryi
 you do use it in this case, it must match the scope of the query. If you use the `inScope` container with the `LIVE`
 scope, but the query is executed in the `ARCHIVED` scope, the engine will return an error.
 
+An `inScope` container cannot be nested in another `inScope` container within the same requirement context. With
+a different scope the inner requirements would apply only to entities that are in both scopes at once, which none are,
+and with the same scope the inner container would be redundant - so the query is rejected with an error in both cases.
+Place the containers side by side instead. The rule does not reach into a requirement that describes the content of
+other entities - such as `entityFetch`, `referenceContent`, `facetSummary` or `hierarchyOfReference`.
+
 </Note>
 
 <LS to="g">

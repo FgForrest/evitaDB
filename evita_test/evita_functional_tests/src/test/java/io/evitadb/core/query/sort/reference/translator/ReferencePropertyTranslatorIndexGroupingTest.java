@@ -49,7 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Verifies how the planning of a reference ordering lines up the reduced indexes of one referenced entity
- * ({@link ReferencePropertyTranslator#appendGroupedByRepresentativeKey(List, boolean, ReducedEntityIndex[], int)}):
+ * ({@link ReferencePropertyTranslator#appendGroupedByRepresentativeKey}):
  * grouped by representative key, live before archived inside a key, the keys in the representative order for a
  * traversal and in the order they were met for the planning-time indexes of a `pickFirst` ordering. The indexes are
  * real {@link ReducedEntityIndex}es of one target, handed over in an order that is neither.

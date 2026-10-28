@@ -97,6 +97,20 @@ public interface DataStoreMemoryBuffer extends DataStoreReader {
 	<T extends StoragePart> void trapUpdate(long catalogVersion, @Nonnull T value);
 
 	/**
+	 * Makes the savepoint bracketing the current root entity mutation restore the CONTENT of the part trapped under
+	 * `(containerType, primaryKey)` as it is now, should the mutation fail. No-op when no savepoint is open or no live
+	 * part is trapped under that key.
+	 *
+	 * A trapped part read through {@link #fetch} is covered automatically. This is for a part the caller fetched
+	 * BEFORE the savepoint opened and still holds — that read could not record anything, yet the caller may mutate the
+	 * very instance the buffer keeps (see `DataStoreChanges#journalTrappedContent`).
+	 *
+	 * @param primaryKey    the primary key of the part
+	 * @param containerType the storage-part type of the part
+	 */
+	<T extends StoragePart> void journalTrappedContent(long primaryKey, @Nonnull Class<T> containerType);
+
+	/**
 	 * Method pops all trapped changes from the memory buffer and returns them. Additional call to this method will
 	 * return empty {@link TrappedChanges} instance unless new changes are trapped in the memory buffer.
 	 */

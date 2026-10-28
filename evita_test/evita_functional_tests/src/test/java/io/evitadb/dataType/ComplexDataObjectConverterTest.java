@@ -608,7 +608,7 @@ class ComplexDataObjectConverterTest {
 				);
 				assertNotNull(deserialized.getStringList());
 				assertEquals(1, deserialized.getStringList().size());
-				assertEquals("world", deserialized.getStringList().get(0));
+				assertEquals("world", deserialized.getStringList().getFirst());
 			}
 		}
 

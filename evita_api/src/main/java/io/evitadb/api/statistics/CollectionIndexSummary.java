@@ -43,6 +43,11 @@ import java.util.Arrays;
  * the breakdown is fetched per collection. The distinct-value cardinality *inside* each index is more expensive still
  * and lives in a separate component ({@link CatalogStatisticsComponent#INDEX_CARDINALITY}).
  *
+ * **The counts are of physical indexes.** A reference indexed for filtering only keeps each partition that has a
+ * single owner as a row of a registry held by its `REFERENCED_ENTITY_TYPE` index rather than as a `REFERENCED_ENTITY`
+ * index of its own, so such a partition is not counted here. How many of them a reference holds is reported by
+ * {@link CollectionIndexCardinality.IndexCardinality#virtualPartitionCount()}.
+ *
  * @param totalIndexCount total number of indexes in this collection
  * @param byTypeAndScope  one entry per (kind, scope) pair that has at least one index; pairs with no index are omitted
  *                        rather than reported as zero

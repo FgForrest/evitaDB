@@ -526,7 +526,7 @@ class StaleLeafPageTwinWriterReproductionTest implements EvitaTestSupport {
 			if (handles == null || handles.isEmpty()) {
 				return -1;
 			}
-			final PagedLeafHandle last = handles.get(handles.size() - 1);
+			final PagedLeafHandle last = handles.getLast();
 			if (!(last instanceof io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.LeafPageHandle<?> leafHandle)) {
 				return -1;
 			}
@@ -1218,7 +1218,7 @@ class StaleLeafPageTwinWriterReproductionTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private static String firstSample(@Nonnull List<Throwable> sampleExceptions) {
-		return sampleExceptions.isEmpty() ? "" : ", first: " + sampleExceptions.get(0);
+		return sampleExceptions.isEmpty() ? "" : ", first: " + sampleExceptions.getFirst();
 	}
 
 	/**

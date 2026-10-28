@@ -48,7 +48,7 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.index.attribute.SortIndex.createComparatorFor;
-import static io.evitadb.index.attribute.SortIndex.createNormalizerFor;
+import static io.evitadb.index.attribute.SortIndex.createComparatorNormalizerFor;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -91,20 +91,23 @@ public class AttributeComparator implements EntityComparator {
 	private IntObjectMap<Comparable<?>> cache;
 
 	/**
-	 * Creates a comparator sorting the entities of every scope.
+	 * Creates the comparator of the given attribute.
 	 *
-	 * @param attributeName  name of the sorted attribute
-	 * @param type           type of the sorted attribute
-	 * @param locale         locale of a localized attribute, `null` otherwise
-	 * @param orderDirection direction of the ordering
+	 * @param attributeName        the name of the sortable attribute
+	 * @param type                 the type of the attribute value
+	 * @param indexedDecimalPlaces the `indexedDecimalPlaces` of the attribute schema - the scale a range value is
+	 *                             compared at, so the comparator orders the entities as the sort index does
+	 * @param locale               the locale to read a localized attribute in, or `null`
+	 * @param orderDirection       the direction to sort in
 	 */
 	public AttributeComparator(
 		@Nonnull String attributeName,
 		@Nonnull Class<?> type,
+		int indexedDecimalPlaces,
 		@Nullable Locale locale,
 		@Nonnull OrderDirection orderDirection
 	) {
-		this(attributeName, type, locale, orderDirection, null);
+		this(attributeName, type, indexedDecimalPlaces, locale, orderDirection, null);
 	}
 
 	/**
@@ -112,6 +115,7 @@ public class AttributeComparator implements EntityComparator {
 	 *
 	 * @param attributeName  name of the sorted attribute
 	 * @param type           type of the sorted attribute
+	 * @param indexedDecimalPlaces scale used by the sort index to compare range values
 	 * @param locale         locale of a localized attribute, `null` otherwise
 	 * @param orderDirection direction of the ordering
 	 * @param sortableScopes scopes whose entities may be sorted (the attribute is sortable there), `null` for every
@@ -120,6 +124,7 @@ public class AttributeComparator implements EntityComparator {
 	public AttributeComparator(
 		@Nonnull String attributeName,
 		@Nonnull Class<?> type,
+		int indexedDecimalPlaces,
 		@Nullable Locale locale,
 		@Nonnull OrderDirection orderDirection,
 		@Nullable Set<Scope> sortableScopes
@@ -128,7 +133,8 @@ public class AttributeComparator implements EntityComparator {
 		final ComparatorSource comparatorSource = new ComparatorSource(
 			type, orderDirection, OrderBehaviour.NULLS_LAST
 		);
-		final Optional<UnaryOperator<Serializable>> normalizerFor = createNormalizerFor(comparatorSource);
+		final Optional<UnaryOperator<Serializable>> normalizerFor =
+			createComparatorNormalizerFor(comparatorSource, indexedDecimalPlaces);
 		final UnaryOperator<Serializable> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
 		this.pkComparator = orderDirection == OrderDirection.ASC ?
 			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException) :

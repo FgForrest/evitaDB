@@ -1,7 +1,7 @@
 ---
 title: Rank the index-footprint work on a production catalog, and take 4.2 GB out of its resident heap
 date: 2026-09-04
-updated: 2026-09-28 17:25
+updated: 2026-10-26 16:22
 status: accepted
 kind: optimization
 issues: [1486, 1455]
@@ -9,7 +9,15 @@ prs: []
 areas: [evita_engine/index/bPlusTree, evita_engine/index/range, evita_engine/index/price, evita_engine/index/attribute, evita_engine/index/hierarchy, evita_engine/index/array, evita_engine/index/invertedIndex, evita_engine/index/bitmap, evita_engine/core/query/algebra, evita_test/evita_performance_tests/spike/trigram]
 supersedes: []
 superseded-by: []
-relates: [2026-09-03-content-sized-value-tree-columns, 2026-08-01-bplustree-cursor-free-insert-path, 2026-09-04-millisecond-temporal-precision, 2026-07-10-more-optimized-data-structures, 2026-08-31-trigram-query-path-optimization, 2026-08-16-per-index-usage-statistics]
+relates:
+  - 2026-10-20-session-free-tree-reads-are-management-only
+  - 2026-09-03-content-sized-value-tree-columns
+  - 2026-08-01-bplustree-cursor-free-insert-path
+  - 2026-09-04-millisecond-temporal-precision
+  - 2026-07-10-more-optimized-data-structures
+  - 2026-08-31-trigram-query-path-optimization
+  - 2026-08-16-per-index-usage-statistics
+  - 2026-10-26-bulk-built-int-keyed-trees-at-load
 ---
 
 # Rank the index-footprint work on a production catalog, and take 4.2 GB out of its resident heap
@@ -506,6 +514,13 @@ warm-up writer.
 > guard the heap walk then needed in this tree and its siblings, is recorded in
 > `2026-09-03-content-sized-value-tree-columns` (the 2026-09-28 sibling-tree bullets).
 
+> **Superseded in part (2026-10-20)** by
+> [`2026-10-20-session-free-tree-reads-are-management-only`](2026-10-20-session-free-tree-reads-are-management-only.md).
+> The leaf bounds no longer stay: the point lookups, the keyed and unkeyed iterators and the verbose rendering of
+> all three trees lost them, together with `UnorderedLookupTree#observableLeafCount` and the tests that pinned
+> them, because none of those readers is ever taken without a happens-before edge to the writer. Only the heap
+> walks of the long and element trees keep their `observableLeafPeek`.
+
 **The sweep missed one, and the adversarial gate found it.** Both keyed iterator constructors of the long
 tree searched `getKeys()` over a range taken from a separately resolved `size()`. Once leaf arrays are
 content-sized, a size read from a fresh peek paired with an older, shorter array makes the binary search
@@ -837,3 +852,5 @@ confirmed for incremental splits and refuted for the cold-load path every measur
 - **2026-09-05 02:45** — six optimization commits cherry-picked onto the integration line; a second
   cross-branch integration break is found by a `test-compile`, not by a `compile`.
 - **2026-09-05 04:15** — all six quality-pipeline batches and their fixes integrated at head `79e74e121`.
+- **2026-10-20** — the leaf bounds outside the heap walks removed by
+  `2026-10-20-session-free-tree-reads-are-management-only`

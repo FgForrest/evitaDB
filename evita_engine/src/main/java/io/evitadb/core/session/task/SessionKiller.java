@@ -24,6 +24,7 @@
 package io.evitadb.core.session.task;
 
 import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.exception.ConcurrentSessionAccessException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.core.Evita;
@@ -138,6 +139,13 @@ public class SessionKiller implements Runnable, Closeable {
 						new KilledEvent(catalogName).commit();
 					} catch (InstanceTerminatedException ex) {
 						// ignore the session was already terminated in the meantime
+					} catch (ConcurrentSessionAccessException ex) {
+						// the read-write session became active again after the idle check above: a client call
+						// claims the proxy's ownership guard (`EvitaSessionProxy#owningThread`) before
+						// `invokeMethodSafely` increments `insideInvocation`, so the check could still see it
+						// idle, and our own call into it was rejected by that guard - the session is in use, so
+						// skip it this tick instead of aborting the pass for every other expired session
+						log.debug("Session killer skipped a session that is in use again: {}", ex.getMessage());
 					}
 				});
 

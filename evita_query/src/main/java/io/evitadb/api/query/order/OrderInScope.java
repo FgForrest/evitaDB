@@ -25,6 +25,7 @@ package io.evitadb.api.query.order;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.GenericConstraint;
+import io.evitadb.api.query.InScopeContainer;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
@@ -58,6 +59,11 @@ import java.io.Serializable;
  * ordering to LIVE scope only. Attribute "code" is indexed in both scopes and can be used for ordering without any
  * restrictions in this example.
  *
+ * An `inScope` container must not be nested in another one within the same evaluation context (a container ordering by
+ * the referenced entity's own properties starts another one): a different scope would be contradictory and the same
+ * scope redundant, so a query containing either is rejected with {@link io.evitadb.exception.EvitaInvalidUsageException}
+ * when it is executed (see {@link io.evitadb.api.query.QueryUtils#assertNoNestedScopeContainers(io.evitadb.api.query.Query)}).
+ *
  * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/behavioral#in-scope)
  *
  * @see Scope
@@ -69,7 +75,8 @@ import java.io.Serializable;
 	userDocsLink = "/documentation/query/ordering/behavioral#in-scope",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE }
 )
-public class OrderInScope extends AbstractOrderConstraintContainer implements GenericConstraint<OrderConstraint> {
+public class OrderInScope extends AbstractOrderConstraintContainer
+	implements GenericConstraint<OrderConstraint>, InScopeContainer<OrderConstraint> {
 	@Serial private static final long serialVersionUID = 9023638910417966280L;
 	private static final String CONSTRAINT_NAME = "inScope";
 
@@ -87,6 +94,7 @@ public class OrderInScope extends AbstractOrderConstraintContainer implements Ge
 	/**
 	 * Returns requested scope.
 	 */
+	@Override
 	@Nonnull
 	public Scope getScope() {
 		return (Scope) getArguments()[0];

@@ -199,12 +199,16 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
+import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
@@ -500,11 +504,14 @@ public final class Catalog
 	 * @param evita                     reference to the main Evita instance
 	 * @param exportService             service used for handling file export operations
 	 * @param newCatalogVersionConsumer consumer to handle actions when a new catalog version is created
-	 * @param onSuccess                 callback function to be invoked upon successful catalog load, receiving the catalog name and loaded catalog
+	 * @param onSuccess                 callback invoked upon successful catalog load, receiving the catalog name
+	 *                                  and the catalog loaded at the version its bootstrap record published; it
+	 *                                  returns the instance the returned future completes with, which is the loaded
+	 *                                  one or the instance its write-ahead log was replayed to
 	 * @param onFailure                 callback function to be invoked upon failure, receiving the catalog name and the encountered exception
 	 * @param tracingContext            tracing context used for distributed tracing and monitoring
 	 * @return a {@link ProgressingFuture} object that tracks the progress of the catalog loading process and eventually
-	 * resolves to a {@link Catalog} instance
+	 * resolves to the {@link Catalog} instance `onSuccess` settled on
 	 */
 	@Nonnull
 	public static ProgressingFuture<Catalog> loadCatalog(
@@ -516,7 +523,7 @@ public final class Catalog
 		@Nonnull ExportService exportService,
 		@Nonnull FileManagementService fileManagementService,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
-		@Nonnull BiConsumer<String, Catalog> onSuccess,
+		@Nonnull BiFunction<String, Catalog, Catalog> onSuccess,
 		@Nonnull BiConsumer<String, Throwable> onFailure,
 		@Nonnull TracingContext tracingContext
 	) {
@@ -684,9 +691,11 @@ public final class Catalog
 				for (EntityCollection collection : initBulk.collections().values()) {
 					collection.rebuildReducedIndexMembership();
 				}
-				onSuccess.accept(catalogName, catalog);
+				// the callback may replay the write-ahead log beyond the loaded version, and the future has to
+				// yield the instance it settled on - the loaded one is superseded the moment a replay ran
+				final Catalog settledCatalog = onSuccess.apply(catalogName, catalog);
 				theFuture.updateProgress(1);
-				return catalog;
+				return settledCatalog;
 			},
 			(initBulk, exception) -> {
 				if (initBulk != null) {
@@ -1183,6 +1192,38 @@ public final class Catalog
 	}
 
 	/**
+	 * Creates a supplier of the newest version this catalog **incarnation** has reached in the live view - not the
+	 * version of this particular instance, which is an immutable snapshot, and not the version of whatever catalog
+	 * carries this catalog's name later.
+	 *
+	 * The incarnation is followed through its {@link TransactionManager}, which every catalog version derived from
+	 * this one shares and a rename keeps, while a replacement, restore or duplication starts a new one. Once the
+	 * incarnation leaves the live view (it was replaced, removed or the engine shut down), its transaction manager
+	 * forgets the living catalog and the supplier keeps reporting the last version it saw - it never switches to
+	 * another incarnation and never throws, which is what lets the change capture heartbeat call it unguarded.
+	 *
+	 * The supplier deliberately captures the transaction manager, never this instance: a long-lived consumer of it
+	 * (a change capture stream may stay open for days) would otherwise pin this snapshot and everything it
+	 * references in memory, long after the live view has moved on. The transaction manager references only the
+	 * catalog currently living, and nothing once it is closed.
+	 *
+	 * @return the supplier, starting at the version of this instance
+	 */
+	@Nonnull
+	public LongSupplier createLiveVersionSupplier() {
+		final TransactionManager theTransactionManager = this.transactionManager;
+		final AtomicLong lastKnownVersion = new AtomicLong(getVersion());
+		return () -> {
+			final Catalog livingCatalog = theTransactionManager.getLivingCatalog();
+			return livingCatalog == null ?
+				lastKnownVersion.get() :
+				// never reported going backwards - a session may have been bound to a version the live view had
+				// not published yet when the supplier was created
+				lastKnownVersion.accumulateAndGet(livingCatalog.getVersion(), Math::max);
+		};
+	}
+
+	/**
 	 * This method is part of the internal API and allows to move forward the catalog version sequence number in
 	 * transactional context.
 	 *
@@ -1486,8 +1527,10 @@ public final class Catalog
 				// marks a sweep boundary at the end of bulk indexing, so the next periodic sweep reclaims what the
 				// import stopped using. Gated because a lone sweep releases almost nothing - see
 				// CollationKeyCache#sweepAll
-				if (this.evitaConfiguration.server().dropCollationKeysAfterSecondsOfInactivity() > 0) {
-					final int releasedCollationKeys = CollationKeyCache.sweepAll();
+				final int releasedCollationKeys =
+					this.evitaConfiguration.server().dropCollationKeysAfterSecondsOfInactivity() > 0 ?
+						CollationKeyCache.sweepAll() : 0;
+				if (releasedCollationKeys > 0) {
 					log.info(
 						"Catalog `{}` is now alive! (released {} collation keys unused since the previous sweep)",
 						newCatalog.getName(), releasedCollationKeys
@@ -1538,6 +1581,9 @@ public final class Catalog
 			getCatalogState() == CatalogState.ALIVE,
 			() -> new CatalogNotAliveException(getInternalSchema().getName())
 		);
+		// the transaction manager verifies the resume position - it is the boundary every registration passes, and it
+		// serves exactly the incarnation `this` belongs to, so the position is judged against that one incarnation
+		// even when the catalog is being replaced concurrently
 		return this.transactionManager.registerObserver(request);
 	}
 
@@ -2556,6 +2602,16 @@ public final class Catalog
 	}
 
 	/**
+	 * Retrieves the first catalog version the WAL can still replay once retention has removed older WAL files.
+	 * See {@link CatalogPersistenceService#getFirstReplayableCatalogVersion()}.
+	 *
+	 * @return the first replayable catalog version, or `-1` when retention has not removed any WAL file
+	 */
+	public long getFirstReplayableCatalogVersion() {
+		return this.persistenceService.getFirstReplayableCatalogVersion();
+	}
+
+	/**
 	 * Method allows to immediately flush all information held in memory to the persistent storage. It stores
 	 * an {@link EntityCollectionHeader} for every collection whose file offset index changed and, when anything
 	 * changed at all, the catalog header that publishes them.
@@ -3373,6 +3429,8 @@ public final class Catalog
 	 * @param createEntitySchemaMutation The mutation used to create the entity schema.
 	 * @param catalogSchema              The catalog schema to add the new entity schema to.
 	 * @return The updated catalog schema.
+	 * @throws io.evitadb.api.exception.IdentifierOverflowException when the entity collection primary keys of the
+	 *                                                              catalog are exhausted, before anything changes
 	 */
 	@Nonnull
 	private CatalogSchema createEntitySchema(
@@ -3386,7 +3444,10 @@ public final class Catalog
 			entityType
 		);
 		final long catalogVersion = this.getVersion();
-		final int entityTypePrimaryKey = this.entityTypeSequence.incrementAndGet();
+		final int entityTypePrimaryKey = SequenceService.nextValueOrExhausted(this.entityTypeSequence);
+		if (entityTypePrimaryKey == SequenceService.EXHAUSTED) {
+			throw SequenceService.exhausted(SequenceType.ENTITY_COLLECTION, getName(), null);
+		}
 		final EntityCollectionPersistenceService<StorageDescriptor, EntityCollectionHeader> entityCollectionPersistenceService = this.persistenceService
 			.getOrCreateEntityCollectionPersistenceService(
 				catalogVersion, entityType, entityTypePrimaryKey
@@ -3850,6 +3911,34 @@ public final class Catalog
 		@Override
 		public void removeIndex(@Nonnull CatalogIndexKey entityIndexKey) {
 			throw new GenericEvitaInternalError("Global catalog index is not expected to be removed!");
+		}
+
+		/**
+		 * Catalog indexes are never retired, so there is never a primary key to install one under again.
+		 *
+		 * @throws GenericEvitaInternalError always
+		 */
+		@Nonnull
+		@Override
+		public CatalogIndex installIndex(
+			@Nonnull CatalogIndexKey catalogIndexKey,
+			int primaryKey,
+			@Nonnull IntFunction<CatalogIndex> factory
+		) {
+			throw new GenericEvitaInternalError(
+				"Catalog index `" + catalogIndexKey + "` is not expected to be installed under primary key " +
+					primaryKey + "!"
+			);
+		}
+
+		/**
+		 * Catalog indexes are not addressable by storage primary key, so none is ever allocated for them.
+		 *
+		 * @throws GenericEvitaInternalError always
+		 */
+		@Override
+		public int allocatePartitionPrimaryKey() {
+			throw new GenericEvitaInternalError("Catalog indexes are not expected to allocate primary keys!");
 		}
 
 	}

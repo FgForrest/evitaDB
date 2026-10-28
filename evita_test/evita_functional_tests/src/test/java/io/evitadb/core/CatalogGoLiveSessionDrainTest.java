@@ -510,7 +510,7 @@ class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 			appender.stop();
 		}
 		if (!errors.isEmpty()) {
-			final ILoggingEvent firstError = errors.get(0);
+			final ILoggingEvent firstError = errors.getFirst();
 			fail(
 				"the go-live logged an error - the drain or its own bookkeeping: " + firstError.getFormattedMessage() +
 					(firstError.getThrowableProxy() == null ?

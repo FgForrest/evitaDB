@@ -23,6 +23,9 @@
 
 package io.evitadb.index.component.loader;
 
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.ChainIndex;
@@ -47,11 +50,13 @@ import io.evitadb.utils.CollectionUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
@@ -126,7 +131,6 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		final StoragePartPersistenceService<?> service = context.storagePartService();
 		final int entityIndexId = context.entityIndexId();
 		final long catalogVersion = context.catalogVersion();
-		final String entityName = context.entitySchema().getName();
 
 		// FIRST pass: build the shared trees + filter views from FILTER parts (so SORT can discover view mode)
 		for (final AttributeIndexStorageKey key : manifest.getAttributeIndexes()) {
@@ -142,7 +146,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		for (final AttributeIndexStorageKey key : manifest.getAttributeIndexes()) {
 			switch (key.indexType()) {
 				case UNIQUE -> fetchUnique(
-					catalogVersion, entityIndexId, entityName, service,
+					catalogVersion, entityIndexId, context.entitySchema(), service,
 					uniqueIndexes, uniqueViewIndexes, filterIndexes, sharedValueIndexes, key
 				);
 				case FILTER, CARDINALITY -> {
@@ -169,9 +173,10 @@ public final class AttributeIndexLoader implements ComponentLoader {
 	 * to a slim part on reflush). Otherwise a standalone {@link OwnerUniqueIndex} is restored into
 	 * `uniqueIndexes` in one of two shapes: PAGED, where the value tree's leaf pages are read in
 	 * ascending key order and reassembled boundary-stable via {@link OwnerUniqueIndex#fromPersistedPages},
-	 * or SINGLE, restored from the full inline part.
+	 * or SINGLE, restored from the full inline part. A standalone index keys its values at the scale
+	 * {@link #resolveUniqueIndexedDecimalPlaces} reads from the schema.
 	 *
-	 * @param entityType        entity type name passed to the rebuilt index
+	 * @param entitySchema      schema of the entity type, whose name is passed to the rebuilt index
 	 * @param uniqueIndexes     owner (standalone) target map, populated for non-foldable keys
 	 * @param uniqueViewIndexes folded-view target map, populated for foldable keys
 	 * @param filterIndexes     first-pass filter views, source of the wrapped view for foldable keys
@@ -181,7 +186,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 	private static void fetchUnique(
 		long catalogVersion,
 		int entityIndexId,
-		@Nonnull String entityType,
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull StoragePartPersistenceService<?> service,
 		@Nonnull Map<AttributeIndexKey, UniqueIndex> uniqueIndexes,
 		@Nonnull Map<AttributeIndexKey, UniqueIndex> uniqueViewIndexes,
@@ -201,6 +206,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 				" was not found in persistent storage!"
 		);
 		final AttributeIndexKey attributeIndexKey = part.getAttributeIndexKey();
+		final String entityType = entitySchema.getName();
 		// structural view detection: a FILTER (shared) tree under the SAME key means this is a FOLDABLE unique attribute
 		// (its unique key equals its filter key). Build a VIEW and ignore any persisted value map / record-id bitmap —
 		// a slim part carries none, and a legacy full part is intentionally discarded (self-healing to slim on reflush).
@@ -242,6 +248,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 				attributeIndexKey,
 				OwnerUniqueIndex.fromPersistedPages(
 					entityType, attributeIndexKey, part.getType(),
+					resolveUniqueIndexedDecimalPlaces(entitySchema, attributeIndexKey, part.getType()),
 					orderedPageSequences, perPageValues, perPageRecordIds, part.getHighWaterPageSequence()
 				)
 			);
@@ -253,6 +260,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 					entityType,
 					attributeIndexKey,
 					part.getType(),
+					resolveUniqueIndexedDecimalPlaces(entitySchema, attributeIndexKey, part.getType()),
 					Objects.requireNonNull(
 						part.getValues(),
 						"Owner unique part must carry the inline value column!"
@@ -264,6 +272,49 @@ public final class AttributeIndexLoader implements ComponentLoader {
 				)
 			);
 		}
+	}
+
+	/**
+	 * Resolves the scale a standalone unique index of `attributeIndexKey` keys its values at: the
+	 * `indexedDecimalPlaces` of the attribute schema.
+	 *
+	 * A unique part persists no scale of its own - unlike a filter part, which freezes it - because its values are
+	 * written as `BigDecimal`s at that very scale (see `UniqueIndexBPlusTreeSupport#toDeclaredValue`), so re-keying them
+	 * at the schema's scale on load reproduces the keys they were written from. Only `BigDecimal` and
+	 * `BigDecimalNumberRange` read the scale at all, so every other type answers `0` without consulting the schema.
+	 * The key's reference name says where the attribute is declared: `null` for an entity attribute, the reference
+	 * otherwise (see `AttributeIndex#createUniqueAttributeKey`).
+	 *
+	 * @param entitySchema      schema of the entity type the index belongs to
+	 * @param attributeIndexKey the key of the restored unique index
+	 * @param attributeType     the type the part declares (possibly an array type)
+	 * @return the scale to key the restored values at
+	 * @throws GenericEvitaInternalError when the schema does not declare a scale-dependent attribute the index exists for
+	 */
+	static int resolveUniqueIndexedDecimalPlaces(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Class<?> attributeType
+	) {
+		final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
+		if (!BigDecimal.class.isAssignableFrom(plainType) && !BigDecimalNumberRange.class.isAssignableFrom(plainType)) {
+			return 0;
+		}
+		final String referenceName = attributeIndexKey.referenceName();
+		final Optional<AttributeSchemaContract> attributeSchema = referenceName == null
+			? entitySchema.getAttribute(attributeIndexKey.attributeName()).map(AttributeSchemaContract.class::cast)
+			: entitySchema.getReference(referenceName)
+				.flatMap(reference -> reference.getAttribute(attributeIndexKey.attributeName()));
+		return attributeSchema
+			.orElseThrow(
+				() -> new GenericEvitaInternalError(
+					"The unique index of attribute `" + attributeIndexKey.attributeName() + "`" +
+						(referenceName == null ? "" : " of reference `" + referenceName + "`") +
+						" of entity `" + entitySchema.getName() + "` keys its values at the attribute's indexed " +
+						"decimal places, but the entity schema declares no such attribute!"
+				)
+			)
+			.getIndexedDecimalPlaces();
 	}
 
 	/**

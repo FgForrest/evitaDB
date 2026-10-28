@@ -23,10 +23,14 @@
 
 package io.evitadb.core.query.algebra.prefetch;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
@@ -34,7 +38,10 @@ import io.evitadb.core.query.algebra.FormulaVisitor;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.AbstractReducedEntityIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -173,10 +180,39 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 					);
 					final List<?> indexes = this.targetIndexes.getIndexes();
 					final PersistentRoaringBitmap[] indexBitmaps = new PersistentRoaringBitmap[indexes.size()];
+					final EntitySchemaContract entitySchema = this.queryContext.getSchema();
+					// partitions narrowed to one plan almost always share a single (reference, scope) pair, so the
+					// premise below is checked once per distinct pair instead of once per partition
+					String lastCheckedReferenceName = null;
+					Scope lastCheckedScope = null;
 					for (int i = 0; i < indexes.size(); i++) {
-						indexBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(
-							((AbstractReducedEntityIndex) indexes.get(i)).getAllPrimaryKeys()
-						);
+						final AbstractReducedEntityIndex reducedIndex = (AbstractReducedEntityIndex) indexes.get(i);
+						final String referenceName = reducedIndex.getRepresentativeReferenceKey().referenceName();
+						final Scope scope = reducedIndex.getIndexKey().scope();
+						if (!referenceName.equals(lastCheckedReferenceName) || scope != lastCheckedScope) {
+							// a narrowed index set wins a plan only for a reference indexed for partitioning: a candidate
+							// of any other reference carries `NOT_PARTITIONED_INDEX`, and `QueryPlanner` builds no plan -
+							// and no prefetch visitor - for an ineligible candidate, debug alternatives included
+							Assert.isPremiseValid(
+								isIndexedForPartitioning(entitySchema, referenceName, scope),
+								() -> "Prefetch narrowed to reduced index `" + reducedIndex.getIndexKey() + "` of a " +
+									"reference that is not indexed for partitioning!"
+							);
+							// every partition of a narrowed set is read through its index object here, which a registry
+							// row has none of - so the registry of the reference in the scope must hold no row. A
+							// reference indexed for partitioning creates none, but the rows of its former indexing for
+							// filtering only survive a raise of its indexing: the premise then fails loudly for every
+							// narrowed set of the reference in the scope, whether or not one of its own partitions is a
+							// row, instead of leaving a row's owner silently out of the prefetch
+							Assert.isPremiseValid(
+								hasNoVirtualPartition(referenceName, scope),
+								() -> "Prefetch narrowed to reduced index `" + reducedIndex.getIndexKey() + "` of a " +
+									"reference whose single-owner partitions are registered as virtual ones!"
+							);
+							lastCheckedReferenceName = referenceName;
+							lastCheckedScope = scope;
+						}
+						indexBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(reducedIndex.getAllPrimaryKeys());
 					}
 					entitiesToPrefetch = RoaringBitmapBackedBitmap.and(
 						new PersistentRoaringBitmap[]{
@@ -264,7 +300,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 		if (this.estimatedBitmapCardinality > BITMAP_SIZE_THRESHOLD || this.conjunctiveEntityIds.isEmpty()) {
 			return EmptyBitmap.INSTANCE;
 		}
-		Bitmap result = this.conjunctiveEntityIds.get(0);
+		Bitmap result = this.conjunctiveEntityIds.getFirst();
 		for (int i = 1; i < this.conjunctiveEntityIds.size(); i++) {
 			final PersistentRoaringBitmap roaringBitmapA = RoaringBitmapBackedBitmap.getRoaringBitmap(result);
 			final PersistentRoaringBitmap roaringBitmapB = RoaringBitmapBackedBitmap.getRoaringBitmap(
@@ -290,6 +326,43 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	 */
 	private long getExpectedComputationalCosts() {
 		return this.expectedComputationalCosts;
+	}
+
+	/**
+	 * Returns TRUE when the registry of single-owner partitions of the reference in the scope holds nothing. A
+	 * reference indexed for partitioning, the only kind a narrowed index set is built for, registers no row, but the
+	 * rows it held while indexed for filtering only stay in the registry after its indexing is raised, and then this
+	 * is FALSE.
+	 *
+	 * @param referenceName the reference
+	 * @param scope         the scope
+	 * @return TRUE when no partition of the reference in the scope is registered as a virtual one
+	 */
+	private boolean hasNoVirtualPartition(@Nonnull String referenceName, @Nonnull Scope scope) {
+		return this.queryContext
+			.getIndexIfExists(
+				new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName),
+				ReferencedTypeEntityIndex.class
+			)
+			.map(typeIndex -> typeIndex.getVirtualReferencePartitionIndex().isEmpty())
+			.orElse(true);
+	}
+
+	/**
+	 * Tells whether the reference is indexed for partitioning in the given scope.
+	 *
+	 * @param entitySchema  the schema of the queried entity
+	 * @param referenceName the name of the reference a reduced index of the winning index set belongs to
+	 * @param scope         the scope of that reduced index
+	 * @return true when the reference is indexed for partitioning in the scope
+	 */
+	private static boolean isIndexedForPartitioning(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull String referenceName,
+		@Nonnull Scope scope
+	) {
+		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
+		return referenceSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING;
 	}
 
 }

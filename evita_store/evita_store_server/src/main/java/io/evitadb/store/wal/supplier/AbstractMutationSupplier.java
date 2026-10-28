@@ -654,7 +654,13 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 		// guard here would only have hidden.
 		Assert.isPremiseValid(
 			contentLength + 4 == leadTransactionMutationSize + transactionMutation.getWalSizeInBytes(),
-			"Invalid WAL file on position `" + this.filePosition + "`!"
+			// the numbers are what tells damage from miscounting - a lead record read as a negative size cannot
+			// come from bytes on disk, only from the reader's accounting of them
+			() -> "Invalid WAL file on position `" + this.filePosition + "` (WAL file index `" + this.walFileIndex + "`)! " +
+				"The length prefix declares " + contentLength + " bytes of content, but the leading transaction " +
+				"mutation (version " + transactionMutation.getVersion() + ") was read as " +
+				(leadTransactionMutationSize - 4) + " bytes and declares " + transactionMutation.getWalSizeInBytes() +
+				" bytes of mutations (" + transactionMutation.getMutationCount() + " mutations)."
 		);
 		// register the transaction location in cache for future fast-path lookups
 		this.transactionLocationsCache.computeIfAbsent(

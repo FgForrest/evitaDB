@@ -306,7 +306,7 @@ class RestoreCatalogUploadObserverTest {
 				1, responseObserver.errors.size(),
 				"The client must be told exactly once why the upload ended."
 			);
-			assertNotNull(responseObserver.errors.get(0));
+			assertNotNull(responseObserver.errors.getFirst());
 
 			// the point of the whole exercise: nothing may be left on disk
 			assertEquals(

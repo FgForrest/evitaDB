@@ -33,6 +33,7 @@ import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.dataType.Scope;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -741,6 +742,18 @@ class EvitaQLOrderConstraintVisitorTest {
         assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy(segments(segment(orderBy(random()), limit(?))))"));
         assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("orderBy(segments(segment(orderBy(random()), limit(5))))"));
     }
+
+	/**
+	 * A segment accepts the entity scope with several children without changing its own grammar rule.
+	 */
+	@Test
+	@DisplayName("Parses a segment with several entity filters")
+	void shouldParseSeveralChildrenWhenInsideSegment() {
+		final OrderConstraint expected = orderBy(segments(segment(
+			entityHaving(attributeEquals("first", true), attributeEquals("second", true)), orderBy(random())
+		)));
+		assertEquals(expected, parseOrderConstraintUnsafe(expected.toString()));
+	}
 
     @Test
     void shouldParseInScopeConstraint() {

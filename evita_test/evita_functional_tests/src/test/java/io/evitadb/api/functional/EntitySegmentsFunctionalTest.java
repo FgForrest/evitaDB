@@ -628,7 +628,7 @@ public class EntitySegmentsFunctionalTest {
 				inScope(
 					Scope.LIVE,
 					segments(
-						segment(orderBy(inScope(Scope.LIVE, attributeNatural(ATTRIBUTE_SCORE))), limit(1)),
+						segment(orderBy(attributeNatural(ATTRIBUTE_SCORE)), limit(1)),
 						segment(orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)))
 					)
 				)
@@ -800,23 +800,39 @@ public class EntitySegmentsFunctionalTest {
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(SortRoute.class)
 	void shouldPickFirstOnlyRowsOfScopesIndexingTheValue(SortRoute route, EvitaSessionContract session) {
-		// archived product 1 (order 1) and live product 2 (order 2) reference brand 1, yet `order` is sortable and
-		// `orderKindLive` indexed in the live scope only - an ordering over both scopes is refused by the schema, so
-		// the ordering must be narrowed to the live scope, where the archived row is not sorted
+		// archived product 1 (order 1) and live product 2 (order 2) reference brand 1. The attribute `order` is sortable
+		// in the live scope only, so its ordering must be narrowed to that scope. The compound `orderKindLive` is
+		// indexed only there as well, but its elements need not be sortable: an order over both scopes is accepted
+		// and sorts only the live row, leaving the archived one to the next sorter.
 		final FilterConstraint bothScopes = scope(BOTH_SCOPES);
-		for (String sortedValue : new String[]{ATTRIBUTE_ORDER, COMPOUND_ORDER_KIND_LIVE}) {
-			assertThrows(
-				AttributeNotSortableException.class,
-				() -> queryOrder(
-					session, route, bothScopes,
-					referenceProperty(
-						REFERENCE_BRAND,
-						pickFirstByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
-						attributeNatural(sortedValue)
-					)
-				),
-				sortedValue + " over both scopes"
-			);
+		for (final String sortedValue : new String[]{ATTRIBUTE_ORDER, COMPOUND_ORDER_KIND_LIVE}) {
+			if (ATTRIBUTE_ORDER.equals(sortedValue)) {
+				assertThrows(
+					AttributeNotSortableException.class,
+					() -> queryOrder(
+						session, route, bothScopes,
+						referenceProperty(
+							REFERENCE_BRAND,
+							pickFirstByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+							attributeNatural(sortedValue)
+						)
+					),
+					sortedValue + " over both scopes"
+				);
+			} else {
+				assertOrder(
+					new int[]{2, 1, 3, 4, 5, 6},
+					queryOrder(
+						session, route, bothScopes,
+						referenceProperty(
+							REFERENCE_BRAND,
+							pickFirstByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+							attributeNatural(sortedValue)
+						)
+					),
+					sortedValue + " over both scopes sorts only the scope indexing the compound"
+				);
+			}
 			assertOrder(
 				new int[]{2, 1, 3, 4, 5, 6},
 				queryOrder(

@@ -1072,7 +1072,7 @@ class EntityReferencePaginationFunctionalTest extends AbstractEntityFetchingFunc
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				final SealedEntity product = result.getRecordData().get(0);
+				final SealedEntity product = result.getRecordData().getFirst();
 				final Collection<ReferenceContract> references = product.getReferences(Entities.STORE);
 
 				final int[] receivedPrimaryKeys = references.stream()
@@ -1125,7 +1125,7 @@ class EntityReferencePaginationFunctionalTest extends AbstractEntityFetchingFunc
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				final SealedEntity product = result.getRecordData().get(0);
+				final SealedEntity product = result.getRecordData().getFirst();
 				final Collection<ReferenceContract> references = product.getReferences(Entities.STORE);
 
 				final int[] receivedPrimaryKeys = references.stream()
@@ -1188,7 +1188,7 @@ class EntityReferencePaginationFunctionalTest extends AbstractEntityFetchingFunc
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				final SealedEntity product = result.getRecordData().get(0);
+				final SealedEntity product = result.getRecordData().getFirst();
 				final Collection<ReferenceContract> references = product.getReferences(Entities.STORE);
 
 				final Integer[] receivedPrimaryKeys = references.stream()
@@ -1243,7 +1243,7 @@ class EntityReferencePaginationFunctionalTest extends AbstractEntityFetchingFunc
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				final SealedEntity product = result.getRecordData().get(0);
+				final SealedEntity product = result.getRecordData().getFirst();
 				final Collection<ReferenceContract> references = product.getReferences(Entities.STORE);
 
 				final Integer[] receivedPrimaryKeys = references.stream()
@@ -1301,7 +1301,7 @@ class EntityReferencePaginationFunctionalTest extends AbstractEntityFetchingFunc
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				final SealedEntity product = result.getRecordData().get(0);
+				final SealedEntity product = result.getRecordData().getFirst();
 				final List<Integer> receivedPrimaryKeys = product.getReferences(Entities.STORE)
 					.stream()
 					.map(ReferenceContract::getReferencedPrimaryKey)
@@ -1368,7 +1368,7 @@ class EntityReferencePaginationFunctionalTest extends AbstractEntityFetchingFunc
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				final SealedEntity product = result.getRecordData().get(0);
+				final SealedEntity product = result.getRecordData().getFirst();
 				final List<Integer> receivedPrimaryKeys = product.getReferences(Entities.STORE)
 					.stream()
 					.map(ReferenceContract::getReferencedPrimaryKey)

@@ -604,7 +604,7 @@ class SortableAttributeCompoundSchemaBuilderTest {
 
 			assertEquals(
 				"code",
-				elements.get(0).attributeName()
+				elements.getFirst().attributeName()
 			);
 			assertEquals(
 				OrderDirection.DESC,

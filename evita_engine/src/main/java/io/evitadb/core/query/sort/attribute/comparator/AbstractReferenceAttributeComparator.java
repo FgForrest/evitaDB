@@ -46,13 +46,14 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Currency;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.index.attribute.SortIndex.createComparatorFor;
-import static io.evitadb.index.attribute.SortIndex.createNormalizerFor;
+import static io.evitadb.index.attribute.SortIndex.createComparatorNormalizerFor;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -103,9 +104,22 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 	 */
 	@Nonnull private final Function<ReferenceContract, ReferenceAttributeValue> referenceValueExtractor;
 
+	/**
+	 * Creates the comparator for the given reference attribute.
+	 *
+	 * @param attributeName        the name of the sortable attribute
+	 * @param type                 the type of the attribute value
+	 * @param indexedDecimalPlaces the `indexedDecimalPlaces` of the attribute schema - the scale a range value is
+	 *                             compared at, so the comparator orders the entities as the sort index does
+	 * @param referenceSchema      the schema of the reference the attribute belongs to
+	 * @param locale               the locale to use when reading localized attribute values, or `null` when the
+	 *                             attribute is not localized
+	 * @param orderDirection       the direction to sort in
+	 */
 	public AbstractReferenceAttributeComparator(
 		@Nonnull String attributeName,
 		@Nonnull Class<?> type,
+		int indexedDecimalPlaces,
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull OrderDirection orderDirection
@@ -119,11 +133,14 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 		final UnaryOperator<Serializable> normalizer;
 		//noinspection rawtypes
 		final Comparator valueComparator;
-		if (Comparable.class.isAssignableFrom(type)) {
+		// a `Currency` or `Locale` is not `Comparable` itself, but the normalizer turns it into its comparable form, so
+		// it is compared by its value exactly as the sort index orders it; only the chain types are ordered otherwise
+		if (Comparable.class.isAssignableFrom(type) || Currency.class.equals(type) || Locale.class.equals(type)) {
 			final ComparatorSource comparatorSource = new ComparatorSource(
 				type, orderDirection, OrderBehaviour.NULLS_LAST
 			);
-			final Optional<UnaryOperator<Serializable>> normalizerFor = createNormalizerFor(comparatorSource);
+			final Optional<UnaryOperator<Serializable>> normalizerFor =
+				createComparatorNormalizerFor(comparatorSource, indexedDecimalPlaces);
 			normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
 			valueComparator = createComparatorFor(locale, comparatorSource);
 		} else {

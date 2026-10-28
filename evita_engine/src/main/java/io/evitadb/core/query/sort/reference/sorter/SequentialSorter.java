@@ -31,7 +31,7 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeMode;
-import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -59,11 +59,11 @@ import java.util.function.IntConsumer;
  */
 public class SequentialSorter implements Sorter {
 	/**
-	 * Array of {@link ReducedEntityIndex} that are used to filter the input records. Each block is sorted
+	 * Blocks of {@link ReferencePartition}s that are used to filter the input records. Each block is sorted
 	 * separately by {@link #embeddedSorters} and the order of the block matters (pk sorted earlier are not sorted
 	 * in later blocks even if they're present there as well - 1:N references).
 	 */
-	private final ReducedEntityIndex[][] atomicBlocks;
+	private final ReferencePartition[][] atomicBlocks;
 	/**
 	 * The key of each of {@link #atomicBlocks}, at the same position: the referenced entity of the block without any
 	 * representative attribute values. A block is the whole referenced entity - the indexes of all its representative
@@ -76,8 +76,15 @@ public class SequentialSorter implements Sorter {
 	 */
 	private final List<Sorter> embeddedSorters;
 
+	/**
+	 * Creates the sorter.
+	 *
+	 * @param atomicBlocks    blocks of partitions sorted one after another; an owner sorted in an earlier block is
+	 *                        not sorted again
+	 * @param embeddedSorters sorters applied to each block in order; a {@link NoSorter} is dropped
+	 */
 	public SequentialSorter(
-		@Nonnull ReducedEntityIndex[][] atomicBlocks,
+		@Nonnull ReferencePartition[][] atomicBlocks,
 		@Nonnull List<Sorter> embeddedSorters
 	) {
 		this.atomicBlocks = atomicBlocks;
@@ -120,7 +127,7 @@ public class SequentialSorter implements Sorter {
 		SortingContext nextSortingContext = sortingContext;
 		top:
 		for (int blockIndex = 0; blockIndex < this.atomicBlocks.length; blockIndex++) {
-			final ReducedEntityIndex[] atomicBlock = this.atomicBlocks[blockIndex];
+			final ReferencePartition[] atomicBlock = this.atomicBlocks[blockIndex];
 			if (recordsToSort.isEmpty()) {
 				// every record found its block - no later block can claim anything
 				break;

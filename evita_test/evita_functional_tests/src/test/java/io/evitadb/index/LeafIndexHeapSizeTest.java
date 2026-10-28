@@ -24,8 +24,13 @@
 package io.evitadb.index;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.dataType.ComparableCurrency;
+import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.array.TransactionalIntArray;
@@ -34,6 +39,7 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.OwnerSortIndex;
 import io.evitadb.index.attribute.OwnerUniqueIndex;
+import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex;
@@ -54,6 +60,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Comparator;
+import java.util.Currency;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.function.Function;
@@ -102,8 +109,8 @@ class LeafIndexHeapSizeTest {
 	 *
 	 * A global unique index takes this as a **method parameter** rather than holding it, so it never appears in a
 	 * heap walk and needs no exclusion. The primary key it hands back clears {@link #AUTOBOX_CACHE_CEILING} for the
-	 * reason spelled out there: a global unique index boxes it as a map key, and inside the cache that box is the
-	 * JVM's rather than the index's — which shifted the reported figure by 16 bytes and nothing else.
+	 * reason spelled out there, so that should the index ever box it, the box is the index's rather than the JVM's;
+	 * today it only packs it into the value tree's `long` payloads.
 	 */
 	private static final EntityTypeClassifierResolver RESOLVER = new EntityTypeClassifierResolver() {
 		@Override
@@ -804,20 +811,19 @@ class LeafIndexHeapSizeTest {
 
 		/**
 		 * Everything a global unique index reaches but does not charge — the catalog key it was filed under, the
-		 * scope enum, the scaffolding comparator, the flush bookkeeping and two lambdas.
+		 * scope enum, the scaffolding normalizer, the flush bookkeeping and two lambdas.
 		 */
 		private static final String[] GLOBAL_EXCLUSIONS = {
-			"attributeKey", "comparator", "pageStreamRegistry", "scope",
-			"tree.valueColumnFactory", "tree.recordColumnFactory",
-			"entitiesPerType.transactionalLayerWrapper"
+			"attributeKey", "normalizer", "pageStreamRegistry", "scope",
+			"tree.valueColumnFactory", "tree.recordColumnFactory"
 		};
 
 		/**
 		 * Everything an owner unique index reaches but does not charge — the key it was filed under, the collection
-		 * name, the scaffolding comparator, the flush bookkeeping and the tree's two column-factory lambdas.
+		 * name, the scaffolding normalizer, the flush bookkeeping and the tree's two column-factory lambdas.
 		 */
 		private static final String[] OWNER_EXCLUSIONS = {
-			"attributeIndexKey", "entityType", "comparator", "pageStreamRegistry",
+			"attributeIndexKey", "entityType", "normalizer", "pageStreamRegistry",
 			"tree.valueColumnFactory", "tree.recordColumnFactory"
 		};
 
@@ -828,7 +834,7 @@ class LeafIndexHeapSizeTest {
 			// walk charges the same single box the arithmetic does
 			assertMatchesMeasuredHeap(
 				index.getHeapSizeInBytes(), index,
-				"attributeIndexKey", "entityType", "comparator", "pageStreamRegistry",
+				"attributeIndexKey", "entityType", "normalizer", "pageStreamRegistry",
 				"tree.valueColumnFactory", "tree.recordColumnFactory"
 			);
 		}
@@ -838,37 +844,51 @@ class LeafIndexHeapSizeTest {
 			final OwnerUniqueIndex index = ownerUniqueIndex(200);
 			assertMatchesMeasuredHeap(
 				index.getHeapSizeInBytes(), index,
-				"attributeIndexKey", "entityType", "comparator", "pageStreamRegistry",
+				"attributeIndexKey", "entityType", "normalizer", "pageStreamRegistry",
 				"tree.valueColumnFactory", "tree.recordColumnFactory"
 			);
 		}
 
 		@Test
-		void shouldNotGrowAtAllWhenTheRecordIdsFormulaIsRequested() {
+		void shouldNotGrowAtAllWhenTheRecordCountIsRequested() {
 			final OwnerUniqueIndex index = ownerUniqueIndex(200);
 			final long cold = index.getHeapSizeInBytes();
 			assertMatchesMeasuredHeap(cold, index, OWNER_EXCLUSIONS);
 
-			index.getRecordIdsFormula();
+			index.size();
 
-			// This index memoizes NOTHING for a formula request: `getRecordIdsFormula` wraps the record set it
-			// already holds in a fresh ConstantFormula that dies with the query it served. Answering a query must
-			// therefore leave the footprint untouched - and the measurement exact, because there is no retained
-			// scaffolding to price at an upper bound.
-			//
-			// This is the accounting face of a previously fixed leak: a formula node carries the execution context
-			// of the first query to initialize it, so an index that kept one pinned that query's session and its
-			// whole catalog generation. A step up here would mean a memo came back.
+			// This index memoizes NOTHING for a record count: `size()` walks the value tree into a bitmap that dies
+			// with the call. Answering the statistics must therefore leave the footprint untouched - and the
+			// measurement exact, because there is no retained scaffolding to price at an upper bound. A step up here
+			// would mean a memo, or a record-id set kept beside the tree, came back.
 			final long warm = index.getHeapSizeInBytes();
-			assertEquals(cold, warm, "asking for the record-ids formula must not change the footprint");
+			assertEquals(cold, warm, "asking for the record count must not change the footprint");
 			assertMatchesMeasuredHeap(warm, index, OWNER_EXCLUSIONS);
 
 			// and it must hold however large the index grows - both fixtures stay inside one leaf block, so neither
 			// carries the separate separator-key over-report
 			final OwnerUniqueIndex larger = ownerUniqueIndex(250);
-			larger.getRecordIdsFormula();
+			larger.size();
 			assertDivergenceDoesNotGrowWithTheData(
 				warm, index, larger.getHeapSizeInBytes(), larger, OWNER_EXCLUSIONS
+			);
+		}
+
+		@Test
+		void shouldNotGrowAtAllWhenTheGlobalRecordCountIsRequested() {
+			final GlobalUniqueIndex index = seededGlobal(200);
+			final long cold = index.getHeapSizeInBytes();
+			final long coldMeasured = measuredHeapOf(index, GLOBAL_EXCLUSIONS);
+
+			index.getRecordCount();
+
+			// The global mirror of the owner case above: `getRecordCount()` walks the value tree into per-type
+			// bitmaps that die with the call, so neither the charged nor the reachable footprint may move. A step up
+			// in either would mean a memo, or a per-type record set kept beside the tree, came back.
+			assertEquals(cold, index.getHeapSizeInBytes(), "asking for the record count must not change the footprint");
+			assertEquals(
+				coldMeasured, measuredHeapOf(index, GLOBAL_EXCLUSIONS),
+				"asking for the record count must not leave anything reachable behind"
 			);
 		}
 
@@ -897,7 +917,7 @@ class LeafIndexHeapSizeTest {
 		private static GlobalUniqueIndex seededGlobal(int records) {
 			final GlobalUniqueIndex index = new GlobalUniqueIndex(
 				Scope.LIVE, new AttributeKey("url"), String.class
-			);
+			, 0);
 			for (int i = 0; i < records; i++) {
 				index.registerUniqueKey(
 					String.format("url-%05d", i), "Product", null, AUTOBOX_CACHE_CEILING + i, RESOLVER
@@ -910,7 +930,7 @@ class LeafIndexHeapSizeTest {
 		void shouldMeasureAnEmptyGlobalIndexExactly() {
 			final GlobalUniqueIndex index = new GlobalUniqueIndex(
 				Scope.LIVE, new AttributeKey("url"), String.class
-			);
+			, 0);
 			// the value tree memoizes its bucket count, and an empty one boxes ZERO - the JVM's own instance. One
 			// structure holds it, so the walk charges the same one box the arithmetic does
 			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, GLOBAL_EXCLUSIONS);
@@ -963,7 +983,7 @@ class LeafIndexHeapSizeTest {
 		private static GlobalUniqueIndex localizedGlobal(@Nonnull Locale[] locales, int records) {
 			final GlobalUniqueIndex index = new GlobalUniqueIndex(
 				Scope.LIVE, new AttributeKey("url", Locale.ENGLISH), String.class
-			);
+			, 0);
 			for (int i = 0; i < records; i++) {
 				index.registerUniqueKey(
 					String.format("url-%05d", i), "Product", locales[i % locales.length],
@@ -983,7 +1003,7 @@ class LeafIndexHeapSizeTest {
 		private static OwnerUniqueIndex ownerUniqueIndex(int records) {
 			final OwnerUniqueIndex index = new OwnerUniqueIndex(
 				"Product", new AttributeIndexKey(null, "code", null), String.class
-			);
+			, 0);
 			for (int i = 0; i < records; i++) {
 				index.registerUniqueKey(String.format("code-%05d", i), i + 1);
 			}
@@ -1066,6 +1086,195 @@ class LeafIndexHeapSizeTest {
 				for (int referencedPk = 0; referencedPk < referenced; referencedPk++) {
 					index.addRecord(AUTOBOX_CACHE_CEILING + indexPk, AUTOBOX_CACHE_CEILING + referencedPk);
 				}
+			}
+			return index;
+		}
+	}
+
+	@Nested
+	@DisplayName("virtual reference partition index")
+	class VirtualReferencePartitionIndexes {
+
+		/**
+		 * The flush bookkeeping, the two column-factory lambdas of the entry tree and the shared function the sort
+		 * index map converts committed sort indexes with.
+		 */
+		private static final String[] VIRTUAL_PARTITION_EXCLUSIONS = {
+			"pageStreamRegistry",
+			"entries.valueColumnFactory", "entries.recordColumnFactory", "entries.comparator",
+			"sortIndexes.transactionalLayerWrapper"
+		};
+
+		@Test
+		@DisplayName("an empty index is measured exactly")
+		void shouldMeasureAnEmptyIndexExactly() {
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, VIRTUAL_PARTITION_EXCLUSIONS);
+		}
+
+		@Test
+		@DisplayName("the figure does not drift from the heap as the partitions grow")
+		void shouldNotLetASeededIndexDivergeWithItsSize() {
+			// four times the partitions, the same handful of tuples - a per-entry or per-tuple term the arithmetic
+			// missed would widen the gap, while the fixed ones (cached boxes, the shared comparator) cannot
+			final VirtualReferencePartitionIndex small = seeded(300);
+			final VirtualReferencePartitionIndex large = seeded(1_200);
+			assertDivergenceDoesNotGrowWithTheData(
+				small.getHeapSizeInBytes(), small, large.getHeapSizeInBytes(), large, VIRTUAL_PARTITION_EXCLUSIONS
+			);
+		}
+
+		@Test
+		@DisplayName("a dictionary tuple held by both dictionary maps is charged once")
+		void shouldChargeEachDictionaryTupleOnce() {
+			// a tuple and its id box are held by both dictionary maps; charging them at both would make each new tuple
+			// widen the gap between the arithmetic and the walk
+			final VirtualReferencePartitionIndex fewTuples = seededWithTuples(10, 2);
+			final VirtualReferencePartitionIndex manyTuples = seededWithTuples(10, 10);
+			assertDivergenceDoesNotGrowWithTheData(
+				fewTuples.getHeapSizeInBytes(), fewTuples, manyTuples.getHeapSizeInBytes(), manyTuples,
+				VIRTUAL_PARTITION_EXCLUSIONS
+			);
+		}
+
+		@Test
+		@DisplayName("the figure does not drift from the heap as the partitions holding sort values grow")
+		void shouldNotLetSortValuesDivergeWithTheirCount() {
+			// four times the partitions over the same values - a per-entry term the arithmetic missed (in the slot,
+			// the sort index or the dictionary user counts) would widen the gap
+			final VirtualReferencePartitionIndex small = seededWithSortValues(300, 20);
+			final VirtualReferencePartitionIndex large = seededWithSortValues(1_200, 20);
+			assertDivergenceDoesNotGrowWithTheData(
+				small.getHeapSizeInBytes(), small, large.getHeapSizeInBytes(), large, VIRTUAL_PARTITION_EXCLUSIONS
+			);
+		}
+
+		@Test
+		@DisplayName("a plain sort value is over-reported by exactly the instance its sort index shares")
+		void shouldOverReportEachPlainSortValueByExactlyTheInstanceItsSortIndexShares() {
+			// the dictionary and the sort index each charge a distinct value in full. A plain value its normalizer
+			// leaves untouched - an Integer here - is the very instance both hold, so the arithmetic exceeds the walk
+			// by one box per distinct value: a bounded, documented excess that grows with the values, never with the
+			// partitions. Anything beyond it - a key wrapper or an id box charged twice - would show up here
+			final VirtualReferencePartitionIndex fewValues = seededWithSortValues(200, 5);
+			final VirtualReferencePartitionIndex manyValues = seededWithSortValues(200, 100);
+			final long fewExcess =
+				fewValues.getHeapSizeInBytes() - measuredHeapOf(fewValues, VIRTUAL_PARTITION_EXCLUSIONS);
+			final long manyExcess =
+				manyValues.getHeapSizeInBytes() - measuredHeapOf(manyValues, VIRTUAL_PARTITION_EXCLUSIONS);
+			assertEquals(95L * VMLayout.current().sizeOfObject(Integer.BYTES), manyExcess - fewExcess);
+		}
+
+		@Test
+		@DisplayName("sort values held in the Locale and Currency comparable wrappers are priced as the wrapper alone")
+		void shouldPriceLocaleAndCurrencySortValuesAsTheirComparableWrappers() {
+			// a Locale or Currency sort value is normalized into a comparable wrapper over a JVM-interned instance. A
+			// UUID is boxed in the sort tree just the same, so an otherwise identical UUID index differs from it only
+			// by the price of each value - charged once at the value dictionary and once at the sort index
+			final ComparatorSource localeAsc =
+				new ComparatorSource(Locale.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
+			final ComparatorSource currencyAsc =
+				new ComparatorSource(Currency.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
+			final ComparatorSource uuidAsc =
+				new ComparatorSource(UUID.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
+			final UUID uuid = new UUID(1L, 2L);
+			final long localeGap = IndexHeapSize.OWNED_KEY_SIZER.applyAsLong(new ComparableLocale(Locale.ENGLISH))
+				- EvitaDataTypes.estimateSize(uuid);
+			final long currencyGap =
+				IndexHeapSize.OWNED_KEY_SIZER.applyAsLong(new ComparableCurrency(Currency.getInstance("EUR")))
+					- EvitaDataTypes.estimateSize(uuid);
+
+			assertEquals(
+				sortValueIndex(new ComparatorSource[]{uuidAsc}, uuid).getHeapSizeInBytes() + 2L * localeGap,
+				sortValueIndex(new ComparatorSource[]{localeAsc}, Locale.ENGLISH).getHeapSizeInBytes()
+			);
+			assertEquals(
+				sortValueIndex(new ComparatorSource[]{uuidAsc}, uuid).getHeapSizeInBytes() + 2L * currencyGap,
+				sortValueIndex(new ComparatorSource[]{currencyAsc}, Currency.getInstance("EUR")).getHeapSizeInBytes()
+			);
+			assertEquals(
+				sortValueIndex(new ComparatorSource[]{uuidAsc, uuidAsc}, new Serializable[]{uuid, uuid})
+					.getHeapSizeInBytes() + 2L * (localeGap + currencyGap),
+				sortValueIndex(
+					new ComparatorSource[]{localeAsc, currencyAsc},
+					new Serializable[]{Locale.ENGLISH, Currency.getInstance("EUR")}
+				).getHeapSizeInBytes()
+			);
+		}
+
+		/**
+		 * Creates an index with one sort key of the given comparator base and one partition holding the given value.
+		 *
+		 * @param comparatorBase one descriptor per sorted element
+		 * @param value          the sort value of the partition, an array for a compound key
+		 * @return the index
+		 */
+		@Nonnull
+		private static VirtualReferencePartitionIndex sortValueIndex(
+			@Nonnull ComparatorSource[] comparatorBase,
+			@Nonnull Serializable value
+		) {
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			final AttributeIndexKey key = new AttributeIndexKey("media", "mediaOrder", null);
+			index.declareSortKey(key, comparatorBase, 0);
+			if (value instanceof Serializable[] compound) {
+				index.putSortValue(key, 1, compound);
+			} else {
+				index.putSortValue(key, 1, value);
+			}
+			return index;
+		}
+
+		/**
+		 * Seeds an index with one sort key and the given number of partitions cycling through the given number of
+		 * distinct values.
+		 *
+		 * @param partitions how many partitions
+		 * @param values     how many distinct values, at most `partitions`
+		 * @return the seeded index
+		 */
+		@Nonnull
+		private static VirtualReferencePartitionIndex seededWithSortValues(int partitions, int values) {
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			final AttributeIndexKey key = new AttributeIndexKey("media", "mediaOrder", null);
+			index.declareSortKey(
+				key,
+				new ComparatorSource[]{new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)},
+				0
+			);
+			for (int partition = 1; partition <= partitions; partition++) {
+				// values and partitions above the autobox cache, so no JVM-cached box is shared by accident
+				index.putSortValue(key, AUTOBOX_CACHE_CEILING + partition, AUTOBOX_CACHE_CEILING + partition % values);
+			}
+			return index;
+		}
+
+		/**
+		 * Seeds an index with the given number of partitions cycling through three tuples.
+		 *
+		 * @param partitions how many partitions
+		 * @return the seeded index
+		 */
+		@Nonnull
+		private static VirtualReferencePartitionIndex seeded(int partitions) {
+			return seededWithTuples(partitions, 3);
+		}
+
+		/**
+		 * Seeds an index with the given number of partitions cycling through the given number of distinct tuples.
+		 *
+		 * @param partitions how many partitions
+		 * @param tuples     how many distinct tuples, at most `partitions`
+		 * @return the seeded index
+		 */
+		@Nonnull
+		private static VirtualReferencePartitionIndex seededWithTuples(int partitions, int tuples) {
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			for (int partition = 1; partition <= partitions; partition++) {
+				index.putPartitionOwner(partition, AUTOBOX_CACHE_CEILING + partition, AUTOBOX_CACHE_CEILING - partition);
+				// an Integer rather than a String: `EvitaDataTypes.estimateSize` prices a String as UTF-16, which would
+				// read as a per-tuple divergence that belongs to the shared pricing convention, not to this index
+				index.putRepresentativeTuple(partition, new Serializable[]{AUTOBOX_CACHE_CEILING + partition % tuples});
 			}
 			return index;
 		}

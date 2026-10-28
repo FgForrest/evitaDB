@@ -23,19 +23,25 @@
 
 package io.evitadb.api.requestResponse.data.structure.predicate;
 
+import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
+import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
 import org.junit.jupiter.api.Tag;
 
+import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
@@ -53,6 +59,27 @@ class PredicateLocaleHelperTest implements EvitaTestSupport {
 	@Nested
 	@DisplayName("combineLocales")
 	class CombineLocalesTest {
+
+		/**
+		 * An all-locales request dominates an explicit set in either direction of enrichment.
+		 */
+		@ParameterizedTest(name = "existing locales are all: {0}")
+		@ValueSource(booleans = {false, true})
+		@DisplayName("preserves all locales when either side of enrichment requests all")
+		void shouldPreserveAllLocalesWhenEitherEnrichmentScopeRequestsAll(boolean existingAll) {
+			final EvitaRequest request = new EvitaRequest(
+				Query.query(
+					collection("product"),
+					require(entityFetch(existingAll ? dataInLocales(Locale.GERMAN) : dataInLocalesAll()))
+				),
+				OffsetDateTime.now(), SealedEntity.class, null
+			);
+			final Set<Locale> combined = PredicateLocaleHelper.combineLocales(
+				existingAll ? Set.of() : Set.of(Locale.ENGLISH), request
+			);
+			assertNotNull(combined, "All locales must remain requested");
+			assertEquals(Set.of(), combined, "All locales must dominate explicit locales during enrichment");
+		}
 
 		@Test
 		@DisplayName("returns request locales when existing is null")
@@ -99,6 +126,22 @@ class PredicateLocaleHelperTest implements EvitaTestSupport {
 			);
 
 			assertEquals(Set.of(Locale.FRENCH, Locale.GERMAN), result);
+		}
+
+		/**
+		 * Enriching an all-locales scope with another all-locales request must not turn it into an explicit set.
+		 */
+		@Test
+		@DisplayName("keeps all locales when both sides request all")
+		void shouldKeepAllLocalesWhenBothSidesRequestAll() {
+			final EvitaRequest request = new EvitaRequest(
+				Query.query(collection("product"), require(entityFetch(dataInLocalesAll()))),
+				OffsetDateTime.now(), SealedEntity.class, null
+			);
+
+			final Set<Locale> result = PredicateLocaleHelper.combineLocales(Set.of(), request);
+
+			assertEquals(Set.of(), result);
 		}
 	}
 
@@ -374,10 +417,36 @@ class PredicateLocaleHelperTest implements EvitaTestSupport {
 	@DisplayName("getAllLocales")
 	class GetAllLocalesTest {
 
+		/**
+		 * An implicit locale must not narrow the all-locales attribute fetch scope.
+		 */
+		@Test
+		@DisplayName("preserves all locales when an implicit locale is also present")
+		void shouldPreserveAllLocalesWhenImplicitLocaleIsPresent() {
+			final EvitaRequest request = new EvitaRequest(
+				new EvitaRequest(
+					Query.query(collection("product"), require(entityFetch(attributeContentAll(), dataInLocalesAll()))),
+					OffsetDateTime.now(), SealedEntity.class, null
+				), Locale.ENGLISH
+			);
+			final Set<Locale> locales = new AttributeValueSerializablePredicate(request).getAllLocales();
+			assertNotNull(locales, "All locales must remain requested");
+			assertEquals(Set.of(), locales, "An implicit locale must not narrow an all-locales attribute request");
+		}
+
 		@Test
 		@DisplayName("returns null when both null")
 		void shouldReturnNullWhenBothNull() {
 			assertNull(PredicateLocaleHelper.getAllLocales(null, null));
+		}
+
+		/**
+		 * An empty explicit set means every locale, which already contains the implicit one.
+		 */
+		@Test
+		@DisplayName("returns all locales when an implicit locale meets an empty set")
+		void shouldReturnAllLocalesWhenImplicitLocaleMeetsEmptySet() {
+			assertEquals(Set.of(), PredicateLocaleHelper.getAllLocales(Locale.ENGLISH, Set.of()));
 		}
 
 		@Test

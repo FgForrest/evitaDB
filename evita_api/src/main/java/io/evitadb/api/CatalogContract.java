@@ -24,6 +24,7 @@
 package io.evitadb.api;
 
 import io.evitadb.api.exception.CatalogNotAliveException;
+import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException;
 import io.evitadb.api.exception.IndexNotFoundException;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.InvalidMutationException;
@@ -262,13 +263,18 @@ public interface CatalogContract {
 	 * Creates new publisher that emits {@link ChangeCatalogCapture}s that match the request. Change catalog capture
 	 * operates on WAL (Write Ahead Log) and can be enabled only when the catalog is in {@link CatalogState#ALIVE} state.
 	 *
+	 * The resume position of the request is checked against the incarnation of this catalog before the publisher is
+	 * created: a position recorded on another incarnation of the catalog, or lying more than one version past the last
+	 * version the catalog has finalized, is refused synchronously.
+	 *
 	 * @param request defines what events are captured
 	 * @return publisher that emits {@link ChangeCatalogCapture}s that match the request
 	 * @throws CatalogNotAliveException when the catalog is not in {@link CatalogState#ALIVE} state
+	 * @throws ChangeCaptureResumePositionInvalidException when the resume position of the request cannot be served
 	 */
 	@Nonnull
 	ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request)
-		throws CatalogNotAliveException;
+		throws CatalogNotAliveException, ChangeCaptureResumePositionInvalidException;
 
 	/**
 	 * Method checks whether there are new records in the WAL that haven't been incorporated into the catalog yet and

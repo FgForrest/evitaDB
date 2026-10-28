@@ -32,7 +32,6 @@ import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.head.Head;
 import io.evitadb.api.query.head.Label;
@@ -237,23 +236,20 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
         );
     }
 
-    @Nonnull
-    private static EntityQueryContext buildResultContext(@Nonnull Query query) {
-        final Locale desiredLocale = Optional.ofNullable(QueryUtils.findFilter(query, EntityLocaleEquals.class))
-            .map(EntityLocaleEquals::getLocale)
-            .orElse(null);
-        return new EntityQueryContext(
-            desiredLocale
-        );
-    }
+	/** Builds the response context from the queried entity level's own locale opinion. */
+	@Nonnull
+	private static EntityQueryContext buildResultContext(@Nonnull Query query) {
+		final Locale desiredLocale = QueryUtils.resolveLocale(query.getFilterBy());
+		return new EntityQueryContext(
+			desiredLocale
+		);
+	}
 
-    @Nullable
-    private static Locale extractDesiredLocale(@Nullable FilterBy filterBy) {
-        return Optional.ofNullable(filterBy)
-            .map(it -> QueryUtils.findConstraint(it, EntityLocaleEquals.class))
-            .map(EntityLocaleEquals::getLocale)
-            .orElse(null);
-    }
+	/** Resolves the requested locale of the current entity level, excluding nested entity opinions. */
+	@Nullable
+	private static Locale extractDesiredLocale(@Nullable FilterBy filterBy) {
+		return QueryUtils.resolveLocale(filterBy);
+	}
 
     /**
      * Holds parsed GraphQL query arguments relevant for entity list query

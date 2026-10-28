@@ -36,7 +36,7 @@ import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture;
 import io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.EntityIndex;
+import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReducedEntityIndex;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -105,7 +105,7 @@ class EntityPrimaryKeyNaturalTranslatorPrefetchTest {
 			) :
 			null;
 		orderByVisitor.executeInContext(
-			new EntityIndex[0], referenceSchema, null,
+			new ReferencePartition[0], referenceSchema, null,
 			new AttributeSchemaAccessor(queryContext.getCatalogSchema(), null), null, pickFirstIndexResolver,
 			() -> new EntityPrimaryKeyNaturalTranslator()
 				.createSorter(entityPrimaryKeyNatural(OrderDirection.ASC), orderByVisitor)

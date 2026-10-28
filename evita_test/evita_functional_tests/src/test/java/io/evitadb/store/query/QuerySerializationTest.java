@@ -28,9 +28,12 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
+import io.evitadb.api.query.filter.EntityHaving;
+import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.HistogramHaving;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
@@ -46,6 +49,7 @@ import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -53,6 +57,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import java.io.ByteArrayOutputStream;
@@ -67,6 +72,8 @@ import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 import static io.evitadb.test.TestTags.STORAGE;
@@ -115,7 +122,7 @@ public class QuerySerializationTest {
 	 */
 	private final Kryo kryo = KryoFactory.createKryo(
 		QuerySerializationKryoConfigurer.INSTANCE
-			.andThen((Consumer<Kryo>) k -> k.register(
+			.andThen(k -> k.register(
 				HistogramHaving.class,
 				instantiateHistogramHavingSerializer(),
 				HISTOGRAM_HAVING_LOCAL_ID
@@ -404,6 +411,9 @@ public class QuerySerializationTest {
 				return Stream.of(
 					arguments("inScope wrapping attribute",
 						inScope(Scope.LIVE, attributeEquals("a", "b"))),
+					// refused at execution, but a stored query of this shape must stay readable
+					arguments("inScope nested in inScope",
+						inScope(Scope.LIVE, inScope(Scope.ARCHIVED, attributeEquals("a", "b")))),
 					arguments("scope (LIVE, ARCHIVED)",
 						scope(Scope.LIVE, Scope.ARCHIVED)),
 					// the order decides which scope a unique lookup prefers, so it has to survive the round trip
@@ -581,6 +591,9 @@ public class QuerySerializationTest {
 					entityPrimaryKeyExact(1, 8, 10, 3)),
 				arguments("inScope wrapping attributeNatural",
 					inScope(Scope.LIVE, attributeNatural("a", OrderDirection.ASC))),
+				// refused at execution, but a stored query of this shape must stay readable
+				arguments("inScope nested in inScope",
+					inScope(Scope.LIVE, inScope(Scope.ARCHIVED, attributeNatural("a", OrderDirection.ASC)))),
 				arguments("priceNatural",
 					priceNatural(OrderDirection.ASC)),
 				arguments("random",
@@ -1022,6 +1035,9 @@ public class QuerySerializationTest {
 				return Stream.of(
 					arguments("inScope wrapping facetSummary",
 						inScope(Scope.LIVE, facetSummary())),
+					// refused at execution, but a stored query of this shape must stay readable
+					arguments("inScope nested in inScope",
+						inScope(Scope.LIVE, inScope(Scope.ARCHIVED, facetSummary()))),
 
 					arguments("facetSummary(null depth)",
 						facetSummary((FacetStatisticsDepth) null)),
@@ -1626,6 +1642,75 @@ public class QuerySerializationTest {
 							stopAt(distance(1)),
 							statistics(StatisticsType.QUERIED_ENTITY_COUNT))))
 				);
+			}
+		}
+	}
+
+	/**
+	 * Verifies the unchanged single-filter recording format for both scope containers.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Scope filter recording compatibility")
+	class SeveralChildrenTest {
+		/**
+		 * A sole child is recorded as it is, so the container reads back unchanged.
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Round-trips a single child unchanged")
+		void shouldRoundTripUnchangedWhenSingleChildRecorded(boolean group) {
+			final FilterConstraint first = attributeEquals("first", true);
+
+			final FilterConstraint single = group ? groupHaving(first) : entityHaving(first);
+
+			assertSerializationRound(single);
+		}
+
+		/**
+		 * The wire format remains one filter: several children are written exactly as an explicit AND of them, and
+		 * read back in that form.
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Writes several children as one conjunction")
+		void shouldRecordOneConjunctionWhenSeveralChildrenGiven(boolean group) {
+			final FilterConstraint first = attributeEquals("first", true);
+			final FilterConstraint second = attributeEquals("second", true);
+			final FilterConstraint several = group ? groupHaving(first, second) : entityHaving(first, second);
+			final FilterConstraint explicit = group
+				? groupHaving(and(first, second))
+				: entityHaving(and(first, second));
+
+			final byte[] recorded = bytes(several);
+
+			assertArrayEquals(bytes(explicit), recorded);
+			try (final Input input = new Input(recorded)) {
+				assertEquals(explicit, kryo.readObject(input, several.getClass()));
+			}
+		}
+
+		/**
+		 * Empty scope filters fail explicitly instead of indexing a missing child.
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Rejects empty scope filter recordings explicitly")
+		void shouldRejectRecordingWhenScopeFilterEmpty(boolean group) {
+			final FilterConstraint empty = group ? new GroupHaving() : new EntityHaving();
+			assertEquals("Cannot serialize an empty " + (group ? "GroupHaving" : "EntityHaving") + " constraint.",
+				assertThrows(EvitaInvalidUsageException.class, () -> bytes(empty)).getMessage());
+		}
+
+		/**
+		 * Encodes a constraint using the production query Kryo configuration.
+		 */
+		@Nonnull
+		private byte[] bytes(@Nonnull Object constraint) {
+			try (final Output output = new Output(256, -1)) {
+				kryo.writeObject(output, constraint);
+				return output.toBytes();
 			}
 		}
 	}

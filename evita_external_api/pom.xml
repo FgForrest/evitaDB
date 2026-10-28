@@ -33,11 +33,6 @@
         <version>2026.3-SNAPSHOT</version>
     </parent>
 
-    <!--
-        evita_external_api_grpc/client_all_in_one is intentionally NOT listed
-        here — it is a heavy shaded uber-jar that is only needed for releases.
-        It is added to the reactor by the root `full` profile.
-    -->
     <modules>
 	    <module>evita_external_api_core</module>
 	    <module>evita_external_api_graphql</module>
