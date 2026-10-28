@@ -36,11 +36,11 @@ import io.evitadb.externalApi.http.WebSocketHandler;
 import io.evitadb.externalApi.utils.MethodNotAllowedService;
 import io.evitadb.externalApi.utils.NotFoundService;
 import io.evitadb.externalApi.utils.NotFoundWebSocketHandler;
-import io.evitadb.externalApi.utils.path.routing.CopyOnWriteMap;
 import io.evitadb.externalApi.utils.path.routing.PathHandlerDescriptor;
 import io.evitadb.externalApi.utils.path.routing.PathTemplate;
 import io.evitadb.externalApi.utils.path.routing.PathTemplateMatcher;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -60,7 +60,8 @@ import static io.evitadb.externalApi.http.AdditionalHttpHeaderNames.INTERNAL_HEA
 public class RoutingHandlerService implements HttpService, WebSocketHandler {
 
 	// Matcher objects grouped by http methods.
-	private final Map<HttpMethod, PathTemplateMatcher<PathHandlerDescriptor>> matches = new CopyOnWriteMap<>();
+	private final Map<HttpMethod, PathTemplateMatcher<PathHandlerDescriptor>> matches =
+		CollectionUtils.createConcurrentHashMap(HttpMethod.values().length);
 	// Matcher used to find if this instance contains matches for any http method for a path.
 	// This matcher is used to report if this instance can match a path for one of the http methods.
 	private final PathTemplateMatcher<PathHandlerDescriptor> allMethodsMatcher = new PathTemplateMatcher<>();
