@@ -712,6 +712,81 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * A serialization frame must cross several smaller memory blocks without discarding the session or changing bytes.
+	 */
+	@Test
+	@DisplayName("Should round-trip a record larger than several memory blocks")
+	void shouldRoundTripRecordAcrossMultipleMemoryBlocks() throws IOException {
+		final Path work = getPathInTargetDirectory(UUID.randomUUID() + "/work");
+		final StorageOptions storageOptions = StorageOptions.builder()
+			.outputBufferSize(8_192)
+			.workDirectory(work)
+			.build();
+		work.toFile().mkdirs();
+		try (final OffHeapTrafficRecorder recorder = new OffHeapTrafficRecorder(128)) {
+			recorder.init(
+				TEST_CATALOG,
+				new FileManagementService(storageOptions),
+				new Scheduler(new ImmediateScheduledThreadPoolExecutor()),
+				storageOptions,
+				TrafficRecordingOptions.builder()
+					.enabled(true)
+					.trafficSamplingPercentage(100)
+					.trafficMemoryBufferSizeInBytes(32_768L)
+					.trafficDiskBufferSizeInBytes(65_536L)
+					.build(),
+				Long.MAX_VALUE
+			);
+			final TrafficRecordingCaptureRequest captureRequest = TrafficRecordingCaptureRequest.builder()
+				.content(TrafficRecordingContent.BODY)
+				.sinceSessionSequenceId(0L)
+				.sinceRecordSessionOffset(0)
+				.build();
+			assertThrows(
+				IndexNotReady.class,
+				() -> {
+					try (final Stream<TrafficRecording> recordings = recorder.getRecordings(captureRequest)) {
+						assertEquals(0L, recordings.count());
+					}
+				}
+			);
+			final StringBuilder payloadBuilder = new StringBuilder(6_000);
+			for (int i = 0; i < 6_000; i++) {
+				payloadBuilder.append((char) ('!' + (i * 31 + i / 89) % 90));
+			}
+			final String payload = payloadBuilder.toString();
+			final UUID sessionId = UUIDUtil.randomUUID();
+			recorder.createSession(sessionId, 1, OffsetDateTime.now());
+			recorder.recordMutation(
+				sessionId,
+				OffsetDateTime.now(),
+				new EntityUpsertMutation(
+					Entities.PRODUCT, 1, EntityExistence.MUST_NOT_EXIST,
+					new UpsertAssociatedDataMutation("payload", payload)
+				),
+				null
+			);
+			recorder.closeSession(sessionId, null);
+			recorder.drainFinalizedSessionsToDisk();
+
+			try (
+				final Stream<TrafficRecording> recordings = recorder.getRecordings(captureRequest)
+			) {
+				final List<TrafficRecording> allRecordings = recordings.toList();
+				assertEquals(3, allRecordings.size(), "The whole session must survive serialization and drain");
+				final MutationContainer mutation = assertInstanceOf(MutationContainer.class, allRecordings.get(1));
+				final EntityUpsertMutation upsert = assertInstanceOf(EntityUpsertMutation.class, mutation.mutation());
+				final UpsertAssociatedDataMutation associatedData = assertInstanceOf(
+					UpsertAssociatedDataMutation.class, upsert.getLocalMutations().getFirst()
+				);
+				assertEquals(payload, associatedData.getAssociatedDataValue());
+			}
+		} finally {
+			FileUtils.deleteDirectory(work);
+		}
+	}
+
 	@Test
 	void shouldRecordAsLargeAsTheBufferItself() {
 		final UUID sessionId = UUIDUtil.randomUUID();

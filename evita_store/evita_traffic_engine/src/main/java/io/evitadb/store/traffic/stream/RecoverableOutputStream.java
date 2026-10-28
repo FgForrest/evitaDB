@@ -74,29 +74,17 @@ public class RecoverableOutputStream extends OutputStream {
 
 	@Override
 	public void write(@Nonnull byte[] bytes, int offset, int length) {
-		if (this.buffer == null) {
-			// acquire new buffer
-			this.buffer = this.ofBufferFull.get();
-			int toWrite = length;
-			int lengthToWrite = Math.min(this.buffer.remaining(), toWrite);
-			// write data gradually acquiring new buffers when the content is larger than the buffer
-			do {
-				this.buffer.put(bytes, offset, lengthToWrite);
-				toWrite -= lengthToWrite;
-				if (toWrite > 0) {
-					// acquire new buffer
-					this.buffer = this.ofBufferFull.get();
-					lengthToWrite = Math.min(this.buffer.remaining(), toWrite);
-				}
-			} while (toWrite > 0);
-		} else if (this.buffer.remaining() < length) {
-			final int bytesInExistingBlock = this.buffer.remaining();
-			this.buffer.put(bytes, offset, bytesInExistingBlock);
-			// acquire new buffer, and write the remaining bytes
-			this.buffer = this.ofBufferFull.get();
-			this.buffer.put(bytes, offset + bytesInExistingBlock, length - bytesInExistingBlock);
-		} else {
-			this.buffer.put(bytes, offset, length);
+		int position = offset;
+		int remaining = length;
+		// fill the current buffer and acquire the next one whenever it is full, until the whole input is written
+		while (remaining > 0) {
+			if (this.buffer == null || !this.buffer.hasRemaining()) {
+				this.buffer = this.ofBufferFull.get();
+			}
+			final int lengthToWrite = Math.min(this.buffer.remaining(), remaining);
+			this.buffer.put(bytes, position, lengthToWrite);
+			position += lengthToWrite;
+			remaining -= lengthToWrite;
 		}
 	}
 
