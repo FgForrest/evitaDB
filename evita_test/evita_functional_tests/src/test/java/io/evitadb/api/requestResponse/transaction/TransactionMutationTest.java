@@ -521,10 +521,13 @@ class TransactionMutationTest implements EvitaTestSupport {
 
 		@Test
 		@DisplayName("should not be equal to null")
+		@SuppressWarnings({"SimplifiableAssertion", "ObjectEqualsNull"})
 		void shouldNotBeEqualToNull() {
 			final TransactionMutation mutation = createDefault();
 
-			assertNotEquals(null, mutation);
+			// deliberately not `assertNotEquals`: with `null` as its first argument it calls no `equals` at all, so
+			// the null check of the class under test would never run
+			assertFalse(mutation.equals(null));
 		}
 
 		@Test

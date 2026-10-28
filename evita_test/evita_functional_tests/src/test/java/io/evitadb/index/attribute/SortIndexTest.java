@@ -1229,11 +1229,15 @@ class SortIndexTest {
 
 		@Test
 		@DisplayName("should handle null and different type in equals")
+		@SuppressWarnings({"SimplifiableAssertion", "EqualsBetweenInconvertibleTypes", "ObjectEqualsNull"})
 		void shouldHandleNullAndDifferentTypeInEquals() {
 			final ComparableArray a = new ComparableArray(new Serializable[]{"X"});
 
-			assertNotEquals(null, a);
-			assertNotEquals("not-a-comparable-array", a);
+			// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
+			// fix moves the literal there, so `String.equals` would be tested instead of the class under test - and
+			// with `null` first it calls no `equals` at all
+			assertFalse(a.equals(null));
+			assertFalse(a.equals("not-a-comparable-array"));
 		}
 
 		/**

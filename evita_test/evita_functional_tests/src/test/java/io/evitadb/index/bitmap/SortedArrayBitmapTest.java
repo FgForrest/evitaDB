@@ -388,23 +388,32 @@ class SortedArrayBitmapTest {
 
 		@Test
 		@DisplayName("equals and hashCode are content-based and type-sensitive")
+		@SuppressWarnings({"SimplifiableAssertion", "EqualsBetweenInconvertibleTypes"})
 		void shouldCompareByContentWithinTheType() {
 			final SortedArrayBitmap bitmap = new SortedArrayBitmap(1, 2, 3);
 
-			assertEquals(bitmap, new SortedArrayBitmap(1, 2, 3));
+			assertEquals(new SortedArrayBitmap(1, 2, 3), bitmap);
 			assertEquals(bitmap.hashCode(), new SortedArrayBitmap(1, 2, 3).hashCode());
-			assertNotEquals(bitmap, new SortedArrayBitmap(1, 2, 4));
-			assertNotEquals(bitmap, new SortedArrayBitmap(1, 2));
-			assertNotEquals(bitmap, new BaseBitmap(1, 2, 3), "content equality across representations is getContentHash's job");
+			assertNotEquals(new SortedArrayBitmap(1, 2, 4), bitmap);
+			assertNotEquals(new SortedArrayBitmap(1, 2), bitmap);
+			// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
+			// fix moves the `new BaseBitmap` there, so `BaseBitmap.equals` would be tested instead of this class's
+			assertFalse(
+				bitmap.equals(new BaseBitmap(1, 2, 3)),
+				"content equality across representations is getContentHash's job"
+			);
 		}
 
 		@Test
 		@DisplayName("equals is reflexive and rejects null")
+		@SuppressWarnings({"SimplifiableAssertion", "ObjectEqualsNull"})
 		void shouldBeReflexiveAndRejectNull() {
 			final SortedArrayBitmap bitmap = new SortedArrayBitmap(1, 2, 3);
 
 			assertEquals(bitmap, bitmap);
-			assertNotEquals(null, bitmap);
+			// deliberately not `assertNotEquals`: with `null` as its first argument it calls no `equals` at all, so
+			// the null check of the class under test would never run
+			assertFalse(bitmap.equals(null));
 		}
 
 		@Test

@@ -151,9 +151,12 @@ class FacetSummaryTest implements EvitaTestSupport {
 
 		@Test
 		@DisplayName("should not be equal to null")
+		@SuppressWarnings({"SimplifiableAssertion", "ObjectEqualsNull"})
 		void shouldNotBeEqualToNull() {
 			final FacetSummary facetSummary = createFacetSummary();
-			assertNotEquals(null, facetSummary);
+			// deliberately not `assertNotEquals`: with `null` as its first argument it calls no `equals` at all, so
+			// the null check of the class under test would never run
+			assertFalse(facetSummary.equals(null));
 		}
 
 		@Test
