@@ -137,10 +137,10 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	 * This variable represents a lock used for protecting access to a handle in the {@link WriteOnlyFileHandle} class.
 	 * It is an instance of the {@link ReentrantLock} class, which is a reentrant mutual exclusion lock.
 	 *
-	 * The handleLock is used to synchronize access to the {@link ObservableOutput} object in the WriteOnlyHandle interface.
-	 * The methods in the WriteOnlyHandle interface that require access to the {@link ObservableOutput} object are wrapped
-	 * in a synchronized block with the handleLock as the monitor object. This ensures that only one thread can access
-	 * the {@link ObservableOutput} object at a time, preventing concurrent modification and ensuring thread safety.
+	 * Methods in the {@link WriteOnlyHandle} interface acquire this lock with {@link ReentrantLock#lock()} before
+	 * accessing the {@link ObservableOutput} object and release it with {@link ReentrantLock#unlock()} in a `finally`
+	 * block. This ensures that only one thread can access the output at a time, preventing concurrent modification
+	 * and ensuring thread safety.
 	 *
 	 * @see WriteOnlyHandle
 	 * @see StorageOptions
