@@ -30,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
@@ -74,6 +75,7 @@ public class RecoverableOutputStream extends OutputStream {
 
 	@Override
 	public void write(@Nonnull byte[] bytes, int offset, int length) {
+		Objects.checkFromIndexSize(offset, length, bytes.length);
 		int position = offset;
 		int remaining = length;
 		// fill the current buffer and acquire the next one whenever it is full, until the whole input is written

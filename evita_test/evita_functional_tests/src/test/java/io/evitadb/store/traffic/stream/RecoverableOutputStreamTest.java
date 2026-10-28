@@ -39,6 +39,7 @@ import static io.evitadb.test.TestTags.STREAM;
 import static io.evitadb.test.TestTags.TRAFFIC_ENGINE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -135,6 +136,20 @@ class RecoverableOutputStreamTest {
 		assertEquals(1, this.buffers.size());
 		assertEquals(1, this.stream.getBufferPosition());
 		assertArrayEquals(new byte[]{(byte) 0x80}, getWrittenBytes());
+	}
+
+	/**
+	 * A source range outside the array is rejected as `OutputStream` requires, even when nothing would be copied.
+	 */
+	@Test
+	@DisplayName("Should reject a source range outside the array")
+	void shouldRejectSourceRangeOutsideArray() {
+		final byte[] input = new byte[8];
+
+		assertThrows(IndexOutOfBoundsException.class, () -> this.stream.write(input, 0, -1));
+		assertThrows(IndexOutOfBoundsException.class, () -> this.stream.write(input, 9, 0));
+		assertThrows(IndexOutOfBoundsException.class, () -> this.stream.write(input, 4, 5));
+		assertTrue(this.buffers.isEmpty());
 	}
 
 	/**
