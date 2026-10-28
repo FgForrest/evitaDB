@@ -24,6 +24,7 @@
 package io.evitadb.store.traffic.stream;
 
 
+import io.evitadb.store.traffic.SessionTraffic;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -34,6 +35,10 @@ import java.util.function.Supplier;
 /**
  * This implementation of the {@link OutputStream} allows to recover from the buffer overflow by acquiring a new buffer
  * from the provided {@link Supplier} of {@link ByteBuffer} when the current buffer is full.
+ *
+ * This stream is not thread-safe; {@link SessionTraffic} guarantees one writer at a time through its
+ * `processQueue` single flight (`serializationInProgress`). All serialization writes and the
+ * `ObservableOutput` close in the session-close success callback run inside that single flight.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -49,12 +54,17 @@ public class RecoverableOutputStream extends OutputStream {
 	 */
 	private final Supplier<ByteBuffer> ofBufferFull;
 
+	/**
+	 * Returns the current position within the active buffer.
+	 *
+	 * @return the next byte position, or -1 if no buffer has been acquired
+	 */
 	public int getBufferPosition() {
 		return this.buffer == null ? -1 : this.buffer.position();
 	}
 
 	@Override
-	public synchronized void write (int b) {
+	public void write(int b) {
 		if (this.buffer == null || !this.buffer.hasRemaining()) {
 			// acquire new buffer
 			this.buffer = this.ofBufferFull.get();
@@ -63,7 +73,7 @@ public class RecoverableOutputStream extends OutputStream {
 	}
 
 	@Override
-	public synchronized void write(@Nonnull byte[] bytes, int offset, int length) {
+	public void write(@Nonnull byte[] bytes, int offset, int length) {
 		if (this.buffer == null) {
 			// acquire new buffer
 			this.buffer = this.ofBufferFull.get();
