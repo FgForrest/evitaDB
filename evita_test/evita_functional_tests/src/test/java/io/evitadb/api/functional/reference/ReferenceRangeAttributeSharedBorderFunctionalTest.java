@@ -236,6 +236,39 @@ class ReferenceRangeAttributeSharedBorderFunctionalTest implements EvitaTestSupp
 	}
 
 	/**
+	 * Once the second owner leaves, brand 1 has a single owner, and a single-owner partition is answered from the
+	 * referenced type index without re-examining its row. A shared end lost while the second owner's range was removed
+	 * would leave the remaining range open-ended there, and the query past the end would return its owner.
+	 */
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("referenceHaving finds no owner past a shared end after the other owner sharing it left the target")
+	void shouldFindNoOwnerPastSharedEndAfterTheOtherOwnerLeaves(CatalogState state) {
+		prepare(state, ATTR_VALIDITY, DateTimeRange.between(T0, T3), DateTimeRange.between(T1, T3));
+
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			(Consumer<EvitaSessionContract>) session -> session
+				.getEntity(ENTITY_PRODUCT, 2, entityFetchAllContent())
+				.orElseThrow()
+				.openForWrite()
+				.removeReference(REF_BRAND, BRAND)
+				.upsertVia(session)
+		);
+
+		assertArrayEquals(
+			new int[]{1},
+			queryProducts(referenceHaving(REF_BRAND, attributeInRange(ATTR_VALIDITY, T2))),
+			"precondition: product 1 still references brand 1 with [T0,T3], which covers T2"
+		);
+		assertArrayEquals(
+			NONE,
+			queryProducts(referenceHaving(REF_BRAND, attributeInRange(ATTR_VALIDITY, T4))),
+			"product 1's [T0,T3] is over at T4 - its end must survive the removal of product 2's [T1,T3]"
+		);
+	}
+
+	/**
 	 * Creates the schema described on the class, brands 1 and 2, and one product per passed value - product `i + 1`
 	 * references brand 1 with `values[i]` in `attributeName`.
 	 *
