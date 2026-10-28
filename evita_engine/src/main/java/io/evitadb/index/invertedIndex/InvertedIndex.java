@@ -79,6 +79,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
@@ -132,7 +133,7 @@ import java.util.function.Predicate;
  * catalog admits one session at a time, and a read-write session rejects a second thread at runtime; the warm-up
  * client is allowed to query what it has just written, but only on its own thread. The catch-up
  * {@link #getValueById(int)} performs there is therefore a same-thread interleaving — write, query, write, query —
- * which is required for correctness but is not a race, and the `synchronized` around the rebuild buys nothing in
+ * which is required for correctness but is not a race, and the stripe lock around the rebuild buys nothing in
  * that setting.
  *
  * The one reader that genuinely is concurrent with a warm-up writer reaches the index from the **management and
@@ -984,8 +985,8 @@ public class InvertedIndex implements
 	 * Raising the flag there was not merely redundant, it was expensive in the one place that cannot afford it. Trunk
 	 * incorporation of a transaction that inserts N distinct values would flip the volatile N times on the shared live
 	 * instance, and every read-only accelerated query arriving between two of those writes would enter the
-	 * synchronized {@link #refreshValueIdDirectory()} and copy the whole location array — an `O(V)` walk on the QUERY
-	 * path, repeated up to N times, to rebuild a directory that had not changed.
+	 * stripe-locked {@link #refreshValueIdDirectory()} and copy the whole location array — an `O(V)` walk on the
+	 * QUERY path, repeated up to N times, to rebuild a directory that had not changed.
 	 *
 	 * ## What the narrowed meaning buys the commit merge
 	 *
@@ -1040,6 +1041,9 @@ public class InvertedIndex implements
 	 * premise exists to rule out. Hence single-flight: the lock admits one rebuilder and the re-check inside it makes
 	 * every thread that queued behind them return without doing the work a second time.
 	 *
+	 * The lock is one stripe of the shared pool in {@link ValueIdDirectoryLocks}, which explains why it is shared
+	 * rather than per index, why it is allocated lazily and never evicted, and why stripes cannot deadlock.
+	 *
 	 * ## The read-versus-rebuild window, and how it is closed
 	 *
 	 * A reader already past the flag on the fast path — having seen it `false` — can still be inside
@@ -1059,24 +1063,73 @@ public class InvertedIndex implements
 	 * nothing in the fast loop runs it for you:
 	 *
 	 * ```
-	 * mvn -pl evita_test/evita_functional_tests,evita_test/evita_long_running_tests test -P longRunning \
+	 * mvn -pl evita_test/evita_long_running_tests -am test -P longRunning \
 	 *     -Dtest=LongRunningValueIdDirectoryConcurrencyTest -Dsurefire.failIfNoSpecifiedTests=false
 	 * ```
 	 *
-	 * It carries a recorded calibration — the counterfactual is removing the `synchronized` below, built on a shadow
-	 * classpath rather than by editing this file — and that has to be re-measured too, not merely the green run.
+	 * It carries a recorded calibration — the counterfactual removes the stripe `lock()` / `unlock()` pair below,
+	 * built on a shadow classpath rather than by editing this file — and that has to be re-measured too, not merely
+	 * the green run.
 	 * **Changing how fast this method runs moves the window the test races in**, so an optimization elsewhere can
-	 * leave the test passing while it has stopped proving anything. That has already happened once, and the window
-	 * has since moved back the other way: re-measured on 2026-09-03 the counterfactual fails within 16 of 2000
-	 * rounds, where on 2026-08-31 it needed 267-450. The same obligation applies to
-	 * `BucketBPlusTree#rebuildValueIdDirectory`.
+	 * leave the test passing while it has stopped proving anything. Re-measured on 2026-10-28, removing the stripe
+	 * pair fails 3 times out of 3 in 0.079-4.232 s of test elapsed time: one leaf-id reassignment premise and two live
+	 * values resolving to `null`, the latest in round 1644 of 2000. With the pair in place, all rounds pass 2 times
+	 * out of 2 in 2.362-4.172 s on 24-core x86_64 Linux, OpenJDK 21.0.12.1, with JaCoCo enabled. The counterfactual
+	 * needed only 16 rounds on 2026-09-03 and 267-450 on 2026-08-31; keep the margin and re-calibrate after changes.
+	 * The same obligation applies to `BucketBPlusTree#rebuildValueIdDirectory`.
 	 */
-	private synchronized void refreshValueIdDirectory() {
-		if (this.valueIdDirectoryStale) {
-			this.buckets.rebuildValueIdDirectory();
-			// cleared LAST, so the volatile write publishes the finished directory to every reader that takes the
-			// fast path afterwards
-			this.valueIdDirectoryStale = false;
+	private void refreshValueIdDirectory() {
+		final ReentrantLock lock = ValueIdDirectoryLocks.STRIPES[
+			Long.hashCode(this.id) & (ValueIdDirectoryLocks.STRIPE_COUNT - 1)
+		];
+		lock.lock();
+		try {
+			if (this.valueIdDirectoryStale) {
+				this.buckets.rebuildValueIdDirectory();
+				// cleared LAST, so the volatile write publishes the finished directory to every reader that takes the
+				// fast path afterwards
+				this.valueIdDirectoryStale = false;
+			}
+		} finally {
+			lock.unlock();
+		}
+	}
+
+	/**
+	 * Lazily allocates the permanent rebuild stripes on the first directory refresh in the JVM. A shared pool avoids
+	 * a per-index lock and leaves the shallow layout counted by {@link #getHeapSizeInBytes()} unchanged across every
+	 * inverted index a catalog owns (one per attribute per entity index, reduced indexes included). A JVM that never
+	 * rebuilds a directory never allocates the pool.
+	 *
+	 * Never evicted: `goLive` shares the warm-up instances with the ALIVE catalog, so a directory left stale by warm-up
+	 * is rebuilt by concurrent ALIVE readers. That first-read race is precisely when the stripes are needed.
+	 * Two indexes contend only when both rebuild at once and map to the same stripe. A rebuild stays inside its own
+	 * tree and never takes a second stripe, so no stripe-lock cycle can deadlock.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	private static final class ValueIdDirectoryLocks {
+		/**
+		 * Power-of-two stripe count, allowing an overflow-safe mask of the index id hash.
+		 */
+		private static final int STRIPE_COUNT = 64;
+		/**
+		 * Rebuild locks retained for the lifetime of the JVM.
+		 */
+		private static final ReentrantLock[] STRIPES = createStripes();
+
+		/**
+		 * Allocates the shared pool once when the holder is initialized.
+		 *
+		 * @return one lock for each stripe
+		 */
+		@Nonnull
+		private static ReentrantLock[] createStripes() {
+			final ReentrantLock[] stripes = new ReentrantLock[STRIPE_COUNT];
+			for (int i = 0; i < stripes.length; i++) {
+				stripes[i] = new ReentrantLock();
+			}
+			return stripes;
 		}
 	}
 
