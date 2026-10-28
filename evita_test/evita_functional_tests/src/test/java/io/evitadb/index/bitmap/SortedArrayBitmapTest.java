@@ -399,7 +399,8 @@ class SortedArrayBitmapTest {
 			// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
 			// fix moves the `new BaseBitmap` there, so `BaseBitmap.equals` would be tested instead of this class's
 			assertFalse(
-				bitmap.equals(new BaseBitmap(1, 2, 3)), "content equality across representations is getContentHash's job"
+				bitmap.equals(new BaseBitmap(1, 2, 3)),
+				"content equality across representations is getContentHash's job"
 			);
 		}
 
