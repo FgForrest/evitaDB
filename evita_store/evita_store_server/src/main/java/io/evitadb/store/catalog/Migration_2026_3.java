@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeLongArray;
@@ -43,6 +44,7 @@ import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.attribute.EntityReferenceWithLocale;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
+import io.evitadb.index.attribute.LegacyDecimalRangeFilterIndexCorrection;
 import io.evitadb.index.attribute.LegacyOwnerSortIndexCorrection;
 import io.evitadb.index.attribute.OwnerUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
@@ -488,9 +490,9 @@ public interface Migration_2026_3 {
 			final List<FilterIndexClamp> clampedFilterIndexes =
 				filterIndexClamps.get(entityCollectionHeader.entityType());
 			for (final FilterIndexClamp clamp : clampedFilterIndexes) {
-				for (final StoragePart part : clamp.parts()) {
-					collectionStoragePartService.putStoragePart(catalogVersion, part);
-				}
+				final TrappedChanges changes = new TrappedChanges();
+				clamp.parts().forEach(changes::addChangeToStore);
+				drain(catalogVersion, changes, collectionStoragePartService);
 			}
 
 			int rekeyedCounters = 0;
@@ -1128,14 +1130,19 @@ public interface Migration_2026_3 {
 	 * equal payload is the same entry; an owner unique index stores the record id alone, so an equal record id may
 	 * still be two locales of a localized attribute, and is reported rather than folded.
 	 *
+	 * Distinct date-time ranges can retain their canonical spelling while their comparison order changes between
+	 * releases. An inversion among those keys also requests a rewrite; the writers rebuild the trees in current order.
+	 * Equal keys without a spelling change are left to the unique-collision upgrade policy.
+	 *
 	 * Extracted from the storage plumbing so it can be tested as the pure transform it is.
 	 *
-	 * @param values               the stored keys, in any order
+	 * @param values               the stored keys, in stored order - the date-time range inversion check compares
+	 *                             neighbours
 	 * @param owners               the owner of each key, positionally aligned with `values` - a record id or a packed
 	 *                             entity tuple
 	 * @param ownerIdentifiesEntry `true` when an equal owner proves two keys are the same entry
 	 * @param canonicalizer        maps a stored value onto its canonical form (see {@link #canonicalizerFor})
-	 * @return `null` when every key is already canonical and the index needs no rewrite, otherwise the canonical keys
+	 * @return `null` when the index needs no rewrite, otherwise the canonical keys
 	 * with their owners and every colliding pair of positions in the input
 	 */
 	@Nullable
@@ -1164,7 +1171,17 @@ public interface Migration_2026_3 {
 				collisions.add(new int[]{firstPosition, i});
 			}
 		}
-		// keys that were all canonical already were distinct tree keys, so they can neither move nor collide
+		// a range can stay equal to its canonical spelling while its comparison order changes between releases
+		// collisions without a changed spelling belong to the separate unique-collision upgrade policy
+		if (!changed && canonicalValues.size() == values.length) {
+			for (int i = 1; i < values.length; i++) {
+				if (values[i - 1] instanceof DateTimeRange previous && values[i] instanceof DateTimeRange current &&
+					previous.compareTo(current) > 0) {
+					changed = true;
+					break;
+				}
+			}
+		}
 		return changed ?
 			new UniqueKeyRekeying(
 				canonicalValues.toArray(Serializable[]::new), canonicalOwners.toArray(), collisions
@@ -1829,12 +1846,14 @@ public interface Migration_2026_3 {
 	 * millisecond - are a collision found here, appended to `collisions`. The trees of every `OffsetDateTime` and
 	 * `LocalDateTime` attribute are checked, whether or not they hold a key beyond the window, and those of every
 	 * unique `LocalTime` attribute, which can meet only through the truncation.
+	 * Non-unique paged decimal-range filters are also reordered at their frozen scale, merging keys that now share
+	 * one bucket. Their companion thresholds are rebuilt from the same normalized bounds and record membership.
 	 * Nothing is written here.
 	 *
 	 * @param catalogVersion the catalog version being upgraded
 	 * @param collection     the collection whose entity indexes are inspected
 	 * @param collisions     receives every collision found
-	 * @return the clamp plans, one per filter index that holds a key beyond the window
+	 * @return the rewrite plans for out-of-window temporal keys and reordered decimal-range bucket pages
 	 */
 	@Nonnull
 	private static List<FilterIndexClamp> planFilterIndexClamps(
@@ -1876,6 +1895,27 @@ public interface Migration_2026_3 {
 				}
 				final Class<?> plainType = plainTypeOf(root.getAttributeType());
 				final boolean unique = uniqueKeys.contains(storageKey.attribute());
+				if (!unique && root.isPaged() && BigDecimalNumberRange.class.isAssignableFrom(plainType)) {
+					final FilterIndexLeafPagePart[] pages =
+						new FilterIndexLeafPagePart[root.getLeafPageSequences().length];
+					final int streamId = service.getReadOnlyKeyCompressor().getId(
+						new LeafStreamKey(indexPrimaryKey, new AttributeKeyWithIndexType(
+							root.getAttributeIndexKey(), AttributeIndexType.FILTER
+						))
+					);
+					for (int i = 0; i < pages.length; i++) {
+						pages[i] = Objects.requireNonNull(service.getStoragePart(
+							catalogVersion, AbstractLeafPagePart.computeUniquePartId(
+								streamId, root.getLeafPageSequences()[i]
+							), FilterIndexLeafPagePart.class
+						));
+					}
+					final List<StoragePart> reordered = LegacyDecimalRangeFilterIndexCorrection.rewrite(root, pages);
+					if (!reordered.isEmpty()) {
+						clamps.add(new FilterIndexClamp(reordered));
+					}
+					continue;
+				}
 				// a `LocalTime` key has no window to leave, but a unique one meets its twin through truncation alone
 				final boolean truncatedUnique = unique && LocalTime.class.isAssignableFrom(plainType);
 				if (!isClampedTemporal(plainType) && !truncatedUnique) {
@@ -2266,10 +2306,10 @@ public interface Migration_2026_3 {
 	}
 
 	/**
-	 * A planned clamp of one filter index: the parts to write - the inline root, or the leaf pages that hold a key
-	 * beyond the window of moments this version can hold.
+	 * A planned filter rewrite: the root or leaf pages holding out-of-window keys, or the reordered decimal-range
+	 * bucket pages with their root and surplus-page removals.
 	 *
-	 * @param parts the parts to write
+	 * @param parts the replacements and removals to apply
 	 */
 	record FilterIndexClamp(@Nonnull List<StoragePart> parts) {
 	}

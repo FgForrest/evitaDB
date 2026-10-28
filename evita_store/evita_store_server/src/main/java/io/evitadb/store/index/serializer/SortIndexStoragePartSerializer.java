@@ -72,7 +72,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * re-derived from the shared {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart}
  * on load) keep the raw encoding because their block lengths are not available here. The released-minor formats are
  * read by {@link SortIndexStoragePartSerializer_2025_5} / {@link SortIndexStoragePartSerializer_2026_1}; the prior
- * 2026.2 development format was never released, so it has no backward-compatible reader.
+ * 2026.2 format is read losslessly by {@link SortIndexStoragePartSerializer_2026_2}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

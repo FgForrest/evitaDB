@@ -38,6 +38,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
@@ -159,6 +160,34 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 		final AtomicReference<List<String>> fresh = new AtomicReference<>();
 		this.harness.withFreshCatalog(fixture, evita -> fresh.set(probe(evita, fixture)));
 		this.harness.withUpgradedCatalog(fixture, evita -> assertEquals(fresh.get(), probe(evita, fixture)));
+	}
+
+	/** Loads and probes the release catalogs whose stored index order the upgrade rewrites. */
+	@Nested
+	@DisplayName("Stored index ordering")
+	class StoredIndexOrdering {
+
+		/** Verifies each catalog publishes the current storage protocol and loads successfully. */
+		@ParameterizedTest(name = "{0}")
+		@ValueSource(strings = {"d1b", "d1b2", "d9", "d9o", "d13"})
+		void shouldLoadWhenFixtureIsUpgraded(@Nonnull String fixture) {
+			Release2026_2UpgradeDefectsTest.this.harness.withUpgradedCatalog(
+				fixture, evita -> assertEquals(7, ReleaseFixtureHarness.headerStorageProtocol(evita, fixture))
+			);
+		}
+
+		/** Verifies the upgraded indexes answer every recipe probe as a fresh replay does. */
+		@ParameterizedTest(name = "{0}")
+		@ValueSource(strings = {"d1b", "d1b2", "d9", "d9o", "d13"})
+		void shouldAnswerProbesAsFreshEngineWhenFixtureIsUpgraded(@Nonnull String fixture) {
+			final AtomicReference<List<String>> fresh = new AtomicReference<>();
+			Release2026_2UpgradeDefectsTest.this.harness.withFreshCatalog(
+				fixture, evita -> fresh.set(probe(evita, fixture))
+			);
+			Release2026_2UpgradeDefectsTest.this.harness.withUpgradedCatalog(
+				fixture, evita -> assertEquals(fresh.get(), probe(evita, fixture))
+			);
+		}
 	}
 
 	@Nested

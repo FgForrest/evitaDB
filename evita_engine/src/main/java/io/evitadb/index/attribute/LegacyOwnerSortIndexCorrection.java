@@ -246,9 +246,14 @@ public final class LegacyOwnerSortIndexCorrection {
 			final int[] sortedRecords = root.getSortedRecords();
 			final Map<Serializable, Integer> cardinalities = root.getValueCardinalities();
 			int offset = 0;
-			for (final Serializable value : sortedRecordValues) {
-				// the cardinalities are keyed by the persisted value, not by the normalized one
-				final int cardinality = cardinalities.getOrDefault(value, 1);
+			// the released reader marks its dense column by handing the value array itself as the cardinality values
+			final int[] positionalLengths = root.getCardinalityValues() == sortedRecordValues ?
+				root.getCardinalities() : null;
+			for (int i = 0; i < sortedRecordValues.length; i++) {
+				final Serializable value = sortedRecordValues[i];
+				// the released reader preserves today-equal keys in a dense positional column
+				final int cardinality = positionalLengths == null ?
+					cardinalities.getOrDefault(value, 1) : positionalLengths[i];
 				ownedTree.addRecord(
 					normalizer.apply(value), Arrays.copyOfRange(sortedRecords, offset, offset + cardinality)
 				);

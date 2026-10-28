@@ -63,7 +63,8 @@ import java.util.Objects;
 @NotThreadSafe
 @ToString(of = "attributeIndexKey")
 public class SortIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeIndexKey> {
-	@Serial private static final long serialVersionUID = 5192847362910473829L;
+	/** Routes released parts to the reader preserving their distinct positional blocks. */
+	@Serial private static final long serialVersionUID = -4850730814882863814L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.
@@ -93,10 +94,15 @@ public class SortIndexStoragePart implements AttributeIndexStoragePart, RecordWi
 	 * index (the persistence path) these values are in ascending order, aligned with {@link #sortedRecordsValues} — the
 	 * serializer's per-value block-length computation relies on that; a part reconstructed from disk carries them in
 	 * stored order and is only used to reseed the index (never re-serialized directly).
+	 *
+	 * The released 2026.2 reader returns a dense column aligned with {@link #sortedRecordsValues}, including lengths
+	 * of one. Its positions preserve blocks of released keys that are equal today until the migration merges them.
+	 * That dense column is the very {@link #sortedRecordsValues} array, and the migration recognizes it by that
+	 * identity: every other reader builds the column from a value map, whose order cannot be aligned with the values.
 	 */
 	@Getter private final Serializable[] cardinalityValues;
 	/**
-	 * The cardinalities (each `> 1`) positionally aligned with {@link #cardinalityValues}.
+	 * The cardinalities, including `1` in a dense released column, aligned with {@link #cardinalityValues}.
 	 */
 	@Getter private final int[] cardinalities;
 	/**
