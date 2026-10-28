@@ -136,6 +136,29 @@ class WriteOnlyFileHandleTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * An interrupt while waiting for the handle lock in `close()` must surface as the internal error that names it,
+	 * with the interrupt flag restored, rather than as an `IllegalMonitorStateException` from releasing a lock that
+	 * was never acquired.
+	 */
+	@Test
+	@DisplayName("reports an interrupted close as an internal error")
+	void shouldReportInterruptedCloseAsInternalError() {
+		final WriteOnlyFileHandle handle = createWriteHandle(
+			this.targetDirectory.resolve(UUIDUtil.randomUUID() + ".dat")
+		);
+		Thread.currentThread().interrupt();
+		try {
+			assertThrows(io.evitadb.exception.GenericEvitaInternalError.class, handle::close);
+			assertTrue(Thread.currentThread().isInterrupted(), "close() must restore the interrupt flag");
+		} finally {
+			// clear the flag before the real close, so that the cleanup itself is not interrupted
+			//noinspection ResultOfMethodCallIgnored
+			Thread.interrupted();
+			handle.close();
+		}
+	}
+
+	/**
 	 * A compressor has no output owner when opening the file or initializing the output fails.
 	 *
 	 * @param initializationFailure whether output initialization fails after opening the stream

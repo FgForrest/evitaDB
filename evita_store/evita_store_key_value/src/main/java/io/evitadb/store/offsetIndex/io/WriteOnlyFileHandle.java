@@ -137,10 +137,11 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	 * This variable represents a lock used for protecting access to a handle in the {@link WriteOnlyFileHandle} class.
 	 * It is an instance of the {@link ReentrantLock} class, which is a reentrant mutual exclusion lock.
 	 *
-	 * Methods in the {@link WriteOnlyHandle} interface acquire this lock with {@link ReentrantLock#lock()} before
-	 * accessing the {@link ObservableOutput} object and release it with {@link ReentrantLock#unlock()} in a `finally`
-	 * block. This ensures that only one thread can access the output at a time, preventing concurrent modification
-	 * and ensuring thread safety.
+	 * The {@link WriteOnlyHandle} operations acquire it with a timed {@link ReentrantLock#tryLock(long, TimeUnit)}
+	 * bounded by {@link #lockTimeoutSeconds} and fail with an {@link UnexpectedIOException} when the wait times out;
+	 * {@link #close()} acquires it with {@link ReentrantLock#lockInterruptibly()}. An interrupted wait fails with a
+	 * {@link GenericEvitaInternalError} after restoring the interrupt flag. Every holder releases the lock in a
+	 * `finally` block, so only one thread accesses the {@link ObservableOutput} at a time.
 	 *
 	 * @see WriteOnlyHandle
 	 * @see StorageOptions
@@ -493,10 +494,14 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	public void close() {
 		try {
 			this.handleLock.lockInterruptibly();
-			this.observableOutputKeeper.close(this.targetFile);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 			throw new GenericEvitaInternalError("Failed to close file due to interrupt!");
+		}
+		// released only once acquired: unlocking after an interrupted wait would throw IllegalMonitorStateException
+		// and hide the error above
+		try {
+			this.observableOutputKeeper.close(this.targetFile);
 		} finally {
 			this.handleLock.unlock();
 		}
