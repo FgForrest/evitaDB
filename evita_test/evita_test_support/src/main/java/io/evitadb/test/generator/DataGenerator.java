@@ -90,6 +90,7 @@ import java.time.ZoneOffset;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -1660,7 +1661,14 @@ public class DataGenerator {
 		private final String entityType;
 	}
 
+	/**
+	 * Tracks generated attribute values and serializes callbacks that install a temporary generation predicate.
+	 */
 	private static class ManagedAttributesChecker {
+		/**
+		 * Guards the temporary attribute predicate throughout one generation callback.
+		 */
+		private final ReentrantLock predicateLock = new ReentrantLock();
 		private final Map<String, Map<Object, Integer>> managedAttributes = new ConcurrentHashMap<>();
 		private Predicate<Set<Object>> canAddAttribute;
 
@@ -1709,13 +1717,26 @@ public class DataGenerator {
 			return value;
 		}
 
-		public synchronized void executeWithPredicate(@Nonnull Predicate<Set<Object>> canAddAttribute, @Nonnull Runnable runnable) {
-			Assert.isTrue(this.canAddAttribute == null, "Cannot nest predicate!");
+		/**
+		 * Runs one generation callback with an exclusive temporary predicate and clears it on failure.
+		 *
+		 * @param canAddAttribute predicate constraining generated attribute values
+		 * @param runnable generation callback; nesting another predicate is forbidden
+		 */
+		public void executeWithPredicate(
+			@Nonnull Predicate<Set<Object>> canAddAttribute, @Nonnull Runnable runnable
+		) {
+			this.predicateLock.lock();
 			try {
-				this.canAddAttribute = canAddAttribute;
-				runnable.run();
+				Assert.isTrue(this.canAddAttribute == null, "Cannot nest predicate!");
+				try {
+					this.canAddAttribute = canAddAttribute;
+					runnable.run();
+				} finally {
+					this.canAddAttribute = null;
+				}
 			} finally {
-				this.canAddAttribute = null;
+				this.predicateLock.unlock();
 			}
 		}
 	}

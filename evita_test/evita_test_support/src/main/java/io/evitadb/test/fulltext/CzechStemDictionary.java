@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.TreeSet;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * A realistic **term dictionary of folded stems**: every inflected form of the hunspell `cs_CZ` fixture
@@ -61,6 +62,10 @@ public final class CzechStemDictionary {
 	 * Leaf block size of the tree; odd on purpose, the tree derives its minimum block size as half of it.
 	 */
 	private static final int LEAF_BLOCK_SIZE = 63;
+	/**
+	 * Serializes initialization while allowing a later call to retry after a fixture I/O failure.
+	 */
+	private static final ReentrantLock INITIALIZATION_LOCK = new ReentrantLock();
 	/**
 	 * The shared instance, built on first use.
 	 */
@@ -110,12 +115,15 @@ public final class CzechStemDictionary {
 	public static CzechStemDictionary get() {
 		CzechStemDictionary result = instance;
 		if (result == null) {
-			synchronized (CzechStemDictionary.class) {
+			INITIALIZATION_LOCK.lock();
+			try {
 				result = instance;
 				if (result == null) {
 					result = build();
 					instance = result;
 				}
+			} finally {
+				INITIALIZATION_LOCK.unlock();
 			}
 		}
 		return result;

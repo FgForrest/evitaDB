@@ -32,6 +32,8 @@ import java.util.List;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
 
 /**
@@ -48,19 +50,24 @@ import java.util.function.Predicate;
  */
 final class AwaitableCaptureSubscriber<T extends ChangeCapture> implements Subscriber<T> {
 	/**
+	 * Guards received signals and the condition used to await them.
+	 */
+	private final ReentrantLock stateLock = new ReentrantLock();
+	private final Condition changed = this.stateLock.newCondition();
+	/**
 	 * Number of captures requested when the subscription starts.
 	 */
 	private final long initialDemand;
 	/**
-	 * Captures received so far, in delivery order. Guarded by this instance's monitor.
+	 * Captures received so far, in delivery order. Guarded by {@link #stateLock}.
 	 */
 	private final List<T> items = new ArrayList<>(64);
 	/**
-	 * The error the publisher terminated the stream with, if any. Guarded by this instance's monitor.
+	 * The error the publisher terminated the stream with, if any. Guarded by {@link #stateLock}.
 	 */
 	@Nullable private Throwable error;
 	/**
-	 * Whether the publisher completed the stream. Guarded by this instance's monitor.
+	 * Whether the publisher completed the stream. Guarded by {@link #stateLock}.
 	 */
 	private boolean completed;
 
@@ -90,21 +97,36 @@ final class AwaitableCaptureSubscriber<T extends ChangeCapture> implements Subsc
 	}
 
 	@Override
-	public synchronized void onNext(@Nonnull T item) {
-		this.items.add(item);
-		notifyAll();
+	public void onNext(@Nonnull T item) {
+		this.stateLock.lock();
+		try {
+			this.items.add(item);
+			this.changed.signalAll();
+		} finally {
+			this.stateLock.unlock();
+		}
 	}
 
 	@Override
-	public synchronized void onError(@Nonnull Throwable throwable) {
-		this.error = throwable;
-		notifyAll();
+	public void onError(@Nonnull Throwable throwable) {
+		this.stateLock.lock();
+		try {
+			this.error = throwable;
+			this.changed.signalAll();
+		} finally {
+			this.stateLock.unlock();
+		}
 	}
 
 	@Override
-	public synchronized void onComplete() {
-		this.completed = true;
-		notifyAll();
+	public void onComplete() {
+		this.stateLock.lock();
+		try {
+			this.completed = true;
+			this.changed.signalAll();
+		} finally {
+			this.stateLock.unlock();
+		}
 	}
 
 	/**
@@ -113,8 +135,13 @@ final class AwaitableCaptureSubscriber<T extends ChangeCapture> implements Subsc
 	 * @return the received captures in delivery order
 	 */
 	@Nonnull
-	synchronized List<T> getItems() {
-		return new ArrayList<>(this.items);
+	List<T> getItems() {
+		this.stateLock.lock();
+		try {
+			return new ArrayList<>(this.items);
+		} finally {
+			this.stateLock.unlock();
+		}
 	}
 
 	/**
@@ -123,8 +150,13 @@ final class AwaitableCaptureSubscriber<T extends ChangeCapture> implements Subsc
 	 * @return the error, or `null` when the stream has not failed
 	 */
 	@Nullable
-	synchronized Throwable getError() {
-		return this.error;
+	Throwable getError() {
+		this.stateLock.lock();
+		try {
+			return this.error;
+		} finally {
+			this.stateLock.unlock();
+		}
 	}
 
 	/**
@@ -132,8 +164,13 @@ final class AwaitableCaptureSubscriber<T extends ChangeCapture> implements Subsc
 	 *
 	 * @return true when `onComplete` was received
 	 */
-	synchronized boolean isCompleted() {
-		return this.completed;
+	boolean isCompleted() {
+		this.stateLock.lock();
+		try {
+			return this.completed;
+		} finally {
+			this.stateLock.unlock();
+		}
 	}
 
 	/**
@@ -145,20 +182,25 @@ final class AwaitableCaptureSubscriber<T extends ChangeCapture> implements Subsc
 	 * @return true when the condition holds on return
 	 * @throws InterruptedException when the waiting thread is interrupted
 	 */
-	synchronized boolean awaitUntil(
+	boolean awaitUntil(
 		@Nonnull Predicate<List<T>> condition,
 		long timeout,
 		@Nonnull TimeUnit unit
 	) throws InterruptedException {
-		final long deadline = System.nanoTime() + unit.toNanos(timeout);
-		while (!condition.test(this.items) && this.error == null && !this.completed) {
-			final long remainingMillis = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
-			if (remainingMillis <= 0L) {
-				break;
+		this.stateLock.lock();
+		try {
+			final long deadline = System.nanoTime() + unit.toNanos(timeout);
+			while (!condition.test(this.items) && this.error == null && !this.completed) {
+				final long remainingNanos = deadline - System.nanoTime();
+				if (remainingNanos <= 0L) {
+					break;
+				}
+				this.changed.awaitNanos(remainingNanos);
 			}
-			wait(remainingMillis);
+			return condition.test(this.items);
+		} finally {
+			this.stateLock.unlock();
 		}
-		return condition.test(this.items);
 	}
 
 }

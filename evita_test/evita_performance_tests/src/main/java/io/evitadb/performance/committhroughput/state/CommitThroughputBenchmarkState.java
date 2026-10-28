@@ -36,6 +36,7 @@ import org.openjdk.jmh.annotations.TearDown;
 
 import javax.annotation.Nonnull;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Shared state for {@link CommitThroughputBenchmark}: a transactional (ALIVE) catalog seeded with
@@ -61,6 +62,11 @@ public class CommitThroughputBenchmarkState extends ArtificialBenchmarkState
 	 * a smaller seed keeps trial setup short enough to sweep a configuration axis.
 	 */
 	public static final int INITIAL_COUNT_OF_PRODUCTS = 2_000;
+
+	/**
+	 * Guards the product iterator shared by benchmark workers.
+	 */
+	private final ReentrantLock productLock = new ReentrantLock();
 
 	/**
 	 * Counts committed transactions across all worker threads, reported in tear-down as a sanity check
@@ -138,15 +144,20 @@ public class CommitThroughputBenchmarkState extends ArtificialBenchmarkState
 	 *
 	 * The underlying generator is an infinite sequence, so every caller receives a distinct entity and
 	 * concurrent workers never contend for the same primary key - upserting a shared entity from several
-	 * threads would measure conflict resolution rather than commit cost. Access is synchronized because
+	 * threads would measure conflict resolution rather than commit cost. Access takes the product lock because
 	 * the iterator is not thread safe; generating an entity is cheap next to the device sync a commit
 	 * pays, but at high worker counts this lock is the first thing to suspect if throughput plateaus.
 	 *
 	 * @return a freshly generated product builder, never shared with another invocation
 	 */
 	@Nonnull
-	public synchronized EntityBuilder nextProduct() {
-		return this.productIterator.next();
+	public EntityBuilder nextProduct() {
+		this.productLock.lock();
+		try {
+			return this.productIterator.next();
+		} finally {
+			this.productLock.unlock();
+		}
 	}
 
 	/**

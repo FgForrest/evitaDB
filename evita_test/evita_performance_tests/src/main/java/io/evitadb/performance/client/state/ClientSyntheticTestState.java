@@ -51,6 +51,7 @@ import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.LinkedList;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static java.util.Optional.ofNullable;
 
@@ -64,7 +65,10 @@ public abstract class ClientSyntheticTestState extends ClientDataFullDatabaseSta
 	implements RandomQueryGenerator {
 
 	private static final int PRELOADED_QUERY_COUNT = 100_000;
-	private final Object monitor = new Object();
+	/**
+	 * Guards query deserialization and stream state.
+	 */
+	private final ReentrantLock queryLock = new ReentrantLock();
 
 	private Deque<Query> preloadedQueries = new ArrayDeque<>(64);
 	private Path inputFolder;
@@ -111,9 +115,16 @@ public abstract class ClientSyntheticTestState extends ClientDataFullDatabaseSta
 		}
 	}
 
+	/**
+	 * Reads queries, rewinding the shared input when it is exhausted.
+	 *
+	 * @param queryCount number of queries to read
+	 * @return the requested batch of queries
+	 */
 	private Deque<Query> fetchNewQueries(int queryCount) {
 		final LinkedList<Query> fetchedQueries = new LinkedList<>();
-		synchronized (this.monitor) {
+		this.queryLock.lock();
+		try {
 			for (int i = 0; i < queryCount; i++) {
 				Assert.isPremiseValid(this.kryo != null && this.input != null, "Kryo or input stream is not initialized properly.");
 				try {
@@ -127,6 +138,8 @@ public abstract class ClientSyntheticTestState extends ClientDataFullDatabaseSta
 				}
 				fetchedQueries.add(this.kryo.readObject(this.input, Query.class));
 			}
+		} finally {
+			this.queryLock.unlock();
 		}
 		return fetchedQueries;
 	}

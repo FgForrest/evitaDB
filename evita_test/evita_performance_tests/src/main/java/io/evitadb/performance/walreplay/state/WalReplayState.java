@@ -74,6 +74,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
 
 /**
@@ -791,9 +792,13 @@ public class WalReplayState {
 
 	/**
 	 * Growable, allocation-frugal collector of nanosecond latency samples. Callbacks fire on evitaDB
-	 * pipeline threads, so appends are synchronized; the arithmetic itself stays on primitives.
+	 * pipeline threads, so appends take the samples lock; the arithmetic itself stays on primitives.
 	 */
 	private static final class LatencySamples {
+		/**
+		 * Guards appends and summary calculations across pipeline callbacks.
+		 */
+		private final ReentrantLock samplesLock = new ReentrantLock();
 		private long[] samples = new long[4096];
 		private int count;
 
@@ -802,11 +807,16 @@ public class WalReplayState {
 		 *
 		 * @param nanos the measured duration in nanoseconds
 		 */
-		synchronized void add(long nanos) {
-			if (this.count == this.samples.length) {
-				this.samples = Arrays.copyOf(this.samples, this.samples.length << 1);
+		void add(long nanos) {
+			this.samplesLock.lock();
+			try {
+				if (this.count == this.samples.length) {
+					this.samples = Arrays.copyOf(this.samples, this.samples.length << 1);
+				}
+				this.samples[this.count++] = nanos;
+			} finally {
+				this.samplesLock.unlock();
 			}
-			this.samples[this.count++] = nanos;
 		}
 
 		/**
@@ -815,20 +825,25 @@ public class WalReplayState {
 		 * @return immutable summary of everything recorded so far
 		 */
 		@Nonnull
-		synchronized LatencySummary summarize() {
-			if (this.count == 0) {
-				return new LatencySummary(0, 0, 0, 0, 0, 0, 0, 0);
+		LatencySummary summarize() {
+			this.samplesLock.lock();
+			try {
+				if (this.count == 0) {
+					return new LatencySummary(0, 0, 0, 0, 0, 0, 0, 0);
+				}
+				final long[] sorted = Arrays.copyOf(this.samples, this.count);
+				Arrays.sort(sorted);
+				long sum = 0;
+				for (int i = 0; i < sorted.length; i++) {
+					sum += sorted[i];
+				}
+				return new LatencySummary(
+					sorted.length, sorted[0], sum / sorted.length, percentile(sorted, 50),
+					percentile(sorted, 95), percentile(sorted, 99), sorted[sorted.length - 1], sum
+				);
+			} finally {
+				this.samplesLock.unlock();
 			}
-			final long[] sorted = Arrays.copyOf(this.samples, this.count);
-			Arrays.sort(sorted);
-			long sum = 0;
-			for (int i = 0; i < sorted.length; i++) {
-				sum += sorted[i];
-			}
-			return new LatencySummary(
-				sorted.length, sorted[0], sum / sorted.length, percentile(sorted, 50),
-				percentile(sorted, 95), percentile(sorted, 99), sorted[sorted.length - 1], sum
-			);
 		}
 
 		/**

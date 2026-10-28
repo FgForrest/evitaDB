@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.locks.ReentrantLock;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -46,6 +47,10 @@ import static io.evitadb.test.TestTags.TASK;
 @Tag(ENGINE)
 @Tag(TASK)
 class ClientCallableTaskTest implements TestConstants {
+	/**
+	 * Serializes deliberate pauses made by tasks sharing this fixture.
+	 */
+	private final ReentrantLock pauseLock = new ReentrantLock();
 
 	@Test
 	void shouldCombineBackgroundTasksUsingFutures() throws ExecutionException, InterruptedException {
@@ -106,8 +111,11 @@ class ClientCallableTaskTest implements TestConstants {
 		try {
 			for (int i = 0; i < ticks; i++) {
 				theTask.updateProgress(i * (100 / ticks));
-				synchronized (this) {
+				this.pauseLock.lock();
+				try {
 					Thread.sleep(waitMillis);
+				} finally {
+					this.pauseLock.unlock();
 				}
 			}
 			return 1;
