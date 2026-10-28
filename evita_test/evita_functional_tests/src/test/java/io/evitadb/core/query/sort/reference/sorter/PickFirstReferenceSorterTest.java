@@ -1058,6 +1058,31 @@ class PickFirstReferenceSorterTest {
 	}
 
 	/**
+	 * Verifies that an owner whose only row lies outside the hierarchy is handed to the next sorter, while an
+	 * owner with an earlier outside row is sorted by its first inside row.
+	 */
+	@Test
+	@DisplayName("should pass owners without a row inside the hierarchy to the next sorter")
+	void shouldPassOwnersWithoutRowInsideHierarchyToNextSorter() {
+		final WitnessFixture fixture = new WitnessFixture();
+		final PickFirstReducedIndexResolver resolver = new PickFirstReducedIndexResolver(
+			fixture.indexFixture.queryContext, fixture.resolver.getReferenceSchema(), new Scope[]{Scope.LIVE},
+			null, false, Map.of(Scope.LIVE, new BaseBitmap(4)), () -> new ReferencePartition[0]
+		);
+		final PickFirstReferenceSorter sorter = new PickFirstReferenceSorter(
+			resolver, index -> lazy(fixture.provider(OrderDirection.ASC, index)), NO_VIRTUAL_VALUES,
+			Comparator.naturalOrder(), OrderDirection.ASC
+		);
+		final SortResult result = sort(
+			sorter, new SortingContext(fixture.createExecutionContext(), new BaseBitmap(1, 7, 8), 0, 3, 0, 0), 3
+		);
+		assertAll(
+			() -> assertArrayEquals(new int[]{1, 7}, result.written()),
+			() -> assertArrayEquals(new int[]{8}, result.output().nonSortedKeys().getArray())
+		);
+	}
+
+	/**
 	 * The indexes and providers of the fixture described in the class documentation.
 	 */
 	private static final class WitnessFixture {

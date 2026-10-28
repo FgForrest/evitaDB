@@ -55,6 +55,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
@@ -2032,28 +2033,21 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	}
 
 	/**
-	 * Checks the rule "Should keep the index-route order of a chain under an implicit pick-first unchanged by the
-	 * traversal".
-	 *
-	 * A chain under an implicit `pickFirst` (brand is a flat target) is outside #1670 - it walks the planning-time
-	 * indexes without blocks. This pins that the representative key order the traversal applies to the indexes of one
-	 * target does not leak into it: the indexes of brand 2 stay in the order they were met (b, c, a - created in that
-	 * order), so the provider of b claims 151 before the provider of c claims 150. Sorting the keys would give
-	 * `[150, 151]` (a claims 150 first).
-	 *
-	 * The index route only: the prefetch route of this path picks, without any block, the first stored row whose key
-	 * has a chain, and on this fixture it returns `[150, 151]` - before the traversal changes and after them alike, so
-	 * the two routes of this out-of-scope path disagree here whichever order the planning keeps; that is pinned
-	 * neither way.
+	 * Checks that an implicit pick-first chain walks targets and their representative keys in the same order on
+	 * both routes. Brand 2 has partitions created as b, c, a; representative order visits a first, claiming owner
+	 * 150 before b claims owner 151. The prefetch picker chooses the first row in that same provider order.
 	 */
-	@DisplayName("Should keep the index-route order of a chain under an implicit pick-first unchanged by the traversal")
+	@DisplayName("Should order implicit pick-first chains by target and representative values on both routes")
 	@UseDataSet(TRAVERSE_REFERENCES)
-	@Test
-	void shouldKeepImplicitPickFirstChainOrderOnIndexRoute(EvitaSessionContract session) {
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(SortRoute.class)
+	void shouldOrderImplicitPickFirstChainsByTargetAndRepresentativeValues(
+		SortRoute route, EvitaSessionContract session
+	) {
 		assertOrder(
-			new int[]{151, 150},
+			new int[]{150, 151},
 			queryOrder(
-				session, SortRoute.INDEX, CHAIN_VARIANT_OWNERS, NO_FILTER,
+				session, route, CHAIN_VARIANT_OWNERS, NO_FILTER,
 				referenceProperty(REFERENCE_CHAIN_VARIANTS, attributeNatural(ATTRIBUTE_CHAIN))
 			),
 			"implicit pick-first chain"
@@ -2309,6 +2303,64 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 			);
 		}
 		assertAll(assertions);
+	}
+
+	/**
+	 * Checks that a hierarchy constraint inside the live filter scope bounds only live pick-first rows. Archived
+	 * owner 33 retains its target-1 value 2, while live owners 20 and 23 must use rows inside the subtree of 4.
+	 * The scoped filter currently uses the index route under both preferences because prefetch does not support it.
+	 */
+	@DisplayName("Should bound pick-first rows only in the scope holding the hierarchy constraint")
+	@UseDataSet(TRAVERSE_REFERENCES)
+	@ParameterizedTest(name = "{0} via {1}")
+	@MethodSource("hierarchicalRoutes")
+	void shouldBoundPickFirstOnlyInScopeHoldingHierarchyConstraint(
+		String referenceName, SortRoute route, EvitaSessionContract session
+	) {
+		final Integer[] owners = ArrayUtils.mergeArrays(HIERARCHY_OWNERS, new Integer[]{33, 34});
+		final FilterConstraint[] filter = {
+			scope(BOTH_SCOPES), inScope(Scope.LIVE, hierarchyWithin(referenceName, entityPrimaryKeyInSet(4)))
+		};
+		for (final OrderDirection direction : OrderDirection.values()) {
+			assertOrder(
+				direction == OrderDirection.ASC ?
+					new int[]{27, 33, 28, 22, 34, 23, 24, 21, 20, 29, 25} :
+					new int[]{29, 20, 21, 24, 23, 34, 22, 28, 33, 27, 25},
+				queryOrder(
+					session, route, owners, filter,
+					referenceProperty(
+						referenceName, pickFirstByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+						attributeNatural(ATTRIBUTE_ORDER, direction)
+					)
+				),
+				direction + " live hierarchy bound"
+			);
+		}
+	}
+
+	/**
+	 * Checks that a seeded pick-first target order ranks only targets admitted by the hierarchy. Shuffling the
+	 * bounded targets 4, 6, 7 with seed 42 yields 7, 6, 4; including outside targets changes the picked row.
+	 */
+	@DisplayName("Should rank only hierarchy-bound targets for seeded pick-first ordering")
+	@UseDataSet(TRAVERSE_REFERENCES)
+	@ParameterizedTest(name = "{0} via {1}")
+	@MethodSource("hierarchicalRoutes")
+	void shouldRankOnlyHierarchyBoundTargetsForSeededPickFirst(
+		String referenceName, SortRoute route, EvitaSessionContract session
+	) {
+		assertOrder(
+			new int[]{22, 23, 27, 24, 28, 21, 20, 29, 25},
+			queryOrder(
+				session, route, HIERARCHY_OWNERS,
+				new FilterConstraint[]{hierarchyWithin(referenceName, entityPrimaryKeyInSet(4))},
+				referenceProperty(
+					referenceName, pickFirstByEntityProperty(randomWithSeed(TARGET_ORDER_SEED)),
+					attributeNatural(ATTRIBUTE_ORDER)
+				)
+			),
+			"seeded target order inside subtree"
+		);
 	}
 
 	/**

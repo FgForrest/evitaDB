@@ -98,6 +98,7 @@ import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.PrimitiveIterator.OfInt;
@@ -663,13 +664,15 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 * @param pickFirstByEntityProperty the ordering of the targets of a pick-first ordering, NULL for a traversal
 	 *                                  ordering
 	 * @param implicit                  true when the ordering specification is the implicit default of the reference
+	 * @param hierarchyBounds           resolved hierarchy targets by owner scope, with absent scopes unbounded
 	 */
 	private static void checkChildConstraintsWithoutRows(
 		@Nonnull ReferenceProperty referenceProperty,
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable PickFirstByEntityProperty pickFirstByEntityProperty,
-		boolean implicit
+		boolean implicit,
+		@Nonnull Map<Scope, Bitmap> hierarchyBounds
 	) {
 		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
 		final String referenceName = referenceSchema.getName();
@@ -697,7 +700,8 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 				pickFirstByEntityProperty == null ?
 					null :
 					createPickFirstIndexResolver(
-						orderByVisitor, referenceSchema, pickFirstByEntityProperty.getChildren(), () -> emptyIndexes
+						orderByVisitor, referenceSchema, pickFirstByEntityProperty.getChildren(),
+						hierarchyBounds, () -> emptyIndexes
 					),
 				() -> orderByVisitor.collectIsolatedSorters(
 					() -> traverseChildConstraints(referenceProperty, orderByVisitor)
@@ -784,37 +788,57 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	}
 
 	/**
+	 * Collects the resolved hierarchy bounds shared by traversal and pick-first ordering. The filter translators
+	 * already resolved every occurrence; this only reads their memo and unions conjunctive occurrences per scope.
+	 *
+	 * @param orderByVisitor the visitor of the planned query
+	 * @param referenceName  the ordered reference
+	 * @return bounded target sets by owner scope, with absent scopes unbounded
+	 */
+	@Nonnull
+	private static Map<Scope, Bitmap> collectHierarchyBounds(
+		@Nonnull OrderByVisitor orderByVisitor,
+		@Nonnull String referenceName
+	) {
+		final EnumMap<Scope, PersistentRoaringBitmap> collected = new EnumMap<>(Scope.class);
+		collectTraversalBounds(
+			orderByVisitor.getQueryContext().getFilterBy(), orderByVisitor.getQueryContext().getScopes(),
+			referenceName, orderByVisitor, collected
+		);
+		final Map<Scope, Bitmap> bounds = new EnumMap<>(Scope.class);
+		collected.forEach((scope, nodes) -> bounds.put(scope, new BaseBitmap(nodes)));
+		return bounds;
+	}
+
+	/**
 	 * Resolves only the partitions of the bound targets for each bounded ordering scope, and the whole partition
 	 * family for each unbounded scope. Reference-having candidates select owners and never narrow ordering rows.
 	 * Target ordering consequently depends on the visited targets rather than the selected owners.
 	 *
-	 * @param orderByVisitor the visitor of the planned query
-	 * @param referenceName the ordered reference
+	 * @param orderByVisitor  the visitor of the planned query
+	 * @param referenceName   the ordered reference
+	 * @param hierarchyBounds resolved hierarchy targets by owner scope, with absent scopes unbounded
 	 * @return partitions admitted by the hierarchy bounds, in family order
 	 */
 	@Nonnull
 	private static List<ReferencePartition> selectTraversalPartitions(
 		@Nonnull OrderByVisitor orderByVisitor,
-		@Nonnull String referenceName
+		@Nonnull String referenceName,
+		@Nonnull Map<Scope, Bitmap> hierarchyBounds
 	) {
-		final EnumMap<Scope, PersistentRoaringBitmap> bounds = new EnumMap<>(Scope.class);
-		collectTraversalBounds(
-			orderByVisitor.getQueryContext().getFilterBy(), orderByVisitor.getQueryContext().getScopes(),
-			referenceName, orderByVisitor, bounds
-		);
 		final EntitySchema entitySchema = orderByVisitor.getSchema();
 		final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
 		final Set<Scope> orderingScopes = orderByVisitor.getProcessingScope().getScopes();
 		final List<ReferencePartition> partitions = new ArrayList<>(16);
 		for (final Scope scope : SCOPES) {
 			if (orderingScopes.contains(scope)) {
-				final PersistentRoaringBitmap nodes = bounds.get(scope);
+				final Bitmap nodes = hierarchyBounds.get(scope);
 				if (nodes == null) {
 					partitions.addAll(selectFullEntityIndexSet(orderByVisitor, referenceName, Set.of(scope)));
 				} else if (!nodes.isEmpty()) {
 					final List<ReferencePartition> scopePartitions = new ArrayList<>(
 						orderByVisitor.getQueryContext().resolvePartitionsOfTargetsForRead(
-							entitySchema, referenceSchema, Set.of(scope), new BaseBitmap(nodes)
+							entitySchema, referenceSchema, Set.of(scope), nodes
 						).getPartitions()
 					);
 					// Preserve family order even when the resolver enumerates materialized partitions by target.
@@ -829,12 +853,13 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	/**
 	 * Selects the reduced indexes of the reference at planning time and orders them by their referenced entities.
 	 * A traversal uses the whole family of the ordering scopes, bounded only by the resolved conjunctive hierarchy
-	 * constraints. Implicit pick-first chains retain the candidate set registered by index selection, falling back
-	 * to the whole family when no candidate is available. Indexes sharing one referenced entity are grouped by their
-	 * representative reference key and, inside a key, by scope (live first), so the indexes of one referenced entity,
-	 * and of each of its keys, are contiguous; the
-	 * keys follow {@link RepresentativeReferenceKey#STRICT_COMPARATOR} for a traversal and the order the selection met
-	 * them otherwise (see {@link #appendGroupedByRepresentativeKey(List, boolean, ReferencePartition[], int)}).
+	 * constraints. Implicit pick-first chains use the same hierarchy bound when present, otherwise retaining the
+	 * candidate set registered by index selection and falling back to the whole family when none is available. Indexes
+	 * sharing one referenced entity are grouped by their representative reference key and, inside a key, by scope
+	 * (live first), so the indexes of one referenced entity and of each of its keys are contiguous. The keys follow
+	 * {@link RepresentativeReferenceKey#STRICT_COMPARATOR} for a traversal and
+	 * {@link RepresentativeReferenceKey#GENERIC_COMPARATOR} for implicit pick-first chains (see
+	 * {@link #appendGroupedByRepresentativeKey(List, boolean, ReferencePartition[], int)}).
 	 *
 	 * This is the index set of the block-by-block orderings - `traverseByEntityProperty` and chain attributes, whose
 	 * blocks follow their respective partition sets. A `pickFirst` ordering of comparable values resolves its indexes
@@ -842,22 +867,24 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 *
 	 * @param orderByVisitor           the visitor of the planned query
 	 * @param referenceName            the reference being ordered by
+	 * @param hierarchyBounds          resolved hierarchy targets by owner scope, with absent scopes unbounded
 	 * @param targetOrder              orders the primary keys of the referenced entities
 	 * @param inRepresentativeKeyOrder whether the keys of one referenced entity follow the representative order (a
-	 *                                 traversal) rather than the order they were met in (the planning-time indexes of
-	 *                                 a `pickFirst` ordering)
+	 *                                 traversal) rather than the generic representative order (the planning-time
+	 *                                 indexes of a `pickFirst` ordering)
 	 * @return the ordered reduced indexes, empty when the reference has none
 	 */
 	@Nonnull
 	private static ReferencePartition[] selectPlanningReducedIndexes(
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull String referenceName,
+		@Nonnull Map<Scope, Bitmap> hierarchyBounds,
 		@Nonnull Function<Formula, IntStream> targetOrder,
 		boolean inRepresentativeKeyOrder
 	) {
 		final List<ReferencePartition> referenceIndexes;
-		if (inRepresentativeKeyOrder) {
-			referenceIndexes = selectTraversalPartitions(orderByVisitor, referenceName);
+		if (inRepresentativeKeyOrder || !hierarchyBounds.isEmpty()) {
+			referenceIndexes = selectTraversalPartitions(orderByVisitor, referenceName, hierarchyBounds);
 		} else {
 			final List<ReferencePartition> candidates = selectReducedEntityIndexSet(orderByVisitor, referenceName);
 			referenceIndexes = candidates.isEmpty() ?
@@ -892,6 +919,13 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 				if (sameTarget.size() == 1) {
 					result[peak++] = sameTarget.get(0);
 				} else {
+					if (!inRepresentativeKeyOrder) {
+						// implicit pick-first chains visit the target's rows in representative value order
+						sameTarget.sort(Comparator.comparing(
+							ReferencePartition::getRepresentativeReferenceKey,
+							RepresentativeReferenceKey.GENERIC_COMPARATOR
+						));
+					}
 					peak = appendGroupedByRepresentativeKey(sameTarget, inRepresentativeKeyOrder, result, peak);
 				}
 			}
@@ -910,8 +944,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 * value. The index route realizes the rule by letting the block's providers claim their owners in exactly this
 	 * order, the prefetch route by picking the row in the same order (see
 	 * `EntityReferenceSensitiveComparator#getFirstValuedReference`). A chain under an implicit `pickFirst` walks the
-	 * same planning-time indexes without blocks and is left in the order the keys were met - the order it had before
-	 * the traversal adopted the representative one.
+	 * same planning-time indexes without blocks, sorted in generic representative order before this append.
 	 *
 	 * Keys are told apart by their own equality: values comparing equal may still be different keys (`BigDecimal` 1.0
 	 * and 1.00), and each has an index of its own. The representative order tells such keys apart by the values
@@ -1004,6 +1037,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 * @param orderByVisitor            the visitor of the planned query
 	 * @param referenceSchema           the reference being ordered by
 	 * @param pickFirstByEntityProperty the ordering of the targets
+	 * @param hierarchyBounds           resolved hierarchy targets by owner scope, with absent scopes unbounded
 	 * @param planningIndexes           supplier of the ordered reduced indexes for consumers that need them at
 	 *                                  planning time
 	 * @return the resolver
@@ -1013,6 +1047,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nonnull OrderConstraint[] pickFirstByEntityProperty,
+		@Nonnull Map<Scope, Bitmap> hierarchyBounds,
 		@Nonnull Supplier<ReferencePartition[]> planningIndexes
 	) {
 		final Set<Scope> allowedScopes = orderByVisitor.getProcessingScope().getScopes();
@@ -1022,13 +1057,13 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		if (pickFirstByEntityProperty.length == 1 && pickFirstByEntityProperty[0] instanceof EntityPrimaryKeyNatural epkn) {
 			return new PickFirstReducedIndexResolver(
 				orderByVisitor.getQueryContext(), referenceSchema, scopes, null,
-				epkn.getOrderDirection() == OrderDirection.DESC, planningIndexes
+				epkn.getOrderDirection() == OrderDirection.DESC, hierarchyBounds, planningIndexes
 			);
 		} else {
 			return new PickFirstReducedIndexResolver(
 				orderByVisitor.getQueryContext(), referenceSchema, scopes,
 				createNestedContextSorter(orderByVisitor, referenceSchema, pickFirstByEntityProperty),
-				false, planningIndexes
+				false, hierarchyBounds, planningIndexes
 			);
 		}
 	}
@@ -1067,18 +1102,19 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			referenceProperty, referenceSchema, orderByVisitor.getQueryContext()
 		);
 
+		final Map<Scope, Bitmap> hierarchyBounds = collectHierarchyBounds(orderByVisitor, referenceName);
 		if (orderingSpecification instanceof PickFirstByEntityProperty pfbep) {
 			if (!hasAnyReducedIndex(orderByVisitor, referenceName)) {
 				// no owner has a row of this reference in the processed scopes - there is nothing to sort by, but the
 				// nested constraints are checked against the schemas all the same
 				checkChildConstraintsWithoutRows(
-					referenceProperty, orderByVisitor, referenceSchema, pfbep, orderingSpecificationRef.isEmpty()
+					referenceProperty, orderByVisitor, referenceSchema, pfbep, orderingSpecificationRef.isEmpty(),
+					hierarchyBounds
 				);
 				return Stream.empty();
 			}
-			// the reduced indexes a pick-first ordering walks depend on the selected owners only - every row of a
-			// selected owner takes part, whatever the filter says about the same reference - so they are resolved
-			// at execution time and the candidates of a `referenceHaving` in the filter are deliberately ignored
+			// resolve the selected owners' partitions at execution time within the hierarchy bound; reference-having
+			// candidates select owners without narrowing the rows used by comparable pick-first orderings
 			orderByVisitor.executeInContext(
 				EMPTY_PARTITIONS,
 				referenceSchema,
@@ -1086,14 +1122,15 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 				processingScope.withReferenceSchemaAccessor(referenceName),
 				new MergeModeDefinition(MergeMode.APPEND_FIRST, orderingSpecificationRef.isEmpty()),
 				createPickFirstIndexResolver(
-					orderByVisitor, referenceSchema, pfbep.getChildren(),
+					orderByVisitor, referenceSchema, pfbep.getChildren(), hierarchyBounds,
 					() -> selectPlanningReducedIndexes(
 						orderByVisitor,
 						referenceName,
+						hierarchyBounds,
 						referenceIndexIds -> getSortedReducedIndexPrimaryKeys(
 							orderByVisitor, referenceSchema, pfbep.getChildren(), referenceIndexIds
 						),
-						// outside the traversal: the keys of one referenced entity stay in the order they were met
+						// implicit pick-first chains use generic representative order within each target
 						false
 					)
 				),
@@ -1115,6 +1152,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		final ReferencePartition[] sortedReducedIndexes = selectPlanningReducedIndexes(
 			orderByVisitor,
 			referenceName,
+			hierarchyBounds,
 			referenceIndexIds -> referencedEntityHierarchical ?
 				getTraversedAndSortedReducedIndexPrimaryKeys(
 					orderByVisitor, referenceSchema, traversalOrdering, traversalSorter, tbep.getTraversalMode(),
@@ -1128,7 +1166,8 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			// a tree of them - there is nothing to sort by, but the nested constraints are checked against the schemas
 			// all the same
 			checkChildConstraintsWithoutRows(
-				referenceProperty, orderByVisitor, referenceSchema, null, orderingSpecificationRef.isEmpty()
+				referenceProperty, orderByVisitor, referenceSchema, null, orderingSpecificationRef.isEmpty(),
+				hierarchyBounds
 			);
 			return Stream.empty();
 		}

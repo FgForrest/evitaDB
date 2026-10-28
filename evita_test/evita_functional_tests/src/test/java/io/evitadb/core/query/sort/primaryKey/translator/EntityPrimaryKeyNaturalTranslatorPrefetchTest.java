@@ -44,6 +44,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
+import java.util.Map;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
@@ -101,7 +102,8 @@ class EntityPrimaryKeyNaturalTranslatorPrefetchTest {
 		final OrderByVisitor orderByVisitor = new OrderByVisitor(queryContext);
 		final PickFirstReducedIndexResolver pickFirstIndexResolver = pickFirst ?
 			new PickFirstReducedIndexResolver(
-				queryContext, referenceSchema, new Scope[]{Scope.LIVE}, null, false, () -> new ReducedEntityIndex[0]
+				queryContext, referenceSchema, new Scope[]{Scope.LIVE}, null, false, Map.of(),
+				() -> new ReducedEntityIndex[0]
 			) :
 			null;
 		orderByVisitor.executeInContext(

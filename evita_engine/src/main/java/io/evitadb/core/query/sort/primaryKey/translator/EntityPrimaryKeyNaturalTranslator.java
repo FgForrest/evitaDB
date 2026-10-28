@@ -485,6 +485,7 @@ public class EntityPrimaryKeyNaturalTranslator
 			final int value = this.targetRanking.admits(entity) ?
 				entity.getReferences(this.referenceSchema.getName())
 					.stream()
+					.filter(it -> this.targetRanking.admits(entity, it))
 					.min(this.targetRanking.referenceOrder())
 					.map(ReferenceContract::getReferencedPrimaryKey)
 					.orElse(MISSING) :
