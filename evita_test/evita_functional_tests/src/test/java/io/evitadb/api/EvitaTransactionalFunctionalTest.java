@@ -115,6 +115,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -179,6 +180,10 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	private static final String STORE_PRIORITY = "storePriority";
 	private static final String ASSOCIATED_DATA_FEED_HEUREKA = "feed-heureka";
 	private static final String ATTRIBUTE_SNIPPET_EXPIRATION = "snippetExpiration";
+	/**
+	 * Serializes deliberate pauses made by tasks sharing this fixture.
+	 */
+	private final ReentrantLock pauseLock = new ReentrantLock();
 	private final DataGenerator dataGenerator = GENERATOR_FACTORY.get();
 	private final Pool<Kryo> catalogKryoPool = new Pool<>(false, false, 1) {
 		@Override
@@ -3648,8 +3653,11 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		final Path catalogPath = catalogFolder(evita, TEST_CATALOG);
 		final long start = System.currentTimeMillis();
 		do {
-			synchronized (this) {
+			this.pauseLock.lock();
+			try {
 				Thread.sleep(250);
+			} finally {
+				this.pauseLock.unlock();
 			}
 		} while (numberOfWalFiles(catalogPath) > 2 && System.currentTimeMillis() - start < 60_000);
 
@@ -3664,8 +3672,11 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		while ((firstIndexOfCatalogDataFile(catalogPath) <= 0
 			|| firstIndexOfCollectionDataFile(catalogPath, Entities.PRODUCT) <= 0)
 			&& System.currentTimeMillis() - compactionStart < 60_000) {
-			synchronized (this) {
+			this.pauseLock.lock();
+			try {
 				Thread.sleep(250);
+			} finally {
+				this.pauseLock.unlock();
 			}
 		}
 

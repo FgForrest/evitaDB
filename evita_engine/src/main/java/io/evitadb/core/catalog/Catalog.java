@@ -214,6 +214,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -509,7 +510,7 @@ public final class Catalog
 	 * caller return while the first is halfway through releasing collections - so the lock is what gives that
 	 * caller a completed termination to observe rather than merely a silent no-op.
 	 */
-	@Nonnull private final Object terminationLock = new Object();
+	@Nonnull private final ReentrantLock terminationLock = new ReentrantLock();
 
 	/**
 	 * Verifies whether the catalog name could be used for a new catalog.
@@ -2353,7 +2354,8 @@ public final class Catalog
 	 */
 	@Override
 	public void terminate() {
-		synchronized (this.terminationLock) {
+		this.terminationLock.lock();
+		try {
 			if (isTerminated()) {
 				return;
 			}
@@ -2366,6 +2368,8 @@ public final class Catalog
 					this.fulltextAnalyzerRegistry.close();
 				}
 			}
+		} finally {
+			this.terminationLock.unlock();
 		}
 	}
 

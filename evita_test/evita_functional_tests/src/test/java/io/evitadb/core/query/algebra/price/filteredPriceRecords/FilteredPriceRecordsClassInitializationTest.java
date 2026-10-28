@@ -31,10 +31,12 @@ import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.PRICE;
@@ -200,6 +202,11 @@ class FilteredPriceRecordsClassInitializationTest {
 	 * and hide the very interleaving the test is after.
 	 */
 	private static final class SiblingPackageClassLoader extends ClassLoader {
+		/**
+		 * Guards each isolated class definition independently, keeping sibling initialization concurrent.
+		 */
+		private final ConcurrentHashMap<String, ReentrantLock> classLoadingLocks = new ConcurrentHashMap<>();
+
 		static {
 			registerAsParallelCapable();
 		}
@@ -213,13 +220,21 @@ class FilteredPriceRecordsClassInitializationTest {
 			if (!name.startsWith(ISOLATED_PACKAGE)) {
 				return super.loadClass(name, resolve);
 			}
-			synchronized (getClassLoadingLock(name)) {
+			// These per-name locks are sound only because this override never delegates the isolated package
+			// to super.loadClass, which would use the JDK's own lock object.
+			final ReentrantLock classLoadingLock = this.classLoadingLocks.computeIfAbsent(
+				name, ignored -> new ReentrantLock()
+			);
+			classLoadingLock.lock();
+			try {
 				final Class<?> alreadyDefined = findLoadedClass(name);
 				final Class<?> result = alreadyDefined == null ? defineFromParentResource(name) : alreadyDefined;
 				if (resolve) {
 					resolveClass(result);
 				}
 				return result;
+			} finally {
+				classLoadingLock.unlock();
 			}
 		}
 

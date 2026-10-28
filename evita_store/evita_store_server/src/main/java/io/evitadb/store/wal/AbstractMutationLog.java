@@ -299,6 +299,10 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 * records in them were not yet processed.
 	 */
 	private final Queue<PendingRemoval> pendingRemovals = new ConcurrentLinkedDeque<>();
+	/**
+	 * Serializes WAL file removal and publication of the first retained version.
+	 */
+	private final ReentrantLock walRemovalLock = new ReentrantLock();
 
 	/**
 	 * Returns the index extracted from the given Write-Ahead-Log file name.
@@ -2220,9 +2224,12 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 
 	/**
 	 * Removes the obsolete WAL files from the catalog storage path.
+	 *
+	 * @return -1; the first retained version is published through {@link #updateFirstVersionKept(long)}
 	 */
 	long removeWalFiles() {
-		synchronized (this.pendingRemovals) {
+		this.walRemovalLock.lock();
+		try {
 			final long catalogVersion = this.processedVersion.get();
 			final Set<PendingRemoval> toRemove = new HashSet<>(64);
 
@@ -2250,6 +2257,8 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			}
 
 			return -1;
+		} finally {
+			this.walRemovalLock.unlock();
 		}
 	}
 

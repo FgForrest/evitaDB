@@ -35,6 +35,7 @@ import java.time.OffsetDateTime;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 
 /**
@@ -170,6 +171,11 @@ public class CommitProgressRecord implements CommitProgress {
 	@Getter @Setter public CommitBehavior terminationStage = CommitBehavior.WAIT_FOR_CHANGES_VISIBLE;
 
 	/**
+	 * Serializes appends to the completion queue, including their listener-registration side effects.
+	 */
+	private final ReentrantLock completionLock = new ReentrantLock();
+
+	/**
 	 * Serial queue backing the async {@link #complete(CommitBehavior, CommitVersions, Executor)} variant.
 	 *
 	 * Every stage-completion action is appended here instead of being fired directly, so that a stage's
@@ -187,13 +193,13 @@ public class CommitProgressRecord implements CommitProgress {
 	 * Routing every completion through this single-file queue makes listener-firing order match stage
 	 * order too, for any consumer, regardless of executor timing.
 	 *
-	 * **Access**: only ever read or written inside the `synchronized` {@link #enqueueCompletion} — never
+	 * **Access**: only ever read or written under {@link #completionLock} in {@link #enqueueCompletion} — never
 	 * a plain {@link java.util.concurrent.atomic.AtomicReference} with a `updateAndGet`/`getAndUpdate`
 	 * style compare-and-swap, because the update here has a side effect (`thenRunAsync` registers a real
 	 * listener on `previous`). A CAS-based update re-invokes its function on every lost race, and a lost
 	 * attempt's already-registered listener cannot be un-registered — it fires later against a stale
 	 * chain link regardless, reintroducing the exact out-of-order-firing bug this queue exists to prevent.
-	 * A monitor makes the append a single, un-retried critical section instead.
+	 * The lock makes the append a single, un-retried critical section instead.
 	 */
 	private CompletableFuture<Void> completionSequencer = CompletableFuture.completedFuture(null);
 
@@ -201,27 +207,32 @@ public class CommitProgressRecord implements CommitProgress {
 	 * Appends `stage.complete(commitVersions)` to the serial {@link #completionSequencer}, guaranteeing it
 	 * runs only once every previously queued stage completion — and, transitively, every listener already
 	 * registered on that earlier stage — has finished. Never blocks the caller on the queued work itself:
-	 * the whole queue runs on `executor`; `synchronized` here only guards the (sub-microsecond) append of
+	 * the whole queue runs on `executor`; the lock only guards the (sub-microsecond) append of
 	 * one more link, not the eventual `stage.complete(...)` call.
 	 *
 	 * @param stage          the stage to complete once its turn in the queue arrives
 	 * @param commitVersions the versions to complete `stage` with
 	 * @param executor       the executor the queued action (and its rejection recovery) runs on
 	 */
-	private synchronized void enqueueCompletion(
+	private void enqueueCompletion(
 		@Nonnull CompletableFuture<CommitVersions> stage,
 		@Nonnull CommitVersions commitVersions,
 		@Nonnull Executor executor
 	) {
-		this.completionSequencer = this.completionSequencer
-			.thenRunAsync(() -> stage.complete(commitVersions), executor)
-			.exceptionally(ex -> {
-				// the executor rejected the task (shutdown / saturated queue) — complete the stage
-				// immediately so the pipeline can still terminate, and recover here so a rejection
-				// can never poison the queue for later stages
-				stage.complete(commitVersions);
-				return null;
-			});
+		this.completionLock.lock();
+		try {
+			this.completionSequencer = this.completionSequencer
+				.thenRunAsync(() -> stage.complete(commitVersions), executor)
+				.exceptionally(ex -> {
+					// the executor rejected the task (shutdown / saturated queue) — complete the stage
+					// immediately so the pipeline can still terminate, and recover here so a rejection
+					// can never poison the queue for later stages
+					stage.complete(commitVersions);
+					return null;
+				});
+		} finally {
+			this.completionLock.unlock();
+		}
 	}
 
 	/**

@@ -69,33 +69,32 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * bought nothing except invisibility, and a run costs about four seconds.
  *
  * **What running it weekly does and does not buy.** It catches the regression that matters most and is easiest to
- * commit: someone removing or weakening the `synchronized` on `InvertedIndex#refreshValueIdDirectory`. It cannot
+ * commit: someone removing or weakening the stripe lock around `InvertedIndex#refreshValueIdDirectory`. It cannot
  * catch this test going BLUNT - a narrowed race window passes just as green as a healthy one - and nothing automatic
  * can, short of mutation-testing that one method. So the calibration below is a human obligation, and it is stated
  * at both guarded methods rather than only here: change either of them and re-run the COUNTERFACTUAL, not just the
  * test.
  *
- * **Calibration (measured 2026-09-03, not estimated).** With `synchronized` removed from
- * `InvertedIndex#refreshValueIdDirectory` this test fails 3 times out of 3, in 0.53-0.80 s of wall clock, and a
- * driver replicating its body with round attribution failed 23 times out of 23 — latest observed at round **16**
- * of {@link #ROUNDS}, against a tree of 2 305 to 5 132 distinct values across 22 to 55 minted leaves. All 23 took
- * `assignLeafId`'s "assigned once and never reassigned" premise; the other shape the same race can take, a live
- * value resolving to `null`, did not appear once. With the guard in place all {@link #ROUNDS} rounds pass, 4 times
- * out of 4, in 2.8 to 4.1 s. Measured on a 24-core x86_64 Linux box, OpenJDK 17.0.20, one-minute load average
- * 1.0-6.8 — the box was coming off foreign load, so the five-minute figure ran 7.5-17.6 throughout, and the green
- * side is the half of this pair that a busy box slows down. Re-measure after changing either method: if the
- * counterfactual stops failing, this test has quietly become decorative, and
- * {@link #READER_THREADS} or {@link #ROUNDS} must be raised until it fails again before a green run means anything.
+ * **Calibration (measured 2026-10-28, not estimated).** With the stripe `lock()` / `unlock()` pair removed from
+ * `InvertedIndex#refreshValueIdDirectory` this test fails 3 times out of 3, in 0.079-4.232 s of test elapsed time
+ * (Maven reactor startup and compilation excluded). One run took `assignLeafId`'s "assigned once and never
+ * reassigned" premise; two resolved live values to `null` (424299 and 399884). Those values identify rounds 1644
+ * and 1549 of {@link #ROUNDS}, counted from one, so the 2000-round margin still matters. With the stripe guard in
+ * place all rounds pass 2 times out of 2, in 2.362-4.172 s. Measured on a 24-core x86_64 Linux box, OpenJDK
+ * 21.0.12.1, with JaCoCo enabled. Re-measure after changing either method: if the counterfactual stops failing,
+ * this test has quietly become decorative, and {@link #READER_THREADS} or {@link #ROUNDS} must be raised until
+ * it fails again before a green run means anything.
  *
  * **Build the counterfactual on a shadow classpath, never by editing the shared source.** Copy `InvertedIndex.java`
- * into a scratch directory, drop the `synchronized` there, compile the copy with `javac --release 17 -encoding UTF-8`
- * against this module's test classpath — obtained from
- * `mvn -o -pl evita_test/evita_long_running_tests dependency:build-classpath -Dmdep.includeScope=test`, with Lombok
- * handed to `-processorpath` or the accessors it generates will not resolve — and **prepend** the output directory
- * to that classpath so it shadows the installed engine class. Confirm the mutation reached the bytecode with
- * `javap -p` before believing a failure, then drive this class from a JUnit platform launcher over the same
- * classpath. `.claude/rules/testing.md` explains why a snapshot-mutate-restore harness over the shared file is not
- * an option here.
+ * into a scratch directory, drop only the stripe `lock()` / `unlock()` pair there (keep the stale recheck and the
+ * final flag clear), compile the copy with `javac --release 21 -encoding UTF-8` against this module's test classpath
+ * — obtained from `mvn -o -pl evita_test/evita_long_running_tests dependency:build-classpath
+ * -Dmdep.includeScope=test`, with Lombok handed to `-processorpath` or the accessors it generates will not resolve —
+ * and **prepend** the output directory to that classpath so it shadows the installed engine class. Confirm the
+ * mutation reached the bytecode with `javap -p` before believing a failure, then drive this class from a JUnit
+ * platform launcher over the same classpath. `.claude/rules/testing.md` explains why a snapshot-mutate-restore
+ * harness over the shared file is not an option whenever another agent may write to the tree; the 2026-10-28 run
+ * above used one only because a single writer held the worktree and every restore was verified by content.
  *
  * **The window has moved twice, in both directions, which is why this is re-measured rather than trusted.** At the
  * original 500 rounds the counterfactual passed outright: the window had NARROWED under an unrelated optimization
@@ -106,10 +105,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * That cause is deliberately not guessed at here: two lines of work landed in between — the trigram substring
  * index, and the content-sized leaf columns of the value tree — and the latter demonstrably did not touch the
  * rebuild body itself, so the movement comes from the insert side or from leaf density rather than from a slower
- * rebuild. **Leave {@link #ROUNDS} at 2000 even though 16 would now do.** The rounds ARE the margin, the history
- * above shows the window narrowing under changes that had nothing to do with it, and a green run costs four
- * seconds. Raising {@link #READER_THREADS} to 16 or 24 also restores the failure and is the knob to reach for if
- * rounds ever stop being enough, but it did not move the failing round — it buys overlap, not margin.
+ * rebuild. **Keep {@link #ROUNDS} at 2000: by 2026-10-28 a failure again needed 1644 rounds.** The rounds ARE
+ * the margin, the history above shows the window narrowing under changes that had nothing to do with it, and a
+ * green run costs a few seconds. Raising {@link #READER_THREADS} to 16 or 24 is the knob to reach for if rounds ever
+ * stop being enough; the 2026-08-31 sweep found that it bought overlap without moving the failing round.
  *
  * **What this test does NOT cover, and why no test does.** A reader that already passed the staleness check — having
  * seen it `false` — can still be inside the tree's `valueOf` while a later reader rebuilds. That window is closed

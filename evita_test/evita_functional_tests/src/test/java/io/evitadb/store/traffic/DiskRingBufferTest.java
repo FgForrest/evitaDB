@@ -1069,11 +1069,19 @@ class DiskRingBufferTest {
 			// RingBufferSpanLock#acquireExclusive before releasing the reader - a fixed sleep would only
 			// guess at this and could silently degrade to a non-conflicting sequential run under a
 			// CPU-starved, highly parallel test run
-			awaitThreadState(writerThread, 5000, Thread.State.WAITING, Thread.State.TIMED_WAITING);
-			releaseReaderLock.countDown();
-
-			awaitTermination(readerThread, 8000);
-			awaitTermination(writerThread, 8000);
+			try {
+				awaitThreadState(writerThread, 5000, Thread.State.WAITING, Thread.State.TIMED_WAITING);
+				assertNotEquals(
+					Thread.State.TERMINATED, writerThread.getState(),
+					"Writer must still be waiting while the reader holds the conflicting shared span."
+				);
+				assertFalse(writerCompleted.get(), "Writer must not complete before the reader releases its span.");
+				assertNull(writerException.get(), "Writer must not throw while waiting for the reader to release.");
+			} finally {
+				releaseReaderLock.countDown();
+				awaitTermination(readerThread, 8000);
+				awaitTermination(writerThread, 8000);
+			}
 
 			assertNull(unexpectedException.get(), "Reader thread must never throw.");
 			assertNull(
@@ -1659,7 +1667,7 @@ class DiskRingBufferTest {
 	/**
 	 * Polls the given thread's state until it reaches one of the target states (or terminates), instead of
 	 * racing it with a fixed sleep - deterministically confirms the thread has actually reached (e.g.) a
-	 * monitor {@code wait()} rather than guessing how long scheduling takes, which is unreliable under a
+	 * condition wait rather than guessing how long scheduling takes, which is unreliable under a
 	 * CPU-starved, highly parallel test run where the thread may not even have been scheduled yet. Returns
 	 * silently if the thread terminates before reaching a target state, leaving diagnosis of *why* to the
 	 * caller's own assertions on the thread's recorded outcome.

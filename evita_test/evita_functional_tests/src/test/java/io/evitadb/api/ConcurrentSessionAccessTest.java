@@ -187,7 +187,7 @@ class ConcurrentSessionAccessTest implements EvitaTestSupport {
 			assertTrue(
 				guardTriggered.get(),
 				"Concurrent access to a read-write session must be rejected with " +
-					"ConcurrentSessionAccessException, but " + maxRounds + " barrier-synchronized rounds " +
+					"ConcurrentSessionAccessException, but " + maxRounds + " barrier-aligned rounds " +
 					"never triggered the guard."
 			);
 		} finally {
@@ -245,7 +245,7 @@ class ConcurrentSessionAccessTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Logic executed by a single worker in one barrier-synchronized round.
+	 * Logic executed by a single worker in one barrier-aligned round.
 	 */
 	@FunctionalInterface
 	private interface RoundBody {

@@ -169,7 +169,8 @@ public class ObservabilityProbesDetector implements ProbesProvider, Closeable {
 					// check the end-points availability
 					//noinspection rawtypes
 					final Collection<ExternalApiProviderRegistrar> availableExternalApis = ExternalApiServer.gatherExternalApiProviders();
-					final Map<String, Boolean> readiness = CollectionUtils.createHashMap(availableExternalApis.size());
+					final Map<String, Boolean> readiness =
+						CollectionUtils.createConcurrentHashMap(availableExternalApis.size());
 					final CompletableFuture<?>[] futures = new CompletableFuture[apiCodes.length];
 					for (int i = 0; i < apiCodes.length; i++) {
 						final String apiCode = apiCodes[i];
@@ -177,9 +178,7 @@ public class ObservabilityProbesDetector implements ProbesProvider, Closeable {
 							() -> {
 								final ExternalApiProvider<?> apiProvider = externalApiServer.getExternalApiProviderByCode(apiCode);
 								final boolean ready = apiProvider != null && apiProvider.isReady();
-								synchronized (readiness) {
-									readiness.put(apiCode, ready);
-								}
+								readiness.put(apiCode, ready);
 								theObservabilityManager.ifPresent(it -> it.recordReadiness(apiCode, ready));
 							},
 							getInternalExecutor(availableExternalApis.size())
