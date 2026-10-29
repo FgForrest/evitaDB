@@ -1543,25 +1543,69 @@ public final class EntityCollection implements
 		final List<ReferenceSchemaContract> updatedReferenceSchemas = new ArrayList<>(referenceSchemas.size());
 		for (ReferenceSchemaContract referenceSchema : referenceSchemas) {
 			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
-				final Optional<? extends EntitySchemaContract> targetEntitySchema;
-				if (schema.getName().equals(reflectedReferenceSchema.getReferencedEntityType())) {
-					// self referenced schema
-					targetEntitySchema = of(schema);
-				} else {
-					targetEntitySchema = schemaLookup.apply(reflectedReferenceSchema.getReferencedEntityType());
-				}
 				// the plain binding, never `withReferencedSchemaAfterSchemaChange`: this runs on catalog load (and on the
 				// goLive / handover rebuilds), where the schema is the stored one and nothing about it has changed - a
 				// stored scope indexed without components never indexed anything, and filling it here would make it
 				// claim indexes that were never built and silence the checks that refuse it
-				targetEntitySchema
-					.flatMap(it -> it.getReference(reflectedReferenceSchema.getReflectedReferenceName()))
-					.ifPresent(originalReference -> updatedReferenceSchemas.add(reflectedReferenceSchema.withReferencedSchema(originalReference)));
+				findReflectedReference(schema, reflectedReferenceSchema, schemaLookup, new HashSet<>(4))
+					.ifPresent(
+						originalReference -> updatedReferenceSchemas.add(
+							reflectedReferenceSchema.withReferencedSchema(originalReference)
+						)
+					);
 			}
 		}
 		return updatedReferenceSchemas.isEmpty() ?
 			schema :
 			schema.withReplacedReferenceSchema(updatedReferenceSchemas.toArray(ReferenceSchemaContract[]::new));
+	}
+
+	/**
+	 * Finds the reference a reflected reference reflects. When that reference is itself a reflected reference the
+	 * lookup returns unbound, it is bound first, along the whole chain of reflections. The storage migrations look up
+	 * the schemas as stored, and a catalog load binds its collections one at a time, so a schema of another entity
+	 * type may not be bound yet. Binding to an unbound reflected reference fails as soon as the binding reads a
+	 * property both of them inherit, such as `faceted`.
+	 *
+	 * In a valid schema the chain of reflections ends in a plain reference. A cycle ends the search with nothing found,
+	 * and the reflected reference is then left as it is, like one whose source cannot be found.
+	 *
+	 * @param schema             the schema that holds the reflected reference
+	 * @param reflectedReference the reflected reference whose source is looked up
+	 * @param schemaLookup       finds the schema of another entity type of the catalog by its name
+	 * @param visited            the reflected references already met on the chain, as entity type and reference name
+	 * @return the source reference, bound when it is a reflected reference itself, or empty when it cannot be found
+	 */
+	@Nonnull
+	private static Optional<ReferenceSchemaContract> findReflectedReference(
+		@Nonnull EntitySchemaContract schema,
+		@Nonnull ReflectedReferenceSchema reflectedReference,
+		@Nonnull Function<String, Optional<? extends EntitySchemaContract>> schemaLookup,
+		@Nonnull Set<Entry<String, String>> visited
+	) {
+		if (!visited.add(Map.entry(schema.getName(), reflectedReference.getName()))) {
+			return empty();
+		}
+		final String targetEntityType = reflectedReference.getReferencedEntityType();
+		// a self referenced schema is its own target
+		final Optional<? extends EntitySchemaContract> targetEntitySchema = schema.getName().equals(targetEntityType) ?
+			of(schema) : schemaLookup.apply(targetEntityType);
+		if (targetEntitySchema.isEmpty()) {
+			return empty();
+		}
+		final EntitySchemaContract targetSchema = targetEntitySchema.get();
+		final Optional<ReferenceSchemaContract> sourceReference = targetSchema.getReference(
+			reflectedReference.getReflectedReferenceName()
+		);
+		if (
+			sourceReference.isPresent() &&
+				sourceReference.get() instanceof ReflectedReferenceSchema reflectedSource &&
+				!reflectedSource.isReflectedReferenceAvailable()
+		) {
+			return findReflectedReference(targetSchema, reflectedSource, schemaLookup, visited)
+				.map(reflectedSource::withReferencedSchema);
+		}
+		return sourceReference;
 	}
 
 	/**

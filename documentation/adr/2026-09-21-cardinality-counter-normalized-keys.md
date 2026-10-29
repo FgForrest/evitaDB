@@ -1,7 +1,7 @@
 ---
 title: One filter-index entry has one identity, and everything that describes an entry now uses it
 date: 2026-09-21
-updated: 2026-10-20 12:47
+updated: 2026-10-29 10:16
 status: accepted
 kind: fix
 issues: [1620]
@@ -9,7 +9,7 @@ prs: [1621]
 areas: [evita_engine/src/main/java/io/evitadb/index/cardinality, evita_engine/src/main/java/io/evitadb/index/attribute, evita_common/src/main/java/io/evitadb/comparator, evita_common/src/main/java/io/evitadb/dataType, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_store/evita_store_server/src/main/java/io/evitadb/store/index/serializer]
 supersedes: []
 superseded-by: []
-relates: [2026-08-10-stored-value-normalization-split, 2026-09-04-millisecond-temporal-precision, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-10-20-single-owner-partitions-as-registry-rows]
+relates: [2026-10-29-release-catalog-upgrade-from-surviving-index-parts, 2026-08-10-stored-value-normalization-split, 2026-09-04-millisecond-temporal-precision, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-10-20-single-owner-partitions-as-registry-rows]
 ---
 
 # One filter-index entry has one identity, and everything that describes an entry now uses it
@@ -456,6 +456,11 @@ should be read as the trigger to supersede this record rather than to extend the
 
 ## Consequences & open follow-ups
 
+- **2026-10-29 update:** The release upgrade now emits a schema-based conditional loss warning even for fields without
+  counters. Unchecked counters retain their uncertainty and gain conditional REINDEX advice; this updates the earlier
+  no-diagnostic statement for localized fields. See
+  [2026-10-29-release-catalog-upgrade-from-surviving-index-parts](2026-10-29-release-catalog-upgrade-from-surviving-index-parts.md).
+
 - **The tie-break breaks pre-existing collator-merged data on the READ path as well as the write path, and that
   risk is accepted knowingly.** The banner at the top of this record is the operator-facing statement. Measured
   over one stored bucket keyed `"ab"` holding records 1 and 2, where record 2's entity value is `"a<ZWSP>b"`
@@ -559,6 +564,12 @@ should be read as the trigger to supersede this record rather than to extend the
   `normalizeKey`'s javadoc states this at the site. It is moot for the migration, which prefers the frozen scale.
 
 ## Related work
+
+-
+  [2026-10-29-release-catalog-upgrade-from-surviving-index-parts](2026-10-29-release-catalog-upgrade-from-surviving-index-parts.md)
+  — The release upgrade now emits a schema-based conditional loss warning even for fields without counters. Unchecked
+  counters retain their uncertainty and gain conditional REINDEX advice; this updates the earlier no-diagnostic
+  statement for localized fields.
 
 - `2026-08-10-stored-value-normalization-split` — introduced the `Instant` branch of `getNormalizer` and set the
   "conversion belongs in the BWC reader" rule this record knowingly departs from, with reasons above.
