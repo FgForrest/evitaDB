@@ -813,8 +813,8 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 	 *
 	 * Notes:
 	 * - Uses empty containers when a particular builder was never touched to minimize footprint.
-	 * - Combines schema-declared reference names with those added in this builder.
-	 * - The hierarchy flag is set when schema declares hierarchy or a parent was assigned.
+	 * - When references were touched, combines schema-declared reference names with those added in this builder.
+	 * - Carries the builder's scope, matching the entity produced by applying the {@link #toMutation()} result.
 	 */
 	@Nonnull
 	@Override
@@ -833,7 +833,7 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 			this.pricesBuilder == null ?
 				new Prices(this.schema, PriceInnerRecordHandling.NONE) : this.pricesBuilder.build(),
 			getAllLocales(),
-			false
+			this.scope
 		);
 	}
 

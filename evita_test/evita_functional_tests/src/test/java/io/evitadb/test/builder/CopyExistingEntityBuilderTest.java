@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
@@ -112,6 +113,25 @@ class CopyExistingEntityBuilderTest {
 		builder.setAttribute(CODE, code);
 		builder.setAttribute(NAME, "irrelevant");
 		return builder.toInstance();
+	}
+
+	/**
+	 * Materializing a copy preserves the archived scope supplied by the source entity.
+	 */
+	@Test
+	@DisplayName("preserves archived scope when materializing a copy")
+	void shouldPreserveArchivedScopeWhenMaterializingCopy() {
+		final EntitySchema schema = EntitySchema._internalBuild(Entities.PRODUCT);
+		final InitialEntityBuilder builder = new InitialEntityBuilder(schema, 1);
+		builder.setScope(Scope.ARCHIVED);
+		final EntityContract source = builder.toMutation().orElseThrow().mutate(schema, null);
+		final CopyExistingEntityBuilder copy = new CopyExistingEntityBuilder(source);
+
+		final EntityContract copiedEntity = copy.toInstance();
+
+		assertEquals(Scope.ARCHIVED, source.getScope());
+		assertEquals(Scope.ARCHIVED, copy.getScope());
+		assertEquals(Scope.ARCHIVED, copiedEntity.getScope());
 	}
 
 	@Test
