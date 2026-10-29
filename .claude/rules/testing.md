@@ -72,6 +72,12 @@ The test suite is split across four sibling modules under `evita_test/`:
   ```
 - **Documentation runners** — `mvn -P documentation`. The matching profile in the docs module flips its `skipTests` to `false`; the root profile sets `skipTests=true` everywhere else, so only documentation tests run. Running them against anything but the public demo server takes a rig — see "Documentation runners" below.
 - **Slow / long-running tests** — `mvn -P longRunning`. Same pattern as `documentation`; selects only the long-running module.
+- **Release upgrade fixtures** — the functional tests' build writes them in `generate-test-resources` with the
+  released engines (`tools/fixtures/GenerateReleaseFixtures.java`), so the first build on an empty local repository
+  needs Maven Central. `-DreleaseFixtures.skip=true` builds without it; the release upgrade tests then fail, each
+  naming the fixture it misses. IntelliJ needs
+  `mvn generate-test-resources -P intellij-idea-only -pl evita_test/evita_functional_tests` after every rebuild of the
+  module.
 - **Picking the right tags for a code change** — map the changed source path to layer + capability tags. For example, a change under `evita_engine/src/main/java/io/evitadb/index/facet/` calls for `(facet | indexing) & !slow`; under `evita_external_api/evita_external_api_rest/` use `rest & external_api`. The full path-to-tag mapping is documented in the `TestTags` JavaDoc and in the bulk-tagging script committed during the rollout.
 
 ## Documentation runners — running them locally

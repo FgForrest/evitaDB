@@ -33,9 +33,9 @@ import java.util.List;
  * Command-line entry point that runs inside the **v2026.2.18** engine. In `write` mode it writes the fixtures of
  * {@link Release2026_2FixtureRecipes} and then opens every fixture of {@link Release2026_1FixtureRecipes} that the
  * 2026.2 engine is to upgrade — those must have been written by {@link Release2026_1FixtureGenerator} into the same
- * output directory before. It never runs in a test JVM: `tools/generate-release-fixtures.sh`, which the functional
- * tests' build runs, compiles this package against the release's jars and runs it. See the package documentation for
- * the whole procedure.
+ * output directory before. It never runs in a test JVM: `tools/fixtures/GenerateReleaseFixtures.java`, which the
+ * functional tests' build runs, compiles this package against the release's jars and runs it. See the package
+ * documentation for the whole procedure.
  *
  * Usage, on the 2026.2 classpath:
  *

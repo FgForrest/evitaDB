@@ -47,9 +47,14 @@
 		<skipNexusStagingDeployMojo>true</skipNexusStagingDeployMojo>
 		<!--
 			`true` skips writing the release upgrade fixtures (the `generate-release-fixtures` execution below); the
-			profiles at the end set it for every build that runs no tests of this module.
+			profiles at the end set it for every build that runs no tests of this module. Pass it by hand to build
+			without the network before the local repository holds the two releases the fixtures are written with; the
+			release upgrade tests then fail, each naming the fixture it misses.
 		-->
 		<releaseFixtures.skip>false</releaseFixtures.skip>
+		<!-- the JDK that runs Maven runs the fixture generator; the Windows profile at the end names `java.exe` -->
+		<releaseFixtures.java>${java.home}/bin/java</releaseFixtures.java>
+		<releaseFixtures.tools>${project.basedir}/../../tools/fixtures</releaseFixtures.tools>
 	</properties>
 
 	<dependencies>
@@ -273,13 +278,14 @@
 			<!--
 				Writes the release upgrade fixtures - catalogs and storage parts written by the RELEASED engines, which
 				the upgrade tests open with the current one - straight into the test output directory, under
-				`testData`, where the script replaces its own previous output as a whole. They are produced here
-				instead of being committed, because binary fixtures do not belong in the repository. The script
-				downloads the release jars on first use, through a nested Maven given this build's local repository,
-				offline mode and settings files, and skips the run while its inputs and output are unchanged; see
-				`tools/generate-release-fixtures.sh`. Running such a test from IntelliJ, which builds with the
-				`intellij-idea-only` profile, needs this phase to have run with that profile since IntelliJ last
-				rebuilt the module:
+				`testData`, where the generator replaces its own previous output as a whole. They are produced here
+				instead of being committed, because binary fixtures do not belong in the repository. The generator is a
+				Java program run in source-file mode, so the step needs only Maven and the JDK on any operating system.
+				It downloads the release jars on first use, through a nested run of this build's Maven given its local
+				repository, offline mode and settings files, and skips the run while its inputs and output are
+				unchanged; see `tools/fixtures/GenerateReleaseFixtures.java`. Running such a test from IntelliJ, which
+				builds with the `intellij-idea-only` profile, needs this phase to have run with that profile since
+				IntelliJ last rebuilt the module:
 				`mvn generate-test-resources -P intellij-idea-only -pl evita_test/evita_functional_tests`.
 			-->
 			<plugin>
@@ -295,10 +301,13 @@
 						</goals>
 						<configuration>
 							<skip>${releaseFixtures.skip}</skip>
-							<executable>bash</executable>
+							<executable>${releaseFixtures.java}</executable>
 							<!-- each option embeds its expression in text, which makes the plugin receive a string -->
 							<arguments>
-								<argument>${project.basedir}/../../tools/generate-release-fixtures.sh</argument>
+								<argument>${releaseFixtures.tools}/GenerateReleaseFixtures.java</argument>
+								<argument>--project-root=${project.basedir}/../..</argument>
+								<argument>--work-dir=${project.build.directory}/release-fixtures</argument>
+								<argument>--maven-home=${maven.home}</argument>
 								<argument>--maven-repo-local=${settings.localRepository}</argument>
 								<argument>--maven-offline=${settings.offline}</argument>
 								<argument>--maven-settings=${session.request.userSettingsFile}</argument>
@@ -312,8 +321,8 @@
 			<!--
 				Publish a test-jar so other test modules (notably evita_long_running_tests)
 				can reuse helper / fixture / mock classes that live in src/test/java here.
-				The test-jar contains compiled .class files only; test resources are not
-				bundled (long-running tests have their own resources where needed).
+				The test-jar packages the whole test output directory, so it also bundles the
+				test resources, the release upgrade fixtures under `testData` included.
 			-->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -368,6 +377,17 @@
 			<id>longRunning</id>
 			<properties>
 				<releaseFixtures.skip>true</releaseFixtures.skip>
+			</properties>
+		</profile>
+		<profile>
+			<id>release-fixtures-on-windows</id>
+			<activation>
+				<os>
+					<family>windows</family>
+				</os>
+			</activation>
+			<properties>
+				<releaseFixtures.java>${java.home}/bin/java.exe</releaseFixtures.java>
 			</properties>
 		</profile>
 	</profiles>

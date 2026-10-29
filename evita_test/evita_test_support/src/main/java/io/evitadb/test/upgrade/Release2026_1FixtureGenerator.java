@@ -30,9 +30,9 @@ import java.util.List;
 
 /**
  * Command-line entry point that runs inside the **v2026.1.20** engine and writes the fixtures of
- * {@link Release2026_1FixtureRecipes}. It never runs in a test JVM: `tools/generate-release-fixtures.sh`, which the
- * functional tests' build runs, compiles this package against the release's jars and runs it. See the package
- * documentation for the whole procedure.
+ * {@link Release2026_1FixtureRecipes}. It never runs in a test JVM: `tools/fixtures/GenerateReleaseFixtures.java`,
+ * which the functional tests' build runs, compiles this class and the recipes that name nothing newer than 2026.1
+ * against the release's jars and runs it. See the package documentation for the whole procedure.
  *
  * Usage, on the 2026.1 classpath:
  *

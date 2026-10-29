@@ -106,6 +106,13 @@ suite, `-P longRunning` only the long-running suite (see the sections below), an
 heavy modules (performance tests and the jacoco aggregator). The shaded Java driver is built separately
 from the [standalone recipe](../../recipes/evita_java_driver_all_in_one).
 
+The release upgrade tests open catalogs written by the released engines. Those fixtures are not
+committed: the functional tests' build writes them in `generate-test-resources` with
+[a Java program](../../tools/fixtures/GenerateReleaseFixtures.java) that downloads the two releases from
+Maven Central on first use, and skips the step while nothing it depends on has changed. An offline build
+with an empty local repository fails there; `-DreleaseFixtures.skip=true` builds without the fixtures,
+and the release upgrade tests then fail, each naming the fixture it misses.
+
 To run tests from IntelliJ IDEA, add these arguments to the JUnit configuration template — they open
 the JDK internals the engine and serialization tests reflect over:
 

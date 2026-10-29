@@ -41,13 +41,14 @@
  *   {@link io.evitadb.test.upgrade.Release2026_2FixtureGenerator} — the entry points run inside the releases, each
  *   with a `write` mode and a `probe` mode that prints the release's answers to the recipes' probes.
  *
- * The build runs `tools/generate-release-fixtures.sh <testDataDir>` — it resolves both releases' class paths (or takes
- * them from `RELEASE_2026_1_CLASSPATH` / `RELEASE_2026_2_CLASSPATH`), compiles this package against each, writes the
- * 2026.1 fixtures, then the 2026.2 ones, and opens the 2026.1 fixtures 2026.2 is to upgrade; it skips the run while
- * its inputs and its output are unchanged. A recipe must keep to the API the releases share with the current engine,
- * or the build fails to compile it against the release. Editing a recipe changes the fixture the next build writes,
- * so a recipe a test already relies on changes only together with that test, and a new shape gets a recipe of its
- * own.
+ * The build runs `tools/fixtures/GenerateReleaseFixtures.java` — it resolves both releases' class paths (or takes
+ * them from `RELEASE_2026_1_CLASSPATH` / `RELEASE_2026_2_CLASSPATH`), compiles this package against the 2026.2 jars
+ * and, against the 2026.1 jars, only the recipes that name nothing newer than 2026.1 together with their generator,
+ * writes the 2026.1 fixtures, then the 2026.2 ones, and opens the 2026.1 fixtures 2026.2 is to upgrade; it skips the
+ * run while its inputs and its output are unchanged. A recipe must keep to the API the releases share with the
+ * current engine, or the build fails to compile it against the release. Editing a recipe changes the fixture the next
+ * build writes, so a recipe a test already relies on changes only together with that test, and a new shape gets a
+ * recipe of its own.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

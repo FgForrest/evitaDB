@@ -1,7 +1,7 @@
 ---
 title: Upgrade released catalogs from surviving parts, refusing collisions and warning about loss
 date: 2026-10-29
-updated: 2026-10-29 16:56
+updated: 2026-10-29 18:35
 status: accepted
 kind: fix
 issues: [1696, 1699]
@@ -199,11 +199,14 @@ condition under which republishing is needed and never claims that schema suscep
   counter audit is separate. A failed publication emits no successful-upgrade loss warning.
 - Warning predicates cover all entity scopes, applicable indexed reference scopes and active compound components.
   Duplicate temporal reference representatives require no index/scope gate. Price risk requires indexed prices.
-- The release fixtures are not in the repository. `evita_functional_tests` runs `tools/generate-release-fixtures.sh`
-  in `generate-test-resources`: it resolves v2026.1.20 and v2026.2.18 from Maven Central, compiles the recipes of
-  `io.evitadb.test.upgrade` against each, and writes the catalogs and the four 2026.1 sort parts straight into the
-  test output directory (`target/test-classes/testData`), replacing its previous output as a whole. It skips the run
-  while the script, the recipes and the sort-part generator are unchanged and the output is still the one it wrote.
+- The release fixtures are not in the repository. `evita_functional_tests` runs
+  `tools/fixtures/GenerateReleaseFixtures.java` in `generate-test-resources`: it resolves v2026.1.20 and v2026.2.18
+  from Maven Central, compiles the recipes of `io.evitadb.test.upgrade` against each, and writes the catalogs and the
+  four 2026.1 sort parts straight into the test output directory (`target/test-classes/testData`), replacing its
+  previous output as a whole. It skips the run while the program, the recipes and the sort-part generator are
+  unchanged and the output is still the one it wrote. It is a Java program run in source-file mode by the JDK that
+  runs Maven, not a shell script, because the build must work on Windows too. A build that cannot reach Maven Central
+  before the local repository holds the releases fails with a message naming `-DreleaseFixtures.skip=true`.
   Catalog bytes differ from run to run, so tests assert behaviour, never bytes; a recipe a test relies on changes
   only together with that test.
 

@@ -52,7 +52,7 @@ import java.util.Map;
 
 /**
  * Generates the small sort-part resources with the actual 2026.1.20 writer and verifies their released round trip.
- * `tools/generate-release-fixtures.sh` compiles and runs it against the released jars, writing into
+ * `tools/fixtures/GenerateReleaseFixtures.java` compiles and runs it against the released jars, writing into
  * `testData/released_sort_2026_1` of the functional tests' build; never run it with the current writer, which cannot
  * construct these released distinctions.
  *
