@@ -79,6 +79,8 @@ class LegacyRepresentativeKeyPreflightTest implements EvitaTestSupport {
 			}
 			assertEquals(before, this.harness.bootstrapRecords(paths, fixture),
 				"A refused migration chain must retain the original published bootstrap");
+			assertEquals(fixture.equals("d6c") ? 4 : 6,
+				this.harness.lastBootstrapStorageProtocol(paths, fixture));
 			ReleaseFixtureHarness.assertByteIdentical(files, ReleaseFixtureHarness.catalogDirectory(paths, fixture));
 			final String message = refusal(failure).getMessage();
 			for (final String detail : List.of(

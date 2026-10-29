@@ -69,15 +69,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Catalogs written by the released 2026.2 engine — and by 2026.1, opened or not by 2026.2 — behave after the upgrade to
- * the current engine as a catalog the current engine built from the same input. Each scenario runs against a fixture
+ * Checks publication and lossless query comparisons for catalogs written by released 2026.2 and 2026.1 engines.
+ * Successful loading alone does not promise query parity for potentially lossy fields. Each scenario uses a fixture
  * under `testData/release_upgrade_fixtures`, written by the released engines from a recipe in
  * `io.evitadb.test.upgrade`; {@link ReleaseFixtureHarness} opens a copy of it and replays the recipe into a fresh
  * catalog for comparison.
  *
- * This class holds the scenarios the current engine already passes. Every fixture is checked to arrive at the storage
- * protocol its origin wrote; the shapes the current engine does not handle yet (#1696) are covered by the scenarios of
- * the changes that fix them.
+ * Every fixture is checked to arrive at the storage protocol its origin wrote. Accepted loads and lossless
+ * comparisons live here and in `Release2026_2IndexUpgradeTest`; deliberate refusals and conditional warnings live
+ * in the migration preflight and report tests.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -115,7 +115,7 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 		return Stream.of(
 			"d1a", "d1c", "d2", "d3", "d3p", "d4", "d4c", "d4t", "d4f", "d5f", "d5s", "dF1p", "dS1p", "dX", "dv",
 			"dN1h", "d14", "d2p", "dDel", "d16", "d16n", "d5r", "dK1h", "dGrp", "dUw", "drf", "dRR", "dRng", "dU",
-			"d12", "d12b", "d15"
+			"d12", "d12b", "d15", "d4cp", "d7", "d17", "d17a", "d10s"
 		);
 	}
 
@@ -127,7 +127,10 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	static Stream<String> freshEquivalentFixtures() {
-		return Stream.of("d1a", "d1c", "d3p", "d4t", "dF1p", "dS1p", "dv", "dN1h", "dDel", "d16n", "dK1h", "dU");
+		return Stream.of(
+			"d1a", "d1c", "d3p", "d4t", "dF1p", "dS1p", "dv", "dN1h", "dDel", "d16n", "dK1h", "dU",
+			"d3", "d4c", "d4cp", "dRng", "d10s"
+		);
 	}
 
 	@ParameterizedTest(name = "{0}")
@@ -313,7 +316,7 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 
 
 	@Nested
-	@DisplayName("D1c - a FILTER holding the open-bound twins until(10:00+01:00) and until(11:00+02:00)")
+	@DisplayName("a FILTER holding the open-bound twins until(10:00+01:00) and until(11:00+02:00)")
 	class OpenBoundSentinel {
 
 		@Test
@@ -331,7 +334,7 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 	}
 
 	@Nested
-	@DisplayName("D3 - DateTimeRange owner SORT ordered by whole seconds in the release")
+	@DisplayName("DateTimeRange owner SORT ordered by whole seconds in the release")
 	class DateTimeRangeSortOrder {
 
 		@Test
@@ -376,7 +379,7 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 	}
 
 	@Nested
-	@DisplayName("D4 - localized String compounds whose release order ignored the tie-break")
+	@DisplayName("localized String compounds whose release order ignored the tie-break")
 	class LocalizedTieBreak {
 
 		@Test
@@ -414,7 +417,7 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 	class ReferenceShapes {
 
 		@Test
-		@DisplayName("D16 numeric: the remaining owner of a range reference attribute is found by a point inside it")
+		@DisplayName("The remaining owner of a numeric reference range is found by a point inside it")
 		void shouldFindRemainingOwnerWhenRangeReferenceAttributeOfOtherOwnerWasRemoved() {
 			Release2026_2UpgradeDefectsTest.this.harness.assertOnFreshThenUpgraded("d16n", evita -> assertEquals(
 				List.of(2),

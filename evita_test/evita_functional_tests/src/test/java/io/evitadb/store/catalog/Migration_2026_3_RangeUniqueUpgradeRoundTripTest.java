@@ -107,6 +107,7 @@ class Migration_2026_3_RangeUniqueUpgradeRoundTripTest implements EvitaTestSuppo
 				assertTrue(message.contains("2026-01-01T00:00:00.000500Z"), message);
 			}
 			assertEquals(before, this.harness.bootstrapRecords(paths, fixture));
+			assertEquals(6, this.harness.lastBootstrapStorageProtocol(paths, fixture));
 			ReleaseFixtureHarness.assertByteIdentical(files, ReleaseFixtureHarness.catalogDirectory(paths, fixture));
 		} finally {
 			this.harness.cleanup(paths);
