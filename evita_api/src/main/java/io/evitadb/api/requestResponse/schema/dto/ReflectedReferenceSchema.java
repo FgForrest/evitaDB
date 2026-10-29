@@ -1206,7 +1206,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			}
 			final Stream<String> currentFilter = Arrays.stream(this.attributeInheritanceFilter);
 			final String repair;
-			if (this.reflectedReference.getSortableAttributeCompound(compound.getName()).isEmpty()) {
+			if (this.getDeclaredSortableAttributeCompound(compound.getName()).isPresent()) {
 				// the compound is declared on this reference, so no inheritance filter removes it
 				repair = "Either inherit the missing attributes again, or remove the compound with " +
 					"`withoutSortableAttributeCompound(\"" + compound.getName() + "\")`.";
