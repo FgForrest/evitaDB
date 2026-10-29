@@ -23,6 +23,7 @@
 
 package io.evitadb.store.catalog;
 
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.store.catalog.Migration_2026_3.UniqueKeyRekeying;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -63,6 +64,40 @@ class Migration_2026_3_UniqueRekeyTest {
 	private static final String NFD = Normalizer.normalize("čaj", Normalizer.Form.NFD);
 	private static final OffsetDateTime NOON_UTC = OffsetDateTime.of(2026, 5, 20, 12, 0, 0, 0, ZoneOffset.UTC);
 	private static final OffsetDateTime NOON_AT_PLUS_TWO = NOON_UTC.withOffsetSameInstant(ZoneOffset.ofHours(2));
+
+	/** Equal current keys must request a plan even when normalization preserves their original spellings. */
+	@Test
+	@DisplayName("Should plan unchanged range spellings using the complete entry identity")
+	void shouldPlanUnchangedRangeSpellingsUsingCompleteEntryIdentity() {
+		final DateTimeRange first = DateTimeRange.until(OffsetDateTime.parse("2026-01-01T10:00:00+01:00"));
+		final DateTimeRange second = DateTimeRange.until(OffsetDateTime.parse("2026-01-01T11:00:00+02:00"));
+		final Serializable[] values = {first, second, second};
+		final UniqueKeyRekeying collision = rekey(
+			DateTimeRange.class, 0, values, new long[]{1, 1, 2}, true
+		);
+		assertNotNull(collision, "Repeated current range keys require a collision or fold plan");
+		assertEquals(1, collision.collisions().size());
+		assertArrayEquals(new int[]{0, 2}, collision.collisions().getFirst());
+		final UniqueKeyRekeying fold = rekey(
+			DateTimeRange.class, 0, new Serializable[]{first, second}, new long[]{1, 1}, true
+		);
+		assertNotNull(fold);
+		assertArrayEquals(new Serializable[]{first}, fold.values());
+		assertArrayEquals(new long[]{1}, fold.owners());
+		assertTrue(fold.collisions().isEmpty());
+		final UniqueKeyRekeying ownerOnly = rekey(
+			DateTimeRange.class, 0, new Serializable[]{first, second}, new long[]{1, 1}, false
+		);
+		assertNotNull(ownerOnly);
+		assertEquals(1, ownerOnly.collisions().size());
+		for (final long payload : new long[]{1L << 32 | 1, 1L << 48 | 1}) {
+			final UniqueKeyRekeying differentEntry = rekey(
+				DateTimeRange.class, 0, new Serializable[]{first, second}, new long[]{1, payload}, true
+			);
+			assertNotNull(differentEntry);
+			assertEquals(1, differentEntry.collisions().size());
+		}
+	}
 
 	@Test
 	@DisplayName("Should leave a part whose values are all canonical alone")

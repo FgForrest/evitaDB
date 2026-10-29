@@ -266,7 +266,10 @@ import java.util.function.Function;
  * a filter tree the buckets are clamped in place and the load path merges the adjacent buckets of an equal key,
  * uniting their records. A unique attribute cannot hold two owners at one key, so the pre-pass finds the owners of
  * different values that meet once clamped and truncated - in a standalone unique index and in a unique attribute
- * folded onto its filter tree - and refuses the upgrade like any other unique collision. A reference
+ * folded onto its filter tree - and refuses the upgrade like any other unique collision. Current-equal date-time
+ * range keys are checked across every unique FILTER bucket, even when release ordering separates them. Distinct
+ * reference partition manifests whose complete current keys are equal are refused before conversion as well:
+ * merging them would require choosing reference data or remapping dependent indexes. A reference
  * partition keyed by a representative temporal value beyond the window cannot be re-keyed without renaming storage
  * parts, so the pre-pass refuses the upgrade over it too ({@link #refuseUpgradeOverOutOfWindowRepresentativeKeys}).
  *
@@ -438,6 +441,18 @@ public interface Migration_2026_3 {
 		}
 		final Function<String, Optional<? extends EntitySchemaContract>> schemaLookup =
 			entityType -> Optional.ofNullable(storedSchemas.get(entityType));
+
+		final List<LegacyRepresentativeKeyPreflight.Collision> representativeCollisions = new ArrayList<>();
+		for (final CollectionUnderUpgrade collection : collections) {
+			representativeCollisions.addAll(LegacyRepresentativeKeyPreflight.findCollisions(
+				catalogVersion, collection.header().entityType(),
+				EntityCollection.bindReflectedReferences(collection.entitySchema(), schemaLookup),
+				collection.indexIds(), collection.service().getStoragePartPersistenceService()
+			));
+		}
+		LegacyRepresentativeKeyPreflight.refuseCollisions(
+			catalogHeader.catalogName(), catalogHeader.storageProtocolVersion(), representativeCollisions
+		);
 
 		// THE PRE-PASS. The standalone unique trees are re-keyed onto the filter index's key space, and two stored
 		// spellings of one value held by different owners would become one key with two owners - a state no unique
@@ -1132,7 +1147,8 @@ public interface Migration_2026_3 {
 	 *
 	 * Distinct date-time ranges can retain their canonical spelling while their comparison order changes between
 	 * releases. An inversion among those keys also requests a rewrite; the writers rebuild the trees in current order.
-	 * Equal keys without a spelling change are left to the unique-collision upgrade policy.
+	 * Equal keys also request a plan: identical complete payloads fold, and different entries refuse before
+	 * publication.
 	 *
 	 * Extracted from the storage plumbing so it can be tested as the pure transform it is.
 	 *
@@ -1167,12 +1183,14 @@ public interface Migration_2026_3 {
 			if (firstPosition == null) {
 				canonicalValues.add(canonicalValue);
 				canonicalOwners.add(owners[i]);
-			} else if (!(ownerIdentifiesEntry && owners[firstPosition] == owners[i])) {
-				collisions.add(new int[]{firstPosition, i});
+			} else {
+				changed = true;
+				if (!(ownerIdentifiesEntry && owners[firstPosition] == owners[i])) {
+					collisions.add(new int[]{firstPosition, i});
+				}
 			}
 		}
 		// a range can stay equal to its canonical spelling while its comparison order changes between releases
-		// collisions without a changed spelling belong to the separate unique-collision upgrade policy
 		if (!changed && canonicalValues.size() == values.length) {
 			for (int i = 1; i < values.length; i++) {
 				if (values[i - 1] instanceof DateTimeRange previous && values[i] instanceof DateTimeRange current &&
@@ -1916,6 +1934,12 @@ public interface Migration_2026_3 {
 					}
 					continue;
 				}
+				if (unique && DateTimeRange.class.isAssignableFrom(plainType)) {
+					findUniqueDateTimeRangeFilterCollisions(
+						catalogVersion, root, service, collection, indexPart, collisions
+					);
+					continue;
+				}
 				// a `LocalTime` key has no window to leave, but a unique one meets its twin through truncation alone
 				final boolean truncatedUnique = unique && LocalTime.class.isAssignableFrom(plainType);
 				if (!isClampedTemporal(plainType) && !truncatedUnique) {
@@ -1935,6 +1959,64 @@ public interface Migration_2026_3 {
 			}
 		}
 		return clamps;
+	}
+
+	/**
+	 * Finds equal current range keys across a complete owner FILTER tree, preserving each owner's original value.
+	 * Release ordering need not keep today's equal keys adjacent. Repeated contributions of one owner are harmless.
+	 * Type-level reference indexes carry partition ids and may retain a withdrawn owner's representative spelling;
+	 * those buckets cannot establish a collision between current owners and are excluded.
+	 */
+	private static void findUniqueDateTimeRangeFilterCollisions(
+		long catalogVersion,
+		@Nonnull FilterIndexStoragePart root,
+		@Nonnull OffsetIndexStoragePartPersistenceService service,
+		@Nonnull CollectionUnderUpgrade collection,
+		@Nonnull EntityIndexStoragePart indexPart,
+		@Nonnull List<UniqueKeyCollision> collisions
+	) {
+		final EntityIndexType indexType = indexPart.getEntityIndexKey().type();
+		if (indexType == EntityIndexType.REFERENCED_ENTITY_TYPE ||
+			indexType == EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE) {
+			return;
+		}
+		final Map<Serializable, ValueToRecord> firstBuckets = new HashMap<>();
+		final String entityType = collection.header().entityType();
+		final String structure = "attribute `" + describeAttribute(root.getAttributeIndexKey()) + "` of entity `" +
+			entityType + "` (scope " + indexPart.getEntityIndexKey().scope() + ")";
+		final boolean global = indexPart.getEntityIndexKey().type() == EntityIndexType.GLOBAL;
+		final Consumer<ValueToRecord> inspect = bucket -> {
+			final ValueToRecord first = firstBuckets.putIfAbsent(bucket.getValue(), bucket);
+			final ValueToRecord original = first == null ? bucket : first;
+			final int firstOwner = original.getRecordIds().getFirst();
+			for (final int owner : bucket.getRecordIds().getArray()) {
+				if (owner != firstOwner) {
+					collisions.add(new UniqueKeyCollision(
+						structure, original.getValue(), describeOwnerRecord(entityType, indexPart, global, firstOwner),
+						bucket.getValue(), describeOwnerRecord(entityType, indexPart, global, owner)
+					));
+				}
+			}
+		};
+		if (root.isPaged()) {
+			final int stream = service.getReadOnlyKeyCompressor().getId(new LeafStreamKey(
+				root.getEntityIndexPrimaryKey(), new AttributeKeyWithIndexType(root.getAttributeIndexKey(),
+					AttributeIndexType.FILTER)
+			));
+			for (final int sequence : root.getLeafPageSequences()) {
+				final FilterIndexLeafPagePart page = Objects.requireNonNull(service.getStoragePart(
+					catalogVersion, AbstractLeafPagePart.computeUniquePartId(stream, sequence),
+					FilterIndexLeafPagePart.class
+				));
+				for (final ValueToRecord bucket : page.getBuckets()) {
+					inspect.accept(bucket);
+				}
+			}
+		} else {
+			for (final ValueToRecord bucket : root.getHistogramPoints()) {
+				inspect.accept(bucket);
+			}
+		}
 	}
 
 	/**
@@ -2153,8 +2235,8 @@ public interface Migration_2026_3 {
 
 	/**
 	 * Refuses the upgrade because two stored spellings of one unique value are held by different owners, telling the
-	 * operator exactly which values and what to do about them. Nothing has been written when this runs, so the catalog
-	 * stays loadable by the release that wrote it, which is where the data has to be fixed.
+	 * operator exactly which values and what to do about them. Nothing has been published when this runs, so the
+	 * catalog stays loadable by the release that wrote it, which is where the data has to be fixed.
 	 *
 	 * @param catalogName the name of the catalog being upgraded
 	 * @param collisions  every collision found by the pre-pass
@@ -2172,13 +2254,14 @@ public interface Migration_2026_3 {
 			PersistenceService.STORAGE_PROTOCOL_VERSION + ": " +
 			collisions.size() + " unique value(s) are stored in two spellings held by different owners. This version " +
 			"compares unique values exactly as it compares filtered ones, so it treats as ONE unique value the same " +
-			"instant written at two offsets, two Unicode spellings of one text (for example a precomposed `\\u010D` " +
+			"instant or open-bound date-time range written at two offsets, two Unicode spellings of one text " +
+			"(for example a precomposed `\\u010D` " +
 			"and a `c` followed by the combining caron `\\u030C`), two decimals equal at the attribute's indexed " +
 			"decimal places, two date-time values of one type that differ only below the millisecond, which this " +
 			"version truncates to whole milliseconds, and two date-time values of one type beyond the supported " +
 			"date-time window (such as `OffsetDateTime.MAX` and `OffsetDateTime.MAX.minusDays(1)`) or one beyond it " +
 			"and one inside the millisecond at its edge, which this version holds at the same edge of the window; " +
-			"each pair below would become one value with two owners. Nothing has been written - " +
+			"each pair below would become one value with two owners. Nothing has been published - " +
 			"the catalog is unchanged. Start the evitaDB version that wrote this catalog on it, change or remove one " +
 			"value of every pair, and then start this version again. Collisions: " +
 			formatAttributeList(described) + ".";
@@ -2355,7 +2438,7 @@ public interface Migration_2026_3 {
 			this.unique = unique;
 			this.entityType = collection.header().entityType();
 			this.structure = "attribute `" + describeAttribute(root.getAttributeIndexKey()) + "` of entity `" +
-				this.entityType + "`";
+				this.entityType + "` (scope " + indexPart.getEntityIndexKey().scope() + ")";
 			this.indexPart = indexPart;
 			this.normalizer = LegacyOwnerSortIndexCorrection.createClampingNormalizer(
 				plainTypeOf(root.getAttributeType()), root.getIndexedDecimalPlaces()
