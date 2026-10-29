@@ -1,7 +1,7 @@
 ---
 title: Upgrade released catalogs from surviving parts, refusing collisions and warning about loss
 date: 2026-10-29
-updated: 2026-10-29 14:05
+updated: 2026-10-29 13:48
 status: accepted
 kind: fix
 issues: [1696, 1699]
@@ -214,7 +214,7 @@ listed leaf page failed with a bare `NullPointerException`). It trimmed the aggr
 cases that still sample every axis - each range subtype as scalar and array, each index family with all four
 bucket/range storage combinations - so that class now runs 19 cases.
 
-The final full functional module recorded **29,845 tests: 0 failures, 5 errors, 65 skipped**. Four errors were
+The final full functional module recorded **30,388 tests: 0 failures, 5 errors, 65 skipped**. Four errors were
 HTTPS subscription session timeouts and one a catalog-handover timing case outside this change; all five passed
 when re-run alone. The root install and the Javadoc build passed, production callers were audited, and the Kryo
 audit reported no findings.
