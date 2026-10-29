@@ -188,8 +188,8 @@ public class DiskRingBuffer {
 	private final AtomicLong bytesAppendedTotal = new AtomicLong();
 	/**
 	 * Head of the ring buffer. Volatile because it's written by the writer thread - at most one at a time,
-	 * since {@code OffHeapTrafficRecorder}'s {@code freeMemory()}/{@code drainFinalizedSessionsToDisk()} are
-	 * both {@code synchronized} on the same monitor, so writer-vs-writer can never race this field - and read
+	 * since the drain lock shared by `OffHeapTrafficRecorder.freeMemory()` and
+	 * `OffHeapTrafficRecorder.drainFinalizedSessionsToDisk()` serializes writers - and read
 	 * by reader threads outside of any lock (e.g. between per-record lock acquisitions); with only one writer
 	 * ever in flight, {@code volatile} exists purely to give those plain reads correct visibility and atomic
 	 * 64-bit reads of the writer's updates, not to arbitrate between concurrent writers.

@@ -18,6 +18,8 @@
 
 package io.evitadb.externalApi.utils.path.routing;
 
+import io.evitadb.utils.CollectionUtils;
+
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -40,7 +42,7 @@ public class PathTemplateMatcher<T> {
 	/**
 	 * Map of path template stem to the path templates that share the same base.
 	 */
-	private Map<String, Set<PathTemplateHolder>> pathTemplateMap = new CopyOnWriteMap<>();
+	private Map<String, Set<PathTemplateHolder>> pathTemplateMap = CollectionUtils.createConcurrentHashMap(16);
 
 	/**
 	 * lengths of all registered paths

@@ -24,16 +24,22 @@
 package io.evitadb.store.traffic.stream;
 
 
+import io.evitadb.store.traffic.SessionTraffic;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
  * This implementation of the {@link OutputStream} allows to recover from the buffer overflow by acquiring a new buffer
  * from the provided {@link Supplier} of {@link ByteBuffer} when the current buffer is full.
+ *
+ * This stream is not thread-safe; {@link SessionTraffic} guarantees one writer at a time through its
+ * `processQueue` single flight (`serializationInProgress`). All serialization writes and the
+ * `ObservableOutput` close in the session-close success callback run inside that single flight.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -49,12 +55,17 @@ public class RecoverableOutputStream extends OutputStream {
 	 */
 	private final Supplier<ByteBuffer> ofBufferFull;
 
+	/**
+	 * Returns the current position within the active buffer.
+	 *
+	 * @return the next byte position, or -1 if no buffer has been acquired
+	 */
 	public int getBufferPosition() {
 		return this.buffer == null ? -1 : this.buffer.position();
 	}
 
 	@Override
-	public synchronized void write (int b) {
+	public void write(int b) {
 		if (this.buffer == null || !this.buffer.hasRemaining()) {
 			// acquire new buffer
 			this.buffer = this.ofBufferFull.get();
@@ -63,30 +74,19 @@ public class RecoverableOutputStream extends OutputStream {
 	}
 
 	@Override
-	public synchronized void write(@Nonnull byte[] bytes, int offset, int length) {
-		if (this.buffer == null) {
-			// acquire new buffer
-			this.buffer = this.ofBufferFull.get();
-			int toWrite = length;
-			int lengthToWrite = Math.min(this.buffer.remaining(), toWrite);
-			// write data gradually acquiring new buffers when the content is larger than the buffer
-			do {
-				this.buffer.put(bytes, offset, lengthToWrite);
-				toWrite -= lengthToWrite;
-				if (toWrite > 0) {
-					// acquire new buffer
-					this.buffer = this.ofBufferFull.get();
-					lengthToWrite = Math.min(this.buffer.remaining(), toWrite);
-				}
-			} while (toWrite > 0);
-		} else if (this.buffer.remaining() < length) {
-			final int bytesInExistingBlock = this.buffer.remaining();
-			this.buffer.put(bytes, offset, bytesInExistingBlock);
-			// acquire new buffer, and write the remaining bytes
-			this.buffer = this.ofBufferFull.get();
-			this.buffer.put(bytes, offset + bytesInExistingBlock, length - bytesInExistingBlock);
-		} else {
-			this.buffer.put(bytes, offset, length);
+	public void write(@Nonnull byte[] bytes, int offset, int length) {
+		Objects.checkFromIndexSize(offset, length, bytes.length);
+		int position = offset;
+		int remaining = length;
+		// fill the current buffer and acquire the next one whenever it is full, until the whole input is written
+		while (remaining > 0) {
+			if (this.buffer == null || !this.buffer.hasRemaining()) {
+				this.buffer = this.ofBufferFull.get();
+			}
+			final int lengthToWrite = Math.min(this.buffer.remaining(), remaining);
+			this.buffer.put(bytes, position, lengthToWrite);
+			position += lengthToWrite;
+			remaining -= lengthToWrite;
 		}
 	}
 

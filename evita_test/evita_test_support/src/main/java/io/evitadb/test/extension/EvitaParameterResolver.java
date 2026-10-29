@@ -103,6 +103,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -211,6 +212,10 @@ public class EvitaParameterResolver
 	 * Prefix used for datasets created implicitly when no @UseDataSet is present.
 	 */
 	private static final String EVITA_ANONYMOUS_EVITA = "__anonymousEvita";
+	/**
+	 * Guards creation of the dataset index in the root JUnit store.
+	 */
+	private static final ReentrantLock DATA_SET_INDEX_LOCK = new ReentrantLock();
 	/**
 	 * Source of randomness used for generating isolated folder names.
 	 */
@@ -473,7 +478,8 @@ public class EvitaParameterResolver
 	@Nonnull
 	private static Map<String, DataSetInfo> getDataSetIndex(@Nonnull ExtensionContext context) {
 		final Store store = context.getRoot().getStore(Namespace.GLOBAL);
-		synchronized (RANDOM) {
+		DATA_SET_INDEX_LOCK.lock();
+		try {
 			//noinspection unchecked
 			return ofNullable((Map<String, DataSetInfo>) store.get(EVITA_DATA_SET_INDEX))
 				.orElseGet(() -> {
@@ -482,6 +488,8 @@ public class EvitaParameterResolver
 					DATA_SET_INFO.set(newDataSets);
 					return newDataSets;
 				});
+		} finally {
+			DATA_SET_INDEX_LOCK.unlock();
 		}
 	}
 
@@ -1020,7 +1028,12 @@ public class EvitaParameterResolver
 	 *
 	 * @param useDataSet an optional {@link UseDataSet} annotation specifying the data set to be used.
 	 *                   If null, an anonymous data set is initialized.
-	 * @param isolateDataSetBySuffix an optional {@link IsolateDataSetBySuffix} annotation to*/
+	 * @param isolateDataSetBySuffix optional suffix separating datasets that share an initializer
+	 * @param dataSetIndex descriptors registered for this test run
+	 * @param parameterContext requested test parameter
+	 * @param extensionContext current test and root store context
+	 * @return dataset descriptor with initialized resources for the requested test
+	 */
 	@Nonnull
 	public DataSetInfo getInitializedDataSetInfo(
 		@Nullable UseDataSet useDataSet,
@@ -1067,7 +1080,8 @@ public class EvitaParameterResolver
 								                     .map(m -> m.equals(dataSetState.testMethod()))
 								                     .orElse(false)
 						)
-					)
+					),
+					new ReentrantLock()
 				);
 				dataSetIndex.put(
 					anonymousEvita,
@@ -1093,7 +1107,8 @@ public class EvitaParameterResolver
 				throw new ParameterResolutionException(
 					"Requested data set " + dataSetToUse + " has no initialization method within the class (Method with @DataSet annotation)!");
 			}
-			synchronized (dataSetInfo) {
+			dataSetInfo.setupLock().lock();
+			try {
 				final BiPredicate<ExtensionContext, DataSetState> dataStateTearDownFct = (terminationContext, dataSetState) -> {
 					if (useDataSet.destroyAfterTest()) {
 						return terminationContext.getTestMethod()
@@ -1267,6 +1282,8 @@ public class EvitaParameterResolver
 				}
 
 				return resultDataSetInfo;
+			} finally {
+				dataSetInfo.setupLock().unlock();
 			}
 		}
 	}
@@ -1304,7 +1321,18 @@ public class EvitaParameterResolver
 	 * Immutable descriptor of a test dataset lifecycle and its resources.
 	 *
 	 * It keeps track of initialization and teardown methods, opened web APIs, and the current
-	 * mutable state held in an {@link AtomicReference}.
+	 * mutable state held in an {@link AtomicReference}. Its setup lock serializes initialization per dataset.
+	 *
+	 * @param name unique dataset name
+	 * @param catalogName catalog initialized for the dataset
+	 * @param initMethod optional dataset initializer
+	 * @param destroyMethods teardown methods
+	 * @param webApi web APIs opened for the dataset
+	 * @param readOnly whether sessions are read-only
+	 * @param destroyAfterClass whether the dataset is torn down after its test class
+	 * @param useRealThreadPools whether the engine uses real executor pools
+	 * @param dataSetInfoAtomicReference current dataset resources and lifecycle state
+	 * @param setupLock lock guarding this dataset's setup
 	 */
 	protected record DataSetInfo(
 		@Nonnull String name,
@@ -1315,11 +1343,21 @@ public class EvitaParameterResolver
 		boolean readOnly,
 		boolean destroyAfterClass,
 		boolean useRealThreadPools,
-		@Nonnull AtomicReference<DataSetState> dataSetInfoAtomicReference
+		@Nonnull AtomicReference<DataSetState> dataSetInfoAtomicReference,
+		@Nonnull ReentrantLock setupLock
 	) {
 
 		/**
 		 * Convenience constructor without pre-existing state.
+		 *
+		 * @param name unique dataset name
+		 * @param catalogName catalog initialized for the dataset
+		 * @param initMethod optional dataset initializer
+		 * @param destroyMethods teardown methods
+		 * @param webApi web APIs opened for the dataset
+		 * @param readOnly whether sessions are read-only
+		 * @param destroyAfterClass whether the dataset is torn down after its test class
+		 * @param useRealThreadPools whether the engine uses real executor pools
 		 */
 		public DataSetInfo(
 			@Nonnull String name, @Nonnull String catalogName, @Nullable CatalogInitMethod initMethod,
@@ -1328,7 +1366,7 @@ public class EvitaParameterResolver
 		) {
 			this(
 				name, catalogName, initMethod, destroyMethods, webApi, readOnly, destroyAfterClass,
-				useRealThreadPools, new AtomicReference<>()
+				useRealThreadPools, new AtomicReference<>(), new ReentrantLock()
 			);
 		}
 

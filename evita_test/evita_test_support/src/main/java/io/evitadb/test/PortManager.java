@@ -35,6 +35,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static java.util.Optional.ofNullable;
 
@@ -45,7 +46,10 @@ import static java.util.Optional.ofNullable;
  */
 public class PortManager {
 	private final Random random = new Random(1L);
-	private final Object monitor = new Object();
+	/**
+	 * Guards allocation and deferred release; allocation re-enters release under the same lock.
+	 */
+	private final ReentrantLock allocationLock = new ReentrantLock();
 	private final Map<String, int[]> portAllocationTable = CollectionUtils.createConcurrentHashMap(64);
 	private final Set<Integer> allocatedPorts = new ConcurrentSkipListSet<>();
 	private final Map<String, CompletableFuture<Void>> pendingReleases = CollectionUtils.createConcurrentHashMap(64);
@@ -54,15 +58,23 @@ public class PortManager {
 
 	/**
 	 * Allocates new set of port for particular `dataSetName`.
+	 *
+	 * @param dataSetName dataset whose ports are reserved
+	 * @param count number of ports to reserve
+	 * @return allocated ports
 	 */
 	@Nonnull
 	public int[] allocatePorts(@Nonnull String dataSetName, int count) {
-		synchronized (this.monitor) {
-			Assert.isPremiseValid(!this.portAllocationTable.containsKey(dataSetName), "Ports for dataset " + dataSetName + " already allocated.");
+		this.allocationLock.lock();
+		try {
+			Assert.isPremiseValid(
+				!this.portAllocationTable.containsKey(dataSetName),
+				"Ports for dataset " + dataSetName + " already allocated."
+			);
 
 			final Iterator<Entry<String, CompletableFuture<Void>>> it = this.pendingReleases.entrySet().iterator();
 			while (it.hasNext()) {
-				Entry<String, CompletableFuture<Void>> entry = it.next();
+				final Entry<String, CompletableFuture<Void>> entry = it.next();
 				final CompletableFuture<Void> future = entry.getValue();
 				if (future != null && future.isDone()) {
 					releasePorts(entry.getKey());
@@ -87,20 +99,27 @@ public class PortManager {
 			}
 			this.portAllocationTable.put(dataSetName, ports);
 			return ports;
+		} finally {
+			this.allocationLock.unlock();
 		}
 	}
 
 	/**
 	 * Frees all ports allocated for `dataSetName`.
+	 *
+	 * @param dataSetName dataset whose ports are released
 	 */
 	public void releasePorts(@Nonnull String dataSetName) {
-		synchronized (this.monitor) {
+		this.allocationLock.lock();
+		try {
 			ofNullable(this.portAllocationTable.remove(dataSetName))
 				.ifPresent(ports -> {
 					for (int port : ports) {
 						this.allocatedPorts.remove(port);
 					}
 				});
+		} finally {
+			this.allocationLock.unlock();
 		}
 	}
 
@@ -110,7 +129,8 @@ public class PortManager {
 	 * @param whenCompleted future that triggers port release
 	 */
 	public void releasePortsOnCompletion(@Nonnull String dataSetName, @Nonnull CompletableFuture<Void> whenCompleted) {
-		synchronized (this.monitor) {
+		this.allocationLock.lock();
+		try {
 			final int random = this.random.nextInt();
 			final String randomizedDataSetName = dataSetName + "_" + random;
 			// rename port allocation table entry, so that we can avoid conflicts on reused dataSetName
@@ -118,6 +138,8 @@ public class PortManager {
 				randomizedDataSetName, this.portAllocationTable.remove(dataSetName)
 			);
 			this.pendingReleases.put(randomizedDataSetName, whenCompleted);
+		} finally {
+			this.allocationLock.unlock();
 		}
 	}
 

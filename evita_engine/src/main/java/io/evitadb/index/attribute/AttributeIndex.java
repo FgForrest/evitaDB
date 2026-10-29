@@ -93,6 +93,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -136,10 +137,11 @@ import static java.util.Optional.ofNullable;
  *   {@link PersistentTransactionalProducerMap} is swapped between its sealed and thawed forms and is therefore NOT
  *   final. Without the volatile write a concurrent reader could observe a published map whose backing state is still
  *   `null`.
- * - **Creation is double-checked under `synchronized (this)`.** Two concurrent write transactions can reach the same
- *   index; if both built a map, the loser's diff layer would be keyed on an orphan instance while every later read
- *   re-read the field and found the winner — losing that transaction's writes silently. Exactly one instance wins,
- *   and nothing is written into a fresh map before it is published.
+ * - **Creation publishes one winner through a CAS.** Two concurrent write transactions can build candidates, but
+ *   the loser must return the published winner: writing to its own candidate would key its diff layer on an orphan
+ *   map while later reads found the winner, silently losing writes. Nothing is written before publication.
+ *   Constructors only assign fields; the transactional layer attaches on the first write, never in a constructor.
+ *   A lost candidate is inert and merely burns one sequence id per `TransactionalMap`.
  * - **The from-maps constructor re-nulls an empty family.** Both the commit merge and the cold load run through it,
  *   so a family that committed nothing goes back to being absent instead of being resurrected empty for the lifetime
  *   of the next snapshot.
@@ -158,6 +160,64 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	Serializable
 	permits EntityAttributeIndex, ReferenceAttributeIndex {
 	@Serial private static final long serialVersionUID = 479979988960202298L;
+	/**
+	 * Publishes the first uniqueIndex map without adding a lock to every attribute index.
+	 */
+	@SuppressWarnings("rawtypes")
+	private static final AtomicReferenceFieldUpdater<AttributeIndex, PersistentTransactionalProducerMap>
+		UNIQUE_INDEX_UPDATER =
+			AtomicReferenceFieldUpdater.newUpdater(
+				AttributeIndex.class, PersistentTransactionalProducerMap.class, "uniqueIndex"
+			);
+	/**
+	 * Publishes the first sortIndex map without adding a lock to every attribute index.
+	 */
+	@SuppressWarnings("rawtypes")
+	private static final AtomicReferenceFieldUpdater<AttributeIndex, PersistentTransactionalProducerMap>
+		SORT_INDEX_UPDATER =
+			AtomicReferenceFieldUpdater.newUpdater(
+				AttributeIndex.class, PersistentTransactionalProducerMap.class, "sortIndex"
+			);
+	/**
+	 * Publishes the first chainIndex map without adding a lock to every attribute index.
+	 */
+	@SuppressWarnings("rawtypes")
+	private static final AtomicReferenceFieldUpdater<AttributeIndex, PersistentTransactionalProducerMap>
+		CHAIN_INDEX_UPDATER =
+			AtomicReferenceFieldUpdater.newUpdater(
+				AttributeIndex.class, PersistentTransactionalProducerMap.class, "chainIndex"
+			);
+	/**
+	 * Publishes the first sharedValueIndex map without adding a lock to every attribute index.
+	 */
+	@SuppressWarnings("rawtypes")
+	private static final AtomicReferenceFieldUpdater<AttributeIndex, PersistentTransactionalProducerMap>
+		SHARED_VALUE_INDEX_UPDATER =
+			AtomicReferenceFieldUpdater.newUpdater(
+				AttributeIndex.class, PersistentTransactionalProducerMap.class, "sharedValueIndex"
+			);
+	/**
+	 * Publishes the first sharedRangeIndex map without adding a lock to every attribute index.
+	 */
+	@SuppressWarnings("rawtypes")
+	private static final AtomicReferenceFieldUpdater<AttributeIndex, PersistentTransactionalProducerMap>
+		SHARED_RANGE_INDEX_UPDATER =
+			AtomicReferenceFieldUpdater.newUpdater(
+				AttributeIndex.class, PersistentTransactionalProducerMap.class, "sharedRangeIndex"
+			);
+	/**
+	 * Publishes the first filterIndex map without adding a lock to every attribute index.
+	 */
+	@SuppressWarnings("rawtypes")
+	private static final AtomicReferenceFieldUpdater<AttributeIndex, TransactionalMap> FILTER_INDEX_UPDATER =
+		AtomicReferenceFieldUpdater.newUpdater(AttributeIndex.class, TransactionalMap.class, "filterIndex");
+	/**
+	 * Publishes the first uniqueViewIndex map without adding a lock to every attribute index.
+	 */
+	@SuppressWarnings("rawtypes")
+	private static final AtomicReferenceFieldUpdater<AttributeIndex, TransactionalMap> UNIQUE_VIEW_INDEX_UPDATER =
+		AtomicReferenceFieldUpdater.newUpdater(AttributeIndex.class, TransactionalMap.class, "uniqueViewIndex");
+
 	/**
 	 * Scans physical in-memory key stores in every locale, including non-null compound elements.
 	 *
@@ -896,7 +956,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 *
 	 * Never call this from a read path — a read resolves a missing family to "absent" through {@link #entryOf} and
 	 * friends, and materialising a map in order to look nothing up in it would give back exactly the scaffolding cost
-	 * the laziness exists to avoid. The double-checked publication is explained once on the class javadoc.
+	 * the laziness exists to avoid. The CAS publication is explained once on the class javadoc.
 	 *
 	 * @return the map, freshly created when this is the first write to the family
 	 */
@@ -906,18 +966,13 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		if (existing != null) {
 			return existing;
 		}
-		synchronized (this) {
-			PersistentTransactionalProducerMap<AttributeIndexKey, UniqueIndex> theIndex = this.uniqueIndex;
-			if (theIndex == null) {
-				theIndex =  new PersistentTransactionalProducerMap<>(
-					CollectionUtils.createHashMap(32),
-					UniqueIndex.class,
-					Function.identity()
-				);
-				this.uniqueIndex = theIndex;
-			}
-			return theIndex;
-		}
+		final PersistentTransactionalProducerMap<AttributeIndexKey, UniqueIndex> candidate =
+			new PersistentTransactionalProducerMap<>(
+				CollectionUtils.createHashMap(32),
+				UniqueIndex.class,
+				Function.identity()
+			);
+		return UNIQUE_INDEX_UPDATER.compareAndSet(this, null, candidate) ? candidate : this.uniqueIndex;
 	}
 
 	/**
@@ -932,18 +987,13 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		if (existing != null) {
 			return existing;
 		}
-		synchronized (this) {
-			PersistentTransactionalProducerMap<AttributeIndexKey, SortIndex> theIndex = this.sortIndex;
-			if (theIndex == null) {
-				theIndex = new PersistentTransactionalProducerMap<>(
-					CollectionUtils.createHashMap(32),
-					SortIndex.class,
-					Function.identity()
-				);
-				this.sortIndex = theIndex;
-			}
-			return theIndex;
-		}
+		final PersistentTransactionalProducerMap<AttributeIndexKey, SortIndex> candidate =
+			new PersistentTransactionalProducerMap<>(
+				CollectionUtils.createHashMap(32),
+				SortIndex.class,
+				Function.identity()
+			);
+		return SORT_INDEX_UPDATER.compareAndSet(this, null, candidate) ? candidate : this.sortIndex;
 	}
 
 	/**
@@ -958,18 +1008,13 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		if (existing != null) {
 			return existing;
 		}
-		synchronized (this) {
-			PersistentTransactionalProducerMap<AttributeIndexKey, ChainIndex> theIndex = this.chainIndex;
-			if (theIndex == null) {
-				theIndex = new PersistentTransactionalProducerMap<>(
-					CollectionUtils.createHashMap(32),
-					ChainIndex.class,
-					Function.identity()
-				);
-				this.chainIndex = theIndex;
-			}
-			return theIndex;
-		}
+		final PersistentTransactionalProducerMap<AttributeIndexKey, ChainIndex> candidate =
+			new PersistentTransactionalProducerMap<>(
+				CollectionUtils.createHashMap(32),
+				ChainIndex.class,
+				Function.identity()
+			);
+		return CHAIN_INDEX_UPDATER.compareAndSet(this, null, candidate) ? candidate : this.chainIndex;
 	}
 
 	/**
@@ -984,18 +1029,13 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		if (existing != null) {
 			return existing;
 		}
-		synchronized (this) {
-			PersistentTransactionalProducerMap<AttributeIndexKey, InvertedIndex> theIndex = this.sharedValueIndex;
-			if (theIndex == null) {
-				theIndex = new PersistentTransactionalProducerMap<>(
-					CollectionUtils.createHashMap(32),
-					InvertedIndex.class,
-					Function.identity()
-				);
-				this.sharedValueIndex = theIndex;
-			}
-			return theIndex;
-		}
+		final PersistentTransactionalProducerMap<AttributeIndexKey, InvertedIndex> candidate =
+			new PersistentTransactionalProducerMap<>(
+				CollectionUtils.createHashMap(32),
+				InvertedIndex.class,
+				Function.identity()
+			);
+		return SHARED_VALUE_INDEX_UPDATER.compareAndSet(this, null, candidate) ? candidate : this.sharedValueIndex;
 	}
 
 	/**
@@ -1010,18 +1050,13 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		if (existing != null) {
 			return existing;
 		}
-		synchronized (this) {
-			PersistentTransactionalProducerMap<AttributeIndexKey, RangeIndex> theIndex = this.sharedRangeIndex;
-			if (theIndex == null) {
-				theIndex = new PersistentTransactionalProducerMap<>(
-					CollectionUtils.createHashMap(32),
-					RangeIndex.class,
-					Function.identity()
-				);
-				this.sharedRangeIndex = theIndex;
-			}
-			return theIndex;
-		}
+		final PersistentTransactionalProducerMap<AttributeIndexKey, RangeIndex> candidate =
+			new PersistentTransactionalProducerMap<>(
+				CollectionUtils.createHashMap(32),
+				RangeIndex.class,
+				Function.identity()
+			);
+		return SHARED_RANGE_INDEX_UPDATER.compareAndSet(this, null, candidate) ? candidate : this.sharedRangeIndex;
 	}
 
 	/**
@@ -1038,14 +1073,9 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		if (existing != null) {
 			return existing;
 		}
-		synchronized (this) {
-			TransactionalMap<AttributeIndexKey, FilterIndex> theIndex = this.filterIndex;
-			if (theIndex == null) {
-				theIndex = new TransactionalMap<>(CollectionUtils.createHashMap(32));
-				this.filterIndex = theIndex;
-			}
-			return theIndex;
-		}
+		final TransactionalMap<AttributeIndexKey, FilterIndex> candidate =
+			new TransactionalMap<>(CollectionUtils.createHashMap(32));
+		return FILTER_INDEX_UPDATER.compareAndSet(this, null, candidate) ? candidate : this.filterIndex;
 	}
 
 	/**
@@ -1062,18 +1092,12 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		if (existing != null) {
 			return existing;
 		}
-		synchronized (this) {
-			TransactionalMap<AttributeIndexKey, UniqueIndex> theIndex = this.uniqueViewIndex;
-			if (theIndex == null) {
-				theIndex = new TransactionalMap<>(
-					CollectionUtils.createHashMap(32),
-					UniqueIndex.class,
-					Function.identity()
-				);
-				this.uniqueViewIndex = theIndex;
-			}
-			return theIndex;
-		}
+		final TransactionalMap<AttributeIndexKey, UniqueIndex> candidate = new TransactionalMap<>(
+			CollectionUtils.createHashMap(32),
+			UniqueIndex.class,
+			Function.identity()
+		);
+		return UNIQUE_VIEW_INDEX_UPDATER.compareAndSet(this, null, candidate) ? candidate : this.uniqueViewIndex;
 	}
 
 	/**

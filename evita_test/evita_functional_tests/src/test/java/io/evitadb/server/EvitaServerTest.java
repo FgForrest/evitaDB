@@ -78,6 +78,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -108,6 +109,11 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	 * single request is prone to spurious failures. Retrying within this window removes the flakiness.
 	 */
 	private static final long PROBE_POLL_BUDGET_MILLIS = 20_000L;
+
+	/**
+	 * Serializes deliberate pauses made by tasks sharing this fixture.
+	 */
+	private final ReentrantLock pauseLock = new ReentrantLock();
 
 	@Nonnull
 	private static String replaceVariables(@Nonnull String status) {
@@ -723,8 +729,11 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				if (uptime > 0) {
 					break;
 				} else {
-					synchronized(this) {
+					this.pauseLock.lock();
+					try {
 						TimeUnit.SECONDS.sleep(1);
+					} finally {
+						this.pauseLock.unlock();
 					}
 				}
 			}

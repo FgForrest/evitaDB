@@ -1138,7 +1138,7 @@ class ChangeCaptureRingBufferTest {
         final ExecutorService executor = Executors.newFixedThreadPool(2);
 
         // Create a list to store all captured results for verification
-        final List<List<ChangeCatalogCapture>> allCapturedResults = new ArrayList<>();
+		final List<List<ChangeCatalogCapture>> allCapturedResults = new CopyOnWriteArrayList<>();
 
         // Create a list to store exceptions
         final List<Exception> exceptions = new CopyOnWriteArrayList<>();
@@ -1179,9 +1179,7 @@ class ChangeCaptureRingBufferTest {
                         // If we got results, update the last read index and store the results
                         if (!result.isEmpty()) {
                             final List<ChangeCatalogCapture> captureList = new ArrayList<>(result);
-                            synchronized (allCapturedResults) {
-                                allCapturedResults.add(captureList);
-                            }
+							allCapturedResults.add(captureList);
                         }
                     } catch (Exception e) {
                         exceptions.add(e);

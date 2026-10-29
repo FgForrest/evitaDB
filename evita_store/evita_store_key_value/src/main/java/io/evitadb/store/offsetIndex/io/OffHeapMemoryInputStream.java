@@ -148,13 +148,13 @@ public class OffHeapMemoryInputStream extends AbstractRandomAccessInputStream {
 	}
 
 	@Override
-	public synchronized void mark(int readlimit) {
+	public void mark(int readlimit) {
 		switchToReadIfNecessary();
 		Objects.requireNonNull(this.buffer).mark();
 	}
 
 	@Override
-	public synchronized void reset() throws IOException {
+	public void reset() throws IOException {
 		switchToReadIfNecessary();
 		Objects.requireNonNull(this.buffer).reset();
 	}

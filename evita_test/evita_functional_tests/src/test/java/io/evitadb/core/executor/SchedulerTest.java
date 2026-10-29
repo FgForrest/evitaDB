@@ -65,6 +65,7 @@ import java.util.function.Function;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.TASK;
+import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -201,11 +202,10 @@ class SchedulerTest {
 			final PaginatedList<TaskStatus<?, ?>> typeFilteredJobStatuses = SchedulerTest.this.scheduler.listTaskStatuses(1, 20, new String[] { "task" });
 			assertEquals(1, typeFilteredJobStatuses.getTotalRecordCount());
 
-			while (SchedulerTest.this.scheduler.listTaskStatuses(1, 20, null).getData().getFirst().simplifiedState() != TaskSimplifiedState.FINISHED) {
-				synchronized (this) {
-					wait(100);
-				}
-			}
+			await().atMost(30, TimeUnit.SECONDS).until(
+				() -> SchedulerTest.this.scheduler.listTaskStatuses(1, 20, null)
+					.getData().getFirst().simplifiedState() == TaskSimplifiedState.FINISHED
+			);
 
 			final PaginatedList<TaskStatus<?, ?>> statusFilteredJobStatuses = SchedulerTest.this.scheduler.listTaskStatuses(1, 20, null, TaskSimplifiedState.QUEUED);
 			assertEquals(0, statusFilteredJobStatuses.getTotalRecordCount());

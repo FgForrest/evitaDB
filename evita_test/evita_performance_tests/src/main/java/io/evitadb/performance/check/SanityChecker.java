@@ -51,6 +51,7 @@ import java.nio.file.Path;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -70,7 +71,10 @@ import java.util.stream.Stream;
  */
 public class SanityChecker implements EvitaTestSupport {
 	private static final int PRELOADED_QUERY_COUNT = 100_000;
-	private final Object monitor = new Object();
+	/**
+	 * Guards query deserialization and stream state.
+	 */
+	private final ReentrantLock queryLock = new ReentrantLock();
 	private int queryLimit;
 	private int preloadedQueryCount;
 	private Kryo kryo;
@@ -148,17 +152,27 @@ public class SanityChecker implements EvitaTestSupport {
 		return evita;
 	}
 
+	/**
+	 * Periodically prints aggregate worker statistics until interrupted.
+	 */
 	@RequiredArgsConstructor
 	private static class StatusWriter implements Runnable {
+		/**
+		 * Serializes status printing and the reporting interval.
+		 */
+		private final ReentrantLock statusLock = new ReentrantLock();
 		private final Statistics overallStatistics;
 
 		@Override
 		public void run() {
 			try {
 				while (true) {
-					synchronized (this) {
+					this.statusLock.lock();
+					try {
 						System.out.println(this.overallStatistics.toString());
 						Thread.sleep(10_000);
+					} finally {
+						this.statusLock.unlock();
 					}
 				}
 			} catch (InterruptedException e) {
@@ -221,8 +235,14 @@ public class SanityChecker implements EvitaTestSupport {
 		return directoryPath;
 	}
 
+	/**
+	 * Reads the next batch of queries from the shared input.
+	 *
+	 * @return the next batch, empty once the input or query limit is exhausted
+	 */
 	private Deque<Query> fetchNewQueries() {
-		synchronized (this.monitor) {
+		this.queryLock.lock();
+		try {
 			final LinkedList<Query> fetchedQueries = new LinkedList<>();
 			if (!this.finished) {
 				for (int i = 0; i < this.preloadedQueryCount && this.queriesFetched++ < this.queryLimit; i++) {
@@ -235,6 +255,8 @@ public class SanityChecker implements EvitaTestSupport {
 				}
 			}
 			return fetchedQueries;
+		} finally {
+			this.queryLock.unlock();
 		}
 	}
 

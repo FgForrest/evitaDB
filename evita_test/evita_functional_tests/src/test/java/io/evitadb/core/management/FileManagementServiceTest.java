@@ -37,6 +37,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -314,7 +315,7 @@ class FileManagementServiceTest implements EvitaTestSupport {
 		final ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
 		final CountDownLatch latch = new CountDownLatch(threadCount);
 		final AtomicInteger successCount = new AtomicInteger(0);
-		final List<Path> allFiles = new ArrayList<>();
+		final List<Path> allFiles = new CopyOnWriteArrayList<>();
 
 		for (int i = 0; i < threadCount; i++) {
 			final int threadId = i;
@@ -324,9 +325,7 @@ class FileManagementServiceTest implements EvitaTestSupport {
 						final Path file = this.fileManagementService.createManagedTempFile(
 							"thread" + threadId + "_file" + j + ".txt"
 						);
-						synchronized (allFiles) {
-							allFiles.add(file);
-						}
+						allFiles.add(file);
 						Files.writeString(file, "Thread " + threadId + " File " + j);
 					}
 					successCount.addAndGet(filesPerThread);

@@ -60,6 +60,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.HierarchyInde
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HierarchyIndexStoragePart.LevelIndex;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 import lombok.Setter;
@@ -83,6 +84,7 @@ import java.util.OptionalInt;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -115,6 +117,11 @@ public class HierarchyIndex
 	VoidTransactionMemoryProducer<HierarchyIndex>,
 	IndexDataStructure, IndexComponent, WarmUpTouchStamped, Serializable {
 	@Serial private static final long serialVersionUID = 4121668650337515744L;
+	/**
+	 * Publishes the first node store without adding a lock to every hierarchy index.
+	 */
+	private static final AtomicReferenceFieldUpdater<HierarchyIndex, HierarchyNodeStore> NODE_STORE_UPDATER =
+		AtomicReferenceFieldUpdater.newUpdater(HierarchyIndex.class, HierarchyNodeStore.class, "nodeStore");
 	/**
 	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
 	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
@@ -150,9 +157,11 @@ public class HierarchyIndex
 	 * - **The field is `volatile`.** A {@link TransactionalMap}'s own fields are final, but the state of the
 	 *   structures it wraps is not, so without the volatile write a concurrent reader could observe a half-published
 	 *   store.
-	 * - **Creation is double-checked under `synchronized (this)`.** Two concurrent write transactions can reach the
-	 *   same index; if both built a store, the loser's diff layers would be keyed on orphan instances while every
-	 *   later read found the winner, losing that transaction's writes silently.
+	 * - **Creation publishes one winner through a CAS.** Two concurrent write transactions can build candidates,
+	 *   but the loser must return the published winner: otherwise its diff layers would be keyed on orphan
+	 *   structures while later reads found the winner, silently losing writes. Nothing is written before publication.
+	 *   Constructors only assign fields; the transactional layer attaches on the first write rather than in a
+	 *   constructor. A lost candidate is inert and merely burns four sequence ids: two maps and two arrays.
 	 * - **The merge copy re-checks emptiness.** {@link #createCopyWithMergedTransactionalMemory} rebuilds the index
 	 *   from the committed structures, and the four-argument constructor leaves the store absent when all four came
 	 *   back empty, so a hierarchy that was emptied does not carry the scaffolding forward for ever.
@@ -292,7 +301,7 @@ public class HierarchyIndex
 	 *
 	 * Never call this from a read path: a read resolves an absent store to "the hierarchy is empty", and
 	 * materialising the four structures in order to find nothing in them would give back exactly the scaffolding this
-	 * laziness exists to avoid. The double-checked publication is explained on {@link #nodeStore}.
+	 * laziness exists to avoid. The CAS publication is explained on {@link #nodeStore}.
 	 *
 	 * @return the store, freshly created when this is the first node written to this index
 	 */
@@ -302,19 +311,15 @@ public class HierarchyIndex
 		if (existing != null) {
 			return existing;
 		}
-		synchronized (this) {
-			HierarchyNodeStore theNodeStore = this.nodeStore;
-			if (theNodeStore == null) {
-				theNodeStore = new HierarchyNodeStore(
-					new TransactionalIntArray(ArrayUtils.EMPTY_INT_ARRAY),
-					new TransactionalMap<>(new HashMap<>(32), TransactionalIntArray.class, TransactionalIntArray::new),
-					new TransactionalMap<>(new HashMap<>(32)),
-					new TransactionalIntArray()
-				);
-				this.nodeStore = theNodeStore;
-			}
-			return theNodeStore;
-		}
+		final HierarchyNodeStore candidate = new HierarchyNodeStore(
+			new TransactionalIntArray(ArrayUtils.EMPTY_INT_ARRAY),
+			new TransactionalMap<>(
+				CollectionUtils.createHashMap(32), TransactionalIntArray.class, TransactionalIntArray::new
+			),
+			new TransactionalMap<>(CollectionUtils.createHashMap(32)),
+			new TransactionalIntArray()
+		);
+		return NODE_STORE_UPDATER.compareAndSet(this, null, candidate) ? candidate : this.nodeStore;
 	}
 
 	/**

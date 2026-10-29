@@ -119,6 +119,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -186,6 +187,10 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 		.build();
 	private static final String BRAND_PRIORITY = "brandPriority";
 	private static final String STORE_PRIORITY = "storePriority";
+	/**
+	 * Serializes deliberate pauses made by tasks sharing this fixture.
+	 */
+	private final ReentrantLock pauseLock = new ReentrantLock();
 	private final DataGenerator dataGenerator = GENERATOR_FACTORY.get();
 	private final Pool<Kryo> catalogKryoPool = new Pool<>(false, false, 1) {
 		@Override
@@ -1198,8 +1203,11 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 				final AtomicReference<OffsetDateTime> overloaded = new AtomicReference<>();
 				do {
 					while (overloaded.get() != null && overloaded.get().isAfter(OffsetDateTime.now())) {
-						synchronized (this) {
+						this.pauseLock.lock();
+						try {
 							Thread.sleep(500);
+						} finally {
+							this.pauseLock.unlock();
 						}
 					}
 
@@ -1245,8 +1253,11 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 						log.info("Letting the system breathe ...");
 						lastWaitCatalogVersion = expectedLastVersion;
 						// wait a while to let the system breathing
-						synchronized (this) {
+						this.pauseLock.lock();
+						try {
 							Thread.sleep(10_000);
+						} finally {
+							this.pauseLock.unlock();
 						}
 					}
 

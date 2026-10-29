@@ -20,6 +20,7 @@ package io.evitadb.externalApi.utils.path.routing;
 
 import io.evitadb.externalApi.utils.path.URLUtils;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.CollectionUtils;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -44,7 +45,7 @@ public class PathMatcher<T> {
 
 	private volatile T defaultHandler;
 	private final SubstringMap<T> paths = new SubstringMap<>();
-	private final ConcurrentMap<String, T> exactPathMatches = new CopyOnWriteMap<>();
+	private final ConcurrentMap<String, T> exactPathMatches = CollectionUtils.createConcurrentHashMap(16);
 
 	/**
 	 * lengths of all registered paths

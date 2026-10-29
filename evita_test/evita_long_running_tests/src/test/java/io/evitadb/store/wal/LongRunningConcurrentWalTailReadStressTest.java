@@ -69,6 +69,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
 
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getWalFileName;
@@ -158,6 +159,10 @@ public class LongRunningConcurrentWalTailReadStressTest implements EvitaTestSupp
 	private static final long JOIN_TIMEOUT_MS = 180_000L;
 
 	/**
+	 * Guards identity tracking of borrowed Kryo instances and resets of the probe.
+	 */
+	private static final ReentrantLock KRYO_IN_FLIGHT_LOCK = new ReentrantLock();
+	/**
 	 * Kryo instances currently handed out by {@link #catalogKryoPool}, by identity.
 	 */
 	private static final Set<Kryo> KRYO_IN_FLIGHT = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -223,26 +228,32 @@ public class LongRunningConcurrentWalTailReadStressTest implements EvitaTestSupp
 		@Override
 		public Kryo obtain() {
 			final Kryo kryo = super.obtain();
-			synchronized (KRYO_IN_FLIGHT) {
+			KRYO_IN_FLIGHT_LOCK.lock();
+			try {
 				if (!KRYO_IN_FLIGHT.add(kryo)) {
 					KRYO_POOL_VIOLATIONS.add(
 						"DOUBLE OBTAIN of Kryo@" + System.identityHashCode(kryo) +
 							" by " + Thread.currentThread().getName()
 					);
 				}
+			} finally {
+				KRYO_IN_FLIGHT_LOCK.unlock();
 			}
 			return kryo;
 		}
 
 		@Override
 		public void free(Kryo object) {
-			synchronized (KRYO_IN_FLIGHT) {
+			KRYO_IN_FLIGHT_LOCK.lock();
+			try {
 				if (!KRYO_IN_FLIGHT.remove(object)) {
 					KRYO_POOL_VIOLATIONS.add(
 						"FREE OF UNOBTAINED Kryo@" + System.identityHashCode(object) +
 							" by " + Thread.currentThread().getName()
 					);
 				}
+			} finally {
+				KRYO_IN_FLIGHT_LOCK.unlock();
 			}
 			super.free(object);
 		}
@@ -338,8 +349,11 @@ public class LongRunningConcurrentWalTailReadStressTest implements EvitaTestSupp
 		KRYO_POOL_VIOLATIONS.clear();
 		// the in-flight set is the state the violation probe is computed from, so it has to be reset with the
 		// queue it feeds - a leftover entry from a previous method in this fork would be reported as a violation
-		synchronized (KRYO_IN_FLIGHT) {
+		KRYO_IN_FLIGHT_LOCK.lock();
+		try {
 			KRYO_IN_FLIGHT.clear();
+		} finally {
+			KRYO_IN_FLIGHT_LOCK.unlock();
 		}
 		RECORDING_ERRORS = true;
 		try {

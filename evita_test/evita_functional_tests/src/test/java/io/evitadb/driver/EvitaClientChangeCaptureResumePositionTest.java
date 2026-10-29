@@ -63,6 +63,8 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -581,7 +583,8 @@ class EvitaClientChangeCaptureResumePositionTest {
 		final List<ChangeCatalogCapture> items = new CopyOnWriteArrayList<>();
 		final AtomicReference<Throwable> error = new AtomicReference<>();
 		final CountDownLatch errorDelivered = new CountDownLatch(1);
-		private final Object monitor = new Object();
+		private final ReentrantLock captureLock = new ReentrantLock();
+		private final Condition captured = this.captureLock.newCondition();
 
 		@Override
 		public void onSubscribe(Flow.Subscription subscription) {
@@ -591,8 +594,11 @@ class EvitaClientChangeCaptureResumePositionTest {
 		@Override
 		public void onNext(ChangeCatalogCapture item) {
 			this.items.add(item);
-			synchronized (this.monitor) {
-				this.monitor.notifyAll();
+			this.captureLock.lock();
+			try {
+				this.captured.signalAll();
+			} finally {
+				this.captureLock.unlock();
 			}
 		}
 
@@ -615,14 +621,17 @@ class EvitaClientChangeCaptureResumePositionTest {
 		 */
 		boolean awaitItems(@Nonnull Predicate<List<ChangeCatalogCapture>> condition) throws InterruptedException {
 			final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(AWAIT_TIMEOUT_SECONDS);
-			synchronized (this.monitor) {
+			this.captureLock.lock();
+			try {
 				while (!condition.test(this.items)) {
-					final long remainingMillis = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
-					if (remainingMillis <= 0) {
+					final long remainingNanos = deadline - System.nanoTime();
+					if (remainingNanos <= 0) {
 						return false;
 					}
-					this.monitor.wait(Math.min(remainingMillis, 100L));
+					this.captured.awaitNanos(Math.min(remainingNanos, TimeUnit.MILLISECONDS.toNanos(100L)));
 				}
+			} finally {
+				this.captureLock.unlock();
 			}
 			return true;
 		}
