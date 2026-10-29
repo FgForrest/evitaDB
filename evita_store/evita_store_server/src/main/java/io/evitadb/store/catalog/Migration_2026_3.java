@@ -27,8 +27,11 @@ package io.evitadb.store.catalog;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.collection.EntityCollection;
@@ -111,6 +114,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -123,6 +127,8 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -683,6 +689,8 @@ public interface Migration_2026_3 {
 			)
 		);
 
+		reportPotentiallyLossyIndexes(catalogHeader.catalogName(), collections, schemaLookup);
+
 		ConsoleWriter.writeLine(
 			"Catalog `" + catalogHeader.catalogName() + "` was successfully upgraded to the protocol version " +
 				PersistenceService.STORAGE_PROTOCOL_VERSION + ".",
@@ -1098,9 +1106,112 @@ public interface Migration_2026_3 {
 				uncheckedAttributes.size() + " attribute cardinality counter(s) could NOT be checked against the " +
 				"index entries they count. They may or may not reference entries that are no longer present; the " +
 				"absence of an error for them means only that nothing looked. Not checked, with the reason each: " +
-				formatAttributeList(uncheckedAttributes) + ".";
+				formatAttributeList(uncheckedAttributes) + ". If filtering is incomplete or writes fail an index " +
+				"premise, REINDEX entity collection `" + entityType + "` of catalog `" + catalogName +
+				"` to rebuild its indexes.";
 			ConsoleWriter.writeLine(message, ConsoleColor.BRIGHT_YELLOW);
 			LoggerFactory.getLogger(Migration_2026_3.class).warn(message);
+		}
+	}
+
+	/**
+	 * Reports potential release-era loss once, after the bootstrap callback publishes the catalog upgrade.
+	 * Stored schemas identify every susceptible field, including fields without surviving index buckets. They cannot
+	 * establish whether any value actually lost precision or a spelling, so the remedy remains conditional.
+	 * Duplicate references with temporal representatives qualify independently of their indexed scopes.
+	 * The protocol gate prevents this method from being reached on later loads.
+	 */
+	private static void reportPotentiallyLossyIndexes(
+		@Nonnull String catalogName,
+		@Nonnull List<CollectionUnderUpgrade> collections,
+		@Nonnull Function<String, Optional<? extends EntitySchemaContract>> schemaLookup
+	) {
+		final Map<String, Set<String>> affectedCollections = new TreeMap<>();
+		for (final CollectionUnderUpgrade collection : collections) {
+			final EntitySchema schema =
+				EntityCollection.bindReflectedReferences(collection.entitySchema(), schemaLookup);
+			final Set<String> affected = new TreeSet<>();
+			collectPotentiallyLossyAttributes(schema.getAttributes(), schema.getSortableAttributeCompounds(),
+				EnumSet.allOf(Scope.class), "", affected);
+			for (final ReferenceSchemaContract reference : schema.getReferences().values()) {
+				collectPotentiallyLossyAttributes(reference.getAttributes(), reference.getSortableAttributeCompounds(),
+					reference.getIndexedInScopes(), reference.getName() + ".", affected);
+				if (reference.getCardinality().allowsDuplicates() &&
+					reference.getAttributes().values().stream().anyMatch(attribute ->
+						attribute.isRepresentative() && attribute.getPlainType() == DateTimeRange.class)) {
+					affected.add("reference `" + reference.getName() + "` (only if rows of this reference to one " +
+						"target differ only in time zone offset or below one second; adding, editing or removing " +
+						"such rows may fail)");
+				}
+			}
+			if (schema.isWithPrice() && !schema.getPriceIndexedInScopes().isEmpty()) {
+				affected.add("price validity (only values with sub-second precision)");
+			}
+			if (!affected.isEmpty()) {
+				affectedCollections.put(collection.header().entityType(), affected);
+			}
+		}
+		if (!affectedCollections.isEmpty()) {
+			final List<String> descriptions = new ArrayList<>(affectedCollections.size());
+			affectedCollections.forEach((entityType, fields) -> descriptions.add(
+				"entity collection `" + entityType + "`: " + String.join(", ", fields)));
+			final String message = "Catalog `" + catalogName + "`: legacy indexes may have lost precision or " +
+				"distinct spellings. Indexes alone cannot determine whether any value was affected. Potentially " +
+				"affected fields: " + String.join("; ", descriptions) + ". If a listed condition holds for a " +
+				"collection's data, republish that collection from source data.";
+			ConsoleWriter.writeLine(message, ConsoleColor.BRIGHT_YELLOW);
+			LoggerFactory.getLogger(Migration_2026_3.class).warn(message);
+		}
+	}
+
+	/**
+	 * Names attributes whose persisted keys or thresholds could have folded distinct release values.
+	 * Filter indexes include implicitly folded unique attributes; a localized unique key spanning locales uses a
+	 * standalone natural-order text tree, so uniqueness alone does not expose it to the collator. A compound compares
+	 * every text component by its locale's collator when any component is localized. Neither scan reads entity data.
+	 */
+	private static void collectPotentiallyLossyAttributes(
+		@Nonnull Map<String, ? extends AttributeSchemaContract> attributes,
+		@Nonnull Map<String, ? extends SortableAttributeCompoundSchemaContract> compounds,
+		@Nonnull Set<Scope> scopes,
+		@Nonnull String prefix,
+		@Nonnull Set<String> affected
+	) {
+		final Set<String> ranges = new TreeSet<>();
+		final Set<String> texts = new TreeSet<>();
+		for (final AttributeSchemaContract attribute : attributes.values()) {
+			final boolean filterOrSort = scopes.stream().anyMatch(scope ->
+				attribute.isFilterableInScope(scope) || attribute.isSortableInScope(scope));
+			if (attribute.getPlainType() == DateTimeRange.class &&
+				(filterOrSort || scopes.stream().anyMatch(attribute::isUniqueInScope))) {
+				ranges.add(attribute.getName());
+			} else if (attribute.getPlainType() == String.class && attribute.isLocalized() &&
+				(filterOrSort || scopes.stream().anyMatch(attribute::isUniqueWithinLocaleInScope))) {
+				texts.add(attribute.getName());
+			}
+		}
+		for (final SortableAttributeCompoundSchemaContract compound : compounds.values()) {
+			if (scopes.stream().noneMatch(compound::isIndexedInScope)) {
+				continue;
+			}
+			final List<? extends AttributeSchemaContract> components = compound.getAttributeElements().stream()
+				.map(element -> Objects.requireNonNull(attributes.get(element.attributeName()))).toList();
+			final boolean localized = components.stream().anyMatch(AttributeSchemaContract::isLocalized);
+			for (final AttributeSchemaContract component : components) {
+				if (component.getPlainType() == DateTimeRange.class) {
+					ranges.add(component.getName());
+				} else if (component.getPlainType() == String.class && localized) {
+					texts.add(component.getName());
+				}
+			}
+		}
+		for (final String attribute : ranges) {
+			affected.add("attribute `" + prefix + attribute +
+				"` (DateTimeRange; only values with sub-second precision)");
+		}
+		for (final String attribute : texts) {
+			affected.add("attribute `" + prefix + attribute +
+				"` (localized text; only spellings the collator treats as equal)");
 		}
 	}
 
