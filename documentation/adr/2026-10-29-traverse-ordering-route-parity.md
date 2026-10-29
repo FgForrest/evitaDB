@@ -1,10 +1,10 @@
 ---
 title: Bound reference ordering by the filtered hierarchy and sort each target as one block
 date: 2026-10-29
-updated: 2026-10-29 09:10
+updated: 2026-10-29 11:20
 status: accepted
 kind: fix
-issues: [1670]
+issues: [1670, 1830]
 prs: [1828]
 areas:
   - evita_engine/src/main/java/io/evitadb/core/query/sort
@@ -279,9 +279,11 @@ refused the traverse queries over both scopes in the same way, and those queries
 - Inside a traverse, an `inScope` container restricts the nested sorter it wraps, on both routes. A sortable
   attribute compound does the same for the scopes that index it. Owners outside the scope pass to the next nested
   sorter within the same block.
-- `attributeSetExact` over a chain attribute is refused inside a traverse. At the entity level, outside any
-  reference ordering, dev diverges between routes: the index route fails with an internal error, the prefetch
-  route returns an order. This change leaves that unchanged; #1830 refuses it on both routes.
+- `attributeSetExact` over a chain attribute is refused when the query is translated, at entity level and in every
+  `referenceProperty` ordering, on both routes (#1830, folded into this change). Before, only the traverse case was
+  refused, with a generic comparability error; elsewhere the index route failed with an internal error, because a
+  chain has no sort index to look values up in, while the prefetch route returned an order - inside a reference
+  ordering even one read from the entity attribute of the same name.
 - Unbounded pick-first is 11 µs (11 %) slower than before (see Cost). It was accepted without profiling: the cost
   is small in absolute terms and the bounded queries did not move. The cause is not established. If it ever
   matters, the first suspect is the scope and hierarchy-bound resolution `PickFirstReducedIndexResolver` now
