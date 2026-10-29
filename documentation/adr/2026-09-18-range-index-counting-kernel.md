@@ -1,7 +1,7 @@
 ---
 title: The range index computes its signed multiplicity in one counting pass, and the JoinFormula/DisentangleFormula pair is deleted
 date: 2026-09-18
-updated: 2026-09-18 20:30
+updated: 2026-10-28 12:05
 status: accepted
 kind: optimization
 issues: [1539, 1546]
@@ -66,12 +66,16 @@ buffer to its operand would remove almost all of it.
 Each range contributes one start and one end, so `count_start − count_end ∈ {0,1}` and the whole computation
 collapses to an XOR-fold of every operand — no counters at all.
 
-- **Rejected because:** unsound under the class contract. `RangeIndex`'s javadoc forbids only *shared borders*, so
-  one record may hold overlapping ranges: `(2,15)` and `(5,20)` at `t=10` give `count_starts=2, count_ends=0`, so
-  `>` says present while parity says absent. No production feeder can currently produce that shape
-  (`FilterIndex.addRange` consolidates through `Range.consolidateRange` first), which is exactly why it is
-  dangerous: parity would pass every existing test and every current caller, and break the first time the
-  invariant moved. Revisit only if the index itself starts enforcing at-most-one-active-range-per-record.
+- **Rejected because:** unsound under the class contract. One record may hold overlapping ranges: `(2,15)` and
+  `(5,20)` at `t=10` give `count_starts=2, count_ends=0`, so `>` says present while parity says absent. Production
+  feeds exactly that shape. Only `FilterIndex`'s range-array path consolidates through `Range.consolidateRange`.
+  The contribution-keyed indexes hand one record id the unconsolidated ranges of every owner: overlapping, nested
+  and sharing borders. These are the referenced-type and group-type indexes of a reference,
+  `ReducedGroupEntityIndex` and the expression histogram indexes, and the shared record is a referenced entity's
+  partition or a group's owner (#1699). Since #1699 the index also keeps a shared border as many times as it occurs.
+  So parity would be wrong on live data, not just on some future caller, and the rejection stands more firmly.
+  Revisit only if every caller consolidated its ranges per record. #1699 rejected that for its cost: a write to a
+  popular target would rewrite every range its partition holds.
   **That rejection is now a test rather than an argument** —
   `RangeIndexTest.RangeQueries#shouldCountOverlappingRangesOfOneRecordRatherThanCancelThem` probes exactly this
   pair, and the randomised oracle generates overlapping and nested arrangements too (see Verification).

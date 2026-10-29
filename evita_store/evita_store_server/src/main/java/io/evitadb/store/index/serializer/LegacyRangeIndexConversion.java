@@ -174,7 +174,9 @@ public final class LegacyRangeIndexConversion {
 	/**
 	 * Materializes one rescaled point. A {@link TransactionalRangePoint}'s threshold is final, so a fresh instance is
 	 * always minted; the record bitmaps are the merged ones when a collision produced them, otherwise the source
-	 * point's own.
+	 * point's own. The source points come from a part written before the millisecond move, whose points carry no
+	 * repeated occurrence levels, so the union of the colliding level-1 bitmaps is everything there is to merge; a
+	 * point that did not collide keeps whatever levels it has.
 	 *
 	 * @param source       the point the rescaled one is derived from
 	 * @param threshold    the rescaled threshold
@@ -189,11 +191,11 @@ public final class LegacyRangeIndexConversion {
 		@Nullable BaseBitmap mergedStarts,
 		@Nullable BaseBitmap mergedEnds
 	) {
-		return new TransactionalRangePoint(
-			threshold,
-			mergedStarts == null ? source.getStarts() : mergedStarts,
-			mergedEnds == null ? source.getEnds() : mergedEnds
-		);
+		return mergedStarts == null ?
+			new TransactionalRangePoint(
+				threshold, source.getStarts(), source.getEnds(), source.getRepeatedStarts(), source.getRepeatedEnds()
+			) :
+			new TransactionalRangePoint(threshold, mergedStarts, mergedEnds);
 	}
 
 }

@@ -836,10 +836,13 @@ class CompositeLongArrayTest {
 
 		@Test
 		@DisplayName("Should not equal null")
+		@SuppressWarnings({"SimplifiableAssertion", "ObjectEqualsNull"})
 		void shouldNotEqualNull() {
 			final CompositeLongArray array = new CompositeLongArray();
 			array.add(1L);
-			assertNotEquals(null, array);
+			// deliberately not `assertNotEquals`: with `null` as its first argument it calls no `equals` at all, so
+			// the null check of the class under test would never run
+			assertFalse(array.equals(null));
 		}
 	}
 }

@@ -23,6 +23,7 @@
 
 package io.evitadb.index.attribute;
 
+import com.carrotsearch.hppc.IntIntHashMap;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -39,6 +40,7 @@ import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
@@ -58,6 +60,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexLe
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPageRemoval;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -88,6 +91,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -1257,6 +1261,11 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * memoized — outside transactions, repeated calls return the cached subset; on mutation the cache is
 	 * invalidated alongside {@link #memoizedAllRecords}.
 	 *
+	 * A record leaves the active set when its **last** open range ends, not its first: one record may hold several
+	 * ranges at once — two owners contributing `[0, 20]` and `[10, 30]` to one record of an expression histogram is the
+	 * ordinary case — and may start or end several of them at one threshold (the point's occurrence levels). The sweep
+	 * therefore counts the open ranges of every record that holds more than one; see {@link #openRanges}.
+	 *
 	 * Throws {@link GenericEvitaInternalError} when invoked on a filter index that has no range companion.
 	 *
 	 * @param innerNumericType      the inner numeric type of the source `NumberRange` (e.g. `Integer` for
@@ -1303,13 +1312,20 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 		final List<ValueToRecordBitmap> buckets = new ArrayList<>(capacityHint);
 		// the active set is mutated in place; we snapshot via clone() into each emitted bucket
 		final BaseBitmap activeSet = new BaseBitmap();
+		// open ranges beyond the first, per record holding more than one at once; null until the first such record is
+		// met, so a sweep over records holding one range at a time allocates nothing for it
+		IntIntHashMap surplus = null;
 		final Iterator<TransactionalRangePoint> iterator = this.rangeIndex.rangesIterator();
 		while (iterator.hasNext()) {
 			final TransactionalRangePoint point = iterator.next();
 			final long threshold = point.getThreshold();
-			final Bitmap starts = point.getStarts();
-			if (!starts.isEmpty()) {
-				activeSet.addAll(starts);
+			surplus = openRanges(activeSet, point.getStarts(), surplus);
+			// the levels after the first empty one are spare and empty too
+			for (final Bitmap repeatedStarts : point.getRepeatedStarts()) {
+				if (repeatedStarts.isEmpty()) {
+					break;
+				}
+				surplus = openRanges(activeSet, repeatedStarts, surplus);
 			}
 			// sentinel thresholds (Long.MIN_VALUE / Long.MAX_VALUE) cannot be materialized as
 			// bucket keys — they would overflow the inner numeric type. Their `starts` / `ends`
@@ -1328,9 +1344,12 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 					)
 				);
 			}
-			final Bitmap ends = point.getEnds();
-			if (!ends.isEmpty()) {
-				activeSet.removeAll(ends);
+			closeRanges(activeSet, point.getEnds(), surplus);
+			for (final Bitmap repeatedEnds : point.getRepeatedEnds()) {
+				if (repeatedEnds.isEmpty()) {
+					break;
+				}
+				closeRanges(activeSet, repeatedEnds, surplus);
 			}
 		}
 		final ValueToRecordBitmap[] bucketArray = buckets.toArray(new ValueToRecordBitmap[0]);
@@ -1346,6 +1365,83 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 			this.memoizedRangeHistogramSubSet = result;
 		}
 		return result;
+	}
+
+	/**
+	 * Opens one range for every record in `starts` during the range-histogram sweep of
+	 * {@link #getRangeHistogramOfAllRecords}: a record not yet active joins `activeSet`, a record already active gets
+	 * one more open range counted in `surplus`.
+	 *
+	 * The common case — no record of `starts` is active yet — is one intersection test and one bulk union; the
+	 * per-record walk runs only when a record already holds an open range.
+	 *
+	 * @param activeSet the records holding at least one open range, mutated in place
+	 * @param starts    the records whose range starts at the swept threshold (one occurrence level)
+	 * @param surplus   open ranges beyond the first per record, or `null` while no record holds more than one
+	 * @return the surplus counter, created when this call is the first to need it
+	 */
+	@Nullable
+	private static IntIntHashMap openRanges(
+		@Nonnull BaseBitmap activeSet,
+		@Nonnull Bitmap starts,
+		@Nullable IntIntHashMap surplus
+	) {
+		if (starts.isEmpty()) {
+			return surplus;
+		}
+		if (!PersistentRoaringBitmap.intersects(
+			activeSet.getRoaringBitmap(), RoaringBitmapBackedBitmap.getRoaringBitmap(starts)
+		)) {
+			activeSet.addAll(starts);
+			return surplus;
+		}
+		final IntIntHashMap theSurplus = surplus == null ? new IntIntHashMap() : surplus;
+		final OfInt it = starts.iterator();
+		while (it.hasNext()) {
+			final int recordId = it.nextInt();
+			if (!activeSet.add(recordId)) {
+				theSurplus.addTo(recordId, 1);
+			}
+		}
+		return theSurplus;
+	}
+
+	/**
+	 * Closes one range for every record in `ends` during the range-histogram sweep of
+	 * {@link #getRangeHistogramOfAllRecords}: a record with surplus open ranges loses one of them and stays active,
+	 * any other record leaves `activeSet`.
+	 *
+	 * @param activeSet the records holding at least one open range, mutated in place
+	 * @param ends      the records whose range ends at the swept threshold (one occurrence level)
+	 * @param surplus   open ranges beyond the first per record, or `null` while no record holds more than one
+	 */
+	private static void closeRanges(
+		@Nonnull BaseBitmap activeSet,
+		@Nonnull Bitmap ends,
+		@Nullable IntIntHashMap surplus
+	) {
+		if (ends.isEmpty()) {
+			return;
+		}
+		if (surplus == null || surplus.isEmpty()) {
+			activeSet.removeAll(ends);
+			return;
+		}
+		final OfInt it = ends.iterator();
+		while (it.hasNext()) {
+			final int recordId = it.nextInt();
+			final int index = surplus.indexOf(recordId);
+			if (surplus.indexExists(index)) {
+				final int remaining = surplus.indexGet(index) - 1;
+				if (remaining == 0) {
+					surplus.indexRemove(index);
+				} else {
+					surplus.indexReplace(index, remaining);
+				}
+			} else {
+				activeSet.remove(recordId);
+			}
+		}
 	}
 
 	/**

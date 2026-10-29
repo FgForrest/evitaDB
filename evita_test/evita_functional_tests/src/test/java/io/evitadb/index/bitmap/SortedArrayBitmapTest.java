@@ -406,11 +406,14 @@ class SortedArrayBitmapTest {
 
 		@Test
 		@DisplayName("equals is reflexive and rejects null")
+		@SuppressWarnings({"SimplifiableAssertion", "ObjectEqualsNull"})
 		void shouldBeReflexiveAndRejectNull() {
 			final SortedArrayBitmap bitmap = new SortedArrayBitmap(1, 2, 3);
 
 			assertEquals(bitmap, bitmap);
-			assertNotEquals(null, bitmap);
+			// deliberately not `assertNotEquals`: with `null` as its first argument it calls no `equals` at all, so
+			// the null check of the class under test would never run
+			assertFalse(bitmap.equals(null));
 		}
 
 		@Test

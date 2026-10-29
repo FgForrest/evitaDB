@@ -277,6 +277,7 @@ class SingleRecordBitmapTest {
 
 		@Test
 		@DisplayName("equals / hashCode are type-sensitive and content-based")
+		@SuppressWarnings({"SimplifiableAssertion", "EqualsBetweenInconvertibleTypes"})
 		void shouldImplementEqualsAndHashCode() {
 			final SingleRecordBitmap five = new SingleRecordBitmap(5);
 
@@ -285,16 +286,21 @@ class SingleRecordBitmapTest {
 			assertNotEquals(new SingleRecordBitmap(6), five);
 			// type-sensitive, consistent with BaseBitmap/ArrayBitmap: a different impl with the
 			// same content is not equal
-			assertNotEquals(new BaseBitmap(5), five);
+			// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
+			// fix moves the `new BaseBitmap` there, so `BaseBitmap.equals` would be tested instead of this class's
+			assertFalse(five.equals(new BaseBitmap(5)));
 		}
 
 		@Test
 		@DisplayName("equals is reflexive and rejects null")
+		@SuppressWarnings({"SimplifiableAssertion", "ObjectEqualsNull"})
 		void shouldBeReflexiveAndRejectNull() {
 			final SingleRecordBitmap five = new SingleRecordBitmap(5);
 
 			assertEquals(five, five);
-			assertNotEquals(null, five);
+			// deliberately not `assertNotEquals`: with `null` as its first argument it calls no `equals` at all, so
+			// the null check of the class under test would never run
+			assertFalse(five.equals(null));
 		}
 
 		@Test
