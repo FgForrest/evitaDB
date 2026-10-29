@@ -141,7 +141,7 @@ condition under which republishing is needed and never claims that schema suscep
 |---|---|
 | Reflected reference whose source is itself reflected | Bind the source chain first; independent of collection binding order. |
 | Cardinality keys becoming equal, including open-range twins | Versioned reader sums counter contributions without discarding them. |
-| Sort blocks whose distinct release keys are equal today | Versioned sort reader preserves positional block lengths, then owner-sort migration merges and orders them. |
+| Sort blocks equal today, including inherited parts | Preserve positional lengths, then merge and re-sort. |
 | Surviving temporal, localized compound or decimal keys in a changed order, inline or paged | Re-sort the relevant stored structures; preserve records and identities. |
 | Globally unique range twins of one complete owner | Fold and persist once; lookup, replacement and removal preserve that owner. |
 | Global unique range twins of different owners | Refuse, naming field, raw values and decoded owners. |
@@ -169,7 +169,11 @@ condition under which republishing is needed and never claims that schema suscep
   detailed private/logged message and short public summary directing the operator to the log.
 - The sort part's UID selects the released reader. Its dense cardinality column shares the value array's identity,
   allowing the migration to distinguish positional lengths from a sparse map whose equality may have changed.
-  The reader remains necessary for untouched parts even after a successful protocol-7 upgrade.
+  The 2026.1 and 2025.5 readers match sparse entries by released representation independently of map iteration order.
+  Non-decimal sort-only parts were not rewritten by the 5 → 6 migration, so a protocol-6 catalog can still carry
+  the 2026.1 UID. These readers remain necessary for untouched parts even after a successful protocol-7 upgrade.
+  If an older localized map uses another representative spelling and exact attribution is impossible, retain its
+  sparse columns and the existing conditional loss warning.
 - Range reconstruction preserves the bucket axis, stable value IDs, record identities, locale, scope and frozen
   scale. New range pages allocate above the previous high-water; retired pages leave the new offset index.
 - Nothing becomes durable until the bootstrap publishes the catalog header. Appends before that are inert on

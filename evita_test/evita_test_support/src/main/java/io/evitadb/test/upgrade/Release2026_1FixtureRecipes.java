@@ -50,6 +50,8 @@ import static io.evitadb.test.upgrade.ReleaseFixtureValues.ZWSP;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public final class Release2026_1FixtureRecipes {
+	/** Sort-only open-bound twins retained under the 2026.1 sort-part UID. */
+	public static final String INHERITED_SORT_TWINS = "inheritedSortTwins";
 
 	/**
 	 * Fixture of the D6 shape written by 2026.1 and never opened by 2026.2 (a chained upgrade, protocol 4).
@@ -92,7 +94,31 @@ public final class Release2026_1FixtureRecipes {
 	 */
 	@Nonnull
 	public static List<ReleaseFixtureRecipe> all() {
-		return Arrays.asList(d6c(), d12(), d12b(), d13(), d15());
+		return Arrays.asList(d6c(), d12(), d12b(), d13(), d15(), inheritedSortTwins());
+	}
+
+	/**
+	 * Writes unequal sort blocks whose distinct released range values are equal in the current engine.
+	 *
+	 * @return the recipe, left at protocol 4 to exercise the complete migration chain
+	 */
+	@Nonnull
+	public static ReleaseFixtureRecipe inheritedSortTwins() {
+		return ReleaseFixtureRecipe.writtenBy2026_1(
+				INHERITED_SORT_TWINS,
+				"sort-only open-bound range twins in blocks of two and three, written by 2026.1",
+				session -> {
+					session.defineEntitySchema(PRODUCT)
+						.withAttribute("sortValidity", DateTimeRange.class, thatIs -> thatIs.sortable())
+						.updateVia(session);
+					for (int i = 1; i <= 5; i++) {
+						session.createNewEntity(PRODUCT, i)
+							.setAttribute("sortValidity", i <= 2 ? U2 : U1)
+							.upsertVia(session);
+					}
+				}
+			)
+			.withProbe("ordered twins", query(collection(PRODUCT), orderBy(attributeNatural("sortValidity"))));
 	}
 
 	/**
