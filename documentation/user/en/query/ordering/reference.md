@@ -182,9 +182,11 @@ The reference used for ordering an entity is picked by the following rules:
 2. The first reference that has a value of the ordering property is picked. References without the value are skipped,
    and an entity with no such reference is placed after all the ordered ones, where the next ordering constraint of
    the query decides its position.
-3. All references of the entity are considered, regardless of the filter. A `referenceHaving` constraint targeting
-   the same reference decides which entities are returned, but not which of their references are used for ordering,
-   so the entities are always ordered the same way whether or not the filter mentions the reference.
+3. A `referenceHaving` constraint targeting the same reference decides which entities are returned, but never
+   which of their references are used for ordering. A filtered hierarchy does bound the eligible references:
+   `hierarchyWithin` or `hierarchyWithinRoot` on the ordered reference follows the same scope, modifier and
+   filter-container rules as [traverse ordering](#traverse-by-entity-property) below. References outside that bound
+   are skipped before picking the first valued reference.
 4. Entities whose picked references have the same value are ordered by their primary key in the direction of
    the ordering (ascending for an ascending order, descending for a descending one), as with any other attribute.
 
@@ -192,6 +194,11 @@ These rules apply to attributes whose values can be compared with one another. A
 [`Predecessor`](../../use/data-types.md#predecessor) and `ReferencedEntityPredecessor` form chains within each
 referenced entity and can only be ordered referenced entity by referenced entity, as the
 [`traverseByEntityProperty`](#traverse-by-entity-property) constraint does.
+
+Predecessor chains under an implicit pick-first ordering follow target order, then representative attribute value
+order, on both the index and prefetch routes. For the same representative key, the live chain precedes the archived
+chain. Exact attribute ordering under pick-first and `attributeSetInFilter` inside any reference ordering still
+require a single partition; the block-by-block exact ordering described below applies to traverse ordering only.
 
 Let's expand our previous example to include products that refer to both the "sale" and "new" groups:
 
@@ -296,8 +303,46 @@ ordering constraint. This means that entities should be sorted first by the refe
 hierarchical, you can specify whether the hierarchy should be traversed in 
 [depth-first](https://en.wikipedia.org/wiki/Depth-first_search) or [breadth-first](https://en.wikipedia.org/wiki/Breadth-first_search) order.
 
-Once the referenced entities are sorted, the order of the referenced entities is applied to the references to 
-the referenced entities. If there are multiple references, only the first one that can be evaluated is used for ordering.
+Once the referenced entities are sorted, their order determines the blocks in which the returned entities are
+ordered. An *owner* is an entity being returned; a *row* is one of its references to a target entity. The following
+rules apply:
+
+1. The filtered hierarchy bounds the traversal. A `hierarchyWithin` or `hierarchyWithinRoot` on the ordered
+   reference supplies its resolved node set, including `excluding`, `excludingRoot`, `having`, `anyHaving` and
+   `directRelation`. For a reference, `hierarchyWithin(..., directRelation())` admits the parent nodes themselves.
+   The constraint must be reached from `filterBy` through `and`, `inScope` or `userFilter`; constraints under `or`
+   or `not` do not bound the traversal. A bound inside `inScope` applies only to that scope; other scopes stay
+   unbounded unless they have their own bound. Multiple conjunctive hierarchy constraints contribute the union of
+   their node sets, because each can be satisfied by a different row. Without a qualifying hierarchy constraint,
+   every target referenced in the scopes the ordering processes is eligible. `referenceHaving` selects owners
+   and never narrows the traversal; `facetHaving` does not narrow it either.
+2. There is one block per target. It holds every reference to that target, whatever its representative attributes, from
+   the scopes the ordering processes. An `inScope` ordering leaves owners of other scopes for the next sorter. A target
+   is visited in the hierarchy tree of its own scope, live tree before archived tree, even when its owners have a
+   different scope. The nested target ordering uses the targets the traversal visits, including ancestors needed for the
+   hierarchy walk; it does not shrink to the targets of the selected owners.
+3. In each block, an owner is represented by its first row to that target, in representative-key order, that carries
+   the value being ordered. Representative attribute values decide which row is used, rather than the owner's
+   position among other owners. A row without the value passes the owner on to another row. Owners are ordered by
+   their representing values, with ties broken by owner primary key in the ordering direction. Owners of different
+   scopes are merged by those same rules. For `entityPrimaryKeyNatural`, all owners in a block share the target's
+   primary key, so their own primary keys decide the order in the requested direction.
+4. An owner with no valued row for a nested sorter passes to the next nested sorter in the block. So does an owner
+   outside the scopes of an `inScope` container wrapping that sorter, and an owner of a scope that does not index the
+   ordered attribute compound. If no nested sorter can place it, it remains for later blocks. An owner placed in one
+   block is returned only once; one placed by no block goes to the next ordering constraint after the traverse. These
+   rules also apply to a block holding a single owner.
+5. [`attributeSetExact`](./constant.md#exact-entity-attribute-value-order) works block by block. It uses the first
+   valued row from rule 3, including when that row's value is unlisted and a later row has a listed value. Listed
+   values come first in the listed order, with ties by ascending owner primary key. An unlisted or missing value
+   passes the owner to the next nested sorter and, if still unplaced, to later blocks. A block without any value of
+   the attribute claims nothing. Pick-first exact ordering and `attributeSetInFilter` inside a reference ordering
+   still require a single partition.
+6. Predecessor chains keep their chain order within each block. When several representative keys contribute chains,
+   the first row that a chain can place represents the owner: earlier representative keys precede later ones, and
+   for the same key the live chain precedes the archived chain.
+
+The index and prefetch routes apply the same rules, including page windows that cross block or fallback boundaries.
 
 This behaviour is best illustrated by the following example. Let's list products in the 'Accessories' category in order
 of the `orderInCategory` attribute on the category reference:

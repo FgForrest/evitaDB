@@ -196,6 +196,17 @@ attributeSetExact(
 The constraint allows output entities to be sorted by attribute values in the exact order specified in the 2nd through
 Nth arguments of this constraint.
 
+Inside a [`referenceProperty`](./reference.md#reference-property) ordering with
+[`traverseByEntityProperty`](./reference.md#traverse-by-entity-property), `attributeSetExact` applies separately to
+each target block. The owner's first valued reference row to that target, in representative-key order, supplies
+the value. Listed values are ordered as listed, with ties by ascending owner primary key. An unlisted or missing
+value passes the owner to the next nested sorter, then to later blocks if still unplaced. A later duplicate row
+with a listed value does not replace an earlier valued row with an unlisted value. A block with no value of the
+attribute claims nothing; owners placed by no block continue to the ordering constraint after the traverse.
+See the [reference traversal rules](./reference.md#traverse-by-entity-property) for hierarchy bounds and scopes.
+Exact attribute ordering under pick-first and `attributeSetInFilter` inside a reference ordering still require a
+single partition.
+
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Entities sorted by the specified order of the attribute `code` values](/documentation/user/en/query/ordering/examples/constant/attribute-set-exact.evitaql)
