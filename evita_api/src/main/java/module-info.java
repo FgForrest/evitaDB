@@ -77,6 +77,7 @@ module evita.api {
 	exports io.evitadb.api.requestResponse.progress;
 	exports io.evitadb.api.requestResponse.schema;
 	exports io.evitadb.api.requestResponse.schema.annotation;
+	exports io.evitadb.api.requestResponse.schema.analysis;
 	exports io.evitadb.api.requestResponse.schema.mutation;
 	exports io.evitadb.api.requestResponse.schema.builder;
 	exports io.evitadb.api.requestResponse.schema.mutation.associatedData;

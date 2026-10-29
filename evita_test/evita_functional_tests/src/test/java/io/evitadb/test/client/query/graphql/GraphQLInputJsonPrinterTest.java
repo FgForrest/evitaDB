@@ -55,7 +55,7 @@ class GraphQLInputJsonPrinterTest {
 		final ObjectNode node = JsonNodeFactory.instance.objectNode();
 		node.put("someField", 42);
 
-		final String printed = printer.print(node);
+		final String printed = this.printer.print(node);
 
 		assertTrue(printed.contains("someField"));
 		assertFalse(printed.contains("\"someField\""));
@@ -67,7 +67,7 @@ class GraphQLInputJsonPrinterTest {
 		final ObjectNode node = JsonNodeFactory.instance.objectNode();
 		node.put("direction", "ASC");
 
-		final String printed = printer.print(node);
+		final String printed = this.printer.print(node);
 
 		assertTrue(printed.contains("ASC"));
 		assertFalse(printed.contains("\"ASC\""));
@@ -79,7 +79,7 @@ class GraphQLInputJsonPrinterTest {
 		final ObjectNode node = JsonNodeFactory.instance.objectNode();
 		node.put("label", "hello");
 
-		final String printed = printer.print(node);
+		final String printed = this.printer.print(node);
 
 		assertTrue(printed.contains("\"hello\""));
 	}
@@ -90,7 +90,7 @@ class GraphQLInputJsonPrinterTest {
 		final ObjectNode node = JsonNodeFactory.instance.objectNode();
 		node.put("locale", "cs-CZ");
 
-		final String printed = printer.print(node);
+		final String printed = this.printer.print(node);
 
 		assertTrue(printed.contains("cs_CZ"));
 		assertFalse(printed.contains("cs-CZ"));
@@ -103,7 +103,7 @@ class GraphQLInputJsonPrinterTest {
 		final ObjectNode node = JsonNodeFactory.instance.objectNode();
 		node.put("currency", "CZK");
 
-		final String printed = printer.print(node);
+		final String printed = this.printer.print(node);
 
 		assertTrue(printed.contains("CZK"));
 		assertFalse(printed.contains("\"CZK\""));

@@ -38,6 +38,7 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 import static io.evitadb.core.query.sort.EntityReferenceSensitiveComparator.getReferenceByRepresentativeReferenceKey;
 
@@ -68,6 +69,7 @@ public class TraverseReferenceAttributeComparator
 	 * @param referenceSchema      the schema of the reference the attribute belongs to
 	 * @param locale               the locale to use when reading localized attribute values, or `null` when the
 	 *                             attribute is not localized
+	 * @param stringNormalizer     the effective String key function, with schema-masked fold locale
 	 * @param orderDirection       the direction to sort in
 	 */
 	public TraverseReferenceAttributeComparator(
@@ -76,7 +78,8 @@ public class TraverseReferenceAttributeComparator
 		int indexedDecimalPlaces,
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
-		@Nonnull OrderDirection orderDirection
+		@Nonnull OrderDirection orderDirection,
+		@Nonnull UnaryOperator<String> stringNormalizer
 	) {
 		super(
 			attributeName,
@@ -84,7 +87,8 @@ public class TraverseReferenceAttributeComparator
 			indexedDecimalPlaces,
 			referenceSchema,
 			locale,
-			orderDirection
+			orderDirection,
+			stringNormalizer
 		);
 	}
 

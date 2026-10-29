@@ -65,6 +65,7 @@ import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.WAL;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -145,7 +146,8 @@ class AcceleratorBackwardCompatibilityTest {
 			Scope.NO_SCOPE,
 			false, false, false,
 			String.class, null, 0,
-			ConflictResolutionOverride.ENTITY
+			ConflictResolutionOverride.ENTITY,
+			null
 		);
 
 		final AttributeSchema deserialized = readThroughBackwardCompatibleRoute(
@@ -177,7 +179,8 @@ class AcceleratorBackwardCompatibilityTest {
 			Scope.NO_SCOPE,
 			false, false, false,
 			String.class, null, 0,
-			ConflictResolutionOverride.GRANULAR
+			ConflictResolutionOverride.GRANULAR,
+			null
 		);
 
 		final GlobalAttributeSchema deserialized = readThroughBackwardCompatibleRoute(
@@ -204,7 +207,8 @@ class AcceleratorBackwardCompatibilityTest {
 			Scope.NO_SCOPE,
 			false, false, false,
 			String.class, null, 0,
-			ConflictResolutionOverride.ENTITY
+			ConflictResolutionOverride.ENTITY,
+			null
 		);
 
 		final EntityAttributeSchema deserialized = readThroughBackwardCompatibleRoute(
@@ -248,6 +252,7 @@ class AcceleratorBackwardCompatibilityTest {
 		assertArrayEquals(Scope.DEFAULT_SCOPES, deserialized.getFilterableInScopes());
 		assertEquals(0, deserialized.getAcceleratorsInScopes().length);
 		assertEquals(0, deserialized.getSearchableInScopes().length);
+		assertNull(deserialized.getNormalization());
 	}
 
 	@Test
@@ -279,6 +284,7 @@ class AcceleratorBackwardCompatibilityTest {
 		assertArrayEquals(Scope.DEFAULT_SCOPES, deserialized.getFilterableInScopes());
 		assertEquals(0, deserialized.getAcceleratorsInScopes().length);
 		assertEquals(0, deserialized.getSearchableInScopes().length);
+		assertNull(deserialized.getNormalization());
 	}
 
 	@Test
@@ -337,6 +343,7 @@ class AcceleratorBackwardCompatibilityTest {
 		assertTrue(deserialized.getAcceleratorsInScopes().isEmpty());
 		// the release format predates searchability too, so the attribute reads back searchable nowhere
 		assertTrue(deserialized.getSearchableInScopes().isEmpty());
+		assertTrue(deserialized.getNormalization().isEmpty());
 	}
 
 	/**

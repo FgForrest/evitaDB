@@ -29,6 +29,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
 
 /**
@@ -47,13 +49,14 @@ import java.util.function.Predicate;
  *
  * A span may wrap the physical end of the ring buffer file, in which case it is represented as two segments;
  * two spans conflict iff any of their segments overlap. At any moment there are at most a handful of holders
- * (one writer - {@code freeMemory()} is {@code synchronized}, so writer-vs-writer cannot happen - plus the export
- * and a few UI readers), so a single {@code synchronized} monitor guarding a small list of held spans is the right
- * size for this problem; no interval tree, no striping.
+ * (one writer - the recorder's drain lock serializes writers - plus the export and a few UI readers), so a single
+ * `ReentrantLock` guarding a small list of held spans is the right size for this problem; no interval tree,
+ * no striping.
  *
- * <p>Lock-ordering / deadlock argument: the writer holds the {@code freeMemory} monitor and may wait on this span
- * lock; readers/the exporter hold span tokens and never acquire the {@code freeMemory} monitor while holding one.
- * No cycle exists.
+ * Lock-ordering / deadlock argument: the writer holds the recorder's drain lock and may wait on this span
+ * lock's condition; readers/the exporter hold span tokens and never acquire the drain lock while holding one.
+ * {@link DiskRingBuffer#exportSnapshot} invokes its session consumer while holding a shared span token, so that
+ * consumer must never drain or export traffic recordings. With this restriction, no cycle exists.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -64,17 +67,30 @@ final class RingBufferSpanLock {
 	 */
 	private final long fileSize;
 	/**
-	 * Currently held spans. Guarded by (and only ever accessed while holding) this instance's own monitor.
+	 * Serializes span acquisition, release and pending-writer bookkeeping.
+	 */
+	private final ReentrantLock lock = new ReentrantLock();
+	/**
+	 * Wakes exclusive acquisitions when a held span is released.
+	 */
+	private final Condition spanReleased = this.lock.newCondition();
+	/**
+	 * Currently held spans. Guarded by {@link #lock}.
 	 */
 	private final List<Token> held = new ArrayList<>();
 	/**
 	 * Spans of exclusive acquisitions that are currently waiting in {@link #acquireExclusive(long, long)}. A new
 	 * shared acquisition that conflicts with any of these gives up immediately (writer preference), so a steady
-	 * stream of overlapping readers cannot starve a pending writer. Guarded by this instance's own monitor; holds
-	 * at most one entry in practice, since {@code freeMemory()} is {@code synchronized} (single writer).
+	 * stream of overlapping readers cannot starve a pending writer. Guarded by {@link #lock}; holds at most one
+	 * entry in practice, since the recorder's drain lock serializes writers.
 	 */
 	private final List<Span> pendingExclusive = new ArrayList<>();
 
+	/**
+	 * Creates span coordination for a ring buffer of the given size.
+	 *
+	 * @param fileSize physical size of the ring buffer file in bytes
+	 */
 	RingBufferSpanLock(long fileSize) {
 		this.fileSize = fileSize;
 	}
@@ -88,16 +104,21 @@ final class RingBufferSpanLock {
 	 * @return a token to release, or {@code null} if the span is currently exclusively held
 	 */
 	@Nullable
-	synchronized Token tryAcquireShared(long start, long length) {
-		final Span span = toSpan(start, length);
-		// give up immediately if the span is exclusively held, or if an exclusive acquisition is already
-		// pending on a conflicting span (writer preference - prevents a steady read stream from starving it)
-		if (conflicts(span, Token::exclusive) || conflictsWithPending(span)) {
-			return null;
+	Token tryAcquireShared(long start, long length) {
+		this.lock.lock();
+		try {
+			final Span span = toSpan(start, length);
+			// give up immediately if the span is exclusively held, or if an exclusive acquisition is already
+			// pending on a conflicting span (writer preference - prevents a steady read stream from starving it)
+			if (conflicts(span, Token::exclusive) || conflictsWithPending(span)) {
+				return null;
+			}
+			final Token token = new Token(span, false);
+			this.held.add(token);
+			return token;
+		} finally {
+			this.lock.unlock();
 		}
-		final Token token = new Token(span, false);
-		this.held.add(token);
-		return token;
 	}
 
 	/**
@@ -109,29 +130,34 @@ final class RingBufferSpanLock {
 	 * @return a token to release
 	 */
 	@Nonnull
-	synchronized Token acquireExclusive(long start, long length) {
-		final Span span = toSpan(start, length);
-		// register as a pending exclusive before waiting so that new shared acquisitions on conflicting spans
-		// give up immediately (writer preference); the finally guarantees the marker is cleared on every exit,
-		// including the interrupted path, so an aborted writer never leaves a phantom span blocking readers
-		this.pendingExclusive.add(span);
+	Token acquireExclusive(long start, long length) {
+		this.lock.lock();
 		try {
-			while (conflicts(span, token -> true)) {
-				try {
-					wait();
-				} catch (InterruptedException e) {
-					Thread.currentThread().interrupt();
-					throw new GenericEvitaInternalError(
-						"Interrupted while waiting for an exclusive span lock on the traffic recording disk buffer."
-					);
+			final Span span = toSpan(start, length);
+			// register as a pending exclusive before waiting so that new shared acquisitions on conflicting spans
+			// give up immediately (writer preference); the finally guarantees the marker is cleared on every exit,
+			// including the interrupted path, so an aborted writer never leaves a phantom span blocking readers
+			this.pendingExclusive.add(span);
+			try {
+				while (conflicts(span, token -> true)) {
+					try {
+						this.spanReleased.await();
+					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
+						throw new GenericEvitaInternalError(
+							"Interrupted while waiting for an exclusive span lock on the traffic recording disk buffer."
+						);
+					}
 				}
+			} finally {
+				this.pendingExclusive.remove(span);
 			}
+			final Token token = new Token(span, true);
+			this.held.add(token);
+			return token;
 		} finally {
-			this.pendingExclusive.remove(span);
+			this.lock.unlock();
 		}
-		final Token token = new Token(span, true);
-		this.held.add(token);
-		return token;
 	}
 
 	/**
@@ -140,14 +166,23 @@ final class RingBufferSpanLock {
 	 * @param token the token returned by a previous {@link #tryAcquireShared(long, long)} or
 	 *              {@link #acquireExclusive(long, long)} call
 	 */
-	synchronized void release(@Nonnull Token token) {
-		this.held.remove(token);
-		notifyAll();
+	void release(@Nonnull Token token) {
+		this.lock.lock();
+		try {
+			this.held.remove(token);
+			this.spanReleased.signalAll();
+		} finally {
+			this.lock.unlock();
+		}
 	}
 
 	/**
 	 * Splits a {@code [start, start + length)} span into one or two physical segments, wrapping at
 	 * {@link #fileSize} if necessary.
+	 *
+	 * @param start starting position of the span in the file
+	 * @param length length of the span in bytes
+	 * @return the span split at the physical end of the file
 	 */
 	@Nonnull
 	private Span toSpan(long start, long length) {
@@ -164,9 +199,13 @@ final class RingBufferSpanLock {
 
 	/**
 	 * Checks whether the candidate span overlaps any currently held span accepted by the given filter.
+	 *
+	 * @param candidate the span requesting acquisition
+	 * @param filter selects held tokens that conflict with the acquisition
+	 * @return true if a selected held token overlaps the candidate
 	 */
 	private boolean conflicts(@Nonnull Span candidate, @Nonnull Predicate<Token> filter) {
-		for (Token existing : this.held) {
+		for (final Token existing : this.held) {
 			if (filter.test(existing) && spansOverlap(candidate, existing.span())) {
 				return true;
 			}
@@ -178,9 +217,12 @@ final class RingBufferSpanLock {
 	 * Checks whether the candidate span overlaps any span whose exclusive acquisition is currently pending in
 	 * {@link #acquireExclusive(long, long)} - the basis of the writer-preference give-up in
 	 * {@link #tryAcquireShared(long, long)}.
+	 *
+	 * @param candidate the span requesting shared acquisition
+	 * @return true if a pending writer overlaps the candidate
 	 */
 	private boolean conflictsWithPending(@Nonnull Span candidate) {
-		for (Span pending : this.pendingExclusive) {
+		for (final Span pending : this.pendingExclusive) {
 			if (spansOverlap(candidate, pending)) {
 				return true;
 			}
@@ -188,6 +230,13 @@ final class RingBufferSpanLock {
 		return false;
 	}
 
+	/**
+	 * Checks every physical segment pair for overlap.
+	 *
+	 * @param a the first span to compare
+	 * @param b the second span to compare
+	 * @return true if any physical segments overlap
+	 */
 	private static boolean spansOverlap(@Nonnull Span a, @Nonnull Span b) {
 		return segmentsOverlap(a.first(), b.first())
 			|| (b.second() != null && segmentsOverlap(a.first(), b.second()))
@@ -195,24 +244,40 @@ final class RingBufferSpanLock {
 			|| (a.second() != null && b.second() != null && segmentsOverlap(a.second(), b.second()));
 	}
 
+	/**
+	 * Checks whether two physical segments overlap.
+	 *
+	 * @param a the first non-wrapping segment
+	 * @param b the second non-wrapping segment
+	 * @return true if the segments share any byte position
+	 */
 	private static boolean segmentsOverlap(@Nonnull Segment a, @Nonnull Segment b) {
 		return DiskRingBuffer.rangesOverlap(a.start(), a.endExclusive() - 1, b.start(), b.endExclusive() - 1);
 	}
 
 	/**
 	 * One physical, non-wrapping byte range {@code [start, endExclusive)} of a span.
+	 *
+	 * @param start first byte position in the segment
+	 * @param endExclusive first byte position after the segment
 	 */
 	private record Segment(long start, long endExclusive) {
 	}
 
 	/**
 	 * A span normalized into one or two physical segments (two iff it wraps the buffer end).
+	 *
+	 * @param first the segment from the starting position toward the physical file end
+	 * @param second the segment from position zero after wrapping, or null for a non-wrapping span
 	 */
 	private record Span(@Nonnull Segment first, @Nullable Segment second) {
 	}
 
 	/**
 	 * A held span lock. Must be released exactly once, in a {@code finally} block, by whoever acquired it.
+	 *
+	 * @param span the protected physical byte ranges
+	 * @param exclusive whether the token excludes both readers and writers
 	 */
 	record Token(@Nonnull Span span, boolean exclusive) {
 	}

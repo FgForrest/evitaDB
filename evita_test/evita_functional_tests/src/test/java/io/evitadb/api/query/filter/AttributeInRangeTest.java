@@ -272,7 +272,7 @@ class AttributeInRangeTest {
 		void shouldReturnCorrectType() {
 			final AttributeInRange constraint = attributeInRange("age", 18);
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 	}
 

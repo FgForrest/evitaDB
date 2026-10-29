@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.test.annotation.DataSet;
@@ -139,7 +140,7 @@ public class ReferenceHavingUniqueAttributeFunctionalTest {
 						whichIs -> whichIs
 							.indexedForFilteringAndPartitioning()
 							.withAttribute(U, String.class, thatIs -> thatIs.unique().nullable())
-							.withAttribute(B, Long.class, thatIs -> thatIs.filterable())
+							.withAttribute(B, Long.class, AttributeSchemaEditor::filterable)
 					)
 					.updateVia(session);
 				session.defineEntitySchema(ENTITY_TARGET)

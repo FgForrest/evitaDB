@@ -29,9 +29,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
-import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -57,39 +55,6 @@ import static io.evitadb.test.TestTags.ATTRIBUTE;
 @Tag(SCHEMA)
 @Tag(ATTRIBUTE)
 class ModifySortableAttributeCompoundSchemaNameMutationTest {
-
-	@Nested
-	@DisplayName("Combine with other mutations")
-	class CombineWith {
-
-		@Test
-		@DisplayName("Should override name of previous mutation when names match")
-		void shouldOverrideNameOfPreviousMutationIfNamesMatch() {
-			final ModifySortableAttributeCompoundSchemaNameMutation mutation = new ModifySortableAttributeCompoundSchemaNameMutation(
-				ATTRIBUTE_COMPOUND_NAME, "newName"
-			);
-			final ModifySortableAttributeCompoundSchemaNameMutation existingMutation = new ModifySortableAttributeCompoundSchemaNameMutation(ATTRIBUTE_COMPOUND_NAME, "oldName");
-			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
-			Mockito.when(entitySchema.getSortableAttributeCompound(ATTRIBUTE_COMPOUND_NAME)).thenReturn(of(createExistingAttributeCompoundSchema()));
-			final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
-			assertNotNull(result);
-			assertNull(result.origin());
-			assertNotNull(result.current());
-			assertInstanceOf(ModifySortableAttributeCompoundSchemaNameMutation.class, result.current()[0]);
-			assertEquals("name", ((ModifySortableAttributeCompoundSchemaNameMutation) result.current()[0]).getName());
-			assertEquals("newName", ((ModifySortableAttributeCompoundSchemaNameMutation) result.current()[0]).getNewName());
-		}
-
-		@Test
-		@DisplayName("Should leave both mutations when the name of new mutation doesn't match")
-		void shouldLeaveBothMutationsIfTheNameOfNewMutationDoesntMatch() {
-			final ModifySortableAttributeCompoundSchemaNameMutation mutation = new ModifySortableAttributeCompoundSchemaNameMutation(
-				ATTRIBUTE_COMPOUND_NAME, "newName"
-			);
-			final ModifySortableAttributeCompoundSchemaNameMutation existingMutation = new ModifySortableAttributeCompoundSchemaNameMutation("differentName", "oldName");
-			assertNull(mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), existingMutation));
-		}
-	}
 
 	@Nested
 	@DisplayName("Mutate compound schema")

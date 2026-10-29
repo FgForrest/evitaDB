@@ -20,7 +20,7 @@ message GrpcModifyEntitySchemaMutation {
 
 // Contains all possible entity schema mutations.
 message GrpcEntitySchemaMutation {
-  // The mutation to be executed.
+  // Exactly one member must be set: the mutation to execute.
   oneof mutation {
     // Mutation is responsible for setting up a new `AssociatedDataSchema` in the `EntitySchema`.
     // Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
@@ -96,6 +96,8 @@ message GrpcEntitySchemaMutation {
     // Mutation is responsible for setting the filter accelerators of an `AttributeSchema` in `EntitySchema`.
     // Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
     GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 126;
+    // Replaces the declared normalization chain; an empty chain removes normalization.
+    GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 127;
 
     // Mutation is responsible for adding one or more currencies to a `EntitySchema.currencies` in `EntitySchema`.
     GrpcAllowCurrencyInEntitySchemaMutation allowCurrencyInEntitySchemaMutation = 50;

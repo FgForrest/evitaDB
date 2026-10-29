@@ -37,6 +37,7 @@ import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -294,19 +295,24 @@ class RepresentativeReferenceKeyTest {
 
 		@Test
 		@DisplayName("should return false when compared to null")
+		@SuppressWarnings({"SimplifiableAssertion", "ObjectEqualsNull"})
 		void shouldReturnFalseWhenComparedToNull() {
 			final RepresentativeReferenceKey a = rrk("ref", 1, "x");
 
-			assertNotEquals(null, a);
+			// deliberately not `assertNotEquals`: with `null` as its first argument it calls no `equals` at all, so
+			// the null check of the class under test would never run
+			assertFalse(a.equals(null));
 		}
 
 		@Test
 		@DisplayName("should return false when compared to different type")
+		@SuppressWarnings({"SimplifiableAssertion", "EqualsBetweenInconvertibleTypes"})
 		void shouldReturnFalseWhenComparedToDifferentType() {
 			final RepresentativeReferenceKey a = rrk("ref", 1, "x");
 
-			//noinspection AssertBetweenInconvertibleTypes
-			assertNotEquals("string", a);
+			// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
+			// fix moves the literal there, so `String.equals` would be tested instead of the class under test
+			assertFalse(a.equals("string"));
 		}
 
 		@Test

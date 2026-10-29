@@ -80,7 +80,7 @@ public class AttributeCardinalityIndex
 	 */
 	private final PersistentTransactionalMap<AttributeCardinalityKey, Integer> cardinalities;
 	/**
-	 * Canonicalizer for incoming keys, built on first use by {@link #normalizeKey(Serializable, int)} and kept for
+	 * Non-String canonicalizer built on first use by {@link #normalizeKey(Serializable, int)} and kept for
 	 * the life of this index — see that method for why the key must be canonical at all.
 	 *
 	 * Cached rather than built per call because {@link FilterIndex#getNormalizer(Class, int)} returns a *capturing*
@@ -94,7 +94,24 @@ public class AttributeCardinalityIndex
 	@SuppressWarnings("TransientFieldNotInitialized")
 	@Nullable private transient CachedNormalizer normalizer;
 
+	/** Borrowed immutable String key function, bound at counter creation/load, never looked up per contribution. */
+	@Nullable private final Function<Object, Serializable> stringNormalizer;
+
 	public AttributeCardinalityIndex(@Nonnull Class<? extends Serializable> valueType) {
+		this(valueType, (Function<Object, Serializable>) null);
+	}
+
+	/**
+	 * Captures the owner-resolved String key function; null retains NFD-only type-level binding.
+	 * Non-String values continue to use the scale-sensitive numeric/type cache.
+	 *
+	 * @param valueType        type of the counted attribute values
+	 * @param stringNormalizer owner-resolved String key function, `null` for the type-level NFD-only binding
+	 */
+	public AttributeCardinalityIndex(@Nonnull Class<? extends Serializable> valueType,
+		@Nullable Function<Object, Serializable> stringNormalizer
+	) {
+		this.stringNormalizer = stringNormalizer;
 		this.valueType = valueType;
 		this.dirty = new TransactionalBoolean();
 		this.cardinalities = new PersistentTransactionalMap<>(CollectionUtils.createHashMap(16));
@@ -104,13 +121,31 @@ public class AttributeCardinalityIndex
 		@Nonnull Class<? extends Serializable> valueType,
 		@Nonnull Map<AttributeCardinalityKey, Integer> cardinalities
 	) {
+		this(valueType, cardinalities, null);
+	}
+
+	/**
+	 * Captures the owner-resolved String key function; null retains NFD-only type-level binding.
+	 * Non-String values continue to use the scale-sensitive numeric/type cache.
+	 *
+	 * @param valueType        type of the counted attribute values
+	 * @param cardinalities    restored cardinality counters by canonical key
+	 * @param stringNormalizer owner-resolved String key function, `null` for the type-level NFD-only binding
+	 */
+	public AttributeCardinalityIndex(
+		@Nonnull Class<? extends Serializable> valueType,
+		@Nonnull Map<AttributeCardinalityKey, Integer> cardinalities,
+		@Nullable Function<Object, Serializable> stringNormalizer
+	) {
+		this.stringNormalizer = stringNormalizer;
 		this.valueType = valueType;
 		this.dirty = new TransactionalBoolean();
 		this.cardinalities = new PersistentTransactionalMap<>(cardinalities);
 	}
 
 	/**
-	 * Canonicalizes an attribute value into the key form this index must count it under. Every caller of
+	 * Canonicalizes an attribute value into the key form this index must count it under. String policy is bound at
+	 * creation/load and carried unchanged through commit copies. Every caller of
 	 * {@link #addRecord} and {@link #removeRecord} is required to pass the result rather than the raw value.
 	 *
 	 * # Why the counter may not key on the raw value
@@ -119,7 +154,7 @@ public class AttributeCardinalityIndex
 	 * entry is dropped only when the last of them goes away. That only works while this index and the value tree
 	 * agree on what "the same entry" means — and the tree does not key on the raw value: it keys on
 	 * {@link FilterIndex#getNormalizer(Class, int)}'s output, which is deliberately **many-to-one** for several
-	 * types (a `BigDecimal` collapses to a scaled `int`, a `String` to its Unicode NFD form, an `OffsetDateTime`
+	 * types (a `BigDecimal` collapses to a scaled `int`, a `String` to its bound normalization key, an `OffsetDateTime`
 	 * to a millisecond `Instant` that discards the offset entirely). Two owners holding values that differ only
 	 * below that resolution would otherwise occupy two counter keys but a single tree entry, and the first of them
 	 * to move away would drain its own counter to zero, report `BOUNDARY_CROSSED`, and remove the entry the other
@@ -127,8 +162,7 @@ public class AttributeCardinalityIndex
 	 * `Sanity check - record not found!` premise from then on.
 	 *
 	 * Canonicalizing here closes that gap by construction: colliding values share one counter key, so the entry
-	 * survives until the last contributor leaves. The normalizer is idempotent, so a value that already arrives
-	 * canonical passes through unchanged.
+	 * survives until the last contributor leaves. Callers pass raw values here, never stored counter keys.
 	 *
 	 * # What happens if the caller's scale has drifted from the tree's
 	 *
@@ -148,11 +182,15 @@ public class AttributeCardinalityIndex
 	 * provably agree" — they are not proven equal here, they are proven not to diverge silently.
 	 *
 	 * @param value                the raw attribute value
-	 * @param indexedDecimalPlaces the attribute's scale; consulted only when the normalizer is (re)built
+	 * @param indexedDecimalPlaces the attribute's scale; consulted only for non-String normalization
 	 * @return the canonical key to count this value under
 	 */
 	@Nonnull
 	public Serializable normalizeKey(@Nonnull Serializable value, int indexedDecimalPlaces) {
+		if (this.valueType == String.class) {
+			return (this.stringNormalizer == null ? FilterIndex.getTypeLevelStringNormalizer() : this.stringNormalizer)
+				.apply(value);
+		}
 		// read the pair through ONE reference so a reader can never combine a function built for one scale with
 		// another scale's guard - the two were separate fields first, which left exactly that race open
 		CachedNormalizer cached = this.normalizer;
@@ -238,7 +276,7 @@ public class AttributeCardinalityIndex
 	 * shared value tree must agree on what "the same entry" means, or a ref-count reaches zero while an entry is
 	 * still needed (see {@link #normalizeKey(Serializable, int)}, which every caller routes its key through —
 	 * `ReferencedTypeEntityIndex` and `ReducedGroupEntityIndex` on both the insert and the remove path) — while the
-	 * normalizer's idempotence means a value that was already canonical arrives unchanged and must stay acceptable.
+	 * stored keys must stay acceptable without reapplying the raw-input function.
 	 *
 	 * @param value the value to validate
 	 */
@@ -302,8 +340,8 @@ public class AttributeCardinalityIndex
 		final VMLayout layout = VMLayout.current();
 		final long keyShell = layout.sizeOfObject(Integer.BYTES + layout.referenceSize());
 		final long boxedInteger = layout.sizeOfObject(Integer.BYTES);
-		// the valueType / dirty / cardinalities / normalizer slots
-		return layout.sizeOfObject(4L * layout.referenceSize())
+		// valueType / dirty / cardinalities / cached numeric normalizer / borrowed String function slots
+		return layout.sizeOfObject(5L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
 			// the cached normalizer is built lazily on the first normalizeKey and is absent until then; when it is
 			// there it costs its own record shell (a scale plus a reference) and the function instance the record
@@ -347,7 +385,7 @@ public class AttributeCardinalityIndex
 		if (isDirty) {
 			return new AttributeCardinalityIndex(
 				this.valueType,
-				transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalities)
+				transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalities), this.stringNormalizer
 			);
 		} else {
 			return this;

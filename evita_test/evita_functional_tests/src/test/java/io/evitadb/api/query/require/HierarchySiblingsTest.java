@@ -24,6 +24,7 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.RequireConstraint;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -121,7 +122,7 @@ class HierarchySiblingsTest {
 		@Test
 		@DisplayName("should return RequireConstraint type")
 		void shouldReturnRequireConstraintType() {
-			assertEquals(RequireConstraint.class, siblings("megaMenu").getType());
+			assertSame(RequireConstraint.class, QueryConstraints.siblings("megaMenu").getType());
 		}
 	}
 

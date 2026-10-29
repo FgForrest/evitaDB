@@ -29,6 +29,9 @@ import io.evitadb.api.CatalogVersionPin;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.exception.IndexNotFoundException;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.statistics.CatalogIdentity;
 import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
@@ -147,6 +150,12 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.IndexMaintainer;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
+import io.evitadb.index.analysis.AttributeNormalizationPolicy;
+import io.evitadb.index.analysis.AttributeNormalizationPolicyHeapSize;
+import io.evitadb.index.analysis.AttributeNormalizationReconciler;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
+import io.evitadb.index.analysis.BuiltWithAttributeNormalizationResolver;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.map.MapChanges;
@@ -174,7 +183,10 @@ import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceServi
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.VolatileDataFootprint;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalAttributeNormalizationStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
@@ -202,6 +214,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -210,6 +223,7 @@ import java.util.function.IntFunction;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
@@ -441,6 +455,30 @@ public final class Catalog
 	 * per-thread stream components reachable until it is closed.
 	 */
 	@Nonnull private final FulltextAnalyzerRegistry fulltextAnalyzerRegistry;
+	/** Immutable providers and compiled functions shared across this catalog's snapshots. */
+	@Nonnull private final AnalysisStepRegistry analysisStepRegistry;
+	/**
+	 * Built-with step lists of the global attributes, keyed by attribute name: the normalization that the String keys
+	 * already stored for each global attribute were built with. The catalog's global unique trees (both scopes) and
+	 * every collection that adopted the global attribute key their Strings with this one row, so that a value has the
+	 * same key in all of them. Resolvers are built from it on demand (see {@link #getAttributeNormalizationResolver()});
+	 * a missing name means type-level NFD.
+	 *
+	 * **Deliberately not part of the schema.** The schema holds the declaration and this map holds what the existing
+	 * keys were built with, and the two differ once a populated attribute changes its declaration: the change is
+	 * accepted, but stored keys cannot be rebuilt until reindexing exists (#409), so the row keeps the old steps and a
+	 * warning is logged. An attribute without keys adopts the declaration at once. Whether an attribute held keys at its
+	 * last schema change is a fact about the data rather than the schema - kept in the schema, the row would either
+	 * replace the declaration the schema must report, or expose index state through every external API and client
+	 * schema cache.
+	 *
+	 * The rows change only in `reconcileGlobalNormalization` during a schema change, never on a write. They are
+	 * therefore transactional and roll back with a failed schema batch, and WAL replay, which carries only the
+	 * declarations, reaches the same rows from the replayed mutation and the index state. They persist in
+	 * {@link GlobalAttributeNormalizationStoragePart}, which loads before any value tree. The counterpart for local and
+	 * reference attributes is the collection's {@link EntityCollection#getNormalizationPolicy()}.
+	 */
+	@Nonnull private final TransactionalReference<Map<String, List<AnalysisStep>>> globalAttributeNormalizationRows;
 	/**
 	 * Last persisted schema version of the catalog.
 	 */
@@ -472,7 +510,7 @@ public final class Catalog
 	 * caller return while the first is halfway through releasing collections - so the lock is what gives that
 	 * caller a completed termination to observe rather than merely a silent no-op.
 	 */
-	@Nonnull private final Object terminationLock = new Object();
+	@Nonnull private final ReentrantLock terminationLock = new ReentrantLock();
 
 	/**
 	 * Verifies whether the catalog name could be used for a new catalog.
@@ -576,6 +614,7 @@ public final class Catalog
 			initBulk -> {
 				final CatalogHeader<? extends LogRecordReference, ? extends CollectionReference> catalogHeader = initBulk.catalogHeader();
 				final long catalogVersion = catalogHeader.version();
+				final Map<String, EntitySchema> indexSchemas = loadAttributeIndexSchemas(initBulk.catalog(), catalogHeader);
 				return catalogHeader
 					.getEntityTypeFileIndexes()
 					.stream()
@@ -610,18 +649,27 @@ public final class Catalog
 									initBulk.collections().put(entityType, collection);
 									initBulk.collectionByPk().put(entityTypePrimaryKey, collection);
 									collection.attachToCatalog(null, catalog);
+									// Validate loaded declarations and retained policies before constructing value trees. Copies
+									// already borrow validated immutable rows and must not repeat this work at every commit.
+									catalog.getAnalysisStepRegistry().validateNormalizationDescriptions(collection.getInternalSchema());
+									collection.getNormalizationPolicy().rows().values()
+										.forEach(steps -> catalog.getAnalysisStepRegistry().compile(steps, null));
 									initBulk.entitySchemaIndex().put(entityType, collection.getSchema());
 									return collection;
 								},
 								(entityCollection) -> {
+									// Attribute declarations of reflected references must be bound before any String tree is built.
+									final EntitySchema indexSchema = Objects.requireNonNull(
+										indexSchemas.get(entityCollection.getEntityType()));
 									// backward compatibility (currently, the global index is part of used indexes)
 									final Integer globalIndexPk = entityHeader.globalEntityIndexPrimaryKey();
 									final EntityIndex globalIndex;
 									if (globalIndexPk != null) {
 										globalIndex = entityCollectionPersistenceService.readEntityIndex(
-											catalogVersion, globalIndexPk, entityCollection.getInternalSchema(),
+											catalogVersion, globalIndexPk, indexSchema,
 											initBulk.catalog().isUsageStatisticsTracked(),
-											initBulk.catalog().getFulltextAnalyzerRegistry()
+											initBulk.catalog().getFulltextAnalyzerRegistry(),
+											entityCollection.getAttributeNormalizationResolver()
 										);
 										initBulk.addGlobalIndex(entityCollection.getEntityType(), globalIndex);
 									} else {
@@ -646,9 +694,10 @@ public final class Catalog
 													}
 													final EntityIndex loadedIndex = entityCollectionPersistenceService
 														.readEntityIndex(
-															catalogVersion, eid, entityCollection.getInternalSchema(),
+															catalogVersion, eid, indexSchema,
 															initBulk.catalog().isUsageStatisticsTracked(),
-															initBulk.catalog().getFulltextAnalyzerRegistry()
+															initBulk.catalog().getFulltextAnalyzerRegistry(),
+															entityCollection.getAttributeNormalizationResolver()
 														);
 													if (loadedIndex.getIndexKey().type() == EntityIndexType.GLOBAL) {
 														initBulk.addGlobalIndex(
@@ -723,6 +772,42 @@ public final class Catalog
 		);
 	}
 
+	/**
+	 * Reads the declarations needed by attribute loaders before parallel collection-index loading begins. Reflected
+	 * references inherit their String policy from another collection, whose schema may otherwise not be installed
+	 * yet. These bound schemas are load-local; ordinary collection schema adoption still runs in `initSchema`.
+	 * Storage access stays behind the persistence SPI and no policy or schema is written here.
+	 *
+	 * @param catalog the catalog being loaded, whose persistence service supplies the stored schemas
+	 * @param header  the catalog header naming the collections and the version to read them at
+	 * @return stored entity schemas keyed by entity type, with reflected references already bound
+	 */
+	@Nonnull
+	private static Map<String, EntitySchema> loadAttributeIndexSchemas(
+		@Nonnull Catalog catalog,
+		@Nonnull CatalogHeader<? extends LogRecordReference, ? extends CollectionReference> header
+	) {
+		final Map<String, EntitySchema> storedSchemas = createHashMap(header.getEntityTypeFileIndexes().size());
+		for (final CollectionReference collection : header.getEntityTypeFileIndexes()) {
+			final EntityCollectionPersistenceService<StorageDescriptor, EntityCollectionHeader> service =
+				catalog.persistenceService.getOrCreateEntityCollectionPersistenceService(
+					header.version(), collection.entityType(), collection.entityTypePrimaryKey());
+			final EntitySchemaStoragePart part = service.getStoragePartPersistenceService().getStoragePart(
+				header.version(), 1, EntitySchemaStoragePart.class);
+			if (part == null && !service.isNew()) {
+				throw new SchemaNotFoundException(catalog.getName(), collection.entityType());
+			}
+			storedSchemas.put(collection.entityType(), part == null
+				? EntitySchema._internalBuild(collection.entityType()) : part.entitySchema());
+		}
+		final Map<String, EntitySchema> boundSchemas = createHashMap(storedSchemas.size());
+		for (final Map.Entry<String, EntitySchema> entry : storedSchemas.entrySet()) {
+			boundSchemas.put(entry.getKey(), EntityCollection.bindReflectedReferences(
+				entry.getValue(), entityType -> ofNullable(storedSchemas.get(entityType))));
+		}
+		return boundSchemas;
+	}
+
 	public Catalog(
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull CacheSupervisor cacheSupervisor,
@@ -782,7 +867,10 @@ public final class Catalog
 		this.entityTypeSequence = this.sequenceService.getOrCreateSequence(
 			catalogName, SequenceType.ENTITY_COLLECTION, 0
 		);
-		this.catalogIndex = new CatalogIndex(Scope.LIVE, this.evitaConfiguration.server().usageStatisticsTracking());
+		this.analysisStepRegistry = new AnalysisStepRegistry();
+		this.globalAttributeNormalizationRows = new TransactionalReference<>(Map.of());
+		this.catalogIndex = new CatalogIndex(Scope.LIVE, this.evitaConfiguration.server().usageStatisticsTracking(),
+			getAttributeNormalizationResolver());
 		// a catalog created here has no history to carry - this allocation is what makes the counts "since catalog
 		// load", and the alignment against the schema published above is what opens each capability's observation
 		// window there rather than at first use. A brand-new catalog declares no attribute yet, so the call mints
@@ -873,8 +961,15 @@ public final class Catalog
 				.orElseThrow(() -> new SchemaNotFoundException(catalogHeader.catalogName()))
 		);
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(catalogSchema));
+		this.analysisStepRegistry = new AnalysisStepRegistry();
+		this.globalAttributeNormalizationRows = new TransactionalReference<>(ofNullable(
+			storagePartPersistenceService.getStoragePart(catalogVersion, 1, GlobalAttributeNormalizationStoragePart.class))
+			.map(GlobalAttributeNormalizationStoragePart::rows).orElse(Map.of()));
+		this.analysisStepRegistry.validateNormalizationDescriptions(catalogSchema);
+		getGlobalAttributeNormalizationRows().values().forEach(steps -> this.analysisStepRegistry.compile(steps, null));
 		this.catalogIndex = this.persistenceService.readCatalogIndex(this, Scope.LIVE)
-			.orElseGet(() -> new CatalogIndex(Scope.LIVE, this.evitaConfiguration.server().usageStatisticsTracking()));
+			.orElseGet(() -> new CatalogIndex(Scope.LIVE, this.evitaConfiguration.server().usageStatisticsTracking(),
+			getAttributeNormalizationResolver()));
 		// nothing about the usage counters is persisted, so a catalog read back from disk starts its observation
 		// window here - aligned against the schema just deserialized, so that every globally-unique attribute already
 		// has its row before the first query arrives rather than from whenever one first names it
@@ -919,13 +1014,26 @@ public final class Catalog
 		this.expressionTriggerRegistry = new TransactionalReference<>(CatalogExpressionTriggerRegistry.EMPTY);
 	}
 
+	/**
+	 * Creates the next catalog version over the previous one's persistence service, with the supplied global
+	 * normalization rows.
+	 *
+	 * @param catalogVersion          version of the new catalog instance
+	 * @param catalogState            lifecycle state of the new catalog instance
+	 * @param catalogIndex            index of the `LIVE` scope, carried over to the new instance
+	 * @param archiveCatalogIndex     index of the `ARCHIVED` scope, `null` when nothing is archived
+	 * @param entityCollections       collections to attach to the new instance
+	 * @param previousCatalogVersion  catalog version this one succeeds, source of the shared services
+	 * @param globalRows              built-with normalization steps of global attributes for the new instance
+	 */
 	Catalog(
 		long catalogVersion,
 		@Nonnull CatalogState catalogState,
 		@Nonnull CatalogIndex catalogIndex,
 		@Nullable CatalogIndex archiveCatalogIndex,
 		@Nonnull Collection<EntityCollection> entityCollections,
-		@Nonnull Catalog previousCatalogVersion
+		@Nonnull Catalog previousCatalogVersion,
+		@Nonnull Map<String, List<AnalysisStep>> globalRows
 	) {
 		this(
 			catalogVersion,
@@ -935,7 +1043,8 @@ public final class Catalog
 			entityCollections,
 			previousCatalogVersion.persistenceService,
 			previousCatalogVersion,
-			false
+			false,
+			globalRows
 		);
 	}
 
@@ -949,6 +1058,37 @@ public final class Catalog
 		@Nonnull Catalog previousCatalogVersion,
 		boolean initSchemas
 	) {
+		this(catalogVersion, catalogState, catalogIndex, archiveCatalogIndex, entityCollections,
+			persistenceService, previousCatalogVersion, initSchemas,
+			previousCatalogVersion.getGlobalAttributeNormalizationRows());
+	}
+
+	/**
+	 * Creates the next catalog version over the supplied persistence service, with the supplied global normalization
+	 * rows.
+	 *
+	 * @param catalogVersion          version of the new catalog instance
+	 * @param catalogState            lifecycle state of the new catalog instance
+	 * @param catalogIndex            index of the `LIVE` scope, carried over to the new instance
+	 * @param archiveCatalogIndex     index of the `ARCHIVED` scope, `null` when nothing is archived
+	 * @param entityCollections       collections to attach to the new instance
+	 * @param persistenceService      persistence service the new instance reads and writes through
+	 * @param previousCatalogVersion  catalog version this one succeeds, source of the shared services
+	 * @param initSchemas             whether to initialize each collection's schema, which also rebuilds the
+	 *                                expression trigger registry once all of them are resolved
+	 * @param globalRows              built-with normalization steps of global attributes for the new instance
+	 */
+	Catalog(
+		long catalogVersion,
+		@Nonnull CatalogState catalogState,
+		@Nonnull CatalogIndex catalogIndex,
+		@Nullable CatalogIndex archiveCatalogIndex,
+		@Nonnull Collection<EntityCollection> entityCollections,
+		@Nonnull CatalogPersistenceService<LogRecordReference, CollectionReference, EntityCollectionHeader> persistenceService,
+		@Nonnull Catalog previousCatalogVersion,
+		boolean initSchemas,
+		@Nonnull Map<String, List<AnalysisStep>> globalRows
+	) {
 		this.catalogId = previousCatalogVersion.catalogId;
 		this.versionId = new TransactionalReference<>(catalogVersion);
 		this.state = catalogState;
@@ -958,6 +1098,8 @@ public final class Catalog
 		// reset the counters on every commit, which is to say on precisely the catalogs worth measuring
 		this.usageRegistry = previousCatalogVersion.usageRegistry;
 		this.fulltextAnalyzerRegistry = previousCatalogVersion.fulltextAnalyzerRegistry;
+		this.analysisStepRegistry = previousCatalogVersion.analysisStepRegistry;
+		this.globalAttributeNormalizationRows = new TransactionalReference<>(globalRows);
 		this.archiveCatalogIndex.set(archiveCatalogIndex);
 		this.persistenceService = persistenceService;
 		this.cacheSupervisor = previousCatalogVersion.cacheSupervisor;
@@ -1060,6 +1202,11 @@ public final class Catalog
 		final OffsetDateTime start = OffsetDateTime.now();
 		// internal schema is expected to be produced on the server side
 		final CatalogSchema originalSchema = getInternalSchema();
+		final Map<String, List<AnalysisStep>> originalNormalizationRows = getGlobalAttributeNormalizationRows();
+		final Map<EntityCollection, AttributeNormalizationPolicy> originalCollectionPolicies = CollectionUtils.createHashMap(
+			this.entityCollections.size());
+		this.entityCollections.values().forEach(collection ->
+			originalCollectionPolicies.put(collection, collection.getNormalizationPolicy()));
 		final AtomicReference<MutationApplicationRecord> record = new AtomicReference<>();
 		// collect entity types whose cross-entity trigger registry must be rebuilt, deferring
 		// the rebuild until the entire batch is applied — intermediate states may be transiently
@@ -1096,7 +1243,9 @@ public final class Catalog
 							throw new InvalidSchemaMutationException(
 								entityType, CatalogEvolutionMode.ADDING_ENTITY_TYPES);
 						}
-						currentSchema = createEntitySchema(
+						// the created schema is not installed yet - the modification builds on it and the exchange
+						// below installs both, as for an explicit creation followed by the modification
+						updatedSchema = createEntitySchema(
 							new CreateEntitySchemaMutation(entityType), transaction, updatedSchema);
 						entityCollection = Objects.requireNonNull(this.entityCollections.get(entityType));
 					}
@@ -1145,6 +1294,8 @@ public final class Catalog
 		} catch (RuntimeException ex) {
 			// revert all changes in the schema (for current transaction) if anything failed
 			this.schema.set(new CatalogSchemaDecorator(originalSchema));
+			adoptGlobalNormalizationRows(originalNormalizationRows);
+			originalCollectionPolicies.forEach(EntityCollection::adoptNormalizationPolicy);
 
 			// finish the recording with error
 			final MutationApplicationRecord recording = record.get();
@@ -1931,7 +2082,9 @@ public final class Catalog
 		if (catalogIndex == null) {
 			throw new IndexNotFoundException(null, indexPrimaryKey);
 		}
-		return CatalogIndexProjection.describe(catalogIndex);
+		return CatalogIndexProjection.describe(catalogIndex, scope == Scope.LIVE ?
+			this.globalAttributeNormalizationRows.getHeapSizeInBytes(AttributeNormalizationPolicyHeapSize::estimateGlobalRows) :
+			0L);
 	}
 
 	@Nonnull
@@ -2201,7 +2354,8 @@ public final class Catalog
 	 */
 	@Override
 	public void terminate() {
-		synchronized (this.terminationLock) {
+		this.terminationLock.lock();
+		try {
 			if (isTerminated()) {
 				return;
 			}
@@ -2214,6 +2368,8 @@ public final class Catalog
 					this.fulltextAnalyzerRegistry.close();
 				}
 			}
+		} finally {
+			this.terminationLock.unlock();
 		}
 	}
 
@@ -2283,7 +2439,8 @@ public final class Catalog
 			CatalogIndex existing = this.archiveCatalogIndex.get();
 			if (existing == null) {
 				final CatalogIndex candidate = new CatalogIndex(
-					Scope.ARCHIVED, this.evitaConfiguration.server().usageStatisticsTracking()
+					Scope.ARCHIVED, this.evitaConfiguration.server().usageStatisticsTracking(),
+					getAttributeNormalizationResolver()
 				);
 				existing = this.archiveCatalogIndex.compareAndSet(null, candidate) ?
 					candidate : this.archiveCatalogIndex.get();
@@ -2316,6 +2473,150 @@ public final class Catalog
 	@Nonnull
 	public FulltextAnalyzerRegistry getFulltextAnalyzerRegistry() {
 		return this.fulltextAnalyzerRegistry;
+	}
+
+	/**
+	 * Returns the installed analysis steps and compiled key functions, shared by collections and catalog snapshots.
+	 *
+	 * @return catalog-owned analysis registry
+	 */
+	@Nonnull
+	public AnalysisStepRegistry getAnalysisStepRegistry() {
+		return this.analysisStepRegistry;
+	}
+
+	/**
+	 * Returns the catalog-scoped resolver binding catalog structures directly to catalog rows at creation and reload.
+	 *
+	 * @return resolver borrowing the authoritative global rows
+	 */
+	@Nonnull
+	public AttributeNormalizationResolver getAttributeNormalizationResolver() {
+		return new BuiltWithAttributeNormalizationResolver(this.analysisStepRegistry,
+			AttributeNormalizationPolicy.EMPTY, getGlobalAttributeNormalizationRows(), true);
+	}
+
+	/**
+	 * Authoritative global policy shared by catalog unique trees and every adopting collection.
+	 *
+	 * @return immutable non-empty built-with global rows
+	 */
+	@Nonnull
+	public Map<String, List<AnalysisStep>> getGlobalAttributeNormalizationRows() {
+		return Objects.requireNonNull(this.globalAttributeNormalizationRows.get());
+	}
+
+	/**
+	 * Checks both catalog scopes and actual adopting collections, including retained orphaned global footprints.
+	 *
+	 * @param name   name of the global attribute
+	 * @param probes per-collection key predicates, filled lazily so each collection is probed at most once per call
+	 *               chain
+	 * @return `true` when any scope or adopting collection holds String keys of the attribute
+	 */
+	private boolean hasGlobalStringKeys(
+		@Nonnull String name, @Nonnull Map<EntityCollection, Predicate<AttributeIndexKey>> probes
+	) {
+		final AttributeIndexKey identity = new AttributeIndexKey(null, name, null);
+		for (final EntityCollection collection : this.entityCollections.values()) {
+			if (collection.getNormalizationPolicy().globalAttributes().contains(name) &&
+				probes.computeIfAbsent(collection, EntityCollection::createStringKeyPredicate).test(identity)) {
+				return true;
+			}
+		}
+		final CatalogIndex archived = this.archiveCatalogIndex.get();
+		return hasCatalogStringKeys(this.catalogIndex, name) ||
+			(archived != null && hasCatalogStringKeys(archived, name));
+	}
+
+	/**
+	 * Tests catalog unique trees without invoking their storage emitters.
+	 *
+	 * @param index the catalog index of one scope
+	 * @param name  name of the global attribute
+	 * @return `true` when a non-empty String unique tree of the attribute exists in the index
+	 */
+	private static boolean hasCatalogStringKeys(@Nonnull CatalogIndex index, @Nonnull String name) {
+		for (final Map.Entry<AttributeKey, GlobalUniqueIndex> entry : index.getGlobalUniqueIndexes().entrySet()) {
+			final GlobalUniqueIndex uniqueIndex = entry.getValue();
+			final Class<?> type = uniqueIndex.getType();
+			final Class<?> plainType = type.isArray() ? type.getComponentType() : type;
+			if (entry.getKey().attributeName().equals(name) && plainType == String.class && !uniqueIndex.isEmpty()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Reconciles global rows before cascading the new declaration to collections.
+	 *
+	 * @param updatedSchema the catalog schema whose global attribute declarations the rows are reconciled against
+	 */
+	private void reconcileGlobalNormalization(@Nonnull CatalogSchemaContract updatedSchema) {
+		final Map<String, List<AnalysisStep>> rows = new HashMap<>(getGlobalAttributeNormalizationRows());
+		final Map<EntityCollection, Predicate<AttributeIndexKey>> probes = CollectionUtils.createHashMap(
+			this.entityCollections.size());
+		final Set<String> names = new HashSet<>(rows.keySet());
+		names.addAll(updatedSchema.getAttributes().keySet());
+		for (final String name : names) {
+			final GlobalAttributeSchemaContract attribute = updatedSchema.getAttribute(name).orElse(null);
+			final List<AnalysisStep> effective = rows.getOrDefault(name, List.of());
+			final List<AnalysisStep> declared = attribute == null ? List.of() : attribute.getNormalization();
+			if (attribute == null || attribute.getPlainType() != String.class) {
+				if (effective.isEmpty()) {
+					continue;
+				} else if (!hasGlobalStringKeys(name, probes)) {
+					rows.remove(name);
+				} else {
+					AttributeNormalizationReconciler.warn(getName(), new AttributeIndexKey(null, name, null),
+						declared, effective);
+				}
+			} else if (!declared.equals(effective)) {
+				if (hasGlobalStringKeys(name, probes)) {
+					AttributeNormalizationReconciler.warn(getName(), new AttributeIndexKey(null, name, null),
+						declared, effective);
+				} else if (declared.isEmpty()) {
+					rows.remove(name);
+				} else {
+					rows.put(name, List.copyOf(declared));
+				}
+			}
+		}
+		if (!rows.equals(getGlobalAttributeNormalizationRows())) {
+			adoptGlobalNormalizationRows(Map.copyOf(rows));
+		}
+	}
+
+	/**
+	 * Publishes changed catalog rows and refreshes actual adopters, including compensating failed schema changes.
+	 *
+	 * @param rows the complete set of built-with global rows to publish; nothing happens when equal to the current one
+	 */
+	private void adoptGlobalNormalizationRows(@Nonnull Map<String, List<AnalysisStep>> rows) {
+		final Map<String, List<AnalysisStep>> previous = getGlobalAttributeNormalizationRows();
+		if (!rows.equals(previous)) {
+			this.globalAttributeNormalizationRows.set(rows);
+			final AttributeNormalizationResolver resolver = getAttributeNormalizationResolver();
+			this.catalogIndex.useNormalizationResolver(resolver);
+			final CatalogIndex archived = this.archiveCatalogIndex.get();
+			if (archived != null) {
+				archived.useNormalizationResolver(resolver);
+			}
+			final Set<String> changedNames = new HashSet<>(previous.keySet());
+			changedNames.addAll(rows.keySet());
+			changedNames.removeIf(name -> Objects.equals(previous.get(name), rows.get(name)));
+			for (final EntityCollection collection : this.entityCollections.values()) {
+				if (!Collections.disjoint(changedNames, collection.getNormalizationPolicy().globalAttributes())) {
+					collection.refreshNormalizationResolver();
+				}
+			}
+			if (rows.isEmpty()) {
+				this.dataStoreBuffer.removeByPrimaryKey(getVersion(), 1, GlobalAttributeNormalizationStoragePart.class);
+			} else {
+				this.dataStoreBuffer.update(getVersion(), new GlobalAttributeNormalizationStoragePart(rows));
+			}
+		}
 	}
 
 	/**
@@ -2422,6 +2723,7 @@ public final class Catalog
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		this.globalAttributeNormalizationRows.removeLayer(transactionalLayer);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.schema.removeLayer(transactionalLayer);
 		this.entityCollections.removeLayer(transactionalLayer);
@@ -2446,6 +2748,8 @@ public final class Catalog
 			.orElseThrow();
 		final CatalogSchemaDecorator newSchema = transactionalLayer.getStateCopyWithCommittedChanges(this.schema)
 			.orElseThrow();
+		final Map<String, List<AnalysisStep>> committedRows = transactionalLayer
+			.getStateCopyWithCommittedChanges(this.globalAttributeNormalizationRows).orElseThrow();
 		final DataStoreChanges transactionalChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(this);
 
 		final MapChanges<String, EntityCollection> collectionChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(
@@ -2529,7 +2833,8 @@ public final class Catalog
 				possiblyUpdatedCatalogIndex,
 				possiblyUpdatedArchiveCatalogIndex,
 				possiblyUpdatedCollections.values(),
-				this
+				this,
+				committedRows
 			);
 		} else {
 			if (possiblyUpdatedCatalogIndex != this.catalogIndex ||
@@ -2545,7 +2850,8 @@ public final class Catalog
 					possiblyUpdatedCatalogIndex,
 					possiblyUpdatedArchiveCatalogIndex,
 					possiblyUpdatedCollections.values(),
-					this
+					this,
+					committedRows
 				);
 			} else {
 				// no changes present we can return self
@@ -3353,6 +3659,10 @@ public final class Catalog
 	 * pre-exchange schema version can re-insert a key the alignment has just dropped, which then survives until the
 	 * next adoption.
 	 *
+	 * The normalization descriptions of the updated schema are validated against the installed step providers before
+	 * anything changes, and the global normalization rows are then reconciled with its declarations. A runtime failure
+	 * past the validation puts back the current schema and the previous global rows before it propagates.
+	 *
 	 * @param updatedSchema updated schema
 	 * @param currentSchema current schema
 	 * @return updated schema
@@ -3366,27 +3676,36 @@ public final class Catalog
 		Assert.isPremiseValid(updatedSchema != null, "Catalog cannot be dropped by updating schema!");
 		Assert.isPremiseValid(
 			updatedSchema instanceof CatalogSchema, "Mutation is expected to produce CatalogSchema instance!");
+		this.analysisStepRegistry.validateNormalizationDescriptions(updatedSchema);
 		final CatalogSchema updatedInternalSchema = (CatalogSchema) updatedSchema;
 
-		if (updatedSchema.version() > currentSchema.version()) {
-			final CatalogSchemaDecorator currentSchemaWrapper = Objects.requireNonNull(this.schema.get());
-			Assert.isPremiseValid(
-				currentSchemaWrapper.getDelegate() == currentSchema,
-				"Invalid current schema used!"
-			);
-			final CatalogSchemaDecorator originalSchemaBeforeExchange = Objects.requireNonNull(
-				this.schema.compareAndExchange(
-					currentSchemaWrapper,
-					new CatalogSchemaDecorator(updatedInternalSchema)
-				)
-			);
-			Assert.isTrue(
-				originalSchemaBeforeExchange.version() == currentSchema.version(),
-				() -> new ConcurrentSchemaUpdateException(currentSchema, nextSchema)
-			);
-			// only after the exchange is known to have won the race - a losing exchange changed nothing to align
-			// against
-			this.usageRegistry.alignWith(updatedInternalSchema);
+		final Map<String, List<AnalysisStep>> originalRows = getGlobalAttributeNormalizationRows();
+		try {
+			if (updatedSchema.version() > currentSchema.version()) {
+				final CatalogSchemaDecorator currentSchemaWrapper = Objects.requireNonNull(this.schema.get());
+				Assert.isPremiseValid(
+					currentSchemaWrapper.getDelegate() == currentSchema,
+					"Invalid current schema used!"
+				);
+				final CatalogSchemaDecorator originalSchemaBeforeExchange = Objects.requireNonNull(
+					this.schema.compareAndExchange(
+						currentSchemaWrapper,
+						new CatalogSchemaDecorator(updatedInternalSchema)
+					)
+				);
+				Assert.isTrue(
+					originalSchemaBeforeExchange.version() == currentSchema.version(),
+					() -> new ConcurrentSchemaUpdateException(currentSchema, nextSchema)
+				);
+				// only after the exchange is known to have won the race - a losing exchange changed nothing to align
+				// against
+				this.usageRegistry.alignWith(updatedInternalSchema);
+			}
+			reconcileGlobalNormalization(updatedSchema);
+		} catch (RuntimeException ex) {
+			this.schema.set(new CatalogSchemaDecorator(currentSchema));
+			adoptGlobalNormalizationRows(originalRows);
+			throw ex;
 		}
 		return updatedInternalSchema;
 	}

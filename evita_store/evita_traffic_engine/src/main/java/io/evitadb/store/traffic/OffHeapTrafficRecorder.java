@@ -94,6 +94,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -164,6 +165,11 @@ public class OffHeapTrafficRecorder
 	 * Queue of all sessions that were finished and are waiting to be written to disk buffer.
 	 */
 	private final Queue<SessionTraffic> finalizedSessions = new ConcurrentLinkedQueue<>();
+	/**
+	 * Serializes disk drains, memory reclamation and metric delta bookkeeping. Reentrant because
+	 * {@link #freeMemory()} calls the drain and statistics methods while already holding this lock.
+	 */
+	private final ReentrantLock drainLock = new ReentrantLock();
 	/**
 	 * Enumerates the miss reasons once so per-reason counters and the periodic delta bookkeeping can be
 	 * indexed by {@link TrafficRecorderMissReason#ordinal()} without recomputing {@code values()}.
@@ -257,8 +263,8 @@ public class OffHeapTrafficRecorder
 	private long lastRead = -1;
 	/**
 	 * Last emitted cumulative counter values, captured after each {@link #freeMemory()} emission so the
-	 * next emission can publish the delta since the previous one. Only ever touched inside the
-	 * {@code synchronized} {@link #freeMemory()}, so plain fields are sufficient.
+	 * next emission can publish the delta since the previous one. Guarded by {@link #drainLock},
+	 * so plain fields are sufficient.
 	 */
 	private long lastCreatedSessionsEmitted;
 	private long lastFinishedSessionsEmitted;
@@ -267,7 +273,7 @@ public class OffHeapTrafficRecorder
 	private long lastDiskBytesAppendedEmitted;
 	/**
 	 * Per-reason last-emitted values (indexed by {@link TrafficRecorderMissReason#ordinal()}) backing the
-	 * delta emission of {@link TrafficRecorderSkippedRecordsEvent}. Only touched inside {@link #freeMemory()}.
+	 * delta emission of {@link TrafficRecorderSkippedRecordsEvent}. Guarded by {@link #drainLock}.
 	 */
 	private final long[] lastMissedRecordsEmitted = new long[MISS_REASONS.length];
 	private final long[] lastDroppedSessionsEmitted = new long[MISS_REASONS.length];
@@ -694,12 +700,11 @@ public class OffHeapTrafficRecorder
 	 * the caller's sink. Always preceded by a synchronous drain (see {@link #drainFinalizedSessionsToDisk()})
 	 * so that sessions closed before this call are guaranteed to be part of the exported window - this is
 	 * what delivers "recent closed sessions are included" without a load-dependent tail-chase. Open
-	 * in-flight sessions are never exported. The walk itself runs *outside* the drain's synchronized
-	 * block/monitor, so it never stalls the live recorder for its whole duration - only individual
-	 * per-session shared span locks are taken, and those never block a concurrent writer for longer than
-	 * one session's worth of copying.
+	 * in-flight sessions are never exported. The walk itself runs outside {@link #drainLock}, so it never
+	 * stalls the live recorder for its whole duration - only individual per-session shared span locks are
+	 * taken, and those never block a concurrent writer for longer than one session's worth of copying.
 	 *
-	 * <p>Adapts between the {@link TrafficRecordingExporter} contract (which uses only types visible from
+	 * Adapts between the {@link TrafficRecordingExporter} contract (which uses only types visible from
 	 * {@code evita_api}, since callers such as {@code TrafficRecordingEngine} never depend on this module)
 	 * and {@link DiskRingBuffer}'s own richer nested types.
 	 *
@@ -801,87 +806,94 @@ public class OffHeapTrafficRecorder
 	 * the disk ring buffer, freeing their memory blocks for reuse. This is the body previously inlined in
 	 * {@link #freeMemory()}, promoted to a directly callable method so the on-demand export can force a
 	 * drain (guaranteeing "recent closed sessions are included") without scheduling-and-polling the
-	 * background {@link #freeMemoryTask}. Being {@code synchronized} on the same monitor as
-	 * {@link #freeMemory()} already serializes the two call sites - no additional coordination needed.
+	 * background {@link #freeMemoryTask}. The shared {@link #drainLock} serializes this method with
+	 * {@link #freeMemory()} and permits its reentrant call from that method.
 	 */
-	synchronized void drainFinalizedSessionsToDisk() {
-		this.diskBuffer.updateIndexTransactionally(
-			() -> {
-				this.diskBuffer.setLastRealSamplingRate(computeCurrentSamplingRate());
-				final ByteBuffer memoryByteBuffer = this.memoryBlock.get();
-				do {
-					//noinspection resource
-					final SessionTraffic finalizedSession = this.finalizedSessions.poll();
-					if (finalizedSession != null) {
-						int totalSize = 0;
-						final OfInt memoryBlockIds = finalizedSession.getMemoryBlockIds();
-						while (memoryBlockIds.hasNext()) {
-							memoryBlockIds.nextInt();
-							totalSize += memoryBlockIds.hasNext() ?
-								this.blockSizeBytes : finalizedSession.getCurrentByteBufferPosition();
-						}
-
-						int freedBlocks = 0;
-						try {
-							final SessionLocation sessionLocation = this.diskBuffer.appendSession(
-								finalizedSession.getRecordCount(), totalSize);
-							final OfInt memoryBlockIdsToFree = finalizedSession.getMemoryBlockIds();
-							while (memoryBlockIdsToFree.hasNext()) {
-								final int freeBlock = memoryBlockIdsToFree.nextInt();
-								final int blockStart = freeBlock * this.blockSizeBytes;
-								// the last block may not be fully occupied
-								final int blockLength = memoryBlockIdsToFree.hasNext() ?
+	void drainFinalizedSessionsToDisk() {
+		this.drainLock.lock();
+		try {
+			this.diskBuffer.updateIndexTransactionally(
+				() -> {
+					this.diskBuffer.setLastRealSamplingRate(computeCurrentSamplingRate());
+					final ByteBuffer memoryByteBuffer = this.memoryBlock.get();
+					do {
+						//noinspection resource
+						final SessionTraffic finalizedSession = this.finalizedSessions.poll();
+						if (finalizedSession != null) {
+							int totalSize = 0;
+							final OfInt memoryBlockIds = finalizedSession.getMemoryBlockIds();
+							while (memoryBlockIds.hasNext()) {
+								memoryBlockIds.nextInt();
+								totalSize += memoryBlockIds.hasNext() ?
 									this.blockSizeBytes : finalizedSession.getCurrentByteBufferPosition();
-								this.diskBuffer.append(
-									memoryByteBuffer.slice(blockStart, blockLength)
-								);
-								this.freeBlocks.offer(freeBlock);
-								freedBlocks++;
 							}
-							this.diskBuffer.sessionWritten(
-								sessionLocation,
-								finalizedSession.getSessionId(),
-								finalizedSession.getCreated(),
-								finalizedSession.getDurationInMillis(),
-								finalizedSession.getRecordingTypes(),
-								finalizedSession.getLabels(),
-								finalizedSession.getFetchCount(),
-								finalizedSession.getBytesFetchedTotal()
-							);
-						} catch (MemoryNotAvailableException | UnexpectedIOException ex) {
-							// The finalized session could not be fully persisted: either it is larger than the whole
-							// disk ring buffer (MemoryNotAvailableException from appendSession, before any block was
-							// written) or a disk write failed part-way through (UnexpectedIOException from append). Drop
-							// it, but ALWAYS return its still-held memory blocks to the free pool - the session was already
-							// polled off the finalized queue, so without this the blocks would leak permanently (the
-							// exception is otherwise swallowed by updateIndexTransactionally and aborts the whole drain).
-							// The first `freedBlocks` blocks were already offered back inside the loop above; skip exactly
-							// those when re-iterating (getMemoryBlockIds() yields insertion order) so none is double-freed.
-							final OfInt remainingBlocks = finalizedSession.getMemoryBlockIds();
-							int blocksToSkip = freedBlocks;
-							while (remainingBlocks.hasNext()) {
-								final int block = remainingBlocks.nextInt();
-								if (blocksToSkip > 0) {
-									blocksToSkip--;
-								} else {
-									this.freeBlocks.offer(block);
+
+							int freedBlocks = 0;
+							try {
+								final SessionLocation sessionLocation = this.diskBuffer.appendSession(
+									finalizedSession.getRecordCount(), totalSize);
+								final OfInt memoryBlockIdsToFree = finalizedSession.getMemoryBlockIds();
+								while (memoryBlockIdsToFree.hasNext()) {
+									final int freeBlock = memoryBlockIdsToFree.nextInt();
+									final int blockStart = freeBlock * this.blockSizeBytes;
+									// the last block may not be fully occupied
+									final int blockLength = memoryBlockIdsToFree.hasNext() ?
+										this.blockSizeBytes : finalizedSession.getCurrentByteBufferPosition();
+									this.diskBuffer.append(
+										memoryByteBuffer.slice(blockStart, blockLength)
+									);
+									this.freeBlocks.offer(freeBlock);
+									freedBlocks++;
 								}
+								this.diskBuffer.sessionWritten(
+									sessionLocation,
+									finalizedSession.getSessionId(),
+									finalizedSession.getCreated(),
+									finalizedSession.getDurationInMillis(),
+									finalizedSession.getRecordingTypes(),
+									finalizedSession.getLabels(),
+									finalizedSession.getFetchCount(),
+									finalizedSession.getBytesFetchedTotal()
+								);
+							} catch (MemoryNotAvailableException | UnexpectedIOException ex) {
+								// The finalized session could not be fully persisted: either it is larger than the
+								// whole disk ring buffer (MemoryNotAvailableException from appendSession, before any
+								// block was written) or a disk write failed part-way through (UnexpectedIOException
+								// from append). Drop it, but ALWAYS return its still-held memory blocks to the free
+								// pool - the session was already polled off the finalized queue, so without this the
+								// blocks would leak permanently (the exception is otherwise swallowed by
+								// updateIndexTransactionally and aborts the whole drain). The first `freedBlocks`
+								// blocks were already offered back inside the loop above; skip exactly those when
+								// re-iterating (getMemoryBlockIds() yields insertion order) so none is double-freed.
+								final OfInt remainingBlocks = finalizedSession.getMemoryBlockIds();
+								int blocksToSkip = freedBlocks;
+								while (remainingBlocks.hasNext()) {
+									final int block = remainingBlocks.nextInt();
+									if (blocksToSkip > 0) {
+										blocksToSkip--;
+									} else {
+										this.freeBlocks.offer(block);
+									}
+								}
+								// classify the drop cause: DATA_TOO_LARGE from appendSession (session larger than the
+								// whole disk ring buffer) is DISK_SHORTAGE, a failed disk write is IO_ERROR
+								final TrafficRecorderMissReason reason = ex instanceof MemoryNotAvailableException ?
+									TrafficRecorderMissReason.DISK_SHORTAGE : TrafficRecorderMissReason.IO_ERROR;
+								this.droppedSessionsByReason.get(reason).incrementAndGet();
+								this.missedRecordsByReason.get(reason).addAndGet(finalizedSession.getRecordCount());
+								log.warn(
+									"Finalized session {} ({} bytes) could not be persisted to the traffic " +
+										"disk buffer and was dropped: {}",
+									finalizedSession.getSessionId(), totalSize, ex.getMessage()
+								);
 							}
-							// classify the drop cause: DATA_TOO_LARGE from appendSession (session larger than the
-							// whole disk ring buffer) is DISK_SHORTAGE, a failed disk write is IO_ERROR
-							final TrafficRecorderMissReason reason = ex instanceof MemoryNotAvailableException ?
-								TrafficRecorderMissReason.DISK_SHORTAGE : TrafficRecorderMissReason.IO_ERROR;
-							this.droppedSessionsByReason.get(reason).incrementAndGet();
-							this.missedRecordsByReason.get(reason).addAndGet(finalizedSession.getRecordCount());
-							log.warn(
-								"Finalized session {} ({} bytes) could not be persisted to the traffic disk buffer and was dropped: {}",
-								finalizedSession.getSessionId(), totalSize, ex.getMessage()
-							);
 						}
-					}
-				} while (!this.finalizedSessions.isEmpty());
-			}
-		);
+					} while (!this.finalizedSessions.isEmpty());
+				}
+			);
+		} finally {
+			this.drainLock.unlock();
+		}
 	}
 
 	/**
@@ -1070,20 +1082,25 @@ public class OffHeapTrafficRecorder
 	 *
 	 * @return Always returns -1 as a placeholder for future implementations or changes.
 	 */
-	private synchronized long freeMemory() {
-		// capture the drain backlog BEFORE draining - after the drain it is ~0 and would never show buildup
-		final int finalizedSessionsBacklog = this.finalizedSessions.size();
-		drainFinalizedSessionsToDisk();
+	private long freeMemory() {
+		this.drainLock.lock();
+		try {
+			// capture the drain backlog BEFORE draining - after the drain it is ~0 and would never show buildup
+			final int finalizedSessionsBacklog = this.finalizedSessions.size();
+			this.drainFinalizedSessionsToDisk();
 
-		// publish throughput/memory/churn snapshot + per-reason skip breakdown
-		publishStatisticsEvents(finalizedSessionsBacklog);
+			// publish throughput/memory/churn snapshot + per-reason skip breakdown
+			this.publishStatisticsEvents(finalizedSessionsBacklog);
 
-		// if the disk buffer wasn't read for a long time, we can purge it
-		if (this.lastRead > 0 && System.currentTimeMillis() - this.lastRead > INDEX_INACTIVITY_DURATION) {
-			this.diskBuffer.releaseIndex();
+			// if the disk buffer wasn't read for a long time, we can purge it
+			if (this.lastRead > 0 && System.currentTimeMillis() - this.lastRead > INDEX_INACTIVITY_DURATION) {
+				this.diskBuffer.releaseIndex();
+			}
+
+			return -1L;
+		} finally {
+			this.drainLock.unlock();
 		}
-
-		return -1L;
 	}
 
 	/**
@@ -1094,55 +1111,59 @@ public class OffHeapTrafficRecorder
 	 * metric pipeline increments the Prometheus counter by the committed value on each event; emitting the
 	 * cumulative totals would over-count. Idle reasons are skipped to avoid emitting no-op zero increments.
 	 *
-	 * Invoked only while holding this recorder's monitor (from the {@code synchronized} {@link #freeMemory()}
-	 * and marked {@code synchronized} itself so a direct test call is equally safe), which is what makes the
-	 * plain {@code lastXxxEmitted} delta bookkeeping race-free.
+	 * Acquires {@link #drainLock}, reentrantly when called from {@link #freeMemory()}, so direct calls also
+	 * keep the plain `lastXxxEmitted` delta bookkeeping race-free.
 	 *
 	 * @param finalizedSessionsBacklog drain backlog sampled by the caller before the preceding drain, so the
 	 *                                 gauge reflects accumulation rather than the post-drain (near-zero) state
 	 */
-	synchronized void publishStatisticsEvents(int finalizedSessionsBacklog) {
-		final long createdSessionsNow = this.createdSessions.get();
-		final long finishedSessionsNow = this.finishedSessions.get();
-		final long recordedRecordsNow = this.recordedRecords.get();
-		final long blocksAllocatedNow = this.blocksAllocated.get();
-		final long diskBytesAppendedNow = this.diskBuffer.getBytesAppendedTotal();
+	void publishStatisticsEvents(int finalizedSessionsBacklog) {
+		this.drainLock.lock();
+		try {
+			final long createdSessionsNow = this.createdSessions.get();
+			final long finishedSessionsNow = this.finishedSessions.get();
+			final long recordedRecordsNow = this.recordedRecords.get();
+			final long blocksAllocatedNow = this.blocksAllocated.get();
+			final long diskBytesAppendedNow = this.diskBuffer.getBytesAppendedTotal();
 
-		new TrafficRecorderStatisticsEvent(
-			this.catalogName,
-			createdSessionsNow - this.lastCreatedSessionsEmitted,
-			finishedSessionsNow - this.lastFinishedSessionsEmitted,
-			recordedRecordsNow - this.lastRecordedRecordsEmitted,
-			blocksAllocatedNow - this.lastBlocksAllocatedEmitted,
-			diskBytesAppendedNow - this.lastDiskBytesAppendedEmitted,
-			this.totalMemoryBlocks - this.freeBlocks.size(),
-			this.totalMemoryBlocks,
-			this.trackedSessionsIndex.size(),
-			finalizedSessionsBacklog,
-			this.diskBuffer.getUsedBytes(),
-			this.diskBuffer.getResidentSessionCount()
-		).commit();
+			new TrafficRecorderStatisticsEvent(
+				this.catalogName,
+				createdSessionsNow - this.lastCreatedSessionsEmitted,
+				finishedSessionsNow - this.lastFinishedSessionsEmitted,
+				recordedRecordsNow - this.lastRecordedRecordsEmitted,
+				blocksAllocatedNow - this.lastBlocksAllocatedEmitted,
+				diskBytesAppendedNow - this.lastDiskBytesAppendedEmitted,
+				this.totalMemoryBlocks - this.freeBlocks.size(),
+				this.totalMemoryBlocks,
+				this.trackedSessionsIndex.size(),
+				finalizedSessionsBacklog,
+				this.diskBuffer.getUsedBytes(),
+				this.diskBuffer.getResidentSessionCount()
+			).commit();
 
-		this.lastCreatedSessionsEmitted = createdSessionsNow;
-		this.lastFinishedSessionsEmitted = finishedSessionsNow;
-		this.lastRecordedRecordsEmitted = recordedRecordsNow;
-		this.lastBlocksAllocatedEmitted = blocksAllocatedNow;
-		this.lastDiskBytesAppendedEmitted = diskBytesAppendedNow;
+			this.lastCreatedSessionsEmitted = createdSessionsNow;
+			this.lastFinishedSessionsEmitted = finishedSessionsNow;
+			this.lastRecordedRecordsEmitted = recordedRecordsNow;
+			this.lastBlocksAllocatedEmitted = blocksAllocatedNow;
+			this.lastDiskBytesAppendedEmitted = diskBytesAppendedNow;
 
-		// one event per reason that changed since the previous emission (idle reasons are skipped)
-		for (final TrafficRecorderMissReason reason : MISS_REASONS) {
-			final int ordinal = reason.ordinal();
-			final long missedNow = this.missedRecordsByReason.get(reason).get();
-			final long droppedNow = this.droppedSessionsByReason.get(reason).get();
-			final long missedDelta = missedNow - this.lastMissedRecordsEmitted[ordinal];
-			final long droppedDelta = droppedNow - this.lastDroppedSessionsEmitted[ordinal];
-			if (missedDelta != 0 || droppedDelta != 0) {
-				new TrafficRecorderSkippedRecordsEvent(
-					this.catalogName, reason.name(), missedDelta, droppedDelta
-				).commit();
-				this.lastMissedRecordsEmitted[ordinal] = missedNow;
-				this.lastDroppedSessionsEmitted[ordinal] = droppedNow;
+			// one event per reason that changed since the previous emission (idle reasons are skipped)
+			for (final TrafficRecorderMissReason reason : MISS_REASONS) {
+				final int ordinal = reason.ordinal();
+				final long missedNow = this.missedRecordsByReason.get(reason).get();
+				final long droppedNow = this.droppedSessionsByReason.get(reason).get();
+				final long missedDelta = missedNow - this.lastMissedRecordsEmitted[ordinal];
+				final long droppedDelta = droppedNow - this.lastDroppedSessionsEmitted[ordinal];
+				if (missedDelta != 0 || droppedDelta != 0) {
+					new TrafficRecorderSkippedRecordsEvent(
+						this.catalogName, reason.name(), missedDelta, droppedDelta
+					).commit();
+					this.lastMissedRecordsEmitted[ordinal] = missedNow;
+					this.lastDroppedSessionsEmitted[ordinal] = droppedNow;
+				}
 			}
+		} finally {
+			this.drainLock.unlock();
 		}
 	}
 

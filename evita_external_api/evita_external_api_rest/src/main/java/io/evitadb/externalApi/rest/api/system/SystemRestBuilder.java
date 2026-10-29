@@ -48,6 +48,14 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.SetRe
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ConflictResolutionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeFilterAcceleratorsDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedBucketedPartiallyDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFacetedPartiallyDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedHistogramIndexDefinitionDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexedComponentsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.CreateAssociatedDataSchemaMutationDescriptor;
@@ -93,6 +101,7 @@ import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.builder.FinalRestBuilder;
+import io.evitadb.externalApi.rest.api.catalog.schemaApi.builder.AnalysisStepInputObjectBuilder;
 import io.evitadb.externalApi.rest.api.model.ErrorDescriptor;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEnum;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
@@ -147,7 +156,11 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 		return this.buildingContext.buildRest();
 	}
 
+	/**
+	 * Registers system types and schema metadata referenced by captured mutation payloads.
+	 */
 	private void buildCommonTypes() {
+		AnalysisStepInputObjectBuilder.registerTypes(this.buildingContext, this.objectBuilderTransformer);
 		this.buildingContext.registerType(buildScalarEnum());
 		this.buildingContext.registerType(buildAssociatedDataScalarEnum());
 
@@ -159,7 +172,32 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 		this.buildingContext.registerType(UnusableCatalogDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(CreateCatalogRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(UpdateCatalogRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(AttributeElementDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(
+			ScopedReferenceIndexedComponentsDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedReferenceIndexTypeDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedHistogramIndexDefinitionDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedAttributeUniquenessTypeDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedFacetedPartiallyDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedBucketedPartiallyDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedAttributeFilterAcceleratorsDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
 
 		// these objects are not used by the endpoints directly, but are used within the WebSocket protocol for CDC streams,
 		// which we currently cannot specify in the OpenAPI specification. So we at least provide the object documentation
@@ -277,6 +315,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 			RemoveAttributeSchemaMutationDescriptor.THIS,
 			SetAttributeSchemaFilterableMutationDescriptor.THIS,
 			SetAttributeSchemaAcceleratedMutationDescriptor.THIS,
+			SetAttributeSchemaNormalizedMutationDescriptor.THIS,
 			SetAttributeSchemaLocalizedMutationDescriptor.THIS,
 			SetAttributeSchemaNullableMutationDescriptor.THIS,
 			SetAttributeSchemaRepresentativeMutationDescriptor.THIS,
@@ -415,6 +454,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 					typeRefTo(RemoveAttributeSchemaMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaFilterableMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaAcceleratedMutationDescriptor.THIS.name()),
+					typeRefTo(SetAttributeSchemaNormalizedMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaLocalizedMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaNullableMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaRepresentativeMutationDescriptor.THIS.name()),

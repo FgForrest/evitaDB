@@ -460,9 +460,7 @@ class AccompanyingPriceContentTest {
 			final AccompanyingPriceContent constraint = new AccompanyingPriceContent("myPrice", "reference");
 			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
 
-			constraint.accept(c -> {
-				visited.set(c);
-			});
+			constraint.accept(visited::set);
 
 			assertSame(constraint, visited.get());
 		}
@@ -472,7 +470,7 @@ class AccompanyingPriceContentTest {
 		void shouldReturnRequireConstraintType() {
 			final AccompanyingPriceContent constraint = new AccompanyingPriceContent("myPrice", "reference");
 
-			assertEquals(RequireConstraint.class, constraint.getType());
+			assertSame(RequireConstraint.class, constraint.getType());
 		}
 	}
 

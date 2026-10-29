@@ -29,6 +29,7 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIndexContainerFormula;
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
@@ -47,6 +48,7 @@ import io.evitadb.index.range.RangeIndex;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -67,6 +69,7 @@ import java.util.function.ToLongFunction;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Slf4j
 public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends AbstractPriceListAndCurrencyPriceIndex<SELF>>
 	implements VoidTransactionMemoryProducer<SELF>,
 	PriceListAndCurrencyPriceIndex<SELF>,
@@ -171,7 +174,7 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 		this.terminated = new TransactionalBoolean();
 		this.priceIndexKey = priceIndexKey;
 		this.validityIndex = validityIndex;
-		this.priceRecords = newPriceRecordTree(priceRecords);
+		this.priceRecords = newPriceRecordTree(priceRecords, priceIndexKey);
 
 		final int[] priceIds = new int[priceRecords.length];
 		final int[] entityIds = new int[priceRecords.length];
@@ -557,22 +560,50 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 	}
 
 	/**
-	 * Builds the element-keyed B+ tree backing {@link #priceRecords} from a (deserialized) price-record array, inserting
-	 * each record under its internal price id. The array is expected ascending by internal price id, so the inserts land
-	 * at the right edge and never need to re-sort.
+	 * Builds the price-record tree from a deserialized array. Strictly ascending input is bulk-built when no
+	 * transaction is bound. Other input retains insert semantics, including replacement of duplicate ids; an ordering
+	 * violation is logged once with the index identity and first offending pair so its upstream cause can be fixed.
 	 *
-	 * @param priceRecords the price records to seed the tree with
-	 * @return a price-record tree holding every passed record
+	 * @param priceRecords  the price records to seed the tree with
+	 * @param priceIndexKey the index identity used in the ordering diagnostic
+	 * @return a correct price-record tree holding every passed record
 	 */
 	@Nonnull
 	protected static TransactionalElementBPlusTree<PriceRecordContract> newPriceRecordTree(
-		@Nonnull PriceRecordContract[] priceRecords
+		@Nonnull PriceRecordContract[] priceRecords, @Nonnull PriceIndexKey priceIndexKey
 	) {
+		final int violation = firstNonAscendingPosition(priceRecords);
+		if (violation >= 0) {
+			log.error(
+				"Price index {} has non-ascending internal price ids at position {}: {} followed by {}. " +
+					"The tree was built by inserts and is correct.",
+				priceIndexKey, violation, priceRecords[violation - 1].internalPriceId(),
+				priceRecords[violation].internalPriceId()
+			);
+		} else if (!Transaction.isTransactionAvailable()) {
+			return TransactionalElementBPlusTree.bulkBuild(PriceRecordContract.class, PRICE_RECORD_KEY, priceRecords);
+		}
 		final TransactionalElementBPlusTree<PriceRecordContract> tree = newPriceRecordTree();
 		for (final PriceRecordContract priceRecord : priceRecords) {
 			tree.insert(priceRecord);
 		}
 		return tree;
+	}
+
+	/**
+	 * Finds the first record whose internal price id does not exceed its predecessor's — the pair that keeps the
+	 * input away from the bulk builder.
+	 *
+	 * @param priceRecords the price records in their deserialized order
+	 * @return the position of the later record of the first non-ascending pair, or `-1` when the ids strictly ascend
+	 */
+	private static int firstNonAscendingPosition(@Nonnull PriceRecordContract[] priceRecords) {
+		for (int i = 1; i < priceRecords.length; i++) {
+			if (priceRecords[i - 1].internalPriceId() >= priceRecords[i].internalPriceId()) {
+				return i;
+			}
+		}
+		return -1;
 	}
 
 	/**

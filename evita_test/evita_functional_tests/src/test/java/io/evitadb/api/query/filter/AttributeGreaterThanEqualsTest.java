@@ -159,7 +159,7 @@ class AttributeGreaterThanEqualsTest {
 		void shouldReturnCorrectType() {
 			final AttributeGreaterThanEquals constraint = attributeGreaterThanEquals("abc", "def");
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 	}
 
@@ -196,12 +196,12 @@ class AttributeGreaterThanEqualsTest {
 				attributeGreaterThanEquals("abc", "defe")
 			);
 			assertNotEquals(
-				attributeGreaterThanEquals("abc", "def"),
-				new AttributeGreaterThanEquals("abc", null)
+				new AttributeGreaterThanEquals("abc", null),
+				attributeGreaterThanEquals("abc", "def")
 			);
 			assertNotEquals(
-				attributeGreaterThanEquals("abc", "def"),
-				new AttributeGreaterThanEquals(null, "abc")
+				new AttributeGreaterThanEquals(null, "abc"),
+				attributeGreaterThanEquals("abc", "def")
 			);
 			assertEquals(
 				attributeGreaterThanEquals("abc", "def").hashCode(),

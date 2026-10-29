@@ -147,7 +147,7 @@ class RequireTest {
 		void shouldReturnRequireConstraintClassAsType() {
 			final Require require = new Require(entityFetch());
 
-			assertEquals(RequireConstraint.class, require.getType());
+			assertSame(RequireConstraint.class, require.getType());
 		}
 
 		@Test

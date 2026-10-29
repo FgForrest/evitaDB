@@ -87,7 +87,7 @@ class EntityRecordAllLocalesProxyingFunctionalTest {
 				.withAttribute(NAME, String.class, AttributeSchemaEditor::localized)
 				.withReferenceTo(
 					BRAND, BRAND, Cardinality.ZERO_OR_ONE,
-					whichIs -> whichIs.withAttribute(LABEL, String.class, thatIs -> thatIs.localized())
+					whichIs -> whichIs.withAttribute(LABEL, String.class, AttributeSchemaEditor::localized)
 				)
 				.updateVia(session);
 			session.createNewEntity(Entities.PRODUCT, 1)

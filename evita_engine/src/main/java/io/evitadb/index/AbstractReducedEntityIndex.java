@@ -23,7 +23,6 @@
 
 package io.evitadb.index;
 
-import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
@@ -41,6 +40,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
@@ -105,40 +105,22 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 	@Getter private final PriceRefIndex priceIndex;
 
 	/**
-	 * Creates a new empty reduced entity index.
-	 *
-	 * This constructor intentionally leaves the change-detection baseline empty; terminal
-	 * subclasses (`ReducedEntityIndex`, `ReducedGroupEntityIndex`) must call
-	 * `captureOriginalsFromComponents()` after registering their own subclass-owned components.
-	 *
-	 * @param primaryKey     the primary key of this index
-	 * @param entityType     the type of entity being indexed
-	 * @param entityIndexKey the key identifying this index
-	 */
-	protected AbstractReducedEntityIndex(
-		int primaryKey,
-		@Nonnull String entityType,
-		@Nonnull EntityIndexKey entityIndexKey
-	) {
-		this(primaryKey, entityType, entityIndexKey, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING);
-	}
-
-	/**
-	 * Creates a new empty reduced entity index, stating whether it counts its own usage - see
-	 * {@link #AbstractReducedEntityIndex(int, String, EntityIndexKey)} for everything else this constructor does.
+	 * Creates an empty reduced entity index with explicit usage tracking and the owner resolver for String keys.
 	 *
 	 * @param primaryKey              the primary key of this index
 	 * @param entityType              the type of entity being indexed
 	 * @param entityIndexKey          the key identifying this index
 	 * @param usageStatisticsTracking whether to allocate an {@link io.evitadb.index.IndexActivity} holder for it
+	 * @param normalizationResolver   the owner's resolver new attribute structures bind their key functions from
 	 */
 	protected AbstractReducedEntityIndex(
 		int primaryKey,
 		@Nonnull String entityType,
 		@Nonnull EntityIndexKey entityIndexKey,
-		boolean usageStatisticsTracking
+		boolean usageStatisticsTracking,
+		@Nonnull AttributeNormalizationResolver normalizationResolver
 	) {
-		super(primaryKey, entityType, entityIndexKey, usageStatisticsTracking);
+		super(primaryKey, entityType, entityIndexKey, usageStatisticsTracking, normalizationResolver);
 		this.priceIndex = new PriceRefIndex(this.getIndexKey().scope());
 		addComponent(new PriceIndexComponent(this.priceIndex));
 	}

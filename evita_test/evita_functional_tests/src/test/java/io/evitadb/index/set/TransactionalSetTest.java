@@ -671,14 +671,20 @@ class TransactionalSetTest {
 
 		@Test
 		@DisplayName("equals returns false for null")
+		@SuppressWarnings({"SimplifiableAssertion", "ObjectEqualsNull"})
 		void shouldNotEqualNull() {
-			assertNotEquals(null, TransactionalSetTest.this.tested);
+			// deliberately not `assertNotEquals`: with `null` as its first argument it calls no `equals` at all, so
+			// the null check of the class under test would never run
+			assertFalse(TransactionalSetTest.this.tested.equals(null));
 		}
 
 		@Test
 		@DisplayName("equals returns false for non-collection")
+		@SuppressWarnings({"SimplifiableAssertion", "EqualsBetweenInconvertibleTypes"})
 		void shouldNotEqualString() {
-			assertNotEquals("not a set", TransactionalSetTest.this.tested);
+			// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
+			// fix moves the literal there, so `String.equals` would be tested instead of the class under test
+			assertFalse(TransactionalSetTest.this.tested.equals("not a set"));
 		}
 
 		@Test

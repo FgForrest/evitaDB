@@ -55,6 +55,7 @@ private static final long serialVersionUID = 0L;
     sortableInScopes_ = java.util.Collections.emptyList();
     conflictResolutionOverride_ = 0;
     acceleratorsInScopes_ = java.util.Collections.emptyList();
+    normalization_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -218,7 +219,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=90
+   *     See GrpcAttributeSchemaMutations.proto;l=95
    * @return The enum numeric value on the wire for unique.
    */
   @java.lang.Override @java.lang.Deprecated public int getUniqueValue() {
@@ -233,7 +234,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=90
+   *     See GrpcAttributeSchemaMutations.proto;l=95
    * @return The unique.
    */
   @java.lang.Override @java.lang.Deprecated public io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique() {
@@ -252,7 +253,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=94
+   *     See GrpcAttributeSchemaMutations.proto;l=99
    * @return The enum numeric value on the wire for uniqueGlobally.
    */
   @java.lang.Override @java.lang.Deprecated public int getUniqueGloballyValue() {
@@ -267,7 +268,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=94
+   *     See GrpcAttributeSchemaMutations.proto;l=99
    * @return The uniqueGlobally.
    */
   @java.lang.Override @java.lang.Deprecated public io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType getUniqueGlobally() {
@@ -287,7 +288,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>bool filterable = 6 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.filterable is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=99
+   *     See GrpcAttributeSchemaMutations.proto;l=104
    * @return The filterable.
    */
   @java.lang.Override
@@ -307,7 +308,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>bool sortable = 7 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.sortable is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=104
+   *     See GrpcAttributeSchemaMutations.proto;l=109
    * @return The sortable.
    */
   @java.lang.Override
@@ -856,6 +857,77 @@ private static final long serialVersionUID = 0L;
     return acceleratorsInScopes_.get(index);
   }
 
+  public static final int NORMALIZATION_FIELD_NUMBER = 20;
+  @SuppressWarnings("serial")
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep> normalization_;
+  /**
+   * <pre>
+   * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+   * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+   * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep> getNormalizationList() {
+    return normalization_;
+  }
+  /**
+   * <pre>
+   * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+   * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+   * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+   */
+  @java.lang.Override
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAnalysisStepOrBuilder> 
+      getNormalizationOrBuilderList() {
+    return normalization_;
+  }
+  /**
+   * <pre>
+   * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+   * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+   * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+   */
+  @java.lang.Override
+  public int getNormalizationCount() {
+    return normalization_.size();
+  }
+  /**
+   * <pre>
+   * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+   * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+   * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep getNormalization(int index) {
+    return normalization_.get(index);
+  }
+  /**
+   * <pre>
+   * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+   * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+   * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcAnalysisStepOrBuilder getNormalizationOrBuilder(
+      int index) {
+    return normalization_.get(index);
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -935,6 +1007,9 @@ private static final long serialVersionUID = 0L;
     }
     for (int i = 0; i < acceleratorsInScopes_.size(); i++) {
       output.writeMessage(19, acceleratorsInScopes_.get(i));
+    }
+    for (int i = 0; i < normalization_.size(); i++) {
+      output.writeMessage(20, normalization_.get(i));
     }
     getUnknownFields().writeTo(output);
   }
@@ -1036,6 +1111,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(19, acceleratorsInScopes_.get(i));
     }
+    for (int i = 0; i < normalization_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(20, normalization_.get(i));
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -1092,6 +1171,8 @@ private static final long serialVersionUID = 0L;
     if (conflictResolutionOverride_ != other.conflictResolutionOverride_) return false;
     if (!getAcceleratorsInScopesList()
         .equals(other.getAcceleratorsInScopesList())) return false;
+    if (!getNormalizationList()
+        .equals(other.getNormalizationList())) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -1161,6 +1242,10 @@ private static final long serialVersionUID = 0L;
     if (getAcceleratorsInScopesCount() > 0) {
       hash = (37 * hash) + ACCELERATORSINSCOPES_FIELD_NUMBER;
       hash = (53 * hash) + getAcceleratorsInScopesList().hashCode();
+    }
+    if (getNormalizationCount() > 0) {
+      hash = (37 * hash) + NORMALIZATION_FIELD_NUMBER;
+      hash = (53 * hash) + getNormalizationList().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -1303,6 +1388,7 @@ private static final long serialVersionUID = 0L;
         getUniqueInScopesFieldBuilder();
         getUniqueGloballyInScopesFieldBuilder();
         getAcceleratorsInScopesFieldBuilder();
+        getNormalizationFieldBuilder();
       }
     }
     @java.lang.Override
@@ -1360,6 +1446,13 @@ private static final long serialVersionUID = 0L;
         acceleratorsInScopesBuilder_.clear();
       }
       bitField0_ = (bitField0_ & ~0x00040000);
+      if (normalizationBuilder_ == null) {
+        normalization_ = java.util.Collections.emptyList();
+      } else {
+        normalization_ = null;
+        normalizationBuilder_.clear();
+      }
+      bitField0_ = (bitField0_ & ~0x00080000);
       return this;
     }
 
@@ -1429,6 +1522,15 @@ private static final long serialVersionUID = 0L;
         result.acceleratorsInScopes_ = acceleratorsInScopes_;
       } else {
         result.acceleratorsInScopes_ = acceleratorsInScopesBuilder_.build();
+      }
+      if (normalizationBuilder_ == null) {
+        if (((bitField0_ & 0x00080000) != 0)) {
+          normalization_ = java.util.Collections.unmodifiableList(normalization_);
+          bitField0_ = (bitField0_ & ~0x00080000);
+        }
+        result.normalization_ = normalization_;
+      } else {
+        result.normalization_ = normalizationBuilder_.build();
       }
     }
 
@@ -1675,6 +1777,32 @@ private static final long serialVersionUID = 0L;
           }
         }
       }
+      if (normalizationBuilder_ == null) {
+        if (!other.normalization_.isEmpty()) {
+          if (normalization_.isEmpty()) {
+            normalization_ = other.normalization_;
+            bitField0_ = (bitField0_ & ~0x00080000);
+          } else {
+            ensureNormalizationIsMutable();
+            normalization_.addAll(other.normalization_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.normalization_.isEmpty()) {
+          if (normalizationBuilder_.isEmpty()) {
+            normalizationBuilder_.dispose();
+            normalizationBuilder_ = null;
+            normalization_ = other.normalization_;
+            bitField0_ = (bitField0_ & ~0x00080000);
+            normalizationBuilder_ = 
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getNormalizationFieldBuilder() : null;
+          } else {
+            normalizationBuilder_.addAllMessages(other.normalization_);
+          }
+        }
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -1850,6 +1978,19 @@ private static final long serialVersionUID = 0L;
               }
               break;
             } // case 154
+            case 162: {
+              io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep m =
+                  input.readMessage(
+                      io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep.parser(),
+                      extensionRegistry);
+              if (normalizationBuilder_ == null) {
+                ensureNormalizationIsMutable();
+                normalization_.add(m);
+              } else {
+                normalizationBuilder_.addMessage(m);
+              }
+              break;
+            } // case 162
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -2301,7 +2442,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=90
+     *     See GrpcAttributeSchemaMutations.proto;l=95
      * @return The enum numeric value on the wire for unique.
      */
     @java.lang.Override @java.lang.Deprecated public int getUniqueValue() {
@@ -2316,7 +2457,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=90
+     *     See GrpcAttributeSchemaMutations.proto;l=95
      * @param value The enum numeric value on the wire for unique to set.
      * @return This builder for chaining.
      */
@@ -2335,7 +2476,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=90
+     *     See GrpcAttributeSchemaMutations.proto;l=95
      * @return The unique.
      */
     @java.lang.Override
@@ -2352,7 +2493,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=90
+     *     See GrpcAttributeSchemaMutations.proto;l=95
      * @param value The unique to set.
      * @return This builder for chaining.
      */
@@ -2374,7 +2515,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=90
+     *     See GrpcAttributeSchemaMutations.proto;l=95
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearUnique() {
@@ -2394,7 +2535,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=94
+     *     See GrpcAttributeSchemaMutations.proto;l=99
      * @return The enum numeric value on the wire for uniqueGlobally.
      */
     @java.lang.Override @java.lang.Deprecated public int getUniqueGloballyValue() {
@@ -2409,7 +2550,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=94
+     *     See GrpcAttributeSchemaMutations.proto;l=99
      * @param value The enum numeric value on the wire for uniqueGlobally to set.
      * @return This builder for chaining.
      */
@@ -2428,7 +2569,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=94
+     *     See GrpcAttributeSchemaMutations.proto;l=99
      * @return The uniqueGlobally.
      */
     @java.lang.Override
@@ -2445,7 +2586,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=94
+     *     See GrpcAttributeSchemaMutations.proto;l=99
      * @param value The uniqueGlobally to set.
      * @return This builder for chaining.
      */
@@ -2467,7 +2608,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=94
+     *     See GrpcAttributeSchemaMutations.proto;l=99
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearUniqueGlobally() {
@@ -2488,7 +2629,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool filterable = 6 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.filterable is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=99
+     *     See GrpcAttributeSchemaMutations.proto;l=104
      * @return The filterable.
      */
     @java.lang.Override
@@ -2505,7 +2646,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool filterable = 6 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.filterable is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=99
+     *     See GrpcAttributeSchemaMutations.proto;l=104
      * @param value The filterable to set.
      * @return This builder for chaining.
      */
@@ -2526,7 +2667,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool filterable = 6 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.filterable is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=99
+     *     See GrpcAttributeSchemaMutations.proto;l=104
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearFilterable() {
@@ -2547,7 +2688,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool sortable = 7 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.sortable is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=104
+     *     See GrpcAttributeSchemaMutations.proto;l=109
      * @return The sortable.
      */
     @java.lang.Override
@@ -2564,7 +2705,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool sortable = 7 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.sortable is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=104
+     *     See GrpcAttributeSchemaMutations.proto;l=109
      * @param value The sortable to set.
      * @return This builder for chaining.
      */
@@ -2585,7 +2726,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool sortable = 7 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.sortable is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=104
+     *     See GrpcAttributeSchemaMutations.proto;l=109
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearSortable() {
@@ -4540,6 +4681,354 @@ private static final long serialVersionUID = 0L;
         acceleratorsInScopes_ = null;
       }
       return acceleratorsInScopesBuilder_;
+    }
+
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep> normalization_ =
+      java.util.Collections.emptyList();
+    private void ensureNormalizationIsMutable() {
+      if (!((bitField0_ & 0x00080000) != 0)) {
+        normalization_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep>(normalization_);
+        bitField0_ |= 0x00080000;
+       }
+    }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep, io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep.Builder, io.evitadb.externalApi.grpc.generated.GrpcAnalysisStepOrBuilder> normalizationBuilder_;
+
+    /**
+     * <pre>
+     * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+     * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+     * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep> getNormalizationList() {
+      if (normalizationBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(normalization_);
+      } else {
+        return normalizationBuilder_.getMessageList();
+      }
+    }
+    /**
+     * <pre>
+     * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+     * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+     * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+     */
+    public int getNormalizationCount() {
+      if (normalizationBuilder_ == null) {
+        return normalization_.size();
+      } else {
+        return normalizationBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+     * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+     * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep getNormalization(int index) {
+      if (normalizationBuilder_ == null) {
+        return normalization_.get(index);
+      } else {
+        return normalizationBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+     * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+     * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+     */
+    public Builder setNormalization(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep value) {
+      if (normalizationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureNormalizationIsMutable();
+        normalization_.set(index, value);
+        onChanged();
+      } else {
+        normalizationBuilder_.setMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+     * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+     * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+     */
+    public Builder setNormalization(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep.Builder builderForValue) {
+      if (normalizationBuilder_ == null) {
+        ensureNormalizationIsMutable();
+        normalization_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        normalizationBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+     * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+     * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+     */
+    public Builder addNormalization(io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep value) {
+      if (normalizationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureNormalizationIsMutable();
+        normalization_.add(value);
+        onChanged();
+      } else {
+        normalizationBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+     * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+     * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+     */
+    public Builder addNormalization(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep value) {
+      if (normalizationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureNormalizationIsMutable();
+        normalization_.add(index, value);
+        onChanged();
+      } else {
+        normalizationBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+     * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+     * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+     */
+    public Builder addNormalization(
+        io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep.Builder builderForValue) {
+      if (normalizationBuilder_ == null) {
+        ensureNormalizationIsMutable();
+        normalization_.add(builderForValue.build());
+        onChanged();
+      } else {
+        normalizationBuilder_.addMessage(builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+     * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+     * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+     */
+    public Builder addNormalization(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep.Builder builderForValue) {
+      if (normalizationBuilder_ == null) {
+        ensureNormalizationIsMutable();
+        normalization_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        normalizationBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+     * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+     * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+     */
+    public Builder addAllNormalization(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep> values) {
+      if (normalizationBuilder_ == null) {
+        ensureNormalizationIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, normalization_);
+        onChanged();
+      } else {
+        normalizationBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+     * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+     * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+     */
+    public Builder clearNormalization() {
+      if (normalizationBuilder_ == null) {
+        normalization_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00080000);
+        onChanged();
+      } else {
+        normalizationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+     * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+     * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+     */
+    public Builder removeNormalization(int index) {
+      if (normalizationBuilder_ == null) {
+        ensureNormalizationIsMutable();
+        normalization_.remove(index);
+        onChanged();
+      } else {
+        normalizationBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+     * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+     * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep.Builder getNormalizationBuilder(
+        int index) {
+      return getNormalizationFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+     * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+     * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcAnalysisStepOrBuilder getNormalizationOrBuilder(
+        int index) {
+      if (normalizationBuilder_ == null) {
+        return normalization_.get(index);  } else {
+        return normalizationBuilder_.getMessageOrBuilder(index);
+      }
+    }
+    /**
+     * <pre>
+     * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+     * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+     * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+     */
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAnalysisStepOrBuilder> 
+         getNormalizationOrBuilderList() {
+      if (normalizationBuilder_ != null) {
+        return normalizationBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(normalization_);
+      }
+    }
+    /**
+     * <pre>
+     * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+     * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+     * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep.Builder addNormalizationBuilder() {
+      return getNormalizationFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+     * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+     * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep.Builder addNormalizationBuilder(
+        int index) {
+      return getNormalizationFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+     * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+     * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep.Builder> 
+         getNormalizationBuilderList() {
+      return getNormalizationFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep, io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep.Builder, io.evitadb.externalApi.grpc.generated.GrpcAnalysisStepOrBuilder> 
+        getNormalizationFieldBuilder() {
+      if (normalizationBuilder_ == null) {
+        normalizationBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep, io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep.Builder, io.evitadb.externalApi.grpc.generated.GrpcAnalysisStepOrBuilder>(
+                normalization_,
+                ((bitField0_ & 0x00080000) != 0),
+                getParentForChildren(),
+                isClean());
+        normalization_ = null;
+      }
+      return normalizationBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

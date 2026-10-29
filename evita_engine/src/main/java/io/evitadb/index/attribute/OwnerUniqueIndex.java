@@ -61,7 +61,7 @@ import java.util.function.Function;
 
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.collidingKeysError;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.findFirstNonAscendingKey;
-import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.normalizerFor;
+import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.persistedValueNormalizerFor;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.plainTypeOf;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.toDeclaredValue;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.toDistinctKeys;
@@ -82,9 +82,10 @@ import static io.evitadb.utils.Assert.isTrue;
  * individual {@link UniqueIndexLeafPagePart} leaf pages so a single edit rewrites one ~KB leaf instead of the whole
  * value map (see {@link #appendStorageParts}).
  *
- * The index keys every value exactly as the attribute's filter index does - through
- * {@link FilterIndex#getNormalizer(Class, int)} at the attribute's `indexedDecimalPlaces` - so two values the filter
- * index treats as one are one unique value here too (see {@link UniqueIndexBPlusTreeSupport}). Every entry point
+ * The index keys every value exactly as the attribute's filter index does - through the key function its owner
+ * binds: the attribute's normalization chain for a `String`, {@link FilterIndex#getNormalizer(Class, int)} at the
+ * attribute's `indexedDecimalPlaces` otherwise - so two values the filter index treats as one are one unique value
+ * here too (see {@link UniqueIndexBPlusTreeSupport}). Every entry point
  * converts its value to the key, and the storage parts carry the key as a value of the declared type.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -113,8 +114,8 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 */
 	@Getter private final int indexedDecimalPlaces;
 	/**
-	 * Converts every value to its key in {@link #tree} - the filter index's normalizer for {@link #plainType} at
-	 * {@link #indexedDecimalPlaces}, see {@link UniqueIndexBPlusTreeSupport#normalizerFor}.
+	 * Converts raw values and probes to keys in {@link #tree}; persisted keys use the type-level canonicalizer
+	 * separately.
 	 */
 	@Nonnull private final Function<Object, Serializable> normalizer;
 	/**
@@ -158,26 +159,54 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		@Nonnull Class<? extends Serializable> attributeType,
 		int indexedDecimalPlaces
 	) {
+		this(
+			entityType,
+			attributeIndexKey,
+			attributeType,
+			indexedDecimalPlaces,
+			persistedValueNormalizerFor(plainTypeOf(attributeType), indexedDecimalPlaces)
+		);
+	}
+
+	/**
+	 * Binds the immutable raw-input key function supplied by the owner.
+	 * Persisted parts carry declared-type values; each load converts them to keys with the type-level function,
+	 * never a declared chain, because a persisted `String` is already a chain-built key.
+	 *
+	 * @param entityType           type of the entity the index belongs to
+	 * @param attributeIndexKey    identifies the indexed attribute
+	 * @param attributeType        runtime type of the indexed attribute value
+	 * @param indexedDecimalPlaces the attribute schema's `indexedDecimalPlaces`
+	 * @param keyNormalizer        immutable function turning a raw input value into its index key
+	 */
+	public OwnerUniqueIndex(
+		@Nonnull String entityType,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Class<? extends Serializable> attributeType,
+		int indexedDecimalPlaces,
+		@Nonnull Function<Object, Serializable> keyNormalizer
+	) {
 		super(entityType, attributeIndexKey, attributeType);
 		this.dirty = new TransactionalBoolean();
 		this.plainType = plainTypeOf(attributeType);
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
-		this.normalizer = normalizerFor(this.plainType, indexedDecimalPlaces);
+		this.normalizer = keyNormalizer;
 		this.tree = createEmptyTree(this.plainType, indexedDecimalPlaces);
 		this.pageStreamRegistry = new PageStreamRegistry();
 	}
 
 	/**
-	 * Reconstructs a `SINGLE`-shape index from its persisted inline value/payload columns - the path taken when loading
-	 * an inline (SINGLE) index back from storage. The tree is rebuilt by inserting every `(value, recordId)` pair, each
-	 * value converted to its key; a pair of values naming one key refuses to load (see {@link #seedTree}).
+	 * Binds the immutable raw-input key function supplied by the owner.
+	 * Persisted parts carry declared-type values; each load converts them to keys with the type-level function,
+	 * never a declared chain, because a persisted `String` is already a chain-built key.
 	 *
-	 * @param entityType           type of the entity this index belongs to
-	 * @param attributeIndexKey    key identifying the indexed attribute
-	 * @param attributeType        declared type of the attribute value
+	 * @param entityType           type of the entity the index belongs to
+	 * @param attributeIndexKey    identifies the indexed attribute
+	 * @param attributeType        runtime type of the indexed attribute value
 	 * @param indexedDecimalPlaces the attribute schema's `indexedDecimalPlaces`
 	 * @param values               restored unique values
 	 * @param recordIds            restored record ids, positionally aligned with `values`
+	 * @param keyNormalizer        immutable function turning a raw input value into its index key
 	 */
 	public OwnerUniqueIndex(
 		@Nonnull String entityType,
@@ -185,9 +214,10 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		@Nonnull Class<? extends Serializable> attributeType,
 		int indexedDecimalPlaces,
 		@Nonnull Serializable[] values,
-		@Nonnull int[] recordIds
+		@Nonnull int[] recordIds,
+		@Nonnull Function<Object, Serializable> keyNormalizer
 	) {
-		this(entityType, attributeIndexKey, attributeType, indexedDecimalPlaces);
+		this(entityType, attributeIndexKey, attributeType, indexedDecimalPlaces, keyNormalizer);
 		seedTree(values, recordIds);
 	}
 
@@ -202,6 +232,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * @param indexedDecimalPlaces the scale the keys of `tree` are encoded at
 	 * @param tree                 the already-built value tree
 	 * @param pageStreamRegistry   the owner-resident page bookkeeping, carried BY REFERENCE
+	 * @param keyNormalizer        the raw-input key function bound when the index was created or loaded
 	 */
 	private OwnerUniqueIndex(
 		@Nonnull String entityType,
@@ -209,36 +240,34 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		@Nonnull Class<? extends Serializable> attributeType,
 		int indexedDecimalPlaces,
 		@Nonnull TransactionalBucketBPlusTree tree,
-		@Nonnull PageStreamRegistry pageStreamRegistry
+		@Nonnull PageStreamRegistry pageStreamRegistry,
+		@Nonnull Function<Object, Serializable> keyNormalizer
 	) {
 		super(entityType, attributeIndexKey, attributeType);
 		this.dirty = new TransactionalBoolean();
 		this.plainType = plainTypeOf(attributeType);
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
-		this.normalizer = normalizerFor(this.plainType, indexedDecimalPlaces);
+		this.normalizer = keyNormalizer;
 		this.tree = tree;
 		this.pageStreamRegistry = pageStreamRegistry;
 	}
 
 	/**
-	 * Rebuilds a `PAGED` owner unique index from its persisted leaf pages, preserving the original leaf boundaries and
-	 * page identities (mirrors {@code InvertedIndex.fromPersistedPages}). One leaf per persisted page is built, each
-	 * stamped with its page sequence, and the page-stream bookkeeping (high-water + live set) is restored, so the first
-	 * post-restart commit rewrites only genuinely-changed leaves rather than re-paginating the whole index.
+	 * Restores the index from its persisted leaf pages and binds the immutable raw-input key function supplied by
+	 * the owner.
+	 * Persisted parts carry declared-type values; each load converts them to keys with the type-level function,
+	 * never a declared chain, because a persisted `String` is already a chain-built key.
 	 *
-	 * Every persisted value is converted to its key first. A page whose keys do not come out strictly ascending is
-	 * refused, and when the cause is two values naming one key the error names both records (see
-	 * {@link UniqueIndexBPlusTreeSupport#collidingKeysError}).
-	 *
-	 * @param entityType            type of the entity this index belongs to
-	 * @param attributeIndexKey     key identifying the indexed attribute
-	 * @param attributeType         declared type of the attribute value
-	 * @param indexedDecimalPlaces  the attribute schema's `indexedDecimalPlaces`
-	 * @param orderedPageSequences  the persisted leaf-page sequences in ascending key order
-	 * @param perPageValues         the values of each leaf page, positionally aligned with `orderedPageSequences`
-	 * @param perPageRecordIds      the record ids of each leaf page, positionally aligned with `perPageValues`
-	 * @param highWaterPageSequence the persisted stream high-water (largest page sequence ever allocated)
-	 * @return the rebuilt, boundary-stable `PAGED` owner unique index
+	 * @param entityType             type of the entity the index belongs to
+	 * @param attributeIndexKey      identifies the indexed attribute
+	 * @param attributeType          runtime type of the indexed attribute value
+	 * @param indexedDecimalPlaces   the attribute schema's `indexedDecimalPlaces`
+	 * @param orderedPageSequences   page sequence of each leaf page, in key order
+	 * @param perPageValues          unique values of each leaf page, aligned with `orderedPageSequences`
+	 * @param perPageRecordIds       record ids of each leaf page, positionally aligned with `perPageValues`
+	 * @param highWaterPageSequence  highest page sequence ever used, so that new pages receive fresh sequences
+	 * @param keyNormalizer          immutable function turning a raw input value into its index key
+	 * @return index restored from its persisted leaf pages
 	 */
 	@Nonnull
 	public static OwnerUniqueIndex fromPersistedPages(
@@ -249,7 +278,8 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		@Nonnull int[] orderedPageSequences,
 		@Nonnull Serializable[][] perPageValues,
 		@Nonnull int[][] perPageRecordIds,
-		int highWaterPageSequence
+		int highWaterPageSequence,
+		@Nonnull Function<Object, Serializable> keyNormalizer
 	) {
 		Assert.isPremiseValid(
 			orderedPageSequences.length == perPageValues.length && perPageValues.length == perPageRecordIds.length,
@@ -257,10 +287,13 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		);
 		Assert.isPremiseValid(orderedPageSequences.length > 0, "A paged owner unique index must have at least one leaf page.");
 		final Class<?> plainType = plainTypeOf(attributeType);
-		final Function<Object, Serializable> normalizer = normalizerFor(plainType, indexedDecimalPlaces);
+		// Persisted parts carry declared-type values. Every load converts them to keys with the type-level
+		// function, never a declared chain: a persisted String is already a chain-built key.
+		final Function<Object, Serializable> persistedValueNormalizer =
+			persistedValueNormalizerFor(plainType, indexedDecimalPlaces);
 		final List<TransactionalBucketBPlusTree> pageTrees = new ArrayList<>(orderedPageSequences.length);
 		for (int i = 0; i < orderedPageSequences.length; i++) {
-			final Object[] keys = toPersistedKeys(normalizer, perPageValues[i]);
+			final Object[] keys = toPersistedKeys(persistedValueNormalizer, perPageValues[i]);
 			final int[] records = perPageRecordIds[i];
 			// a page never exceeds a leaf's capacity, so this single-leaf tree never splits; bulk-build the leaf's
 			// columns in one pass instead of `values.length` sequential addRecord calls - see
@@ -297,7 +330,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 			UNIQUE_PAGE_STREAM, highWaterPageSequence, tree.leafPageHandles()
 		);
 		return new OwnerUniqueIndex(
-			entityType, attributeIndexKey, attributeType, indexedDecimalPlaces, tree, pageStreamRegistry
+			entityType, attributeIndexKey, attributeType, indexedDecimalPlaces, tree, pageStreamRegistry, keyNormalizer
 		);
 	}
 
@@ -313,9 +346,15 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 
 	@Nullable
 	@Override
-	public Integer getRecordIdByUniqueValue(@Nonnull Serializable value) {
-		final Bitmap records = this.tree.getRecordsEqualTo(toKey(this.normalizer, value));
+	protected Integer getRecordIdByUniqueKey(@Nonnull Serializable key) {
+		final Bitmap records = this.tree.getRecordsEqualTo((Comparable<?>) key);
 		return records.isEmpty() ? null : records.getFirst();
+	}
+
+	@Nonnull
+	@Override
+	protected Serializable toLookupKey(@Nonnull Serializable rawValue) {
+		return (Serializable) toKey(this.normalizer, rawValue);
 	}
 
 	/**
@@ -465,7 +504,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 			this.pageStreamRegistry.publishStaged();
 			return new OwnerUniqueIndex(
 				getEntityType(), getAttributeIndexKey(), getType(), this.indexedDecimalPlaces, committedTree,
-				this.pageStreamRegistry
+				this.pageStreamRegistry, this.normalizer
 			);
 		} else {
 			return this;
@@ -511,11 +550,16 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * bucket instead of adding one, which the O(1) bucket count tells right away (see
 	 * {@link UniqueIndexBPlusTreeSupport#collidingKeysError}).
 	 *
+	 * Persisted parts carry declared-type values; every load converts them back to keys with the type-level
+	 * function, never a declared chain: a persisted `String` is already a chain-built key.
+	 *
 	 * @param values    the persisted values
 	 * @param recordIds the persisted record ids, positionally aligned with `values`
 	 */
 	private void seedTree(@Nonnull Serializable[] values, @Nonnull int[] recordIds) {
-		final Object[] keys = toPersistedKeys(this.normalizer, values);
+		final Object[] keys = toPersistedKeys(
+			persistedValueNormalizerFor(this.plainType, this.indexedDecimalPlaces), values
+		);
 		for (int i = 0; i < keys.length; i++) {
 			this.tree.addRecord((Comparable) keys[i], recordIds[i]);
 			if (this.tree.size() != i + 1) {

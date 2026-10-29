@@ -51,6 +51,7 @@ import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.core.expression.trigger.DependencyType;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.mutation.EntityIndexMutation;
 import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
@@ -79,16 +80,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
 import org.junit.jupiter.api.Tag;
 
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for the source-side detection logic in
@@ -221,19 +223,23 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 
 	/** Attribute schema for the `inputWidgetType` attribute. */
 	private static final EntityAttributeSchema INPUT_WIDGET_TYPE_SCHEMA =
-		EntityAttributeSchema._internalBuild("inputWidgetType", String.class, false, ConflictResolutionOverride.INHERITED);
+		EntityAttributeSchema._internalBuild(
+			"inputWidgetType", String.class, false, ConflictResolutionOverride.INHERITED, null
+		);
 	/** Attribute schema for the `status` attribute. */
 	private static final EntityAttributeSchema STATUS_SCHEMA =
-		EntityAttributeSchema._internalBuild("status", String.class, false, ConflictResolutionOverride.INHERITED);
+		EntityAttributeSchema._internalBuild("status", String.class, false, ConflictResolutionOverride.INHERITED, null);
 	/** Attribute schema for the `priority` attribute. */
 	private static final EntityAttributeSchema PRIORITY_SCHEMA =
-		EntityAttributeSchema._internalBuild("priority", Integer.class, false, ConflictResolutionOverride.INHERITED);
+		EntityAttributeSchema._internalBuild(
+			"priority", Integer.class, false, ConflictResolutionOverride.INHERITED, null
+		);
 	/** Attribute schema for the `code` attribute. */
 	private static final EntityAttributeSchema CODE_SCHEMA =
-		EntityAttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED);
+		EntityAttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED, null);
 	/** Localized attribute schema for the `name` attribute. */
 	private static final EntityAttributeSchema NAME_SCHEMA =
-		EntityAttributeSchema._internalBuild("name", String.class, true, ConflictResolutionOverride.INHERITED);
+		EntityAttributeSchema._internalBuild("name", String.class, true, ConflictResolutionOverride.INHERITED, null);
 
 	/**
 	 * Builds a schema with all test attribute definitions so that `applyMutation()` does not throw
@@ -300,7 +306,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		final GlobalEntityIndex globalIndex = new GlobalEntityIndex(
 			1, SOURCE_ENTITY_TYPE, new EntityIndexKey(EntityIndexType.GLOBAL)
 		);
-		final CatalogIndex catalogIndex = new CatalogIndex(Scope.LIVE);
+		final CatalogIndex catalogIndex = new CatalogIndex(Scope.LIVE, true, AttributeNormalizationResolver.LEGACY_NFD);
 		final AtomicInteger sequencer = new AtomicInteger(1);
 		return new EntityIndexLocalMutationExecutor(
 			containerAccessor, entityPK,
@@ -315,7 +321,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			NOOP_CLASSIFIER_RESOLVER,
 			new SchemaCapabilityUsageRegistry(),
 			new SchemaCapabilityUsageRegistry(),
-			new FulltextAnalyzerRegistry(),
+			new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 			true,
 			new PartitionReservations()
 		);
@@ -1236,7 +1242,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		final GlobalEntityIndex globalIndex = new GlobalEntityIndex(
 			1, SOURCE_ENTITY_TYPE, new EntityIndexKey(EntityIndexType.GLOBAL)
 		);
-		final CatalogIndex catalogIndex = new CatalogIndex(Scope.LIVE);
+		final CatalogIndex catalogIndex = new CatalogIndex(Scope.LIVE, true, AttributeNormalizationResolver.LEGACY_NFD);
 		final AtomicInteger sequencer = new AtomicInteger(1);
 		return new EntityIndexLocalMutationExecutor(
 			containerAccessor, ENTITY_PK,
@@ -1251,7 +1257,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			NOOP_CLASSIFIER_RESOLVER,
 			new SchemaCapabilityUsageRegistry(),
 			new SchemaCapabilityUsageRegistry(),
-			new FulltextAnalyzerRegistry(),
+			new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 			true,
 			new PartitionReservations()
 		);

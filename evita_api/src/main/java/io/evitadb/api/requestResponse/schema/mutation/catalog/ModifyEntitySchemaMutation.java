@@ -87,13 +87,16 @@ public class ModifyEntitySchemaMutation
 		if (existingMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation &&
 			this.name.equals(modifyEntitySchemaMutation.getName())
 		) {
-			final List<LocalEntitySchemaMutation> mutations = new ArrayList<>(this.schemaMutations.length);
-			mutations.addAll(Arrays.asList(this.schemaMutations));
+			// the existing mutation was collected first, so this one's statements are added on top of its own
+			final LocalEntitySchemaMutation[] existingSchemaMutations = modifyEntitySchemaMutation.getSchemaMutations();
+			final List<LocalEntitySchemaMutation> mutations = new ArrayList<>(
+				existingSchemaMutations.length + this.schemaMutations.length);
+			mutations.addAll(Arrays.asList(existingSchemaMutations));
 			final MutationImpact updated = addMutations(
 				currentCatalogSchema,
 				currentCatalogSchema.getEntitySchemaOrThrowException(this.name),
 				mutations,
-				modifyEntitySchemaMutation.getSchemaMutations()
+				this.schemaMutations
 			);
 			if (updated != MutationImpact.NO_IMPACT) {
 				final ModifyEntitySchemaMutation combinedMutation = new ModifyEntitySchemaMutation(

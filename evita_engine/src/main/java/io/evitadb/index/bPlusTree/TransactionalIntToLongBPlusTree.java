@@ -42,8 +42,10 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.OptionalLong;
 import java.util.PrimitiveIterator.OfInt;
@@ -177,11 +179,57 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		);
 	}
 
+	/**
+	 * Adopts a bulk-assembled internal node's full-capacity arrays.
+	 */
+	@Nonnull
+	@Override
+	protected BPlusInternalTreeNode createAssembledInternalNode(
+		@Nonnull int[] keys, @Nonnull BPlusTreeNode<?>[] children, int peek, boolean transactionalLayer
+	) {
+		return new BPlusInternalTreeNode(keys, children, peek, transactionalLayer);
+	}
+
 	@Override
 	protected boolean splitNodesJoinTransactionalLayer() {
-		// the int→long tree's nodes are Snapshotable and the tree is never bulk-rebuilt by re-inserting outside an
-		// active transaction, so split offspring always join the diff layer for per-entity savepoint rollback
+		// Split offspring and nodes bulk-built into the committed base participate in later transactional layers.
 		return true;
+	}
+
+	/**
+	 * Bulk-builds this empty, unpublished tree from strictly ascending keys and parallel values outside a bound
+	 * transaction. Input arrays are copied into content-sized leaf columns with at most `valueBlockSize - 1` entries.
+	 * A short remainder borrows from its predecessor, and the shared spine retains room for its first child split.
+	 * Every node participates in subsequent transactional layers. Only root and size replace existing state; their
+	 * transactional references already journal those replacements when a warm-up savepoint is open.
+	 *
+	 * @param keys   strictly ascending keys, not retained
+	 * @param values values aligned with the keys, not retained
+	 * @throws GenericEvitaInternalError if a transaction is bound, the tree is not empty, the lengths differ or the
+	 *                                  keys are not strictly ascending
+	 */
+	public void bulkBuild(@Nonnull int[] keys, @Nonnull long[] values) {
+		Assert.isPremiseValid(!Transaction.isTransactionAvailable(), "Bulk build requires no bound transaction.");
+		Assert.isPremiseValid(size() == 0, "Bulk build requires an empty tree.");
+		Assert.isPremiseValid(keys.length == values.length, "Bulk build requires parallel key and value arrays.");
+		for (int i = 1; i < keys.length; i++) {
+			Assert.isPremiseValid(keys[i - 1] < keys[i], "Bulk build requires strictly ascending keys.");
+		}
+		if (keys.length == 0) {
+			return;
+		}
+		final int[] leafSizes = bulkLeafSizes(keys.length, this.minValueBlockSize);
+		final List<BPlusLeafTreeNode> leaves = new ArrayList<>(leafSizes.length);
+		int start = 0;
+		for (final int leafSize : leafSizes) {
+			leaves.add(new BPlusLeafTreeNode(
+				keys, values, new int[leafSize], new long[leafSize], this.valueBlockSize,
+				start, start + leafSize, true
+			));
+			start += leafSize;
+		}
+		this.root.set(buildSpine(leaves, true));
+		this.size.set(keys.length);
 	}
 
 	/**

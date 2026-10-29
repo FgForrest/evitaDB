@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
@@ -109,7 +110,10 @@ public class CreateGlobalAttributeSchemaMutation
 	@Getter @Nullable private final Serializable defaultValue;
 	@Getter private final int indexedDecimalPlaces;
 	@Getter @Nonnull private final ConflictResolutionOverride conflictResolutionOverride;
+	/** Ordered normalization descriptions, or `null` for Unicode NFD only. */
+	@Nullable private final AnalysisStep[] normalization;
 
+	/** Creates an attribute using the default scope and Unicode NFD-only normalization. */
 	public CreateGlobalAttributeSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -264,7 +268,6 @@ public class CreateGlobalAttributeSchemaMutation
 	 *                                         accelerator does not apply to {@code type} (see
 	 *                                         {@link #verifyAcceleratorsApplicableToType})
 	 */
-	@SerializableCreator
 	public CreateGlobalAttributeSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -283,7 +286,74 @@ public class CreateGlobalAttributeSchemaMutation
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
+		this(
+			name,
+			description,
+			deprecationNotice,
+			uniqueInScopes,
+			uniqueGloballyInScopes,
+			filterableInScopes,
+			acceleratorsInScopes,
+			searchableInScopes,
+			sortableInScopes,
+			localized,
+			nullable,
+			representative,
+			type,
+			defaultValue,
+			indexedDecimalPlaces,
+			conflictResolutionOverride,
+			null
+		);
+	}
+
+	/**
+	 * Creates an attribute carrying the complete normalization statement. `null` means Unicode NFD only.
+	 * Cross-field normalization validity is checked when the assembled schema is validated.
+	 *
+	 * @param name                       unique name of the attribute
+	 * @param description                optional human-readable description of the attribute
+	 * @param deprecationNotice          optional deprecation notice if the attribute is deprecated
+	 * @param uniqueInScopes             the scopes in which the attribute must be unique (may be `null`)
+	 * @param uniqueGloballyInScopes     the scopes in which the attribute must be globally unique across
+	 *                                   the whole catalog (may be `null`)
+	 * @param filterableInScopes         the scopes in which the attribute is filterable (may be `null`)
+	 * @param acceleratorsInScopes       the accelerator carriers the mutation transports (may be `null`)
+	 * @param searchableInScopes         the scopes in which the attribute is searchable (may be `null`)
+	 * @param sortableInScopes           the scopes in which the attribute is sortable (may be `null`)
+	 * @param localized                  whether the attribute values are locale-specific
+	 * @param nullable                   whether the attribute value can be null
+	 * @param representative             whether the attribute is representative for the entity
+	 * @param type                       the data type stored in this attribute (must be a supported
+	 *                                   evitaDB type or its array)
+	 * @param defaultValue               optional default value for the attribute
+	 * @param indexedDecimalPlaces       number of decimal places indexed for number-based attribute types
+	 * @param conflictResolutionOverride the per-item override of the conflict resolution granularity
+	 *                                   applied to this attribute (never `null`)
+	 * @param normalization              ordered normalization descriptions
+	 */
+	@SerializableCreator
+	public CreateGlobalAttributeSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
+		@Nullable ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes,
+		@Nullable Scope[] filterableInScopes,
+		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
+		@Nullable Scope[] searchableInScopes,
+		@Nullable Scope[] sortableInScopes,
+		boolean localized,
+		boolean nullable,
+		boolean representative,
+		@Nonnull Class<? extends Serializable> type,
+		@Nullable Serializable defaultValue,
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable AnalysisStep[] normalization
+	) {
 		super(name);
+		this.normalization = normalization == null ? null : normalization.clone();
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ATTRIBUTE, name);
 		if (!EvitaDataTypes.isSupportedTypeOrItsArray(type)) {
 			throw new InvalidSchemaMutationException("The type `" + type + "` is not allowed in attributes!");
@@ -325,6 +395,16 @@ public class CreateGlobalAttributeSchemaMutation
 		this.defaultValue = defaultValue;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
 		this.conflictResolutionOverride = conflictResolutionOverride;
+	}
+
+	/**
+	 * Returns the normalization statement, defensively copying the array when present.
+	 *
+	 * @return copy of the ordered steps, or `null` when only Unicode NFD applies
+	 */
+	@Nullable
+	public AnalysisStep[] getNormalization() {
+		return this.normalization == null ? null : this.normalization.clone();
 	}
 
 	@Nonnull
@@ -373,6 +453,14 @@ public class CreateGlobalAttributeSchemaMutation
 			return new MutationCombinationResult<>(
 				null,
 				Stream.of(
+						makeMutationIfDifferent(
+							AttributeSchemaContract.class,
+							createdVersion, existingVersion,
+							AttributeSchemaContract::getNormalization,
+							newValue -> new SetAttributeSchemaNormalizedMutation(
+								this.name, newValue.toArray(AnalysisStep[]::new)
+							)
+						),
 						makeMutationIfDifferent(
 							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
@@ -507,7 +595,8 @@ public class CreateGlobalAttributeSchemaMutation
 			this.localized, this.nullable, this.representative,
 			(Class) this.type, this.defaultValue,
 			this.indexedDecimalPlaces,
-			this.conflictResolutionOverride
+			this.conflictResolutionOverride,
+			this.normalization == null ? null : Arrays.asList(this.normalization)
 		);
 	}
 
@@ -574,6 +663,7 @@ public class CreateGlobalAttributeSchemaMutation
 			", searchable=" +
 			(isSearchable() ? "(in scopes: " + Arrays.toString(this.searchableInScopes) + ")" : "no") +
 			", sortable=" + (isSortable() ? "(in scopes: " + Arrays.toString(this.sortableInScopes) + ")" : "no") +
+			", normalization=" + Arrays.toString(this.normalization) +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +
 			", representative=" + this.representative +

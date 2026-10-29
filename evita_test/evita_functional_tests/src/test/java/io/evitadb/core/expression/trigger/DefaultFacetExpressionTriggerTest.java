@@ -757,7 +757,8 @@ class DefaultFacetExpressionTriggerTest {
 			final Class<? extends Serializable> type = value.value().getClass();
 			final AttributeSchema attrSchema = AttributeSchema._internalBuild(
 				value.key().attributeName(), type, false,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null
 			);
 			part.upsertAttribute(value.key(), attrSchema, existing -> value);
 		}

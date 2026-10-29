@@ -89,7 +89,7 @@ class HierarchyExcludingTest {
 		void shouldReturnFilterConstraintType() {
 			final HierarchyExcluding constraint = excluding(entityPrimaryKeyInSet(1));
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 
 		@Test

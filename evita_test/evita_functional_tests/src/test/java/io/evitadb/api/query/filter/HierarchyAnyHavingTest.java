@@ -89,7 +89,7 @@ class HierarchyAnyHavingTest {
 		void shouldReturnFilterConstraintType() {
 			final HierarchyAnyHaving constraint = anyHaving(entityPrimaryKeyInSet(1));
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 
 		@Test

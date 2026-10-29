@@ -37,6 +37,7 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 /**
  * Attribute comparator sorts entities according to a specified attribute value. It needs to provide a function for
@@ -68,6 +69,7 @@ public class PickFirstReferenceAttributeComparator extends AbstractReferenceAttr
 	 * @param referenceSchema      the schema of the reference the attribute belongs to
 	 * @param locale               the locale to use when reading localized attribute values, or `null` when the
 	 *                             attribute is not localized
+	 * @param stringNormalizer     the effective String key function, with schema-masked fold locale
 	 * @param orderDirection       the direction to sort in
 	 * @param indexResolver        resolver providing the target order the index route walks
 	 */
@@ -78,6 +80,7 @@ public class PickFirstReferenceAttributeComparator extends AbstractReferenceAttr
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull OrderDirection orderDirection,
+		@Nonnull UnaryOperator<String> stringNormalizer,
 		@Nonnull PickFirstReducedIndexResolver indexResolver
 	) {
 		super(
@@ -86,7 +89,8 @@ public class PickFirstReferenceAttributeComparator extends AbstractReferenceAttr
 			indexedDecimalPlaces,
 			referenceSchema,
 			locale,
-			orderDirection
+			orderDirection,
+			stringNormalizer
 		);
 		this.targetRanking = new PickFirstReferenceTargetRanking(referenceSchema, indexResolver);
 	}

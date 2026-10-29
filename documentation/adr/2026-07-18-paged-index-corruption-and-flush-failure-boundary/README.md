@@ -1,7 +1,7 @@
 ---
 title: Publish the previous flush's page baseline before collecting; fail fast on stale twins and suspend the catalog rather than retrying a failed flush
 date: 2026-07-18
-updated: 2026-09-08 13:10
+updated: 2026-10-26 18:00
 status: accepted
 kind: fix
 issues: []
@@ -149,6 +149,9 @@ server-side.
   It repairs a loaded index rather than refusing it, because two buckets that encode to the same key must
   become one bucket and nothing about that is ambiguous — unlike two overlapping leaf pages, where nothing
   persisted says which superseded the other.
+  **Changed on 2026-10-26:** the temporal bucket repair now lives in `Migration_2026_3`, through
+  `LegacyInvertedIndexCorrection`. Inline range thresholds are converted by versioned readers, paged companions
+  by that migration; production loaders restore the converted structures and refuse corruption.
 
 ## Supporting material
 

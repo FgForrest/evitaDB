@@ -32,6 +32,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.ConflictResolutionDesc
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeFilterAcceleratorsDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.AnalysisStepDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedHistogramIndexDefinitionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedBucketedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFacetedPartiallyDescriptor;
@@ -78,7 +79,6 @@ import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.mutation.Catal
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.subscribingDataFetcher.ChangeCatalogSchemaCaptureUntypedBodyDataFetcher;
 
 import javax.annotation.Nonnull;
-
 import java.util.Map;
 
 import static graphql.schema.GraphQLTypeReference.typeRef;
@@ -148,6 +148,8 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 		this.buildingContext.registerType(ScopedBucketedPartiallyDescriptor.THIS_INPUT.to(
 			this.inputObjectBuilderTransformer).build()
 		);
+		this.buildingContext.registerType(AnalysisStepDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		registerAnalysisStepInputTypes();
 		this.buildingContext.registerType(AttributeElementDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(this.inputObjectBuilderTransformer).build());
 		this.buildingContext.registerType(ConflictResolutionDescriptor.THIS.to(this.objectBuilderTransformer).build());
@@ -227,6 +229,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			RemoveAttributeSchemaMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaFilterableMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaAcceleratedMutationDescriptor.THIS_INPUT,
+			SetAttributeSchemaNormalizedMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaLocalizedMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaNullableMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaRepresentativeMutationDescriptor.THIS_INPUT,
@@ -334,6 +337,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			RemoveAttributeSchemaMutationDescriptor.THIS,
 			SetAttributeSchemaFilterableMutationDescriptor.THIS,
 			SetAttributeSchemaAcceleratedMutationDescriptor.THIS,
+			SetAttributeSchemaNormalizedMutationDescriptor.THIS,
 			SetAttributeSchemaLocalizedMutationDescriptor.THIS,
 			SetAttributeSchemaNullableMutationDescriptor.THIS,
 			SetAttributeSchemaRepresentativeMutationDescriptor.THIS,

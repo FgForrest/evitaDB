@@ -14,6 +14,16 @@ In the context of the limitations described in this chapter, you might be intere
 data types and arrays described in [the query language basics](../basics.md#generic-query-rules).
 </Note>
 
+<Note type="info">
+[Attribute normalization](../../use/schema.md#normalization) applies to both the stored index keys and the searched
+text before the case-sensitive comparison of every constraint in this chapter. With the `lowercase` step, a search for
+`ABC` also matches a value containing, starting with or ending with `abc`. A pattern that normalizes to the empty
+string - for example, `"---"` with a `remove-characters` step removing hyphens - matches every present value, exactly
+as an empty pattern does. Missing attributes do not match; an empty normalized value is still present. The same rules
+apply when the [`SUBSTRING_SEARCH` accelerator](../../use/schema.md#substring-search) answers `attributeContains` or
+`attributeEndsWith`.
+</Note>
+
 ## Attribute contains
 
 ```evitaql-syntax
@@ -31,14 +41,15 @@ attributeContains(
     </dd>
     <dt>argument:string!</dt>
     <dd>
-        the arbitrary value to search for in the attribute value (case-sensitive)
+        the arbitrary value to search for in the attribute value (case-sensitive after
+        [normalization](../../use/schema.md#normalization))
     </dd>
 </dl>
 
 The `attributeContains` searches the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
 for the occurrence of the string. The constraint behaves exactly like the <LS to="e,j,r,g">[Java `contains` method](https://www.javatpoint.com/java-string-contains)</LS><LS to="c">[C# `Contains` method](https://learn.microsoft.com/en-us/dotnet/api/system.string.contains)</LS>.
-It's case-sensitive, works with national characters (since we're working with UTF-8 strings), and requires an exact
-match of the searched string anywhere in the attribute value.
+It works with national characters (since we're working with UTF-8 strings) and requires an exact match of the
+searched string anywhere in the attribute value.
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -118,14 +129,15 @@ attributeStartsWith(
     </dd>
     <dt>argument:string!</dt>
     <dd>
-        the arbitrary value to search for in the attribute value (case-sensitive)
+        the arbitrary value to search for in the attribute value (case-sensitive after
+        [normalization](../../use/schema.md#normalization))
     </dd>
 </dl>
 
 The `attributeStartsWith` searches the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
 and checks if it starts with the specified string. The constraint behaves exactly like the <LS to="e,j,r,g">[Java `startsWith` method](https://www.javatpoint.com/java-string-startswith)</LS><LS to="c">[C# `StartsWith` method](https://learn.microsoft.com/en-us/dotnet/api/system.string.startswith)</LS>.
-It's case-sensitive, works with national characters (since we're working with UTF-8 strings), and requires an exact
-match of the search string at the beginning of the attribute value.
+It works with national characters (since we're working with UTF-8 strings) and requires an exact match of the
+search string at the beginning of the attribute value.
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -191,15 +203,16 @@ attributeEndsWith(
     </dd>
     <dt>argument:string!</dt>
     <dd>
-        the arbitrary value to search for in the attribute value (case-sensitive)
+        the arbitrary value to search for in the attribute value (case-sensitive after
+        [normalization](../../use/schema.md#normalization))
     </dd>
 </dl>
 
 The `attributeEndsWith` searches the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
 and checks if it ends with the specified string. The constraint behaves exactly like the
 <LS to="e,j,r,g">[Java `endsWith` method](https://www.javatpoint.com/java-string-endswith)</LS><LS to="c">[C# `EndsWith` method](https://learn.microsoft.com/en-us/dotnet/api/system.string.endswith)</LS>.
-It's case-sensitive, works with national characters (since we're working with UTF-8 strings), and requires an exact
-match of the search string at the end of the attribute value.
+It works with national characters (since we're working with UTF-8 strings) and requires an exact match of the
+search string at the end of the attribute value.
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 

@@ -41,8 +41,10 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.dataType.Scope;
@@ -129,7 +131,7 @@ public class EntityLevelLocaleFunctionalTest {
 			}
 			for (final String type : new String[]{"Brand", "Store"}) {
 				session.defineEntitySchema(type)
-					.withReferenceToEntity("leaf", "Category", Cardinality.ONE_OR_MORE, thatIs -> thatIs.indexed())
+					.withReferenceToEntity("leaf", "Category", Cardinality.ONE_OR_MORE, ReferenceSchemaEditor::indexed)
 					.updateAndFetchVia(session);
 				for (int pk = 1; pk <= 2; pk++) {
 					session.getEntity(type, pk, entityFetchAllContent()).orElseThrow().openForWrite()
@@ -142,7 +144,7 @@ public class EntityLevelLocaleFunctionalTest {
 					.setAttribute("name", Locale.ENGLISH, "English-only").setReference("leaf", 1));
 			}
 			session.defineEntitySchema("Product").withoutGeneratedPrimaryKey().withLocale(CS, Locale.ENGLISH)
-				.withAttribute("name", String.class, thatIs -> thatIs.localized())
+				.withAttribute("name", String.class, AttributeSchemaEditor::localized)
 				.withReferenceToEntity("brand", "Brand", Cardinality.ONE_OR_MORE,
 					thatIs -> thatIs.indexed().faceted().withGroupTypeRelatedToEntity("Store")
 						.indexedWithComponents(ReferenceIndexedComponents.values())
@@ -151,7 +153,7 @@ public class EntityLevelLocaleFunctionalTest {
 				.withReferenceToEntity("nullableBrand", "Brand", Cardinality.ZERO_OR_MORE,
 					thatIs -> thatIs.indexed().withGroupTypeRelatedToEntity("Store")
 						.indexedWithComponents(ReferenceIndexedComponents.values()))
-				.withReferenceToEntity("category", "Category", Cardinality.ONE_OR_MORE, thatIs -> thatIs.indexed())
+				.withReferenceToEntity("category", "Category", Cardinality.ONE_OR_MORE, ReferenceSchemaEditor::indexed)
 				.updateAndFetchVia(session);
 			for (int pk = 1; pk <= 4; pk++) {
 				final int target = pk == 2 ? 2 : 1;

@@ -77,7 +77,7 @@ class ObjectJsonSerializerTest {
 		@Test
 		@DisplayName("Should serialize a null value into a JSON null node")
 		void shouldSerializeNullAsNullNode() {
-			final JsonNode result = serializer.serializeObject(null);
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject(null);
 
 			assertTrue(result.isNull());
 		}
@@ -85,7 +85,7 @@ class ObjectJsonSerializerTest {
 		@Test
 		@DisplayName("Should serialize a String into a textual node")
 		void shouldSerializeStringAsTextNode() {
-			final JsonNode result = serializer.serializeObject("hello");
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject("hello");
 
 			assertTrue(result.isTextual());
 			assertEquals("hello", result.asText());
@@ -94,7 +94,7 @@ class ObjectJsonSerializerTest {
 		@Test
 		@DisplayName("Should serialize a Character into a textual node")
 		void shouldSerializeCharacterAsTextNode() {
-			final JsonNode result = serializer.serializeObject('A');
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject('A');
 
 			assertTrue(result.isTextual());
 			assertEquals("A", result.asText());
@@ -103,7 +103,7 @@ class ObjectJsonSerializerTest {
 		@Test
 		@DisplayName("Should serialize an Integer into a numeric node")
 		void shouldSerializeIntegerAsNumberNode() {
-			final JsonNode result = serializer.serializeObject(42);
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject(42);
 
 			assertTrue(result.isInt());
 			assertEquals(42, result.intValue());
@@ -112,7 +112,7 @@ class ObjectJsonSerializerTest {
 		@Test
 		@DisplayName("Should serialize a Short into a numeric node")
 		void shouldSerializeShortAsNumberNode() {
-			final JsonNode result = serializer.serializeObject((short) 9);
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject((short) 9);
 
 			assertTrue(result.isNumber());
 			assertEquals((short) 9, result.shortValue());
@@ -121,7 +121,7 @@ class ObjectJsonSerializerTest {
 		@Test
 		@DisplayName("Should serialize a Byte into a numeric node")
 		void shouldSerializeByteAsNumberNode() {
-			final JsonNode result = serializer.serializeObject((byte) 3);
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject((byte) 3);
 
 			assertTrue(result.isNumber());
 			assertEquals(3, result.intValue());
@@ -130,7 +130,7 @@ class ObjectJsonSerializerTest {
 		@Test
 		@DisplayName("Should serialize a Long into a textual node holding its decimal string")
 		void shouldSerializeLongAsTextNode() {
-			final JsonNode result = serializer.serializeObject(123456789012L);
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject(123456789012L);
 
 			assertTrue(result.isTextual());
 			assertFalse(result.isNumber());
@@ -140,7 +140,7 @@ class ObjectJsonSerializerTest {
 		@Test
 		@DisplayName("Should serialize a Boolean into a boolean node")
 		void shouldSerializeBooleanAsBooleanNode() {
-			final JsonNode result = serializer.serializeObject(Boolean.TRUE);
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject(Boolean.TRUE);
 
 			assertTrue(result.isBoolean());
 			assertTrue(result.booleanValue());
@@ -151,7 +151,7 @@ class ObjectJsonSerializerTest {
 		void shouldSerializeBigDecimalAsFormattedText() {
 			final BigDecimal value = new BigDecimal("1.50");
 
-			final JsonNode result = serializer.serializeObject(value);
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject(value);
 
 			assertTrue(result.isTextual());
 			assertEquals(EvitaDataTypes.formatValue(value), result.asText());
@@ -165,7 +165,7 @@ class ObjectJsonSerializerTest {
 		@Test
 		@DisplayName("Should serialize a Locale into its language tag")
 		void shouldSerializeLocaleAsLanguageTag() {
-			final JsonNode result = serializer.serializeObject(Locale.forLanguageTag("cs-CZ"));
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject(Locale.forLanguageTag("cs-CZ"));
 
 			assertTrue(result.isTextual());
 			assertEquals("cs-CZ", result.asText());
@@ -174,7 +174,7 @@ class ObjectJsonSerializerTest {
 		@Test
 		@DisplayName("Should serialize a Currency into its currency code")
 		void shouldSerializeCurrencyAsCode() {
-			final JsonNode result = serializer.serializeObject(CURRENCY_CZK);
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject(CURRENCY_CZK);
 
 			assertTrue(result.isTextual());
 			assertEquals("CZK", result.asText());
@@ -185,7 +185,7 @@ class ObjectJsonSerializerTest {
 		void shouldSerializeOffsetDateTimeAsIso() {
 			final OffsetDateTime value = OffsetDateTime.of(2023, 1, 2, 3, 4, 5, 0, ZoneOffset.ofHours(2));
 
-			final JsonNode result = serializer.serializeObject(value);
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject(value);
 
 			assertTrue(result.isTextual());
 			assertEquals(DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(value), result.asText());
@@ -196,7 +196,7 @@ class ObjectJsonSerializerTest {
 		void shouldSerializeLocalDateTimeAsIso() {
 			final LocalDateTime value = LocalDateTime.of(2023, 1, 2, 3, 4, 5);
 
-			final JsonNode result = serializer.serializeObject(value);
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject(value);
 
 			assertTrue(result.isTextual());
 			assertEquals(DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(value), result.asText());
@@ -207,7 +207,7 @@ class ObjectJsonSerializerTest {
 		void shouldSerializeLocalDateAsIso() {
 			final LocalDate value = LocalDate.of(2023, 1, 2);
 
-			final JsonNode result = serializer.serializeObject(value);
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject(value);
 
 			assertTrue(result.isTextual());
 			assertEquals(DateTimeFormatter.ISO_LOCAL_DATE.format(value), result.asText());
@@ -218,7 +218,7 @@ class ObjectJsonSerializerTest {
 		void shouldSerializeLocalTimeAsIso() {
 			final LocalTime value = LocalTime.of(3, 4, 5);
 
-			final JsonNode result = serializer.serializeObject(value);
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject(value);
 
 			assertTrue(result.isTextual());
 			assertEquals(DateTimeFormatter.ISO_LOCAL_TIME.format(value), result.asText());
@@ -227,7 +227,7 @@ class ObjectJsonSerializerTest {
 		@Test
 		@DisplayName("Should serialize an Enum into its constant name")
 		void shouldSerializeEnumAsName() {
-			final JsonNode result = serializer.serializeObject(OrderDirection.ASC);
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject(OrderDirection.ASC);
 
 			assertTrue(result.isTextual());
 			assertEquals("ASC", result.asText());
@@ -236,7 +236,7 @@ class ObjectJsonSerializerTest {
 		@Test
 		@DisplayName("Should serialize a Predecessor into its predecessor primary key")
 		void shouldSerializePredecessorAsPk() {
-			final JsonNode result = serializer.serializeObject(new Predecessor(42));
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject(new Predecessor(42));
 
 			assertTrue(result.isInt());
 			assertEquals(42, result.intValue());
@@ -250,7 +250,7 @@ class ObjectJsonSerializerTest {
 		@Test
 		@DisplayName("Should serialize a closed range into a two-element array of both bounds")
 		void shouldSerializeClosedRangeAsTwoElementArray() {
-			final JsonNode result = serializer.serializeObject(IntegerNumberRange.between(1, 10));
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject(IntegerNumberRange.between(1, 10));
 
 			assertTrue(result.isArray());
 			assertEquals(2, result.size());
@@ -261,7 +261,7 @@ class ObjectJsonSerializerTest {
 		@Test
 		@DisplayName("Should serialize an open range bound into a JSON null node")
 		void shouldSerializeOpenRangeBoundAsNullNode() {
-			final JsonNode result = serializer.serializeObject(IntegerNumberRange.from(5));
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject(IntegerNumberRange.from(5));
 
 			assertTrue(result.isArray());
 			assertEquals(2, result.size());
@@ -283,7 +283,7 @@ class ObjectJsonSerializerTest {
 				null, true
 			);
 
-			final JsonNode result = serializer.serializeObject(price);
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject(price);
 
 			assertTrue(result.isObject());
 			assertEquals(1, result.get(PriceDescriptor.PRICE_ID.name()).intValue());
@@ -314,7 +314,7 @@ class ObjectJsonSerializerTest {
 				null, true
 			);
 
-			final JsonNode result = serializer.serializeObject(price);
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject(price);
 
 			assertTrue(result.get(PriceDescriptor.INNER_RECORD_ID.name()).isNull());
 			assertTrue(result.get(PriceDescriptor.VALIDITY.name()).isNull());
@@ -328,7 +328,7 @@ class ObjectJsonSerializerTest {
 		@Test
 		@DisplayName("Should serialize a collection into an array preserving element order")
 		void shouldSerializeCollectionAsArray() {
-			final JsonNode result = serializer.serializeObject(List.of("a", "b", "c"));
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject(List.of("a", "b", "c"));
 
 			assertTrue(result.isArray());
 			assertEquals(3, result.size());
@@ -340,7 +340,7 @@ class ObjectJsonSerializerTest {
 		@Test
 		@DisplayName("Should serialize an Object array dispatching each element by its runtime type")
 		void shouldSerializeObjectArrayAsArray() {
-			final JsonNode result = serializer.serializeObject(new Object[] { 1, "x", Boolean.TRUE });
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject(new Object[] { 1, "x", Boolean.TRUE });
 
 			assertTrue(result.isArray());
 			assertEquals(3, result.size());
@@ -352,7 +352,7 @@ class ObjectJsonSerializerTest {
 		@Test
 		@DisplayName("Should serialize a primitive int array into a numeric array via reflection")
 		void shouldSerializePrimitiveIntArrayAsArray() {
-			final JsonNode result = serializer.serializeObject(new int[] { 1, 2, 3 });
+			final JsonNode result = ObjectJsonSerializerTest.this.serializer.serializeObject(new int[] { 1, 2, 3 });
 
 			assertTrue(result.isArray());
 			assertEquals(3, result.size());
@@ -371,7 +371,7 @@ class ObjectJsonSerializerTest {
 		void shouldThrowWhenTypeUnsupported() {
 			final GenericEvitaInternalError ex = assertThrows(
 				GenericEvitaInternalError.class,
-				() -> serializer.serializeObject(new Object())
+				() -> ObjectJsonSerializerTest.this.serializer.serializeObject(new Object())
 			);
 
 			assertTrue(ex.getMessage().contains(Object.class.getName()));

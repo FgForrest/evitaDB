@@ -244,9 +244,7 @@ class ReferenceAttributesTest extends AbstractBuilderTest {
 				attrs.getAttributeSchema(PRIORITY);
 
 			assertTrue(schema.isPresent());
-			assertEquals(
-				Long.class, schema.get().getType()
-			);
+			assertSame(Long.class, schema.get().getType());
 		}
 
 		/**
@@ -323,9 +321,7 @@ class ReferenceAttributesTest extends AbstractBuilderTest {
 				attrs.getAttributeSchema(PRIORITY);
 
 			assertTrue(fromRef.isPresent());
-			assertEquals(
-				Long.class, fromRef.get().getType()
-			);
+			assertSame(Long.class, fromRef.get().getType());
 		}
 	}
 

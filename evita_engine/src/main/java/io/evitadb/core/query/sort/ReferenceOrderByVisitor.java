@@ -77,6 +77,7 @@ import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.VirtualReferencePartition;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.utils.Assert;
@@ -142,6 +143,10 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	 */
 	private final AttributeSchemaAccessor attributeSchemaAccessor;
 	/**
+	 * Built-with resolver of the collection owning the fetched entity, independent of the query anchor.
+	 */
+	private final AttributeNormalizationResolver attributeNormalizationResolver;
+	/**
 	 * Comparator allowing to order references by sorter defined on referenced entity (requiring nested query). The
 	 * fetch of the references initializes its sorters (and sets the locale of the reference filter) before it is used.
 	 */
@@ -168,7 +173,8 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 
 	/**
 	 * Extracts {@link OrderingDescriptor} from the passed `orderBy` constraint using passed `queryContext` for
-	 * extraction.
+	 * extraction. Attribute comparators bind the collection owning `entitySchema`, including collection-less queries
+	 * and fetches whose owner differs from the queried collection.
 	 */
 	@Nonnull
 	public static OrderingDescriptor getComparator(
@@ -189,10 +195,22 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 				entitySchema,
 				__ -> referenceSchema,
 				queryContext
-			)
+			),
+			queryContext.getEntityCollectionOrThrowException(entitySchema.getName(), "normalize reference sort keys")
+				.getAttributeNormalizationResolver()
 		);
 		orderBy.accept(orderVisitor);
 		return orderVisitor.getComparator();
+	}
+
+	/**
+	 * Returns the built-with resolver of the entity owning these reference attributes.
+	 *
+	 * @return resolver used to normalize the reference attribute sort keys
+	 */
+	@Nonnull
+	public AttributeNormalizationResolver getAttributeNormalizationResolver() {
+		return this.attributeNormalizationResolver;
 	}
 
 	@Override

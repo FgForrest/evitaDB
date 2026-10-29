@@ -31,6 +31,7 @@ import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
@@ -88,8 +89,8 @@ public class HavingSeveralChildrenFunctionalTest {
 		evita.updateCatalog(TEST_CATALOG, session -> {
 			for (final String type : new String[]{"Brand", "Store"}) {
 				session.defineEntitySchema(type).withoutGeneratedPrimaryKey()
-					.withAttribute("first", Boolean.class, thatIs -> thatIs.filterable())
-					.withAttribute("second", Boolean.class, thatIs -> thatIs.filterable())
+					.withAttribute("first", Boolean.class, AttributeSchemaEditor::filterable)
+					.withAttribute("second", Boolean.class, AttributeSchemaEditor::filterable)
 					.updateAndFetchVia(session);
 				for (int pk = 1; pk <= 3; pk++) {
 					session.upsertEntity(session.createNewEntity(type, pk)

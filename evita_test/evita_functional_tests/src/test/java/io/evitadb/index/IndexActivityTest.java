@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.EntityAttributeIndex;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
@@ -267,7 +268,7 @@ class IndexActivityTest {
 		@Test
 		@DisplayName("CatalogIndex")
 		void shouldCarryTheHolderThroughACatalogIndexCopy() {
-			final CatalogIndex index = new CatalogIndex(Scope.LIVE);
+			final CatalogIndex index = new CatalogIndex(Scope.LIVE, true, AttributeNormalizationResolver.LEGACY_NFD);
 			final IndexActivity activity = index.getActivity();
 			activity.recordQuery(FIRST_MILLIS);
 			activity.recordUpdate(SECOND_MILLIS);
@@ -293,7 +294,7 @@ class IndexActivityTest {
 		void shouldCarryTheHolderThroughACatalogIndexShallowCopy() {
 			// the sixth copy site, and the one no transactional test reaches: `createShallowCopyWithResetDirtyFlag`
 			// runs at go-live and on a catalog rename, both of which carry the same logical index forward
-			final CatalogIndex index = new CatalogIndex(Scope.LIVE);
+			final CatalogIndex index = new CatalogIndex(Scope.LIVE, true, AttributeNormalizationResolver.LEGACY_NFD);
 			index.getActivity().recordUpdate(FIRST_MILLIS);
 
 			final CatalogIndex copy = index.createShallowCopyWithResetDirtyFlag();
@@ -328,7 +329,7 @@ class IndexActivityTest {
 				live.version(),
 				live.getAllPrimaryKeys(),
 				Map.of(),
-				new EntityAttributeIndex(ENTITY_TYPE),
+				new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD),
 				new PriceSuperIndex(),
 				new HierarchyIndex(),
 				new FacetIndex(),
@@ -410,8 +411,11 @@ class IndexActivityTest {
 	@Nonnull
 	private static ReducedGroupEntityIndex reducedGroupIndex() {
 		return new ReducedGroupEntityIndex(
-			INDEX_PK, ENTITY_TYPE,
-			new EntityIndexKey(EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE, representativeKey())
+			INDEX_PK,
+			ENTITY_TYPE,
+			new EntityIndexKey(EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE, representativeKey()),
+			true,
+			AttributeNormalizationResolver.LEGACY_NFD
 		);
 	}
 

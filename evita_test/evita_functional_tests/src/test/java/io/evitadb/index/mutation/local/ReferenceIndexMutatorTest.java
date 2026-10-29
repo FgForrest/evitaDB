@@ -221,9 +221,13 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 			new Scope[]{Scope.DEFAULT_SCOPE}
 		);
 		final AttributeSchemaContract brandCodeSchema =
-			AttributeSchema._internalBuild(ATTRIBUTE_BRAND_CODE, String.class, false, ConflictResolutionOverride.INHERITED);
+			AttributeSchema._internalBuild(
+				ATTRIBUTE_BRAND_CODE, String.class, false, ConflictResolutionOverride.INHERITED, null
+			);
 		final AttributeSchemaContract brandEanSchema =
-			AttributeSchema._internalBuild(ATTRIBUTE_BRAND_EAN, String.class, false, ConflictResolutionOverride.INHERITED);
+			AttributeSchema._internalBuild(
+				ATTRIBUTE_BRAND_EAN, String.class, false, ConflictResolutionOverride.INHERITED, null
+			);
 		assertEquals(
 			2,
 			this.referenceTypesIndex

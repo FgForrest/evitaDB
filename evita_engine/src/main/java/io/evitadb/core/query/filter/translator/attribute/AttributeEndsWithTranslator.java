@@ -38,6 +38,7 @@ import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
 import java.util.function.BiPredicate;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link AttributeEndsWith} to {@link AbstractFormula}.
@@ -92,9 +93,10 @@ public class AttributeEndsWithTranslator
 		@Nonnull AttributeEndsWith attributeEndsWith,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull UnaryOperator<String> stringNormalizer,
 		@Nonnull Supplier<OffsetDateTime> now
 	) {
-		return createStringSearchMatcher(attributeEndsWith, attributeSchema);
+		return createStringSearchMatcher(attributeEndsWith, attributeSchema, stringNormalizer);
 	}
 
 }

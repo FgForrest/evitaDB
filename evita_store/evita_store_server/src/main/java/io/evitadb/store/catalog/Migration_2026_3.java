@@ -32,13 +32,13 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeLongArray;
 import io.evitadb.dataType.array.CompositeObjectArray;
-import io.evitadb.exception.ObsoleteStorageProtocolException;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.exception.ObsoleteStorageProtocolException;
 import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.attribute.EntityReferenceWithLocale;
 import io.evitadb.index.attribute.FilterIndex;
@@ -51,37 +51,25 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
+import io.evitadb.index.invertedIndex.ValueIdAllocator;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
-import io.evitadb.index.invertedIndex.ValueToRecordPrimitive;
+import io.evitadb.index.page.PageEmission;
+import io.evitadb.index.range.RangeIndex;
+import io.evitadb.index.range.TransactionalRangePoint;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AbstractLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeCardinalityIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.*;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.CatalogIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexLeafPageRemoval;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueLeafStreamKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.LeafStreamKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPageRemoval;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
+import io.evitadb.store.catalog.LegacyInvertedIndexCorrection.CorrectedBuckets;
 import io.evitadb.store.catalog.Migration_2025_6.NoChangeHeaderInfoSupplier;
 import io.evitadb.store.catalog.VirtualReferencePartitionConversion.CollectionConversion;
+import io.evitadb.store.index.serializer.LegacyRangeIndexConversion;
 import io.evitadb.store.model.header.CollectionFileReference;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
 import io.evitadb.store.model.reference.LogFileRecordReference;
@@ -94,31 +82,16 @@ import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
 import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.IOUtils.ExceptionThrowingRunnable;
 import io.evitadb.utils.NumberUtils;
-import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
-import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.PrimitiveIterator.OfInt;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -227,11 +200,10 @@ import java.util.function.Function;
  * compares its values in is rewritten whole in the current form and order ({@link LegacyOwnerSortIndexCorrection}): an
  * inline one as a new part, a paged one as new leaf pages above the persisted high-water, a new root, and the removal
  * of every persisted leaf page.
- * Apart from a paged index of `DateTimeRange` values alone, which it re-sorts at whole seconds, nothing on the load
- * path normalizes or re-sorts these values any more, so after this migration the catalog holds none of them in the old
- * form or order. A bucket in which the release merged two values its comparator equated - two spellings, two locales
- * of one tag, two ranges equal at whole seconds - stays merged, under the value it was stored with: it does not say
- * which record holds which value.
+ * The load path normalizes or re-sorts none of these values, so after this migration the catalog holds none in the
+ * old form or order. A bucket in which the release merged two values its comparator equated - two spellings, two
+ * locales of one tag, two ranges equal at whole seconds - stays merged, under the value it was stored with: it does
+ * not say which record holds which value.
  *
  * # Single-owner reference partitions
  *
@@ -260,13 +232,24 @@ import java.util.function.Function;
  * their audit, the standalone unique indexes, and the owner sort indexes. The entity bodies are not rewritten: the
  * reader of the version that wrote them clamps on read (`AttributeValueSerializer_2026_2`).
  *
- * Clamping can make two keys one, and so can the truncation to whole milliseconds the load path applies after it. In
- * a filter tree the buckets are clamped in place and the load path merges the adjacent buckets of an equal key,
- * uniting their records. A unique attribute cannot hold two owners at one key, so the pre-pass finds the owners of
+ * Clamping can make two keys one, and so can the type-level truncation to whole milliseconds applied after it. In
+ * a filter or histogram tree this migration clamps, canonicalizes and merges colliding buckets in one rewrite,
+ * uniting their records. Every listed filter and histogram BUCKET tree is inspected; canonical keys and strict
+ * ordering are established together. A paged range inversion is re-sorted only when the whole sequence follows
+ * the released second-granularity order; other paged inversions, and a stored key a page repeats from its
+ * predecessor, remain for the loader to report as corruption.
+ * Inline restore re-inserts distinct stored keys in comparator order and rejects duplicates. Canonical trees emit
+ * nothing; rewritten paged trees replace every leaf above the persisted high-water and retire old pages. A
+ * unique attribute cannot hold two owners at one key, so the pre-pass finds the owners of
  * different values that meet once clamped and truncated - in a standalone unique index and in a unique attribute
  * folded onto its filter tree - and refuses the upgrade like any other unique collision. A reference
  * partition keyed by a representative temporal value beyond the window cannot be re-keyed without renaming storage
  * parts, so the pre-pass refuses the upgrade over it too ({@link #refuseUpgradeOverOutOfWindowRepresentativeKeys}).
+ *
+ * Every legacy PAGED DateTimeRange companion is also converted here, even when its bucket keys need no change.
+ * The root version identifies seconds; its unversioned leaves cannot convert themselves. Inline companions have
+ * already been converted by the versioned reader and pass through unchanged. A root needing both changes is
+ * replaced once, with new range pages above its persisted high-water and removals of every old range page.
  *
  * # Publication
  *
@@ -275,6 +258,8 @@ import java.util.function.Function;
  * unflushed in the catalog data store. The post-upgrade action publishes all of it at once - the catalog header of
  * protocol 7 and one bootstrap record. A failure before it leaves the published state of protocol 6 as it was, and the
  * next start runs the whole migration again from it. No file is deleted on the way.
+ *
+ * Re-canonicalizing here heals keys written by older versions and must use the type-level function only.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @deprecated removable once no catalog older than 2026.3 can be encountered — at which point no catalog can
@@ -325,7 +310,8 @@ public interface Migration_2026_3 {
 	static void upgradeFromStorageProtocolVersion_6_to_7(
 		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
 		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService,
-		@Nonnull Function<EntityCollectionFileHeader, DefaultEntityCollectionPersistenceService> entityCollectionPersistenceServiceFactory,
+		@Nonnull Function<EntityCollectionFileHeader, DefaultEntityCollectionPersistenceService>
+			entityCollectionPersistenceServiceFactory,
 		@Nonnull Consumer<CatalogHeader<LogFileRecordReference, CollectionFileReference>> postUpgradeAction
 	) {
 		final List<DefaultEntityCollectionPersistenceService> openedServices =
@@ -453,16 +439,11 @@ public interface Migration_2026_3 {
 				planOwnerUniqueIndexRekeys(catalogVersion, collection, collisions)
 			);
 		}
-		// the filter trees holding a temporal key beyond the window of moments this version can hold are planned here
-		// too: a unique attribute folded onto its filter tree is not covered by the unique pre-pass above, and two
-		// owners whose keys meet once clamped and truncated are a collision just the same
-		final Map<String, List<FilterIndexClamp>> filterIndexClamps = CollectionUtils.createHashMap(collections.size());
+		// Folded unique trees need a separate read-only check in canonical order before any bucket union.
+		// Only these trees are read twice; ordinary filter and histogram trees are first read in the write loop.
 		final List<String> unrepairableRepresentativeKeys = new ArrayList<>(0);
 		for (final CollectionUnderUpgrade collection : collections) {
-			filterIndexClamps.put(
-				collection.header().entityType(),
-				planFilterIndexClamps(catalogVersion, collection, collisions)
-			);
+			detectFoldedUniqueCollisions(catalogVersion, collection, collisions);
 			findOutOfWindowRepresentativeKeys(catalogVersion, collection, unrepairableRepresentativeKeys);
 		}
 		if (!collisions.isEmpty()) {
@@ -483,15 +464,11 @@ public interface Migration_2026_3 {
 
 			final EntitySchema entitySchema = collection.entitySchema();
 
-			// the filter trees first: the cardinality audit below compares each counter with the bucket it names, and
-			// reads the tree as this step left it
-			final List<FilterIndexClamp> clampedFilterIndexes =
-				filterIndexClamps.get(entityCollectionHeader.entityType());
-			for (final FilterIndexClamp clamp : clampedFilterIndexes) {
-				for (final StoragePart part : clamp.parts()) {
-					collectionStoragePartService.putStoragePart(catalogVersion, part);
-				}
-			}
+			// Drain bucket and range rewrites first: the cardinality audit reads corrected buckets, and the later
+			// virtual-partition conversion loads complete indexes whose ranges must already be in milliseconds.
+			// Each plan is drained and released before the next tree is planned. A later planning failure
+			// aborts before publication; any earlier unpublished parts are inert under the durability model.
+			final int rewrittenBucketTrees = rewriteBucketTrees(catalogVersion, collection);
 
 			int rekeyedCounters = 0;
 			int orphanedPairs = 0;
@@ -549,7 +526,7 @@ public interface Migration_2026_3 {
 			// collection with nothing but sort indexes to rewrite must still publish its new collection header, or
 			// protocol 7 would be published over the legacy parts
 			final boolean changedBeforeConversion =
-				rekeyed || rewrittenSortIndexes > 0 || !clampedFilterIndexes.isEmpty();
+				rekeyed || rewrittenSortIndexes > 0 || rewrittenBucketTrees > 0;
 
 			// the parts written so far are still unflushed - the conversion reads them like any other part (the offset
 			// index serves a record before it is flushed), removes those of the partitions it converts, and its final
@@ -599,11 +576,10 @@ public interface Migration_2026_3 {
 					ConsoleColor.BRIGHT_BLUE
 				);
 			}
-			if (!clampedFilterIndexes.isEmpty()) {
+			if (rewrittenBucketTrees > 0) {
 				ConsoleWriter.writeLine(
-					"Entity collection `" + entityCollectionHeader.entityType() + "`: moved the date-time keys of " +
-						clampedFilterIndexes.size() + " filter index(es) that 2026.2 stored beyond the supported " +
-						"date-time window to the edge of the window.",
+					"Entity collection `" + entityCollectionHeader.entityType() + "`: canonicalized " +
+						rewrittenBucketTrees + " filter / histogram bucket tree(s).",
 					ConsoleColor.BRIGHT_BLUE
 				);
 			}
@@ -918,7 +894,7 @@ public interface Migration_2026_3 {
 	 * is idempotent, so a bucket that is already canonical passes through untouched, and one written under an older
 	 * rule lands in exactly the key space the counter is now in. Two buckets that collapse onto one key must have
 	 * their records UNIONED — overwriting would drop the records of the losing bucket and reintroduce the false
-	 * alarm from the other side — which is also precisely what the load path does when it merges them.
+	 * alarm from the other side — which is also precisely what the migration does when it merges them.
 	 *
 	 * **A PAGED filter index is not checked** but is reported as such. Its buckets live in separate
 	 * `FilterIndexLeafPagePart` records rather than in {@link FilterIndexStoragePart#getHistogramPoints()}, so
@@ -1019,7 +995,7 @@ public interface Migration_2026_3 {
 	 *
 	 * Reached only when the part on disk was written under an older normalizer that kept them apart. Dropping
 	 * either side would make the records of the losing bucket look orphaned, which is the false alarm
-	 * {@link #countOrphanedCounters} exists to avoid; the load path merges the same pair the same way.
+	 * {@link #countOrphanedCounters} exists to avoid; the bucket rewrite merges the same pair the same way.
 	 */
 	@Nonnull
 	private static Bitmap union(@Nonnull Bitmap left, @Nonnull Bitmap right) {
@@ -1114,7 +1090,7 @@ public interface Migration_2026_3 {
 	}
 
 	/**
-	 * Maps every persisted value of one standalone unique index onto its canonical form - the value of the declared type
+	 * Maps every persisted value of one standalone unique index onto its canonical form - the declared-type value
 	 * naming the key {@link FilterIndex#getNormalizer(Class, int)} gives it, which is what the engine now persists
 	 * (see {@link UniqueIndex#toPersistedValue}). Canonical values are equal exactly when they name one key.
 	 *
@@ -1183,16 +1159,19 @@ public interface Migration_2026_3 {
 	 * @return the canonicalizer
 	 */
 	@Nonnull
-	static Function<Serializable, Serializable> canonicalizerFor(@Nonnull Class<?> plainType, int indexedDecimalPlaces) {
+	static Function<Serializable, Serializable> canonicalizerFor(
+		@Nonnull Class<?> plainType, int indexedDecimalPlaces
+	) {
 		return value -> UniqueIndex.toPersistedValue(plainType, indexedDecimalPlaces, clampStoredValue(value));
 	}
 
 	/**
-	 * Tells whether the canonical form of a unique value of `plainType` depends on `indexedDecimalPlaces` at all -
-	 * only `BigDecimal` and `BigDecimalNumberRange` do (see {@link #resolveScale}).
+	 * Tells whether the canonical form of a unique value of `plainType` is independent of `indexedDecimalPlaces` -
+	 * true for every type except `BigDecimal` and `BigDecimalNumberRange` (see {@link #resolveScale}).
 	 */
-	private static boolean isScaleDependent(@Nonnull Class<?> plainType) {
-		return BigDecimal.class.isAssignableFrom(plainType) || BigDecimalNumberRange.class.isAssignableFrom(plainType);
+	private static boolean isNotScaleDependent(@Nonnull Class<?> plainType) {
+		return !BigDecimal.class.isAssignableFrom(plainType) &&
+			!BigDecimalNumberRange.class.isAssignableFrom(plainType);
 	}
 
 	/**
@@ -1209,11 +1188,12 @@ public interface Migration_2026_3 {
 		@Nonnull String attributeName,
 		@Nonnull Class<?> plainType
 	) {
-		if (!isScaleDependent(plainType)) {
+		if (isNotScaleDependent(plainType)) {
 			return OptionalInt.of(0);
 		}
 		for (final CollectionUnderUpgrade collection : collections) {
-			final Optional<EntityAttributeSchemaContract> attribute = collection.entitySchema().getAttribute(attributeName);
+			final Optional<EntityAttributeSchemaContract> attribute =
+				collection.entitySchema().getAttribute(attributeName);
 			if (attribute.isPresent()) {
 				return OptionalInt.of(attribute.get().getIndexedDecimalPlaces());
 			}
@@ -1235,13 +1215,15 @@ public interface Migration_2026_3 {
 		@Nonnull String attributeName,
 		@Nonnull Class<?> plainType
 	) {
-		if (!isScaleDependent(plainType)) {
+		if (isNotScaleDependent(plainType)) {
 			return OptionalInt.of(0);
 		}
 		// `Migration_2026_2` is deprecated ahead of this class: when it is removed, move `resolveIndexedDecimalPlaces`
 		// here rather than deleting it - `resolveScale` and `resolveOwnerScale` both depend on it
 		try {
-			return OptionalInt.of(Migration_2026_2.resolveIndexedDecimalPlaces(entitySchema, referenceName, attributeName));
+			return OptionalInt.of(
+				Migration_2026_2.resolveIndexedDecimalPlaces(entitySchema, referenceName, attributeName)
+			);
 		} catch (GenericEvitaInternalError ex) {
 			return OptionalInt.empty();
 		}
@@ -1374,9 +1356,9 @@ public interface Migration_2026_3 {
 	 * Plans the re-key of every standalone (owner) {@link UniqueIndexStoragePart} of one collection - a localized
 	 * attribute unique across locales, in any entity index - whose values are not all canonical, in either the inline
 	 * or the paged shape. A unique part with a FILTER sibling under the same key is a view folded onto the shared
-	 * filter tree, holding no values of its own, and is skipped: the filter-tree pass ({@link #planFilterIndexClamps},
-	 * through {@link FilterKeyCollisionDetector}) checks the owners of such a tree of an `OffsetDateTime`,
-	 * `LocalDateTime` or `LocalTime` attribute, whose keys this version clamps or truncates. Nothing is written here;
+	 * filter tree, holding no values of its own, and is skipped: the read-only filter-tree pass
+	 * ({@link #detectFoldedUniqueCollisions}, through {@link FilterKeyCollisionDetector}) checks the owners in
+	 * canonical order, including range keys that meet only after re-sorting. Nothing is written here;
 	 * colliding keys are appended to `collisions`.
 	 *
 	 * @param catalogVersion the catalog version being upgraded
@@ -1815,184 +1797,435 @@ public interface Migration_2026_3 {
 	}
 
 	/**
-	 * Plans the clamp of every filter index of one collection whose temporal keys lie beyond the window of moments this
-	 * version can hold, in every entity index the collection lists. Release 2026.2 and older keyed a filter index by
-	 * the `Instant` of a value without a range check, so the `OffsetDateTime.MAX` / `MIN` sentinels (what the 2026.2
-	 * gRPC converter made of every moment of year 9999 / year 1) are stored under an `Instant` that has no epoch
-	 * millisecond, and the load path fails at the first key it encodes. The keys are clamped in place - to the edge of
-	 * the window, exactly as the engine clamps such a value on its way in - and never merged: clamping preserves the
-	 * order, so keys that become equal are adjacent, and the load path already merges adjacent equal keys of a tree
-	 * (inline or across the pages of a paged one), unioning their records.
-	 *
-	 * A unique attribute folded onto its filter tree has no unique index of its own for the unique pre-pass to see, so
-	 * two owners whose different keys load as one - clamped onto one edge of the window, or truncated onto one
-	 * millisecond - are a collision found here, appended to `collisions`. The trees of every `OffsetDateTime` and
-	 * `LocalDateTime` attribute are checked, whether or not they hold a key beyond the window, and those of every
-	 * unique `LocalTime` attribute, which can meet only through the truncation.
-	 * Nothing is written here.
+	 * Detects folded unique collisions across one collection without writing any parts. Only filter trees with a
+	 * matching unique key are read, and only those {@link LegacyInvertedIndexCorrection#correct} would merge are
+	 * checked: a tree it leaves unchanged holds no two buckets under one key, or is a stale twin the loader reports
+	 * as corruption, which no remediation of unique values could fix. Collisions are collected before any union.
 	 *
 	 * @param catalogVersion the catalog version being upgraded
-	 * @param collection     the collection whose entity indexes are inspected
-	 * @param collisions     receives every collision found
-	 * @return the clamp plans, one per filter index that holds a key beyond the window
+	 * @param collection the opened collection and its published entity-index list
+	 * @param collisions receives folded unique collisions in canonical bucket order
 	 */
-	@Nonnull
-	private static List<FilterIndexClamp> planFilterIndexClamps(
+	private static void detectFoldedUniqueCollisions(
 		long catalogVersion,
 		@Nonnull CollectionUnderUpgrade collection,
 		@Nonnull List<UniqueKeyCollision> collisions
 	) {
 		final OffsetIndexStoragePartPersistenceService service =
 			collection.service().getStoragePartPersistenceService();
-		final List<FilterIndexClamp> clamps = new ArrayList<>(4);
 		for (final Integer indexPrimaryKey : collection.indexIds()) {
-			final EntityIndexStoragePart indexPart = service.getStoragePart(
-				catalogVersion, indexPrimaryKey, EntityIndexStoragePart.class
-			);
-			if (indexPart == null) {
-				// reported by the rewrite pass, which cannot proceed without it either
-				continue;
-			}
-			final Set<AttributeIndexKey> uniqueKeys = new HashSet<>();
+			final EntityIndexStoragePart indexPart = requireEntityIndexPart(service, catalogVersion, indexPrimaryKey);
+			final Set<AttributeIndexKey> uniqueKeys =
+				CollectionUtils.createHashSet(indexPart.getAttributeIndexes().size());
 			for (final AttributeIndexStorageKey storageKey : indexPart.getAttributeIndexes()) {
 				if (storageKey.indexType() == AttributeIndexType.UNIQUE) {
 					uniqueKeys.add(storageKey.attribute());
 				}
 			}
 			for (final AttributeIndexStorageKey storageKey : indexPart.getAttributeIndexes()) {
+				if (storageKey.indexType() != AttributeIndexType.FILTER ||
+					!uniqueKeys.contains(storageKey.attribute())) {
+					continue;
+				}
+				final FilterTreeData tree = readFilterTree(catalogVersion, indexPrimaryKey, storageKey, service);
+				final FilterIndexStoragePart root = tree.root();
+				final Class<?> plainType = plainTypeOf(root.getAttributeType());
+				if (LegacyInvertedIndexCorrection.correct(
+					plainType, root.getIndexedDecimalPlaces(), tree.pages(), tree.valueIds(),
+					FilterIndex.getComparator(root.getAttributeIndexKey(), plainType), root.isPaged()
+				) == null) {
+					continue;
+				}
+				new FilterKeyCollisionDetector(collection, indexPart, root).detect(tree.pages(), collisions);
+			}
+		}
+	}
+
+	/**
+	 * Rewrites filter and histogram bucket trees across one collection, draining each plan before planning the next.
+	 * A root requiring bucket and range changes is replaced once; canonical trees emit no replacement parts.
+	 *
+	 * @param catalogVersion the catalog version being upgraded
+	 * @param collection the opened collection and its published entity-index list
+	 * @return the number of rewritten filter and histogram trees
+	 */
+	private static int rewriteBucketTrees(long catalogVersion, @Nonnull CollectionUnderUpgrade collection) {
+		final OffsetIndexStoragePartPersistenceService service =
+			collection.service().getStoragePartPersistenceService();
+		int rewritten = 0;
+		for (final Integer indexPrimaryKey : collection.indexIds()) {
+			final EntityIndexStoragePart indexPart = requireEntityIndexPart(service, catalogVersion, indexPrimaryKey);
+			for (final AttributeIndexStorageKey storageKey : indexPart.getAttributeIndexes()) {
 				if (storageKey.indexType() != AttributeIndexType.FILTER) {
 					continue;
 				}
-				final FilterIndexStoragePart root = service.getStoragePart(
-					catalogVersion,
-					AttributeIndexStoragePart.computeUniquePartId(
-						indexPrimaryKey, AttributeIndexType.FILTER, storageKey.attribute(),
-						service.getReadOnlyKeyCompressor()
-					),
-					FilterIndexStoragePart.class
+				final FilterTreeData tree = readFilterTree(catalogVersion, indexPrimaryKey, storageKey, service);
+				final FilterIndexStoragePart root = tree.root();
+				final Class<?> plainType = plainTypeOf(root.getAttributeType());
+				final CorrectedBuckets corrected = LegacyInvertedIndexCorrection.correct(
+					plainType, root.getIndexedDecimalPlaces(), tree.pages(), tree.valueIds(),
+					FilterIndex.getComparator(root.getAttributeIndexKey(), plainType), root.isPaged()
+				);
+				if (corrected != null || root.isSecondGranularityRangePages()) {
+					final TrappedChanges changes =
+						planFilterRewrite(catalogVersion, root, tree.streamId(), corrected, service);
+					drain(catalogVersion, changes, service);
+					rewritten++;
+				}
+			}
+			for (final HistogramIndexStorageKey key : indexPart.getHistogramIndexes()) {
+				final HistogramIndexStoragePart root = service.getStoragePart(
+					catalogVersion, key.computeUniquePartId(indexPrimaryKey, service.getReadOnlyKeyCompressor()),
+					HistogramIndexStoragePart.class
 				);
 				if (root == null) {
-					continue;
+					throw new GenericEvitaInternalError("Missing histogram " + key.histogramName() + ".");
 				}
-				final Class<?> plainType = plainTypeOf(root.getAttributeType());
-				final boolean unique = uniqueKeys.contains(storageKey.attribute());
-				// a `LocalTime` key has no window to leave, but a unique one meets its twin through truncation alone
-				final boolean truncatedUnique = unique && LocalTime.class.isAssignableFrom(plainType);
-				if (!isClampedTemporal(plainType) && !truncatedUnique) {
-					continue;
-				}
-				final FilterIndexClamp clamp;
+				final ValueToRecord[][] pages;
+				final int streamId;
 				if (root.isPaged()) {
-					clamp = planPagedFilterIndexClamp(
-						catalogVersion, indexPrimaryKey, root, service, unique, collection, indexPart, collisions
+					streamId = service.getReadOnlyKeyCompressor().getId(new HistogramLeafStreamKey(
+						indexPrimaryKey, key.histogramName(), key.locale(), HistogramLeafStreamKey.StreamKind.BUCKET
+					));
+					pages = readHistogramBucketPages(
+						catalogVersion, key, root.getLeafPageSequences(), streamId, service
 					);
 				} else {
-					clamp = planInlineFilterIndexClamp(root, unique, collection, indexPart, collisions);
+					streamId = -1;
+					pages = new ValueToRecord[][]{root.getHistogramPoints()};
 				}
-				if (clamp != null) {
-					clamps.add(clamp);
-				}
-			}
-		}
-		return clamps;
-	}
-
-	/**
-	 * Tells whether a filter key of `plainType` can lie beyond the window of moments this version can hold - whether
-	 * it is the `Instant` form of an `OffsetDateTime` or a `LocalDateTime`.
-	 */
-	private static boolean isClampedTemporal(@Nonnull Class<?> plainType) {
-		return OffsetDateTime.class.isAssignableFrom(plainType) || LocalDateTime.class.isAssignableFrom(plainType);
-	}
-
-	/**
-	 * Plans the clamp of an inline filter index, see {@link #planFilterIndexClamps}.
-	 *
-	 * @return the plan, or `null` when the index holds no key beyond the window
-	 */
-	@Nullable
-	private static FilterIndexClamp planInlineFilterIndexClamp(
-		@Nonnull FilterIndexStoragePart root,
-		boolean unique,
-		@Nonnull CollectionUnderUpgrade collection,
-		@Nonnull EntityIndexStoragePart indexPart,
-		@Nonnull List<UniqueKeyCollision> collisions
-	) {
-		final ValueToRecordBitmap[] points = root.getHistogramPoints();
-		final ValueToRecordBitmap[] clamped = new ValueToRecordBitmap[points.length];
-		final FilterKeyCollisionDetector detector = new FilterKeyCollisionDetector(unique, collection, indexPart, root);
-		boolean changed = false;
-		for (int i = 0; i < points.length; i++) {
-			final ValueToRecord bucket = clampBucketKey(points[i]);
-			detector.accept(points[i], collisions);
-			clamped[i] = (ValueToRecordBitmap) bucket;
-			changed |= bucket != points[i];
-		}
-		if (!changed) {
-			return null;
-		}
-		return new FilterIndexClamp(
-			List.of(
-				new FilterIndexStoragePart(
-					root.getEntityIndexPrimaryKey(), root.getAttributeIndexKey(), root.getAttributeType(), clamped,
-					root.getRangeIndex(), root.getIndexedDecimalPlaces(), false, root.getHighWaterPageSequence(),
-					root.getLeafPageSequences(), root.isRangePaged(), root.getRangeHighWaterPageSequence(),
-					root.getRangeLeafPageSequences(), root.getNextValueId(), root.getInlineValueIds(),
-					root.getStoragePartPK()
-				)
-			)
-		);
-	}
-
-	/**
-	 * Plans the clamp of a paged filter index, see {@link #planFilterIndexClamps}: every leaf page the root lists is
-	 * read in the order it lists them, and a page holding a key beyond the window is planned to be written again.
-	 *
-	 * @return the plan, or `null` when the index holds no key beyond the window
-	 * @throws GenericEvitaInternalError when a listed leaf page is missing
-	 */
-	@Nullable
-	private static FilterIndexClamp planPagedFilterIndexClamp(
-		long catalogVersion,
-		int indexPrimaryKey,
-		@Nonnull FilterIndexStoragePart root,
-		@Nonnull OffsetIndexStoragePartPersistenceService service,
-		boolean unique,
-		@Nonnull CollectionUnderUpgrade collection,
-		@Nonnull EntityIndexStoragePart indexPart,
-		@Nonnull List<UniqueKeyCollision> collisions
-	) {
-		final int streamId = service.getReadOnlyKeyCompressor().getId(
-			new LeafStreamKey(
-				indexPrimaryKey, new AttributeKeyWithIndexType(root.getAttributeIndexKey(), AttributeIndexType.FILTER)
-			)
-		);
-		final FilterKeyCollisionDetector detector = new FilterKeyCollisionDetector(unique, collection, indexPart, root);
-		final List<StoragePart> pages = new ArrayList<>(2);
-		for (final int pageSequence : root.getLeafPageSequences()) {
-			final long pagePk = AbstractLeafPagePart.computeUniquePartId(streamId, pageSequence);
-			final FilterIndexLeafPagePart page = service.getStoragePart(
-				catalogVersion, pagePk, FilterIndexLeafPagePart.class
-			);
-			if (page == null) {
-				throw new GenericEvitaInternalError(
-					"Filter index leaf page " + pageSequence + " (stream " + streamId + ") for key " +
-						root.getAttributeIndexKey() + " was not found in persistent storage!"
+				final Class<?> plainType = plainTypeOf(root.getValueType());
+				final CorrectedBuckets corrected = LegacyInvertedIndexCorrection.correct(
+					plainType, root.getIndexedDecimalPlaces(), pages, null,
+					FilterIndex.getComparator(new AttributeIndexKey(null, key.histogramName(), key.locale()),
+						plainType),
+					root.isPaged()
 				);
-			}
-			final ValueToRecord[] buckets = page.getBuckets();
-			final ValueToRecord[] clamped = new ValueToRecord[buckets.length];
-			boolean changed = false;
-			for (int i = 0; i < buckets.length; i++) {
-				clamped[i] = clampBucketKey(buckets[i]);
-				detector.accept(buckets[i], collisions);
-				changed |= clamped[i] != buckets[i];
-			}
-			if (changed) {
-				pages.add(new FilterIndexLeafPagePart(streamId, pageSequence, clamped, page.getValueIds(), pagePk));
+				if (corrected != null || root.isSecondGranularityRangePages()) {
+					final TrappedChanges changes =
+						planHistogramRewrite(catalogVersion, root, streamId, corrected, service);
+					drain(catalogVersion, changes, service);
+					rewritten++;
+				}
 			}
 		}
-		return pages.isEmpty() ? null : new FilterIndexClamp(pages);
+		return rewritten;
+	}
+
+	/**
+	 * Reads a filter root and its bucket pages, validating leaf presence and agreement on value-id storage.
+	 * Inline buckets are exposed as one page; paged buckets retain the root's leaf order.
+	 *
+	 * @param catalogVersion the catalog version to read
+	 * @param indexPrimaryKey the entity index owning the filter tree
+	 * @param storageKey the published filter key identifying the root
+	 * @param service the collection's part reader
+	 * @return the root, bucket pages, optional value ids and persisted stream id
+	 */
+	@Nonnull
+	private static FilterTreeData readFilterTree(
+		long catalogVersion, int indexPrimaryKey, @Nonnull AttributeIndexStorageKey storageKey,
+		@Nonnull OffsetIndexStoragePartPersistenceService service
+	) {
+		final FilterIndexStoragePart root = service.getStoragePart(
+			catalogVersion,
+			AttributeIndexStoragePart.computeUniquePartId(
+				indexPrimaryKey, AttributeIndexType.FILTER, storageKey.attribute(),
+				service.getReadOnlyKeyCompressor()
+			),
+			FilterIndexStoragePart.class
+		);
+		if (root == null) {
+			throw new GenericEvitaInternalError("Missing filter index " + storageKey.attribute() + ".");
+		}
+		final ValueToRecord[][] pages;
+		final int[][] ids;
+		final int streamId;
+		if (root.isPaged()) {
+			streamId = service.getReadOnlyKeyCompressor().getId(new LeafStreamKey(
+				indexPrimaryKey, new AttributeKeyWithIndexType(storageKey.attribute(),
+					AttributeIndexType.FILTER)
+			));
+			final int[] sequences = root.getLeafPageSequences();
+			pages = new ValueToRecord[sequences.length][];
+			ids = root.getNextValueId() == ValueIdAllocator.UNASSIGNED_VALUE_ID
+				? null : new int[sequences.length][];
+			for (int i = 0; i < sequences.length; i++) {
+				final FilterIndexLeafPagePart leaf = service.getStoragePart(
+					catalogVersion, AbstractLeafPagePart.computeUniquePartId(streamId, sequences[i]),
+					FilterIndexLeafPagePart.class
+				);
+				if (leaf == null) {
+					throw new GenericEvitaInternalError(
+						"Missing filter leaf " + sequences[i] + " of " + storageKey + "."
+					);
+				}
+				if ((ids == null) == (leaf.getValueIds() != null)) {
+					throw new GenericEvitaInternalError(
+						"Filter index " + storageKey.attribute() + " root and leaf " + sequences[i] +
+							" disagree about value ids."
+					);
+				}
+				pages[i] = leaf.getBuckets();
+				if (ids != null) {
+					ids[i] = leaf.getValueIds();
+				}
+			}
+		} else {
+			streamId = -1;
+			pages = new ValueToRecord[][]{root.getHistogramPoints()};
+			ids = root.getInlineValueIds() == null ? null : new int[][]{root.getInlineValueIds()};
+		}
+		return new FilterTreeData(root, pages, ids, streamId);
+	}
+
+	/**
+	 * Reads the BUCKET leaf pages of a paged histogram root in the order the root lists them.
+	 *
+	 * @param catalogVersion the catalog version to read
+	 * @param key the published histogram key, named when a listed leaf is missing
+	 * @param sequences the root's ordered leaf-page sequences
+	 * @param streamId the persisted bucket stream id of the histogram
+	 * @param service the collection's part reader
+	 * @return the stored buckets of every listed leaf, aligned with `sequences`
+	 */
+	@Nonnull
+	private static ValueToRecord[][] readHistogramBucketPages(
+		long catalogVersion, @Nonnull HistogramIndexStorageKey key, @Nonnull int[] sequences, int streamId,
+		@Nonnull OffsetIndexStoragePartPersistenceService service
+	) {
+		final ValueToRecord[][] pages = new ValueToRecord[sequences.length][];
+		for (int i = 0; i < sequences.length; i++) {
+			final HistogramIndexLeafPagePart leaf = service.getStoragePart(
+				catalogVersion, AbstractLeafPagePart.computeUniquePartId(streamId, sequences[i]),
+				HistogramIndexLeafPagePart.class
+			);
+			if (leaf == null) {
+				throw new GenericEvitaInternalError("Missing histogram leaf " + sequences[i] + " of " + key + ".");
+			}
+			pages[i] = leaf.getBuckets();
+		}
+		return pages;
+	}
+
+	/**
+	 * Creates the replacement filter root and pages, retaining every surviving value id and the allocator high-water.
+	 *
+	 * @param catalogVersion the version to read companion range pages at
+	 * @param root the original filter root
+	 * @param streamId the persisted bucket stream id, ignored for inline trees
+	 * @param corrected canonical buckets with their surviving ids
+	 * @param service the collection's part reader
+	 * @return the parts and removals to drain after all refusal checks
+	 */
+	@Nonnull
+	private static TrappedChanges planFilterRewrite(
+		long catalogVersion, @Nonnull FilterIndexStoragePart root, int streamId,
+		@Nullable CorrectedBuckets corrected, @Nonnull OffsetIndexStoragePartPersistenceService service
+	) {
+		final TrappedChanges changes = new TrappedChanges();
+		final int[] sequences = root.isPaged() && corrected != null
+			? new int[corrected.pages().length] : root.getLeafPageSequences();
+		int highWater = root.getHighWaterPageSequence();
+		final AttributeKeyWithIndexType key =
+			new AttributeKeyWithIndexType(root.getAttributeIndexKey(), AttributeIndexType.FILTER);
+		if (root.isPaged() && corrected != null) {
+			for (int i = 0; i < sequences.length; i++) {
+				sequences[i] = Math.incrementExact(highWater);
+				highWater = sequences[i];
+				changes.addChangeToStore(new FilterIndexLeafPagePart(
+					streamId, sequences[i], corrected.pages()[i],
+					corrected.valueIds() == null ? null : corrected.valueIds()[i],
+					AbstractLeafPagePart.computeUniquePartId(streamId, sequences[i])
+				));
+			}
+			for (final int old : root.getLeafPageSequences()) {
+				changes.addChangeToStore(new FilterIndexLeafPageRemoval(root.getEntityIndexPrimaryKey(), key, old));
+			}
+		}
+		final RangeAxis range = preserveRangeAxis(
+			catalogVersion, root.getEntityIndexPrimaryKey(), root.getAttributeIndexKey(), null,
+			root.isSecondGranularityRangePages() && LegacyRangeIndexConversion.isDateTimeRange(root.getAttributeType()),
+			root.getRangeIndex(), root.isRangePaged(), root.getRangeHighWaterPageSequence(),
+			root.getRangeLeafPageSequences(), changes, service
+		);
+		changes.addChangeToStore(new FilterIndexStoragePart(
+			root.getEntityIndexPrimaryKey(), root.getAttributeIndexKey(), root.getAttributeType(),
+			corrected == null || root.isPaged() ? root.getHistogramPoints() : bitmapBuckets(corrected.pages()),
+			range.inline(),
+			root.getIndexedDecimalPlaces(), root.isPaged(), highWater, sequences, root.isRangePaged(),
+			range.highWater(), range.sequences(), root.getNextValueId(),
+			corrected == null ? root.getInlineValueIds() :
+				(root.isPaged() || corrected.valueIds() == null ? null : corrected.valueIds()[0]),
+			root.getStoragePartPK()
+		));
+		return changes;
+	}
+
+	/**
+	 * Creates the replacement histogram BUCKET root and pages above the persisted high-water.
+	 *
+	 * @param catalogVersion the version to read companion range pages at
+	 * @param root the original histogram root
+	 * @param streamId the persisted bucket stream id, ignored for inline trees
+	 * @param corrected canonical buckets without value ids
+	 * @param service the collection's part reader
+	 * @return the parts and removals to drain after all refusal checks
+	 */
+	@Nonnull
+	private static TrappedChanges planHistogramRewrite(
+		long catalogVersion, @Nonnull HistogramIndexStoragePart root, int streamId,
+		@Nullable CorrectedBuckets corrected, @Nonnull OffsetIndexStoragePartPersistenceService service
+	) {
+		final TrappedChanges changes = new TrappedChanges();
+		final int[] sequences = root.isPaged() && corrected != null
+			? new int[corrected.pages().length] : root.getLeafPageSequences();
+		int highWater = root.getHighWaterPageSequence();
+		if (root.isPaged() && corrected != null) {
+			for (int i = 0; i < sequences.length; i++) {
+				sequences[i] = Math.incrementExact(highWater);
+				highWater = sequences[i];
+				changes.addChangeToStore(new HistogramIndexLeafPagePart(
+					streamId, sequences[i], corrected.pages()[i],
+					AbstractLeafPagePart.computeUniquePartId(streamId, sequences[i])
+				));
+			}
+			for (final int old : root.getLeafPageSequences()) {
+				changes.addChangeToStore(new HistogramIndexLeafPageRemoval(
+					root.getEntityIndexPrimaryKey(), root.getHistogramName(), root.getLocale(),
+					HistogramLeafStreamKey.StreamKind.BUCKET, old
+				));
+			}
+		}
+		final RangeAxis range = preserveRangeAxis(
+			catalogVersion, root.getEntityIndexPrimaryKey(), null, root,
+			root.isSecondGranularityRangePages() && LegacyRangeIndexConversion.isDateTimeRange(root.getValueType()),
+			root.getRangeIndex(), root.isRangePaged(), root.getRangeHighWaterPageSequence(),
+			root.getRangeLeafPageSequences(), changes, service
+		);
+		changes.addChangeToStore(new HistogramIndexStoragePart(
+			root.getEntityIndexPrimaryKey(), root.getHistogramName(), root.getLocale(), root.getValueType(),
+			corrected == null || root.isPaged() ? root.getHistogramPoints() : bitmapBuckets(corrected.pages()),
+			range.inline(),
+			root.getIndexedDecimalPlaces(), root.isPaged(), highWater, sequences, root.isRangePaged(),
+			range.highWater(), range.sequences(), root.getStoragePartPK()
+		));
+		return changes;
+	}
+
+	/**
+	 * Materializes the inline bitmap representation from the correction's single bucket array.
+	 *
+	 * @param pages the corrected inline buckets
+	 * @return one bitmap bucket per surviving key
+	 */
+	@Nonnull
+	private static ValueToRecordBitmap[] bitmapBuckets(@Nonnull ValueToRecord[][] pages) {
+		if (pages.length == 0) {
+			return new ValueToRecordBitmap[0];
+		}
+		final ValueToRecordBitmap[] buckets = new ValueToRecordBitmap[pages[0].length];
+		for (int i = 0; i < buckets.length; i++) {
+			buckets[i] = (ValueToRecordBitmap) pages[0][i];
+		}
+		return buckets;
+	}
+
+	/**
+	 * Carries inline companions through unchanged and converts every marked paged temporal companion. Inline ranges
+	 * were already converted by the versioned reader; repeating that conversion here would multiply by 1000 twice.
+	 *
+	 * @param catalogVersion the version to read range pages at
+	 * @param entityIndexId the owning entity index
+	 * @param attribute the filter identity, or `null` for histograms
+	 * @param histogram the histogram identity, or `null` for filters
+	 * @param rescale whether the legacy reader marked DateTimeRange thresholds as seconds
+	 * @param inline the stored inline companion, or `null`
+	 * @param paged whether range thresholds live in leaf pages
+	 * @param highWater the persisted range stream high-water
+	 * @param sequences the persisted range leaf list
+	 * @param changes receives new range pages and removals if provenance would otherwise be lost
+	 * @param service the source of stored range pages
+	 * @return the companion metadata safe to write with the current serializer
+	 */
+	@Nonnull
+	private static RangeAxis preserveRangeAxis(
+		long catalogVersion, int entityIndexId, @Nullable AttributeIndexKey attribute,
+		@Nullable HistogramIndexStoragePart histogram, boolean rescale, @Nullable RangeIndex inline,
+		boolean paged, int highWater, @Nonnull int[] sequences, @Nonnull TrappedChanges changes,
+		@Nonnull OffsetIndexStoragePartPersistenceService service
+	) {
+		if (!rescale || !paged) {
+			return new RangeAxis(inline, highWater, sequences);
+		}
+		Assert.isPremiseValid(sequences.length > 0, "A paged range index must list at least one leaf page.");
+		final AttributeKeyWithIndexType filterKey = attribute == null ? null :
+			new AttributeKeyWithIndexType(attribute, AttributeIndexType.FILTER);
+		final int streamId = histogram == null
+			? service.getReadOnlyKeyCompressor().getId(new LeafStreamKey(
+				entityIndexId, Objects.requireNonNull(filterKey), LeafStreamKey.StreamKind.RANGE))
+			: service.getReadOnlyKeyCompressor().getId(new HistogramLeafStreamKey(
+				entityIndexId, histogram.getHistogramName(), histogram.getLocale(),
+					HistogramLeafStreamKey.StreamKind.RANGE));
+		final TransactionalRangePoint[][] points = new TransactionalRangePoint[sequences.length][];
+		for (int i = 0; i < sequences.length; i++) {
+			final long pk = AbstractLeafPagePart.computeUniquePartId(streamId, sequences[i]);
+			if (histogram == null) {
+				final RangeIndexLeafPagePart leaf = service.getStoragePart(catalogVersion, pk,
+					RangeIndexLeafPagePart.class);
+				if (leaf == null) {
+					throw new GenericEvitaInternalError(
+						"Missing range leaf " + sequences[i] + " of " + attribute + "."
+					);
+				}
+				points[i] = leaf.getPoints();
+			} else {
+				final HistogramRangeIndexLeafPagePart leaf = service.getStoragePart(
+					catalogVersion, pk, HistogramRangeIndexLeafPagePart.class
+				);
+				if (leaf == null) {
+					throw new GenericEvitaInternalError("Missing histogram range leaf " + sequences[i] + ".");
+				}
+				points[i] = leaf.getPoints();
+			}
+		}
+		int pointCount = 0;
+		for (final TransactionalRangePoint[] page : points) {
+			pointCount += page.length;
+		}
+		final TransactionalRangePoint[] flattened = new TransactionalRangePoint[pointCount];
+		int offset = 0;
+		for (final TransactionalRangePoint[] page : points) {
+			System.arraycopy(page, 0, flattened, offset, page.length);
+			offset += page.length;
+		}
+		final RangeIndex converted =
+			LegacyRangeIndexConversion.rescaledFromSecondGranularity(new RangeIndex(flattened));
+		converted.supersedePersistedPages(highWater, sequences);
+		final PageEmission<RangeIndex.RangePage> emission = converted.collectChangedPages();
+		for (final RangeIndex.RangePage page : emission.changedPages()) {
+			final long pk = AbstractLeafPagePart.computeUniquePartId(streamId, page.pageSequence());
+			changes.addChangeToStore(histogram == null
+				? new RangeIndexLeafPagePart(streamId, page.pageSequence(), page.points(), pk)
+				: new HistogramRangeIndexLeafPagePart(streamId, page.pageSequence(), page.points(), pk));
+		}
+		for (final int old : emission.freedPageSequences()) {
+			changes.addChangeToStore(histogram == null
+				? new RangeIndexLeafPageRemoval(entityIndexId, Objects.requireNonNull(filterKey), old)
+				: new HistogramIndexLeafPageRemoval(entityIndexId, histogram.getHistogramName(), histogram.getLocale(),
+					HistogramLeafStreamKey.StreamKind.RANGE, old));
+		}
+		return new RangeAxis(null, emission.highWaterPageSequence(), emission.orderedPageSequences());
+	}
+
+	/**
+	 * Companion range state carried into a replacement root.
+	 *
+	 * @param inline the inline companion, or `null` for paged or absent ranges
+	 * @param highWater the range stream's maximum allocated sequence
+	 * @param sequences the live range page list
+	 */
+	record RangeAxis(@Nullable RangeIndex inline, int highWater, @Nonnull int[] sequences) {
 	}
 
 	/**
@@ -2006,26 +2239,6 @@ public interface Migration_2026_3 {
 	@Nonnull
 	private static Serializable clampStoredValue(@Nonnull Serializable value) {
 		return Objects.requireNonNull(LegacyOwnerSortIndexCorrection.clampToSupportedWindow(value));
-	}
-
-	/**
-	 * Clamps the key of one bucket of a filter tree to the window of moments this version can hold.
-	 *
-	 * @param bucket the bucket as persisted
-	 * @return the bucket itself when its key lies inside the window, otherwise a bucket of the same kind holding the
-	 * same records under the clamped key
-	 */
-	@Nonnull
-	static ValueToRecord clampBucketKey(@Nonnull ValueToRecord bucket) {
-		final Serializable key = bucket.getValue();
-		final Serializable clamped = clampStoredValue(key);
-		if (clamped == key) {
-			return bucket;
-		} else if (bucket instanceof ValueToRecordPrimitive primitive) {
-			return new ValueToRecordPrimitive(clamped, primitive.getRecordId());
-		} else {
-			return new ValueToRecordBitmap(clamped, bucket.getRecordIds());
-		}
 	}
 
 	/**
@@ -2266,21 +2479,28 @@ public interface Migration_2026_3 {
 	}
 
 	/**
-	 * A planned clamp of one filter index: the parts to write - the inline root, or the leaf pages that hold a key
-	 * beyond the window of moments this version can hold.
+	 * A persisted filter tree read through the same path for collision detection and rewriting.
 	 *
-	 * @param parts the parts to write
+	 * @param root the persisted filter root
+	 * @param pages bucket pages in root order, or a single page for an inline tree
+	 * @param valueIds value ids parallel to the pages, or `null` when the tree has no assigned ids
+	 * @param streamId the persisted bucket stream id, or `-1` for an inline tree
 	 */
-	record FilterIndexClamp(@Nonnull List<StoragePart> parts) {
+	record FilterTreeData(
+		@Nonnull FilterIndexStoragePart root,
+		@Nonnull ValueToRecord[][] pages,
+		@Nullable int[][] valueIds,
+		int streamId
+	) {
 	}
 
 	/**
-	 * Watches the buckets of one filter tree in the order they are stored in and finds, in a unique attribute, two
-	 * adjacent buckets of different owners that load under one key. The clamp and the load path's normalization both
-	 * preserve the order, so keys that become equal are adjacent, and a comparison with the previous bucket sees them
-	 * all.
+	 * Checks one folded unique tree before any merge, in the order of the keys the migration gives its buckets,
+	 * compared as {@link FilterIndex#getComparator} compares the loaded tree. Clamping and normalization can
+	 * invert the persisted order, so the buckets are sorted by their canonical keys first. This makes every pair
+	 * meeting under one key adjacent even when a legacy range reorder separates them in the stored sequence.
 	 *
-	 * The keys are compared as the load path will build the tree - the clamp followed by
+	 * The keys are compared as the migration will build the tree - the clamp followed by
 	 * {@link FilterIndex#getNormalizer(Class, int)}, which truncates to whole milliseconds - because that is where two
 	 * buckets merge, and every pair of different owners meeting under that key is reported, whichever step makes the
 	 * keys equal: `OffsetDateTime.MAX` and `OffsetDateTime.MAX.minusDays(1)` are both clamped onto the last millisecond
@@ -2288,31 +2508,31 @@ public interface Migration_2026_3 {
 	 * window yet truncates onto that edge, and two values 2026.2 kept apart below the millisecond truncate onto one.
 	 */
 	final class FilterKeyCollisionDetector {
-		private final boolean unique;
+		private final Comparator<Serializable> comparator;
 		/** Names the tree in a collision the refusal reports. */
 		private final String structure;
 		private final String entityType;
 		private final EntityIndexStoragePart indexPart;
-		/** Computes the key the load path will give a stored bucket: the clamp, then the filter normalizer. */
+		/** Computes the key the migration will give a stored bucket: the clamp, then the filter normalizer. */
 		private final Function<Object, Serializable> normalizer;
-		/** The bucket taken by the previous call, `null` before the first one. */
-		@Nullable private ValueToRecord previous;
-		/** The key {@link #normalizer} gave {@link #previous}. */
-		@Nullable private Serializable previousKey;
 
 		/**
-		 * @param unique     whether the attribute is unique, and so may hold one owner per key only
+		 * Binds the function giving each bucket its migrated key, the comparator of the loaded tree and the owner
+		 * identity for one folded unique tree.
+		 *
 		 * @param collection the collection owning the tree
 		 * @param indexPart  the entity index holding the tree
 		 * @param root       the root of the filter tree
 		 */
+		@SuppressWarnings({"unchecked", "rawtypes"})
 		FilterKeyCollisionDetector(
-			boolean unique,
 			@Nonnull CollectionUnderUpgrade collection,
 			@Nonnull EntityIndexStoragePart indexPart,
 			@Nonnull FilterIndexStoragePart root
 		) {
-			this.unique = unique;
+			this.comparator = (Comparator) FilterIndex.getComparator(
+				root.getAttributeIndexKey(), plainTypeOf(root.getAttributeType())
+			);
 			this.entityType = collection.header().entityType();
 			this.structure = "attribute `" + describeAttribute(root.getAttributeIndexKey()) + "` of entity `" +
 				this.entityType + "`";
@@ -2323,43 +2543,55 @@ public interface Migration_2026_3 {
 		}
 
 		/**
-		 * Takes the next bucket of the tree and appends a collision to `collisions` when it loads under the key of the
-		 * previous one and the two hold different records.
+		 * Computes each canonical key once, then stably sorts bucket-key pairs without constructing replacement parts.
 		 *
-		 * @param bucket     the bucket as persisted
-		 * @param collisions receives the collision
+		 * @param pages the persisted buckets in root page order
+		 * @param collisions receives all canonical-key collisions between different owners
 		 */
-		void accept(
-			@Nonnull ValueToRecord bucket,
-			@Nonnull List<UniqueKeyCollision> collisions
-		) {
-			if (!this.unique) {
-				// a key of an attribute that is not unique may hold any number of owners - there is nothing to compare
-				return;
+		void detect(@Nonnull ValueToRecord[][] pages, @Nonnull List<UniqueKeyCollision> collisions) {
+			int bucketCount = 0;
+			for (final ValueToRecord[] page : pages) {
+				bucketCount += page.length;
 			}
-			final Serializable key = this.normalizer.apply(bucket.getValue());
-			if (
-				this.previous != null &&
-					Objects.equals(this.previousKey, key) &&
-					!this.previous.recordSetEquals(bucket)
-			) {
-				final boolean globalIndex = this.indexPart.getEntityIndexKey().type() == EntityIndexType.GLOBAL;
-				collisions.add(
-					new UniqueKeyCollision(
-						this.structure,
-						this.previous.getValue(),
-						describeOwnerRecord(
-							this.entityType, this.indexPart, globalIndex, this.previous.getRecordIds().getFirst()
-						),
-						bucket.getValue(),
-						describeOwnerRecord(
-							this.entityType, this.indexPart, globalIndex, bucket.getRecordIds().getFirst()
+			final List<CanonicalFilterBucket> ordered = new ArrayList<>(bucketCount);
+			for (final ValueToRecord[] page : pages) {
+				for (final ValueToRecord bucket : page) {
+					ordered.add(new CanonicalFilterBucket(bucket, this.normalizer.apply(bucket.getValue())));
+				}
+			}
+			ordered.sort((left, right) -> this.comparator.compare(left.key(), right.key()));
+			for (int i = 1; i < ordered.size(); i++) {
+				final CanonicalFilterBucket previous = ordered.get(i - 1);
+				final CanonicalFilterBucket current = ordered.get(i);
+				final ValueToRecord bucket = current.bucket();
+				if (this.comparator.compare(previous.key(), current.key()) == 0 &&
+					!previous.bucket().recordSetEquals(bucket)) {
+					final boolean globalIndex = this.indexPart.getEntityIndexKey().type() == EntityIndexType.GLOBAL;
+					collisions.add(
+						new UniqueKeyCollision(
+							this.structure,
+							previous.bucket().getValue(),
+							describeOwnerRecord(
+								this.entityType, this.indexPart, globalIndex,
+								previous.bucket().getRecordIds().getFirst()
+							),
+							bucket.getValue(),
+							describeOwnerRecord(
+								this.entityType, this.indexPart, globalIndex, bucket.getRecordIds().getFirst()
+							)
 						)
-					)
-				);
+					);
+				}
 			}
-			this.previous = bucket;
-			this.previousKey = key;
+		}
+
+		/**
+		 * Pairs an original bucket with its canonical key, computed once before the stable sort.
+		 *
+		 * @param bucket the bucket as persisted
+		 * @param key the key the migration gives the bucket: clamped, then normalized
+		 */
+		private record CanonicalFilterBucket(@Nonnull ValueToRecord bucket, @Nonnull Serializable key) {
 		}
 	}
 

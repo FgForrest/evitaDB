@@ -34,6 +34,7 @@ import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.Evita;
@@ -279,7 +280,7 @@ class VirtualPartitionReloadInvariantTest implements EvitaTestSupport {
 	private static void setUpWithGoods(@Nonnull EvitaSessionContract session) {
 		SingleOwnerPartitionFixture.setUp(session);
 		session.defineEntitySchema(ENTITY_GOODS)
-			.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.unique())
+			.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::unique)
 			.withAttribute(ATTRIBUTE_RANK, Integer.class, whichIs -> whichIs.filterable().sortable().nullable())
 			.withReferenceToEntity(
 				REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,

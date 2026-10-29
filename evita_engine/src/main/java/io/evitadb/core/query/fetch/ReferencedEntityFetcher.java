@@ -171,9 +171,9 @@ import static java.util.Optional.ofNullable;
  *
  * The filter of a `referenceContent` is evaluated row by row over the references of the fetched owners
  * (see {@link #admitFetchedReferences}). Every reference row is judged by itself, by the scope and the locales of its
- * owner, with the {@link ReferenceRowFilterCompiler row test}, so the filter needs no filterable attribute and no index
- * of the reference, and the verdict of a row never depends on the other owners fetched along. The verdicts are recorded
- * per owner in the {@link ValidEntityToReferenceMapping}.
+ * owner, with the {@link ReferenceRowFilterCompiler row predicate}, so the filter needs no filterable attribute and no
+ * index of the reference, and the verdict of a row never depends on the other owners fetched along. The verdicts are
+ * recorded per owner in the {@link ValidEntityToReferenceMapping}.
  *
  * Nested references are handled recursively - {@link #createSubReferenceFetcher} spawns another instance of this
  * class for the referenced collection, so a deep `referenceContent` requirement produces a chain of fetchers, each
@@ -2629,7 +2629,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	/**
 	 * Method executes all the necessary referenced entities fetch. It loads only those referenced entities that are
 	 * mentioned in `referenceFetch`. Execution reuses potentially existing fetched referenced entities from
-	 * the last enrichment of the same entity.
+	 * the last enrichment of the same entity. Comparator requirements widen the request for `entitySchema`
+	 * even when the query context has no collection or targets a different owner.
 	 *
 	 * @param referenceFetch                      the map of reference names to their requirements
 	 * @param namedReferenceFetch                 the map of reference content instance and reference names to their requirements
@@ -2742,7 +2743,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		}
 
 		return ofNullable(globalPrefetchCollector.getEntityFetch())
-			.map(it -> executionContext.getEvitaRequest().deriveCopyWith(executionContext.getSchema().getName(), it))
+			.map(it -> executionContext.getEvitaRequest().deriveCopyWith(entitySchema.getName(), it))
 			.orElse(executionContext.getEvitaRequest());
 	}
 

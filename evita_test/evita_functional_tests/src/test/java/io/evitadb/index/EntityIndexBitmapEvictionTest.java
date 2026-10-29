@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.buffer.DataStoreChanges.RemovedStoragePart;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.EntityAttributeIndex;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.facet.FacetIndex;
@@ -96,7 +97,7 @@ class EntityIndexBitmapEvictionTest {
 			5,
 			new TransactionalBitmap(entityIds),
 			Map.of(),
-			new EntityAttributeIndex(ENTITY_TYPE),
+			new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD),
 			new PriceSuperIndex(),
 			new HierarchyIndex(),
 			new FacetIndex(),
@@ -134,11 +135,12 @@ class EntityIndexBitmapEvictionTest {
 	@Nonnull
 	private static AttributeSchemaContract filterableStringSchema(@Nonnull String name) {
 		return AttributeSchema._internalBuild(
-			name, null,
+			name, null, null, null,
 			new Scope[]{Scope.LIVE}, null, null, Scope.NO_SCOPE,
 			false, false, false,
 			String.class, null,
-			ConflictResolutionOverride.INHERITED
+			0, ConflictResolutionOverride.INHERITED,
+			null
 		);
 	}
 

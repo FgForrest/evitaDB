@@ -57,6 +57,8 @@ import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.*;
+import static io.evitadb.externalApi.grpc.requestResponse.schema.AnalysisStepConverter.toAnalysisSteps;
+import static io.evitadb.externalApi.grpc.requestResponse.schema.AnalysisStepConverter.toGrpcAnalysisSteps;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -191,7 +193,8 @@ public class CatalogSchemaConverter {
 					.map(EvitaEnumConverter::toGrpcScope)
 					.toList()
 			)
-			.addAllAcceleratorsInScopes(
+			.addAllNormalized(toGrpcAnalysisSteps(attributeSchema.getNormalization()))
+			.addAllAccelerated(
 				toGrpcScopedAttributeFilterAccelerators(
 					AttributeSchema.toAcceleratorsArray(attributeSchema.getAcceleratorsInScopes())
 				)
@@ -236,7 +239,7 @@ public class CatalogSchemaConverter {
 		final Scope[] filterableInScopes = toBooleanScopes(attributeSchema.getFilterableInScopesList(), attributeSchema.getFilterable());
 		// absent on the wire for an older server - proto3 renders that as an empty list, which converts to `null`
 		final ScopedAttributeFilterAccelerators[] acceleratorsInScopes =
-			toScopedAttributeFilterAccelerators(attributeSchema.getAcceleratorsInScopesList());
+			toScopedAttributeFilterAccelerators(attributeSchema.getAcceleratedList());
 		// searchability has no gRPC mirror, so a schema converted from the wire reports no attribute as searchable
 		final Scope[] searchableInScopes = null;
 		final Scope[] sortableInScopes = toBooleanScopes(attributeSchema.getSortableInScopesList(), attributeSchema.getSortable());
@@ -257,7 +260,8 @@ public class CatalogSchemaConverter {
 			EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
 			attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
 			attributeSchema.getIndexedDecimalPlaces(),
-			EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride())
+			EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
+			toAnalysisSteps(attributeSchema.getNormalizedList())
 		);
 	}
 

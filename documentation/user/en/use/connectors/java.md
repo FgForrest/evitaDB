@@ -42,9 +42,8 @@ implementation 'io.evitadb:evita_java_driver:2026.1.0'
 </CodeTabs>
 
 <Note type="info">
-The driver is compiled for Java 17 and runs on Java 17 or newer; the same holds for the
-`evita_java_driver_all_in_one` artifact that bundles all of its dependencies. The evitaDB server itself
-requires Java 21, but the client application does not have to run on the server's Java version.
+The driver is compiled for Java 17 and runs on Java 17 or newer. The evitaDB server requires Java 21,
+but the client application does not have to run on the server's Java version.
 </Note>
 
 Java remote client builds on top of the [gRPC API](./grpc.md). The <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
@@ -60,6 +59,58 @@ reached you need to call some method on it. The usual scenario would be [opening
 The <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
 keeps a pool of opened resources and should be terminated by a `close()` method when you stop using it.
 </Note>
+
+### Align versions with the BOM
+
+Import `evita_bom` to keep your evitaDB dependencies on one version. The BOM manages only evitaDB
+artifacts; your application chooses its third-party library versions.
+
+<CodeTabs>
+<CodeTabsBlock>
+```Maven
+<dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>io.evitadb</groupId>
+            <artifactId>evita_bom</artifactId>
+            <version>2026.3.0</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+    </dependencies>
+</dependencyManagement>
+<dependencies>
+    <dependency>
+        <groupId>io.evitadb</groupId>
+        <artifactId>evita_java_driver</artifactId>
+    </dependency>
+</dependencies>
+```
+</CodeTabsBlock>
+<CodeTabsBlock>
+```Gradle
+implementation platform('io.evitadb:evita_bom:2026.3.0')
+implementation 'io.evitadb:evita_java_driver'
+```
+</CodeTabsBlock>
+</CodeTabs>
+
+### Shaded driver
+
+If your application has dependency conflicts with gRPC, Armeria, Netty, Jackson or Guava, build the
+`evita_java_driver_all_in_one` jar from the
+[shaded driver recipe](https://github.com/FgForrest/evitaDB/tree/dev/recipes/evita_java_driver_all_in_one).
+Otherwise, depend on `evita_java_driver` directly.
+
+Copy the recipe directory and run the following command inside it, replacing `<evitaDB version>` with
+a released `evita_java_driver` version:
+
+```shell
+mvn -Drevision=<evitaDB version> install
+```
+
+The recipe requires JDK 17 or newer to build and run. To deploy the jar to your own repository, configure
+that repository in the recipe POM and use `deploy` instead of `install`.
 
 ### Configuration
 
@@ -163,6 +214,15 @@ Connection settings are configured via
         peer is detected within one ping interval. Set `0` to disable the idle timeout entirely (the connection then
         lives until closed by the peer, a ping failure, or the connection pool). Keep this value strictly above
         `pingIntervalMillis`.</p>
+    </dd>
+    <dt>connectTimeoutMillis</dt>
+    <dd>
+        <p>**Default: `10000` (10 s)**</p>
+        <p>How long opening a new connection to the server may take. The limit covers the whole setup of the
+        connection: the TCP connect, the TLS handshake and the HTTP/2 negotiation. A call whose connection does not
+        finish them in time fails before it reaches the server. A busy client host or a slow network stretches the
+        handshake, which is why the default is well above the 3.2 s the underlying HTTP client would use on its own.
+        The setup cannot be left unbounded: any value of `0` or below falls back to the default.</p>
     </dd>
 </dl>
 

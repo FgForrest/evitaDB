@@ -102,7 +102,8 @@ public class AttributeSchemaSerializer_2026_2 extends Serializer<AttributeSchema
 		return AttributeSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			unique, filterable, null, null, sortable, localized, nullable, representative,
-			type, (Serializable) defaultValue, indexedDecimalPlaces, conflictResolutionOverride
+			type, (Serializable) defaultValue, indexedDecimalPlaces, conflictResolutionOverride,
+			null
 		);
 	}
 

@@ -98,7 +98,13 @@ class LongRunningSavepointSortIndexTest extends AbstractSavepointFuzzTest<List<I
 	 * transaction; ops are applied within the framework's transaction.
 	 */
 	private static final class SortState implements FuzzGeneration<List<Integer>> {
-		private final SortIndex index = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
+		private final SortIndex index = new OwnerSortIndex(
+			String.class,
+			null,
+			new AttributeIndexKey(null, "a", null),
+			0,
+			SortIndex.createTypeLevelNormalizerFor(String.class, 0)
+		);
 		private final TreeSet<ValueRecord> model = new TreeSet<>();
 
 		SortState(@Nonnull Random random) {

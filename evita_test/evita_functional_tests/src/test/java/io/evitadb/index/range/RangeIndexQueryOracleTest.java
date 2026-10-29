@@ -37,6 +37,7 @@ import java.util.function.Predicate;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -54,10 +55,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * arithmetic identity (a range whose END is already behind the queried point necessarily has its START behind it too,
  * so the subtraction cancels exactly the expired ranges), and an identity is precisely the kind of claim that a
  * hand-picked example can confirm while being false in general. The generator therefore aims at the cases the identity
- * could break on: several ranges per record, in all three arrangements {@link RangeIndex} permits — disjoint and
- * gap-separated, overlapping, and nested (see {@link #generateSpans}) — probes landing exactly ON a threshold as well
- * as between thresholds, ranges that touch the probe with only one endpoint, and the
- * {@link Long#MIN_VALUE}/{@link Long#MAX_VALUE} borders.
+ * could break on: several ranges per record — disjoint and gap-separated, overlapping, and nested (see
+ * {@link #generateSpans}), and in {@link WithSharedBorders} ranges of one record that share a border or repeat
+ * outright — probes landing exactly ON a threshold as well as between thresholds, ranges that touch the probe with
+ * only one endpoint, and the {@link Long#MIN_VALUE}/{@link Long#MAX_VALUE} borders.
  *
  * The overlapping and nested arrangements are not decoration. They are the shapes on which a signed COUNT and a
  * parity fold disagree: a record holding `(2,15)` and `(5,20)` has two starts and no ends at `t=10`, so counting
@@ -256,8 +257,8 @@ class RangeIndexQueryOracleTest {
 
 				final List<Span> pending = new ArrayList<>();
 				for (int i = 0; i < 4; i++) {
-					// record ids beyond the generated range, so these ranges cannot share a border with a record that
-					// already has one - the constraint RangeIndex places on a single record's spans
+					// record ids beyond the generated range; shared borders inside a transaction are covered by
+					// WithSharedBorders
 					final int recordId = RECORD_COUNT + 10 + i;
 					final long from = random.nextInt(THRESHOLD_SPACE);
 					final long to = from + random.nextInt(5);
@@ -283,6 +284,170 @@ class RangeIndexQueryOracleTest {
 	}
 
 	/**
+	 * Ranges of one record that share a border — the shape a contribution-keyed index produces when several owners add
+	 * their ranges to one record id. The index keeps every occurrence of a border, so each query must still agree with
+	 * the brute-force scan, also after removals and across a transaction.
+	 */
+	@Nested
+	@DisplayName("Indexes whose records hold ranges sharing a border")
+	class WithSharedBorders {
+
+		@Test
+		@DisplayName("Every query agrees with the brute-force scan")
+		void shouldMatchOracleWhenRangesOfOneRecordShareBorders() {
+			for (int seed = 0; seed < SEEDS; seed++) {
+				final List<Span> spans = generateSpansSharingBorders(new Random(seed * 31L + 11L));
+				assertAllQueries(spans, indexOf(spans), probesFor(spans));
+			}
+		}
+
+		@Test
+		@DisplayName("Every query agrees with the brute-force scan after a subset of the ranges is removed")
+		void shouldMatchOracleAfterRemovingRangesSharingBorders() {
+			for (int seed = 0; seed < SEEDS; seed++) {
+				final Random random = new Random(seed * 6_151L + 5L);
+				final List<Span> spans = generateSpansSharingBorders(random);
+				final RangeIndex index = indexOf(spans);
+				final long[] probes = probesFor(spans);
+
+				// removal order is random too: the occurrence a removal takes is the highest one, whichever range
+				// added it, and the answer must not depend on which of two equal borders goes first
+				final List<Span> surviving = new ArrayList<>(spans);
+				final int removals = random.nextInt(spans.size() + 1);
+				for (int i = 0; i < removals; i++) {
+					final Span removed = surviving.remove(random.nextInt(surviving.size()));
+					index.removeRecord(removed.from(), removed.to(), removed.recordId());
+				}
+
+				assertAllQueries(surviving, index, probes);
+			}
+		}
+
+		@Test
+		@DisplayName("Every query agrees with the brute-force scan inside a transaction, after commit and rollback")
+		void shouldMatchOracleForRangesSharingBordersChangedInsideATransaction() {
+			for (int seed = 0; seed < 40; seed++) {
+				final Random random = new Random(seed * 2_003L + 1L);
+				final List<Span> committed = generateSpansSharingBorders(random);
+				final List<Span> expected = new ArrayList<>(committed);
+				final List<Span> added = new ArrayList<>();
+				final List<Span> removed = new ArrayList<>();
+				for (int i = 0; i < 6; i++) {
+					if (random.nextBoolean() && !expected.isEmpty()) {
+						removed.add(expected.remove(random.nextInt(expected.size())));
+					} else {
+						// existing record ids on purpose: the new range shares borders with the ones they hold
+						final Span span = randomSharingSpan(random, 1 + random.nextInt(RECORD_COUNT));
+						added.add(span);
+						expected.add(span);
+					}
+				}
+				final List<Span> all = new ArrayList<>(committed);
+				all.addAll(added);
+				final long[] probes = probesFor(all);
+
+				assertStateAfterCommit(
+					indexOf(committed),
+					original -> {
+						applyInOrder(original, added, removed, random.nextLong());
+						assertAllQueries(expected, original, probes);
+					},
+					(original, committedVersion) -> {
+						assertAllQueries(committed, original, probes);
+						assertAllQueries(expected, committedVersion, probes);
+					}
+				);
+				assertStateAfterRollback(
+					indexOf(committed),
+					original -> applyInOrder(original, added, removed, 0L),
+					(original, committedVersion) -> {
+						assertNull(committedVersion);
+						assertAllQueries(committed, original, probes);
+					}
+				);
+			}
+		}
+
+		/**
+		 * Applies the pending additions and removals to the index, interleaved in an order derived from `seed`. A
+		 * removal is only ever of a range that was committed, so any interleaving leaves the same multiset of ranges.
+		 *
+		 * @param index   the index to mutate
+		 * @param added   the ranges to add
+		 * @param removed the committed ranges to remove
+		 * @param seed    decides the interleaving
+		 */
+		private static void applyInOrder(
+			@Nonnull RangeIndex index, @Nonnull List<Span> added, @Nonnull List<Span> removed, long seed
+		) {
+			final Random order = new Random(seed);
+			int addIndex = 0;
+			int removeIndex = 0;
+			while (addIndex < added.size() || removeIndex < removed.size()) {
+				if (removeIndex == removed.size() || (addIndex < added.size() && order.nextBoolean())) {
+					final Span span = added.get(addIndex++);
+					index.addRecord(span.from(), span.to(), span.recordId());
+				} else {
+					final Span span = removed.get(removeIndex++);
+					index.removeRecord(span.from(), span.to(), span.recordId());
+				}
+			}
+		}
+	}
+
+	/**
+	 * Generates the intervals of one index in which the ranges of one record routinely share a border: every record
+	 * gets one to four ranges whose borders come from a handful of values and the two sentinels, so shared starts,
+	 * shared ends, a range repeated outright, and one range ending where another starts all occur in every seed.
+	 *
+	 * @param random the source of randomness
+	 * @return the generated intervals
+	 */
+	@Nonnull
+	private static List<Span> generateSpansSharingBorders(@Nonnull Random random) {
+		final List<Span> spans = new ArrayList<>();
+		for (int recordId = 1; recordId <= RECORD_COUNT; recordId++) {
+			final int rangeCount = 1 + random.nextInt(4);
+			for (int i = 0; i < rangeCount; i++) {
+				spans.add(randomSharingSpan(random, recordId));
+			}
+		}
+		return spans;
+	}
+
+	/**
+	 * Draws one range of `recordId` whose borders come from six values and the two sentinels, so it is likely to share
+	 * a border with another range of the same record.
+	 *
+	 * @param random   the source of randomness
+	 * @param recordId the record the range belongs to
+	 * @return the range
+	 */
+	@Nonnull
+	private static Span randomSharingSpan(@Nonnull Random random, int recordId) {
+		final long first = sharingBorder(random);
+		final long second = sharingBorder(random);
+		return new Span(recordId, Math.min(first, second), Math.max(first, second));
+	}
+
+	/**
+	 * Draws a border from a deliberately tiny space: six values two apart, or one of the two sentinels.
+	 *
+	 * @param random the source of randomness
+	 * @return the border
+	 */
+	private static long sharingBorder(@Nonnull Random random) {
+		final int pick = random.nextInt(8);
+		if (pick == 0) {
+			return Long.MIN_VALUE;
+		} else if (pick == 1) {
+			return Long.MAX_VALUE;
+		} else {
+			return 2L * pick;
+		}
+	}
+
+	/**
 	 * Callback shape for an assertion made against one generated index at one probe point.
 	 */
 	@FunctionalInterface
@@ -304,9 +469,9 @@ class RangeIndexQueryOracleTest {
 	}
 
 	/**
-	 * Generates the intervals of one index. Each record gets one to three ranges that neither overlap nor touch —
-	 * {@link RangeIndex} requires a single record's ranges not to share a border, because removal would then take the
-	 * shared point away from both.
+	 * Generates the intervals of one index. Each record gets one to three disjoint ranges, or an overlapping or a
+	 * nested pair, none of which share a border — the shapes with shared borders are generated by
+	 * {@link #generateSpansSharingBorders}.
 	 */
 	@Nonnull
 	private static List<Span> generateSpans(@Nonnull Random random) {
@@ -330,7 +495,7 @@ class RangeIndexQueryOracleTest {
 				}
 			} else {
 				// four STRICTLY increasing borders, so whichever pairing is taken below the record never repeats a
-				// border value - which is the one combination RangeIndex forbids (see its class javadoc)
+				// border value - repeated borders are what generateSpansSharingBorders is for
 				final long b0 = random.nextInt(6);
 				final long b1 = b0 + 1 + random.nextInt(3);
 				final long b2 = b1 + 1 + random.nextInt(3);

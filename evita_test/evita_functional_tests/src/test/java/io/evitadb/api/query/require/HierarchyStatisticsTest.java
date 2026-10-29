@@ -24,6 +24,7 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.RequireConstraint;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -121,7 +122,7 @@ class HierarchyStatisticsTest {
 			final HierarchyStatistics constraint = statistics();
 			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
 
-			constraint.accept(c -> visited.set(c));
+			constraint.accept(visited::set);
 
 			assertSame(constraint, visited.get());
 		}
@@ -129,7 +130,7 @@ class HierarchyStatisticsTest {
 		@Test
 		@DisplayName("should return RequireConstraint type")
 		void shouldReturnRequireConstraintType() {
-			assertEquals(RequireConstraint.class, statistics().getType());
+			assertSame(RequireConstraint.class, QueryConstraints.statistics().getType());
 		}
 	}
 

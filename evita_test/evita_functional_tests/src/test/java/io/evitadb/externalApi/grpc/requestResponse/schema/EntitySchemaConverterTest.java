@@ -57,6 +57,10 @@ import javax.annotation.Nullable;
 import java.time.LocalDateTime;
 import java.util.*;
 
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.asciiFolding;
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.lowercase;
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.removeCharacters;
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.trim;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.QUERY;
@@ -109,7 +113,9 @@ class EntitySchemaConverterTest {
 			Set.of(Locale.ENGLISH, Locale.GERMAN),
 			Set.of(Currency.getInstance("EUR"), Currency.getInstance("USD")),
 			Map.of(
-				"test1", EntityAttributeSchema._internalBuild("test1", LocalDateTime.class, true, ConflictResolutionOverride.INHERITED),
+				"test1", EntityAttributeSchema._internalBuild(
+					"test1", LocalDateTime.class, true, ConflictResolutionOverride.INHERITED, null
+				),
 				"test2", GlobalAttributeSchema._internalBuild(
 					"test2",
 					"description",
@@ -132,7 +138,8 @@ class EntitySchemaConverterTest {
 					String.class,
 					null,
 					0,
-					ConflictResolutionOverride.ENTITY
+					ConflictResolutionOverride.ENTITY,
+					List.of(lowercase(), asciiFolding(), removeCharacters("- "), trim())
 				)
 			),
 			Map.of(
@@ -202,13 +209,15 @@ class EntitySchemaConverterTest {
 							String.class,
 							null,
 							0,
-							ConflictResolutionOverride.INHERITED
+							ConflictResolutionOverride.INHERITED,
+							List.of(removeCharacters("- "), trim(), lowercase(), asciiFolding())
 						),
 						"priority", EntityAttributeSchema._internalBuild(
 							"code",
 							Long[].class,
 							false,
-							ConflictResolutionOverride.INHERITED
+							ConflictResolutionOverride.INHERITED,
+							null
 						)
 					),
 					Map.of(
@@ -281,6 +290,7 @@ class EntitySchemaConverterTest {
 	}
 
 	private static void assertAttributeSchema(@Nonnull AttributeSchemaContract expected, @Nonnull AttributeSchemaContract actual) {
+		assertEquals(expected.getNormalization(), actual.getNormalization());
 		assertSame(expected.getClass(), actual.getClass());
 		if (expected instanceof GlobalAttributeSchemaContract expectedGlobal) {
 			assertEquals(expectedGlobal.isUniqueGlobally(), ((GlobalAttributeSchemaContract) actual).isUniqueGlobally());
@@ -397,7 +407,8 @@ class EntitySchemaConverterTest {
 					Scope.NO_SCOPE,
 					false, false, false,
 					String.class, null, 0,
-					ConflictResolutionOverride.INHERITED
+					ConflictResolutionOverride.INHERITED,
+					null
 				)
 			),
 			Map.of(),

@@ -26,6 +26,8 @@ package io.evitadb.api;
 import com.github.javafaker.Faker;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
@@ -209,12 +211,14 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport {
 					.withGlobalAttribute(ATTRIBUTE_CODE)
 					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.filterable().localized().sortable().nullable())
 					.withAttribute(ATTRIBUTE_EAN, String.class, whichIs -> whichIs.filterable().nullable())
-					.withAttribute(ATTRIBUTE_PRIORITY, Long.class, whichIs -> whichIs.sortable())
+					.withAttribute(ATTRIBUTE_PRIORITY, Long.class, AttributeSchemaEditor::sortable)
 					.withAttribute(ATTRIBUTE_VALIDITY, DateTimeRange.class, whichIs -> whichIs.filterable().nullable())
 					.withAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class, whichIs -> whichIs.filterable().indexDecimalPlaces(2).nullable())
 					.withAttribute(ATTRIBUTE_ALIAS, Boolean.class, whichIs -> whichIs.filterable().withDefaultValue(false))
 					/* here we define set of associated data, that can be stored along with entity */
-					.withAssociatedData(ASSOCIATED_DATA_REFERENCED_FILES, ReferencedFileSet.class, whichIs -> whichIs.nullable())
+					.withAssociatedData(ASSOCIATED_DATA_REFERENCED_FILES, ReferencedFileSet.class,
+					                    AssociatedDataSchemaEditor::nullable
+					)
 					.withAssociatedData(ASSOCIATED_DATA_LABELS, Labels.class, whichIs -> whichIs.localized().nullable())
 					/* here we define facets that relate to another entities stored in Evita */
 					.withReferenceToEntity(
@@ -231,7 +235,7 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport {
 								.withGroupTypeRelatedToEntity(Entities.BRAND)
 								.withAttribute(ATTRIBUTE_CATEGORY_GROUP, String.class, thatIs -> thatIs.filterable().representative())
 								.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, thatIs -> thatIs.filterable().sortable())
-								.withAttribute(ATTRIBUTE_CATEGORY_ORDER, Long.class, thatIs -> thatIs.sortable())
+								.withAttribute(ATTRIBUTE_CATEGORY_ORDER, Long.class, AttributeSchemaEditor::sortable)
 					)
 					.updateAndFetchVia(session);
 

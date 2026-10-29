@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.bitmap.Bitmap;
@@ -95,24 +96,30 @@ public final class ReducedEntityIndex extends AbstractReducedEntityIndex impleme
 		@Nonnull String entityType,
 		@Nonnull EntityIndexKey entityIndexKey
 	) {
-		this(primaryKey, entityType, entityIndexKey, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING);
+		this(
+			primaryKey, entityType, entityIndexKey, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING,
+			AttributeNormalizationResolver.LEGACY_NFD
+		);
 	}
 
 	/**
-	 * Creates a fresh index, stating whether it counts its own usage.
+	 * Creates a fresh index using the owner resolver; child structures capture String functions when they are
+	 * created.
 	 *
 	 * @param primaryKey              the primary key of this index
 	 * @param entityType              the type of entity being indexed
 	 * @param entityIndexKey          the key identifying this index
 	 * @param usageStatisticsTracking whether to allocate an {@link io.evitadb.index.IndexActivity} holder for it
+	 * @param normalizationResolver   the owner's resolver new attribute structures bind their key functions from
 	 */
 	public ReducedEntityIndex(
 		int primaryKey,
 		@Nonnull String entityType,
 		@Nonnull EntityIndexKey entityIndexKey,
-		boolean usageStatisticsTracking
+		boolean usageStatisticsTracking,
+		@Nonnull AttributeNormalizationResolver normalizationResolver
 	) {
-		super(primaryKey, entityType, entityIndexKey, usageStatisticsTracking);
+		super(primaryKey, entityType, entityIndexKey, usageStatisticsTracking, normalizationResolver);
 		Assert.isPremiseValid(
 			entityIndexKey.type() == EntityIndexType.REFERENCED_ENTITY,
 			() -> "ReducedEntityIndex only supports REFERENCED_ENTITY type, got: " + entityIndexKey.type()
@@ -203,7 +210,7 @@ public final class ReducedEntityIndex extends AbstractReducedEntityIndex impleme
 					attributes.sortIndexes(),
 					attributes.chainIndexes(),
 					attributes.sharedValueIndexes(),
-					attributes.sharedRangeIndexes()
+					attributes.sharedRangeIndexes(), context.normalizationResolver()
 				),
 				new PriceRefIndex(scope, prices.priceIndexes()),
 				hierarchy.hierarchyIndex(),

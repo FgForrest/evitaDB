@@ -289,7 +289,7 @@ class SegmentTest {
 		void shouldReturnOrderConstraintClassAsType() {
 			final Segment segment = new Segment(orderBy(attributeNatural("code")));
 
-			assertEquals(OrderConstraint.class, segment.getType());
+			assertSame(OrderConstraint.class, segment.getType());
 		}
 
 		@Test

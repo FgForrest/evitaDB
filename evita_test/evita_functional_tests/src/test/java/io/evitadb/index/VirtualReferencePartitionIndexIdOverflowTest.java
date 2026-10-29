@@ -25,6 +25,7 @@ package io.evitadb.index;
 
 import io.evitadb.api.exception.IdentifierOverflowException;
 import io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.SortSnapshot;
+import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.*;
 import io.evitadb.utils.NumberUtils;
@@ -98,7 +99,7 @@ class VirtualReferencePartitionIndexIdOverflowTest {
 		return new VirtualReferencePartitionIndex(
 			"media", new long[]{NumberUtils.pack(TUPLE_SLOT, 1)}, new long[]{galleryTupleId},
 			new int[]{galleryTupleId}, new Serializable[][]{GALLERY}, new SortValueSlot[0], new ChainPredecessorSlot[0]
-		);
+		, slot -> SortIndex.createTypeLevelNormalizerFor(slot.comparatorBase(), slot.indexedDecimalPlaces()));
 	}
 
 	/**
@@ -117,7 +118,7 @@ class VirtualReferencePartitionIndexIdOverflowTest {
 				SORT_SLOT, ORDER, INTEGER_ASC, 0, new int[]{fiveValueId}, new Serializable[]{5}
 			)},
 			new ChainPredecessorSlot[0]
-		);
+		, slot -> SortIndex.createTypeLevelNormalizerFor(slot.comparatorBase(), slot.indexedDecimalPlaces()));
 	}
 
 	/**
@@ -132,7 +133,7 @@ class VirtualReferencePartitionIndexIdOverflowTest {
 		return new VirtualReferencePartitionIndex(
 			"media", new long[0], new long[0], new int[0], new Serializable[0][], new SortValueSlot[0],
 			new ChainPredecessorSlot[]{new ChainPredecessorSlot(chainSlotId, CHAIN)}
-		);
+		, slot -> SortIndex.createTypeLevelNormalizerFor(slot.comparatorBase(), slot.indexedDecimalPlaces()));
 	}
 
 	/**
@@ -290,7 +291,9 @@ class VirtualReferencePartitionIndexIdOverflowTest {
 			);
 			assertOverflow(
 				"to declare `" + SECOND_ORDER + "`", "to declare `" + SECOND_ORDER + "`",
-				() -> index.declareSortKey(SECOND_ORDER, INTEGER_ASC, 0)
+				() -> index.declareSortKey(
+					SECOND_ORDER, INTEGER_ASC, 0, () -> SortIndex.createTypeLevelNormalizerFor(INTEGER_ASC, 0)
+				)
 			);
 
 			assertEquals(Set.of(CHAIN, SECOND_CHAIN), index.getDeclaredChainKeys());

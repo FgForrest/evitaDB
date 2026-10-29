@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.dto;
 
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.NamingConvention;
@@ -32,13 +33,17 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+
 import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.SCHEMA;
-import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link EntityAttributeSchema}.
@@ -58,7 +63,8 @@ class EntityAttributeSchemaTest {
 		void shouldBuildMinimalSchema() {
 			final EntityAttributeSchema schema = EntityAttributeSchema._internalBuild(
 				"name", String.class, true,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null
 			);
 
 			assertEquals("name", schema.getName());
@@ -85,7 +91,8 @@ class EntityAttributeSchemaTest {
 				false, true, true,
 				Integer.class, 10,
 				0,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null
 			);
 
 			assertEquals("priority", schema.getName());
@@ -109,7 +116,8 @@ class EntityAttributeSchemaTest {
 				null, null, null, null,
 				false, false, false,
 				String.class, null, 0,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null
 			);
 
 			assertEquals(
@@ -126,8 +134,12 @@ class EntityAttributeSchemaTest {
 		@Test
 		@DisplayName("should be equal for same parameters")
 		void shouldBeEqual() {
-			final EntityAttributeSchema a = EntityAttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED);
-			final EntityAttributeSchema b = EntityAttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED);
+			final EntityAttributeSchema a = EntityAttributeSchema._internalBuild(
+				"code", String.class, false, ConflictResolutionOverride.INHERITED, null
+			);
+			final EntityAttributeSchema b = EntityAttributeSchema._internalBuild(
+				"code", String.class, false, ConflictResolutionOverride.INHERITED, null
+			);
 
 			assertEquals(a, b);
 			assertEquals(a.hashCode(), b.hashCode());
@@ -138,9 +150,12 @@ class EntityAttributeSchemaTest {
 		void shouldNotEqualBaseAttributeSchema() {
 			final EntityAttributeSchema entity = EntityAttributeSchema._internalBuild(
 				"code", String.class, false,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null
 			);
-			final AttributeSchema base = AttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED);
+			final AttributeSchema base = AttributeSchema._internalBuild(
+				"code", String.class, false, ConflictResolutionOverride.INHERITED, null
+			);
 
 			assertNotEquals(entity, base);
 		}
@@ -155,7 +170,8 @@ class EntityAttributeSchemaTest {
 		void shouldContainPrefix() {
 			final EntityAttributeSchema schema = EntityAttributeSchema._internalBuild(
 				"code", String.class, false,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null
 			);
 
 			final String result = schema.toString();
@@ -167,7 +183,7 @@ class EntityAttributeSchemaTest {
 		@DisplayName("should format uniqueness entries, not Stream reference")
 		void shouldFormatUniquenessEntries() {
 			final EntityAttributeSchema schema = EntityAttributeSchema._internalBuild(
-				"ean",
+				"ean", null, null,
 				new ScopedAttributeUniquenessType[]{
 					new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
 				},
@@ -177,7 +193,8 @@ class EntityAttributeSchemaTest {
 				null,
 				false, false, false,
 				String.class, null,
-				ConflictResolutionOverride.INHERITED
+				0, ConflictResolutionOverride.INHERITED,
+				null
 			);
 
 			final String result = schema.toString();
@@ -186,4 +203,27 @@ class EntityAttributeSchemaTest {
 			assertTrue(result.contains("UNIQUE_WITHIN_COLLECTION"), "toString should contain uniqueness type");
 		}
 	}
+
+	/** Normalization is immutable state participating in DTO equality, hashing and diagnostics. */
+	@Test
+	@DisplayName("Normalization participates in value semantics and is defensively copied")
+	void shouldIncludeNormalizationInValueSemantics() {
+		final List<AnalysisStep> steps = new ArrayList<>(List.of(lowercase()));
+		final EntityAttributeSchema normalized = EntityAttributeSchema._internalBuild(
+			"code", String.class, false, ConflictResolutionOverride.INHERITED, steps
+		);
+		steps.clear();
+		final EntityAttributeSchema equal = EntityAttributeSchema._internalBuild(
+			"code", String.class, false, ConflictResolutionOverride.INHERITED, List.of(lowercase())
+		);
+		final EntityAttributeSchema different = EntityAttributeSchema._internalBuild(
+			"code", String.class, false, ConflictResolutionOverride.INHERITED, List.of(trim())
+		);
+		assertEquals(equal, normalized);
+		assertEquals(equal.hashCode(), normalized.hashCode());
+		assertNotEquals(different, normalized);
+		assertThrows(UnsupportedOperationException.class, () -> normalized.getNormalization().clear());
+		assertTrue(normalized.toString().contains("normalization=[lowercase]"));
+	}
+
 }

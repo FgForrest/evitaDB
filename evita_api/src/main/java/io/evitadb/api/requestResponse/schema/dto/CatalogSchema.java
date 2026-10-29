@@ -347,7 +347,8 @@ public final class CatalogSchema implements CatalogSchemaContract {
 				(Class) attributeSchemaContract.getType(),
 				attributeSchemaContract.getDefaultValue(),
 				attributeSchemaContract.getIndexedDecimalPlaces(),
-				attributeSchemaContract.getConflictResolutionOverride()
+				attributeSchemaContract.getConflictResolutionOverride(),
+				attributeSchemaContract.getNormalization()
 			);
 	}
 

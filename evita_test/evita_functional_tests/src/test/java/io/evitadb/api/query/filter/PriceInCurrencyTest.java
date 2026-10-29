@@ -64,7 +64,7 @@ class PriceInCurrencyTest {
 			final PriceInCurrency constraint = priceInCurrency("CZK");
 
 			assertNotNull(constraint);
-			assertEquals(Currency.getInstance("CZK"), constraint.getCurrency());
+			assertSame(Currency.getInstance("CZK"), constraint.getCurrency());
 		}
 
 		@Test
@@ -74,7 +74,7 @@ class PriceInCurrencyTest {
 			final PriceInCurrency constraint = priceInCurrency(eur);
 
 			assertNotNull(constraint);
-			assertEquals(eur, constraint.getCurrency());
+			assertSame(eur, constraint.getCurrency());
 		}
 
 		@Test
@@ -122,7 +122,7 @@ class PriceInCurrencyTest {
 		void shouldReturnCurrencyFromStringConstructed() {
 			final PriceInCurrency constraint = priceInCurrency("USD");
 
-			assertEquals(Currency.getInstance("USD"), constraint.getCurrency());
+			assertSame(Currency.getInstance("USD"), constraint.getCurrency());
 		}
 
 		@Test
@@ -131,7 +131,7 @@ class PriceInCurrencyTest {
 			final Currency gbp = Currency.getInstance("GBP");
 			final PriceInCurrency constraint = priceInCurrency(gbp);
 
-			assertEquals(gbp, constraint.getCurrency());
+			assertSame(gbp, constraint.getCurrency());
 		}
 
 		@Test
@@ -140,7 +140,7 @@ class PriceInCurrencyTest {
 			final PriceInCurrency fromString = priceInCurrency("EUR");
 			final PriceInCurrency fromCurrency = priceInCurrency(Currency.getInstance("EUR"));
 
-			assertEquals(fromString.getCurrency(), fromCurrency.getCurrency());
+			assertSame(fromString.getCurrency(), fromCurrency.getCurrency());
 		}
 	}
 
@@ -184,7 +184,7 @@ class PriceInCurrencyTest {
 		void shouldReturnCorrectType() {
 			final PriceInCurrency constraint = priceInCurrency("CZK");
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 	}
 

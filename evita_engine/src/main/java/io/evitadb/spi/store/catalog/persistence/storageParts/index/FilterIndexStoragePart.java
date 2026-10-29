@@ -165,18 +165,12 @@ public class FilterIndexStoragePart implements AttributeIndexStoragePart, Record
 	 */
 	@Nullable @Getter @Setter private Long storagePartPK;
 	/**
-	 * Read-path provenance, never persisted: `true` when this part was decoded by a backward-compatible serializer of
-	 * a format written before {@link io.evitadb.dataType.DateTimeRange} moved from second to millisecond comparison
-	 * granularity. The {@link #rangeIndex} of such a part — and, when {@link #rangePaged}, the range leaf pages listed
-	 * on it — hold epoch-**second** thresholds and must be rescaled before the index goes live.
-	 *
-	 * It is a marker rather than a constructor argument because it describes **which reader produced this instance**,
-	 * not anything the record carries: the current serializer never sets it, every backward-compatible one does, and
-	 * a part built by the write path is millisecond-scaled by construction. Only a range index over `DateTimeRange`
-	 * is affected — a threshold is an untyped `long` shared with every `NumberRange` subtype — so the flag is a
-	 * necessary, never a sufficient, condition; the declared {@link #attributeType} decides the rest.
+	 * Transient provenance for a PAGED DateTimeRange companion whose unversioned leaves still contain epoch-second
+	 * thresholds. Only a legacy root reader sets this flag, after checking the persisted plain type. Inline
+	 * companions are converted by that reader; numeric ranges and current roots never carry this flag.
+	 * Migration_2026_3 replaces these pages and the owning root before any production loader may use them.
 	 */
-	@Getter @Setter private boolean secondGranularityRangeThresholds;
+	@Getter @Setter private boolean secondGranularityRangePages;
 
 	/**
 	 * Creates a fresh filter index part whose storage part PK is not yet assigned (computed before persistence) with a
@@ -316,6 +310,22 @@ public class FilterIndexStoragePart implements AttributeIndexStoragePart, Record
 	 * Canonical constructor carrying every field, including the value id column of the `SINGLE` shape and the value id
 	 * high-water mark of the shared value tree. The 13-argument sibling delegates here with no value ids at all, which
 	 * is the shape of every tree no subsystem has registered as a consumer of.
+	 *
+	 * @param entityIndexPrimaryKey the owning entity index primary key
+	 * @param attributeIndexKey the attribute identity
+	 * @param attributeType the required declared value type
+	 * @param histogramPoints the inline buckets, empty for paged buckets
+	 * @param rangeIndex the inline companion, or `null`
+	 * @param indexedDecimalPlaces the frozen decimal scale
+	 * @param paged whether buckets live in external pages
+	 * @param highWaterPageSequence the bucket stream's allocation high-water
+	 * @param leafPageSequences the live bucket pages in key order
+	 * @param rangePaged whether range points live in external pages
+	 * @param rangeHighWaterPageSequence the range stream's allocation high-water
+	 * @param rangeLeafPageSequences the live range pages in threshold order
+	 * @param nextValueId the next stable value id, or the unassigned marker
+	 * @param inlineValueIds the inline value ids, or `null` without an id column
+	 * @param storagePartPK the persisted lookup id, or `null` before allocation
 	 */
 	public FilterIndexStoragePart(
 		@Nonnull Integer entityIndexPrimaryKey,

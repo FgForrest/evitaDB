@@ -28,6 +28,7 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -254,7 +255,7 @@ public class NestedEntityScopeFunctionalTest {
 			List<SealedEntity> originalTargets
 		) {
 			final Function<ReferenceContract, Integer> groupOf = pick -> pick.getGroup()
-				.map(it -> it.getPrimaryKey())
+				.map(GroupEntityReference::getPrimaryKey)
 				.orElse(null);
 			evita.queryCatalog(
 				TEST_CATALOG,

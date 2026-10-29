@@ -163,7 +163,17 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(ValueToRecordBitmap.class, new SerialVersionBasedSerializer<>(new ValueToRecordBitmapSerializer(), ValueToRecordBitmap.class), index++);
 
 		kryo.register(RangeIndex.class, new SerialVersionBasedSerializer<>(new IntRangeIndexSerializer(), RangeIndex.class), index++);
-		kryo.register(TransactionalRangePoint.class, new SerialVersionBasedSerializer<>(new TransactionalIntRangePointSerializer(), TransactionalRangePoint.class), index++);
+		kryo.register(
+			TransactionalRangePoint.class,
+			new SerialVersionBasedSerializer<>(
+				new TransactionalIntRangePointSerializer(), TransactionalRangePoint.class
+			)
+				// every release up to 2026.2 stored a threshold's starts and ends as sets - no repeated levels
+				.addBackwardCompatibleSerializer(
+					-7357845800177404940L, new TransactionalIntRangePointSerializer_2026_2()
+				),
+			index++
+		);
 
 		// skip index, it was used by removed AttributeCardinalityIndexSerializer
 		index++;
@@ -404,6 +414,14 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			),
 			index++
 		);
+
+		// New singleton records are appended so all preceding persisted registration ids remain stable.
+		kryo.register(AttributeNormalizationStoragePart.class,
+			new SerialVersionBasedSerializer<>(new AttributeNormalizationStoragePartSerializer(),
+				AttributeNormalizationStoragePart.class), index++);
+		kryo.register(GlobalAttributeNormalizationStoragePart.class,
+			new SerialVersionBasedSerializer<>(new GlobalAttributeNormalizationStoragePartSerializer(),
+				GlobalAttributeNormalizationStoragePart.class), index++);
 
 		Assert.isPremiseValid(index < 700, "Index count overflow.");
 	}

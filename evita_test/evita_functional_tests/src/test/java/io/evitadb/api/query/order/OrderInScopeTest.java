@@ -195,7 +195,7 @@ class OrderInScopeTest {
 		void shouldReturnOrderConstraintClassAsType() {
 			final OrderInScope orderInScope = inScope(Scope.LIVE, attributeNatural("code", ASC));
 
-			assertEquals(OrderConstraint.class, orderInScope.getType());
+			assertSame(OrderConstraint.class, orderInScope.getType());
 		}
 
 		@Test

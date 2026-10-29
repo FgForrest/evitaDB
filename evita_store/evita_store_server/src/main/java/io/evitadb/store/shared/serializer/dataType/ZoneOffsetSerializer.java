@@ -59,12 +59,14 @@ public class ZoneOffsetSerializer extends ImmutableSerializer<ZoneOffset> {
 		return read(in);
 	}
 
+	/**
+	 * Reads a zone offset and reuses the cached instance for its total seconds.
+	 *
+	 * @param in input containing the total offset seconds
+	 * @return the cached zone offset for the encoded total seconds
+	 */
 	public static ZoneOffset read(Input in) {
-		return CACHE.computeIfAbsent(in.readInt(), it -> {
-			synchronized (CACHE) {
-				return ZoneOffset.ofTotalSeconds(it);
-			}
-		});
+		return CACHE.computeIfAbsent(in.readInt(), ZoneOffset::ofTotalSeconds);
 	}
 
 }

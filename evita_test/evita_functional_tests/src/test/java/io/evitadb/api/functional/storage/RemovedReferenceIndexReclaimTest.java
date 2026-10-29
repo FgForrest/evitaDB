@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
@@ -155,7 +156,7 @@ class RemovedReferenceIndexReclaimTest implements EvitaTestSupport {
 					.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::filterable)
 					.withReferenceToEntity(
 						REFERENCE_CATEGORIES, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.indexedForFilteringAndPartitioning()
+						ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 					)
 					.updateVia(session);
 				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, CATEGORY_PK));
@@ -235,7 +236,7 @@ class RemovedReferenceIndexReclaimTest implements EvitaTestSupport {
 					.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.filterable().nullable())
 					.withReferenceToEntity(
 						REFERENCE_CATEGORIES, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.indexedForFilteringAndPartitioning()
+						ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 					)
 					.updateVia(session);
 				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, CATEGORY_PK));
@@ -303,7 +304,7 @@ class RemovedReferenceIndexReclaimTest implements EvitaTestSupport {
 					.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::filterable)
 					.withReferenceToEntity(
 						REFERENCE_CATEGORIES, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.indexedForFilteringAndPartitioning()
+						ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 					)
 					.updateVia(session);
 				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, CATEGORY_PK));

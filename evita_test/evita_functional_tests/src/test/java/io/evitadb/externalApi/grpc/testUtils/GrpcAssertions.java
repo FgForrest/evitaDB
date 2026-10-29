@@ -88,6 +88,7 @@ import java.util.Set;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.GRPC_MAX_INSTANT;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.GRPC_MIN_INSTANT;
+import static io.evitadb.externalApi.grpc.requestResponse.schema.AnalysisStepConverter.toAnalysisSteps;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -147,6 +148,8 @@ public class GrpcAssertions {
 			}
 			assertEquals(expectedAttributeSchema.isUnique(), actualAttributeSchema.getUnique());
 			assertEquals(expectedAttributeSchema.isFilterable(), actualAttributeSchema.getFilterable());
+			assertEquals(expectedAttributeSchema.getNormalization(),
+				toAnalysisSteps(actualAttributeSchema.getNormalizedList()));
 			assertEquals(expectedAttributeSchema.isSortable(), actualAttributeSchema.getSortable());
 			assertEquals(expectedAttributeSchema.isLocalized(), actualAttributeSchema.getLocalized());
 			assertEquals(expectedAttributeSchema.isNullable(), actualAttributeSchema.getNullable());
@@ -155,7 +158,7 @@ public class GrpcAssertions {
 			assertEquals(expectedAttributeSchema.isRepresentative(), actualAttributeSchema.getRepresentative());
 			assertEquals(expectedAttributeSchema.isUniqueGlobally(), actualAttributeSchema.getUniqueGlobally());
 			assertAccelerators(
-				expectedAttributeSchema, actualAttributeSchema.getAcceleratorsInScopesList()
+				expectedAttributeSchema, actualAttributeSchema.getAcceleratedList()
 			);
 		}
 	}
@@ -229,13 +232,15 @@ public class GrpcAssertions {
 			}
 			assertEquals(expectedAttributeSchema.isUnique(), actualAttributeSchema.getUnique());
 			assertEquals(expectedAttributeSchema.isFilterable(), actualAttributeSchema.getFilterable());
+			assertEquals(expectedAttributeSchema.getNormalization(),
+				toAnalysisSteps(actualAttributeSchema.getNormalizedList()));
 			assertEquals(expectedAttributeSchema.isSortable(), actualAttributeSchema.getSortable());
 			assertEquals(expectedAttributeSchema.isLocalized(), actualAttributeSchema.getLocalized());
 			assertEquals(expectedAttributeSchema.isNullable(), actualAttributeSchema.getNullable());
 			assertEquals(EvitaDataTypesConverter.toGrpcEvitaDataType(expectedAttributeSchema.getType()), actualAttributeSchema.getType());
 			assertEquals(expectedAttributeSchema.getIndexedDecimalPlaces(), actualAttributeSchema.getIndexedDecimalPlaces());
 			assertAccelerators(
-				expectedAttributeSchema, actualAttributeSchema.getAcceleratorsInScopesList()
+				expectedAttributeSchema, actualAttributeSchema.getAcceleratedList()
 			);
 		}
 	}
@@ -297,7 +302,7 @@ public class GrpcAssertions {
 
 			// assert bucketed histogram definitions
 			final long expectedBucketedCount = expectedReferenceSchema.getAllHistogramIndexDefinitions()
-				.values().stream().mapToLong(m -> m.size()).sum();
+				.values().stream().mapToLong(Map::size).sum();
 			assertEquals(
 				expectedBucketedCount,
 				actualReferenceSchema.getBucketedList().size(),

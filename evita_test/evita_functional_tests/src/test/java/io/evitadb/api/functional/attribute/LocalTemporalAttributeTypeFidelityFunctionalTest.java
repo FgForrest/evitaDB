@@ -74,10 +74,7 @@ import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.SCHEMA;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Regression coverage for the *local* temporal attribute types — `LocalDateTime`, `LocalDate` and
@@ -330,7 +327,7 @@ public class LocalTemporalAttributeTypeFidelityFunctionalTest implements EvitaTe
 			final UpsertAttributeMutation mutation = new UpsertAttributeMutation(
 				new AttributeKey(ATTR_LOCAL_DATE_TIME), value
 			);
-			assertEquals(value.getClass(), mutation.getAttributeValue().getClass());
+			assertSame(value.getClass(), mutation.getAttributeValue().getClass());
 			assertEquals(value, mutation.getAttributeValue());
 		}
 
@@ -402,10 +399,7 @@ public class LocalTemporalAttributeTypeFidelityFunctionalTest implements EvitaTe
 
 					// the declared schema type must survive the write untouched as well
 					final SealedEntitySchema schema = session.getEntitySchema(ENTITY_PRODUCT).orElseThrow();
-					assertEquals(
-						expectedType,
-						schema.getAttribute(attributeName).orElseThrow().getType()
-					);
+					assertSame(expectedType, schema.getAttribute(attributeName).orElseThrow().getType());
 
 					// sortable path proven end-to-end
 					assertEquals(List.of(1, 2, 3), primaryKeysOrderedBy(session, attributeName));
@@ -592,7 +586,7 @@ public class LocalTemporalAttributeTypeFidelityFunctionalTest implements EvitaTe
 			runWithCatalog(
 				"localTemporalEvolvedDateTime",
 				session -> {
-					assertEquals(
+					assertSame(
 						LocalDateTime.class,
 						evolveAttributeSchemaFor(session, ATTR_LOCAL_DATE_TIME, FIRST_DATE_TIME).getType()
 					);
@@ -611,10 +605,8 @@ public class LocalTemporalAttributeTypeFidelityFunctionalTest implements EvitaTe
 		void shouldDeriveLocalDateAttributeFromLocalDateValue() {
 			runWithCatalog(
 				"localTemporalEvolvedDate",
-				session -> assertEquals(
-					LocalDate.class,
-					evolveAttributeSchemaFor(session, ATTR_LOCAL_DATE, FIRST_DATE).getType()
-				)
+				session -> assertSame(
+					LocalDate.class, evolveAttributeSchemaFor(session, ATTR_LOCAL_DATE, FIRST_DATE).getType())
 			);
 		}
 
@@ -623,10 +615,8 @@ public class LocalTemporalAttributeTypeFidelityFunctionalTest implements EvitaTe
 		void shouldDeriveLocalTimeAttributeFromLocalTimeValue() {
 			runWithCatalog(
 				"localTemporalEvolvedTime",
-				session -> assertEquals(
-					LocalTime.class,
-					evolveAttributeSchemaFor(session, ATTR_LOCAL_TIME, FIRST_TIME).getType()
-				)
+				session -> assertSame(
+					LocalTime.class, evolveAttributeSchemaFor(session, ATTR_LOCAL_TIME, FIRST_TIME).getType())
 			);
 		}
 

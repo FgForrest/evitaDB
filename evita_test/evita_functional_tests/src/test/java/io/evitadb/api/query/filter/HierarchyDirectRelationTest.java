@@ -91,7 +91,7 @@ class HierarchyDirectRelationTest {
 		void shouldReturnFilterConstraintType() {
 			final HierarchyDirectRelation constraint = new HierarchyDirectRelation();
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 
 		@Test

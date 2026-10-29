@@ -1,7 +1,7 @@
 ---
 title: A schema change is never refused because the collection holds data; a filter accelerator declared over stored values stays dormant
 date: 2026-10-05
-updated: 2026-10-21 15:04
+updated: 2026-10-25 05:45
 status: accepted
 kind: fix
 issues: [258, 409]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_engine/src/main/java/io/evitadb/core/collection, evita_engine/src/main/java/io/evitadb/core/catalog, evita_engine/src/main/java/io/evitadb/index/trigram, evita_engine/src/main/java/io/evitadb/index/invertedIndex, evita_engine/src/main/java/io/evitadb/index/GlobalEntityIndex.java, evita_api/src/main/java/io/evitadb/api/requestResponse/schema]
 supersedes: []
 superseded-by: []
-relates: [2026-08-24-fulltext-search-lucene-vs-inhouse, 2026-09-08-warm-up-invalid-schema-refuses-to-publish, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures]
+relates: [2026-08-24-fulltext-search-lucene-vs-inhouse, 2026-09-08-warm-up-invalid-schema-refuses-to-publish, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures, 2026-10-27-string-attribute-normalization]
 ---
 
 # A schema change is never refused because the collection holds data; a filter accelerator declared over stored values stays dormant
@@ -209,6 +209,9 @@ rebuild.
 - [2026-09-08-warm-up-invalid-schema-refuses-to-publish](2026-09-08-warm-up-invalid-schema-refuses-to-publish.md)
   lists the two deleted preflight methods among the refusals that keep refusing cleanly before the exchange.
   They no longer exist; its reasoning about the remaining refusals is unaffected.
+- [2026-10-27-string-attribute-normalization](2026-10-27-string-attribute-normalization.md) — applies this rule to key
+  policy: a changed `normalized(...)` declaration on a populated attribute is accepted, and the index keeps the chain it
+  was built with until reindexing (#409).
 
 ## Timeline
 

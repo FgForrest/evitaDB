@@ -52,6 +52,7 @@ import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -855,7 +856,7 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 		session.defineEntitySchema(ENTITY_PRODUCT)
 			.withLocale(Locale.ENGLISH, Locale.GERMAN)
 			.withPriceIndexedInScope(Scope.LIVE, Scope.ARCHIVED)
-			.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.unique())
+			.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::unique)
 			.withAttribute(
 				ATTRIBUTE_NAME, String.class,
 				whichIs -> whichIs.localized()
@@ -863,8 +864,8 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 					.sortableInScope(Scope.LIVE, Scope.ARCHIVED)
 					.nullable()
 			)
-			.withAttribute(ATTRIBUTE_VISIBLE, Boolean.class, whichIs -> whichIs.nullable())
-			.withAttribute(ATTRIBUTE_PINNED, Boolean.class, whichIs -> whichIs.nullable())
+			.withAttribute(ATTRIBUTE_VISIBLE, Boolean.class, AttributeSchemaEditor::nullable)
+			.withAttribute(ATTRIBUTE_PINNED, Boolean.class, AttributeSchemaEditor::nullable)
 			.withAssociatedData(
 				ASSOCIATED_DATA_DESCRIPTION, String.class, whichIs -> whichIs.localized().nullable()
 			)

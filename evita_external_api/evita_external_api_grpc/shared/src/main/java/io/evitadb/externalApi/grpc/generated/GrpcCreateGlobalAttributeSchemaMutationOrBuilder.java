@@ -120,7 +120,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=90
+   *     See GrpcAttributeSchemaMutations.proto;l=95
    * @return The enum numeric value on the wire for unique.
    */
   @java.lang.Deprecated int getUniqueValue();
@@ -133,7 +133,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=90
+   *     See GrpcAttributeSchemaMutations.proto;l=95
    * @return The unique.
    */
   @java.lang.Deprecated io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique();
@@ -147,7 +147,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=94
+   *     See GrpcAttributeSchemaMutations.proto;l=99
    * @return The enum numeric value on the wire for uniqueGlobally.
    */
   @java.lang.Deprecated int getUniqueGloballyValue();
@@ -160,7 +160,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=94
+   *     See GrpcAttributeSchemaMutations.proto;l=99
    * @return The uniqueGlobally.
    */
   @java.lang.Deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType getUniqueGlobally();
@@ -175,7 +175,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>bool filterable = 6 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.filterable is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=99
+   *     See GrpcAttributeSchemaMutations.proto;l=104
    * @return The filterable.
    */
   @java.lang.Deprecated boolean getFilterable();
@@ -190,7 +190,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>bool sortable = 7 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.sortable is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=104
+   *     See GrpcAttributeSchemaMutations.proto;l=109
    * @return The sortable.
    */
   @java.lang.Deprecated boolean getSortable();
@@ -580,5 +580,59 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder getAcceleratorsInScopesOrBuilder(
+      int index);
+
+  /**
+   * <pre>
+   * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+   * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+   * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep> 
+      getNormalizationList();
+  /**
+   * <pre>
+   * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+   * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+   * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep getNormalization(int index);
+  /**
+   * <pre>
+   * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+   * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+   * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+   */
+  int getNormalizationCount();
+  /**
+   * <pre>
+   * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+   * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+   * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAnalysisStepOrBuilder> 
+      getNormalizationOrBuilderList();
+  /**
+   * <pre>
+   * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+   * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+   * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 20;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcAnalysisStepOrBuilder getNormalizationOrBuilder(
       int index);
 }

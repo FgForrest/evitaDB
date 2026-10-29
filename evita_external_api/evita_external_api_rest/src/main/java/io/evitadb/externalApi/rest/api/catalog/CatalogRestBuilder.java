@@ -46,11 +46,13 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.Refer
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.RemoveReferenceGroupMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.RemoveReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.SetReferenceGroupMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureCriteriaDescriptor;
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.api.catalog.model.cdc.DataSiteDescriptor;
 import io.evitadb.externalApi.api.catalog.model.cdc.SchemaSiteDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.CreateAssociatedDataSchemaMutationDescriptor;
@@ -142,6 +144,9 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 		return this.buildingContext.buildRest();
 	}
 
+	/**
+	 * Registers shared catalog types and the schemas used by CDC payloads and mutations.
+	 */
 	private void buildCommonTypes() {
 		this.buildingContext.registerType(buildScalarEnum());
 		this.buildingContext.registerType(ErrorDescriptor.THIS.to(this.objectBuilderTransformer).build());
@@ -153,6 +158,9 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 		// for client developers.
 		this.buildingContext.registerType(DataSiteDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(SchemaSiteDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(
+			ChangeCatalogCaptureCriteriaDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
 		this.buildingContext.registerType(ChangeCatalogCaptureRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(buildChangeCatalogCaptureObject());
 		buildMutationInterface();
@@ -235,6 +243,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 					typeRefTo(RemoveAttributeSchemaMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaFilterableMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaAcceleratedMutationDescriptor.THIS.name()),
+					typeRefTo(SetAttributeSchemaNormalizedMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaLocalizedMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaNullableMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.THIS.name()),
@@ -351,6 +360,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			RemoveAttributeSchemaMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaFilterableMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaAcceleratedMutationDescriptor.THIS_INPUT,
+			SetAttributeSchemaNormalizedMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaLocalizedMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaNullableMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.THIS_INPUT,
@@ -404,6 +414,9 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 		);
 	}
 
+	/**
+	 * Registers output mutations and the unions referenced by their nested mutation arrays.
+	 */
 	private void buildOutputMutations() {
 		registerMutations(
 			RemoveAssociatedDataMutationDescriptor.THIS,
@@ -481,6 +494,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			RemoveAttributeSchemaMutationDescriptor.THIS,
 			SetAttributeSchemaFilterableMutationDescriptor.THIS,
 			SetAttributeSchemaAcceleratedMutationDescriptor.THIS,
+			SetAttributeSchemaNormalizedMutationDescriptor.THIS,
 			SetAttributeSchemaLocalizedMutationDescriptor.THIS,
 			SetAttributeSchemaNullableMutationDescriptor.THIS,
 			SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.THIS,
@@ -516,6 +530,9 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			SetReferenceSchemaConflictResolutionOverrideMutationDescriptor.THIS
 		);
 
+		this.buildingContext.registerType(
+			LocalCatalogSchemaMutationUnionDescriptor.THIS.to(this.unionBuilderTransformer).build()
+		);
 		this.buildingContext.registerType(
 			LocalEntitySchemaMutationUnionDescriptor.THIS.to(this.unionBuilderTransformer).build());
 		this.buildingContext.registerType(ReferenceAttributeSchemaMutationUnionDescriptor.THIS.to(this.unionBuilderTransformer).build());

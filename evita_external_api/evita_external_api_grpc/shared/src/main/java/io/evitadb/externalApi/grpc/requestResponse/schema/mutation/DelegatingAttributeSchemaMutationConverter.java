@@ -69,6 +69,11 @@ public class DelegatingAttributeSchemaMutationConverter implements SchemaMutatio
 			SetAttributeSchemaAcceleratedMutation.class,
 			new ToGrpc((b, m) -> b.setSetAttributeSchemaAcceleratedMutation((GrpcSetAttributeSchemaAcceleratedMutation) m), SetAttributeSchemaAcceleratedMutationConverter.INSTANCE)
 		);
+		TO_GRPC_CONVERTERS.put(
+			SetAttributeSchemaNormalizedMutation.class,
+			new ToGrpc((b, m) -> b.setSetAttributeSchemaNormalizedMutation((GrpcSetAttributeSchemaNormalizedMutation) m),
+				SetAttributeSchemaNormalizedMutationConverter.INSTANCE)
+		);
 		TO_GRPC_CONVERTERS.put(SetAttributeSchemaLocalizedMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaLocalizedMutation((GrpcSetAttributeSchemaLocalizedMutation) m), SetAttributeSchemaLocalizedMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(SetAttributeSchemaNullableMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaNullableMutation((GrpcSetAttributeSchemaNullableMutation) m), SetAttributeSchemaNullableMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(SetAttributeSchemaConflictResolutionOverrideMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaConflictResolutionOverrideMutation((GrpcSetAttributeSchemaConflictResolutionOverrideMutation) m), SetAttributeSchemaConflictResolutionOverrideMutationConverter.INSTANCE));
@@ -89,6 +94,11 @@ public class DelegatingAttributeSchemaMutationConverter implements SchemaMutatio
 		TO_JAVA_CONVERTERS.put(
 			SETATTRIBUTESCHEMAACCELERATEDMUTATION,
 			new ToJava(GrpcAttributeSchemaMutation::getSetAttributeSchemaAcceleratedMutation, SetAttributeSchemaAcceleratedMutationConverter.INSTANCE)
+		);
+		TO_JAVA_CONVERTERS.put(
+			SETATTRIBUTESCHEMANORMALIZEDMUTATION,
+			new ToJava(GrpcAttributeSchemaMutation::getSetAttributeSchemaNormalizedMutation,
+				SetAttributeSchemaNormalizedMutationConverter.INSTANCE)
 		);
 		TO_JAVA_CONVERTERS.put(SETATTRIBUTESCHEMALOCALIZEDMUTATION, new ToJava(GrpcAttributeSchemaMutation::getSetAttributeSchemaLocalizedMutation, SetAttributeSchemaLocalizedMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(SETATTRIBUTESCHEMANULLABLEMUTATION, new ToJava(GrpcAttributeSchemaMutation::getSetAttributeSchemaNullableMutation, SetAttributeSchemaNullableMutationConverter.INSTANCE));

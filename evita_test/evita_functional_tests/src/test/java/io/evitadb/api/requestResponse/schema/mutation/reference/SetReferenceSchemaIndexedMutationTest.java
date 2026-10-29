@@ -306,7 +306,8 @@ class SetReferenceSchemaIndexedMutationTest {
 							Scope.NO_SCOPE,
 							false, false, false,
 							Integer.class, null, 0,
-							ConflictResolutionOverride.INHERITED
+							ConflictResolutionOverride.INHERITED,
+							null
 						)
 					),
 					Collections.emptyMap(),
@@ -382,7 +383,8 @@ class SetReferenceSchemaIndexedMutationTest {
 							Scope.NO_SCOPE,
 							false, false, false,
 							Integer.class, null, 0,
-							ConflictResolutionOverride.INHERITED
+							ConflictResolutionOverride.INHERITED,
+							null
 						)
 					),
 					Collections.emptyMap(),
@@ -456,7 +458,8 @@ class SetReferenceSchemaIndexedMutationTest {
 							Scope.NO_SCOPE,
 							false, false, false,
 							Integer.class, null, 0,
-							ConflictResolutionOverride.INHERITED
+							ConflictResolutionOverride.INHERITED,
+							null
 						)
 					),
 					Collections.emptyMap(),

@@ -142,7 +142,7 @@ class AttributeContainsTest {
 		void shouldReturnCorrectType() {
 			final AttributeContains constraint = attributeContains("abc", "def");
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 	}
 
@@ -169,8 +169,8 @@ class AttributeContainsTest {
 			assertNotSame(attributeContains("abc", "def"), attributeContains("abc", "def"));
 			assertEquals(attributeContains("abc", "def"), attributeContains("abc", "def"));
 			assertNotEquals(attributeContains("abc", "def"), attributeContains("abc", "defe"));
-			assertNotEquals(attributeContains("abc", "def"), new AttributeContains("abc", null));
-			assertNotEquals(attributeContains("abc", "def"), new AttributeContains(null, "abc"));
+			assertNotEquals(new AttributeContains("abc", null), attributeContains("abc", "def"));
+			assertNotEquals(new AttributeContains(null, "abc"), attributeContains("abc", "def"));
 			assertEquals(
 				attributeContains("abc", "def").hashCode(),
 				attributeContains("abc", "def").hashCode()

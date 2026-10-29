@@ -187,8 +187,12 @@ class EntityConverterTest {
 			Set.of(Locale.ENGLISH, Locale.GERMAN),
 			Set.of(Currency.getInstance("EUR"), Currency.getInstance("USD"), Currency.getInstance("CZK")),
 			Map.of(
-				"test1", EntityAttributeSchema._internalBuild("test1", LocalDateTime.class, true, ConflictResolutionOverride.INHERITED),
-				"test2", EntityAttributeSchema._internalBuild("test2", Boolean[].class, true, ConflictResolutionOverride.INHERITED)
+				"test1", EntityAttributeSchema._internalBuild(
+					"test1", LocalDateTime.class, true, ConflictResolutionOverride.INHERITED, null
+				),
+				"test2", EntityAttributeSchema._internalBuild(
+					"test2", Boolean[].class, true, ConflictResolutionOverride.INHERITED, null
+				)
 			),
 			Map.of(
 				"test1", AssociatedDataSchema._internalBuild("test1", "Lorem ipsum", "Alert", Integer.class, false, true, null, null, ConflictResolutionOverride.INHERITED),

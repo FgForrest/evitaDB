@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndexTestSupport;
 import io.evitadb.test.duration.TimeArgumentProvider;
@@ -174,7 +175,7 @@ class LongRunningCatalogIndexTest implements TimeBoundedTestSupport {
 	 */
 	@Nonnull
 	private static CatalogIndex createLiveCatalogIndex() {
-		return new CatalogIndex(Scope.LIVE);
+		return new CatalogIndex(Scope.LIVE, true, AttributeNormalizationResolver.LEGACY_NFD);
 	}
 
 	/**

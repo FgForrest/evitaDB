@@ -152,12 +152,12 @@ public class RingBufferInputStream extends InputStream {
 	}
 
 	@Override
-	public synchronized void mark(int readlimit) {
+	public void mark(int readlimit) {
 		// no-op: mark/reset is unsupported (see markSupported()); the inherited InputStream default is also a no-op
 	}
 
 	@Override
-	public synchronized void reset() throws IOException {
+	public void reset() throws IOException {
 		throw new IOException("mark/reset is not supported by the ring buffer input stream");
 	}
 

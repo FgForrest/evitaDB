@@ -96,11 +96,12 @@ class ModifyEntitySchemaMutationTest {
 
 			final ModifyEntitySchemaMutation entitySchemaMutation = (ModifyEntitySchemaMutation) result.current()[0];
 			assertEquals(2, entitySchemaMutation.getSchemaMutations().length);
+			// the existing mutation was collected first, so its statement stays first
 			assertInstanceOf(
-				SetAttributeSchemaUniqueMutation.class, entitySchemaMutation.getSchemaMutations()[0]
+				SetAttributeSchemaFilterableMutation.class, entitySchemaMutation.getSchemaMutations()[0]
 			);
 			assertInstanceOf(
-				SetAttributeSchemaFilterableMutation.class, entitySchemaMutation.getSchemaMutations()[1]
+				SetAttributeSchemaUniqueMutation.class, entitySchemaMutation.getSchemaMutations()[1]
 			);
 		}
 

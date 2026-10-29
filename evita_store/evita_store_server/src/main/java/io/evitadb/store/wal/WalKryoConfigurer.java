@@ -514,6 +514,14 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 			index++
 		);
 
+		kryo.register(
+			SetAttributeSchemaNormalizedMutation.class,
+			new SerialVersionBasedSerializer<>(
+				new SetAttributeSchemaNormalizedMutationSerializer(), SetAttributeSchemaNormalizedMutation.class
+			),
+			index++
+		);
+
 		Assert.isPremiseValid(index < 801, "Index count overflow.");
 	}
 

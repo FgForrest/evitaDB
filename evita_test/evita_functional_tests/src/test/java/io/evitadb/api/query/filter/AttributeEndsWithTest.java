@@ -142,7 +142,7 @@ class AttributeEndsWithTest {
 		void shouldReturnCorrectType() {
 			final AttributeEndsWith constraint = attributeEndsWith("abc", "def");
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 	}
 
@@ -169,8 +169,8 @@ class AttributeEndsWithTest {
 			assertNotSame(attributeEndsWith("abc", "def"), attributeEndsWith("abc", "def"));
 			assertEquals(attributeEndsWith("abc", "def"), attributeEndsWith("abc", "def"));
 			assertNotEquals(attributeEndsWith("abc", "def"), attributeEndsWith("abc", "defe"));
-			assertNotEquals(attributeEndsWith("abc", "def"), new AttributeEndsWith("abc", null));
-			assertNotEquals(attributeEndsWith("abc", "def"), new AttributeEndsWith(null, "abc"));
+			assertNotEquals(new AttributeEndsWith("abc", null), attributeEndsWith("abc", "def"));
+			assertNotEquals(new AttributeEndsWith(null, "abc"), attributeEndsWith("abc", "def"));
 			assertEquals(
 				attributeEndsWith("abc", "def").hashCode(),
 				attributeEndsWith("abc", "def").hashCode()

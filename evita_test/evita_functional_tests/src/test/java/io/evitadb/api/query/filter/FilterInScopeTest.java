@@ -25,6 +25,7 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
@@ -289,9 +290,9 @@ class FilterInScopeTest {
 		@Test
 		@DisplayName("should return FilterConstraint type")
 		void shouldReturnFilterConstraintType() {
-			assertEquals(
+			assertSame(
 				FilterConstraint.class,
-				inScope(Scope.LIVE, entityPrimaryKeyInSet(1)).getType()
+				QueryConstraints.inScope(Scope.LIVE, QueryConstraints.entityPrimaryKeyInSet(1)).getType()
 			);
 		}
 
@@ -301,7 +302,7 @@ class FilterInScopeTest {
 			final FilterInScope constraint = inScope(Scope.LIVE, entityPrimaryKeyInSet(1));
 			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
 
-			constraint.accept(c -> visited.set(c));
+			constraint.accept(visited::set);
 
 			assertSame(constraint, visited.get());
 		}

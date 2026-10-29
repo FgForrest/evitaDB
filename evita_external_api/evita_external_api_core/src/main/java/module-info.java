@@ -28,6 +28,7 @@ module evita.external.api.core {
 	exports io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.entity;
 	exports io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.price;
 	exports io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.reference;
+	exports io.evitadb.externalApi.api.catalog.schemaApi.resolver;
 	exports io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
 	exports io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData;
 	exports io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;

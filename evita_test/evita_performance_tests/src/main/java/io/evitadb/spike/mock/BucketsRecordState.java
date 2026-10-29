@@ -34,6 +34,7 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.OwnerFilterIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -85,16 +86,48 @@ public class BucketsRecordState {
 	public void setUp() {
 		this.entityIds = generateBitmap(VALUE_COUNT, 1);
 		this.request = new AttributeHistogramRequest(
-			AttributeSchema._internalBuild("whatever", Integer.class, false, ConflictResolutionOverride.INHERITED),
+			AttributeSchema._internalBuild(
+				"whatever", Integer.class, false, ConflictResolutionOverride.INHERITED, null
+			),
 			REQUESTED_BUCKET_COUNT,
 			HistogramBehavior.STANDARD,
 			Comparator.naturalOrder(),
 			Arrays.asList(
-				new OwnerFilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
-				new OwnerFilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
-				new OwnerFilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
-				new OwnerFilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
-				new OwnerFilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class)
+				OwnerFilterIndex.fromPersistedPages(
+					new AttributeIndexKey(null, "whatever", null), new InvertedIndex(
+						Integer.class, generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5),
+						FilterIndex.getNormalizer(Integer.class, 0),
+						FilterIndex.getComparator(new AttributeIndexKey(null, "whatever", null), Integer.class), 0
+					), new RangeIndex(), Integer.class, 0
+				),
+				OwnerFilterIndex.fromPersistedPages(
+					new AttributeIndexKey(null, "whatever", null), new InvertedIndex(
+						Integer.class, generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5),
+						FilterIndex.getNormalizer(Integer.class, 0),
+						FilterIndex.getComparator(new AttributeIndexKey(null, "whatever", null), Integer.class), 0
+					), new RangeIndex(), Integer.class, 0
+				),
+				OwnerFilterIndex.fromPersistedPages(
+					new AttributeIndexKey(null, "whatever", null), new InvertedIndex(
+						Integer.class, generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5),
+						FilterIndex.getNormalizer(Integer.class, 0),
+						FilterIndex.getComparator(new AttributeIndexKey(null, "whatever", null), Integer.class), 0
+					), new RangeIndex(), Integer.class, 0
+				),
+				OwnerFilterIndex.fromPersistedPages(
+					new AttributeIndexKey(null, "whatever", null), new InvertedIndex(
+						Integer.class, generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5),
+						FilterIndex.getNormalizer(Integer.class, 0),
+						FilterIndex.getComparator(new AttributeIndexKey(null, "whatever", null), Integer.class), 0
+					), new RangeIndex(), Integer.class, 0
+				),
+				OwnerFilterIndex.fromPersistedPages(
+					new AttributeIndexKey(null, "whatever", null), new InvertedIndex(
+						Integer.class, generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5),
+						FilterIndex.getNormalizer(Integer.class, 0),
+						FilterIndex.getComparator(new AttributeIndexKey(null, "whatever", null), Integer.class), 0
+					), new RangeIndex(), Integer.class, 0
+				)
 			)
 		);
 		this.buckets = generateBuckets(BUCKET_COUNT, VALUE_COUNT);

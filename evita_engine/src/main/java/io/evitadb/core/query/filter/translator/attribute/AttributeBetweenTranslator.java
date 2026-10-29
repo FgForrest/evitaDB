@@ -55,6 +55,7 @@ import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static io.evitadb.dataType.EvitaDataTypes.toTargetType;
 import static java.util.Optional.ofNullable;
@@ -239,8 +240,8 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 				}
 
 				final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
-				final Serializable convertedFrom = toTargetType(from, attributeType);
-				final Serializable convertedTo = toTargetType(to, attributeType);
+				final Serializable convertedFrom = toAttributeProbeValue(from, attributeType);
+				final Serializable convertedTo = toAttributeProbeValue(to, attributeType);
 				filteringFormula = new BetweenAttributeFormula(
 					attributeSchema instanceof GlobalAttributeSchemaContract,
 					attributeKey,
@@ -284,6 +285,7 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 		@Nonnull AttributeBetween attributeBetween,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull UnaryOperator<String> stringNormalizer,
 		@Nonnull Supplier<OffsetDateTime> now
 	) {
 		final Class<? extends Serializable> plainType = attributeSchema.getPlainType();
@@ -296,7 +298,8 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 			);
 		} else {
 			return AttributeValueMatcher.within(
-				attributeIndexKey, plainType, indexedDecimalPlaces, attributeBetween.getFrom(), attributeBetween.getTo()
+				attributeIndexKey, plainType, indexedDecimalPlaces, stringNormalizer, attributeBetween.getFrom(),
+				attributeBetween.getTo()
 			);
 		}
 	}

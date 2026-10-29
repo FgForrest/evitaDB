@@ -48,10 +48,9 @@ import java.io.Serializable;
  * a `DateTimeRange` attribute would otherwise have every range threshold read a thousand times too small, silently.
  * (The uid *before* that one, `7294816253748291063L`, genuinely never shipped, which is why nothing reads it.)
  *
- * Like {@link FilterIndexStoragePartSerializer_2026_2}, this reader only **marks** the part's provenance; the rescale
- * itself happens in the load path. It cannot happen here: a range-`PAGED` axis keeps its thresholds in
- * {@code HistogramRangeIndexLeafPagePart} records this serializer never sees, and only a `DateTimeRange` histogram may
- * be rescaled at all. See {@code HistogramIndexMapLoader#reloadOwnerFilterIndex}.
+ * Inline DateTimeRange companions are converted here using the record's persisted plain type (including array
+ * component types). PAGED companions have unversioned leaves outside this record, so only those temporal pages
+ * are marked for Migration_2026_3 to replace before loading. Numeric range thresholds stay unchanged.
  *
  * This serializer only reads — writes always go through the current {@link HistogramIndexStoragePartSerializer},
  * which persists the millisecond form under the bumped serial-version-uid.
@@ -81,16 +80,15 @@ public class HistogramIndexStoragePartSerializer_2026_2 extends Serializer<Histo
 
 		final HistogramIndexStoragePart part = new HistogramIndexStoragePart(
 			identity.entityIndexPrimaryKey(), identity.histogramName(), identity.locale(), valueType,
-			payload.points(), payload.rangeIndex(), payload.indexedDecimalPlaces(),
+			payload.points(), LegacyRangeIndexConversion.convertInline(valueType, payload.rangeIndex()),
+			payload.indexedDecimalPlaces(),
 			bucketMetadata.paged(), bucketMetadata.highWaterPageSequence(), bucketMetadata.leafPageSequences(),
 			rangeMetadata.paged(), rangeMetadata.highWaterPageSequence(), rangeMetadata.leafPageSequences(),
 			identity.uniquePartId()
 		);
-		// every HistogramIndexStoragePart format older than the millisecond change persisted its range thresholds as
-		// epoch SECONDS; mark the provenance so HistogramIndexMapLoader can rescale the ones that belong to a
-		// `DateTimeRange` histogram (a threshold is an untyped long shared with every NumberRange subtype, so the
-		// persisted value type - not this flag alone - decides)
-		part.setSecondGranularityRangeThresholds(true);
+		part.setSecondGranularityRangePages(
+			rangeMetadata.paged() && LegacyRangeIndexConversion.isDateTimeRange(valueType)
+		);
 		return part;
 	}
 

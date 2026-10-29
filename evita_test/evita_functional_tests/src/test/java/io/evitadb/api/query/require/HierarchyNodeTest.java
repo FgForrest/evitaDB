@@ -24,6 +24,7 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import org.junit.jupiter.api.DisplayName;
@@ -95,7 +96,7 @@ class HierarchyNodeTest {
 			final HierarchyNode constraint = node(NODE_REF);
 			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
 
-			constraint.accept(c -> visited.set(c));
+			constraint.accept(visited::set);
 
 			// Last visited is the deepest child; the container is visited first
 			assertNotNull(visited.get());
@@ -104,7 +105,7 @@ class HierarchyNodeTest {
 		@Test
 		@DisplayName("should return RequireConstraint type")
 		void shouldReturnRequireConstraintType() {
-			assertEquals(RequireConstraint.class, node(NODE_REF).getType());
+			assertSame(RequireConstraint.class, QueryConstraints.node(NODE_REF).getType());
 		}
 	}
 

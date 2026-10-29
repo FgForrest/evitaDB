@@ -192,7 +192,7 @@ class ReflectedReferenceSchemaTest {
 	 * @return a new {@link AttributeSchema}
 	 */
 	private static AttributeSchema createAttribute(String name, Class<? extends java.io.Serializable> type) {
-		return AttributeSchema._internalBuild(name, type, false, ConflictResolutionOverride.INHERITED);
+		return AttributeSchema._internalBuild(name, type, false, ConflictResolutionOverride.INHERITED, null);
 	}
 
 	@Nested

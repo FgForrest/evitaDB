@@ -25,6 +25,7 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -246,7 +247,7 @@ class FacetIncludingChildrenTest {
 		@Test
 		@DisplayName("should return FilterConstraint type")
 		void shouldReturnFilterConstraintType() {
-			assertEquals(FilterConstraint.class, includingChildren().getType());
+			assertSame(FilterConstraint.class, QueryConstraints.includingChildren().getType());
 		}
 
 		@Test
@@ -255,7 +256,7 @@ class FacetIncludingChildrenTest {
 			final FacetIncludingChildren constraint = includingChildrenHaving(entityPrimaryKeyInSet(1));
 			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
 
-			constraint.accept(c -> visited.set(c));
+			constraint.accept(visited::set);
 
 			assertSame(constraint, visited.get());
 		}

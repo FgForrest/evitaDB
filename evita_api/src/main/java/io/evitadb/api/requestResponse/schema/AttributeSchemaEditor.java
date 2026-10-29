@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.requestResponse.data.Versioned;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
@@ -47,6 +48,34 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	AttributeSchemaContract,
 	ConflictResolutionOverrideAwareSchemaEditor<T>
 {
+	/**
+	 * Replaces the normalization of a `String` or `String[]` attribute in every scope; this axis is not scope-aware.
+	 * Calling `normalized()` removes all custom steps, leaving only Unicode NFD.
+	 *
+	 * Normalization changes equality, uniqueness, sort order and substring search matches, while the stored value
+	 * is untouched. Steps apply once in declared order, after Unicode NFC entry.
+	 * Unicode NFD is always applied last. Indexes that already hold values keep the normalization they were built
+	 * with until they are reindexed, which is not available yet.
+	 *
+	 * @param steps ordered normalization descriptions
+	 * @return this editor
+	 */
+	@Nonnull
+	T normalized(@Nonnull AnalysisStep... steps);
+
+	/**
+	 * Conditional counterpart of {@link #normalized(AnalysisStep...)}. A false decision removes normalization.
+	 * The same String-only, scope-independent, single-pass and reindexing rules apply.
+	 *
+	 * @param decider determines whether to apply the steps or remove normalization
+	 * @param steps ordered normalization descriptions
+	 * @return this editor
+	 */
+	@Nonnull
+	default T normalized(@Nonnull BooleanSupplier decider, @Nonnull AnalysisStep... steps) {
+		return decider.getAsBoolean() ? normalized(steps) : normalized();
+	}
+
 	/**
 	 * Default value is used when the entity is created without this attribute specified. Default values allow to pass
 	 * non-null checks even if no attributes of such name are specified.

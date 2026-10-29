@@ -27,6 +27,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -129,13 +130,13 @@ public class TemporalUniqueAttributeLookupFunctionalTest {
 	@DataSet(value = TEMPORAL_UNIQUE, destroyAfterClass = true)
 	void setUp(@Nonnull Evita evita) {
 		evita.defineCatalog(TEST_CATALOG)
-			.withAttribute(GLOBAL_SLOT, OffsetDateTime.class, thatIs -> thatIs.uniqueGlobally())
+			.withAttribute(GLOBAL_SLOT, OffsetDateTime.class, GlobalAttributeSchemaEditor::uniqueGlobally)
 			.withAttribute(
 				GLOBAL_LOCAL_SLOT, OffsetDateTime.class, thatIs -> thatIs.localized().uniqueGloballyWithinLocale()
 			)
-			.withAttribute(GLOBAL_LOCAL_DATE, LocalDateTime.class, thatIs -> thatIs.uniqueGlobally())
-			.withAttribute(GLOBAL_TIME, LocalTime.class, thatIs -> thatIs.uniqueGlobally())
-			.withAttribute(GLOBAL_CODE, String.class, thatIs -> thatIs.uniqueGlobally())
+			.withAttribute(GLOBAL_LOCAL_DATE, LocalDateTime.class, GlobalAttributeSchemaEditor::uniqueGlobally)
+			.withAttribute(GLOBAL_TIME, LocalTime.class, GlobalAttributeSchemaEditor::uniqueGlobally)
+			.withAttribute(GLOBAL_CODE, String.class, GlobalAttributeSchemaEditor::uniqueGlobally)
 			.updateViaNewSession(evita);
 		evita.updateCatalog(
 			TEST_CATALOG,

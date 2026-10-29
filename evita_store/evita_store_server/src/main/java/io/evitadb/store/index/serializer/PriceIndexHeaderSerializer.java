@@ -41,10 +41,10 @@ import javax.annotation.Nonnull;
  * {@code PriceListAndCurrencySuperIndexStoragePart} and {@code PriceListAndCurrencyRefIndexStoragePart} descend; the
  * serializer-side header mirrors that part-side base so the two stay byte-identical over this region by construction.
  *
- * Unlike the histogram header, the primary key is expected to be already computed here: it is read straight off the part
- * ({@link PriceListAndCurrencyIndexStoragePart#getStoragePartPK()}) with a non-null assertion, not (re)computed during
- * the write. What each serializer writes AFTER this header (the super index's price records, the ref index's ascending
- * price ids) is serializer-specific and stays in each.
+ * Unlike the histogram header, the primary key is expected to be already computed here: it is read straight off the
+ * part ({@link PriceListAndCurrencyIndexStoragePart#getStoragePartPK()}) with a non-null assertion, not (re)computed
+ * during the write. What each serializer writes AFTER this header (the super index's price records, the ref index's
+ * ascending price ids) is serializer-specific and stays in each.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -127,7 +127,7 @@ public final class PriceIndexHeaderSerializer {
 		final PriceIndexHeader header = read(kryo, input, keyCompressor);
 		return new PriceIndexHeader(
 			header.entityIndexPrimaryKey(), header.uniquePartId(), header.priceIndexKey(),
-			RangeIndex.rescaledFromSecondGranularity(header.validityIndex())
+			LegacyRangeIndexConversion.rescaledFromSecondGranularity(header.validityIndex())
 		);
 	}
 

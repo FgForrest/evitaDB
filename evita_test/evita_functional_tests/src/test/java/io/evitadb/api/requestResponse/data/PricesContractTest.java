@@ -1698,7 +1698,7 @@ class PricesContractTest extends AbstractBuilderTest {
 			CZK, MOMENT_2020, new String[]{REFERENCE, VIP, LOGGED_ONLY, BASIC},
 			Objects::nonNull
 		).orElseThrow();
-		assertEquals(CZK, czkSelling.currency(), "selling price must be in requested currency");
+		assertSame(CZK, czkSelling.currency(), "selling price must be in requested currency");
 
 		final Map<String, Optional<PriceContract>> accompanying = PricesContract.calculateAccompanyingPrices(
 			czkSelling, mixedCurrencySet, PriceInnerRecordHandling.LOWEST_PRICE,
@@ -1709,8 +1709,8 @@ class PricesContractTest extends AbstractBuilderTest {
 		final PriceContract acc = accompanying.get("ref").orElseThrow(
 			() -> new AssertionError("accompanying REFERENCE price must be selectable")
 		);
-		assertEquals(CZK, acc.currency(),
-			"accompanying price must honour the requested currency, not leak in EUR siblings");
+		assertSame(
+			CZK, acc.currency(), "accompanying price must honour the requested currency, not leak in EUR siblings");
 	}
 
 	/**

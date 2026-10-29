@@ -402,6 +402,9 @@ unique attribute. Attributes that are neither `filterable` / `sortable` / `uniqu
 
 An attribute carrying a filter index may additionally opt in to a [filter accelerator](#filter-accelerators), which buys faster answers to certain constraints for extra memory and extra write-path work.
 
+String attributes can also declare [normalization](#normalization), which determines the canonical form used for
+indexing and comparison while preserving the stored value.
+
 <LS to="j,e,r,g">
 
 Attribute schema can be marked as `localized`, meaning that it only makes sense in a specific
@@ -430,6 +433,7 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaAcceleratedMutation.java</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaFilterableMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/SetAttributeSchemaFilterableMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaLocalizedMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/SetAttributeSchemaLocalizedMutation.cs</SourceClass></LS>**
+- **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaNormalizedMutation.java</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaNullableMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/SetAttributeSchemaNullableMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaRepresentativeMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/SetAttributeSchemaRepresentativeMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaSortableMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/SetAttributeSchemaSortableMutation.cs</SourceClass></LS>**
@@ -459,6 +463,244 @@ filter or sort conditions.
 
 If a number cannot be converted to a compact form (for example, it has more digits in the fractional part than expected),
 an exception is thrown and the entity update is refused.
+
+#### Normalization
+
+Normalization defines the **canonical form** that an attribute's indexes store and compare. For example, lowercasing
+lets a lookup for `abc` find a value written as `ABC`. The stored attribute value is untouched: fetching the entity
+still returns `ABC`.
+
+The declaration is an ordered list of steps on the attribute schema. It is available for entity, reference and
+global attributes of type `String` or `String[]`; for an array, each element is normalized separately. Other data
+types cannot declare it. Normalization is not [scope-aware](#scopes): the same list applies to live and archived
+entities.
+
+##### Declaring normalization
+
+<LS to="j">
+
+The factories are defined in
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/analysis/AnalysisSteps.java</SourceClass>.
+
+```java
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.asciiFolding;
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.lowercase;
+
+entitySchemaBuilder
+	.withAttribute(
+		"code", String.class,
+		whichIs -> whichIs
+			.filterable()
+			.normalized(lowercase(), asciiFolding())
+	);
+```
+
+Calling `normalized(steps...)` replaces the entire list; calling `normalized()` clears the custom steps. The
+`normalized(decider, steps...)` overload applies the list when the supplied condition is true and clears it when
+false.
+
+For a schema derived from a Java class or interface, use `@Attribute.normalized`. This example also removes hyphens
+and spaces:
+
+```java
+import io.evitadb.api.requestResponse.data.annotation.AnalysisStepDef;
+import io.evitadb.api.requestResponse.data.annotation.Attribute;
+import io.evitadb.api.requestResponse.data.annotation.StepParameter;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps;
+
+public interface Product {
+	@Attribute(filterable = true, normalized = {
+		@AnalysisStepDef(step = AnalysisSteps.LOWERCASE),
+		@AnalysisStepDef(step = AnalysisSteps.ASCII_FOLDING),
+		@AnalysisStepDef(
+			step = AnalysisSteps.REMOVE_CHARACTERS,
+			parameters = @StepParameter(name = AnalysisSteps.CHARACTERS, value = "- ")
+		)
+	})
+	String getCode();
+}
+```
+
+The attribute schema's `getNormalization()` returns the declared list of `AnalysisStep` descriptions.
+
+</LS>
+
+<LS to="g,r">
+
+GraphQL and REST schema mutations accept the list in `normalization`, both when creating an attribute and when
+replacing its declaration with `setAttributeSchemaNormalizedMutation`; the schema output reports it in `normalized`.
+Each list item selects exactly one step. Parameterless steps use `true`; parameterized steps use a typed parameter
+object. GraphQL enforces this with `@oneOf`, and REST describes it with OpenAPI `oneOf`.
+
+</LS>
+
+<LS to="g">
+
+For example, the GraphQL mutation item for an existing attribute is:
+
+```graphql
+{
+    setAttributeSchemaNormalizedMutation: {
+        name: "code"
+        normalization: [{lowercase: true}, {removeCharacters: {characters: "- "}}]
+    }
+}
+```
+
+Read the declaration by selecting `normalized { step parameters }` on the attribute schema.
+
+</LS>
+
+<LS to="r">
+
+The corresponding REST mutation item is:
+
+```json
+{
+    "setAttributeSchemaNormalizedMutation": {
+        "name": "code",
+        "normalization": [{"lowercase": true}, {"removeCharacters": {"characters": "- "}}]
+    }
+}
+```
+
+</LS>
+
+<LS to="g,r">
+
+Schema output uses step names and parameter maps rather than the input selectors. For the declaration above,
+`normalized` is:
+
+```json
+[
+    {"step": "lowercase", "parameters": {}},
+    {"step": "remove-characters", "parameters": {"characters": "- "}}
+]
+```
+
+The other built-in input selectors are `{asciiFolding: true}` and `{trim: true}` (with quoted field names in REST
+JSON). An empty list in `setAttributeSchemaNormalizedMutation` removes all custom steps.
+
+</LS>
+
+<LS to="j,g,r">
+
+In gRPC, the attribute schema's `normalized` field and the mutations' `normalization` field are ordered, repeated
+`GrpcAnalysisStep` fields. Each item has a `step` (such as `ascii-folding` or `remove-characters`) and a
+`parameters` map of `GrpcEvitaValue` values. Parameterless steps have
+an empty map. `GrpcSetAttributeSchemaNormalizedMutation` replaces the list; an empty repeated field clears it.
+The wire messages are defined in
+<SourceClass>evita_external_api/evita_external_api_grpc/shared/src/main/resources/META-INF/io/evitadb/externalApi/grpc/GrpcEvitaDataTypes.proto</SourceClass>
+and
+<SourceClass>evita_external_api/evita_external_api_grpc/shared/src/main/resources/META-INF/io/evitadb/externalApi/grpc/GrpcAttributeSchemaMutations.proto</SourceClass>.
+
+</LS>
+
+Every API reports the **declared list**, in its declared order, including an empty list when there are no custom
+steps. On an attribute with data, this can differ from the normalization its indexes still use - see
+[changing normalization](#changing-normalization-on-an-attribute-with-data).
+
+##### Which steps are available?
+
+| Java factory | Step name | Effect |
+| --- | --- | --- |
+| `lowercase()` | `lowercase` | Lowercases Unicode code points using the locale of the value tree. Turkish and Azeri use their casing rules: `I` becomes `ı`, and `İ` becomes `i`; an `I` followed by a combining dot above also becomes `i`, consuming the dot. Other locales use Java's `Character.toLowerCase` mapping. Non-localized attributes use the root locale, independently of the query locale or server default. This step leaves `ß` unchanged. |
+| `asciiFolding()` | `ascii-folding` | Maps characters covered by Lucene's ASCII folding table to their ASCII equivalents, including accented letters and expansions such as `ß` to `ss`. Characters absent from the table stay unchanged. It is independent of locale and does not lowercase the result. |
+| `trim()` | `trim` | Removes leading and trailing whitespace recognized by Java's `Character.isWhitespace` or `Character.isSpaceChar`, including no-break spaces such as U+00A0, U+2007 and U+202F. Whitespace inside the value stays unchanged. |
+| `removeCharacters(characters)` | `remove-characters` | Removes every occurrence of any Unicode code point in the non-empty `characters` string, wherever it appears. `removeCharacters("- ")` removes hyphens and spaces. The argument is a set of literal characters, not a regular expression or a substring to remove as a whole. |
+
+##### Does the order of the steps matter?
+
+Yes. Each step runs **once, in the declared order**. Choosing that order is the schema author's responsibility.
+For example, `removeCharacters("-"), trim()` turns `" - abc"` into `"abc"`. Reversing the steps leaves `" abc"`:
+removing the hyphen exposes a space after trimming has already finished.
+
+For a Turkish or Azeri localized attribute, put `lowercase()` before `asciiFolding()` if you want `I` and `ı` to
+meet. Lowercasing first produces `ı` for both, which folding converts to `i`. Folding first produces `I` and `i`,
+which Turkish or Azeri lowercasing turns into distinct `ı` and `i` keys.
+
+For a non-empty step list, evitaDB first composes the input into Unicode NFC, runs the steps once, then always
+applies Unicode **NFD last**. An empty list still applies NFD, preserving canonical equivalence between composed
+and decomposed spellings. Clearing the custom steps therefore retains this Unicode normalization.
+
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### How does normalization affect uniqueness?
+</NoteTitle>
+
+Uniqueness compares canonical keys. With `lowercase()`, `ABC` and `abc` are one value, so two entities cannot hold
+them in the same uniqueness domain. With `lowercase(), asciiFolding()`, `Straße` and `STRASSE` also collide.
+This applies to collection and catalog-wide uniqueness.
+
+A localized attribute that is unique **across locales** uses the root locale for its uniqueness comparisons,
+because that uniqueness tree spans several locales. Its localized filtering and sorting still use each value
+tree's own locale; uniqueness within a locale uses that locale too.
+
+</Note>
+
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### Does normalization also change sort order?
+</NoteTitle>
+
+Yes. Filtering and sorting use canonical keys. Lowercasing therefore removes case distinctions from sort order,
+and ASCII folding removes the distinctions covered by its table. A [sortable attribute compound](#sortable-attribute-compounds)
+inherits the normalization of each attribute it names. The values returned with the sorted entities retain their
+original spelling.
+
+</Note>
+
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### Does substring search use the same normalization?
+</NoteTitle>
+
+Yes. [`attributeContains`](../query/filtering/string.md#attribute-contains),
+[`attributeStartsWith`](../query/filtering/string.md#attribute-starts-with) and
+[`attributeEndsWith`](../query/filtering/string.md#attribute-ends-with) compare normalized text on both sides:
+the indexed value and the search pattern. The [`SUBSTRING_SEARCH` accelerator](#substring-search) builds its
+trigrams from those same canonical keys, so accelerated and scanned searches agree.
+
+</Note>
+
+<Note type="warning">
+
+<NoteTitle toggles="true">
+
+##### Changing normalization on an attribute with data
+</NoteTitle>
+
+This is a temporary limitation that lasts until reindexing is available
+([issue #409](https://github.com/FgForrest/evitaDB/issues/409)).
+
+A valid normalization change is always accepted, and the schema immediately reports the new list. If the attribute
+already holds indexed values, however, its indexes keep the normalization they were **built with**, for both
+existing and newly written values. Queries use that same retained normalization. evitaDB logs a warning when the
+declaration differs from it. This applies to adding, replacing and removing the steps.
+
+Until then, a populated index cannot switch to the new declaration. For example, adding `lowercase()` to an existing
+unique attribute does not start enforcing case-insensitive uniqueness while its indexes retain the old normalization.
+
+An attribute without indexed values adopts the declared list at schema-change time. The check covers all locales
+and both scopes, including values held only in sortable compounds; a non-null element counts, while a null element
+does not. An empty string is an indexed value. Stored values without an index do not prevent adoption.
+
+Once every indexed value of the attribute has been removed, the next change to the schema of its entity applies the
+declared list, even if it only repeats the current `normalized(...)` declaration. Removing the values alone does not
+switch normalization: make the schema change before inserting new values if you want them indexed under the new list.
+
+For a globally unique attribute, this decision is made for **all participating collections and the catalog together**.
+One collection becoming empty is not enough: no indexed values of that attribute may remain in any participating
+collection or in the catalog's uniqueness indexes. The collections and the catalog then adopt the same list at a
+catalog schema change, including a repeated declaration.
+
+</Note>
 
 #### Filter accelerators
 

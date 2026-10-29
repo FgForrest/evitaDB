@@ -499,7 +499,7 @@ public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpoint
 			.ifPresent(entity -> dto.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), createEntityDto(entity, localized)));
 
 		reference.getGroupEntity()
-			.map(it -> (EntityClassifier) it)
+			.map(EntityClassifier.class::cast)
 			.or(reference::getGroup)
 			.ifPresent(groupEntity -> dto.e(ReferenceDefinitionDescriptor.GROUP_ENTITY.name(), createEntityDto(groupEntity, localized)));
 

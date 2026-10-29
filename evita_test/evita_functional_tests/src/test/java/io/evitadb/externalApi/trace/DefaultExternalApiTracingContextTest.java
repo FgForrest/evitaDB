@@ -59,7 +59,7 @@ class DefaultExternalApiTracingContextTest {
 	@Test
 	@DisplayName("returns Object.class as context type")
 	void shouldReturnObjectClassAsContextType() {
-		assertEquals(Object.class, DefaultExternalApiTracingContext.INSTANCE.contextType());
+		assertSame(Object.class, DefaultExternalApiTracingContext.INSTANCE.contextType());
 	}
 
 	@Test
@@ -107,37 +107,37 @@ class DefaultExternalApiTracingContextTest {
 		@Test
 		@DisplayName("formats with valid client ID")
 		void shouldFormatWithValidClientId() {
-			assertEquals("GraphQL|my-client.1", ctx.convertClientId("GraphQL", "my-client.1"));
+			assertEquals("GraphQL|my-client.1", this.ctx.convertClientId("GraphQL", "my-client.1"));
 		}
 
 		@Test
 		@DisplayName("uses default when client ID is null")
 		void shouldUseDefaultWhenClientIdIsNull() {
-			assertEquals("REST|unknown", ctx.convertClientId("REST", null));
+			assertEquals("REST|unknown", this.ctx.convertClientId("REST", null));
 		}
 
 		@Test
 		@DisplayName("sanitizes special characters")
 		void shouldSanitizeSpecialCharacters() {
-			assertEquals("gRPC|client-name-1-2", ctx.convertClientId("gRPC", "client@name#1!2"));
+			assertEquals("gRPC|client-name-1-2", this.ctx.convertClientId("gRPC", "client@name#1!2"));
 		}
 
 		@Test
 		@DisplayName("sanitizes spaces")
 		void shouldSanitizeSpaces() {
-			assertEquals("REST|my-client", ctx.convertClientId("REST", "my client"));
+			assertEquals("REST|my-client", this.ctx.convertClientId("REST", "my client"));
 		}
 
 		@Test
 		@DisplayName("handles empty client ID")
 		void shouldHandleEmptyClientId() {
-			assertEquals("REST|", ctx.convertClientId("REST", ""));
+			assertEquals("REST|", this.ctx.convertClientId("REST", ""));
 		}
 
 		@Test
 		@DisplayName("preserves allowed characters")
 		void shouldPreserveAllowedCharacters() {
-			assertEquals("REST|abc-XYZ_123.test", ctx.convertClientId("REST", "abc-XYZ_123.test"));
+			assertEquals("REST|abc-XYZ_123.test", this.ctx.convertClientId("REST", "abc-XYZ_123.test"));
 		}
 	}
 

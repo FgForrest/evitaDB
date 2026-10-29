@@ -26,6 +26,7 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -199,9 +200,9 @@ class EntityHavingTest {
 		@Test
 		@DisplayName("should return FilterConstraint type")
 		void shouldReturnFilterConstraintType() {
-			assertEquals(
+			assertSame(
 				FilterConstraint.class,
-				entityHaving(attributeEquals("x", "y")).getType()
+				QueryConstraints.entityHaving(QueryConstraints.attributeEquals("x", "y")).getType()
 			);
 		}
 
@@ -211,7 +212,7 @@ class EntityHavingTest {
 			final EntityHaving constraint = entityHaving(attributeEquals("x", "y"));
 			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
 
-			constraint.accept(c -> visited.set(c));
+			constraint.accept(visited::set);
 
 			assertSame(constraint, visited.get());
 		}

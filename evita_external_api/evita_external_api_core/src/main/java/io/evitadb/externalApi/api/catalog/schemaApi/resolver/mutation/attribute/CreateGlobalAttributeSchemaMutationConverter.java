@@ -32,6 +32,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMap
 import io.evitadb.externalApi.api.resolver.mutation.Input;
 import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.resolver.mutation.Output;
 import io.evitadb.externalApi.api.resolver.mutation.PropertyObjectListMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
@@ -131,7 +132,15 @@ public class CreateGlobalAttributeSchemaMutationConverter
 			valueType,
 			input.getOptionalProperty(CreateGlobalAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), valueType),
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES, 0),
-			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE, ConflictResolutionOverride.INHERITED)
+			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE, ConflictResolutionOverride.INHERITED),
+			readNormalization(input)
 		);
+	}
+
+	/** Serializes the custom normalization descriptions before the generic mutation properties. */
+	@Override
+	protected void convertToOutput(@Nonnull CreateGlobalAttributeSchemaMutation mutation, @Nonnull Output output) {
+		writeNormalization(mutation.getNormalization(), output);
+		super.convertToOutput(mutation, output);
 	}
 }

@@ -311,7 +311,7 @@ class ReferencePropertyTest implements EvitaTestSupport {
 				"brand", attributeNatural("order")
 			);
 
-			assertEquals(OrderConstraint.class, constraint.getType());
+			assertSame(OrderConstraint.class, constraint.getType());
 		}
 
 		@Test

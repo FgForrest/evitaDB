@@ -1965,7 +1965,10 @@ class EvitaSessionServiceFunctionalTest {
 			originalEntity.getEntity().getGlobalAttributesMap().get(ATTRIBUTE_QUANTITY),
 			upsertEntityResponse.get().getEntity().getGlobalAttributesMap().get(ATTRIBUTE_QUANTITY)
 		);
-		assertEquals(upsertEntityResponse.get().getEntity().getGlobalAttributesMap().get(ATTRIBUTE_PRIORITY).getLongValue(), priorityValue);
+		assertEquals(
+			priorityValue,
+			upsertEntityResponse.get().getEntity().getGlobalAttributesMap().get(ATTRIBUTE_PRIORITY).getLongValue()
+		);
 		final BigDecimal originalQuantityValue = EvitaDataTypesConverter.toBigDecimal(originalEntity.getEntity().getGlobalAttributesMap().get(ATTRIBUTE_QUANTITY).getBigDecimalValue());
 		final BigDecimal updatedQuantityValue = EvitaDataTypesConverter.toBigDecimal(upsertEntityResponse.get().getEntity().getGlobalAttributesMap().get(ATTRIBUTE_QUANTITY).getBigDecimalValue());
 		assertEquals(originalQuantityValue.add(quantityValueDelta), updatedQuantityValue);

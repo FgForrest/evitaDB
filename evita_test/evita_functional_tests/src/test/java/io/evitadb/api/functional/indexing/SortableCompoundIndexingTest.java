@@ -29,9 +29,11 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
@@ -106,8 +108,8 @@ class SortableCompoundIndexingTest implements EvitaTestSupport, IndexingTestSupp
 				final String attributeCodeEan = ATTRIBUTE_CODE + StringUtils.capitalize(ATTRIBUTE_EAN);
 				session
 					.defineEntitySchema(Entities.PRODUCT)
-					.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.nullable())
-					.withAttribute(ATTRIBUTE_EAN, String.class, whichIs -> whichIs.nullable())
+					.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::nullable)
+					.withAttribute(ATTRIBUTE_EAN, String.class, AttributeSchemaEditor::nullable)
 					.withSortableAttributeCompound(
 						attributeCodeEan,
 						AttributeElement.attributeElement(
@@ -168,7 +170,7 @@ class SortableCompoundIndexingTest implements EvitaTestSupport, IndexingTestSupp
 				final String attributeCodeEan = ATTRIBUTE_CODE + StringUtils.capitalize(ATTRIBUTE_EAN);
 				session
 					.defineEntitySchema(Entities.PRODUCT)
-					.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.nullable())
+					.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::nullable)
 					.withAttribute(ATTRIBUTE_EAN, String.class, whichIs -> whichIs.localized().nullable())
 					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().nullable())
 					.withSortableAttributeCompound(
@@ -281,11 +283,11 @@ class SortableCompoundIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceToEntity(
 						Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.indexedForFilteringAndPartitioning()
+						ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 					)
 					.withReferenceToEntity(
 						Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.indexedForFilteringAndPartitioning()
+						ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 					)
 					.updateVia(session);
 
@@ -361,8 +363,8 @@ class SortableCompoundIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					.withReferenceToEntity(
 						Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs.indexedForFilteringAndPartitioning()
-							.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.nullable())
-							.withAttribute(ATTRIBUTE_EAN, String.class, thatIs -> thatIs.nullable())
+							.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::nullable)
+							.withAttribute(ATTRIBUTE_EAN, String.class, AttributeSchemaEditor::nullable)
 							.withSortableAttributeCompound(
 								attributeCodeEan,
 								AttributeElement.attributeElement(
@@ -374,8 +376,8 @@ class SortableCompoundIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					.withReferenceToEntity(
 						Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs.indexedForFilteringAndPartitioning()
-							.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.nullable())
-							.withAttribute(ATTRIBUTE_EAN, String.class, thatIs -> thatIs.nullable())
+							.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::nullable)
+							.withAttribute(ATTRIBUTE_EAN, String.class, AttributeSchemaEditor::nullable)
 							.withSortableAttributeCompound(
 								attributeCodeEan,
 								AttributeElement.attributeElement(
@@ -489,7 +491,7 @@ class SortableCompoundIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					.withReferenceToEntity(
 						Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs.indexedForFilteringAndPartitioning()
-							.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.nullable())
+							.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::nullable)
 							.withAttribute(ATTRIBUTE_EAN, String.class,
 								thatIs -> thatIs.localized().nullable())
 							.withAttribute(ATTRIBUTE_NAME, String.class,
@@ -505,7 +507,7 @@ class SortableCompoundIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					.withReferenceToEntity(
 						Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs.indexedForFilteringAndPartitioning()
-							.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.nullable())
+							.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::nullable)
 							.withAttribute(ATTRIBUTE_EAN, String.class,
 								thatIs -> thatIs.localized().nullable())
 							.withAttribute(ATTRIBUTE_NAME, String.class,

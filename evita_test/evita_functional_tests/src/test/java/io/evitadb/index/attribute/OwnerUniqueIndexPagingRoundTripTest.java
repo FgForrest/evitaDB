@@ -227,8 +227,15 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 			}
 
 			final OwnerUniqueIndex restored = OwnerUniqueIndex.fromPersistedPages(
-				ENTITY_TYPE, attributeIndexKey, String.class, 0,
-				orderedPageSequences, perPageValues, perPageRecordIds, root.getHighWaterPageSequence()
+				ENTITY_TYPE,
+				attributeIndexKey,
+				String.class,
+				0,
+				orderedPageSequences,
+				perPageValues,
+				perPageRecordIds,
+				root.getHighWaterPageSequence(),
+				FilterIndex.getNormalizer(String.class, 0)
 			);
 
 			assertTrue(restored.isPaged(), "the reassembled index must still be paged");
@@ -277,7 +284,13 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 			assertNotNull(root.getValues(), "a SINGLE root carries the value column inline");
 
 			final OwnerUniqueIndex restored = new OwnerUniqueIndex(
-				ENTITY_TYPE, attributeIndexKey, String.class, 0, root.getValues(), root.getRecordIds()
+				ENTITY_TYPE,
+				attributeIndexKey,
+				String.class,
+				0,
+				root.getValues(),
+				root.getRecordIds(),
+				FilterIndex.getNormalizer(String.class, 0)
 			);
 			assertFalse(restored.isPaged(), "a small inline index reloads as SINGLE (not paged)");
 			assertEquals(3, restored.size(), "the record count must be read off the inline columns");
@@ -614,8 +627,15 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 			perPageRecordIds[i] = leafPage.getRecordIds();
 		}
 		return OwnerUniqueIndex.fromPersistedPages(
-			ENTITY_TYPE, attributeIndexKey, String.class, 0,
-			orderedPageSequences, perPageValues, perPageRecordIds, root.getHighWaterPageSequence()
+			ENTITY_TYPE,
+			attributeIndexKey,
+			String.class,
+			0,
+			orderedPageSequences,
+			perPageValues,
+			perPageRecordIds,
+			root.getHighWaterPageSequence(),
+			FilterIndex.getNormalizer(String.class, 0)
 		);
 	}
 

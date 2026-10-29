@@ -28,6 +28,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
@@ -198,10 +199,12 @@ public class TestDataGenerator {
 									.indexDecimalPlaces(2)
 									.withDefaultValue(BigDecimal.ONE))
 								.withAttribute(ATTRIBUTE_PRIORITY, Long.class, whichIs -> whichIs.sortable().filterable())
-								.withAttribute(ATTRIBUTE_SIZE, IntegerNumberRange[].class, whichIs -> whichIs.filterable())
+								.withAttribute(ATTRIBUTE_SIZE, IntegerNumberRange[].class,
+								               AttributeSchemaEditor::filterable
+								)
 								.withAttribute(ATTRIBUTE_CREATED, OffsetDateTime.class, whichIs -> whichIs.filterable().sortable())
 								.withAttribute(ATTRIBUTE_MANUFACTURED, LocalDate.class, whichIs -> whichIs.filterable().sortable())
-								.withAttribute(ATTRIBUTE_VISIBLE, Boolean.class, whichIs -> whichIs.filterable())
+								.withAttribute(ATTRIBUTE_VISIBLE, Boolean.class, AttributeSchemaEditor::filterable)
 								.withAttribute(ATTRIBUTE_DEPRECATED, String.class, whichIs -> whichIs
 									.filterable()
 									.deprecated("This is deprecated.")
@@ -236,7 +239,9 @@ public class TestDataGenerator {
 									Entities.STORE,
 									Cardinality.ZERO_OR_MORE,
 									whichIs -> whichIs
-										.withAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class, thatIs -> thatIs.filterable())
+										.withAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class,
+										               AttributeSchemaEditor::filterable
+										)
 										.withAttribute(ATTRIBUTE_CAPACITY, Long.class, thatIs -> thatIs.filterable().nullable().sortable())
 								)
 								.withReferenceTo(
@@ -266,7 +271,9 @@ public class TestDataGenerator {
 									whichIs -> whichIs
 										.faceted()
 										.indexedWithComponents(io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents.values())
-										.withAttribute(ATTRIBUTE_MARKET_SHARE, BigDecimal.class, thatIs -> thatIs.filterable())
+										.withAttribute(ATTRIBUTE_MARKET_SHARE, BigDecimal.class,
+										               AttributeSchemaEditor::filterable
+										)
 										.withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP)
 										.bucketed(
 											HISTOGRAM_PRICE_INDEX,

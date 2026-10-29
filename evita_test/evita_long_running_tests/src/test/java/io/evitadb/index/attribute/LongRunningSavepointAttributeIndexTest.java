@@ -25,6 +25,7 @@ package io.evitadb.index.attribute;
 
 import io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.LongRunningAttributeIndexTest.AttributeSnapshot;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -92,7 +93,10 @@ class LongRunningSavepointAttributeIndexTest extends AbstractSavepointFuzzTest<A
 		/** Reserved record-id sequence for guaranteed-new forced mutations, kept clear of the seeded/random id range. */
 		private static final int FORCED_BASE = 1_000_000;
 
-		private final AttributeIndex index = new EntityAttributeIndex(LongRunningAttributeIndexTest.ENTITY_TYPE);
+		private final AttributeIndex index = new EntityAttributeIndex(
+			LongRunningAttributeIndexTest.ENTITY_TYPE,
+			AttributeNormalizationResolver.LEGACY_NFD
+		);
 		private final TreeSet<Integer> records = new TreeSet<>();
 		private final List<Integer> chain = new ArrayList<>();
 		private int forcedSeq = FORCED_BASE;

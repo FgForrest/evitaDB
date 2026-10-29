@@ -180,7 +180,7 @@ class PickFirstByEntityPropertyTest implements EvitaTestSupport {
 				attributeNatural("code")
 			);
 
-			assertEquals(OrderConstraint.class, constraint.getType());
+			assertSame(OrderConstraint.class, constraint.getType());
 		}
 
 		@Test
@@ -306,8 +306,8 @@ class PickFirstByEntityPropertyTest implements EvitaTestSupport {
 				pickFirstByEntityProperty(attributeNatural("order"))
 			);
 			assertNotEquals(
-				pickFirstByEntityProperty(attributeNatural("code")),
-				new PickFirstByEntityProperty()
+				new PickFirstByEntityProperty(),
+				pickFirstByEntityProperty(attributeNatural("code"))
 			);
 			assertEquals(
 				pickFirstByEntityProperty(attributeNatural("code")).hashCode(),

@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverri
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.dataType.Scope;
@@ -42,6 +43,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -65,7 +67,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nonnull String name,
 		@Nonnull Class<? extends Serializable> type,
 		boolean localized,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable List<AnalysisStep> normalization
 	) {
 		return new EntityAttributeSchema(
 			name, NamingConvention.generate(name),
@@ -74,47 +77,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			localized, false, false,
 			type, null,
 			0,
-			conflictResolutionOverride
-		);
-	}
-
-	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of EntityAttributeSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
-	 *
-	 * Do not use this method from in the client code!
-	 */
-	@Nonnull
-	public static <T extends Serializable> EntityAttributeSchema _internalBuild(
-		@Nonnull String name,
-		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
-		@Nullable Scope[] filterableInScopes,
-		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
-		@Nullable Scope[] searchableInScopes,
-		@Nullable Scope[] sortableInScopes,
-		boolean localized,
-		boolean nullable,
-		boolean representative,
-		@Nonnull Class<T> type,
-		@Nullable T defaultValue,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
-	) {
-		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
-		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
-		final EnumSet<Scope> theSortableInScopes = ArrayUtils.toEnumSet(Scope.class, sortableInScopes);
-
-		return new EntityAttributeSchema(
-			name, NamingConvention.generate(name),
-			null, null,
-			theUniquenessType,
-			theFilterableInScopes,
-			toAcceleratorsEnumMap(acceleratorsInScopes),
-			ArrayUtils.toEnumSet(Scope.class, searchableInScopes),
-			theSortableInScopes,
-			localized, nullable, representative,
-			type, defaultValue,
-			0,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			normalization
 		);
 	}
 
@@ -140,7 +104,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable List<AnalysisStep> normalization
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -157,7 +122,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			localized, nullable, representative,
 			type, defaultValue,
 			indexedDecimalPlaces,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			normalization
 		);
 	}
 
@@ -183,7 +149,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable List<AnalysisStep> normalization
 	) {
 		return new EntityAttributeSchema(
 			name, NamingConvention.generate(name),
@@ -196,7 +163,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			localized, nullable, representative,
 			type, defaultValue,
 			indexedDecimalPlaces,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			normalization
 		);
 	}
 
@@ -223,7 +191,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable List<AnalysisStep> normalization
 	) {
 		return new EntityAttributeSchema(
 			name, nameVariants,
@@ -236,7 +205,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			localized, nullable, representative,
 			type, defaultValue,
 			indexedDecimalPlaces,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			normalization
 		);
 	}
 
@@ -263,7 +233,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable List<AnalysisStep> normalization
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -280,10 +251,12 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			localized, nullable, representative,
 			type, defaultValue,
 			indexedDecimalPlaces,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			normalization
 		);
 	}
 
+	/** Creates an immutable attribute schema, including its ordered normalization descriptions. */
 	<T extends Serializable> EntityAttributeSchema(
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
@@ -300,14 +273,16 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable List<AnalysisStep> normalization
 	) {
 		super(
 			name, nameVariants, description, deprecationNotice,
 			uniqueInScopes, filterableInScopes, acceleratorsInScopes, searchableInScopes, sortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue, indexedDecimalPlaces,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			normalization
 		);
 	}
 
@@ -324,6 +299,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			(this.searchableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.searchableInScopes) + ")") +
 			", sortable=" +
 			(this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.sortableInScopes) + ")") +
+			", normalization=" + this.normalization +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +
 			", representative=" + this.representative +

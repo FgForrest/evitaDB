@@ -49,7 +49,6 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.index.attribute.SortIndex.createCombinedComparatorFor;
-import static io.evitadb.index.attribute.SortIndex.createComparatorNormalizerFor;
 
 /**
  * Comparator for sorting entities according to a sortable compound attribute value set on particular reference.
@@ -85,11 +84,22 @@ public class ReferenceCompoundAttributeReferenceComparator implements ReferenceC
 	 */
 	@Nonnull private final Map<ReferenceKey, ComparableArray> memoizedValues = CollectionUtils.createHashMap(128);
 
+	/**
+	 * Creates a compound comparator with the effective key function bound separately for every element.
+	 * Non-localized elements fold by root even when the compound is localized.
+	 *
+	 * @param compoundSchemaContract the compound whose element order and directions are compared
+	 * @param locale the schema-masked read and collation locale of the compound
+	 * @param attributeSchemaExtractor resolves each element's type and decimal scale
+	 * @param orderDirection direction of the overall compound ordering
+	 * @param normalizer the bound compound key function; raw tuples are passed through it once
+	 */
 	public ReferenceCompoundAttributeReferenceComparator(
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nullable Locale locale,
 		@Nonnull Function<String, AttributeSchemaContract> attributeSchemaExtractor,
-		@Nonnull OrderDirection orderDirection
+		@Nonnull OrderDirection orderDirection,
+		@Nonnull UnaryOperator<Serializable> normalizer
 	) {
 		final List<AttributeElement> attributeElements = compoundSchemaContract
 			.getAttributeElements();
@@ -102,17 +112,7 @@ public class ReferenceCompoundAttributeReferenceComparator implements ReferenceC
 			))
 			.toArray(ComparatorSource[]::new);
 
-		// initialize normalizers
-		this.normalizer = createComparatorNormalizerFor(
-			this.comparatorSource,
-			attributeElements
-				.stream()
-				.mapToInt(
-					attributeElement -> attributeSchemaExtractor.apply(attributeElement.attributeName())
-						.getIndexedDecimalPlaces()
-				)
-				.toArray()
-		);
+		this.normalizer = normalizer;
 		//noinspection rawtypes
 		final Comparator baseComparator = createCombinedComparatorFor(locale, this.comparatorSource);
 		//noinspection unchecked

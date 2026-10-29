@@ -72,6 +72,11 @@ message GrpcCreateAttributeSchemaMutation {
   // gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
   // which is what an older client sends - means no acceleration anywhere.
   repeated GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 17;
+
+  // Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+  // normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+  // A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+  repeated GrpcAnalysisStep normalization = 18;
 }
 
 // Mutation is responsible for setting up a new `GlobalAttributeSchema` in the `CatalogSchema`.
@@ -145,6 +150,11 @@ message GrpcCreateGlobalAttributeSchemaMutation {
   // gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
   // which is what an older client sends - means no acceleration anywhere.
   repeated GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;
+
+  // Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+  // normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+  // A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+  repeated GrpcAnalysisStep normalization = 20;
 }
 
 // Mutation is responsible for setting value to a `AttributeSchema.defaultValue` in `EntitySchema`.
@@ -232,6 +242,16 @@ message GrpcSetAttributeSchemaAcceleratedMutation {
   // filter index in - i.e. is filterable or unique in - may appear here. An empty list means no acceleration
   // anywhere, which is what every attribute declared before this axis existed means.
   repeated GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 2;
+}
+
+// Replaces the declared normalization chain of an entity, reference or global String attribute.
+// The chain changes indexed keys, not stored values. Populated indexes retain their built-with policy
+// until reindexing; reading the schema reports this new declaration regardless of that retained policy.
+message GrpcSetAttributeSchemaNormalizedMutation {
+  // Name of the attribute whose declared normalization is replaced.
+  string name = 1;
+  // Ordered operations applied once to raw String keys. Empty removes the declared normalization.
+  repeated GrpcAnalysisStep normalization = 2;
 }
 
 // Mutation is responsible for setting value to a `GlobalAttributeSchema.uniqueGlobally` in `EntitySchema`.
@@ -325,7 +345,7 @@ message GrpcUseGlobalAttributeSchemaMutation {
 
 // Mutation of an attribute schema.
 message GrpcAttributeSchemaMutation {
-  // Type of the mutation.
+  // Exactly one member must be set: the attribute schema mutation to execute.
   oneof mutation {
     // Mutation is responsible for setting up a new `AttributeSchema` in the `EntitySchema`.
     GrpcCreateAttributeSchemaMutation createAttributeSchemaMutation = 3;
@@ -359,5 +379,7 @@ message GrpcAttributeSchemaMutation {
     GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 17;
     // Mutation is responsible for setting the filter accelerators of an `AttributeSchema` in `EntitySchema`.
     GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 18;
+    // Replaces the declared normalization chain; an empty chain removes normalization.
+    GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 19;
   }
 }

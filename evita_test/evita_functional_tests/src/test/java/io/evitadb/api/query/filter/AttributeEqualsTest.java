@@ -156,7 +156,7 @@ class AttributeEqualsTest {
 		void shouldReturnCorrectType() {
 			final AttributeEquals eq = attributeEquals("abc", "def");
 
-			assertEquals(FilterConstraint.class, eq.getType());
+			assertSame(FilterConstraint.class, eq.getType());
 		}
 	}
 
@@ -183,8 +183,8 @@ class AttributeEqualsTest {
 			assertNotSame(attributeEquals("abc", "def"), attributeEquals("abc", "def"));
 			assertEquals(attributeEquals("abc", "def"), attributeEquals("abc", "def"));
 			assertNotEquals(attributeEquals("abc", "def"), attributeEquals("abc", "defe"));
-			assertNotEquals(attributeEquals("abc", "def"), new AttributeEquals("abc", null));
-			assertNotEquals(attributeEquals("abc", "def"), new AttributeEquals(null, "abc"));
+			assertNotEquals(new AttributeEquals("abc", null), attributeEquals("abc", "def"));
+			assertNotEquals(new AttributeEquals(null, "abc"), attributeEquals("abc", "def"));
 			assertEquals(attributeEquals("abc", "def").hashCode(), attributeEquals("abc", "def").hashCode());
 			assertNotEquals(attributeEquals("abc", "def").hashCode(), attributeEquals("abc", "defe").hashCode());
 			assertNotEquals(

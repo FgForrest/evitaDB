@@ -175,22 +175,28 @@ class ConstraintDescriptorTest {
 
 		@Test
 		@DisplayName("should return false when compared to null")
+		@SuppressWarnings({"SimplifiableAssertion", "ObjectEqualsNull"})
 		void shouldNotEqualNull() {
 			final ConstraintDescriptor descriptor = createComparableDescriptor(
 				ConstraintType.FILTER, ConstraintPropertyType.GENERIC, "and", false, false
 			);
 
-			assertNotEquals(null, descriptor);
+			// deliberately not `assertNotEquals`: with `null` as its first argument it calls no `equals` at all, so
+			// the null check of the class under test would never run
+			assertFalse(descriptor.equals(null));
 		}
 
 		@Test
 		@DisplayName("should return false when compared to different type")
+		@SuppressWarnings({"SimplifiableAssertion", "EqualsBetweenInconvertibleTypes"})
 		void shouldNotEqualDifferentType() {
 			final ConstraintDescriptor descriptor = createComparableDescriptor(
 				ConstraintType.FILTER, ConstraintPropertyType.GENERIC, "and", false, false
 			);
 
-			assertNotEquals("string", descriptor);
+			// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
+			// fix moves the literal there, so `String.equals` would be tested instead of the class under test
+			assertFalse(descriptor.equals("string"));
 		}
 
 		@Test

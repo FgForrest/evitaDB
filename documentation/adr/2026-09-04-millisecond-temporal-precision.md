@@ -1,7 +1,7 @@
 ---
 title: Cut every temporal value to whole milliseconds as it enters, and carry every temporal index key in one long column
 date: 2026-09-04
-updated: 2026-10-20 21:33
+updated: 2026-10-28 09:30
 status: accepted
 kind: feature
 issues: [1486, 1696]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_common/src/main/java/io/evitadb/dataType, evita_api/src/main/java/io/evitadb/api/query, evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure, evita_engine/src/main/java/io/evitadb/index/bPlusTree, evita_engine/src/main/java/io/evitadb/index/attribute, evita_engine/src/main/java/io/evitadb/index/range, evita_engine/src/main/java/io/evitadb/index/invertedIndex, evita_store/evita_store_server/src/main/java/io/evitadb/store/index, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_store/evita_store_entity/src/main/java/io/evitadb/store/entity/serializer, evita_external_api/evita_external_api_grpc, documentation/user]
 supersedes: []
 superseded-by: []
-relates: [2026-09-03-content-sized-value-tree-columns, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-05-schema-handling-write-path-optimizations, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-08-24-fulltext-search-lucene-vs-inhouse]
+relates: [2026-09-03-content-sized-value-tree-columns, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-05-schema-handling-write-path-optimizations, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-08-24-fulltext-search-lucene-vs-inhouse, 2026-10-27-string-attribute-normalization]
 ---
 
 # Temporal precision is millisecond, stated once and enforced at the boundary
@@ -128,14 +128,57 @@ whole seconds, which is coarser than milliseconds. Leaving them alone was the sm
 
 Catalogs released in the 2026.2 line hold values written under the old rules.
 
-- **Chosen — backward-compatible readers plus a passive load-time repair.** They cover every read path
-  unconditionally, including parts an eager sweep would not visit, and they are self-healing: once the
-  index is next flushed, nothing collides again.
-- **Declined — an eager migration script.** *Rejected because:* it must enumerate every affected storage
+- **Originally chosen — backward-compatible readers plus a passive load-time repair.** They covered every read
+  path unconditionally, including parts an eager sweep would not visit; once the index was next flushed, nothing
+  collided again. The bucket-key rule was replaced on 2026-10-26, as described below.
+- **Originally declined — an eager migration script.** *Rejected because:* it must enumerate every affected storage
   part up front, and this change touches four of them across two modules (attribute filter parts, histogram
   parts, and both price-index parts). A missed part is a silently wrong index rather than a loud failure.
   `Migration_2026_2` already does eager re-keying for `String` and `BigDecimal`, so both routes exist in the
   codebase and compose; the reader was chosen for coverage, not for novelty.
+
+**Changed on 2026-10-26 for attribute filter and histogram BUCKET trees:** the passive key repair moves
+into `Migration_2026_3` (protocol 6 → 7), through `LegacyInvertedIndexCorrection`. The migration already enumerates
+every filter tree of every published entity index for the supported-window clamp, and now also enumerates every
+histogram root. It clamps, canonicalizes with the type-level function, merges collisions and writes each affected
+tree once, before the cardinality audit. It re-sorts paged `DateTimeRange` keys only when the entire sequence is
+strictly ascending under the released second-granularity comparator. Any other paged tree whose stored keys do not
+ascend strictly - an inversion, or a stored key a page repeats from its predecessor - remains untouched and fails
+the subsequent load as corruption, so stale twins are never silently healed. Inline restore re-inserts distinct
+stored keys in comparator order and rejects duplicates; it does not validate their persisted order. The original
+objections to an eager sweep no longer apply: the enumeration exists, and missed collisions or inversions in paged
+trees fail loudly.
+
+The read-only refusal pass sorts the buckets of every folded unique tree the correction would merge by
+clamp-then-type-function keys using the loader comparator before comparing owners. A legacy range reorder can bring
+together keys that were not persisted as neighbors. A tree the correction leaves to the loader is not checked: a
+stale twin is corruption, which no change of unique values could repair. After all unique and representative-key refusals pass, the collection write loop plans and drains one
+tree at a time before the cardinality audit and partition conversion. Retaining replacement plans for the whole
+catalog was rejected because bitmap-backed replacement buckets can exceed the compact loaded catalog's heap.
+Only folded unique trees need a second bucket read. A later planning failure aborts publication; earlier
+unpublished appends and deferred part removals leave the previous published state reachable.
+
+Protocol 7 and `Migration_2026_3` have not shipped, so the migration itself is extended; catalogs written by
+protocol-7 SNAPSHOT builds need no compatibility path. This follows the owner-sort reversal of 2026-10-12 and the
+#1696 option-B rule: legacy handling belongs in migrations and versioned readers.
+
+**Changed on 2026-10-26 for range thresholds:** versioned filter and histogram readers now convert inline
+`DateTimeRange` companions using the root's own declared plain type, including array component types. All supported
+filter formats require a persisted type; only the unsupported 2024.5 serializer ever stored a null type. The
+referenced-id rewrite in `Migration_2025_6` copies reader-converted thresholds unchanged. Paged companions span
+unversioned leaf records, so `Migration_2026_3`
+converts every marked temporal range axis, even when its bucket keys are canonical. It merges collapsed border
+points, allocates fresh pages above the persisted high-water, retires every old page and writes one replacement
+root for both bucket and range changes. All writes drain before the cardinality audit and virtual-partition
+conversion, which loads full entity indexes. Publication remains the final step. The loaders perform no
+conversion and refuse a marked paged temporal root as an unmigrated catalog. Price validity was already converted
+by its versioned readers: it is always temporal and inline in the price root.
+
+**Rejected alternative — also convert inline range companions in the migration.** This would centralize both
+layouts in one sweep. **Rejected because** a record that can convert itself belongs in its serialVersionUID-versioned
+reader; the migration takes the conversions spanning records. Converting both in the reader and migration would
+multiply real thresholds by 1000 twice. `LegacyRangeIndexConversion` in `evita_store_server` owns the conversion;
+`RangeIndex` keeps only a generic `supersedePersistedPages` hook for carrying the old stream baseline into a fresh tree.
 
 ### Stored values beyond the window: who clamps them (#1696, 2026-10-20)
 
@@ -173,8 +216,8 @@ published (the catalog stays on protocol 6):
   onto its filter tree, which the unique pre-pass skips. The folded check walks the tree of every
   `OffsetDateTime` and `LocalDateTime` attribute whether or not it holds a key beyond the window, and of every
   unique `LocalTime` attribute. Values that meet only through the truncation were a gap older than #1696: the
-  load path merges the two buckets, uniting their records, and the folded unique view answers a lookup with the
-  first of them, so the other owner silently lost its value. Leaving that gap to a later change was the
+  former load repair merged the two buckets, uniting their records, and the folded unique view answered a lookup
+  with the first of them, so the other owner silently lost its value. Leaving that gap to a later change was the
   alternative. *Rejected because:* it keeps a silent winner on the folded path, the outcome
   [2026-10-08-unique-indexes-normalize-like-filter-indexes](2026-10-08-unique-indexes-normalize-like-filter-indexes.md)
   replaced with a loud refusal on the standalone one, and the check is the same walk the clamp already makes;
@@ -219,63 +262,46 @@ REST and EvitaQL — at which point the guarantee would be real and worth its tw
 - **Range sentinels are now `Long.MIN_VALUE` / `Long.MAX_VALUE`**, the same constants all five `NumberRange`
   subtypes and `addValidity`'s always-valid price already use. `toComparableLong` saturates one step inside
   them, so an extreme *closed* bound (`OffsetDateTime.MAX` is legal) can never be read back as an open one.
-- **The legacy threshold rescale is not injective, and the load must not pretend otherwise.** Persisted
-  `RangeIndex` thresholds are untyped seconds; multiplying by 1000 maps every legacy open-from sentinel onto
-  `Long.MIN_VALUE`, where the index's own border point already sits, and two sentinels written at different
-  offsets onto the same long. Colliding runs have their `starts`/`ends` bitmaps unioned; without that the
-  load fails outright with "Range values are not monotonic".
-- **Routing the rescale lives in `AttributeIndexLoader#loadRangeIndex`, not in the storage-part
-  serializers**, for two reasons that will look arbitrary otherwise: a range-PAGED filter index keeps
-  thresholds in leaf-page records the root serializer never reads, and `Migration_2025_6` rewrites a legacy
-  part through the *current* serializer, which would relabel second thresholds as millisecond ones
-  irreversibly.
-- **A backward-compatible reader's flag is necessary and never sufficient.** A threshold is an untyped
-  `long` shared with every `NumberRange` subtype, so the reader says *this part was written in seconds* and
-  the persisted value type decides whether to rescale. Both `HistogramIndexMapLoader` and
-  `AttributeIndexLoader` gate on `DateTimeRange.class.equals(plainType)`.
-- **The reload repair is deliberately a repair, where the neighbouring rule is fail-fast.** A pre-change
-  catalog can hold two buckets whose instants differ below the millisecond and now encode to one key;
-  `bulkLoadPage`'s ascending check compares *boxed* keys so the twins pass it, and
-  `assertCrossLeafBoundaries`, comparing *decoded* keys, then reports index corruption. Colliding buckets
-  merge across page boundaries, value ids compact with the surviving bucket keeping the id it was written
-  with, and **a leaf the repair changed must give up its page identity** — a bulk-loaded leaf is clean, so
-  a merged leaf would otherwise keep its identity, never be flushed, and a wholly absorbed page would drop
-  out of the root's list while its records lived only in memory. This does not contradict
-  `2026-07-18-paged-index-corruption-and-flush-failure-boundary`: there, nothing persisted identifies which
-  of two overlapping leaves superseded the other, so adopting either resurrects deliberately-removed
-  records; here the merge is unambiguous, because two buckets that encode to one key must become one bucket.
-- **A repair stays pending in memory until the next flush that writes its entity index, and nothing may
-  consume it before then.** The repaired filter tree is dirty and its changed leaves carry no page
-  sequence. Collecting a component's storage parts is a persistence step: it stamps sequences, clears leaf
-  flags and stages the next page list. So the baseline an `EntityIndex` captures when it is built and after
-  every flush only *announces* keys (`IndexComponent#announceKeys`) and never collects. The first flush
-  that writes the entity index — any write to it, a sibling attribute included — writes every released
-  page, frees the absorbed ones and re-emits the root. An index whose entity index is never written again
-  stays legacy on disk and repeats the repair on every load. That is passive by design, and correct,
-  because the persisted form is internally consistent. Owner sort indexes differ: their emission is gated
-  on the sort index's own dirty flag, which a load leaves clear, so the temporal correction reaches disk
-  only when a record of that sort index changes (`LegacyTemporalSortValueCorrection`). **Changed on
-  2026-10-12 for owner sort indexes only:** that load-time correction is gone. The 6 → 7 storage migration
-  rewrites every owner sort index holding raw temporal values once (`Migration_2026_3#rewriteLegacyOwnerSortIndexes`),
-  the class is now `LegacyOwnerSortIndexCorrection` and only the migration calls it, and owner sort indexes
-  load what is stored. The same rewrite re-sorts owner sort indexes with a `DateTimeRange` element that 2026.2
-  ordered at whole seconds (`7c0a1403c2`) - see
-  [2026-10-20-single-owner-partitions-as-registry-rows](2026-10-20-single-owner-partitions-as-registry-rows.md).
-  The filter-index repair described in this bullet and the previous one is unchanged. Pinned by
-  `FilterIndexLoadRepairPersistenceTest` (a later write, a sibling written first, a leaf split, a paged
-  `DateTimeRange` on both axes) and `EntityIndexBaselineCaptureTest`.
-- **The merge target must be the array the page retains.** `InvertedIndex.collapseCollidingBuckets` retains
-  a page that lost a bucket as an `Arrays.copyOf` **copy**, so a `targetPage` still pointing at the page's
-  local array is an orphan — a later cross-page merge writes into it and the persisted copy keeps the
-  un-merged bucket. Silent, permanent record loss. The assignment is marked as upholding that invariant at
-  the site.
+- **The legacy threshold conversion is not injective.** `LegacyRangeIndexConversion` maps legacy open
+  sentinels onto `Long.MIN_VALUE` / `Long.MAX_VALUE`, where border points already sit, and unions colliding
+  `starts`/`ends` bitmaps. **Changed on 2026-10-26:** versioned readers perform inline conversion, gated on the
+  persisted plain type; the storage migration performs paged conversion. Numeric range bounds remain unchanged.
+- **Only paged temporal companions carry a migration marker.** `isSecondGranularityRangePages` is transient
+  provenance from a legacy root reader after checking its persisted type. It identifies unversioned pages that
+  the protocol 6 → 7 migration must replace. Inline companions arrive converted and carry no marker, including
+  supported 2025.5 filter records, which always declare a type.
+- **The migration repairs recognized legacy keys; loads reject corruption.** Originally the
+  filter and histogram reload merged sub-millisecond buckets and re-sorted recognized second-granularity range
+  sequences. **Changed on 2026-10-26:** `LegacyInvertedIndexCorrection`, called only by `Migration_2026_3`, now
+  performs that repair before publication. Colliding buckets union their records across leaf boundaries; surviving
+  buckets retain their original value ids and absorbed ids retire. Rewritten paged trees receive fresh pages above
+  the persisted high-water, a new root and removals of every old leaf. Canonical trees emit no parts. Production
+  loads apply no function to stored bucket keys and never silently merge duplicates. Unrecognized paged inversions
+  still reach the existing corruption diagnostics; the second-granularity guard is not relaxed.
+- **The migration writes every bucket-key repair; none stays pending on load.** **Changed on 2026-10-12 for owner
+  sort indexes:** `Migration_2026_3#rewriteLegacyOwnerSortIndexes` writes the corrected tree immediately through
+  `LegacyOwnerSortIndexCorrection`. **Changed on 2026-10-26 for filter and histogram BUCKET trees:** their key
+  repair is also fully written by the migration, with no dirty restore state. Ported coverage lives in
+  `Migration_2026_3_InvertedIndexCorrectionTest` and `Migration_2026_3_FilterRewritePersistenceTest` (a later write,
+  a sibling written first, a leaf split, a paged `DateTimeRange` on both axes and another restart).
+  `IndexComponent#announceKeys` stays: commit-time merges can carry dirty trees by reference. Baseline capture
+  must not collect and discard those ordinary pending changes;
+  `EntityIndexBaselineCaptureTest` pins this independent contract.
+- **The merge target must be the array the page retains.** The old page-by-page collapse could write a cross-page
+  merge through the pre-copy array of a trimmed page, silently losing the absorbed records. **Changed on
+  2026-10-26:** the migration merges into the retained bucket list before materializing any page arrays, so no
+  abandoned page copy can receive a later merge. The combined intra-page / cross-page cases and surviving ids are
+  retained in `Migration_2026_3_InvertedIndexCorrectionTest`.
 - **The upgrade's clamp must sit in front of every normalizer that meets a stored temporal key, owner sort
   included** (`LegacyOwnerSortIndexCorrection#createClampingNormalizer`, `Migration_2026_3`). Owner sort
   indexes load without overflowing, so skipping them looks safe - but once the body reader clamps, a removal
   probes the sort index with the clamped value and fails "Value … is not present in the sort index". The
   cardinality audit clamps both the counter and the bucket for the same reason: one side alone reports damage
-  that does not exist. Filter buckets are clamped in place and not merged: clamping preserves the order, and the
-  load path already merges equal adjacent keys, across leaf pages too (`InvertedIndex#fromPersistedPages`).
+  that does not exist. **Changed on 2026-10-26:** filter and histogram bucket keys are clamped, canonicalized and
+  merged in one migration rewrite, before the cardinality audit; no load-time key canonicalizer remains. A rewritten
+  legacy `DateTimeRange` root retains its already-converted inline companion; every marked paged companion is
+  converted by the migration, including companions of roots whose bucket keys need no correction. A root requiring
+  both changes is replaced once; no threshold conversion remains in the production load path.
 - **The body reader and the migration keep two clamp dispatchers on purpose.** `LegacyOwnerSortIndexCorrection`
   leaves with `Migration_2026_3`; `AttributeValueSerializer_2026_2` cannot. Sharing one would tie the permanent
   class to the removable one. Both delegate to `EvitaDataTypes#clampToSupportedWindow`, the write path's rule.
@@ -288,9 +314,19 @@ environmental and pre-existing.
 
 New and extended coverage, by name: `AttributeMillisecondPrecisionFunctionalTest`, `EvitaDataTypesTest`,
 `BaseConstraintTest`, `UpsertAttributeMutationTest`, `InitialAttributesBuilderTest`, `DateTimeRangeTest`,
-`LongValueColumnTest`, `InvertedIndexSubMillisecondReloadTest`, `UniqueIndexTest`, `GlobalUniqueIndexTest`,
+`LongValueColumnTest`, `Migration_2026_3_InvertedIndexCorrectionTest`, `UniqueIndexTest`, `GlobalUniqueIndexTest`,
 `AttributeIndexLoaderTest`, `LegacyRangeThresholdScaleSerializerTest`, `EvitaDataTypesConverterTest`,
 `LeafIndexHeapSizeTest`, `ColumnHeapSizeTest`.
+
+**Changed on 2026-10-26 — threshold conversion ownership.** `LegacyRangeThresholdScaleSerializerTest` covers
+all three inline filter readers, the histogram reader, scalar and array routing, numeric controls, open-bound merges
+and unchanged price validity conversion. `Migration_2025_6_RangeThresholdTest` pins typed 2025.5 records
+through the referenced-id rewrite without converting their thresholds again. `Migration_2026_3_RangeThresholdTest`
+asserts concrete millisecond thresholds through protocol 7 and another restart, fresh pages above high-water,
+old-page retirement, cross-page sentinel merges and conversion before single-owner partition demotion.
+Both loader suites refuse an unmigrated
+paged temporal companion by name. `Migration_2026_3_FilterRewritePersistenceTest` also checks unchanged physical
+addresses for canonical millisecond roots and pages.
 
 **Stored values beyond the window (#1696).** `Migration_2026_3_OutOfWindowTemporalKeyTest` (93 tests) builds a
 2026.2-shaped catalog - the indexes rewritten to the raw sentinels, the bodies written through Kryo with the
@@ -352,11 +388,12 @@ catalog a test reads was written by the current writer.
   surface, is specific: a lookup by the legacy entity's own value returns the *other* entity, and the legacy
   entity can no longer be saved at all, because its own rewrite truncates onto the twin and throws
   `UniqueValueViolationException`. The scope is narrower than it sounds — an attribute that is unique **and**
-  filterable is safe, its unique role being a view folded onto the FILTER tree that the reload repair already
-  covers, so only globally-unique and unique-but-not-filterable temporal attributes are exposed, and a catalog
-  created after this change cannot contain such a pair at all. *(Corrected on 2026-10-20, #1696: the folded
-  attribute was not safe. The reload repair merges the two buckets into one holding both owners, and the folded
-  view answers a lookup with the first of them. `Migration_2026_3` now refuses the upgrade over such a pair - see
+  filterable was considered safe, its unique role being a view folded onto the FILTER tree that the former reload
+  repair covered, so only globally-unique and unique-but-not-filterable temporal attributes were thought exposed;
+  a catalog created after this change cannot contain such a pair at all. *(Corrected on 2026-10-20, #1696: the folded
+  attribute was not safe. The former reload repair merged the two buckets into one holding both owners, and the
+  folded view answered a lookup with the first of them. `Migration_2026_3` now refuses such a pair before its own
+  bucket correction can merge it - see
   "Stored values beyond the window" above.)*
   **Rejected because** no known dataset declares a temporal attribute as a unique identifier, which puts the
   realistic exposure at roughly zero, while the fix is not small: a normalizer at the unique-index boundary
@@ -369,11 +406,10 @@ catalog a test reads was written by the current writer.
   write-order information the index does not carry; the loser is dropped and logged. Failing the load with a
   diagnostic naming both entities was the alternative and lost: it refuses to open a catalog that was valid
   under the previous contract, which is a worse outcome than a warning for a collision this rare.
-  **And the trap that makes this more dangerous than it looks:** canonicalising keys on reload *without*
-  merging the neighbours that have just become equal hands `bulkLoadPage` two identical adjacent keys, which
-  its "keys must be strictly ascending and distinct" invariant refuses — turning a repair for broken catalogs
-  into a change that stops working ones from opening. Neither entry of such a pair can prevent a load today; a
-  careless fix can. Merge before the loader sees the page, never after.
+  **The correction must merge before the loader sees the page.** Canonicalising stored keys *without* merging
+  neighbours that become equal hands `bulkLoadPage` two identical adjacent keys, which its "keys must be strictly
+  ascending and distinct" invariant refuses. The migration now performs both operations before writing the tree;
+  production loads restore those keys verbatim and reject duplicates.
 - **Three defects were found here that predate this work**, and are recorded because each shows a live trap
   rather than a typo: the `forKey`/`forFilterKey` remap above; `InitialAttributesBuilder.setAttribute`
   normalizing at `buildChangeSet()` instead of accept time, which made a read-back before `upsertVia` differ
@@ -439,7 +475,7 @@ catalog a test reads was written by the current writer.
   like `AttributeCardinalityIndexStoragePartSerializer_2026_2`, and for the same reason.
 - **Parked, by the maintainer's decision: a `DateTimeRange` closed at a bound beyond the window.** 2026.2
   compared range bounds in seconds, so a closed bound `OffsetDateTime.MAX` and the legacy open sentinel are both
-  about 3.16e16, and the load-time rescale maps both onto `OPEN_TO_THRESHOLD`. Decoded from the body, the closed
+  about 3.16e16, and the storage-side conversion maps both onto `OPEN_TO_THRESHOLD`. Decoded from the body, the closed
   bound gives `SATURATED_TO_THRESHOLD`, so a removal finds no point and silently leaves the record's end point in
   the range index (`RangeIndex#removeRecord`). gRPC never produced this shape - its range converter passes real
   epoch seconds - only a Java client writing `OffsetDateTime.MAX` as a closed bound. Stored thresholds cannot
@@ -463,16 +499,18 @@ catalog a test reads was written by the current writer.
   normalizer, same `ValueColumnFactory`. Its *decision* stands; one factual conclusion in its consequences —
   that unique indexes were checked and unaffected — was wrong, and is corrected in place with a pointer here.
 - [2026-07-18-paged-index-corruption-and-flush-failure-boundary](2026-07-18-paged-index-corruption-and-flush-failure-boundary/README.md)
-  — sets the fail-fast rule for a corrupt paged index; the load-time repair here is a deliberate, argued
-  exception, and the argument is in *Key technical details*.
+  — sets the fail-fast rule for a corrupt paged index. Recognized legacy bucket keys are corrected by the migration
+  before load; production loads retain that fail-fast rule. The guard is described in *Key technical details*.
 - [2026-08-05-schema-handling-write-path-optimizations](2026-08-05-schema-handling-write-path-optimizations.md)
   — the same write path through attribute mutations that the boundary truncation sits on.
 - [2026-09-21-cardinality-counter-normalized-keys](2026-09-21-cardinality-counter-normalized-keys.md) — the
-  load-time repair chosen here means a migration reading storage parts directly sees the untruncated keys the
-  repair would have fixed. An earlier revision of this line concluded that temporal cardinality counters are
-  therefore unauditable from parts; that is no longer true. The audit normalizes the STORED bucket as well as the
-  counter key, so both sides land in one key space whatever wrote them, and `OffsetDateTime` is audited like
-  every other collision-prone type.
+  migration now corrects stored bucket keys before the cardinality audit. An earlier revision concluded that
+  temporal cardinality counters were unauditable from parts; that is no longer true. The audit normalizes the
+  stored bucket as well as the counter key, so both sides land in one key space whatever wrote them, and
+  `OffsetDateTime` is audited like every other collision-prone type.
+- [2026-10-27-string-attribute-normalization](2026-10-27-string-attribute-normalization.md) - the two 2026-10-26
+  moves in the timeline below were made under #545: a declared String chain is not idempotent, so production loads
+  may no longer re-canonicalize stored keys, and only the migration does, with the type-level function.
 
 ## Timeline
 
@@ -481,7 +519,7 @@ catalog a test reads was written by the current writer.
   land (`7057bd973`, `03ca79a1e`, `f2db956ca`).
 - **2026-09-03** — `DateTimeRange` moved to millisecond comparison, offset-independent sentinels and the
   deletion of the `meta` array (`9a3e90c93`).
-- **2026-09-04** — adversarial review round: the merge-target aliasing in `collapseCollidingBuckets`
+- **2026-09-04** — adversarial review round: the merge-target aliasing in the former page-by-page bucket collapse
   (`f9bb05c02`) and the missing released-2026.2 histogram reader (`908387993`).
 - **2026-09-04** — measured against a restored production catalog backup; record written.
 - **2026-10-05** — a temporal value outside the window is clamped to its edge instead of being rejected, on
@@ -490,3 +528,9 @@ catalog a test reads was written by the current writer.
   key and refuses the two shapes it cannot clamp; `AttributeValueSerializer_2026_2` clamps the bodies on read.
   Reviewed by an advisor and Codex before implementation; options A-D above. The same change refuses folded
   unique values that meet only through the truncation, a gap the consequence above had called safe.
+- **2026-10-26** - filter and histogram BUCKET key repair moved from production restore paths into the existing,
+  unreleased protocol 6 → 7 migration; guarded range reordering, cross-page record unions and retained value ids
+  now reach disk before publication. Unique loads still convert declared-type persisted values to type-level keys.
+- **2026-10-26** - inline temporal range companions moved to their versioned readers, paged companions to
+  `Migration_2026_3`; loaders retain no threshold conversion. Price validity remains reader-side, and ordinary
+  commit-time pending changes still require baseline key announcements.

@@ -71,6 +71,12 @@ public final class LevenshteinDictionaryWalker {
 	private long reads;
 	private long seeks;
 	private long readAheadHits;
+	/**
+	 * Whether {@link #walk} times every cursor descent; off by default, because the two clock reads per seek would
+	 * otherwise be part of every walk the benchmarks time.
+	 */
+	private boolean timeSeeks;
+	private long seekNanos;
 
 	/**
 	 * A dictionary term accepted by the walk, together with the edit distance the cascade of narrower acceptors
@@ -142,9 +148,12 @@ public final class LevenshteinDictionaryWalker {
 			throw new IllegalStateException("Levenshtein automaton is expected to have no dead states.");
 		}
 		this.acceptorsByDistance = new CharacterRunAutomaton[maxEdits + 1];
-		for (int distance = 0; distance <= maxEdits; distance++) {
+		for (int distance = 0; distance < maxEdits; distance++) {
 			this.acceptorsByDistance[distance] = new CharacterRunAutomaton(builder.toAutomaton(distance, prefix));
 		}
+		// the widest acceptor is the walk's own automaton; building it a second time costs about 0.43 ms at
+		// distance 2 (Lucene's toAutomaton(2) in Java) and changes nothing
+		this.acceptorsByDistance[maxEdits] = new CharacterRunAutomaton(this.automaton);
 	}
 
 	/**
@@ -159,13 +168,13 @@ public final class LevenshteinDictionaryWalker {
 		this.reads = 0;
 		this.seeks = 0;
 		this.readAheadHits = 0;
+		this.seekNanos = 0;
 		// the first candidate: the smallest string the automaton could ever accept
 		this.seekLength = 0;
 		if (!nextString()) {
 			return hits;
 		}
-		BucketCursor<String> cursor = tree.cursor(seekAsString());
-		this.seeks++;
+		BucketCursor<String> cursor = seek(tree, seekAsString());
 		final CharacterRunAutomaton widest = this.acceptorsByDistance[this.acceptorsByDistance.length - 1];
 		// a key the read-ahead already pulled from the cursor but has not examined yet
 		String pending = null;
@@ -214,10 +223,35 @@ public final class LevenshteinDictionaryWalker {
 				this.readAheadHits++;
 				continue;
 			}
-			cursor = tree.cursor(target);
-			this.seeks++;
+			cursor = seek(tree, target);
 		}
 		return hits;
+	}
+
+	/**
+	 * Makes {@link #walk} time every cursor descent, readable through {@link #getSeekNanos()}.
+	 *
+	 * @return this walker
+	 */
+	@Nonnull
+	public LevenshteinDictionaryWalker timingSeeks() {
+		this.timeSeeks = true;
+		return this;
+	}
+
+	/**
+	 * Opens a cursor at the target with a root-to-leaf descent, counting it and, when enabled, timing it.
+	 */
+	@Nonnull
+	private BucketCursor<String> seek(@Nonnull TransactionalBucketBPlusTree<String> tree, @Nonnull String target) {
+		this.seeks++;
+		if (!this.timeSeeks) {
+			return tree.cursor(target);
+		}
+		final long start = System.nanoTime();
+		final BucketCursor<String> cursor = tree.cursor(target);
+		this.seekNanos += System.nanoTime() - start;
+		return cursor;
 	}
 
 	/**
@@ -260,6 +294,13 @@ public final class LevenshteinDictionaryWalker {
 	 */
 	public long getReadAheadHits() {
 		return this.readAheadHits;
+	}
+
+	/**
+	 * Nanoseconds the last {@link #walk} spent in cursor descents; zero unless {@link #timingSeeks()} was called.
+	 */
+	public long getSeekNanos() {
+		return this.seekNanos;
 	}
 
 	/**

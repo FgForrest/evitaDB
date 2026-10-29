@@ -1,7 +1,7 @@
 ---
 title: The filter of referenceContent is evaluated row by row over the fetched owners' references, and its index route is deleted
 date: 2026-10-20
-updated: 2026-10-21 13:00
+updated: 2026-10-25 05:45
 status: accepted
 kind: refactor
 issues: [1615]
@@ -16,14 +16,14 @@ areas:
   - evita_engine/src/main/java/io/evitadb/index/attribute
 supersedes: []
 superseded-by: []
-relates: [2026-10-21-one-locale-per-entity-level, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-09-23-reference-decode-narrowing-by-referenced-key, 2026-09-28-indexed-reference-scope-requires-entity-component, 2026-09-17-row-scoped-reference-having-body, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-scope-faithful-planning-and-facet-summary-parity]
+relates: [2026-10-21-one-locale-per-entity-level, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-09-23-reference-decode-narrowing-by-referenced-key, 2026-09-28-indexed-reference-scope-requires-entity-component, 2026-09-17-row-scoped-reference-having-body, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-scope-faithful-planning-and-facet-summary-parity, 2026-10-27-string-attribute-normalization]
 ---
 
 # The filter of `referenceContent` is evaluated row by row over the fetched owners' references
 
 `referenceContent(name, filterBy(...))` decides which references of the returned entities are fetched. It is now
 decided **reference row by reference row, over the rows of the owners the query fetched**: the filter is compiled once
-per fetch and reference into a small tree of row tests (`ReferenceRowFilterCompiler`), every existing row of every
+per fetch and reference into a small tree of row predicates (`ReferenceRowFilterCompiler`), every existing row of every
 fetched owner is judged by that tree alone, and an admitted row is recorded for its owner alone
 (`ValidEntityToReferenceMapping#admit`). No reduced reference index, type index, group index or virtual partition is
 read. The route that evaluated the same filter on those index structures - and everything only it reached - is deleted.
@@ -75,8 +75,8 @@ nowhere, which is the default (`ReferenceIndexType.NONE`).
 
 ### Option A - judge every row of every fetched owner by itself (chosen)
 
-The compiler turns the filter into a closed set of row tests; the fetch applies it to the raw rows of each owner. The
-verdict of a row is a function of its owner's scope, the owner's locales, the row, the existence set and the nested
+The compiler turns the filter into a closed set of row predicates; the fetch applies it to the raw rows of each owner.
+The verdict of a row is a function of its owner's scope, the owner's locales, the row, the existence set and the nested
 target sets, and of nothing else. A reference attribute leaf is built on the very normalizer and comparator of
 `FilterIndex` (plus the range encoders of the `attributeBetween` / `attributeInRange` translators), so it answers what
 the index would answer.
@@ -166,7 +166,7 @@ table. A measured case where the index route is faster (none of the eight was) w
 
 - **Entry points.** `ReferencedEntityFetcher#admitFetchedReferences` reads the owners' raw rows, applies the existence
   gate, the compiled `ReferenceRowFilter`, and records each admitted row. `ReferenceRowFilterCompiler#compile` builds the
-  `RowTest` tree (`and`, `or`, `not`, `inScope`, the twelve attribute leaves, `entityPrimaryKeyInSet`,
+  `RowPredicate` tree (`and`, `or`, `not`, `inScope`, the twelve attribute leaves, `entityPrimaryKeyInSet`,
   `entityLocaleEquals`, `entityHaving`, `groupHaving`; a root `scope(...)` only widens the examined scopes and produces
   no node). `NestedSet` holds the target sets of `entityHaving` /
   `groupHaving` (planned by `FilterByVisitor#getMatchingEntityPrimaryKeys`).
@@ -533,6 +533,8 @@ filterable reference attributes in the filter (Q4); the wider acceptance is avai
   filter (the main query still refuses).
 - [2026-09-17-row-scoped-reference-having-body](2026-09-17-row-scoped-reference-having-body/README.md) - the row-scoped
   evaluation of `referenceHaving` this route borrows its nested-query planning from.
+- [2026-10-27-string-attribute-normalization](2026-10-27-string-attribute-normalization.md) - keeps this record's rule
+  that typed equality has no prefetch alternative; row filters bind the attribute's chain like the indexes do.
 
 ## Timeline
 

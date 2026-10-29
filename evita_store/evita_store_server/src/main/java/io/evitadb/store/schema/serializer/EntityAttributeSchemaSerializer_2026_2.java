@@ -102,7 +102,8 @@ public class EntityAttributeSchemaSerializer_2026_2 extends Serializer<EntityAtt
 		return EntityAttributeSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			unique, filterable, null, null, sortable, localized, nullable, representative,
-			type, (Serializable) defaultValue, indexedDecimalPlaces, conflictResolutionOverride
+			type, (Serializable) defaultValue, indexedDecimalPlaces, conflictResolutionOverride,
+			null
 		);
 	}
 

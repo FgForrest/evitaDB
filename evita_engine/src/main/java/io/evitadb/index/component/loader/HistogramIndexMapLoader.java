@@ -180,12 +180,8 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 	 * Reconstructs the histogram's embedded {@link OwnerFilterIndex} from its root part, reassembling any `PAGED` bucket
 	 * / range axis from its leaf pages (boundary-stable) and using the inline data for a `SINGLE` axis.
 	 *
-	 * It is also where a histogram's legacy range thresholds are rescaled from epoch seconds to epoch milliseconds —
-	 * the histogram twin of {@code AttributeIndexLoader#loadRangeIndex}, which carries the full argument for why the
-	 * repair belongs on a load path and why it must be routed by the declared attribute type rather than by the
-	 * reader's provenance alone. The `PAGED` arm is deliberately **not** boundary-stable, unlike every other axis
-	 * reassembled here; {@link RangeIndex#rescaledFromSecondGranularityPages} says why root and pages must move to the
-	 * millisecond form in one commit.
+	 * Inline companions arrive converted by their versioned readers. Legacy paged companions are replaced by
+	 * the storage migration before loading; a root still requiring migration is refused by histogram name.
 	 *
 	 * @param part           the already-fetched histogram root part
 	 * @param referenceName  the reference name (part of the filter index identity)
@@ -214,52 +210,56 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 		final AttributeIndexKey attributeIndexKey = new AttributeIndexKey(referenceName, histogramName, locale);
 		final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(plainType, indexedDecimalPlaces);
 		final Comparator<?> comparator = FilterIndex.getComparator(attributeIndexKey, plainType);
-		// a part read by a backward-compatible serializer carries second-granularity range thresholds, but only a
-		// `DateTimeRange` histogram ever measured its thresholds in seconds - every NumberRange threshold is the
-		// bound's own numeric value and must be left exactly as persisted. Mirrors
-		// AttributeIndexLoader#loadRangeIndex, which is the same repair on the attribute filter index
-		final boolean rescaleThresholds =
-			part.isSecondGranularityRangeThresholds() && DateTimeRange.class.equals(plainType);
+		if (part.isRangePaged() && part.isSecondGranularityRangePages() &&
+			DateTimeRange.class.equals(plainType)) {
+			throw new GenericEvitaInternalError(
+				"Cannot load histogram '" + histogramName + "': catalog was not migrated."
+			);
+		}
 
 		// BUCKET axis
 		final InvertedIndex invertedIndex;
-		if (!part.isPaged()) {
-			invertedIndex = new InvertedIndex(
-				plainType, part.getHistogramPoints(), normalizer, comparator, indexedDecimalPlaces
-			);
-		} else {
-			final int streamId = service.getReadOnlyKeyCompressor().getId(
-				new HistogramLeafStreamKey(entityIndexId, histogramName, locale, StreamKind.BUCKET)
-			);
-			final int[] orderedPageSequences = part.getLeafPageSequences();
-			final ValueToRecord[][] perPageBuckets = new ValueToRecord[orderedPageSequences.length][];
-			for (int i = 0; i < orderedPageSequences.length; i++) {
-				final int pageSequence = orderedPageSequences[i];
-				final HistogramIndexLeafPagePart leafPage = service.getStoragePart(
-					catalogVersion, HistogramIndexLeafPagePart.computeUniquePartId(streamId, pageSequence),
-					HistogramIndexLeafPagePart.class
+		try {
+			if (!part.isPaged()) {
+				invertedIndex = new InvertedIndex(
+					plainType, part.getHistogramPoints(), normalizer, comparator, indexedDecimalPlaces
 				);
-				Assert.isPremiseValid(
-					leafPage != null,
-					"Histogram bucket leaf page " + pageSequence + " (stream " + streamId + ") for histogram '" +
-						histogramName + "' was not found in persistent storage!"
+			} else {
+				final int streamId = service.getReadOnlyKeyCompressor().getId(
+					new HistogramLeafStreamKey(entityIndexId, histogramName, locale, StreamKind.BUCKET)
 				);
-				perPageBuckets[i] = leafPage.getBuckets();
+				final int[] orderedPageSequences = part.getLeafPageSequences();
+				final ValueToRecord[][] perPageBuckets = new ValueToRecord[orderedPageSequences.length][];
+				for (int i = 0; i < orderedPageSequences.length; i++) {
+					final int pageSequence = orderedPageSequences[i];
+					final HistogramIndexLeafPagePart leafPage = service.getStoragePart(
+						catalogVersion, HistogramIndexLeafPagePart.computeUniquePartId(streamId, pageSequence),
+						HistogramIndexLeafPagePart.class
+					);
+					if (leafPage == null) {
+						throw new GenericEvitaInternalError(
+							"Histogram bucket leaf page " + pageSequence + " (stream " + streamId +
+								") for histogram '" + histogramName + "' was not found in persistent storage!"
+						);
+					}
+					perPageBuckets[i] = leafPage.getBuckets();
+				}
+				invertedIndex = InvertedIndex.fromPersistedPages(
+					// the histogram's own inverted index is private to it and carries no value ids
+					plainType, orderedPageSequences, perPageBuckets, null, part.getHighWaterPageSequence(),
+					normalizer, comparator, indexedDecimalPlaces
+				);
 			}
-			invertedIndex = InvertedIndex.fromPersistedPages(
-				// the histogram's own inverted index is private to it and carries no value ids
-				plainType, orderedPageSequences, perPageBuckets, null, part.getHighWaterPageSequence(),
-				normalizer, comparator, indexedDecimalPlaces
+		} catch (GenericEvitaInternalError ex) {
+			throw new GenericEvitaInternalError(
+				"Cannot load histogram '" + histogramName + "': " + ex.getMessage(), ex
 			);
 		}
 
 		// RANGE axis
 		final RangeIndex rangeIndex;
 		if (!part.isRangePaged()) {
-			final RangeIndex inlineRange = part.getRangeIndex();
-			rangeIndex = rescaleThresholds && inlineRange != null
-				? RangeIndex.rescaledFromSecondGranularity(inlineRange)
-				: inlineRange;
+			rangeIndex = part.getRangeIndex();
 		} else {
 			final int rangeStreamId = service.getReadOnlyKeyCompressor().getId(
 				new HistogramLeafStreamKey(entityIndexId, histogramName, locale, StreamKind.RANGE)
@@ -279,17 +279,10 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 				);
 				perPagePoints[i] = leafPage.getPoints();
 			}
-			// the rescaled reload is deliberately NOT boundary-stable - see the method's javadoc on
-			// RangeIndex#rescaledFromSecondGranularityPages for why root and pages have to move to the millisecond
-			// form in one commit
-			rangeIndex = rescaleThresholds
-				? RangeIndex.rescaledFromSecondGranularityPages(
-					rangePageSequences, perPagePoints, part.getRangeHighWaterPageSequence()
-				)
-				: RangeIndex.fromPersistedPages(
-					"histogram '" + histogramName + "'", rangePageSequences, perPagePoints,
-					part.getRangeHighWaterPageSequence()
-				);
+			rangeIndex = RangeIndex.fromPersistedPages(
+				"histogram '" + histogramName + "'", rangePageSequences, perPagePoints,
+				part.getRangeHighWaterPageSequence()
+			);
 		}
 
 		return OwnerFilterIndex.fromPersistedPages(

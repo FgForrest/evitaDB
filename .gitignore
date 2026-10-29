@@ -98,6 +98,11 @@ mcp-jdwp-inspector.log
 /.claude/settings.local.json
 /.claude/agent-memory/**
 
+### Python bytecode
+# Written whenever a skill script such as kryo-bwc-audit/audit.py is imported; it is rebuilt from the
+# source on demand, so a tracked copy only goes stale.
+__pycache__/
+
 ### Eclipse JDTLS
 
 */**/.project

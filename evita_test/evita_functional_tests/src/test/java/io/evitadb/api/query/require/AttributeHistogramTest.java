@@ -25,6 +25,7 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintVisitor;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.RequireConstraint;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -167,7 +168,7 @@ class AttributeHistogramTest {
 		@Test
 		@DisplayName("should return RequireConstraint class as type")
 		void shouldReturnRequireConstraintClassAsType() {
-			assertEquals(RequireConstraint.class, attributeHistogram(20, "a").getType());
+			assertSame(RequireConstraint.class, QueryConstraints.attributeHistogram(20, "a").getType());
 		}
 
 		@Test

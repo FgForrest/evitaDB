@@ -1218,9 +1218,12 @@ class BaseBitmapTest {
 
 		@Test
 		@DisplayName("should not be equal to null")
+		@SuppressWarnings({"SimplifiableAssertion", "ObjectEqualsNull"})
 		void shouldNotBeEqualToNull() {
 			final BaseBitmap bitmap = new BaseBitmap(1, 2, 3);
-			assertNotEquals(null, bitmap);
+			// deliberately not `assertNotEquals`: with `null` as its first argument it calls no `equals` at all, so
+			// the null check of the class under test would never run
+			assertFalse(bitmap.equals(null));
 		}
 
 		@Test

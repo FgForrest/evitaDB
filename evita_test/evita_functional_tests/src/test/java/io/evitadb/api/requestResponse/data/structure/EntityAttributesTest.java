@@ -187,10 +187,7 @@ class EntityAttributesTest extends AbstractBuilderTest {
 				schema = attrs.getAttributeSchema(CODE);
 
 			assertTrue(schema.isPresent());
-			assertEquals(
-				String.class,
-				schema.get().getType()
-			);
+			assertSame(String.class, schema.get().getType());
 		}
 
 		@Test

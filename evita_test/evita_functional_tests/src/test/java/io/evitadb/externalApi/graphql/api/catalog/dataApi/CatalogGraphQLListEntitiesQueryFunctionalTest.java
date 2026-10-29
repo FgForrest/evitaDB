@@ -2039,7 +2039,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 					prices.get().accompanyingPrices().get(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name()).isPresent() &&
 					prices.get().accompanyingPrices().get("vipPrice").isPresent();
 			})
-			.map(entity -> entity.getPrimaryKey())
+			.map(EntityContract::getPrimaryKey)
 			.toList();
 		assertTrue(desiredEntities.size() > 1);
 
@@ -2333,7 +2333,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
 					entity.getPrices(CURRENCY_CZK).stream()
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
-			.map(entity -> entity.getPrimaryKey())
+			.map(EntityContract::getPrimaryKey)
 			.toList();
 		assertTrue(desiredEntities.size() > 1);
 
@@ -2411,7 +2411,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
 					entity.getPrices(CURRENCY_CZK).stream()
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
-			.map(entity -> entity.getPrimaryKey())
+			.map(EntityContract::getPrimaryKey)
 			.toList();
 		assertTrue(desiredEntities.size() > 1);
 
@@ -2483,7 +2483,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
 					entity.getPrices(CURRENCY_CZK).stream()
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
-			.map(entity -> entity.getPrimaryKey())
+			.map(EntityContract::getPrimaryKey)
 			.toList();
 		assertTrue(desiredEntities.size() > 1);
 
@@ -2550,7 +2550,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
 					entity.getPrices(CURRENCY_CZK).stream()
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
-			.map(entity -> entity.getPrimaryKey())
+			.map(EntityContract::getPrimaryKey)
 			.toList();
 		assertTrue(desiredEntities.size() > 1);
 
@@ -2594,7 +2594,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
 					entity.getPrices(CURRENCY_CZK).stream()
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
-			.map(entity -> entity.getPrimaryKey())
+			.map(EntityContract::getPrimaryKey)
 			.toList();
 		assertTrue(desiredEntities.size() > 1);
 

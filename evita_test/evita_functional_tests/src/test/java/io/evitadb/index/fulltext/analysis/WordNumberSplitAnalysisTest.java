@@ -216,16 +216,16 @@ class WordNumberSplitAnalysisTest {
 		@Test
 		@DisplayName("Keep a mixed word/number token whole")
 		void shouldKeepMixedTokenWhole() {
-			assertIterableEquals(List.of("iphone15"), terms(production, "iPhone15"));
-			assertIterableEquals(List.of("xc90"), terms(production, "XC90"));
+			assertIterableEquals(List.of("iphone15"), terms(WordNumberSplitAnalysisTest.this.production, "iPhone15"));
+			assertIterableEquals(List.of("xc90"), terms(WordNumberSplitAnalysisTest.this.production, "XC90"));
 		}
 
 		@Test
 		@DisplayName("Cannot meet a two-token query with a one-token value")
 		void shouldNotMeetTwoTokenQueryWithOneTokenValue() {
 			// this is the gap the split step exists to close: the value indexes one term the query never produces
-			final List<String> value = terms(production, "iPhone15");
-			final List<String> query = terms(production, "iPhone 15");
+			final List<String> value = terms(WordNumberSplitAnalysisTest.this.production, "iPhone15");
+			final List<String> query = terms(WordNumberSplitAnalysisTest.this.production, "iPhone 15");
 			assertIterableEquals(List.of("iphon", "15"), query);
 			assertTrue(query.stream().noneMatch(value::contains));
 		}
@@ -235,8 +235,8 @@ class WordNumberSplitAnalysisTest {
 		void shouldMangleCodeSymmetrically() {
 			// the argument §4.6 point 1 rests on when it declines to protect codes from analysis: the stemmer does
 			// damage a code, yet the query side suffers the same damage, so a code still finds itself
-			assertIterableEquals(List.of("gtx1080t"), terms(production, "GTX1080Ti"));
-			assertIterableEquals(terms(production, "GTX1080Ti"), terms(production, "gtx1080ti"));
+			assertIterableEquals(List.of("gtx1080t"), terms(WordNumberSplitAnalysisTest.this.production, "GTX1080Ti"));
+			assertIterableEquals(terms(WordNumberSplitAnalysisTest.this.production, "GTX1080Ti"), terms(WordNumberSplitAnalysisTest.this.production, "gtx1080ti"));
 		}
 
 	}
@@ -248,8 +248,9 @@ class WordNumberSplitAnalysisTest {
 		@Test
 		@DisplayName("Emits the original token and both of its parts")
 		void shouldEmitOriginalAndParts() {
-			assertIterableEquals(List.of("iphone15", "iphon", "15"), terms(splitInChain, "iPhone15"));
-			assertIterableEquals(List.of("boty42", "bot", "42"), terms(splitInChain, "boty42"));
+			assertIterableEquals(List.of("iphone15", "iphon", "15"), terms(
+				WordNumberSplitAnalysisTest.this.splitInChain, "iPhone15"));
+			assertIterableEquals(List.of("boty42", "bot", "42"), terms(WordNumberSplitAnalysisTest.this.splitInChain, "boty42"));
 		}
 
 		@Test
@@ -257,13 +258,14 @@ class WordNumberSplitAnalysisTest {
 		void shouldTreatPartLikeStandaloneWord() {
 			// `xc` becomes `xk` through the stemmer's palatalization rewrite - a non-word, exactly as `XC` typed
 			// on its own becomes, which is the point: the part lives in the same term space as ordinary words
-			assertIterableEquals(List.of("xc90", "xk", "90"), terms(splitInChain, "XC90"));
-			assertIterableEquals(List.of("xk"), terms(splitInChain, "XC"));
+			assertIterableEquals(List.of("xc90", "xk", "90"), terms(WordNumberSplitAnalysisTest.this.splitInChain, "XC90"));
+			assertIterableEquals(List.of("xk"), terms(WordNumberSplitAnalysisTest.this.splitInChain, "XC"));
 			for (final String[] tokenAndWord : new String[][]{
 				{"boty42", "boty"}, {"iPhone15", "iPhone"}, {"Windows11", "Windows"}, {"XC90", "XC"}
 			}) {
 				assertTrue(
-					terms(splitInChain, tokenAndWord[0]).containsAll(terms(splitInChain, tokenAndWord[1])),
+					terms(WordNumberSplitAnalysisTest.this.splitInChain, tokenAndWord[0]).containsAll(terms(
+						WordNumberSplitAnalysisTest.this.splitInChain, tokenAndWord[1])),
 					"word part of `" + tokenAndWord[0] + "` must analyse like `" + tokenAndWord[1] + "`"
 				);
 			}
@@ -275,19 +277,19 @@ class WordNumberSplitAnalysisTest {
 			// the old client's documentation motivates the step with exactly this: the data holds `UHD7800` and
 			// users are used to typing `7800`. A digit run is never touched by any stemmer, so the number part is
 			// the same term on both sides
-			assertIterableEquals(List.of("uhd7800", "uhd", "7800"), terms(splitInChain, "UHD7800"));
-			assertIterableEquals(List.of("7800"), terms(splitInChain, "7800"));
+			assertIterableEquals(List.of("uhd7800", "uhd", "7800"), terms(WordNumberSplitAnalysisTest.this.splitInChain, "UHD7800"));
+			assertIterableEquals(List.of("7800"), terms(WordNumberSplitAnalysisTest.this.splitInChain, "7800"));
 			// the documentation's own examples: the word halves are palatalized by the Czech stemmer exactly as
 			// `xyz` and `abc` typed alone are, the number halves stay untouched
-			assertIterableEquals(List.of("123xyh", "123", "xyh"), terms(splitInChain, "123xyz"));
-			assertIterableEquals(List.of("abc789", "abk", "789"), terms(splitInChain, "abc789"));
+			assertIterableEquals(List.of("123xyh", "123", "xyh"), terms(WordNumberSplitAnalysisTest.this.splitInChain, "123xyz"));
+			assertIterableEquals(List.of("abc789", "abk", "789"), terms(WordNumberSplitAnalysisTest.this.splitInChain, "abc789"));
 		}
 
 		@Test
 		@DisplayName("Lets a two-token query and a one-token value meet, whichever side the split token is on")
 		void shouldMeetAcrossTokenBoundary() {
-			final List<String> oneToken = terms(splitInChain, "iPhone15");
-			final List<String> twoTokens = terms(splitInChain, "iPhone 15");
+			final List<String> oneToken = terms(WordNumberSplitAnalysisTest.this.splitInChain, "iPhone15");
+			final List<String> twoTokens = terms(WordNumberSplitAnalysisTest.this.splitInChain, "iPhone 15");
 			assertIterableEquals(List.of("iphon", "15"), twoTokens);
 			// value `iPhone15`, query `iphone 15`: every query term is indexed; value `iPhone 15`, query
 			// `iphone15`: every value term is among the query's - the same containment read both ways
@@ -297,7 +299,7 @@ class WordNumberSplitAnalysisTest {
 		@Test
 		@DisplayName("Points each part's offsets at the part, so its surface form is the part")
 		void shouldReportOffsetsOfTheParts() {
-			final List<AnalyzedTerm> analyzed = splitInChain.getTerms("iPhone15");
+			final List<AnalyzedTerm> analyzed = WordNumberSplitAnalysisTest.this.splitInChain.getTerms("iPhone15");
 			assertEquals(new AnalyzedTerm("iphone15", "iPhone15", 0, 8, 1), analyzed.get(0));
 			assertEquals(new AnalyzedTerm("iphon", "iPhone", 0, 6, 0), analyzed.get(1));
 			assertEquals(new AnalyzedTerm("15", "15", 6, 8, 1), analyzed.get(2));
@@ -311,11 +313,11 @@ class WordNumberSplitAnalysisTest {
 			// the spaced-out query align position for position, which a phrase query depends on
 			assertIterableEquals(
 				List.of(1, 0, 1, 1),
-				splitInChain.getTerms("boty42 kožené").stream().map(AnalyzedTerm::positionIncrement).toList()
+				WordNumberSplitAnalysisTest.this.splitInChain.getTerms("boty42 kožené").stream().map(AnalyzedTerm::positionIncrement).toList()
 			);
 			assertIterableEquals(
 				List.of(1, 1, 1),
-				splitInChain.getTerms("boty 42 kožené").stream().map(AnalyzedTerm::positionIncrement).toList()
+				WordNumberSplitAnalysisTest.this.splitInChain.getTerms("boty 42 kožené").stream().map(AnalyzedTerm::positionIncrement).toList()
 			);
 		}
 
@@ -328,7 +330,7 @@ class WordNumberSplitAnalysisTest {
 			// token, and that is carried by the offsets: every part's span nests inside its original's span, and
 			// the next term whose span does not nest opens a new group. Position increments alone would NOT do -
 			// the flattened graph gives the second part an increment of 1, as if it were a new word
-			final List<AnalyzedTerm> analyzed = splitInChain.getTerms("TV UHD7800");
+			final List<AnalyzedTerm> analyzed = WordNumberSplitAnalysisTest.this.splitInChain.getTerms("TV UHD7800");
 			assertIterableEquals(List.of("tv", "uhd7800", "uhd", "7800"), analyzed.stream().map(AnalyzedTerm::term).toList());
 			assertIterableEquals(List.of(1, 1, 0, 1), analyzed.stream().map(AnalyzedTerm::positionIncrement).toList());
 			final AnalyzedTerm original = analyzed.get(1);
@@ -347,9 +349,10 @@ class WordNumberSplitAnalysisTest {
 		void shouldSplitAtEveryTransition() {
 			// the legacy client split once, at the leading or the trailing digit run, so `GTX1080Ti` gave `GTX`
 			// and `1080Ti`; here every run becomes a part, each with its own surface form
-			assertIterableEquals(List.of("gtx1080t", "gtx", "1080", "ti"), terms(splitInChain, "GTX1080Ti"));
+			assertIterableEquals(List.of("gtx1080t", "gtx", "1080", "ti"), terms(
+				WordNumberSplitAnalysisTest.this.splitInChain, "GTX1080Ti"));
 			assertIterableEquals(
-				List.of("GTX1080Ti", "GTX", "1080", "Ti"), surfaceForms(splitInChain, "GTX1080Ti")
+				List.of("GTX1080Ti", "GTX", "1080", "Ti"), surfaceForms(WordNumberSplitAnalysisTest.this.splitInChain, "GTX1080Ti")
 			);
 		}
 
@@ -358,11 +361,11 @@ class WordNumberSplitAnalysisTest {
 		void shouldLeaveHomogeneousTokensAlone() {
 			// an EAN is digits only, so the step does nothing for it - the motivating case is a mixed code such
 			// as `XC90`, not a barcode
-			assertIterableEquals(List.of("8594001234567"), terms(splitInChain, "8594001234567"));
-			assertIterableEquals(List.of("42"), terms(splitInChain, "42"));
-			assertIterableEquals(List.of("bot"), terms(splitInChain, "boty"));
+			assertIterableEquals(List.of("8594001234567"), terms(WordNumberSplitAnalysisTest.this.splitInChain, "8594001234567"));
+			assertIterableEquals(List.of("42"), terms(WordNumberSplitAnalysisTest.this.splitInChain, "42"));
+			assertIterableEquals(List.of("bot"), terms(WordNumberSplitAnalysisTest.this.splitInChain, "boty"));
 			// the tokenizer already split on the hyphen, so there is nothing left to split
-			assertIterableEquals(terms(production, "AB-123 wi-fi"), terms(splitInChain, "AB-123 wi-fi"));
+			assertIterableEquals(terms(WordNumberSplitAnalysisTest.this.production, "AB-123 wi-fi"), terms(WordNumberSplitAnalysisTest.this.splitInChain, "AB-123 wi-fi"));
 		}
 
 		@Test
@@ -371,7 +374,7 @@ class WordNumberSplitAnalysisTest {
 			// `StandardTokenizer` keeps `3.5mm` as one token; the delimiter table treats the dot as a boundary,
 			// so the value yields `3` and `5` rather than `3.5`. Symmetric analysis keeps it harmless - the query
 			// is cut the same way - and the legacy client produced `3` and `.5mm` here, which was worse
-			assertIterableEquals(List.of("3.5mm", "3", "5", "mm"), terms(splitInChain, "3.5mm"));
+			assertIterableEquals(List.of("3.5mm", "3", "5", "mm"), terms(WordNumberSplitAnalysisTest.this.splitInChain, "3.5mm"));
 		}
 
 		@Test

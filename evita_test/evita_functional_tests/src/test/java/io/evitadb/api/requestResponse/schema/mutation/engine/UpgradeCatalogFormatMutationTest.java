@@ -228,9 +228,8 @@ public class UpgradeCatalogFormatMutationTest {
 		void shouldReportVoidProgressResultType() {
 			// The mutation's commit-time result is empty — surfacing `Void.class` lets the
 			// progress-tracking infrastructure short-circuit serialization of an absent payload.
-			assertEquals(
-				Void.class,
-				new UpgradeCatalogFormatMutation(CATALOG_NAME, FROM_PROTOCOL_VERSION, TO_PROTOCOL_VERSION)
+			assertSame(
+				Void.class, new UpgradeCatalogFormatMutation(CATALOG_NAME, FROM_PROTOCOL_VERSION, TO_PROTOCOL_VERSION)
 					.getProgressResultType()
 			);
 		}

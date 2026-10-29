@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
@@ -47,6 +48,7 @@ import java.io.Serializable;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -99,7 +101,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nonnull String name,
 		@Nonnull Class<? extends Serializable> type,
 		boolean localized,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable List<AnalysisStep> normalization
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(null);
 		final EnumMap<Scope, GlobalAttributeUniquenessType> theGlobalUniquenessType = toGlobalUniquenessEnumMap(null);
@@ -117,50 +120,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			localized, false, false,
 			type, null,
 			0,
-			conflictResolutionOverride
-		);
-	}
-
-	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of GlobalAttributeSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
-	 *
-	 * Do not use this method from in the client code!
-	 */
-	@Nonnull
-	public static <T extends Serializable> GlobalAttributeSchema _internalBuild(
-		@Nonnull String name,
-		@Nullable ScopedAttributeUniquenessType[] unique,
-		@Nullable ScopedGlobalAttributeUniquenessType[] uniqueGlobally,
-		@Nullable Scope[] filterable,
-		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
-		@Nullable Scope[] searchableInScopes,
-		@Nullable Scope[] sortable,
-		boolean localized,
-		boolean nullable,
-		boolean representative,
-		@Nonnull Class<T> type,
-		@Nullable T defaultValue,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
-	) {
-		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(unique);
-		final EnumMap<Scope, GlobalAttributeUniquenessType> theGlobalUniquenessType =
-			toGlobalUniquenessEnumMap(uniqueGlobally);
-		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterable);
-		final EnumSet<Scope> theSortableInScopes = ArrayUtils.toEnumSet(Scope.class, sortable);
-		return new GlobalAttributeSchema(
-			name, NamingConvention.generate(name),
-			null, null,
-			theUniquenessType,
-			theGlobalUniquenessType,
-			theFilterableInScopes,
-			toAcceleratorsEnumMap(acceleratorsInScopes),
-			ArrayUtils.toEnumSet(Scope.class, searchableInScopes),
-			theSortableInScopes,
-			localized, nullable, representative,
-			type, defaultValue,
-			0,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			normalization
 		);
 	}
 
@@ -187,7 +148,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable List<AnalysisStep> normalization
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(unique);
 		final EnumMap<Scope, GlobalAttributeUniquenessType> theGlobalUniquenessType =
@@ -206,7 +168,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			localized, nullable, representative,
 			type, defaultValue,
 			indexedDecimalPlaces,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			normalization
 		);
 	}
 
@@ -233,7 +196,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable List<AnalysisStep> normalization
 	) {
 		return new GlobalAttributeSchema(
 			name, NamingConvention.generate(name),
@@ -247,7 +211,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			localized, nullable, representative,
 			type, defaultValue,
 			indexedDecimalPlaces,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			normalization
 		);
 	}
 
@@ -275,7 +240,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable List<AnalysisStep> normalization
 	) {
 		return new GlobalAttributeSchema(
 			name, nameVariants,
@@ -289,7 +255,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			localized, nullable, representative,
 			type, defaultValue,
 			indexedDecimalPlaces,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			normalization
 		);
 	}
 
@@ -317,7 +284,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable List<AnalysisStep> normalization
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(unique);
 		final EnumMap<Scope, GlobalAttributeUniquenessType> theGlobalUniquenessType =
@@ -336,10 +304,12 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			localized, nullable, representative,
 			type, defaultValue,
 			indexedDecimalPlaces,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			normalization
 		);
 	}
 
+	/** Creates an immutable attribute schema, including its ordered normalization descriptions. */
 	<T extends Serializable> GlobalAttributeSchema(
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
@@ -357,7 +327,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable List<AnalysisStep> normalization
 	) {
 		super(
 			name, nameVariants, description, deprecationNotice,
@@ -365,7 +336,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			filterableInScopes, acceleratorsInScopes, searchableInScopes, sortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue, indexedDecimalPlaces,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			normalization
 		);
 		if (globalUniquenessTypeInScopes == null || globalUniquenessTypeInScopes.isEmpty()) {
 			final EnumMap<Scope, GlobalAttributeUniquenessType> theMap = new EnumMap<>(Scope.class);
@@ -465,6 +437,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			(this.searchableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.searchableInScopes) + ")") +
 			", sortable=" +
 			(this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.sortableInScopes) + ")") +
+			", normalization=" + this.normalization +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +
 			", representative=" + this.representative +

@@ -31,6 +31,7 @@ import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.EntityReferenceWithLocale;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.CatalogIndexStoragePart;
@@ -48,14 +49,14 @@ import java.util.Iterator;
 import java.util.Locale;
 import java.util.Set;
 
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * Tests for {@link CatalogIndex} verifying construction, unique attribute management,
@@ -145,6 +146,7 @@ class CatalogIndexTest {
 		final GlobalAttributeSchemaContract schema = mock(GlobalAttributeSchemaContract.class);
 		when(schema.getName()).thenReturn(attributeName);
 		doReturn(type).when(schema).getType();
+		doReturn(type.isArray() ? type.getComponentType() : type).when(schema).getPlainType();
 		when(schema.isLocalized()).thenReturn(false);
 		when(schema.isUniqueGloballyWithinLocaleInScope(Scope.LIVE)).thenReturn(false);
 		return schema;
@@ -166,6 +168,7 @@ class CatalogIndexTest {
 		final GlobalAttributeSchemaContract schema = mock(GlobalAttributeSchemaContract.class);
 		when(schema.getName()).thenReturn(attributeName);
 		doReturn(type).when(schema).getType();
+		doReturn(type.isArray() ? type.getComponentType() : type).when(schema).getPlainType();
 		when(schema.isLocalized()).thenReturn(true);
 		when(schema.isUniqueGloballyWithinLocaleInScope(Scope.LIVE)).thenReturn(true);
 		return schema;
@@ -191,7 +194,7 @@ class CatalogIndexTest {
 	 */
 	@Nonnull
 	private static CatalogIndex createLiveCatalogIndex() {
-		final CatalogIndex index = new CatalogIndex(Scope.LIVE);
+		final CatalogIndex index = new CatalogIndex(Scope.LIVE, true, AttributeNormalizationResolver.LEGACY_NFD);
 		return index;
 	}
 
@@ -202,7 +205,7 @@ class CatalogIndexTest {
 		@Test
 		@DisplayName("should create empty index with correct scope and version")
 		void shouldCreateEmptyIndexWithCorrectScopeAndVersion() {
-			final CatalogIndex index = new CatalogIndex(Scope.LIVE);
+			final CatalogIndex index = new CatalogIndex(Scope.LIVE, true, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertEquals(1, index.getVersion());
 			assertEquals(new CatalogIndexKey(Scope.LIVE), index.getIndexKey());
@@ -214,7 +217,11 @@ class CatalogIndexTest {
 		void shouldPreserveVersionAndKeyFromPersistedData() {
 			final CatalogIndexKey key = new CatalogIndexKey(Scope.LIVE);
 			final CatalogIndex index = new CatalogIndex(
-				5, key, new HashMap<>(), new IndexActivity()
+				5,
+				key,
+				new HashMap<>(),
+				new IndexActivity(),
+				AttributeNormalizationResolver.LEGACY_NFD
 			);
 
 			assertEquals(5, index.getVersion());
@@ -225,8 +232,8 @@ class CatalogIndexTest {
 		@Test
 		@DisplayName("should assign unique ID to each instance")
 		void shouldAssignUniqueIdToEachInstance() {
-			final CatalogIndex first = new CatalogIndex(Scope.LIVE);
-			final CatalogIndex second = new CatalogIndex(Scope.LIVE);
+			final CatalogIndex first = new CatalogIndex(Scope.LIVE, true, AttributeNormalizationResolver.LEGACY_NFD);
+			final CatalogIndex second = new CatalogIndex(Scope.LIVE, true, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertNotEquals(first.getId(), second.getId());
 		}
@@ -386,7 +393,7 @@ class CatalogIndexTest {
 		@Test
 		@DisplayName("should be empty when newly created")
 		void shouldBeEmptyWhenNewlyCreated() {
-			final CatalogIndex index = new CatalogIndex(Scope.LIVE);
+			final CatalogIndex index = new CatalogIndex(Scope.LIVE, true, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertTrue(index.isEmpty());
 		}

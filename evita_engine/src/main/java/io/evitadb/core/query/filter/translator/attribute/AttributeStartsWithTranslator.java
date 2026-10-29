@@ -38,6 +38,7 @@ import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
 import java.util.function.BiPredicate;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link AttributeStartsWith} to {@link AbstractFormula}.
@@ -79,9 +80,10 @@ public class AttributeStartsWithTranslator extends AbstractAttributeStringSearch
 		@Nonnull AttributeStartsWith attributeStartsWith,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull UnaryOperator<String> stringNormalizer,
 		@Nonnull Supplier<OffsetDateTime> now
 	) {
-		return createStringSearchMatcher(attributeStartsWith, attributeSchema);
+		return createStringSearchMatcher(attributeStartsWith, attributeSchema, stringNormalizer);
 	}
 
 }

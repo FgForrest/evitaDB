@@ -41,6 +41,7 @@ import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
@@ -267,6 +268,7 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 	 *                                catalog that may hold hundreds of thousands of them
 	 * @param fulltextAnalyzerRegistry the catalog's analyzer registry, which resolves the analyzer a persisted fulltext
 	 *                                index names - the one its terms were produced by
+	 * @param normalizationResolver collection owner resolver for String key functions bound during index reload
 	 */
 	@Nonnull
 	EntityIndex readEntityIndex(
@@ -274,7 +276,8 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 		int entityIndexId,
 		@Nonnull EntitySchema entitySchema,
 		boolean usageStatisticsTracking,
-		@Nonnull FulltextAnalyzerRegistry fulltextAnalyzerRegistry
+		@Nonnull FulltextAnalyzerRegistry fulltextAnalyzerRegistry,
+		@Nonnull AttributeNormalizationResolver normalizationResolver
 	);
 
 	/**

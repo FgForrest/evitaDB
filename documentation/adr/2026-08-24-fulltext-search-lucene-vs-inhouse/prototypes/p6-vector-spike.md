@@ -6,14 +6,14 @@
 > not Lucene" is not repeated here — it is in the research (§3).
 >
 > Written on 2026-08-12. The anchors into evitaDB's code and into the Lucene checkout in
-> `/www/oss/lucene` were verified against the state on the same day. Translated from Czech and moved into
+> `$OSS_PROJECT_PATH/lucene` were verified against the state on the same day. Translated from Czech and moved into
 > this record on 2026-08-24.
 >
 > **Revised 2026-09-07, before the spike starts.** Three inputs changed what this plan can say. First,
-> **jVector is now on disk** (`/www/oss/jvector`, `main` at `40e0775f`, 2026-09-04, `4.0.0-rc.9` plus
+> **jVector is now on disk** (`$OSS_PROJECT_PATH/jvector`, `main` at `40e0775f`, 2026-09-04, `4.0.0-rc.9` plus
 > twelve commits) — every claim the first version marked **web-only** has been read in the source, and
 > §4 is rewritten against it; the corrections that matter are listed in §4.0. Second, a further Java HNSW
-> library, **hnsw-sb** (`/www/oss/hnsw-sb`, single commit `b09db64b` of 2026-09-07), was put forward for
+> library, **hnsw-sb** (`$OSS_PROJECT_PATH/hnsw-sb`, single commit `b09db64b` of 2026-09-07), was put forward for
 > assessment; §4.9 records what it is and why it is set aside. Third, an external research note on the
 > current state of filtered and quantized ANN (2026-09-07, cited as **(external)** where its claims could
 > not be verified against a local checkout) changed the *question* the spike asks: not "jVector or an
@@ -338,8 +338,8 @@ the harness must grep for in §11.4, and the named-module `requires` compile is 
 
 **[2026-09-07] This chapter is rewritten against the checkouts.** The first version read jVector through
 GitHub and Maven Central and marked every such claim **web-only**; those markers are gone, every claim
-below carries a `path:line` into `/www/oss/jvector` (`main` at `40e0775f`), `/www/oss/lucene` (`main` at
-`13796f80e49`) or `/www/oss/hnsw-sb` (`b09db64b`). Two candidates are new: Lucene's vector packages taken
+below carries a `path:line` into `$OSS_PROJECT_PATH/jvector` (`main` at `40e0775f`), `$OSS_PROJECT_PATH/lucene` (`main` at
+`13796f80e49`) or `$OSS_PROJECT_PATH/hnsw-sb` (`b09db64b`). Two candidates are new: Lucene's vector packages taken
 as a library rather than as an engine (§4.8), and hnsw-sb (§4.9).
 
 ### 4.0 What the checkout corrected
@@ -409,7 +409,7 @@ provider is tried, but only when `-Djvector.experimental.enable_native_vectoriza
 (`:125`); it requires x86-64 and a loadable `libjvector.so` (`NativeVectorizationProvider.java:33-40`) and
 exists only in the 22 layer, so on JDK 21 `Class.forName` fails and the code falls through to
 **Panama** (`:157-172`). It is the same pattern Lucene uses in its own `VectorizationProvider`
-(`/www/oss/lucene/lucene/core/src/java/org/apache/lucene/internal/vectorization/VectorizationProvider.java:137-193`),
+(`$OSS_PROJECT_PATH/lucene/lucene/core/src/java/org/apache/lucene/internal/vectorization/VectorizationProvider.java:137-193`),
 including an almost identical wording of the warning.
 
 For evitaDB a pleasant conclusion follows: **jVector does not break when the module is missing** — it
@@ -483,7 +483,7 @@ direct constraint on how the write path may drive it.
 Lucene cannot do this by construction and it is worth seeing why, because that is exactly the difference an
 in-house implementation would have to catch up with. In Lucene the graph does grow incrementally *during a
 segment's write* — `HnswGraphBuilder.addGraphNode` is public
-(`/www/oss/lucene/lucene/core/src/java/org/apache/lucene/util/hnsw/HnswGraphBuilder.java:382`) — but
+(`$OSS_PROJECT_PATH/lucene/lucene/core/src/java/org/apache/lucene/util/hnsw/HnswGraphBuilder.java:382`) — but
 once `getCompletedGraph()` is called, "no further updates to the graph are accepted"
 (`.../util/hnsw/HnswBuilder.java:65`), and **there is no deletion at all**: the strings `remove`, `delete`
 and `markDeleted` do not occur in `HnswGraphBuilder`, `HnswBuilder` or `OnHeapHnswGraph`. A change of a
@@ -559,7 +559,7 @@ accuracy" (`docs/legacy/jvector-step-by-step.md:135`).
 
 The names RaBitQ and BBQ belong to a different world. "BBQ" is a marketing name from Elasticsearch; the
 Lucene implementation is `OptimizedScalarQuantizer`
-(`/www/oss/lucene/lucene/core/src/java/org/apache/lucene/util/quantization/OptimizedScalarQuantizer.java:42`),
+(`$OSS_PROJECT_PATH/lucene/lucene/core/src/java/org/apache/lucene/util/quantization/OptimizedScalarQuantizer.java:42`),
 which cites RaBitQ directly in its code, and in the current `main` it serves **every** bit width through one
 format: `Lucene104ScalarQuantizedVectorsFormat` with the encodings `UNSIGNED_BYTE` (8 bits), `SEVEN_BIT`,
 `PACKED_NIBBLE` (4 bits), `DIBIT_QUERY_NIBBLE` (2-bit documents, 4-bit queries) and
@@ -623,7 +623,7 @@ commit `36edc05ac84`, 2026-08-12) shows what the alternative looks like: its `Co
 implements Lucene's `QueryTimeout` because components such as `TimeLimitingKnnCollectorManager` enforce a
 limit by that route (`server/src/main/java/org/opensearch/search/internal/ContextIndexSearcher.java:163`,
 `:623`), and Lucene's own `HnswGraphSearcher` checks `collector.earlyTerminated()` on every iteration of
-its loop (`/www/oss/lucene/lucene/core/src/java/org/apache/lucene/util/hnsw/HnswGraphSearcher.java:307`,
+its loop (`$OSS_PROJECT_PATH/lucene/lucene/core/src/java/org/apache/lucene/util/hnsw/HnswGraphSearcher.java:307`,
 also `:247`, `:294`, `:332`). That is the cooperative check a database needs, and jVector does not have it.
 The mini-gate row "interruptibility" in §6.3 is thereby decided against jVector's *searcher* — which is
 not the same as against jVector, because of what follows.
@@ -691,7 +691,7 @@ The research rejected Lucene as an *engine* (§3) and explicitly permits it as a
 for analyzers. P5 has already taken that path. The same permission covers its vector packages, and the
 checkout shows they are built to be taken that way: `org.apache.lucene.util.hnsw`,
 `org.apache.lucene.util.quantization` and `org.apache.lucene.search.knn` are all **exported** from the
-named module `org.apache.lucene.core` (`/www/oss/lucene/lucene/core/src/java/module-info.java:50`, `:75`,
+named module `org.apache.lucene.core` (`$OSS_PROJECT_PATH/lucene/lucene/core/src/java/module-info.java:50`, `:75`,
 `:41`), and `lucene-core` has no third-party runtime dependencies. What they offer, against the four
 questions of §1.3:
 
@@ -727,7 +727,7 @@ files, `util/quantization` 1,720 lines, `VectorUtil` plus the vectorization pack
 
 ### 4.9 [2026-09-07] hnsw-sb: assessed and set aside
 
-`/www/oss/hnsw-sb` is a Java 21 HNSW library, ~3,276 lines of main code in one flat package, no runtime
+`$OSS_PROJECT_PATH/hnsw-sb` is a Java 21 HNSW library, ~3,276 lines of main code in one flat package, no runtime
 dependencies, SIMD cosine through `jdk.incubator.vector`, a hierarchy with the Malkov heuristic, real
 deletes with local repair, and text persistence. It was assessed against the four properties the seam of
 §6.1 needs. It has none of them, and four further facts close the question:
@@ -1118,7 +1118,7 @@ distribution.
 
 **The second threshold — an exhaustive scan at reader level.** In `Lucene99HnswVectorsReader`
 `expectedVisitedNodes(k, graphSize)` is computed (`:369`), which is per
-`/www/oss/lucene/lucene/core/src/java/org/apache/lucene/util/hnsw/HnswGraphSearcher.java:56-58` simply
+`$OSS_PROJECT_PATH/lucene/lucene/core/src/java/org/apache/lucene/util/hnsw/HnswGraphSearcher.java:56-58` simply
 `(int)(Math.log(graphSize) * k)`; if that number comes out greater than or equal to the number of documents
 passing the filter, the graph is not used at all. For our brief it means: with 1M vectors and `k = 10`,
 `ln(10^6) × 10 ≈ 138`, so **Lucene goes to brute force only when the filter passes fewer than ~138 out of a

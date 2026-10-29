@@ -96,6 +96,7 @@ private static final long serialVersionUID = 0L;
     SETATTRIBUTESCHEMACONFLICTRESOLUTIONOVERRIDEMUTATION(34),
     MODIFYCATALOGSCHEMACONFLICTRESOLUTIONMUTATION(35),
     SETATTRIBUTESCHEMAACCELERATEDMUTATION(36),
+    SETATTRIBUTESCHEMANORMALIZEDMUTATION(37),
     MUTATION_NOT_SET(0);
     private final int value;
     private MutationCase(int value) {
@@ -137,6 +138,7 @@ private static final long serialVersionUID = 0L;
         case 34: return SETATTRIBUTESCHEMACONFLICTRESOLUTIONOVERRIDEMUTATION;
         case 35: return MODIFYCATALOGSCHEMACONFLICTRESOLUTIONMUTATION;
         case 36: return SETATTRIBUTESCHEMAACCELERATEDMUTATION;
+        case 37: return SETATTRIBUTESCHEMANORMALIZEDMUTATION;
         case 0: return MUTATION_NOT_SET;
         default: return null;
       }
@@ -1229,6 +1231,49 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation.getDefaultInstance();
   }
 
+  public static final int SETATTRIBUTESCHEMANORMALIZEDMUTATION_FIELD_NUMBER = 37;
+  /**
+   * <pre>
+   * Replaces the declared normalization chain; an empty chain removes normalization.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 37;</code>
+   * @return Whether the setAttributeSchemaNormalizedMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasSetAttributeSchemaNormalizedMutation() {
+    return mutationCase_ == 37;
+  }
+  /**
+   * <pre>
+   * Replaces the declared normalization chain; an empty chain removes normalization.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 37;</code>
+   * @return The setAttributeSchemaNormalizedMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation getSetAttributeSchemaNormalizedMutation() {
+    if (mutationCase_ == 37) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Replaces the declared normalization chain; an empty chain removes normalization.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 37;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutationOrBuilder getSetAttributeSchemaNormalizedMutationOrBuilder() {
+    if (mutationCase_ == 37) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation.getDefaultInstance();
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -1314,6 +1359,9 @@ private static final long serialVersionUID = 0L;
     }
     if (mutationCase_ == 36) {
       output.writeMessage(36, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation) mutation_);
+    }
+    if (mutationCase_ == 37) {
+      output.writeMessage(37, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation) mutation_);
     }
     getUnknownFields().writeTo(output);
   }
@@ -1419,6 +1467,10 @@ private static final long serialVersionUID = 0L;
     if (mutationCase_ == 36) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(36, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation) mutation_);
+    }
+    if (mutationCase_ == 37) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(37, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation) mutation_);
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -1533,6 +1585,10 @@ private static final long serialVersionUID = 0L;
         if (!getSetAttributeSchemaAcceleratedMutation()
             .equals(other.getSetAttributeSchemaAcceleratedMutation())) return false;
         break;
+      case 37:
+        if (!getSetAttributeSchemaNormalizedMutation()
+            .equals(other.getSetAttributeSchemaNormalizedMutation())) return false;
+        break;
       case 0:
       default:
     }
@@ -1643,6 +1699,10 @@ private static final long serialVersionUID = 0L;
       case 36:
         hash = (37 * hash) + SETATTRIBUTESCHEMAACCELERATEDMUTATION_FIELD_NUMBER;
         hash = (53 * hash) + getSetAttributeSchemaAcceleratedMutation().hashCode();
+        break;
+      case 37:
+        hash = (37 * hash) + SETATTRIBUTESCHEMANORMALIZEDMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getSetAttributeSchemaNormalizedMutation().hashCode();
         break;
       case 0:
       default:
@@ -1854,6 +1914,9 @@ private static final long serialVersionUID = 0L;
       if (setAttributeSchemaAcceleratedMutationBuilder_ != null) {
         setAttributeSchemaAcceleratedMutationBuilder_.clear();
       }
+      if (setAttributeSchemaNormalizedMutationBuilder_ != null) {
+        setAttributeSchemaNormalizedMutationBuilder_.clear();
+      }
       mutationCase_ = 0;
       mutation_ = null;
       return this;
@@ -1990,6 +2053,10 @@ private static final long serialVersionUID = 0L;
       if (mutationCase_ == 36 &&
           setAttributeSchemaAcceleratedMutationBuilder_ != null) {
         result.mutation_ = setAttributeSchemaAcceleratedMutationBuilder_.build();
+      }
+      if (mutationCase_ == 37 &&
+          setAttributeSchemaNormalizedMutationBuilder_ != null) {
+        result.mutation_ = setAttributeSchemaNormalizedMutationBuilder_.build();
       }
     }
 
@@ -2132,6 +2199,10 @@ private static final long serialVersionUID = 0L;
         }
         case SETATTRIBUTESCHEMAACCELERATEDMUTATION: {
           mergeSetAttributeSchemaAcceleratedMutation(other.getSetAttributeSchemaAcceleratedMutation());
+          break;
+        }
+        case SETATTRIBUTESCHEMANORMALIZEDMUTATION: {
+          mergeSetAttributeSchemaNormalizedMutation(other.getSetAttributeSchemaNormalizedMutation());
           break;
         }
         case MUTATION_NOT_SET: {
@@ -2332,6 +2403,13 @@ private static final long serialVersionUID = 0L;
               mutationCase_ = 36;
               break;
             } // case 290
+            case 298: {
+              input.readMessage(
+                  getSetAttributeSchemaNormalizedMutationFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              mutationCase_ = 37;
+              break;
+            } // case 298
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -6769,6 +6847,184 @@ private static final long serialVersionUID = 0L;
       mutationCase_ = 36;
       onChanged();
       return setAttributeSchemaAcceleratedMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutationOrBuilder> setAttributeSchemaNormalizedMutationBuilder_;
+    /**
+     * <pre>
+     * Replaces the declared normalization chain; an empty chain removes normalization.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 37;</code>
+     * @return Whether the setAttributeSchemaNormalizedMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasSetAttributeSchemaNormalizedMutation() {
+      return mutationCase_ == 37;
+    }
+    /**
+     * <pre>
+     * Replaces the declared normalization chain; an empty chain removes normalization.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 37;</code>
+     * @return The setAttributeSchemaNormalizedMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation getSetAttributeSchemaNormalizedMutation() {
+      if (setAttributeSchemaNormalizedMutationBuilder_ == null) {
+        if (mutationCase_ == 37) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 37) {
+          return setAttributeSchemaNormalizedMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Replaces the declared normalization chain; an empty chain removes normalization.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 37;</code>
+     */
+    public Builder setSetAttributeSchemaNormalizedMutation(io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation value) {
+      if (setAttributeSchemaNormalizedMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        setAttributeSchemaNormalizedMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 37;
+      return this;
+    }
+    /**
+     * <pre>
+     * Replaces the declared normalization chain; an empty chain removes normalization.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 37;</code>
+     */
+    public Builder setSetAttributeSchemaNormalizedMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation.Builder builderForValue) {
+      if (setAttributeSchemaNormalizedMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        setAttributeSchemaNormalizedMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 37;
+      return this;
+    }
+    /**
+     * <pre>
+     * Replaces the declared normalization chain; an empty chain removes normalization.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 37;</code>
+     */
+    public Builder mergeSetAttributeSchemaNormalizedMutation(io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation value) {
+      if (setAttributeSchemaNormalizedMutationBuilder_ == null) {
+        if (mutationCase_ == 37 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 37) {
+          setAttributeSchemaNormalizedMutationBuilder_.mergeFrom(value);
+        } else {
+          setAttributeSchemaNormalizedMutationBuilder_.setMessage(value);
+        }
+      }
+      mutationCase_ = 37;
+      return this;
+    }
+    /**
+     * <pre>
+     * Replaces the declared normalization chain; an empty chain removes normalization.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 37;</code>
+     */
+    public Builder clearSetAttributeSchemaNormalizedMutation() {
+      if (setAttributeSchemaNormalizedMutationBuilder_ == null) {
+        if (mutationCase_ == 37) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 37) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        setAttributeSchemaNormalizedMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Replaces the declared normalization chain; an empty chain removes normalization.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 37;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation.Builder getSetAttributeSchemaNormalizedMutationBuilder() {
+      return getSetAttributeSchemaNormalizedMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Replaces the declared normalization chain; an empty chain removes normalization.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 37;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutationOrBuilder getSetAttributeSchemaNormalizedMutationOrBuilder() {
+      if ((mutationCase_ == 37) && (setAttributeSchemaNormalizedMutationBuilder_ != null)) {
+        return setAttributeSchemaNormalizedMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 37) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Replaces the declared normalization chain; an empty chain removes normalization.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 37;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutationOrBuilder> 
+        getSetAttributeSchemaNormalizedMutationFieldBuilder() {
+      if (setAttributeSchemaNormalizedMutationBuilder_ == null) {
+        if (!(mutationCase_ == 37)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation.getDefaultInstance();
+        }
+        setAttributeSchemaNormalizedMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 37;
+      onChanged();
+      return setAttributeSchemaNormalizedMutationBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

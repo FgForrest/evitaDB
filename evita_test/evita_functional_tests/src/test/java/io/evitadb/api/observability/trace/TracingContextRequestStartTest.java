@@ -317,7 +317,7 @@ class TracingContextRequestStartTest {
 		@DisplayName("every way of handing work to the executor carries the request start to the worker")
 		Stream<DynamicTest> shouldPropagateRequestStartThroughEverySubmissionShape() {
 			final List<Submission> submissions = List.of(
-				new Submission("execute(Runnable)", (executor, task) -> executor.execute(task)),
+				new Submission("execute(Runnable)", ObservableThreadExecutor::execute),
 				new Submission(
 					"submit(Runnable)",
 					(executor, task) -> executor.submit(task).get(30, TimeUnit.SECONDS)

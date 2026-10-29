@@ -151,7 +151,7 @@ class AndTest {
 		void shouldReturnFilterConstraintClassAsType() {
 			final And and = new And(attributeEquals("abc", "def"));
 
-			assertEquals(FilterConstraint.class, and.getType());
+			assertSame(FilterConstraint.class, and.getType());
 		}
 
 		@Test

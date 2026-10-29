@@ -38,6 +38,9 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSche
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStepParameter;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.dataType.BigDecimalNumberRange;
@@ -379,6 +382,17 @@ public class ClassSchemaAnalyzer {
 			}
 
 			applyAttributeScopedProperties(editor, attributeAnnotation);
+			final AnalysisStep[] normalization = Arrays.stream(attributeAnnotation.normalized())
+				.map(definition -> AnalysisSteps.step(
+					definition.step(),
+					Arrays.stream(definition.parameters())
+						.map(parameter -> AnalysisSteps.parameter(parameter.name(), parameter.value()))
+						.toArray(AnalysisStepParameter[]::new)
+				))
+				.toArray(AnalysisStep[]::new);
+			if (!editor.getNormalization().equals(Arrays.asList(normalization))) {
+				editor.normalized(normalization);
+			}
 
 			// representative - reconcile with annotation
 			if (attributeAnnotation.representative() && !editor.isRepresentative()) {

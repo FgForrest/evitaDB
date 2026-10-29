@@ -689,10 +689,10 @@ public interface GrpcAttributeSchemaOrBuilder extends
    * server sends - means no acceleration anywhere.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 22;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 22;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators> 
-      getAcceleratorsInScopesList();
+      getAcceleratedList();
   /**
    * <pre>
    * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
@@ -700,9 +700,9 @@ public interface GrpcAttributeSchemaOrBuilder extends
    * server sends - means no acceleration anywhere.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 22;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 22;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators getAcceleratorsInScopes(int index);
+  io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators getAccelerated(int index);
   /**
    * <pre>
    * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
@@ -710,9 +710,9 @@ public interface GrpcAttributeSchemaOrBuilder extends
    * server sends - means no acceleration anywhere.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 22;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 22;</code>
    */
-  int getAcceleratorsInScopesCount();
+  int getAcceleratedCount();
   /**
    * <pre>
    * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
@@ -720,10 +720,10 @@ public interface GrpcAttributeSchemaOrBuilder extends
    * server sends - means no acceleration anywhere.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 22;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 22;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder> 
-      getAcceleratorsInScopesOrBuilderList();
+      getAcceleratedOrBuilderList();
   /**
    * <pre>
    * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
@@ -731,8 +731,62 @@ public interface GrpcAttributeSchemaOrBuilder extends
    * server sends - means no acceleration anywhere.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 22;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators accelerated = 22;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder getAcceleratorsInScopesOrBuilder(
+  io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder getAcceleratedOrBuilder(
+      int index);
+
+  /**
+   * <pre>
+   * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+   * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+   * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalized = 23;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep> 
+      getNormalizedList();
+  /**
+   * <pre>
+   * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+   * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+   * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalized = 23;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep getNormalized(int index);
+  /**
+   * <pre>
+   * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+   * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+   * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalized = 23;</code>
+   */
+  int getNormalizedCount();
+  /**
+   * <pre>
+   * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+   * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+   * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalized = 23;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAnalysisStepOrBuilder> 
+      getNormalizedOrBuilderList();
+  /**
+   * <pre>
+   * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+   * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+   * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalized = 23;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcAnalysisStepOrBuilder getNormalizedOrBuilder(
       int index);
 }

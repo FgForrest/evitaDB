@@ -32,7 +32,6 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueToRecord;
@@ -165,33 +164,9 @@ public final class OwnerSortIndex extends SortIndex {
 	}
 
 	/**
-	 * Rebuilds an owner sort index from its persisted GRANULAR (`PAGED`) leaf pages — the multi-leaf counterpart of the
-	 * flat-array {@link #buildOwnedTree} bridge. The owned {@link InvertedIndex} is reassembled boundary-stable from the
-	 * persisted leaf pages via {@link InvertedIndex#fromPersistedPages}, then the positional {@link SortIndex#sortedRecords}
-	 * façade — which a PAGED owner does NOT persist — is reconstructed by concatenating the reloaded tree's buckets in
-	 * comparator order (ascending record ids within each value), reproducing byte-for-byte the array the live owner holds.
-	 *
-	 * The reassembly uses the IDENTICAL identity normalizer (`value -> (Serializable) value`), plain-type derivation
-	 * (`comparatorBase.length == 1 ? comparatorBase[0].type() : Comparable.class`) and combined comparator (direction +
-	 * NULL handling) {@link #createOwnedTree} uses, so the reloaded tree is indistinguishable from a freshly built one: the
-	 * persisted leaf values are ALREADY normalized (the base normalizes before the value-side hooks), so the identity
-	 * normalizer stores them verbatim, and the comparator orders those normalized keys. Nothing here normalizes a raw
-	 * temporal value the pages of 2026.2 or an older release hold, nor re-sorts the localized texts or locales such a
-	 * release ordered by the bare collator or the language tag: the storage migration to protocol 7 rewrites every such
-	 * page before a catalog of that release loads. A catalog that reaches protocol 7 with such pages otherwise - only a
-	 * development build of 2026.3 writes one - is not supported, and its values are read as they are stored.
-	 *
-	 * @param comparatorBase        one descriptor per element (a single entry for plain attributes)
-	 * @param referenceKey          owning reference discriminator, or `null` for the global index
-	 * @param attributeIndexKey     identifies the indexed attribute / compound
-	 * @param indexedDecimalPlaces  decimal-places scale used to encode `BigDecimal` values (0 for other types)
-	 * @param orderedPageSequences  the persisted leaf-page sequences in ascending key order (the PAGED root's leaf list)
-	 * @param perPageBuckets        the buckets of each leaf page, positionally aligned with `orderedPageSequences`
-	 * @param highWaterPageSequence the persisted stream high-water (largest page sequence ever allocated)
-	 * @return a rehydrated, boundary-stable PAGED owner sort index
+	 * Restores paged sort keys verbatim, capturing the owner-resolved function for future raw input.
 	 */
 	@Nonnull
-	@SuppressWarnings({"rawtypes"})
 	public static OwnerSortIndex fromPersistedPages(
 		@Nonnull ComparatorSource[] comparatorBase,
 		@Nullable RepresentativeReferenceKey referenceKey,
@@ -199,7 +174,8 @@ public final class OwnerSortIndex extends SortIndex {
 		int indexedDecimalPlaces,
 		@Nonnull int[] orderedPageSequences,
 		@Nonnull ValueToRecord[][] perPageBuckets,
-		int highWaterPageSequence
+		int highWaterPageSequence,
+		@Nonnull UnaryOperator<Serializable> keyNormalizer
 	) {
 		// the combined comparator (direction + NULL handling) is derived exactly as the SortIndex base derives its own
 		// `comparator` from the same comparatorBase + locale, so the reloaded tree orders keys identically to a live owner
@@ -217,55 +193,19 @@ public final class OwnerSortIndex extends SortIndex {
 		final int[] sortedRecords = SortIndexView.reconstructSortedRecords(ownedTree);
 		return new OwnerSortIndex(
 			comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces,
-			new TransactionalUnorderedIntArray(sortedRecords), ownedTree
+			new TransactionalUnorderedIntArray(sortedRecords), ownedTree, keyNormalizer
 		);
 	}
 
 	/**
-	 * Creates an empty owner sort index for a single attribute that belongs to the global {@link GlobalEntityIndex}
-	 * (no discriminating reference key). Convenience overload that defaults the sort order to ascending with NULLs last.
-	 *
-	 * @param attributeType     the comparable type of the indexed attribute
-	 * @param attributeIndexKey identifies the indexed attribute (and its locale, if localized)
-	 */
-	public OwnerSortIndex(
-		@Nonnull Class<?> attributeType,
-		@Nonnull AttributeIndexKey attributeIndexKey
-	) {
-		this(attributeType, null, attributeIndexKey);
-	}
-
-	/**
-	 * Creates an empty owner sort index for a single attribute, defaulting the sort order to ascending with NULLs last.
-	 * The internal {@link ComparatorSource} is derived from `attributeType`.
-	 *
-	 * @param attributeType     the comparable type of the indexed attribute
-	 * @param referenceKey      discriminator of the owning {@link io.evitadb.index.AbstractReducedEntityIndex}, or `null`
-	 *                          when this index lives in the global {@link GlobalEntityIndex}
-	 * @param attributeIndexKey identifies the indexed attribute (and its locale, if localized)
-	 */
-	public OwnerSortIndex(
-		@Nonnull Class<?> attributeType,
-		@Nullable RepresentativeReferenceKey referenceKey,
-		@Nonnull AttributeIndexKey attributeIndexKey
-	) {
-		this(attributeType, referenceKey, attributeIndexKey, 0);
-	}
-
-	/**
-	 * Creates an empty owner sort index for a single attribute, carrying the `BigDecimal` scaling decimal places so the
-	 * index's own normalizer scales `BigDecimal` keys identically to the shared filter value tree.
-	 *
-	 * @param attributeType        the comparable type of the indexed attribute
-	 * @param referenceKey         discriminator of the owning {@link io.evitadb.index.AbstractReducedEntityIndex}, or `null`
-	 * @param attributeIndexKey    identifies the indexed attribute (and its locale, if localized)
-	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
+	 * Creates a scalar owner capturing the raw-input function and the frozen decimal scale.
 	 */
 	public OwnerSortIndex(
 		@Nonnull Class<?> attributeType,
 		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeIndexKey attributeIndexKey,
-		int indexedDecimalPlaces
+		int indexedDecimalPlaces,
+		@Nonnull UnaryOperator<Serializable> keyNormalizer
 	) {
 		super(
 			new ComparatorSource[]{
@@ -274,42 +214,28 @@ public final class OwnerSortIndex extends SortIndex {
 			referenceKey,
 			attributeIndexKey,
 			indexedDecimalPlaces,
-			new TransactionalUnorderedIntArray()
+			new TransactionalUnorderedIntArray(), keyNormalizer
 		);
 		this.ownedTree = createOwnedTree(this.comparatorBase, this.comparator, indexedDecimalPlaces);
 	}
 
 	/**
-	 * Creates an empty owner sort index for a sortable attribute compound (multiple attribute elements) that belongs
-	 * to the global {@link GlobalEntityIndex}. Convenience overload of the reference-key aware constructor.
-	 *
-	 * @param comparatorSources one descriptor per compound element, in element order; at least two are required
-	 * @param attributeIndexKey identifies the indexed compound (and its locale, if localized)
-	 */
-	public OwnerSortIndex(
-		@Nonnull ComparatorSource[] comparatorSources,
-		@Nonnull AttributeIndexKey attributeIndexKey
-	) {
-		this(comparatorSources, null, attributeIndexKey);
-	}
-
-	/**
-	 * Creates an empty owner sort index for a sortable attribute compound. Each element of `comparatorSources` describes
-	 * one compound element (type, direction, NULL handling); the combined comparator orders records lexicographically
-	 * across those elements.
-	 *
-	 * @param comparatorSources one descriptor per compound element, in element order; at least two are required
-	 * @param referenceKey      discriminator of the owning {@link io.evitadb.index.AbstractReducedEntityIndex}, or `null`
-	 *                          when this index lives in the global {@link GlobalEntityIndex}
-	 * @param attributeIndexKey identifies the indexed compound (and its locale, if localized)
-	 * @throws IllegalArgumentException if fewer than two comparator sources are supplied
+	 * Creates a compound owner capturing the per-element raw-input function.
 	 */
 	public OwnerSortIndex(
 		@Nonnull ComparatorSource[] comparatorSources,
 		@Nullable RepresentativeReferenceKey referenceKey,
-		@Nonnull AttributeIndexKey attributeIndexKey
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull UnaryOperator<Serializable> keyNormalizer
 	) {
-		super(comparatorSources, referenceKey, attributeIndexKey, new TransactionalUnorderedIntArray());
+		super(
+			comparatorSources,
+			referenceKey,
+			attributeIndexKey,
+			0,
+			new TransactionalUnorderedIntArray(),
+			keyNormalizer
+		);
 		isTrue(
 			comparatorSources.length > 1,
 			"At least two comparators are required to create a compound SortIndex by this constructor!"
@@ -318,44 +244,7 @@ public final class OwnerSortIndex extends SortIndex {
 	}
 
 	/**
-	 * Rehydrates an owner sort index from its persisted state (typically a {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart}
-	 * read back from disk). Works for both single-attribute and compound indexes: the comparator/normalizer is chosen by
-	 * the length of `comparatorBase`. The presorted arrays are taken as-is, so the caller is responsible for their mutual
-	 * consistency (`sortedRecords` aligned with `sortedRecordValues`, and `cardinalities` holding only values whose
-	 * cardinality is greater than one).
-	 *
-	 * @param comparatorBase     one descriptor per element (a single entry for plain attributes)
-	 * @param referenceKey       owning reference discriminator, or `null` for the global index
-	 * @param attributeIndexKey  identifies the indexed attribute / compound
-	 * @param sortedRecords      record ids ordered by their associated values, blocked per value
-	 * @param sortedRecordValues the naturally sorted distinct values backing `sortedRecords`
-	 * @param cardinalities      counts for values shared by more than one record (cardinality 1 is implicit)
-	 */
-	public OwnerSortIndex(
-		@Nonnull ComparatorSource[] comparatorBase,
-		@Nullable RepresentativeReferenceKey referenceKey,
-		@Nonnull AttributeIndexKey attributeIndexKey,
-		@Nonnull int[] sortedRecords,
-		@Nonnull Serializable[] sortedRecordValues,
-		@Nonnull Map<Serializable, Integer> cardinalities
-	) {
-		this(
-			comparatorBase, referenceKey, attributeIndexKey, 0,
-			sortedRecords, sortedRecordValues, cardinalities
-		);
-	}
-
-	/**
-	 * Rehydrates an owner sort index carrying the persisted `BigDecimal` scaling decimal places (see the no-places
-	 * overload for the array-consistency contract).
-	 *
-	 * @param comparatorBase       one descriptor per element (a single entry for plain attributes)
-	 * @param referenceKey         owning reference discriminator, or `null` for the global index
-	 * @param attributeIndexKey    identifies the indexed attribute / compound
-	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
-	 * @param sortedRecords        record ids ordered by their associated values, blocked per value
-	 * @param sortedRecordValues   the naturally sorted distinct values backing `sortedRecords`
-	 * @param cardinalities        counts for values shared by more than one record (cardinality 1 is implicit)
+	 * Restores ordered value blocks verbatim, capturing the raw-input function for subsequent writes and probes.
 	 */
 	public OwnerSortIndex(
 		@Nonnull ComparatorSource[] comparatorBase,
@@ -364,11 +253,12 @@ public final class OwnerSortIndex extends SortIndex {
 		int indexedDecimalPlaces,
 		@Nonnull int[] sortedRecords,
 		@Nonnull Serializable[] sortedRecordValues,
-		@Nonnull Map<Serializable, Integer> cardinalities
+		@Nonnull Map<Serializable, Integer> cardinalities,
+		@Nonnull UnaryOperator<Serializable> keyNormalizer
 	) {
 		super(
 			comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces,
-			new TransactionalUnorderedIntArray(sortedRecords)
+			new TransactionalUnorderedIntArray(sortedRecords), keyNormalizer
 		);
 		this.ownedTree = buildOwnedTree(
 			this.comparatorBase, this.comparator, indexedDecimalPlaces,
@@ -388,10 +278,27 @@ public final class OwnerSortIndex extends SortIndex {
 		@Nonnull AttributeIndexKey attributeIndexKey,
 		int indexedDecimalPlaces,
 		@Nonnull TransactionalUnorderedIntArray sortedRecords,
-		@Nonnull InvertedIndex ownedTree
+		@Nonnull InvertedIndex ownedTree,
+		@Nonnull UnaryOperator<Serializable> keyNormalizer
 	) {
-		super(comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces, sortedRecords);
+		super(comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces, sortedRecords, keyNormalizer);
 		this.ownedTree = ownedTree;
+	}
+
+	/**
+	 * Replaces only the raw-tuple function at schema adoption, sharing the unchanged transactional key stores.
+	 * A row can switch while its element is NULL in every stored tuple; sibling elements can still keep this tree
+	 * populated. The new wrapper gives old snapshot readers their original function and preserves page bookkeeping.
+	 *
+	 * @param keyNormalizer immutable raw-tuple function for the adopted rows
+	 * @return replacement sharing unchanged stores and their content dirty state
+	 */
+	@Nonnull
+	public OwnerSortIndex withKeyNormalizer(@Nonnull UnaryOperator<Serializable> keyNormalizer) {
+		final OwnerSortIndex copy = new OwnerSortIndex(this.comparatorBase, getReferenceKey(), getAttributeIndexKey(),
+			getIndexedDecimalPlaces(), this.sortedRecords, this.ownedTree, keyNormalizer);
+		copy.inheritContentDirtyState(this);
+		return copy;
 	}
 
 	@Nullable
@@ -577,7 +484,7 @@ public final class OwnerSortIndex extends SortIndex {
 			getAttributeIndexKey(),
 			getIndexedDecimalPlaces(),
 			mergedSortedRecords,
-			committed
+			committed, this.normalizer
 		);
 	}
 

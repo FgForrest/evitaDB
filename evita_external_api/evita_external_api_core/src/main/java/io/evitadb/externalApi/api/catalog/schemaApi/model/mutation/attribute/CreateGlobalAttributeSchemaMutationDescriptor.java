@@ -128,6 +128,11 @@ public interface CreateGlobalAttributeSchemaMutationDescriptor extends Attribute
 	PropertyDescriptor ACCELERATORS_IN_SCOPES_INPUT = PropertyDescriptor.from(ACCELERATORS_IN_SCOPES)
 		.type(nullableListRef(ScopedAttributeFilterAcceleratorsDescriptor.THIS_INPUT))
 		.build();
+	/** Optional ordered declaration carried by global attribute creation; omission preserves the legacy default. */
+	PropertyDescriptor NORMALIZATION = SetAttributeSchemaNormalizedMutationDescriptor.NORMALIZATION;
+	/** Typed installed-provider selector list accepted by global attribute creation inputs. */
+	PropertyDescriptor NORMALIZATION_INPUT = SetAttributeSchemaNormalizedMutationDescriptor.NORMALIZATION_INPUT;
+
 	PropertyDescriptor SORTABLE_IN_SCOPES = PropertyDescriptor.builder()
 		.name("sortableInScopes")
 		.description("""
@@ -216,6 +221,7 @@ public interface CreateGlobalAttributeSchemaMutationDescriptor extends Attribute
 		.staticProperty(UNIQUE_GLOBALLY_IN_SCOPES)
 		.staticProperty(FILTERABLE_IN_SCOPES)
 		.staticProperty(ACCELERATORS_IN_SCOPES)
+		.staticProperty(NORMALIZATION)
 		.staticProperty(SORTABLE_IN_SCOPES)
 		.staticProperty(LOCALIZED)
 		.staticProperty(NULLABLE)
@@ -229,5 +235,6 @@ public interface CreateGlobalAttributeSchemaMutationDescriptor extends Attribute
 		.staticProperty(UNIQUE_IN_SCOPES_INPUT)
 		.staticProperty(UNIQUE_GLOBALLY_IN_SCOPES_INPUT)
 		.staticProperty(ACCELERATORS_IN_SCOPES_INPUT)
+		.staticProperty(NORMALIZATION_INPUT)
 		.build();
 }

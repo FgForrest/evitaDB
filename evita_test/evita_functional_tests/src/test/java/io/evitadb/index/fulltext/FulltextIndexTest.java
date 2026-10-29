@@ -35,6 +35,7 @@ import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextFieldLengthBlockPart;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -866,7 +867,7 @@ class FulltextIndexTest {
 					assertEquals(0, t.getOrAssignFieldId(attribute("name")));
 					t.forEachTerm(0, "", (term, postings, impacts) -> true);
 				},
-				(original, committed) -> assertSame(original, committed)
+				Assertions::assertSame
 			);
 		}
 

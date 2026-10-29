@@ -591,15 +591,26 @@ final class LegacyOwnerSortImages {
 	) {
 		if (root.isPaged()) {
 			return OwnerSortIndex.fromPersistedPages(
-				root.getComparatorBase(), null, root.getAttributeIndexKey(), root.getIndexedDecimalPlaces(),
+				root.getComparatorBase(),
+				null,
+				root.getAttributeIndexKey(),
+				root.getIndexedDecimalPlaces(),
 				root.getLeafPageSequences(),
 				readPages(catalogVersion, storage, legacy.entityIndexPrimaryKey(), root),
-				root.getHighWaterPageSequence()
+				root.getHighWaterPageSequence(),
+				SortIndex.createTypeLevelNormalizerFor(root.getComparatorBase(), root.getIndexedDecimalPlaces())
 			);
 		} else {
 			return (OwnerSortIndex) SortIndex.create(
-				root.getComparatorBase(), null, root.getAttributeIndexKey(), root.getIndexedDecimalPlaces(),
-				root.getSortedRecords(), root.getSortedRecordsValues(), root.getValueCardinalities(), null
+				root.getComparatorBase(),
+				null,
+				root.getAttributeIndexKey(),
+				root.getIndexedDecimalPlaces(),
+				root.getSortedRecords(),
+				root.getSortedRecordsValues(),
+				root.getValueCardinalities(),
+				null,
+				SortIndex.createTypeLevelNormalizerFor(root.getComparatorBase(), root.getIndexedDecimalPlaces())
 			);
 		}
 	}

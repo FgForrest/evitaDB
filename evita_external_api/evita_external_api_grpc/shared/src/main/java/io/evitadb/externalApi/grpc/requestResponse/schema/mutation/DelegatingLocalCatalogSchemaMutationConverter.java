@@ -91,6 +91,11 @@ public class DelegatingLocalCatalogSchemaMutationConverter implements SchemaMuta
 			SetAttributeSchemaAcceleratedMutation.class,
 			new ToGrpc((b, m) -> b.setSetAttributeSchemaAcceleratedMutation((GrpcSetAttributeSchemaAcceleratedMutation) m), SetAttributeSchemaAcceleratedMutationConverter.INSTANCE)
 		);
+		TO_GRPC_CONVERTERS.put(
+			SetAttributeSchemaNormalizedMutation.class,
+			new ToGrpc((b, m) -> b.setSetAttributeSchemaNormalizedMutation((GrpcSetAttributeSchemaNormalizedMutation) m),
+				SetAttributeSchemaNormalizedMutationConverter.INSTANCE)
+		);
 		TO_GRPC_CONVERTERS.put(SetAttributeSchemaGloballyUniqueMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaGloballyUniqueMutation((GrpcSetAttributeSchemaGloballyUniqueMutation) m), SetAttributeSchemaGloballyUniqueMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(SetAttributeSchemaLocalizedMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaLocalizedMutation((GrpcSetAttributeSchemaLocalizedMutation) m), SetAttributeSchemaLocalizedMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(SetAttributeSchemaNullableMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaNullableMutation((GrpcSetAttributeSchemaNullableMutation) m), SetAttributeSchemaNullableMutationConverter.INSTANCE));
@@ -120,6 +125,11 @@ public class DelegatingLocalCatalogSchemaMutationConverter implements SchemaMuta
 		TO_JAVA_CONVERTERS.put(
 			SETATTRIBUTESCHEMAACCELERATEDMUTATION,
 			new ToJava(GrpcLocalCatalogSchemaMutation::getSetAttributeSchemaAcceleratedMutation, SetAttributeSchemaAcceleratedMutationConverter.INSTANCE)
+		);
+		TO_JAVA_CONVERTERS.put(
+			SETATTRIBUTESCHEMANORMALIZEDMUTATION,
+			new ToJava(GrpcLocalCatalogSchemaMutation::getSetAttributeSchemaNormalizedMutation,
+				SetAttributeSchemaNormalizedMutationConverter.INSTANCE)
 		);
 		TO_JAVA_CONVERTERS.put(SETATTRIBUTESCHEMAGLOBALLYUNIQUEMUTATION, new ToJava(GrpcLocalCatalogSchemaMutation::getSetAttributeSchemaGloballyUniqueMutation, SetAttributeSchemaGloballyUniqueMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(SETATTRIBUTESCHEMALOCALIZEDMUTATION, new ToJava(GrpcLocalCatalogSchemaMutation::getSetAttributeSchemaLocalizedMutation, SetAttributeSchemaLocalizedMutationConverter.INSTANCE));

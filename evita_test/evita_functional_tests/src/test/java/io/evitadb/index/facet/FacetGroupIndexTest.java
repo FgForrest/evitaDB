@@ -26,6 +26,7 @@ package io.evitadb.index.facet;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -295,8 +296,7 @@ class FacetGroupIndexTest {
 			assertStateAfterCommit(
 				index,
 				original -> original.addFacet(10, 100),
-				(original, committed) ->
-					assertNotSame(original, committed)
+				Assertions::assertNotSame
 			);
 		}
 

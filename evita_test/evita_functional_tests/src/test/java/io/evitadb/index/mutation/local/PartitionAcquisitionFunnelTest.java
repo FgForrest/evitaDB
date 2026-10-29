@@ -43,6 +43,7 @@ import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartition;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.DisplayName;
@@ -211,7 +212,7 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			this.classifierResolver,
 			this.usageRegistry,
 			this.catalogUsageRegistry,
-			new FulltextAnalyzerRegistry(),
+			new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 			true,
 			reservations
 		);

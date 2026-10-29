@@ -82,6 +82,10 @@ public class LocalCatalogSchemaMutationInputAggregateConverter extends
 			SET_ATTRIBUTE_SCHEMA_ACCELERATED_MUTATION.name(),
 			new SetAttributeSchemaAcceleratedMutationConverter(objectParser, exceptionFactory)
 		);
+		registerConverter(
+			SET_ATTRIBUTE_SCHEMA_NORMALIZED_MUTATION.name(),
+			new SetAttributeSchemaNormalizedMutationConverter(objectParser, exceptionFactory)
+		);
 		registerConverter(SET_ATTRIBUTE_SCHEMA_LOCALIZED_MUTATION.name(), new SetAttributeSchemaLocalizedMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SET_ATTRIBUTE_SCHEMA_NULLABLE_MUTATION.name(), new SetAttributeSchemaNullableMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SET_ATTRIBUTE_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION.name(), new SetAttributeSchemaConflictResolutionOverrideMutationConverter(objectParser, exceptionFactory));

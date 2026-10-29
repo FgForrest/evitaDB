@@ -1310,9 +1310,12 @@ class TransactionalListTest {
 
 		@Test
 		@DisplayName("equals returns false for non-List objects")
+		@SuppressWarnings({"SimplifiableAssertion", "EqualsBetweenInconvertibleTypes"})
 		void shouldNotBeEqualToNonListObject() {
-			assertNotEquals("not a list", TransactionalListTest.this.tested);
-			assertNotEquals(TransactionalListTest.this.tested, Integer.valueOf(1));
+			// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
+			// fix moves the literals there, so `String.equals` and `Integer.equals` would run instead of the list's
+			assertFalse(TransactionalListTest.this.tested.equals("not a list"));
+			assertFalse(TransactionalListTest.this.tested.equals(1));
 		}
 
 		@Test

@@ -35,6 +35,7 @@ import io.evitadb.function.Functions;
 import io.evitadb.index.VirtualReferencePartitionIndexNormalizedSortValueTest.ValueFixture;
 import io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.SortKeyFixture;
 import io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.SortSnapshot;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndexView;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -413,7 +414,12 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 		final VirtualReferencePartitionIndex live = typeIndex.getVirtualReferencePartitionIndex();
 		final AttributeIndexKey order = VirtualReferencePartitionIndexSortValueTest.ORDER;
 		final AttributeIndexKey chain = VirtualReferencePartitionIndexChainPredecessorTest.CHAIN;
-		live.declareSortKey(order, VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC, 0);
+		live.declareSortKey(
+			order,
+			VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC,
+			0,
+			() -> SortIndex.createTypeLevelNormalizerFor(VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC, 0)
+		);
 		live.declareChainKey(chain);
 		final int partitions = 300;
 		for (int partition = 1; partition <= partitions; partition++) {
@@ -637,7 +643,12 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 		void shouldBoundTheWriteOfASortValueChange() {
 			final AttributeIndexKey order = VirtualReferencePartitionIndexSortValueTest.ORDER;
 			final VirtualReferencePartitionIndex source = new VirtualReferencePartitionIndex();
-			source.declareSortKey(order, VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC, 0);
+			source.declareSortKey(
+				order,
+				VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC,
+				0,
+				() -> SortIndex.createTypeLevelNormalizerFor(VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC, 0)
+			);
 			for (int partition = 1; partition <= PARTITION_COUNT; partition++) {
 				source.putSortValue(order, partition, 1 + partition % 77);
 			}
@@ -696,7 +707,7 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 			sharedTree.addRecord(7, 6);
 
 			final VirtualReferencePartitionIndex source = new VirtualReferencePartitionIndex();
-			source.declareSortKey(priority, integerAsc, 0);
+			source.declareSortKey(priority, integerAsc, 0, () -> SortIndex.createTypeLevelNormalizerFor(integerAsc, 0));
 			source.putSortValue(priority, 3, 5);
 			source.putSortValue(priority, 4, 5);
 			source.putSortValue(priority, 6, 7);
@@ -710,8 +721,15 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 			// the negative control: the same persisted blocks folded onto the shared tree as a view take their block
 			// boundaries from the real partitions too
 			final SortIndex view = SortIndex.create(
-				integerAsc, null, priority, 0, expected.records().stream().mapToInt(Integer::intValue).toArray(),
-				expected.values().toArray(Serializable[]::new), Map.<Serializable, Integer>of(5, 2), () -> sharedTree
+				integerAsc,
+				null,
+				priority,
+				0,
+				expected.records().stream().mapToInt(Integer::intValue).toArray(),
+				expected.values().toArray(Serializable[]::new),
+				Map.<Serializable, Integer>of(5, 2),
+				() -> sharedTree,
+				SortIndex.createTypeLevelNormalizerFor(integerAsc, 0)
 			);
 			assertInstanceOf(SortIndexView.class, view);
 			assertNotEquals(
@@ -759,7 +777,12 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 		void shouldRoundTripADeclaredKeyWithoutValues() {
 			final AttributeIndexKey order = VirtualReferencePartitionIndexSortValueTest.ORDER;
 			final VirtualReferencePartitionIndex source = new VirtualReferencePartitionIndex();
-			source.declareSortKey(order, VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC, 0);
+			source.declareSortKey(
+				order,
+				VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC,
+				0,
+				() -> SortIndex.createTypeLevelNormalizerFor(VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC, 0)
+			);
 			final VirtualReferencePartitionIndexStoragePart root = singleRoot(flushAndPersist(source));
 			assertFalse(root.isPaged());
 			assertEquals(0, root.getKeys().length);
@@ -1145,9 +1168,19 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 		);
 		final LoadedComponentBundle bundle = new VirtualReferencePartitionLoader().load(
 			new LoadContext(
-				this.version, ENTITY_INDEX_PK, EntitySchema._internalBuild(ENTITY_TYPE), ENTITY_INDEX_KEY, manifest,
-				manifest.getVersion(), EmptyBitmap.INSTANCE, Map.of(),
-				new OffsetIndexReadService(this.offsetIndex), null, new FulltextAnalyzerRegistry()
+				this.version,
+				ENTITY_INDEX_PK,
+				EntitySchema._internalBuild(ENTITY_TYPE),
+				ENTITY_INDEX_KEY,
+				manifest,
+				manifest.getVersion(),
+				EmptyBitmap.INSTANCE,
+				Map.of(),
+				new OffsetIndexReadService(this.offsetIndex),
+				null,
+				true,
+				new FulltextAnalyzerRegistry(),
+				AttributeNormalizationResolver.LEGACY_NFD
 			)
 		);
 		return assertInstanceOf(VirtualReferencePartitions.class, bundle).virtualReferencePartitionIndex();
@@ -1170,10 +1203,19 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 		assertNotNull(entityIds, "The type index must have persisted its entity ids");
 		final EntityIndex reloaded = ReferencedTypeEntityIndex.reloadPlan().run(
 			new LoadContext(
-				this.version, ENTITY_INDEX_PK, EntitySchema._internalBuild(ENTITY_TYPE), manifest.getEntityIndexKey(),
-				manifest, Math.max(manifest.getVersion(), entityIds.getVersion()), entityIds.getEntityIds(),
-				entityIds.getEntityIdsByLanguage(), new OffsetIndexReadService(this.offsetIndex), null,
-				new FulltextAnalyzerRegistry()
+				this.version,
+				ENTITY_INDEX_PK,
+				EntitySchema._internalBuild(ENTITY_TYPE),
+				manifest.getEntityIndexKey(),
+				manifest,
+				Math.max(manifest.getVersion(), entityIds.getVersion()),
+				entityIds.getEntityIds(),
+				entityIds.getEntityIdsByLanguage(),
+				new OffsetIndexReadService(this.offsetIndex),
+				null,
+				true,
+				new FulltextAnalyzerRegistry(),
+				AttributeNormalizationResolver.LEGACY_NFD
 			)
 		);
 		return assertInstanceOf(ReferencedTypeEntityIndex.class, reloaded);

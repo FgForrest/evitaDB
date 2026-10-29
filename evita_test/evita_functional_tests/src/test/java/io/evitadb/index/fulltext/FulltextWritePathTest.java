@@ -29,7 +29,9 @@ import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.SealedInstance;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
@@ -416,7 +418,7 @@ class FulltextWritePathTest implements EvitaTestSupport {
 					.withReferenceTo(
 						REFERENCE_DUPLICATE_CATEGORIES, CATEGORY, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
 						whichIs -> whichIs
-							.withAttribute(ATTRIBUTE_SLOT, Integer.class, thatIs -> thatIs.representative())
+							.withAttribute(ATTRIBUTE_SLOT, Integer.class, AttributeSchemaEditor::representative)
 							.withAttribute(
 								ATTRIBUTE_LABEL, String.class, thatIs -> thatIs.localized().nullable().searchable()
 							)
@@ -1102,7 +1104,7 @@ class FulltextWritePathTest implements EvitaTestSupport {
 		write(
 			session -> session.upsertEntity(
 				session.getEntity(PRODUCT, primaryKey, entityFetchAllContent())
-					.map(it -> it.openForWrite())
+					.map(SealedInstance::openForWrite)
 					.orElseGet(() -> session.createNewEntity(PRODUCT, primaryKey))
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, name)
 			)

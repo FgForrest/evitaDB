@@ -28,6 +28,7 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.statistics.ActivityStatistics;
 import io.evitadb.api.statistics.DurabilityStatistics;
 import io.evitadb.api.statistics.CatalogStatistics;
@@ -1207,7 +1208,7 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 					// creates the reference indexes this test is about
 					.withReferenceToEntity(
 						"categories", ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.indexedForFilteringAndPartitioning()
+						ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 					)
 					.updateVia(session);
 				for (int i = 1; i <= 10; i++) {

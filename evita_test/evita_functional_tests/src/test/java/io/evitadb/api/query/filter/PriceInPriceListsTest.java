@@ -192,7 +192,7 @@ class PriceInPriceListsTest {
 		void shouldReturnCorrectType() {
 			final PriceInPriceLists constraint = priceInPriceLists("basic");
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 	}
 

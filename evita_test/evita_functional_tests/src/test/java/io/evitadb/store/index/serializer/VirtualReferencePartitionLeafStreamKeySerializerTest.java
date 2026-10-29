@@ -96,10 +96,10 @@ class VirtualReferencePartitionLeafStreamKeySerializerTest {
 	@DisplayName("equality, hash and order are decided by both halves of the identity")
 	void shouldDistinguishKeysByBothHalves() {
 		final VirtualReferencePartitionLeafStreamKey key = new VirtualReferencePartitionLeafStreamKey(1, "media");
-		assertEquals(key, new VirtualReferencePartitionLeafStreamKey(1, "media"));
+		assertEquals(new VirtualReferencePartitionLeafStreamKey(1, "media"), key);
 		assertEquals(key.hashCode(), new VirtualReferencePartitionLeafStreamKey(1, "media").hashCode());
-		assertNotEquals(key, new VirtualReferencePartitionLeafStreamKey(2, "media"));
-		assertNotEquals(key, new VirtualReferencePartitionLeafStreamKey(1, "categories"));
+		assertNotEquals(new VirtualReferencePartitionLeafStreamKey(2, "media"), key);
+		assertNotEquals(new VirtualReferencePartitionLeafStreamKey(1, "categories"), key);
 		assertEquals(0, key.compareTo(new VirtualReferencePartitionLeafStreamKey(1, "media")));
 		assertTrue(key.compareTo(new VirtualReferencePartitionLeafStreamKey(2, "a")) < 0);
 		assertTrue(key.compareTo(new VirtualReferencePartitionLeafStreamKey(1, "a")) > 0);

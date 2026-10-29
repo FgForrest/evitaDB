@@ -161,10 +161,11 @@ public class AttributeNaturalTranslator
 	public Stream<Sorter> createSorter(@Nonnull AttributeNatural attributeNatural, @Nonnull OrderByVisitor orderByVisitor) {
 		final String attributeOrCompoundName = attributeNatural.getAttributeName();
 		final OrderDirection orderDirection = attributeNatural.getOrderDirection();
-		final Locale locale = orderByVisitor.getLocale();
+		final Locale queryLocale = orderByVisitor.getLocale();
 		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
 
 		final NamedSchemaContract attributeOrCompoundSchema = processingScope.getAttributeSchemaOrSortableAttributeCompound(attributeOrCompoundName);
+		final Locale locale = maskLocale(attributeOrCompoundSchema, queryLocale, processingScope::getAttributeSchema);
 
 		if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema && attributeSchema.isLocalized()) {
 			Assert.notNull(
@@ -187,6 +188,7 @@ public class AttributeNaturalTranslator
 		final EntitySchemaContract entitySchema = attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract ?
 			orderByVisitor.getSchema() : null;
 		final ReferenceSchema referenceSchema = processingScope.referenceSchema();
+		final String referenceName = referenceSchema == null ? null : referenceSchema.getName();
 		final PickFirstReducedIndexResolver pickFirstIndexResolver = processingScope.pickFirstIndexResolver();
 		if (pickFirstIndexResolver != null && !isChainAttribute(attributeOrCompoundSchema)) {
 			return createPickFirstSorters(
@@ -275,7 +277,11 @@ public class AttributeNaturalTranslator
 					compoundSchemaContract,
 					locale,
 					attributeName -> processingScope.getAttributeSchema(attributeName),
-					orderDirection
+					orderDirection,
+					orderByVisitor.getAttributeNormalizationResolver().resolveCompoundComparatorNormalizer(
+						referenceName, compoundSchemaContract,
+						processingScope::getAttributeSchema, locale
+					)
 				);
 			} else {
 				assertTraversing(mergeMode);
@@ -284,12 +290,16 @@ public class AttributeNaturalTranslator
 					referenceSchema,
 					locale,
 					attributeName -> processingScope.getAttributeSchema(attributeName),
-					orderDirection
+					orderDirection,
+					orderByVisitor.getAttributeNormalizationResolver().resolveCompoundComparatorNormalizer(
+						referenceName, compoundSchemaContract,
+						processingScope::getAttributeSchema, locale
+					)
 				);
 			}
 		} else if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema) {
 			valueComparator = createComparatorFor(
-				locale,
+				attributeSchema.isLocalized() ? locale : null,
 				new ComparatorSource(
 					attributeSchema.getPlainType(),
 					orderDirection,
@@ -302,8 +312,12 @@ public class AttributeNaturalTranslator
 					attributeOrCompoundName,
 					attributeSchema.getPlainType(),
 					attributeSchema.getIndexedDecimalPlaces(),
-					locale,
-					orderDirection
+					attributeSchema.isLocalized() ? locale : null,
+					orderDirection,
+					orderByVisitor.getAttributeNormalizationResolver().resolve(
+						referenceName, attributeSchema,
+						attributeSchema.isLocalized() ? locale : null
+					)
 				);
 			} else {
 				assertTraversing(mergeMode);
@@ -312,8 +326,12 @@ public class AttributeNaturalTranslator
 					attributeSchema.getPlainType(),
 					attributeSchema.getIndexedDecimalPlaces(),
 					referenceSchema,
-					locale,
-					orderDirection
+					attributeSchema.isLocalized() ? locale : null,
+					orderDirection,
+					orderByVisitor.getAttributeNormalizationResolver().resolve(
+						referenceName, attributeSchema,
+						attributeSchema.isLocalized() ? locale : null
+					)
 				);
 			}
 		} else {
@@ -327,6 +345,28 @@ public class AttributeNaturalTranslator
 			new PrefetchedRecordsSorter(entityComparator),
 			new PreSortedRecordsSorter(mergeMode, valueComparator, orderDirection, sortedRecordsSupplier)
 		);
+	}
+
+	/**
+	 * Keeps the query locale only for a localized attribute or a compound with a localized element, so that a
+	 * non-localized ordering reads its keys without a locale.
+	 *
+	 * @param attributeOrCompoundSchema the sorted attribute or compound
+	 * @param queryLocale               the locale of the query, `null` when none is set
+	 * @param attributeSchemaProvider   resolves the elements of a compound
+	 * @return the query locale when the ordering is localized, `null` otherwise
+	 */
+	@Nullable
+	private static Locale maskLocale(
+		@Nonnull NamedSchemaContract attributeOrCompoundSchema,
+		@Nullable Locale queryLocale,
+		@Nonnull Function<String, ? extends AttributeSchemaContract> attributeSchemaProvider
+	) {
+		if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema) {
+			return attributeSchema.isLocalized() ? queryLocale : null;
+		}
+		return ((SortableAttributeCompoundSchema) attributeOrCompoundSchema).isLocalized(attributeSchemaProvider) ?
+			queryLocale : null;
 	}
 
 	/**
@@ -458,11 +498,15 @@ public class AttributeNaturalTranslator
 				locale,
 				attributeName -> processingScope.getAttributeSchema(attributeName),
 				orderDirection,
+				orderByVisitor.getAttributeNormalizationResolver().resolveCompoundComparatorNormalizer(
+					referenceSchema.getName(), compoundSchema,
+					processingScope::getAttributeSchema, locale
+				),
 				indexResolver
 			);
 		} else if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema) {
 			valueComparator = createComparatorFor(
-				locale,
+				attributeSchema.isLocalized() ? locale : null,
 				new ComparatorSource(attributeSchema.getPlainType(), orderDirection, OrderBehaviour.NULLS_LAST)
 			);
 			providerFactory = index -> {
@@ -478,8 +522,12 @@ public class AttributeNaturalTranslator
 				attributeSchema.getPlainType(),
 				attributeSchema.getIndexedDecimalPlaces(),
 				referenceSchema,
-				locale,
+				attributeSchema.isLocalized() ? locale : null,
 				orderDirection,
+				orderByVisitor.getAttributeNormalizationResolver().resolve(
+					referenceSchema.getName(), attributeSchema,
+					attributeSchema.isLocalized() ? locale : null
+				),
 				indexResolver
 			);
 		} else {
@@ -503,7 +551,8 @@ public class AttributeNaturalTranslator
 		);
 
 		final OrderDirection orderDirection = attributeNatural.getOrderDirection();
-		final Locale locale = orderByVisitor.getLocale();
+		final Locale locale = maskLocale(
+			attributeOrCompoundSchema, orderByVisitor.getLocale(), orderByVisitor::getAttributeSchema);
 
 		final ReferenceComparator comparator;
 		if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema &&
@@ -559,7 +608,11 @@ public class AttributeNaturalTranslator
 				compoundSchemaContract,
 				compoundSchemaContract.isLocalized(orderByVisitor::getAttributeSchema) ? locale : null,
 				orderByVisitor::getAttributeSchema,
-				orderDirection
+				orderDirection,
+				orderByVisitor.getAttributeNormalizationResolver().resolveCompoundComparatorNormalizer(
+					orderByVisitor.getReferenceSchema().getName(), compoundSchemaContract,
+					orderByVisitor::getAttributeSchema, locale
+				)
 			);
 		} else if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema) {
 			comparator = new ReferenceAttributeReferenceComparator(
@@ -567,7 +620,11 @@ public class AttributeNaturalTranslator
 				attributeSchema.getPlainType(),
 				attributeSchema.getIndexedDecimalPlaces(),
 				attributeSchema.isLocalized() ? locale : null,
-				orderDirection
+				orderDirection,
+				orderByVisitor.getAttributeNormalizationResolver().resolve(
+					orderByVisitor.getReferenceSchema().getName(), attributeSchema,
+					attributeSchema.isLocalized() ? locale : null
+				)
 			);
 		} else {
 			throw new GenericEvitaInternalError("Unsupported attribute schema type: " + attributeOrCompoundSchema);

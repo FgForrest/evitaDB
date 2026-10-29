@@ -166,7 +166,7 @@ class SelectionFormulaTest {
 
 			assertThrows(
 				Exception.class,
-				() -> formula.getCloneWithInnerFormulas()
+				formula::getCloneWithInnerFormulas
 			);
 		}
 

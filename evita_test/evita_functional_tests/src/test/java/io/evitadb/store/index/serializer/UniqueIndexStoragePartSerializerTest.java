@@ -26,6 +26,7 @@ package io.evitadb.store.index.serializer;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.OwnerUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndexTestSupport;
 import io.evitadb.index.bitmap.TransactionalBitmap;
@@ -273,7 +274,13 @@ class UniqueIndexStoragePartSerializerTest {
 			assertArrayEquals(new int[]{5, 5, 9}, deserialized.getRecordIds());
 			// the owner index restored from the columns counts the record owning two values once
 			final OwnerUniqueIndex restored = new OwnerUniqueIndex(
-				"PRODUCT", ATTRIBUTE_KEY, String.class, 0, deserialized.getValues(), deserialized.getRecordIds()
+				"PRODUCT",
+				ATTRIBUTE_KEY,
+				String.class,
+				0,
+				deserialized.getValues(),
+				deserialized.getRecordIds(),
+				FilterIndex.getNormalizer(String.class, 0)
 			);
 			assertArrayEquals(new int[]{5, 9}, UniqueIndexTestSupport.ownerRecordIds(restored));
 			assertEquals(2, restored.size());

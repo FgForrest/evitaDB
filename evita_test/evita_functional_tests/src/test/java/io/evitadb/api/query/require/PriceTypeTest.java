@@ -25,6 +25,7 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintVisitor;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.RequireConstraint;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -102,7 +103,7 @@ class PriceTypeTest {
 		@Test
 		@DisplayName("should return RequireConstraint class as type")
 		void shouldReturnRequireConstraintClassAsType() {
-			assertEquals(RequireConstraint.class, priceType(QueryPriceMode.WITH_TAX).getType());
+			assertSame(RequireConstraint.class, QueryConstraints.priceType(QueryPriceMode.WITH_TAX).getType());
 		}
 
 		@Test

@@ -91,8 +91,8 @@ public interface IndexComponent {
 	 * Announces the keys this component currently owns into the shared `manifest`, and nothing else: it emits no
 	 * storage part and changes no state of the component. This is how the parent index captures its
 	 * change-detection baseline without flushing - when it is built (loaded from disk or copied by the commit-time
-	 * merge) and after every flush - so a component left dirty by a load-time repair keeps its pending changes for
-	 * the next flush that writes the parent.
+	 * merge) and after every flush - so ordinary dirty trees carried by reference through a commit-time merge keep
+	 * their pending changes for the next flush that writes the parent.
 	 *
 	 * A component that announces nothing (its parts are addressed independently of the manifest, or it persists
 	 * nothing at all) implements this as a no-op.

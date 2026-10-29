@@ -25,6 +25,7 @@ package io.evitadb.test.builder;
 
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -103,7 +104,7 @@ class CopyExistingEntityBuilderTest {
 			catalogSchema(index),
 			EntitySchema._internalBuild(Entities.PRODUCT)
 		)
-			.withAttribute(CODE, String.class, whichIs -> whichIs.unique())
+			.withAttribute(CODE, String.class, AttributeSchemaEditor::unique)
 			.withAttribute(NAME, String.class)
 			.toInstance();
 		index.put(Entities.PRODUCT, schema);
@@ -151,7 +152,7 @@ class CopyExistingEntityBuilderTest {
 			catalogSchema(index),
 			EntitySchema._internalBuild(Entities.PRODUCT)
 		)
-			.withAttribute(EAN, Integer.class, whichIs -> whichIs.unique())
+			.withAttribute(EAN, Integer.class, AttributeSchemaEditor::unique)
 			.toInstance();
 		index.put(Entities.PRODUCT, schema);
 

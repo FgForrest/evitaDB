@@ -152,7 +152,10 @@ class EntitySchemaBuilderTest {
 		assertEquals(localized, attributeSchema.isLocalized(), "Attribute `" + attributeSchema.getName() + "` should be localized, but it is not!");
 		assertEquals(nullable, attributeSchema.isNullable(), "Attribute `" + attributeSchema.getName() + "` should be nullable, but it is not!");
 		assertEquals(representative, attributeSchema.isRepresentative(), "Attribute `" + attributeSchema.getName() + "` should be representative, but it is not!");
-		assertEquals(ofType, attributeSchema.getType(), "Attribute `" + attributeSchema.getName() + "` should be `" + ofType + "`, but it is `" + attributeSchema.getType() + "`!");
+		assertSame(
+			ofType, attributeSchema.getType(),
+			"Attribute `" + attributeSchema.getName() + "` should be `" + ofType + "`, but it is `" + attributeSchema.getType() + "`!"
+		);
 		assertEquals(indexedDecimalPlaces, attributeSchema.getIndexedDecimalPlaces(), "Attribute `" + attributeSchema.getName() + "` should have `" + indexedDecimalPlaces + "` indexed decimal places, but has `" + attributeSchema.getIndexedDecimalPlaces() + "`!");
 	}
 
@@ -187,7 +190,10 @@ class EntitySchemaBuilderTest {
 		assertEquals(sortable, attributeSchema.isSortable(), "Attribute `" + attributeSchema.getName() + "` should be sortable, but it is not!");
 		assertEquals(localized, attributeSchema.isLocalized(), "Attribute `" + attributeSchema.getName() + "` should be localized, but it is not!");
 		assertEquals(nullable, attributeSchema.isNullable(), "Attribute `" + attributeSchema.getName() + "` should be nullable, but it is not!");
-		assertEquals(ofType, attributeSchema.getType(), "Attribute `" + attributeSchema.getName() + "` should be `" + ofType + "`, but it is `" + attributeSchema.getType() + "`!");
+		assertSame(
+			ofType, attributeSchema.getType(),
+			"Attribute `" + attributeSchema.getName() + "` should be `" + ofType + "`, but it is `" + attributeSchema.getType() + "`!"
+		);
 		assertEquals(indexedDecimalPlaces, attributeSchema.getIndexedDecimalPlaces(), "Attribute `" + attributeSchema.getName() + "` should have `" + indexedDecimalPlaces + "` indexed decimal places, but has `" + attributeSchema.getIndexedDecimalPlaces() + "`!");
 	}
 
@@ -388,7 +394,7 @@ class EntitySchemaBuilderTest {
 		assertTrue(associatedDataSchema.isPresent());
 		associatedDataSchema.ifPresent(it -> {
 			assertEquals(localized, it.isLocalized());
-			assertEquals(ofType, it.getType());
+			assertSame(ofType, it.getType());
 		});
 	}
 
@@ -949,7 +955,7 @@ class EntitySchemaBuilderTest {
 	void shouldFailToDefineProductSchemaWithConflictingAttributes() {
 		// Create a catalog schema with global attributes that will conflict with entity attributes
 		final CatalogSchemaContract updatedCatalogSchema = new InternalCatalogSchemaBuilder(this.catalogSchema)
-			.withAttribute("code", String.class, whichIs -> whichIs.unique())           // Global attribute "code"
+			.withAttribute("code", String.class, AttributeSchemaEditor::unique)           // Global attribute "code"
 			.withAttribute("name", String.class, whichIs -> whichIs.filterable().sortable()) // Global attribute "name"
 			.toInstance();
 
@@ -1442,11 +1448,11 @@ class EntitySchemaBuilderTest {
 			.withAttribute("url", String.class, whichIs -> whichIs.unique().localized())
 			.withAttribute("oldEntityUrls", String[].class, whichIs -> whichIs.filterable().localized())
 			.withGlobalAttribute("name")  // Reference the global "name" attribute from catalog
-			.withAttribute("ean", String.class, whichIs -> whichIs.filterable())
-			.withAttribute("priority", Long.class, whichIs -> whichIs.sortable())
-			.withAttribute("validity", DateTimeRange.class, whichIs -> whichIs.filterable())
+			.withAttribute("ean", String.class, AttributeSchemaEditor::filterable)
+			.withAttribute("priority", Long.class, AttributeSchemaEditor::sortable)
+			.withAttribute("validity", DateTimeRange.class, AttributeSchemaEditor::filterable)
 			.withAttribute("quantity", BigDecimal.class, whichIs -> whichIs.filterable().indexDecimalPlaces(2))
-			.withAttribute("alias", Boolean.class, whichIs -> whichIs.filterable())
+			.withAttribute("alias", Boolean.class, AttributeSchemaEditor::filterable)
 			/* here we define sortable attribute compounds */
 			.withSortableAttributeCompound(
 				"codeWithEan",
@@ -1465,7 +1471,7 @@ class EntitySchemaBuilderTest {
 			)
 			/* here we define set of associated data, that can be stored along with entity */
 			.withAssociatedData("referencedFiles", ReferencedFileSet.class)
-			.withAssociatedData("labels", Labels.class, whichIs -> whichIs.localized())
+			.withAssociatedData("labels", Labels.class, AssociatedDataSchemaEditor::localized)
 			/* here we define references that relate to another entities stored in Evita */
 			.withReferenceToEntity(
 				Entities.CATEGORY,
@@ -1473,21 +1479,23 @@ class EntitySchemaBuilderTest {
 				Cardinality.ZERO_OR_MORE,
 				whichIs ->
 					/* we can specify special attributes on relation */
-					whichIs.indexedForFilteringAndPartitioning().withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+					whichIs.indexedForFilteringAndPartitioning().withAttribute("categoryPriority", Long.class,
+					                                                           AttributeSchemaEditor::sortable
+					)
 			)
 			/* for faceted references we can compute "counts" */
 			.withReferenceToEntity(
 				Entities.BRAND,
 				Entities.BRAND,
 				Cardinality.ZERO_OR_ONE,
-				whichIs -> whichIs.faceted()
+				ReferenceSchemaEditor::faceted
 			)
 			/* references may be also represented be entities unknown to Evita */
 			.withReferenceTo(
 				Entities.STORE,
 				Entities.STORE,
 				Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs.faceted()
+				ReferenceSchemaEditor::faceted
 			)
 			/* finally apply schema changes */
 			.toInstance();
@@ -1663,7 +1671,7 @@ class EntitySchemaBuilderTest {
 		);
 
 		final EntitySchemaContract updatedSchema = schemaBuilder
-			.withAssociatedData("labels", Labels.class, whichIs -> whichIs.localized())
+			.withAssociatedData("labels", Labels.class, AssociatedDataSchemaEditor::localized)
 			.toInstance();
 
 		final EntitySchemaBuilder schemaBuilder2 = new InternalEntitySchemaBuilder(
@@ -1672,13 +1680,13 @@ class EntitySchemaBuilderTest {
 
 		assertDoesNotThrow(() ->
 			schemaBuilder2
-				.withAssociatedData("labels", Labels.class, whichIs -> whichIs.localized())
+				.withAssociatedData("labels", Labels.class, AssociatedDataSchemaEditor::localized)
 				.toInstance()
 		);
 
 		assertTrue(
 			schemaBuilder2
-				.withAssociatedData("labels", Labels.class, whichIs -> whichIs.localized())
+				.withAssociatedData("labels", Labels.class, AssociatedDataSchemaEditor::localized)
 				.toMutation()
 				.isEmpty()
 		);
@@ -1709,7 +1717,7 @@ class EntitySchemaBuilderTest {
 				.withDescription("Assigned categories.")
 				.withGroupTypeRelatedToEntity(Entities.STORE)
 				.withAttribute("note", String.class)
-				.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+				.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::sortable)
 				.indexedForFilteringAndPartitioning()
 				.faceted()
 		);
@@ -1785,7 +1793,7 @@ class EntitySchemaBuilderTest {
 				.withDescription("Assigned categories.")
 				.withGroupTypeRelatedToEntity(Entities.STORE)
 				.withAttribute("note", String.class)                                    // Attribute that might be excluded
-				.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())  // Attribute that might be inherited
+				.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::sortable)  // Attribute that might be inherited
 				.indexedForFilteringAndPartitioning()
 				.faceted()
 		);
@@ -1847,7 +1855,7 @@ class EntitySchemaBuilderTest {
 				.withDescription("Assigned categories.")
 				.withGroupTypeRelatedToEntity(Entities.STORE)
 				.withAttribute("note", String.class)
-				.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+				.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::sortable)
 				.indexedForFilteringAndPartitioning()
 				.faceted()
 		);
@@ -1910,7 +1918,7 @@ class EntitySchemaBuilderTest {
 				.withDescription("Assigned categories.")
 				.withGroupTypeRelatedToEntity(Entities.STORE)
 				.withAttribute("note", String.class)
-				.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+				.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::sortable)
 				.indexedForFilteringAndPartitioning()
 				.faceted()
 		);
@@ -1971,7 +1979,7 @@ class EntitySchemaBuilderTest {
 				.withDescription("Assigned categories.")
 				.withGroupTypeRelatedToEntity(Entities.STORE)
 				.withAttribute("note", String.class)
-				.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+				.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::sortable)
 				.indexedForFilteringAndPartitioning()
 				.faceted()
 		);

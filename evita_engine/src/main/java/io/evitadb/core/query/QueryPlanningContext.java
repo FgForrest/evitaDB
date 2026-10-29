@@ -93,6 +93,7 @@ import io.evitadb.core.session.EvitaSession;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.*;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -1774,6 +1775,34 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	@Nonnull
 	public EntityTypeClassifierResolver getEntityTypeClassifierResolver() {
 		return this.catalog;
+	}
+
+	/**
+	 * Returns the effective attribute key-function resolver for this query's catalog snapshot.
+	 * Callers bind it with the selected lookup role's fold locale before reading raw values.
+	 *
+	 * @return the attribute normalization resolver
+	 */
+	@Nonnull
+	public AttributeNormalizationResolver getAttributeNormalizationResolver() {
+		return this.entityCollection == null ? this.catalog.getAttributeNormalizationResolver() :
+			this.entityCollection.getAttributeNormalizationResolver();
+	}
+
+	/**
+	 * Returns the resolver of the collection owning the attribute, which differs from this query's own resolver when
+	 * the attribute lives in a traversed or referenced entity type.
+	 *
+	 * @param ownerType the entity type owning the attribute, `null` to use {@link #getAttributeNormalizationResolver()}
+	 * @param reason    what the resolver is needed for, reported when the owner's collection does not exist
+	 * @return the attribute normalization resolver of the owner
+	 */
+	@Nonnull
+	public AttributeNormalizationResolver getAttributeNormalizationResolver(
+		@Nullable String ownerType, @Nonnull String reason
+	) {
+		return ownerType == null ? getAttributeNormalizationResolver() :
+			getEntityCollectionOrThrowException(ownerType, reason).getAttributeNormalizationResolver();
 	}
 
 	/**

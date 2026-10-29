@@ -1,7 +1,7 @@
 ---
 title: Standalone unique indexes key every value exactly as the filter index does
 date: 2026-10-08
-updated: 2026-10-19 16:28
+updated: 2026-10-25 05:45
 status: accepted
 kind: fix
 issues: [1712, 1713]
@@ -9,7 +9,7 @@ prs: [1722]
 areas: [evita_engine/src/main/java/io/evitadb/index/attribute/UniqueIndexBPlusTreeSupport.java, evita_engine/src/main/java/io/evitadb/index/attribute/OwnerUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/GlobalUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/UniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/FilterIndex.java, evita_engine/src/main/java/io/evitadb/index/bPlusTree/ValueColumnFactory.java, evita_engine/src/main/java/io/evitadb/index/component/loader/AttributeIndexLoader.java, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog/Migration_2026_3.java, evita_store/evita_store_server/src/main/java/io/evitadb/store/index/serializer/ComparableLocaleSerializer.java]
 supersedes: []
 superseded-by: []
-relates: [2026-09-04-millisecond-temporal-precision, 2026-10-06-unique-indexes-keep-no-record-set, 2026-09-21-cardinality-counter-normalized-keys, 2026-08-10-stored-value-normalization-split, 2026-10-20-single-owner-partitions-as-registry-rows]
+relates: [2026-09-04-millisecond-temporal-precision, 2026-10-06-unique-indexes-keep-no-record-set, 2026-09-21-cardinality-counter-normalized-keys, 2026-08-10-stored-value-normalization-split, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-10-27-string-attribute-normalization]
 ---
 
 # Standalone unique indexes key every value exactly as the filter index does
@@ -194,6 +194,8 @@ decimal places (both `1.24`, `HALF_UP`). That is how the filter index and the fo
   normalize-before-keying fix for the cardinality counter, and the `Migration_2026_3` step this one joins.
 - [2026-08-10-stored-value-normalization-split](2026-08-10-stored-value-normalization-split.md) — the normalizer
   this record makes the single key rule.
+- [2026-10-27-string-attribute-normalization](2026-10-27-string-attribute-normalization.md) — extends the single key
+  rule with a per-attribute chain; unique trees bind the same chain as filter trees, so collisions follow it.
 
 ## Timeline
 

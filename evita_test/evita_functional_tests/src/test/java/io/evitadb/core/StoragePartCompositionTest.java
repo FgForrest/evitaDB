@@ -24,6 +24,7 @@
 package io.evitadb.core;
 
 import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
 import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.CollectionStorageComposition;
@@ -94,7 +95,7 @@ class StoragePartCompositionTest implements EvitaTestSupport {
 		// the globally unique attribute is what puts an *index* into the catalog's own data store - without it that
 		// store holds schemas and headers only, and every claim about how an index is classified there is untestable
 		this.evita.defineCatalog(CATALOG)
-			.withAttribute(GLOBAL_ATTRIBUTE, String.class, thatIs -> thatIs.uniqueGlobally())
+			.withAttribute(GLOBAL_ATTRIBUTE, String.class, GlobalAttributeSchemaEditor::uniqueGlobally)
 			.updateViaNewSession(this.evita);
 		this.evita.updateCatalog(
 			CATALOG,

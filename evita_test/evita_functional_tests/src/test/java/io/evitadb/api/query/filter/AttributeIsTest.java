@@ -180,7 +180,7 @@ class AttributeIsTest {
 		void shouldReturnCorrectType() {
 			final AttributeIs constraint = attributeIsNull("married");
 
-			assertEquals(FilterConstraint.class, constraint.getType());
+			assertSame(FilterConstraint.class, constraint.getType());
 		}
 	}
 

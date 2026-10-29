@@ -128,15 +128,15 @@ class EndpointExecutionContextTest {
 		@Test
 		@DisplayName("returns HTTP request")
 		void shouldReturnHttpRequest() {
-			assertSame(httpRequest, context.httpRequest());
+			assertSame(EndpointExecutionContextTest.this.httpRequest, EndpointExecutionContextTest.this.context.httpRequest());
 		}
 
 		@Test
 		@DisplayName("returns service request context")
 		void shouldReturnServiceRequestContext() {
 			assertSame(
-				serviceRequestContext,
-				context.serviceRequestContext()
+				EndpointExecutionContextTest.this.serviceRequestContext,
+				EndpointExecutionContextTest.this.context.serviceRequestContext()
 			);
 		}
 	}
@@ -149,7 +149,7 @@ class EndpointExecutionContextTest {
 		@DisplayName("returns empty list initially")
 		void shouldReturnEmptyListInitially() {
 			assertTrue(
-				context.exceptions().isEmpty(),
+				EndpointExecutionContextTest.this.context.exceptions().isEmpty(),
 				"Exceptions list should be empty initially"
 			);
 		}
@@ -161,11 +161,11 @@ class EndpointExecutionContextTest {
 			final Exception e2 = new IllegalStateException("second");
 			final Exception e3 = new IllegalArgumentException("third");
 
-			context.addException(e1);
-			context.addException(e2);
-			context.addException(e3);
+			EndpointExecutionContextTest.this.context.addException(e1);
+			EndpointExecutionContextTest.this.context.addException(e2);
+			EndpointExecutionContextTest.this.context.addException(e3);
 
-			final List<Exception> exceptions = context.exceptions();
+			final List<Exception> exceptions = EndpointExecutionContextTest.this.context.exceptions();
 			assertEquals(3, exceptions.size());
 			assertSame(e1, exceptions.get(0));
 			assertSame(e2, exceptions.get(1));
@@ -175,11 +175,11 @@ class EndpointExecutionContextTest {
 		@Test
 		@DisplayName("returns unmodifiable list")
 		void shouldReturnUnmodifiableList() {
-			context.addException(new RuntimeException("test"));
+			EndpointExecutionContextTest.this.context.addException(new RuntimeException("test"));
 
 			assertThrows(
 				UnsupportedOperationException.class,
-				() -> context.exceptions().add(new RuntimeException("bad"))
+				() -> EndpointExecutionContextTest.this.context.exceptions().add(new RuntimeException("bad"))
 			);
 		}
 	}
@@ -192,9 +192,9 @@ class EndpointExecutionContextTest {
 		@DisplayName("invokes callback on close")
 		void shouldInvokeCallbackOnClose() {
 			final AtomicBoolean called = new AtomicBoolean(false);
-			context.addCloseCallback(ctx -> called.set(true));
+			EndpointExecutionContextTest.this.context.addCloseCallback(ctx -> called.set(true));
 
-			context.close();
+			EndpointExecutionContextTest.this.context.close();
 
 			assertTrue(
 				called.get(),
@@ -206,10 +206,10 @@ class EndpointExecutionContextTest {
 		@DisplayName("invokes multiple callbacks in order")
 		void shouldInvokeMultipleCallbacksInOrder() {
 			final List<String> order = new ArrayList<>(2);
-			context.addCloseCallback(ctx -> order.add("first"));
-			context.addCloseCallback(ctx -> order.add("second"));
+			EndpointExecutionContextTest.this.context.addCloseCallback(ctx -> order.add("first"));
+			EndpointExecutionContextTest.this.context.addCloseCallback(ctx -> order.add("second"));
 
-			context.close();
+			EndpointExecutionContextTest.this.context.close();
 
 			assertEquals(
 				List.of("first", "second"),
@@ -222,12 +222,12 @@ class EndpointExecutionContextTest {
 		void shouldPassContextToCallback() {
 			final AtomicReference<EndpointExecutionContext> ref =
 				new AtomicReference<>();
-			context.addCloseCallback(ref::set);
+			EndpointExecutionContextTest.this.context.addCloseCallback(ref::set);
 
-			context.close();
+			EndpointExecutionContextTest.this.context.close();
 
 			assertSame(
-				context, ref.get(),
+				EndpointExecutionContextTest.this.context, ref.get(),
 				"Callback should receive the context instance"
 			);
 		}
@@ -240,10 +240,10 @@ class EndpointExecutionContextTest {
 		@Test
 		@DisplayName("delegates to request executor")
 		void shouldDelegateToRequestExecutor() throws Exception {
-			configureMockExecutor(requestExecutor);
+			configureMockExecutor(EndpointExecutionContextTest.this.requestExecutor);
 
 			final CompletableFuture<String> result =
-				context.executeAsyncInRequestThreadPool(
+				EndpointExecutionContextTest.this.context.executeAsyncInRequestThreadPool(
 					() -> "request-result"
 				);
 
@@ -251,16 +251,16 @@ class EndpointExecutionContextTest {
 				"request-result",
 				result.get(5, TimeUnit.SECONDS)
 			);
-			verify(requestExecutor).createTask(any(Runnable.class));
+			verify(EndpointExecutionContextTest.this.requestExecutor).createTask(any(Runnable.class));
 		}
 
 		@Test
 		@DisplayName("delegates to transaction executor")
 		void shouldDelegateToTransactionExecutor() throws Exception {
-			configureMockExecutor(transactionExecutor);
+			configureMockExecutor(EndpointExecutionContextTest.this.transactionExecutor);
 
 			final CompletableFuture<String> result =
-				context.executeAsyncInTransactionThreadPool(
+				EndpointExecutionContextTest.this.context.executeAsyncInTransactionThreadPool(
 					() -> "tx-result"
 				);
 
@@ -268,7 +268,7 @@ class EndpointExecutionContextTest {
 				"tx-result",
 				result.get(5, TimeUnit.SECONDS)
 			);
-			verify(transactionExecutor).createTask(any(Runnable.class));
+			verify(EndpointExecutionContextTest.this.transactionExecutor).createTask(any(Runnable.class));
 		}
 
 		@Test
@@ -276,13 +276,13 @@ class EndpointExecutionContextTest {
 		void shouldDelegateAsyncSupplierToRequestExecutor()
 			throws Exception {
 
-			configureMockExecutor(requestExecutor);
+			configureMockExecutor(EndpointExecutionContextTest.this.requestExecutor);
 
 			final CompletableFuture<String> inner =
 				new CompletableFuture<>();
 
 			final CompletableFuture<String> result =
-				context.executeAsyncSupplierInRequestThreadPool(
+				EndpointExecutionContextTest.this.context.executeAsyncSupplierInRequestThreadPool(
 					() -> inner
 				);
 
@@ -297,10 +297,10 @@ class EndpointExecutionContextTest {
 		@Test
 		@DisplayName("propagates exception from supplier")
 		void shouldPropagateExceptionFromSupplier() throws Exception {
-			configureMockExecutor(requestExecutor);
+			configureMockExecutor(EndpointExecutionContextTest.this.requestExecutor);
 
 			final CompletableFuture<String> result =
-				context.executeAsyncInRequestThreadPool(() -> {
+				EndpointExecutionContextTest.this.context.executeAsyncInRequestThreadPool(() -> {
 					throw new RuntimeException("supplier fail");
 				});
 
@@ -337,19 +337,20 @@ class EndpointExecutionContextTest {
 
 		@Nonnull
 		private String expectedRequestStart() {
-			return Long.toString(servedRequestContext.log().partial().requestStartTimeMillis());
+			return Long.toString(
+				EndpointExecutionContextTest.this.servedRequestContext.log().partial().requestStartTimeMillis());
 		}
 
 		@Test
 		@DisplayName("carries the held request start into a request-pool submission")
 		void shouldCarryRequestStartIntoRequestPoolSubmission() throws Exception {
-			configureMockExecutor(requestExecutor);
+			configureMockExecutor(EndpointExecutionContextTest.this.requestExecutor);
 			assertSubmittingThreadIsDetached();
 
-			context.executeAsyncInRequestThreadPool(() -> "x").get(5, TimeUnit.SECONDS);
+			EndpointExecutionContextTest.this.context.executeAsyncInRequestThreadPool(() -> "x").get(5, TimeUnit.SECONDS);
 
 			assertEquals(
-				expectedRequestStart(), requestStartAtTaskCreation.get(),
+				expectedRequestStart(), EndpointExecutionContextTest.this.requestStartAtTaskCreation.get(),
 				"The task was constructed without the request start, so its captured context cannot carry one"
 			);
 		}
@@ -357,13 +358,13 @@ class EndpointExecutionContextTest {
 		@Test
 		@DisplayName("carries the held request start into a transaction-pool submission")
 		void shouldCarryRequestStartIntoTransactionPoolSubmission() throws Exception {
-			configureMockExecutor(transactionExecutor);
+			configureMockExecutor(EndpointExecutionContextTest.this.transactionExecutor);
 			assertSubmittingThreadIsDetached();
 
-			context.executeAsyncInTransactionThreadPool(() -> "x").get(5, TimeUnit.SECONDS);
+			EndpointExecutionContextTest.this.context.executeAsyncInTransactionThreadPool(() -> "x").get(5, TimeUnit.SECONDS);
 
 			assertEquals(
-				expectedRequestStart(), requestStartAtTaskCreation.get(),
+				expectedRequestStart(), EndpointExecutionContextTest.this.requestStartAtTaskCreation.get(),
 				"The task was constructed without the request start, so its captured context cannot carry one"
 			);
 		}
@@ -371,18 +372,18 @@ class EndpointExecutionContextTest {
 		@Test
 		@DisplayName("carries the held request start into an async-supplier submission")
 		void shouldCarryRequestStartIntoAsyncSupplierSubmission() throws Exception {
-			configureMockExecutor(requestExecutor);
+			configureMockExecutor(EndpointExecutionContextTest.this.requestExecutor);
 			assertSubmittingThreadIsDetached();
 
 			final CompletableFuture<String> inner = new CompletableFuture<>();
 			final CompletableFuture<String> result =
-				context.executeAsyncSupplierInRequestThreadPool(() -> inner);
+				EndpointExecutionContextTest.this.context.executeAsyncSupplierInRequestThreadPool(() -> inner);
 			inner.complete("async-value");
 			result.get(5, TimeUnit.SECONDS);
 
 			// this is the path GraphQL takes, and the one measured to lose the request start before the fix
 			assertEquals(
-				expectedRequestStart(), requestStartAtTaskCreation.get(),
+				expectedRequestStart(), EndpointExecutionContextTest.this.requestStartAtTaskCreation.get(),
 				"The task was constructed without the request start, so its captured context cannot carry one"
 			);
 		}
@@ -390,13 +391,13 @@ class EndpointExecutionContextTest {
 		@Test
 		@DisplayName("leaves the submitting thread's MDC as it found it")
 		void shouldNotLeakRequestStartOntoTheSubmittingThread() throws Exception {
-			configureMockExecutor(requestExecutor);
+			configureMockExecutor(EndpointExecutionContextTest.this.requestExecutor);
 			assertSubmittingThreadIsDetached();
 
-			context.executeAsyncInRequestThreadPool(() -> "x").get(5, TimeUnit.SECONDS);
+			EndpointExecutionContextTest.this.context.executeAsyncInRequestThreadPool(() -> "x").get(5, TimeUnit.SECONDS);
 
 			assertNotNull(
-				requestStartAtTaskCreation.get(),
+				EndpointExecutionContextTest.this.requestStartAtTaskCreation.get(),
 				"Guard against the assertion below passing because nothing was ever set"
 			);
 			assertNull(
@@ -416,10 +417,10 @@ class EndpointExecutionContextTest {
 			final Exception error = new RuntimeException("test");
 
 			// should not throw and should not affect exceptions list
-			context.notifyError(error);
+			EndpointExecutionContextTest.this.context.notifyError(error);
 
 			assertTrue(
-				context.exceptions().isEmpty(),
+				EndpointExecutionContextTest.this.context.exceptions().isEmpty(),
 				"notifyError should not add to exceptions list"
 			);
 		}
