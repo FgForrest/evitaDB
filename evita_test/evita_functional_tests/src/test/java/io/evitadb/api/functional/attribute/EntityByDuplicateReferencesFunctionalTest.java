@@ -66,6 +66,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -316,6 +317,37 @@ public class EntityByDuplicateReferencesFunctionalTest {
 		final List<HierarchyItem> childItems = categoryHierarchy.getChildItems(rootItem.getCode());
 		for (HierarchyItem childItem : childItems) {
 			addProducts(products, productsInCategory, categoryHierarchy, country, childItem, productFilter);
+		}
+	}
+
+	/**
+	 * Appends the selected owners in target traversal order, walking every country's chain of a target in
+	 * representative country order. A country filter selects owners but never limits their ordering rows.
+	 *
+	 * @param result owners in traversal order, each added once
+	 * @param productsInCategory the complete country chains of every category
+	 * @param categoryHierarchy the target hierarchy
+	 * @param rootItem the current target
+	 * @param selectedOwners primary keys admitted by the country filter
+	 */
+	private static void addProductsFromEveryCountry(
+		@Nonnull LinkedHashSet<SealedEntity> result,
+		@Nonnull Map<EntityCountry, List<SealedEntity>> productsInCategory,
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nonnull HierarchyItem rootItem,
+		@Nonnull Set<Integer> selectedOwners
+	) {
+		final int categoryId = Integer.parseInt(rootItem.getCode());
+		productsInCategory.entrySet().stream()
+			.filter(entry -> entry.getKey().entityPrimaryKey() == categoryId)
+			.sorted(Comparator.comparing(
+				entry -> entry.getKey().country(), Comparator.nullsFirst(Comparator.naturalOrder())
+			))
+			.forEach(entry -> entry.getValue().stream()
+				.filter(product -> selectedOwners.contains(product.getPrimaryKeyOrThrowException()))
+				.forEach(result::add));
+		for (final HierarchyItem child : categoryHierarchy.getChildItems(rootItem.getCode())) {
+			addProductsFromEveryCountry(result, productsInCategory, categoryHierarchy, child, selectedOwners);
 		}
 	}
 
@@ -1646,6 +1678,15 @@ public class EntityByDuplicateReferencesFunctionalTest {
 						addProducts(products, productsInCategory, categoryHierarchy, country, rootItem);
 					}
 
+					final Set<Integer> selectedOwners = products.stream()
+						.map(EntityClassifier::getPrimaryKeyOrThrowException).collect(Collectors.toSet());
+					final LinkedHashSet<SealedEntity> orderedProducts = new LinkedHashSet<>(products.size());
+					for (final HierarchyItem rootItem : categoryHierarchy.getRootItems()) {
+						addProductsFromEveryCountry(
+							orderedProducts, productsInCategory, categoryHierarchy, rootItem, selectedOwners
+						);
+					}
+
 					assertEquals(
 						products.size(),
 						foundProducts.size(),
@@ -1653,7 +1694,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 							", but found " + foundProducts.size()
 					);
 					assertArrayEquals(
-						products.stream()
+						orderedProducts.stream()
 						        .mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
 						        .toArray(),
 						foundProducts.stream()
@@ -1722,6 +1763,15 @@ public class EntityByDuplicateReferencesFunctionalTest {
 						);
 					}
 
+					final Set<Integer> selectedOwners = products.stream()
+						.map(EntityClassifier::getPrimaryKeyOrThrowException).collect(Collectors.toSet());
+					final LinkedHashSet<SealedEntity> orderedProducts = new LinkedHashSet<>(products.size());
+					for (final HierarchyItem rootItem : categoryHierarchy.getRootItems()) {
+						addProductsFromEveryCountry(
+							orderedProducts, productsInCategory, categoryHierarchy, rootItem, selectedOwners
+						);
+					}
+
 					assertEquals(
 						products.size(),
 						foundProducts.size(),
@@ -1729,7 +1779,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 							", but found " + foundProducts.size()
 					);
 					assertArrayEquals(
-						products.stream()
+						orderedProducts.stream()
 						        .mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
 						        .toArray(),
 						foundProducts.stream()

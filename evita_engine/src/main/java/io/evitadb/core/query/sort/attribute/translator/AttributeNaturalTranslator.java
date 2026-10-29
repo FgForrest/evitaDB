@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,6 +53,7 @@ import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
 import io.evitadb.core.query.sort.reference.sorter.VirtualPartitionSortedRecords;
@@ -74,9 +75,11 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -187,7 +190,7 @@ public class AttributeNaturalTranslator
 		final EntitySchemaContract entitySchema = attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract ?
 			orderByVisitor.getSchema() : null;
 		final ReferenceSchema referenceSchema = processingScope.referenceSchema();
-		final PickFirstReducedIndexResolver pickFirstIndexResolver = processingScope.pickFirstIndexResolver();
+		final PickFirstReducedIndexResolver pickFirstIndexResolver = orderByVisitor.getPickFirstIndexResolver();
 		if (pickFirstIndexResolver != null && !isChainAttribute(attributeOrCompoundSchema)) {
 			return createPickFirstSorters(
 				attributeOrCompoundSchema, orderDirection, locale, entitySchema,
@@ -270,12 +273,21 @@ public class AttributeNaturalTranslator
 			mergeMode = mergeModeDefinition == null ? MergeMode.APPEND_FIRST : mergeModeDefinition.mergeMode();
 			// the compound being sortable is the whole contract - its elements need not be sortable themselves, so
 			// the comparators of prefetched entities look the elements up without demanding any trait
+			final Set<Scope> sortableScopes = EnumSet.noneOf(Scope.class);
+			for (final Scope scope : processingScope.getScopes()) {
+				if (compoundSchemaContract.isIndexedInScope(scope)) {
+					sortableScopes.add(scope);
+				}
+			}
 			if (referenceSchema == null) {
+				// the comparator sorts the entities of exactly the scopes whose compound index sorts them on the index
+				// route - the ordered scopes (narrowed by `inScope`) in which the compound is indexed
 				entityComparator = new CompoundAttributeComparator(
 					compoundSchemaContract,
 					locale,
 					attributeName -> processingScope.getAttributeSchema(attributeName),
-					orderDirection
+					orderDirection,
+					sortableScopes
 				);
 			} else {
 				assertTraversing(mergeMode);
@@ -284,7 +296,8 @@ public class AttributeNaturalTranslator
 					referenceSchema,
 					locale,
 					attributeName -> processingScope.getAttributeSchema(attributeName),
-					orderDirection
+					orderDirection,
+					sortableScopes
 				);
 			}
 		} else if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema) {
@@ -298,12 +311,21 @@ public class AttributeNaturalTranslator
 			);
 			mergeMode = mergeModeDefinition == null ? MergeMode.APPEND_FIRST : mergeModeDefinition.mergeMode();
 			if (referenceSchema == null) {
+				// the comparator sorts the entities of exactly the scopes whose index sorts them on the index route -
+				// the ordered scopes (narrowed by `inScope`) in which the attribute is sortable
+				final Set<Scope> sortableScopes = EnumSet.noneOf(Scope.class);
+				for (Scope scope : processingScope.getScopes()) {
+					if (attributeSchema.isSortableInScope(scope)) {
+						sortableScopes.add(scope);
+					}
+				}
 				entityComparator = new AttributeComparator(
 					attributeOrCompoundName,
 					attributeSchema.getPlainType(),
 					attributeSchema.getIndexedDecimalPlaces(),
 					locale,
-					orderDirection
+					orderDirection,
+					sortableScopes
 				);
 			} else {
 				assertTraversing(mergeMode);
@@ -428,7 +450,12 @@ public class AttributeNaturalTranslator
 		// their reduced indexes keep a sort index of
 		final PickFirstVirtualSortValues virtualValues;
 		final EntityComparator entityComparator;
+		// the resolver both routes share - the index route claims an owner only in a reduced index holding the sort
+		// index, so the prefetch route must not admit the owners of the scopes holding none
+		final PickFirstReducedIndexResolver resolver;
 		if (attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract compoundSchema) {
+			// a compound may be indexed in fewer scopes than its elements are sortable in, which planning accepts
+			resolver = indexResolver.restrictTo(compoundSchema.getIndexedInScopes());
 			final Comparator<ComparableArray> naturalComparator = createCombinedComparatorFor(
 				locale,
 				compoundSchema.getAttributeElements()
@@ -458,9 +485,11 @@ public class AttributeNaturalTranslator
 				locale,
 				attributeName -> processingScope.getAttributeSchema(attributeName),
 				orderDirection,
-				indexResolver
+				resolver
 			);
 		} else if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema) {
+			// planning refuses an attribute that is not sortable in every ordered scope
+			resolver = indexResolver;
 			valueComparator = createComparatorFor(
 				locale,
 				new ComparatorSource(attributeSchema.getPlainType(), orderDirection, OrderBehaviour.NULLS_LAST)
@@ -491,7 +520,7 @@ public class AttributeNaturalTranslator
 
 		return Stream.of(
 			new PrefetchedRecordsSorter(entityComparator),
-			new PickFirstReferenceSorter(indexResolver, providerFactory, virtualValues, valueComparator, orderDirection)
+			new PickFirstReferenceSorter(resolver, providerFactory, virtualValues, valueComparator, orderDirection)
 		);
 	}
 

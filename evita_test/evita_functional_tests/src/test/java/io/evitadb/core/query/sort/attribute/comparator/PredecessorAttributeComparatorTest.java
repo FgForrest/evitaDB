@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.sort.attribute.comparator;
 
-import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.IntIntMap;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
@@ -39,7 +38,6 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.IntUnaryOperator;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.COMPARATOR;
@@ -112,6 +110,42 @@ class PredecessorAttributeComparatorTest {
 			collected.add(entity);
 		}
 		return collected;
+	}
+
+	@Nested
+	@DisplayName("Classification")
+	class ClassificationTest {
+
+		@Test
+		@DisplayName("classifies an entity no provider holds as not sortable without parking it")
+		void shouldClassifyEntityMissingFromEveryProviderAsNotSortable() {
+			// an entity sorted alone is never compared, so only the classification can tell no provider holds it
+			final PredecessorAttributeComparator comparator = new PredecessorAttributeComparator(
+				() -> new SortedRecordsProvider[]{singleRecordProvider(10), singleRecordProvider(20)}
+			);
+			comparator.prepareFor(100);
+
+			assertFalse(comparator.canSort(entityWithPrimaryKey(30)), "no provider holds record 30");
+			assertFalse(
+				comparator.getNonSortedEntities().iterator().hasNext(),
+				"an entity classified as not sortable must not be parked as well"
+			);
+		}
+
+		@Test
+		@DisplayName("classifies an entity held by any provider as sortable")
+		void shouldClassifyEntityHeldByAnyProviderAsSortable() {
+			final PredecessorAttributeComparator comparator = new PredecessorAttributeComparator(
+				() -> new SortedRecordsProvider[]{singleRecordProvider(10), singleRecordProvider(20)}
+			);
+			comparator.prepareFor(100);
+
+			final EntityContract entity10 = entityWithPrimaryKey(10);
+			final EntityContract entity20 = entityWithPrimaryKey(20);
+			assertTrue(comparator.canSort(entity10), "the first provider holds record 10");
+			assertTrue(comparator.canSort(entity20), "the second provider holds record 20");
+			assertEquals(-1, comparator.compare(entity10, entity20), "the earlier provider wins");
+		}
 	}
 
 	@Nested
@@ -212,15 +246,15 @@ class PredecessorAttributeComparatorTest {
 		@DisplayName("ranks a found entity relative to a missing one and honours provider precedence")
 		void shouldRankFoundEntityBeforeNotFoundAndEarlierProviderFirst() {
 			// single provider holding record 20 only: comparing it against the absent record 99 exercises the
-			// only-one-found epilogue branch (the resolved entity gets the provider-index rank, the missing one -1)
+			// only-one-found branch (the resolved entity sorts first, the missing one last)
 			final PredecessorAttributeComparator singleProviderComparator = new PredecessorAttributeComparator(
 				() -> new SortedRecordsProvider[]{singleRecordProvider(20)}
 			);
 			singleProviderComparator.prepareFor(100);
 			final EntityContract found = entityWithPrimaryKey(20);
 			final EntityContract missing = entityWithPrimaryKey(99);
-			assertEquals(1, singleProviderComparator.compare(found, missing), "provider index 0 ranks after the -1 miss");
-			assertEquals(-1, singleProviderComparator.compare(missing, found), "the mirrored comparison flips the sign");
+			assertEquals(-1, singleProviderComparator.compare(found, missing), "the found entity must sort first");
+			assertEquals(1, singleProviderComparator.compare(missing, found), "the mirrored comparison flips the sign");
 			// the missing entity is handed to the collector on each comparison (found twice)
 			assertEquals(2, collect(singleProviderComparator.getNonSortedEntities()).size(), "only the missing entity is parked");
 
@@ -246,75 +280,103 @@ class PredecessorAttributeComparatorTest {
 				"records found in any provider must not be collected"
 			);
 		}
+
+		@Test
+		@DisplayName("ranks an entity no provider holds against one a later provider holds")
+		void shouldRankEntityMissingFromEveryProviderAgainstOneFoundInLaterProvider() {
+			// record 200 lives only in the later provider and record 99 in none - an entity found in any provider,
+			// however late, must still sort before one no provider holds
+			final PredecessorAttributeComparator comparator = new PredecessorAttributeComparator(
+				() -> new SortedRecordsProvider[]{singleRecordProvider(100), singleRecordProvider(200)}
+			);
+			comparator.prepareFor(100);
+			final EntityContract lateProviderEntity = entityWithPrimaryKey(200);
+			final EntityContract missing = entityWithPrimaryKey(99);
+
+			assertEquals(
+				-1, comparator.compare(lateProviderEntity, missing), "an entity of the later provider must sort first"
+			);
+			assertEquals(1, comparator.compare(missing, lateProviderEntity), "the mirrored comparison flips the sign");
+			assertEquals(
+				List.of(missing, missing), collect(comparator.getNonSortedEntities()),
+				"only the missing entity is parked, once per comparison"
+			);
+		}
 	}
 
 	@Nested
-	@DisplayName("Position cache (computeIfAbsent)")
+	@DisplayName("Position cache (cachedPositionOf)")
 	class PositionCacheTest {
 
 		@Test
-		@DisplayName("caches a resolved position of zero via the reserved remap and never re-invokes the locator")
-		void shouldRoundTripPositionZeroThroughComputeIfAbsentCache() {
-			// position 0 collides with the map's "absent" default, so it is stored as the reserved Integer.MIN_VALUE remap
-			final IntIntMap cache = new IntIntHashMap(16);
-			final CountingLocator locator = new CountingLocator(0);
-			final int primaryKey = 42;
+		@DisplayName("caches a resolved position of zero via the reserved remap and never probes the provider again")
+		void shouldRoundTripPositionZeroThroughCache() {
+			// position 0 collides with the map's "absent" default, so it is stored as the reserved
+			// Integer.MIN_VALUE remap
+			final SortedRecordsProvider[] providers = {singleRecordProvider(42)};
+			final IntIntMap[] caches = new IntIntMap[1];
 
-			final int first = PredecessorAttributeComparator.computeIfAbsent(cache, primaryKey, locator);
-			assertEquals(0, first, "the resolved position must be reported verbatim as 0");
-			assertEquals(1, locator.invocations(), "the first lookup must invoke the locator exactly once");
-			assertEquals(Integer.MIN_VALUE, cache.get(primaryKey), "position 0 must be stored as the reserved remap");
+			assertEquals(
+				0, PredecessorAttributeComparator.cachedPositionOf(providers, caches, 0, 4, 42),
+				"record 42 sits at position 0"
+			);
+			assertTrue(caches[0] != null, "the cache of the provider is created on first use");
+			assertEquals(Integer.MIN_VALUE, caches[0].get(42), "position 0 must be stored as the reserved remap");
 
-			final int second = PredecessorAttributeComparator.computeIfAbsent(cache, primaryKey, locator);
-			assertEquals(0, second, "the cached remap must decode back to position 0");
-			assertEquals(1, locator.invocations(), "a cached position must not re-invoke the locator");
+			// a provider that does not hold record 42 is not consulted any more
+			providers[0] = singleRecordProvider(7);
+			assertEquals(
+				0, PredecessorAttributeComparator.cachedPositionOf(providers, caches, 0, 4, 42),
+				"the cached remap must decode back to position 0 without probing the provider"
+			);
 		}
 
 		@Test
-		@DisplayName("caches the not-found sentinel and a positive position, each resolved once")
-		void shouldCacheAndReturnPositionNotFoundSentinelViaComputeIfAbsent() {
-			final IntIntMap cache = new IntIntHashMap(16);
+		@DisplayName("caches a positive position verbatim and never probes the provider again")
+		void shouldCachePositivePositionVerbatim() {
+			final SortedRecordsProvider[] providers = {
+				new SortedRecordsSupplier(
+					1L, new int[]{7, 9}, new int[]{0, 1}, new BaseBitmap(7, 9), SortedComparableForwardSeeker.EMPTY
+				)
+			};
+			final IntIntMap[] caches = new IntIntMap[1];
 
-			// the not-found sentinel (-1) is stored verbatim (it is neither 0 nor the reserved remap) and memoized
-			final CountingLocator absentLocator = new CountingLocator(SortedRecordsProvider.POSITION_NOT_FOUND);
-			final int absentKey = 7;
-			assertEquals(SortedRecordsProvider.POSITION_NOT_FOUND, PredecessorAttributeComparator.computeIfAbsent(cache, absentKey, absentLocator));
-			assertEquals(1, absentLocator.invocations(), "the first lookup resolves the sentinel");
-			assertEquals(SortedRecordsProvider.POSITION_NOT_FOUND, PredecessorAttributeComparator.computeIfAbsent(cache, absentKey, absentLocator));
-			assertEquals(1, absentLocator.invocations(), "the cached sentinel must not re-invoke the locator");
-			assertEquals(SortedRecordsProvider.POSITION_NOT_FOUND, cache.get(absentKey), "the sentinel is stored verbatim");
+			assertEquals(
+				1, PredecessorAttributeComparator.cachedPositionOf(providers, caches, 0, 4, 9),
+				"record 9 sits at position 1"
+			);
+			assertEquals(1, caches[0].get(9), "a positive position is stored verbatim");
 
-			// a positive position round-trips unchanged and is likewise resolved only once
-			final CountingLocator positiveLocator = new CountingLocator(5);
-			final int presentKey = 9;
-			assertEquals(5, PredecessorAttributeComparator.computeIfAbsent(cache, presentKey, positiveLocator));
-			assertEquals(1, positiveLocator.invocations(), "the first lookup resolves the position");
-			assertEquals(5, PredecessorAttributeComparator.computeIfAbsent(cache, presentKey, positiveLocator));
-			assertEquals(1, positiveLocator.invocations(), "the cached position must not re-invoke the locator");
-			assertEquals(5, cache.get(presentKey), "a positive position is stored verbatim");
-		}
-	}
-
-	/**
-	 * Counting {@link IntUnaryOperator} that returns a fixed position and records how many times it was invoked, so the
-	 * memoization of {@link PredecessorAttributeComparator#computeIfAbsent} can be asserted.
-	 */
-	private static final class CountingLocator implements IntUnaryOperator {
-		private final int result;
-		private int invocations;
-
-		CountingLocator(int result) {
-			this.result = result;
+			// a provider that does not hold record 9 is not consulted any more
+			providers[0] = singleRecordProvider(7);
+			assertEquals(
+				1, PredecessorAttributeComparator.cachedPositionOf(providers, caches, 0, 4, 9),
+				"the cached position must be returned without probing the provider"
+			);
 		}
 
-		@Override
-		public int applyAsInt(int operand) {
-			this.invocations++;
-			return this.result;
-		}
+		@Test
+		@DisplayName("memoizes the not-found sentinel in cachedPositionOf and never probes the provider again")
+		void shouldMemoizeNotFoundSentinelInCachedPositionOf() {
+			final SortedRecordsProvider[] providers = {singleRecordProvider(42)};
+			final IntIntMap[] caches = new IntIntMap[1];
 
-		int invocations() {
-			return this.invocations;
+			assertEquals(
+				SortedRecordsProvider.POSITION_NOT_FOUND,
+				PredecessorAttributeComparator.cachedPositionOf(providers, caches, 0, 4, 99),
+				"the provider does not hold record 99"
+			);
+			assertEquals(
+				SortedRecordsProvider.POSITION_NOT_FOUND, caches[0].get(99), "the sentinel is stored verbatim"
+			);
+
+			// a provider that would place record 99 at position 0 is not consulted any more
+			providers[0] = singleRecordProvider(99);
+			assertEquals(
+				SortedRecordsProvider.POSITION_NOT_FOUND,
+				PredecessorAttributeComparator.cachedPositionOf(providers, caches, 0, 4, 99),
+				"the cached sentinel must be returned without probing the provider"
+			);
 		}
 	}
 

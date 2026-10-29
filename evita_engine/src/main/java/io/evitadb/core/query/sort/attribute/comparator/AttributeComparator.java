@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.core.query.sort.EntityComparator;
+import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import lombok.AccessLevel;
@@ -42,6 +43,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
@@ -58,6 +60,11 @@ import static java.util.Optional.ofNullable;
 @SuppressWarnings("ComparatorNotSerializable")
 public class AttributeComparator implements EntityComparator {
 	/**
+	 * Function to fetch the normalized value of the attribute being sorted for a given entity, `null` when the entity
+	 * lacks it. It neither memoizes nor reports anything.
+	 */
+	@Nonnull private final Function<EntityContract, Comparable<?>> normalizedValueFetcher;
+	/**
 	 * Function to fetch the value of the attribute being sorted for a given entity.
 	 */
 	@Nonnull private final Function<EntityContract, Comparable<?>> attributeValueFetcher;
@@ -69,6 +76,11 @@ public class AttributeComparator implements EntityComparator {
 	 * Comparator for comparing the values of the specified attribute.
 	 */
 	@Nonnull private final Comparator<Comparable<?>> comparator;
+	/**
+	 * Scopes whose entities the comparator may sort - the scopes in which the attribute is sortable, so that the
+	 * comparator places exactly the entities the sort indexes of the index route hold. `null` means every scope.
+	 */
+	@Nullable private final Set<Scope> sortableScopes;
 	/**
 	 * Internal storage for entities that could not be fully sorted due to missing attributes.
 	 */
@@ -95,6 +107,29 @@ public class AttributeComparator implements EntityComparator {
 		@Nullable Locale locale,
 		@Nonnull OrderDirection orderDirection
 	) {
+		this(attributeName, type, indexedDecimalPlaces, locale, orderDirection, null);
+	}
+
+	/**
+	 * Creates a comparator sorting only the entities of the passed scopes.
+	 *
+	 * @param attributeName  name of the sorted attribute
+	 * @param type           type of the sorted attribute
+	 * @param indexedDecimalPlaces scale used by the sort index to compare range values
+	 * @param locale         locale of a localized attribute, `null` otherwise
+	 * @param orderDirection direction of the ordering
+	 * @param sortableScopes scopes whose entities may be sorted (the attribute is sortable there), `null` for every
+	 *                       scope
+	 */
+	public AttributeComparator(
+		@Nonnull String attributeName,
+		@Nonnull Class<?> type,
+		int indexedDecimalPlaces,
+		@Nullable Locale locale,
+		@Nonnull OrderDirection orderDirection,
+		@Nullable Set<Scope> sortableScopes
+	) {
+		this.sortableScopes = sortableScopes;
 		final ComparatorSource comparatorSource = new ComparatorSource(
 			type, orderDirection, OrderBehaviour.NULLS_LAST
 		);
@@ -106,7 +141,7 @@ public class AttributeComparator implements EntityComparator {
 			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException).reversed();
 		//noinspection unchecked
 		this.comparator = createComparatorFor(locale, comparatorSource);
-		final Function<EntityContract, Comparable<?>> attributeFetcher = locale == null ?
+		this.normalizedValueFetcher = locale == null ?
 			entityContract -> (Comparable<?>) normalizer.apply(entityContract.getAttribute(attributeName)) :
 			entityContract -> (Comparable<?>) normalizer.apply(entityContract.getAttribute(attributeName, locale));
 		this.attributeValueFetcher = entityContract -> {
@@ -114,7 +149,7 @@ public class AttributeComparator implements EntityComparator {
 			final Comparable cachedValue = this.cache.get(entityContract.getPrimaryKeyOrThrowException());
 			if (cachedValue == null) {
 				//noinspection unchecked,rawtypes
-				final Comparable calculatedValue = ofNullable(attributeFetcher.apply(entityContract))
+				final Comparable calculatedValue = ofNullable(this.normalizedValueFetcher.apply(entityContract))
 					.orElseGet(() -> (Comparable)MissingComparableValue.INSTANCE);
 				this.cache.put(entityContract.getPrimaryKeyOrThrowException(), calculatedValue);
 				if (calculatedValue == MissingComparableValue.INSTANCE) {
@@ -135,6 +170,31 @@ public class AttributeComparator implements EntityComparator {
 	public void prepareFor(int entityCount) {
 		this.cache = new IntObjectHashMap<>(Math.min(entityCount, 1024));
 		this.nonSortedEntities = null;
+	}
+
+	/**
+	 * Classifies the entity as sortable when it belongs to one of the {@link #sortableScopes} and carries the sorted
+	 * attribute. The value is memoized for the comparisons that follow; an entity without it is memoized as missing
+	 * but not reported through {@link #getNonSortedEntities()}, because it is never compared - the caller passes it
+	 * on by itself.
+	 *
+	 * @param entity the entity to classify
+	 * @return `true` when the entity is to be sorted by this comparator
+	 */
+	@Override
+	public boolean canSort(@Nonnull EntityContract entity) {
+		if (this.sortableScopes != null && !this.sortableScopes.contains(entity.getScope())) {
+			return false;
+		}
+		final int primaryKey = entity.getPrimaryKeyOrThrowException();
+		final Comparable<?> cachedValue = this.cache.get(primaryKey);
+		if (cachedValue == null) {
+			final Comparable<?> calculatedValue = this.normalizedValueFetcher.apply(entity);
+			this.cache.put(primaryKey, calculatedValue == null ? MissingComparableValue.INSTANCE : calculatedValue);
+			return calculatedValue != null;
+		} else {
+			return cachedValue != MissingComparableValue.INSTANCE;
+		}
 	}
 
 	@Nonnull

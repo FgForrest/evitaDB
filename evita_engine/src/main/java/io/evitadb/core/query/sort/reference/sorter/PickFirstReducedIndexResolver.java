@@ -51,7 +51,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.PrimitiveIterator.OfInt;
+import java.util.Set;
 import java.util.function.IntUnaryOperator;
 import java.util.function.Supplier;
 
@@ -62,9 +64,9 @@ import java.util.function.Supplier;
  * # The semantics it serves
  *
  * An owner sorts on the value of its **first row, in target order, that carries the sorted value**. Every row of a
- * selected owner takes part, whatever the query's filter says about the same reference - so the index set depends on
- * the selection and nothing else. It is therefore resolved at execution time, from the computed selection, rather than
- * at planning time from the candidate indexes a `referenceHaving` on the same reference happened to produce.
+ * selected owner takes part within the resolved hierarchy bound of its scope. Reference-having filters select owners
+ * without narrowing their ordering rows. The index set is resolved at execution time from the computed selection,
+ * rather than from the candidate indexes a `referenceHaving` on the same reference happened to produce.
  *
  * # How the index set is found
  *
@@ -132,6 +134,10 @@ public final class PickFirstReducedIndexResolver {
 	 */
 	@Nonnull private final Scope[] scopes;
 	/**
+	 * Resolved hierarchy targets by owner scope. An absent scope is unbounded; an empty bitmap admits no rows.
+	 */
+	@Nonnull private final Map<Scope, Bitmap> hierarchyBounds;
+	/**
 	 * Sorter ordering the targets when the ordering specification is not the plain primary key order, `null` when it
 	 * is.
 	 */
@@ -165,6 +171,7 @@ public final class PickFirstReducedIndexResolver {
 	 * @param scopes            the scopes the query processes
 	 * @param targetSorter      sorter ordering the targets, `null` for the plain primary key order
 	 * @param targetsDescending whether the plain primary key order is descending
+	 * @param hierarchyBounds   resolved hierarchy targets by owner scope, with absent scopes unbounded
 	 * @param planningIndexes   supplier of the planning-time reduced indexes, see {@link #getPlanningIndexes()}
 	 */
 	public PickFirstReducedIndexResolver(
@@ -173,6 +180,7 @@ public final class PickFirstReducedIndexResolver {
 		@Nonnull Scope[] scopes,
 		@Nullable NestedContextSorter targetSorter,
 		boolean targetsDescending,
+		@Nonnull Map<Scope, Bitmap> hierarchyBounds,
 		@Nonnull Supplier<ReferencePartition[]> planningIndexes
 	) {
 		this.queryContext = queryContext;
@@ -180,6 +188,7 @@ public final class PickFirstReducedIndexResolver {
 		this.scopes = scopes;
 		this.targetSorter = targetSorter;
 		this.targetsDescending = targetsDescending;
+		this.hierarchyBounds = Map.copyOf(hierarchyBounds);
 		this.planningIndexes = planningIndexes;
 	}
 
@@ -210,6 +219,45 @@ public final class PickFirstReducedIndexResolver {
 	}
 
 	/**
+	 * Returns whether the target is admitted by the resolved hierarchy bound of the owner's scope.
+	 *
+	 * @param scope  the owner's scope
+	 * @param target the referenced primary key
+	 * @return `true` when the scope is unbounded or the target belongs to its bound
+	 */
+	public boolean isTargetWithinHierarchyBound(@Nonnull Scope scope, int target) {
+		final Bitmap bound = this.hierarchyBounds.get(scope);
+		return bound == null || bound.contains(target);
+	}
+
+	/**
+	 * Returns a resolver limited to the passed scopes - the scopes an ordering nested in the `pickFirst` reference
+	 * ordering sorts (narrowed by an `inScope` container, or by the scopes a sorted compound is indexed in). Both
+	 * routes of that ordering must use the limited resolver: the index route then resolves no reduced index of the
+	 * other scopes and the prefetch route admits no owner living in them. The resolver itself is returned when it
+	 * processes none of the other scopes.
+	 *
+	 * @param orderedScopes the scopes the nested ordering sorts
+	 * @return the resolver processing only the passed scopes among its own
+	 */
+	@Nonnull
+	public PickFirstReducedIndexResolver restrictTo(@Nonnull Set<Scope> orderedScopes) {
+		final Scope[] retainedScopes = Arrays.stream(this.scopes)
+			.filter(orderedScopes::contains)
+			.toArray(Scope[]::new);
+		if (retainedScopes.length == this.scopes.length) {
+			return this;
+		}
+		return new PickFirstReducedIndexResolver(
+			this.queryContext, this.referenceSchema, retainedScopes, this.targetSorter, this.targetsDescending,
+			this.hierarchyBounds,
+			() -> Arrays.stream(getPlanningIndexes())
+				.filter(index -> orderedScopes.contains(index.getIndexKey().scope()))
+				.toArray(ReferencePartition[]::new)
+		);
+	}
+
+	/**
 	 * Resolves the partitions that may hold a row of the selected owners, in target order: a superset of those
 	 * that do under the plain primary key order, exactly those that do under any other target order.
 	 *
@@ -234,7 +282,11 @@ public final class PickFirstReducedIndexResolver {
 						// without touching the index object
 						final ReferencePartition partition =
 							this.queryContext.resolvePartitionForReadIfExists(typeIndex, it.nextInt());
-						if (partition != null && (this.targetSorter == null || holdsSelectedOwner(partition, selected))) {
+						if (
+							partition != null &&
+								isTargetWithinHierarchyBound(scope, partition.getReferenceKey().primaryKey()) &&
+								(this.targetSorter == null || holdsSelectedOwner(partition, selected))
+						) {
 							found.add(partition);
 						}
 					}
@@ -262,17 +314,20 @@ public final class PickFirstReducedIndexResolver {
 	}
 
 	/**
-	 * Returns the partitions for the consumers that need a partition array at planning time, before any selection
-	 * exists - the block-by-block orderings of chain attributes and the single-index orderings - which therefore keep
-	 * the planning-time index set of the block orderings: the candidates of a `referenceHaving` on the same reference
-	 * when there are any, the whole family otherwise. Resolved once per instance, and only when asked for.
+	 * Returns planning-time partitions for implicit pick-first chains and constraints requiring a single partition.
+	 * Implicit pick-first chains use the hierarchy-bounded planning partitions when a bound is present, and retain
+	 * their index-selection candidates otherwise. Every supplied partition is checked against the bound here too.
+	 * Resolved once per instance, and only when asked for.
 	 *
 	 * @return the planning-time partitions in target order - reduced entity indexes and virtual partitions
 	 */
 	@Nonnull
 	public ReferencePartition[] getPlanningIndexes() {
 		if (this.memoizedPlanningIndexes == null) {
-			this.memoizedPlanningIndexes = this.planningIndexes.get();
+			final ReferencePartition[] supplied = this.planningIndexes.get();
+			this.memoizedPlanningIndexes = this.hierarchyBounds.isEmpty() ? supplied : Arrays.stream(supplied)
+				.filter(it -> isTargetWithinHierarchyBound(it.getIndexKey().scope(), it.getReferenceKey().primaryKey()))
+				.toArray(ReferencePartition[]::new);
 		}
 		return this.memoizedPlanningIndexes;
 	}

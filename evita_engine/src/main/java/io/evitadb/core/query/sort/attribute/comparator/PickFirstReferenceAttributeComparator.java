@@ -105,6 +105,7 @@ public class PickFirstReferenceAttributeComparator extends AbstractReferenceAttr
 		// find the first reference in target order that has the attribute we are looking for
 		return entity.getReferences(this.referenceName)
 			.stream()
+			.filter(it -> this.targetRanking.admits(entity, it))
 			.filter(it -> this.attributeExtractor.apply(it) != null)
 			.min(this.targetRanking.referenceOrder());
 	}

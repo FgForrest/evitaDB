@@ -24,9 +24,9 @@
 package io.evitadb.core.query.sort.reference.sorter;
 
 
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
@@ -47,6 +47,14 @@ import java.util.function.IntConsumer;
  * Sequential sorter will apply {@link #embeddedSorters} one by one on the {@link #atomicBlocks}. The sorter is meant
  * to be used when traversal sorting is required (i.e. {@link MergeMode#APPEND_ALL}.
  *
+ * A block holds the reduced indexes of one referenced entity - all its representative keys and both scopes - and the
+ * sorting context of the block names that referenced entity only (see {@link #blockKeys}); which row of an owner
+ * represents it inside the block is up to the embedded sorters.
+ *
+ * The embedded sorters see only the records of a block that no earlier block claimed. A block none of those records
+ * belongs to is skipped without invoking any embedded sorter, and the walk stops once every record is claimed - an
+ * embedded sorter is never handed an empty input.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public class SequentialSorter implements Sorter {
@@ -56,6 +64,13 @@ public class SequentialSorter implements Sorter {
 	 * in later blocks even if they're present there as well - 1:N references).
 	 */
 	private final ReferencePartition[][] atomicBlocks;
+	/**
+	 * The key of each of {@link #atomicBlocks}, at the same position: the referenced entity of the block without any
+	 * representative attribute values. A block is the whole referenced entity - the indexes of all its representative
+	 * keys and of both scopes - so the key names the target only, and the embedded sorters look up everything they
+	 * need for the block by that target.
+	 */
+	private final RepresentativeReferenceKey[] blockKeys;
 	/**
 	 * Sorters that are applied on the {@link #atomicBlocks} one by one. The order of the sorters matters.
 	 */
@@ -73,6 +88,10 @@ public class SequentialSorter implements Sorter {
 		@Nonnull List<Sorter> embeddedSorters
 	) {
 		this.atomicBlocks = atomicBlocks;
+		this.blockKeys = new RepresentativeReferenceKey[atomicBlocks.length];
+		for (int i = 0; i < atomicBlocks.length; i++) {
+			this.blockKeys[i] = new RepresentativeReferenceKey(atomicBlocks[i][0].getReferenceKey());
+		}
 		this.embeddedSorters = embeddedSorters;
 		// ensure NoSorter is not present in the list of embedded sorters
 		// we need to avoid sorting records which may not have related sort information (such as attribute by which we sort)
@@ -87,6 +106,15 @@ public class SequentialSorter implements Sorter {
 		}
 	}
 
+	/**
+	 * Sorts the records block by block: each block's embedded sorters receive the not yet claimed records of the
+	 * block, blocks without such records are skipped, and what no block claims is handed to the next sorter.
+	 *
+	 * @param sortingContext         the records to sort and the requested slice
+	 * @param result                 the array the sorted records are written to
+	 * @param skippedRecordsConsumer consumer of the records skipped before the requested slice, or `null`
+	 * @return the context carrying the records no block claimed
+	 */
 	@Nonnull
 	@Override
 	public SortingContext sortAndSlice(
@@ -98,19 +126,29 @@ public class SequentialSorter implements Sorter {
 
 		SortingContext nextSortingContext = sortingContext;
 		top:
-		for (ReferencePartition[] atomicBlock : this.atomicBlocks) {
+		for (int blockIndex = 0; blockIndex < this.atomicBlocks.length; blockIndex++) {
+			final ReferencePartition[] atomicBlock = this.atomicBlocks[blockIndex];
+			if (recordsToSort.isEmpty()) {
+				// every record found its block - no later block can claim anything
+				break;
+			}
 			final Bitmap limitedInput = FormulaFactory.or(
 				Arrays.stream(atomicBlock)
 					.map(
 						it -> FormulaFactory.and(
-							recordsToSort.isEmpty() ?
-								EmptyFormula.INSTANCE :
-								new ConstantFormula(new BaseBitmap(recordsToSort)),
+							new ConstantFormula(new BaseBitmap(recordsToSort)),
 							it.getAllPrimaryKeysFormula()
 						)
 					)
 					.toArray(Formula[]::new)
 			).compute();
+
+			if (limitedInput.isEmpty()) {
+				// none of the remaining records belongs to this block - the embedded sorters have nothing to do here,
+				// and an empty input must never reach them (a merge walk over an empty selection has nothing to
+				// match, so running it could only report what is not there)
+				continue;
+			}
 
 			/*
 			  We can't optimize here to skip entire block if the nextSortingContext.startIndex() is greater than the
@@ -126,7 +164,7 @@ public class SequentialSorter implements Sorter {
 				nextSortingContext.endIndex(),
 				nextSortingContext.peak(),
 				nextSortingContext.skipped(),
-				atomicBlock[0].getRepresentativeReferenceKey()
+				this.blockKeys[blockIndex]
 			);
 
 			final int previousPeak = nextSortingContext.peak();

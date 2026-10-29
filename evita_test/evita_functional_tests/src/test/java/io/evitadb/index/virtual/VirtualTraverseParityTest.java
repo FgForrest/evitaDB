@@ -94,10 +94,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * - the referenced primary key providers of a block (`EntityPrimaryKeyNaturalTranslator`);
  * - the partitions of the nodes of a hierarchy option (`ReferencePropertyTranslator`).
  *
- * The lookup of `attributeSetExact` in a block of one partition (`AttributeSetExactTranslator`) has no such case and
- * cannot have one: the engine sorts by an exact attribute set only when a single partition is sorted, and a row has a
- * single owner, so the answer is that owner whatever the lookup finds - an exact set over a traverse or over a
- * selection reaching beyond the partition is refused. Nothing shows at runtime that this stage reads rows.
+ * Exact attribute sets are also resolved block by block, across all representative keys and scopes of each
+ * target. The several-block exact test reads listed values from registry rows and compares every page window
+ * with materialized partitions; the narrowed test retains the released referenceHaving query shape.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -414,6 +413,26 @@ class VirtualTraverseParityTest implements EvitaTestSupport {
 				)
 			);
 		}
+	}
+
+	/**
+	 * Exact ordering reads virtual rows over several blocks, with unlisted values left for later blocks.
+	 */
+	@Test
+	void shouldTraverseSeveralExactBlocksIdentically() {
+		final List<String> differences = new ArrayList<>(8);
+		final OrderConstraint ordering = referenceProperty(
+			ParameterValuesShapedFixture.REFERENCE_PARAMETER_VALUES,
+			traverseByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+			attributeSetExact(ParameterValuesShapedFixture.ATTRIBUTE_CODE, "c3", "s2", "z")
+		);
+		assertParameterValuesOrder(LIVE, ordering, "Exact ordering over several blocks", differences);
+		assertTrue(differences.isEmpty(), () -> differences.size() + " differences: " + differences);
+		assertTrue(
+			this.parameters.selectsSingleOwnerRow(
+				LIVE, ParameterValuesShapedFixture.REFERENCE_PARAMETER_VALUES, null, null
+			), "Exact ordering must read virtual partitions"
+		);
 	}
 
 	/**
