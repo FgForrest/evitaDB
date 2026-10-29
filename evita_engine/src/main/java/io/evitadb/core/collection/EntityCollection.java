@@ -84,6 +84,8 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference
+	.ModifyReflectedReferenceAttributeInheritanceSchemaMutation;
 import io.evitadb.api.statistics.*;
 import io.evitadb.api.statistics.CollectionIndexSummary.IndexTypeCount;
 import io.evitadb.core.buffer.DataStoreChanges;
@@ -2808,56 +2810,75 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Dry-runs the given mutations against this collection's current schema and raises the
-	 * accelerator-on-populated-collection refusal **without exchanging anything**.
+	 * Dry-runs the given mutations against this collection's current schema and raises two refusals **without
+	 * exchanging anything**: the accelerator-on-populated-collection refusal and the reflected reference inheritance
+	 * refusal.
 	 *
-	 * This exists because a catalog-level change to a global attribute fans out into one
+	 * The first is raised here because a catalog-level change to a global attribute fans out into one
 	 * {@link io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation} per consuming
 	 * collection, and {@link io.evitadb.core.catalog.Catalog#updateSchema} applies them one at a time - each
 	 * exchanging its schema and persisting a storage part in its own `finally`. A refusal raised by the *third*
 	 * collection therefore cannot undo the first two: the catalog's revert restores only the catalog schema. Running
 	 * this over every affected collection before the first exchange is what makes the cascade all-or-nothing.
 	 *
-	 * **It raises the non-empty-collection refusal and nothing else** - every other failure of the dry run is
-	 * swallowed. That is deliberate rather than lazy, and it is exactly sufficient:
+	 * The second is raised here so that it precedes the catalog recording the mutation in the transaction - otherwise,
+	 * catching the refusal and continuing the session would leave the rejected mutation queued for replay at commit.
+	 * The inheritance mutation refuses to replace a local declaration with the same-named definition of the bound
+	 * original, because the two hold independently stored values and swapping them would change query answers; the
+	 * refusal does not depend on whether data exists. Its verdict depends on this collection and on the collection
+	 * owning the reflected original, so the dry run raises it only when no mutation earlier in the batch changed
+	 * either of them - after such a change, only the real pass meets the state the mutation is applied to. Any other
+	 * failure of that mutation is swallowed like the rest.
+	 *
+	 * Other failures of the dry run are swallowed for the following reasons:
 	 *
 	 * - Replaying a mutation outside its real batch can fail for reasons that would not arise in the real pass - an
 	 *   entity mutation naming a global attribute an earlier mutation in the same batch creates, for instance.
 	 *   Surfacing those here would turn a working schema change into a spurious rejection.
-	 * - The refusals the mutations raise themselves - wrong data type, accelerator on a reference attribute - depend
-	 *   only on the attribute, which a cascade sends identically to every consuming collection. They therefore fire
-	 *   on the *first* collection visited, before anything has been exchanged, and need no preflight to be atomic.
-	 * - The non-empty-collection refusal is the one rule whose verdict differs *per collection*, which is exactly
-	 *   what lets it accept collection A and then refuse collection B. It is the only rule that needs this.
+	 * - The other refusals the mutations raise themselves - wrong data type, accelerator on a reference attribute -
+	 *   depend only on the attribute, which a cascade sends identically to every consuming collection. They therefore
+	 *   fire on the *first* collection visited, before anything has been exchanged, and need no preflight to be atomic.
+	 * - Among the rules a cascade can trigger, the non-empty-collection refusal is the one whose verdict differs
+	 *   *per collection*, which is exactly what lets it accept collection A and then refuse collection B, so all
+	 *   affected collections must be checked.
 	 *
-	 * @param catalogSchema  the catalog schema the mutations are applied against
-	 * @param schemaMutation the mutations that are about to be applied
-	 * @throws InvalidSchemaMutationException when an accelerator would be added to this non-empty collection
+	 * @param catalogSchema             the catalog schema the mutations are applied against
+	 * @param entityTypesChangedEarlier entity types that mutations preceding these in the same batch create, remove,
+	 *                                  rename or modify
+	 * @param schemaMutation            the mutations that are about to be applied
+	 * @throws InvalidSchemaMutationException when an accelerator would be added to this non-empty collection or
+	 *                                       inheritance would replace a reflected reference's local declaration
 	 */
 	public void verifySchemaMutationsApplicable(
 		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull Set<String> entityTypesChangedEarlier,
 		@Nonnull LocalEntitySchemaMutation... schemaMutation
 	) {
 		final EntitySchema originalSchema = getInternalSchema();
-		final EntitySchema updatedSchema;
-		try {
-			EntitySchema schemaSoFar = originalSchema;
-			for (final EntitySchemaMutation theMutation : schemaMutation) {
-				final EntitySchemaContract mutated = theMutation.mutate(catalogSchema, schemaSoFar);
+		EntitySchema updatedSchema = originalSchema;
+		for (final EntitySchemaMutation theMutation : schemaMutation) {
+			try {
+				final EntitySchemaContract mutated = theMutation.mutate(catalogSchema, updatedSchema);
 				if (!(mutated instanceof EntitySchema theSchema)) {
-					// the mutation drops the collection or produces something this preflight cannot reason about -
-					// leave the verdict entirely to the real pass
+					// Leave mutations this preflight cannot reason about to the real pass.
 					return;
 				}
-				schemaSoFar = theSchema;
+				updatedSchema = theSchema;
+			} catch (RuntimeException ex) {
+				// the inheritance refusal is conclusive only while no earlier mutation of the batch changed this
+				// collection or the one owning the reflected original - see the method's javadoc
+				if (ex instanceof InvalidSchemaMutationException &&
+					theMutation instanceof ModifyReflectedReferenceAttributeInheritanceSchemaMutation inheritance &&
+					!entityTypesChangedEarlier.contains(getEntityType()) &&
+					updatedSchema.getReference(inheritance.getName())
+						.map(ReferenceSchemaContract::getReferencedEntityType)
+						.filter(originalOwner -> !entityTypesChangedEarlier.contains(originalOwner))
+						.isPresent()) {
+					throw ex;
+				}
+				// Other dry-run failures can depend on surrounding catalog mutations; the real pass reports them.
+				return;
 			}
-			updatedSchema = schemaSoFar;
-		} catch (RuntimeException ex) {
-			// A deliberate swallow, and a genuine exemption from "never silently skip unexpected states" - the three
-			// reasons that must all hold for it to stay one are in this method's javadoc. Nothing is lost by staying
-			// quiet: this is a pure dry run against a copy, and the real pass runs moments later with the correct
-			// surrounding state and reports every genuine failure itself.
-			return;
 		}
 		verifyNoAcceleratorAddedToNonEmptyCollection(originalSchema, updatedSchema);
 	}

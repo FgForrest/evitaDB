@@ -611,7 +611,8 @@ public class EntitySchemaConverter {
 			builder.setDeprecationNotice(StringValue.newBuilder().setValue(referenceSchema.getDeprecationNotice()).build());
 		}
 
-		final Predicate<String> inheritedPredicate;
+		final Predicate<String> inheritedAttributePredicate;
+		final Predicate<String> inheritedCompoundPredicate;
 		if (referenceSchema instanceof ReflectedReferenceSchema reflectedSchema) {
 			builder.setReflectedReferenceName(StringValue.of(reflectedSchema.getReflectedReferenceName()))
 				.setDescriptionInherited(reflectedSchema.isDescriptionInherited())
@@ -625,14 +626,22 @@ public class EntitySchemaConverter {
 				builder.addAttributeInheritanceFilter(attributeName);
 			}
 			final Set<String> declaredAttributes = reflectedSchema.getDeclaredAttributes().keySet();
-			inheritedPredicate = attributeName -> !declaredAttributes.contains(attributeName);
+			inheritedAttributePredicate = attributeName -> !declaredAttributes.contains(attributeName);
+			// tested against the declared attributes, every local compound would read as inherited
+			final Set<String> declaredCompounds = reflectedSchema.getDeclaredSortableAttributeCompounds().keySet();
+			inheritedCompoundPredicate = compoundName -> !declaredCompounds.contains(compoundName);
 		} else {
-			inheritedPredicate = Functions.alwaysFalse();
+			inheritedAttributePredicate = Functions.alwaysFalse();
+			inheritedCompoundPredicate = Functions.alwaysFalse();
 		}
 
 		builder
-			.putAllAttributes(toGrpcAttributeSchemas(referenceSchema.getAttributes(), includeNameVariants, inheritedPredicate))
-			.putAllSortableAttributeCompounds(toGrpcSortableAttributeCompoundSchemas(referenceSchema.getSortableAttributeCompounds(), includeNameVariants, inheritedPredicate));
+			.putAllAttributes(toGrpcAttributeSchemas(
+				referenceSchema.getAttributes(), includeNameVariants, inheritedAttributePredicate
+			))
+			.putAllSortableAttributeCompounds(toGrpcSortableAttributeCompoundSchemas(
+				referenceSchema.getSortableAttributeCompounds(), includeNameVariants, inheritedCompoundPredicate
+			));
 
 		if (includeNameVariants) {
 			referenceSchema.getNameVariants()
