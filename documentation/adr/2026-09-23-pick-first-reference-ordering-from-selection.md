@@ -19,7 +19,7 @@ relates:
   - 2026-09-15-bidirectional-reference-counterpart-rewrite
   - 2026-10-08-scope-faithful-planning-and-facet-summary-parity
   - 2026-10-20-single-owner-partitions-as-registry-rows
-  - 2026-10-28-traverse-ordering-route-parity
+  - 2026-10-29-traverse-ordering-route-parity
 ---
 
 # A pick-first reference ordering sorts on the first row of every selected owner, resolved from the selection
@@ -33,7 +33,7 @@ resolved at execution time from the selected owners, through the owner→partiti
 planner already maintain, instead of at planning time from whatever candidate set a `referenceHaving` on the same
 reference happened to produce.
 
-The [traverse route-parity decision](2026-10-28-traverse-ordering-route-parity.md) narrows the original
+The [traverse route-parity decision](2026-10-29-traverse-ordering-route-parity.md) narrows the original
 "every row counts whatever the filter says" rule for hierarchy filters: pick-first now uses the same filtered
 hierarchy bound as traverse. The remaining selection-based resolution and merge decisions in this record still apply.
 
@@ -216,7 +216,7 @@ a measured production shape: that is where the per-query cost still follows `row
 - **Originally deferred, now resolved by #1670:** `traverseByEntityProperty` uses hierarchy bounds independently
   of index-selection candidates, and implicit pick-first chains follow target and representative-value order on
   both routes. Unbounded implicit chains retain their candidate dependency and the conservative rewrite guard; see
-  the [route-parity decision](2026-10-28-traverse-ordering-route-parity.md).
+  the [route-parity decision](2026-10-29-traverse-ordering-route-parity.md).
 - A reference with no reduced index of the referenced-entity family in any processed scope produces no sorter and
   its nested constraints are not planned at all (`ReferencePropertyTranslator#hasAnyReducedIndex`). Planning them
   anyway fails the single-index translators (`attributeSetExact` expects exactly one index), requires the referenced
@@ -368,7 +368,7 @@ a measured production shape: that is where the per-query cost still follows `row
 
 ## Related work
 
-- [Traverse ordering route parity](2026-10-28-traverse-ordering-route-parity.md) narrows this record's unbounded
+- [Traverse ordering route parity](2026-10-29-traverse-ordering-route-parity.md) narrows this record's unbounded
   hierarchy rule and closes the traverse follow-ups above; the selection-based pick-first design remains in use.
 
 - `2026-09-18-reference-planning-from-owner-membership` - widened the owner→partition map to every indexed reference;

@@ -19,7 +19,7 @@ relates:
   - 2026-09-25-attribute-is-null-in-reference-having
   - 2026-09-28-indexed-reference-scope-requires-entity-component
   - 2026-10-08-scope-faithful-planning-and-facet-summary-parity
-  - 2026-10-28-traverse-ordering-route-parity
+  - 2026-10-29-traverse-ordering-route-parity
 ---
 
 # Answer a `referenceHaving` from whichever end of a bidirectional reference is cheaper
@@ -32,7 +32,7 @@ question can be answered by visiting one index per candidate owner instead. The 
 the two fan-outs on bitmap cardinalities — one type-index union and one intersection, no reduced
 index materialized — and takes the cheaper end when the constraint shape permits it. On the large e-commerce catalogue this replaces **44 390 index visits with 588**.
 
-The [traverse route-parity decision](2026-10-28-traverse-ordering-route-parity.md) narrows guard 4 below:
+The [traverse route-parity decision](2026-10-29-traverse-ordering-route-parity.md) narrows guard 4 below:
 traversal no longer depends on reference-filter candidates. The counterpart rewrite and null-subtraction decisions
 stand as recorded.
 
@@ -281,7 +281,7 @@ on the same reference uses traverse. The last condition was narrowed by #1670; n
    *matching* one. Such queries were declined.
    Since `2026-09-23-pick-first-reference-ordering-from-selection` a pick-first ordering by a comparable value
    resolves its partitions from the selected owners and no longer reads the candidate set, so for that shape the
-   guard is conservative. Since [#1670](2026-10-28-traverse-ordering-route-parity.md), traverse also ignores that
+   guard is conservative. Since [#1670](2026-10-29-traverse-ordering-route-parity.md), traverse also ignores that
    candidate set and no longer triggers the guard. It remains for non-traverse orderings, including implicit
    pick-first chains whose unbounded path still reads the candidates.
 
@@ -581,7 +581,7 @@ one owner can hold two rows of the *same pair* carrying different values — and
 
 ## Related work
 
-- [Traverse ordering route parity](2026-10-28-traverse-ordering-route-parity.md) removes guard 4 for explicit and
+- [Traverse ordering route parity](2026-10-29-traverse-ordering-route-parity.md) removes guard 4 for explicit and
   default traverse orderings by resolving hierarchy bounds independently of reference index selection.
 
 - `2026-09-11-reference-name-narrowing` — same issue, same query. That change moved storage decode off

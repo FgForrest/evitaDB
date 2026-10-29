@@ -1,7 +1,7 @@
 ---
 title: Bound reference ordering by the filtered hierarchy and sort each target as one block
-date: 2026-10-28
-updated: 2026-10-29 06:55
+date: 2026-10-29
+updated: 2026-10-29 09:10
 status: accepted
 kind: fix
 issues: [1670]
@@ -241,7 +241,7 @@ change. Two results held in all four runs:
 
 - The bounded traverse got faster: both runs of this change were below both base runs, by 7 %.
 - Unbounded pick-first got slower: both runs of this change were above both base runs, by 11 µs per query (11 %).
-  That regression was not investigated further.
+  That regression was accepted without profiling; see the follow-ups.
 
 Several other effects did not show:
 
@@ -281,10 +281,11 @@ refused the traverse queries over both scopes in the same way, and those queries
   sorter within the same block.
 - `attributeSetExact` over a chain attribute is refused inside a traverse. At the entity level, outside any
   reference ordering, dev diverges between routes: the index route fails with an internal error, the prefetch
-  route returns an order. This change leaves that unchanged; it needs its own issue.
-- Unbounded pick-first is 11 µs (11 %) slower than before (see Cost). The cause is not established; the first
-  suspect is the scope and hierarchy-bound resolution `PickFirstReducedIndexResolver` now performs even without a
-  bound. Profile it or accept it explicitly.
+  route returns an order. This change leaves that unchanged; #1830 refuses it on both routes.
+- Unbounded pick-first is 11 µs (11 %) slower than before (see Cost). It was accepted without profiling: the cost
+  is small in absolute terms and the bounded queries did not move. The cause is not established. If it ever
+  matters, the first suspect is the scope and hierarchy-bound resolution `PickFirstReducedIndexResolver` now
+  performs even without a bound.
 - Multi-partition exact ordering under pick-first and `attributeSetInFilter` remains outside this extension.
   Removing the remaining bidirectional rewrite guard for implicit chains needs a separate candidate-independence
   decision. Filter `inScope` prefetch support remains #1682.
