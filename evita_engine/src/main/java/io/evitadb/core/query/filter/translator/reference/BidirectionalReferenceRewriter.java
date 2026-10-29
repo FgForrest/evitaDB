@@ -345,7 +345,7 @@ public class BidirectionalReferenceRewriter {
 		}
 		// Traverse partitions depend only on the resolved hierarchy bound, which this reference-having rewrite
 		// does not change. Only implicit pick-first chains still read the candidate set removed by the rewrite,
-		// so guard 4 remains in place for non-traverse orderings.
+		// so the rewrite is skipped for non-traverse orderings of the same reference.
 		if (orderedByTheSameReference(queryContext, ownerReference)) {
 			return null;
 		}
@@ -558,7 +558,7 @@ public class BidirectionalReferenceRewriter {
 	 *
 	 * @param queryContext the context supplying the order and target schema
 	 * @param reference the reference the rewrite would answer from its counterpart
-	 * @return true when guard 4 must preserve the owner-side candidates
+	 * @return `true` when the rewrite must be skipped to preserve the owner-side candidates
 	 */
 	private static boolean orderedByTheSameReference(
 		@Nonnull QueryPlanningContext queryContext,

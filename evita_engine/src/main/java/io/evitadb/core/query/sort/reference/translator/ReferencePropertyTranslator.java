@@ -33,6 +33,7 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterInScope;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.query.filter.UserFilter;
 import io.evitadb.api.query.order.EntityGroupProperty;
 import io.evitadb.api.query.order.EntityPrimaryKeyNatural;
 import io.evitadb.api.query.order.EntityProperty;
@@ -739,10 +740,11 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	}
 
 	/**
-	 * Collects traversal bounds only through conjunctive filter containers. Each hierarchy occurrence is its own
-	 * existential, so its resolved nodes are unioned with the other occurrences of the reference in that scope.
-	 * An absent scope entry means unbounded; an empty bitmap means bounded to no targets. Bodies of reference and
-	 * facet filters, disjunctions and negations are deliberately not visited.
+	 * Collects traversal bounds only through conjunctive filter containers - `filterBy`, `and`, `userFilter` and, for
+	 * the owners of its scope, `inScope`. Each hierarchy occurrence is its own existential, so its resolved nodes are
+	 * unioned with the other occurrences of the reference in that scope. An absent scope entry means unbounded; an
+	 * empty bitmap means bounded to no targets. Bodies of reference and facet filters, disjunctions and negations are
+	 * deliberately not visited.
 	 *
 	 * @param constraint the current filter constraint, NULL when the query has no filter
 	 * @param scopes the filter processing scopes covered by this occurrence
@@ -778,7 +780,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 					collectTraversalBounds(child, Set.of(inScope.getScope()), referenceName, orderByVisitor, bounds);
 				}
 			}
-		} else if (constraint instanceof FilterBy || constraint instanceof And) {
+		} else if (constraint instanceof FilterBy || constraint instanceof And || constraint instanceof UserFilter) {
 			@SuppressWarnings("unchecked") final ConstraintContainer<FilterConstraint> container =
 				(ConstraintContainer<FilterConstraint>) constraint;
 			for (final FilterConstraint child : container.getChildren()) {
@@ -896,7 +898,8 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		if (referenceIndexes.isEmpty()) {
 			return EMPTY_PARTITIONS;
 		}
-		final IntObjectMap<List<ReferencePartition>> reducedIndexesMap = new IntObjectHashMap<>(referenceIndexes.size());
+		final IntObjectMap<List<ReferencePartition>> reducedIndexesMap =
+			new IntObjectHashMap<>(referenceIndexes.size());
 		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 		for (ReferencePartition referenceIndex : referenceIndexes) {
 			final ReferenceKey discriminator = referenceIndex.getReferenceKey();
@@ -952,8 +955,9 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 * sees that order, picks its row the same way. Two contiguity invariants rest on this append: the indexes of the
 	 * whole referenced entity lie together, which `MergedSortedRecordsSupplierSorter#createTargetSlices` requires to
 	 * slice the providers of a block and refuses to do without, and so do the indexes of one key, which the chain
-	 * comparator's lookup of a key's providers (`MergedSortedRecordsSupplierSorter#createSortedRecordsOffsets`) requires
-	 * and a repeated key would silently break. A chain of a key relies on its live chain preceding the archived one.
+	 * comparator's lookup of a key's providers (`MergedSortedRecordsSupplierSorter#createSortedRecordsOffsets`)
+	 * requires and a repeated key would silently break. A chain of a key relies on its live chain preceding the
+	 * archived one.
 	 *
 	 * Costs one pass over the `m` indexes of the referenced entity plus, in representative order, a sort of its `k`
 	 * distinct keys (`O(k log k)`); reached only by a referenced entity with more than one index - a reference
@@ -991,7 +995,8 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		}
 		int resultPeak = peak;
 		if (inRepresentativeKeyOrder && byKey.size() > 1) {
-			final List<Entry<RepresentativeReferenceKey, ReferencePartition[]>> entries = new ArrayList<>(byKey.entrySet());
+			final List<Entry<RepresentativeReferenceKey, ReferencePartition[]>> entries =
+				new ArrayList<>(byKey.entrySet());
 			// the keys are distinct, and the strict order tells apart even those whose values compare equal
 			entries.sort(Entry.comparingByKey(RepresentativeReferenceKey.STRICT_COMPARATOR));
 			for (Entry<RepresentativeReferenceKey, ReferencePartition[]> entry : entries) {

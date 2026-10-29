@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.sort.EntityReferenceSensitiveComparator;
 import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeMode;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -42,6 +43,7 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -79,12 +81,28 @@ public class TraverseReferenceCompoundAttributeComparator
 	 */
 	@Nonnull private final Predicate<ReferenceContract> carriesValue = this::carriesAnyElement;
 
+	/**
+	 * Scopes whose compound index supplies sortable owner rows.
+	 */
+	@Nonnull private final Set<Scope> sortableScopes;
+
+	/**
+	 * Creates the comparator with the scope eligibility of the compound's index providers.
+	 *
+	 * @param compoundSchemaContract   the ordered compound
+	 * @param referenceSchema          the ordered reference
+	 * @param locale                   the locale of localized compound elements
+	 * @param attributeSchemaExtractor resolves the schemas of compound elements
+	 * @param orderDirection           the ordering direction
+	 * @param sortableScopes           ordered scopes in which the compound is indexed
+	 */
 	public TraverseReferenceCompoundAttributeComparator(
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull Function<String, AttributeSchemaContract> attributeSchemaExtractor,
-		@Nonnull OrderDirection orderDirection
+		@Nonnull OrderDirection orderDirection,
+		@Nonnull Set<Scope> sortableScopes
 	) {
 		super(
 			compoundSchemaContract,
@@ -94,6 +112,7 @@ public class TraverseReferenceCompoundAttributeComparator
 			orderDirection
 		);
 		this.referenceName = referenceSchema.getName();
+		this.sortableScopes = sortableScopes;
 	}
 
 	/**
@@ -126,7 +145,9 @@ public class TraverseReferenceCompoundAttributeComparator
 	@Override
 	protected Optional<ReferenceContract> pickReference(@Nonnull EntityContract entity) {
 		Assert.isPremiseValid(this.referenceKey != null, "Referenced entity id must be set!");
-		return getFirstValuedReference(entity, this.referenceSchema, this.referenceKey.referenceKey(), this.carriesValue);
+		return this.sortableScopes.contains(entity.getScope()) ?
+			getFirstValuedReference(entity, this.referenceSchema, this.referenceKey.referenceKey(), this.carriesValue) :
+			Optional.empty();
 	}
 
 	/**

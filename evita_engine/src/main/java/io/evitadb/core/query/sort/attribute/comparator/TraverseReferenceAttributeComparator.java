@@ -132,7 +132,9 @@ public class TraverseReferenceAttributeComparator
 	@Override
 	protected Optional<ReferenceContract> pickReference(@Nonnull EntityContract entity) {
 		Assert.isPremiseValid(this.referenceKey != null, "Referenced entity id must be set!");
-		return getFirstValuedReference(entity, this.referenceSchema, this.referenceKey.referenceKey(), this.carriesValue);
+		return getFirstValuedReference(
+			entity, this.referenceSchema, this.referenceKey.referenceKey(), this.carriesValue
+		);
 	}
 
 	/**

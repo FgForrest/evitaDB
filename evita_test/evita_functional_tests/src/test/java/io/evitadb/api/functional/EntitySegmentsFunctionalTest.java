@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.core.exception.AttributeNotSortableException;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.annotation.DataSet;
@@ -107,6 +108,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(PRICE)
 public class EntitySegmentsFunctionalTest {
 	private static final String SEGMENT_PRODUCTS = "segmentProducts";
+	/**
+	 * The segment fixture extended with a target referenced exclusively by an archived owner.
+	 */
+	private static final String ARCHIVED_REFERENCE_PRODUCTS = "archivedReferenceProducts";
 	private static final String ENTITY_PRODUCT = "product";
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_SCORE = "score";
@@ -119,6 +124,10 @@ public class EntitySegmentsFunctionalTest {
 	private static final String REFERENCE_BRAND = "brand";
 	private static final String ATTRIBUTE_ORDER = "order";
 	private static final String ATTRIBUTE_KIND = "kind";
+	/**
+	 * Nullable chain carried only by product 2's brand row.
+	 */
+	private static final String ATTRIBUTE_CHAIN = "chain";
 	private static final String COMPOUND_ORDER_KIND_LIVE = "orderKindLive";
 	private static final String ATTRIBUTE_ORDER_BOTH = "orderBoth";
 	private static final String ATTRIBUTE_KIND_BOTH = "kindBoth";
@@ -200,6 +209,9 @@ public class EntitySegmentsFunctionalTest {
 						ATTRIBUTE_ORDER, Integer.class, thatIs -> thatIs.sortableInScope(Scope.LIVE).nullable()
 					)
 					.withAttribute(
+						ATTRIBUTE_CHAIN, Predecessor.class, thatIs -> thatIs.sortableInScope(BOTH_SCOPES).nullable()
+					)
+					.withAttribute(
 						ATTRIBUTE_KIND, String.class,
 						thatIs -> thatIs.filterableInScope(BOTH_SCOPES).sortableInScope(Scope.LIVE).nullable()
 					)
@@ -243,13 +255,30 @@ public class EntitySegmentsFunctionalTest {
 				.openForWrite()
 				.setReference(
 					REFERENCE_BRAND, 1,
-					whichIs -> whichIs.setAttribute(ATTRIBUTE_ORDER, brandRow[1]).setAttribute(ATTRIBUTE_KIND, "a")
-						.setAttribute(ATTRIBUTE_ORDER_BOTH, brandRow[1]).setAttribute(ATTRIBUTE_KIND_BOTH, "a")
+					whichIs -> {
+						whichIs.setAttribute(ATTRIBUTE_ORDER, brandRow[1]).setAttribute(ATTRIBUTE_KIND, "a")
+							.setAttribute(ATTRIBUTE_ORDER_BOTH, brandRow[1]).setAttribute(ATTRIBUTE_KIND_BOTH, "a");
+						if (brandRow[0] == 2) {
+							whichIs.setAttribute(ATTRIBUTE_CHAIN, Predecessor.HEAD);
+						}
+					}
 				)
 				.upsertVia(session);
 		}
 		session.archiveEntity(ENTITY_PRODUCT, 1);
 		session.archiveEntity(ENTITY_PRODUCT, 5);
+	}
+
+	/**
+	 * Adds an archived owner whose target has no live partition, keeping the common segment fixture intact.
+	 */
+	@DataSet(value = ARCHIVED_REFERENCE_PRODUCTS, destroyAfterClass = true)
+	void setUpArchivedReference(@Nonnull EvitaSessionContract session) {
+		setUp(session);
+		session.createNewEntity(ENTITY_PRODUCT, 7)
+			.setReference(REFERENCE_BRAND, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_ORDER_BOTH, 1))
+			.upsertVia(session);
+		session.archiveEntity(ENTITY_PRODUCT, 7);
 	}
 
 	/**
@@ -916,6 +945,118 @@ public class EntitySegmentsFunctionalTest {
 				),
 				scopedOrder.toString()
 			))
+		);
+	}
+
+	/**
+	 * Passes owners of a scope without the compound index to the ordering after the traversal.
+	 */
+	@DisplayName("A traverse reference compound sorts only owners of scopes indexing the compound")
+	@UseDataSet(SEGMENT_PRODUCTS)
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(SortRoute.class)
+	void shouldTraverseCompoundOnlyInScopesIndexingIt(
+		@Nonnull SortRoute route, @Nonnull EvitaSessionContract session
+	) {
+		assertOrder(
+			new int[]{2, 1, 3, 4, 5, 6},
+			queryOrder(
+				session, route, scope(BOTH_SCOPES),
+				referenceProperty(
+					REFERENCE_BRAND,
+					traverseByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+					attributeNatural(COMPOUND_ORDER_KIND_BOTH_LIVE)
+				),
+				entityPrimaryKeyNatural(OrderDirection.ASC)
+			),
+			"compound indexed only in the live scope"
+		);
+	}
+
+	/**
+	 * Keeps owners outside a nested ordering's scope available to the next child of the same traversal block.
+	 */
+	@DisplayName("A scope inside a traverse reference order restricts each child ordering")
+	@UseDataSet(SEGMENT_PRODUCTS)
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(SortRoute.class)
+	void shouldNarrowTraverseRowsToScopeInsideReferenceOrder(
+		@Nonnull SortRoute route, @Nonnull EvitaSessionContract session
+	) {
+		assertAll(
+			Stream.<OrderConstraint>of(
+				attributeNatural(ATTRIBUTE_ORDER),
+				attributeNatural(ATTRIBUTE_ORDER_BOTH),
+				attributeNatural(COMPOUND_ORDER_KIND_BOTH_LIVE),
+				attributeSetExact(ATTRIBUTE_ORDER_BOTH, 1, 2),
+				entityPrimaryKeyNatural(OrderDirection.ASC)
+			).<Executable>map(childOrder -> () -> assertOrder(
+				new int[]{2, 1, 6, 5, 4, 3},
+				queryOrder(
+					session, route, scope(BOTH_SCOPES),
+					referenceProperty(
+						REFERENCE_BRAND,
+						traverseByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+						inScope(Scope.LIVE, childOrder),
+						entityPrimaryKeyNatural(OrderDirection.ASC)
+					),
+					entityPrimaryKeyNatural(OrderDirection.DESC)
+				),
+				childOrder.toString()
+			))
+		);
+	}
+
+	/**
+	 * Preserves a block with no partition in a nested exact ordering's scope for its following child ordering.
+	 */
+	@DisplayName("A scoped exact child passes an archived-only target block to its next child")
+	@UseDataSet(ARCHIVED_REFERENCE_PRODUCTS)
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(SortRoute.class)
+	void shouldPassBlockOutsideExactOrderingScopeToNextChild(
+		@Nonnull SortRoute route, @Nonnull EvitaSessionContract session
+	) {
+		assertOrder(
+			new int[]{2, 1, 7},
+			queryOrderExactly(
+				session, route, and(scope(BOTH_SCOPES), entityPrimaryKeyInSet(1, 2, 7)),
+				referenceProperty(
+					REFERENCE_BRAND,
+					traverseByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+					inScope(Scope.LIVE, attributeSetExact(ATTRIBUTE_ORDER_BOTH, 1, 2)),
+					entityPrimaryKeyNatural(OrderDirection.DESC)
+				),
+				entityPrimaryKeyNatural(OrderDirection.ASC)
+			),
+			"the next child sorts owners outside the exact ordering's scope, including an archived-only block"
+		);
+	}
+
+	/**
+	 * Leaves a valueless singleton out of an implicit chain segment before applying the next segment's order.
+	 */
+	@DisplayName("An implicit reference chain passes a valueless singleton to the next segment")
+	@UseDataSet(SEGMENT_PRODUCTS)
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(SortRoute.class)
+	void shouldPassValuelessSingletonThroughImplicitChain(
+		@Nonnull SortRoute route, @Nonnull EvitaSessionContract session
+	) {
+		assertOrder(
+			new int[]{2, 1},
+			queryOrderExactly(
+				session, route, and(scope(BOTH_SCOPES), entityPrimaryKeyInSet(1, 2)),
+				segments(
+					segment(
+						entityHaving(entityPrimaryKeyInSet(1)),
+						orderBy(referenceProperty(REFERENCE_BRAND, attributeNatural(ATTRIBUTE_CHAIN))),
+						limit(1)
+					),
+					segment(orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)))
+				)
+			),
+			"a chain segment cannot claim an owner without a placeable valued row"
 		);
 	}
 

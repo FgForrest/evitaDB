@@ -857,7 +857,7 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 	@ParameterizedTest(name = "{0}")
 	@MethodSource("sortRoutes")
 	void shouldPageThroughDescendingPrimaryKeyOrder(SortRoute route, EvitaSessionContract session) {
-		// every page after the first one used to fail with "Some records were not sorted or skipped!"
+		// every page continues where the previous one ended, without "Some records were not sorted or skipped!"
 		final Integer[] owners = {2, 4, 5, 6, 8};
 		final List<Executable> assertions = new ArrayList<>(3);
 		for (int pageSize : new int[]{1, 2, 3}) {

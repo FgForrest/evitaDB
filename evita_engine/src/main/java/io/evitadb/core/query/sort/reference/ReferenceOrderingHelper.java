@@ -49,8 +49,8 @@ public final class ReferenceOrderingHelper {
 	 * Returns the explicit specification, or traversal for a managed hierarchical target and pick-first otherwise.
 	 *
 	 * @param referenceProperty the ordering being planned
-	 * @param referenceSchema the ordered reference
-	 * @param queryContext the context supplying the target schema
+	 * @param referenceSchema   the ordered reference
+	 * @param queryContext      the context supplying the target schema
 	 * @return the effective ordering specification
 	 */
 	@Nonnull
@@ -70,8 +70,8 @@ public final class ReferenceOrderingHelper {
 	 * Tells whether the reference targets a managed entity type with a hierarchy.
 	 *
 	 * @param referenceSchema the reference whose target is checked
-	 * @param queryContext the context supplying the target schema
-	 * @return true when target ordering can traverse a managed hierarchy
+	 * @param queryContext    the context supplying the target schema
+	 * @return `true` when target ordering can traverse a managed hierarchy
 	 */
 	public static boolean isReferencedEntityHierarchical(
 		@Nonnull ReferenceSchemaContract referenceSchema,

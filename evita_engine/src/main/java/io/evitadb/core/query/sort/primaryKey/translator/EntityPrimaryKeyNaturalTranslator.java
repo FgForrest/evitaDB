@@ -153,7 +153,8 @@ public class EntityPrimaryKeyNaturalTranslator
 					ofNullable(processingScope.mergeModeDefinition())
 						.map(MergeModeDefinition::mergeMode)
 						.orElse(MergeMode.APPEND_FIRST),
-					orderDirection == OrderDirection.DESC ? Comparator.naturalOrder().reversed() : Comparator.naturalOrder(),
+					orderDirection == OrderDirection.DESC ?
+						Comparator.naturalOrder().reversed() : Comparator.naturalOrder(),
 					orderDirection,
 					() -> createReferencedPrimaryKeyProviders(partitions, orderDirection)
 				)

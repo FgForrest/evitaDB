@@ -40,6 +40,7 @@ import io.evitadb.core.query.sort.attribute.comparator.TraverseReferenceCompound
 import io.evitadb.core.query.sort.attribute.comparator.TraverseReferencePredecessorAttributeComparator;
 import io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.SortResult;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.attribute.ReferenceSortedRecordsProvider;
@@ -55,6 +56,7 @@ import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntUnaryOperator;
@@ -129,7 +131,7 @@ class PrefetchedRecordsSorterClassificationTest {
 			compound, REFERENCE_SCHEMA, null,
 			attributeName -> REFERENCE_SCHEMA.getAttribute(attributeName).map(AttributeSchemaContract.class::cast)
 				.orElseThrow(),
-			direction
+			direction, EnumSet.allOf(Scope.class)
 		);
 	}
 
@@ -554,7 +556,7 @@ class PrefetchedRecordsSorterClassificationTest {
 				attributeName -> VARIANTS_REFERENCE_SCHEMA.getAttribute(attributeName)
 					.map(AttributeSchemaContract.class::cast)
 					.orElseThrow(),
-				direction
+				direction, EnumSet.allOf(Scope.class)
 			);
 		}
 
@@ -827,22 +829,48 @@ class PrefetchedRecordsSorterClassificationTest {
 			);
 		}
 
+		/**
+		 * Classifies a singleton without a block before sorting, including a valued row absent from every provider.
+		 */
 		@Test
-		@DisplayName("should admit every owner to the chain comparison when no block is bound")
-		void shouldAdmitEveryOwnerToChainWithoutBlock() {
+		@DisplayName("should pass unplaceable singletons through an implicit reference chain")
+		void shouldPassUnplaceableSingletonsThroughImplicitChain() {
+			final TraverseReferencePredecessorAttributeComparator comparator = chainComparator();
+			final SortResult valueless = sort(comparator, null, 0, 10, 12);
+			final SortResult unplaced = sort(comparator, null, 0, 10, 16);
+			final SortResult placed = sort(comparator, null, 0, 10, 15);
+
+			assertAll(
+				() -> assertArrayEquals(new int[0], valueless.written(), "a valueless singleton is not claimed"),
+				() -> assertArrayEquals(new int[]{12}, valueless.passedOn()),
+				() -> assertArrayEquals(new int[0], unplaced.written(), "a provider must place the valued row"),
+				() -> assertArrayEquals(new int[]{16}, unplaced.passedOn()),
+				() -> assertArrayEquals(new int[]{15}, placed.written())
+			);
+		}
+
+		/**
+		 * Rejects valueless and unplaced owners before any unbound chain comparison.
+		 */
+		@Test
+		@DisplayName("should classify unbound chain owners by their first placeable valued row")
+		void shouldClassifyUnboundChainOwnersByPlaceableValuedRow() {
 			final TraverseReferencePredecessorAttributeComparator comparator = chainComparator();
 			comparator.prepareFor(2);
 
 			assertAll(
-				() -> assertTrue(comparator.canSort(OWNERS.get(12)), "value-less owner is left to the comparison"),
-				() -> assertTrue(comparator.canSort(OWNERS.get(16)), "unplaced owner is left to the comparison")
+				() -> assertFalse(comparator.canSort(OWNERS.get(12)), "a valueless owner has no representing row"),
+				() -> assertFalse(comparator.canSort(OWNERS.get(16)), "an unplaced owner has no representing row")
 			);
 		}
 
+		/**
+		 * Verifies that the sorter passes an owner without a chain value on before sorting the placed owners.
+		 */
 		@Test
-		@DisplayName("should hand on a value-less owner reported while comparing when no block is bound")
-		void shouldReportValueLessOwnerWhileComparingWithoutBlock() {
-			// owner 12's row of category 1 lacks `chain`, so the unbound comparison reports it and sorts it last
+		@DisplayName("should pass a valueless owner on before comparing an unbound chain")
+		void shouldPassValuelessOwnerBeforeComparingUnboundChain() {
+			// owner 12's row of category 1 lacks `chain`, so classification passes it on before comparison
 			final SortResult sorted = sort(chainComparator(), null, 0, 10, 11, 12, 13, 15);
 
 			assertAll(

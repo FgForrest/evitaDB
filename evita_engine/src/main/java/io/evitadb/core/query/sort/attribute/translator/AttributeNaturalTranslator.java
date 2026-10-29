@@ -273,15 +273,15 @@ public class AttributeNaturalTranslator
 			mergeMode = mergeModeDefinition == null ? MergeMode.APPEND_FIRST : mergeModeDefinition.mergeMode();
 			// the compound being sortable is the whole contract - its elements need not be sortable themselves, so
 			// the comparators of prefetched entities look the elements up without demanding any trait
+			final Set<Scope> sortableScopes = EnumSet.noneOf(Scope.class);
+			for (final Scope scope : processingScope.getScopes()) {
+				if (compoundSchemaContract.isIndexedInScope(scope)) {
+					sortableScopes.add(scope);
+				}
+			}
 			if (referenceSchema == null) {
 				// the comparator sorts the entities of exactly the scopes whose compound index sorts them on the index
 				// route - the ordered scopes (narrowed by `inScope`) in which the compound is indexed
-				final Set<Scope> sortableScopes = EnumSet.noneOf(Scope.class);
-				for (Scope scope : processingScope.getScopes()) {
-					if (compoundSchemaContract.isIndexedInScope(scope)) {
-						sortableScopes.add(scope);
-					}
-				}
 				entityComparator = new CompoundAttributeComparator(
 					compoundSchemaContract,
 					locale,
@@ -296,7 +296,8 @@ public class AttributeNaturalTranslator
 					referenceSchema,
 					locale,
 					attributeName -> processingScope.getAttributeSchema(attributeName),
-					orderDirection
+					orderDirection,
+					sortableScopes
 				);
 			}
 		} else if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema) {

@@ -50,7 +50,6 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -94,8 +93,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 3. inside a block owners follow the value, then their primary key, both in the direction of the ordering - owners
  *    of both scopes merged, rows sharing one target represented by the first valued row in representative order;
  * 4. a `hierarchyWithin` / `hierarchyWithinRoot` on the ordered reference that holds for every returned owner (reached
- *    through `filterBy`, `and` and - for the owners of its scope - `inScope`, never through `or` or `not`) bounds the
- *    traversal to its resolved node set, several such constraints to the union of their node sets; a
+ *    through `filterBy`, `and`, `userFilter` and - for the owners of its scope - `inScope`, never through `or` or
+ *    `not`) bounds the traversal to its resolved node set, several such constraints to the union of their node sets; a
  *    `referenceHaving` on the ordered reference only selects owners and never changes which rows order them;
  * 5. only the owners of the ordering's scopes are sorted; a target tree is walked per target scope, live tree first;
  *    a chain attribute is the exception to the merge of rule 3 - the live chain of a target precedes its archived
@@ -103,7 +102,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 6. several child sorters apply block by block - inside a block the first sorts the owners carrying its value, the
  *    next the rest - and an owner no block places is handed to the next sorter of the query.
  *
- * Rule 4 applies to `pickFirstByEntityProperty` as well - its witnesses live here, next to the hierarchy they need.
+ * Rule 4 applies to `pickFirstByEntityProperty` as well - its tests live here, next to the hierarchy they need.
  *
  * Each scenario runs on two routes the engine can take to the same answer: the index route, where the sorted-records
  * providers of the reduced indexes of each block are merged, and the prefetch route, where the fetched references are
@@ -111,26 +110,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * levels. **The route is proven, not assumed:** every ordered query asks for `queryTelemetry()` and asserts, as an
  * assertion of its own next to the order, that the `EXECUTION_PREFETCH` step is present on the prefetch route and
  * absent on the index route. A `PREFER_PREFETCHING` query that cannot prefetch (the planner prefetches only when some
- * constraint registered entity content to fetch) is therefore reported as a failed *route check*, never silently
- * run on the index route. The one exception is a filter holding `inScope(...)`: the prefetch route does not support
+ * constraint registered entity content to fetch) is therefore reported as a failed *route check*, never silently run on
+ * the index route. The one exception is a filter with a top-level `inScope(...)`: the prefetch route does not support
  * it yet (#1682, an enhancement outside #1670), so such a PREFETCH row asserts that the plan stays on the index route
- * and its order assertion checks the index route under the prefetch preference. Filter-only selection checks force
- * the same preference but do not assert the route: the prefetch of a query without an ordering depends on its filter
- * alone.
+ * and its order assertion checks the index route under the prefetch preference. Filter-only selection checks force the
+ * same preference but do not assert the route: the prefetch of a query without an ordering depends on its filter alone.
  *
- * **Witnesses of the extra defects found by P0 and folded into #1670** - their assertions name them in the failure
- * message, so a red that outlives C1-C6 is not read as a failure of the rule it sits next to:
- *
- * - *extra defect 1* - a traversal ordered by a target attribute throws "node not present in the index" when a row
- *   points to a target of the other scope's tree (`shouldWalkLiveTargetTreeBeforeArchivedOne`);
- * - *extra defect 2* - the prefetch compound comparator has no owner primary key tie-break, owned by P4
- *   (`shouldOrderByCompoundInsideBlock`).
- *
- * Two issues found by P0 are tracked outside #1670: *#1681* - for `scope(LIVE, ARCHIVED), entityLocaleEquals(...),
+ * Two known planner limitations lie outside the ordering itself: for `scope(LIVE, ARCHIVED), entityLocaleEquals(...),
  * inScope(LIVE, hierarchyWithin(R, ...))` on a partitioned reference the plan built on the `REFERENCED_ENTITY`
- * alternative of the hierarchy constraint returns no archived owner, and the default planner picks it by cost; this
- * fixture's filters carry no locale, so its witnesses live in `EntityByReferenceAttributeTraverseOracleFunctionalTest`
- * - and *#1682* - the prefetch route does not support a filter holding `inScope(...)` (see the route check above).
+ * alternative of the hierarchy constraint returns no archived owner, and the default planner picks it by cost - this
+ * fixture's filters carry no locale, so the scenarios showing it live in
+ * `EntityByReferenceAttributeTraverseOracleFunctionalTest`; and the prefetch route does not support a filter holding
+ * `inScope(...)` (see the route check above).
  *
  * **Targets.** Category (hierarchical, `rank` for a nested target order, `visible` for hierarchy modifiers):
  *
@@ -207,7 +198,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * The tag group is sized for `BidirectionalReferenceRewriter#worthRewriting`: the counterpart visits one reduced index
  * per tagged owner (4), the owner side one per tag (20), and 4 × 4 ≤ 20 - so a `referenceHaving(tags, ...)` of a
- * shape the rewrite reproduces is answered from the counterpart unless the query is ordered by `tags` (guard 4).
+ * shape the rewrite reproduces is answered from the counterpart, unless the query orders by `tags` with an ordering
+ * other than a traverse (a traverse derives its blocks independently of the filter plan).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -1103,9 +1095,10 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	}
 
 	/**
-	 * Tells whether the filter holds an `inScope(...)` container. An ordered query with one never prefetches - the
-	 * prefetch route does not support it yet (#1682, an enhancement outside #1670) - so a PREFETCH row with such a
-	 * filter is expected on the index route: it checks the index route under the prefetch preference.
+	 * Tells whether the filter holds a top-level `inScope(...)` container. An ordered query with one never prefetches
+	 * (an `inScope` nested in `userFilter` does prefetch) - the prefetch route does not support it yet (#1682, an
+	 * enhancement outside #1670) - so a PREFETCH row with such a filter is expected on the index route: it checks the
+	 * index route under the prefetch preference.
 	 */
 	private static boolean holdsInScope(@Nonnull FilterConstraint[] filters) {
 		return Arrays.stream(filters).anyMatch(FilterInScope.class::isInstance);
@@ -1447,6 +1440,40 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	}
 
 	/**
+	 * Checks the rule "Should bound the traversal by a hierarchyWithin reached through userFilter" - `userFilter` is a
+	 * conjunction like `and`, so a hierarchy constraint nested in it bounds the traversal exactly as one standing in
+	 * `filterBy` does.
+	 */
+	@DisplayName("Should bound the traversal by a hierarchyWithin reached through userFilter")
+	@UseDataSet(TRAVERSE_REFERENCES)
+	@ParameterizedTest(name = "{0} via {1}")
+	@MethodSource("hierarchicalRoutes")
+	void shouldBoundTraversalByHierarchyWithinUnderUserFilter(
+		String referenceName, SortRoute route, EvitaSessionContract session
+	) {
+		// the same owners and blocks as without userFilter: 4: 27 21 | 6: 28 20 | 7: 22 23 24 29 | unplaced 25; the
+		// unbounded traversal would place owners 20 and 23 in category 1, ahead of the subtree
+		final List<Executable> assertions = new ArrayList<>(4);
+		for (FilterConstraint filter : underUserFilter(hierarchyWithin(referenceName, entityPrimaryKeyInSet(4)))) {
+			assertions.add(
+				selectsAndOrders(
+					session, route, HIERARCHY_OWNERS, new FilterConstraint[]{filter},
+					byOrder(referenceName, OrderDirection.ASC), new int[]{27, 21, 28, 20, 22, 23, 24, 29, 25},
+					"ascending " + filter
+				)
+			);
+			assertions.add(
+				selectsAndOrders(
+					session, route, HIERARCHY_OWNERS, new FilterConstraint[]{filter},
+					byOrder(referenceName, OrderDirection.DESC), new int[]{21, 27, 20, 28, 29, 24, 23, 22, 25},
+					"descending " + filter
+				)
+			);
+		}
+		assertAll(assertions);
+	}
+
+	/**
 	 * One hierarchy constraint with its expected node set and order, see
 	 * {@link #shouldBoundTraversalByResolvedNodeSet(String, SortRoute, EvitaSessionContract)}.
 	 */
@@ -1583,7 +1610,7 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	 *
 	 * #1681 (the `REFERENCED_ENTITY` plan of the `inScope(LIVE, ...)` hierarchy constraint drops every archived owner
 	 * once the filter also holds `entityLocaleEquals`) does not reproduce here: this filter has no locale, and the
-	 * `{4, 6, 7}` alternative is not even built (HIGH_CARDINALITY). Its witnesses live in the oracle class.
+	 * `{4, 6, 7}` alternative is not even built (HIGH_CARDINALITY). Its tests live in the oracle class.
 	 */
 	@DisplayName("Should bound only the owners of the scope whose inScope holds the hierarchyWithin")
 	@UseDataSet(TRAVERSE_REFERENCES)
@@ -1809,12 +1836,9 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	/**
 	 * Checks the rule "Should walk the live target tree before the archived one".
 	 *
-	 * The two rank-ordered assertions are the witnesses of *extra defect 1*: a traversal ordered by a target attribute
-	 * throws "The node `10` is not present in the index!" as soon as a row reaches the archived category 10 - even for
-	 * the live-only query - because every scope's tree is asked for the parents of the whole family's targets. The
-	 * defect is fixed inside #1670 (a target is walked in the tree of its own scope); until then a red `by rank`
-	 * assertion is defect 1, not a failure of the live-then-archived tree order, which the primary key assertion pins
-	 * on its own.
+	 * A target is walked in the tree of its own scope. The two rank-ordered assertions pin that a traversal ordered by
+	 * a target attribute does not fail when a row reaches the archived category 10, which the live tree does not hold -
+	 * not even in the live-only query; the primary key assertion pins the live-then-archived tree order on its own.
 	 */
 	@DisplayName("Should walk the live target tree before the archived one")
 	@UseDataSet(TRAVERSE_REFERENCES)
@@ -1848,12 +1872,12 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 		final Executable byRank = () -> assertOrder(
 			new int[]{62, 61, 60},
 			queryOrder(session, route, ACROSS_SCOPES_OWNERS, bothScopes, byRankOrdering),
-			"by rank (extra defect 1 witness)"
+			"by rank"
 		);
 		final Executable byRankLiveOnly = () -> assertOrder(
 			new int[]{62, 61, 60},
 			queryOrder(session, route, ACROSS_SCOPES_OWNERS, NO_FILTER, byRankOrdering),
-			"by rank, live scope only (extra defect 1 witness)"
+			"by rank, live scope only"
 		);
 		assertAll(byDescendingPrimaryKey, byRank, byRankLiveOnly);
 	}
@@ -1978,7 +2002,7 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 		// - last valued row in representative order (73 by 5): [74, 70, 73, 72, 71] / [74, 71, 72, 73, 70]
 		// - first row whether valued or not (72 by the value-less a): [74, 70, 73, 71, 72] / [74, 71, 73, 70, 72]
 		// - one sub-block per representative, a before b before c before z: [74, 71, 72, 73, 70] / [74, 71, 73, 72, 70]
-		// - today's engine (C6, only the first representative key of target 2 is sorted): [74, 70, 71, 72, 73]
+		// - only the first representative key of target 2 sorted: [74, 70, 71, 72, 73]
 		final OrderConstraint ascending = referenceProperty(
 			referenceName, traverseByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
 			attributeNatural(ATTRIBUTE_ORDER, OrderDirection.ASC)
@@ -2057,12 +2081,10 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	/**
 	 * Checks the rule "Should order a block by owner primary key when ordering by the referenced primary key".
 	 *
-	 * The PREFETCH rows do prefetch today (the route is taken) and then fail with `ContextMissingException`: the
-	 * traverse branch of `entityPrimaryKeyNatural` never registers `referenceContent(R)` (C3a), so the comparator reads
-	 * a reference that was not fetched. The INDEX rows fail on the descending ties (C3c). The subset row was built for
-	 * C3b (a strict subset of a provider through the array-backed merge walk); whether its phantom match shows depends
-	 * on the contents of pooled buffers, so from run to run the subset row is red for C3b, red for C3c, or green on a
-	 * lucky tie - the oracle reproduces C3b steadily, and P2 owns a deterministic unit test of the merge walk.
+	 * The prefetch route has to fetch the rows of the ordered reference, although the query fetches no entity body,
+	 * because its comparator reads each owner's row of the block. On both routes the owners tied on the referenced
+	 * primary key follow their own primary key in the direction of the ordering, descending included. The subset row
+	 * selects a strict subset of the owners of the blocks it reaches.
 	 */
 	@DisplayName("Should order a block by owner primary key when ordering by the referenced primary key")
 	@UseDataSet(TRAVERSE_REFERENCES)
@@ -2106,7 +2128,7 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	 * Every block of the selection holds a single owner, so sorting a block compares nothing - the prefetch route
 	 * then still has to read each owner's row of the block to tell whether the owner belongs there, which needs the
 	 * references prefetched although the query fetches no entity body. The ordering is right whatever the tie-break,
-	 * so this row isolates the prefetch requirement of the traverse branch from C3b/C3c.
+	 * so this row isolates the prefetch requirement of the traverse branch from the tie-breaking rules.
 	 */
 	@DisplayName("Should place owners alone in their blocks when ordering by the referenced primary key")
 	@UseDataSet(TRAVERSE_REFERENCES)
@@ -2137,9 +2159,9 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	/**
 	 * Checks the rule "Should order by a sortable attribute compound inside each block".
 	 *
-	 * Owners 81 and 86 carry the identical tuple, so the descending assertion on the prefetch route is the witness of
-	 * *extra defect 2*: the prefetch compound comparator has no owner primary key tie-break and keeps tied owners in
-	 * input order. The tie-break is owned by P4, next to the one of `entityPrimaryKeyNatural` (C3c).
+	 * Owners 81 and 86 carry the identical tuple, so they follow their primary key in the direction of the ordering:
+	 * the descending assertion pins that the prefetch compound comparator breaks the tie by owner primary key rather
+	 * than keeping tied owners in input order.
 	 */
 	@DisplayName("Should order by a sortable attribute compound inside each block")
 	@UseDataSet(TRAVERSE_REFERENCES)
@@ -2166,7 +2188,7 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 					session, route, COMPOUND_OWNERS, NO_FILTER,
 					traverseOrdering(referenceName, attributeNatural(COMPOUND_ORDER_SECOND, OrderDirection.DESC))
 				),
-				"descending (the 81/86 tie: extra defect 2 on the prefetch route)"
+				"descending (the 81/86 tie broken by owner primary key)"
 			)
 		);
 	}
@@ -2178,8 +2200,8 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	 * primary key sorter mis-slices a page with an offset (#1671, fixed by PR #1672) - a red caused there would be
 	 * misattributed to this rule.
 	 *
-	 * On the prefetch route owner 94 is the lone member the second child sorter receives in block 5 - a value-less
-	 * owner alone in a sort that never compares it, so the block claims it (C2) and it precedes owner 96.
+	 * On the prefetch route owner 94 is the lone member the second child sorter receives in block 5. It carries no
+	 * value, so it passes on even alone and follows owner 96 by its `tail`.
 	 */
 	@DisplayName("Should apply several child sorters block by block and hand the rest to the outer sorter")
 	@UseDataSet(TRAVERSE_REFERENCES)
@@ -2306,6 +2328,54 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	}
 
 	/**
+	 * Checks the rule "Should bound a pickFirst ordering by a hierarchyWithin reached through userFilter" - the
+	 * conjunction `userFilter` bounds the picked rows exactly as `filterBy` does.
+	 */
+	@DisplayName("Should bound a pickFirst ordering by a hierarchyWithin reached through userFilter")
+	@UseDataSet(TRAVERSE_REFERENCES)
+	@ParameterizedTest(name = "{0} via {1}")
+	@MethodSource("hierarchicalRoutes")
+	void shouldBoundPickFirstByHierarchyWithinUnderUserFilter(
+		String referenceName, SortRoute route, EvitaSessionContract session
+	) {
+		// the same orders as without userFilter: owner 20's first row (1, 5) and owner 23's (1, 99) lie outside the
+		// subtree of 4, so they sort on (6, 50) and (7, 20)
+		final List<Executable> assertions = new ArrayList<>(4);
+		for (OrderDirection direction : OrderDirection.values()) {
+			final boolean ascending = direction == OrderDirection.ASC;
+			final OrderConstraint ordering = referenceProperty(
+				referenceName, pickFirstByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+				attributeNatural(ATTRIBUTE_ORDER, direction)
+			);
+			for (FilterConstraint filter : underUserFilter(hierarchyWithin(referenceName, entityPrimaryKeyInSet(4)))) {
+				assertions.add(
+					selectsAndOrders(
+						session, route, HIERARCHY_OWNERS, new FilterConstraint[]{filter}, ordering,
+						ascending ?
+							new int[]{27, 28, 22, 23, 24, 21, 20, 29, 25} :
+							new int[]{29, 20, 21, 24, 23, 22, 28, 27, 25},
+						direction + " " + filter
+					)
+				);
+			}
+		}
+		assertAll(assertions);
+	}
+
+	/**
+	 * Returns the two shapes reaching the hierarchy constraint through `userFilter`, which rejects a hierarchy
+	 * constraint as its direct child: through `inScope(LIVE, ...)`, and through an `and` whose second conjunct - the
+	 * selection the queries already restrict to - keeps the `and` from being folded into `userFilter`.
+	 */
+	@Nonnull
+	private static FilterConstraint[] underUserFilter(@Nonnull FilterConstraint hierarchy) {
+		return new FilterConstraint[]{
+			userFilter(inScope(Scope.LIVE, hierarchy)),
+			userFilter(and(hierarchy, entityPrimaryKeyInSet(HIERARCHY_OWNERS)))
+		};
+	}
+
+	/**
 	 * Checks that a hierarchy constraint inside the live filter scope bounds only live pick-first rows. Archived
 	 * owner 33 retains its target-1 value 2, while live owners 20 and 23 must use rows inside the subtree of 4.
 	 * The scoped filter currently uses the index route under both preferences because prefetch does not support it.
@@ -2366,14 +2436,14 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	/**
 	 * Checks the rule "Should place the live chain of a target before its archived chain".
 	 *
-	 * A chain attribute carries no value two owners could be merged by, so D3 makes it the exception to the in-block
-	 * merge of the scopes: the live chain of a target, then its archived chain. P3 replaces the concatenation of the
-	 * block's providers by a merge and must keep it for chains - this is the witness it depends on. Only the ascending
-	 * direction is pinned; D3 does not say whether a descending chain order also reverses the scope precedence.
+	 * A chain attribute carries no value two owners could be merged by, so it is the exception to the in-block merge of
+	 * the scopes: the providers of a block are merged by value, but chains are appended - the live chain of a target,
+	 * then its archived chain. Only the ascending direction is pinned; the rules leave open whether a descending chain
+	 * order also reverses the scope precedence.
 	 *
-	 * The archived-scope assertion also needs the live target of an archived owner to be walked in the live tree (see
-	 * {@link #shouldTraverseLiveTargetsOfArchivedOwners(String, SortRoute, EvitaSessionContract)}); on the category
-	 * references it is red today for that reason alone - today the archived tree, which lacks category 3, is walked.
+	 * The archived-scope assertion also needs the live target of an archived owner to be walked in the live tree, as
+	 * the archived tree lacks category 3 (see
+	 * {@link #shouldTraverseLiveTargetsOfArchivedOwners(String, SortRoute, EvitaSessionContract)}).
 	 */
 	@DisplayName("Should place the live chain of a target before its archived chain")
 	@UseDataSet(TRAVERSE_REFERENCES)
@@ -2411,8 +2481,8 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 
 	/**
 	 * Checks the rule "Should bound a pickFirst ordering by target rank to the node set of a hierarchyWithin" - the
-	 * path of D6 that orders the targets by a nested sorter (`getTargetRank`, the nested-order probe), which the
-	 * primary key witness above does not reach.
+	 * path that orders the targets by a nested sorter (`getTargetRank`, the nested-order probe), which the
+	 * primary key test above does not reach.
 	 */
 	@DisplayName("Should bound a pickFirst ordering by target rank to the node set of a hierarchyWithin")
 	@UseDataSet(TRAVERSE_REFERENCES)
@@ -2425,7 +2495,7 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 		// rank 10), which would otherwise be the first row of owners 111 and 114; no owner has two rows of one rank
 		// 110: 6 before 4 -> 50 | 111: (8, 1) outside -> (4, 30) | 112: (6, -) passes -> (4, 20) | 113: (6, 40) |
 		// 114: (5, 5) outside, (4, -) -> unplaced
-		// what each rejected reading would give ascending: every row (today) [111, 114, 112, 113, 110], the bound
+		// what each rejected reading would give ascending: every row [111, 114, 112, 113, 110], the bound
 		// but targets by primary key [110, 112, 111, 113, 114]
 		final FilterConstraint[] filter = {hierarchyWithin(referenceName, entityPrimaryKeyInSet(4))};
 		final List<Executable> assertions = new ArrayList<>(2);
@@ -2447,8 +2517,8 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	}
 
 	/**
-	 * Checks the rule "Should not bound the traversal by a facetHaving on the ordered reference" - E4 names
-	 * `facetHaving` explicitly: it selects owners by their targets like a hierarchy constraint does, but it never
+	 * Checks the rule "Should not bound the traversal by a facetHaving on the ordered reference":
+	 * `facetHaving` selects owners by their targets like a hierarchy constraint does, but it never
 	 * bounds the traversal, whether it stands in `filterBy` or in `userFilter`.
 	 */
 	@DisplayName("Should not bound the traversal by a facetHaving on the ordered reference")
@@ -2517,12 +2587,14 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	 * Checks the rule "Should order identically whether the bidirectional rewrite answers the referenceHaving or not".
 	 *
 	 * The rewrite is not switched by any public setting - it is taken whenever the shape and the index sizes allow it
-	 * (`BidirectionalReferenceRewriter#preparePlan`), and it removes the reduced-index candidates a traverse ordering
-	 * reads today. So the switch here is the filter shape: {@link #rewritableKindX()} is taken over,
-	 * {@link #notRewritableKindX()} is not, and both mean the same. The channel assertions prove the toggle on a query
-	 * that does not order by `tags` (guard 4 declines the rewrite for any query ordered by the same reference). Today
-	 * both ordered queries therefore run without the rewrite; P5 drops guard 4 for traverse orderings, and then this
-	 * witness compares a rewritten query with an unrewritten one, which is the gate P5 names.
+	 * (`BidirectionalReferenceRewriter#preparePlan`), and it removes the reduced-index candidates of the
+	 * `referenceHaving`, which a traverse ordering does not read - its bound comes from the filtered hierarchy alone.
+	 * So the switch here is the filter shape: {@link #rewritableKindX()} is taken over, {@link #notRewritableKindX()}
+	 * is not, and both mean the same. The channel assertions prove on a query ordered by `tail` that the rewrite is
+	 * taken for one shape and not for the other, and
+	 * {@link #shouldTakeBidirectionalRewriteUnderTraverseOrdering(SortRoute, EvitaSessionContract)} proves it is taken
+	 * under a traverse ordering by `tags` too - so the ordered queries here compare a rewritten query with an
+	 * unrewritten one.
 	 */
 	@DisplayName("Should order identically whether the bidirectional rewrite answers the referenceHaving or not")
 	@UseDataSet(TRAVERSE_REFERENCES)
@@ -2531,7 +2603,7 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	void shouldOrderIdenticallyWhetherBidirectionalRewriteApplies(SortRoute route, EvitaSessionContract session) {
 		// every tagged owner has a kind x row, so both shapes select all four; referenceHaving never bounds, so every
 		// row orders: 1: 122(20) 120(50) | 2: 121(30) | 4: 123(15)
-		// today's partition-level narrowing (C4) keeps only the tags holding a kind x row - 2 3 4 5 - and gives
+		// the rejected partition-level narrowing keeps only the tags holding a kind x row - 2 3 4 5 - and would give
 		// [121, 122, 123, 120] in both directions
 		final OrderConstraint byTail = attributeNatural(ATTRIBUTE_TAIL);
 		final List<Executable> assertions = new ArrayList<>(6);
@@ -2573,9 +2645,9 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 
 	/**
 	 * Checks the rule "Should answer the referenceHaving from the counterpart also when ordering by the reference" -
-	 * a witness of plan step P5, not of a semantic rule: once the filtered hierarchy alone bounds a traversal (E),
-	 * the reduced-index candidates of a `referenceHaving` no longer matter to it, and P5 drops guard 4 of the rewrite
-	 * for traverse orderings. Red until then; the ordering it produces is pinned by
+	 * a check of the plan choice, not of a semantic rule: the filtered hierarchy alone bounds a traversal, so the
+	 * reduced-index candidates of a `referenceHaving` do not matter to it and the rewrite stays available under a
+	 * traverse ordering of the same reference. The ordering it produces is pinned by
 	 * {@link #shouldOrderIdenticallyWhetherBidirectionalRewriteApplies(SortRoute, EvitaSessionContract)}.
 	 */
 	@DisplayName("Should answer the referenceHaving from the counterpart also when ordering by the reference")
@@ -2589,13 +2661,13 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 		);
 		assertFalse(
 			referenceIndexOptionRegistered(result),
-			() -> "P5 witness: guard 4 still declines the bidirectional rewrite for a traverse ordering by the same " +
-				"reference; registered planning alternatives: " + result.alternatives()
+			() -> "the bidirectional rewrite was declined for a traverse ordering by the same reference; " +
+				"registered planning alternatives: " + result.alternatives()
 		);
 	}
 
 	/**
-	 * Checks the rule "Should keep a seeded target order when an owner with an irrelevant target is added" (E5): the
+	 * Checks the rule "Should keep a seeded target order when an owner with an irrelevant target is added": the
 	 * universe of the nested target order is the set of targets the traversal visits - here every brand - and not the
 	 * targets of the selected owners. Adding an owner whose rows reach only targets no other selected owner references
 	 * must not reorder the others.
@@ -2604,11 +2676,11 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	 * Under the rejected universe - the selected owners' targets - the selection shuffles brands 1-7 without owner 7
 	 * and brands 1-9 with it. The Fisher-Yates shuffle `RandomSorter` runs, seeded with 42 over the ascending keys,
 	 * gives 2 5 6 4 1 7 3 for brands 1-7 and 9 2 1 6 5 3 4 7 8 for brands 1-9, so the owners of the selection would
-	 * come back as [5, 10, 6, 11, 3, 9, 2, 1, 4] without owner 7 and as [5, 10, 6, 11, 1, 3, 9, 2, 4] with it -
-	 * owner 1 (brand 3) jumps ahead of owners 3, 9 and 2 (brand 4) and the relation breaks. Under E5 both queries
-	 * shuffle brands 1-9 and the second order is the answer to both. Only the flat brand is used: every sibling set of
-	 * the category tree has at most two members, and no selection of this fixture puts the two members of one on the
-	 * two sides of the relation, so a tree variant could not tell the universes apart.
+	 * come back as [5, 10, 6, 11, 3, 9, 2, 1, 4] without owner 7 and as [5, 10, 6, 11, 1, 3, 9, 2, 4] with it - owner 1
+	 * (brand 3) jumps ahead of owners 3, 9 and 2 (brand 4) and the relation breaks. Under the traversal's universe both
+	 * queries shuffle brands 1-9 and the second order is the answer to both. Only the flat brand is used: every sibling
+	 * set of the category tree has at most two members, and no selection of this fixture puts the two members of one on
+	 * the two sides of the relation, so a tree variant could not tell the universes apart.
 	 */
 	@DisplayName("Should keep a seeded target order when an owner with an irrelevant target is added")
 	@UseDataSet(TRAVERSE_REFERENCES)
@@ -2658,9 +2730,8 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	 * the order must not depend on which index set the planner picks. `VERIFY_ALTERNATIVE_INDEX_RESULTS` executes every
 	 * eligible alternative and fails the query when two of them answer differently; each scenario also asserts that at
 	 * least two plans were built, or the verification would have compared nothing - except a scenario whose alternative
-	 * is not eligible for a plan of its own, which asserts the single plan and the reason instead. This is the
-	 * plan-choice counterfactual of P5: the hierarchy bound must come from the resolved node set, not from whichever
-	 * `TargetIndexes` the chosen plan happened to register.
+	 * is not eligible for a plan of its own, which asserts the single plan and the reason instead. The hierarchy bound
+	 * must come from the resolved node set, not from whichever `TargetIndexes` the chosen plan happened to register.
 	 */
 	@DisplayName("Should order identically on every alternative plan")
 	@UseDataSet(TRAVERSE_REFERENCES)

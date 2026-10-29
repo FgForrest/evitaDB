@@ -68,10 +68,10 @@ import static io.evitadb.core.query.sort.attribute.sorter.MergedSortedRecordsSup
  * owners in the same order. Chain positions are not comparable across providers, so the entities of a block follow
  * the provider that placed them: entities represented by a key whose providers are lined up earlier precede those
  * represented by a key lined up later - even when the representative values of the two keys compare equal - and for
- * one key the live chain precedes the archived one. Without a bound block (a chain sorted under
- * an implicit {@code pickFirst}), every entity is classified as sortable and
- * {@link #compare(EntityContract, EntityContract)} keeps reporting the entities it cannot place through
- * {@link #getNonSortedEntities()}.
+ * one key the live chain precedes the archived one. Without a bound block (a chain sorted under an implicit
+ * `pickFirst`), the entity is represented the same way among all its rows, so an entity without a placeable valued
+ * row is classified as not sortable there too. Direct comparisons without prior classification report every entity
+ * they cannot place through {@link #getNonSortedEntities()}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -108,7 +108,7 @@ public class TraverseReferencePredecessorAttributeComparator
 	@Nullable private LinkedHashMap<RepresentativeReferenceKey, OffsetAndLimit> sortedRecordsOffsets;
 	/**
 	 * Array of caches storing the index positions of entities for each {@link SortedRecordsProvider}. Named apart from
-	 * the inherited {@code cache} of the compared values, which lives for one block only, while positions stay valid
+	 * the inherited `cache` of the compared values, which lives for one block only, while positions stay valid
 	 * for the whole query.
 	 */
 	private IntIntMap[] positionCaches;
@@ -175,7 +175,8 @@ public class TraverseReferencePredecessorAttributeComparator
 	/**
 	 * Picks the reference the entity is sorted by: within a bound block the row representing the entity in it (see
 	 * {@link #pickRow(EntityContract, Collection)}), without a block the first valued reference in target and
-	 * representative-key order, following the chain providers just as the index route does.
+	 * representative-key order, following the chain providers just as the index route does. The inherited
+	 * classifier memoizes this choice before sorting, so even an unbound singleton needs a placeable valued row.
 	 *
 	 * @param entity the entity whose reference is picked
 	 * @return the picked reference, empty when there is none
@@ -255,7 +256,10 @@ public class TraverseReferencePredecessorAttributeComparator
 	 */
 	private boolean isPlacedByProviders(@Nonnull OffsetAndLimit offsetAndLimit, int primaryKey) {
 		for (int i = offsetAndLimit.offset(); i < offsetAndLimit.limit(); i++) {
-			if (cachedPositionOf(this.sortedRecordsProviders, this.positionCaches, i, this.estimatedCount, primaryKey) >= 0) {
+			final int position = cachedPositionOf(
+				this.sortedRecordsProviders, this.positionCaches, i, this.estimatedCount, primaryKey
+			);
+			if (position >= 0) {
 				return true;
 			}
 		}
@@ -263,29 +267,12 @@ public class TraverseReferencePredecessorAttributeComparator
 	}
 
 	/**
-	 * Classifies an owner by its representing row within the bound block, passing owners without a placed row on
-	 * even for a singleton selection. The positions resolved while picking the row are memoized for comparisons.
-	 * Without a bound block, retains the implicit chain's classification through comparison.
-	 *
-	 * @param entity the entity to classify
-	 * @return `true` when a chain provider can place the owner, or no block is bound
-	 */
-	@Override
-	public boolean canSort(@Nonnull EntityContract entity) {
-		if (this.referenceKey == null) {
-			return true;
-		}
-		// the picked row is placed by a provider of its key already
-		return getMemoizedValue(entity) != ReferenceAttributeValue.MISSING_VALUE;
-	}
-
-	/**
 	 * Compares two entities by their positions in the chain providers. Within a bound block both entities were
 	 * classified as placeable by {@link #canSort(EntityContract)}, so each is found in the providers of its
 	 * representing row's key: entities of one key follow its chains, entities of two keys follow the order the
 	 * providers of the keys are lined up in - the order the index route appends their chains in, which tells apart
-	 * even keys whose representative values compare equal. Without a bound block the entities may sit on different
-	 * references and the comparison reports every entity it cannot place through {@link #getNonSortedEntities()}.
+	 * even keys whose representative values compare equal. Direct comparisons without prior classification
+	 * report every entity they cannot place through {@link #getNonSortedEntities()}.
 	 *
 	 * @param o1 the first entity
 	 * @param o2 the second entity

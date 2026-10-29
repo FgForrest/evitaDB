@@ -95,8 +95,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * - the partitions of the nodes of a hierarchy option (`ReferencePropertyTranslator`).
  *
  * Exact attribute sets are also resolved block by block, across all representative keys and scopes of each
- * target. The several-block exact witness reads listed values from registry rows and compares every page window
- * with materialized partitions; the narrowed witness retains the released referenceHaving query shape.
+ * target. The several-block exact test reads listed values from registry rows and compares every page window
+ * with materialized partitions; the narrowed test retains the released referenceHaving query shape.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

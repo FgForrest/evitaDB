@@ -529,9 +529,9 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * Returns the primary keys of the records of the ordered scopes when an `inScope` container narrows them below the
 	 * scopes of the query, and `null` when the ordering applies to every queried scope. An entity-level ordering whose
 	 * sorter cannot tell the scopes apart (primary key and price orders) wraps it in a {@link ScopedSorter} with these
-	 * records, so that it sorts only the entities of its scope. A reference ordering is limited by the reduced indexes
-	 * of its scopes instead, and a query without a collection has no collection index telling which records a scope
-	 * holds - both get `null`.
+	 * records, so that it sorts only the entities of its scope. Nested reference orderings use the same restriction
+	 * on their selected owners while retaining the enclosing traversal blocks. A query without a collection has no
+	 * collection index telling which records a scope holds and gets `null`.
 	 *
 	 * @return the records of the ordered scopes, or `null` when the ordering is not narrowed
 	 */
@@ -540,8 +540,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		final ProcessingScope processingScope = getProcessingScope();
 		final Set<Scope> orderedScopes = processingScope.getScopes();
 		if (
-			processingScope.referenceSchema() != null ||
-				!this.queryContext.isEntityTypeKnown() ||
+			!this.queryContext.isEntityTypeKnown() ||
 				orderedScopes.containsAll(this.queryContext.getScopes())
 		) {
 			return null;
@@ -621,7 +620,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * by {@link ProcessingScope#pickFirstIndexResolver()}; a consumer asking for them at planning time gets
 	 * {@link PickFirstReducedIndexResolver#getPlanningIndexes()}.
 	 *
-	 * @return the partitions in target order
+	 * @return the partitions of the ordered scopes in target order
 	 * @throws GenericEvitaInternalError when called outside a reference ordering
 	 */
 	@Nonnull
@@ -634,7 +633,11 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		}
 		final ReferencePartition[] partitions = theScope.referencePartitions();
 		isPremiseValid(partitions != null, "Reference partitions are available only within a reference ordering!");
-		return partitions;
+		final Set<Scope> orderedScopes = theScope.getScopes();
+		return orderedScopes.containsAll(this.queryContext.getScopes()) ? partitions :
+			Arrays.stream(partitions)
+				.filter(partition -> orderedScopes.contains(partition.getIndexKey().scope()))
+				.toArray(ReferencePartition[]::new);
 	}
 
 	/**
@@ -709,8 +712,17 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 			throw new GenericEvitaInternalError("Should never happen");
 		}
 		// compose sorters one after another
-		final Deque<Sorter> sortersQueue = getProcessingScope().sorters();
-		currentSorters.forEach(sortersQueue::add);
+		final ProcessingScope processingScope = getProcessingScope();
+		final Deque<Sorter> sortersQueue = processingScope.sorters();
+		if (processingScope.referenceSchema() == null) {
+			currentSorters.forEach(sortersQueue::add);
+		} else {
+			// restrict each child independently, preserving the block for its following child orderings
+			final Bitmap scopeRecords = getRecordsOfNarrowedScopes();
+			currentSorters.forEach(
+				sorter -> sortersQueue.add(scopeRecords == null ? sorter : new ScopedSorter(scopeRecords, sorter))
+			);
+		}
 	}
 
 	/**

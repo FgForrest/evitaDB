@@ -199,8 +199,8 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 					}
 				}
 
-				// the heads of the runs form a binary min-heap - one advance costs O(log k) comparisons and moves, where
-				// keeping the heads in a sorted array shifted up to k - 1 of them per emitted record
+				// the heads of the runs form a binary min-heap - one advance costs O(log k) comparisons and moves,
+				// where keeping the heads in a sorted array shifted up to k - 1 of them per emitted record
 				for (int i = (sortedRecordsProviderBufferPeak >>> 1) - 1; i >= 0; i--) {
 					siftDown(sortedRecordsProviderBuffers, sortedRecordsProviderBufferPeak, i);
 				}
@@ -219,7 +219,8 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 					if (!sortedPk.fetchNext()) {
 						// the run is exhausted - its last head takes the root and sinks
 						sortedPk.close();
-						sortedRecordsProviderBuffers[0] = sortedRecordsProviderBuffers[--sortedRecordsProviderBufferPeak];
+						sortedRecordsProviderBufferPeak--;
+						sortedRecordsProviderBuffers[0] = sortedRecordsProviderBuffers[sortedRecordsProviderBufferPeak];
 						sortedRecordsProviderBuffers[sortedRecordsProviderBufferPeak] = null;
 					}
 					if (sortedRecordsProviderBufferPeak > 1) {

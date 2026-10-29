@@ -49,7 +49,7 @@ import static java.util.Optional.ofNullable;
 public interface EntityReferenceSensitiveComparator extends EntityComparator {
 
 	/**
-	 * Executes the provided {@code lambda} within the context of a specific referenced entity ID - the traversal block
+	 * Executes the provided `lambda` within the context of a specific referenced entity ID - the traversal block
 	 * of that referenced entity. The key names the referenced entity only; its representative attribute values carry
 	 * no meaning, since a block holds every row of the entity to the referenced entity (see
 	 * {@link #getFirstValuedReference(EntityContract, ReferenceSchema, ReferenceKey, Predicate)}).

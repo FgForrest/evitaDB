@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.sort.attribute.comparator;
 
-import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.IntIntMap;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
@@ -39,7 +38,6 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.IntUnaryOperator;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.COMPARATOR;
@@ -307,54 +305,14 @@ class PredecessorAttributeComparatorTest {
 	}
 
 	@Nested
-	@DisplayName("Position cache (computeIfAbsent, cachedPositionOf)")
+	@DisplayName("Position cache (cachedPositionOf)")
 	class PositionCacheTest {
 
 		@Test
-		@DisplayName("caches a resolved position of zero via the reserved remap and never re-invokes the locator")
-		void shouldRoundTripPositionZeroThroughComputeIfAbsentCache() {
-			// position 0 collides with the map's "absent" default, so it is stored as the reserved Integer.MIN_VALUE remap
-			final IntIntMap cache = new IntIntHashMap(16);
-			final CountingLocator locator = new CountingLocator(0);
-			final int primaryKey = 42;
-
-			final int first = PredecessorAttributeComparator.computeIfAbsent(cache, primaryKey, locator);
-			assertEquals(0, first, "the resolved position must be reported verbatim as 0");
-			assertEquals(1, locator.invocations(), "the first lookup must invoke the locator exactly once");
-			assertEquals(Integer.MIN_VALUE, cache.get(primaryKey), "position 0 must be stored as the reserved remap");
-
-			final int second = PredecessorAttributeComparator.computeIfAbsent(cache, primaryKey, locator);
-			assertEquals(0, second, "the cached remap must decode back to position 0");
-			assertEquals(1, locator.invocations(), "a cached position must not re-invoke the locator");
-		}
-
-		@Test
-		@DisplayName("caches the not-found sentinel and a positive position, each resolved once")
-		void shouldCacheAndReturnPositionNotFoundSentinelViaComputeIfAbsent() {
-			final IntIntMap cache = new IntIntHashMap(16);
-
-			// the not-found sentinel (-1) is stored verbatim (it is neither 0 nor the reserved remap) and memoized
-			final CountingLocator absentLocator = new CountingLocator(SortedRecordsProvider.POSITION_NOT_FOUND);
-			final int absentKey = 7;
-			assertEquals(SortedRecordsProvider.POSITION_NOT_FOUND, PredecessorAttributeComparator.computeIfAbsent(cache, absentKey, absentLocator));
-			assertEquals(1, absentLocator.invocations(), "the first lookup resolves the sentinel");
-			assertEquals(SortedRecordsProvider.POSITION_NOT_FOUND, PredecessorAttributeComparator.computeIfAbsent(cache, absentKey, absentLocator));
-			assertEquals(1, absentLocator.invocations(), "the cached sentinel must not re-invoke the locator");
-			assertEquals(SortedRecordsProvider.POSITION_NOT_FOUND, cache.get(absentKey), "the sentinel is stored verbatim");
-
-			// a positive position round-trips unchanged and is likewise resolved only once
-			final CountingLocator positiveLocator = new CountingLocator(5);
-			final int presentKey = 9;
-			assertEquals(5, PredecessorAttributeComparator.computeIfAbsent(cache, presentKey, positiveLocator));
-			assertEquals(1, positiveLocator.invocations(), "the first lookup resolves the position");
-			assertEquals(5, PredecessorAttributeComparator.computeIfAbsent(cache, presentKey, positiveLocator));
-			assertEquals(1, positiveLocator.invocations(), "the cached position must not re-invoke the locator");
-			assertEquals(5, cache.get(presentKey), "a positive position is stored verbatim");
-		}
-
-		@Test
-		@DisplayName("stores a position of zero found by cachedPositionOf under the remap computeIfAbsent decodes")
-		void shouldShareZeroEncodingBetweenCachedPositionOfAndComputeIfAbsent() {
+		@DisplayName("caches a resolved position of zero via the reserved remap and never probes the provider again")
+		void shouldRoundTripPositionZeroThroughCache() {
+			// position 0 collides with the map's "absent" default, so it is stored as the reserved
+			// Integer.MIN_VALUE remap
 			final SortedRecordsProvider[] providers = {singleRecordProvider(42)};
 			final IntIntMap[] caches = new IntIntMap[1];
 
@@ -365,30 +323,35 @@ class PredecessorAttributeComparatorTest {
 			assertTrue(caches[0] != null, "the cache of the provider is created on first use");
 			assertEquals(Integer.MIN_VALUE, caches[0].get(42), "position 0 must be stored as the reserved remap");
 
-			final CountingLocator locator = new CountingLocator(7);
+			// a provider that does not hold record 42 is not consulted any more
+			providers[0] = singleRecordProvider(7);
 			assertEquals(
-				0, PredecessorAttributeComparator.computeIfAbsent(caches[0], 42, locator),
-				"computeIfAbsent decodes the remap back to position 0"
+				0, PredecessorAttributeComparator.cachedPositionOf(providers, caches, 0, 4, 42),
+				"the cached remap must decode back to position 0 without probing the provider"
 			);
-			assertEquals(0, locator.invocations(), "a position cached by cachedPositionOf must not be resolved again");
 		}
 
 		@Test
-		@DisplayName("reads the positions computeIfAbsent memoized, zero included, without probing the provider")
-		void shouldReadPositionsMemoizedByComputeIfAbsent() {
-			// the provider holds neither record and would answer POSITION_NOT_FOUND for both
-			final SortedRecordsProvider[] providers = {singleRecordProvider(42)};
-			final IntIntMap[] caches = {new IntIntHashMap(16)};
-			PredecessorAttributeComparator.computeIfAbsent(caches[0], 7, new CountingLocator(3));
-			PredecessorAttributeComparator.computeIfAbsent(caches[0], 8, new CountingLocator(0));
+		@DisplayName("caches a positive position verbatim and never probes the provider again")
+		void shouldCachePositivePositionVerbatim() {
+			final SortedRecordsProvider[] providers = {
+				new SortedRecordsSupplier(
+					1L, new int[]{7, 9}, new int[]{0, 1}, new BaseBitmap(7, 9), SortedComparableForwardSeeker.EMPTY
+				)
+			};
+			final IntIntMap[] caches = new IntIntMap[1];
 
 			assertEquals(
-				3, PredecessorAttributeComparator.cachedPositionOf(providers, caches, 0, 4, 7),
-				"a positive position memoized by computeIfAbsent"
+				1, PredecessorAttributeComparator.cachedPositionOf(providers, caches, 0, 4, 9),
+				"record 9 sits at position 1"
 			);
+			assertEquals(1, caches[0].get(9), "a positive position is stored verbatim");
+
+			// a provider that does not hold record 9 is not consulted any more
+			providers[0] = singleRecordProvider(7);
 			assertEquals(
-				0, PredecessorAttributeComparator.cachedPositionOf(providers, caches, 0, 4, 8),
-				"a position of zero memoized by computeIfAbsent"
+				1, PredecessorAttributeComparator.cachedPositionOf(providers, caches, 0, 4, 9),
+				"the cached position must be returned without probing the provider"
 			);
 		}
 
@@ -414,29 +377,6 @@ class PredecessorAttributeComparatorTest {
 				PredecessorAttributeComparator.cachedPositionOf(providers, caches, 0, 4, 99),
 				"the cached sentinel must be returned without probing the provider"
 			);
-		}
-	}
-
-	/**
-	 * Counting {@link IntUnaryOperator} that returns a fixed position and records how many times it was invoked, so the
-	 * memoization of {@link PredecessorAttributeComparator#computeIfAbsent} can be asserted.
-	 */
-	private static final class CountingLocator implements IntUnaryOperator {
-		private final int result;
-		private int invocations;
-
-		CountingLocator(int result) {
-			this.result = result;
-		}
-
-		@Override
-		public int applyAsInt(int operand) {
-			this.invocations++;
-			return this.result;
-		}
-
-		int invocations() {
-			return this.invocations;
 		}
 	}
 

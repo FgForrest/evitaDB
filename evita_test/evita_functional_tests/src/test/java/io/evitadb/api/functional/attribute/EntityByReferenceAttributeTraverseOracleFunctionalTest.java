@@ -130,7 +130,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * - the nested sorter of `rank` appends every ninth (unranked) target after the ranked ones in ascending primary key
  *   order - its tail convention;
  * - owners no block places follow in ascending primary key order whatever the direction - the default tail when the
- *   query has no next sorter, compatible with D1;
+ *   query has no next sorter, as for any owner whose rows carry no value;
  * - `label` is compared by `String` natural order while the engine uses a collator; the two agree for the single
  *   letters `a`-`j` the dataset writes, which is why the alphabet stays that small.
  *
@@ -208,7 +208,7 @@ public class EntityByReferenceAttributeTraverseOracleFunctionalTest {
 	private static final Scope[] BOTH_SCOPES = {Scope.LIVE, Scope.ARCHIVED};
 	/**
 	 * A handful of live owners. For some target orders owner 11 holds value-less rows in targets reached before its
-	 * valued one, which makes it a lone value-less member of a block (C2) - a property of seed 42 and of the target
+	 * valued one, which makes it a lone value-less member of a block - a property of seed 42 and of the target
 	 * order, not of every combination; the lone-owner case is pinned on its own by the hand-built class.
 	 */
 	private static final int[] SMALL_SELECTION = {3, 11, 150, 151, 152, 290};
@@ -357,7 +357,7 @@ public class EntityByReferenceAttributeTraverseOracleFunctionalTest {
 		/**
 		 * Live owners with a row in the subtree of the fixture's hierarchy node - `inScope(LIVE, hierarchyWithin)` -
 		 * and every archived owner, which the hierarchy constraint neither selects nor bounds. On the prefetch route of
-		 * a partitioned tree reference this selection is a witness of *#1681*, a plan-choice defect of the filter
+		 * a partitioned tree reference this selection pins *#1681*, a plan-choice defect of the filter
 		 * fixed on its own branch before #1670: the plan built on the `REFERENCED_ENTITY` alternative of the
 		 * `inScope(LIVE, ...)` hierarchy constraint loses every archived owner when `entityLocaleEquals` is in the
 		 * filter, and the default planner and `PREFER_PREFETCHING` pick it by cost (`PREFER_INDEX_SCAN` picks the global
@@ -372,17 +372,17 @@ public class EntityByReferenceAttributeTraverseOracleFunctionalTest {
 		LIVE_ORDERING_BOTH_SCOPES(false),
 		/**
 		 * Live owners with a row in each of two disjoint subtrees, selected by two conjunctive `hierarchyWithin` on the
-		 * ordered reference - the traversal is bounded by the union of the two node sets (E3).
+		 * ordered reference - the traversal is bounded by the union of the two node sets.
 		 */
 		UNION_OF_TWO_SUBTREES(true),
 		/**
 		 * Live owners with a row in the subtree of the fixture's hierarchy node, or with a primary key up to
-		 * {@link #OR_OWNER_LIMIT} - the hierarchy constraint sits under `or`, so it never bounds (E4).
+		 * {@link #OR_OWNER_LIMIT} - the hierarchy constraint sits under `or`, so it never bounds.
 		 */
 		HIERARCHY_UNDER_OR(true),
 		/**
 		 * Live owners without any row in the subtree of the fixture's hierarchy node - the constraint sits under `not`,
-		 * so it never bounds (E4).
+		 * so it never bounds.
 		 */
 		HIERARCHY_UNDER_NOT(true);
 
@@ -759,16 +759,17 @@ public class EntityByReferenceAttributeTraverseOracleFunctionalTest {
 	}
 
 	/**
-	 * Checks the rule "Should select every owner of the inScope hierarchy filter on every plan" - the witness of #1681.
+	 * Checks the rule "Should select every owner of the inScope hierarchy filter on every plan" - the regression test
+	 * of #1681.
 	 *
 	 * The filter of {@link Selection#LIVE_HIERARCHY_WITHIN_BOTH_SCOPES} - `scope(LIVE, ARCHIVED)`,
 	 * `entityLocaleEquals`, `inScope(LIVE, hierarchyWithin(R, node))` - must select the live owners with a row in the
-	 * subtree and every archived owner (122 owners, 42 of them archived, on seed 42). Today the plan built on the
-	 * `REFERENCED_ENTITY` alternative of the hierarchy constraint - which holds the live partitions only - loses the
-	 * archived owners (80 owners on `treePartitioning`, 84 on `treeDuplicates`), and the default planner picks that
-	 * plan because it is cheaper; the plan on the global indexes is right. So the witness runs without any debug mode
-	 * (what a production query gets) and with `VERIFY_ALTERNATIVE_INDEX_RESULTS`, which executes every alternative and
-	 * must not report them as inconsistent. Without `entityLocaleEquals` both plans agree today.
+	 * subtree and every archived owner (122 owners, 42 of them archived, on seed 42). The plan built on the
+	 * `REFERENCED_ENTITY` alternative of the hierarchy constraint holds the live partitions only, and the default
+	 * planner picks it because it is cheaper; it must still return the archived owners, as the plan on the global
+	 * indexes does. Before #1681 was fixed it lost them (80 owners on `treePartitioning`, 84 on `treeDuplicates`).
+	 * So the test runs without any debug mode (what a production query gets) and with
+	 * `VERIFY_ALTERNATIVE_INDEX_RESULTS`, which executes every alternative and must not report them as inconsistent.
 	 */
 	@DisplayName("Should select every owner of the inScope hierarchy filter on every plan (#1681)")
 	@UseDataSet(TRAVERSE_ORACLE)
@@ -1181,7 +1182,7 @@ public class EntityByReferenceAttributeTraverseOracleFunctionalTest {
 		}
 		final Set<Integer> subtree = subtree(fixture.parent(), fixture.hierarchyNode());
 		final Set<Integer> secondSubtree = subtree(fixture.parent(), fixture.secondHierarchyNode());
-		// the node set bounding the traversal - null where no hierarchy constraint holds for every owner (E4)
+		// the node set bounding the traversal - null where no hierarchy constraint holds for every owner
 		final Set<Integer> nodeSet = switch (selection) {
 			case HIERARCHY_WITHIN, LIVE_HIERARCHY_WITHIN_BOTH_SCOPES -> subtree;
 			case HIERARCHY_WITHIN_EXCLUDING_ROOT -> {

@@ -37,7 +37,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.function.Consumer;
-import java.util.function.IntUnaryOperator;
 import java.util.function.Supplier;
 
 /**
@@ -192,18 +191,14 @@ public class PredecessorAttributeComparator implements EntityComparator {
 		int o1FoundInProvider = -1;
 		int o2FoundInProvider = -1;
 		for (int i = fromIndex; i < toIndex; i++) {
-			final SortedRecordsProvider sortedRecordsProvider = sortedRecordsProviders[i];
-			if (cache[i] == null) {
-				// let's create the cache with estimated size multiply 5 expected steps for binary search
-				//noinspection ObjectAllocationInLoop
-				cache[i] = new IntIntHashMap(estimatedCount * 5);
-			}
 			// resolve each entity's sorted position directly (tree-direct or array-backed, per the provider);
 			// the cache stores the resolved position and POSITION_NOT_FOUND (-1) for absent records
-			final int o1Position = o1FoundInProvider > -1 ? -1
-				: computeIfAbsent(cache[i], o1.getPrimaryKeyOrThrowException(), sortedRecordsProvider::positionOf);
-			final int o2Position = o2FoundInProvider > -1 ? -1
-				: computeIfAbsent(cache[i], o2.getPrimaryKeyOrThrowException(), sortedRecordsProvider::positionOf);
+			final int o1Position = o1FoundInProvider > -1 ? -1 : cachedPositionOf(
+				sortedRecordsProviders, cache, i, estimatedCount, o1.getPrimaryKeyOrThrowException()
+			);
+			final int o2Position = o2FoundInProvider > -1 ? -1 : cachedPositionOf(
+				sortedRecordsProviders, cache, i, estimatedCount, o2.getPrimaryKeyOrThrowException()
+			);
 			// if both entities are found in the same provider, compare their positions
 			if (o1Position >= 0 && o2Position >= 0) {
 				result = Integer.compare(o1Position, o2Position);
@@ -242,11 +237,11 @@ public class PredecessorAttributeComparator implements EntityComparator {
 
 	/**
 	 * Resolves the sorted position of the primary key in the provider at `providerIndex`, memoized in the provider's
-	 * cache under the very encoding {@link #computeIfAbsent(IntIntMap, Integer, IntUnaryOperator)} uses, so positions
-	 * resolved here are reused by {@link #comparePositionsAcrossProviders} and vice versa. The cache of the provider
-	 * is created on first use with the size {@link #comparePositionsAcrossProviders} would give it. Unlike
-	 * {@link #computeIfAbsent(IntIntMap, Integer, IntUnaryOperator)} it neither boxes the primary key nor needs a
-	 * method reference, so it allocates nothing once the cache exists.
+	 * cache so a primary key is located only once per sort. The cache of the provider is created on first use, sized
+	 * for five binary-search steps per expected entity. A resolved position of `0` is stored as the reserved
+	 * `Integer.MIN_VALUE` remap to stay distinct from the HPPC map's absent-default `0`, and decoded back to `0` on
+	 * read; `POSITION_NOT_FOUND` (`-1`) and positive positions are stored verbatim. The primary key is never boxed and
+	 * no method reference is captured, so the lookup allocates nothing once the cache exists.
 	 *
 	 * @param sortedRecordsProviders providers ordered by precedence
 	 * @param cache                  per-provider position cache, lazily populated
@@ -274,34 +269,6 @@ public class PredecessorAttributeComparator implements EntityComparator {
 			return computedIndex;
 		} else {
 			return result == Integer.MIN_VALUE ? 0 : result;
-		}
-	}
-
-	/**
-	 * Memoizes each entity's resolved sorted position per provider, so a primary key is located only
-	 * once per sort. A resolved position of `0` is stored as the reserved `Integer.MIN_VALUE` remap
-	 * to stay distinct from the HPPC map's absent-default `0`, and decoded back to `0` on read;
-	 * `POSITION_NOT_FOUND` (`-1`) and positive positions are stored verbatim and memoized.
-	 *
-	 * @param cache        cache to use
-	 * @param primaryKey   primary key of the entity to find
-	 * @param indexLocator function to compute the sorted position of the entity
-	 * @return sorted position of the entity
-	 */
-	static int computeIfAbsent(@Nonnull IntIntMap cache, @Nonnull Integer primaryKey, @Nonnull IntUnaryOperator indexLocator) {
-		final int result = cache.get(primaryKey);
-		// when the value was not found 0 is returned
-		if (result == 0) {
-			final int computedIndex = indexLocator.applyAsInt(primaryKey);
-			// if the index was computed as 0 we need to remap it to some other "rare" value to distinguish it from NULL value
-			cache.put(primaryKey, computedIndex == 0 ? Integer.MIN_VALUE : computedIndex);
-			return computedIndex;
-		} else if (result == Integer.MIN_VALUE) {
-			// when the "rare" value was found - we know it represents index 0
-			return 0;
-		} else {
-			// otherwise cached value was found
-			return result;
 		}
 	}
 
