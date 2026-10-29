@@ -1,7 +1,7 @@
 ---
 title: The range index computes its signed multiplicity in one counting pass, and the JoinFormula/DisentangleFormula pair is deleted
 date: 2026-09-18
-updated: 2026-10-28 12:05
+updated: 2026-10-29 10:16
 status: accepted
 kind: optimization
 issues: [1539, 1546]
@@ -9,7 +9,7 @@ prs: [1602]
 areas: [evita_engine/core/query/algebra/base, evita_engine/index/range, evita_test/evita_performance_tests]
 supersedes: []
 superseded-by: []
-relates: [2026-09-10-simd-vector-api-feasibility, 2026-09-18-range-counting-kernel-per-operand-overhead]
+relates: [2026-10-29-release-catalog-upgrade-from-surviving-index-parts, 2026-09-10-simd-vector-api-feasibility, 2026-09-18-range-counting-kernel-per-operand-overhead]
 ---
 
 # The range index computes its signed multiplicity in one counting pass, and the JoinFormula/DisentangleFormula pair is deleted
@@ -361,6 +361,11 @@ actually sees.
 
 ## Consequences & open follow-ups
 
+- **2026-10-29 update:** The release upgrade rebuilds shared-border companions from surviving bucket memberships under
+  the current counting semantics, preserving distinct scalar contributions and consolidating array contributions per
+  record. See
+  [2026-10-29-release-catalog-upgrade-from-surviving-index-parts](2026-10-29-release-catalog-upgrade-from-surviving-index-parts.md).
+
 - **The workload is the tail, and the tail differs by an order of magnitude between catalogs.** Two production
   e-commerce catalogs were censused, and they disagree about this code path more than any other measurement here:
 
@@ -429,6 +434,11 @@ actually sees.
   with its measured loss recorded in its javadoc so it is not re-proposed.
 
 ## Related work
+
+-
+  [2026-10-29-release-catalog-upgrade-from-surviving-index-parts](2026-10-29-release-catalog-upgrade-from-surviving-index-parts.md)
+  — The release upgrade rebuilds shared-border companions from surviving bucket memberships under the current counting
+  semantics, preserving distinct scalar contributions and consolidating array contributions per record.
 
 - `2026-09-10-simd-vector-api-feasibility` — the analysis that proposed this kernel (§11) and estimated 5–20×.
   This record revises that estimate and reorders its SIMD step behind the sparse-emission fix.

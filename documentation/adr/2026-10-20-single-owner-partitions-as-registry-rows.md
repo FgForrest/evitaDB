@@ -1,7 +1,7 @@
 ---
 title: A single-owner partition of a filtering-only reference is a row of a per-reference registry, and an index object exists only while a partition has two or more owners
 date: 2026-10-20
-updated: 2026-10-20 12:51
+updated: 2026-10-29 10:16
 status: accepted
 kind: optimization
 issues: [1615]
@@ -28,7 +28,7 @@ areas:
   - documentation/developer/indexes
 supersedes: []
 superseded-by: []
-relates: [2026-10-20-reference-content-filter-row-by-row, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-17-row-scoped-reference-having-body, 2026-09-18-reference-planning-from-owner-membership, 2026-09-09-sibling-resolver-partition-cardinality, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-trapped-storage-part-content-pre-images, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-09-04-millisecond-temporal-precision, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-08-10-catalog-and-collection-statistics, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures]
+relates: [2026-10-29-release-catalog-upgrade-from-surviving-index-parts, 2026-10-20-reference-content-filter-row-by-row, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-17-row-scoped-reference-having-body, 2026-09-18-reference-planning-from-owner-membership, 2026-09-09-sibling-resolver-partition-cardinality, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-trapped-storage-part-content-pre-images, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-09-04-millisecond-temporal-precision, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-08-10-catalog-and-collection-statistics, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures]
 ---
 
 # A single-owner partition of a filtering-only reference is a registry row, not an index object
@@ -1053,6 +1053,11 @@ Limits to carry into any re-run:
 
 ## Consequences & open follow-ups
 
+- **2026-10-29 update:** Release sort blocks and equal-current representative manifests now receive lossless reading
+  or pre-publication refusal. Shared-border companions are rebuilt before conversion; folded values still require
+  republishing, now identified by one conditional upgrade warning. See
+  [2026-10-29-release-catalog-upgrade-from-surviving-index-parts](2026-10-29-release-catalog-upgrade-from-surviving-index-parts.md).
+
 ### What it costs, and who notices
 
 - **A stored catalog is upgraded once,** on the first start of 2026.3, by the 6 → 7 migration. The conversion takes time
@@ -1221,6 +1226,12 @@ Found later in the cleanup and accepted by the maintainer on 2026-10-12:
   trunk replays the WAL and on crash recovery. T4 compares crash recovery modulo the keys it re-mints.
 
 ## Related work
+
+-
+  [2026-10-29-release-catalog-upgrade-from-surviving-index-parts](2026-10-29-release-catalog-upgrade-from-surviving-index-parts.md)
+  — Release sort blocks and equal-current representative manifests now receive lossless reading or pre-publication
+  refusal. Shared-border companions are rebuilt before conversion; folded values still require republishing, now
+  identified by one conditional upgrade warning.
 
 - **`2026-10-20-reference-content-filter-row-by-row`:** the filter of `referenceContent` is evaluated over the fetched
   owners' rows, so the fetch no longer reads a partition, a row or an index object of the reference; it removed the

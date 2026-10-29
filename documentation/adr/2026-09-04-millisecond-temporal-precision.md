@@ -1,7 +1,7 @@
 ---
 title: Cut every temporal value to whole milliseconds as it enters, and carry every temporal index key in one long column
 date: 2026-09-04
-updated: 2026-10-20 21:33
+updated: 2026-10-29 10:16
 status: accepted
 kind: feature
 issues: [1486, 1696]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_common/src/main/java/io/evitadb/dataType, evita_api/src/main/java/io/evitadb/api/query, evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure, evita_engine/src/main/java/io/evitadb/index/bPlusTree, evita_engine/src/main/java/io/evitadb/index/attribute, evita_engine/src/main/java/io/evitadb/index/range, evita_engine/src/main/java/io/evitadb/index/invertedIndex, evita_store/evita_store_server/src/main/java/io/evitadb/store/index, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_store/evita_store_entity/src/main/java/io/evitadb/store/entity/serializer, evita_external_api/evita_external_api_grpc, documentation/user]
 supersedes: []
 superseded-by: []
-relates: [2026-09-03-content-sized-value-tree-columns, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-05-schema-handling-write-path-optimizations, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-10-20-single-owner-partitions-as-registry-rows]
+relates: [2026-10-29-release-catalog-upgrade-from-surviving-index-parts, 2026-09-03-content-sized-value-tree-columns, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-05-schema-handling-write-path-optimizations, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-10-20-single-owner-partitions-as-registry-rows]
 ---
 
 # Temporal precision is millisecond, stated once and enforced at the boundary
@@ -338,6 +338,10 @@ catalog a test reads was written by the current writer.
 
 ## Consequences & open follow-ups
 
+- **2026-10-29 update:** Release upgrade readers retain positional range blocks; the migration refuses provable
+  collisions and warns where seconds or folded values cannot recover milliseconds. See
+  [2026-10-29-release-catalog-upgrade-from-surviving-index-parts](2026-10-29-release-catalog-upgrade-from-surviving-index-parts.md).
+
 - **Breaking change.** An embedded-Java or gRPC client that wrote sub-millisecond temporal values reads them
   back truncated. GraphQL and REST clients are unaffected, having been truncated already. `DateTimeRange`
   equality and `hashCode` derive from the comparison longs, so two ranges less than a second apart used to
@@ -455,6 +459,11 @@ catalog a test reads was written by the current writer.
   normalization.
 
 ## Related work
+
+-
+  [2026-10-29-release-catalog-upgrade-from-surviving-index-parts](2026-10-29-release-catalog-upgrade-from-surviving-index-parts.md)
+  — Release upgrade readers retain positional range blocks; the migration refuses provable collisions and warns where
+  seconds or folded values cannot recover milliseconds.
 
 - [2026-09-03-content-sized-value-tree-columns](2026-09-03-content-sized-value-tree-columns.md) — the sibling
   half of issue #1486 and the reason this one was findable: once every column was sized to its live content,
