@@ -25,25 +25,19 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.dataType.BigDecimalNumberRange;
-import io.evitadb.dataType.Range;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
-import io.evitadb.index.page.PageEmission;
-import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPageRemoval;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -53,8 +47,8 @@ import java.util.TreeMap;
 import java.util.function.Function;
 
 /**
- * Rewrites release-written decimal-range filter pages whose keys invert or coincide at the frozen index scale.
- * Every bound and record comes from the stored bucket pages. The protocol 6 to 7 migration reads those pages,
+ * Rebuilds release-written decimal-range companions and corrects bucket pages whose normalized keys do not ascend.
+ * Every bound and record comes from the stored bucket rows. The protocol 6 to 7 migration reads those pages,
  * applies these replacements and removals, and publishes them with its bootstrap record; this class performs no IO.
  *
  * @deprecated used only by the migration of catalogs written by release 2026.2 and older
@@ -67,25 +61,28 @@ public final class LegacyDecimalRangeFilterIndexCorrection {
 	}
 
 	/**
-	 * Reorders a non-unique decimal-range filter's stored pages after normalizing their keys at the frozen scale.
+	 * Rebuilds every decimal-range companion at its frozen scale, including inline and already ordered filters.
 	 * Released keys can invert or coincide at that scale; coinciding buckets contribute the union of their records.
 	 * The range companion is rebuilt from those same precise bounds: a released bucket can carry a different decimal
-	 * scale from the frozen index scale, so retaining its old thresholds would still miss range queries. Bucket pages
-	 * retain their capacities and identities; range pages are emitted above the previous high-water. Surplus bucket
-	 * pages and all previous range pages are removed from the new offset index.
+	 * scale from the frozen index scale, so retaining its old thresholds would still miss range queries. Reordered
+	 * bucket pages retain their capacities and identities; range pages are emitted above the previous high-water.
+	 * Surplus bucket pages and all previous range pages are removed from the new offset index.
 	 * Merged buckets keep the value id of their first bucket and drop the others. Nothing outside the filter refers to
 	 * a value id of a range: the trigram index, the only other reader of value ids, accepts string attributes alone.
 	 * Every replacement is an append published with the migration's bootstrap record.
 	 *
-	 * @param root the persisted paged filter root
-	 * @param pages its leaf pages in manifest order
-	 * @return replacement parts and removals, or an empty list when the normalized keys already ascend strictly
+	 * @param root the persisted filter root
+	 * @param pages its bucket leaf pages in manifest order, empty for an inline root
+	 * @return one final root, replacement pages and offset-index removals
 	 */
 	@Nonnull
 	public static List<StoragePart> rewrite(
 		@Nonnull FilterIndexStoragePart root,
 		@Nonnull FilterIndexLeafPagePart[] pages
 	) {
+		if (!root.isPaged()) {
+			return LegacyRangeFilterIndexCorrection.rewrite(root, pages);
+		}
 		final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(
 			BigDecimalNumberRange.class, root.getIndexedDecimalPlaces()
 		);
@@ -106,7 +103,7 @@ public final class LegacyDecimalRangeFilterIndexCorrection {
 			}
 		}
 		if (!changed) {
-			return List.of();
+			return LegacyRangeFilterIndexCorrection.rewrite(root, pages);
 		}
 		final List<StoragePart> parts = new ArrayList<>(pages.length + 1);
 		final Iterator<Entry<BigDecimalNumberRange, ValueToRecordBitmap>> ordered = buckets.entrySet().iterator();
@@ -137,65 +134,14 @@ public final class LegacyDecimalRangeFilterIndexCorrection {
 			remaining -= count;
 			usedPages++;
 		}
-		final RangeIndex rangeIndex = rebuildDecimalRangeCompanion(buckets.values());
-		final boolean rangePaged = rangeIndex.isPaged();
-		final int rangeHighWater;
-		final int[] rangePageSequences;
-		if (rangePaged) {
-			final int pageOffset = root.isRangePaged() ?
-				Math.addExact(root.getRangeHighWaterPageSequence(), 1) : 0;
-			final PageEmission<RangeIndex.RangePage> emission = rangeIndex.collectChangedPages();
-			rangeHighWater = Math.addExact(pageOffset, emission.highWaterPageSequence());
-			rangePageSequences = Arrays.stream(emission.orderedPageSequences())
-				.map(sequence -> Math.addExact(pageOffset, sequence)).toArray();
-			for (final RangeIndex.RangePage page : emission.changedPages()) {
-				parts.add(new RangeIndexLeafPagePart(
-					root.getEntityIndexPrimaryKey(), streamKey,
-					Math.addExact(pageOffset, page.pageSequence()), page.points()
-				));
-			}
-		} else {
-			rangeHighWater = -1;
-			rangePageSequences = new int[0];
-		}
-		for (final int sequence : root.getRangeLeafPageSequences()) {
-			parts.add(new RangeIndexLeafPageRemoval(root.getEntityIndexPrimaryKey(), streamKey, sequence));
-		}
-		parts.add(new FilterIndexStoragePart(
+		final FilterIndexStoragePart orderedRoot = new FilterIndexStoragePart(
 			root.getEntityIndexPrimaryKey(), root.getAttributeIndexKey(), root.getAttributeType(),
-			root.getHistogramPoints(), rangePaged ? null : rangeIndex, root.getIndexedDecimalPlaces(), true,
+			root.getHistogramPoints(), root.getRangeIndex(), root.getIndexedDecimalPlaces(), true,
 			root.getHighWaterPageSequence(), Arrays.copyOf(root.getLeafPageSequences(), usedPages),
-			rangePaged, rangeHighWater, rangePageSequences,
+			root.isRangePaged(), root.getRangeHighWaterPageSequence(), root.getRangeLeafPageSequences(),
 			root.getNextValueId(), root.getInlineValueIds(), root.getStoragePartPK()
-		));
+		);
+		parts.addAll(LegacyRangeFilterIndexCorrection.replaceCompanion(orderedRoot, buckets.values()));
 		return parts;
 	}
-
-	/**
-	 * Rebuilds range thresholds from the normalized buckets, consolidating each record's intervals as the live filter
-	 * does for an array attribute. Every input bound and owner comes from the stored bucket pages.
-	 *
-	 * @param buckets normalized buckets in current key order
-	 * @return the companion at the filter's frozen decimal scale
-	 */
-	@Nonnull
-	private static RangeIndex rebuildDecimalRangeCompanion(@Nonnull Collection<ValueToRecordBitmap> buckets) {
-		final Map<Integer, List<BigDecimalNumberRange>> rangesByRecord = new HashMap<>();
-		for (final ValueToRecordBitmap bucket : buckets) {
-			for (final int record : bucket.getRecordIds().getArray()) {
-				rangesByRecord.computeIfAbsent(record, ignored -> new ArrayList<>())
-					.add((BigDecimalNumberRange) bucket.getValue());
-			}
-		}
-		final RangeIndex rangeIndex = new RangeIndex();
-		for (final Entry<Integer, List<BigDecimalNumberRange>> entry : rangesByRecord.entrySet()) {
-			for (final BigDecimalNumberRange range : Range.consolidateRange(
-				entry.getValue().toArray(BigDecimalNumberRange[]::new)
-			)) {
-				rangeIndex.addRecord(range.getFrom(), range.getTo(), entry.getKey());
-			}
-		}
-		return rangeIndex;
-	}
-
 }
