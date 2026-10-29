@@ -112,7 +112,8 @@ class Migration_2026_3_UpgradeReportTest implements EvitaTestSupport {
 		"d12b,label,only spellings the collator treats as equal",
 		"d4c,label,only spellings the collator treats as equal",
 		"dU,period,only values with sub-second precision",
-		"dRng,brand.validity,only values with sub-second precision"
+		"dRng,brand.validity,only values with sub-second precision",
+		"d13,range,only if values were first written by 2026.1 or older"
 	})
 	@DisplayName("Should warn once about potentially lossy fields and omit the report on later loads")
 	void shouldWarnOnceAboutPotentiallyLossyFields(
@@ -128,6 +129,24 @@ class Migration_2026_3_UpgradeReportTest implements EvitaTestSupport {
 				"The warning must name every susceptible field: " + field);
 		}
 		assertTrue(message.contains(condition));
+		assertTrue(message.endsWith("If a listed condition holds for a collection's data, " +
+			"republish that collection from source data."));
+		assertEquals(1, report.console().lines().filter(line -> line.equals(message)).count());
+	}
+
+	/** Earlier releases could fold distinct decimal bounds; surviving buckets cannot split their owners. */
+	@Test
+	@DisplayName("Should warn once about decimal bounds potentially folded by an earlier release")
+	void shouldWarnOnceAboutPotentiallyFoldedDecimalRanges() {
+		final CapturedReport report = upgradeAndReopen("d15");
+		assertEquals(1, report.warnings().size(), "A catalog upgrade must emit one grouped loss warning");
+		final String message = report.warnings().getFirst();
+		assertTrue(message.startsWith("Catalog `d15`: legacy indexes may have lost precision"));
+		assertTrue(message.contains("entity collection `product`"));
+		assertTrue(message.contains("attribute `size` (decimal range; only if values were first written by " +
+			"2026.1 or older and two of them differ only in the position of the decimal point, " +
+			"such as `[12, 90]` and `[1.2, 9]`)"));
+		assertTrue(message.contains("Indexes alone cannot determine whether any value was affected."));
 		assertTrue(message.endsWith("If a listed condition holds for a collection's data, " +
 			"republish that collection from source data."));
 		assertEquals(1, report.console().lines().filter(line -> line.equals(message)).count());
@@ -192,11 +211,11 @@ class Migration_2026_3_UpgradeReportTest implements EvitaTestSupport {
 		), report.warnings());
 	}
 
-	/** Decimal-only schemas do not enter the lossy temporal/text warning path. */
+	/** Plain text representatives are outside the susceptible temporal, localized text and decimal types. */
 	@Test
 	@DisplayName("Should omit the loss warning when no indexed field has a susceptible type")
 	void shouldOmitLossWarningForOtherTypes() {
-		final CapturedReport report = upgradeAndReopen("d13");
+		final CapturedReport report = upgradeAndReopen("dK1h");
 		assertTrue(report.warnings().isEmpty());
 		assertFalse(report.console().contains("Potentially affected fields:"));
 		assertFalse(report.console().contains("republish that collection from source data"));

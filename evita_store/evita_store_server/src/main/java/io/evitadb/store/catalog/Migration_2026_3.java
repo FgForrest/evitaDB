@@ -1168,7 +1168,8 @@ public interface Migration_2026_3 {
 	 * Names attributes whose persisted keys or thresholds could have folded distinct release values.
 	 * Filter indexes include implicitly folded unique attributes; a localized unique key spanning locales uses a
 	 * standalone natural-order text tree, so uniqueness alone does not expose it to the collator. A compound compares
-	 * every text component by its locale's collator when any component is localized. Neither scan reads entity data.
+	 * every text component by its locale's collator when any component is localized. Decimal FILTERs may retain
+	 * bounds folded by 2026.1 or older, even in a catalog later written by 2026.2. No scan reads entity data.
 	 */
 	private static void collectPotentiallyLossyAttributes(
 		@Nonnull Map<String, ? extends AttributeSchemaContract> attributes,
@@ -1188,6 +1189,11 @@ public interface Migration_2026_3 {
 			} else if (attribute.getPlainType() == String.class && attribute.isLocalized() &&
 				(filterOrSort || scopes.stream().anyMatch(attribute::isUniqueWithinLocaleInScope))) {
 				texts.add(attribute.getName());
+			} else if (attribute.getPlainType() == BigDecimalNumberRange.class &&
+				scopes.stream().anyMatch(attribute::hasFilterIndexInScope)) {
+				affected.add("attribute `" + prefix + attribute.getName() +
+					"` (decimal range; only if values were first written by 2026.1 or older and two of them " +
+					"differ only in the position of the decimal point, such as `[12, 90]` and `[1.2, 9]`)");
 			}
 		}
 		for (final SortableAttributeCompoundSchemaContract compound : compounds.values()) {
