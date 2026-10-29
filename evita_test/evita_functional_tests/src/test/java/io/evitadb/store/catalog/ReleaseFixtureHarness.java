@@ -28,6 +28,7 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.core.Evita;
@@ -452,6 +453,12 @@ final class ReleaseFixtureHarness {
 	/**
 	 * Returns the configuration every engine of the harness runs with.
 	 *
+	 * The engines get no off-heap transaction memory, so transactions are buffered in their file backup. The upgrade
+	 * tests start an engine for almost every case and close it moments later, and the default buffer is 16 MB of
+	 * direct memory per engine and per catalog that is released only once the garbage collector collects it. Over the
+	 * functional suite the buffers of closed engines added several GB of native memory, which the 16 GB CI runner
+	 * does not have to spare.
+	 *
 	 * @param paths the paths
 	 * @return the configuration
 	 */
@@ -459,6 +466,12 @@ final class ReleaseFixtureHarness {
 	private EvitaConfiguration configuration(@Nonnull TestPaths paths) {
 		return this.support.newTestEvitaConfigurationBuilder(paths)
 			.server(ServerOptions.builder().closeSessionsAfterSecondsOfInactivity(-1).build())
+			.transaction(
+				TransactionOptions.builder()
+					.transactionMemoryBufferLimitSizeBytes(0)
+					.transactionMemoryRegionCount(0)
+					.build()
+			)
 			.build();
 	}
 
