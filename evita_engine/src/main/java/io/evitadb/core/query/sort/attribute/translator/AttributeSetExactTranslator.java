@@ -35,7 +35,10 @@ import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeM
 import io.evitadb.core.query.sort.reference.sorter.VirtualPartitionSortedRecords;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencePartition;
@@ -68,10 +71,14 @@ public class AttributeSetExactTranslator implements OrderingConstraintTranslator
 
 	/**
 	 * Plans a block-aware exact sorter for a traverse, retaining the single-index lookup elsewhere.
+	 * Chain attributes are refused before values are converted or either execution route is prepared.
 	 *
 	 * @param attributeSetExact the exact value ordering
 	 * @param orderByVisitor    the ordering context
 	 * @return the exact sorter, or no sorter when the single-index route has no partitions
+	 * @throws EvitaInvalidUsageException when the attribute is a {@link Predecessor} or
+	 *                                    {@link ReferencedEntityPredecessor} chain, which orders by predecessor links
+	 *                                    and has no values to list
 	 */
 	@Nonnull
 	@Override
@@ -84,9 +91,18 @@ public class AttributeSetExactTranslator implements OrderingConstraintTranslator
 		final AttributeSchemaContract attributeSchema = processingScope.getAttributeSchema(
 			attributeName, AttributeTrait.SORTABLE
 		);
+		final Class<? extends Serializable> attributeType = attributeSchema.getPlainType();
+		if (Predecessor.class.equals(attributeType) || ReferencedEntityPredecessor.class.equals(attributeType)) {
+			throw new EvitaInvalidUsageException(
+				"Constraint `attributeSetExact` cannot order chain attribute `" + attributeName + "` of type `" +
+					attributeType.getName() + "`: a chain orders by predecessor links, so its values cannot be " +
+					"listed. Use `attributeNatural` to order by the chain instead; inside `referenceProperty` it " +
+					"needs `traverseByEntityProperty` or no explicit traversal, not `pickFirstByEntityProperty`."
+			);
+		}
 
 		final Serializable[] exactOrder = Arrays.stream(attributeSetExact.getAttributeValues())
-			.map(it -> EvitaDataTypes.toTargetType(it, attributeSchema.getPlainType()))
+			.map(it -> EvitaDataTypes.toTargetType(it, attributeType))
 			.toArray(Serializable[]::new);
 		final ReferenceSchema referenceSchema = processingScope.referenceSchema();
 		if (

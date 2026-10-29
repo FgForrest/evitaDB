@@ -136,6 +136,10 @@ they were filtered. The constraint requires the presence of exactly one [`attrib
 in the filter part of the query, referring to the attribute with the same name as used in the first argument of this
 constraint. It uses the specified array of attribute values to sort the result returned by the query.
 
+Chain attributes (`Predecessor` and `ReferencedEntityPredecessor`) cannot supply these filter values: they cannot
+be marked as filterable, so the required `attributeInSet` filter is refused. Use
+[`attributeNatural`](./comparable.md#attribute-natural) to order by the chain instead.
+
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Entities sorted by order `code` attribute of the filtered entities](/documentation/user/en/query/ordering/examples/constant/attribute-set-in-filter.evitaql)
@@ -195,6 +199,13 @@ attributeSetExact(
 
 The constraint allows output entities to be sorted by attribute values in the exact order specified in the 2nd through
 Nth arguments of this constraint.
+
+Chain attributes of type `Predecessor` or `ReferencedEntityPredecessor` are refused when the query is translated,
+both at entity level and inside `referenceProperty` orderings (implicit, pick-first or traverse). A chain orders by
+predecessor links, so its values cannot be listed in an exact value order. Use
+[`attributeNatural`](./comparable.md#attribute-natural) to follow the chain instead; inside `referenceProperty` that
+needs [`traverseByEntityProperty`](./reference.md#traverse-by-entity-property) or no explicit traversal, because
+`pickFirstByEntityProperty` cannot order by a chain.
 
 Inside a [`referenceProperty`](./reference.md#reference-property) ordering with
 [`traverseByEntityProperty`](./reference.md#traverse-by-entity-property), `attributeSetExact` applies separately to
