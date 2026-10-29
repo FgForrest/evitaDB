@@ -459,6 +459,10 @@ final class ReleaseFixtureHarness {
 	 * functional suite the buffers of closed engines added several GB of native memory, which the 16 GB CI runner
 	 * does not have to spare.
 	 *
+	 * The file backup lives in the transaction work directory, which is therefore the test's own, inside its work
+	 * directory: the default is a single folder for the whole JVM, and an engine removing its emptied folder there
+	 * fails when another test's engine has just written into it.
+	 *
 	 * @param paths the paths
 	 * @return the configuration
 	 */
@@ -468,6 +472,7 @@ final class ReleaseFixtureHarness {
 			.server(ServerOptions.builder().closeSessionsAfterSecondsOfInactivity(-1).build())
 			.transaction(
 				TransactionOptions.builder()
+					.transactionWorkDirectory(paths.work().resolve("transaction"))
 					.transactionMemoryBufferLimitSizeBytes(0)
 					.transactionMemoryRegionCount(0)
 					.build()
