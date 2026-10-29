@@ -1,7 +1,7 @@
 ---
 title: Bound reference ordering by the filtered hierarchy and sort each target as one block
 date: 2026-10-28
-updated: 2026-10-29 05:05
+updated: 2026-10-29 06:55
 status: accepted
 kind: fix
 issues: [1670]
@@ -282,6 +282,9 @@ refused the traverse queries over both scopes in the same way, and those queries
 - `attributeSetExact` over a chain attribute is refused inside a traverse. At the entity level, outside any
   reference ordering, dev diverges between routes: the index route fails with an internal error, the prefetch
   route returns an order. This change leaves that unchanged; it needs its own issue.
+- Unbounded pick-first is 11 µs (11 %) slower than before (see Cost). The cause is not established; the first
+  suspect is the scope and hierarchy-bound resolution `PickFirstReducedIndexResolver` now performs even without a
+  bound. Profile it or accept it explicitly.
 - Multi-partition exact ordering under pick-first and `attributeSetInFilter` remains outside this extension.
   Removing the remaining bidirectional rewrite guard for implicit chains needs a separate candidate-independence
   decision. Filter `inScope` prefetch support remains #1682.

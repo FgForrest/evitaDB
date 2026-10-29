@@ -234,7 +234,8 @@ public record RepresentativeReferenceKey(
 	 * lexicographically, as {@link ArrayUtils#compare(Object[], Object[])} does (`null` values first, a shorter array
 	 * before its extension), and when that ranks the arrays as equal although they are not, by the first pair of values
 	 * that compare equal without being equal - a `BigDecimal` by its scale (1.0 before 1.00), any other value by its
-	 * string form.
+	 * string form. That order means nothing on its own and need not: it only has to be deterministic, and both
+	 * execution routes break the tie through this one method, so they agree on it.
 	 *
 	 * The tie-break is reached only by such values, so arrays the lexicographic order tells apart and equal arrays cost
 	 * no more than the lexicographic comparison plus one `equals` per value, and allocate nothing.
