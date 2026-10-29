@@ -285,8 +285,9 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 	 * through the type index of a reference allowing duplicates fails on it, the lookup by key of one that does not
 	 * yields nothing for it. So nothing reads the list: such an option carries
 	 * {@link EligibilityObstacle#NOT_PARTITIONED_INDEX} and never wins a separate plan, the consumers of the objects
-	 * of a set holding a row skip it (`FilterByVisitor#holdsIndexObjectsOnly`), and the translation of the hierarchy
-	 * constraint and the block-by-block orderings narrowed by the option read the split.
+	 * of a set holding a row skip it (`FilterByVisitor#holdsIndexObjectsOnly`), and hierarchy translation reads the
+	 * split. Only implicit pick-first chains consume these candidates for ordering, also reading the split;
+	 * traversal resolves its own partitions from the memoized hierarchy bounds.
 	 *
 	 * @param entitySchema    the queried entity schema
 	 * @param referenceSchema the reference the hierarchy constraint names

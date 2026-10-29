@@ -136,6 +136,21 @@ they were filtered. The constraint requires the presence of exactly one [`attrib
 in the filter part of the query, referring to the attribute with the same name as used in the first argument of this
 constraint. It uses the specified array of attribute values to sort the result returned by the query.
 
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Chain attributes cannot be ordered this way
+
+</NoteTitle>
+
+Chain attributes ([`Predecessor`](../../use/data-types.md#predecessor) and `ReferencedEntityPredecessor`) cannot
+supply these filter values: they cannot be marked as filterable, so the required
+[`attributeInSet`](../filtering/comparable.md#attribute-in-set) filter is refused. Use
+[`attributeNatural`](./comparable.md#attribute-natural) to order by the chain instead.
+
+</Note>
+
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Entities sorted by order `code` attribute of the filtered entities](/documentation/user/en/query/ordering/examples/constant/attribute-set-in-filter.evitaql)
@@ -195,6 +210,51 @@ attributeSetExact(
 
 The constraint allows output entities to be sorted by attribute values in the exact order specified in the 2nd through
 Nth arguments of this constraint.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Chain attributes cannot be ordered this way
+
+</NoteTitle>
+
+Chain attributes of type [`Predecessor`](../../use/data-types.md#predecessor) or `ReferencedEntityPredecessor` are
+refused when the query is translated, both at entity level and inside
+[`referenceProperty`](./reference.md#reference-property) orderings. A chain orders by predecessor links, so its
+values cannot be listed in an exact value order. Use [`attributeNatural`](./comparable.md#attribute-natural) to follow
+the chain instead. Inside `referenceProperty`, that needs
+[`traverseByEntityProperty`](./reference.md#traverse-by-entity-property) or no traversal constraint at all, because
+[`pickFirstByEntityProperty`](./reference.md#pick-first-by-entity-property) cannot order by a chain.
+
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Exact ordering inside `traverseByEntityProperty`
+
+</NoteTitle>
+
+Inside a [`referenceProperty`](./reference.md#reference-property) ordering with
+[`traverseByEntityProperty`](./reference.md#traverse-by-entity-property), `attributeSetExact` orders each block of
+the traversal separately (see [how the entities are placed](./reference.md#how-the-entities-are-placed)). In each
+block, the listed values come first, in the listed order, with ties by ascending primary key. An entity whose value
+is not listed, or that has no value, passes to the next ordering constraint inside `referenceProperty`; if none of
+them places it, it waits for a later block. Entities that no block places continue to the next ordering constraint of
+the query.
+
+The value of an entity is taken from its first reference to the block's entity that has a value - in the order of
+the [representative attribute](../../use/schema.md#reference-cardinality) values when there are several. A later
+reference with a listed value does not replace an earlier one with an unlisted value.
+
+Under [`pickFirstByEntityProperty`](./reference.md#pick-first-by-entity-property), `attributeSetExact` works only
+when the query narrows the ordered reference down to a single referenced entity, for example by filtering for it with
+[`referenceHaving`](../filtering/references.md#reference-having). The same applies to
+[`attributeSetInFilter`](#exact-entity-attribute-value-order-used-in-filter) inside any reference ordering.
+
+</Note>
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 

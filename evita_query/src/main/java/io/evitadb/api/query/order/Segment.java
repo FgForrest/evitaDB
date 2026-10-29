@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,8 +53,13 @@ import java.util.OptionalInt;
  * - a mandatory {@link OrderBy} clause that defines the sorting order for this segment
  * - an optional {@link SegmentLimit} that limits how many entities are taken from this segment
  *
+ * The ordering of a segment must not contain another {@link Segments} container - the query engine rejects nested
+ * segments with {@link EvitaInvalidUsageException} when it plans the query.
+ *
  * Entities matched and extracted by a segment are excluded from subsequent segments. If no limit is specified,
- * all matching entities are taken. If no filter is specified, all remaining entities are matched.
+ * all matching entities are taken. If no filter is specified, all remaining entities are matched. An entity lacking
+ * the data the segment's ordering sorts by (for example the sorted attribute) is never extracted by the segment and
+ * stays available to the subsequent ones.
  *
  * Example:
  *

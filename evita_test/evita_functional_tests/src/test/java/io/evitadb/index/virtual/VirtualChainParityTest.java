@@ -52,10 +52,15 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 
 import static io.evitadb.api.query.Query.query;
@@ -207,8 +212,8 @@ class VirtualChainParityTest implements EvitaTestSupport {
 				ParameterValuesShapedFixture.FIRST_SHARED_VALUE, OWN_VALUE_OF_PRODUCT_3,
 				ParameterValuesShapedFixture.LONELY_PARAMETER_VALUE
 			}) {
-				final List<Integer> bodies = directed(
-					chainOfOwners(product, parameterValuesReference, block, order), direction
+				final List<Integer> bodies = traverseOfOwners(
+					product, parameterValuesReference, block, order, direction
 				);
 				final List<Integer> objects = this.parameterProducts.expectedAnswer(
 					product,
@@ -226,9 +231,7 @@ class VirtualChainParityTest implements EvitaTestSupport {
 			}
 			// the block route of the original side: the values of one product in the chain of `position`
 			for (int block : new int[]{3, ParameterValuesShapedFixture.LONELY_OWNER}) {
-				final List<Integer> bodies = directed(
-					chainOfOwners(value, productsReference, block, position), direction
-				);
+				final List<Integer> bodies = traverseOfOwners(value, productsReference, block, position, direction);
 				final List<Integer> objects = this.parameterValues.expectedAnswer(
 					value,
 					queryPrimaryKeys(
@@ -532,32 +535,73 @@ class VirtualChainParityTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Returns the owners of a partition in the order the chain attribute of their rows gives, read from the bodies of
-	 * the row catalog: the owners chained by the predecessors their rows name, from the head on.
+	 * Returns selected owners in traversal order, using every row of each selected owner. The reference-having
+	 * target selects owners only; the target blocks and their strict predecessor chains come from all bodies.
 	 *
-	 * @param entityType    the owner collection
+	 * @param entityType the owner collection
 	 * @param referenceName the reference
-	 * @param target        the referenced entity of the partition
-	 * @param attribute     the chain attribute naming another owner
-	 * @return the owners in chain order
+	 * @param selectedTarget the target selecting the returned owners
+	 * @param attribute the chain attribute naming another owner
+	 * @param direction the target and chain direction
+	 * @return selected owners in target-then-chain order
 	 */
 	@Nonnull
-	private List<Integer> chainOfOwners(
+	private List<Integer> traverseOfOwners(
 		@Nonnull String entityType,
 		@Nonnull String referenceName,
-		int target,
-		@Nonnull String attribute
+		int selectedTarget,
+		@Nonnull String attribute,
+		@Nonnull OrderDirection direction
 	) {
-		final Map<Integer, Integer> predecessors = new HashMap<>(32);
-		final FilterConstraint holders = referenceHaving(referenceName, entityPrimaryKeyInSet(target));
-		for (final SealedEntity owner : readBodies(entityType, holders, referenceName)) {
+		final Map<Integer, Map<Integer, Integer>> chains = new TreeMap<>();
+		final Set<Integer> selected = new HashSet<>();
+		for (final SealedEntity owner : readBodies(entityType, entityPrimaryKeyGreaterThan(0), referenceName)) {
+			final int ownerId = owner.getPrimaryKeyOrThrowException();
 			for (final ReferenceContract reference : owner.getReferences(referenceName)) {
-				if (reference.getReferencedPrimaryKey() == target) {
-					predecessors.put(owner.getPrimaryKeyOrThrowException(), predecessorOf(reference, attribute));
+				final int target = reference.getReferencedPrimaryKey();
+				chains.computeIfAbsent(target, ignored -> new HashMap<>())
+					.put(ownerId, predecessorOf(reference, attribute));
+				if (target == selectedTarget) {
+					selected.add(ownerId);
 				}
 			}
 		}
-		return strictChain(predecessors, entityType + " of " + referenceName + " " + target);
+		// ParameterValuesShapedFixture#newValue(EvitaSessionContract, int) defines the parent privately as
+		// 1 + value % GROUP_COUNT. Products are flat; this gives the target order independently of query sorters.
+		final Comparator<Integer> targetOrder = entityType.equals(ParameterValuesShapedFixture.ENTITY_PRODUCT) ?
+			Comparator.comparingInt((Integer target) -> 1 + target % ParameterValuesShapedFixture.GROUP_COUNT)
+				.thenComparingInt(Integer::intValue) : Comparator.naturalOrder();
+		final List<Integer> targets = new ArrayList<>(chains.keySet());
+		targets.sort(direction == OrderDirection.ASC ? targetOrder : targetOrder.reversed());
+		final LinkedHashSet<Integer> result = new LinkedHashSet<>(selected.size());
+		for (final int target : targets) {
+			if (result.size() == selected.size()) {
+				break;
+			}
+			final Map<Integer, Integer> fullChain = chains.get(target);
+			final Map<Integer, Integer> relevantChain = new HashMap<>();
+			for (final int owner : fullChain.keySet()) {
+				if (selected.contains(owner) && !result.contains(owner)) {
+					// Keep every predecessor needed to position a selected owner. An unselected disjoint head
+					// cannot order any selected owner, so it must not make the selected path appear non-strict.
+					int current = owner;
+					while (current != ChainableType.HEAD_PK && !relevantChain.containsKey(current)) {
+						final Integer predecessor = fullChain.get(current);
+						assertTrue(predecessor != null, "A selected chain path must have every predecessor");
+						relevantChain.put(current, predecessor);
+						current = predecessor;
+					}
+				}
+			}
+			if (!relevantChain.isEmpty()) {
+				for (final int owner : directed(strictChain(relevantChain, entityType + " of " + target), direction)) {
+					if (selected.contains(owner)) {
+						result.add(owner);
+					}
+				}
+			}
+		}
+		return List.copyOf(result);
 	}
 
 	/**

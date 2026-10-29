@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -71,15 +71,20 @@ public class AttributeSetInFilterTranslator implements OrderingConstraintTransla
 
 		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
 		orderByVisitor.addRequirementToPrefetch(attributeContentAll());
+		final AttributeSetExactTranslator.RecordsEqualTo recordsEqualTo = AttributeSetExactTranslator.getRecordsEqualTo(
+			orderByVisitor, attributeSchema, " You probably need to limit the scope of the query."
+		);
+		if (recordsEqualTo == null) {
+			return Stream.empty();
+		}
 		return Stream.of(
 			new AttributeExactSorter(
 				attributeName,
 				Arrays.stream(attributeInSet.getAttributeValues())
 					.map(it -> EvitaDataTypes.toTargetType(it, attributeSchema.getPlainType()))
 					.toArray(Serializable[]::new),
-				AttributeSetExactTranslator.getRecordsEqualTo(
-					orderByVisitor, attributeSchema, " You probably need to limit the scope of the query."
-				)
+				recordsEqualTo.lookup(),
+				recordsEqualTo.scope()
 			)
 		);
 	}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -68,6 +68,11 @@ import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.attribute.SortIndex;
+import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.index.usage.SchemaCapabilityUsage;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -139,6 +144,10 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * Contemporary stack for auxiliary data resolved for each level of the query.
 	 */
 	private final Deque<ProcessingScope> scope = new ArrayDeque<>(16);
+	/**
+	 * Set while the sorters of a segment ordering are being created - see {@link #isWithinSegment()}.
+	 */
+	private boolean withinSegment;
 
 	/**
 	 * Method creates the {@link Sorter} implementation that could be used for sorting primary keys of entities
@@ -352,6 +361,52 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 */
 	@Nonnull
 	public final List<Sorter> collectIsolatedSorters(@Nonnull Runnable lambda) {
+		return collectIsolatedSorters(lambda, true);
+	}
+
+	/**
+	 * Collects the sorters of a segment ordering: the lambda registers them within an isolated processing scope
+	 * exactly as in {@link #collectIsolatedSorters(Runnable)}, but the result lacks the default {@link NoSorter} that
+	 * {@link #getSorters()} appends to every chain lacking one, and while the lambda runs {@link #isWithinSegment()}
+	 * answers `true`. The result therefore holds only the sorters the ordering constraints produced themselves - it
+	 * may be empty - and the records none of them can sort stay unsorted, so that they fall out of the segment.
+	 *
+	 * @param lambda the lambda to execute within the isolated scope that creates and registers the sorter chain
+	 * @return the sorters registered by the lambda in registration order, possibly an empty list
+	 */
+	@Nonnull
+	public final List<Sorter> collectSegmentSorters(@Nonnull Runnable lambda) {
+		final boolean previouslyWithinSegment = this.withinSegment;
+		this.withinSegment = true;
+		try {
+			return collectIsolatedSorters(lambda, false);
+		} finally {
+			this.withinSegment = previouslyWithinSegment;
+		}
+	}
+
+	/**
+	 * Returns `true` while the sorters of a segment ordering are being created (see
+	 * {@link #collectSegmentSorters(Runnable)}). A segment takes only the entities its ordering can sort, so a
+	 * translator must neither register a sorter that places entities lacking the sorted data, nor a prefetch
+	 * comparator that sorts them - outside a segment, such a fallback keeps the entities in the ordering.
+	 *
+	 * @return `true` within a segment ordering
+	 */
+	public boolean isWithinSegment() {
+		return this.withinSegment;
+	}
+
+	/**
+	 * Runs the lambda within a new isolated {@link ProcessingScope} and returns the sorters it registered.
+	 *
+	 * @param lambda              the lambda that creates and registers the sorter chain
+	 * @param appendDefaultSorter `true` to return {@link #getSorters()} - ending with the default {@link NoSorter}
+	 *                            when the chain lacks one - `false` to return the registered sorters only
+	 * @return the collected sorters
+	 */
+	@Nonnull
+	private List<Sorter> collectIsolatedSorters(@Nonnull Runnable lambda, boolean appendDefaultSorter) {
 		try {
 			final ProcessingScope currentScope = getProcessingScope();
 			final LinkedList<Set<Scope>> requestedScopes = new LinkedList<>();
@@ -372,7 +427,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 				)
 			);
 			lambda.run();
-			return getSorters();
+			return appendDefaultSorter ? getSorters() : new ArrayList<>(getProcessingScope().sorters());
 		} finally {
 			this.scope.pop();
 		}
@@ -471,10 +526,77 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	}
 
 	/**
-	 * Returns index which is best suited for supplying {@link SortIndex} of the ordered entities themselves. Within a
-	 * reference ordering the sort data live in the partitions of the reference - see {@link #getPartitionsForSort()}.
+	 * Returns the primary keys of the records of the ordered scopes when an `inScope` container narrows them below the
+	 * scopes of the query, and `null` when the ordering applies to every queried scope. An entity-level ordering whose
+	 * sorter cannot tell the scopes apart (primary key and price orders) wraps it in a {@link ScopedSorter} with these
+	 * records, so that it sorts only the entities of its scope. Nested reference orderings use the same restriction
+	 * on their selected owners while retaining the enclosing traversal blocks. A query without a collection has no
+	 * collection index telling which records a scope holds and gets `null`.
 	 *
-	 * @return the indexes of the ordered entities
+	 * @return the records of the ordered scopes, or `null` when the ordering is not narrowed
+	 */
+	@Nullable
+	public Bitmap getRecordsOfNarrowedScopes() {
+		final ProcessingScope processingScope = getProcessingScope();
+		final Set<Scope> orderedScopes = processingScope.getScopes();
+		if (
+			!this.queryContext.isEntityTypeKnown() ||
+				orderedScopes.containsAll(this.queryContext.getScopes())
+		) {
+			return null;
+		}
+		final List<PersistentRoaringBitmap> scopeRecords = new ArrayList<>(orderedScopes.size());
+		for (Scope scope : orderedScopes) {
+			this.queryContext.getGlobalEntityIndexIfExists(scope)
+				.ifPresent(
+					index -> scopeRecords.add(RoaringBitmapBackedBitmap.getRoaringBitmap(index.getAllPrimaryKeys()))
+				);
+		}
+		if (scopeRecords.isEmpty()) {
+			return EmptyBitmap.INSTANCE;
+		} else if (scopeRecords.size() == 1) {
+			return new BaseBitmap(scopeRecords.get(0));
+		} else {
+			return new BaseBitmap(
+				PersistentRoaringBitmap.or(scopeRecords.toArray(PersistentRoaringBitmap[]::new))
+			);
+		}
+	}
+
+	/**
+	 * Restricts the passed sorter to the entities of the ordered scopes when an `inScope` container narrows them below
+	 * the scopes of the query (see {@link #getRecordsOfNarrowedScopes()}) - the entities of the other scopes are then
+	 * passed on to the next sorter. Otherwise the sorter is returned unchanged.
+	 *
+	 * @param sorter the sorter that cannot tell the scopes of the entities apart
+	 * @return the sorter restricted to the ordered scopes, or the passed sorter when the ordering is not narrowed
+	 */
+	@Nonnull
+	public Sorter restrictToOrderedScopes(@Nonnull Sorter sorter) {
+		final Bitmap recordsOfNarrowedScopes = getRecordsOfNarrowedScopes();
+		return recordsOfNarrowedScopes == null ? sorter : new ScopedSorter(recordsOfNarrowedScopes, sorter);
+	}
+
+	/**
+	 * Returns the resolver of the reduced indexes of the enclosing `pickFirst` reference ordering, limited to the
+	 * scopes the current ordering sorts - an `inScope` container nested in the reference ordering narrows them below
+	 * the scopes the resolver was created for, and neither route may then sort the owners of the other scopes.
+	 *
+	 * @return the resolver limited to the ordered scopes, or `null` outside a `pickFirst` reference ordering
+	 */
+	@Nullable
+	public PickFirstReducedIndexResolver getPickFirstIndexResolver() {
+		final ProcessingScope processingScope = getProcessingScope();
+		final PickFirstReducedIndexResolver resolver = processingScope.pickFirstIndexResolver();
+		return resolver == null ? null : resolver.restrictTo(processingScope.getScopes());
+	}
+
+	/**
+	 * Returns the indexes supplying the sort data of the ordered entities themselves, limited to the scopes the
+	 * ordering applies to. Within a reference ordering the sort data live in the partitions of the reference - see
+	 * {@link #getPartitionsForSort()}.
+	 *
+	 * @return the indexes of the ordered scopes
 	 * @throws GenericEvitaInternalError when called within a reference ordering
 	 */
 	@Nonnull
@@ -485,7 +607,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 			theScope.referenceSchema() == null,
 			"Within a reference ordering the sort data must be read from the reference partitions!"
 		);
-		return theScope.entityIndex();
+		return retainOrderedScopes(theScope.entityIndex(), theScope.getScopes());
 	}
 
 	/**
@@ -498,20 +620,56 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * by {@link ProcessingScope#pickFirstIndexResolver()}; a consumer asking for them at planning time gets
 	 * {@link PickFirstReducedIndexResolver#getPlanningIndexes()}.
 	 *
-	 * @return the partitions in target order
+	 * @return the partitions of the ordered scopes in target order
 	 * @throws GenericEvitaInternalError when called outside a reference ordering
 	 */
 	@Nonnull
 	public ReferencePartition[] getPartitionsForSort() {
 		final ProcessingScope theScope = this.scope.peek();
 		isPremiseValid(theScope != null, "Scope is unexpectedly empty!");
-		final PickFirstReducedIndexResolver resolver = theScope.pickFirstIndexResolver();
+		final PickFirstReducedIndexResolver resolver = getPickFirstIndexResolver();
 		if (resolver != null) {
 			return resolver.getPlanningIndexes();
 		}
 		final ReferencePartition[] partitions = theScope.referencePartitions();
 		isPremiseValid(partitions != null, "Reference partitions are available only within a reference ordering!");
-		return partitions;
+		final Set<Scope> orderedScopes = theScope.getScopes();
+		return orderedScopes.containsAll(this.queryContext.getScopes()) ? partitions :
+			Arrays.stream(partitions)
+				.filter(partition -> orderedScopes.contains(partition.getIndexKey().scope()))
+				.toArray(ReferencePartition[]::new);
+	}
+
+	/**
+	 * Returns the indexes of the passed scopes. The array is returned as is when every index belongs to one of them -
+	 * the common case without an `inScope` container - so that nothing is allocated.
+	 *
+	 * @param indexes       the indexes of the processing scope
+	 * @param orderedScopes the scopes the ordering applies to
+	 * @return the indexes of the ordered scopes
+	 */
+	@Nonnull
+	private static EntityIndex[] retainOrderedScopes(
+		@Nonnull EntityIndex[] indexes,
+		@Nonnull Set<Scope> orderedScopes
+	) {
+		int retained = 0;
+		for (EntityIndex index : indexes) {
+			if (orderedScopes.contains(index.getIndexKey().scope())) {
+				retained++;
+			}
+		}
+		if (retained == indexes.length) {
+			return indexes;
+		}
+		final EntityIndex[] result = new EntityIndex[retained];
+		int position = 0;
+		for (EntityIndex index : indexes) {
+			if (orderedScopes.contains(index.getIndexKey().scope())) {
+				result[position++] = index;
+			}
+		}
+		return result;
 	}
 
 	/**
@@ -554,8 +712,17 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 			throw new GenericEvitaInternalError("Should never happen");
 		}
 		// compose sorters one after another
-		final Deque<Sorter> sortersQueue = getProcessingScope().sorters();
-		currentSorters.forEach(sortersQueue::add);
+		final ProcessingScope processingScope = getProcessingScope();
+		final Deque<Sorter> sortersQueue = processingScope.sorters();
+		if (processingScope.referenceSchema() == null) {
+			currentSorters.forEach(sortersQueue::add);
+		} else {
+			// restrict each child independently, preserving the block for its following child orderings
+			final Bitmap scopeRecords = getRecordsOfNarrowedScopes();
+			currentSorters.forEach(
+				sorter -> sortersQueue.add(scopeRecords == null ? sorter : new ScopedSorter(scopeRecords, sorter))
+			);
+		}
 	}
 
 	/**

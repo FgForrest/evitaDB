@@ -107,6 +107,7 @@ public class PickFirstReferenceCompoundAttributeComparator extends AbstractRefer
 		// find the first reference in target order that carries any element of the compound
 		return entity.getReferences(this.referenceSchema.getName())
 			.stream()
+			.filter(it -> this.targetRanking.admits(entity, it))
 			.filter(this::carriesAnyElement)
 			.min(this.targetRanking.referenceOrder());
 	}

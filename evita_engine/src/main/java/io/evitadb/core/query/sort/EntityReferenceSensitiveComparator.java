@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,18 +26,17 @@ package io.evitadb.core.query.sort;
 
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator;
-import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 import static java.util.Optional.ofNullable;
 
@@ -50,7 +49,10 @@ import static java.util.Optional.ofNullable;
 public interface EntityReferenceSensitiveComparator extends EntityComparator {
 
 	/**
-	 * Executes the provided {@code lambda} within the context of a specific referenced entity ID.
+	 * Executes the provided `lambda` within the context of a specific referenced entity ID - the traversal block
+	 * of that referenced entity. The key names the referenced entity only; its representative attribute values carry
+	 * no meaning, since a block holds every row of the entity to the referenced entity (see
+	 * {@link #getFirstValuedReference(EntityContract, ReferenceSchema, ReferenceKey, Predicate)}).
 	 *
 	 * @param referenceKey The identifier of the reference to be used as the context for the lambda execution.
 	 * @param lambda        The executable task to be performed within the context of the referenced entity ID.
@@ -58,39 +60,60 @@ public interface EntityReferenceSensitiveComparator extends EntityComparator {
 	void withReferencedEntityId(@Nonnull RepresentativeReferenceKey referenceKey, @Nonnull Runnable lambda);
 
 	/**
-	 * Retrieves a reference from the given entity based on the provided representative reference key.
-	 * The reference is located by matching the representative attribute values, if they exist.
+	 * Picks the row by which an entity is represented in the traversal block of one referenced entity: among the rows
+	 * of the entity to the referenced entity, the first one that carries the sorted value, rows taken in the order of
+	 * their representative attribute values ({@link RepresentativeReferenceKey#STRICT_COMPARATOR}, `null` values
+	 * first). A row without the value passes the entity on to the next row, and an entity with no valued row is passed
+	 * on to the next block - this is the very row whose reduced index claims the entity on the index route, where the
+	 * providers of a block claim their owners in the same order. Values comparing equal without being equal
+	 * (`BigDecimal` 1.0 and 1.00) are told apart by that order as well, so the picked row never depends on the order in
+	 * which the entity stores its rows.
 	 *
-	 * @param entity The entity from which the reference will be retrieved. Must not be null.
-	 * @param referenceSchema The schema defining the reference attributes. Must not be null.
-	 * @param representativeReferenceKey The key containing the reference and representative attribute values. Must not be null.
-	 * @return An {@link Optional} containing the matching {@link ReferenceContract}, or an empty Optional if no match is found.
+	 * Without duplicates the entity has at most one row to the referenced entity, and no representative value is
+	 * read. With duplicates the representative values are read only when a second valued row has to be compared with
+	 * the first one found.
+	 *
+	 * @param entity           the entity whose row is picked
+	 * @param referenceSchema  the schema of the ordered reference
+	 * @param referencedEntity the referenced entity of the block, compared without representative attribute values
+	 * @param carriesValue     tells whether a row carries the sorted value
+	 * @return the picked row, empty when no row of the entity to the referenced entity carries the value
 	 */
 	@Nonnull
-	static Optional<ReferenceContract> getReferenceByRepresentativeReferenceKey(
+	static Optional<ReferenceContract> getFirstValuedReference(
 		@Nonnull EntityContract entity,
 		@Nonnull ReferenceSchema referenceSchema,
-		@Nonnull RepresentativeReferenceKey representativeReferenceKey
+		@Nonnull ReferenceKey referencedEntity,
+		@Nonnull Predicate<ReferenceContract> carriesValue
 	) {
-		final Serializable[] expectedRAV = representativeReferenceKey.representativeAttributeValues();
-		if (ArrayUtils.isEmpty(expectedRAV)) {
-			return entity.getReference(representativeReferenceKey.referenceKey());
-		} else {
-			final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
-			final List<ReferenceContract> matchingReferences = entity.getReferences(representativeReferenceKey.referenceKey());
-			ReferenceContract foundReference = null;
-			for (ReferenceContract matchingReference : matchingReferences) {
-				final Serializable[] representativeValues = rad.getRepresentativeValues(matchingReference);
-				if (Arrays.equals(representativeValues, expectedRAV)) {
-					Assert.isPremiseValid(
-						foundReference == null,
-						() -> "Duplicate references found for " + Arrays.toString(expectedRAV) + ", which should not happen!"
-					);
-					foundReference = matchingReference;
+		if (!referenceSchema.getCardinality().allowsDuplicates()) {
+			return entity.getReference(referencedEntity).filter(carriesValue);
+		}
+		final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
+		final List<ReferenceContract> rows = entity.getReferences(referencedEntity);
+		ReferenceContract picked = null;
+		Serializable[] pickedRepresentativeValues = null;
+		for (ReferenceContract row : rows) {
+			if (carriesValue.test(row)) {
+				if (picked == null) {
+					picked = row;
+				} else {
+					if (pickedRepresentativeValues == null) {
+						pickedRepresentativeValues = rad.getRepresentativeValues(picked);
+					}
+					final Serializable[] rowRepresentativeValues = rad.getRepresentativeValues(row);
+					if (
+						RepresentativeReferenceKey.compareRepresentativeValuesStrictly(
+							rowRepresentativeValues, pickedRepresentativeValues
+						) < 0
+					) {
+						picked = row;
+						pickedRepresentativeValues = rowRepresentativeValues;
+					}
 				}
 			}
-			return ofNullable(foundReference);
 		}
+		return ofNullable(picked);
 	}
 
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,10 +36,12 @@ import io.evitadb.comparator.IntComparator.IntAscendingComparator;
 import io.evitadb.comparator.IntComparator.IntDescendingComparator;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.EntityReferenceSensitiveComparator;
+import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.OrderByVisitor.MergeModeDefinition;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
+import io.evitadb.core.query.sort.ScopedSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.comparator.PickFirstReferenceTargetRanking;
 import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter;
@@ -51,19 +53,15 @@ import io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver
 import io.evitadb.core.query.sort.reference.sorter.PickFirstReferenceSorter;
 import io.evitadb.core.query.sort.reference.sorter.PickFirstVirtualSortValues;
 import io.evitadb.core.query.sort.reference.sorter.VirtualPartitionSortedRecords;
-import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.dataType.iterator.EmptyIterator;
-import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.attribute.ReferenceSortedRecordsProvider;
-import io.evitadb.index.attribute.SortedRecordsSupplier;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
@@ -77,7 +75,6 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.referenceContent;
 import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttributes;
-import static io.evitadb.core.query.sort.EntityReferenceSensitiveComparator.getReferenceByRepresentativeReferenceKey;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -100,21 +97,30 @@ public class EntityPrimaryKeyNaturalTranslator
 		final OrderDirection orderDirection = entityPrimaryKeyNatural.getOrderDirection();
 		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
 		final ReferenceSchema referenceSchema = processingScope.referenceSchema();
-		final PickFirstReducedIndexResolver pickFirstIndexResolver = processingScope.pickFirstIndexResolver();
+		final PickFirstReducedIndexResolver pickFirstIndexResolver = orderByVisitor.getPickFirstIndexResolver();
 		if (referenceSchema == null) {
-			return orderDirection == OrderDirection.DESC ? Stream.of(ReversedPrimaryKeySorter.INSTANCE) : Stream.empty();
+			final Bitmap recordsOfNarrowedScopes = orderByVisitor.getRecordsOfNarrowedScopes();
+			if (recordsOfNarrowedScopes != null) {
+				// an order in an `inScope` container sorts only the entities of its scope, at its declared position
+				return Stream.of(
+					new ScopedSorter(
+						recordsOfNarrowedScopes,
+						orderDirection == OrderDirection.DESC ? ReversedPrimaryKeySorter.INSTANCE : NoSorter.INSTANCE
+					)
+				);
+			} else if (orderDirection == OrderDirection.DESC) {
+				return Stream.of(ReversedPrimaryKeySorter.INSTANCE);
+			} else if (orderByVisitor.isWithinSegment()) {
+				// a segment chain has no default sorter, so the ascending order is registered at its declared position
+				return Stream.of(NoSorter.INSTANCE);
+			} else {
+				// the default sorter appended to every chain applies the ascending order
+				return Stream.empty();
+			}
 		} else if (pickFirstIndexResolver != null) {
 			// if prefetch happens, the comparator reads the references - and, for a reference allowing duplicates,
 			// their representative attributes, which order the references sharing one referenced entity
-			final List<String> representativeAttributes = referenceSchema.getCardinality().allowsDuplicates() ?
-				referenceSchema.getRepresentativeAttributeDefinition().getAttributeNames() : List.of();
-			orderByVisitor.addRequirementToPrefetch(
-				representativeAttributes.isEmpty() ?
-					referenceContent(referenceSchema.getName()) :
-					referenceContentWithAttributes(
-						referenceSchema.getName(), representativeAttributes.toArray(String[]::new)
-					)
-			);
+			registerReferencesWithRepresentativeAttributesToPrefetch(referenceSchema, orderByVisitor);
 			return Stream.of(
 				new PrefetchedRecordsSorter(
 					new PickFirstReferencePrimaryKeyEntityComparator(referenceSchema, orderDirection, pickFirstIndexResolver)
@@ -128,22 +134,29 @@ public class EntityPrimaryKeyNaturalTranslator
 				)
 			);
 		} else {
+			// if prefetch happens, the traversal comparator classifies every owner of a block by whether it has a row
+			// to the block's referenced entity - it reads the rows, never their attributes
+			orderByVisitor.addRequirementToPrefetch(referenceContent(referenceSchema.getName()));
 			final ReferencePartition[] partitions = orderByVisitor.getPartitionsForSort();
+			// every owner of a block carries the same value, so both routes order a block by the owner primary key in
+			// the direction of the ordering: the comparator breaks the tie that way and each provider lists its
+			// owners that way
 			return Stream.of(
-				new PreSortedRecordsSorter(
-					ofNullable(processingScope.mergeModeDefinition())
-						.map(MergeModeDefinition::mergeMode)
-						.orElse(MergeMode.APPEND_FIRST),
-					orderDirection == OrderDirection.DESC ? Comparator.naturalOrder().reversed() : Comparator.naturalOrder(),
-					orderDirection,
-					() -> createReferencedPrimaryKeyProviders(partitions, orderByVisitor)
-				),
 				new PrefetchedRecordsSorter(
 					new ReferencePrimaryKeyEntityComparator(
 						referenceSchema,
 						orderDirection == OrderDirection.DESC ?
 							IntDescendingComparator.INSTANCE : IntAscendingComparator.INSTANCE
 					)
+				),
+				new PreSortedRecordsSorter(
+					ofNullable(processingScope.mergeModeDefinition())
+						.map(MergeModeDefinition::mergeMode)
+						.orElse(MergeMode.APPEND_FIRST),
+					orderDirection == OrderDirection.DESC ?
+						Comparator.naturalOrder().reversed() : Comparator.naturalOrder(),
+					orderDirection,
+					() -> createReferencedPrimaryKeyProviders(partitions, orderDirection)
 				)
 			);
 		}
@@ -166,71 +179,78 @@ public class EntityPrimaryKeyNaturalTranslator
 	}
 
 	/**
-	 * Creates the providers of the partitions of a block-by-block reference ordering by the referenced primary key:
-	 * every owner of a partition carries the primary key of the partition's referenced entity. A materialized
-	 * partition hands out its owners in their primary key order, a virtual one the singleton of its only owner (see
-	 * {@link VirtualPartitionSortedRecords#ofReferencedPrimaryKey(VirtualReferencePartition)}) - no registry lookup.
+	 * Registers the content the prefetch-route comparator of a `pickFirst` ordering by the referenced primary key
+	 * reads: the references of the ordered reference and, for a reference allowing duplicates, their representative
+	 * attributes, which order the references sharing one referenced entity.
 	 *
-	 * @param partitions     the partitions of the reference in target order
-	 * @param orderByVisitor the visitor of the planned query
-	 * @return the providers in the order of the partitions, without the partitions holding no owner
+	 * @param referenceSchema the ordered reference
+	 * @param orderByVisitor  the visitor collecting the requirements of the prefetch
+	 */
+	private static void registerReferencesWithRepresentativeAttributesToPrefetch(
+		@Nonnull ReferenceSchema referenceSchema,
+		@Nonnull OrderByVisitor orderByVisitor
+	) {
+		final List<String> representativeAttributes = referenceSchema.getCardinality().allowsDuplicates() ?
+			referenceSchema.getRepresentativeAttributeDefinition().getAttributeNames() : List.of();
+		orderByVisitor.addRequirementToPrefetch(
+			representativeAttributes.isEmpty() ?
+				referenceContent(referenceSchema.getName()) :
+				referenceContentWithAttributes(
+					referenceSchema.getName(), representativeAttributes.toArray(String[]::new)
+				)
+		);
+	}
+
+	/**
+	 * Creates the providers of a traversal's partitions, keeping their order and the owner primary key tie-break
+	 * in the ordering direction. Virtual partitions supply their singleton directly from the registry row handle.
+	 *
+	 * @param partitions the partitions in target and representative key order
+	 * @param orderDirection the owner primary key tie-break direction
+	 * @return the providers of non-empty partitions
 	 */
 	@Nonnull
 	private static SortedRecordsProvider[] createReferencedPrimaryKeyProviders(
 		@Nonnull ReferencePartition[] partitions,
-		@Nonnull OrderByVisitor orderByVisitor
+		@Nonnull OrderDirection orderDirection
 	) {
 		final List<SortedRecordsProvider> providers = new ArrayList<>(partitions.length);
 		for (final ReferencePartition partition : partitions) {
-			switch (partition) {
-				case ReducedEntityIndex reducedEntityIndex -> {
-					final RepresentativeReferenceKey rrk = reducedEntityIndex.getRepresentativeReferenceKey();
-					final Bitmap bitmap = reducedEntityIndex.getAllPrimaryKeys();
-					final int[] pkArray = bitmap.getArray();
-					if (pkArray.length == 0) {
-						continue;
-					} else if (bitmap instanceof TransactionalBitmap txBitmap) {
-						providers.add(
-							new ReferenceSortedRecordsProvider(
-								txBitmap.getId(), pkArray, createPositionArray(bitmap.size()), bitmap,
-								position -> rrk.primaryKey(),
-								rrk
-							)
-						);
-					} else {
-						throw new GenericEvitaInternalError(
-							"Bitmap " + bitmap + " is not transactional and cannot be used for sorting!"
-						);
-					}
-				}
-				case VirtualReferencePartition virtualPartition ->
-					providers.add(VirtualPartitionSortedRecords.ofReferencedPrimaryKey(virtualPartition));
+			final SortedRecordsProvider provider = createReferencedPrimaryKeyProvider(partition, orderDirection);
+			if (provider != null) {
+				providers.add(provider);
 			}
 		}
 		return providers.toArray(SortedRecordsProvider[]::new);
 	}
 
 	/**
-	 * Creates the provider of one partition for a `pickFirst` ordering by the referenced primary key: every owner
-	 * of the index carries the same value, the primary key of the index's referenced entity, and owners follow in the
-	 * order of their own primary keys in the direction of the ordering - the order the merge keeps for equal values.
-	 * The owners are read from the partition's bitmap.
+	 * Creates the provider of one reduced index for an ordering by the referenced primary key - a `pickFirst` one or a
+	 * traversal: every owner of the index carries the same value, the primary key of the index's referenced entity,
+	 * and owners follow in the order of their own primary keys in the direction of the ordering - the order the merge
+	 * keeps for equal values. A descending provider mirrors the positions of the ascending owner array instead of
+	 * sorting anything. The provider carries the representative reference key of the index, which the traversal uses
+	 * to find the providers of a block. The owners are read from the index's bitmap whatever its implementation.
 	 *
 	 * @param index          the partition whose owners are ordered
 	 * @param orderDirection the direction of the ordering
 	 * @return the provider or `null` when the index holds no owner
 	 */
 	@Nullable
-	private static SortedRecordsSupplier createReferencedPrimaryKeyProvider(
+	private static SortedRecordsProvider createReferencedPrimaryKeyProvider(
 		@Nonnull ReferencePartition index,
 		@Nonnull OrderDirection orderDirection
 	) {
+		if (index instanceof VirtualReferencePartition virtualPartition) {
+			return VirtualPartitionSortedRecords.ofReferencedPrimaryKey(virtualPartition);
+		}
 		final Bitmap owners = index.getAllPrimaryKeys();
 		final int size = owners.size();
 		if (size == 0) {
 			return null;
 		}
-		final int referencedPrimaryKey = index.getReferenceKey().primaryKey();
+		// boxed once - the merge of a block's providers asks for the value of every record it compares
+		final Integer referencedPrimaryKey = index.getReferenceKey().primaryKey();
 		final int[] ownersAscending = owners.getArray();
 		final int[] positions = new int[size];
 		final int[] sortedOwners;
@@ -245,32 +265,24 @@ public class EntityPrimaryKeyNaturalTranslator
 				positions[i] = i;
 			}
 		}
-		return new SortedRecordsSupplier(
-			index.getPrimaryKey(), sortedOwners, positions, owners, position -> referencedPrimaryKey
+		return new ReferenceSortedRecordsProvider(
+			index.getPrimaryKey(), sortedOwners, positions, owners, position -> referencedPrimaryKey,
+			index.getRepresentativeReferenceKey()
 		);
 	}
 
 	/**
-	 * Creates an array of positions from 0 to size - 1.
-	 *
-	 * @param size the size of the array
-	 * @return an array of positions from 0 to size - 1
-	 */
-	@Nonnull
-	private static int[] createPositionArray(int size) {
-		final int[] result = new int[size];
-		for (int i = 0; i < size; i++) {
-			result[i] = i;
-		}
-		return result;
-	}
-
-	/**
-	 * A comparator that compares entities based on the primary key of the referenced entity.
+	 * A comparator that compares entities based on the primary key of the referenced entity, one traversal block at
+	 * a time: the block key, naming the block's referenced entity, is bound by
+	 * {@link #withReferencedEntityId(RepresentativeReferenceKey, Runnable)} and an entity without a row to it is
+	 * classified as not sortable ({@link #canSort(EntityContract)}), so it is passed on to the next block rather than
+	 * claimed by this one. Every owner of a block references the same entity,
+	 * so the owners of a block follow their own primary keys in the direction of the ordering, as on the index route.
+	 * Package-private so that its classification can be unit-tested over real prefetched entities.
 	 */
 	@SuppressWarnings("ComparatorNotSerializable")
 	@RequiredArgsConstructor
-	private static class ReferencePrimaryKeyEntityComparator implements EntityComparator, EntityReferenceSensitiveComparator {
+	static class ReferencePrimaryKeyEntityComparator implements EntityComparator, EntityReferenceSensitiveComparator {
 		/**
 		 * The schema of the reference that is being traversed.
 		 */
@@ -280,22 +292,30 @@ public class EntityPrimaryKeyNaturalTranslator
 		 */
 		@Nullable private RepresentativeReferenceKey referenceKey;
 		/**
-		 * The comparator used to compare the primary keys of the referenced entities.
+		 * Compares the owner primary keys in the direction of the ordering - the tie-break of owners sharing the
+		 * value of their block.
 		 */
 		@Nonnull private final IntComparator comparator;
-		/**
-		 * The array that collects non-sorted entities.
-		 */
-		private CompositeObjectArray<EntityContract> nonSortedEntities;
 
+		/**
+		 * Returns no entity: every entity without a row of the bound block is classified as not sortable by
+		 * {@link #canSort(EntityContract)} and never compared, so there is nothing left to report.
+		 *
+		 * @return an empty iterable
+		 */
 		@Nonnull
 		@Override
 		public Iterable<EntityContract> getNonSortedEntities() {
-			return this.nonSortedEntities == null ?
-				EmptyIterator.iterableInstance(EntityContract.class) :
-				this.nonSortedEntities;
+			return EmptyIterator.iterableInstance(EntityContract.class);
 		}
 
+		/**
+		 * Binds the comparator to the key of the sorted block for the duration of the lambda, which classifies and
+		 * sorts the entities of the block; the key is released whatever the outcome.
+		 *
+		 * @param referenceKey the key of the sorted block
+		 * @param lambda       the classification and sorting of the block
+		 */
 		@Override
 		public void withReferencedEntityId(@Nonnull RepresentativeReferenceKey referenceKey, @Nonnull Runnable lambda) {
 			try {
@@ -311,37 +331,35 @@ public class EntityPrimaryKeyNaturalTranslator
 			}
 		}
 
+		/**
+		 * Classifies the entity for the bound block: it is sortable when it has any row to the block's referenced
+		 * entity - every row carries the value, so whichever row represents the entity, the value is the same and
+		 * only the existence of a row is checked; no row is picked and no representative value is read.
+		 *
+		 * @param entity the entity to classify
+		 * @return `true` when the entity has a row to the referenced entity of the bound block
+		 */
+		@Override
+		public boolean canSort(@Nonnull EntityContract entity) {
+			Assert.isPremiseValid(this.referenceKey != null, "Referenced entity id must be set!");
+			return !entity.getReferences(this.referenceKey.referenceKey()).isEmpty();
+		}
+
+		/**
+		 * Compares two entities classified as sortable by {@link #canSort(EntityContract)} within the bound block.
+		 * Both have a row to the block's referenced entity, so both carry the same value - its primary key -
+		 * and the tie is broken by their own primary keys in the direction of the ordering. Neither row is
+		 * looked up again: the classification already established it, and the value it would yield is fixed by the
+		 * block key.
+		 *
+		 * @param o1 the first entity
+		 * @param o2 the second entity
+		 * @return the comparison result
+		 */
 		@Override
 		public int compare(EntityContract o1, EntityContract o2) {
 			Assert.isPremiseValid(this.referenceKey != null, "Referenced entity id must be set!");
-
-			final ReferenceContract o1Reference = getReferenceByRepresentativeReferenceKey(o1, this.referenceSchema, this.referenceKey).orElse(null);
-			final ReferenceContract o2Reference = getReferenceByRepresentativeReferenceKey(o2, this.referenceSchema, this.referenceKey).orElse(null);
-			if (o1Reference == null && o2Reference == null) {
-				this.nonSortedEntities = getOrCreatedNonSortedEntitiesCollector();
-				this.nonSortedEntities.add(o1);
-				this.nonSortedEntities.add(o2);
-				return 0;
-			} else if (o1Reference == null) {
-				this.nonSortedEntities = getOrCreatedNonSortedEntitiesCollector();
-				this.nonSortedEntities.add(o1);
-				return 1;
-			} else if (o2Reference == null) {
-				this.nonSortedEntities = getOrCreatedNonSortedEntitiesCollector();
-				this.nonSortedEntities.add(o2);
-				return -1;
-			} else {
-				return this.comparator.compare(
-					o1Reference.getReferencedPrimaryKey(),
-					o2Reference.getReferencedPrimaryKey()
-				);
-			}
-		}
-
-		@Nonnull
-		private CompositeObjectArray<EntityContract> getOrCreatedNonSortedEntitiesCollector() {
-			return ofNullable(this.nonSortedEntities)
-				.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
+			return this.comparator.compare(o1.getPrimaryKeyOrThrowException(), o2.getPrimaryKeyOrThrowException());
 		}
 	}
 
@@ -409,6 +427,19 @@ public class EntityPrimaryKeyNaturalTranslator
 				this.nonSortedEntities;
 		}
 
+		/**
+		 * Classifies the entity: it is sortable when it is admitted by the ordering's scopes and has a reference to
+		 * pick. The picked value is memoized for the comparisons that follow, and an entity classified as not
+		 * sortable is not reported through {@link #getNonSortedEntities()} - the caller passes it on by itself.
+		 *
+		 * @param entity the entity to classify
+		 * @return `true` when the entity has a referenced primary key to be sorted by
+		 */
+		@Override
+		public boolean canSort(@Nonnull EntityContract entity) {
+			return memoizeValue(entity, false) != MISSING;
+		}
+
 		@Override
 		public int compare(EntityContract o1, EntityContract o2) {
 			final int value1 = pickValue(o1);
@@ -434,6 +465,19 @@ public class EntityPrimaryKeyNaturalTranslator
 		 * @return the referenced primary key or {@link #MISSING} when the entity has no reference
 		 */
 		private int pickValue(@Nonnull EntityContract entity) {
+			return memoizeValue(entity, true);
+		}
+
+		/**
+		 * Returns the referenced primary key of the first reference of the entity in target order, memoized. An
+		 * entity without one is reported through {@link #getNonSortedEntities()} when `reportMissing` is set and the
+		 * value is computed by this call - i.e. only from the comparison path, never from the classification.
+		 *
+		 * @param entity        the entity whose value is requested
+		 * @param reportMissing whether a freshly computed missing value is reported as a non-sorted entity
+		 * @return the referenced primary key or {@link #MISSING} when the entity has no reference
+		 */
+		private int memoizeValue(@Nonnull EntityContract entity, boolean reportMissing) {
 			final int entityPrimaryKey = entity.getPrimaryKeyOrThrowException();
 			final int index = this.pickedValues.indexOf(entityPrimaryKey);
 			if (this.pickedValues.indexExists(index)) {
@@ -442,12 +486,13 @@ public class EntityPrimaryKeyNaturalTranslator
 			final int value = this.targetRanking.admits(entity) ?
 				entity.getReferences(this.referenceSchema.getName())
 					.stream()
+					.filter(it -> this.targetRanking.admits(entity, it))
 					.min(this.targetRanking.referenceOrder())
 					.map(ReferenceContract::getReferencedPrimaryKey)
 					.orElse(MISSING) :
 				MISSING;
 			this.pickedValues.indexInsert(index, entityPrimaryKey, value);
-			if (value == MISSING) {
+			if (reportMissing && value == MISSING) {
 				if (this.nonSortedEntities == null) {
 					this.nonSortedEntities = new CompositeObjectArray<>(EntityContract.class);
 				}

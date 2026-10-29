@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 
+import io.evitadb.annotation.Internal;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
@@ -33,6 +34,7 @@ import lombok.NoArgsConstructor;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Comparator;
 
@@ -55,7 +57,10 @@ import static io.evitadb.utils.StringUtils.serializableArrayToString;
  * {@link #referenceName()}, then {@link #primaryKey()}, and finally lexicographically by the
  * representative attribute values. The natural ordering expects both compared keys to carry the same
  * number of representative values and throws an exception when they do not. If you need a more
- * permissive ordering that handles different array lengths, use {@link #GENERIC_COMPARATOR} instead.
+ * permissive ordering that handles different array lengths, use {@link #GENERIC_COMPARATOR} instead. Neither of
+ * them tells apart representative values that compare equal without being equal (`BigDecimal` 1.0 and 1.00) - the
+ * query engine's reference ordering, which must order every two different keys the same way wherever it meets them,
+ * uses the internal {@link #STRICT_COMPARATOR} for that.
  *
  * This record is immutable and safe to use as a key in maps or elements of sets.
  *
@@ -76,6 +81,19 @@ public record RepresentativeReferenceKey(
 	 * it does not require the arrays to have the same length.
 	 */
 	public static final Comparator<RepresentativeReferenceKey> GENERIC_COMPARATOR = new GenericReferenceKeyComparator();
+	/**
+	 * Comparator refining {@link #GENERIC_COMPARATOR} so that it tells apart keys whose representative attribute values
+	 * compare equal without being equal - `BigDecimal` 1.0 and 1.00 are two different keys, yet the generic order ranks
+	 * them as equal. Such keys are ordered by the values themselves (see
+	 * {@link #compareRepresentativeValuesStrictly(Serializable[], Serializable[])}), so the order of two keys never
+	 * depends on which of them was met first, and two orderings of the same keys line them up the same way.
+	 * This engine ordering detail is an internal contract and may change without notice to client code.
+	 */
+	@Internal(
+		"order keys by `GENERIC_COMPARATOR` or their natural order - the strict order is internal to the reference " +
+			"ordering of the query engine"
+	)
+	public static final Comparator<RepresentativeReferenceKey> STRICT_COMPARATOR = new StrictReferenceKeyComparator();
 
 	/**
 	 * Creates a key for the provided {@link ReferenceKey} with no representative attribute values.
@@ -212,6 +230,51 @@ public record RepresentativeReferenceKey(
 	}
 
 	/**
+	 * Compares two arrays of representative attribute values in the order of {@link #STRICT_COMPARATOR}: first
+	 * lexicographically, as {@link ArrayUtils#compare(Object[], Object[])} does (`null` values first, a shorter array
+	 * before its extension), and when that ranks the arrays as equal although they are not, by the first pair of values
+	 * that compare equal without being equal - a `BigDecimal` by its scale (1.0 before 1.00), any other value by its
+	 * string form. That order means nothing on its own and need not: it only has to be deterministic, and both
+	 * execution routes break the tie through this one method, so they agree on it.
+	 *
+	 * The tie-break is reached only by such values, so arrays the lexicographic order tells apart and equal arrays cost
+	 * no more than the lexicographic comparison plus one `equals` per value, and allocate nothing.
+	 *
+	 * @param values      the first array of representative attribute values
+	 * @param otherValues the second array of representative attribute values
+	 * @return negative when the first array goes first, positive when the second one does, zero when the arrays are
+	 * equal or not even the string forms of their values tell them apart
+	 */
+	@Internal(
+		"compare whole keys by `GENERIC_COMPARATOR` or their natural order - the strict order is internal to the " +
+			"reference ordering of the query engine"
+	)
+	public static int compareRepresentativeValuesStrictly(
+		@Nonnull Serializable[] values,
+		@Nonnull Serializable[] otherValues
+	) {
+		final int comparison = ArrayUtils.compare(values, otherValues);
+		if (comparison != 0) {
+			return comparison;
+		}
+		// the arrays are of the same length and their values compare equal pair by pair, `null` only to `null`
+		for (int i = 0; i < values.length; i++) {
+			final Serializable value = values[i];
+			final Serializable otherValue = otherValues[i];
+			if (value != null && !value.equals(otherValue)) {
+				final int tieBreak =
+					value instanceof BigDecimal decimal && otherValue instanceof BigDecimal otherDecimal ?
+						Integer.compare(decimal.scale(), otherDecimal.scale()) :
+						String.valueOf(value).compareTo(String.valueOf(otherValue));
+				if (tieBreak != 0) {
+					return tieBreak;
+				}
+			}
+		}
+		return 0;
+	}
+
+	/**
 	 * Compares this key to another object for equality.
 	 *
 	 * Two keys are equal when their {@link ReferenceKey}s are equal according to
@@ -283,6 +346,38 @@ public record RepresentativeReferenceKey(
 			} else {
 				return primaryComparison;
 			}
+		}
+
+	}
+
+	/**
+	 * Comparator implementation of {@link #STRICT_COMPARATOR}: compares by the {@link ReferenceKey#referenceName()} in
+	 * natural order, then by the {@link ReferenceKey#primaryKey()} and finally by the
+	 * {@link #representativeAttributeValues()} in the order of
+	 * {@link #compareRepresentativeValuesStrictly(Serializable[], Serializable[])}.
+	 * Implements {@link Serializable} to allow usage in serialization contexts.
+	 */
+	@Internal(
+		"order keys by `GENERIC_COMPARATOR` or their natural order - the strict order is internal to the reference " +
+			"ordering of the query engine"
+	)
+	@NoArgsConstructor(access = lombok.AccessLevel.PRIVATE)
+	public static class StrictReferenceKeyComparator implements Comparator<RepresentativeReferenceKey>, Serializable {
+		@Serial private static final long serialVersionUID = -5538878296073886621L;
+
+		@Override
+		public int compare(RepresentativeReferenceKey o1, RepresentativeReferenceKey o2) {
+			final int nameComparison = o1.referenceName().compareTo(o2.referenceName());
+			if (nameComparison != 0) {
+				return nameComparison;
+			}
+			final int pkComparison = Integer.compare(o1.primaryKey(), o2.primaryKey());
+			if (pkComparison != 0) {
+				return pkComparison;
+			}
+			return compareRepresentativeValuesStrictly(
+				o1.representativeAttributeValues(), o2.representativeAttributeValues()
+			);
 		}
 
 	}

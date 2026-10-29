@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -161,50 +161,92 @@ public abstract class AbstractReferenceCompoundAttributeComparator implements En
 	public abstract int compare(EntityContract o1, EntityContract o2);
 
 	/**
+	 * Classifies the entity by the compound value of the reference {@link #pickReference(EntityContract)} selects:
+	 * the entity is sortable when that reference exists and carries at least one element of the compound. The
+	 * computed value is memoized for the comparisons that follow, and an entity classified as not sortable is not
+	 * reported through {@link #getNonSortedEntities()} - the caller passes it on by itself.
+	 *
+	 * @param entity the entity to classify
+	 * @return `true` when the entity carries a value to be sorted by
+	 */
+	@Override
+	public boolean canSort(@Nonnull EntityContract entity) {
+		return memoizeValue(entity, false) != ReferenceAttributeValue.MISSING;
+	}
+
+	/**
 	 * Retrieves and memoizes the comparable value array for the given entity.
 	 * If the value is already memoized, it returns the memoized value.
-	 * Otherwise, computes the value, memoizes it, and then returns it.
+	 * Otherwise, computes the value, memoizes it, and then returns it - an entity without a value computed here (one
+	 * that was not classified by {@link #canSort(EntityContract)}) is reported through {@link #getNonSortedEntities()}.
 	 *
 	 * @param entity the entity for which the value is to be memoized, must not be null.
 	 * @return the memoized comparable array value for the entity, never null.
 	 */
 	@Nonnull
 	protected ReferenceAttributeValue getAndMemoizeValue(@Nonnull EntityContract entity) {
-		final ReferenceAttributeValue memoizedValue = this.memoizedValues.get(entity.getPrimaryKeyOrThrowException());
-		if (memoizedValue == null) {
-			final Optional<ReferenceContract> referenceContract = pickReference(entity);
-			final ReferenceAttributeValue calculatedValue = referenceContract
-				.map(reference -> {
-					final Serializable[] valueArray = new Serializable[this.attributeElements.length];
-					for (int i = 0; i < this.attributeElements.length; i++) {
-						final AttributeElement attributeElement = this.attributeElements[i];
-						valueArray[i] = this.attributeValueFetcher.apply(reference, attributeElement.attributeName());
-					}
-					if (ArrayUtils.isEmptyOrItsValuesNull(valueArray)) {
-						return ReferenceAttributeValue.MISSING;
-					} else {
-						return new ReferenceAttributeValue(
-							reference.getReferencedPrimaryKey(),
-							new ComparableArray(
-								this.comparatorSource,
-								(Serializable[]) this.normalizer.apply(valueArray)
-							),
-							this.comparator
-						);
-					}
-				})
-				.orElse(ReferenceAttributeValue.MISSING);
-			this.memoizedValues.put(entity.getPrimaryKeyOrThrowException(), calculatedValue);
-			// if the value is missing, we need to add the entity to the non-sorted entities
-			if (calculatedValue == ReferenceAttributeValue.MISSING) {
-				if (this.nonSortedEntities == null) {
-					this.nonSortedEntities = new CompositeObjectArray<>(EntityContract.class);
-				}
-				this.nonSortedEntities.add(entity);
-			}
-			return calculatedValue;
-		} else {
+		return memoizeValue(entity, true);
+	}
+
+	/**
+	 * Looks up the memoized value of the entity, computing and memoizing it on the first request. A value computed
+	 * as {@link ReferenceAttributeValue#MISSING} by this call is reported through {@link #getNonSortedEntities()}
+	 * when `reportMissing` is set - i.e. only from the comparison path ({@link #getAndMemoizeValue(EntityContract)}),
+	 * never from the classification ({@link #canSort(EntityContract)}).
+	 *
+	 * @param entity        the entity whose value is requested
+	 * @param reportMissing whether a freshly computed missing value is reported as a non-sorted entity
+	 * @return the memoized value, {@link ReferenceAttributeValue#MISSING} when the entity has none
+	 */
+	@Nonnull
+	private ReferenceAttributeValue memoizeValue(@Nonnull EntityContract entity, boolean reportMissing) {
+		final int primaryKey = entity.getPrimaryKeyOrThrowException();
+		final ReferenceAttributeValue memoizedValue = this.memoizedValues.get(primaryKey);
+		if (memoizedValue != null) {
 			return memoizedValue;
+		}
+		final ReferenceAttributeValue calculatedValue = computeValue(entity);
+		this.memoizedValues.put(primaryKey, calculatedValue);
+		if (reportMissing && calculatedValue == ReferenceAttributeValue.MISSING) {
+			if (this.nonSortedEntities == null) {
+				this.nonSortedEntities = new CompositeObjectArray<>(EntityContract.class);
+			}
+			this.nonSortedEntities.add(entity);
+		}
+		return calculatedValue;
+	}
+
+	/**
+	 * Computes the compound value of the entity from the reference {@link #pickReference(EntityContract)} selects,
+	 * without memoizing it.
+	 *
+	 * @param entity the entity whose value is computed
+	 * @return the value or {@link ReferenceAttributeValue#MISSING} when there is no such reference or it carries no
+	 * element of the compound
+	 */
+	@Nonnull
+	private ReferenceAttributeValue computeValue(@Nonnull EntityContract entity) {
+		final Optional<ReferenceContract> referenceContract = pickReference(entity);
+		if (referenceContract.isEmpty()) {
+			return ReferenceAttributeValue.MISSING;
+		}
+		final ReferenceContract reference = referenceContract.get();
+		final Serializable[] valueArray = new Serializable[this.attributeElements.length];
+		for (int i = 0; i < this.attributeElements.length; i++) {
+			final AttributeElement attributeElement = this.attributeElements[i];
+			valueArray[i] = this.attributeValueFetcher.apply(reference, attributeElement.attributeName());
+		}
+		if (ArrayUtils.isEmptyOrItsValuesNull(valueArray)) {
+			return ReferenceAttributeValue.MISSING;
+		} else {
+			return new ReferenceAttributeValue(
+				reference.getReferencedPrimaryKey(),
+				new ComparableArray(
+					this.comparatorSource,
+					(Serializable[]) this.normalizer.apply(valueArray)
+				),
+				this.comparator
+			);
 		}
 	}
 

@@ -48,9 +48,9 @@ import java.util.List;
  * identified by its content - no handle is built and no index object is touched for them. When the registry holds no
  * row of any partition of the targets, every partition is materialized and the owners are empty.
  *
- * A block-by-block ordering narrowed by a hierarchy option needs the partitions themselves, the virtual ones as their
- * handles - {@link #getPartitions()} builds them on demand from the splits of the scopes read virtually, which the
- * instance keeps for that purpose only.
+ * Traversal resolves the partitions of its memoized hierarchy bounds independently of index-selection candidates.
+ * It needs virtual partitions as handles, as do implicit pick-first chains consuming a hierarchy option's candidates.
+ * {@link #getPartitions()} builds those handles on demand from the retained splits of the scopes read virtually.
  *
  * @param materializedIndexes     the partitions read through their reduced entity indexes, resolved - first those of
  *                                the scopes read through the index objects alone, target by target and scope by
