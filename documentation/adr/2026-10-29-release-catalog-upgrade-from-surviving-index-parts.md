@@ -1,11 +1,11 @@
 ---
 title: Upgrade released catalogs from surviving parts, refusing collisions and warning about loss
 date: 2026-10-29
-updated: 2026-10-29 13:50
+updated: 2026-10-29 14:05
 status: accepted
 kind: fix
 issues: [1696, 1699]
-prs: []
+prs: [1832]
 areas: [evita_engine/src/main/java/io/evitadb/index/attribute, evita_store/evita_store_server, evita_test/evita_functional_tests]
 supersedes: []
 superseded-by: []
@@ -200,7 +200,7 @@ matrix rows and the two real-release shared-start rows exposed the mismatch. Pre
 contributions restored **78/78**. `Migration_2026_3_RangeCompanionUpgradeTest.shouldPublishAscendingDecimalThresholds`
 pins the four inherited/native decimal cases; `shouldPublishAggregateIntervalsAsFreshWrites` and
 `shouldPublishReleasedSharedStartIntervals` compare complete range points to fresh current writes. Removing the warning caller made 18 of 23 report cases fail; restoration passed 23/23.
-Final step-7 selection after assigning the decimal fold: **1,919 tests, all green, zero skipped**. The two
+The upgrade, reader and fixture classes after assigning the decimal fold: **1,919 tests, all green, zero skipped**. The two
 original decimal-fold query expectations are replaced by warning coverage; the other **1,917** case outcomes
 are unchanged. The report class has **25/25 green** cases, including real inherited decimal folds and the
 already repaired paged decimal fixture. Removing only the decimal warning predicate makes those two cases
