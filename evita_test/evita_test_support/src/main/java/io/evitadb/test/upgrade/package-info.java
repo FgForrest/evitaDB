@@ -24,12 +24,13 @@
 /**
  * Recipes and generator of the **release upgrade fixtures**: small catalogs written by the released engines v2026.1.20
  * and v2026.2.18, which the upgrade tests (`Release2026_2UpgradeDefectsTest` in `evita_functional_tests`) open with the
- * current engine. The fixtures live in `evita_functional_tests` under
- * `src/test/resources/testData/release_upgrade_fixtures`, one storage directory per fixture named after it.
+ * current engine. The fixtures are never committed: the build of `evita_functional_tests` writes them in its
+ * `generate-test-resources` phase into its test output directory, under `testData/release_upgrade_fixtures`, one
+ * storage directory per fixture named after it.
  *
- * Nothing in this package runs in a test build. The recipes compile with the module against the current API — which is
- * how the tests replay them into a fresh catalog for comparison — and, compiled separately against a release's jars,
- * they write the fixtures inside that release:
+ * The generators never run in a test JVM. The recipes compile with the module against the current API — which is how
+ * the tests replay them into a fresh catalog for comparison — and, compiled separately against a release's jars, they
+ * write the fixtures inside that release:
  *
  * - {@link io.evitadb.test.upgrade.ReleaseFixtureRecipe} — schema and mutations of one fixture;
  * - {@link io.evitadb.test.upgrade.Release2026_1FixtureRecipes} — fixtures written by 2026.1 (this class must compile
@@ -40,12 +41,13 @@
  *   {@link io.evitadb.test.upgrade.Release2026_2FixtureGenerator} — the entry points run inside the releases, each
  *   with a `write` mode and a `probe` mode that prints the release's answers to the recipes' probes.
  *
- * To regenerate the fixtures run `tools/generate-release-fixtures.sh <outputDir> [fixture...]` — it resolves both
- * releases' class paths (or takes them from `RELEASE_2026_1_CLASSPATH` / `RELEASE_2026_2_CLASSPATH`), compiles this
- * package against each, writes the 2026.1 fixtures, then the 2026.2 ones, and opens the 2026.1 fixtures 2026.2 is to
- * upgrade — and copy the output into the resource directory above. A recipe must keep to the API the releases share
- * with the current engine; a change that does not compile against a release belongs in a new recipe, not in an old one,
- * because the committed bytes were written from the recipe as it stands.
+ * The build runs `tools/generate-release-fixtures.sh <testDataDir>` — it resolves both releases' class paths (or takes
+ * them from `RELEASE_2026_1_CLASSPATH` / `RELEASE_2026_2_CLASSPATH`), compiles this package against each, writes the
+ * 2026.1 fixtures, then the 2026.2 ones, and opens the 2026.1 fixtures 2026.2 is to upgrade; it skips the run while
+ * its inputs and its output are unchanged. A recipe must keep to the API the releases share with the current engine,
+ * or the build fails to compile it against the release. Editing a recipe changes the fixture the next build writes,
+ * so a recipe a test already relies on changes only together with that test, and a new shape gets a recipe of its
+ * own.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

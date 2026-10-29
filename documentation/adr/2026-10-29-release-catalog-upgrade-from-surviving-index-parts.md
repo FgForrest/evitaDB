@@ -1,7 +1,7 @@
 ---
 title: Upgrade released catalogs from surviving parts, refusing collisions and warning about loss
 date: 2026-10-29
-updated: 2026-10-29 13:48
+updated: 2026-10-29 16:56
 status: accepted
 kind: fix
 issues: [1696, 1699]
@@ -131,6 +131,22 @@ to manifests that preserve original tuples, and membership parts supply owner de
 **Rejected because:** this would add a permanent legacy-data cost or persistent reminder state for a one-time
 migration. Report after successful publication and keep the startup log; current-protocol loads do not repeat it.
 
+### Commit the release-written fixtures, download them, or synthesize their bytes (declined)
+
+The fixtures were first committed as 280 binary files (~1 MB raw, ~235 KB packed). Binary files do not belong in the
+repository: every fetch pays for them for good, because a merge commit carries a pull request's blobs into dev. The
+build now writes them from the recipes with the published release jars (see Key technical details).
+
+- A published fixture archive, downloaded by checksum, gives stable bytes and no generation time. **Rejected
+  because** the bytes would live in a second place: every recipe change needs a manual upload and a checksum bump,
+  a reviewer cannot see what changed, and nothing checks that recipe and bytes still agree. Worth revisiting only if
+  build-time generation grows slow.
+- Synthesizing the released layout in test code needs no release jars. **Rejected because** it tests our own reading
+  of the old format against itself: the inherited 2026.1/2025.5 sort-part decode defect was caught only by bytes the
+  released writer produced, and the current writer cannot construct those released distinctions.
+- Git LFS keeps the blobs out of the pack. **Rejected because** the fixtures stay part of the repository workflow,
+  and every clone and runner then needs LFS and its quota.
+
 ## Decision
 
 **Chosen: option 2.** The unit of repair is surviving index information, including a root's listed pages when
@@ -183,11 +199,18 @@ condition under which republishing is needed and never claims that schema suscep
   counter audit is separate. A failed publication emits no successful-upgrade loss warning.
 - Warning predicates cover all entity scopes, applicable indexed reference scopes and active compound components.
   Duplicate temporal reference representatives require no index/scope gate. Price risk requires indexed prices.
+- The release fixtures are not in the repository. `evita_functional_tests` runs `tools/generate-release-fixtures.sh`
+  in `generate-test-resources`: it resolves v2026.1.20 and v2026.2.18 from Maven Central, compiles the recipes of
+  `io.evitadb.test.upgrade` against each, and writes the catalogs and the four 2026.1 sort parts straight into the
+  test output directory (`target/test-classes/testData`), replacing its previous output as a whole. It skips the run
+  while the script, the recipes and the sort-part generator are unchanged and the output is still the one it wrote.
+  Catalog bytes differ from run to run, so tests assert behaviour, never bytes; a recipe a test relies on changes
+  only together with that test.
 
 ## Verification
 
 Real release fixture copies exercise the actual upgrade. `Release2026_2IndexUpgradeTest` retains the successful
-query oracles; the committed release suite checks fixture origins, successful publication and fresh equivalence
+query oracles; the release suite checks fixture origins, successful publication and fresh equivalence
 only where that outcome is promised. `LegacyRepresentativeKeyPreflightTest.shouldRefuseCollidingPartitionsBeforePublishing`
 and `Migration_2026_3_RangeUniqueUpgradeRoundTripTest.shouldRefuseEqualUniqueValuesBeforePublication` verify the
 unchanged bootstrap and diagnostics. `Migration_2026_3_UpgradeReportTest` covers conditional fields, duplicate
@@ -218,6 +241,12 @@ The final full functional module recorded **30,388 tests: 0 failures, 5 errors, 
 HTTPS subscription session timeouts and one a catalog-handover timing case outside this change; all five passed
 when re-run alone. The root install and the Javadoc build passed, production callers were audited, and the Kryo
 audit reported no findings.
+
+With the fixtures written by the build instead of committed, resolving both releases took 4 s and writing all 49
+catalogs 16 s. Two runs wrote the same files; the catalog bytes differed, while the four sort parts matched the
+formerly committed ones byte for byte. All 391 fixture-dependent tests passed on generated fixtures with no committed
+copy on the class path, and the full functional module recorded **31,282 tests: 0 failures, 5 errors, 65 skipped**.
+All five errors were HTTPS subscription session timeouts, and their three classes passed 44/44 when re-run alone.
 
 ## Consequences & open follow-ups
 
@@ -263,4 +292,5 @@ into unproven stale membership/locale cases or histogram and price reconstructio
   readers and ordering rewrites verified.
 - **2026-10-29** — collision preflight, same-owner fold and range companions implemented; dev #1826 integrated;
   no-content-read warning and conditional REINDEX wording accepted; assigned proofs converted to their outcomes,
-  with the inherited decimal fold subsequently assigned the same schema-only warning policy.
+  with the inherited decimal fold subsequently assigned the same schema-only warning policy. The release fixtures
+  left the repository: the functional tests' build now writes them with the released engines.

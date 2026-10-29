@@ -71,7 +71,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Checks publication and lossless query comparisons for catalogs written by released 2026.2 and 2026.1 engines.
  * Successful loading alone does not promise query parity for potentially lossy fields. Each scenario uses a fixture
- * under `testData/release_upgrade_fixtures`, written by the released engines from a recipe in
+ * under `testData/release_upgrade_fixtures`, written during the build by the released engines from a recipe in
  * `io.evitadb.test.upgrade`; {@link ReleaseFixtureHarness} opens a copy of it and replays the recipe into a fresh
  * catalog for comparison.
  *

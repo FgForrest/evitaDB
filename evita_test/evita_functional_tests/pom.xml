@@ -45,6 +45,11 @@
 		<maven.install.skip>true</maven.install.skip>
 		<maven.deploy.skip>true</maven.deploy.skip>
 		<skipNexusStagingDeployMojo>true</skipNexusStagingDeployMojo>
+		<!--
+			`true` skips writing the release upgrade fixtures (the `generate-release-fixtures` execution below); the
+			profiles at the end set it for every build that runs no tests of this module.
+		-->
+		<releaseFixtures.skip>false</releaseFixtures.skip>
 	</properties>
 
 	<dependencies>
@@ -266,6 +271,45 @@
 	<build>
 		<plugins>
 			<!--
+				Writes the release upgrade fixtures - catalogs and storage parts written by the RELEASED engines, which
+				the upgrade tests open with the current one - straight into the test output directory, under
+				`testData`, where the script replaces its own previous output as a whole. They are produced here
+				instead of being committed, because binary fixtures do not belong in the repository. The script
+				downloads the release jars on first use, through a nested Maven given this build's local repository,
+				offline mode and settings files, and skips the run while its inputs and output are unchanged; see
+				`tools/generate-release-fixtures.sh`. Running such a test from IntelliJ, which builds with the
+				`intellij-idea-only` profile, needs this phase to have run with that profile since IntelliJ last
+				rebuilt the module:
+				`mvn generate-test-resources -P intellij-idea-only -pl evita_test/evita_functional_tests`.
+			-->
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>exec-maven-plugin</artifactId>
+				<version>3.6.4</version>
+				<executions>
+					<execution>
+						<id>generate-release-fixtures</id>
+						<phase>generate-test-resources</phase>
+						<goals>
+							<goal>exec</goal>
+						</goals>
+						<configuration>
+							<skip>${releaseFixtures.skip}</skip>
+							<executable>bash</executable>
+							<!-- each option embeds its expression in text, which makes the plugin receive a string -->
+							<arguments>
+								<argument>${project.basedir}/../../tools/generate-release-fixtures.sh</argument>
+								<argument>--maven-repo-local=${settings.localRepository}</argument>
+								<argument>--maven-offline=${settings.offline}</argument>
+								<argument>--maven-settings=${session.request.userSettingsFile}</argument>
+								<argument>--maven-global-settings=${session.request.globalSettingsFile}</argument>
+								<argument>${project.build.testOutputDirectory}/testData</argument>
+							</arguments>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<!--
 				Publish a test-jar so other test modules (notably evita_long_running_tests)
 				can reuse helper / fixture / mock classes that live in src/test/java here.
 				The test-jar contains compiled .class files only; test resources are not
@@ -284,4 +328,47 @@
 			</plugin>
 		</plugins>
 	</build>
+
+	<!--
+		Only this module's tests read the release upgrade fixtures, so a build that runs none of them does not write
+		them: tests skipped by property, and the `documentation` / `longRunning` suites, which skip this module's tests.
+	-->
+	<profiles>
+		<profile>
+			<id>release-fixtures-without-tests</id>
+			<activation>
+				<property>
+					<name>skipTests</name>
+					<value>true</value>
+				</property>
+			</activation>
+			<properties>
+				<releaseFixtures.skip>true</releaseFixtures.skip>
+			</properties>
+		</profile>
+		<profile>
+			<id>release-fixtures-without-test-build</id>
+			<activation>
+				<property>
+					<name>maven.test.skip</name>
+					<value>true</value>
+				</property>
+			</activation>
+			<properties>
+				<releaseFixtures.skip>true</releaseFixtures.skip>
+			</properties>
+		</profile>
+		<profile>
+			<id>documentation</id>
+			<properties>
+				<releaseFixtures.skip>true</releaseFixtures.skip>
+			</properties>
+		</profile>
+		<profile>
+			<id>longRunning</id>
+			<properties>
+				<releaseFixtures.skip>true</releaseFixtures.skip>
+			</properties>
+		</profile>
+	</profiles>
 </project>

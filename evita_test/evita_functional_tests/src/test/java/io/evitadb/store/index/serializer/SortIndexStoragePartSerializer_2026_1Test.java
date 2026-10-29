@@ -127,7 +127,8 @@ class SortIndexStoragePartSerializer_2026_1Test {
 		try (final InputStream input = Objects.requireNonNull(
 			SortIndexStoragePartSerializer_2026_1Test.class.getResourceAsStream(
 				"/testData/released_sort_2026_1/" + fixture + ".bin"
-			)
+			),
+			"Sort part `" + fixture + "` is not on the class path; the build writes it in `generate-test-resources`."
 		)) {
 			bytes = input.readAllBytes();
 		}

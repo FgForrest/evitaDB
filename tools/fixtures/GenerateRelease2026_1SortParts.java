@@ -52,7 +52,28 @@ import java.util.Map;
 
 /**
  * Generates the small sort-part resources with the actual 2026.1.20 writer and verifies their released round trip.
- * Compile and run against the released jars, as described beside the resources; never run with the current writer.
+ * `tools/generate-release-fixtures.sh` compiles and runs it against the released jars, writing into
+ * `testData/released_sort_2026_1` of the functional tests' build; never run it with the current writer, which cannot
+ * construct these released distinctions.
+ *
+ * The parts carry the leading UID `-7076092972784353868`, and their compressed dictionary has
+ * `AttributeIndexKey(null, "validity", null)` at ID 1:
+ *
+ * | Resource | Record IDs | Positional block lengths | Sparse entry order |
+ * |---|---|---|---|
+ * | unequal.bin | 1, 2, 3, 4, 5 | 2, 3 | second value, first value |
+ * | singleton.bin | 10, 20, 21, 22 | 1, 3 | second value |
+ * | compound.bin | 4, 5, 7, 3, 9, 12 | 2, 1, 3 | third value, first value |
+ * | control.bin | 1, 2, 3, 4, 5 | 2, 3 | second value, first value |
+ *
+ * The colliding ranges end at `2026-01-01T11:00+02:00` and `2026-01-01T10:00+01:00`. The compound has a nullable
+ * range component and an integer component; the control uses a 2027 end. `LinkedHashMap` deliberately supplies
+ * reversed sparse entries to the released writer: a released map has no obligation to follow value order.
+ *
+ * The 2025.5 reader test substitutes only that layout's UID and uses the old `AttributeKey` dictionary entry. Its
+ * payload layout is identical, so that adaptation is synthetic, while these bytes are real 2026.1.20 output. The
+ * whole inherited-sort catalog comes separately from the `Release2026_1FixtureRecipes.inheritedSortTwins()` recipe
+ * and stays at protocol 4.
  */
 public final class GenerateRelease2026_1SortParts {
 	/** Utility entry point only. */
