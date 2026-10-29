@@ -76,16 +76,14 @@ import java.util.stream.Collectors;
  * which records are valid from certain point forwards, which records are valid until certain point and so on.
  * See methods on this data structure.
  *
- * Beware - single record id may have multiple ranges in this data structure, but client code must ensure that
- * from/to combinations for the record are unique - i.e. that the single record id doesn't share same border.
- * Avoid following combinations for ranges of the SAME record:
- *
- * (2-10)(10-20) - ten is shared
- * (2-20)(2-40) - second is shared
- * (2-10)(5-10) - ten is shared
- *
- * This situation will lead to problems when such record is removed because on removal it removes the shared border
- * information for all ranges.
+ * A single record id may hold several ranges, and they may share a border: `(2-20)(2-40)` start at the same
+ * threshold, `(2-10)(5-10)` end at the same threshold, and so does a record holding the same range twice. Every
+ * query here counts, per record, the ranges that started minus the ranges that ended, so each border is kept as many
+ * times as it occurs — a threshold point holds its starts and ends in occurrence levels (see
+ * {@link TransactionalRangePoint}), and every non-empty level is one more operand of the count. Removing one of two
+ * ranges sharing a border therefore removes one occurrence and leaves the other range intact. Callers that do share
+ * borders within one record are the contribution-keyed indexes, where several owners add their ranges to one record id
+ * (a referenced entity's partition, a group's owner).
  *
  * ## Threshold scale — a persisted-format contract
  *
@@ -155,7 +153,8 @@ public class RangeIndex
 
 	/**
 	 * Predicate will return true if point has no sense because it contains no data (no starts, no ends). Predicate will
-	 * never return true for full range border points (MIN/MAX) even if empty.
+	 * never return true for full range border points (MIN/MAX) even if empty. Occurrence level 1 decides alone: every
+	 * repeated level is a subset of it.
 	 */
 	private static final Predicate<TransactionalRangePoint> INT_RANGE_POINT_OBSOLETE_CHECKER =
 		point -> point.getThreshold() != Long.MIN_VALUE && point.getThreshold() != Long.MAX_VALUE && point.getStarts().isEmpty() && point.getEnds().isEmpty();
@@ -210,7 +209,9 @@ public class RangeIndex
 
 	/**
 	 * Collects all starts and ends of every range point currently held in the passed index (transactional view) into a
-	 * simple DTO. Intended for tests that need to assert the full internal state of the index.
+	 * simple DTO. Intended for tests that need to assert the full internal state of the index. Only occurrence level 1
+	 * is collected — the repeated levels are asserted through {@link TransactionalRangePoint#getRepeatedStarts()} and
+	 * {@link TransactionalRangePoint#getRepeatedEnds()}.
 	 */
 	@Nonnull
 	static StartsEndsDTO collectAllStartsAndEnds(@Nonnull RangeIndex index) {
@@ -356,8 +357,11 @@ public class RangeIndex
 	}
 
 	/**
-	 * Adds new record with the interval from/to to the range. The updater mutates and returns the SAME
-	 * {@link TransactionalRangePoint} instance (never swaps it) so the value's transactional diff layer is preserved.
+	 * Adds new record with the interval from/to to the range. A border the record already holds at a threshold is
+	 * counted once more rather than absorbed (see the class javadoc). The updater mutates and returns the SAME
+	 * {@link TransactionalRangePoint} instance so the value's transactional diff layer is preserved — except when the
+	 * point has to grow its array of occurrence levels, which only a new instance can carry; the tree then replaces the
+	 * value transactionally and releases the discarded instance's layer.
 	 *
 	 * Both bounds must be derived in the same scale every other threshold of this index was — normally
 	 * {@code Range#getFrom()} / {@code Range#getTo()}, which for a `DateTimeRange` is already the epoch millisecond.
@@ -376,8 +380,7 @@ public class RangeIndex
 				if (point == null) {
 					return new TransactionalRangePoint(from, new BaseBitmap(recordId), EmptyBitmap.INSTANCE);
 				}
-				point.addStart(recordId);
-				return point;
+				return point.addStart(recordId);
 			}
 		);
 		this.ranges.upsert(
@@ -386,8 +389,7 @@ public class RangeIndex
 				if (point == null) {
 					return new TransactionalRangePoint(to, EmptyBitmap.INSTANCE, new BaseBitmap(recordId));
 				}
-				point.addEnd(recordId);
-				return point;
+				return point.addEnd(recordId);
 			}
 		);
 		if (!Transaction.isTransactionAvailable()) {
@@ -397,9 +399,10 @@ public class RangeIndex
 	}
 
 	/**
-	 * Removes record with the interval from/to from the range. Each affected point is mutated in place; once a point
-	 * becomes obsolete (no starts, no ends) and is not a border sentinel it is deleted from the tree, which releases
-	 * its transactional layer.
+	 * Removes record with the interval from/to from the range — one occurrence of each border, so another range of the
+	 * same record sharing a border keeps it. Each affected point is mutated in place; once a point becomes obsolete (no
+	 * starts, no ends) and is not a border sentinel it is deleted from the tree, which releases its transactional
+	 * layer.
 	 *
 	 * The two bounds must be the very thresholds {@link #addRecord} was called with, in the same scale — a removal at
 	 * a threshold this record never started at silently leaves the original interval in place.
@@ -440,22 +443,22 @@ public class RangeIndex
 	}
 
 	/**
-	 * Removes the passed `recordId` from the start or end bitmap of the point at the given `threshold` (mutating it in
-	 * place) and deletes the point afterwards when it became obsolete and is not a border sentinel.
+	 * Removes one occurrence of the passed `recordId` from the starts or ends of the point at the given `threshold`
+	 * (mutating it in place) and deletes the point afterwards when it became obsolete and is not a border sentinel.
 	 *
 	 * @param threshold the threshold of the point to mutate
 	 * @param recordId  the record id to remove
-	 * @param fromStart `true` to remove from the start bitmap, `false` to remove from the end bitmap
+	 * @param fromStart `true` to remove from the starts, `false` to remove from the ends
 	 */
 	private void removeFromPoint(long threshold, int recordId, boolean fromStart) {
-		final TransactionalRangePoint point = this.ranges.search(threshold).orElse(null);
+		final TransactionalRangePoint point = this.ranges.searchOrNull(threshold);
 		if (point == null) {
 			return;
 		}
 		if (fromStart) {
-			point.removeStarts(new int[]{recordId});
+			point.removeStart(recordId);
 		} else {
-			point.removeEnds(new int[]{recordId});
+			point.removeEnd(recordId);
 		}
 		if (INT_RANGE_POINT_OBSOLETE_CHECKER.test(point)) {
 			this.ranges.delete(threshold);
@@ -467,7 +470,8 @@ public class RangeIndex
 	}
 
 	/**
-	 * Returns true if the range contains passed record id anywhere in its {@link #ranges}.
+	 * Returns true if the range contains passed record id anywhere in its {@link #ranges}. Occurrence level 1 decides
+	 * alone: every repeated level is a subset of it.
 	 */
 	public boolean contains(int recordId) {
 		final Iterator<TransactionalRangePoint> it = this.ranges.valueIterator();
@@ -506,17 +510,15 @@ public class RangeIndex
 	public Formula getRecordsFrom(long threshold) {
 		// the array implementation collected all points from the first key >= threshold to the end; this is exactly
 		// the forward stream of points whose key is greater than or equal to the threshold
-		final StartsEndsDTO startsEndsDTO = new StartsEndsDTO();
+		final OperandFamily starts = new OperandFamily();
+		final OperandFamily ends = new OperandFamily();
 		final Iterator<TransactionalRangePoint> it = this.ranges.greaterOrEqualValueIterator(threshold);
 		while (it.hasNext()) {
 			final TransactionalRangePoint point = it.next();
-			startsEndsDTO.addStart(point.getStarts());
-			startsEndsDTO.addEnd(point.getEnds());
+			starts.add(point.getStarts(), point.getRepeatedStarts());
+			ends.add(point.getEnds(), point.getRepeatedEnds());
 		}
-		return createRangeCountFormulaIfNecessary(
-			getId(), startsEndsDTO.getRangeEndsAsBitmapArray(),
-			startsEndsDTO.getRangeStartsAsBitmapArray()
-		);
+		return createRangeCountFormulaIfNecessary(getId(), ends, starts);
 	}
 
 	/**
@@ -608,6 +610,10 @@ public class RangeIndex
 	 *
 	 * A record may hold several ranges, so membership is a counting question rather than a set question - the strictly
 	 * positive signed multiplicity {@link RangeCountFormula} computes means at least one of the record's ranges matches.
+	 * Ranges of one record may share a border, so a point contributes every non-empty occurrence level it holds, each
+	 * as one more operand of its family; a point where nothing repeats contributes exactly its two level-1 bitmaps. The
+	 * repeated levels are expanded only when the ends family is not empty — see
+	 * {@link #createRangeCountFormulaIfNecessary(long, OperandFamily, OperandFamily)}.
 	 *
 	 * @param startsBound     highest threshold whose STARTS still contribute `+1`
 	 * @param startsInclusive whether a point sitting exactly on `startsBound` contributes its starts
@@ -625,8 +631,8 @@ public class RangeIndex
 			endsBound < startsBound || (endsBound == startsBound && (startsInclusive || !endsInclusive)),
 			"The ends bound must never admit a threshold the starts bound rejects!"
 		);
-		final List<Bitmap> starts = new ArrayList<>(DEFAULT_OPERAND_FAMILY_SIZE);
-		final List<Bitmap> ends = new ArrayList<>(DEFAULT_OPERAND_FAMILY_SIZE);
+		final OperandFamily starts = new OperandFamily();
+		final OperandFamily ends = new OperandFamily();
 		final Iterator<TransactionalLongBPlusTree.Entry<TransactionalRangePoint>> it = this.ranges.entryIterator();
 		while (it.hasNext()) {
 			final TransactionalLongBPlusTree.Entry<TransactionalRangePoint> entry = it.next();
@@ -638,20 +644,12 @@ public class RangeIndex
 				break;
 			}
 			final TransactionalRangePoint point = entry.value();
-			final Bitmap pointStarts = point.getStarts();
-			if (!pointStarts.isEmpty()) {
-				starts.add(pointStarts);
-			}
+			starts.add(point.getStarts(), point.getRepeatedStarts());
 			if (endsInclusive ? threshold <= endsBound : threshold < endsBound) {
-				final Bitmap pointEnds = point.getEnds();
-				if (!pointEnds.isEmpty()) {
-					ends.add(pointEnds);
-				}
+				ends.add(point.getEnds(), point.getRepeatedEnds());
 			}
 		}
-		return createRangeCountFormulaIfNecessary(
-			getId(), starts.toArray(Bitmap[]::new), ends.toArray(Bitmap[]::new)
-		);
+		return createRangeCountFormulaIfNecessary(getId(), starts, ends);
 	}
 
 	/**
@@ -659,64 +657,31 @@ public class RangeIndex
 	 * `minus` - the signed multiplicity that decides range validity.
 	 *
 	 * Degenerate families short-circuit: an empty plus family can never reach a positive count, and an empty minus
-	 * family leaves nothing to cancel against, so the answer is just the union.
+	 * family leaves nothing to cancel against, so the answer is just the union. That union is the union of the
+	 * level-1 operands alone - every repeated occurrence level is a subset of the level 1 of its point - so the
+	 * repeated levels are expanded into operands only when a cancellation needs their multiplicity. Without that, a
+	 * record whose `k` distinct open-start ranges share the `MIN` sentinel would turn every prefix query reaching no
+	 * end into a union of `k` operands that the single level 1 already answers.
 	 *
 	 * @param id    transactional id of this index - the staleness token for a high-cardinality operand set
-	 * @param plus  bitmaps each membership of which contributes `+1` to a record's count
-	 * @param minus bitmaps each membership of which contributes `-1`
+	 * @param plus  the family each membership of which contributes `+1` to a record's count
+	 * @param minus the family each membership of which contributes `-1`
 	 * @return the formula computing the records whose signed count is strictly positive
 	 */
 	@Nonnull
 	private static Formula createRangeCountFormulaIfNecessary(
-		long id, @Nonnull Bitmap[] plus, @Nonnull Bitmap[] minus
+		long id, @Nonnull OperandFamily plus, @Nonnull OperandFamily minus
 	) {
-		final Bitmap[] filteredPlus = withoutEmpty(plus);
-		if (filteredPlus.length == 0) {
+		if (plus.isEmpty()) {
 			return EmptyFormula.INSTANCE;
 		}
-		final Bitmap[] filteredMinus = withoutEmpty(minus);
-		if (filteredMinus.length == 0) {
+		if (minus.isEmpty()) {
 			// with nothing to cancel against, "counted at least once" is exactly the union
-			return filteredPlus.length == 1 ?
-				new ConstantFormula(filteredPlus[0]) : new OrFormula(new long[]{id}, filteredPlus);
+			final Bitmap[] levelOne = plus.getLevelOneOperands();
+			return levelOne.length == 1 ?
+				new ConstantFormula(levelOne[0]) : new OrFormula(new long[]{id}, levelOne);
 		}
-		return new RangeCountFormula(id, filteredPlus, filteredMinus);
-	}
-
-	/**
-	 * Drops empty bitmaps from an operand family.
-	 *
-	 * Tests {@link Bitmap#isEmpty()} rather than `instanceof EmptyBitmap` as the previous implementation did: a
-	 * threshold point legitimately carries an EMPTY `TransactionalBitmap` on one side (the obsolete-point check
-	 * only removes a point whose starts AND ends are both empty), and such an operand contributes nothing to the
-	 * count while still inflating the family. The computed result is unchanged either way; this simply stops an
-	 * operand that cannot affect the answer from being carried through the formula.
-	 *
-	 * It also replaces a `Arrays.stream(...).filter(...).toArray(...)` pipeline that ran in the planning phase on
-	 * every range query, for every matching index.
-	 *
-	 * @param bitmaps the family to filter
-	 * @return the same array when nothing was empty, otherwise a compacted copy
-	 */
-	@Nonnull
-	private static Bitmap[] withoutEmpty(@Nonnull Bitmap[] bitmaps) {
-		int nonEmpty = 0;
-		for (final Bitmap bitmap : bitmaps) {
-			if (!bitmap.isEmpty()) {
-				nonEmpty++;
-			}
-		}
-		if (nonEmpty == bitmaps.length) {
-			return bitmaps;
-		}
-		final Bitmap[] result = new Bitmap[nonEmpty];
-		int index = 0;
-		for (final Bitmap bitmap : bitmaps) {
-			if (!bitmap.isEmpty()) {
-				result[index++] = bitmap;
-			}
-		}
-		return result;
+		return new RangeCountFormula(id, plus.getAllOperands(), minus.getAllOperands());
 	}
 
 	/**
@@ -749,7 +714,8 @@ public class RangeIndex
 	 */
 
 	/**
-	 * Returns record ids of all records in this index.
+	 * Returns record ids of all records in this index. Occurrence level 1 decides alone: every repeated level is a
+	 * subset of it.
 	 */
 	@Nonnull
 	public Bitmap getAllRecords() {
@@ -1090,7 +1056,9 @@ public class RangeIndex
 	/**
 	 * Materializes one rescaled point. A {@link TransactionalRangePoint}'s threshold is final, so a fresh instance is
 	 * always minted; the record bitmaps are the merged ones when a collision produced them, otherwise the source
-	 * point's own.
+	 * point's own. The source points come from a part written before the millisecond move, whose points carry no
+	 * repeated occurrence levels, so the union of the colliding level-1 bitmaps is everything there is to merge; a
+	 * point that did not collide keeps whatever levels it has.
 	 *
 	 * @param source       the point the rescaled one is derived from
 	 * @param threshold    the rescaled threshold
@@ -1105,11 +1073,11 @@ public class RangeIndex
 		@Nullable BaseBitmap mergedStarts,
 		@Nullable BaseBitmap mergedEnds
 	) {
-		return new TransactionalRangePoint(
-			threshold,
-			mergedStarts == null ? source.getStarts() : mergedStarts,
-			mergedEnds == null ? source.getEnds() : mergedEnds
-		);
+		return mergedStarts == null ?
+			new TransactionalRangePoint(
+				threshold, source.getStarts(), source.getEnds(), source.getRepeatedStarts(), source.getRepeatedEnds()
+			) :
+			new TransactionalRangePoint(threshold, mergedStarts, mergedEnds);
 	}
 
 	/**
@@ -1129,7 +1097,7 @@ public class RangeIndex
 	 * # What is charged, and what is not
 	 *
 	 * The range points are **this index's own**: the tree is the only structure that reaches them and every one is
-	 * constructed here, so each is charged in full along with both of its record bitmaps.
+	 * constructed here, so each is charged in full along with every record bitmap of every occurrence level.
 	 *
 	 * {@link #envelopingNowCache} is charged, including the {@link Bitmap} it holds — a derived result this index
 	 * computed and retains. Being a lazily-built cache, it makes the figure **jump on first read**: an index that has
@@ -1199,8 +1167,8 @@ public class RangeIndex
 	}
 
 	/**
-	 * Content-based equality over the logical `(threshold, starts, ends)` sequence of all range points. The transient
-	 * {@link #envelopingNowCache} is intentionally excluded.
+	 * Content-based equality over the logical `(threshold, starts, ends)` sequence of all range points, every
+	 * occurrence level included. The transient {@link #envelopingNowCache} is intentionally excluded.
 	 */
 	@Override
 	public boolean equals(@Nullable Object o) {
@@ -1216,9 +1184,7 @@ public class RangeIndex
 		while (thisIt.hasNext() && thatIt.hasNext()) {
 			final TransactionalRangePoint thisPoint = thisIt.next();
 			final TransactionalRangePoint thatPoint = thatIt.next();
-			if (thisPoint.getThreshold() != thatPoint.getThreshold()
-				|| !Objects.equals(thisPoint.getStarts(), thatPoint.getStarts())
-				|| !Objects.equals(thisPoint.getEnds(), thatPoint.getEnds())) {
+			if (!thisPoint.deepEquals(thatPoint)) {
 				return false;
 			}
 		}
@@ -1226,17 +1192,15 @@ public class RangeIndex
 	}
 
 	/**
-	 * Content-based hash code over the logical `(threshold, starts, ends)` sequence of all range points.
+	 * Content-based hash code over the logical `(threshold, starts, ends)` sequence of all range points, every
+	 * occurrence level included.
 	 */
 	@Override
 	public int hashCode() {
 		int result = 1;
 		final Iterator<TransactionalRangePoint> it = this.ranges.valueIterator();
 		while (it.hasNext()) {
-			final TransactionalRangePoint point = it.next();
-			result = 31 * result + Long.hashCode(point.getThreshold());
-			result = 31 * result + point.getStarts().hashCode();
-			result = 31 * result + point.getEnds().hashCode();
+			result = 31 * result + it.next().deepHashCode();
 		}
 		return result;
 	}
@@ -1257,6 +1221,91 @@ public class RangeIndex
 		}
 		sb.append("]}");
 		return sb.toString();
+	}
+
+	/**
+	 * One operand family of a counting range query — the starts or the ends its walk collected. The level-1 bitmaps
+	 * are collected as operands right away; the repeated occurrence levels of a point are only remembered, as the
+	 * point's level array, and turned into operands by {@link #getAllOperands()} once a cancellation needs their
+	 * multiplicity. A walk that never needs them pays one list entry per point holding a repeated level, not one per
+	 * level.
+	 */
+	private static final class OperandFamily {
+		/**
+		 * The non-empty level-1 bitmaps of the visited points.
+		 */
+		private final List<Bitmap> levelOne = new ArrayList<>(DEFAULT_OPERAND_FAMILY_SIZE);
+		/**
+		 * The repeated-level arrays of the visited points whose first repeated level is not empty, or `null` while no
+		 * visited point holds one.
+		 */
+		@Nullable private List<Bitmap[]> repeatedLevels;
+
+		/**
+		 * Collects the levels of one visited point. An empty level 1 is skipped: a threshold point legitimately carries
+		 * an empty bitmap on one side (the obsolete-point check only removes a point whose starts AND ends are both
+		 * empty), and such an operand contributes nothing to the count while still inflating the family. Its repeated
+		 * levels are empty then too, since each is a subset of level 1.
+		 *
+		 * @param pointLevelOne       occurrence level 1 of the point's side this family collects
+		 * @param pointRepeatedLevels occurrence levels 2, 3, … of that side, possibly ending with empty spare levels
+		 */
+		void add(@Nonnull Bitmap pointLevelOne, @Nonnull Bitmap[] pointRepeatedLevels) {
+			if (pointLevelOne.isEmpty()) {
+				return;
+			}
+			this.levelOne.add(pointLevelOne);
+			if (pointRepeatedLevels.length > 0 && !pointRepeatedLevels[0].isEmpty()) {
+				if (this.repeatedLevels == null) {
+					this.repeatedLevels = new ArrayList<>(4);
+				}
+				this.repeatedLevels.add(pointRepeatedLevels);
+			}
+		}
+
+		/**
+		 * Returns `true` when no visited point contributed anything to this family.
+		 *
+		 * @return whether the family is empty
+		 */
+		boolean isEmpty() {
+			return this.levelOne.isEmpty();
+		}
+
+		/**
+		 * Returns the level-1 operands only — their union equals the union of every level, so this is all a query
+		 * with nothing to cancel against needs.
+		 *
+		 * @return the non-empty level-1 bitmaps of the visited points
+		 */
+		@Nonnull
+		Bitmap[] getLevelOneOperands() {
+			return this.levelOne.toArray(Bitmap[]::new);
+		}
+
+		/**
+		 * Returns every non-empty occurrence level of the visited points, each one operand — a border a record holds
+		 * twice counts twice. The levels after the first empty one of a point are spare and empty too.
+		 *
+		 * @return the level-1 bitmaps followed by the non-empty repeated levels
+		 */
+		@Nonnull
+		Bitmap[] getAllOperands() {
+			if (this.repeatedLevels == null) {
+				return getLevelOneOperands();
+			}
+			final List<Bitmap> result = new ArrayList<>(this.levelOne.size() + this.repeatedLevels.size() * 2);
+			result.addAll(this.levelOne);
+			for (final Bitmap[] levels : this.repeatedLevels) {
+				for (final Bitmap level : levels) {
+					if (level.isEmpty()) {
+						break;
+					}
+					result.add(level);
+				}
+			}
+			return result.toArray(Bitmap[]::new);
+		}
 	}
 
 	/**
@@ -1307,48 +1356,6 @@ public class RangeIndex
 					this.rangeEnds.toArray(EMPTY_ARRAY)
 				);
 			}
-		}
-
-		/**
-		 * Returns array of bitmaps of distinct record ids that are present at collected start ranges. All added formulas
-		 * so far must be of simple {@link ConstantFormula} type otherwise this method returns {@link IllegalArgumentException}
-		 *
-		 * @throws IllegalArgumentException when {@link #addStart(Bitmap)} was called with complex formula
-		 */
-		@Nonnull
-		public Bitmap[] getRangeStartsAsBitmapArray() {
-			return this.rangeStarts
-				.stream()
-				.map(it -> {
-					if (it instanceof EmptyFormula) {
-						return EmptyBitmap.INSTANCE;
-					} else {
-						Assert.isTrue(it instanceof ConstantFormula, "StartsEndsDTO is expected to contain only ConstantFormula when indistinct values are required. Encountered " + it.getClass());
-						return ((ConstantFormula) it).getDelegate();
-					}
-				})
-				.toArray(Bitmap[]::new);
-		}
-
-		/**
-		 * Returns array of bitmaps of distinct record ids that are present at collected end ranges. All added formulas
-		 * so far must be of simple {@link ConstantFormula} type otherwise this method returns {@link IllegalArgumentException}
-		 *
-		 * @throws IllegalArgumentException when {@link #addEnd(Bitmap)} was called with complex formula
-		 */
-		@Nonnull
-		public Bitmap[] getRangeEndsAsBitmapArray() {
-			return this.rangeEnds
-				.stream()
-				.map(it -> {
-					if (it instanceof EmptyFormula) {
-						return EmptyBitmap.INSTANCE;
-					} else {
-						Assert.isTrue(it instanceof ConstantFormula, "StartsEndsDTO is expected to contain only ConstantFormula when indistinct values are required. Encountered " + it.getClass());
-						return ((ConstantFormula) it).getDelegate();
-					}
-				})
-				.toArray(Bitmap[]::new);
 		}
 
 		/**

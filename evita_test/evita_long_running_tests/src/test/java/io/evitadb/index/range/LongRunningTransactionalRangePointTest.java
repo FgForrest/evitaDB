@@ -43,10 +43,16 @@ import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Generational randomized proof test for {@link TransactionalRangePoint}.
+ *
+ * It exercises occurrence level 1 against a plain set: a record is only ever added where the point does not hold it
+ * yet, so no addition grows a repeated level (which would hand back a replacement point this in-place transaction
+ * could not observe). The repeated levels are exercised by `TransactionalRangePointTest` and, through the index that
+ * stores the replacement points, by `RangeIndexSharedBorderTest` and `RangeIndexQueryOracleTest`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -113,49 +119,53 @@ class LongRunningTransactionalRangePointTest implements TimeBoundedTestSupport {
 								case 0 -> {
 									// addStart — single ID
 									final int id = 1 + random.nextInt(maxId);
-									original.addStart(id);
-									referenceStarts.add(id);
+									if (referenceStarts.add(id)) {
+										assertSame(original, original.addStart(id));
+									}
 									codeBuffer.append("+S")
 										.append(id).append(" ");
 								}
 								case 1 -> {
 									// addEnd — single ID
 									final int id = 1 + random.nextInt(maxId);
-									original.addEnd(id);
-									referenceEnds.add(id);
+									if (referenceEnds.add(id)) {
+										assertSame(original, original.addEnd(id));
+									}
 									codeBuffer.append("+E")
 										.append(id).append(" ");
 								}
 								case 2 -> {
-									// addStarts — bulk add
+									// addStart of several IDs, each one not held yet
 									final int[] ids =
 										generateRandomIds(random, maxId);
-									original.addStarts(ids);
 									for (int id : ids) {
-										referenceStarts.add(id);
+										if (referenceStarts.add(id)) {
+											assertSame(original, original.addStart(id));
+										}
 									}
 									codeBuffer.append("+SS")
 										.append(java.util.Arrays.toString(ids))
 										.append(" ");
 								}
 								case 3 -> {
-									// addEnds — bulk add
+									// addEnd of several IDs, each one not held yet
 									final int[] ids =
 										generateRandomIds(random, maxId);
-									original.addEnds(ids);
 									for (int id : ids) {
-										referenceEnds.add(id);
+										if (referenceEnds.add(id)) {
+											assertSame(original, original.addEnd(id));
+										}
 									}
 									codeBuffer.append("+EE")
 										.append(java.util.Arrays.toString(ids))
 										.append(" ");
 								}
 								case 4 -> {
-									// removeStarts — bulk remove
+									// removeStart of several IDs
 									final int[] ids =
 										generateRandomIds(random, maxId);
-									original.removeStarts(ids);
 									for (int id : ids) {
+										original.removeStart(id);
 										referenceStarts.remove(id);
 									}
 									codeBuffer.append("-SS")
@@ -163,11 +173,11 @@ class LongRunningTransactionalRangePointTest implements TimeBoundedTestSupport {
 										.append(" ");
 								}
 								case 5 -> {
-									// removeEnds — bulk remove
+									// removeEnd of several IDs
 									final int[] ids =
 										generateRandomIds(random, maxId);
-									original.removeEnds(ids);
 									for (int id : ids) {
+										original.removeEnd(id);
 										referenceEnds.remove(id);
 									}
 									codeBuffer.append("-EE")
