@@ -82,6 +82,11 @@ Key system properties (full list in the class JavaDoc):
 | `evita.warmup.collections` | comma-separated subset, for isolating one collection |
 | `evita.warmup.perEntityCsv` | one CSV row per upsert |
 | `evita.warmup.holdOpenSeconds` | keeps the JVM alive after the report so a profiler can dump |
+| `evita.warmup.searchable` | fields made searchable on the target, `;`-separated - notation in `CatalogCopySupport` |
+| `evita.warmup.localize` | associated data given a locale on the target (`article.@body=cs`), so it can be searchable |
+
+Both schema properties reach the `embedded` target only: the gRPC converters do not carry the searchable
+mutations yet. Pass them through `JAVA_TOOL_OPTIONS` - the run scripts forward no extra `-D` options.
 
 ## 3. Running
 

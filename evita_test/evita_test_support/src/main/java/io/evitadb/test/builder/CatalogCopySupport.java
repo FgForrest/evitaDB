@@ -27,6 +27,9 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
@@ -135,6 +138,17 @@ public class CatalogCopySupport {
 	 * is indexed - the same reasoning as for {@link #RAISED_REFERENCES}.
 	 */
 	private static final Map<String, SearchableField> SEARCHABLE_FIELDS = parseSearchableFields();
+	/**
+	 * Associated data given a locale on the target schema, keyed by path (`<entityType>.@<associatedData>`), parsed
+	 * once from the `evita.warmup.localize` system property - see {@link #parseLocalizedAssociatedData()}. Empty (the
+	 * default) replicates the source faithfully.
+	 *
+	 * This exists because a searchable field must carry a locale, and a catalog whose text predates that rule may keep
+	 * it without one - the migration the fulltext decision record names as the accepted cost of the rule. The copy
+	 * declares the associated data localized and writes every value of it under the given locale, so the field can be
+	 * made searchable in the same copy.
+	 */
+	private static final Map<String, Locale> LOCALIZED_ASSOCIATED_DATA = parseLocalizedAssociatedData();
 
 	/**
 	 * Purely static helper - never instantiated.
@@ -160,6 +174,7 @@ public class CatalogCopySupport {
 		@Nonnull final Collection<EntitySchemaContract> sourceEntitySchemas
 	) {
 		verifySearchableFieldsExist(sourceCatalogSchema, sourceEntitySchemas);
+		verifyLocalizedAssociatedDataExist(sourceEntitySchemas);
 		replicateGlobalAttributes(sourceCatalogSchema, session);
 		// pass 1 - entity bodies without references
 		for (final EntitySchemaContract source : sourceEntitySchemas) {
@@ -220,6 +235,48 @@ public class CatalogCopySupport {
 			requirements.add(referenceContentWithAttributes(reference.getName()));
 		}
 		return entityFetch(requirements.toArray(EntityContentRequire.EMPTY_ARRAY));
+	}
+
+	/**
+	 * Creates the builder that writes one source entity into the target catalog. An entity type none of whose
+	 * associated data {@link #LOCALIZED_ASSOCIATED_DATA} names is copied verbatim; otherwise every value of the named
+	 * associated data that carries no locale is moved under the configured one, and the copy is validated against
+	 * the target's schema, which declares the associated data localized.
+	 *
+	 * @param entity       the source entity, fetched with {@link #buildContentRequirement}
+	 * @param targetSchema schema of the entity type in the target catalog
+	 * @return the builder to upsert into the target catalog
+	 */
+	@Nonnull
+	public static CopyExistingEntityBuilder createCopyBuilder(
+		@Nonnull final EntityContract entity,
+		@Nonnull final EntitySchemaContract targetSchema
+	) {
+		if (LOCALIZED_ASSOCIATED_DATA.isEmpty()) {
+			return new CopyExistingEntityBuilder(entity);
+		}
+		final String pathPrefix = entity.getType() + PATH_SEPARATOR + ASSOCIATED_DATA_MARKER;
+		final Collection<AssociatedDataValue> sourceValues = entity.getAssociatedDataValues();
+		final List<AssociatedDataValue> targetValues = new ArrayList<>(sourceValues.size());
+		boolean localized = false;
+		for (final AssociatedDataValue value : sourceValues) {
+			final AssociatedDataKey key = value.key();
+			final Locale locale = key.localized() ?
+				null : LOCALIZED_ASSOCIATED_DATA.get(pathPrefix + key.associatedDataName());
+			if (locale == null) {
+				targetValues.add(value);
+			} else {
+				targetValues.add(
+					new AssociatedDataValue(
+						value.version(), new AssociatedDataKey(key.associatedDataName(), locale), value.value()
+					)
+				);
+				localized = true;
+			}
+		}
+		return localized ?
+			new CopyExistingEntityBuilder(entity, targetSchema, targetValues) :
+			new CopyExistingEntityBuilder(entity);
 	}
 
 	/**
@@ -339,8 +396,12 @@ public class CatalogCopySupport {
 				associatedData.getName(),
 				associatedData.getType(),
 				editor -> {
-					if (associatedData.isLocalized()) {
+					final Locale addedLocale = LOCALIZED_ASSOCIATED_DATA.get(path);
+					if (associatedData.isLocalized() || addedLocale != null) {
 						editor.localized();
+					}
+					if (addedLocale != null) {
+						System.out.println("[localized] " + path + " under " + addedLocale.toLanguageTag());
 					}
 					if (associatedData.isNullable()) {
 						editor.nullable();
@@ -563,6 +624,79 @@ public class CatalogCopySupport {
 					"global), a reference attribute `<entityType>.<reference>.<attribute>` and associated data " +
 					"`<entityType>.@<associatedData>`.",
 				"Searchable fields name no field of the source schema."
+			);
+		}
+	}
+
+	/**
+	 * Parses {@link #LOCALIZED_ASSOCIATED_DATA} from the `evita.warmup.localize` system property. Entries are
+	 * separated by `;`, each `<entityType>.@<associatedData>=<language tag>` - for example `article.@body=cs`.
+	 *
+	 * @return the locale of each associated data path, empty when the property is unset
+	 */
+	@Nonnull
+	private static Map<String, Locale> parseLocalizedAssociatedData() {
+		final String raw = System.getProperty("evita.warmup.localize", "");
+		if (raw.isBlank()) {
+			return Map.of();
+		}
+		final String[] entries = raw.split(";");
+		final Map<String, Locale> result = CollectionUtils.createLinkedHashMap(entries.length);
+		for (final String entry : entries) {
+			final String trimmed = entry.trim();
+			if (trimmed.isEmpty()) {
+				continue;
+			}
+			final int localeStart = trimmed.indexOf(TEXT_EXPRESSION_SEPARATOR);
+			final String path = localeStart < 0 ? trimmed : trimmed.substring(0, localeStart).trim();
+			final String languageTag = localeStart < 0 ? "" : trimmed.substring(localeStart + 1).trim();
+			if (languageTag.isEmpty() || !path.contains(PATH_SEPARATOR + ASSOCIATED_DATA_MARKER)) {
+				throw new GenericEvitaInternalError(
+					"Localized associated data `" + trimmed + "` must read `<entityType>.@<associatedData>=<locale>`.",
+					"Localized associated data must name an associated data path and a locale."
+				);
+			}
+			result.put(path, Locale.forLanguageTag(languageTag));
+		}
+		return result;
+	}
+
+	/**
+	 * Fails the copy before anything is written when a path in {@link #LOCALIZED_ASSOCIATED_DATA} names no associated
+	 * data of the source schema, or names one that is localized already - neither would be moved, and the run would
+	 * copy something other than it claims.
+	 *
+	 * @param sourceEntitySchemas the source entity schemas
+	 */
+	private static void verifyLocalizedAssociatedDataExist(
+		@Nonnull final Collection<EntitySchemaContract> sourceEntitySchemas
+	) {
+		if (LOCALIZED_ASSOCIATED_DATA.isEmpty()) {
+			return;
+		}
+		final List<String> unresolved = new ArrayList<>(LOCALIZED_ASSOCIATED_DATA.size());
+		for (final String path : LOCALIZED_ASSOCIATED_DATA.keySet()) {
+			final int separator = path.indexOf(PATH_SEPARATOR + ASSOCIATED_DATA_MARKER);
+			final String entityType = path.substring(0, separator);
+			final String name = path.substring(separator + PATH_SEPARATOR.length() + ASSOCIATED_DATA_MARKER.length());
+			boolean found = false;
+			for (final EntitySchemaContract schema : sourceEntitySchemas) {
+				if (schema.getName().equals(entityType)) {
+					found = schema.getAssociatedData(name)
+						.filter(associatedData -> !associatedData.isLocalized())
+						.isPresent();
+					break;
+				}
+			}
+			if (!found) {
+				unresolved.add(path);
+			}
+		}
+		if (!unresolved.isEmpty()) {
+			throw new GenericEvitaInternalError(
+				"Localized associated data " + unresolved + " name no associated data of the source schema that " +
+					"is not localized already.",
+				"Localized associated data name no non-localized associated data of the source schema."
 			);
 		}
 	}

@@ -771,6 +771,9 @@ public class IsolatedWarmupLoadBenchmark {
 		// reflected references are read-only projections auto-maintained from the owning (plain) reference on
 		// the other entity; they must not be fetched or written here - copying the plain reference rebuilds them
 		final EntityFetch contentRequirement = CatalogCopySupport.buildContentRequirement(schema);
+		// the target may declare associated data localized that the source keeps without a locale - see
+		// `CatalogCopySupport#createCopyBuilder`
+		final EntitySchemaContract targetSchema = targetSession.getEntitySchemaOrThrowException(entityType);
 		int[] primaryKeys = fetchAllPrimaryKeys(sourceSession, entityType);
 		if (maxPerCollection > 0 && primaryKeys.length > maxPerCollection) {
 			primaryKeys = Arrays.copyOf(primaryKeys, maxPerCollection);
@@ -801,7 +804,7 @@ public class IsolatedWarmupLoadBenchmark {
 
 			for (int i = 0; i < entities.size(); i++) {
 				final SealedEntity entity = entities.get(i);
-				final CopyExistingEntityBuilder builder = new CopyExistingEntityBuilder(entity);
+				final CopyExistingEntityBuilder builder = CatalogCopySupport.createCopyBuilder(entity, targetSchema);
 				final long upsertStart = System.nanoTime();
 				targetSession.upsertEntity(builder);
 				final long upsertNanos = System.nanoTime() - upsertStart;

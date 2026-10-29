@@ -23,15 +23,18 @@
 
 package io.evitadb.test.builder;
 
+import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -48,8 +51,48 @@ public class CopyExistingEntityBuilder extends InitialEntityBuilder {
 	@Serial private static final long serialVersionUID = -4012506871491348685L;
 
 	public CopyExistingEntityBuilder(@Nonnull EntityContract externalEntity, @Nullable Integer overriddenPrimaryKey) {
+		this(
+			externalEntity, overriddenPrimaryKey, externalEntity.getSchema(), externalEntity.getAssociatedDataValues()
+		);
+	}
+
+	public CopyExistingEntityBuilder(@Nonnull EntityContract externalEntity) {
+		this(externalEntity, externalEntity.getPrimaryKey());
+	}
+
+	/**
+	 * Copies the entity under the target's schema, with its associated data replaced - for a target that declares
+	 * some associated data differently from the source, such as with a locale the source did not have. The values are
+	 * validated against `targetSchema`, so they must already have the shape it declares.
+	 *
+	 * @param externalEntity       the entity being copied
+	 * @param targetSchema         schema of the entity type in the target catalog
+	 * @param associatedDataValues the associated data the copy carries instead of the entity's own
+	 */
+	public CopyExistingEntityBuilder(
+		@Nonnull EntityContract externalEntity,
+		@Nonnull EntitySchemaContract targetSchema,
+		@Nonnull Collection<AssociatedDataValue> associatedDataValues
+	) {
+		this(externalEntity, externalEntity.getPrimaryKey(), targetSchema, associatedDataValues);
+	}
+
+	/**
+	 * Copies the entity under the given schema and primary key, with the given associated data.
+	 *
+	 * @param externalEntity       the entity being copied
+	 * @param overriddenPrimaryKey the primary key of the copy
+	 * @param schema               the schema the copy is built and validated against
+	 * @param associatedDataValues the associated data the copy carries
+	 */
+	private CopyExistingEntityBuilder(
+		@Nonnull EntityContract externalEntity,
+		@Nullable Integer overriddenPrimaryKey,
+		@Nonnull EntitySchemaContract schema,
+		@Nonnull Collection<AssociatedDataValue> associatedDataValues
+	) {
 		super(
-			externalEntity.getSchema(),
+			schema,
 			overriddenPrimaryKey,
 			externalEntity.getScope(),
 			externalEntity
@@ -76,16 +119,12 @@ public class CopyExistingEntityBuilder extends InitialEntityBuilder {
 					}
 				})
 				.collect(Collectors.toList()),
-			externalEntity.getAssociatedDataValues(),
+			associatedDataValues,
 			externalEntity.getReferences(),
 			externalEntity.getPriceInnerRecordHandling(),
 			externalEntity.getSchema().isWithPrice() ?
 				externalEntity.getPrices() : List.of()
 		);
-	}
-
-	public CopyExistingEntityBuilder(@Nonnull EntityContract externalEntity) {
-		this(externalEntity, externalEntity.getPrimaryKey());
 	}
 
 }
