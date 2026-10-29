@@ -634,7 +634,8 @@ public interface Migration_2026_3 {
 			if (rebuiltCompanions > 0) {
 				ConsoleWriter.writeLine(
 					"Entity collection `" + entityCollectionHeader.entityType() + "`: rebuilt " + rebuiltCompanions +
-						" range companion(s) from stored bucket membership, consolidating each record's intervals.",
+						" range companion(s) from stored bucket membership, preserving scalar contributions and " +
+						"consolidating array intervals.",
 					ConsoleColor.BRIGHT_BLUE
 				);
 			}

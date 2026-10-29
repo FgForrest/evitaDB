@@ -40,6 +40,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.attribute.OwnerFilterIndex;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
@@ -78,6 +79,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -175,8 +177,8 @@ class Migration_2026_3_RangeCompanionUpgradeTest implements EvitaTestSupport {
 	 */
 	@ParameterizedTest
 	@MethodSource("aggregateCases")
-	@DisplayName("Should consolidate each aggregate record's intervals while preserving its bucket axis")
-	void shouldConsolidateAggregateIntervals(
+	@DisplayName("Should publish aggregate range points equal to fresh writes while preserving bucket rows")
+	void shouldPublishAggregateIntervalsAsFreshWrites(
 		@Nonnull EntityIndexType family, @Nonnull Bounds bounds, boolean bucketPaged, boolean rangePaged
 	) {
 		final int record = family == EntityIndexType.REFERENCED_GROUP_ENTITY ? 17 : 701;
@@ -206,6 +208,7 @@ class Migration_2026_3_RangeCompanionUpgradeTest implements EvitaTestSupport {
 		withImage(family, scope, bounds.type(), array, bucketPaged ? Locale.ENGLISH : null,
 			buckets, companion, bucketPaged, rangePaged, image -> {
 				image.migrateAndInspect(root -> {
+					root.assertMatchesFreshWrites();
 					assertArrayEquals(new int[]{record}, at(root.companion(), bounds.threshold(35)),
 						"Overlapping contributions of one aggregate record must retain their complete union");
 					assertArrayEquals(new int[]{record, record + 1, record + 2},
@@ -213,11 +216,13 @@ class Migration_2026_3_RangeCompanionUpgradeTest implements EvitaTestSupport {
 					assertArrayEquals(new int[]{record}, at(root.companion(), bounds.threshold(65)));
 					assertArrayEquals(new int[0], at(root.companion(), bounds.threshold(50)));
 					assertArrayEquals(new int[0], at(root.companion(), bounds.threshold(75)));
-					assertEndpoints(root.companion(), record,
-						new long[]{bounds.threshold(0), bounds.threshold(60)},
-						new long[]{bounds.threshold(45), bounds.threshold(70)});
-					assertEndpoints(root.companion(), record + 2, new long[]{bounds.threshold(5)},
-						new long[]{bounds.threshold(30)});
+					if (array) {
+						assertEndpoints(root.companion(), record,
+							new long[]{bounds.threshold(0), bounds.threshold(60)},
+							new long[]{bounds.threshold(45), bounds.threshold(70)});
+						assertEndpoints(root.companion(), record + 2, new long[]{bounds.threshold(5)},
+							new long[]{bounds.threshold(30)});
+					}
 					assertEquals(rangePaged && bounds != Bounds.BYTE, root.root().isRangePaged());
 					root.assertBucketsUnchanged(true);
 				});
@@ -263,10 +268,7 @@ class Migration_2026_3_RangeCompanionUpgradeTest implements EvitaTestSupport {
 						OffsetDateTime.parse("2026-01-01T00:00:02.500Z").toInstant().toEpochMilli();
 					assertArrayEquals(new int[]{record}, at(new Stored(image, parts, version, root).companion(), point),
 						"The published release companion must retain the longer interval of its partition");
-					assertEndpoints(new Stored(image, parts, version, root).companion(), record,
-						new long[]{((Range<?>) root.getHistogramPoints()[0].getValue()).getFrom()},
-						new long[]{Arrays.stream(root.getHistogramPoints())
-							.mapToLong(bucket -> ((Range<?>) bucket.getValue()).getTo()).max().orElseThrow()});
+					new Stored(image, parts, version, root).assertMatchesFreshWrites();
 					assertFalse(root.isSecondGranularityRangeThresholds());
 					return Boolean.TRUE;
 				});
@@ -502,6 +504,36 @@ class Migration_2026_3_RangeCompanionUpgradeTest implements EvitaTestSupport {
 			}
 			return RangeIndex.fromPersistedPages("published range companion", sequences, points,
 				this.root.getRangeHighWaterPageSequence());
+		}
+
+		/** Compares every threshold and occurrence level with the companion produced by current filter writes. */
+		private void assertMatchesFreshWrites() {
+			final OwnerFilterIndex fresh = new OwnerFilterIndex(this.root.getAttributeIndexKey(),
+				this.root.getAttributeType(), this.root.getIndexedDecimalPlaces());
+			if (this.root.getAttributeType().isArray()) {
+				final Map<Integer, List<Object>> values = new HashMap<>();
+				for (final ValueToRecordBitmap bucket : this.image.rows()) {
+					for (final int record : bucket.getRecordIds().getArray()) {
+						values.computeIfAbsent(record, ignored -> new ArrayList<>()).add(bucket.getValue());
+					}
+				}
+				values.forEach((record, ranges) -> {
+					final Object array = Array.newInstance(
+						this.root.getAttributeType().getComponentType(), ranges.size());
+					for (int i = 0; i < ranges.size(); i++) {
+						Array.set(array, i, ranges.get(i));
+					}
+					fresh.addRecord(record, array);
+				});
+			} else {
+				for (final ValueToRecordBitmap bucket : this.image.rows()) {
+					for (final int record : bucket.getRecordIds().getArray()) {
+						fresh.addRecord(record, bucket.getValue());
+					}
+				}
+			}
+			assertEquals(fresh.getRangeIndex(), companion(),
+				"Published range points must equal fresh filter writes, including repeated starts and ends");
 		}
 
 		/** Checks all bucket metadata and memberships, plus retirement and freshness of the independent range axis. */

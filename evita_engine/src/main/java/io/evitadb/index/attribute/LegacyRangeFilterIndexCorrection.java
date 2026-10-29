@@ -47,8 +47,9 @@ import java.util.Map.Entry;
 
 /**
  * Reconstructs release-written range companions from surviving value-to-record rows without performing IO.
- * Each stored record contributes its consolidated union exactly once. The storage migration applies the returned
- * replacements and offset-index removals and publishes them through its existing bootstrap callback.
+ * Scalar records retain every distinct range contribution, including repeated borders; array records contribute their
+ * consolidated union. The storage migration applies the returned replacements and offset-index removals and publishes
+ * them through its existing bootstrap callback.
  *
  * @deprecated used only by the migration of catalogs written by release 2026.2 and older
  */
@@ -108,7 +109,9 @@ public final class LegacyRangeFilterIndexCorrection {
 		}
 		final RangeIndex companion = new RangeIndex();
 		for (final Entry<Integer, List<Range>> entry : rangesByRecord.entrySet()) {
-			for (final Range range : Range.consolidateRange(entry.getValue().toArray(Range[]::new))) {
+			final Range[] ranges = entry.getValue().stream().distinct().toArray(Range[]::new);
+			// Scalar aggregate writes add each distinct key; array deltas consolidate the record's entire union.
+			for (final Range range : root.getAttributeType().isArray() ? Range.consolidateRange(ranges) : ranges) {
 				companion.addRecord(range.getFrom(), range.getTo(), entry.getKey());
 			}
 		}
