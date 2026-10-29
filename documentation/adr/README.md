@@ -33,7 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
-| 2026-10-28 | [Bound reference ordering by the filtered hierarchy and sort each target as one block](2026-10-28-traverse-ordering-route-parity.md) | fix | accepted | #1670 |
+| 2026-10-28 | [Bound reference ordering by the filtered hierarchy and sort each target as one block](2026-10-28-traverse-ordering-route-parity.md) | fix | accepted | #1670, PR #1828 |
 | 2026-10-26 | [Fit every release into Maven Central's limits; the shaded driver becomes a recipe, a BOM aligns versions](2026-10-26-maven-central-publishing-budget.md) | infrastructure | accepted | #1805 |
 | 2026-10-26 | [Bulk-build the price and record-id trees each load rebuilds as full leaves; keep the other B+ tree ideas out](2026-10-26-bulk-built-int-keyed-trees-at-load.md) | optimization | accepted | #1802, #1808 |
 | 2026-10-25 | [Output buffers are borrowed per frame from one JVM-wide pool, and the configured size stays a hard limit](2026-10-25-frame-scoped-output-buffers.md) | optimization | accepted | #1792, #1793, PR #1801 |

@@ -5,7 +5,7 @@ updated: 2026-10-29 05:05
 status: accepted
 kind: fix
 issues: [1670]
-prs: []
+prs: [1828]
 areas:
   - evita_engine/src/main/java/io/evitadb/core/query/sort
   - evita_engine/src/main/java/io/evitadb/core/query/filter/translator/hierarchy
