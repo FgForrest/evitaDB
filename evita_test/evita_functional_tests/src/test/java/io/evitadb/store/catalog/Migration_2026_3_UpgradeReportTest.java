@@ -28,7 +28,11 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -44,7 +48,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.TreeSet;
 
+import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -209,6 +217,54 @@ class Migration_2026_3_UpgradeReportTest implements EvitaTestSupport {
 				"(DateTimeRange; only values with sub-second precision). " +
 				"If a listed condition holds for a collection's data, republish that collection from source data."
 		), report.warnings());
+	}
+
+	/** A reflected reference can inherit a compound by name while it excludes one of the compound's elements. */
+	@Test
+	@DisplayName("Should name only the compound elements a reflected reference inherits")
+	void shouldNameOnlyCompoundElementsTheReflectedReferenceInherits() {
+		final TestPaths paths = createTestPaths("PartiallyInheritedCompound");
+		try (final Evita evita = this.harness.boot(paths)) {
+			evita.defineCatalog("compounds");
+			try (final EvitaSessionContract session = evita.createReadWriteSession("compounds")) {
+				session.defineEntitySchema("brand")
+					.withLocale(Locale.ENGLISH)
+					.withReflectedReferenceToEntity(
+						"products", "product", "brand", whichIs -> whichIs.withAttributesInheritedExcept("label")
+					)
+					.updateVia(session);
+				session.defineEntitySchema("product")
+					.withLocale(Locale.ENGLISH)
+					.withReferenceToEntity(
+						"brand", "brand", Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs
+							.indexedForFiltering()
+							.withAttribute("validity", DateTimeRange.class)
+							.withAttribute("label", String.class, thatIs -> thatIs.localized())
+							.withSortableAttributeCompound(
+								"validityLabel", attributeElement("validity"), attributeElement("label")
+							)
+					)
+					.updateVia(session);
+				final ReferenceSchemaContract reflected =
+					session.getEntitySchemaOrThrowException("brand").getReferenceOrThrowException("products");
+				assertTrue(reflected.getSortableAttributeCompounds().containsKey("validityLabel"));
+				assertFalse(reflected.getAttributes().containsKey("label"));
+				final Set<String> affected = new TreeSet<>();
+
+				Migration_2026_3.collectPotentiallyLossyAttributes(
+					reflected.getAttributes(), reflected.getSortableAttributeCompounds(),
+					reflected.getIndexedInScopes(), "products.", affected
+				);
+
+				assertEquals(
+					Set.of("attribute `products.validity` (DateTimeRange; only values with sub-second precision)"),
+					affected
+				);
+			}
+		} finally {
+			this.harness.cleanup(paths);
+		}
 	}
 
 	/** Plain text representatives are outside the susceptible temporal, localized text and decimal types. */

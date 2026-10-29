@@ -117,7 +117,7 @@ public final class Release2026_2FixtureRecipes {
 	}
 
 	/**
-	 * D1a: the referenced-type index counters of a filterable `DateTimeRange` reference attribute holding the
+	 * Fixture `d1a`: the referenced-type index counters of a filterable `DateTimeRange` reference attribute holding the
 	 * open-bound twins {@link ReleaseFixtureValues#U1} (product 1) and {@link ReleaseFixtureValues#U2} (product 2),
 	 * both referencing brand 1.
 	 *
@@ -161,7 +161,7 @@ public final class Release2026_2FixtureRecipes {
 	}
 
 	/**
-	 * D1b: the owner SORT of a sort-only `DateTimeRange` holding the open-bound twins in blocks of two
+	 * Fixture `d1b`: the owner SORT of a sort-only `DateTimeRange` holding the open-bound twins in blocks of two
 	 * ({@link ReleaseFixtureValues#U1}) and three ({@link ReleaseFixtureValues#U2}).
 	 *
 	 * @return the recipe
@@ -176,7 +176,7 @@ public final class Release2026_2FixtureRecipes {
 	}
 
 	/**
-	 * D1b, variant 2: the twin the release orders first ({@link ReleaseFixtureValues#U2}) has one record, the other
+	 * Fixture `d1b2`: the twin the release orders first ({@link ReleaseFixtureValues#U2}) has one record, the other
 	 * ({@link ReleaseFixtureValues#U1}) three.
 	 *
 	 * @return the recipe
@@ -191,7 +191,8 @@ public final class Release2026_2FixtureRecipes {
 	}
 
 	/**
-	 * D1c: the FILTER buckets of a filterable `DateTimeRange` holding both open-bound twins and one unrelated value.
+	 * Fixture `d1c`: the FILTER buckets of a filterable `DateTimeRange` holding both open-bound twins and one unrelated
+	 * value.
 	 *
 	 * @return the recipe
 	 */
@@ -211,8 +212,8 @@ public final class Release2026_2FixtureRecipes {
 	}
 
 	/**
-	 * D2: fractional-second range endpoints in a filterable scalar and array `DateTimeRange`, whose release thresholds
-	 * are whole seconds.
+	 * Fixture `d2`: fractional-second range endpoints in a filterable scalar and array `DateTimeRange`, whose release
+	 * thresholds are whole seconds.
 	 *
 	 * @return the recipe
 	 */
@@ -242,8 +243,8 @@ public final class Release2026_2FixtureRecipes {
 	}
 
 	/**
-	 * D3: the owner SORT of a sort-only `DateTimeRange` in which the release ordered A before B (whole seconds), while
-	 * today B sorts first.
+	 * Fixture `d3`: the owner SORT of a sort-only `DateTimeRange` in which the release ordered A before B (whole
+	 * seconds), while today B sorts first.
 	 *
 	 * @return the recipe
 	 */
@@ -253,7 +254,7 @@ public final class Release2026_2FixtureRecipes {
 	}
 
 	/**
-	 * D3, paged: 150 pairs of the D3 inversion, so the owner SORT spans several pages.
+	 * Fixture `d3p`: 150 pairs of the `d3` inversion, so the owner SORT spans several pages.
 	 *
 	 * @return the recipe
 	 */
@@ -273,7 +274,7 @@ public final class Release2026_2FixtureRecipes {
 	}
 
 	/**
-	 * D4: a sort-only localized plain `String` holding the collator-equal spellings `"a<ZWSP>b"` and `"ab"`.
+	 * Fixture `d4`: a sort-only localized plain `String` holding the collator-equal spellings `"a<ZWSP>b"` and `"ab"`.
 	 *
 	 * @return the recipe
 	 */
@@ -298,7 +299,7 @@ public final class Release2026_2FixtureRecipes {
 	}
 
 	/**
-	 * D4 compound without a temporal element: `(label, code)` with a localized `label`.
+	 * Fixture `d4c`: a sortable compound without a temporal element, `(label, code)` with a localized `label`.
 	 *
 	 * @return the recipe
 	 */
@@ -322,7 +323,7 @@ public final class Release2026_2FixtureRecipes {
 	}
 
 	/**
-	 * D4 compound with a temporal element: `(label, moment)` with a localized `label`.
+	 * Fixture `d4t`: a sortable compound with a temporal element, `(label, moment)` with a localized `label`.
 	 *
 	 * @return the recipe
 	 */
@@ -354,8 +355,8 @@ public final class Release2026_2FixtureRecipes {
 	}
 
 	/**
-	 * D4 filter: a filterable localized `String` holding both collator-equal spellings, which the release folded into
-	 * one FILTER key.
+	 * Fixture `d4f`: a filterable localized `String` holding both collator-equal spellings, which the release folded
+	 * into one FILTER key.
 	 *
 	 * @return the recipe
 	 */
@@ -381,7 +382,7 @@ public final class Release2026_2FixtureRecipes {
 	}
 
 	/**
-	 * D4 compound, paged: 320 `(label, code)` entries alternating between `"ab"` and `"a<ZWSP>b"`, so the collator
+	 * Fixture `d4cp`: 320 compound `(label, code)` entries alternating between `"ab"` and `"a<ZWSP>b"`, so the collator
 	 * ties of the release order span page boundaries, plus two other labels.
 	 *
 	 * @return the recipe
@@ -419,7 +420,7 @@ public final class Release2026_2FixtureRecipes {
 	}
 
 	/**
-	 * D5 filter: A and C — equal at whole seconds, so the release folded them into one FILTER key.
+	 * Fixture `d5f`: A and C — equal at whole seconds, so the release folded them into one FILTER key.
 	 *
 	 * @return the recipe
 	 */
@@ -439,7 +440,7 @@ public final class Release2026_2FixtureRecipes {
 	}
 
 	/**
-	 * D5 sort: A and C folded into one owner SORT value at whole seconds.
+	 * Fixture `d5s`: A and C folded into one owner SORT value at whole seconds.
 	 *
 	 * @return the recipe
 	 */
@@ -453,9 +454,9 @@ public final class Release2026_2FixtureRecipes {
 	}
 
 	/**
-	 * F1 paged: 320 `OffsetDateTime` values with sub-millisecond digits — pairs 400 µs apart within one millisecond —
-	 * in a filterable attribute and in a filterable and sortable sibling. The release kept nanosecond keys; today the
-	 * pairs share one millisecond key.
+	 * Fixture `dF1p`: 320 `OffsetDateTime` values with sub-millisecond digits — pairs 400 µs apart within one
+	 * millisecond — in a filterable attribute and in a filterable and sortable sibling. The release kept nanosecond
+	 * keys; today the pairs share one millisecond key.
 	 *
 	 * @return the recipe
 	 */
@@ -501,10 +502,10 @@ public final class Release2026_2FixtureRecipes {
 	}
 
 	/**
-	 * S1 paged: 320 sort-only `OffsetDateTime` values with sub-millisecond digits in pairs within one millisecond, the
-	 * earlier instant of each pair at `+01:00` and stored on the higher primary key, and a sortable compound
-	 * `(moment, priority)` holding one instant at two offsets (products 401 and 402). The release ordered raw values
-	 * (instant, then local time); today values compare by millisecond instant and tie on the primary key.
+	 * Fixture `dS1p`: 320 sort-only `OffsetDateTime` values with sub-millisecond digits in pairs within one
+	 * millisecond, the earlier instant of each pair at `+01:00` and stored on the higher primary key, and a sortable
+	 * compound `(moment, priority)` holding one instant at two offsets (products 401 and 402). The release ordered raw
+	 * values (instant, then local time); today values compare by millisecond instant and tie on the primary key.
 	 *
 	 * @return the recipe
 	 */
@@ -555,7 +556,7 @@ public final class Release2026_2FixtureRecipes {
 
 	/**
 	 * Two collections with affected indexes: `product` with a filterable `DateTimeRange` folding A and C, `category`
-	 * with a sort-only `DateTimeRange` holding the D3 inversion.
+	 * with a sort-only `DateTimeRange` holding the `d3` inversion.
 	 *
 	 * @return the recipe
 	 */
@@ -643,8 +644,8 @@ public final class Release2026_2FixtureRecipes {
 	}
 
 	/**
-	 * D14: price validities with a fractional closed lower bound and an extreme upper bound, and one with both bounds
-	 * extreme; the test updates both after the upgrade.
+	 * Fixture `d14`: price validities with a fractional closed lower bound and an extreme upper bound, and one with
+	 * both bounds extreme; the test updates both after the upgrade.
 	 *
 	 * @return the recipe
 	 */
@@ -664,7 +665,7 @@ public final class Release2026_2FixtureRecipes {
 	}
 
 	/**
-	 * D2p: price validity bounds at half a second, whose release thresholds are whole seconds.
+	 * Fixture `d2p`: price validity bounds at half a second, whose release thresholds are whole seconds.
 	 *
 	 * @return the recipe
 	 */

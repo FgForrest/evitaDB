@@ -38,12 +38,14 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLea
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPageRemoval;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.function.Function;
 
 /**
  * Reconstructs release-written range companions from surviving value-to-record rows without performing IO.
@@ -98,11 +100,12 @@ public final class LegacyRangeFilterIndexCorrection {
 	static List<StoragePart> replaceCompanion(
 		@Nonnull FilterIndexStoragePart root, @Nonnull Iterable<? extends ValueToRecord> buckets
 	) {
+		final Function<Object, Serializable> decimalNormalizer =
+			FilterIndex.getNormalizer(BigDecimalNumberRange.class, root.getIndexedDecimalPlaces());
 		final Map<Integer, List<Range>> rangesByRecord = new HashMap<>();
 		for (final ValueToRecord bucket : buckets) {
 			final Range range = bucket.getValue() instanceof BigDecimalNumberRange decimal ?
-				(Range) FilterIndex.getNormalizer(BigDecimalNumberRange.class, root.getIndexedDecimalPlaces())
-					.apply(decimal) : (Range) bucket.getValue();
+				(Range) decimalNormalizer.apply(decimal) : (Range) bucket.getValue();
 			for (final int record : bucket.getRecordIds().getArray()) {
 				rangesByRecord.computeIfAbsent(record, ignored -> new ArrayList<>()).add(range);
 			}

@@ -369,7 +369,7 @@ class SortIndexStoragePartSerializer_2026_2Test {
 			assertDenseReleasePart(part, new int[]{9, 4, 6}, new int[]{2, 1});
 		}
 
-		/** Verifies the released layout decodes without losing positional information. */
+		/** Verifies that a cardinality entry naming no stored value fails the read instead of guessing a position. */
 		@Test
 		@DisplayName("a cardinality entry matching no value fails loud")
 		void shouldFailWhenCardinalityEntryMatchesNoValue() {
@@ -380,10 +380,12 @@ class SortIndexStoragePartSerializer_2026_2Test {
 				new int[]{1, 2, 3}, new int[]{1, 2}, false
 			);
 
-			assertThrows(GenericEvitaInternalError.class, () -> decode(bytes));
+			final GenericEvitaInternalError failure =
+				assertThrows(GenericEvitaInternalError.class, () -> decode(bytes));
+			assertTrue(failure.getMessage().contains("cardinality entries match a value"), failure.getMessage());
 		}
 
-		/** Verifies the released layout decodes without losing positional information. */
+		/** Verifies that block lengths not summing to the record count fail the read. */
 		@Test
 		@DisplayName("block lengths that do not cover the record array fail loud")
 		void shouldFailWhenBlockLengthsDoNotCoverRecords() {
@@ -394,7 +396,9 @@ class SortIndexStoragePartSerializer_2026_2Test {
 				new int[]{1, 2, 3}, new int[]{3}, false
 			);
 
-			assertThrows(GenericEvitaInternalError.class, () -> decode(bytes));
+			final GenericEvitaInternalError failure =
+				assertThrows(GenericEvitaInternalError.class, () -> decode(bytes));
+			assertTrue(failure.getMessage().contains("block lengths sum to"), failure.getMessage());
 		}
 	}
 
@@ -403,7 +407,7 @@ class SortIndexStoragePartSerializer_2026_2Test {
 	@DisplayName("owner-PAGED and view parts")
 	class PagedAndView {
 
-		/** Verifies the released layout decodes without losing positional information. */
+		/** Verifies that a paged root keeps its page stream and its leaf page keeps the twins in separate buckets. */
 		@Test
 		@DisplayName("a paged root keeps its page stream, and its leaf page keeps both twins apart")
 		void shouldDecodePagedRootAndItsLeafPage() {
@@ -445,7 +449,7 @@ class SortIndexStoragePartSerializer_2026_2Test {
 			assertArrayEquals(new int[]{3}, decodedPage.getBuckets()[1].getRecordIds().getArray());
 		}
 
-		/** Verifies the released layout decodes without losing positional information. */
+		/** Verifies that a view part keeps its raw record array and carries no value columns. */
 		@Test
 		@DisplayName("a view part keeps its raw record array and no value columns")
 		void shouldDecodeViewPart() {
@@ -473,7 +477,9 @@ class SortIndexStoragePartSerializer_2026_2Test {
 	@DisplayName("dispatch by serial version")
 	class Dispatch {
 
-		/** Verifies the released layout decodes without losing positional information. */
+		/**
+		 * Verifies that the current serial version differs from the released one, so released parts reach this reader.
+		 */
 		@Test
 		@DisplayName("the current serial version differs from the released one")
 		void shouldCarrySerialVersionDistinctFromRelease() {
@@ -484,7 +490,7 @@ class SortIndexStoragePartSerializer_2026_2Test {
 			);
 		}
 
-		/** Verifies the released layout decodes without losing positional information. */
+		/** Verifies that a part written by the current serializer reads back through the current reader. */
 		@Test
 		@DisplayName("a part written by the current serializer reads back correctly")
 		void shouldRoundTripCurrentPart() {
@@ -498,6 +504,8 @@ class SortIndexStoragePartSerializer_2026_2Test {
 			);
 
 			assertArrayEquals(new int[]{1, 2, 3}, decoded.getSortedRecords());
+			assertArrayEquals(new Serializable[]{"a", "b"}, decoded.getSortedRecordsValues());
+			assertEquals(Map.of("a", 2), decoded.getValueCardinalities());
 		}
 	}
 

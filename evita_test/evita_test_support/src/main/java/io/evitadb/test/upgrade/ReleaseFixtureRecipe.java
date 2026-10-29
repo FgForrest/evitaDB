@@ -41,7 +41,8 @@ import java.util.function.Consumer;
  *
  * A recipe therefore uses only the API that the released engines and the current one have in common. Recipes of
  * fixtures the 2026.1 engine writes live in {@link Release2026_1FixtureRecipes}, which compiles against that release as
- * well; all others in {@link Release2026_2FixtureRecipes}.
+ * well; all others in {@link Release2026_2FixtureRecipes} and its siblings
+ * {@link Release2026_2ReferenceFixtureRecipes} and {@link Release2026_2UniqueFixtureRecipes}.
  *
  * The catalog name equals the fixture {@link #name()}; the generator writes each fixture into a storage directory of
  * its own, named after the fixture.

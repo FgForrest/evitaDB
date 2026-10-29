@@ -93,7 +93,7 @@ public final class Release2026_2ReferenceFixtureRecipes {
 	}
 
 	/**
-	 * D6: two reduced indexes of `product.brand` keyed by the representative open-bound twins
+	 * Fixture `d6`: two reduced indexes of `product.brand` keyed by the representative open-bound twins
 	 * {@link ReleaseFixtureValues#U1} (product 1) and {@link ReleaseFixtureValues#U2} (product 2) — distinct keys in
 	 * the release, one key today.
 	 *
@@ -117,8 +117,8 @@ public final class Release2026_2ReferenceFixtureRecipes {
 	}
 
 	/**
-	 * D7: one reduced index of `product.brand` holding product 1 (representative A) and product 2 (representative C),
-	 * release-equal values that are distinct today.
+	 * Fixture `d7`: one reduced index of `product.brand` holding product 1 (representative A) and product 2
+	 * (representative C), release-equal values that are distinct today.
 	 *
 	 * @return the recipe
 	 */
@@ -140,7 +140,7 @@ public final class Release2026_2ReferenceFixtureRecipes {
 	}
 
 	/**
-	 * D8: product 1 holds two indexed references to brand 1 with the representative open-bound twins — two
+	 * Fixture `d8`: product 1 holds two indexed references to brand 1 with the representative open-bound twins — two
 	 * duplicates of one owner that are indistinguishable today.
 	 *
 	 * @return the recipe
@@ -162,9 +162,9 @@ public final class Release2026_2ReferenceFixtureRecipes {
 	}
 
 	/**
-	 * D16: a filterable localized `String` reference attribute `label`; product 1 references brand 1 with `"ab"`,
-	 * product 2 with `"a<ZWSP>b"` (collator-equal, raw-distinct). Product 1's attribute is removed later, which made
-	 * the release erase brand 1's partition from the type index's FILTER while product 2 still contributes.
+	 * Fixture `d16`: a filterable localized `String` reference attribute `label`; product 1 references brand 1 with
+	 * `"ab"`, product 2 with `"a<ZWSP>b"` (collator-equal, raw-distinct). Product 1's attribute is removed later, which
+	 * made the release erase brand 1's partition from the type index's FILTER while product 2 still contributes.
 	 *
 	 * @return the recipe
 	 */
@@ -201,7 +201,7 @@ public final class Release2026_2ReferenceFixtureRecipes {
 	}
 
 	/**
-	 * D16 numeric: a filterable `BigDecimalNumberRange` reference attribute `size` with one indexed decimal place;
+	 * Fixture `d16n`: a filterable `BigDecimalNumberRange` reference attribute `size` with one indexed decimal place;
 	 * products 1 and 2 reference brand 1 with `[1.2, 9]` and `[1.24, 9]` — one FILTER key after the rescale, two raw
 	 * counter keys. Product 1's attribute is removed later.
 	 *
@@ -239,8 +239,8 @@ public final class Release2026_2ReferenceFixtureRecipes {
 	}
 
 	/**
-	 * D17: `product.brand` allows duplicates, is indexed in no scope and has a representative `DateTimeRange`;
-	 * product 1 holds two references to brand 1 with the open-bound twins.
+	 * Fixture `d17`: `product.brand` allows duplicates, is indexed in no scope and has a representative
+	 * `DateTimeRange`; product 1 holds two references to brand 1 with the open-bound twins.
 	 *
 	 * @return the recipe
 	 */
@@ -268,7 +268,7 @@ public final class Release2026_2ReferenceFixtureRecipes {
 	}
 
 	/**
-	 * D17, archived variant: the D8 shape indexed in the live scope only, with product 1 archived afterwards — its
+	 * Fixture `d17a`: the `d8` shape indexed in the live scope only, with product 1 archived afterwards — its
 	 * duplicates are then indexed nowhere.
 	 *
 	 * @return the recipe
@@ -293,7 +293,7 @@ public final class Release2026_2ReferenceFixtureRecipes {
 	}
 
 	/**
-	 * D5 for reference attributes: a filterable `DateTimeRange` reference attribute holding A and C (folded by the
+	 * Fixture `d5r`: a filterable `DateTimeRange` reference attribute holding A and C (folded by the
 	 * release) in a reference indexed with entity and group partitions in both scopes; two owners per referenced
 	 * entity, a group shared by every reference, two references per owner and an archived owner.
 	 *
@@ -738,9 +738,9 @@ public final class Release2026_2ReferenceFixtureRecipes {
 	}
 
 	/**
-	 * Shared range borders (issue #1699): products 1 and 2 reference brand 1 with filterable range reference
-	 * attributes sharing a start — `span` `[0, 20]` and `[0, 30]`, `validity` `until(T2)` and `until(T3)`, which share
-	 * the open start — so the type index's `RangeIndex` record (the partition) receives one start twice.
+	 * Shared range borders: products 1 and 2 reference brand 1 with filterable range reference attributes sharing a
+	 * start — `span` `[0, 20]` and `[0, 30]`, `validity` ending at {@link #T2} and {@link #T3}, which share the open
+	 * start — so the type index's `RangeIndex` record (the partition) receives one start twice.
 	 *
 	 * @return the recipe
 	 */

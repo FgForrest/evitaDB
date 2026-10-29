@@ -69,8 +69,9 @@ public final class Release2026_2UniqueFixtureRecipes {
 	}
 
 	/**
-	 * D9: a globally unique `DateTimeRange` `period` on 300 entities, so the catalog-level unique tree is paged; the
-	 * last two hold A and then B — adjacent in one leaf, ordered A before B by the release and B before A today.
+	 * Fixture `d9`: a globally unique `DateTimeRange` `period` on 300 entities, so the catalog-level unique tree is
+	 * paged; the last two hold A and then B — adjacent in one leaf, ordered A before B by the release and B before A
+	 * today.
 	 *
 	 * @return the recipe
 	 */
@@ -93,7 +94,7 @@ public final class Release2026_2UniqueFixtureRecipes {
 	}
 
 	/**
-	 * D9, owner variant: a localized `DateTimeRange` `period` unique across locales — stored in a standalone owner
+	 * Fixture `d9o`: a localized `DateTimeRange` `period` unique across locales — stored in a standalone owner
 	 * unique tree — on 300 entities, the last two holding A and then B.
 	 *
 	 * @return the recipe
@@ -125,8 +126,8 @@ public final class Release2026_2UniqueFixtureRecipes {
 	}
 
 	/**
-	 * D10: a globally unique `DateTimeRange` `period`; entity 1 holds {@link ReleaseFixtureValues#U1}, entity 2
-	 * {@link ReleaseFixtureValues#U2} — two owners the release told apart and that are equal today.
+	 * Fixture `d10`: a globally unique `DateTimeRange` `period`; entity 1 holds {@link ReleaseFixtureValues#U1}, entity
+	 * 2 {@link ReleaseFixtureValues#U2} — two owners the release told apart and that are equal today.
 	 *
 	 * @return the recipe
 	 */
@@ -146,7 +147,7 @@ public final class Release2026_2UniqueFixtureRecipes {
 	}
 
 	/**
-	 * D10, same-owner variant: a globally unique `DateTimeRange[]` `periods`; entity 1 holds both open-bound twins.
+	 * Fixture `d10s`: a globally unique `DateTimeRange[]` `periods`; entity 1 holds both open-bound twins.
 	 *
 	 * @return the recipe
 	 */
@@ -170,8 +171,8 @@ public final class Release2026_2UniqueFixtureRecipes {
 	}
 
 	/**
-	 * D11: a non-localized unique `DateTimeRange` `period` — enforced in the FILTER tree it is folded into; entity 1
-	 * holds {@link ReleaseFixtureValues#U1}, entity 2 {@link ReleaseFixtureValues#U2}.
+	 * Fixture `d11`: a non-localized unique `DateTimeRange` `period` — enforced in the FILTER tree it is folded into;
+	 * entity 1 holds {@link ReleaseFixtureValues#U1}, entity 2 {@link ReleaseFixtureValues#U2}.
 	 *
 	 * @return the recipe
 	 */
@@ -183,7 +184,7 @@ public final class Release2026_2UniqueFixtureRecipes {
 	}
 
 	/**
-	 * D11, temporal variant: a unique `OffsetDateTime` `period`; entities 1 and 2 hold moments 400 µs apart within one
+	 * Fixture `d11t`: a unique `OffsetDateTime` `period`; entities 1 and 2 hold moments 400 µs apart within one
 	 * millisecond.
 	 *
 	 * @return the recipe

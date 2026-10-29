@@ -144,13 +144,6 @@ class Release2026_2IndexUpgradeTest implements EvitaTestSupport {
 		});
 	}
 
-	/** Verifies a globally unique array tree holding one owner's open-bound twins loads. */
-	@Test
-	@DisplayName("a globally unique array tree holding one owner's open-bound twins loads")
-	void shouldLoadWhenGlobalUniqueTreeHoldsOneOwnersTwins() {
-		this.harness.withUpgradedCatalog("d10s", evita -> { });
-	}
-
 	/** Verifies a paged 2026.1 range FILTER loads and answers a point query as a fresh engine. */
 	@Test
 	@DisplayName("a paged 2026.1 range FILTER loads and answers a point query as a fresh engine")
@@ -165,9 +158,9 @@ class Release2026_2IndexUpgradeTest implements EvitaTestSupport {
 		);
 	}
 
-	/** Verifies #1699: two owners' ranges sharing a start are both counted in the referenced-type index. */
+	/** Verifies that two owners' ranges sharing a start are both counted in the referenced-type index. */
 	@Test
-	@DisplayName("#1699: two owners' ranges sharing a start are both counted in the referenced-type index")
+	@DisplayName("two owners' ranges sharing a start are both counted in the referenced-type index")
 	void shouldFindLongerRangeWhenTwoOwnersRangesShareStart() {
 		this.harness.withUpgradedCatalog("dRng", evita -> {
 			assertEquals(

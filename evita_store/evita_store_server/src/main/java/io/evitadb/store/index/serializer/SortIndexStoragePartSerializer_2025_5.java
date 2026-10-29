@@ -39,15 +39,16 @@ import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
 
-import static io.evitadb.store.index.serializer.SortIndexStoragePartSerializer_2026_1.attributeBlockLengths;
+import static io.evitadb.store.index.serializer.SortIndexStoragePartSerializer_2026_1.attributeBlockLengthsOrNull;
 
 
 /**
  * Reads the released 2025.5 binary format of {@link SortIndex}, bridging the older attribute-key dictionary.
  *
  * Sparse cardinality entries retain released representation identity, independently of their map iteration order,
- * and are passed to the migration as dense positional block lengths when exact attribution is possible, as in the
- * 2026.1 reader. Otherwise the original sparse columns survive for the existing conditional loss warning.
+ * and are passed to the migration as dense positional block lengths when exact attribution is possible, as in
+ * {@link SortIndexStoragePartSerializer_2026_1}. Otherwise the original sparse columns survive for the existing
+ * conditional loss warning.
  *
  * @deprecated only for backward compatibility purposes
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
@@ -118,7 +119,7 @@ public class SortIndexStoragePartSerializer_2025_5 extends Serializer<SortIndexS
 			cardinalities[i] = input.readVarInt(true);
 		}
 
-		final int[] blockLengths = attributeBlockLengths(
+		final int[] blockLengths = attributeBlockLengthsOrNull(
 			sortedRecordValues, cardinalityValues, cardinalities, sortedRecordCount
 		);
 		return new SortIndexStoragePart(

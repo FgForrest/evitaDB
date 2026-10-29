@@ -83,7 +83,7 @@ public class SortIndexStoragePartSerializer_2026_1 extends Serializer<SortIndexS
 	 * @return every block length in value-column order, or `null` when exact attribution is impossible
 	 */
 	@Nullable
-	static int[] attributeBlockLengths(
+	static int[] attributeBlockLengthsOrNull(
 		@Nonnull Serializable[] sortedRecordValues,
 		@Nonnull Serializable[] cardinalityValues,
 		@Nonnull int[] cardinalities,
@@ -211,7 +211,7 @@ public class SortIndexStoragePartSerializer_2026_1 extends Serializer<SortIndexS
 			cardinalities[i] = input.readVarInt(true);
 		}
 
-		final int[] blockLengths = attributeBlockLengths(
+		final int[] blockLengths = attributeBlockLengthsOrNull(
 			sortedRecordValues, cardinalityValues, cardinalities, sortedRecordCount
 		);
 		return new SortIndexStoragePart(

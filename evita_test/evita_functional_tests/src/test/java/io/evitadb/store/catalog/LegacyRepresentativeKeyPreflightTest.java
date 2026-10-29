@@ -51,6 +51,7 @@ import static io.evitadb.test.upgrade.ReleaseFixtureValues.FAR;
 import static io.evitadb.test.upgrade.ReleaseFixtureValues.U1;
 import static io.evitadb.test.upgrade.ReleaseFixtureValues.U2;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -101,14 +102,6 @@ class LegacyRepresentativeKeyPreflightTest implements EvitaTestSupport {
 		}
 	}
 
-	/** A representative range alone is not grounds for refusal when the stored partition keys are distinct. */
-	@ParameterizedTest
-	@ValueSource(strings = {"d1a", "d9"})
-	@DisplayName("Should accept healthy release catalogs containing range values")
-	void shouldAcceptHealthyReleaseCatalogsContainingRangeValues(@Nonnull String fixture) {
-		this.harness.withUpgradedCatalog(fixture, evita -> { });
-	}
-
 	/** The early reader owns and closes its collection services even though no rewrite follows it. */
 	@ParameterizedTest
 	@ValueSource(strings = {"d1a", "d9"})
@@ -128,7 +121,7 @@ class LegacyRepresentativeKeyPreflightTest implements EvitaTestSupport {
 						opened.add(collection);
 						return collection;
 					});
-				assertTrue(!opened.isEmpty());
+				assertFalse(opened.isEmpty(), "the preflight must open at least one collection");
 				assertTrue(opened.stream().allMatch(DefaultEntityCollectionPersistenceService::isClosed));
 				assertEquals(before, this.harness.bootstrapRecords(paths, fixture));
 				return Boolean.TRUE;

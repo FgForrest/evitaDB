@@ -63,7 +63,10 @@ import java.util.Objects;
 @NotThreadSafe
 @ToString(of = "attributeIndexKey")
 public class SortIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeIndexKey> {
-	/** Routes released parts to the reader preserving their distinct positional blocks. */
+	/**
+	 * Differs from the id of release 2026.2, whose parts share the current byte layout but may hold blocks of values
+	 * equal today, so those parts reach `SortIndexStoragePartSerializer_2026_2`, which keeps the blocks apart.
+	 */
 	@Serial private static final long serialVersionUID = -4850730814882863814L;
 
 	/**
@@ -95,10 +98,13 @@ public class SortIndexStoragePart implements AttributeIndexStoragePart, RecordWi
 	 * serializer's per-value block-length computation relies on that; a part reconstructed from disk carries them in
 	 * stored order and is only used to reseed the index (never re-serialized directly).
 	 *
-	 * The released 2026.2 reader returns a dense column aligned with {@link #sortedRecordsValues}, including lengths
-	 * of one. Its positions preserve blocks of released keys that are equal today until the migration merges them.
-	 * That dense column is the very {@link #sortedRecordsValues} array, and the migration recognizes it by that
-	 * identity: every other reader builds the column from a value map, whose order cannot be aligned with the values.
+	 * A reader of a released format returns an inline owner part with a dense column aligned with
+	 * {@link #sortedRecordsValues}, including lengths of one, whenever it can attribute every block length: the 2026.2
+	 * reader always, the 2026.1 and 2025.5 readers when their unordered sparse map matches the value column exactly.
+	 * Its positions preserve blocks of released keys that are equal today until the migration merges them. That dense
+	 * column is the very {@link #sortedRecordsValues} array, and the migration recognizes it by that identity. Every
+	 * other part carries the sparse column - built from a value map by the current reader, kept in stored order by a
+	 * 2026.1 or 2025.5 reader that cannot attribute its blocks - and its order cannot be aligned with the values.
 	 */
 	@Getter private final Serializable[] cardinalityValues;
 	/**

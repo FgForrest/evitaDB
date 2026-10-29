@@ -114,19 +114,19 @@ class Migration_2026_3_RangeUniqueUpgradeRoundTripTest implements EvitaTestSuppo
 		}
 	}
 
-	/** An aggregate bucket can retain a withdrawn spelling without identifying a second unique owner. */
-	@Test
-	@DisplayName("Should accept withdrawn representatives in aggregate reference indexes")
-	void shouldAcceptWithdrawnRepresentativesInAggregateReferenceIndexes() {
-		this.harness.withUpgradedCatalog("dUw", evita -> { });
-	}
-
-	/** Range collision detection spans nonadjacent buckets and pages, and ignores legitimate repeated ownership. */
+	/**
+	 * Range collision detection spans nonadjacent buckets and pages, and ignores legitimate repeated ownership. The
+	 * expected outcome is stated per case rather than derived from the other columns, so a changed refusal rule shows
+	 * up as a failing case instead of moving the expectation along with it.
+	 */
 	@ParameterizedTest
-	@CsvSource({"false,true,false,true", "true,true,false,true", "false,true,true,true", "true,true,true,true",
-		"false,false,false,true", "true,false,false,true", "false,true,false,false", "true,true,false,false"})
+	@CsvSource({"false,true,false,true,true", "true,true,false,true,true", "false,true,true,true,false",
+		"true,true,true,true,false", "false,false,false,true,false", "true,false,false,true,false",
+		"false,true,false,false,false", "true,true,false,false,false"})
 	@DisplayName("Should inspect complete unique range filter trees without rejecting healthy ownership")
-	void shouldInspectCompleteUniqueRangeFilterTrees(boolean paged, boolean unique, boolean sameOwner, boolean twins) {
+	void shouldInspectCompleteUniqueRangeFilterTrees(
+		boolean paged, boolean unique, boolean sameOwner, boolean twins, boolean refused
+	) {
 		final TestPaths paths = createTestPaths("RangeFilter_" + paged + unique + sameOwner + twins);
 		final String catalog = "ranges";
 		try {
@@ -187,7 +187,7 @@ class Migration_2026_3_RangeUniqueUpgradeRoundTripTest implements EvitaTestSuppo
 				final AtomicBoolean published = new AtomicBoolean();
 				final Runnable migration = () -> Migration_2026_3.upgradeFromStorageProtocolVersion_6_to_7(
 					header, catalogParts, ignored -> collectionService, ignored -> published.set(true));
-				if (unique && twins && !sameOwner) {
+				if (refused) {
 					final String message = LegacyRepresentativeKeyPreflightTest.refusal(
 						assertThrows(RuntimeException.class, migration::run,
 							"Equal range keys across filter parts must refuse before publication")).getMessage();

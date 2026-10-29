@@ -70,7 +70,15 @@ final class LegacyRepresentativeKeyPreflight {
 	}
 
 	/**
-	 * Runs before a chain of older migrations can publish. Every opened collection is closed, including on refusal.
+	 * Refuses a catalog of storage protocol 4 or 5 before the chain of older migrations can publish anything, when two
+	 * of its stored representative partitions have keys that are equal in this version. The catalog load calls it only
+	 * for those protocols; a catalog of protocol 6 gets the same check inside {@link Migration_2026_3}. It only reads -
+	 * manifests, schemas and membership parts - and every collection it opens is closed again, on refusal too.
+	 *
+	 * @param header       the published catalog header
+	 * @param catalogParts the storage of the catalog file
+	 * @param factory      opens the storage of a collection
+	 * @throws ObsoleteStorageProtocolException when partitions collide, naming every colliding pair
 	 */
 	static void verifyBeforeMigrationChain(
 		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> header,
@@ -121,6 +129,14 @@ final class LegacyRepresentativeKeyPreflight {
 	/**
 	 * Groups only live manifest ids by their complete current identity, retaining each original tuple positionally.
 	 * Collection identity is supplied by the caller; scope, family, reference and target are part of the index key.
+	 *
+	 * @param version    the catalog version to read
+	 * @param collection the entity type of the collection, named in every collision
+	 * @param schema     the collection's schema with its reflected references bound, which names the representative
+	 *                   attributes
+	 * @param indexIds   the entity indexes the collection header lists
+	 * @param parts      the storage of the collection
+	 * @return every colliding pair with the owners of both partitions, empty when none collide
 	 */
 	@Nonnull
 	static List<Collision> findCollisions(
@@ -146,7 +162,14 @@ final class LegacyRepresentativeKeyPreflight {
 		return collisions;
 	}
 
-	/** Finds different manifest ids with an equal complete key while preserving both raw manifest objects. */
+	/**
+	 * Finds different manifest ids with an equal complete key while preserving both raw manifest objects. Only keys of
+	 * representative partitions holding a `DateTimeRange` value are considered: that is the only representative type
+	 * whose equality became coarser since the releases, so no other partition key can collide.
+	 *
+	 * @param manifests the manifests of one collection
+	 * @return every pair of the first manifest with a key and a later one with the equal key
+	 */
 	@Nonnull
 	static List<ManifestCollision> findCollidingManifests(@Nonnull Iterable<EntityIndexStoragePart> manifests) {
 		final Map<EntityIndexKey, EntityIndexStoragePart> first = new HashMap<>();
@@ -186,7 +209,14 @@ final class LegacyRepresentativeKeyPreflight {
 		return membership == null ? manifest.getEntityIds() : membership.getEntityIds();
 	}
 
-	/** Refuses before publication, preserving the incoming protocol and naming both original tuples. */
+	/**
+	 * Refuses before publication, preserving the incoming protocol and naming both original tuples.
+	 *
+	 * @param catalog          the catalog name
+	 * @param incomingProtocol the storage protocol the catalog stays at, named in the refusal
+	 * @param collisions       the colliding pairs; nothing happens when there are none
+	 * @throws ObsoleteStorageProtocolException when any pair collides
+	 */
 	static void refuseCollisions(@Nonnull String catalog, int incomingProtocol, @Nonnull List<Collision> collisions) {
 		if (collisions.isEmpty()) {
 			return;
@@ -220,7 +250,11 @@ final class LegacyRepresentativeKeyPreflight {
 		@Nullable Bitmap firstOwners,
 		@Nullable Bitmap secondOwners
 	) {
-		/** Describes each raw tuple and the owner memberships without inferring reference row identities. */
+		/**
+		 * Describes each raw tuple and the owner memberships without inferring reference row identities.
+		 *
+		 * @return the reference, target, scope, both partitions and their tuples, for the refusal message
+		 */
 		@Nonnull
 		String describe() {
 			final EntityIndexKey indexKey = this.first.getEntityIndexKey();

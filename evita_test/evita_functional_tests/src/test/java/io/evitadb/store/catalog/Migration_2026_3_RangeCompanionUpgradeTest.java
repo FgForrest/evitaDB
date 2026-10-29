@@ -38,6 +38,7 @@ import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.Range;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.OwnerFilterIndex;
@@ -61,6 +62,7 @@ import io.evitadb.store.model.header.CollectionFileReference;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -97,6 +99,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Exercises protocol-6 range companions through the migration planner, publication and a second offline open.
@@ -151,7 +154,7 @@ class Migration_2026_3_RangeCompanionUpgradeTest implements EvitaTestSupport {
 		assertArrayEquals(inherited ? new int[]{2} : new int[0], at(companion, 35));
 		assertEquals(paged, companion.isPaged());
 		withImage(EntityIndexType.GLOBAL, Scope.LIVE, BigDecimalNumberRange.class, false, null,
-			buckets, companion, paged, paged, image -> {
+			buckets, companion, paged, paged, false, image -> {
 				image.read(root -> {
 					assertEquals(paged, root.root().isPaged());
 					assertEquals(paged, root.root().isRangePaged());
@@ -206,7 +209,7 @@ class Migration_2026_3_RangeCompanionUpgradeTest implements EvitaTestSupport {
 		final boolean array = bucketPaged;
 		final Scope scope = rangePaged ? Scope.ARCHIVED : Scope.LIVE;
 		withImage(family, scope, bounds.type(), array, bucketPaged ? Locale.ENGLISH : null,
-			buckets, companion, bucketPaged, rangePaged, image -> {
+			buckets, companion, bucketPaged, rangePaged, false, image -> {
 				image.migrateAndInspect(root -> {
 					root.assertMatchesFreshWrites();
 					assertArrayEquals(new int[]{record}, at(root.companion(), bounds.threshold(35)),
@@ -226,6 +229,31 @@ class Migration_2026_3_RangeCompanionUpgradeTest implements EvitaTestSupport {
 					assertEquals(rangePaged && bounds != Bounds.BYTE, root.root().isRangePaged());
 					root.assertBucketsUnchanged(true);
 				});
+			});
+	}
+
+	/** A bucket page the root lists but storage lacks stops the upgrade by name, before anything is published. */
+	@Test
+	@DisplayName("Should name the attribute and page when a listed bucket page is missing")
+	void shouldNameAttributeAndPageWhenListedBucketPageIsMissing() {
+		final List<ValueToRecordBitmap> buckets = List.of(
+			new ValueToRecordBitmap(decimal("1", "2"), 1), new ValueToRecordBitmap(decimal("3", "4"), 2)
+		);
+		final RangeIndex companion = new RangeIndex();
+		companion.addRecord(1L, 2L, 1);
+		companion.addRecord(3L, 4L, 2);
+		withImage(EntityIndexType.GLOBAL, Scope.LIVE, BigDecimalNumberRange.class, false, null,
+			buckets, companion, true, false, true, image -> {
+				final var before = lastBootstrap(image.configuration(), "ranges");
+
+				final GenericEvitaInternalError failure = assertThrows(GenericEvitaInternalError.class,
+					() -> migrateOffline(image.configuration(), "ranges",
+						header -> fail("a missing bucket page must stop the upgrade before publication"),
+						new HashMap<>()));
+
+				assertTrue(failure.getMessage().contains("leaf page 9 "), failure.getMessage());
+				assertTrue(failure.getMessage().contains("range"), failure.getMessage());
+				assertEquals(before, lastBootstrap(image.configuration(), "ranges"));
 			});
 	}
 
@@ -278,13 +306,33 @@ class Migration_2026_3_RangeCompanionUpgradeTest implements EvitaTestSupport {
 		}
 	}
 
-	/** Supplies all independent persisted axes without assuming either tree's storage mode determines the other's. */
+	/**
+	 * Samples the persisted axes instead of crossing them, because the rebuild treats each of them on its own: every
+	 * range subtype appears with a scalar and an array declaration (the paged bucket axis declares the array) and with
+	 * both range storages, and every index family with all four combinations of bucket and range storage, so neither
+	 * tree's storage mode is assumed to determine the other's. `BYTE` cannot fill a paged companion, so its
+	 * range-paged case rebuilds a paged companion inline. Every case carries both a shared-start and a shared-end pair
+	 * of intervals.
+	 */
 	@Nonnull
 	private static Stream<Arguments> aggregateCases() {
-		return Stream.of(EntityIndexType.REFERENCED_ENTITY_TYPE, EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE,
-			EntityIndexType.REFERENCED_GROUP_ENTITY).flatMap(family -> Arrays.stream(Bounds.values())
-			.flatMap(bounds -> Stream.of(false, true).flatMap(bucket -> Stream.of(false, true)
-				.map(range -> Arguments.of(family, bounds, bucket, range)))));
+		final EntityIndexType type = EntityIndexType.REFERENCED_ENTITY_TYPE;
+		final EntityIndexType groupType = EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE;
+		final EntityIndexType group = EntityIndexType.REFERENCED_GROUP_ENTITY;
+		return Stream.of(
+			Arguments.of(type, Bounds.BYTE, false, true),
+			Arguments.of(groupType, Bounds.BYTE, true, false),
+			Arguments.of(group, Bounds.SHORT, false, false),
+			Arguments.of(type, Bounds.SHORT, true, true),
+			Arguments.of(groupType, Bounds.INTEGER, false, true),
+			Arguments.of(group, Bounds.INTEGER, true, false),
+			Arguments.of(type, Bounds.LONG, false, false),
+			Arguments.of(groupType, Bounds.LONG, true, true),
+			Arguments.of(group, Bounds.DECIMAL, false, true),
+			Arguments.of(type, Bounds.DECIMAL, true, false),
+			Arguments.of(groupType, Bounds.TIME, false, false),
+			Arguments.of(group, Bounds.TIME, true, true)
+		);
 	}
 
 	/** Builds a decimal value without discarding the precision supplied by the released caller. */
@@ -317,11 +365,14 @@ class Migration_2026_3_RangeCompanionUpgradeTest implements EvitaTestSupport {
 		assertArrayEquals(expectedEnds, ends.stream().mapToLong(Long::longValue).toArray());
 	}
 
-	/** Creates a real grouped-reference catalog, then replaces only the selected persisted filter and manifest. */
+	/**
+	 * Creates a real grouped-reference catalog, then replaces only the selected persisted filter and manifest. With
+	 * `bucketPageMissing` the paged root still lists its second bucket page, but the page itself is never written.
+	 */
 	private void withImage(
 		@Nonnull EntityIndexType family, @Nonnull Scope scope, @Nonnull Class<?> type, boolean array,
-		@Nullable Locale locale, @Nonnull List<ValueToRecordBitmap> buckets,
-		@Nonnull RangeIndex companion, boolean bucketPaged, boolean rangePaged, @Nonnull Consumer<Image> test
+		@Nullable Locale locale, @Nonnull List<ValueToRecordBitmap> buckets, @Nonnull RangeIndex companion,
+		boolean bucketPaged, boolean rangePaged, boolean bucketPageMissing, @Nonnull Consumer<Image> test
 	) {
 		final TestPaths paths = createTestPaths("companion_" + family + scope + type.getSimpleName() +
 			array + bucketPaged + rangePaged);
@@ -385,9 +436,11 @@ class Migration_2026_3_RangeCompanionUpgradeTest implements EvitaTestSupport {
 					final int middle = rows.length / 2;
 					parts.putStoragePart(version, new FilterIndexLeafPagePart(index, streamKey, 3,
 						Arrays.copyOfRange(rows, 0, middle), Arrays.copyOfRange(valueIds, 0, middle)));
-					parts.putStoragePart(version, new FilterIndexLeafPagePart(index, streamKey, 9,
-						Arrays.copyOfRange(rows, middle, rows.length),
-						Arrays.copyOfRange(valueIds, middle, rows.length)));
+					if (!bucketPageMissing) {
+						parts.putStoragePart(version, new FilterIndexLeafPagePart(index, streamKey, 9,
+							Arrays.copyOfRange(rows, middle, rows.length),
+							Arrays.copyOfRange(valueIds, middle, rows.length)));
+					}
 				}
 				final int[] rangeSequences;
 				if (rangePaged) {

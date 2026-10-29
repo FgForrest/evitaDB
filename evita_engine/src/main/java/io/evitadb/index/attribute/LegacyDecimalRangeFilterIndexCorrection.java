@@ -91,14 +91,16 @@ public final class LegacyDecimalRangeFilterIndexCorrection {
 		BigDecimalNumberRange previous = null;
 		boolean changed = false;
 		for (final FilterIndexLeafPagePart page : pages) {
-			for (int i = 0; i < page.getBuckets().length; i++) {
-				final ValueToRecord bucket = page.getBuckets()[i];
+			final ValueToRecord[] pageBuckets = page.getBuckets();
+			final int[] pageValueIds = page.getValueIds();
+			for (int i = 0; i < pageBuckets.length; i++) {
+				final ValueToRecord bucket = pageBuckets[i];
 				final BigDecimalNumberRange key = (BigDecimalNumberRange) normalizer.apply(bucket.getValue());
 				changed |= previous != null && previous.compareTo(key) >= 0;
 				previous = key;
 				buckets.computeIfAbsent(key, ValueToRecordBitmap::new).addRecord(bucket.getRecordIds().getArray());
-				if (page.getValueIds() != null) {
-					valueIds.putIfAbsent(key, page.getValueIds()[i]);
+				if (pageValueIds != null) {
+					valueIds.putIfAbsent(key, pageValueIds[i]);
 				}
 			}
 		}

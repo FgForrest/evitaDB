@@ -106,7 +106,8 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Returns the fixtures the current engine loads after the upgrade, among those #1696 migrates rather than refuses.
+	 * Returns the fixtures the current engine loads after the upgrade, among those the upgrade migrates rather than
+	 * refuses.
 	 *
 	 * @return the fixture names
 	 */

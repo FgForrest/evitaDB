@@ -54,7 +54,7 @@ public final class Release2026_1FixtureRecipes {
 	public static final String INHERITED_SORT_TWINS = "inheritedSortTwins";
 
 	/**
-	 * Fixture of the D6 shape written by 2026.1 and never opened by 2026.2 (a chained upgrade, protocol 4).
+	 * Fixture `d6c` of the `d6` shape written by 2026.1 and never opened by 2026.2 (a chained upgrade, protocol 4).
 	 */
 	public static final String D6C = "d6c";
 	/**
@@ -63,7 +63,7 @@ public final class Release2026_1FixtureRecipes {
 	 */
 	public static final String D12 = "d12";
 	/**
-	 * Fixture of the D12 shape with the plain spelling inserted first.
+	 * Fixture `d12b` of the `d12` shape with the plain spelling inserted first.
 	 */
 	public static final String D12B = "d12b";
 	/**
@@ -122,9 +122,9 @@ public final class Release2026_1FixtureRecipes {
 	}
 
 	/**
-	 * Defines `brand` and the `product.brand` reference of the D6 to D8 shapes: it allows duplicates, is partitioned,
-	 * and its representative attribute `validity` is a filterable `DateTimeRange`; `rank` is a plain filterable
-	 * reference attribute. Shared with the 2026.2 recipes of the same shapes.
+	 * Defines `brand` and the `product.brand` reference of the `d6`, `d7` and `d8` shapes: it allows duplicates, is
+	 * partitioned, and its representative attribute `validity` is a filterable `DateTimeRange`; `rank` is a plain
+	 * filterable reference attribute. Shared with the 2026.2 recipes of the same shapes.
 	 *
 	 * @param session the warming-up session
 	 */
@@ -167,7 +167,7 @@ public final class Release2026_1FixtureRecipes {
 	}
 
 	/**
-	 * Writes the D6 shape: product 1 references brand 1 with the representative value {@link ReleaseFixtureValues#U1}
+	 * Writes the `d6` shape: product 1 references brand 1 with the representative value {@link ReleaseFixtureValues#U1}
 	 * and product 2 with {@link ReleaseFixtureValues#U2} — two reduced indexes whose keys were distinct in the
 	 * release and are equal today. Shared by {@link #d6c()} and the 2026.2 recipe `d6`.
 	 *
@@ -180,8 +180,8 @@ public final class Release2026_1FixtureRecipes {
 	}
 
 	/**
-	 * D6 chained: the shape of {@link #writeRepresentativeOpenBoundTwins(EvitaSessionContract)} written by 2026.1 and
-	 * left at storage protocol 4, so the current engine runs every storage migration over it in one boot.
+	 * Fixture `d6c`: the shape of {@link #writeRepresentativeOpenBoundTwins(EvitaSessionContract)} written by 2026.1
+	 * and left at storage protocol 4, so the current engine runs every storage migration over it in one boot.
 	 *
 	 * @return the recipe
 	 */
@@ -199,9 +199,9 @@ public final class Release2026_1FixtureRecipes {
 	}
 
 	/**
-	 * D12: a sort-only localized `label` whose spellings `"a<ZWSP>b"`, `"ab"`, `"ab"` are inserted in this order, plus
-	 * five other values. The 2026.1 sort writer keys the cardinality section by the inserting record's spelling and
-	 * emits it in hash order; 2026.2 opens the catalog without touching the index.
+	 * Fixture `d12`: a sort-only localized `label` whose spellings `"a<ZWSP>b"`, `"ab"`, `"ab"` are inserted in this
+	 * order, plus five other values. The 2026.1 sort writer keys the cardinality section by the inserting record's
+	 * spelling and emits it in hash order; 2026.2 opens the catalog without touching the index.
 	 *
 	 * @return the recipe
 	 */
@@ -211,7 +211,7 @@ public final class Release2026_1FixtureRecipes {
 	}
 
 	/**
-	 * D12, variant b: the spellings `"ab"`, `"a<ZWSP>b"`, `"ab"` in this order.
+	 * Fixture `d12b`: the spellings `"ab"`, `"a<ZWSP>b"`, `"ab"` in this order.
 	 *
 	 * @return the recipe
 	 */
@@ -221,10 +221,10 @@ public final class Release2026_1FixtureRecipes {
 	}
 
 	/**
-	 * D13: a filterable `BigDecimalNumberRange` with zero indexed decimal places holding 300 whole-number ranges and
-	 * 32 ranges with one decimal place — among them `[1.2, 9]` and `[1.4, 2]` — written by 2026.1, whose keys are raw
-	 * and compared at each value's own precision. 2026.2 opens the catalog and adds one entity, re-flushing the paged
-	 * FILTER with the raw keys kept.
+	 * Fixture `d13`: a filterable `BigDecimalNumberRange` with zero indexed decimal places holding 300 whole-number
+	 * ranges and 32 ranges with one decimal place — among them `[1.2, 9]` and `[1.4, 2]` — written by 2026.1, whose
+	 * keys are raw and compared at each value's own precision. 2026.2 opens the catalog and adds one entity,
+	 * re-flushing the paged FILTER with the raw keys kept.
 	 *
 	 * @return the recipe
 	 */
@@ -269,9 +269,9 @@ public final class Release2026_1FixtureRecipes {
 	}
 
 	/**
-	 * D15: a filterable `BigDecimalNumberRange` `size` with zero indexed decimal places; entity 1 holds `[12, 90]` and
-	 * entity 2 `[1.2, 9]`, which 2026.1 considered equal and folded into one inline FILTER key. 2026.2 opens the
-	 * catalog and changes another entity.
+	 * Fixture `d15`: a filterable `BigDecimalNumberRange` `size` with zero indexed decimal places; entity 1 holds
+	 * `[12, 90]` and entity 2 `[1.2, 9]`, which 2026.1 considered equal and folded into one inline FILTER key. 2026.2
+	 * opens the catalog and changes another entity.
 	 *
 	 * @return the recipe
 	 */
@@ -301,8 +301,8 @@ public final class Release2026_1FixtureRecipes {
 	}
 
 	/**
-	 * Builds a D12 recipe: products 1 to 3 hold `first`, `second` and `"ab"` as their English `label`, products 4 to 8
-	 * five other values.
+	 * Builds a localized sort recipe: products 1 to 3 hold `first`, `second` and `"ab"` as their English `label`,
+	 * products 4 to 8 five other values.
 	 *
 	 * @param name   the fixture name
 	 * @param first  the spelling of product 1

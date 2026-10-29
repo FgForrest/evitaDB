@@ -244,14 +244,17 @@ public final class LegacyOwnerSortIndexCorrection {
 			}
 			ownedTree = OwnerSortIndex.createOwnedTree(comparatorBase, comparator, root.getIndexedDecimalPlaces());
 			final int[] sortedRecords = root.getSortedRecords();
-			final Map<Serializable, Integer> cardinalities = root.getValueCardinalities();
 			int offset = 0;
-			// the released reader marks its dense column by handing the value array itself as the cardinality values
+			// a released-format reader marks its dense column by handing the value array itself as the cardinality
+			// values, see the `cardinalityValues` column of `SortIndexStoragePart`
 			final int[] positionalLengths = root.getCardinalityValues() == sortedRecordValues ?
 				root.getCardinalities() : null;
+			// only a sparse column needs the value map it encodes
+			final Map<Serializable, Integer> cardinalities = positionalLengths == null ?
+				root.getValueCardinalities() : Map.of();
 			for (int i = 0; i < sortedRecordValues.length; i++) {
 				final Serializable value = sortedRecordValues[i];
-				// the released reader preserves today-equal keys in a dense positional column
+				// a dense positional column keeps the blocks of released keys that are equal today apart
 				final int cardinality = positionalLengths == null ?
 					cardinalities.getOrDefault(value, 1) : positionalLengths[i];
 				ownedTree.addRecord(

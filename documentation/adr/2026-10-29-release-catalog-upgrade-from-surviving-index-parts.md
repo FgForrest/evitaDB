@@ -1,7 +1,7 @@
 ---
 title: Upgrade released catalogs from surviving parts, refusing collisions and warning about loss
 date: 2026-10-29
-updated: 2026-10-29 10:26
+updated: 2026-10-29 13:50
 status: accepted
 kind: fix
 issues: [1696, 1699]
@@ -206,11 +206,18 @@ are unchanged. The report class has **25/25 green** cases, including real inheri
 already repaired paged decimal fixture. Removing only the decimal warning predicate makes those two cases
 fail (**23 green, 2 red**); exact source restoration and reactor reinstall restore **25/25 green**.
 
-The earlier full module, run before the decimal outcome was assigned, recorded **30,449 tests: 30,374 green,
-5 red, 70 skipped**. Its two then-unassigned decimal query expectations are now replaced. Each of the three
-HTTPS subscription negotiation timeouts passed a separate one-test isolated rerun. No second full module was
-run: the final selection has no regression. The root install passed, production callers were audited, and the
-Kryo audit reported no findings.
+The code-quality pass fixed two defects test-first, each red before its fix:
+`Migration_2026_3_UpgradeReportTest.shouldNameOnlyCompoundElementsTheReflectedReferenceInherits` (the loss report
+threw after publication on a reflected reference inheriting a compound without one of its attributes) and
+`Migration_2026_3_RangeCompanionUpgradeTest.shouldNameAttributeAndPageWhenListedBucketPageIsMissing` (a missing
+listed leaf page failed with a bare `NullPointerException`). It trimmed the aggregate range matrix from 72 to 12
+cases that still sample every axis - each range subtype as scalar and array, each index family with all four
+bucket/range storage combinations - so that class now runs 19 cases.
+
+The final full functional module recorded **29,845 tests: 0 failures, 5 errors, 65 skipped**. Four errors were
+HTTPS subscription session timeouts and one a catalog-handover timing case outside this change; all five passed
+when re-run alone. The root install and the Javadoc build passed, production callers were audited, and the Kryo
+audit reported no findings.
 
 ## Consequences & open follow-ups
 

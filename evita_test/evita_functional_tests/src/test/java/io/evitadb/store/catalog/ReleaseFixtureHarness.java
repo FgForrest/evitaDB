@@ -56,7 +56,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
@@ -252,26 +251,6 @@ final class ReleaseFixtureHarness {
 		session.getEntity(PRODUCT, pk, entityFetchAllContent()).orElseThrow()
 			.openForWrite()
 			.setAttribute(name, value)
-			.upsertVia(session);
-	}
-
-	/**
-	 * Replaces an English attribute of a live product.
-	 *
-	 * @param session the session
-	 * @param pk      the product
-	 * @param name    the attribute
-	 * @param value   the new value
-	 */
-	static void setEnglishAttribute(
-		@Nonnull EvitaSessionContract session,
-		int pk,
-		@Nonnull String name,
-		@Nonnull Serializable value
-	) {
-		session.getEntity(PRODUCT, pk, entityFetchAllContent()).orElseThrow()
-			.openForWrite()
-			.setAttribute(name, Locale.ENGLISH, value)
 			.upsertVia(session);
 	}
 
