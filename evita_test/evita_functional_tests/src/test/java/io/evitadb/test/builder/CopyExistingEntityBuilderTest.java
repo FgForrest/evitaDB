@@ -23,6 +23,9 @@
 
 package io.evitadb.test.builder;
 
+import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
@@ -44,6 +47,8 @@ import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -54,8 +59,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Verifies that {@link CopyExistingEntityBuilder} rebuilds an entity read from one evitaDB for
- * insertion into another - copying attributes verbatim, and re-keying unique String attributes when
- * the primary key is overridden so the copy stays uniquely identifiable.
+ * insertion into another - copying attributes verbatim, re-keying unique String attributes when
+ * the primary key is overridden so the copy stays uniquely identifiable, and carrying replaced
+ * associated data validated against the target's schema.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -67,6 +73,8 @@ class CopyExistingEntityBuilderTest {
 	private static final String CODE = "CODE";
 	private static final String NAME = "NAME";
 	private static final String EAN = "EAN";
+	private static final String BODY = "BODY";
+	private static final Locale CZECH = Locale.forLanguageTag("cs");
 
 	/**
 	 * Builds a bare catalog schema usable as the context for the entity schemas below.
@@ -164,5 +172,75 @@ class CopyExistingEntityBuilderTest {
 			EvitaInvalidUsageException.class,
 			() -> new CopyExistingEntityBuilder(source, 999)
 		);
+	}
+
+	/**
+	 * A copy built against a target schema that declares the associated data localized carries the replacement
+	 * values, which already have the locale, and keeps the source's primary key.
+	 */
+	@Test
+	@DisplayName("should carry replaced associated data validated against the target schema")
+	void shouldCopyReplacedAssociatedDataUnderTargetSchema() {
+		final EntityContract source = sourceEntityWithBody(1, "some text");
+		final EntitySchemaContract targetSchema = productSchemaWithBody(true);
+
+		final CopyExistingEntityBuilder copy = new CopyExistingEntityBuilder(
+			source,
+			targetSchema,
+			List.of(new AssociatedDataValue(new AssociatedDataKey(BODY, CZECH), "some text"))
+		);
+
+		assertEquals("some text", copy.getAssociatedData(BODY, CZECH));
+		assertEquals(1, copy.getPrimaryKey());
+		assertEquals(targetSchema, copy.getSchema());
+	}
+
+	/**
+	 * The source's own values carry no locale, so a copy that passes them unchanged against a target schema declaring
+	 * the associated data localized must be refused rather than written in the wrong shape.
+	 */
+	@Test
+	@DisplayName("should refuse associated data that does not match the target schema")
+	void shouldThrowWhenReplacedAssociatedDataDoesNotMatchTargetSchema() {
+		final EntityContract source = sourceEntityWithBody(1, "some text");
+		final EntitySchemaContract targetSchema = productSchemaWithBody(true);
+
+		assertThrows(
+			InvalidMutationException.class,
+			() -> new CopyExistingEntityBuilder(source, targetSchema, source.getAssociatedDataValues())
+		);
+	}
+
+	/**
+	 * Builds a product schema with a String associated data {@link #BODY}.
+	 */
+	@Nonnull
+	private static EntitySchemaContract productSchemaWithBody(boolean localized) {
+		final Map<String, EntitySchemaContract> index = new HashMap<>();
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			catalogSchema(index),
+			EntitySchema._internalBuild(Entities.PRODUCT)
+		)
+			.withAssociatedData(
+				BODY, String.class,
+				whichIs -> {
+					if (localized) {
+						whichIs.localized();
+					}
+				}
+			)
+			.toInstance();
+		index.put(Entities.PRODUCT, schema);
+		return schema;
+	}
+
+	/**
+	 * Builds a source entity whose {@link #BODY} associated data carries no locale.
+	 */
+	@Nonnull
+	private static EntityContract sourceEntityWithBody(int primaryKey, @Nonnull String body) {
+		final InitialEntityBuilder builder = new InitialEntityBuilder(productSchemaWithBody(false), primaryKey);
+		builder.setAssociatedData(BODY, body);
+		return builder.toInstance();
 	}
 }

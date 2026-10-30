@@ -79,6 +79,21 @@ public @interface AssociatedData {
 	boolean localized() default false;
 
 	/**
+	 * Makes the text of the associated data searchable in the {@link io.evitadb.dataType.Scope#LIVE} scope. Only
+	 * localized associated data of type `String`, `String[]` or a POJO (stored as a complex data object, which then
+	 * needs {@link #textExpression()}) may be searchable.
+	 * Propagates to {@link AssociatedDataSchemaContract#isSearchable()}.
+	 */
+	boolean searchable() default false;
+
+	/**
+	 * EvitaEL expression selecting the text of a searchable POJO value, with the stored value bound to `$value` - for
+	 * example `$value.title` or `$value.blocks.*[$.text]`. Leave empty for `String` and `String[]` associated data.
+	 * Propagates to {@link AssociatedDataSchemaContract#getTextExpression()}.
+	 */
+	String textExpression() default "";
+
+	/**
 	 * Per-item conflict resolution granularity override for this associated data. {@link ConflictResolutionOverride#INHERITED}
 	 * (the default) follows the conflict resolution resolved from the entity schema, catalog schema and engine
 	 * configuration; {@link ConflictResolutionOverride#GRANULAR} opts this associated data into its own

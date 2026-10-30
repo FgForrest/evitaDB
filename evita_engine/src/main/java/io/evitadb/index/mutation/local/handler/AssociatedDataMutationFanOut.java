@@ -23,18 +23,22 @@
 
 package io.evitadb.index.mutation.local.handler;
 
+import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexType;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor.Target;
+import io.evitadb.index.mutation.local.FulltextIndexMutator;
 import io.evitadb.index.mutation.local.ReferenceIndexMutator;
 
 import javax.annotation.Nonnull;
 
 /**
- * Shared deferred-facet-only fan-out for the two concrete associated-data mutations. Associated
- * data is opaque to all reduced indexes, so the only side-effect is to register a post-write
- * facet re-evaluation when a trigger references the mutated key.
+ * Shared fan-out for the two concrete associated-data mutations. Associated data is opaque to all
+ * reduced indexes; the global index holds the fulltext indexes searchable associated data are
+ * indexed in (see {@link FulltextIndexMutator#executeAssociatedDataMutation}), and the remaining
+ * side-effect is to register a post-write facet re-evaluation when a trigger references the
+ * mutated key.
  */
 final class AssociatedDataMutationFanOut {
 
@@ -43,17 +47,22 @@ final class AssociatedDataMutationFanOut {
 	}
 
 	/**
-	 * Defers facet expression re-evaluation for triggers that read the named associated data.
+	 * Applies the mutation to the fulltext indexes of the global index, then defers facet expression
+	 * re-evaluation for triggers that read the mutated associated data.
 	 *
-	 * @param mutatedDataName the associated data name from the mutation
-	 * @param executor        the active executor
-	 * @param globalIndex     pre-resolved global index for the active scope
+	 * @param mutation    the associated data mutation
+	 * @param executor    the active executor
+	 * @param globalIndex pre-resolved global index for the active scope
 	 */
 	static void apply(
-		@Nonnull String mutatedDataName,
+		@Nonnull AssociatedDataMutation mutation,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
+		// the fulltext indexes live in the global index only - the value it replaces is read before the storage
+		// executor applies the same mutation
+		FulltextIndexMutator.executeAssociatedDataMutation(executor, globalIndex, mutation);
+		final String mutatedDataName = mutation.getAssociatedDataKey().associatedDataName();
 		// defer re-evaluation to after storage write so expression reads updated associated data
 		if (executor.hasFacetExpressionTriggers()) {
 			final int entityPK = executor.getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);

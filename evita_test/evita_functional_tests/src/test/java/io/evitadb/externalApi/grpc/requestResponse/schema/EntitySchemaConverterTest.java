@@ -145,9 +145,11 @@ class EntitySchemaConverterTest {
 			Map.of(
 				"test1", AssociatedDataSchema._internalBuild(
 					"test1", "Lorem ipsum", "Alert", Integer.class, false, true,
+					null,
+					null,
 					ConflictResolutionOverride.GRANULAR
 				),
-				"test2", AssociatedDataSchema._internalBuild("test2", "Lorem ipsum", "Alert", String[].class, true, true, ConflictResolutionOverride.INHERITED)
+				"test2", AssociatedDataSchema._internalBuild("test2", "Lorem ipsum", "Alert", String[].class, true, true, null, null, ConflictResolutionOverride.INHERITED)
 			),
 			Map.of(
 				"test1", ReferenceSchema._internalBuild(

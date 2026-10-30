@@ -170,6 +170,33 @@ class FulltextIndexTest {
 		}
 
 		@Test
+		@DisplayName("A field keeps the text expression it was registered with, retired or not")
+		void shouldKeepTheTextExpressionOfAField() {
+			final FulltextIndex index = newIndex();
+			final int bodyId = index.getOrAssignFieldId(
+				associatedData("body"), FulltextIndex.DEFAULT_LENGTH_PIVOT, "$value.blocks.*[$.text]"
+			);
+			assertEquals("$value.blocks.*[$.text]", index.getTextExpression(bodyId));
+			// an existing field is returned with the expression it was built with - extraction stays symmetric
+			assertEquals(
+				bodyId,
+				index.getOrAssignFieldId(associatedData("body"), FulltextIndex.DEFAULT_LENGTH_PIVOT, "$value.title")
+			);
+			assertEquals("$value.blocks.*[$.text]", index.getTextExpression(bodyId));
+			// a field registered without one - an attribute, a String value - has none
+			assertNull(index.getTextExpression(index.getOrAssignFieldId(attribute("name"))));
+			// retirement keeps it, a re-declaration registers the new one
+			assertTrue(index.retireField(associatedData("body")));
+			assertEquals("$value.blocks.*[$.text]", index.getTextExpression(bodyId));
+			final int reDeclaredId = index.getOrAssignFieldId(
+				associatedData("body"), FulltextIndex.DEFAULT_LENGTH_PIVOT, "$value.title"
+			);
+			assertNotEquals(bodyId, reDeclaredId);
+			assertEquals("$value.title", index.getTextExpression(reDeclaredId));
+			assertThrows(GenericEvitaInternalError.class, () -> index.getTextExpression(10));
+		}
+
+		@Test
 		@DisplayName("A field id the index never assigned is refused")
 		void shouldRefuseUnassignedFieldId() {
 			final FulltextIndex index = newIndex();
@@ -341,9 +368,9 @@ class FulltextIndexTest {
 			final FulltextIndex restored = FulltextIndex.fromPersistedPages(
 				analyzer, FulltextIndex.DEFAULT_LENGTH_PIVOT,
 				List.of(
-					new Field(attribute("name"), 25.0, true, new FieldLengthTable()),
-					new Field(attribute("description"), 25.0, true, new FieldLengthTable()),
-					new Field(attribute("name"), 50.0, false, new FieldLengthTable())
+					new Field(attribute("name"), 25.0, null, true, new FieldLengthTable()),
+					new Field(attribute("description"), 25.0, null, true, new FieldLengthTable()),
+					new Field(attribute("name"), 50.0, null, false, new FieldLengthTable())
 				),
 				new int[]{0}, emptyDictionary, 0
 			);
@@ -358,8 +385,8 @@ class FulltextIndexTest {
 				() -> FulltextIndex.fromPersistedPages(
 					analyzer, FulltextIndex.DEFAULT_LENGTH_PIVOT,
 					List.of(
-						new Field(attribute("name"), 25.0, false, new FieldLengthTable()),
-						new Field(attribute("name"), 25.0, false, new FieldLengthTable())
+						new Field(attribute("name"), 25.0, null, false, new FieldLengthTable()),
+						new Field(attribute("name"), 25.0, null, false, new FieldLengthTable())
 					),
 					new int[]{0}, emptyDictionary, 0
 				)

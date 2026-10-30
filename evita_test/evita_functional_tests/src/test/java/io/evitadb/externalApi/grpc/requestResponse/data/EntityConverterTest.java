@@ -195,8 +195,8 @@ class EntityConverterTest {
 				)
 			),
 			Map.of(
-				"test1", AssociatedDataSchema._internalBuild("test1", "Lorem ipsum", "Alert", Integer.class, false, true, ConflictResolutionOverride.INHERITED),
-				"test2", AssociatedDataSchema._internalBuild("test2", "Lorem ipsum", "Alert", String[].class, true, true, ConflictResolutionOverride.INHERITED)
+				"test1", AssociatedDataSchema._internalBuild("test1", "Lorem ipsum", "Alert", Integer.class, false, true, null, null, ConflictResolutionOverride.INHERITED),
+				"test2", AssociatedDataSchema._internalBuild("test2", "Lorem ipsum", "Alert", String[].class, true, true, null, null, ConflictResolutionOverride.INHERITED)
 			),
 			Map.of(
 				"test1", ReferenceSchema._internalBuild("test1", Entities.PARAMETER, true, Cardinality.ZERO_OR_MORE, Entities.PARAMETER_GROUP, false, new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) }, new Scope[] { Scope.LIVE }),

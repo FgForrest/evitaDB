@@ -59,7 +59,7 @@ import java.util.Locale;
  */
 @ToString(of = {"entityIndexPrimaryKey", "locale"})
 public class FulltextIndexStoragePart implements StoragePart {
-	@Serial private static final long serialVersionUID = -8709870492189630144L;
+	@Serial private static final long serialVersionUID = -8709870492189630143L;
 
 	/**
 	 * Primary key of the owning entity index.
@@ -104,19 +104,22 @@ public class FulltextIndexStoragePart implements StoragePart {
 	 * A retired field is persisted with everything it held, because its postings are still in the dictionary pages
 	 * under its id: dropping its entry would shift the ids of every later field off their key prefixes.
 	 *
-	 * @param key          the field's identity
-	 * @param lengthPivot  the field's length pivot, which every impact of the field was computed with
-	 * @param retired      whether the field was retired - its key resolves to no field, or to a later one
-	 * @param lengthBlocks the high 16 bits of the primary keys of every block of the field's length table that has a
-	 *                     page, strictly ascending; each names the page of sequence
-	 *                     {@link FulltextFieldLengthBlockPart#pageSequenceOf(int, int) pageSequenceOf(fieldId, blockKey)}
-	 *                     in the {@link FulltextLeafStreamKey.StreamKind#FIELD_LENGTHS} stream of the index, which is
-	 *                     how the reload finds it
+	 * @param key            the field's identity
+	 * @param lengthPivot    the field's length pivot, which every impact of the field was computed with
+	 * @param textExpression the EvitaEL expression the field's text was selected with from the stored values, `null`
+	 *                       when the values are the text themselves - kept until the field is rebuilt (#409)
+	 * @param retired        whether the field was retired - its key resolves to no field, or to a later one
+	 * @param lengthBlocks   the high 16 bits of the primary keys of every block of the field's length table that has
+	 *                       a page, strictly ascending; each names the page of sequence
+	 *                       {@link FulltextFieldLengthBlockPart#pageSequenceOf(int, int) pageSequenceOf(fieldId,
+	 *                       blockKey)} in the {@link FulltextLeafStreamKey.StreamKind#FIELD_LENGTHS} stream of the
+	 *                       index, which is how the reload finds it
 	 */
 	public record FieldEntry(
 		@Nonnull FulltextFieldKey key,
 		//TODO JNO change it at the end of #258
 		double lengthPivot,
+		@Nullable String textExpression,
 		boolean retired,
 		@Nonnull int[] lengthBlocks
 	) {

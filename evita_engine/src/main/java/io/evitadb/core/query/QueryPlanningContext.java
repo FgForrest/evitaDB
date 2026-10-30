@@ -99,6 +99,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.facet.FacetIndex;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.usage.SchemaCapabilityKey;
 import io.evitadb.index.usage.SchemaCapabilityUsage;
@@ -1753,6 +1754,17 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	@Nonnull
 	public SealedCatalogSchema getCatalogSchema() {
 		return this.catalog.getSchema();
+	}
+
+	/**
+	 * Returns the analyzer registry of the catalog targeted by this query - the one the fulltext indexes of its
+	 * collections were built with, through which the text of a fulltext query is analyzed.
+	 *
+	 * @return the catalog's analyzer registry
+	 */
+	@Nonnull
+	public FulltextAnalyzerRegistry getFulltextAnalyzerRegistry() {
+		return this.catalog.getFulltextAnalyzerRegistry();
 	}
 
 	/**

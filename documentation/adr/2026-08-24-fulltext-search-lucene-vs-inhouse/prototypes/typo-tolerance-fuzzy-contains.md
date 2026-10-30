@@ -14,7 +14,9 @@
 > both edit levels (a Levenshtein trigram query plus the swapped variants looked up exactly), one edit from 6
 > characters, two edits from 12; no gate of its own above those limits; contains does not fold diacritics; no
 > fuzzy `attributeEndsWith`. Full one-edit enumeration (§6.4) was measured, including on a real corpus (§6.5),
-> and is not adopted. Still owed: the case semantics. The decided
+> and is not adopted. The case semantics, still owed then, were settled on 2026-10-30: case follows the attribute's
+> `normalized(...)` chain of #545 (`lowercase()` makes both paths case-insensitive), with no rule of the fuzzy path's
+> own. The decided
 > algorithm alone, without the reasoning, is in
 > [`typo-tolerance-fuzzy-contains-algorithm.md`](typo-tolerance-fuzzy-contains-algorithm.md). Everything else
 > here is analysis.

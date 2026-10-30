@@ -97,6 +97,8 @@ public class SetAssociatedDataSchemaLocalizedMutation
 			associatedDataSchema.getType(),
 			this.localized,
 			associatedDataSchema.isNullable(),
+			associatedDataSchema.getSearchableInScopes(),
+			associatedDataSchema.getTextExpression(),
 			associatedDataSchema.getConflictResolutionOverride()
 		);
 	}

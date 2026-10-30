@@ -424,6 +424,32 @@ public class QuerySerializationTest {
 		}
 
 		@Nested
+		@DisplayName("fulltext")
+		class Fulltext {
+			@ParameterizedTest(name = "{0}")
+			@MethodSource("variants")
+			void shouldRoundTrip(@Nonnull String desc, @Nonnull Object constraint) {
+				assertSerializationRound(constraint);
+			}
+
+			@Nonnull
+			static Stream<Arguments> variants() {
+				return Stream.of(
+					arguments("textMatches without field restriction",
+						textMatches("black leather jacket")),
+					arguments("textMatches with one field",
+						textMatches("jacket", inField("name"))),
+					arguments("textMatches with two fields",
+						textMatches("jacket", inField("name"), inField("description"))),
+					arguments("textMatches with diacritics",
+						textMatches("černá kožená bunda", inField("name"))),
+					arguments("inField",
+						inField("name"))
+				);
+			}
+		}
+
+		@Nested
 		@DisplayName("facet")
 		class Facet {
 			@ParameterizedTest(name = "{0}")
@@ -600,6 +626,10 @@ public class QuerySerializationTest {
 					random()),
 				arguments("randomWithSeed",
 					randomWithSeed(42)),
+				arguments("relevance",
+					relevance()),
+				arguments("orderBy with relevance",
+					orderBy(relevance(), attributeNatural("a", OrderDirection.ASC))),
 				arguments("referenceProperty",
 					referenceProperty("d", attributeNatural("a", OrderDirection.ASC))),
 				arguments("limit",

@@ -84,6 +84,14 @@ public interface EvitaTestSupport extends TestConstants {
 	 * Shared instance of port manager.
 	 */
 	PortManager PORT_MANAGER = new PortManager();
+	/**
+	 * Output buffer size of the embedded test instances - half of the engine default
+	 * ({@link StorageOptions#DEFAULT_OUTPUT_BUFFER_SIZE}). Every open catalog keeps buffers of this size, and the
+	 * functional suite holds hundreds of catalogs at once in its single surefire fork. With its 8 GB heap G1 works in
+	 * 4 MiB regions, so a 4 MiB buffer (plus the array header) spans two regions and costs 8 MiB of heap, while a 2 MiB
+	 * buffer costs one region - the default buffer runs the suite out of heap. Test records stay far below 2 MiB.
+	 */
+	int TEST_OUTPUT_BUFFER_SIZE = 2_097_152;
 
 	/**
 	 * Returns the name and the extension of the additional generated certificate file.
@@ -282,11 +290,12 @@ public interface EvitaTestSupport extends TestConstants {
 
 	/**
 	 * Returns an {@link EvitaConfiguration.Builder} pre-wired to the supplied {@link TestPaths} — storage directory,
-	 * work directory, and filesystem-backed export directory are all configured to non-colliding per-test locations.
+	 * work directory, and filesystem-backed export directory are all configured to non-colliding per-test locations,
+	 * and the output buffer is set to {@link #TEST_OUTPUT_BUFFER_SIZE}.
 	 *
 	 * The caller is responsible for applying any further test-specific overrides (cache, server options, transaction
-	 * options, …) and for invoking `.build()`. The returned builder intentionally carries **only** the path wiring so
-	 * that migrating existing call sites does not change any other aspect of their configuration.
+	 * options, …) and for invoking `.build()`. Apart from the buffer size the returned builder carries **only** the
+	 * path wiring, so that migrating existing call sites does not change any other aspect of their configuration.
 	 *
 	 * @param paths non-null path triplet, typically produced by {@link #createTestPaths(String)}
 	 * @return builder with `.storage(...)` and `.export(...)` already applied; never null
@@ -298,6 +307,7 @@ public interface EvitaTestSupport extends TestConstants {
 				StorageOptions.builder()
 					.storageDirectory(paths.storage())
 					.workDirectory(paths.work())
+					.outputBufferSize(TEST_OUTPUT_BUFFER_SIZE)
 					.build()
 			)
 			.export(

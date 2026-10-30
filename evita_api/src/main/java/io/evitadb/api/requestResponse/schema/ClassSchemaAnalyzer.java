@@ -47,6 +47,7 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
@@ -1697,6 +1698,20 @@ public class ClassSchemaAnalyzer {
 				} else if (!associatedDataAnnotation.localized() && whichIs.isLocalized()) {
 					whichIs.localized(() -> false);
 				}
+				// searchable and its text expression - reconcile DEFAULT_SCOPE and the expression with annotation
+				final Expression textExpression = parseTextExpression(associatedDataName, associatedDataAnnotation);
+				if (associatedDataAnnotation.searchable()) {
+					if (!whichIs.isSearchableInScope(Scope.DEFAULT_SCOPE) ||
+						!Objects.equals(textExpression, whichIs.getTextExpression())) {
+						if (textExpression == null) {
+							whichIs.searchable();
+						} else {
+							whichIs.searchable(textExpression);
+						}
+					}
+				} else if (whichIs.isSearchableInScope(Scope.DEFAULT_SCOPE)) {
+					whichIs.nonSearchableInScope(Scope.DEFAULT_SCOPE);
+				}
 				// conflict resolution granularity override - reconcile with annotation. A defaulted (INHERITED)
 				// annotation carries no opinion and must never overwrite an explicit override set through the
 				// fluent builder, otherwise an idempotent re-derivation would silently reset it to INHERITED.
@@ -1706,6 +1721,33 @@ public class ClassSchemaAnalyzer {
 				}
 			}
 		);
+	}
+
+	/**
+	 * Parses the text expression of a searchable associated data annotation.
+	 *
+	 * @param associatedDataName       the name of the associated data, for the error message
+	 * @param associatedDataAnnotation the annotation
+	 * @return the parsed expression, or `null` when the annotation declares none
+	 * @throws InvalidSchemaMutationException when the expression cannot be parsed
+	 */
+	@Nullable
+	private static Expression parseTextExpression(
+		@Nonnull String associatedDataName,
+		@Nonnull AssociatedData associatedDataAnnotation
+	) {
+		final String textExpression = associatedDataAnnotation.textExpression();
+		if (textExpression.isBlank()) {
+			return null;
+		}
+		try {
+			return ExpressionFactory.parse(textExpression);
+		} catch (RuntimeException e) {
+			throw new InvalidSchemaMutationException(
+				"The text expression `" + textExpression + "` of associated data `" + associatedDataName +
+					"` cannot be parsed: " + e.getMessage()
+			);
+		}
 	}
 
 	/**

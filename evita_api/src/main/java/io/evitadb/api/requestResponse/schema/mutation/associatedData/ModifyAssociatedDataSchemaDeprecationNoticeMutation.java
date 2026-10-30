@@ -100,6 +100,8 @@ public class ModifyAssociatedDataSchemaDeprecationNoticeMutation
 			associatedDataSchema.getType(),
 			associatedDataSchema.isLocalized(),
 			associatedDataSchema.isNullable(),
+			associatedDataSchema.getSearchableInScopes(),
+			associatedDataSchema.getTextExpression(),
 			associatedDataSchema.getConflictResolutionOverride()
 		);
 	}

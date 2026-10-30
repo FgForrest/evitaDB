@@ -97,6 +97,8 @@ public class SetAssociatedDataSchemaNullableMutation
 			associatedDataSchema.getType(),
 			associatedDataSchema.isLocalized(),
 			this.nullable,
+			associatedDataSchema.getSearchableInScopes(),
+			associatedDataSchema.getTextExpression(),
 			associatedDataSchema.getConflictResolutionOverride()
 		);
 	}

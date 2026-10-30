@@ -112,6 +112,8 @@ public class ModifyAssociatedDataSchemaTypeMutation
 			this.type,
 			associatedDataSchema.isLocalized(),
 			associatedDataSchema.isNullable(),
+			associatedDataSchema.getSearchableInScopes(),
+			associatedDataSchema.getTextExpression(),
 			associatedDataSchema.getConflictResolutionOverride()
 		);
 	}

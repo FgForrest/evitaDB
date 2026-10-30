@@ -29,6 +29,9 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
+import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
+import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
 import java.io.Serializable;
 
@@ -37,7 +40,8 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class CreateAssociatedDataSchemaMutationSerializer extends Serializer<CreateAssociatedDataSchemaMutation> {
+public class CreateAssociatedDataSchemaMutationSerializer extends Serializer<CreateAssociatedDataSchemaMutation>
+	implements MutationSerializationFunctions {
 
 	@Override
 	public void write(Kryo kryo, Output output, CreateAssociatedDataSchemaMutation mutation) {
@@ -48,6 +52,15 @@ public class CreateAssociatedDataSchemaMutationSerializer extends Serializer<Cre
 		output.writeBoolean(mutation.isLocalized());
 		output.writeBoolean(mutation.isNullable());
 		kryo.writeObject(output, mutation.getConflictResolutionOverride());
+		// the searchability section is appended last - the scopes, then the optional text expression
+		writeScopeArray(kryo, output, mutation.getSearchableInScopes());
+		final Expression textExpression = mutation.getTextExpression();
+		if (textExpression != null) {
+			output.writeBoolean(true);
+			kryo.writeObject(output, textExpression);
+		} else {
+			output.writeBoolean(false);
+		}
 	}
 
 	@Override
@@ -60,6 +73,8 @@ public class CreateAssociatedDataSchemaMutationSerializer extends Serializer<Cre
 		final boolean localized = input.readBoolean();
 		final boolean nullable = input.readBoolean();
 		final ConflictResolutionOverride conflictResolutionOverride = kryo.readObject(input, ConflictResolutionOverride.class);
+		final Scope[] searchableInScopes = readScopeArray(kryo, input);
+		final Expression textExpression = input.readBoolean() ? kryo.readObject(input, Expression.class) : null;
 		return new CreateAssociatedDataSchemaMutation(
 			name,
 			description,
@@ -67,6 +82,8 @@ public class CreateAssociatedDataSchemaMutationSerializer extends Serializer<Cre
 			theType,
 			localized,
 			nullable,
+			searchableInScopes,
+			textExpression,
 			conflictResolutionOverride
 		);
 	}

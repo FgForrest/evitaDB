@@ -24,9 +24,14 @@
 
 package io.evitadb.index.mutation.local;
 
+import io.evitadb.api.query.expression.ExpressionFactory;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
+import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
@@ -35,16 +40,20 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexType;
 import io.evitadb.index.fulltext.FulltextFieldKey;
 import io.evitadb.index.fulltext.FulltextIndex;
+import io.evitadb.index.fulltext.SearchableTextExtractor;
+import io.evitadb.index.fulltext.SearchableTextExtractor.ExtractionMode;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor.Target;
 import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.utils.CollectionUtils;
@@ -60,10 +69,10 @@ import java.util.Set;
 
 /**
  * Keeps the per-locale {@link FulltextIndex fulltext indexes} of {@link GlobalEntityIndex} in step with the searchable
- * attributes of an entity. The fulltext structures live in the global index only, so every method here works on the
- * global index of the scope being written and never fans out over the reduced indexes.
+ * attributes and associated data of an entity. The fulltext structures live in the global index only, so every
+ * method here works on the global index of the scope being written and never fans out over the reduced indexes.
  *
- * Three kinds of write reach it:
+ * Four kinds of write reach it:
  *
  * - **an entity attribute** (global attributes included) - the field is
  *   {@link FulltextFieldKey#attribute(String) the attribute itself}, and an update is the removal of the old value
@@ -71,6 +80,10 @@ import java.util.Set;
  * - **a reference attribute** - the field is {@link FulltextFieldKey#referenceAttribute(String, String) the attribute
  *   of the reference}, and its value is the **set union** of the attribute over all the entity's references of that
  *   name. A change that neither adds a member to that set nor removes one touches no index at all;
+ * - **an associated data item** - the field is {@link FulltextFieldKey#associatedData(String) the associated data
+ *   itself}, its text the value (a `String`, the elements of a `String[]`) or what the text expression selects from a
+ *   complex data object (see {@link SearchableTextExtractor}); an update is a removal followed by an indexing, as for
+ *   an attribute;
  * - **a scope change** - the entity leaves the fulltext indexes of its old scope and enters those of the new one with
  *   everything it holds.
  *
@@ -86,13 +99,19 @@ import java.util.Set;
  * reference fan-out, because the fulltext structures live in the global index whether the reference is indexed or
  * not. The local mutations of an entity arrive ordered as removals, then a scope change, then upserts.
  *
- * **Withdrawal retires lazily.** A write to an attribute that is no longer searchable in the scope retires its field in
- * the locale's index, if the index still knows it: the field keeps its postings as dead weight until #409 rebuilds the
- * index, and a later re-declaration starts with an empty field - results are only ever incomplete, never phantom. See
- * {@link FulltextIndex#retireField(FulltextFieldKey)}.
+ * **Withdrawal retires lazily.** A write to an attribute or associated data that is no longer searchable in the scope
+ * retires its field in the locale's index, if the index still knows it: the field keeps its postings as dead weight
+ * until #409 rebuilds the index, and a later re-declaration starts with an empty field - results are only ever
+ * incomplete, never phantom. See {@link FulltextIndex#retireField(FulltextFieldKey)}.
  *
  * Only localized `String` and `String[]` attributes can be searchable - the schema refuses any other - so a write of a
- * non-localized attribute or of a delta returns immediately.
+ * non-localized attribute or of a delta returns immediately. The same holds for non-localized associated data.
+ *
+ * **A field keeps the text expression it was built with.** Removing an associated data value re-extracts its text to
+ * find the postings to drop, so it must extract exactly as the add did. The field records the expression it was
+ * registered with ({@link FulltextIndex#getTextExpression(int)}), and every add and remove extracts with that one, even
+ * after the schema declares another - the counterpart of an index keeping its analyzer. A changed expression applies
+ * to a field built anew: after a withdrawal retired it, or once #409 rebuilds it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -149,6 +168,88 @@ public interface FulltextIndexMutator {
 	}
 
 	/**
+	 * Applies an associated data mutation to the fulltext index of its locale in `globalIndex`'s scope: removes the
+	 * text of the value the entity holds now and indexes the text of the upserted one - a removal mutation only
+	 * removes - or retires the field when the associated data is no longer searchable in the scope. An upsert of the
+	 * very value the entity already holds touches nothing. The upserted value is extracted in the
+	 * {@link ExtractionMode#STRICT strict} mode, so a value its text expression cannot select text from fails the
+	 * write - unless the field still extracts with an expression other than the one the schema declares now, which
+	 * the client cannot see and which therefore extracts the upserted value in the
+	 * {@link ExtractionMode#LENIENT lenient} mode. The old value is always extracted in the lenient mode.
+	 *
+	 * The value the entity holds is read from its associated data storage part. The storage executor fetches the same
+	 * part right after this method to apply the mutation, and the part is cached between the two, so reading it here
+	 * costs no extra I/O; it is read only for associated data searchable in the scope.
+	 *
+	 * @param executor    the executor of the entity mutation
+	 * @param globalIndex the global index of the scope being written
+	 * @param mutation    the associated data mutation
+	 */
+	static void executeAssociatedDataMutation(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull GlobalEntityIndex globalIndex,
+		@Nonnull AssociatedDataMutation mutation
+	) {
+		final AssociatedDataKey associatedDataKey = mutation.getAssociatedDataKey();
+		final Locale locale = associatedDataKey.locale();
+		if (locale == null) {
+			return;
+		}
+		final String associatedDataName = associatedDataKey.associatedDataName();
+		final AssociatedDataSchemaContract associatedDataSchema = executor.getEntitySchema()
+			.getAssociatedData(associatedDataName)
+			.orElseThrow(() -> new GenericEvitaInternalError(
+				"Associated data `" + associatedDataName + "` is not defined in the schema of `" +
+					executor.getEntityType() + "`!"
+			));
+		final FulltextFieldKey fieldKey = FulltextFieldKey.associatedData(associatedDataName);
+		if (!associatedDataSchema.isSearchableInScope(globalIndex.getIndexKey().scope())) {
+			retireField(globalIndex, locale, fieldKey);
+			return;
+		}
+
+		final AssociatedDataValue existingValue = executor.getAssociatedDataStoragePart(associatedDataKey).getValue();
+		final Serializable existing = existingValue != null && existingValue.exists() ? existingValue.value() : null;
+		final Serializable upserted = mutation instanceof UpsertAssociatedDataMutation upsertMutation ?
+			upsertMutation.getAssociatedDataValue() : null;
+		if (existing != null && Objects.deepEquals(existing, upserted)) {
+			// the very value is written again - its text is indexed already
+			return;
+		}
+		final String entityType = executor.getEntityType();
+		final Expression textExpression = resolveTextExpression(globalIndex, locale, fieldKey, associatedDataSchema);
+		// the value the client writes is extracted strictly - a value that does not fit the expression fails the
+		// write - and before anything is removed, so a refused write leaves the index exactly as it was. Only while
+		// the field extracts with the expression the schema declares, though: a field still built with an older one
+		// (TOBEDONE JNO #409) applies an expression the client can no longer see, so it cannot fail the write
+		final ExtractionMode upsertMode = textExpression == associatedDataSchema.getTextExpression() ?
+			ExtractionMode.STRICT : ExtractionMode.LENIENT;
+		final Set<String> upsertedTexts = upserted == null ?
+			null :
+			SearchableTextExtractor.extract(upserted, textExpression, entityType, associatedDataName, upsertMode);
+		if (existing != null) {
+			// the old value is re-extracted leniently, and that removes exactly what its add indexed: a value that
+			// passed the strict mode extracts the same texts leniently, and a value added leniently (a scope change)
+			// is removed leniently the very same way
+			removeValue(
+				globalIndex, locale, fieldKey,
+				executor.getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING),
+				SearchableTextExtractor.extract(
+					existing, textExpression, entityType, associatedDataName, ExtractionMode.LENIENT
+				)
+			);
+		}
+		if (upsertedTexts != null) {
+			addValue(
+				executor, globalIndex, locale, fieldKey,
+				executor.getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.NEW),
+				upsertedTexts,
+				toExpressionString(textExpression)
+			);
+		}
+	}
+
+	/**
 	 * Applies a reference mutation to the fulltext index: a reference attribute mutation, or the removal of
 	 * a reference, may change the union of a searchable reference attribute over the entity's references of that name.
 	 * Inserting a reference never does - its attributes arrive in mutations of their own.
@@ -185,7 +286,7 @@ public interface FulltextIndexMutator {
 		final int primaryKey = entity.getPrimaryKeyOrThrowException();
 		forEachSearchableValue(
 			executor.getEntitySchema(), globalIndex, entity,
-			(fieldKey, locale, values) -> removeValue(globalIndex, locale, fieldKey, primaryKey, values)
+			(fieldKey, locale, values, textExpression) -> removeValue(globalIndex, locale, fieldKey, primaryKey, values)
 		);
 	}
 
@@ -205,7 +306,9 @@ public interface FulltextIndexMutator {
 		final int primaryKey = entity.getPrimaryKeyOrThrowException();
 		forEachSearchableValue(
 			executor.getEntitySchema(), globalIndex, entity,
-			(fieldKey, locale, values) -> addValue(executor, globalIndex, locale, fieldKey, primaryKey, values)
+			(fieldKey, locale, values, textExpression) -> addValue(
+				executor, globalIndex, locale, fieldKey, primaryKey, values, textExpression
+			)
 		);
 	}
 
@@ -316,9 +419,9 @@ public interface FulltextIndexMutator {
 	}
 
 	/**
-	 * Visits every searchable value `entity` holds in the scope of `globalIndex`: each localized entity attribute, and
-	 * the union of each localized reference attribute over the references of its name. A field that is not searchable
-	 * in the scope is retired instead of visited.
+	 * Visits every searchable value `entity` holds in the scope of `globalIndex`: each localized entity attribute, the
+	 * union of each localized reference attribute over the references of its name, and the text of each localized
+	 * associated data item. A field that is not searchable in the scope is retired instead of visited.
 	 *
 	 * @param entitySchema the schema of the entity
 	 * @param globalIndex  the global index of the scope
@@ -343,7 +446,7 @@ public interface FulltextIndexMutator {
 				.map(it -> it.isSearchableInScope(scope))
 				.orElse(false);
 			if (searchable) {
-				consumer.accept(fieldKey, locale, distinctValues(attributeValue.value()));
+				consumer.accept(fieldKey, locale, distinctValues(attributeValue.value()), null);
 			} else {
 				retireField(globalIndex, locale, fieldKey);
 			}
@@ -383,8 +486,40 @@ public interface FulltextIndexMutator {
 			final UnionKey key = entry.getKey();
 			consumer.accept(
 				FulltextFieldKey.referenceAttribute(key.referenceName(), key.attributeName()), key.locale(),
-				entry.getValue()
+				entry.getValue(), null
 			);
+		}
+
+		// the texts of searchable associated data, extracted with the expression of the field they are indexed in
+		final String entityType = entitySchema.getName();
+		for (final AssociatedDataValue associatedDataValue : entity.getAssociatedDataValues()) {
+			final Locale locale = associatedDataValue.key().locale();
+			if (locale == null || !associatedDataValue.exists() || associatedDataValue.value() == null) {
+				continue;
+			}
+			final String associatedDataName = associatedDataValue.key().associatedDataName();
+			final FulltextFieldKey fieldKey = FulltextFieldKey.associatedData(associatedDataName);
+			// associated data the schema no longer declares counts as not searchable, as its stored values may
+			// outlive its schema
+			final AssociatedDataSchemaContract associatedDataSchema = entitySchema
+				.getAssociatedData(associatedDataName)
+				.orElse(null);
+			if (associatedDataSchema != null && associatedDataSchema.isSearchableInScope(scope)) {
+				final Expression textExpression = resolveTextExpression(
+					globalIndex, locale, fieldKey, associatedDataSchema
+				);
+				consumer.accept(
+					fieldKey, locale,
+					// no client sent this value - the engine moves it, so nothing it holds may fail the move
+					SearchableTextExtractor.extract(
+						associatedDataValue.value(), textExpression, entityType, associatedDataName,
+						ExtractionMode.LENIENT
+					),
+					toExpressionString(textExpression)
+				);
+			} else {
+				retireField(globalIndex, locale, fieldKey);
+			}
 		}
 	}
 
@@ -492,12 +627,85 @@ public interface FulltextIndexMutator {
 		int primaryKey,
 		@Nonnull Set<String> values
 	) {
+		addValue(executor, globalIndex, locale, fieldKey, primaryKey, values, null);
+	}
+
+	/**
+	 * Indexes the values of an entity's field, creating the fulltext index of the locale when there is none yet and
+	 * registering a new field with the text expression its values were selected with. An existing field keeps its own
+	 * expression - see the class documentation. Nothing is indexed - and no index created - for no values.
+	 *
+	 * @param executor       the executor of the entity mutation
+	 * @param globalIndex    the global index of the scope being written
+	 * @param locale         the locale of the values
+	 * @param fieldKey       the field
+	 * @param primaryKey     the primary key of the entity
+	 * @param values         the distinct values of the field
+	 * @param textExpression the expression the values were selected with, `null` when the values are the text
+	 */
+	private static void addValue(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull GlobalEntityIndex globalIndex,
+		@Nonnull Locale locale,
+		@Nonnull FulltextFieldKey fieldKey,
+		int primaryKey,
+		@Nonnull Set<String> values,
+		@Nullable String textExpression
+	) {
 		if (values.isEmpty()) {
 			return;
 		}
-		globalIndex.getOrCreateFulltextIndex(
+		final FulltextIndex fulltextIndex = globalIndex.getOrCreateFulltextIndex(
 			locale, executor.getFulltextAnalyzerRegistry().getIndexAnalyzer(executor.getEntityType(), locale)
-		).addValue(fieldKey, primaryKey, values.toArray(String[]::new));
+		);
+		if (textExpression != null) {
+			fulltextIndex.getOrAssignFieldId(fieldKey, fulltextIndex.getDefaultLengthPivot(), textExpression);
+		}
+		fulltextIndex.addValue(fieldKey, primaryKey, values.toArray(String[]::new));
+	}
+
+	/**
+	 * Resolves the text expression the values of an associated data field are extracted with: the one the field in
+	 * the locale's index was registered with, or the schema's for a field not registered yet.
+	 *
+	 * @param globalIndex          the global index of the scope being written
+	 * @param locale               the locale of the values
+	 * @param fieldKey             the field of the associated data
+	 * @param associatedDataSchema the schema of the associated data
+	 * @return the expression to extract with, `null` when there is none
+	 */
+	@Nullable
+	private static Expression resolveTextExpression(
+		@Nonnull GlobalEntityIndex globalIndex,
+		@Nonnull Locale locale,
+		@Nonnull FulltextFieldKey fieldKey,
+		@Nonnull AssociatedDataSchemaContract associatedDataSchema
+	) {
+		final Expression schemaExpression = associatedDataSchema.getTextExpression();
+		final FulltextIndex fulltextIndex = globalIndex.getFulltextIndex(locale);
+		final int fieldId = fulltextIndex == null ? FulltextIndex.UNKNOWN_FIELD_ID : fulltextIndex.getFieldId(fieldKey);
+		if (fieldId == FulltextIndex.UNKNOWN_FIELD_ID) {
+			return schemaExpression;
+		}
+		final String recordedExpression = fulltextIndex.getTextExpression(fieldId);
+		if (Objects.equals(recordedExpression, toExpressionString(schemaExpression))) {
+			return schemaExpression;
+		}
+		// TOBEDONE JNO #409 - rebuild a field whose text expression differs from the one the schema declares now;
+		// until then the field keeps extracting with the expression it was built with, so a removal finds exactly what
+		// the add indexed
+		return recordedExpression == null ? null : ExpressionFactory.parse(recordedExpression);
+	}
+
+	/**
+	 * Returns the canonical text of an expression - the form a fulltext field records it in.
+	 *
+	 * @param expression the expression, or `null`
+	 * @return its text, or `null`
+	 */
+	@Nullable
+	private static String toExpressionString(@Nullable Expression expression) {
+		return expression == null ? null : expression.toExpressionString();
 	}
 
 	/**
@@ -607,11 +815,18 @@ public interface FulltextIndexMutator {
 		/**
 		 * Receives the value.
 		 *
-		 * @param fieldKey the field
-		 * @param locale   the locale of the value
-		 * @param values   the distinct values of the field
+		 * @param fieldKey       the field
+		 * @param locale         the locale of the value
+		 * @param values         the distinct values of the field
+		 * @param textExpression the text expression the values were extracted with, `null` when the values are the
+		 *                       text themselves
 		 */
-		void accept(@Nonnull FulltextFieldKey fieldKey, @Nonnull Locale locale, @Nonnull Set<String> values);
+		void accept(
+			@Nonnull FulltextFieldKey fieldKey,
+			@Nonnull Locale locale,
+			@Nonnull Set<String> values,
+			@Nullable String textExpression
+		);
 
 	}
 

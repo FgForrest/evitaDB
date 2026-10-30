@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.builder;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
@@ -40,6 +41,10 @@ import io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssoc
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaNullableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaSearchableMutation;
+import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.experimental.Delegate;
 
@@ -47,7 +52,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.BooleanSupplier;
@@ -67,6 +74,8 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 	private MutationImpact updatedSchemaDirty = MutationImpact.NO_IMPACT;
 	private int lastMutationReflectedInSchema = 0;
 	private AssociatedDataSchemaContract updatedSchema;
+	/** Whether {@link AssociatedDataSchemaContract#validate()} has already accepted the currently assembled schema. */
+	private boolean updatedSchemaValidated;
 
 	AssociatedDataSchemaBuilder(
 		@Nonnull CatalogSchemaContract catalogSchema,
@@ -109,7 +118,7 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new SetAssociatedDataSchemaLocalizedMutation(
-					getName(),
+					this.baseSchema.getName(),
 					true
 				)
 			)
@@ -125,7 +134,7 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new SetAssociatedDataSchemaLocalizedMutation(
-					getName(),
+					this.baseSchema.getName(),
 					decider.getAsBoolean()
 				)
 			)
@@ -141,7 +150,7 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new SetAssociatedDataSchemaNullableMutation(
-					getName(),
+					this.baseSchema.getName(),
 					true
 				)
 			)
@@ -157,12 +166,41 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new SetAssociatedDataSchemaNullableMutation(
-					getName(),
+					this.baseSchema.getName(),
 					decider.getAsBoolean()
 				)
 			)
 		);
 		return this;
+	}
+
+	@Nonnull
+	@Override
+	public AssociatedDataSchemaBuilder searchableInScope(@Nonnull Scope... inScope) {
+		return setSearchability(inScope, assembleInstance().getTextExpression());
+	}
+
+	@Nonnull
+	@Override
+	public AssociatedDataSchemaBuilder searchableInScope(
+		@Nonnull Expression textExpression,
+		@Nonnull Scope... inScope
+	) {
+		return setSearchability(inScope, textExpression);
+	}
+
+	@Nonnull
+	@Override
+	public AssociatedDataSchemaBuilder nonSearchableInScope(@Nonnull Scope... inScope) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
+		final AssociatedDataSchemaContract currentSchema = assembleInstance();
+		final Scope[] remainingScopes = Arrays.stream(Scope.values())
+			.filter(it -> currentSchema.isSearchableInScope(it) && !excludedScopes.contains(it))
+			.toArray(Scope[]::new);
+		// the expression belongs to searchability - once the associated data is searchable nowhere, it goes with it
+		return setSearchability(
+			remainingScopes, remainingScopes.length == 0 ? null : currentSchema.getTextExpression()
+		);
 	}
 
 	@Override
@@ -173,7 +211,7 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new SetAssociatedDataSchemaConflictResolutionOverrideMutation(
-					getName(),
+					this.baseSchema.getName(),
 					conflictResolutionOverride
 				)
 			)
@@ -189,7 +227,7 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new ModifyAssociatedDataSchemaDescriptionMutation(
-					getName(),
+					this.baseSchema.getName(),
 					description
 				)
 			)
@@ -205,7 +243,7 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new ModifyAssociatedDataSchemaDeprecationNoticeMutation(
-					getName(),
+					this.baseSchema.getName(),
 					deprecationNotice
 				)
 			)
@@ -221,7 +259,7 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new ModifyAssociatedDataSchemaDeprecationNoticeMutation(
-					getName(),
+					this.baseSchema.getName(),
 					null
 				)
 			)
@@ -230,11 +268,65 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 	}
 
 	/**
-	 * Builds new instance of immutable {@link AssociatedDataSchema} filled with updated configuration.
+	 * Records a full statement of the searchability axis - the scopes and the text expression together.
+	 *
+	 * @param searchableInScopes the scopes the associated data is searchable in
+	 * @param textExpression     the expression selecting the text of a complex data object value, or `null`
+	 * @return this builder
+	 */
+	@Nonnull
+	private AssociatedDataSchemaBuilder setSearchability(
+		@Nonnull Scope[] searchableInScopes,
+		@Nullable Expression textExpression
+	) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetAssociatedDataSchemaSearchableMutation(
+					this.baseSchema.getName(), searchableInScopes, textExpression
+				)
+			)
+		);
+		return this;
+	}
+
+	/**
+	 * Creates the associated data schema instance - the call that validates: the schema is assembled by
+	 * {@link #assembleInstance()} and checked once per assembly by {@link AssociatedDataSchemaContract#validate()},
+	 * so this is where associated data whose declarations do not compose is refused - as for an attribute, after the
+	 * whole declaration was applied, so the order of its parts does not matter.
+	 *
+	 * @return the assembled schema
+	 * @throws InvalidSchemaMutationException when the assembled schema is not consistent
+	 */
+	@Nonnull
+	public AssociatedDataSchemaContract toInstance() {
+		final AssociatedDataSchemaContract instance = assembleInstance();
+		if (!this.updatedSchemaValidated) {
+			instance.validate()
+				.findFirst()
+				.ifPresent(error -> {
+					throw new InvalidSchemaMutationException(error);
+				});
+			this.updatedSchemaValidated = true;
+		}
+		return instance;
+	}
+
+	/**
+	 * Assembles the associated data schema from the base schema and the mutations recorded so far, without validating
+	 * it - the builder's own methods read the half-declared state through it.
+	 *
+	 * It also hosts the {@link Delegate} that routes this builder's {@link AssociatedDataSchemaContract} getters, so a
+	 * getter answers what has been declared so far: validating on every read would refuse a declaration that is merely
+	 * unfinished, while {@link #toInstance()} still validates the whole of it.
+	 *
+	 * @return the assembled schema
 	 */
 	@Delegate(types = AssociatedDataSchemaContract.class)
 	@Nonnull
-	public AssociatedDataSchemaContract toInstance() {
+	private AssociatedDataSchemaContract assembleInstance() {
 		if (this.updatedSchema == null || this.updatedSchemaDirty != MutationImpact.NO_IMPACT) {
 			// if the dirty flag is set to modified previous we need to start from the base schema again
 			// and reapply all mutations
@@ -257,6 +349,8 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 			this.updatedSchema = currentSchema;
 			this.updatedSchemaDirty = MutationImpact.NO_IMPACT;
 			this.lastMutationReflectedInSchema = this.mutations.size();
+			// a freshly assembled schema has not been through validate() yet - toInstance() will run it
+			this.updatedSchemaValidated = false;
 		}
 		return this.updatedSchema;
 	}

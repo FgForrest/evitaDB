@@ -27,6 +27,7 @@ import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import io.evitadb.api.exception.ReferencePartitionReindexRequiredException;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
@@ -105,6 +106,7 @@ import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleScope;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleWithScope;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
@@ -1704,6 +1706,21 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	) {
 		removeEntireSuiteOfSortableAttributeCompounds(
 			locale, entitySchema, target, referenceKey, existingDataSupplierFactory
+		);
+	}
+
+	/**
+	 * Retrieves the storage part holding the associated data value of the passed key, as it stands before the local
+	 * mutation being applied - the index executor runs before the storage one. The part is cached by the container
+	 * accessor, so the storage executor applying the same mutation right after reuses it rather than reading it again.
+	 *
+	 * @param associatedDataKey the key of the associated data value
+	 * @return the storage part, never `null` - an empty one when the entity holds no such value
+	 */
+	@Nonnull
+	public AssociatedDataStoragePart getAssociatedDataStoragePart(@Nonnull AssociatedDataKey associatedDataKey) {
+		return this.containerAccessor.getAssociatedDataStoragePart(
+			this.entityType, getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING), associatedDataKey
 		);
 	}
 

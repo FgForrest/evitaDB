@@ -68,6 +68,7 @@ import io.evitadb.api.requestResponse.schema.mutation.associatedData.RemoveAssoc
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaNullableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaSearchableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.*;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
@@ -119,6 +120,7 @@ import io.evitadb.store.wal.data.reference.*;
 import io.evitadb.store.wal.data.scope.SetEntityScopeMutationSerializer;
 import io.evitadb.store.wal.schema.associatedData.CreateAssociatedDataSchemaMutationSerializer;
 import io.evitadb.store.wal.schema.associatedData.CreateAssociatedDataSchemaMutationSerializer_2026_1;
+import io.evitadb.store.wal.schema.associatedData.CreateAssociatedDataSchemaMutationSerializer_2026_2;
 import io.evitadb.store.wal.schema.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutationSerializer;
 import io.evitadb.store.wal.schema.associatedData.ModifyAssociatedDataSchemaDescriptionMutationSerializer;
 import io.evitadb.store.wal.schema.associatedData.ModifyAssociatedDataSchemaNameMutationSerializer;
@@ -127,6 +129,7 @@ import io.evitadb.store.wal.schema.associatedData.RemoveAssociatedDataSchemaMuta
 import io.evitadb.store.wal.schema.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutationSerializer;
 import io.evitadb.store.wal.schema.associatedData.SetAssociatedDataSchemaLocalizedMutationSerializer;
 import io.evitadb.store.wal.schema.associatedData.SetAssociatedDataSchemaNullableMutationSerializer;
+import io.evitadb.store.wal.schema.associatedData.SetAssociatedDataSchemaSearchableMutationSerializer;
 import io.evitadb.store.wal.schema.attribute.*;
 import io.evitadb.store.wal.schema.catalog.*;
 import io.evitadb.store.wal.schema.entity.*;
@@ -168,7 +171,8 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			CreateAssociatedDataSchemaMutation.class,
 			new SerialVersionBasedSerializer<>(new CreateAssociatedDataSchemaMutationSerializer(), CreateAssociatedDataSchemaMutation.class)
-				.addBackwardCompatibleSerializer(-7368528015832499968L, new CreateAssociatedDataSchemaMutationSerializer_2026_1()),
+				.addBackwardCompatibleSerializer(-7368528015832499968L, new CreateAssociatedDataSchemaMutationSerializer_2026_1())
+				.addBackwardCompatibleSerializer(-7368528015832499967L, new CreateAssociatedDataSchemaMutationSerializer_2026_2()),
 			index++
 		);
 		kryo.register(
@@ -498,6 +502,14 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 			SetAttributeSchemaSearchableMutation.class,
 			new SerialVersionBasedSerializer<>(
 				new SetAttributeSchemaSearchableMutationSerializer(), SetAttributeSchemaSearchableMutation.class
+			),
+			index++
+		);
+		kryo.register(
+			SetAssociatedDataSchemaSearchableMutation.class,
+			new SerialVersionBasedSerializer<>(
+				new SetAssociatedDataSchemaSearchableMutationSerializer(),
+				SetAssociatedDataSchemaSearchableMutation.class
 			),
 			index++
 		);

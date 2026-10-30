@@ -498,6 +498,20 @@ public class EvitaQLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
+	@Override public T visitTextMatchesConstraint(EvitaQLParser.TextMatchesConstraintContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitInFieldConstraint(EvitaQLParser.InFieldConstraintContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
 	@Override public T visitOrderByConstraint(EvitaQLParser.OrderByConstraintContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
@@ -639,6 +653,13 @@ public class EvitaQLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public T visitOrderInScopeConstraint(EvitaQLParser.OrderInScopeConstraintContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitRelevanceConstraint(EvitaQLParser.RelevanceConstraintContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -2053,6 +2074,13 @@ public class EvitaQLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public T visitInScopeFilterArgs(EvitaQLParser.InScopeFilterArgsContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitTextMatchesArgs(EvitaQLParser.TextMatchesArgsContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *

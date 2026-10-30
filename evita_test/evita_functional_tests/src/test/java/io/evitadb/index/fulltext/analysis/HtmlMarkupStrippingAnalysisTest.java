@@ -24,15 +24,7 @@
 package io.evitadb.index.fulltext.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.AnalyzerWrapper;
-import org.apache.lucene.analysis.LowerCaseFilter;
-import org.apache.lucene.analysis.StopFilter;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.charfilter.HTMLStripCharFilter;
 import org.apache.lucene.analysis.cz.CzechAnalyzer;
-import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
-import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -41,7 +33,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import java.io.Reader;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -52,40 +43,36 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins what an HTML-stripping character filter in front of the built-in chains would change — the step proposed
- * in the PR #1453 review after measuring a production CMS corpus whose article bodies are HTML carrying a JSON
- * payload in `data-` attributes: 79 % of the distinct terms and half of the dictionary-plus-postings heap were
- * markup. The measurements are recorded in `p5-analyzers.md` §13; this class establishes the behaviour they
- * rest on, at the level of the terms, offsets and positions the engine actually consumes, so that the opt-in
- * switch can be designed without re-running the corpus.
+ * Pins what the HTML-stripping character filter in front of every built-in index chain does — the step proposed in
+ * the PR #1453 review after measuring a production CMS corpus whose article bodies are HTML carrying a JSON payload in
+ * `data-` attributes: 79 % of the distinct terms and half of the dictionary-plus-postings heap were markup. The
+ * measurements are recorded in `p5-analyzers.md` §13; this class establishes the behaviour they rest on, at the level
+ * of the terms, offsets and positions the engine actually consumes.
  *
- * Three things are established:
+ * The filter started as an opt-in test fixture and was made part of every index chain when associated data became
+ * searchable (#258): a stored value may be HTML, and the strip is a no-op on markup-free text. The search chains do not
+ * strip - a query text is what a user typed. Three things are established:
  *
- * 1. **The baseline.** Today's chains have no character filter, so tag names, attribute names, attribute
- *    values and entity names are all indexed as terms — the vocabulary the review found dominating the
- *    dictionary (`p`, `class`, `dynamik`, `dat`, `valu`, `fals`, `quot`) is reproduced here on a synthetic body.
- * 2. **What Lucene's `HTMLStripCharFilter` does when placed before the tokenizer**: which markup vanishes,
- *    how entities decode, that inline tags join word halves while block tags separate them, that plain text is
- *    left byte-for-byte alone, and that the step is stateless enough to run on both sides of the pipeline.
- * 3. **The sharp edges a production wiring has to decide on**, each pinned as observed rather than as wished:
- *    end offsets (and with them {@link AnalyzedTerm#surfaceForm()}) of a term directly followed by a tag swallow
- *    the tag; an entity that decodes to a combining mark bypasses the NFC normalization on the boundary because
- *    the filter runs after it; a trailing `&lt;X` at the very end of a value is eaten as an unclosed tag.
- *
- * Unlike the word/number split step ({@link WordNumberSplitAnalysisTest}), this one **is** reachable by wrapping
- * a finished analyzer: a character filter runs on the reader, before any tokenizer, so `AnalyzerWrapper#wrapReader`
- * puts it in the only place it can go and the built-in chains need no recomposition. The wrapper used here is a
- * test fixture, not production code — no switch exists yet that would turn the step on, and it must stay off by
- * default: a product description holding `5<10` or `S<M<L` is prose, not markup, and the last case loses a term.
+ * 1. **The baseline.** A chain without the character filter indexes tag names, attribute names, attribute values and
+ *    entity names as terms — the vocabulary the review found dominating the dictionary (`p`, `class`, `dynamik`,
+ *    `dat`, `valu`, `fals`, `quot`) is reproduced here on a synthetic body.
+ * 2. **What the production index chain does with {@link HtmlStrippingAnalyzerWrapper}**: which markup vanishes, how
+ *    entities decode, that inline tags join word halves while block tags separate them, and that plain text is left
+ *    byte-for-byte alone.
+ * 3. **The sharp edges the production wiring accepts**, each pinned as observed rather than as wished: end offsets
+ *    (and with them {@link AnalyzedTerm#surfaceForm()}) of a term directly followed by a tag swallow the tag; an
+ *    entity that decodes to a combining mark bypasses the NFC normalization on the boundary because the filter runs
+ *    after it; a trailing `&lt;X` at the very end of a value is eaten as an unclosed tag.
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("HTML markup stripping in front of the full-text analysis chain")
+@DisplayName("HTML markup stripping in front of the full-text index chains")
 @Tag(ENGINE)
 @Tag(FULLTEXT)
 class HtmlMarkupStrippingAnalysisTest {
@@ -102,34 +89,25 @@ class HtmlMarkupStrippingAnalysisTest {
 	private final List<FulltextAnalyzer> builtChains = new ArrayList<>(4);
 	private FulltextAnalyzerRegistry registry;
 	/**
-	 * The built-in Czech index chain as the registry hands it out today - no character filter.
+	 * The Czech index chain without the character filter - the baseline the strip is measured against.
 	 */
-	private FulltextAnalyzer production;
+	private FulltextAnalyzer unstripped;
 	/**
-	 * The built-in Czech search chain as the registry hands it out today.
-	 */
-	private FulltextAnalyzer productionSearch;
-	/**
-	 * The same Czech index chain with {@link HTMLStripCharFilter} in front of its tokenizer.
+	 * The built-in Czech index chain as the registry hands it out - with {@link HtmlStrippingAnalyzerWrapper}.
 	 */
 	private FulltextAnalyzer stripped;
 	/**
-	 * The Czech search chain (stop, fold, stem variants) with {@link HTMLStripCharFilter} in front of it.
+	 * The built-in Czech search chain as the registry hands it out - without the character filter.
 	 */
-	private FulltextAnalyzer strippedSearch;
+	private FulltextAnalyzer productionSearch;
 
 	@BeforeEach
 	void setUp() {
 		this.registry = new FulltextAnalyzerRegistry();
-		this.production = this.registry.getIndexAnalyzer(ENTITY_TYPE, CZECH);
+		this.stripped = this.registry.getIndexAnalyzer(ENTITY_TYPE, CZECH);
 		this.productionSearch = this.registry.getSearchAnalyzer(ENTITY_TYPE, CZECH);
-		this.stripped = chain(
-			"czech-html-stripped",
-			new HtmlStrippingAnalyzerWrapper(new DiacriticsFoldingAnalyzerWrapper(new CzechAnalyzer()))
-		);
-		this.strippedSearch = chain(
-			"czech-search-html-stripped",
-			new HtmlStrippingAnalyzerWrapper(czechSearchChain())
+		this.unstripped = chain(
+			"czech-unstripped", new DiacriticsFoldingAnalyzerWrapper(new CzechAnalyzer())
 		);
 	}
 
@@ -153,32 +131,6 @@ class HtmlMarkupStrippingAnalysisTest {
 		final FulltextAnalyzer wrapped = new FulltextAnalyzer(name, AnalysisMode.ALL, analyzer);
 		this.builtChains.add(wrapped);
 		return wrapped;
-	}
-
-	/**
-	 * Rebuilds the built-in Czech query chain of {@link BuiltInAnalyzers} — tokenize, lowercase, stop, fold,
-	 * emit stem variants — because the registry hands out a closed holder the test cannot put a reader filter in
-	 * front of.
-	 *
-	 * @return the Lucene chain
-	 */
-	@Nonnull
-	private static Analyzer czechSearchChain() {
-		return new Analyzer() {
-			@Override
-			protected TokenStreamComponents createComponents(String fieldName) {
-				final Tokenizer source = new StandardTokenizer();
-				TokenStream stream = new StopFilter(new LowerCaseFilter(source), CzechAnalyzer.getDefaultStopSet());
-				stream = new ASCIIFoldingFilter(stream);
-				stream = new VariantStemFilter(stream, new CzechVariantStemmer());
-				return new TokenStreamComponents(source, stream);
-			}
-
-			@Override
-			protected TokenStream normalize(String fieldName, TokenStream in) {
-				return new ASCIIFoldingFilter(new LowerCaseFilter(in));
-			}
-		};
 	}
 
 	/**
@@ -219,8 +171,8 @@ class HtmlMarkupStrippingAnalysisTest {
 	}
 
 	@Nested
-	@DisplayName("Built-in chains today")
-	class BuiltInChainsToday {
+	@DisplayName("A chain without the character filter")
+	class ChainWithoutCharacterFilter {
 
 		@Test
 		@DisplayName("Index tag names, attribute names and attribute payload as terms")
@@ -232,7 +184,7 @@ class HtmlMarkupStrippingAnalysisTest {
 					"p", "class", "dynamik", "dat", "valu", "valu", "fals", "dat", "2026",
 					"cern", "pansk", "obuv", "p"
 				),
-				terms(HtmlMarkupStrippingAnalysisTest.this.production, PAYLOAD_BODY)
+				terms(HtmlMarkupStrippingAnalysisTest.this.unstripped, PAYLOAD_BODY)
 			);
 		}
 
@@ -243,12 +195,17 @@ class HtmlMarkupStrippingAnalysisTest {
 			// non-breaking space costs a position gap as well as a term
 			assertIterableEquals(
 				List.of("quot", "cern", "quot", "lt", "obuv", "gt", "amp", "nbsp"),
-				terms(HtmlMarkupStrippingAnalysisTest.this.production, "&quot;Černá&quot; &lt;obuv&gt; &amp; k&nbsp;tomu")
+				terms(
+					HtmlMarkupStrippingAnalysisTest.this.unstripped,
+					"&quot;Černá&quot; &lt;obuv&gt; &amp; k&nbsp;tomu"
+				)
 			);
 			// a numeric entity is worse than a named one: the code point becomes a number term and the word it
 			// belonged to is torn apart
-			assertIterableEquals(List.of("268", "ern", "225", "obuv"), terms(
-				HtmlMarkupStrippingAnalysisTest.this.production, "&#268;ern&#225; obuv"));
+			assertIterableEquals(
+				List.of("268", "ern", "225", "obuv"),
+				terms(HtmlMarkupStrippingAnalysisTest.this.unstripped, "&#268;ern&#225; obuv")
+			);
 		}
 
 		@Test
@@ -256,8 +213,10 @@ class HtmlMarkupStrippingAnalysisTest {
 		void shouldTearWordApartAtInlineTag() {
 			// `Čer` and `ná` are each stemmed as if they were words - two garbage stems and two `b` terms instead
 			// of the one term `cern` the word would have produced
-			assertIterableEquals(List.of("cr", "b", "na", "b", "obuv"), terms(
-				HtmlMarkupStrippingAnalysisTest.this.production, "Čer<b>ná</b> obuv"));
+			assertIterableEquals(
+				List.of("cr", "b", "na", "b", "obuv"),
+				terms(HtmlMarkupStrippingAnalysisTest.this.unstripped, "Čer<b>ná</b> obuv")
+			);
 		}
 
 		@Test
@@ -265,19 +224,25 @@ class HtmlMarkupStrippingAnalysisTest {
 		void shouldIndexScriptStyleAndCommentBodies() {
 			assertIterableEquals(
 				List.of("script", "typ", "application", "json", "titl", "skryt", "script", "viditeln"),
-				terms(HtmlMarkupStrippingAnalysisTest.this.production, "<script type=\"application/json\">{\"title\": \"Skryté\"}</script>Viditelné")
+				terms(
+					HtmlMarkupStrippingAnalysisTest.this.unstripped,
+					"<script type=\"application/json\">{\"title\": \"Skryté\"}</script>Viditelné"
+				)
 			);
 			assertIterableEquals(
 				List.of("styl", "x", "color:rd", "styl", "viditeln"),
-				terms(HtmlMarkupStrippingAnalysisTest.this.production, "<style>.x{color:red}</style>Viditelné")
+				terms(HtmlMarkupStrippingAnalysisTest.this.unstripped, "<style>.x{color:red}</style>Viditelné")
 			);
-			assertIterableEquals(List.of("komentar", "viditeln"), terms(HtmlMarkupStrippingAnalysisTest.this.production, "<!-- komentář --> Viditelné"));
+			assertIterableEquals(
+				List.of("komentar", "viditeln"),
+				terms(HtmlMarkupStrippingAnalysisTest.this.unstripped, "<!-- komentář --> Viditelné")
+			);
 		}
 
 	}
 
 	@Nested
-	@DisplayName("HTMLStripCharFilter in front of the tokenizer")
+	@DisplayName("The built-in index chain")
 	class StrippedChain {
 
 		@Test
@@ -296,7 +261,7 @@ class HtmlMarkupStrippingAnalysisTest {
 		void shouldShrinkDistinctTermSetToProse() {
 			// the review measured -79 % distinct terms on 972,611 articles; on this single body the same ratio is
 			// 10 to 3. The body is the unit the dictionary pays per, so the shape of the saving is the same
-			assertEquals(10, distinctTerms(HtmlMarkupStrippingAnalysisTest.this.production, PAYLOAD_BODY).size());
+			assertEquals(10, distinctTerms(HtmlMarkupStrippingAnalysisTest.this.unstripped, PAYLOAD_BODY).size());
 			assertEquals(3, distinctTerms(HtmlMarkupStrippingAnalysisTest.this.stripped, PAYLOAD_BODY).size());
 		}
 
@@ -388,7 +353,8 @@ class HtmlMarkupStrippingAnalysisTest {
 				"{\"title\": \"Černá obuv\", \"price\": 100}"
 			)) {
 				assertIterableEquals(
-					HtmlMarkupStrippingAnalysisTest.this.production.getTerms(plainText), HtmlMarkupStrippingAnalysisTest.this.stripped.getTerms(plainText),
+					HtmlMarkupStrippingAnalysisTest.this.unstripped.getTerms(plainText),
+					HtmlMarkupStrippingAnalysisTest.this.stripped.getTerms(plainText),
 					"Stripping changed the analysis of the markup-free text `" + plainText + "`."
 				);
 			}
@@ -444,7 +410,7 @@ class HtmlMarkupStrippingAnalysisTest {
 	}
 
 	@Nested
-	@DisplayName("Sharp edges a production wiring has to decide on")
+	@DisplayName("Sharp edges the production wiring accepts")
 	class SharpEdges {
 
 		@Test
@@ -466,10 +432,16 @@ class HtmlMarkupStrippingAnalysisTest {
 		@DisplayName("Swallows a letter-led `<X` at the very end of a value as an unclosed tag")
 		void shouldSwallowTrailingUnclosedTagLikeText() {
 			// SHARP EDGE, pinned as observed: `<L` at end of input is consumed as a tag that never closed, so the `l`
-			// term the unstripped chain produces is gone. This is the concrete reason the step must be opt-in: a
-			// size range written `S<M<L` in a product description loses its last size
-			assertIterableEquals(List.of("velikost", "m", "l"), terms(HtmlMarkupStrippingAnalysisTest.this.production, "Velikost S<M<L"));
-			assertIterableEquals(List.of("velikost", "m"), terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "Velikost S<M<L"));
+			// term the unstripped chain produces is gone. Accepted with the strip in every index chain: a size range
+			// written `S<M<L` in a product description loses its last size
+			assertIterableEquals(
+				List.of("velikost", "m", "l"),
+				terms(HtmlMarkupStrippingAnalysisTest.this.unstripped, "Velikost S<M<L")
+			);
+			assertIterableEquals(
+				List.of("velikost", "m"),
+				terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "Velikost S<M<L")
+			);
 			// and a letter between angle brackets in prose IS a tag: `a<b>c` joins into `ac`
 			assertIterableEquals(List.of("ak"), terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "a<b>c"));
 		}
@@ -480,9 +452,8 @@ class HtmlMarkupStrippingAnalysisTest {
 			// SHARP EDGE, pinned as observed. FulltextAnalyzer normalizes the text to NFC BEFORE handing it to the
 			// chain, and a character filter runs inside the chain - after it. `c&#780;` decodes to `c` plus a
 			// combining caron, i.e. NFD, which the Czech stemmer cannot read and ASCIIFoldingFilter does not fold.
-			// The term comes out neither stemmed nor folded. A production wiring must therefore run NFC after the
-			// character filter (or re-normalize inside wrapReader), otherwise entity-encoded diacritics silently
-			// escape the guarantee FulltextAnalyzer#analyze documents
+			// The term comes out neither stemmed nor folded. Accepted for now: fixing it takes an offset-correcting NFC
+			// character filter after the strip, which is not worth it until a corpus shows entity-encoded diacritics
 			final List<String> terms = terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "c&#780;erna&#769; obuv");
 			assertEquals(2, terms.size());
 			assertNotEquals("cern", terms.get(0));
@@ -498,64 +469,74 @@ class HtmlMarkupStrippingAnalysisTest {
 	class BothSides {
 
 		@Test
-		@DisplayName("Query text carrying markup meets the index term of the stripped value")
-		void shouldMeetIndexWhenQueryCarriesMarkup() {
-			// a pasted query with markup in it analyses to the same variants as the bare word, and those contain
-			// the index term of the stripped value
-			assertIterableEquals(terms(HtmlMarkupStrippingAnalysisTest.this.strippedSearch, "cerna"), terms(
-				HtmlMarkupStrippingAnalysisTest.this.strippedSearch, "<b>cerna</b>"));
-			assertTrue(terms(HtmlMarkupStrippingAnalysisTest.this.strippedSearch, "<b>cerna</b>").containsAll(terms(
-				HtmlMarkupStrippingAnalysisTest.this.stripped, "<p>Černá</p>")));
+		@DisplayName("Strips markup on the index side only")
+		void shouldStripOnIndexSideOnly() {
+			// the registry hands out the wrapper for the index slot and a bare chain for the search slot - a query text
+			// is what a user typed, so `<b>` in it is two characters the user meant
+			assertIterableEquals(
+				List.of("cern"), terms(HtmlMarkupStrippingAnalysisTest.this.stripped, "<b>Černá</b>")
+			);
+			assertTrue(terms(HtmlMarkupStrippingAnalysisTest.this.productionSearch, "<b>cerna</b>").contains("b"));
 		}
 
 		@Test
-		@DisplayName("Is stateless, so the same step on both sides changes nothing for markup-free text")
-		void shouldBeStatelessAcrossBothSides() {
-			// the argument for declaring the step AnalysisMode.ALL: it carries no dictionary, no runtime state, and
-			// produces the same terms whichever side asks - on markup-free text both sides agree with production
-			for (final String plainText : List.of("černá pánská obuv", "cerna panska obuv", "Velikost 5 < 10")) {
-				assertIterableEquals(HtmlMarkupStrippingAnalysisTest.this.production.getTerms(plainText), HtmlMarkupStrippingAnalysisTest.this.stripped.getTerms(plainText));
-				assertIterableEquals(
-					HtmlMarkupStrippingAnalysisTest.this.productionSearch.getTerms(plainText),
-					HtmlMarkupStrippingAnalysisTest.this.strippedSearch.getTerms(plainText));
+		@DisplayName("Strips markup in every built-in index chain and in no search chain")
+		void shouldStripInEveryIndexChainAndNoSearchChain() {
+			for (final String language : List.of("cs", "sk", "pl", "ro", "en", "de", "xx")) {
+				final Locale locale = new Locale(language);
+				final FulltextAnalyzer indexAnalyzer =
+					HtmlMarkupStrippingAnalysisTest.this.registry.getIndexAnalyzer(ENTITY_TYPE, locale);
+				final FulltextAnalyzer searchAnalyzer =
+					HtmlMarkupStrippingAnalysisTest.this.registry.getSearchAnalyzer(ENTITY_TYPE, locale);
+				assertNotEquals(indexAnalyzer.getAnalyzerName(), searchAnalyzer.getAnalyzerName(), language);
+				assertTrue(
+					terms(indexAnalyzer, "<p class=\"x\">word</p>").stream().noneMatch(it -> it.startsWith("class")),
+					"Index chain of `" + language + "` indexed markup."
+				);
+				assertTrue(
+					terms(searchAnalyzer, "<p class=\"x\">word</p>").stream().anyMatch(it -> it.startsWith("class")),
+					"Search chain of `" + language + "` stripped markup."
+				);
+				assertEquals(AnalysisMode.SEARCH_TIME, searchAnalyzer.getMode(), language);
+				assertEquals(AnalysisMode.ALL, indexAnalyzer.getMode(), language);
 			}
 		}
 
-	}
-
-	/**
-	 * Puts {@link HTMLStripCharFilter} in front of a finished chain's tokenizer. A character filter is a
-	 * `Reader` decorator, so the only place it can go is the reader, and `AnalyzerWrapper` exposes exactly that
-	 * seam — which is why, unlike the word/number split step, this one needs no recomposition of the built-in
-	 * chains.
-	 *
-	 * The single-term normalization path (`Analyzer#normalize`, used by prefix and fuzzy probes) is deliberately
-	 * left without the filter: a typed prefix is never markup, and a `&lt;` typed there is a character the user
-	 * means.
-	 */
-	private static final class HtmlStrippingAnalyzerWrapper extends AnalyzerWrapper {
-
-		@Nonnull private final Analyzer delegate;
-
-		HtmlStrippingAnalyzerWrapper(@Nonnull Analyzer delegate) {
-			super(delegate.getReuseStrategy());
-			this.delegate = delegate;
+		@Test
+		@DisplayName("Leaves markup-free text exactly as the unstripped chain analyses it")
+		void shouldAgreeWithUnstrippedChainOnPlainText() {
+			for (final String plainText : List.of("černá pánská obuv", "cerna panska obuv", "Velikost 5 < 10")) {
+				assertIterableEquals(
+					HtmlMarkupStrippingAnalysisTest.this.unstripped.getTerms(plainText),
+					HtmlMarkupStrippingAnalysisTest.this.stripped.getTerms(plainText)
+				);
+			}
 		}
 
-		@Override
-		protected Analyzer getWrappedAnalyzer(String fieldName) {
-			return this.delegate;
+		@Test
+		@DisplayName("Keeps the folded stop words keyed by the unchanged index analyzer name")
+		void shouldKeepFoldedStopWordsOfIndexAnalyzer() {
+			assertTrue(HtmlMarkupStrippingAnalysisTest.this.registry.isFoldedStopWord(
+				BuiltInAnalyzers.ENGLISH_ANALYZER_NAME, "The"
+			));
+			assertTrue(HtmlMarkupStrippingAnalysisTest.this.registry.isFoldedStopWord(
+				BuiltInAnalyzers.CZECH_ANALYZER_NAME, "neni"
+			));
+			assertTrue(HtmlMarkupStrippingAnalysisTest.this.registry.isFoldedStopWord(
+				BuiltInAnalyzers.ENGLISH_SEARCH_ANALYZER_NAME, "the"
+			));
+			assertFalse(HtmlMarkupStrippingAnalysisTest.this.registry.isFoldedStopWord(
+				BuiltInAnalyzers.GENERIC_SEARCH_ANALYZER_NAME, "the"
+			));
 		}
 
-		@Override
-		protected Reader wrapReader(String fieldName, Reader reader) {
-			return new HTMLStripCharFilter(reader);
-		}
-
-		@Override
-		public void close() {
-			super.close();
-			this.delegate.close();
+		@Test
+		@DisplayName("Puts the wrapper in front of the index chain the registry builds")
+		void shouldBuildIndexChainThroughTheWrapper() {
+			assertInstanceOf(
+				HtmlStrippingAnalyzerWrapper.class,
+				BuiltInAnalyzers.definitionFor(BuiltInAnalyzers.CZECH_ANALYZER_NAME).factory().get()
+			);
 		}
 
 	}

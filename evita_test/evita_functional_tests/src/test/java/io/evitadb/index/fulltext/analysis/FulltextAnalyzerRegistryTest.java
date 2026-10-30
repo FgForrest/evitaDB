@@ -40,6 +40,7 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -54,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -130,6 +132,97 @@ class FulltextAnalyzerRegistryTest {
 	}
 
 	@Nested
+	@DisplayName("Folded stop words")
+	class FoldedStopWords {
+
+		@Test
+		@DisplayName("A Czech stop word typed without diacritics is recognized, an ordinary word is not")
+		void shouldRecognizeCzechStopWordsWithoutDiacritics() {
+			final FulltextAnalyzerRegistry registry = createRegistry();
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.CZECH_ANALYZER_NAME, "neni"));
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.CZECH_ANALYZER_NAME, "Není"));
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.CZECH_ANALYZER_NAME, "JESTE"));
+			// `být` folds into the real word `byt` - which is why the caller checks the index first
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.CZECH_ANALYZER_NAME, "byt"));
+			assertFalse(registry.isFoldedStopWord(BuiltInAnalyzers.CZECH_ANALYZER_NAME, "skladem"));
+			final Set<String> stopWords = registry.getFoldedStopWords(BuiltInAnalyzers.CZECH_ANALYZER_NAME);
+			assertTrue(stopWords.contains("neni"));
+			assertFalse(stopWords.contains("není"), "The set holds the folded forms only");
+			// the search-side chain drops the same words
+			assertEquals(stopWords, registry.getFoldedStopWords(BuiltInAnalyzers.CZECH_SEARCH_ANALYZER_NAME));
+		}
+
+		@Test
+		@DisplayName("A Polish stop word typed without diacritics is recognized, an ordinary word is not")
+		void shouldRecognizePolishStopWords() {
+			final FulltextAnalyzerRegistry registry = createRegistry();
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.POLISH_ANALYZER_NAME, "byc"));
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.POLISH_ANALYZER_NAME, "juz"));
+			assertFalse(registry.isFoldedStopWord(BuiltInAnalyzers.POLISH_ANALYZER_NAME, "herbata"));
+			// the search-side chain drops the same words
+			assertEquals(
+				registry.getFoldedStopWords(BuiltInAnalyzers.POLISH_ANALYZER_NAME),
+				registry.getFoldedStopWords(BuiltInAnalyzers.POLISH_SEARCH_ANALYZER_NAME)
+			);
+		}
+
+		@Test
+		@DisplayName("A Romanian stop word is recognized folded in both orthographies, an ordinary word is not")
+		void shouldRecognizeRomanianStopWordsInBothOrthographies() {
+			final FulltextAnalyzerRegistry registry = createRegistry();
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.ROMANIAN_ANALYZER_NAME, "dupa"));
+			// the list is written with cedilla, a modern query with comma below - folding collapses both
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.ROMANIAN_ANALYZER_NAME, "și"));
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.ROMANIAN_ANALYZER_NAME, "şi"));
+			assertFalse(registry.isFoldedStopWord(BuiltInAnalyzers.ROMANIAN_ANALYZER_NAME, "ceai"));
+			// the search-side chain drops the same words
+			assertEquals(
+				registry.getFoldedStopWords(BuiltInAnalyzers.ROMANIAN_ANALYZER_NAME),
+				registry.getFoldedStopWords(BuiltInAnalyzers.ROMANIAN_SEARCH_ANALYZER_NAME)
+			);
+		}
+
+		@Test
+		@DisplayName("A German stop word typed without an umlaut is recognized, an ordinary word is not")
+		void shouldRecognizeGermanStopWords() {
+			final FulltextAnalyzerRegistry registry = createRegistry();
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.GERMAN_ANALYZER_NAME, "fur"));
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.GERMAN_ANALYZER_NAME, "für"));
+			assertFalse(registry.isFoldedStopWord(BuiltInAnalyzers.GERMAN_ANALYZER_NAME, "tee"));
+			// the search-side chain drops the same words
+			assertEquals(
+				registry.getFoldedStopWords(BuiltInAnalyzers.GERMAN_ANALYZER_NAME),
+				registry.getFoldedStopWords(BuiltInAnalyzers.GERMAN_SEARCH_ANALYZER_NAME)
+			);
+		}
+
+		@Test
+		@DisplayName("A chain without a stop filter and a registered analyzer have no stop words")
+		void shouldHaveNoStopWordsWithoutStopFilter() {
+			final FulltextAnalyzerRegistry registry = createRegistry();
+			registry.register("mine", TokenizingAnalyzer::new);
+			assertTrue(registry.getFoldedStopWords(BuiltInAnalyzers.SLOVAK_ANALYZER_NAME).isEmpty());
+			assertTrue(registry.getFoldedStopWords(BuiltInAnalyzers.GENERIC_ANALYZER_NAME).isEmpty());
+			assertTrue(registry.getFoldedStopWords("mine").isEmpty());
+			assertTrue(registry.getFoldedStopWords("unknown").isEmpty());
+			assertFalse(registry.isFoldedStopWord("mine", "the"));
+		}
+
+		@Test
+		@DisplayName("A closed registry refuses the lookup")
+		void shouldRefuseLookupWhenClosed() {
+			// not remembered for the tear-down, which would close it a second time
+			final FulltextAnalyzerRegistry registry = new FulltextAnalyzerRegistry();
+			registry.close();
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> registry.getFoldedStopWords(BuiltInAnalyzers.CZECH_ANALYZER_NAME)
+			);
+		}
+
+	}
+
+	@Nested
 	@DisplayName("Instance resolution")
 	class InstanceResolution {
 
@@ -176,10 +269,10 @@ class FulltextAnalyzerRegistryTest {
 			final FulltextAnalyzer search = registry.getSearchAnalyzer(ENTITY_TYPE, ENGLISH);
 			final FulltextAnalyzer phrase = registry.getPhraseAnalyzer(ENTITY_TYPE, ENGLISH);
 
-			// English is one of the languages whose default is uniform, so all three slots share one chain - and
-			// therefore produce identical terms
-			assertSame(index, search);
-			assertSame(index, phrase);
+			// the index slot strips markup and the search slot does not, so they are two chains; the phrase slot
+			// inherits the search one. On markup-free text all three produce identical terms
+			assertNotSame(index, search);
+			assertSame(search, phrase);
 			final List<String> expected = List.of("english", "book");
 			assertIterableEquals(expected, terms(index, "English Books"));
 			assertIterableEquals(expected, terms(search, "English Books"));
@@ -209,12 +302,21 @@ class FulltextAnalyzerRegistryTest {
 		}
 
 		@Test
-		@DisplayName("English, German and the generic fallback stay uniform across the slots")
-		void shouldResolveUniformBuiltInAssignmentForTheRemainingLanguages() {
+		@DisplayName("English, German and the generic fallback pair a stripping index chain with a search chain")
+		void shouldResolveIndexAndSearchPairForTheRemainingLanguages() {
 			final FulltextAnalyzerRegistry registry = createRegistry();
-			assertUniform(registry, ENGLISH, BuiltInAnalyzers.ENGLISH_ANALYZER_NAME);
-			assertUniform(registry, GERMAN, BuiltInAnalyzers.GERMAN_ANALYZER_NAME);
-			assertUniform(registry, new Locale("fi"), BuiltInAnalyzers.GENERIC_ANALYZER_NAME);
+			assertAsymmetric(
+				registry, ENGLISH,
+				BuiltInAnalyzers.ENGLISH_ANALYZER_NAME, BuiltInAnalyzers.ENGLISH_SEARCH_ANALYZER_NAME
+			);
+			assertAsymmetric(
+				registry, GERMAN,
+				BuiltInAnalyzers.GERMAN_ANALYZER_NAME, BuiltInAnalyzers.GERMAN_SEARCH_ANALYZER_NAME
+			);
+			assertAsymmetric(
+				registry, new Locale("fi"),
+				BuiltInAnalyzers.GENERIC_ANALYZER_NAME, BuiltInAnalyzers.GENERIC_SEARCH_ANALYZER_NAME
+			);
 		}
 
 		@Test
@@ -928,29 +1030,6 @@ class FulltextAnalyzerRegistryTest {
 		assertEquals(AnalysisMode.ALL, registry.getIndexAnalyzer(ENTITY_TYPE, locale).getMode());
 		assertEquals(
 			AnalysisMode.SEARCH_TIME, registry.getSearchAnalyzer(ENTITY_TYPE, locale).getMode()
-		);
-	}
-
-	/**
-	 * Asserts the built-in default of `locale` names one analyzer in all three slots.
-	 *
-	 * @param registry registry under test
-	 * @param locale   locale whose built-in default is checked
-	 * @param name     expected analyzer name in every slot
-	 */
-	private static void assertUniform(
-		@Nonnull FulltextAnalyzerRegistry registry,
-		@Nonnull Locale locale,
-		@Nonnull String name
-	) {
-		assertEquals(name, registry.getIndexAnalyzer(ENTITY_TYPE, locale).getAnalyzerName());
-		assertSame(
-			registry.getIndexAnalyzer(ENTITY_TYPE, locale),
-			registry.getSearchAnalyzer(ENTITY_TYPE, locale)
-		);
-		assertSame(
-			registry.getIndexAnalyzer(ENTITY_TYPE, locale),
-			registry.getPhraseAnalyzer(ENTITY_TYPE, locale)
 		);
 	}
 

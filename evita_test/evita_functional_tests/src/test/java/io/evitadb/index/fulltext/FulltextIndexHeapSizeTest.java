@@ -254,7 +254,8 @@ class FulltextIndexHeapSizeTest {
 			for (int fieldId = 0; fieldId < lengths.length; fieldId++) {
 				fields.add(
 					new FulltextIndex.Field(
-						source.getFieldKey(fieldId), source.getLengthPivot(fieldId), source.isFieldRetired(fieldId),
+						source.getFieldKey(fieldId), source.getLengthPivot(fieldId), source.getTextExpression(fieldId),
+						source.isFieldRetired(fieldId),
 						FieldLengthTable.fromPersistedBlocks(lengths[fieldId].changedBlocks().toArray(LengthBlock[]::new))
 					)
 				);

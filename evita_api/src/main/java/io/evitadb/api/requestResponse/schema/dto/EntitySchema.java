@@ -570,6 +570,8 @@ public final class EntitySchema implements EntitySchemaContract {
 				associatedDataSchemaContract.getType(),
 				associatedDataSchemaContract.isLocalized(),
 				associatedDataSchemaContract.isNullable(),
+				associatedDataSchemaContract.getSearchableInScopes(),
+				associatedDataSchemaContract.getTextExpression(),
 				associatedDataSchemaContract.getConflictResolutionOverride()
 			);
 	}
@@ -977,6 +979,10 @@ public final class EntitySchema implements EntitySchemaContract {
 			// accumulated rather than thrown, so that a schema with several broken attributes reports all of them
 			// in one exception alongside the reference errors gathered below
 			attributeErrors = Stream.concat(attributeErrors, attribute.validate());
+		}
+		// associated data follow the same accumulating shape - searchability is their only cross-field rule
+		for (AssociatedDataSchema associatedData : this.associatedData.values()) {
+			attributeErrors = Stream.concat(attributeErrors, associatedData.validate());
 		}
 		final List<String> errors = Stream.concat(
 				attributeErrors,

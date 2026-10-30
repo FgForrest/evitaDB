@@ -36,7 +36,9 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.dataType.ComplexDataObject;
+import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
@@ -48,6 +50,7 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 
 import org.junit.jupiter.api.Tag;
@@ -77,6 +80,8 @@ class CreateAssociatedDataSchemaMutationTest {
 			Integer.class,
 			false,
 			false,
+			null,
+			null,
 			ConflictResolutionOverride.INHERITED
 		);
 	}
@@ -146,6 +151,33 @@ class CreateAssociatedDataSchemaMutationTest {
 		}
 
 		@Test
+		@DisplayName("should create searchable associated data with its text expression")
+		void shouldCreateSearchableAssociatedDataWithTextExpression() {
+			final CreateAssociatedDataSchemaMutation mutation = new CreateAssociatedDataSchemaMutation(
+				ASSOCIATED_DATA_NAME, null, null, ComplexDataObject.class, true, false,
+				new Scope[]{Scope.LIVE, Scope.ARCHIVED}, ExpressionFactory.parse("$value.title"),
+				ConflictResolutionOverride.INHERITED
+			);
+			assertTrue(mutation.isSearchable());
+			final AssociatedDataSchemaContract schema = mutation.mutate(null);
+			assertEquals(EnumSet.of(Scope.LIVE, Scope.ARCHIVED), schema.getSearchableInScopes());
+			assertEquals(ExpressionFactory.parse("$value.title"), schema.getTextExpression());
+			assertTrue(mutation.toString().contains("textExpression=$value.title"));
+		}
+
+		@Test
+		@DisplayName("should create not searchable associated data by default")
+		void shouldCreateNotSearchableAssociatedDataByDefault() {
+			final CreateAssociatedDataSchemaMutation mutation = new CreateAssociatedDataSchemaMutation(
+				ASSOCIATED_DATA_NAME, null, null, String.class, true, false
+			);
+			assertFalse(mutation.isSearchable());
+			assertEquals(0, mutation.getSearchableInScopes().length);
+			assertNull(mutation.getTextExpression());
+			assertTrue(mutation.mutate(null).getSearchableInScopes().isEmpty());
+		}
+
+		@Test
 		@DisplayName("should accept array types")
 		void shouldAcceptArrayTypes() {
 			final CreateAssociatedDataSchemaMutation mutation = new CreateAssociatedDataSchemaMutation(
@@ -187,6 +219,34 @@ class CreateAssociatedDataSchemaMutationTest {
 				Arrays.stream(result.current()).anyMatch(SetAssociatedDataSchemaLocalizedMutation.class::isInstance));
 			assertTrue(
 				Arrays.stream(result.current()).anyMatch(SetAssociatedDataSchemaNullableMutation.class::isInstance));
+		}
+
+		@Test
+		@DisplayName("should reset searchability when searchable associated data is removed and created again")
+		void shouldResetSearchabilityWhenRecreated() {
+			final CreateAssociatedDataSchemaMutation mutation = new CreateAssociatedDataSchemaMutation(
+				ASSOCIATED_DATA_NAME, "oldDescription", "oldDeprecationNotice", Integer.class, false, false
+			);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getAssociatedData(ASSOCIATED_DATA_NAME))
+				.thenReturn(
+					of(
+						AssociatedDataSchema._internalBuild(
+							ASSOCIATED_DATA_NAME, "oldDescription", "oldDeprecationNotice", Integer.class, false, false,
+							new Scope[]{Scope.LIVE}, null, ConflictResolutionOverride.INHERITED
+						)
+					)
+				);
+			final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
+				Mockito.mock(CatalogSchemaContract.class), entitySchema,
+				new RemoveAssociatedDataSchemaMutation(ASSOCIATED_DATA_NAME)
+			);
+			assertNotNull(result);
+			assertEquals(1, result.current().length);
+			final SetAssociatedDataSchemaSearchableMutation reset =
+				assertInstanceOf(SetAssociatedDataSchemaSearchableMutation.class, result.current()[0]);
+			assertFalse(reset.isSearchable());
+			assertNull(reset.getTextExpression());
 		}
 
 		@Test

@@ -307,7 +307,8 @@ class FulltextIndexPagedEmissionTest {
 			for (int fieldId = 0; fieldId < index.getFieldCount(); fieldId++) {
 				fields.add(
 					new FulltextIndex.Field(
-						index.getFieldKey(fieldId), index.getLengthPivot(fieldId), index.isFieldRetired(fieldId),
+						index.getFieldKey(fieldId), index.getLengthPivot(fieldId), index.getTextExpression(fieldId),
+						index.isFieldRetired(fieldId),
 						index.getFieldLengths(fieldId)
 					)
 				);

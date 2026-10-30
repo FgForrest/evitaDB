@@ -36,6 +36,7 @@ import io.evitadb.api.query.order.EntityPrimaryKeyNatural;
 import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderInScope;
+import io.evitadb.api.query.order.Relevance;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.FetchRequirementCollector;
@@ -63,6 +64,7 @@ import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslato
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
 import io.evitadb.core.query.sort.entity.translator.EntityGroupPropertyTranslator;
 import io.evitadb.core.query.sort.entity.translator.EntityPropertyTranslator;
+import io.evitadb.core.query.sort.fulltext.translator.RelevanceTranslator;
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyExactTranslator;
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyNaturalTranslator;
 import io.evitadb.core.query.sort.translator.OrderByTranslator;
@@ -121,6 +123,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 		TRANSLATORS.put(EntityPrimaryKeyExact.class, new EntityPrimaryKeyExactTranslator());
 		TRANSLATORS.put(EntityProperty.class, new EntityPropertyTranslator());
 		TRANSLATORS.put(EntityGroupProperty.class, new EntityGroupPropertyTranslator());
+		TRANSLATORS.put(Relevance.class, new RelevanceTranslator());
 	}
 
 	/**

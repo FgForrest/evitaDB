@@ -163,7 +163,7 @@ public class OffsetIndex {
 	 * rather than the record size. Writers borrow a buffer of this size from the shared pool only while a frame is
 	 * assembled, and the {@link #decompressionPool} keeps arrays of this size for reads; larger buffers use more
 	 * memory.
-	 * Sourced from {@link StorageOptions#outputBufferSize()}, typically defaults to 2MB.
+	 * Sourced from {@link StorageOptions#outputBufferSize()}, typically defaults to 4MB.
 	 */
 	private final int outputBufferSize;
 	/**

@@ -25,6 +25,7 @@ package io.evitadb.api.query.expression.object;
 
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.exception.ExpressionEvaluationException;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -45,6 +46,7 @@ import java.io.Serializable;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
 @RequiredArgsConstructor
+@EqualsAndHashCode
 public final class NullSafeAccessStep implements ObjectOperationStep {
 
 	@Serial private static final long serialVersionUID = -2195956191525819662L;

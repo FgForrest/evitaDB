@@ -205,7 +205,7 @@ public class BidirectionalReferenceRewriter {
 		final Set<Scope> scopes = processingScope.getScopes();
 		final Formula referencedEntityFormula = createReferencedEntityFormula(
 			filterByVisitor, filterByVisitor.getQueryContext(), plan.targetEntityType(),
-			plan.split().entityHavingChild(), scopes, plan.counterpartScopes(), ownerReference
+			plan.split().entityHavingChild(), scopes, plan.counterpartScopes(), ownerEntitySchema, ownerReference
 		);
 		if (referencedEntityFormula == EmptyFormula.INSTANCE) {
 			return of(EmptyFormula.INSTANCE);
@@ -896,6 +896,7 @@ public class BidirectionalReferenceRewriter {
 		@Nullable FilterConstraint entityHavingChild,
 		@Nonnull Set<Scope> scopes,
 		@Nonnull Set<Scope> counterpartScopes,
+		@Nonnull EntitySchemaContract ownerEntitySchema,
 		@Nonnull ReferenceSchemaContract ownerReference
 	) {
 		if (entityHavingChild == null) {
@@ -923,6 +924,12 @@ public class BidirectionalReferenceRewriter {
 		final Formula[] nestedFormulas = new Formula[nestedResults.size()];
 		for (int i = 0; i < nestedResults.size(); i++) {
 			nestedFormulas[i] = nestedResults.get(i).filter();
+			// the nested plan stays hidden below, so its relevance reaches the owners through the visitor - exactly as
+			// on the owner-side path the rewrite replaces
+			HavingTranslatorHelper.registerReferencedFulltextScores(
+				filterByVisitor, ownerEntitySchema, ownerReference, EntityIndexType.REFERENCED_ENTITY_TYPE,
+				nestedResults.get(i)
+			);
 		}
 		final Formula nestedFormula = FormulaFactory.or(nestedFormulas);
 		if (nestedFormula instanceof EmptyFormula) {

@@ -822,6 +822,30 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterTextMatchesConstraint(EvitaQLParser.TextMatchesConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitTextMatchesConstraint(EvitaQLParser.TextMatchesConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterInFieldConstraint(EvitaQLParser.InFieldConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitInFieldConstraint(EvitaQLParser.InFieldConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterOrderByConstraint(EvitaQLParser.OrderByConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -1069,6 +1093,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitOrderInScopeConstraint(EvitaQLParser.OrderInScopeConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterRelevanceConstraint(EvitaQLParser.RelevanceConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitRelevanceConstraint(EvitaQLParser.RelevanceConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -3493,6 +3529,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitInScopeFilterArgs(EvitaQLParser.InScopeFilterArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterTextMatchesArgs(EvitaQLParser.TextMatchesArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitTextMatchesArgs(EvitaQLParser.TextMatchesArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

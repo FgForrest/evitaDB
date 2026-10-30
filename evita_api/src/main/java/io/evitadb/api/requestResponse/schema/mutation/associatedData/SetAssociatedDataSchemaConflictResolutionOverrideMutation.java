@@ -101,6 +101,8 @@ public class SetAssociatedDataSchemaConflictResolutionOverrideMutation
 			associatedDataSchema.getType(),
 			associatedDataSchema.isLocalized(),
 			associatedDataSchema.isNullable(),
+			associatedDataSchema.getSearchableInScopes(),
+			associatedDataSchema.getTextExpression(),
 			this.conflictResolutionOverride
 		);
 	}
