@@ -28,7 +28,13 @@ import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.configuration.ChangeDataCaptureOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Evita;
@@ -40,13 +46,23 @@ import io.evitadb.core.transaction.TransactionManager.ProcessResult;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
+import io.evitadb.store.catalog.DefaultIsolatedWalService;
+import io.evitadb.store.checksum.ChecksumFactory;
+import io.evitadb.store.compression.CompressionFactory;
+import io.evitadb.store.kryo.ObservableOutputKeeper;
+import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
+import io.evitadb.store.shared.kryo.KryoFactory;
+import io.evitadb.store.wal.WalKryoConfigurer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -62,6 +78,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -306,6 +323,78 @@ class TransactionManagerSuspensionTest {
 			commitProgress.onConflictResolved().toCompletableFuture().isCompletedExceptionally(),
 			"a suspended catalog must refuse a new write immediately, never leave the client waiting on it"
 		);
+	}
+
+	@Test
+	@DisplayName("releases the isolated WAL of a commit it refuses once suspended")
+	void shouldReleaseTheIsolatedWalOfACommitRefusedOnceSuspended(@TempDir Path walDirectory) {
+		armFailingFlush();
+		assertThrows(UnexpectedIOException.class, this::drain);
+
+		// the refused commit is never appended to the shared WAL, so nothing else would release its off-heap region
+		// or temporary file
+		final UUID transactionId = UUID.randomUUID();
+		try (
+			final ObservableOutputKeeper outputKeeper = ObservableOutputKeeper._internalBuild(mock(Scheduler.class));
+			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
+				CATALOG_NAME, 512, 1, ChecksumFactory.NO_OP
+			)
+		) {
+			final DefaultIsolatedWalService walPersistenceService = new DefaultIsolatedWalService(
+				CATALOG_NAME,
+				transactionId,
+				new ConflictResolution(ConflictPolicy.NONE),
+				KryoFactory.createKryo(WalKryoConfigurer.INSTANCE),
+				new WriteOnlyOffHeapWithFileBackupHandle(
+					walDirectory.resolve(transactionId.toString()),
+					StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE,
+					false,
+					outputKeeper,
+					memoryManager,
+					ChecksumFactory.NO_OP,
+					CompressionFactory.NO_COMPRESSION
+				)
+			);
+			walPersistenceService.write(
+				INITIAL_VERSION,
+				new EntityUpsertMutation(
+					"product", 1, EntityExistence.MUST_EXIST, new UpsertAttributeMutation("name", "New name")
+				)
+			);
+			assertEquals(0, memoryManager.getFreeRegions(), "self-check: the isolated WAL must hold the only region");
+
+			this.transactionManager.commit(
+				INITIAL_VERSION,
+				transactionId,
+				0,
+				walPersistenceService,
+				new CommitProgressRecord()
+			);
+
+			assertEquals(1, memoryManager.getFreeRegions());
+		}
+	}
+
+	@Test
+	@DisplayName("releases the isolated WAL of a commit whose WAL reference cannot be prepared")
+	void shouldReleaseTheIsolatedWalOfACommitWhoseWalReferenceCannotBePrepared() throws IOException {
+		// preparing the reference flushes the isolated WAL, which may fail - the commit then never reaches the pipeline,
+		// so nothing else would release its off-heap region or temporary file
+		final IsolatedWalPersistenceService walPersistenceService = mock(IsolatedWalPersistenceService.class);
+		when(walPersistenceService.getWalReference()).thenThrow(new UnexpectedIOException("simulated sync failure"));
+
+		assertThrows(
+			UnexpectedIOException.class,
+			() -> this.transactionManager.commit(
+				INITIAL_VERSION,
+				UUID.randomUUID(),
+				0,
+				walPersistenceService,
+				new CommitProgressRecord()
+			)
+		);
+
+		verify(walPersistenceService).close();
 	}
 
 	@Test
