@@ -174,6 +174,10 @@ class CopyExistingEntityBuilderTest {
 		);
 	}
 
+	/**
+	 * A copy built against a target schema that declares the associated data localized carries the replacement
+	 * values, which already have the locale, and keeps the source's primary key.
+	 */
 	@Test
 	@DisplayName("should carry replaced associated data validated against the target schema")
 	void shouldCopyReplacedAssociatedDataUnderTargetSchema() {
@@ -191,6 +195,10 @@ class CopyExistingEntityBuilderTest {
 		assertEquals(targetSchema, copy.getSchema());
 	}
 
+	/**
+	 * The source's own values carry no locale, so a copy that passes them unchanged against a target schema declaring
+	 * the associated data localized must be refused rather than written in the wrong shape.
+	 */
 	@Test
 	@DisplayName("should refuse associated data that does not match the target schema")
 	void shouldThrowWhenReplacedAssociatedDataDoesNotMatchTargetSchema() {

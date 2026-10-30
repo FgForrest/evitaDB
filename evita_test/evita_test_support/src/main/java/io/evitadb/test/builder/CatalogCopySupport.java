@@ -61,6 +61,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Currency;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -145,8 +146,10 @@ public class CatalogCopySupport {
 	 *
 	 * This exists because a searchable field must carry a locale, and a catalog whose text predates that rule may keep
 	 * it without one - the migration the fulltext decision record names as the accepted cost of the rule. The copy
-	 * declares the associated data localized and writes every value of it under the given locale, so the field can be
-	 * made searchable in the same copy.
+	 * declares the associated data localized, adds the locale to the entity type, and writes every value of it under
+	 * the given locale, so the field can be made searchable in the same copy. It also declares the associated data
+	 * nullable: a localized value is mandatory in every locale of an entity, and an entity with other locales holds
+	 * only the one value the source had.
 	 */
 	private static final Map<String, Locale> LOCALIZED_ASSOCIATED_DATA = parseLocalizedAssociatedData();
 
@@ -370,8 +373,10 @@ public class CatalogCopySupport {
 			}
 		}
 
-		if (!source.getLocales().isEmpty()) {
-			builder.withLocale(source.getLocales().toArray(new Locale[0]));
+		final Set<Locale> locales = new LinkedHashSet<>(source.getLocales());
+		locales.addAll(getAddedLocales(source.getName()));
+		if (!locales.isEmpty()) {
+			builder.withLocale(locales.toArray(new Locale[0]));
 		}
 
 		for (final AttributeSchemaContract attribute : source.getAttributes().values()) {
@@ -401,9 +406,12 @@ public class CatalogCopySupport {
 						editor.localized();
 					}
 					if (addedLocale != null) {
-						System.out.println("[localized] " + path + " under " + addedLocale.toLanguageTag());
+						System.out.println(
+							"[localized] " + path + " under " + addedLocale.toLanguageTag() + ", nullable"
+						);
 					}
-					if (associatedData.isNullable()) {
+					// a localized value is mandatory in every locale of an entity, and the source holds one value
+					if (associatedData.isNullable() || addedLocale != null) {
 						editor.nullable();
 					}
 					final SearchableField searchable = SEARCHABLE_FIELDS.get(path);
@@ -699,6 +707,28 @@ public class CatalogCopySupport {
 				"Localized associated data name no non-localized associated data of the source schema."
 			);
 		}
+	}
+
+	/**
+	 * Lists the locales {@link #LOCALIZED_ASSOCIATED_DATA} moves associated data of an entity type under. The target
+	 * schema must support them, or it would refuse the moved values.
+	 *
+	 * @param entityType name of the entity type
+	 * @return the locales, empty when no associated data of the type is localized by the copy
+	 */
+	@Nonnull
+	private static Set<Locale> getAddedLocales(@Nonnull String entityType) {
+		if (LOCALIZED_ASSOCIATED_DATA.isEmpty()) {
+			return Set.of();
+		}
+		final String pathPrefix = entityType + PATH_SEPARATOR + ASSOCIATED_DATA_MARKER;
+		final Set<Locale> locales = CollectionUtils.createLinkedHashSet(4);
+		for (final Map.Entry<String, Locale> entry : LOCALIZED_ASSOCIATED_DATA.entrySet()) {
+			if (entry.getKey().startsWith(pathPrefix)) {
+				locales.add(entry.getValue());
+			}
+		}
+		return locales;
 	}
 
 	/**
