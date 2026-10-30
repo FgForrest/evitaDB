@@ -10,6 +10,10 @@
 > [`typo-tolerance-fuzzy-contains.md`](typo-tolerance-fuzzy-contains.md). Vocabulary (Levenshtein automaton, frozen
 > prefix, open-ended walk, …) is defined in [`typo-tolerance-prior-art.md`](typo-tolerance-prior-art.md).
 
+**Amended 2026-10-30** for per-field analyzer profiles, which F1 builds before typo tolerance, and for the phase-1
+cost cap: the surface-form lane key and fold (§3), the cap's scope and a postings safety net (§5), and the lane order
+(§8.2). The reasons and the options that lost are in [A §13].
+
 Every rule is marked **decided** or **proposed** (designed, not yet signed off). Where this document fills a gap the
 analysis leaves unstated, the rule is marked *(inferred)*. Questions nobody has answered are listed in §10, not mixed
 into the rules.
@@ -19,7 +23,7 @@ into the rules.
 | Query type | Budget |
 |---|---|
 | as-you-type | p99 ≤ 5 ms per keystroke for everything; the term leg ≤ 1.5 ms |
-| submitted search | phase 1 ≤ 25 ms per 1 million candidates, single thread; term expansion not budgeted separately |
+| submitted search | phase 1 ≤ 25 ms per 1 million candidates, single thread; term expansion not budgeted separately, but the summed postings of the query are held under the limit this budget gives (§5) |
 
 ---
 
@@ -31,7 +35,7 @@ chain and owns no data of its own, apart from the surface-form lane of §3 [A §
 ```
 query text
   │
-  ├─ Q1  query analysis (existing czech-search etc.)  → per query word: typed folded form + stem variants
+  ├─ Q1  query analysis, once per profile group      → per query word: typed folded form + stem variants
   ├─ Q2  thresholds (§4)                              → maxEdits and frozen prefix per walk
   ├─ Q3  term expansion (§5, §6)                      → per query word: set of (stem, distance, exactness)
   │        exact lookup · prefix scan · Levenshtein walk; over the stem dictionary and the surface-form lane
@@ -44,6 +48,12 @@ query text
 
 The unit of everything from Q3 down is the **query word**, never the expanded term: a word counts once however many
 of its expansions hit, with the best distance among them [A §3.2 Q4, §3.3].
+
+**Profile groups** [A §13]. Every searchable field references an analyzer profile; word splitting is shared per
+catalog and language, everything else may differ per field. Q1–Q3 run once per **profile group** - the searched
+fields sharing a profile, typically one to three groups - and a group's expansions are looked up in its own fields
+only. Q4 and Q5 combine the groups per query word: a word matches when any group matches it, with the best distance
+and exactness among them. A catalog without per-field profiles has exactly one group.
 
 ---
 
@@ -181,13 +191,21 @@ keystrokes no stem reaches (2.1 %), and showing the accented word in suggestions
 ### 3.1 Structure [A §3.4]
 
 - **One more `TransactionalBucketBPlusTree` per (collection, locale, scope)** in `FulltextIndex`.
-- **Key: `folded␀stem␀accented`**, one key per distinct (folded form, stem) pair:
-  - `folded` — the surface form lowercased and folded with the same `ASCIIFoldingFilter` folding the search chain
-    applies; this is the part walks and scans search;
+- **Key: `wordPhase␀folded␀stem␀accented`**, one key per distinct (word phase, folded form, stem) triple
+  [A §13.1, §13.2]:
+  - `wordPhase` — a short fixed-width id of the **index side of the word phase** of the field's analyzer profile:
+    its steps, their parameters and the contents of the resources they read. The text phase (character filters such
+    as HTML stripping) is not part of it, so profiles differing only there share entries. Ids are assigned in a small
+    table persisted with the index;
+  - `folded` — the surface form as the profile's **query side** hands it to its stemmer: lowercased, and folded
+    exactly when the profile folds (no fixed `ASCIIFoldingFilter`); this is the part walks and scans search;
   - `stem` — the stem the index chain produced; a folded form that stems two ways is two keys, **every stem is kept**;
   - `accented` — the most frequent accented form of the pair, appended **only when it differs** from `folded`.
-- **No field prefix.** The analyzer is per (entity type, locale), so one entry serves all fields. (Must be revisited
-  if per-attribute analyzers arrive.)
+- **A word-phase prefix, no field prefix** [A §13.1]. One entry serves every field whose profile shares the word
+  phase. A walk runs once per distinct `wordPhase` among the searched fields and stays inside that id's key range -
+  the same fixed-width-prefix technique the stem dictionary uses for fields. With one word phase per collection,
+  the common case, the lane holds the keys measured in [A §3.4]. A field retired because its index side changed
+  keeps its entries under the old id, read by no group, as long as its postings stay.
 - **Value: a reference counter** — number of (entity, field) values containing the pair. The exact unit, per
   (entity, field) value or per entity, is an implementation detail. Any unit works if the key is removed exactly
   when the last occurrence of the pair leaves the index.
@@ -197,8 +215,9 @@ keystrokes no stem reaches (2.1 %), and showing the accented word in suggestions
 ### 3.2 Maintenance [A §3.4]
 
 - **I1, no change to the analyzer chain.** `FulltextIndex#analyze` starts using the `surfaceForm` supplier of
-  `AnalyzedTermConsumer#accept` (ignored today), lowercases and folds it, and forms the pair `cerne → cern`. Stop
-  words never reach the consumer and so never reach the lane.
+  `AnalyzedTermConsumer#accept` (ignored today), normalizes it with the query-side steps of the field's profile that
+  precede stemming (§3.1), and forms the key with the profile's word-phase id, e.g. `1␀cerne␀cern` (the id written
+  here as `1`). Stop words never reach the consumer and so never reach the lane.
 - **`addValue`**: increment the counter of every pair in the value (create the key at 1).
 - **`removeValue`**: re-analyse the old value (already done to find postings) and decrement; **remove the key at 0**.
 
@@ -242,8 +261,9 @@ Validation of the parameter record: `minLengthOneTypo ≥ 1`, `minLengthTwoTypos
 
 ## 5. Term expansion of a finished word (Q3) — decided
 
-Input: one query word = typed folded form `t` + stem variants `v₁…vₙ` from the search analyzer (1–4 variants,
-mean ~2–2.5 in Czech) [A §3.2 Q1, §10.6].
+Input, per profile group: one query word = typed folded form `t` + stem variants `v₁…vₙ` from the group's profile
+(1–4 variants, mean ~2–2.5 in Czech) [A §3.2 Q1, §10.6, §13]. `t` is normalized like the `folded` part of the lane
+key (§3.1). Everything below runs per group; the lane walks of a group stay inside its `wordPhase`.
 
 Legs, all run:
 
@@ -260,7 +280,7 @@ Cascade order is `ed0 → ed1 → ed2`; stop when the leg's cap is full [A §7.1
 - union of stems from all legs and both dictionaries, across all variants;
 - a stem reached several ways keeps the **smallest distance**, and the **best exactness** *(inferred)*.
 
-**Cap — 50 per leg of each query word** [A §7.1, §10.7 c]:
+**Cap — 50 per leg of each (query word, profile group)** [A §7.1, §10.7 c, §13.3]:
 
 | Leg | Kept | Order |
 |---|---|---|
@@ -268,8 +288,9 @@ Cascade order is `ed0 → ed1 → ed2`; stop when the leg's cap is full [A §7.1
 | prefix (§6) | 50 | document frequency desc |
 | typo | 50 | distance asc, then document frequency desc |
 
-- The cap counts the **query word** (union over its variants and both dictionaries), not each variant; it is applied
-  **after** the merge.
+- The cap counts the **query word within a profile group** (union over its variants and both dictionaries), not
+  each variant; it is applied **after** the merge. A group's stems are looked up only in its own fields, so a cap
+  shared across groups would let the group with the largest dictionary crowd out a small one [A §13.3].
 - Final tie-break: term ascending, so the cut is deterministic (same query, same data, same result on every replica)
   [A §8.2, §8.3 step 2] *(inferred: the analysis gives distance → term and, later, distance → document frequency,
   never the three-level chain)*.
@@ -277,6 +298,14 @@ Cascade order is `ed0 → ed1 → ed2`; stop when the leg's cap is full [A §7.1
 - Nothing flags a result whose expansion was cut [A §7.1].
 - Document frequency is the postings cardinality, readable from the bucket without touching postings
   (`BucketCursor.size()`) [A §8.3 step 1].
+
+**Postings safety net — decided 2026-10-30** [A §13.3]. After the term cap, the **summed postings of the whole
+query** - every word, every group, exact expansions included - are held under the limit the phase-1 cost model gives
+for the budget of the query type (25 ms per 1 million candidates for a submitted search, the keystroke budget while
+typing). A term cap alone admits a single expansion carrying a million postings, and the document-frequency order
+above keeps the largest posting lists first. The model is being refitted on the real query path, and the limits
+follow from it. Exact expansions are never dropped; which typo and prefix expansions are dropped when the net bites
+is open (§10).
 
 Output per query word: `(stem, distance ∈ {0,1,2}, exactness ∈ {EXACT, PREFIX, FUZZY})`, plus, for Q7/Q8, which
 variant or surface form produced each stem [A §8.3 step 5].
@@ -384,15 +413,22 @@ word matches  = B0 OR B1 OR B2                → AND across query words (must-m
 word distance = 0 / 1 / 2 by band membership
 ```
 
+With several profile groups, each group's bands are built from the postings of its own fields, and the bands of one
+query word are ORed across groups before the `ANDNOT` steps, so a document takes the best distance any group found
+*(inferred)*.
+
 The exactness bands are built the same way, with a prefix band between exact and fuzzy: `EXACT`, then
 `PREFIX ANDNOT EXACT`, then `FUZZY ANDNOT (EXACT OR PREFIX)` *(the exact formulas are inferred)*.
 
-### 8.2 Lanes — decided shape, weights open [A §2.2 U7, §3.2 Q5, §8.2, §8.3 step 4]
+### 8.2 Lanes — decided shape and order, weights open [A §2.2 U7, §3.2 Q5, §8.2, §8.3 step 4, §13.4]
 
 - **`TYPO = 255 − Σ over query words of w(distance)`**, an 8-bit lane; fewer typos rank higher.
 - **`EXACTNESS`**: exact > prefix > fuzzy(1) > fuzzy(2).
-- Lane order in the composite (matched words → typos → impact → exactness → context) is owned by the rank
-  profile.
+- **Default lane order: matched words → typos → exactness → impact → context** (amended 2026-10-30, [A §13.4]).
+  The quality lanes - matched words, typos, exactness - rank above impact, which F1 turns into accumulated evidence
+  over fields and referenced entities; this keeps §6.2's promise that a prefix hit never outranks an exact hit with
+  the same number of typos even when impact differs (a submitted `kabel`: "Kabel USB-C", exact, above "Kabelka
+  kožená", prefix, whatever their impact). The order remains a rank-profile choice.
 - No floats, no BM25, no document-frequency blending, no per-expansion sum [A §8.2].
 - A first-letter penalty is unnecessary: the frozen prefix makes first-letter typos unreachable.
 
@@ -455,6 +491,8 @@ leg regardless of the switch.
 | Item | State | Analysis |
 |---|---|---|
 | Typo-lane weights `w` | **needs real-world queries** — judged results or click data, which no corpus measurement can replace. Until then `(0, 1, 2)`, raw typo counts as Meilisearch and Typesense use, is the simplest default | [A §7.1, §8.2, §9 item 6] |
+| Postings limits | the per-query-type limits of the safety net (§5) follow from the phase-1 cost model refitted on the real query path | [A §13.3] |
+| What the safety net drops | *skip and continue* (visit typo and prefix expansions in leg order, skip one that would overflow, keep going: the giants go) or *stop at the limit* (keep in leg order until full: the most frequent survive, which suits completions) | [A §13.3] |
 
 ---
 
@@ -470,5 +508,14 @@ leg regardless of the switch.
   substitution, transposition, no typo on 3 letters, no first-letter typo, digits exact, exact above typo,
   must-match, prefix while typing, exact above prefix, unfinished word with a typo) [A §10.4].
 - **Lane maintenance** — counter increments, decrements, key removal at zero, rollback with the entity savepoint.
+- **Lane isolation across profiles** — a stem one word phase produced never reaches a field of another: with a
+  stemmed `description` holding "černé" and an unstemmed `brand` holding "Cern", the query "černé" does not match
+  the brand [A §13.1].
+- **Lane fold follows the profile** — in a profile that does not fold, the typed `cafe` does not reach "café"
+  through the lane [A §13.2].
+- **Exact above prefix with impact present** — behaviour example U7 with differing impacts: the exact hit still
+  ranks first [A §13.4].
+- **Postings safety net** — a query whose expansions exceed the limit is cut deterministically, exact expansions
+  intact (§5).
 - **Stop-word fragment** — a stop word of four or more letters typed as the last word (e.g. `jako…` on the way to
   `jakost`) still runs the prefix leg (§6.3).

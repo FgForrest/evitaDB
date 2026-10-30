@@ -30,7 +30,7 @@ correctness comes from verifying every candidate [A §2.1, §5.4]. Nothing new i
 ```
 typed pattern
   │
-  ├─ 1  normalize as the attribute index does (NFD, case kept)  → code points, L, distinct trigrams u   (§2)
+  ├─ 1  normalize as the attribute index does                  → code points, L, distinct trigrams u   (§2)
   ├─ 2  exact path (today's attributeContains)                  → results? done                         (§6)
   ├─ 3  tolerance from the length                               → d = 0, 1 or 2                         (§3)
   ├─ 4  candidate generation: swap expansion                    → candidate value ids                   (§4)
@@ -46,16 +46,24 @@ of §7.
 
 ## 2. Normalization and length — decided
 
-- The pattern is normalized **exactly as the attribute's value tree normalizes values**: Unicode NFD, case kept
-  [A §2.1, §4.1]. Today that is the shared value tree's normalizer, which `TrigramSubstringSearch.match` already
-  applies (`sharedValueTree.getNormalizer()`).
+- The pattern is normalized **exactly as the attribute's value tree normalizes values** [A §2.1, §4.1]: the
+  attribute's declared `normalized(...)` chain, if any, then Unicode NFD (#545, 2026-10-27, after this document was
+  extracted). That is the shared value tree's normalizer, which `TrigramSubstringSearch.match` already applies
+  (`sharedValueTree.getNormalizer()`); the trigram index was built from keys normalized the same way, and
+  verification (§5) compares normalized value with normalized pattern.
 - `L` is the length of the normalized pattern in **code points**. In NFD a letter with a diacritic counts two
   (`ě` = `e` + combining caron) [A §8].
 - `u` is the number of **distinct** trigrams of the normalized pattern (`TrigramCodec.extractUniqueTrigrams`); a
   repeated trigram counts once [A §4.1].
-- **Diacritics are not handled — decided.** `contains` does not fold. Distances are measured over the NFD code
-  points, so a missing or wrong mark is an ordinary edit when it falls inside the matched region and none at its
-  end [A §1, §7, §8 example H].
+- **Diacritics are not handled by the algorithm — decided.** `contains` does not fold on its own. Distances are
+  measured over the NFD code points, so a missing or wrong mark is an ordinary edit when it falls inside the matched
+  region and none at its end [A §1, §7, §8 example H]. An attribute that declares `asciiFolding()` in its
+  `normalized(...)` chain is folded on both sides before any of this runs.
+- **Case follows the attribute's normalization — decided 2026-10-30.** An attribute declaring `lowercase()` in its
+  `normalized(...)` chain is matched case-insensitively, by the exact and the fuzzy path alike; one without it stays
+  case-sensitive, exactly as its exact `contains` is. The fuzzy path adds no case rule of its own, so the two paths
+  of the cascade (§6) never disagree about case. The user documentation of fuzzy `contains` should recommend
+  `normalized(lowercase())` for attributes meant for typo-tolerant search.
 
 ---
 
@@ -217,7 +225,6 @@ through every layer of a query constraint — query model, EvitaQL grammar, Kryo
 
 | Item | State | Analysis |
 |---|---|---|
-| Case | today's predicate is case-sensitive; a typo-tolerant search that rejects `Cerna` for `cerna` would look broken. Needs a case-folded trigram index or a case-insensitive verification — a product decision | [A §1, §3 option A] |
 | Counting primitive | dense counter or prefix filter — decided during implementation (§4.4) | [A §5.3, §5.4, §6.6] |
 | Transaction fallback cost | inside a transaction the fuzzy path is a full approximate scan (§7) — the costliest arm measured | [A §6.5] |
 
