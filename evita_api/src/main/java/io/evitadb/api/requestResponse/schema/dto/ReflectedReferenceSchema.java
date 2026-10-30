@@ -429,6 +429,10 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 * Returns new map that contains all the attributes of the reference and the reflected reference except the ones
 	 * that are excluded from inheritance.
 	 *
+	 * A name the filter selects must not also be among `attributes` - the merge treats that as a broken premise, not
+	 * as a user error. For a bound reference, {@link #withAttributeInheritance(AttributeInheritanceBehavior, String...)}
+	 * refuses a filter that would select a local declaration.
+	 *
 	 * @param attributes                    the attributes of the reference
 	 * @param reflectedAttributes           the attributes of the reflected reference (inherited ones)
 	 * @param attributesInheritanceBehavior the inheritance mode to use
@@ -443,10 +447,10 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nonnull AttributeInheritanceBehavior attributesInheritanceBehavior,
 		@Nonnull String[] attributeInheritanceFilter
 	) {
-		final Set<String> filteredAttributes = Set.of(attributeInheritanceFilter);
 		final HashMap<String, V> result = new HashMap<>(attributes);
-		final Predicate<String> attributeFilter = attributesInheritanceBehavior == AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED ?
-			filteredAttributes::contains : attribute -> !filteredAttributes.contains(attribute);
+		final Predicate<String> attributeFilter = createInheritancePredicate(
+			reflectedAttributes, attributesInheritanceBehavior, attributeInheritanceFilter
+		);
 		for (Entry<String, V> reflectedEntry : reflectedAttributes.entrySet()) {
 			if (attributeFilter.test(reflectedEntry.getKey())) {
 				Assert.isPremiseValid(
@@ -461,13 +465,58 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	}
 
 	/**
-	 * Returns a new map that contains the attributes from the "unionAttributes" map that satisfy the given predicate
-	 * "isOriginalPredicate". This method is used to inverse the effect of {@link #union(Map, Map, AttributeInheritanceBehavior, String[])} method.
+	 * Selects names present on the original reference and included by the inheritance filter. Attributes and sortable
+	 * compounds share this rule so that excluding an original name leaves room for an independent local declaration.
+	 *
+	 * @param originalSchemas original attributes or sortable compounds
+	 * @param inheritanceBehavior whether the filter includes or excludes names
+	 * @param inheritanceFilter names the behavior includes or excludes
+	 * @return predicate identifying inherited declarations
+	 */
+	@Nonnull
+	private static Predicate<String> createInheritancePredicate(
+		@Nonnull Map<String, ?> originalSchemas,
+		@Nonnull AttributeInheritanceBehavior inheritanceBehavior,
+		@Nonnull String[] inheritanceFilter
+	) {
+		final Set<String> filteredNames = Set.of(inheritanceFilter);
+		final Predicate<String> selected = inheritanceBehavior == AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED ?
+			filteredNames::contains : name -> !filteredNames.contains(name);
+		return name -> originalSchemas.containsKey(name) && selected.test(name);
+	}
+
+	/**
+	 * Resolves the attribute names a reflected reference with the given inheritance settings takes over from its
+	 * original reference.
+	 *
+	 * @param reflectedReference            the bound original reference, or `null` while it is not bound
+	 * @param attributesInheritanceBehavior whether the filter includes or excludes names
+	 * @param attributeInheritanceFilter    names the behavior includes or excludes
+	 * @return inherited attribute names, empty while the original reference is not bound
+	 */
+	@Nonnull
+	private static Set<String> resolveInheritedAttributes(
+		@Nullable ReferenceSchemaContract reflectedReference,
+		@Nonnull AttributeInheritanceBehavior attributesInheritanceBehavior,
+		@Nonnull String[] attributeInheritanceFilter
+	) {
+		return reflectedReference == null ? Collections.emptySet() :
+			reflectedReference.getAttributes().keySet().stream()
+				.filter(createInheritancePredicate(
+					reflectedReference.getAttributes(), attributesInheritanceBehavior, attributeInheritanceFilter
+				))
+				.collect(Collectors.toSet());
+	}
+
+	/**
+	 * Returns a new map with the entries of `unionAttributes` whose names the predicate does not match. Given the
+	 * inheritance predicate, it keeps the locally declared entries and so reverses
+	 * {@link #union(Map, Map, AttributeInheritanceBehavior, String[])}.
 	 *
 	 * @param unionAttributes     the map containing the attributes
-	 * @param isOriginalPredicate the predicate to filter the attributes
+	 * @param isOriginalPredicate identifies the inherited names, whose entries are dropped
 	 * @param <V>                 the type of the attributes
-	 * @return a new map with the intersected attributes
+	 * @return a new map without the entries the predicate matches
 	 */
 	@Nonnull
 	private static <V> Map<String, V> intersect(
@@ -718,23 +767,9 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		);
 		this.attributesInheritanceBehavior = attributesInheritanceBehavior;
 		this.attributeInheritanceFilter = attributeInheritanceFilter == null ? ArrayUtils.EMPTY_STRING_ARRAY : attributeInheritanceFilter;
-		if (this.reflectedReference == null) {
-			this.inheritedAttributes = Collections.emptySet();
-		} else {
-			switch (this.attributesInheritanceBehavior) {
-				case INHERIT_ONLY_SPECIFIED -> {
-					this.inheritedAttributes = Arrays.stream(this.attributeInheritanceFilter).collect(Collectors.toCollection(HashSet::new));
-					this.inheritedAttributes.retainAll(this.reflectedReference.getAttributes().keySet());
-				}
-				case INHERIT_ALL_EXCEPT -> {
-					this.inheritedAttributes = new HashSet<>(this.reflectedReference.getAttributes().keySet());
-					Arrays.asList(this.attributeInheritanceFilter).forEach(this.inheritedAttributes::remove);
-				}
-				default -> throw new GenericEvitaInternalError(
-					"Unsupported attribute inheritance behavior: " + this.attributesInheritanceBehavior
-				);
-			}
-		}
+		this.inheritedAttributes = resolveInheritedAttributes(
+			this.reflectedReference, this.attributesInheritanceBehavior, this.attributeInheritanceFilter
+		);
 	}
 
 	ReflectedReferenceSchema(
@@ -800,23 +835,9 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		this.facetedInherited = facetedInherited;
 		this.attributesInheritanceBehavior = attributesInheritanceBehavior;
 		this.attributeInheritanceFilter = attributeInheritanceFilter == null ? ArrayUtils.EMPTY_STRING_ARRAY : attributeInheritanceFilter;
-		if (this.reflectedReference == null) {
-			this.inheritedAttributes = Collections.emptySet();
-		} else {
-			switch (this.attributesInheritanceBehavior) {
-				case INHERIT_ONLY_SPECIFIED -> {
-					this.inheritedAttributes = Arrays.stream(this.attributeInheritanceFilter).collect(Collectors.toCollection(HashSet::new));
-					this.inheritedAttributes.retainAll(this.reflectedReference.getAttributes().keySet());
-				}
-				case INHERIT_ALL_EXCEPT -> {
-					this.inheritedAttributes = new HashSet<>(this.reflectedReference.getAttributes().keySet());
-					Arrays.asList(this.attributeInheritanceFilter).forEach(this.inheritedAttributes::remove);
-				}
-				default -> throw new GenericEvitaInternalError(
-					"Unsupported attribute inheritance behavior: " + this.attributesInheritanceBehavior
-				);
-			}
-		}
+		this.inheritedAttributes = resolveInheritedAttributes(
+			this.reflectedReference, this.attributesInheritanceBehavior, this.attributeInheritanceFilter
+		);
 	}
 
 	@Nonnull
@@ -1082,8 +1103,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 							.map(NamedSchemaContract::getName)
 							.collect(Collectors.toSet());
 					}
-					// a same-named attribute declared on the reflected side does not count - propagation fills only
-					// inherited attributes, and the declared one is not persisted while the original defines the name
+					// a same-named local declaration does not count: propagation fills only inherited attributes
 					representativeAttributes.removeAll(this.inheritedAttributes);
 					if (!representativeAttributes.isEmpty()) {
 						referenceErrors = Stream.concat(
@@ -1297,50 +1317,93 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			Arrays.equals(this.attributeInheritanceFilter, that.attributeInheritanceFilter);
 	}
 
+	/**
+	 * Returns the attribute declared on this reflected reference itself. A name inherited from the original reference
+	 * yields empty, while a local attribute sharing a name the inheritance filter keeps out is returned.
+	 *
+	 * @param attributeName name of the attribute
+	 * @return the locally declared attribute, or empty when the name is inherited or not declared at all
+	 */
 	@Nonnull
-	public Optional<AttributeSchemaContract> getDeclaredAttribute(String attributeName) {
+	public Optional<AttributeSchemaContract> getDeclaredAttribute(@Nonnull String attributeName) {
 		// when attribute is inherited - return empty result
-		if (this.reflectedReference != null && this.reflectedReference.getAttribute(attributeName).isPresent()) {
+		if (this.inheritedAttributes.contains(attributeName)) {
 			return Optional.empty();
 		}
 		return super.getAttribute(attributeName);
 	}
 
+	/**
+	 * Returns the attributes declared on this reflected reference itself, without the ones inherited from the
+	 * original reference. While the original reference is not bound, every attribute counts as declared.
+	 *
+	 * @return locally declared attributes by name
+	 */
 	@Nonnull
 	public Map<String, AttributeSchemaContract> getDeclaredAttributes() {
-		// when attribute is inherited - return empty result
+		// inherited attributes are merged in only while the original reference is bound
 		if (this.reflectedReference != null) {
 			// this method always creates new map and is suboptimal, if it becomes bottleneck, we should memoize the product
 			return intersect(
 				super.getAttributes(),
-				attributeName -> this.reflectedReference.getAttribute(attributeName).isPresent()
+				this.inheritedAttributes::contains
 			);
 		} else {
 			return super.getAttributes();
 		}
 	}
 
+	/**
+	 * Returns the sortable compounds declared on this reflected reference itself, without the ones inherited from the
+	 * original reference. Compounds follow the membership rule of attributes: an original compound is inherited only
+	 * when the inheritance filter selects its name. While the original reference is not bound, every compound counts
+	 * as declared.
+	 *
+	 * @return locally declared sortable compounds by name
+	 */
 	@Nonnull
 	public Map<String, SortableAttributeCompoundSchemaContract> getDeclaredSortableAttributeCompounds() {
-		// when attribute is inherited - return empty result
+		// inherited compounds are merged in only while the original reference is bound
 		if (this.reflectedReference != null) {
 			// this method always creates new map and is suboptimal, if it becomes bottleneck, we should memoize the product
 			return intersect(
 				super.getSortableAttributeCompounds(),
-				attributeName -> this.reflectedReference.getSortableAttributeCompound(attributeName).isPresent()
+				createCompoundInheritancePredicate(this.reflectedReference)
 			);
 		} else {
 			return super.getSortableAttributeCompounds();
 		}
 	}
 
+	/**
+	 * Returns the sortable compound declared on this reflected reference itself, under the membership rule described
+	 * at {@link #getDeclaredSortableAttributeCompounds()}.
+	 *
+	 * @param name name of the sortable compound
+	 * @return the locally declared compound, or empty when the name is inherited or not declared at all
+	 */
 	@Nonnull
 	public Optional<SortableAttributeCompoundSchemaContract> getDeclaredSortableAttributeCompound(@Nonnull String name) {
 		// when sortable attribute compound is inherited - return empty result
-		if (this.reflectedReference != null && this.reflectedReference.getSortableAttributeCompound(name).isPresent()) {
+		if (this.reflectedReference != null && createCompoundInheritancePredicate(this.reflectedReference).test(name)) {
 			return Optional.empty();
 		}
 		return super.getSortableAttributeCompound(name);
+	}
+
+	/**
+	 * Identifies the sortable compounds of the original reference this reference inherits under its own inheritance
+	 * settings.
+	 *
+	 * @param originalReference the bound original reference
+	 * @return predicate matching inherited compound names
+	 */
+	@Nonnull
+	private Predicate<String> createCompoundInheritancePredicate(@Nonnull ReferenceSchemaContract originalReference) {
+		return createInheritancePredicate(
+			originalReference.getSortableAttributeCompounds(), this.attributesInheritanceBehavior,
+			this.attributeInheritanceFilter
+		);
 	}
 
 	/**
@@ -1505,49 +1568,25 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	}
 
 	/**
-	 * Retrieves a map of attribute compounds specific to the current context. If a reflected reference is not present,
-	 * this method directly retrieves the sortable attribute compounds from the superclass. Otherwise, it merges the
-	 * sortable attribute compounds from the current context and the reflected reference using a union function and filters
-	 * out attributes to retain only those added on the reflected reference itself.
+	 * Extracts local sortable compounds from the merged schema for copy methods. A same-named original compound is
+	 * inherited only when selected by the inheritance filter.
 	 *
-	 * @return a map of sortable attribute compounds where the keys are attribute names and the values are
-	 *         instances of {@code SortableAttributeCompoundSchemaContract}.
+	 * @return sortable compounds declared on this reference
 	 */
 	@Nonnull
 	private Map<String, SortableAttributeCompoundSchemaContract> collectAttributeCompoundSchemas() {
-		return this.reflectedReference == null ?
-			// when reflected reference is not present, only attributes unique for reflected ones are present
-			super.getSortableAttributeCompounds() :
-			// if the reflected reference is present, attributes are merged using union function and we need to
-			// filter them out to leave attributes added on the reflected reference only
-			intersect(
-				this.getSortableAttributeCompounds(),
-				sortableAttributeCompoundName -> this.reflectedReference.getSortableAttributeCompound(
-					sortableAttributeCompoundName).isPresent()
-			);
+		return getDeclaredSortableAttributeCompounds();
 	}
 
 	/**
-	 * Retrieves a map of attribute schemas where the keys are attribute names
-	 * and the values are their corresponding {@link AttributeSchemaContract} instances.
-	 * If the reflected reference is not present, this method returns the attributes
-	 * unique to the current reference. If the reflected reference is present,
-	 * it returns a filtered set of attributes that are specific to the reflected reference.
+	 * Extracts local attributes from the merged schema for copy methods. A same-named original attribute is inherited
+	 * only when selected by the inheritance filter.
 	 *
-	 * @return a map of attribute names to their corresponding {@link AttributeSchemaContract}
-	 *         instances, filtered based on the presence of a reflected reference.
+	 * @return attributes declared on this reference
 	 */
 	@Nonnull
 	private Map<String, AttributeSchemaContract> collectAttributeSchemas() {
-		return this.reflectedReference == null ?
-			// when reflected reference is not present, only attributes unique for reflected ones are present
-			super.getAttributes() :
-			// if the reflected reference is present, attributes are merged using union function and we need to
-			// filter them out to leave attributes added on the reflected reference only
-			intersect(
-				this.getAttributes(),
-				attributeName -> this.reflectedReference.getAttribute(attributeName).isPresent()
-			);
+		return getDeclaredAttributes();
 	}
 
 	/**
@@ -1849,12 +1888,15 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 * @param inheritanceBehavior        attribute inheritance property
 	 * @param attributeInheritanceFilter set of attributes inherited / excluded from inheritance
 	 * @return copy of the schema with applied changes
+	 * @throws InvalidSchemaMutationException when the reference is bound and the new settings would inherit a name
+	 *                                        it declares locally, as an attribute or a sortable compound
 	 */
 	@Nonnull
 	public ReflectedReferenceSchemaContract withAttributeInheritance(
 		@Nonnull AttributeInheritanceBehavior inheritanceBehavior,
 		@Nonnull String... attributeInheritanceFilter
 	) {
+		this.assertNoLocalInheritanceClash(inheritanceBehavior, attributeInheritanceFilter);
 		return new ReflectedReferenceSchema(
 			this.name,
 			this.nameVariants,
@@ -1884,6 +1926,44 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			inheritanceBehavior,
 			attributeInheritanceFilter,
 			this.reflectedReference
+		);
+	}
+
+	/**
+	 * Refuses inheritance that would replace a local definition with an original definition of the same name.
+	 * The two definitions have independently stored values: replacing the local schema would leave those values
+	 * divergent and change query answers when the bidirectional rewriter starts using the original side.
+	 * This refusal applies even when no data exists. An unbound reference has no original maps to compare and passes
+	 * unchecked; a clash surfacing once it is bound trips the premise assertion in `union`, not this refusal.
+	 *
+	 * @param inheritanceBehavior requested inheritance behavior
+	 * @param inheritanceFilter requested included or excluded names
+	 * @throws InvalidSchemaMutationException if an actual original attribute or compound would replace a local one
+	 */
+	private void assertNoLocalInheritanceClash(
+		@Nonnull AttributeInheritanceBehavior inheritanceBehavior, @Nonnull String[] inheritanceFilter
+	) {
+		if (this.reflectedReference == null) {
+			return;
+		}
+		final Predicate<String> inheritedAttribute = createInheritancePredicate(
+			this.reflectedReference.getAttributes(), inheritanceBehavior, inheritanceFilter
+		);
+		final Predicate<String> inheritedCompound = createInheritancePredicate(
+			this.reflectedReference.getSortableAttributeCompounds(), inheritanceBehavior, inheritanceFilter
+		);
+		final String clashingNames = Stream.concat(
+			this.getDeclaredAttributes().keySet().stream().filter(inheritedAttribute),
+			this.getDeclaredSortableAttributeCompounds().keySet().stream().filter(inheritedCompound)
+		).distinct().sorted().map(name -> "`" + name + "`").collect(Collectors.joining(", "));
+		Assert.isTrue(
+			clashingNames.isEmpty(),
+			() -> new InvalidSchemaMutationException(
+				"Cannot change attribute inheritance of reflected reference `" + this.name + "` in entity `" +
+					this.reflectedReference.getReferencedEntityType() + "`: locally declared names " + clashingNames +
+					" would be inherited. Remove or rename the local declaration first, or keep the name " +
+					"excluded from inheritance."
+			)
 		);
 	}
 

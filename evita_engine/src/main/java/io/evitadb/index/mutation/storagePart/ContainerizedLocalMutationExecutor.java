@@ -3136,17 +3136,17 @@ public final class ContainerizedLocalMutationExecutor
 						final Scope counterpartScope = findScopeOfReferencedEntity(dataStoreReader, referenceKey.primaryKey());
 						if (counterpartScope != null) {
 							// if the current reference is a reflected reference
-							if (referenceSchema instanceof ReflectedReferenceSchemaContract rrsc) {
+							if (referenceSchema instanceof ReflectedReferenceSchema rrsc) {
 								final Optional<ReferenceSchemaContract> counterpartSchema = catalogSchema
 									.getEntitySchema(rrsc.getReferencedEntityType())
 									.flatMap(it -> it.getReference(rrsc.getReflectedReferenceName()));
-								final boolean attributeVisibleFromOtherSide = counterpartSchema
-									.flatMap(it -> it.getAttribute(ram.getAttributeKey().attributeName()))
-									.isPresent();
+								final boolean attributeSharedWithCounterpart = counterpartSchema.isPresent() &&
+									rrsc.getInheritedAttributes().contains(ram.getAttributeKey().attributeName());
 								// create a mutation to counterpart reference in the referenced entity, but only if
-								// the attribute is visible from that point of view and the relation is maintained
-								// for the current scope span (an invisible mirror would not exist to update)
-								if (attributeVisibleFromOtherSide &&
+								// the attribute is inherited - a same-named local declaration is independent of the
+								// original - and the relation is maintained for the current scope span (an
+								// invisible mirror would not exist to update)
+								if (attributeSharedWithCounterpart &&
 									isRelationMaintained(referenceSchema, counterpartSchema.get(), scope, counterpartScope)) {
 									final ReferenceKey referenceKeyToUpdate = new ReferenceKey(
 										rrsc.getReflectedReferenceName(), this.entityPrimaryKey,
@@ -3175,13 +3175,13 @@ public final class ContainerizedLocalMutationExecutor
 									final ReflectedReferenceSchema rrsc = reflectedReferenceSchema.get();
 									// if such is found, create a mutation to counterpart reflected reference
 									// in the referenced entity
-									final boolean attributeVisibleFromOtherSide = rrsc.getAttribute(
-										ram.getAttributeKey().attributeName()
-									).isPresent();
+									final boolean attributeSharedWithCounterpart = rrsc.getInheritedAttributes()
+										.contains(ram.getAttributeKey().attributeName());
 									// create a mutation to counterpart reference in the referenced entity, but only
-									// if the attribute is visible from that point of view and the relation is
-									// maintained for the current scope span (a discarded mirror cannot be updated)
-									if (attributeVisibleFromOtherSide &&
+									// if the reflection inherits the attribute - a same-named local declaration
+									// there is independent - and the relation is maintained for the current scope
+									// span (a discarded mirror cannot be updated)
+									if (attributeSharedWithCounterpart &&
 										isRelationMaintained(referenceSchema, rrsc, scope, counterpartScope)) {
 										final ReferenceKey referenceKeyToUpdate = new ReferenceKey(
 											rrsc.getName(), this.entityPrimaryKey,

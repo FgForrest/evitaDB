@@ -3544,6 +3544,11 @@ public final class Catalog
 	 * Collections that do not exist yet are skipped - a batch may create one and then modify it, and there is nothing
 	 * to preflight against until it exists.
 	 *
+	 * Every collection is preflighted against the state before the batch, while the real pass applies the batch in
+	 * order. Each collection therefore learns which entity types the mutations before its own create, remove, rename
+	 * or modify, so that it raises a refusal depending on another collection's state only when nothing earlier in
+	 * the batch changed that state.
+	 *
 	 * @param schemaMutations the batch about to be applied
 	 * @throws io.evitadb.api.exception.InvalidSchemaMutationException when any affected collection refuses its share
 	 */
@@ -3551,15 +3556,24 @@ public final class Catalog
 		@Nonnull LocalCatalogSchemaMutation[] schemaMutations
 	) {
 		final CatalogSchema currentCatalogSchema = getInternalSchema();
+		final Set<String> entityTypesChangedEarlier = new HashSet<>(schemaMutations.length);
 		for (final LocalCatalogSchemaMutation theMutation : schemaMutations) {
 			if (theMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
 				final EntityCollection entityCollection =
 					this.entityCollections.get(modifyEntitySchemaMutation.getName());
 				if (entityCollection != null) {
 					entityCollection.verifySchemaMutationsApplicable(
-						currentCatalogSchema, modifyEntitySchemaMutation.getSchemaMutations()
+						currentCatalogSchema, entityTypesChangedEarlier, modifyEntitySchemaMutation.getSchemaMutations()
 					);
 				}
+				entityTypesChangedEarlier.add(modifyEntitySchemaMutation.getName());
+			} else if (theMutation instanceof CreateEntitySchemaMutation createEntitySchemaMutation) {
+				entityTypesChangedEarlier.add(createEntitySchemaMutation.getName());
+			} else if (theMutation instanceof RemoveEntitySchemaMutation removeEntitySchemaMutation) {
+				entityTypesChangedEarlier.add(removeEntitySchemaMutation.getName());
+			} else if (theMutation instanceof ModifyEntitySchemaNameMutation renameEntitySchemaMutation) {
+				entityTypesChangedEarlier.add(renameEntitySchemaMutation.getName());
+				entityTypesChangedEarlier.add(renameEntitySchemaMutation.getNewName());
 			}
 		}
 	}
