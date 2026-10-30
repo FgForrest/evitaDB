@@ -875,6 +875,10 @@ This section contains configuration options for the storage layer of the databas
             store temporary (isolated) transactional data before they are committed to the database.
             If the buffer is full, the transaction data are immediately written to the disk and the transaction 
             processing gets slower.</p>
+        <p>Each catalog allocates its own buffer when it runs its first transaction, and the engine one more for its
+            own changes, such as creating a catalog. A catalog's buffer is freed once the catalog is closed and no
+            transaction uses the buffer any more - on a JDK that does not allow freeing it explicitly, when the
+            garbage collector reclaims it.</p>
     </dd>
     <dt>transactionMemoryRegionCount</dt>
     <dd>
