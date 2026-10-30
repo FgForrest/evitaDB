@@ -753,6 +753,15 @@ erDiagram
     }
 ```
 
+A reflected reference must inherit every attribute used by its inherited sortable attribute compounds; otherwise
+schema validation refuses the schema when the session closes or the catalog goes live.
+Inherit the missing attributes too, or exclude the compound by name in the same inheritance filter, for example
+`withAttributesInheritedExcept("label", "validityLabel")`. A reflected reference that inherits only the attributes
+it lists (`withAttributesInherited(...)`) leaves the compound out of that list instead.
+A compound declared on the reflected reference itself is refused the same way when it uses an attribute the reflected
+reference no longer inherits, and since no inheritance filter removes it, inherit its attributes again or remove it
+with `withoutSortableAttributeCompound(...)`.
+
 Reflected references are automatically created, updated, and removed when the original reference is manipulated. It also works the other way around - when the reflected reference is manipulated, the original reference is updated.
 
 <Note type="warning">

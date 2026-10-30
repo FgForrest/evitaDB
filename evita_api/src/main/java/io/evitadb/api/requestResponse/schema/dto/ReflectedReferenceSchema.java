@@ -1178,6 +1178,10 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			}
 		}
 
+		if (this.isReflectedReferenceAvailable()) {
+			referenceErrors = Stream.concat(referenceErrors, validateSortableAttributeCompoundAttributes());
+		}
+
 		if (
 			this.isReflectedReferenceAvailable() ||
 				this.attributesInheritanceBehavior == AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED &&
@@ -1195,6 +1199,63 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 				"Reference schema `" + this.name + "` contains validation errors:\n" + String.join("\n", errors)
 			);
 		}
+	}
+
+	/**
+	 * Validates that every exposed sortable compound can resolve all of its attribute elements on this reference.
+	 * Inheriting a compound requests that ordering; dropping it when an attribute is excluded would silently change
+	 * which orderings exist. Rejecting the schema lets the user choose which attributes or compounds to inherit.
+	 * This check runs only during validation with the original reference available, so construction and catalog loading
+	 * can still accept intermediate or previously stored schemas. For an inherited compound the advice extends the
+	 * current inheritance filter - by the missing attributes for an allow list, by the compound's name for an except
+	 * list - and for a compound declared on this reference it names the compound's removal, which no filter achieves.
+	 *
+	 * @return validation errors for compounds whose attributes are missing
+	 */
+	@Nonnull
+	private Stream<String> validateSortableAttributeCompoundAttributes() {
+		final Set<String> attributeNames = this.getAttributes().keySet();
+		return this.getSortableAttributeCompounds().values().stream().flatMap(compound -> {
+			final List<String> missingAttributes = compound.getAttributeElements().stream()
+				.map(SortableAttributeCompoundSchemaContract.AttributeElement::attributeName)
+				.filter(attributeName -> !attributeNames.contains(attributeName))
+				.distinct()
+				.toList();
+			if (missingAttributes.isEmpty()) {
+				return Stream.empty();
+			}
+			final Stream<String> currentFilter = Arrays.stream(this.attributeInheritanceFilter);
+			final String repair;
+			if (this.getDeclaredSortableAttributeCompound(compound.getName()).isPresent()) {
+				// the compound is declared on this reference, so no inheritance filter removes it
+				repair = "Either inherit the missing attributes again, or remove the compound with " +
+					"`withoutSortableAttributeCompound(\"" + compound.getName() + "\")`.";
+			} else if (this.attributesInheritanceBehavior == AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED) {
+				repair = "Either inherit the missing attributes too, for example `withAttributesInherited(" +
+					quotedNames(Stream.concat(currentFilter, missingAttributes.stream())) + ")`, or exclude the " +
+					"compound from that inheritance filter by leaving `" + compound.getName() + "` out of it.";
+			} else {
+				repair = "Either inherit the missing attributes too, or exclude the compound by name in the same " +
+					"inheritance filter, for example `withAttributesInheritedExcept(" +
+					quotedNames(Stream.concat(currentFilter, Stream.of(compound.getName()))) + ")`.";
+			}
+			return Stream.of(
+				"Reflected reference `" + this.getName() + "` exposes sortable attribute compound `" +
+					compound.getName() + "` but is missing its attributes: `" +
+					String.join("`, `", missingAttributes) + "`. " + repair
+			);
+		});
+	}
+
+	/**
+	 * Formats names as the argument list of an inheritance filter call, keeping the first occurrence of each.
+	 *
+	 * @param names the names in the order the call should list them
+	 * @return the names in double quotes, separated by commas
+	 */
+	@Nonnull
+	private static String quotedNames(@Nonnull Stream<String> names) {
+		return names.distinct().map(name -> "\"" + name + "\"").collect(Collectors.joining(", "));
 	}
 
 	@Nonnull
