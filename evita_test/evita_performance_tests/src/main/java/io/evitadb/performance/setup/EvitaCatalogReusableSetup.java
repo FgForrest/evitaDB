@@ -83,7 +83,7 @@ public interface EvitaCatalogReusableSetup extends EvitaCatalogSetup, EvitaTestS
 	 * @param evita       the freshly booted instance
 	 * @param catalogName the catalog awaited
 	 */
-	private static void awaitCatalogAlive(@Nonnull Evita evita, @Nonnull String catalogName) {
+	static void awaitCatalogAlive(@Nonnull Evita evita, @Nonnull String catalogName) {
 		final long deadlineNanos = System.nanoTime() + Duration.ofMinutes(30).toNanos();
 		while (true) {
 			final CatalogState state = evita.getCatalogState(catalogName)

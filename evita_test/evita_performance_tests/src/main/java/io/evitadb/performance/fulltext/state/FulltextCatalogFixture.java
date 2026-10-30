@@ -50,6 +50,7 @@ import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.analysis.AnalyzedTermConsumer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
+import io.evitadb.performance.setup.EvitaCatalogReusableSetup;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import org.apache.commons.io.FileUtils;
@@ -288,6 +289,8 @@ public final class FulltextCatalogFixture {
 			catalogName = key.catalogName();
 			entityType = key.entityType();
 			locale = Locale.forLanguageTag(key.locale());
+			// a stored catalog loads on a background thread - until it is alive the instance is a placeholder
+			EvitaCatalogReusableSetup.awaitCatalogAlive(evita, catalogName);
 		}
 		final long openedAt = System.currentTimeMillis();
 
