@@ -84,8 +84,7 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference
-	.ModifyReflectedReferenceAttributeInheritanceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReflectedReferenceAttributeInheritanceSchemaMutation;
 import io.evitadb.api.statistics.*;
 import io.evitadb.api.statistics.CollectionIndexSummary.IndexTypeCount;
 import io.evitadb.core.buffer.DataStoreChanges;
