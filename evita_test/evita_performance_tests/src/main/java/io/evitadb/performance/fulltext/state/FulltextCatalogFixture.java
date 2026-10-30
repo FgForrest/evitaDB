@@ -64,6 +64,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
@@ -139,6 +140,10 @@ public final class FulltextCatalogFixture {
 	 * Seed of the entity draw.
 	 */
 	private static final long SAMPLING_SEED = 42L;
+	/**
+	 * How many of the texts that miss their own entity the fixture summary prints.
+	 */
+	private static final int MAX_PRINTED_MISSES = 20;
 	/**
 	 * Every fixture this JVM opened or built, by what distinguishes it.
 	 */
@@ -313,12 +318,14 @@ public final class FulltextCatalogFixture {
 			);
 			final Map<PoolKey, List<FulltextQueryProfile>> pools;
 			final int sampledEntities;
+			final Collection<String> missedTexts;
 			try (final EvitaSessionContract session = evita.createReadOnlySession(catalogName)) {
 				final Sampler sampler = new Sampler(
 					session, collection.getSchema(), locale, replica, globalIndex.getAllPrimaryKeys().getArray()
 				);
 				sampledEntities = sampler.sample();
 				pools = sampler.getPools();
+				missedTexts = sampler.getMissedTexts();
 				verifyAgainstRealQueries(session, pools, entityType, locale);
 			}
 
@@ -330,8 +337,16 @@ public final class FulltextCatalogFixture {
 					+ (System.currentTimeMillis() - openedAt) + " ms; catalog=" + catalogName + " entityType="
 					+ entityType + " locale=" + locale + " documents=" + globalIndex.getAllPrimaryKeys().size()
 					+ " searchedFields=" + Arrays.toString(replica.getFieldKeys()) + " queryAnalyzer="
-					+ replica.getAnalyzerName() + " sampledEntities=" + sampledEntities
+					+ replica.getAnalyzerName() + " sampledEntities=" + sampledEntities + " missedTexts="
+					+ missedTexts.size()
 			);
+			int printedMisses = 0;
+			for (final String missedText : missedTexts) {
+				if (printedMisses++ == MAX_PRINTED_MISSES) {
+					break;
+				}
+				System.out.println("[fulltext-fixture]   missed (pk / attribute: text): " + missedText);
+			}
 			for (final Map.Entry<PoolKey, List<FulltextQueryProfile>> entry : pools.entrySet()) {
 				System.out.println(
 					"[fulltext-fixture]   " + entry.getKey() + ": " + entry.getValue().size() + " queries"
@@ -819,6 +834,11 @@ public final class FulltextCatalogFixture {
 			POOL_SIZE * MAX_TOKEN_COUNT * FulltextFrequencyClass.values().length
 		);
 		/**
+		 * Texts whose words, drawn from one value, match no entity together - `primary key / attribute: text`, in
+		 * the order they were met. Kept out of the pools: a ranked query with no match measures nothing.
+		 */
+		@Nonnull private final Map<String, String> missedTexts = CollectionUtils.createLinkedHashMap(16);
+		/**
 		 * The entity and window draw.
 		 */
 		@Nonnull private final Random random = new Random(SAMPLING_SEED);
@@ -880,10 +900,10 @@ public final class FulltextCatalogFixture {
 				for (final String attributeName : this.attributeNames) {
 					final Serializable value = entity.getAttribute(attributeName, this.locale);
 					if (value instanceof String text) {
-						sampleText(text);
+						sampleText(text, primaryKey, attributeName);
 					} else if (value instanceof String[] texts) {
 						for (final String text : texts) {
-							sampleText(text);
+							sampleText(text, primaryKey, attributeName);
 						}
 					}
 				}
@@ -902,11 +922,23 @@ public final class FulltextCatalogFixture {
 		}
 
 		/**
+		 * Returns the texts kept out of the pools because their words match no entity together.
+		 *
+		 * @return `primary key / attribute: text` of every such text, in the order they were met
+		 */
+		@Nonnull
+		Collection<String> getMissedTexts() {
+			return this.missedTexts.values();
+		}
+
+		/**
 		 * Offers one query of every length and class to the pools from the words of one text.
 		 *
-		 * @param text one value of a searchable attribute
+		 * @param text          one value of a searchable attribute
+		 * @param primaryKey    the entity the value belongs to, reported when its words miss it
+		 * @param attributeName the attribute holding the value, reported when its words miss it
 		 */
-		private void sampleText(@Nonnull String text) {
+		private void sampleText(@Nonnull String text, int primaryKey, @Nonnull String attributeName) {
 			final Map<FulltextFrequencyClass, List<String>> wordsByClass = new EnumMap<>(FulltextFrequencyClass.class);
 			final Set<String> seen = CollectionUtils.createHashSet(64);
 			for (final Token token : this.replica.analyze(text)) {
@@ -926,14 +958,23 @@ public final class FulltextCatalogFixture {
 					final List<FulltextQueryProfile> pool = this.pools.get(new PoolKey(tokenCount, entry.getKey()));
 					if (pool.size() < POOL_SIZE) {
 						// a window of the class's words in text order - all from one value, so the strict match
-						// set holds at least this entity
+						// set should hold at least this entity
 						final int start = this.random.nextInt(words.size() - tokenCount + 1);
 						final String queryText = String.join(" ", words.subList(start, start + tokenCount));
-						if (!this.pooledTexts.contains(queryText)) {
+						if (!this.pooledTexts.contains(queryText) && !this.missedTexts.containsKey(queryText)) {
 							final FulltextQueryProfile profile = this.replica.profile(queryText, entry.getKey());
 							if (profile != null && profile.tokenCount() == tokenCount) {
-								pool.add(profile);
-								this.pooledTexts.add(queryText);
+								if (profile.matchedDocuments() == 0) {
+									// the value's own entity does not hold the words together - an index-side
+									// analysis that differs from the query side looks exactly like this, so the
+									// text is reported rather than measured
+									this.missedTexts.put(
+										queryText, primaryKey + " / " + attributeName + ": " + queryText
+									);
+								} else {
+									pool.add(profile);
+									this.pooledTexts.add(queryText);
+								}
 							}
 						}
 					}
