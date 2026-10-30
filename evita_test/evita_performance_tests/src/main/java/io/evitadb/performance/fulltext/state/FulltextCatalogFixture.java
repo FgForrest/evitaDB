@@ -54,6 +54,7 @@ import io.evitadb.performance.setup.EvitaCatalogReusableSetup;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import org.apache.commons.io.FileUtils;
+import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -63,7 +64,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.Collection;
 import java.util.EnumMap;
 import java.util.List;
@@ -116,9 +116,11 @@ import static io.evitadb.api.query.QueryConstraints.textMatches;
  *
  * The fixture analyzes each query text the way `TextMatchesTranslator` does - the search analyzer while the schema
  * still assigns the analyzer the index was built with, the index's own otherwise - and walks the same posting lists to
- * compute the strict match set and the postings the scorer reads. Its match count must equal the `totalRecordCount`
- * the real query returns, or the fixture refuses to hand itself over: a mismatch means this replica of the translator
- * has drifted, and the posting counts printed next to the measurements would be fiction.
+ * compute the strict match set and the postings the scorer reads. Its match set must equal the documents the real
+ * query returns, and its count the ranked query's `totalRecordCount`, or the fixture refuses to hand itself over: a
+ * mismatch means this replica of the translator has drifted, and the posting counts printed next to the measurements
+ * would be fiction. One drift stays invisible to the check - a field searched by one side only whose matches all
+ * come from the other fields anyway - because the check sees only the documents the engine returns.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -279,27 +281,27 @@ public final class FulltextCatalogFixture {
 	private static FulltextCatalogFixture build(@Nonnull FixtureKey key) {
 		final long startedAt = System.currentTimeMillis();
 		final Path temporaryDirectory = createTemporaryDirectory();
-		final Evita evita;
-		final String catalogName;
-		final String entityType;
-		final Locale locale;
-		if (key.isSynthetic()) {
-			evita = new Evita(createConfiguration(temporaryDirectory.resolve("data"), temporaryDirectory, false));
-			new SyntheticFulltextCorpus().populate(evita);
-			catalogName = SyntheticFulltextCorpus.CATALOG_NAME;
-			entityType = SyntheticFulltextCorpus.ENTITY_TYPE;
-			locale = SyntheticFulltextCorpus.LOCALE;
-		} else {
-			evita = new Evita(createConfiguration(Path.of(key.storageDirectory()), temporaryDirectory, true));
-			catalogName = key.catalogName();
-			entityType = key.entityType();
-			locale = Locale.forLanguageTag(key.locale());
-			// a stored catalog loads on a background thread - until it is alive the instance is a placeholder
-			EvitaCatalogReusableSetup.awaitCatalogAlive(evita, catalogName);
-		}
-		final long openedAt = System.currentTimeMillis();
-
+		Evita evita = null;
 		try {
+			final String catalogName;
+			final String entityType;
+			final Locale locale;
+			if (key.isSynthetic()) {
+				evita = new Evita(createConfiguration(temporaryDirectory.resolve("data"), temporaryDirectory, false));
+				new SyntheticFulltextCorpus().populate(evita);
+				catalogName = SyntheticFulltextCorpus.CATALOG_NAME;
+				entityType = SyntheticFulltextCorpus.ENTITY_TYPE;
+				locale = SyntheticFulltextCorpus.LOCALE;
+			} else {
+				evita = new Evita(createConfiguration(Path.of(key.storageDirectory()), temporaryDirectory, true));
+				catalogName = key.catalogName();
+				entityType = key.entityType();
+				locale = Locale.forLanguageTag(key.locale());
+				// a stored catalog loads on a background thread - until it is alive the instance is a placeholder
+				EvitaCatalogReusableSetup.awaitCatalogAlive(evita, catalogName);
+			}
+			final long openedAt = System.currentTimeMillis();
+
 			final Catalog catalog = (Catalog) evita.getCatalogInstanceOrThrowException(catalogName);
 			final EntityCollection collection = catalog.getCollectionForEntityOrThrowException(entityType);
 			final GlobalEntityIndex globalIndex = collection.getGlobalIndex();
@@ -313,8 +315,7 @@ public final class FulltextCatalogFixture {
 				);
 			}
 			final QueryReplica replica = new QueryReplica(
-				catalog.getFulltextAnalyzerRegistry(), collection.getSchema(), fulltextIndex, locale,
-				globalIndex.getAllPrimaryKeys().getLast() + 1
+				catalog.getFulltextAnalyzerRegistry(), collection.getSchema(), fulltextIndex, locale
 			);
 			final Map<PoolKey, List<FulltextQueryProfile>> pools;
 			final int sampledEntities;
@@ -326,7 +327,7 @@ public final class FulltextCatalogFixture {
 				sampledEntities = sampler.sample();
 				pools = sampler.getPools();
 				missedTexts = sampler.getMissedTexts();
-				verifyAgainstRealQueries(session, pools, entityType, locale);
+				verifyAgainstRealQueries(session, replica, pools, entityType, locale);
 			}
 
 			final FulltextCatalogFixture fixture = new FulltextCatalogFixture(
@@ -354,24 +355,55 @@ public final class FulltextCatalogFixture {
 			}
 			return fixture;
 		} catch (RuntimeException e) {
-			evita.close();
-			deleteQuietly(temporaryDirectory);
+			releaseAfterFailure(evita, temporaryDirectory, e);
 			throw e;
 		}
 	}
 
 	/**
-	 * Sends every sampled query through the real planner, plain and ranked, and refuses the fixture when the match
-	 * count the replica computed differs from the one the engine returns.
+	 * Releases what a failed build acquired - the instance, when it got as far as starting, and the temporary
+	 * directory - without letting a failure of the cleanup replace the failure that ended the build. A failed build
+	 * never reaches {@link #FIXTURES}, so the shutdown hook would not release it either.
+	 *
+	 * @param evita              the instance, `null` when it failed to start
+	 * @param temporaryDirectory the folder for the work and export directories
+	 * @param cause              the failure the build ends with; a cleanup failure is added to it as suppressed
+	 */
+	private static void releaseAfterFailure(
+		@Nullable Evita evita,
+		@Nonnull Path temporaryDirectory,
+		@Nonnull RuntimeException cause
+	) {
+		if (evita != null) {
+			try {
+				evita.close();
+			} catch (RuntimeException closeFailure) {
+				cause.addSuppressed(closeFailure);
+			}
+		}
+		deleteQuietly(temporaryDirectory);
+	}
+
+	/**
+	 * Sends every sampled query through the real planner, plain and ranked, and refuses the fixture when the
+	 * documents the replica matched differ from the ones the engine returns - compared by identity for the plain
+	 * query and by count for the ranked one.
+	 *
+	 * Equal match sets do not prove equal posting counts: a field the replica searched and the translator did not
+	 * would add postings without adding a match whenever its matches are a subset of the other fields' ones. Other
+	 * drifts - another analyzer, another variant set, a field that adds or loses a document - change the set unless
+	 * they happen to cancel out over every sampled query.
 	 *
 	 * @param session    the session the queries run in
+	 * @param replica    the replica that computed the profiles
 	 * @param pools      the sampled queries
 	 * @param entityType name of the queried entity collection
 	 * @param locale     the locale every query searches in
-	 * @throws GenericEvitaInternalError when a count differs, or a ranked query returns no entity
+	 * @throws GenericEvitaInternalError when a match set or count differs, or a ranked query returns no entity
 	 */
 	private static void verifyAgainstRealQueries(
 		@Nonnull EvitaSessionContract session,
+		@Nonnull QueryReplica replica,
 		@Nonnull Map<PoolKey, List<FulltextQueryProfile>> pools,
 		@Nonnull String entityType,
 		@Nonnull Locale locale
@@ -382,7 +414,7 @@ public final class FulltextCatalogFixture {
 					query(
 						collection(entityType),
 						filterBy(entityLocaleEquals(locale), textMatches(profile.text())),
-						require(page(1, 1))
+						require(page(1, Math.max(1, profile.matchedDocuments())))
 					),
 					EntityReference.class
 				);
@@ -404,6 +436,19 @@ public final class FulltextCatalogFixture {
 							+ plain.getTotalRecordCount() + " (ranked " + ranked.getTotalRecordCount() + ", "
 							+ ranked.getRecordData().size() + " on the first page) - the replica has drifted from "
 							+ "`TextMatchesTranslator` and its posting counts cannot be trusted!",
+						"The fixture's replica of the translator has drifted!"
+					);
+				}
+				final RoaringBitmap engineMatches = new RoaringBitmap();
+				for (final EntityReference reference : plain.getRecordData()) {
+					engineMatches.add(reference.getPrimaryKey());
+				}
+				if (!engineMatches.equals(replica.matchDocuments(profile.text()))) {
+					throw new GenericEvitaInternalError(
+						"The fixture's replica of the translator matched " + profile.matchedDocuments()
+							+ " documents for \"" + profile.text() + "\", and so did the engine, but not the same "
+							+ "ones - the replica has drifted from `TextMatchesTranslator` and its posting counts "
+							+ "cannot be trusted!",
 						"The fixture's replica of the translator has drifted!"
 					);
 				}
@@ -607,10 +652,6 @@ public final class FulltextCatalogFixture {
 		 */
 		@Nonnull private final FulltextIndex fulltextIndex;
 		/**
-		 * One more than the highest primary key of the collection - the size of a document set.
-		 */
-		private final int documentSetSize;
-		/**
 		 * How many documents each word matches, by surface form. Only the count is kept: a set per word would hold a
 		 * bitmap per distinct word of the sampled text.
 		 */
@@ -623,14 +664,12 @@ public final class FulltextCatalogFixture {
 		 * @param entitySchema     schema of the queried collection
 		 * @param fulltextIndex    the fulltext index of the searched locale
 		 * @param locale           the searched locale
-		 * @param documentSetSize  one more than the highest primary key of the collection
 		 */
 		QueryReplica(
 			@Nonnull FulltextAnalyzerRegistry analyzerRegistry,
 			@Nonnull EntitySchemaContract entitySchema,
 			@Nonnull FulltextIndex fulltextIndex,
-			@Nonnull Locale locale,
-			int documentSetSize
+			@Nonnull Locale locale
 		) {
 			final String entityType = entitySchema.getName();
 			final String indexAnalyzerName = fulltextIndex.getAnalyzerName();
@@ -654,7 +693,6 @@ public final class FulltextCatalogFixture {
 			this.fieldKeys = knownFields.toArray(FulltextFieldKey[]::new);
 			this.fieldIds = Arrays.copyOf(knownFieldIds, knownFields.size());
 			this.fulltextIndex = fulltextIndex;
-			this.documentSetSize = documentSetSize;
 		}
 
 		/**
@@ -701,7 +739,7 @@ public final class FulltextCatalogFixture {
 			if (known != null) {
 				return known;
 			}
-			final int documentCount = matchTokenDocuments(token, new long[1]).cardinality();
+			final int documentCount = matchTokenDocuments(token, new long[1]).getCardinality();
 			this.documentCounts.put(token.surfaceForm(), documentCount);
 			return documentCount;
 		}
@@ -717,13 +755,45 @@ public final class FulltextCatalogFixture {
 		@Nullable
 		FulltextQueryProfile profile(@Nonnull String text, @Nonnull FulltextFrequencyClass frequencyClass) {
 			final Token[] tokens = analyze(text);
+			final long[] summedPostings = new long[1];
+			final RoaringBitmap matched = matchDocuments(tokens, summedPostings);
+			if (matched == null) {
+				return null;
+			}
+			return new FulltextQueryProfile(
+				text, frequencyClass, tokens.length, summedPostings[0], matched.getCardinality()
+			);
+		}
+
+		/**
+		 * Computes the strict match set of a query text, as {@link #profile} counts it.
+		 *
+		 * @param text the query text
+		 * @return the matching documents by primary key, or `null` when the text analyzes into no token or a token
+		 * resolves to no document
+		 */
+		@Nullable
+		RoaringBitmap matchDocuments(@Nonnull String text) {
+			return matchDocuments(analyze(text), new long[1]);
+		}
+
+		/**
+		 * Computes the strict match set of analyzed tokens: the documents holding every token, each token matching
+		 * any of its terms in any searched field.
+		 *
+		 * @param tokens         the tokens of the query text
+		 * @param summedPostings a one-element accumulator the length of every posting list read is added to
+		 * @return the matching documents by primary key, or `null` when there is no token or a token resolves to no
+		 * document
+		 */
+		@Nullable
+		private RoaringBitmap matchDocuments(@Nonnull Token[] tokens, @Nonnull long[] summedPostings) {
 			if (tokens.length == 0) {
 				return null;
 			}
-			final long[] summedPostings = new long[1];
-			BitSet matched = null;
+			RoaringBitmap matched = null;
 			for (final Token token : tokens) {
-				final BitSet tokenDocuments = matchTokenDocuments(token, summedPostings);
+				final RoaringBitmap tokenDocuments = matchTokenDocuments(token, summedPostings);
 				if (tokenDocuments.isEmpty()) {
 					return null;
 				}
@@ -733,9 +803,7 @@ public final class FulltextCatalogFixture {
 					matched.and(tokenDocuments);
 				}
 			}
-			return new FulltextQueryProfile(
-				text, frequencyClass, tokens.length, summedPostings[0], Objects.requireNonNull(matched).cardinality()
-			);
+			return matched;
 		}
 
 		/**
@@ -747,15 +815,13 @@ public final class FulltextCatalogFixture {
 		 * @return the matching documents, by primary key
 		 */
 		@Nonnull
-		private BitSet matchTokenDocuments(@Nonnull Token token, @Nonnull long[] summedPostings) {
-			final BitSet documents = new BitSet(this.documentSetSize);
+		private RoaringBitmap matchTokenDocuments(@Nonnull Token token, @Nonnull long[] summedPostings) {
+			final RoaringBitmap documents = new RoaringBitmap();
 			for (final int fieldId : this.fieldIds) {
 				for (final String term : token.terms()) {
 					final Bitmap postings = this.fulltextIndex.getPostings(fieldId, term);
 					summedPostings[0] += postings.size();
-					for (final int primaryKey : postings.getArray()) {
-						documents.set(primaryKey);
-					}
+					documents.add(postings.getArray());
 				}
 			}
 			return documents;
