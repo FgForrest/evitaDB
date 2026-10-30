@@ -226,8 +226,9 @@ public class TextMatchesQueryState {
 	}
 
 	/**
-	 * Prints every query's profile with its measured median and 90th percentile, then closes the session. The
-	 * instance itself outlives the trial and is closed by the fixture's shutdown hook.
+	 * Prints every query's profile with its measured median and 90th percentile, then closes the session. The engine
+	 * the session queried (`FulltextCatalogFixture#getEvita`) outlives the trial, because the other cells share it, and
+	 * the fixture's shutdown hook closes it.
 	 */
 	@TearDown(Level.Trial)
 	public void tearDown() {

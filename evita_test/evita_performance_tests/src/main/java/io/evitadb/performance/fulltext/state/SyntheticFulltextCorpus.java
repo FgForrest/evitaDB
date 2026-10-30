@@ -36,8 +36,9 @@ import java.util.Set;
  * A small generated catalog with two searchable attributes, for checking `TextMatchesQueryBenchmark` on any machine.
  *
  * **Its numbers are not a measurement of anything.** The words are pseudo-words built from syllables, so the Czech
- * analyzer stems them by accident rather than by grammar, and the corpus is two orders of magnitude smaller than the
- * production catalogs the phase-1 budget is about. What it does provide is every frequency class at every query length
+ * analyzer stems them by accident rather than by grammar, and its {@link #ENTITY_COUNT} products are a small fraction
+ * of the production catalogs the phase-1 budget is about, which hold hundreds of thousands of documents. What it does
+ * provide is every frequency class at every query length
  * the benchmark asks for, which is what a harness check needs: the vocabulary is drawn from a Zipf distribution, so a
  * few words occur in most products and most words in a handful.
  *

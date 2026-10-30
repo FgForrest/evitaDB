@@ -54,8 +54,10 @@ import java.util.Optional;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies that {@link CopyExistingEntityBuilder} rebuilds an entity read from one evitaDB for
@@ -175,10 +177,25 @@ class CopyExistingEntityBuilderTest {
 	}
 
 	/**
-	 * A copy built against a target schema that declares the associated data localized carries the replacement
-	 * values, which already have the locale, and keeps the source's primary key.
+	 * Without a target schema the copy carries the entity's own associated data, under the entity's own schema.
 	 */
 	@Test
+	@DisplayName("should carry the entity's own associated data when no target schema is given")
+	void shouldCopyOwnAssociatedDataWhenNoTargetSchemaIsGiven() {
+		final EntityContract source = sourceEntityWithBody(1, "some text");
+
+		final CopyExistingEntityBuilder copy = new CopyExistingEntityBuilder(source);
+
+		assertEquals("some text", copy.getAssociatedData(BODY));
+		assertEquals(source.getSchema(), copy.getSchema());
+	}
+
+	/**
+	 * A copy built against a target schema that declares the associated data localized carries the replacement
+	 * values, which already have the locale, instead of the entity's own, and keeps the source's primary key.
+	 */
+	@Test
+	@Tag(SCHEMA)
 	@DisplayName("should carry replaced associated data validated against the target schema")
 	void shouldCopyReplacedAssociatedDataUnderTargetSchema() {
 		final EntityContract source = sourceEntityWithBody(1, "some text");
@@ -191,6 +208,7 @@ class CopyExistingEntityBuilderTest {
 		);
 
 		assertEquals("some text", copy.getAssociatedData(BODY, CZECH));
+		assertEquals(1, copy.getAssociatedDataValues().size());
 		assertEquals(1, copy.getPrimaryKey());
 		assertEquals(targetSchema, copy.getSchema());
 	}
@@ -200,14 +218,20 @@ class CopyExistingEntityBuilderTest {
 	 * the associated data localized must be refused rather than written in the wrong shape.
 	 */
 	@Test
+	@Tag(SCHEMA)
 	@DisplayName("should refuse associated data that does not match the target schema")
 	void shouldThrowWhenReplacedAssociatedDataDoesNotMatchTargetSchema() {
 		final EntityContract source = sourceEntityWithBody(1, "some text");
 		final EntitySchemaContract targetSchema = productSchemaWithBody(true);
 
-		assertThrows(
+		final InvalidMutationException exception = assertThrows(
 			InvalidMutationException.class,
 			() -> new CopyExistingEntityBuilder(source, targetSchema, source.getAssociatedDataValues())
+		);
+
+		assertTrue(
+			exception.getMessage().contains(BODY + " is localized and doesn't accept non-localized"),
+			exception.getMessage()
 		);
 	}
 

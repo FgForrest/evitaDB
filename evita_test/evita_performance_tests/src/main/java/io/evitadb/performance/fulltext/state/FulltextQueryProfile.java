@@ -62,16 +62,16 @@ public record FulltextQueryProfile(
 	/**
 	 * The model's cost of one candidate, in nanoseconds.
 	 */
-	public static final double NANOS_PER_CANDIDATE = 2.4;
+	private static final double NANOS_PER_CANDIDATE = 2.4;
 	/**
 	 * The model's cost of one posting walked, in nanoseconds - the pessimistic end, taken whenever the candidate array
 	 * spills L2.
 	 */
-	public static final double NANOS_PER_POSTING = 32.0;
+	private static final double NANOS_PER_POSTING = 32.0;
 	/**
 	 * The model's cost of one matched document, in nanoseconds.
 	 */
-	public static final double NANOS_PER_MATCHED_DOCUMENT = 21.0;
+	private static final double NANOS_PER_MATCHED_DOCUMENT = 21.0;
 
 	/**
 	 * Returns the scoring cost the P1 model predicts for this query, with the match set as the candidate set.

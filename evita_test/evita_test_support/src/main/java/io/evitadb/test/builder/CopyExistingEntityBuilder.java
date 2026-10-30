@@ -50,12 +50,28 @@ import static java.util.Optional.ofNullable;
 public class CopyExistingEntityBuilder extends InitialEntityBuilder {
 	@Serial private static final long serialVersionUID = -4012506871491348685L;
 
+	/**
+	 * Copies the entity under its own schema, with its own associated data, as the given primary key. When the key
+	 * differs from the entity's own, every unique `String` attribute gets the key appended, so the copy can sit next to
+	 * the original in one catalog without breaking the uniqueness.
+	 *
+	 * @param externalEntity       the entity being copied
+	 * @param overriddenPrimaryKey the primary key of the copy, `null` for a copy without one, which a target that
+	 *                             generates primary keys assigns
+	 * @throws EvitaInvalidUsageException when the key changes and the entity has a unique attribute that is not a
+	 *                                    `String`, which cannot be made unique this way
+	 */
 	public CopyExistingEntityBuilder(@Nonnull EntityContract externalEntity, @Nullable Integer overriddenPrimaryKey) {
 		this(
 			externalEntity, overriddenPrimaryKey, externalEntity.getSchema(), externalEntity.getAssociatedDataValues()
 		);
 	}
 
+	/**
+	 * Copies the entity as it is - its own schema, primary key, attributes and associated data.
+	 *
+	 * @param externalEntity the entity being copied
+	 */
 	public CopyExistingEntityBuilder(@Nonnull EntityContract externalEntity) {
 		this(externalEntity, externalEntity.getPrimaryKey());
 	}

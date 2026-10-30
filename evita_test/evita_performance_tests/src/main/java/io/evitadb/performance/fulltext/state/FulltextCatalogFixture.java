@@ -105,8 +105,10 @@ import static io.evitadb.api.query.QueryConstraints.textMatches;
  * # Where the queries come from
  *
  * A query is one to {@link #MAX_TOKEN_COUNT} words that occur together in one searchable attribute of one entity, so
- * the strict match set is never empty. The entities are drawn with a constant seed, so every fork of a run samples
- * the same queries from the same catalog. Each word is classified into a {@link FulltextFrequencyClass} by the
+ * that entity is expected in its strict match set. A text whose match set is empty all the same - what an index-side
+ * analysis that differs from the query side looks like - is left out of the pools and reported in the fixture summary.
+ * The entities are drawn with a constant seed, so every fork of a run samples the same queries from the same
+ * catalog. Each word is classified into a {@link FulltextFrequencyClass} by the
  * documents it matches as a query token, and a query takes all its words from one class. Every combination of word
  * count and class gets a pool of up to {@link #POOL_SIZE} queries. Words come from attributes only - replicating the
  * text expressions associated data is extracted with is not worth it for sampling - but every query still searches the
@@ -135,7 +137,8 @@ public final class FulltextCatalogFixture {
 	 */
 	public static final int MAX_TOKEN_COUNT = 3;
 	/**
-	 * How many entities the sampling reads at most before it settles for the pools it has filled.
+	 * How many entity draws the sampling makes at most before it settles for the pools it has filled. The draws are
+	 * with replacement, so they include repeated entities and primary keys that find no entity.
 	 */
 	private static final int MAX_SAMPLED_ENTITIES = 50_000;
 	/**
@@ -257,16 +260,38 @@ public final class FulltextCatalogFixture {
 	 */
 	@Nonnull
 	public Query buildQuery(@Nonnull String text, boolean ranked, int pageSize) {
+		return createQuery(this.entityType, this.locale, text, ranked, pageSize);
+	}
+
+	/**
+	 * Builds a `textMatches` query of the shape the benchmark sends. The verification builds its queries here too, so
+	 * the query it checks is the query that is measured.
+	 *
+	 * @param entityType name of the queried entity collection
+	 * @param locale     the locale the query searches in
+	 * @param text       the query text
+	 * @param ranked     whether the result is ordered by `relevance()`, which is what runs the phase-1 scorer
+	 * @param pageSize   how many entity references the response materializes
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query createQuery(
+		@Nonnull String entityType,
+		@Nonnull Locale locale,
+		@Nonnull String text,
+		boolean ranked,
+		int pageSize
+	) {
 		return ranked ?
 			query(
-				collection(this.entityType),
-				filterBy(entityLocaleEquals(this.locale), textMatches(text)),
+				collection(entityType),
+				filterBy(entityLocaleEquals(locale), textMatches(text)),
 				orderBy(relevance()),
 				require(page(1, pageSize))
 			) :
 			query(
-				collection(this.entityType),
-				filterBy(entityLocaleEquals(this.locale), textMatches(text)),
+				collection(entityType),
+				filterBy(entityLocaleEquals(locale), textMatches(text)),
 				require(page(1, pageSize))
 			);
 	}
@@ -411,20 +436,11 @@ public final class FulltextCatalogFixture {
 		for (final List<FulltextQueryProfile> pool : pools.values()) {
 			for (final FulltextQueryProfile profile : pool) {
 				final EvitaResponse<EntityReference> plain = session.query(
-					query(
-						collection(entityType),
-						filterBy(entityLocaleEquals(locale), textMatches(profile.text())),
-						require(page(1, Math.max(1, profile.matchedDocuments())))
-					),
+					createQuery(entityType, locale, profile.text(), false, Math.max(1, profile.matchedDocuments())),
 					EntityReference.class
 				);
 				final EvitaResponse<EntityReference> ranked = session.query(
-					query(
-						collection(entityType),
-						filterBy(entityLocaleEquals(locale), textMatches(profile.text())),
-						orderBy(relevance()),
-						require(page(1, 1))
-					),
+					createQuery(entityType, locale, profile.text(), true, 1),
 					EntityReference.class
 				);
 				if (plain.getTotalRecordCount() != profile.matchedDocuments()
@@ -633,6 +649,11 @@ public final class FulltextCatalogFixture {
 	/**
 	 * The fixture's replica of what `TextMatchesTranslator` does with a query text: which analyzer reads it, which
 	 * fields it searches, and which posting lists its tokens resolve to.
+	 *
+	 * One step is left out: the translator drops a token that no searched field holds when it is a stop word typed
+	 * without diacritics (`TextMatchesTranslator#createFormula`), where the replica lets the token empty the match.
+	 * No pooled query can tell the difference - a word that resolves to no document gets no frequency class, and a
+	 * text with a token that resolves to none gets no profile - so replicating it is not worth it.
 	 */
 	private static final class QueryReplica {
 		/**
@@ -749,8 +770,10 @@ public final class FulltextCatalogFixture {
 		 *
 		 * @param text           the query text
 		 * @param frequencyClass the class its words were drawn from
-		 * @return the profile, or `null` when a token of the text resolves to no document - the sampled words all
-		 * resolve to some, so this means the joined text analyzes differently from the words it was joined from
+		 * @return the profile, or `null` when the text analyzes into no token or a token of it resolves to no
+		 * document - the sampled words all resolve to some, so this means the joined text analyzes differently from
+		 * the words it was joined from; a profile with no matched document when every token resolves but no document
+		 * holds them all
 		 */
 		@Nullable
 		FulltextQueryProfile profile(@Nonnull String text, @Nonnull FulltextFrequencyClass frequencyClass) {
@@ -948,9 +971,10 @@ public final class FulltextCatalogFixture {
 		}
 
 		/**
-		 * Draws entities until every pool is full or {@link #MAX_SAMPLED_ENTITIES} entities have been read.
+		 * Draws entities at random, with replacement, until every pool is full or {@link #MAX_SAMPLED_ENTITIES} draws
+		 * have been made.
 		 *
-		 * @return how many entities were read
+		 * @return how many draws were made, repeated entities and primary keys that found none included
 		 */
 		int sample() {
 			int sampled = 0;
@@ -1023,28 +1047,50 @@ public final class FulltextCatalogFixture {
 				for (int tokenCount = 1; tokenCount <= MAX_TOKEN_COUNT && tokenCount <= words.size(); tokenCount++) {
 					final List<FulltextQueryProfile> pool = this.pools.get(new PoolKey(tokenCount, entry.getKey()));
 					if (pool.size() < POOL_SIZE) {
-						// a window of the class's words in text order - all from one value, so the strict match
-						// set should hold at least this entity
-						final int start = this.random.nextInt(words.size() - tokenCount + 1);
-						final String queryText = String.join(" ", words.subList(start, start + tokenCount));
-						if (!this.pooledTexts.contains(queryText) && !this.missedTexts.containsKey(queryText)) {
-							final FulltextQueryProfile profile = this.replica.profile(queryText, entry.getKey());
-							if (profile != null && profile.tokenCount() == tokenCount) {
-								if (profile.matchedDocuments() == 0) {
-									// the value's own entity does not hold the words together - an index-side
-									// analysis that differs from the query side looks exactly like this, so the
-									// text is reported rather than measured
-									this.missedTexts.put(
-										queryText, primaryKey + " / " + attributeName + ": " + queryText
-									);
-								} else {
-									pool.add(profile);
-									this.pooledTexts.add(queryText);
-								}
-							}
-						}
+						offerQuery(pool, entry.getKey(), words, tokenCount, primaryKey, attributeName);
 					}
 				}
+			}
+		}
+
+		/**
+		 * Offers one query of a word count to a pool that is not full yet: a random window of the words of one class,
+		 * in text order. A text already pooled or reported is not offered again, and one whose profile analyzes into
+		 * another word count than the window has is dropped.
+		 *
+		 * @param pool           the pool of the word count and class, holding fewer than {@link #POOL_SIZE} queries
+		 * @param frequencyClass the class the words belong to
+		 * @param words          the words of one value in that class, in text order
+		 * @param tokenCount     how many words the query takes
+		 * @param primaryKey     the entity the value belongs to, reported when its words miss it
+		 * @param attributeName  the attribute holding the value, reported when its words miss it
+		 */
+		private void offerQuery(
+			@Nonnull List<FulltextQueryProfile> pool,
+			@Nonnull FulltextFrequencyClass frequencyClass,
+			@Nonnull List<String> words,
+			int tokenCount,
+			int primaryKey,
+			@Nonnull String attributeName
+		) {
+			// a window of the class's words in text order - all from one value, so the strict match set should hold at
+			// least this entity
+			final int start = this.random.nextInt(words.size() - tokenCount + 1);
+			final String queryText = String.join(" ", words.subList(start, start + tokenCount));
+			if (this.pooledTexts.contains(queryText) || this.missedTexts.containsKey(queryText)) {
+				return;
+			}
+			final FulltextQueryProfile profile = this.replica.profile(queryText, frequencyClass);
+			if (profile == null || profile.tokenCount() != tokenCount) {
+				return;
+			}
+			if (profile.matchedDocuments() == 0) {
+				// the value's own entity does not hold the words together - an index-side analysis that differs from
+				// the query side looks exactly like this, so the text is reported rather than measured
+				this.missedTexts.put(queryText, primaryKey + " / " + attributeName + ": " + queryText);
+			} else {
+				pool.add(profile);
+				this.pooledTexts.add(queryText);
 			}
 		}
 
