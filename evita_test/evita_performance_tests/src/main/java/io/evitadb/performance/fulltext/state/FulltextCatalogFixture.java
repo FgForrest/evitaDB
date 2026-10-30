@@ -423,6 +423,9 @@ public final class FulltextCatalogFixture {
 				StorageOptions.builder()
 					.storageDirectory(storageDirectory)
 					.workDirectory(temporaryDirectory.resolve("work"))
+					// a catalog written with compression has compressed records only an engine with compression
+					// enabled can read; uncompressed records read unchanged
+					.compress(true)
 					.build()
 			)
 			// the formula cache would answer a repeated query without planning it; fulltext formulas are never

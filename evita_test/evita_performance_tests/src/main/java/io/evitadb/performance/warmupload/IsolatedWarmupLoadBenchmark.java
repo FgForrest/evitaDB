@@ -218,6 +218,13 @@ public class IsolatedWarmupLoadBenchmark {
 	 * System property keeping the working directory on disk after the run instead of deleting it.
 	 */
 	public static final String KEEP_WORK_DIR_PROPERTY = "evita.warmup.keepWorkDir";
+	/**
+	 * System property enabling storage compression in the embedded engine (default `false`). A snapshot taken from
+	 * a server running with `storage.compress=true` holds compressed records, which only an engine with compression
+	 * enabled can read - uncompressed records read unchanged either way. In `embedded` target mode the target
+	 * catalog lives in that same engine, so it is then written compressed too.
+	 */
+	public static final String COMPRESS_PROPERTY = "evita.warmup.compress";
 
 	/**
 	 * Exit code for a run whose load completed and was reported, but whose entity counts could not be
@@ -335,6 +342,7 @@ public class IsolatedWarmupLoadBenchmark {
 		final int holdOpenSeconds = Integer.parseInt(System.getProperty(HOLD_OPEN_SECONDS_PROPERTY, "0"));
 		final boolean skipVerification = Boolean.parseBoolean(System.getProperty(SKIP_VERIFICATION_PROPERTY, "false"));
 		final boolean keepWorkDir = Boolean.parseBoolean(System.getProperty(KEEP_WORK_DIR_PROPERTY, "false"));
+		final boolean compress = Boolean.parseBoolean(System.getProperty(COMPRESS_PROPERTY, "false"));
 		final Path perEntityCsv = System.getProperty(PER_ENTITY_CSV_PROPERTY) == null ?
 			null : Path.of(System.getProperty(PER_ENTITY_CSV_PROPERTY));
 		final Set<String> requestedCollections = parseCollections(System.getProperty(COLLECTIONS_PROPERTY));
@@ -358,7 +366,7 @@ public class IsolatedWarmupLoadBenchmark {
 		log.info("Working copy ready in {} ms.", (System.nanoTime() - prepareStart) / 1_000_000);
 
 		int exitCode = 0;
-		final Evita source = bootSourceEngine(workDataDir);
+		final Evita source = bootSourceEngine(workDataDir, compress);
 		// `try (source)` rather than a plain close in the finally: when the measured block and the close both
 		// fail, try-with-resources attaches the close failure as suppressed instead of letting it replace the
 		// original one - and a verification mismatch is precisely the failure that must survive teardown.
@@ -503,10 +511,11 @@ public class IsolatedWarmupLoadBenchmark {
 	 * effectively disabled because one source read session is held open for the entire run.
 	 *
 	 * @param workDataDir storage directory holding the working copy of the source catalog
+	 * @param compress    whether the engine reads and writes compressed records - see {@link #COMPRESS_PROPERTY}
 	 * @return the booted instance
 	 */
 	@Nonnull
-	private static Evita bootSourceEngine(@Nonnull final Path workDataDir) {
+	private static Evita bootSourceEngine(@Nonnull final Path workDataDir, final boolean compress) {
 		log.info(
 			"Booting embedded source engine against `{}` (reader max heap {})...",
 			workDataDir, formatBytes(Runtime.getRuntime().maxMemory())
@@ -521,7 +530,7 @@ public class IsolatedWarmupLoadBenchmark {
 						.closeSessionsAfterSecondsOfInactivity(Integer.MAX_VALUE)
 						.build()
 				)
-				.storage(StorageOptions.builder().storageDirectory(workDataDir).build())
+				.storage(StorageOptions.builder().storageDirectory(workDataDir).compress(compress).build())
 				.cache(CacheOptions.builder().build())
 				// The export directory defaults to `./export` RELATIVE TO THE WORKING DIRECTORY, and evitaDB
 				// takes an exclusive folder lock on it. The target server is normally launched from the same
