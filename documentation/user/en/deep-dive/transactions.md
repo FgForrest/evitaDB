@@ -12,9 +12,22 @@ The key concept of a transaction is that data written by a transaction is only v
 
 ## Atomicity of individual entity mutations
 
-Snapshot isolation describes how an entire transaction is isolated from the others. Within a single transaction, evitaDB additionally guarantees that **each entity write is atomic on its own**. An `upsertEntity` or `deleteEntity` call, together with all the index changes it implies (attributes, references, facets, prices, hierarchy placement, reflected references), either applies completely or not at all.
+Snapshot isolation describes how an entire transaction is isolated from the others. Within a single transaction,
+evitaDB additionally guarantees that **each ordinary entity write is atomic on its own**. An `upsertEntity` or
+`deleteEntity` call, together with all the index changes it implies (attributes, references, facets, prices, hierarchy
+placement, reflected references), either applies completely or not at all.
 
-If a single entity mutation fails part-way through — typically because it violates a unique constraint or another consistency rule after some of its index entries have already been written — the engine reverts exactly that entity's partial changes and keeps the rest of the transaction intact. The failing call throws an exception that the client may catch and then continue issuing further writes in the same transaction before committing. Entities written before the failure stay valid, and no half-applied index entry (such as an orphaned facet or a phantom price) is left behind.
+If a single entity mutation fails part-way through — typically because it violates a unique constraint or another
+consistency rule after some of its index entries have already been written — the engine reverts exactly that entity's
+partial changes and keeps the rest of the transaction intact. The failing call throws an exception that the client may
+catch and then continue issuing further writes in the same transaction before committing. Entities written before the
+failure stay valid, and no half-applied index entry (such as an orphaned facet or a phantom price) is left behind.
+
+An entity write may also create a collection automatically or evolve its schema implicitly. If that schema change
+fails, the whole transaction may become rollback-only, including entities written before the failure. The failing call
+throws an exception; when `isRollbackOnly()` then returns `true`, closing the session rolls back all transaction changes
+and throws a `RollbackException` with the failure as its cause, so the client must retry the whole transaction in a new
+session. Ordinary entity mutation failures still revert only that entity as described above.
 
 This per-entity guarantee is finer-grained than the transaction-wide [atomicity described below](#atomic-transactions), and it does not depend on a transaction being open: writes made during bulk indexing in the WARM-UP phase behave exactly the same way — see [Bulk vs. incremental indexing](bulk-vs-incremental-indexing.md#atomicity-of-individual-writes).
 
