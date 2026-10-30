@@ -26,6 +26,7 @@ package io.evitadb.store.offsetIndex;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.Deflater;
 import org.junit.jupiter.params.provider.ValueSource;
+import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.io.Input;
 import com.github.javafaker.Faker;
 import io.evitadb.api.configuration.StorageOptions;
@@ -39,13 +40,19 @@ import io.evitadb.function.Functions;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
+import io.evitadb.store.checksum.Checksum;
+import io.evitadb.store.checksum.Crc32CChecksum;
+import io.evitadb.store.checksum.Crc32CChecksumFactory;
+import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
 import io.evitadb.store.offsetIndex.OffsetIndexSerializationService.FileLocationAndWrittenBytes;
+import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
+import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.RecordTypeUsage;
@@ -91,7 +98,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -102,12 +111,15 @@ import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.compu
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.MEM_TABLE_RECORD_SIZE;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -432,6 +444,156 @@ class OffsetIndexTest implements EvitaTestSupport {
 	void tearDown() throws IOException {
 		this.targetFile.toFile().delete();
 		cleanTestSubDirectory(TEST_FOLDER);
+	}
+
+	/**
+	 * A successful close must release the real transaction output, including its off-heap region or spill file.
+	 *
+	 * @param spillToFile whether to spill the acquired region before closing the index
+	 */
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	@DisplayName("Should release transaction output when the index closes")
+	void shouldReleaseTransactionOutputWhenCloseSucceeds(boolean spillToFile) {
+		assertCloseReleasesTransactionOutput(
+			spillToFile,
+			(offsetIndex, checksumHook) -> assertDoesNotThrow(offsetIndex::close)
+		);
+	}
+
+	/**
+	 * A failed final flush must release the real transaction output, including its off-heap region or spill file.
+	 * The failure is injected through the checksum and must reach the caller of `close()` unchanged.
+	 *
+	 * @param spillToFile whether to spill the acquired region before closing the index
+	 */
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	@DisplayName("Should release transaction output when the final close flush fails")
+	void shouldReleaseTransactionOutputWhenCloseFlushFails(boolean spillToFile) {
+		final KryoException flushFailure = new KryoException("Final flush checksum failed");
+		assertCloseReleasesTransactionOutput(
+			spillToFile,
+			(offsetIndex, checksumHook) -> {
+				checksumHook.set(() -> {
+					throw flushFailure;
+				});
+
+				assertSame(flushFailure, assertThrows(KryoException.class, offsetIndex::close));
+			}
+		);
+	}
+
+	/**
+	 * A close that finds another close in progress must be rejected without disturbing the shutdown the first one
+	 * owns: the operations that shutdown admits stay admitted, and the first close finishes and releases the
+	 * transaction output. Issuing the competing close from the checksum hook in the middle of the final flush
+	 * overlaps the two closes deterministically.
+	 */
+	@Test
+	@DisplayName("Should reject a competing close without disturbing the close in progress")
+	void shouldRejectCompetingCloseWithoutDisturbingCloseInProgress() {
+		final AtomicReference<RuntimeException> competingCloseFailure = new AtomicReference<>();
+		final AtomicReference<RuntimeException> admissionFailure = new AtomicReference<>();
+		assertCloseReleasesTransactionOutput(
+			false,
+			(offsetIndex, checksumHook) -> {
+				// the hook disarms itself, so the competing close is issued exactly once
+				checksumHook.set(() -> {
+					checksumHook.set(null);
+					try {
+						offsetIndex.close();
+					} catch (RuntimeException ex) {
+						competingCloseFailure.set(ex);
+					}
+					try {
+						offsetIndex.count(1L);
+					} catch (RuntimeException ex) {
+						admissionFailure.set(ex);
+					}
+				});
+
+				assertDoesNotThrow(offsetIndex::close);
+
+				assertInstanceOf(
+					EvitaInternalError.class, competingCloseFailure.get(),
+					"The close issued during the final flush must be rejected"
+				);
+				assertNull(admissionFailure.get(), "The rejected close must leave the shutdown in progress intact");
+			}
+		);
+	}
+
+	/**
+	 * Builds the output of a transaction - a single 64-byte off-heap region backed by a temporary file to spill
+	 * into - and an index holding one record written into it, lets `close` close the index and then verifies the
+	 * output has been released: the region is back in the memory manager and the temporary file is gone.
+	 *
+	 * Every checksum the output computes first runs the hook handed to `close`, which lets a scenario act in the
+	 * middle of the final flush. The hook stays unarmed until `close` sets it, so the record is written without it.
+	 *
+	 * @param spillToFile whether to spill the acquired region to the temporary file before closing the index
+	 * @param close       closes the index and checks the outcome of the call; receives the index and the hook
+	 */
+	private void assertCloseReleasesTransactionOutput(
+		boolean spillToFile,
+		@Nonnull BiConsumer<OffsetIndex, AtomicReference<Runnable>> close
+	) {
+		final int regionCount = 1;
+		final AtomicReference<Runnable> checksumHook = new AtomicReference<>();
+		final Crc32CChecksumFactory checksumFactory = new Crc32CChecksumFactory() {
+			@Nonnull
+			@Override
+			public Checksum createChecksum() {
+				return createCumulativeChecksum(0L);
+			}
+
+			@Nonnull
+			@Override
+			public Checksum createCumulativeChecksum(long initialChecksum) {
+				return new Crc32CChecksum(initialChecksum) {
+					@Override
+					public long getValue() {
+						final Runnable hook = checksumHook.get();
+						if (hook != null) {
+							hook.run();
+						}
+						return super.getValue();
+					}
+				};
+			}
+		};
+		try (
+			final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
+			final ObservableOutputKeeper outputKeeper = ObservableOutputKeeper._internalBuild(new Scheduler(executor));
+			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
+				TEST_CATALOG, 64, regionCount, checksumFactory);
+			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
+				this.targetFile, 256, false, outputKeeper, memoryManager, checksumFactory,
+				CompressionFactory.NO_COMPRESSION)
+		) {
+			final OffsetIndexDescriptor descriptor = createInitialOffsetIndexDescriptor();
+			final OffsetIndex offsetIndex = new OffsetIndex(
+				0L, descriptor, 256, 1, 5, 5, checksumFactory, CompressionFactory.NO_COMPRESSION,
+				this.offsetIndexRecordTypeRegistry, writeHandle, null, null
+			);
+			offsetIndex.put(1L, new EntityBodyStoragePart(1));
+			assertEquals(0, memoryManager.getFreeRegions());
+			if (spillToFile) {
+				writeHandle.checkAndExecuteAndSync(
+					"Spill transaction output", () -> {}, output -> output.writeBytes(new byte[128])
+				);
+				assertTrue(Files.exists(this.targetFile));
+			}
+
+			close.accept(offsetIndex, checksumHook);
+
+			assertFalse(offsetIndex.isOperative());
+			assertAll(
+				() -> assertEquals(regionCount, memoryManager.getFreeRegions()),
+				() -> assertFalse(Files.exists(this.targetFile), "The temporary transaction file must be released")
+			);
+		}
 	}
 
 	/**
