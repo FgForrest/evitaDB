@@ -76,7 +76,7 @@ public class CreateFulltextLanguageSchemaMutation implements CombinableCatalogSc
 	/**
 	 * The word splitting steps in execution order, the tokenizer first.
 	 */
-	@Nonnull @Getter private final AnalysisStep[] wordSplitting;
+	@Nonnull private final AnalysisStep[] wordSplitting;
 
 	/**
 	 * Creates the mutation.
@@ -92,6 +92,20 @@ public class CreateFulltextLanguageSchemaMutation implements CombinableCatalogSc
 		this.language = language;
 		Assert.notNull(wordSplitting, "Word splitting steps must not be null.");
 		this.wordSplitting = wordSplitting.clone();
+	}
+
+	/**
+	 * Returns the word splitting steps in execution order, the tokenizer first.
+	 *
+	 * The method is `@NotThreadSafe`: it returns the array the mutation holds, not a copy, so a caller that writes
+	 * into it changes the mutation for everyone who holds it - its equality, and what it applies or writes to the WAL.
+	 * Read the array, never modify it.
+	 *
+	 * @return the word splitting steps - the mutation's own array
+	 */
+	@Nonnull
+	public AnalysisStep[] getWordSplitting() {
+		return this.wordSplitting;
 	}
 
 	@Nullable
