@@ -2302,6 +2302,53 @@ class EntitySchemaBuilderTest {
 		assertEmittedMutationsReproduce(storedSchema, builder);
 	}
 
+	@DisplayName("re-create a removed stored reference whose decimal attribute changes only its indexed decimal places")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRecreateRemovedStoredReferenceWithChangedDecimalPlaces() {
+		final EntitySchemaContract storedSchema = new InternalEntitySchemaBuilder(this.catalogSchema, this.productSchema)
+			.withReferenceToEntity(
+				REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.indexed().withAttribute("share", BigDecimal.class, thatIs -> thatIs.filterable().indexDecimalPlaces(2))
+			)
+			.toInstance();
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+
+		builder
+			.withoutReferenceTo(REFERENCE_BRAND)
+			.withReferenceToEntity(
+				REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.indexed().withAttribute("share", BigDecimal.class, AttributeSchemaEditor::filterable)
+			);
+
+		assertEquals(
+			0,
+			builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND).getAttribute("share").orElseThrow().getIndexedDecimalPlaces()
+		);
+		assertTrue(builder.toMutation().isPresent(), "The changed decimal places must be sent.");
+		assertEmittedMutationsReproduce(storedSchema, builder);
+	}
+
+	@DisplayName("re-create a removed stored attribute that changes only its indexed decimal places")
+	@Test
+	void shouldRecreateRemovedStoredAttributeWithChangedDecimalPlaces() {
+		final EntitySchemaContract storedSchema = new InternalEntitySchemaBuilder(this.catalogSchema, this.productSchema)
+			.withAttribute("price", BigDecimal.class, thatIs -> thatIs.filterable().indexDecimalPlaces(2))
+			.toInstance();
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+
+		builder
+			.withoutAttribute("price")
+			.withAttribute("price", BigDecimal.class, AttributeSchemaEditor::filterable);
+
+		assertEquals(0, builder.toInstance().getAttribute("price").orElseThrow().getIndexedDecimalPlaces());
+		final EntitySchemaContract appliedSchema = builder.toMutation()
+			.map(mutation -> mutation.mutate(this.catalogSchema, storedSchema))
+			.orElse(storedSchema);
+		assertNotNull(appliedSchema);
+		assertEquals(0, appliedSchema.getAttribute("price").orElseThrow().getIndexedDecimalPlaces());
+	}
+
 	/**
 	 * Asserts that the mutations the builder emits, applied to the stored schema, give the references the builder
 	 * itself shows - what the server ends with is what the client saw.
