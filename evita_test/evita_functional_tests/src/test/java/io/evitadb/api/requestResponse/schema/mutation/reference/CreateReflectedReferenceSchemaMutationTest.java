@@ -538,6 +538,44 @@ class CreateReflectedReferenceSchemaMutationTest {
 				)
 			);
 		}
+
+		@Test
+		@DisplayName("should compare what the references declare, not the values they inherit")
+		void shouldCompareDeclaredValuesOfReflectedReferences() {
+			// the stored reference inherits its description, deprecation and cardinality and is not bound to its
+			// original, so none of the inherited values is available
+			final ReflectedReferenceSchema existingReflected = ReflectedReferenceSchema._internalBuild(
+				REFERENCE_NAME, null, null, REFERENCE_TYPE, REFLECTED_REFERENCE_NAME, null,
+				null, null, null, null, null, null,
+				Collections.emptyMap(), Collections.emptyMap(),
+				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT, null
+			);
+			final CreateReflectedReferenceSchemaMutation mutation = new CreateReflectedReferenceSchemaMutation(
+				REFERENCE_NAME, "declaredDescription", null, null,
+				REFERENCE_TYPE, REFLECTED_REFERENCE_NAME,
+				null, null, null, null, null, null,
+				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED, new String[]{"code"}
+			);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReference(REFERENCE_NAME)).thenReturn(of(existingReflected));
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
+				Mockito.mock(CatalogSchemaContract.class), entitySchema, new RemoveReferenceSchemaMutation(REFERENCE_NAME)
+			);
+
+			assertNotNull(result);
+			assertNull(result.origin());
+			assertNotNull(result.current());
+			final List<LocalEntitySchemaMutation> changes = Arrays.asList(result.current());
+			assertEquals(2, changes.size(), changes::toString);
+			final ModifyReferenceSchemaDescriptionMutation descriptionChange =
+				assertInstanceOf(ModifyReferenceSchemaDescriptionMutation.class, changes.get(0));
+			assertEquals("declaredDescription", descriptionChange.getDescription());
+			final ModifyReflectedReferenceAttributeInheritanceSchemaMutation inheritanceChange =
+				assertInstanceOf(ModifyReflectedReferenceAttributeInheritanceSchemaMutation.class, changes.get(1));
+			assertEquals(AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED, inheritanceChange.getAttributeInheritanceBehavior());
+			assertArrayEquals(new String[]{"code"}, inheritanceChange.getAttributeInheritanceFilter());
+		}
 	}
 
 	@Nested

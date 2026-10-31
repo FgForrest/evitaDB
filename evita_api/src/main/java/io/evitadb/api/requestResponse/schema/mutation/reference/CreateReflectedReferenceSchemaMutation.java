@@ -24,15 +24,15 @@
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
-import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
@@ -56,9 +56,11 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -112,6 +114,66 @@ public class CreateReflectedReferenceSchemaMutation
 			equal = Objects.equals(existingValue, newValue);
 		}
 		return equal ? null : mutationCreator.apply(newValue);
+	}
+
+	/**
+	 * Returns the mutation that sets a property a reflected reference may inherit from its original, when the created
+	 * and the existing version declare it differently. Inheriting the property and declaring a value are different
+	 * definitions even when the value equals the inherited one. A value is read only from a version that declares it,
+	 * because an inherited value is not available while the reflected reference is not bound to its original, and the
+	 * mutation receives null to make the property inherited.
+	 *
+	 * @param createdInherits  whether the created version inherits the property
+	 * @param createdValue     supplies the value the created version declares
+	 * @param existingInherits whether the existing version inherits the property
+	 * @param existingValue    supplies the value the existing version declares
+	 * @param mutationCreator  creates the mutation setting the new value, null for inherited
+	 * @return the mutation, or null when both versions declare the property the same way
+	 */
+	@Nullable
+	private static <T> LocalEntitySchemaMutation makeMutationIfDeclaredDifferently(
+		boolean createdInherits,
+		@Nonnull Supplier<T> createdValue,
+		boolean existingInherits,
+		@Nonnull Supplier<T> existingValue,
+		@Nonnull Function<T, LocalEntitySchemaMutation> mutationCreator
+	) {
+		if (createdInherits) {
+			return existingInherits ? null : mutationCreator.apply(null);
+		} else {
+			final T newValue = createdValue.get();
+			return !existingInherits && Objects.equals(newValue, existingValue.get())
+				? null
+				: mutationCreator.apply(newValue);
+		}
+	}
+
+	/**
+	 * Returns the attributes the reflected reference declares itself.
+	 *
+	 * @param reference the reflected reference
+	 * @return the declared attributes by name
+	 */
+	@Nonnull
+	private static Map<String, AttributeSchemaContract> declaredAttributesOf(@Nonnull ReflectedReferenceSchemaContract reference) {
+		return reference instanceof ReflectedReferenceSchema reflectedReference
+			? reflectedReference.getDeclaredAttributes()
+			: reference.getAttributes();
+	}
+
+	/**
+	 * Returns the sortable attribute compounds the reflected reference declares itself.
+	 *
+	 * @param reference the reflected reference
+	 * @return the declared compounds by name
+	 */
+	@Nonnull
+	private static Map<String, SortableAttributeCompoundSchemaContract> declaredSortableAttributeCompoundsOf(
+		@Nonnull ReflectedReferenceSchemaContract reference
+	) {
+		return reference instanceof ReflectedReferenceSchema reflectedReference
+			? reflectedReference.getDeclaredSortableAttributeCompounds()
+			: reference.getSortableAttributeCompounds();
 	}
 
 	/**
@@ -306,21 +368,29 @@ public class CreateReflectedReferenceSchemaMutation
 					null,
 					Stream.of(
 							Stream.of(
-								makeMutationIfDifferent(
-									createdVersion, existingVersion,
-									NamedSchemaContract::getDescription,
+								makeMutationIfDeclaredDifferently(
+									createdVersion.isDescriptionInherited(), createdVersion::getDescription,
+									existingVersion.isDescriptionInherited(), existingVersion::getDescription,
 									newValue -> new ModifyReferenceSchemaDescriptionMutation(this.name, newValue)
 								),
-								makeMutationIfDifferent(
-									createdVersion, existingVersion,
-									NamedSchemaWithDeprecationContract::getDeprecationNotice,
+								makeMutationIfDeclaredDifferently(
+									createdVersion.isDeprecatedInherited(), createdVersion::getDeprecationNotice,
+									existingVersion.isDeprecatedInherited(), existingVersion::getDeprecationNotice,
 									newValue -> new ModifyReferenceSchemaDeprecationNoticeMutation(this.name, newValue)
 								),
-								makeMutationIfDifferent(
-									createdVersion, existingVersion,
-									ReferenceSchemaContract::getCardinality,
+								makeMutationIfDeclaredDifferently(
+									createdVersion.isCardinalityInherited(), createdVersion::getCardinality,
+									existingVersion.isCardinalityInherited(), existingVersion::getCardinality,
 									newValue -> new ModifyReferenceSchemaCardinalityMutation(this.name, newValue)
 								),
+								createdVersion.getAttributesInheritanceBehavior() == existingVersion.getAttributesInheritanceBehavior() &&
+									Arrays.equals(createdVersion.getAttributeInheritanceFilter(), existingVersion.getAttributeInheritanceFilter())
+									? null
+									: new ModifyReflectedReferenceAttributeInheritanceSchemaMutation(
+										this.name,
+										createdVersion.getAttributesInheritanceBehavior(),
+										createdVersion.getAttributeInheritanceFilter()
+									),
 								makeMutationIfDifferent(
 									createdVersion, existingVersion,
 									ref -> ref.isIndexedInherited() ? null : Arrays.stream(Scope.values()).filter(ref::isIndexedInScope).toArray(Scope[]::new),
@@ -357,11 +427,13 @@ public class CreateReflectedReferenceSchemaMutation
 								// emit a single mutation carrying both bucketedInScopes and bucketedPartially
 								createCombinedBucketedMutation(createdVersion, existingVersion)
 							),
-							existingVersion.getAttributes()
+							// only the declared part: an inherited attribute cannot be removed, and the inherited ones are
+							// not available while the reflected reference is not bound to its original
+							declaredAttributesOf(existingVersion)
 								.values()
 								.stream()
 								.map(attribute -> new ModifyReferenceAttributeSchemaMutation(this.name, new RemoveAttributeSchemaMutation(attribute.getName()))),
-							existingVersion.getSortableAttributeCompounds()
+							declaredSortableAttributeCompoundsOf(existingVersion)
 								.values()
 								.stream()
 								.map(attribute -> new ModifyReferenceSortableAttributeCompoundSchemaMutation(this.name, new RemoveSortableAttributeCompoundSchemaMutation(attribute.getName())))

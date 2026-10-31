@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
@@ -61,6 +62,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
@@ -82,6 +84,8 @@ class EntitySchemaBuilderTest {
 	private static final String REFERENCE_BRAND = "brand";
 	private static final String REFERENCE_CATEGORY_PRODUCTS = "categoryProducts";
 	private static final String REFERENCE_PRODUCT_CATEGORIES = "productCategories";
+	private static final String PRODUCT_CATEGORIES_DESCRIPTION = "Assigned categories.";
+	private static final String ATTRIBUTE_NOTE = "note";
 	private final EntitySchema productSchema = EntitySchema._internalBuild(Entities.PRODUCT);
 	private final EntitySchema categorySchema = EntitySchema._internalBuild(Entities.CATEGORY);
 	private final EntitySchema brandSchema = EntitySchema._internalBuild(Entities.BRAND);
@@ -2991,6 +2995,71 @@ class EntitySchemaBuilderTest {
 		// the same original is still accepted
 		builder.withReflectedReferenceToEntity(REFERENCE_CATEGORY_PRODUCTS, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORIES);
 		assertTrue(builder.toMutation().isEmpty());
+	}
+
+	@DisplayName("collect nothing when a bound reflected reference is told to inherit what it already inherits")
+	@Test
+	void shouldCollectNothingWhenBoundReflectedReferenceInheritsAlready() {
+		final EntitySchemaContract storedSchema = categoryWithBoundReflectedReference(
+			whichIs -> whichIs.withAttributesInherited(ATTRIBUTE_NOTE)
+		);
+
+		final EntitySchemaBuilder descriptionBuilder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		descriptionBuilder.withReflectedReferenceToEntity(
+			REFERENCE_CATEGORY_PRODUCTS, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORIES,
+			ReflectedReferenceSchemaBuilder::withDescriptionInherited
+		);
+		assertTrue(descriptionBuilder.toMutation().isEmpty(), "Inheriting the inherited description must send nothing.");
+
+		final EntitySchemaBuilder attributeBuilder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		attributeBuilder.withReflectedReferenceToEntity(
+			REFERENCE_CATEGORY_PRODUCTS, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORIES,
+			whichIs -> whichIs.withAttributesInherited(ATTRIBUTE_NOTE)
+		);
+		assertTrue(attributeBuilder.toMutation().isEmpty(), "Inheriting the inherited attributes must send nothing.");
+	}
+
+	@DisplayName("collect an explicit value of a bound reflected reference even when it equals the inherited one")
+	@Test
+	void shouldCollectExplicitValueEqualToInheritedOne() {
+		final EntitySchemaContract storedSchema = categoryWithBoundReflectedReference(
+			whichIs -> whichIs.withAttributesInherited(ATTRIBUTE_NOTE)
+		);
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+
+		// declaring the value turns inheritance off, which is a change of the definition
+		builder.withReflectedReferenceToEntity(
+			REFERENCE_CATEGORY_PRODUCTS, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORIES,
+			whichIs -> whichIs.withDescription(PRODUCT_CATEGORIES_DESCRIPTION)
+		);
+
+		assertTrue(builder.toMutation().isPresent(), "An explicit description must be sent.");
+		final ReflectedReferenceSchemaContract reference = (ReflectedReferenceSchemaContract) builder.toInstance()
+			.getReferenceOrThrowException(REFERENCE_CATEGORY_PRODUCTS);
+		assertFalse(reference.isDescriptionInherited());
+	}
+
+	/**
+	 * Returns the category schema with a reflected reference to the products' category reference, bound to that
+	 * original reference the way the engine binds it, so that the inherited values are available.
+	 *
+	 * @param whichIs configures the reflected reference
+	 */
+	@Nonnull
+	private EntitySchemaContract categoryWithBoundReflectedReference(@Nonnull Consumer<ReflectedReferenceSchemaBuilder> whichIs) {
+		final EntitySchemaContract product = new InternalEntitySchemaBuilder(this.catalogSchema, this.productSchema)
+			.withReferenceToEntity(
+				REFERENCE_PRODUCT_CATEGORIES, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+				thatIs -> thatIs.withDescription(PRODUCT_CATEGORIES_DESCRIPTION).indexed().withAttribute(ATTRIBUTE_NOTE, String.class)
+			)
+			.toInstance();
+		final EntitySchema category = (EntitySchema) new InternalEntitySchemaBuilder(this.catalogSchema, this.categorySchema)
+			.withReflectedReferenceToEntity(REFERENCE_CATEGORY_PRODUCTS, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORIES, whichIs)
+			.toInstance();
+		final ReflectedReferenceSchema boundReference = ((ReflectedReferenceSchema) category.getReferenceOrThrowException(REFERENCE_CATEGORY_PRODUCTS))
+			.withReferencedSchema(product.getReferenceOrThrowException(REFERENCE_PRODUCT_CATEGORIES));
+		assertEquals(PRODUCT_CATEGORIES_DESCRIPTION, boundReference.getDescription());
+		return category.withReplacedReferenceSchema(boundReference);
 	}
 
 }

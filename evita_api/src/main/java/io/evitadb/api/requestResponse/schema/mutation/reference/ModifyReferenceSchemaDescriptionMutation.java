@@ -95,9 +95,13 @@ public class ModifyReferenceSchemaDescriptionMutation
 	) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
 		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
-			if (reflectedReferenceSchema.isReflectedReferenceAvailable() &&
-				Objects.equals(reflectedReferenceSchema.getDescription(), this.description)
-			) {
+			// a reflected reference either inherits its description (null) or declares one, and a declared value
+			// equal to the inherited one is still a declaration - the effective value cannot tell a change apart
+			final boolean unchanged = this.description == null
+				? reflectedReferenceSchema.isDescriptionInherited()
+				: !reflectedReferenceSchema.isDescriptionInherited() &&
+					this.description.equals(reflectedReferenceSchema.getDescription());
+			if (unchanged) {
 				return referenceSchema;
 			} else {
 				return reflectedReferenceSchema
