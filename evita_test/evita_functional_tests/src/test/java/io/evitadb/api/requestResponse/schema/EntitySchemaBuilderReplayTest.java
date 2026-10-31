@@ -39,19 +39,14 @@ import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
 
 import javax.annotation.Nonnull;
-import java.lang.management.ManagementFactory;
-import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.SCHEMA;
@@ -63,7 +58,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Verifies that the entity schema builder replays its mutations to the same schema the server gets by applying them
  * one by one. The builder applies a run of mutations that change attributes alone to the attributes and builds the
  * entity schema once for the whole run, so these tests compare it with the one-by-one application in everything the
- * schema exposes: content, version, the order of the attributes and the classes they are held as.
+ * schema exposes: content, version, the order of the attributes and the classes they are held as. How fast the
+ * replay is gets measured by `EntitySchemaBuilderReplaySpeedTest` in the long-running tests, because time depends on
+ * the load of the machine.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -178,32 +175,6 @@ class EntitySchemaBuilderReplayTest {
 			.toInstance();
 
 		assertSameSchema(applyOneByOne(storedSchema, mutations), replayed);
-	}
-
-	@DisplayName("restore a property of many attributes without rebuilding the entity schema per replayed mutation")
-	@Test
-	@Timeout(value = 120, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
-	void shouldRestorePropertyOfManyAttributesQuickly() {
-		// every restoring call replaces an earlier mutation, so the builder replays its whole list at the next read;
-		// rebuilding the entity schema after each replayed mutation made 800 attributes take about forty seconds of
-		// processor time, applying a run of attribute changes at once takes about three
-		final int attributeCount = 800;
-		final EntitySchemaContract storedSchema = entityWithAttributes(attributeCount);
-		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
-		final ThreadMXBean threads = ManagementFactory.getThreadMXBean();
-		// the processor time of this thread, unlike the elapsed time, hardly grows when other tests load the machine
-		final long start = threads.getCurrentThreadCpuTime();
-
-		for (int i = 0; i < attributeCount; i++) {
-			builder.withAttribute(attributeName(i), String.class, whichIs -> whichIs.filterable().nonSortable());
-		}
-		for (int i = 0; i < attributeCount; i++) {
-			builder.withAttribute(attributeName(i), String.class, whichIs -> whichIs.filterable().sortable());
-		}
-
-		assertTrue(builder.toMutation().isEmpty(), "Restoring every attribute must leave nothing to send.");
-		final long processorSeconds = TimeUnit.NANOSECONDS.toSeconds(threads.getCurrentThreadCpuTime() - start);
-		assertTrue(processorSeconds < 15, "Restoring took " + processorSeconds + " s of processor time.");
 	}
 
 	/**
