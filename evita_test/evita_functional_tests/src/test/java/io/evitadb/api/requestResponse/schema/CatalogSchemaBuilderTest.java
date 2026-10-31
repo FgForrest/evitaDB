@@ -58,6 +58,7 @@ import static io.evitadb.test.TestTags.SCHEMA;
 @Tag(SCHEMA)
 class CatalogSchemaBuilderTest {
 	private static final String ENTITY_PRODUCT = "product";
+	private static final String ATTRIBUTE_CODE = "code";
 	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
 		APITestConstants.TEST_CATALOG,
 		NamingConvention.generate(APITestConstants.TEST_CATALOG),
@@ -192,6 +193,53 @@ class CatalogSchemaBuilderTest {
 		);
 	}
 
+	@Test
+	@DisplayName("remove a removed global attribute from the entity schemas that use it")
+	void shouldCascadeGlobalAttributeRemovalIntoEntitySchemas() {
+		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(catalogSchemaWithProductUsingCode())
+			.withoutAttribute(ATTRIBUTE_CODE);
+
+		assertTrue(builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT).getAttribute(ATTRIBUTE_CODE).isEmpty());
+	}
+
+	@Test
+	@DisplayName("carry a changed global attribute into the entity schemas that use it")
+	void shouldCascadeGlobalAttributeChangeIntoEntitySchemas() {
+		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(catalogSchemaWithProductUsingCode())
+			.withAttribute(ATTRIBUTE_CODE, String.class, GlobalAttributeSchemaEditor::sortable);
+
+		assertTrue(builder.getAttribute(ATTRIBUTE_CODE).orElseThrow().isSortable());
+		assertTrue(
+			builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT).getAttribute(ATTRIBUTE_CODE).orElseThrow().isSortable()
+		);
+	}
+
+	/**
+	 * Creates a catalog schema with the global attribute `code` and a product entity schema that uses it.
+	 */
+	@Nonnull
+	private static CatalogSchemaContract catalogSchemaWithProductUsingCode() {
+		final CatalogSchemaContract catalogWithCode = new InternalCatalogSchemaBuilder(CATALOG_SCHEMA)
+			.withAttribute(ATTRIBUTE_CODE, String.class, GlobalAttributeSchemaEditor::filterable)
+			.toInstance();
+		final EntitySchemaContract productSchema = new InternalEntitySchemaBuilder(
+			catalogWithCode, EntitySchema._internalBuild(ENTITY_PRODUCT)
+		)
+			.withGlobalAttribute(ATTRIBUTE_CODE)
+			.toInstance();
+		assertTrue(productSchema.getAttribute(ATTRIBUTE_CODE).isPresent());
+		return CatalogSchema._internalBuild(
+			catalogWithCode.version(),
+			catalogWithCode.getName(),
+			catalogWithCode.getNameVariants(),
+			catalogWithCode.getDescription(),
+			catalogWithCode.getConflictResolution().orElse(null),
+			catalogWithCode.getCatalogEvolutionMode(),
+			catalogWithCode.getAttributes(),
+			singleEntitySchemaProvider(productSchema)
+		);
+	}
+
 	/**
 	 * Creates a catalog schema that provides a single product entity schema with a description.
 	 */
@@ -207,20 +255,28 @@ class CatalogSchemaBuilderTest {
 			NamingConvention.generate(APITestConstants.TEST_CATALOG),
 			null,
 			EnumSet.allOf(CatalogEvolutionMode.class),
-			new EntitySchemaProvider() {
-				@Nonnull
-				@Override
-				public Collection<EntitySchemaContract> getEntitySchemas() {
-					return List.of(productSchema);
-				}
-
-				@Nonnull
-				@Override
-				public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-					return ENTITY_PRODUCT.equals(entityType) ? Optional.of(productSchema) : Optional.empty();
-				}
-			}
+			singleEntitySchemaProvider(productSchema)
 		);
+	}
+
+	/**
+	 * Creates an entity schema provider that knows exactly the given entity schema.
+	 */
+	@Nonnull
+	private static EntitySchemaProvider singleEntitySchemaProvider(@Nonnull EntitySchemaContract entitySchema) {
+		return new EntitySchemaProvider() {
+			@Nonnull
+			@Override
+			public Collection<EntitySchemaContract> getEntitySchemas() {
+				return List.of(entitySchema);
+			}
+
+			@Nonnull
+			@Override
+			public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+				return entitySchema.getName().equals(entityType) ? Optional.of(entitySchema) : Optional.empty();
+			}
+		};
 	}
 
 }

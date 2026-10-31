@@ -416,6 +416,15 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 					throw new GenericEvitaInternalError("Catalog schema unexpectedly removed from inside!");
 				}
 				currentSchema = mutationImpact.updatedCatalogSchema();
+				// carry what the mutation cascades into the entity schemas - for example a removed global attribute
+				// leaving every entity schema that uses it; the server applies these cascades once the whole batch is
+				// processed, the builder right away, so that every read of it reflects them
+				final ModifyEntitySchemaMutation[] cascadedMutations = mutationImpact.entitySchemaMutations();
+				if (cascadedMutations != null) {
+					for (ModifyEntitySchemaMutation cascadedMutation : cascadedMutations) {
+						cascadedMutation.mutate(currentSchema, this.updatedEntitySchemaAccessor);
+					}
+				}
 			}
 			this.updatedSchema = currentSchema;
 			this.updatedSchemaDirty = MutationImpact.NO_IMPACT;
