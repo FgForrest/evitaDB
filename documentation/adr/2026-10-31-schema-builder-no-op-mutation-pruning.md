@@ -5,7 +5,7 @@ updated: 2026-10-31 19:15
 status: accepted
 kind: fix
 issues: [1843]
-prs: []
+prs: [1844]
 areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/schema/builder, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ClassSchemaAnalyzer.java, evita_query/src/main/java/io/evitadb/api/query/expression/object, evita_external_api/evita_external_api_grpc/shared]
 supersedes: []
 superseded-by: []
