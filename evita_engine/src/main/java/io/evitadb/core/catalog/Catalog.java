@@ -3131,17 +3131,18 @@ public final class Catalog
 	 * operation flushes mid-session, so the state that comes back is the newest one that reached the disk rather
 	 * than the newest closed session.
 	 *
-	 * The parameter is the whole {@link EvitaInvalidUsageException} family rather than
-	 * {@link SchemaAlteringException} alone, because `validate()` refuses in both vocabularies: a rule it evaluates
-	 * throws the schema-altering kind, while a getter it reaches on a half-built schema simply refuses to answer.
-	 * Both mean the same thing here - the schema as it stands is not acceptable and cannot be un-applied.
+	 * The parameter is any {@link Throwable} rather than {@link SchemaAlteringException} alone. `validate()` refuses in
+	 * two vocabularies: a rule it evaluates throws the schema-altering kind, while a getter it reaches on a half-built
+	 * schema simply refuses to answer. And an exception outside both - an engine defect the walk uncovers - leaves the
+	 * schema unvalidated. All of them mean the same thing here - the schema as it stands cannot be vouched for and
+	 * cannot be un-applied.
 	 *
-	 * @param cause the validation failure that refused the schema change
+	 * @param cause the validation failure that refused the schema change, or the exception the validation failed with
 	 */
-	public void markUnpublishableDueToInvalidSchema(@Nonnull EvitaInvalidUsageException cause) {
+	public void markUnpublishableDueToInvalidSchema(@Nonnull Throwable cause) {
 		if (recordUnpublishableCause(cause)) {
 			log.error(
-				"Catalog `{}` holds a schema that failed validation and cannot be un-applied in the warm-up " +
+				"Catalog `{}` holds a schema that did not pass validation and cannot be un-applied in the warm-up " +
 					"phase, so it will be deactivated. Its stored data is intact at the last version it published; " +
 					"activating the catalog again loads exactly that state, and everything written since then has " +
 					"to be replayed once the schema change is corrected.",
