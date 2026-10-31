@@ -24,10 +24,12 @@
 package io.evitadb.index.fulltext;
 
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bPlusTree.ImpactView;
 import io.evitadb.index.fulltext.FulltextFieldKey.FieldKind;
 import io.evitadb.index.fulltext.FulltextIndex.DictionaryPage;
 import io.evitadb.index.fulltext.FulltextIndex.Field;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Expansion;
+import io.evitadb.index.fulltext.FulltextPhaseOneScorer.MergeStrategy;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
 import io.evitadb.index.fulltext.analysis.AnalyzedTerm;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
@@ -550,33 +552,37 @@ class FulltextIndexTest {
 					index.addPosting(body, "thermal", primaryKey, 1 + random.nextInt(255));
 				}
 			}
-			// a single-record bucket, on a primary key both candidate sets below contain
+			// a single-record bucket, on a primary key the stride-3 and stride-997 candidate sets below contain
 			index.addPosting(body, "theory", 2_991, 77);
 			final List<Expansion> fromWalk = new ArrayList<>(3);
 			final List<Expansion> fromCopies = new ArrayList<>(3);
 			index.forEachTerm(body, "the", (term, postings, impacts) -> {
-				final int[] postingArray = postings.getArray();
-				fromWalk.add(new Expansion(postingArray, impacts, 0));
-				fromCopies.add(new Expansion(postingArray, index.getImpacts(body, term), 0));
+				fromWalk.add(new Expansion(postings, impacts, 0));
+				fromCopies.add(new Expansion(postings, ImpactView.of(index.getImpacts(body, term)), 0));
 				return true;
 			});
 			assertEquals(3, fromWalk.size());
-			// candidates both sparse and dense against the postings, so both merge strategies run
-			for (final int stride : new int[]{3, 997}) {
+			// candidates dense, comparable and sparse against the postings, and every merge forced on each, so the
+			// counted impact offsets of the posting-driven merges and the ranks of the skipping one all meet the
+			// chunk boundaries of the walked view
+			for (final int stride : new int[]{3, 997, 9_973}) {
 				final int[] candidates = new int[400_000 / stride];
 				for (int i = 0; i < candidates.length; i++) {
 					candidates[i] = i * stride;
 				}
-				final Result walked = FulltextPhaseOneScorer.score(
-					candidates, new Expansion[][]{fromWalk.toArray(Expansion[]::new)}, 50
-				);
 				final Result copied = FulltextPhaseOneScorer.score(
-					candidates, new Expansion[][]{fromCopies.toArray(Expansion[]::new)}, 50
+					candidates, new Expansion[][]{fromCopies.toArray(Expansion[]::new)}, 50, MergeStrategy.LINEAR
 				);
-				assertTrue(walked.matchedDocuments() > 0);
-				assertEquals(copied.matchedDocuments(), walked.matchedDocuments());
-				assertArrayEquals(copied.primaryKeys(), walked.primaryKeys());
-				assertArrayEquals(copied.composites(), walked.composites());
+				assertTrue(copied.matchedDocuments() > 0);
+				for (final MergeStrategy strategy : MergeStrategy.values()) {
+					final Result walked = FulltextPhaseOneScorer.score(
+						candidates, new Expansion[][]{fromWalk.toArray(Expansion[]::new)}, 50, strategy
+					);
+					final String message = "stride " + stride + " " + strategy;
+					assertEquals(copied.matchedDocuments(), walked.matchedDocuments(), message);
+					assertArrayEquals(copied.primaryKeys(), walked.primaryKeys(), message);
+					assertArrayEquals(copied.composites(), walked.composites(), message);
+				}
 			}
 		}
 

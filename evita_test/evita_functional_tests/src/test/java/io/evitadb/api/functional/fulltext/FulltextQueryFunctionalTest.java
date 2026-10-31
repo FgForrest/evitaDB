@@ -46,6 +46,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.bPlusTree.ImpactView;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
@@ -1461,7 +1462,7 @@ public class FulltextQueryFunctionalTest {
 						final Bitmap postings = fulltextIndex.getPostings(fieldId, term);
 						if (!postings.isEmpty()) {
 							tokenExpansions.add(
-								new Expansion(postings.getArray(), fulltextIndex.getImpacts(fieldId, term), 0)
+								new Expansion(postings, ImpactView.of(fulltextIndex.getImpacts(fieldId, term)), 0)
 							);
 						}
 					}

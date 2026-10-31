@@ -38,6 +38,7 @@ import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.ImpactView;
 import io.evitadb.index.bitmap.ArrayBitmap;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
@@ -48,6 +49,7 @@ import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
 import io.evitadb.index.fulltext.analysis.AnalyzedTerm;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -59,6 +61,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -180,7 +183,10 @@ class FulltextFormulaTest {
 			result[i] = new Expansion[tokens[i].length];
 			for (int j = 0; j < tokens[i].length; j++) {
 				final ExpandedTerm term = tokens[i][j];
-				result[i][j] = new Expansion(term.postings().getArray(), term.impacts().toArray(), term.distance());
+				// fresh copies of both, so the formula's own hand-over of the dictionary's views is what gets compared
+				result[i][j] = new Expansion(
+					new BaseBitmap(term.postings().getArray()), ImpactView.of(term.impacts().toArray()), term.distance()
+				);
 			}
 		}
 		return result;
@@ -230,6 +236,49 @@ class FulltextFormulaTest {
 		}
 
 		@Test
+		@DisplayName("Random queries of many terms per token match the intersection of the token unions")
+		void shouldMatchTheIntersectionOfTokenUnionsOnRandomQueries() {
+			final Random random = new Random(31);
+			final int bound = 100_000;
+			for (int round = 0; round < 60; round++) {
+				final int tokenCount = 1 + random.nextInt(4);
+				final ExpandedTerm[][] tokens = new ExpandedTerm[tokenCount][];
+				BitSet expected = null;
+				for (int t = 0; t < tokenCount; t++) {
+					final int termCount = 1 + random.nextInt(30);
+					tokens[t] = new ExpandedTerm[termCount];
+					final BitSet union = new BitSet(bound);
+					int[] first = null;
+					for (int e = 0; e < termCount; e++) {
+						// from a few postings to a quarter of the ids; now and then a repeat of the token's first
+						// term, so a narrowed token is covered before its last term is reached
+						final int count = random.nextInt(3) == 0 ? bound / 4 : 1 + random.nextInt(2_000);
+						final int[] postings = first != null && random.nextInt(4) == 0
+							? first
+							: randomPostings(random, count, bound);
+						if (first == null) {
+							first = postings;
+						}
+						for (int pk : postings) {
+							union.set(pk);
+						}
+						tokens[t][e] = new ExpandedTerm(
+							0, "t" + t + "_" + e, new BaseBitmap(postings), ImpactView.of(new byte[postings.length]), 0
+						);
+					}
+					if (expected == null) {
+						expected = union;
+					} else {
+						expected.and(union);
+					}
+				}
+				assertArrayEquals(
+					expected.stream().toArray(), query(tokens).compute().getArray(), "round " + round
+				);
+			}
+		}
+
+		@Test
 		@DisplayName("A token without terms matches nothing, and so does the query")
 		void shouldMatchNothingWhenATokenHasNoTerm() {
 			final FulltextFormula formula = query(token(term("a", 0, 1, 1)), token());
@@ -251,6 +300,68 @@ class FulltextFormulaTest {
 			final FulltextFormula formula = query(token(term("a", 0, 1, 1)), token(term("b", 0, 2, 1)));
 
 			assertSame(EmptyBitmap.INSTANCE, formula.compute());
+		}
+
+		@Test
+		@DisplayName("A token of several terms, none of which meets the narrower tokens, matches nothing")
+		void shouldMatchNothingWhenNoTermOfANarrowedTokenHits() {
+			// the first token is the narrower one, so the second narrows it term by term, and every intersection is
+			// empty
+			final FulltextFormula formula = query(
+				token(term("a", 0, 1, 1, 2, 1, 3, 1)),
+				token(term("b", 0, 10, 1, 11, 1), term("c", 0, 20, 1), term("d", 0, 30, 1, 31, 1))
+			);
+
+			assertSame(EmptyBitmap.INSTANCE, formula.compute());
+		}
+
+		@Test
+		@DisplayName("A token of several terms whose first term misses still matches through its later terms")
+		void shouldMatchThroughLaterTermsWhenTheFirstTermOfANarrowedTokenMisses() {
+			// the first token is the narrower one; of the second token's terms the first meets none of its entities,
+			// the second meets one and the third the other
+			final FulltextFormula formula = query(
+				token(term("a", 0, 5, 1, 6, 1)),
+				token(term("b", 0, 100, 1), term("c", 0, 5, 1), term("d", 0, 6, 1, 200, 1))
+			);
+
+			assertArrayEquals(new int[]{5, 6}, formula.compute().getArray());
+		}
+
+		@Test
+		@DisplayName("Matching leaves every term's posting list as it was")
+		void shouldLeaveEveryTermsPostingsUnchanged() {
+			// the narrower token's single posting list serves as the matching entities as it is; the wider token's
+			// terms are intersected with it and folded together, the first intersection - a subset of its own term,
+			// an array chunk - taking in a bitmap chunk and a run chunk
+			final PersistentRoaringBitmap firstThirtyThousand = new PersistentRoaringBitmap();
+			firstThirtyThousand.add(0L, 30_000L);
+			firstThirtyThousand.runOptimize();
+			final PersistentRoaringBitmap everyFourth = new PersistentRoaringBitmap();
+			for (int primaryKey = 0; primaryKey < 40_000; primaryKey += 4) {
+				everyFourth.add(primaryKey);
+			}
+			final PersistentRoaringBitmap twentyToFiftyThousand = new PersistentRoaringBitmap();
+			twentyToFiftyThousand.add(20_000L, 50_000L);
+			twentyToFiftyThousand.runOptimize();
+			final Bitmap[] postings = {
+				new BaseBitmap(firstThirtyThousand), new BaseBitmap(1, 3, 5), new BaseBitmap(everyFourth),
+				new BaseBitmap(twentyToFiftyThousand)
+			};
+			final int[][] before = new int[postings.length][];
+			final ExpandedTerm[] terms = new ExpandedTerm[postings.length];
+			for (int i = 0; i < postings.length; i++) {
+				before[i] = postings[i].getArray();
+				terms[i] = new ExpandedTerm(0, "t" + i, postings[i], ImpactView.of(new byte[postings[i].size()]), 0);
+			}
+
+			final Bitmap matched = query(token(terms[0]), token(terms[1], terms[2], terms[3])).compute();
+
+			// 1, 3 and 5, then 7,500 multiples of four below 30,000, then the 7,500 other keys from 20,000 to 30,000
+			assertEquals(15_003, matched.size());
+			for (int i = 0; i < postings.length; i++) {
+				assertArrayEquals(before[i], postings[i].getArray(), "the posting list of term " + i);
+			}
 		}
 
 		@Test
@@ -818,6 +929,33 @@ class FulltextFormulaTest {
 			return this.source.getFulltextScores(candidates, topN);
 		}
 
+	}
+
+	/**
+	 * Draws about `count` distinct primary keys below `bound`, ascending.
+	 *
+	 * @param random the source of randomness
+	 * @param count  how many keys to draw on average
+	 * @param bound  exclusive upper bound of the keys
+	 * @return the keys, at least one
+	 */
+	@Nonnull
+	private static int[] randomPostings(@Nonnull Random random, int count, int bound) {
+		final double meanExtraGap = Math.max(0.0, (double) bound / count - 1.0);
+		int[] values = new int[count + count / 2 + 8];
+		int size = 0;
+		long value = (long) (random.nextDouble() * (meanExtraGap + 1.0));
+		while (value < bound) {
+			if (size == values.length) {
+				values = Arrays.copyOf(values, size * 2);
+			}
+			values[size++] = (int) value;
+			value += 1 + (long) (-Math.log(1.0 - random.nextDouble()) * meanExtraGap);
+		}
+		if (size == 0) {
+			values[size++] = random.nextInt(bound);
+		}
+		return Arrays.copyOf(values, size);
 	}
 
 }
