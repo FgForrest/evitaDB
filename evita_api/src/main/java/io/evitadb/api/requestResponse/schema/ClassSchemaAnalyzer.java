@@ -666,13 +666,14 @@ public class ClassSchemaAnalyzer {
 				null
 			);
 			applyReferenceIndexedComponents(editor, reference.indexedComponents(), Scope.DEFAULT_SCOPE);
-			// faceted - reconcile DEFAULT_SCOPE with annotation
+			// faceted - reconcile DEFAULT_SCOPE with annotation; `facetedPartially` makes the reference faceted
+			// even without `faceted = true`, so it must not drop the faceting the expression below re-adds
+			final String facetedPartiallyExpr = reference.facetedPartially().value();
 			if (reference.faceted() && !editor.isFacetedInScope(Scope.DEFAULT_SCOPE)) {
 				editor.faceted();
-			} else if (!reference.faceted() && editor.isFacetedInScope(Scope.DEFAULT_SCOPE)) {
+			} else if (!reference.faceted() && facetedPartiallyExpr.isEmpty() && editor.isFacetedInScope(Scope.DEFAULT_SCOPE)) {
 				editor.nonFaceted(Scope.DEFAULT_SCOPE);
 			}
-			final String facetedPartiallyExpr = reference.facetedPartially().value();
 			if (!facetedPartiallyExpr.isEmpty()) {
 				editor.facetedPartially(ExpressionFactory.parse(facetedPartiallyExpr));
 			}
@@ -726,7 +727,9 @@ public class ClassSchemaAnalyzer {
 			for (ScopeReferenceSettings ss : scopedDefinition) {
 				final Scope scope = ss.scope();
 				applyReferenceIndexedComponents(editor, ss.indexedComponents(), scope);
-				if (ss.faceted()) {
+				// `facetedPartially` makes the reference faceted in its scope even without `faceted = true` - leaving
+				// such a scope out would make step 3 drop the faceting and step 4 re-add it on every analysis
+				if (ss.faceted() || !ss.facetedPartially().value().isEmpty()) {
 					facetedScopes.add(scope);
 				}
 			}
@@ -1528,10 +1531,18 @@ public class ClassSchemaAnalyzer {
 			.toArray(Currency[]::new);
 		final boolean indexedPricePlacesDiffers = entityBuilder.getIndexedPricePlaces() != sellingPriceAnnotation.indexedPricePlaces();
 		if (!entityBuilder.isWithPrice() || indexedPricePlacesDiffers || newCurrencies.length > 0) {
-			entityBuilder.withPriceInCurrency(
-				sellingPriceAnnotation.indexedPricePlaces(),
-				newCurrencies.length > 0 ? newCurrencies : new Currency[0]
-			);
+			// keep the scopes the price is already indexed in, exactly as `withPriceInCurrency` would
+			final Set<Scope> priceIndexedInScopes = entityBuilder.getPriceIndexedInScopes();
+			final Scope[] inScopes = priceIndexedInScopes.isEmpty() ?
+				Scope.DEFAULT_SCOPES : priceIndexedInScopes.toArray(Scope.NO_SCOPE);
+			if (newCurrencies.length > 0) {
+				entityBuilder.withPriceInCurrencyIndexedInScope(
+					sellingPriceAnnotation.indexedPricePlaces(), newCurrencies, inScopes
+				);
+			} else {
+				// no new currency - an empty currency array would still emit a currency mutation that allows nothing
+				entityBuilder.withPriceIndexedInScope(sellingPriceAnnotation.indexedPricePlaces(), inScopes);
+			}
 		}
 		this.sellingPriceDefined = true;
 	}

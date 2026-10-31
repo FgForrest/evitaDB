@@ -882,12 +882,21 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 		return this.baseSchema.getNameVariant(namingConvention);
 	}
 
+	/**
+	 * Returns the collected mutations, or nothing when they leave the entity schema exactly as the base schema was.
+	 *
+	 * The no-op check of the individual builder methods compares with the current builder state only, so a value that
+	 * is set and later restored (for example by a schema post-processor) leaves mutations behind. They change nothing,
+	 * but the server would still record them in the transaction and derive conflict keys from them, so the final schema
+	 * is compared with the base schema by value before anything is emitted.
+	 */
 	@Nonnull
 	@Override
 	public Optional<ModifyEntitySchemaMutation> toMutation() {
-		return this.mutations.isEmpty() ?
-			empty() :
-			of(new ModifyEntitySchemaMutation(getName(), this.mutations.toArray(EMPTY_ARRAY)));
+		if (this.mutations.isEmpty() || SchemaContentComparator.isEntitySchemaContentEqual(this.baseSchema, toInstance())) {
+			return empty();
+		}
+		return of(new ModifyEntitySchemaMutation(getName(), this.mutations.toArray(EMPTY_ARRAY)));
 	}
 
 	@Nonnull

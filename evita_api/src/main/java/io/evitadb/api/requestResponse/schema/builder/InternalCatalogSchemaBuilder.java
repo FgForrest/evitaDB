@@ -38,15 +38,20 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaConflictResolutionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.MutationEntitySchemaAccessor;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NamingConvention;
@@ -57,12 +62,17 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -336,12 +346,26 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 		return this.updatedEntitySchemaAccessor.getEntitySchema(entityType);
 	}
 
+	/**
+	 * Returns the collected mutations without those that leave their part of the schema exactly as it was in the base
+	 * schema, or nothing when no mutation remains.
+	 *
+	 * The no-op check of the individual builder methods compares with the current builder state only, so a value that
+	 * is set and later restored (for example by a schema post-processor) leaves mutations behind. They change nothing,
+	 * but the server would still record them in the transaction and derive conflict keys from them - a mutation of
+	 * a global attribute even takes a catalog-wide one. The check is done per level, see
+	 * {@link #withoutNoOpMutations()}.
+	 */
 	@Nonnull
 	@Override
 	public Optional<ModifyCatalogSchemaMutation> toMutation() {
-		return this.mutations.isEmpty() ?
+		if (this.mutations.isEmpty()) {
+			return Optional.empty();
+		}
+		final List<LocalCatalogSchemaMutation> effectiveMutations = withoutNoOpMutations();
+		return effectiveMutations.isEmpty() ?
 			Optional.empty() :
-			Optional.of(new ModifyCatalogSchemaMutation(getName(), null, this.mutations.toArray(EMPTY_ARRAY)));
+			Optional.of(new ModifyCatalogSchemaMutation(getName(), null, effectiveMutations.toArray(EMPTY_ARRAY)));
 	}
 
 	@Delegate(types = CatalogSchemaContract.class, excludes = {NamedSchemaContract.class, EntitySchemaProvider.class})
@@ -374,6 +398,146 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 			this.lastMutationReflectedInSchema = this.mutations.size() - 1;
 		}
 		return this.updatedSchema;
+	}
+
+	/**
+	 * Filters out the collected mutations that leave their level of the schema as it was in the base schema. Each
+	 * level is judged on its own:
+	 *
+	 * - the catalog level (global attributes, description, conflict resolution, evolution modes): when its final content
+	 *   equals the base one, every mutation of this level is dropped,
+	 * - each existing entity schema modified by {@link ModifyEntitySchemaMutation}: when applying all its modifications
+	 *   to the base entity schema yields the same content, the modifications of that entity schema are dropped.
+	 *
+	 * Mutations that create, remove or rename an entity schema carry intent a value comparison cannot judge, so they
+	 * are always kept, together with all modifications of the entity schemas they touch. A level is judged as a whole:
+	 * when it contains a genuine change, its no-op mutations are kept along with it. They carry the same conflict key as
+	 * the genuine change, so they do not widen the conflict surface of the transaction.
+	 *
+	 * The final state of a modified entity schema is computed from the base entity schema here rather than read from
+	 * {@link #updatedEntitySchemaAccessor}. The accessor is not reset when {@link #toInstance()} replays the mutations
+	 * from the base schema, so it may reflect some of them twice.
+	 *
+	 * The modifications are applied against the final catalog schema, not against the catalog state at their own
+	 * position in the sequence. When they cannot be applied that way - an entity adopts a global attribute that the
+	 * catalog removes later - the levels depend on each other, and every collected mutation is emitted unchanged.
+	 * The same fallback covers a replay of the builder's own state that rejects a sequence the server accepts: the
+	 * accessor keeps what an earlier materialization produced, so an entity modification that creates a sub-schema
+	 * and refines it may be applied over its own result. A modification of an entity schema that does not exist at
+	 * its position in the sequence is emitted with everything else as well: the server creates such an entity schema
+	 * on the fly, while the replay has nothing to apply it to.
+	 *
+	 * @return the mutations to emit, in their original order
+	 */
+	@Nonnull
+	private List<LocalCatalogSchemaMutation> withoutNoOpMutations() {
+		// collect the entity schemas whose existence or name changes, and the modifications of each entity schema
+		final Set<String> structurallyChangedEntities = new HashSet<>(8);
+		final Map<String, List<ModifyEntitySchemaMutation>> entityModifications = new HashMap<>(8);
+		// whether an entity schema exists at the current position of the sequence, for those the sequence touches
+		final Map<String, Boolean> entityExistence = new HashMap<>(8);
+		for (LocalCatalogSchemaMutation mutation : this.mutations) {
+			if (mutation instanceof CreateEntitySchemaMutation createMutation) {
+				structurallyChangedEntities.add(createMutation.getName());
+				entityExistence.put(createMutation.getName(), Boolean.TRUE);
+			} else if (mutation instanceof RemoveEntitySchemaMutation removeMutation) {
+				structurallyChangedEntities.add(removeMutation.getName());
+				entityExistence.put(removeMutation.getName(), Boolean.FALSE);
+			} else if (mutation instanceof ModifyEntitySchemaNameMutation renameMutation) {
+				structurallyChangedEntities.add(renameMutation.getName());
+				structurallyChangedEntities.add(renameMutation.getNewName());
+				entityExistence.put(renameMutation.getName(), Boolean.FALSE);
+				entityExistence.put(renameMutation.getNewName(), Boolean.TRUE);
+			} else if (mutation instanceof ModifyEntitySchemaMutation modifyMutation) {
+				final String entityType = modifyMutation.getName();
+				final boolean exists = entityExistence.computeIfAbsent(
+					entityType, theEntityType -> this.baseSchema.getEntitySchema(theEntityType).isPresent()
+				);
+				if (!exists) {
+					// the server creates a missing entity schema a modification targets (when the catalog evolution
+					// mode allows it), but the builder's own replay has no entity schema to apply the modification
+					// to - the mutations are emitted as collected and the server judges them
+					return this.mutations;
+				}
+				entityModifications
+					.computeIfAbsent(entityType, theEntityType -> new ArrayList<>(2))
+					.add(modifyMutation);
+			}
+		}
+		final boolean catalogLevelUnchanged;
+		final Set<String> unchangedEntities = new HashSet<>(entityModifications.size());
+		try {
+			final CatalogSchemaContract updatedCatalogSchema = toInstance();
+			catalogLevelUnchanged = SchemaContentComparator.isCatalogSchemaContentEqual(
+				this.baseSchema, updatedCatalogSchema
+			);
+			for (Entry<String, List<ModifyEntitySchemaMutation>> entry : entityModifications.entrySet()) {
+				final String entityType = entry.getKey();
+				if (!structurallyChangedEntities.contains(entityType)) {
+					this.baseSchema.getEntitySchema(entityType)
+						.filter(baseEntitySchema -> isEntitySchemaUnchanged(updatedCatalogSchema, baseEntitySchema, entry.getValue()))
+						.ifPresent(baseEntitySchema -> unchangedEntities.add(entityType));
+				}
+			}
+		} catch (EvitaInvalidUsageException ex) {
+			// the levels cannot be judged separately, so the mutations are emitted as collected, to be applied in
+			// their order; this happens when
+			// - the replay from the base schema rejects a sequence the server accepts: the entity schema accessor
+			//   keeps what an earlier materialization produced, so an entity modification that creates a sub-schema
+			//   and refines it is applied over its own result,
+			// - the entity modifications cannot be applied against the final catalog schema, because they depend on
+			//   a catalog state that exists only in the middle of the sequence - for example a global attribute
+			//   adopted by an entity and removed from the catalog afterwards
+			return this.mutations;
+		}
+
+		final List<LocalCatalogSchemaMutation> effectiveMutations = new ArrayList<>(this.mutations.size());
+		for (LocalCatalogSchemaMutation mutation : this.mutations) {
+			final boolean noOp;
+			if (mutation instanceof ModifyEntitySchemaMutation modifyMutation) {
+				noOp = unchangedEntities.contains(modifyMutation.getName());
+			} else if (
+				mutation instanceof CreateEntitySchemaMutation ||
+					mutation instanceof RemoveEntitySchemaMutation ||
+					mutation instanceof ModifyEntitySchemaNameMutation
+			) {
+				noOp = false;
+			} else {
+				noOp = catalogLevelUnchanged;
+			}
+			if (!noOp) {
+				effectiveMutations.add(mutation);
+			}
+		}
+		return effectiveMutations;
+	}
+
+	/**
+	 * Applies all modifications of a single entity schema to its base schema and checks whether the result has the same
+	 * content as the base schema.
+	 *
+	 * @param catalogSchema    the final catalog schema the modifications are applied against
+	 * @param baseEntitySchema the entity schema as it is in the base catalog schema
+	 * @param modifications    all modifications of the entity schema, in their original order
+	 * @return true when the modifications leave the entity schema as it was
+	 * @throws EvitaInvalidUsageException when a modification cannot be applied against the given catalog schema
+	 */
+	private static boolean isEntitySchemaUnchanged(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaContract baseEntitySchema,
+		@Nonnull List<ModifyEntitySchemaMutation> modifications
+	) {
+		EntitySchemaContract entitySchema = baseEntitySchema;
+		for (ModifyEntitySchemaMutation modification : modifications) {
+			for (LocalEntitySchemaMutation entityMutation : modification.getSchemaMutations()) {
+				entitySchema = entityMutation.mutate(catalogSchema, entitySchema);
+				if (entitySchema == null) {
+					// the modification removes the entity schema, which is a change by definition
+					return false;
+				}
+			}
+		}
+		return SchemaContentComparator.isEntitySchemaContentEqual(baseEntitySchema, entitySchema);
 	}
 
 }

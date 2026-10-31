@@ -360,6 +360,11 @@ public final class ReferenceSchemaBuilder
 		@Nonnull Scope scope,
 		@Nonnull Expression expression
 	) {
+		if (this.isFacetedInScope(scope) && Objects.equals(this.getFacetedPartiallyInScopes().get(scope), expression)) {
+			// the scope is already faceted partially by the same expression - nothing to change; expressions are
+			// compared as trees, because the text of a composed tree omits the parentheses its grouping implies
+			return this;
+		}
 		// compute complete state: current scopes + new scope, current expressions + new entry
 		final Set<Scope> currentFacetedScopes = this.getFacetedInScopes();
 		final EnumSet<Scope> allScopes = currentFacetedScopes.isEmpty()
@@ -423,6 +428,18 @@ public final class ReferenceSchemaBuilder
 		@Nullable Expression valueExpression,
 		@Nullable Expression assignedWhen
 	) {
+		final Map<String, HistogramIndexDefinition> currentScopeBucketed =
+			this.getAllHistogramIndexDefinitions().get(scope);
+		final HistogramIndexDefinition currentDefinition =
+			currentScopeBucketed == null ? null : currentScopeBucketed.get(nameOfTheIndex);
+		if (
+			currentDefinition != null &&
+				Objects.equals(currentDefinition.valueExpression(), valueExpression) &&
+				Objects.equals(currentDefinition.assignedWhen(), assignedWhen)
+		) {
+			// the scope already has the same histogram index - nothing to change
+			return this;
+		}
 		// compute complete state: current bucketed definitions + additive new entry
 		final Map<Scope, Map<String, HistogramIndexDefinition>> allBucketed =
 			deepCopyHistogramIndexDefinitions(this.getAllHistogramIndexDefinitions());
@@ -447,9 +464,13 @@ public final class ReferenceSchemaBuilder
 		@Nonnull Scope scope,
 		@Nonnull Expression expression
 	) {
+		final Map<Scope, Expression> currentPartially = this.getBucketedPartiallyInScopes();
+		if (Objects.equals(currentPartially.get(scope), expression)) {
+			// the scope is already bucketed partially by the same expression - nothing to change
+			return this;
+		}
 		// compute complete state: current bucketed definitions unchanged, current expressions + new entry
 		final Map<Scope, Map<String, HistogramIndexDefinition>> currentBucketed = this.getAllHistogramIndexDefinitions();
-		final Map<Scope, Expression> currentPartially = this.getBucketedPartiallyInScopes();
 		final Map<Scope, Expression> allPartially = currentPartially.isEmpty()
 			? new EnumMap<>(Scope.class) : new EnumMap<>(currentPartially);
 		allPartially.put(scope, expression);
