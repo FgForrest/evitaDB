@@ -79,6 +79,7 @@ import static io.evitadb.test.TestTags.SCHEMA;
 @Tag(CONTRACT)
 @Tag(SCHEMA)
 class EntitySchemaBuilderTest {
+	private static final String REFERENCE_BRAND = "brand";
 	private final EntitySchema productSchema = EntitySchema._internalBuild(Entities.PRODUCT);
 	private final EntitySchema categorySchema = EntitySchema._internalBuild(Entities.CATEGORY);
 	private final EntitySchema brandSchema = EntitySchema._internalBuild(Entities.BRAND);
@@ -2137,6 +2138,49 @@ class EntitySchemaBuilderTest {
 			.orElseThrow();
 
 		assertFalse(categoryProducts instanceof ReflectedReferenceSchema);
+	}
+
+	@DisplayName("let a second definition of a stored reference restore the cardinality the first one changed")
+	@Test
+	void shouldLetSecondReferenceDefinitionRestoreChangedCardinality() {
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, productWithBrandReference());
+
+		builder
+			.withReferenceTo(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE)
+			.withReferenceTo(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE);
+
+		assertEquals(
+			Cardinality.ZERO_OR_ONE,
+			builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND).getCardinality()
+		);
+		assertTrue(builder.toMutation().isEmpty(), "Restoring the stored cardinality must leave nothing to send.");
+	}
+
+	@DisplayName("let a second definition of a stored reference restore the description the first one changed")
+	@Test
+	void shouldLetSecondReferenceDefinitionRestoreChangedDescription() {
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, productWithBrandReference());
+
+		builder
+			.withReferenceTo(
+				REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, whichIs -> whichIs.withDescription("changed")
+			)
+			.withReferenceTo(
+				REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, whichIs -> whichIs.withDescription(null)
+			);
+
+		assertNull(builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND).getDescription());
+		assertTrue(builder.toMutation().isEmpty(), "Restoring the stored description must leave nothing to send.");
+	}
+
+	/**
+	 * Returns the product schema with a stored reference to brands of cardinality zero or one and no description.
+	 */
+	@Nonnull
+	private EntitySchemaContract productWithBrandReference() {
+		return new InternalEntitySchemaBuilder(this.catalogSchema, this.productSchema)
+			.withReferenceTo(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE)
+			.toInstance();
 	}
 
 	/**

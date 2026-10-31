@@ -151,11 +151,16 @@ public final class ReferenceSchemaBuilder
 						.toArray(ScopedBucketedPartially[]::new)
 				)
 			);
+			// the creation comes first, the mutations queued by earlier calls apply to the created reference
+			copyQueuedMutations(name, mutations);
 		} else {
 			Assert.isPremiseValid(
 				existingSchema != null,
 				"When not creating new reference schema, the existing schema must be provided!"
 			);
+			// the mutations queued by earlier calls come first, so that the changes this call asks for apply after
+			// them - appended later, an earlier change would override the one this call makes
+			copyQueuedMutations(name, mutations);
 			// baseSchema is resolved in the super() call above — it uses the raw persisted
 			// reference, never the caller-supplied `existingSchema`. The caller builds
 			// `existingSchema` from `toInstance()`, so it already reflects every pending
@@ -186,14 +191,26 @@ public final class ReferenceSchemaBuilder
 				);
 			}
 		}
-		mutations.stream()
-			.filter(
-				it -> it instanceof ReferenceSchemaMutation referenceSchemaMutation &&
-						(name.equals(referenceSchemaMutation.getName()) &&
-						!(referenceSchemaMutation instanceof CreateReferenceSchemaMutation)) &&
-						!(referenceSchemaMutation instanceof RemoveReferenceSchemaMutation)
-			)
-			.forEach(this.mutations::add);
+	}
+
+	/**
+	 * Appends the entity-level mutations queued for the reference by earlier calls of the entity builder, except its
+	 * creation and removal, which the entity builder handles itself.
+	 *
+	 * @param name      the name of the reference
+	 * @param mutations the mutations queued in the entity builder
+	 */
+	private void copyQueuedMutations(@Nonnull String name, @Nonnull List<LocalEntitySchemaMutation> mutations) {
+		for (LocalEntitySchemaMutation mutation : mutations) {
+			if (
+				mutation instanceof ReferenceSchemaMutation referenceSchemaMutation &&
+					name.equals(referenceSchemaMutation.getName()) &&
+					!(referenceSchemaMutation instanceof CreateReferenceSchemaMutation) &&
+					!(referenceSchemaMutation instanceof RemoveReferenceSchemaMutation)
+			) {
+				this.mutations.add(mutation);
+			}
+		}
 	}
 
 	/**
