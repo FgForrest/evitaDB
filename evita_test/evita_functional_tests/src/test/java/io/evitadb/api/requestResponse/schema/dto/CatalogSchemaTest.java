@@ -37,6 +37,8 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttr
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -116,9 +118,13 @@ class CatalogSchemaTest {
 						false, false, false,
 						String.class, null, 0,
 						ConflictResolutionOverride.INHERITED,
-						null
+						null,
+						FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 					)
 				),
+				Map.of(),
+				Map.of(),
+				Map.of(),
 				EMPTY_PROVIDER
 			);
 		}
@@ -224,6 +230,9 @@ class CatalogSchemaTest {
 				null,
 				EnumSet.noneOf(CatalogEvolutionMode.class),
 				Collections.emptyMap(),
+				Map.of(),
+				Map.of(),
+				Map.of(),
 				EMPTY_PROVIDER
 			);
 
@@ -250,7 +259,8 @@ class CatalogSchemaTest {
 				false, false, false,
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			final Map<String, GlobalAttributeSchemaContract> attrs = Map.of("url", attr);
@@ -263,6 +273,9 @@ class CatalogSchemaTest {
 				null,
 				EnumSet.noneOf(CatalogEvolutionMode.class),
 				attrs,
+				Map.of(),
+				Map.of(),
+				Map.of(),
 				EMPTY_PROVIDER
 			);
 
@@ -292,6 +305,9 @@ class CatalogSchemaTest {
 				null,
 				EnumSet.noneOf(CatalogEvolutionMode.class),
 				Map.of("code", attr),
+				Map.of(),
+				Map.of(),
+				Map.of(),
 				EMPTY_PROVIDER
 			);
 
@@ -316,6 +332,9 @@ class CatalogSchemaTest {
 				null,
 				EnumSet.noneOf(CatalogEvolutionMode.class),
 				Map.of("productCode", attr),
+				Map.of(),
+				Map.of(),
+				Map.of(),
 				EMPTY_PROVIDER
 			);
 
@@ -405,6 +424,9 @@ class CatalogSchemaTest {
 				null,
 				EnumSet.noneOf(CatalogEvolutionMode.class),
 				Collections.emptyMap(),
+				Map.of(),
+				Map.of(),
+				Map.of(),
 				EMPTY_PROVIDER
 			);
 
@@ -427,6 +449,9 @@ class CatalogSchemaTest {
 				null,
 				EnumSet.noneOf(CatalogEvolutionMode.class),
 				Collections.emptyMap(),
+				Map.of(),
+				Map.of(),
+				Map.of(),
 				EMPTY_PROVIDER
 			);
 
@@ -466,6 +491,9 @@ class CatalogSchemaTest {
 				null,
 				EnumSet.noneOf(CatalogEvolutionMode.class),
 				Collections.emptyMap(),
+				Map.of(),
+				Map.of(),
+				Map.of(),
 				EMPTY_PROVIDER
 			);
 

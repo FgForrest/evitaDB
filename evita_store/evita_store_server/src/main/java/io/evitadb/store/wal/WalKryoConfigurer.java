@@ -74,6 +74,15 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionMode
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaConflictResolutionMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateFulltextAnalyzerSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateFulltextLanguageSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateFulltextResourceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyFulltextAnalyzerSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyFulltextLanguageSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyFulltextResourceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveFulltextAnalyzerSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveFulltextLanguageSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveFulltextResourceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
@@ -518,6 +527,70 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 			SetAttributeSchemaNormalizedMutation.class,
 			new SerialVersionBasedSerializer<>(
 				new SetAttributeSchemaNormalizedMutationSerializer(), SetAttributeSchemaNormalizedMutation.class
+			),
+			index++
+		);
+
+		kryo.register(
+			CreateFulltextLanguageSchemaMutation.class,
+			new SerialVersionBasedSerializer<>(
+				new CreateFulltextLanguageSchemaMutationSerializer(), CreateFulltextLanguageSchemaMutation.class
+			),
+			index++
+		);
+		kryo.register(
+			ModifyFulltextLanguageSchemaMutation.class,
+			new SerialVersionBasedSerializer<>(
+				new ModifyFulltextLanguageSchemaMutationSerializer(), ModifyFulltextLanguageSchemaMutation.class
+			),
+			index++
+		);
+		kryo.register(
+			RemoveFulltextLanguageSchemaMutation.class,
+			new SerialVersionBasedSerializer<>(
+				new RemoveFulltextLanguageSchemaMutationSerializer(), RemoveFulltextLanguageSchemaMutation.class
+			),
+			index++
+		);
+		kryo.register(
+			CreateFulltextResourceSchemaMutation.class,
+			new SerialVersionBasedSerializer<>(
+				new CreateFulltextResourceSchemaMutationSerializer(), CreateFulltextResourceSchemaMutation.class
+			),
+			index++
+		);
+		kryo.register(
+			ModifyFulltextResourceSchemaMutation.class,
+			new SerialVersionBasedSerializer<>(
+				new ModifyFulltextResourceSchemaMutationSerializer(), ModifyFulltextResourceSchemaMutation.class
+			),
+			index++
+		);
+		kryo.register(
+			RemoveFulltextResourceSchemaMutation.class,
+			new SerialVersionBasedSerializer<>(
+				new RemoveFulltextResourceSchemaMutationSerializer(), RemoveFulltextResourceSchemaMutation.class
+			),
+			index++
+		);
+		kryo.register(
+			CreateFulltextAnalyzerSchemaMutation.class,
+			new SerialVersionBasedSerializer<>(
+				new CreateFulltextAnalyzerSchemaMutationSerializer(), CreateFulltextAnalyzerSchemaMutation.class
+			),
+			index++
+		);
+		kryo.register(
+			ModifyFulltextAnalyzerSchemaMutation.class,
+			new SerialVersionBasedSerializer<>(
+				new ModifyFulltextAnalyzerSchemaMutationSerializer(), ModifyFulltextAnalyzerSchemaMutation.class
+			),
+			index++
+		);
+		kryo.register(
+			RemoveFulltextAnalyzerSchemaMutation.class,
+			new SerialVersionBasedSerializer<>(
+				new RemoveFulltextAnalyzerSchemaMutationSerializer(), RemoveFulltextAnalyzerSchemaMutation.class
 			),
 			index++
 		);

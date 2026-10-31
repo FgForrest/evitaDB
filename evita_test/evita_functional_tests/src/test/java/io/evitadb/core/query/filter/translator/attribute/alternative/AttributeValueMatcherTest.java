@@ -26,6 +26,7 @@ package io.evitadb.core.query.filter.translator.attribute.alternative;
 import io.evitadb.api.query.filter.AttributeInRange;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.core.query.algebra.Formula;
@@ -162,7 +163,8 @@ class AttributeValueMatcherTest {
 			plainType, null,
 			indexedDecimalPlaces,
 			ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 		);
 	}
 

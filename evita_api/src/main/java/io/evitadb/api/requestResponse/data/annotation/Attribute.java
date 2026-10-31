@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverri
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
@@ -134,6 +135,20 @@ public @interface Attribute {
 	 * Propagates to {@link AttributeSchemaContract#isSearchable()}.
 	 */
 	boolean searchable() default false;
+
+	/**
+	 * The fulltext analyzer that turns the words of the attribute into terms while it is {@link #searchable()} - a
+	 * built-in one or one declared in the catalog schema.
+	 * Propagates to {@link AttributeSchemaContract#getAnalyzer()}.
+	 */
+	String analyzer() default FulltextAnalyzerSchemaContract.TEXT;
+
+	/**
+	 * The number of words a value of normal length has; a word found in a shorter value weighs more, in a longer one
+	 * less.
+	 * Propagates to {@link AttributeSchemaContract#getLengthPivot()}.
+	 */
+	int lengthPivot() default AttributeSchemaContract.DEFAULT_LENGTH_PIVOT;
 
 	/**
 	 * Sets attribute of this type to be locale sensitive. I.e. to separate values for different locales.

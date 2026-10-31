@@ -256,7 +256,8 @@ class SetAttributeSchemaNormalizedMutationTest {
 	private static CatalogSchema catalogSchema(@Nonnull Map<String, GlobalAttributeSchemaContract> attributes) {
 		return CatalogSchema._internalBuild(
 			1, "unit", NamingConvention.generate("unit"), null, null,
-			EnumSet.allOf(CatalogEvolutionMode.class), attributes, EmptyEntitySchemaAccessor.INSTANCE
+			EnumSet.allOf(CatalogEvolutionMode.class), attributes, Map.of(), Map.of(), Map.of(),
+			EmptyEntitySchemaAccessor.INSTANCE
 		);
 	}
 

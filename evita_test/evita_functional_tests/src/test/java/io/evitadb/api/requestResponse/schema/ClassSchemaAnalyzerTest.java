@@ -40,6 +40,8 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
+import io.evitadb.api.requestResponse.schema.model.evolution.GetterBasedEntityFulltextFieldSettings;
 import io.evitadb.api.requestResponse.schema.model.*;
 import io.evitadb.api.requestResponse.schema.model.evolution.*;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
@@ -5309,6 +5311,66 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				current = current.getCause();
 			}
 			assertNotNull(current, "Expected a refusal saying `" + expectedMessagePart + "`, got: " + thrown);
+		}
+
+	}
+
+	/**
+	 * Covers the fulltext field settings the annotations carry next to `searchable`: the analyzer and the length pivot,
+	 * on entity, global and reference attributes and on associated data.
+	 */
+	@Nested
+	@DisplayName("Fulltext analyzer and length pivot declared by annotation")
+	class FulltextFieldSettings {
+
+		@DisplayName("the analyzer and the length pivot reach every kind of field schema, defaults where left out")
+		@Test
+		void shouldSetupAnalyzerAndLengthPivot() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchemaFromModelClass(GetterBasedEntityFulltextFieldSettings.class);
+					final SealedEntitySchema schema = session.getEntitySchema(
+						GetterBasedEntityFulltextFieldSettings.ENTITY_NAME).orElseThrow();
+
+					final AttributeSchemaContract name = schema.getAttribute("name").orElseThrow();
+					assertEquals(FulltextAnalyzerSchemaContract.HTML_TEXT, name.getAnalyzer());
+					assertEquals(8, name.getLengthPivot());
+					final AttributeSchemaContract plainName = schema.getAttribute("plainName").orElseThrow();
+					assertEquals(FulltextAnalyzerSchemaContract.TEXT, plainName.getAnalyzer());
+					assertEquals(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, plainName.getLengthPivot());
+
+					final AttributeSchemaContract globalTitle = session.getCatalogSchema()
+						.getAttribute("fieldSettingsGlobalTitle").orElseThrow();
+					assertEquals(FulltextAnalyzerSchemaContract.TEXT, globalTitle.getAnalyzer());
+					assertEquals(12, globalTitle.getLengthPivot());
+					final AttributeSchemaContract label = schema.getReference("marketingBrand").orElseThrow()
+						.getAttribute("label").orElseThrow();
+					assertEquals(FulltextAnalyzerSchemaContract.HTML_TEXT, label.getAnalyzer());
+					assertEquals(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, label.getLengthPivot());
+
+					final AssociatedDataSchemaContract body = schema.getAssociatedData("body").orElseThrow();
+					assertEquals(FulltextAnalyzerSchemaContract.HTML_TEXT, body.getAnalyzer());
+					assertEquals(400, body.getLengthPivot());
+				}
+			);
+		}
+
+		@DisplayName("re-analyzing an unchanged model produces no mutations")
+		@Test
+		void shouldProduceNoMutationsWhenReanalyzedUnchanged() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchemaFromModelClass(GetterBasedEntityFulltextFieldSettings.class);
+
+					final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+						session, GetterBasedEntityFulltextFieldSettings.class
+					);
+
+					assertEquals(0, mutations.length, "Expected no mutations but got: " + Arrays.toString(mutations));
+				}
+			);
 		}
 
 	}

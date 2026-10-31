@@ -27,7 +27,9 @@ import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDat
 import io.evitadb.api.requestResponse.data.structure.AssociatedData;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 
 import javax.annotation.Nonnull;
@@ -135,7 +137,8 @@ public interface AssociatedDataEditor<W extends AssociatedDataEditor<W>> extends
 				// an implicitly created schema is never searchable - searchability is always declared
 				null,
 				null,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 		}
 

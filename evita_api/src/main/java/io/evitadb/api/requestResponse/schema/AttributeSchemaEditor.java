@@ -330,6 +330,28 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	T nonSearchableInScope(@Nonnull Scope... inScope);
 
 	/**
+	 * Sets the fulltext analyzer that turns the attribute's values into words while it is searchable - see
+	 * {@link AttributeSchemaContract#getAnalyzer()}. It leaves the scopes the attribute is searchable in as they are,
+	 * so it may precede or follow {@link #searchable()}.
+	 *
+	 * @param analyzerName the name of a built-in analyzer or of one declared in the catalog schema
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T analyzer(@Nonnull String analyzerName);
+
+	/**
+	 * Sets the length pivot of the attribute's fulltext field - see {@link AttributeSchemaContract#getLengthPivot()}.
+	 * It leaves the scopes the attribute is searchable in as they are, so it may precede or follow
+	 * {@link #searchable()}.
+	 *
+	 * @param lengthPivot the number of words a value of normal length has, positive
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T lengthPivot(int lengthPivot);
+
+	/**
 	 * When attribute value is unique it is automatically filterable, and it is ensured there is exactly one single entity
 	 * having certain value of this attribute.
 	 *

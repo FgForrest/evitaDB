@@ -3943,8 +3943,8 @@ class EvitaTest implements EvitaTestSupport {
 			);
 			final long sizeOnDisk2 = statistics2.storageSize().sizeOnDiskInBytes();
 			assertTrue(
-				sizeOnDisk2 > 1000L && sizeOnDisk2 < 1800L,
-				"Expected size on disk to be between 1000 and 1800 bytes, but was " + sizeOnDisk2
+				sizeOnDisk2 > 1000L && sizeOnDisk2 < 2000L,
+				"Expected size on disk to be between 1000 and 2000 bytes, but was " + sizeOnDisk2
 			);
 
 			final EntityCollectionStatistics productStatistics = catalog2

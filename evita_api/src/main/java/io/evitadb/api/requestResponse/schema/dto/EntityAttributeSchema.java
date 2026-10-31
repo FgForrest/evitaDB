@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverri
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
@@ -78,7 +79,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			type, null,
 			0,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			FulltextAnalyzerSchemaContract.TEXT, DEFAULT_LENGTH_PIVOT
 		);
 	}
 
@@ -105,7 +107,9 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
-		@Nullable List<AnalysisStep> normalization
+		@Nullable List<AnalysisStep> normalization,
+		@Nonnull String analyzer,
+		int lengthPivot
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -123,7 +127,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			type, defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			analyzer, lengthPivot
 		);
 	}
 
@@ -150,7 +155,9 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
-		@Nullable List<AnalysisStep> normalization
+		@Nullable List<AnalysisStep> normalization,
+		@Nonnull String analyzer,
+		int lengthPivot
 	) {
 		return new EntityAttributeSchema(
 			name, NamingConvention.generate(name),
@@ -164,7 +171,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			type, defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			analyzer, lengthPivot
 		);
 	}
 
@@ -192,7 +200,9 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
-		@Nullable List<AnalysisStep> normalization
+		@Nullable List<AnalysisStep> normalization,
+		@Nonnull String analyzer,
+		int lengthPivot
 	) {
 		return new EntityAttributeSchema(
 			name, nameVariants,
@@ -206,7 +216,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			type, defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			analyzer, lengthPivot
 		);
 	}
 
@@ -234,7 +245,9 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
-		@Nullable List<AnalysisStep> normalization
+		@Nullable List<AnalysisStep> normalization,
+		@Nonnull String analyzer,
+		int lengthPivot
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -252,11 +265,12 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			type, defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			analyzer, lengthPivot
 		);
 	}
 
-	/** Creates an immutable attribute schema, including its ordered normalization descriptions. */
+	/** Creates an immutable attribute schema, including its normalization and fulltext field settings. */
 	<T extends Serializable> EntityAttributeSchema(
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
@@ -274,7 +288,9 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
-		@Nullable List<AnalysisStep> normalization
+		@Nullable List<AnalysisStep> normalization,
+		@Nonnull String analyzer,
+		int lengthPivot
 	) {
 		super(
 			name, nameVariants, description, deprecationNotice,
@@ -282,7 +298,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			localized, nullable, representative,
 			type, defaultValue, indexedDecimalPlaces,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			analyzer, lengthPivot
 		);
 	}
 
@@ -300,6 +317,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			", sortable=" +
 			(this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.sortableInScopes) + ")") +
 			", normalization=" + this.normalization +
+			", analyzer=" + this.analyzer +
+			", lengthPivot=" + this.lengthPivot +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +
 			", representative=" + this.representative +

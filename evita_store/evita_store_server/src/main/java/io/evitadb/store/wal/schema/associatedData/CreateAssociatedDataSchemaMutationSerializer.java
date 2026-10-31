@@ -35,6 +35,9 @@ import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
 import java.io.Serializable;
 
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readNullableLengthPivot;
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeFulltextFieldSettings;
+
 /**
  * Serializer for {@link CreateAssociatedDataSchemaMutation}.
  *
@@ -52,7 +55,8 @@ public class CreateAssociatedDataSchemaMutationSerializer extends Serializer<Cre
 		output.writeBoolean(mutation.isLocalized());
 		output.writeBoolean(mutation.isNullable());
 		kryo.writeObject(output, mutation.getConflictResolutionOverride());
-		// the searchability section is appended last - the scopes, then the optional text expression
+		// the searchability section is appended last - the scopes, the optional text expression, then the fulltext
+		// field settings
 		writeScopeArray(kryo, output, mutation.getSearchableInScopes());
 		final Expression textExpression = mutation.getTextExpression();
 		if (textExpression != null) {
@@ -61,6 +65,7 @@ public class CreateAssociatedDataSchemaMutationSerializer extends Serializer<Cre
 		} else {
 			output.writeBoolean(false);
 		}
+		writeFulltextFieldSettings(output, mutation.getAnalyzer(), mutation.getLengthPivot());
 	}
 
 	@Override
@@ -75,6 +80,8 @@ public class CreateAssociatedDataSchemaMutationSerializer extends Serializer<Cre
 		final ConflictResolutionOverride conflictResolutionOverride = kryo.readObject(input, ConflictResolutionOverride.class);
 		final Scope[] searchableInScopes = readScopeArray(kryo, input);
 		final Expression textExpression = input.readBoolean() ? kryo.readObject(input, Expression.class) : null;
+		final String analyzer = input.readString();
+		final Integer lengthPivot = readNullableLengthPivot(input);
 		return new CreateAssociatedDataSchemaMutation(
 			name,
 			description,
@@ -84,7 +91,9 @@ public class CreateAssociatedDataSchemaMutationSerializer extends Serializer<Cre
 			nullable,
 			searchableInScopes,
 			textExpression,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			analyzer,
+			lengthPivot
 		);
 	}
 

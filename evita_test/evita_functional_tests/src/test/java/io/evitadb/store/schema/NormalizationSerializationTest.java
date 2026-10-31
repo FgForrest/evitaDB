@@ -167,7 +167,7 @@ class NormalizationSerializationTest {
 					new ScopedAttributeFilterAccelerators(Scope.LIVE, SUBSTRING_SEARCH)
 				},
 				Scope.DEFAULT_SCOPES, Scope.DEFAULT_SCOPES,
-				true, true, true, String.class, "default", 0, ConflictResolutionOverride.ENTITY, steps
+				true, true, true, String.class, "default", 0, ConflictResolutionOverride.ENTITY, steps, null, null
 			);
 			final CreateGlobalAttributeSchemaMutation restored = roundTrip(createWalKryo(), mutation);
 			assertEquals(mutation, restored);
@@ -228,7 +228,7 @@ class NormalizationSerializationTest {
 				new ScopedAttributeFilterAccelerators(Scope.LIVE, SUBSTRING_SEARCH)
 			},
 			Scope.DEFAULT_SCOPES, Scope.DEFAULT_SCOPES,
-			true, true, true, String.class, "default", 0, ConflictResolutionOverride.ENTITY, steps
+			true, true, true, String.class, "default", 0, ConflictResolutionOverride.ENTITY, steps, null, null
 		);
 	}
 

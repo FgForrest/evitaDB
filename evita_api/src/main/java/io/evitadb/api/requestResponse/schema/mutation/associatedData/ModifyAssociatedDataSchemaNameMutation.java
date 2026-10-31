@@ -89,7 +89,8 @@ public class ModifyAssociatedDataSchemaNameMutation
 			associatedDataSchema.isNullable(),
 			associatedDataSchema.getSearchableInScopes(),
 			associatedDataSchema.getTextExpression(),
-			associatedDataSchema.getConflictResolutionOverride()
+			associatedDataSchema.getConflictResolutionOverride(),
+			associatedDataSchema.getAnalyzer(), associatedDataSchema.getLengthPivot()
 		);
 	}
 

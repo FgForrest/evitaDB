@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.schema.dto;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
@@ -121,7 +122,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			type, null,
 			0,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			FulltextAnalyzerSchemaContract.TEXT, DEFAULT_LENGTH_PIVOT
 		);
 	}
 
@@ -149,7 +151,9 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
-		@Nullable List<AnalysisStep> normalization
+		@Nullable List<AnalysisStep> normalization,
+		@Nonnull String analyzer,
+		int lengthPivot
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(unique);
 		final EnumMap<Scope, GlobalAttributeUniquenessType> theGlobalUniquenessType =
@@ -169,7 +173,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			type, defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			analyzer, lengthPivot
 		);
 	}
 
@@ -197,7 +202,9 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
-		@Nullable List<AnalysisStep> normalization
+		@Nullable List<AnalysisStep> normalization,
+		@Nonnull String analyzer,
+		int lengthPivot
 	) {
 		return new GlobalAttributeSchema(
 			name, NamingConvention.generate(name),
@@ -212,7 +219,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			type, defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			analyzer, lengthPivot
 		);
 	}
 
@@ -241,7 +249,9 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
-		@Nullable List<AnalysisStep> normalization
+		@Nullable List<AnalysisStep> normalization,
+		@Nonnull String analyzer,
+		int lengthPivot
 	) {
 		return new GlobalAttributeSchema(
 			name, nameVariants,
@@ -256,7 +266,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			type, defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			analyzer, lengthPivot
 		);
 	}
 
@@ -285,7 +296,9 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
-		@Nullable List<AnalysisStep> normalization
+		@Nullable List<AnalysisStep> normalization,
+		@Nonnull String analyzer,
+		int lengthPivot
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(unique);
 		final EnumMap<Scope, GlobalAttributeUniquenessType> theGlobalUniquenessType =
@@ -305,11 +318,12 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			type, defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			analyzer, lengthPivot
 		);
 	}
 
-	/** Creates an immutable attribute schema, including its ordered normalization descriptions. */
+	/** Creates an immutable attribute schema, including its normalization and fulltext field settings. */
 	<T extends Serializable> GlobalAttributeSchema(
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
@@ -328,7 +342,9 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
-		@Nullable List<AnalysisStep> normalization
+		@Nullable List<AnalysisStep> normalization,
+		@Nonnull String analyzer,
+		int lengthPivot
 	) {
 		super(
 			name, nameVariants, description, deprecationNotice,
@@ -337,7 +353,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			localized, nullable, representative,
 			type, defaultValue, indexedDecimalPlaces,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			analyzer, lengthPivot
 		);
 		if (globalUniquenessTypeInScopes == null || globalUniquenessTypeInScopes.isEmpty()) {
 			final EnumMap<Scope, GlobalAttributeUniquenessType> theMap = new EnumMap<>(Scope.class);
@@ -438,6 +455,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			", sortable=" +
 			(this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.sortableInScopes) + ")") +
 			", normalization=" + this.normalization +
+			", analyzer=" + this.analyzer +
+			", lengthPivot=" + this.lengthPivot +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +
 			", representative=" + this.representative +

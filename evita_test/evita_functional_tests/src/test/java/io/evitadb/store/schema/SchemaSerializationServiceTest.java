@@ -34,6 +34,8 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
@@ -317,7 +319,8 @@ class SchemaSerializationServiceTest {
 			true, false, false,
 			String.class, null, 0,
 			ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 		);
 		final CatalogSchema createdCatalogSchema = CatalogSchema._internalBuild(
 			1,
@@ -327,6 +330,9 @@ class SchemaSerializationServiceTest {
 			null,
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			Map.of("title", globalAttribute),
+			Map.of(),
+			Map.of(),
+			Map.of(),
 			EmptyEntitySchemaAccessor.INSTANCE
 		);
 
@@ -381,6 +387,9 @@ class SchemaSerializationServiceTest {
 			null,
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			attributes,
+			Map.of(),
+			Map.of(),
+			Map.of(),
 			EmptyEntitySchemaAccessor.INSTANCE
 		);
 

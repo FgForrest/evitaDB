@@ -233,6 +233,57 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 		return (T) this;
 	}
 
+	/**
+	 * Returns the fulltext analyzer currently assembled from the accumulated mutations.
+	 */
+	@Nonnull
+	@Override
+	public String getAnalyzer() {
+		return assembleInstance().getAnalyzer();
+	}
+
+	/**
+	 * Returns the length pivot currently assembled from the accumulated mutations.
+	 */
+	@Override
+	public int getLengthPivot() {
+		return assembleInstance().getLengthPivot();
+	}
+
+	@Nonnull
+	@Override
+	public T analyzer(@Nonnull String analyzerName) {
+		return setFulltextField(analyzerName, null);
+	}
+
+	@Nonnull
+	@Override
+	public T lengthPivot(int lengthPivot) {
+		return setFulltextField(null, lengthPivot);
+	}
+
+	/**
+	 * Records the analyzer or the length pivot of the attribute's fulltext field. The searchability mutation carries
+	 * both, so it restates the scopes currently declared and leaves them as they are.
+	 *
+	 * @param analyzerName the analyzer to set, or `null` to keep the current one
+	 * @param lengthPivot  the length pivot to set, or `null` to keep the current one
+	 * @return this builder
+	 */
+	@Nonnull
+	private T setFulltextField(@Nullable String analyzerName, @Nullable Integer lengthPivot) {
+		final Scope[] searchableInScopes = assembleInstance().getSearchableInScopes().toArray(Scope[]::new);
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaSearchableMutation(
+					this.baseSchema.getName(), searchableInScopes, analyzerName, lengthPivot
+				)
+			)
+		);
+		return (T) this;
+	}
+
 	@Nonnull
 	@Override
 	public T acceleratedForInScope(

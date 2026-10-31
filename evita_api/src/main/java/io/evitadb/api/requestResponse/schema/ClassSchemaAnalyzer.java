@@ -393,6 +393,13 @@ public class ClassSchemaAnalyzer {
 			if (!editor.getNormalization().equals(Arrays.asList(normalization))) {
 				editor.normalized(normalization);
 			}
+			// fulltext field settings - reconcile with annotation
+			if (!attributeAnnotation.analyzer().equals(editor.getAnalyzer())) {
+				editor.analyzer(attributeAnnotation.analyzer());
+			}
+			if (attributeAnnotation.lengthPivot() != editor.getLengthPivot()) {
+				editor.lengthPivot(attributeAnnotation.lengthPivot());
+			}
 
 			// representative - reconcile with annotation
 			if (attributeAnnotation.representative() && !editor.isRepresentative()) {
@@ -1711,6 +1718,13 @@ public class ClassSchemaAnalyzer {
 					}
 				} else if (whichIs.isSearchableInScope(Scope.DEFAULT_SCOPE)) {
 					whichIs.nonSearchableInScope(Scope.DEFAULT_SCOPE);
+				}
+				// fulltext field settings - reconcile with annotation
+				if (!associatedDataAnnotation.analyzer().equals(whichIs.getAnalyzer())) {
+					whichIs.analyzer(associatedDataAnnotation.analyzer());
+				}
+				if (associatedDataAnnotation.lengthPivot() != whichIs.getLengthPivot()) {
+					whichIs.lengthPivot(associatedDataAnnotation.lengthPivot());
 				}
 				// conflict resolution granularity override - reconcile with annotation. A defaulted (INHERITED)
 				// annotation carries no opinion and must never overwrite an explicit override set through the

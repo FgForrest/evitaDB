@@ -29,6 +29,8 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -70,19 +72,22 @@ class RepresentativeAttributeDefinitionTest {
 			"gamma", null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null,
 			false, false, false, String.class, "G",
 			0, ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 		));
 		attributes.put("beta", AttributeSchema._internalBuild(
 			"beta", null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null,
 			false, false, true, String.class, "B",
 			0, ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 		));
 		attributes.put("alpha", AttributeSchema._internalBuild(
 			"alpha", null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null,
 			false, false, true, String.class, "A",
 			0, ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 		));
 		return attributes;
 	}
@@ -97,7 +102,8 @@ class RepresentativeAttributeDefinitionTest {
 			"only", null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null,
 			false, false, true, String.class, "X",
 			0, ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 		));
 		return attributes;
 	}
@@ -112,13 +118,15 @@ class RepresentativeAttributeDefinitionTest {
 			"beta", null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null,
 			false, false, true, String.class, "B",
 			0, ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 		));
 		attributes.put("alpha", AttributeSchema._internalBuild(
 			"alpha", null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null,
 			false, false, true, String.class, "A",
 			0, ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 		));
 		return attributes;
 	}
@@ -133,13 +141,15 @@ class RepresentativeAttributeDefinitionTest {
 			"gamma", null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null,
 			false, false, false, String.class, "G",
 			0, ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 		));
 		attributes.put("delta", AttributeSchema._internalBuild(
 			"delta", null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null,
 			false, false, false, String.class, "D",
 			0, ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 		));
 		return attributes;
 	}
@@ -154,7 +164,8 @@ class RepresentativeAttributeDefinitionTest {
 			"name", null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null,
 			false, false, true, String.class, null,
 			0, ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 		));
 		return attributes;
 	}
@@ -327,7 +338,8 @@ class RepresentativeAttributeDefinitionTest {
 				"beta", null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null, false, false, true,
 					String.class, "B2",
 				0, ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			));
 
 			final RepresentativeAttributeDefinition a = new RepresentativeAttributeDefinition(prepareAttributes());
@@ -370,13 +382,15 @@ class RepresentativeAttributeDefinitionTest {
 				"x", null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null, false, false, true,
 					String.class, "A",
 				0, ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			));
 			other.put("y", AttributeSchema._internalBuild(
 				"y", null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null, false, false, true,
 					String.class, "B",
 				0, ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			));
 
 			final RepresentativeAttributeDefinition a = new RepresentativeAttributeDefinition(prepareAttributes());

@@ -31,6 +31,9 @@ import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociat
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readNullableLengthPivot;
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeFulltextFieldSettings;
+
 /**
  * Serializer for {@link SetAssociatedDataSchemaSearchableMutation}: the name, the searchable scopes and the optional
  * text expression.
@@ -51,6 +54,7 @@ public class SetAssociatedDataSchemaSearchableMutationSerializer
 		} else {
 			output.writeBoolean(false);
 		}
+		writeFulltextFieldSettings(output, mutation.getAnalyzer(), mutation.getLengthPivot());
 	}
 
 	@Override
@@ -60,7 +64,9 @@ public class SetAssociatedDataSchemaSearchableMutationSerializer
 		return new SetAssociatedDataSchemaSearchableMutation(
 			input.readString(),
 			readScopeArray(kryo, input),
-			input.readBoolean() ? kryo.readObject(input, Expression.class) : null
+			input.readBoolean() ? kryo.readObject(input, Expression.class) : null,
+			input.readString(),
+			readNullableLengthPivot(input)
 		);
 	}
 

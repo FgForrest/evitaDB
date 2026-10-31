@@ -31,6 +31,9 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSearchableMutation;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readNullableLengthPivot;
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeFulltextFieldSettings;
+
 /**
  * Serializer for {@link SetAttributeSchemaSearchableMutation}.
  *
@@ -43,6 +46,7 @@ public class SetAttributeSchemaSearchableMutationSerializer
 	public void write(Kryo kryo, Output output, SetAttributeSchemaSearchableMutation mutation) {
 		output.writeString(mutation.getName());
 		writeScopeArray(kryo, output, mutation.getSearchableInScopes());
+		writeFulltextFieldSettings(output, mutation.getAnalyzer(), mutation.getLengthPivot());
 	}
 
 	@Override
@@ -51,7 +55,9 @@ public class SetAttributeSchemaSearchableMutationSerializer
 	) {
 		return new SetAttributeSchemaSearchableMutation(
 			input.readString(),
-			readScopeArray(kryo, input)
+			readScopeArray(kryo, input),
+			input.readString(),
+			readNullableLengthPivot(input)
 		);
 	}
 

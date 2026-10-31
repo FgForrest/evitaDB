@@ -118,6 +118,9 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 								Function.identity()
 							)
 						),
+					catalogSchema.getFulltextLanguages(),
+					catalogSchema.getFulltextResources(),
+					catalogSchema.getFulltextAnalyzers(),
 					entitySchemaAccessor
 				),
 				entitySchemaAccessor

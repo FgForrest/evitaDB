@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverri
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
@@ -38,6 +39,7 @@ import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.EqualsAndHashCode;
@@ -119,6 +121,15 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	 * Ordered normalization descriptions shared by all scopes. Empty means Unicode NFD only.
 	 */
 	@Getter @Nonnull protected final List<AnalysisStep> normalization;
+	/**
+	 * The name of the fulltext analyzer that turns the values into words while the attribute is searchable. See
+	 * {@link AttributeSchemaContract#getAnalyzer()}.
+	 */
+	@Getter @Nonnull protected final String analyzer;
+	/**
+	 * The length pivot of the attribute's fulltext field. See {@link AttributeSchemaContract#getLengthPivot()}.
+	 */
+	@Getter protected final int lengthPivot;
 	/**
 	 * Number of fractional places important for indexing numeric values (especially {@link java.math.BigDecimal}).
 	 * Values are scaled by 10^indexedDecimalPlaces and stored as integers, therefore the scaled value must fit into
@@ -301,7 +312,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			type, null,
 			0,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			FulltextAnalyzerSchemaContract.TEXT, DEFAULT_LENGTH_PIVOT
 		);
 	}
 
@@ -328,7 +340,9 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
-		@Nullable List<AnalysisStep> normalization
+		@Nullable List<AnalysisStep> normalization,
+		@Nonnull String analyzer,
+		int lengthPivot
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -346,7 +360,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			type, defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			analyzer, lengthPivot
 		);
 	}
 
@@ -373,7 +388,9 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
-		@Nullable List<AnalysisStep> normalization
+		@Nullable List<AnalysisStep> normalization,
+		@Nonnull String analyzer,
+		int lengthPivot
 	) {
 		return new AttributeSchema(
 			name, NamingConvention.generate(name),
@@ -387,7 +404,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			type, defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			analyzer, lengthPivot
 		);
 	}
 
@@ -415,7 +433,9 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
-		@Nullable List<AnalysisStep> normalization
+		@Nullable List<AnalysisStep> normalization,
+		@Nonnull String analyzer,
+		int lengthPivot
 	) {
 		return new AttributeSchema(
 			name, nameVariants,
@@ -429,7 +449,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			type, defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			analyzer, lengthPivot
 		);
 	}
 
@@ -457,7 +478,9 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
-		@Nullable List<AnalysisStep> normalization
+		@Nullable List<AnalysisStep> normalization,
+		@Nonnull String analyzer,
+		int lengthPivot
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -475,11 +498,12 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			type, defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			analyzer, lengthPivot
 		);
 	}
 
-	/** Creates an immutable attribute schema, including its ordered normalization descriptions. */
+	/** Creates an immutable attribute schema, including its normalization and fulltext field settings. */
 	<T extends Serializable> AttributeSchema(
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
@@ -497,10 +521,15 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
-		@Nullable List<AnalysisStep> normalization
+		@Nullable List<AnalysisStep> normalization,
+		@Nonnull String analyzer,
+		int lengthPivot
 	) {
 		this.normalization = normalization == null ? List.of() :
 			Collections.unmodifiableList(new ArrayList<>(normalization));
+		Assert.notNull(analyzer, "The fulltext analyzer of attribute `" + name + "` must not be null!");
+		this.analyzer = analyzer;
+		this.lengthPivot = lengthPivot;
 		this.name = name;
 		this.nameVariants = CollectionUtils.toUnmodifiableMap(nameVariants);
 		this.description = description;
@@ -736,7 +765,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 				null,
 				this.indexedDecimalPlaces,
 				this.conflictResolutionOverride,
-				this.normalization
+				this.normalization,
+				this.analyzer, this.lengthPivot
 			);
 		} else if (ReferencedEntityPredecessor.class.equals(this.plainType)) {
 			return new AttributeSchema(
@@ -756,7 +786,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 				null,
 				this.indexedDecimalPlaces,
 				this.conflictResolutionOverride,
-				this.normalization
+				this.normalization,
+				this.analyzer, this.lengthPivot
 			);
 		} else {
 			throw new GenericEvitaInternalError(
@@ -779,6 +810,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			", sortable=" +
 			(this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.sortableInScopes) + ")") +
 			", normalization=" + this.normalization +
+			", analyzer=" + this.analyzer +
+			", lengthPivot=" + this.lengthPivot +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +
 			", representative=" + this.representative +

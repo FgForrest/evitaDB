@@ -95,6 +95,9 @@ public class DisallowEvolutionModeInCatalogSchemaMutation implements LocalCatalo
 						.filter(it -> !this.evolutionModes.contains(it))
 						.collect(Collectors.toSet()),
 					catalogSchema.getAttributes(),
+					catalogSchema.getFulltextLanguages(),
+					catalogSchema.getFulltextResources(),
+					catalogSchema.getFulltextAnalyzers(),
 					entitySchemaAccessor
 				)
 			);

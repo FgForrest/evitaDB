@@ -26,6 +26,8 @@ package io.evitadb.api.requestResponse.schema.dto;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -75,7 +77,8 @@ class AssociatedDataSchemaTest {
 				true, true,
 				null,
 				null,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertEquals("description", schema.getName());
@@ -95,7 +98,8 @@ class AssociatedDataSchemaTest {
 				String.class, false, false,
 				null,
 				null,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertEquals(
@@ -111,7 +115,8 @@ class AssociatedDataSchemaTest {
 				"count", null, null, int.class, false, false,
 				null,
 				null,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertSame(Integer.class, schema.getType());
@@ -124,7 +129,8 @@ class AssociatedDataSchemaTest {
 				"tags", null, null, String[].class, false, false,
 				null,
 				null,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertSame(String[].class, schema.getType());
@@ -138,7 +144,8 @@ class AssociatedDataSchemaTest {
 				"metadata", null, null, java.util.HashMap.class, false, false,
 				null,
 				null,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertSame(ComplexDataObject.class, schema.getType());
@@ -156,13 +163,15 @@ class AssociatedDataSchemaTest {
 				"data", null, null, String.class, false, false,
 				null,
 				null,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 			final AssociatedDataSchema b = AssociatedDataSchema._internalBuild(
 				"data", null, null, String.class, false, false,
 				null,
 				null,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertEquals(a, b);
@@ -176,13 +185,15 @@ class AssociatedDataSchemaTest {
 				"data1", null, null, String.class, false, false,
 				null,
 				null,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 			final AssociatedDataSchema b = AssociatedDataSchema._internalBuild(
 				"data2", null, null, String.class, false, false,
 				null,
 				null,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertNotEquals(a, b);
@@ -195,13 +206,15 @@ class AssociatedDataSchemaTest {
 				"data", null, null, String.class, true, false,
 				null,
 				null,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 			final AssociatedDataSchema b = AssociatedDataSchema._internalBuild(
 				"data", null, null, String.class, false, false,
 				null,
 				null,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertNotEquals(a, b);
@@ -214,13 +227,15 @@ class AssociatedDataSchemaTest {
 				"data", null, null, String.class, false, false,
 				null,
 				null,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 			final AssociatedDataSchema b = AssociatedDataSchema._internalBuild(
 				"data", null, null, String.class, false, false,
 				null,
 				null,
-				ConflictResolutionOverride.GRANULAR
+				ConflictResolutionOverride.GRANULAR,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertNotEquals(a, b);

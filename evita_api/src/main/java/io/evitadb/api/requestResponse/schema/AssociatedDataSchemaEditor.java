@@ -169,4 +169,26 @@ public interface AssociatedDataSchemaEditor extends
 	@Nonnull
 	AssociatedDataSchemaEditor nonSearchableInScope(@Nonnull Scope... inScope);
 
+	/**
+	 * Sets the fulltext analyzer that turns the text of the associated data into words while it is searchable - see
+	 * {@link AssociatedDataSchemaContract#getAnalyzer()}. It leaves the scopes the associated data is searchable in and
+	 * its text expression as they are, so it may precede or follow {@link #searchable()}.
+	 *
+	 * @param analyzerName the name of a built-in analyzer or of one declared in the catalog schema
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	AssociatedDataSchemaEditor analyzer(@Nonnull String analyzerName);
+
+	/**
+	 * Sets the length pivot of the associated data's fulltext field - see
+	 * {@link AssociatedDataSchemaContract#getLengthPivot()}. It leaves the scopes the associated data is searchable in
+	 * and its text expression as they are, so it may precede or follow {@link #searchable()}.
+	 *
+	 * @param lengthPivot the number of words a value of normal length has, positive
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	AssociatedDataSchemaEditor lengthPivot(int lengthPivot);
+
 }

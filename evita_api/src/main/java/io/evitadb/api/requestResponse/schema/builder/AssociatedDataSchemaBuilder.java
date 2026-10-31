@@ -203,6 +203,18 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 		);
 	}
 
+	@Nonnull
+	@Override
+	public AssociatedDataSchemaBuilder analyzer(@Nonnull String analyzerName) {
+		return setFulltextField(analyzerName, null);
+	}
+
+	@Nonnull
+	@Override
+	public AssociatedDataSchemaBuilder lengthPivot(int lengthPivot) {
+		return setFulltextField(null, lengthPivot);
+	}
+
 	@Override
 	@Nonnull
 	public AssociatedDataSchemaBuilder withConflictResolutionOverride(@Nonnull ConflictResolutionOverride conflictResolutionOverride) {
@@ -285,6 +297,32 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new SetAssociatedDataSchemaSearchableMutation(
 					this.baseSchema.getName(), searchableInScopes, textExpression
+				)
+			)
+		);
+		return this;
+	}
+
+	/**
+	 * Records the analyzer or the length pivot of the associated data's fulltext field. The searchability mutation
+	 * carries both, so it restates the scopes and the text expression currently declared and leaves them as they are.
+	 *
+	 * @param analyzerName the analyzer to set, or `null` to keep the current one
+	 * @param lengthPivot  the length pivot to set, or `null` to keep the current one
+	 * @return this builder
+	 */
+	@Nonnull
+	private AssociatedDataSchemaBuilder setFulltextField(@Nullable String analyzerName, @Nullable Integer lengthPivot) {
+		final AssociatedDataSchemaContract currentSchema = assembleInstance();
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetAssociatedDataSchemaSearchableMutation(
+					this.baseSchema.getName(),
+					currentSchema.getSearchableInScopes().toArray(Scope[]::new),
+					currentSchema.getTextExpression(),
+					analyzerName, lengthPivot
 				)
 			)
 		);

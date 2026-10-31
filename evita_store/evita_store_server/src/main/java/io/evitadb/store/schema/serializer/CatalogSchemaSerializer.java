@@ -31,9 +31,16 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextLanguageSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextResourceSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.analysis.FulltextAnalysisPhases;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.api.requestResponse.schema.dto.FulltextAnalyzerSchema;
+import io.evitadb.api.requestResponse.schema.dto.FulltextLanguageSchema;
+import io.evitadb.api.requestResponse.schema.dto.FulltextResourceSchema;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
@@ -46,6 +53,15 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readAnalysisSteps;
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readFulltextAnalysisPhases;
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readFulltextAnalyzerBasedOn;
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readFulltextAnalyzerLanguages;
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readFulltextResourceContent;
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeAnalysisSteps;
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeFulltextAnalyzerDefinition;
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeFulltextResourceContent;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link CatalogSchema} from/to binary format.
@@ -77,6 +93,26 @@ public class CatalogSchemaSerializer extends Serializer<CatalogSchema> {
 		EntitySchemaSerializer.writeConflictResolution(kryo, output, catalogSchema.getConflictResolution().orElse(null));
 		kryo.writeObject(output, catalogSchema.getCatalogEvolutionMode());
 		kryo.writeObject(output, catalogSchema.getAttributes());
+		final Map<String, FulltextLanguageSchemaContract> languages = catalogSchema.getFulltextLanguages();
+		output.writeVarInt(languages.size(), true);
+		for (FulltextLanguageSchemaContract language : languages.values()) {
+			output.writeString(language.getLanguage());
+			writeAnalysisSteps(kryo, output, language.getWordSplitting());
+		}
+		final Map<String, FulltextResourceSchemaContract> resources = catalogSchema.getFulltextResources();
+		output.writeVarInt(resources.size(), true);
+		for (FulltextResourceSchemaContract resource : resources.values()) {
+			output.writeString(resource.getName());
+			writeFulltextResourceContent(output, resource.getContent());
+		}
+		final Map<String, FulltextAnalyzerSchemaContract> analyzers = catalogSchema.getFulltextAnalyzers();
+		output.writeVarInt(analyzers.size(), true);
+		for (FulltextAnalyzerSchemaContract analyzer : analyzers.values()) {
+			output.writeString(analyzer.getName());
+			writeFulltextAnalyzerDefinition(
+				kryo, output, analyzer.getBasedOn().orElse(null), analyzer.getAllLanguages(), analyzer.getLanguages()
+			);
+		}
 	}
 
 	@Override
@@ -95,11 +131,42 @@ public class CatalogSchemaSerializer extends Serializer<CatalogSchema> {
 		final ConflictResolution conflictResolution = EntitySchemaSerializer.readConflictResolution(kryo, input);
 		@SuppressWarnings("unchecked") final Set<CatalogEvolutionMode> catalogEvolutionMode = kryo.readObject(input, Set.class);
 		@SuppressWarnings("unchecked") final Map<String, GlobalAttributeSchemaContract> attributeSchema = kryo.readObject(input, LinkedHashMap.class);
+		final int languageCount = input.readVarInt(true);
+		final Map<String, FulltextLanguageSchemaContract> languages =
+			CollectionUtils.createLinkedHashMap(languageCount);
+		for (int i = 0; i < languageCount; i++) {
+			final String language = input.readString();
+			languages.put(
+				language, FulltextLanguageSchema._internalBuild(language, readAnalysisSteps(kryo, input))
+			);
+		}
+		final int resourceCount = input.readVarInt(true);
+		final Map<String, FulltextResourceSchemaContract> resources =
+			CollectionUtils.createLinkedHashMap(resourceCount);
+		for (int i = 0; i < resourceCount; i++) {
+			final String name = input.readString();
+			resources.put(name, FulltextResourceSchema._internalBuild(name, readFulltextResourceContent(input)));
+		}
+		final int analyzerCount = input.readVarInt(true);
+		final Map<String, FulltextAnalyzerSchemaContract> analyzers =
+			CollectionUtils.createLinkedHashMap(analyzerCount);
+		for (int i = 0; i < analyzerCount; i++) {
+			final String name = input.readString();
+			final String basedOn = readFulltextAnalyzerBasedOn(input);
+			final FulltextAnalysisPhases allLanguages = readFulltextAnalysisPhases(kryo, input);
+			final Map<String, FulltextAnalysisPhases> analyzerLanguages = readFulltextAnalyzerLanguages(kryo, input);
+			analyzers.put(
+				name, FulltextAnalyzerSchema._internalBuild(name, basedOn, allLanguages, analyzerLanguages)
+			);
+		}
 		final CatalogContract theCatalog = CatalogSchemaStoragePart.getDeserializationContextCatalog();
 		return CatalogSchema._internalBuild(
 			version,
 			catalogName, nameVariants, description, conflictResolution, catalogEvolutionMode,
 			attributeSchema,
+			languages,
+			resources,
+			analyzers,
 			new DeserializedEntitySchemaAccessor(theCatalog)
 		);
 	}

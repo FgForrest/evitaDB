@@ -25,11 +25,14 @@ package io.evitadb.api.requestResponse.schema.dto;
 
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.EqualsAndHashCode;
@@ -73,6 +76,16 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 	 */
 	@Getter @Nullable private final Expression textExpression;
 	@Getter @Nonnull private final ConflictResolutionOverride conflictResolutionOverride;
+	/**
+	 * The name of the fulltext analyzer that turns the text into words while the associated data is searchable. See
+	 * {@link AssociatedDataSchemaContract#getAnalyzer()}.
+	 */
+	@Getter @Nonnull private final String analyzer;
+	/**
+	 * The length pivot of the associated data's fulltext field. See
+	 * {@link AssociatedDataSchemaContract#getLengthPivot()}.
+	 */
+	@Getter private final int lengthPivot;
 
 	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of AssociatedDataSchema from
@@ -89,11 +102,14 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		boolean nullable,
 		@Nullable Scope[] searchableInScopes,
 		@Nullable Expression textExpression,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nonnull String analyzer,
+		int lengthPivot
 	) {
 		return new AssociatedDataSchema(
 			name, NamingConvention.generate(name), description, deprecationNotice, type, localized, nullable,
-			ArrayUtils.toEnumSet(Scope.class, searchableInScopes), textExpression, conflictResolutionOverride
+			ArrayUtils.toEnumSet(Scope.class, searchableInScopes), textExpression, conflictResolutionOverride,
+			analyzer, lengthPivot
 		);
 	}
 
@@ -113,12 +129,14 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		boolean nullable,
 		@Nullable Set<Scope> searchableInScopes,
 		@Nullable Expression textExpression,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nonnull String analyzer,
+		int lengthPivot
 	) {
 		return new AssociatedDataSchema(
 			name, nameVariants,
 			description, deprecationNotice, type, localized, nullable, searchableInScopes, textExpression,
-			conflictResolutionOverride
+			conflictResolutionOverride, analyzer, lengthPivot
 		);
 	}
 
@@ -135,7 +153,8 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 	) {
 		return new AssociatedDataSchema(
 			name, NamingConvention.generate(name), null, null, type, false, false, null, null,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 		);
 	}
 
@@ -149,8 +168,11 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		boolean nullable,
 		@Nullable Set<Scope> searchableInScopes,
 		@Nullable Expression textExpression,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nonnull String analyzer,
+		int lengthPivot
 	) {
+		Assert.notNull(analyzer, "The fulltext analyzer of associated data `" + name + "` must not be null!");
 		this.name = name;
 		this.nameVariants = nameVariants;
 		this.description = description;
@@ -168,6 +190,8 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		);
 		this.textExpression = textExpression;
 		this.conflictResolutionOverride = conflictResolutionOverride;
+		this.analyzer = analyzer;
+		this.lengthPivot = lengthPivot;
 	}
 
 	@Override

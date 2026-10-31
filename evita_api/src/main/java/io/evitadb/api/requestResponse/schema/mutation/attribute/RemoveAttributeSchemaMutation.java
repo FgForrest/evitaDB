@@ -141,6 +141,9 @@ public class RemoveAttributeSchemaMutation
 								Function.identity()
 							)
 						),
+					catalogSchema.getFulltextLanguages(),
+					catalogSchema.getFulltextResources(),
+					catalogSchema.getFulltextAnalyzers(),
 					entitySchemaAccessor
 				),
 				entitySchemaAccessor

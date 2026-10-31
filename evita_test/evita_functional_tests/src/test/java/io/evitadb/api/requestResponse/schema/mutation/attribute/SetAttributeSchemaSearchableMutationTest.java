@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -59,6 +60,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.lowercase;
 import static io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutationTest.*;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -174,6 +176,26 @@ class SetAttributeSchemaSearchableMutationTest {
 		}
 
 		@Test
+		@DisplayName("Should keep the analyzer and the length pivot of the earlier mutation unless restated")
+		void shouldKeepEarlierAnalyzerAndPivotUnlessRestated() {
+			final SetAttributeSchemaSearchableMutation earlier =
+				new SetAttributeSchemaSearchableMutation(ATTRIBUTE_NAME, Scope.NO_SCOPE, "html-text", 180);
+			final SetAttributeSchemaSearchableMutation mutation =
+				new SetAttributeSchemaSearchableMutation(ATTRIBUTE_NAME, Scope.values(), null, 40);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
+				Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), earlier
+			);
+
+			assertNotNull(result);
+			assertNull(result.origin());
+			assertEquals(
+				new SetAttributeSchemaSearchableMutation(ATTRIBUTE_NAME, Scope.values(), "html-text", 40),
+				result.current()[0]
+			);
+		}
+
+		@Test
 		@DisplayName("Should leave both mutations when the names don't match")
 		void shouldLeaveBothMutationsWhenNamesDontMatch() {
 			final SetAttributeSchemaSearchableMutation mutation =
@@ -285,6 +307,32 @@ class SetAttributeSchemaSearchableMutationTest {
 		}
 
 		@Test
+		@DisplayName("Should set the analyzer and the length pivot, and keep each when the mutation leaves it null")
+		void shouldSetAnalyzerAndPivotAndKeepThemWhenNull() {
+			final AttributeSchemaContract original = filterableAcceleratedLocalizedString();
+			assertEquals(FulltextAnalyzerSchemaContract.TEXT, original.getAnalyzer());
+			assertEquals(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, original.getLengthPivot());
+
+			final AttributeSchemaContract configured = new SetAttributeSchemaSearchableMutation(
+				ATTRIBUTE_NAME, new Scope[]{Scope.LIVE}, "html-text", 180
+			).mutate(null, original, AttributeSchemaContract.class);
+			assertEquals("html-text", configured.getAnalyzer());
+			assertEquals(180, configured.getLengthPivot());
+
+			final AttributeSchemaContract rescoped = new SetAttributeSchemaSearchableMutation(
+				ATTRIBUTE_NAME, Scope.values()
+			).mutate(null, configured, AttributeSchemaContract.class);
+			assertEquals(EnumSet.allOf(Scope.class), rescoped.getSearchableInScopes());
+			assertEquals("html-text", rescoped.getAnalyzer());
+			assertEquals(180, rescoped.getLengthPivot());
+			assertSame(
+				rescoped,
+				new SetAttributeSchemaSearchableMutation(ATTRIBUTE_NAME, Scope.values(), "html-text", null)
+					.mutate(null, rescoped, AttributeSchemaContract.class)
+			);
+		}
+
+		@Test
 		@DisplayName("Should keep an entity attribute an entity attribute")
 		void shouldKeepEntityAttributeAnEntityAttribute() {
 			final EntityAttributeSchemaContract mutated = new SetAttributeSchemaSearchableMutation(
@@ -353,7 +401,8 @@ class SetAttributeSchemaSearchableMutationTest {
 					ATTRIBUTE_NAME,
 					new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 				)
-			)
+			),
+			Arguments.of("normalization", new SetAttributeSchemaNormalizedMutation(ATTRIBUTE_NAME, lowercase()))
 		);
 	}
 
@@ -387,6 +436,40 @@ class SetAttributeSchemaSearchableMutationTest {
 			GlobalAttributeSchemaContract.class
 		);
 		assertEquals(allScopes, global.getSearchableInScopes(), label + " dropped it from a global attribute");
+	}
+
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("otherAttributeMutations")
+	@DisplayName("Should keep the analyzer and the length pivot of an attribute through every other attribute mutation")
+	void shouldKeepAnalyzerAndPivotThroughOtherAttributeMutation(
+		@Nonnull String label, @Nonnull AttributeSchemaMutation mutation
+	) {
+		final SetAttributeSchemaSearchableMutation configured =
+			new SetAttributeSchemaSearchableMutation(ATTRIBUTE_NAME, Scope.values(), "html-text", 180);
+
+		final AttributeSchemaContract plain = mutation.mutate(
+			null,
+			configured.mutate(null, filterableAcceleratedLocalizedString(), AttributeSchemaContract.class),
+			AttributeSchemaContract.class
+		);
+		assertEquals("html-text", plain.getAnalyzer(), label + " dropped it from a reference attribute");
+		assertEquals(180, plain.getLengthPivot(), label + " dropped it from a reference attribute");
+
+		final EntityAttributeSchemaContract entity = mutation.mutate(
+			null,
+			configured.mutate(null, createStringEntityAttributeSchema(), EntityAttributeSchemaContract.class),
+			EntityAttributeSchemaContract.class
+		);
+		assertEquals("html-text", entity.getAnalyzer(), label + " dropped it from an entity attribute");
+		assertEquals(180, entity.getLengthPivot(), label + " dropped it from an entity attribute");
+
+		final GlobalAttributeSchemaContract global = mutation.mutate(
+			null,
+			configured.mutate(null, createStringGlobalAttributeSchema(), GlobalAttributeSchemaContract.class),
+			GlobalAttributeSchemaContract.class
+		);
+		assertEquals("html-text", global.getAnalyzer(), label + " dropped it from a global attribute");
+		assertEquals(180, global.getLengthPivot(), label + " dropped it from a global attribute");
 	}
 
 	@Test

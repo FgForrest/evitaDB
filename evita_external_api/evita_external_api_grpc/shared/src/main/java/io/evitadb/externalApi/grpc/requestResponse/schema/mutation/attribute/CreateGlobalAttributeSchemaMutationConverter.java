@@ -84,7 +84,10 @@ public class CreateGlobalAttributeSchemaMutationConverter implements SchemaMutat
 			mutation.getIndexedDecimalPlaces(),
 			toConflictResolutionOverride(mutation.getConflictResolutionOverride()),
 			mutation.getNormalizationCount() == 0 ? null :
-				toAnalysisSteps(mutation.getNormalizationList()).toArray(AnalysisStep[]::new)
+				toAnalysisSteps(mutation.getNormalizationList()).toArray(AnalysisStep[]::new),
+			// the fulltext field settings have no gRPC mirror yet, so the defaults apply
+			null,
+			null
 		);
 	}
 

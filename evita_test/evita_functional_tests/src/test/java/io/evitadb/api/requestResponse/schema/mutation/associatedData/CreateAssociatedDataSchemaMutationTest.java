@@ -42,6 +42,8 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -82,7 +84,8 @@ class CreateAssociatedDataSchemaMutationTest {
 			false,
 			null,
 			null,
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 		);
 	}
 
@@ -156,7 +159,8 @@ class CreateAssociatedDataSchemaMutationTest {
 			final CreateAssociatedDataSchemaMutation mutation = new CreateAssociatedDataSchemaMutation(
 				ASSOCIATED_DATA_NAME, null, null, ComplexDataObject.class, true, false,
 				new Scope[]{Scope.LIVE, Scope.ARCHIVED}, ExpressionFactory.parse("$value.title"),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, null
 			);
 			assertTrue(mutation.isSearchable());
 			final AssociatedDataSchemaContract schema = mutation.mutate(null);
@@ -233,7 +237,8 @@ class CreateAssociatedDataSchemaMutationTest {
 					of(
 						AssociatedDataSchema._internalBuild(
 							ASSOCIATED_DATA_NAME, "oldDescription", "oldDeprecationNotice", Integer.class, false, false,
-							new Scope[]{Scope.LIVE}, null, ConflictResolutionOverride.INHERITED
+							new Scope[]{Scope.LIVE}, null, ConflictResolutionOverride.INHERITED,
+								FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 						)
 					)
 				);

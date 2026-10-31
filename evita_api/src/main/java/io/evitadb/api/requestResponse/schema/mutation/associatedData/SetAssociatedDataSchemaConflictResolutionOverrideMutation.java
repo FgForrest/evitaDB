@@ -103,7 +103,8 @@ public class SetAssociatedDataSchemaConflictResolutionOverrideMutation
 			associatedDataSchema.isNullable(),
 			associatedDataSchema.getSearchableInScopes(),
 			associatedDataSchema.getTextExpression(),
-			this.conflictResolutionOverride
+			this.conflictResolutionOverride,
+			associatedDataSchema.getAnalyzer(), associatedDataSchema.getLengthPivot()
 		);
 	}
 

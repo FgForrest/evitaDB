@@ -152,6 +152,24 @@ public interface AssociatedDataSchemaContract extends NamedSchemaWithDeprecation
 	Set<Scope> getSearchableInScopes();
 
 	/**
+	 * Returns the name of the fulltext analyzer that turns the text of the associated data into words while it is
+	 * {@link #isSearchable() searchable} - see {@link AttributeSchemaContract#getAnalyzer()}, which this mirrors.
+	 *
+	 * @return the name of the analyzer, {@link FulltextAnalyzerSchemaContract#TEXT} unless declared otherwise
+	 */
+	@Nonnull
+	String getAnalyzer();
+
+	/**
+	 * Returns the length pivot of the associated data's fulltext field - see
+	 * {@link AttributeSchemaContract#getLengthPivot()}, which this mirrors. A long body of text usually wants a pivot
+	 * well above the default.
+	 *
+	 * @return the length pivot, {@link AttributeSchemaContract#DEFAULT_LENGTH_PIVOT} unless declared otherwise
+	 */
+	int getLengthPivot();
+
+	/**
 	 * Returns the EvitaEL expression selecting the text of a {@link ComplexDataObject} value, with the stored value
 	 * bound to `$value` (see {@link #TEXT_EXPRESSION_VARIABLE}), e.g. `$value.title` or `$value.blocks.*[$.text]`.
 	 * The expression is expected to yield a `String`, an array or list of strings (an array node of the stored value
@@ -179,10 +197,24 @@ public interface AssociatedDataSchemaContract extends NamedSchemaWithDeprecation
 	 */
 	@Nonnull
 	default Stream<String> validate() {
-		if (!isSearchableInAnyScope()) {
-			return Stream.empty();
-		}
 		Stream<String> errors = Stream.empty();
+		if (getAnalyzer().isBlank()) {
+			errors = Stream.concat(
+				errors, Stream.of("Associated data `" + getName() + "` names a blank fulltext analyzer.")
+			);
+		}
+		if (getLengthPivot() <= 0) {
+			errors = Stream.concat(
+				errors,
+				Stream.of(
+					"Associated data `" + getName() + "` declares the length pivot " + getLengthPivot() +
+						"! The length pivot must be positive."
+				)
+			);
+		}
+		if (!isSearchableInAnyScope()) {
+			return errors;
+		}
 		final boolean complexDataObject = ComplexDataObject.class.equals(getPlainType());
 		if (!complexDataObject && !String.class.equals(getPlainType())) {
 			errors = Stream.concat(

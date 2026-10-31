@@ -27,10 +27,13 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
+import io.evitadb.api.requestResponse.schema.mutation.AssociatedDataSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.Scope;
@@ -39,12 +42,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.EnumSet;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.SCHEMA;
@@ -83,7 +90,8 @@ class SetAssociatedDataSchemaSearchableMutationTest {
 	) {
 		return AssociatedDataSchema._internalBuild(
 			ASSOCIATED_DATA_NAME, "description", null, ComplexDataObject.class, true, true,
-			searchableInScopes, textExpression, ConflictResolutionOverride.ENTITY
+			searchableInScopes, textExpression, ConflictResolutionOverride.ENTITY,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 		);
 	}
 
@@ -140,6 +148,102 @@ class SetAssociatedDataSchemaSearchableMutationTest {
 				() -> new SetAssociatedDataSchemaSearchableMutation(ASSOCIATED_DATA_NAME, true)
 					.mutate(Mockito.mock(CatalogSchemaContract.class), entitySchema)
 			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Fulltext field settings")
+	class FieldSettings {
+
+		/**
+		 * Every other mutation of an associated data schema, each of which must carry the fulltext field settings
+		 * through.
+		 *
+		 * @return the label and the mutation of each case
+		 */
+		@Nonnull
+		static Stream<Arguments> otherAssociatedDataMutations() {
+			return Stream.of(
+				Arguments.of("nullable", new SetAssociatedDataSchemaNullableMutation(ASSOCIATED_DATA_NAME, false)),
+				Arguments.of("localized", new SetAssociatedDataSchemaLocalizedMutation(ASSOCIATED_DATA_NAME, false)),
+				Arguments.of("type", new ModifyAssociatedDataSchemaTypeMutation(ASSOCIATED_DATA_NAME, String.class)),
+				Arguments.of(
+					"description", new ModifyAssociatedDataSchemaDescriptionMutation(ASSOCIATED_DATA_NAME, "changed")
+				),
+				Arguments.of(
+					"deprecation notice",
+					new ModifyAssociatedDataSchemaDeprecationNoticeMutation(ASSOCIATED_DATA_NAME, "changed")
+				),
+				Arguments.of("name", new ModifyAssociatedDataSchemaNameMutation(ASSOCIATED_DATA_NAME, "renamed")),
+				Arguments.of(
+					"conflict resolution",
+					new SetAssociatedDataSchemaConflictResolutionOverrideMutation(
+						ASSOCIATED_DATA_NAME, ConflictResolutionOverride.GRANULAR
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should set the analyzer and the length pivot, and keep each when the mutation leaves it null")
+		void shouldSetAnalyzerAndPivotAndKeepThemWhenNull() {
+			final AssociatedDataSchemaContract configured = new SetAssociatedDataSchemaSearchableMutation(
+				ASSOCIATED_DATA_NAME, new Scope[]{Scope.LIVE}, TITLE, "html-text", 400
+			).mutate(existing(Scope.NO_SCOPE, null));
+			assertEquals("html-text", configured.getAnalyzer());
+			assertEquals(400, configured.getLengthPivot());
+
+			final AssociatedDataSchemaContract rescoped = new SetAssociatedDataSchemaSearchableMutation(
+				ASSOCIATED_DATA_NAME, Scope.values(), TITLE
+			).mutate(configured);
+			assertEquals(EnumSet.allOf(Scope.class), rescoped.getSearchableInScopes());
+			assertEquals("html-text", rescoped.getAnalyzer());
+			assertEquals(400, rescoped.getLengthPivot());
+			assertSame(
+				rescoped,
+				new SetAssociatedDataSchemaSearchableMutation(ASSOCIATED_DATA_NAME, Scope.values(), TITLE, null, 400)
+					.mutate(rescoped)
+			);
+		}
+
+		@Test
+		@DisplayName("should keep the analyzer and the length pivot of the earlier mutation unless restated")
+		void shouldKeepEarlierAnalyzerAndPivotUnlessRestated() {
+			final MutationCombinationResult<LocalEntitySchemaMutation> result =
+				new SetAssociatedDataSchemaSearchableMutation(ASSOCIATED_DATA_NAME, Scope.values(), TITLE, null, 40)
+					.combineWith(
+						Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class),
+						new SetAssociatedDataSchemaSearchableMutation(
+							ASSOCIATED_DATA_NAME, Scope.NO_SCOPE, null, "html-text", 400
+						)
+					);
+
+			assertNotNull(result);
+			assertNull(result.origin());
+			assertEquals(
+				new SetAssociatedDataSchemaSearchableMutation(
+					ASSOCIATED_DATA_NAME, Scope.values(), TITLE, "html-text", 40
+				),
+				result.current()[0]
+			);
+		}
+
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("otherAssociatedDataMutations")
+		@DisplayName("should keep the analyzer and the length pivot through every other associated data mutation")
+		void shouldKeepAnalyzerAndPivotThroughOtherMutation(
+			@Nonnull String label, @Nonnull AssociatedDataSchemaMutation mutation
+		) {
+			final AssociatedDataSchemaContract configured = new SetAssociatedDataSchemaSearchableMutation(
+				ASSOCIATED_DATA_NAME, new Scope[]{Scope.LIVE}, TITLE, "html-text", 400
+			).mutate(existing(Scope.NO_SCOPE, null));
+
+			final AssociatedDataSchemaContract mutated = mutation.mutate(configured);
+
+			assertNotNull(mutated, label);
+			assertEquals("html-text", mutated.getAnalyzer(), label + " dropped the analyzer");
+			assertEquals(400, mutated.getLengthPivot(), label + " dropped the length pivot");
 		}
 
 	}

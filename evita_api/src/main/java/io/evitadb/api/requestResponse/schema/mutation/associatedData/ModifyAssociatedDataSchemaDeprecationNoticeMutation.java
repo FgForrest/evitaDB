@@ -102,7 +102,8 @@ public class ModifyAssociatedDataSchemaDeprecationNoticeMutation
 			associatedDataSchema.isNullable(),
 			associatedDataSchema.getSearchableInScopes(),
 			associatedDataSchema.getTextExpression(),
-			associatedDataSchema.getConflictResolutionOverride()
+			associatedDataSchema.getConflictResolutionOverride(),
+			associatedDataSchema.getAnalyzer(), associatedDataSchema.getLengthPivot()
 		);
 	}
 

@@ -29,6 +29,8 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
 import io.evitadb.dataType.ComplexDataObject;
@@ -127,7 +129,8 @@ class SearchableAssociatedDataBackwardCompatibilityTest {
 		final Kryo kryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 		final CreateAssociatedDataSchemaMutation mutation = new CreateAssociatedDataSchemaMutation(
 			"article", "description", null, ComplexDataObject.class, true, false, BOTH_SCOPES, TEXT,
-			ConflictResolutionOverride.ENTITY
+			ConflictResolutionOverride.ENTITY,
+			null, null
 		);
 		final CreateAssociatedDataSchemaMutation deserialized = readThroughBackwardCompatibleRoute(
 			kryo, CREATE_ASSOCIATED_DATA_MUTATION_2026_2_UID, new CreateAssociatedDataSchemaMutationSerializer(),
@@ -148,7 +151,8 @@ class SearchableAssociatedDataBackwardCompatibilityTest {
 	private static AssociatedDataSchema searchableSchema() {
 		return AssociatedDataSchema._internalBuild(
 			"article", "description", null, ComplexDataObject.class, true, false, BOTH_SCOPES, TEXT,
-			ConflictResolutionOverride.GRANULAR
+			ConflictResolutionOverride.GRANULAR,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 		);
 	}
 

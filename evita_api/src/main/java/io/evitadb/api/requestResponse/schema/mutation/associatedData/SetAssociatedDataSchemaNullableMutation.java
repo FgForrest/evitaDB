@@ -99,7 +99,8 @@ public class SetAssociatedDataSchemaNullableMutation
 			this.nullable,
 			associatedDataSchema.getSearchableInScopes(),
 			associatedDataSchema.getTextExpression(),
-			associatedDataSchema.getConflictResolutionOverride()
+			associatedDataSchema.getConflictResolutionOverride(),
+			associatedDataSchema.getAnalyzer(), associatedDataSchema.getLengthPivot()
 		);
 	}
 

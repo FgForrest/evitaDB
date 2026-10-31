@@ -117,7 +117,10 @@ public class CreateAttributeSchemaMutationConverter
 			input.getOptionalProperty(CreateAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), valueType),
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES, 0),
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE, ConflictResolutionOverride.INHERITED),
-			readNormalization(input)
+			readNormalization(input),
+			// the fulltext field settings have no GraphQL/REST mirror yet, so the defaults apply
+			null,
+			null
 		);
 	}
 
