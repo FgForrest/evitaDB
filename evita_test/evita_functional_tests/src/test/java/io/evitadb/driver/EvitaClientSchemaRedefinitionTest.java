@@ -26,14 +26,18 @@ package io.evitadb.driver;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SchemaPostProcessor;
 import io.evitadb.api.SchemaPostProcessorCapturingResult;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
 import io.evitadb.api.requestResponse.data.annotation.ScopeAttributeSettings;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.driver.config.ClientTimeoutOptions;
@@ -56,10 +60,17 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
+import static io.evitadb.api.query.QueryConstraints.attributeEquals;
+import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.referenceContentAllWithAttributes;
+import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.test.TestTags.DRIVER;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.SCHEMA;
@@ -93,6 +104,8 @@ class EvitaClientSchemaRedefinitionTest implements EvitaTestSupport {
 	private static final String ENTITY_ARTICLE = "RedefinedArticle";
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_TITLE = "title";
+	private static final String ATTRIBUTE_ORDER = "order";
+	private static final String REFERENCE_ARTICLE_BRAND = "brand";
 	/**
 	 * Post-processor making a genuine change of the global `code` attribute, which takes a catalog-wide conflict key.
 	 */
@@ -240,6 +253,76 @@ class EvitaClientSchemaRedefinitionTest implements EvitaTestSupport {
 				() -> "The commit must fail on the conflict, but failed with: " + conflict
 			);
 		}
+	}
+
+	@DisplayName("removing and re-creating a reference in one schema update keeps the references stored entities hold")
+	@UseDataSet(DATA_SET)
+	@Test
+	void shouldKeepStoredReferencesWhenReferenceIsRemovedAndRecreatedInOneUpdate(@Nonnull EvitaClient evitaClient) {
+		final String catalog = "redefinitionRecreatedReference";
+		evitaClient.defineCatalog(catalog);
+		evitaClient.updateCatalog(
+			catalog,
+			session -> {
+				session.defineEntitySchema(ENTITY_BRAND).updateVia(session);
+				session.defineEntitySchema(ENTITY_ARTICLE)
+					.withReferenceToEntity(
+						REFERENCE_ARTICLE_BRAND, ENTITY_BRAND, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs.indexedForFiltering().withAttribute(ATTRIBUTE_ORDER, Integer.class, thatIs -> thatIs.filterable())
+					)
+					.updateVia(session);
+				session.createNewEntity(ENTITY_BRAND, 1).upsertVia(session);
+				session.createNewEntity(ENTITY_ARTICLE, 1)
+					.setReference(REFERENCE_ARTICLE_BRAND, 1, thatIs -> thatIs.setAttribute(ATTRIBUTE_ORDER, 7))
+					.upsertVia(session);
+			}
+		);
+
+		// the reference is removed and re-created with another cardinality and a described attribute in one update
+		evitaClient.updateCatalog(
+			catalog,
+			session -> {
+				session.getEntitySchemaOrThrowException(ENTITY_ARTICLE)
+					.openForWrite()
+					.withoutReferenceTo(REFERENCE_ARTICLE_BRAND)
+					.withReferenceToEntity(
+						REFERENCE_ARTICLE_BRAND, ENTITY_BRAND, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.indexedForFiltering().withAttribute(
+							ATTRIBUTE_ORDER, Integer.class, thatIs -> thatIs.filterable().withDescription("Order of the brand.")
+						)
+					)
+					.updateVia(session);
+			}
+		);
+
+		evitaClient.queryCatalog(
+			catalog,
+			session -> {
+				final ReferenceSchemaContract reference = session.getEntitySchemaOrThrowException(ENTITY_ARTICLE)
+					.getReferenceOrThrowException(REFERENCE_ARTICLE_BRAND);
+				assertEquals(Cardinality.ZERO_OR_MORE, reference.getCardinality());
+				assertEquals("Order of the brand.", reference.getAttribute(ATTRIBUTE_ORDER).orElseThrow().getDescription());
+
+				final ReferenceContract storedReference = session.getEntity(ENTITY_ARTICLE, 1, referenceContentAllWithAttributes())
+					.orElseThrow()
+					.getReference(REFERENCE_ARTICLE_BRAND, 1)
+					.orElseThrow();
+				assertEquals(Integer.valueOf(7), storedReference.getAttribute(ATTRIBUTE_ORDER));
+				// the reference index still answers a filter on the reference attribute
+				assertEquals(
+					List.of(1),
+					session.queryListOfEntityReferences(
+							query(
+								collection(ENTITY_ARTICLE),
+								filterBy(referenceHaving(REFERENCE_ARTICLE_BRAND, attributeEquals(ATTRIBUTE_ORDER, 7)))
+							)
+						)
+						.stream()
+						.map(EntityReferenceContract::getPrimaryKey)
+						.toList()
+				);
+			}
+		);
 	}
 
 	/**

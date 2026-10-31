@@ -23,15 +23,19 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ReferenceAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
@@ -43,7 +47,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
-import java.util.Arrays;
+import java.util.Optional;
 
 /**
  * Mutation is a holder for a single {@link AttributeSchemaMutation} that affects any
@@ -90,42 +94,113 @@ public class ModifyReferenceAttributeSchemaMutation
 			&& this.name.equals(theExistingMutation.getName())
 			&& this.attributeSchemaMutation.getName().equals(theExistingMutation.getAttributeSchemaMutation().getName())
 		) {
-			if (this.attributeSchemaMutation instanceof CombinableLocalEntitySchemaMutation combinableAttributeCombinationMutation) {
-				final MutationCombinationResult<LocalEntitySchemaMutation> result = combinableAttributeCombinationMutation.combineWith(
-					currentCatalogSchema, currentEntitySchema, (LocalEntitySchemaMutation) theExistingMutation.getAttributeSchemaMutation()
+			if (this.attributeSchemaMutation instanceof CombinableLocalEntitySchemaMutation combinableAttributeMutation) {
+				final MutationCombinationResult<LocalEntitySchemaMutation> result = combineAttributeMutations(
+					currentCatalogSchema, currentEntitySchema, combinableAttributeMutation,
+					theExistingMutation.getAttributeSchemaMutation()
 				);
 				if (result == null) {
 					return null;
 				} else {
-					final LocalEntitySchemaMutation origin;
-					if (result.origin() == null) {
-						origin = null;
-					} else if (result.origin() == combinableAttributeCombinationMutation) {
-						origin = theExistingMutation;
-					} else {
-						origin = new ModifyReferenceAttributeSchemaMutation(this.name, (ReferenceAttributeSchemaMutation) result.origin());
-					}
+					final LocalEntitySchemaMutation[] attributeMutations = result.current();
 					final LocalEntitySchemaMutation[] current;
-					if (ArrayUtils.isEmpty(result.current())) {
-						current = result.current();
+					if (ArrayUtils.isEmpty(attributeMutations)) {
+						current = null;
 					} else {
-						current = Arrays.stream(result.current())
-							.map(it -> {
-								if (it == theExistingMutation.getAttributeSchemaMutation()) {
-									return existingMutation;
-								} else {
-									return new ModifyReferenceAttributeSchemaMutation(this.name, (ReferenceAttributeSchemaMutation) it);
-								}
-							})
-							.toArray(LocalEntitySchemaMutation[]::new);
+						current = new LocalEntitySchemaMutation[attributeMutations.length];
+						for (int i = 0; i < attributeMutations.length; i++) {
+							current[i] = toReferenceMutation(attributeMutations[i], theExistingMutation);
+						}
 					}
-					return new MutationCombinationResult<>(origin, current);
+					return new MutationCombinationResult<>(
+						result.discarded(),
+						result.origin() == null ? null : toReferenceMutation(result.origin(), theExistingMutation),
+						current
+					);
 				}
 			} else {
 				return null;
 			}
 		} else {
 			return null;
+		}
+	}
+
+	/**
+	 * Combines the wrapped attribute mutation with the attribute mutation of the existing wrapper. A re-created
+	 * attribute is compared with the attribute of this reference: the attribute mutation on its own would look the
+	 * name up among the attributes of the entity, which may have no such attribute or a different one.
+	 *
+	 * @param currentCatalogSchema       the catalog schema
+	 * @param currentEntitySchema        the entity schema holding the reference
+	 * @param combinableAttributeMutation the wrapped attribute mutation
+	 * @param existingAttributeMutation  the attribute mutation of the existing wrapper
+	 * @return the combination result at the level of attributes, or null when the mutations do not combine
+	 */
+	@Nullable
+	private MutationCombinationResult<LocalEntitySchemaMutation> combineAttributeMutations(
+		@Nonnull CatalogSchemaContract currentCatalogSchema,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull CombinableLocalEntitySchemaMutation combinableAttributeMutation,
+		@Nonnull ReferenceAttributeSchemaMutation existingAttributeMutation
+	) {
+		if (
+			combinableAttributeMutation instanceof CreateAttributeSchemaMutation createAttributeMutation &&
+				existingAttributeMutation instanceof RemoveAttributeSchemaMutation
+		) {
+			final Optional<AttributeSchemaContract> removedAttribute = getReferenceAttribute(currentEntitySchema);
+			return removedAttribute.isPresent()
+				? createAttributeMutation.combineWithRemovalOf(currentCatalogSchema, removedAttribute.get())
+				: null;
+		} else {
+			return combinableAttributeMutation.combineWith(
+				currentCatalogSchema, currentEntitySchema, (LocalEntitySchemaMutation) existingAttributeMutation
+			);
+		}
+	}
+
+	/**
+	 * Returns the attribute of this reference the wrapped attribute mutation targets. A reflected reference is asked
+	 * for the attributes it declares itself: an inherited attribute cannot be removed, and the inherited ones are not
+	 * available while the reflected reference is not bound to its original.
+	 *
+	 * @param entitySchema the entity schema holding the reference
+	 * @return the attribute, or empty when the reference or the attribute does not exist
+	 */
+	@Nonnull
+	private Optional<AttributeSchemaContract> getReferenceAttribute(@Nonnull EntitySchemaContract entitySchema) {
+		final String attributeName = this.attributeSchemaMutation.getName();
+		final Optional<ReferenceSchemaContract> reference = entitySchema.getReference(this.name);
+		if (reference.isEmpty()) {
+			return Optional.empty();
+		} else if (reference.get() instanceof ReflectedReferenceSchema reflectedReference) {
+			return reflectedReference.getDeclaredAttribute(attributeName);
+		} else {
+			return reference.get().getAttribute(attributeName);
+		}
+	}
+
+	/**
+	 * Lifts an attribute mutation returned by the combination of the wrapped attribute mutations back to the level
+	 * of references. The two wrapped mutations stand for their own wrappers: the schema builder recognizes the
+	 * examined and the existing mutation by identity, and an equal copy in their place would make it combine the
+	 * same pair again forever. Any other attribute mutation gets a new wrapper.
+	 *
+	 * @param attributeMutation the attribute mutation to lift
+	 * @param existingMutation  the existing wrapper this mutation is combined with
+	 * @return the mutation at the level of references
+	 */
+	@Nonnull
+	private LocalEntitySchemaMutation toReferenceMutation(
+		@Nonnull LocalEntitySchemaMutation attributeMutation,
+		@Nonnull ModifyReferenceAttributeSchemaMutation existingMutation
+	) {
+		if (attributeMutation == this.attributeSchemaMutation) {
+			return this;
+		} else if (attributeMutation == existingMutation.getAttributeSchemaMutation()) {
+			return existingMutation;
+		} else {
+			return new ModifyReferenceAttributeSchemaMutation(this.name, (ReferenceAttributeSchemaMutation) attributeMutation);
 		}
 	}
 

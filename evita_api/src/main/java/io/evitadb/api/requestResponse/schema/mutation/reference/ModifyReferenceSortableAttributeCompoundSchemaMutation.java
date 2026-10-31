@@ -27,11 +27,15 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SortableAttributeCompoundSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
@@ -43,7 +47,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
-import java.util.Arrays;
+import java.util.Optional;
 
 /**
  * Mutation is a holder for a single {@link SortableAttributeCompoundSchemaMutation} that
@@ -99,53 +103,114 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutation
 			)) {
 			if (this.sortableAttributeCompoundSchemaMutation
 				instanceof CombinableLocalEntitySchemaMutation combinableMutation) {
-				final MutationCombinationResult<LocalEntitySchemaMutation> result =
-					combinableMutation.combineWith(
-						currentCatalogSchema,
-						currentEntitySchema,
-						(LocalEntitySchemaMutation) theExistingMutation
-							.getSortableAttributeCompoundSchemaMutation()
-					);
+				final MutationCombinationResult<LocalEntitySchemaMutation> result = combineCompoundMutations(
+					currentCatalogSchema, currentEntitySchema, combinableMutation,
+					theExistingMutation.getSortableAttributeCompoundSchemaMutation()
+				);
 				if (result == null) {
 					return null;
 				} else {
-					final LocalEntitySchemaMutation origin;
-					if (result.origin() == null) {
-						origin = null;
-					} else if (result.origin() == combinableMutation) {
-						origin = theExistingMutation;
-					} else {
-						origin = new ModifyReferenceSortableAttributeCompoundSchemaMutation(
-							this.name,
-							(ReferenceSortableAttributeCompoundSchemaMutation) result.origin()
-						);
-					}
+					final LocalEntitySchemaMutation[] compoundMutations = result.current();
 					final LocalEntitySchemaMutation[] current;
-					if (ArrayUtils.isEmpty(result.current())) {
-						current = result.current();
+					if (ArrayUtils.isEmpty(compoundMutations)) {
+						current = null;
 					} else {
-						final ReferenceSortableAttributeCompoundSchemaMutation existingCompoundMutation =
-							theExistingMutation.getSortableAttributeCompoundSchemaMutation();
-						current = Arrays.stream(result.current())
-							.map(it -> {
-								if (it == existingCompoundMutation) {
-									return existingMutation;
-								} else {
-									return new ModifyReferenceSortableAttributeCompoundSchemaMutation(
-										this.name,
-										(ReferenceSortableAttributeCompoundSchemaMutation) it
-									);
-								}
-							})
-							.toArray(LocalEntitySchemaMutation[]::new);
+						current = new LocalEntitySchemaMutation[compoundMutations.length];
+						for (int i = 0; i < compoundMutations.length; i++) {
+							current[i] = toReferenceMutation(compoundMutations[i], theExistingMutation);
+						}
 					}
-					return new MutationCombinationResult<>(origin, current);
+					return new MutationCombinationResult<>(
+						result.discarded(),
+						result.origin() == null ? null : toReferenceMutation(result.origin(), theExistingMutation),
+						current
+					);
 				}
 			} else {
 				return null;
 			}
 		} else {
 			return null;
+		}
+	}
+
+	/**
+	 * Combines the wrapped compound mutation with the compound mutation of the existing wrapper. A re-created
+	 * compound is compared with the compound of this reference: the compound mutation on its own would look the name
+	 * up among the compounds of the entity, which may have no such compound or a different one.
+	 *
+	 * @param currentCatalogSchema the catalog schema
+	 * @param currentEntitySchema  the entity schema holding the reference
+	 * @param combinableMutation   the wrapped compound mutation
+	 * @param existingMutation     the compound mutation of the existing wrapper
+	 * @return the combination result at the level of compounds, or null when the mutations do not combine
+	 */
+	@Nullable
+	private MutationCombinationResult<LocalEntitySchemaMutation> combineCompoundMutations(
+		@Nonnull CatalogSchemaContract currentCatalogSchema,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull CombinableLocalEntitySchemaMutation combinableMutation,
+		@Nonnull ReferenceSortableAttributeCompoundSchemaMutation existingMutation
+	) {
+		if (
+			combinableMutation instanceof CreateSortableAttributeCompoundSchemaMutation createCompoundMutation &&
+				existingMutation instanceof RemoveSortableAttributeCompoundSchemaMutation
+		) {
+			final Optional<SortableAttributeCompoundSchemaContract> removedCompound = getReferenceCompound(currentEntitySchema);
+			return removedCompound.isPresent()
+				? createCompoundMutation.combineWithRemovalOf(currentEntitySchema, removedCompound.get())
+				: null;
+		} else {
+			return combinableMutation.combineWith(
+				currentCatalogSchema, currentEntitySchema, (LocalEntitySchemaMutation) existingMutation
+			);
+		}
+	}
+
+	/**
+	 * Returns the compound of this reference the wrapped compound mutation targets. A reflected reference is asked
+	 * for the compounds it declares itself, because the inherited ones are not available while the reflected
+	 * reference is not bound to its original.
+	 *
+	 * @param entitySchema the entity schema holding the reference
+	 * @return the compound, or empty when the reference or the compound does not exist
+	 */
+	@Nonnull
+	private Optional<SortableAttributeCompoundSchemaContract> getReferenceCompound(@Nonnull EntitySchemaContract entitySchema) {
+		final String compoundName = this.sortableAttributeCompoundSchemaMutation.getName();
+		final Optional<ReferenceSchemaContract> reference = entitySchema.getReference(this.name);
+		if (reference.isEmpty()) {
+			return Optional.empty();
+		} else if (reference.get() instanceof ReflectedReferenceSchema reflectedReference) {
+			return Optional.ofNullable(reflectedReference.getDeclaredSortableAttributeCompounds().get(compoundName));
+		} else {
+			return reference.get().getSortableAttributeCompound(compoundName);
+		}
+	}
+
+	/**
+	 * Lifts a compound mutation returned by the combination of the wrapped compound mutations back to the level of
+	 * references. The two wrapped mutations stand for their own wrappers: the schema builder recognizes the examined
+	 * and the existing mutation by identity, and an equal copy in their place would make it combine the same pair
+	 * again forever. Any other compound mutation gets a new wrapper.
+	 *
+	 * @param compoundMutation the compound mutation to lift
+	 * @param existingMutation the existing wrapper this mutation is combined with
+	 * @return the mutation at the level of references
+	 */
+	@Nonnull
+	private LocalEntitySchemaMutation toReferenceMutation(
+		@Nonnull LocalEntitySchemaMutation compoundMutation,
+		@Nonnull ModifyReferenceSortableAttributeCompoundSchemaMutation existingMutation
+	) {
+		if (compoundMutation == this.sortableAttributeCompoundSchemaMutation) {
+			return this;
+		} else if (compoundMutation == existingMutation.getSortableAttributeCompoundSchemaMutation()) {
+			return existingMutation;
+		} else {
+			return new ModifyReferenceSortableAttributeCompoundSchemaMutation(
+				this.name, (ReferenceSortableAttributeCompoundSchemaMutation) compoundMutation
+			);
 		}
 	}
 

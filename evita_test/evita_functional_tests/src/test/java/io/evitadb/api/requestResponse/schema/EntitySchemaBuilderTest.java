@@ -50,6 +50,7 @@ import io.evitadb.test.Entities;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -62,6 +63,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Tag;
 
@@ -86,6 +88,11 @@ class EntitySchemaBuilderTest {
 	private static final String REFERENCE_PRODUCT_CATEGORIES = "productCategories";
 	private static final String PRODUCT_CATEGORIES_DESCRIPTION = "Assigned categories.";
 	private static final String ATTRIBUTE_NOTE = "note";
+	/**
+	 * Reference definition indexed and faceted in the default scope with a reference attribute `a`.
+	 */
+	private static final Consumer<ReferenceSchemaEditor.ReferenceSchemaBuilder> INDEXED_FACETED_WITH_ATTRIBUTE =
+		whichIs -> whichIs.indexed().faceted().withAttribute("a", String.class);
 	private final EntitySchema productSchema = EntitySchema._internalBuild(Entities.PRODUCT);
 	private final EntitySchema categorySchema = EntitySchema._internalBuild(Entities.CATEGORY);
 	private final EntitySchema brandSchema = EntitySchema._internalBuild(Entities.BRAND);
@@ -2177,6 +2184,152 @@ class EntitySchemaBuilderTest {
 
 		assertNull(builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND).getDescription());
 		assertTrue(builder.toMutation().isEmpty(), "Restoring the stored description must leave nothing to send.");
+	}
+
+	@DisplayName("re-create a removed stored reference with the same definition and send nothing")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRecreateRemovedStoredReferenceWithSameDefinition() {
+		final EntitySchemaContract storedSchema = productWithIndexedBrandReference(true);
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+
+		builder
+			.withoutReferenceTo(REFERENCE_BRAND)
+			.withReferenceToEntity(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, INDEXED_FACETED_WITH_ATTRIBUTE);
+
+		assertEquals(
+			storedSchema.getReferenceOrThrowException(REFERENCE_BRAND),
+			builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND)
+		);
+		assertTrue(builder.toMutation().isEmpty(), "Re-creating the stored definition must leave nothing to send.");
+	}
+
+	@DisplayName("re-create a removed stored reference with a different definition")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRecreateRemovedStoredReferenceWithDifferentDefinition() {
+		final EntitySchemaContract storedSchema = productWithIndexedBrandReference(true);
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+
+		builder
+			.withoutReferenceTo(REFERENCE_BRAND)
+			.withReferenceToEntity(
+				REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs.indexed().withAttribute("b", Integer.class)
+			);
+
+		final ReferenceSchemaContract reference = builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND);
+		assertEquals(Cardinality.ZERO_OR_MORE, reference.getCardinality());
+		assertEquals(Set.of("b"), reference.getAttributes().keySet());
+		assertFalse(reference.isFaceted());
+		assertEmittedMutationsReproduce(storedSchema, builder);
+	}
+
+	@DisplayName("re-create a removed stored reference to an unmanaged entity type")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRecreateRemovedStoredReferenceToUnmanagedType() {
+		final EntitySchemaContract storedSchema = productWithIndexedBrandReference(false);
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+
+		builder
+			.withoutReferenceTo(REFERENCE_BRAND)
+			.withReferenceTo(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE);
+
+		final ReferenceSchemaContract reference = builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND);
+		assertEquals(Cardinality.ZERO_OR_MORE, reference.getCardinality());
+		assertFalse(reference.isReferencedEntityTypeManaged());
+		assertEquals(Set.of(), reference.getAttributes().keySet());
+		assertEmittedMutationsReproduce(storedSchema, builder);
+	}
+
+	@DisplayName("re-create a removed stored reference as a reference to a managed entity type")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRecreateRemovedStoredReferenceAsManaged() {
+		final EntitySchemaContract storedSchema = productWithIndexedBrandReference(false);
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+
+		builder
+			.withoutReferenceTo(REFERENCE_BRAND)
+			.withReferenceToEntity(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, INDEXED_FACETED_WITH_ATTRIBUTE);
+
+		assertTrue(builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND).isReferencedEntityTypeManaged());
+		assertEmittedMutationsReproduce(storedSchema, builder);
+	}
+
+	@DisplayName("re-create a removed stored reflected reference")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRecreateRemovedStoredReflectedReference() {
+		final EntitySchemaContract storedSchema = new InternalEntitySchemaBuilder(this.catalogSchema, this.categorySchema)
+			.withReflectedReferenceToEntity("categoryProducts", Entities.PRODUCT, "productCategories")
+			.toInstance();
+
+		final EntitySchemaBuilder sameBuilder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		sameBuilder
+			.withoutReferenceTo("categoryProducts")
+			.withReflectedReferenceToEntity("categoryProducts", Entities.PRODUCT, "productCategories");
+		assertEquals(
+			storedSchema.getReferenceOrThrowException("categoryProducts"),
+			sameBuilder.toInstance().getReferenceOrThrowException("categoryProducts")
+		);
+		assertTrue(sameBuilder.toMutation().isEmpty(), "Re-creating the stored definition must leave nothing to send.");
+
+		final EntitySchemaBuilder otherBuilder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		otherBuilder
+			.withoutReferenceTo("categoryProducts")
+			.withReflectedReferenceToEntity("categoryProducts", Entities.PRODUCT, "productMainCategories");
+		final ReflectedReferenceSchemaContract recreated = (ReflectedReferenceSchemaContract) otherBuilder.toInstance()
+			.getReferenceOrThrowException("categoryProducts");
+		assertEquals("productMainCategories", recreated.getReflectedReferenceName());
+		assertEmittedMutationsReproduce(storedSchema, otherBuilder);
+	}
+
+	@DisplayName("remove a stored reference again after re-creating it")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRemoveRecreatedStoredReferenceAgain() {
+		final EntitySchemaContract storedSchema = productWithIndexedBrandReference(true);
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+
+		builder
+			.withoutReferenceTo(REFERENCE_BRAND)
+			.withReferenceToEntity(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE)
+			.withoutReferenceTo(REFERENCE_BRAND);
+
+		assertTrue(builder.toInstance().getReference(REFERENCE_BRAND).isEmpty());
+		assertEmittedMutationsReproduce(storedSchema, builder);
+	}
+
+	/**
+	 * Asserts that the mutations the builder emits, applied to the stored schema, give the references the builder
+	 * itself shows - what the server ends with is what the client saw.
+	 */
+	private void assertEmittedMutationsReproduce(@Nonnull EntitySchemaContract storedSchema, @Nonnull EntitySchemaBuilder builder) {
+		final EntitySchemaContract builderSchema = builder.toInstance();
+		final EntitySchemaContract appliedSchema = builder.toMutation()
+			.map(mutation -> mutation.mutate(this.catalogSchema, storedSchema))
+			.orElse(storedSchema);
+		assertNotNull(appliedSchema);
+		assertEquals(builderSchema.getReferences(), appliedSchema.getReferences());
+	}
+
+	/**
+	 * Returns the product schema with a stored, indexed and faceted reference to brands of cardinality zero or one,
+	 * carrying the reference attribute `a` the product itself does not have.
+	 *
+	 * @param managed whether the brand entity type is managed by evitaDB
+	 */
+	@Nonnull
+	private EntitySchemaContract productWithIndexedBrandReference(boolean managed) {
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, this.productSchema);
+		if (managed) {
+			builder.withReferenceToEntity(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, INDEXED_FACETED_WITH_ATTRIBUTE);
+		} else {
+			builder.withReferenceTo(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, INDEXED_FACETED_WITH_ATTRIBUTE);
+		}
+		return builder.toInstance();
 	}
 
 	/**

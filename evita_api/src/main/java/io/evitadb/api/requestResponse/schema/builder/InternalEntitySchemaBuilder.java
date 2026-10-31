@@ -515,7 +515,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 			false,
 			cardinality,
 			this.mutations,
-			this.baseSchema.getReference(referenceName).isEmpty()
+			isCreatedAnew(existingReference, referenceName, false)
 		);
 		ofNullable(whichIs).ifPresent(it -> it.accept(referenceBuilder));
 
@@ -562,9 +562,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 			true,
 			cardinality,
 			this.mutations,
-			this.baseSchema.getReference(referenceName)
-				.map(ReflectedReferenceSchemaContract.class::isInstance)
-				.orElse(true)
+			isCreatedAnew(existingReference, referenceName, false)
 		);
 		ofNullable(whichIs).ifPresent(it -> it.accept(referenceSchemaBuilder));
 
@@ -608,9 +606,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 			entityType,
 			reflectedReferenceName,
 			this.mutations,
-			this.baseSchema.getReference(referenceName)
-				.map(it -> !(it instanceof ReflectedReferenceSchemaContract))
-				.orElse(true)
+			isCreatedAnew(existingReference, referenceName, true)
 		);
 		ofNullable(whichIs).ifPresent(it -> it.accept(referenceSchemaBuilder));
 
@@ -621,6 +617,28 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 			result.mutations()
 		);
 		return this;
+	}
+
+	/**
+	 * Decides whether the reference builder has to start with the creation of the reference. That is the case when
+	 * the builder state has no such reference - because the stored schema has none of the requested kind, or because
+	 * this builder removed the stored one - or when the stored reference is of the other kind (standard versus
+	 * reflected), which the requested definition replaces.
+	 *
+	 * @param existingReference the reference as the builder state has it, null when it has none
+	 * @param referenceName     the name of the reference
+	 * @param reflected         true when a reflected reference is requested
+	 * @return true when the reference must be created anew
+	 */
+	private boolean isCreatedAnew(
+		@Nullable ReferenceSchemaContract existingReference,
+		@Nonnull String referenceName,
+		boolean reflected
+	) {
+		return existingReference == null ||
+			this.baseSchema.getReference(referenceName)
+				.map(storedReference -> (storedReference instanceof ReflectedReferenceSchemaContract) != reflected)
+				.orElse(true);
 	}
 
 	@Override
