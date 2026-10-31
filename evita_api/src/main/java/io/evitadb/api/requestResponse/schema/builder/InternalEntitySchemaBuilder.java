@@ -51,10 +51,10 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.AbstractReferenceSchemaBuilder.ReferenceSchemaBuilderResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.RemoveAssociatedDataSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.EntityAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.UseGlobalAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
@@ -93,14 +93,18 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Currency;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.empty;
@@ -119,6 +123,27 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	private static final LocalEntitySchemaMutation[] EMPTY_ARRAY = new LocalEntitySchemaMutation[0];
 
 	private final EntitySchemaContract baseSchema;
+	/**
+	 * Tells for each class of entity attribute mutation whether it applies to an entity schema the default way of
+	 * {@link EntityAttributeSchemaMutation#mutate(CatalogSchemaContract, EntitySchemaContract)}, which changes
+	 * nothing but its attribute - so that {@link #applyMutations(EntitySchemaContract, int)} can apply a run of such
+	 * mutations to the attributes alone. A mutation overriding that method does something else as well and is applied
+	 * on its own.
+	 */
+	private static final ClassValue<Boolean> CHANGES_ATTRIBUTE_ALONE = new ClassValue<>() {
+		@Nonnull
+		@Override
+		protected Boolean computeValue(@Nonnull Class<?> type) {
+			try {
+				return type.getMethod("mutate", CatalogSchemaContract.class, EntitySchemaContract.class)
+					.getDeclaringClass() == EntityAttributeSchemaMutation.class;
+			} catch (NoSuchMethodException e) {
+				throw new GenericEvitaInternalError(
+					"Mutation `" + type.getName() + "` has no method applying it to an entity schema!", e
+				);
+			}
+		}
+	};
 	private final List<LocalEntitySchemaMutation> mutations = new LinkedList<>();
 	private Supplier<CatalogSchemaContract> catalogSchemaAccessor;
 	private MutationImpact updatedSchemaDirty = MutationImpact.NO_IMPACT;
@@ -929,22 +954,118 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 			}
 			// if the last mutation reflected in the schema is zero we need to start from the base schema
 			// else we can continue modification last known updated schema by adding additional mutations
-			EntitySchemaContract currentSchema = this.lastMutationReflectedInSchema == 0 ?
+			final EntitySchemaContract startSchema = this.lastMutationReflectedInSchema == 0 ?
 				this.baseSchema : this.updatedSchema;
 
 			// apply the mutations not reflected in the schema
-			for (int i = this.lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
-				final EntitySchemaMutation mutation = this.mutations.get(i);
-				currentSchema = mutation.mutate(this.catalogSchemaAccessor.get(), currentSchema);
-				if (currentSchema == null) {
-					throw new GenericEvitaInternalError("Entity schema unexpectedly removed from inside!");
-				}
-			}
-			this.updatedSchema = currentSchema;
+			this.updatedSchema = applyMutations(startSchema, this.lastMutationReflectedInSchema);
 			this.updatedSchemaDirty = MutationImpact.NO_IMPACT;
 			this.lastMutationReflectedInSchema = this.mutations.size();
 		}
 		return this.updatedSchema;
+	}
+
+	/**
+	 * Applies the mutations from the given position on to the schema and returns the result.
+	 *
+	 * A run of consecutive mutations that change one attribute alone is applied to the attributes, and the entity
+	 * schema is built once for the whole run. Building an entity schema costs time proportional to its attributes,
+	 * and the replay of a builder whose earlier mutation was replaced starts from the base schema, so building it
+	 * after each such mutation made a sequence of calls restoring a property of many attributes cubic in their
+	 * number. The result is the schema the server gets by applying the mutations one by one: the same content and
+	 * order of attributes, the version raised by the number of mutations that change something, and the same
+	 * exception at the same mutation.
+	 *
+	 * @param startSchema the schema the first mutation applies to
+	 * @param fromIndex   the position of the first mutation to apply
+	 * @return the schema with the mutations applied
+	 */
+	@Nonnull
+	private EntitySchemaContract applyMutations(@Nonnull EntitySchemaContract startSchema, int fromIndex) {
+		EntitySchemaContract currentSchema = startSchema;
+		// the attributes of the current schema with the changes of the current run, null until the run changes one
+		Map<String, EntityAttributeSchemaContract> changedAttributes = null;
+		int changes = 0;
+		final ListIterator<LocalEntitySchemaMutation> iterator = this.mutations.listIterator(fromIndex);
+		while (iterator.hasNext()) {
+			final LocalEntitySchemaMutation mutation = iterator.next();
+			final CatalogSchemaContract catalogSchema = this.catalogSchemaAccessor.get();
+			if (
+				mutation instanceof EntityAttributeSchemaMutation attributeMutation &&
+					CHANGES_ATTRIBUTE_ALONE.get(mutation.getClass())
+			) {
+				// the steps of EntityAttributeSchemaMutation#mutate, without building the entity schema
+				attributeMutation.verifyApplicableToEntity(catalogSchema, currentSchema.getName());
+				final EntityAttributeSchemaContract existingAttribute = changedAttributes == null ?
+					currentSchema.getAttribute(attributeMutation.getName()).orElse(null) :
+					changedAttributes.get(attributeMutation.getName());
+				if (existingAttribute == null) {
+					throw new InvalidSchemaMutationException(
+						"The attribute `" + attributeMutation.getName() + "` is not defined in entity `" +
+							currentSchema.getName() + "` schema!"
+					);
+				}
+				final EntityAttributeSchemaContract updatedAttribute = Objects.requireNonNull(
+					attributeMutation.mutate(catalogSchema, existingAttribute, EntityAttributeSchemaContract.class)
+				);
+				if (!existingAttribute.equals(updatedAttribute)) {
+					if (changedAttributes == null) {
+						changedAttributes = new LinkedHashMap<>(currentSchema.getAttributes());
+					}
+					// moved to the end, as EntityAttributeSchemaMutation#replaceAttributeIfDifferent appends it
+					changedAttributes.remove(updatedAttribute.getName());
+					changedAttributes.put(updatedAttribute.getName(), updatedAttribute);
+					changes++;
+				}
+			} else {
+				if (changedAttributes != null) {
+					currentSchema = withChangedAttributes(currentSchema, changes, changedAttributes);
+					changedAttributes = null;
+					changes = 0;
+				}
+				currentSchema = mutation.mutate(catalogSchema, currentSchema);
+				if (currentSchema == null) {
+					throw new GenericEvitaInternalError("Entity schema unexpectedly removed from inside!");
+				}
+			}
+		}
+		return changedAttributes == null ? currentSchema : withChangedAttributes(currentSchema, changes, changedAttributes);
+	}
+
+	/**
+	 * Returns the schema with the attributes a run of attribute mutations changed, and the version raised by the
+	 * number of the changes.
+	 *
+	 * The attributes are collected the way `EntityAttributeSchemaMutation#replaceAttributeIfDifferent` collects them,
+	 * which the server applies one mutation at a time: into a hash map, in the order of `changedAttributes`, which
+	 * keeps the unchanged attributes in their order and appends each changed one in the order of its last change.
+	 * The iteration order of a hash map depends on the order its keys were inserted in only among keys of the same
+	 * bucket, and there it ends up the same both ways, so the attributes come in the same order as on the server -
+	 * short of a bucket crowded enough for the map to turn it into a tree, which names with sound hashes do not fill.
+	 *
+	 * @param schema            the schema before the run
+	 * @param changes           the number of mutations of the run that changed an attribute
+	 * @param changedAttributes the attributes after the run, in the order described above
+	 * @return the schema after the run
+	 */
+	@Nonnull
+	private static EntitySchemaContract withChangedAttributes(
+		@Nonnull EntitySchemaContract schema,
+		int changes,
+		@Nonnull Map<String, EntityAttributeSchemaContract> changedAttributes
+	) {
+		return EntitySchema._internalBuildWithAttributes(
+			schema,
+			schema.version() + changes,
+			changedAttributes.values()
+				.stream()
+				.collect(
+					Collectors.toMap(
+						AttributeSchemaContract::getName,
+						Function.identity()
+					)
+				)
+		);
 	}
 
 	/**

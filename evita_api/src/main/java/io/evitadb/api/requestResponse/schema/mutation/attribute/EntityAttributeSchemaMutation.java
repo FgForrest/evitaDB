@@ -48,11 +48,31 @@ import java.util.stream.Stream;
 public interface EntityAttributeSchemaMutation extends AttributeSchemaMutation, LocalEntitySchemaMutation {
 
 	/**
+	 * Verifies that this mutation may be applied to the entity of the given type, before its attribute is changed.
+	 * Most attribute mutations depend on the attribute alone; a mutation that also depends on the rest of the
+	 * catalog overrides this method rather than {@link #mutate(CatalogSchemaContract, EntitySchemaContract)}.
+	 *
+	 * The check receives the entity type, not the entity schema: the entity schema builder applies a run of attribute
+	 * mutations to the attributes alone and builds the entity schema once for the whole run, so no entity schema
+	 * holding the changes of the mutations before this one exists while it runs.
+	 *
+	 * @param catalogSchema the catalog schema the entity belongs to
+	 * @param entityType    the type of the entity whose attribute is changed
+	 * @throws InvalidSchemaMutationException when the mutation must not be applied
+	 */
+	default void verifyApplicableToEntity(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull String entityType) {
+		// most attribute mutations depend on the attribute alone
+	}
+
+	/**
 	 * Applies this mutation to the entity schema by looking up the existing attribute, applying the attribute-level
 	 * mutation via {@link AttributeSchemaMutation#mutate(CatalogSchemaContract, AttributeSchemaContract, Class)},
 	 * and replacing the attribute in the schema if it changed.
 	 *
 	 * Subclasses with custom mutation logic (e.g., type conversions wrapped in try/catch) should override this method.
+	 * A mutation that does not override it changes nothing but its attribute, which is what lets the entity schema
+	 * builder apply a run of such mutations without building the entity schema after each of them - an override
+	 * opts the mutation out of that, a check belongs to {@link #verifyApplicableToEntity(CatalogSchemaContract, String)}.
 	 */
 	@Nonnull
 	default EntitySchemaContract mutate(
@@ -60,6 +80,7 @@ public interface EntityAttributeSchemaMutation extends AttributeSchemaMutation, 
 		@Nullable EntitySchemaContract entitySchema
 	) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
+		verifyApplicableToEntity(catalogSchema, entitySchema.getName());
 		final EntityAttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(getName())
 			.orElseThrow(() -> new InvalidSchemaMutationException(
 				"The attribute `" + getName() + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
@@ -87,21 +108,9 @@ public interface EntityAttributeSchemaMutation extends AttributeSchemaMutation, 
 			// we don't need to update entity schema - the attribute already contains the requested change
 			return entitySchema;
 		} else {
-			return EntitySchema._internalBuild(
+			return EntitySchema._internalBuildWithAttributes(
+				entitySchema,
 				entitySchema.version() + 1,
-				entitySchema.getName(),
-				entitySchema.getNameVariants(),
-				entitySchema.getDescription(),
-				entitySchema.getDeprecationNotice(),
-				entitySchema.getConflictResolution().orElse(null),
-				entitySchema.isWithGeneratedPrimaryKey(),
-				entitySchema.isWithHierarchy(),
-				entitySchema.getHierarchyIndexedInScopes(),
-				entitySchema.isWithPrice(),
-				entitySchema.getPriceIndexedInScopes(),
-				entitySchema.getIndexedPricePlaces(),
-				entitySchema.getLocales(),
-				entitySchema.getCurrencies(),
 				Stream.concat(
 						entitySchema.getAttributes()
 							.values()
@@ -114,11 +123,7 @@ public interface EntityAttributeSchemaMutation extends AttributeSchemaMutation, 
 							AttributeSchemaContract::getName,
 							Function.identity()
 						)
-					),
-				entitySchema.getAssociatedData(),
-				entitySchema.getReferences(),
-				entitySchema.getEvolutionMode(),
-				entitySchema.getSortableAttributeCompounds()
+					)
 			);
 		}
 	}

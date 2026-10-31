@@ -262,22 +262,13 @@ public class SetAttributeSchemaFilterableMutation
 	}
 
 	/**
-	 * Validates that the attribute is not used as a histogram value source when filterability is
-	 * being removed, then delegates to the default entity attribute schema mutation logic.
+	 * Validates that the attribute is not used as a histogram value source when filterability is being removed.
 	 */
-	@Nonnull
 	@Override
-	public EntitySchemaContract mutate(
-		@Nonnull CatalogSchemaContract catalogSchema,
-		@Nullable EntitySchemaContract entitySchema
-	) {
-		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
+	public void verifyApplicableToEntity(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull String entityType) {
 		if (!isFilterable()) {
-			verifyNotUsedAsReferencedEntityHistogramValueSource(
-				catalogSchema, entitySchema.getName()
-			);
+			verifyNotUsedAsReferencedEntityHistogramValueSource(catalogSchema, entityType);
 		}
-		return EntityAttributeSchemaMutation.super.mutate(catalogSchema, entitySchema);
 	}
 
 	@Nonnull
