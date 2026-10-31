@@ -99,6 +99,11 @@ public class ModifyFulltextLanguageSchemaMutation implements CombinableCatalogSc
 	) {
 		if (existingMutation instanceof CreateFulltextLanguageSchemaMutation creation &&
 			this.language.equals(creation.getLanguage())) {
+			if (currentCatalogSchema.getFulltextLanguages().containsKey(this.language)) {
+				// the creation of a language the base schema holds is a no-op when equal - folding this change
+				// into it would turn it into a conflicting creation, so both stay
+				return null;
+			}
 			// the language did not exist before the pipeline - it is created with the final definition
 			return new MutationCombinationResult<>(
 				new CreateFulltextLanguageSchemaMutation(this.language, this.wordSplitting)

@@ -29,6 +29,7 @@ import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.analysis.FulltextAnalysisPhases;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
@@ -357,6 +358,46 @@ class FulltextCatalogSchemaBuilderTest {
 		}
 
 		@Test
+		@DisplayName("keeps a modification apart from the creation of a part the base schema already holds")
+		void shouldKeepAModificationApartFromTheCreationOfAnExistingPart() {
+			final CatalogSchemaContract declared = schemaOf(
+				emptyCatalog(),
+				b -> b
+					.withFulltextLanguage("cs", l -> l.wordNumberSplit())
+					.withFulltextResource("brands", wordList("puma"))
+					.withFulltextAnalyzer("codes", a -> a.words(lowercase()))
+			);
+			// each creation restates the existing definition, so on its own it changes nothing
+			final InternalCatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(
+				declared,
+				List.of(
+					new CreateFulltextLanguageSchemaMutation(
+						"cs", new AnalysisStep[]{standardTokenizer(), wordNumberSplit()}
+					),
+					new ModifyFulltextLanguageSchemaMutation("cs", new AnalysisStep[]{standardTokenizer()}),
+					new CreateFulltextResourceSchemaMutation("brands", wordList("puma")),
+					new ModifyFulltextResourceSchemaMutation("brands", wordList("nike")),
+					new CreateFulltextAnalyzerSchemaMutation(
+						"codes", null, new FulltextAnalysisPhases(null, List.of(lowercase())), Map.of()
+					),
+					new ModifyFulltextAnalyzerSchemaMutation(
+						"codes", null, new FulltextAnalysisPhases(null, List.of(asciiFolding())), Map.of()
+					)
+				)
+			);
+
+			final CatalogSchemaContract schema = builder.toInstance();
+			assertEquals(
+				List.of(standardTokenizer()), schema.getFulltextLanguage("cs").orElseThrow().getWordSplitting()
+			);
+			assertEquals(wordList("nike"), schema.getFulltextResource("brands").orElseThrow().getContent());
+			assertEquals(
+				new FulltextAnalysisPhases(null, List.of(asciiFolding())),
+				schema.getFulltextAnalyzer("codes").orElseThrow().getAllLanguages()
+			);
+		}
+
+		@Test
 		@DisplayName("keeps only the last of two modifications")
 		void shouldKeepOnlyTheLastModification() {
 			final CatalogSchemaContract declared = schemaOf(
@@ -442,6 +483,47 @@ class FulltextCatalogSchemaBuilderTest {
 							czechStemming(protectedWords(resource("brands")))
 						)
 					)
+			);
+
+			assertDoesNotThrow(schema::validate);
+		}
+
+		@Test
+		@DisplayName("refuses a step naming a blank resource instead of failing on it")
+		void shouldRefuseABlankResourceName() {
+			final CatalogSchemaContract schema = schemaOf(
+				emptyCatalog(),
+				b -> b.withFulltextAnalyzer(
+					"names",
+					a -> a.words(
+						step(STOP_WORDS, parameter(WORDS, new String[]{null})),
+						czechStemming(parameter(PROTECTED_WORDS, new String[]{" "}))
+					)
+				)
+			);
+
+			final InvalidSchemaMutationException exception = assertThrows(
+				InvalidSchemaMutationException.class,
+				schema::validate
+			);
+			assertTrue(exception.getMessage().contains("`words` names a blank resource"), exception.getMessage());
+			assertTrue(
+				exception.getMessage().contains("`protected-words` names a blank resource"), exception.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("leaves a parameter of another provider's step to the server, whatever its name")
+		void shouldLeaveParametersOfOtherStepsToTheServer() {
+			final CatalogSchemaContract schema = schemaOf(
+				emptyCatalog(),
+				b -> b.withFulltextAnalyzer(
+					"names",
+					a -> a.words(
+						step("append-words", parameter(WORDS, new String[]{"sale"})),
+						step("expand", parameter(SYNONYM_LISTS, "literal"))
+					)
+				)
 			);
 
 			assertDoesNotThrow(schema::validate);

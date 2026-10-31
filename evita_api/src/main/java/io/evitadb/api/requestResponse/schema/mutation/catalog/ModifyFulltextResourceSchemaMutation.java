@@ -98,6 +98,11 @@ public class ModifyFulltextResourceSchemaMutation implements CombinableCatalogSc
 	) {
 		if (existingMutation instanceof CreateFulltextResourceSchemaMutation creation &&
 			this.name.equals(creation.getName())) {
+			if (currentCatalogSchema.getFulltextResources().containsKey(this.name)) {
+				// the creation of a resource the base schema holds is a no-op when equal - folding this change
+				// into it would turn it into a conflicting creation, so both stay
+				return null;
+			}
 			// the resource did not exist before the pipeline - it is created with the final definition
 			return new MutationCombinationResult<>(
 				new CreateFulltextResourceSchemaMutation(this.name, this.content)

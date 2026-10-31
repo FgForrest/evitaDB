@@ -101,14 +101,25 @@ public final class AnalysisSteps {
 	public static final Set<String> BUILT_IN_RESOURCES = Set.of(
 		CZECH_STOP_WORDS, POLISH_STOP_WORDS, ROMANIAN_STOP_WORDS, ENGLISH_STOP_WORDS, GERMAN_STOP_WORDS
 	);
+	/** The resource parameters of a stemming step: the words its {@link #PROTECTED_WORDS} leave unstemmed. */
+	private static final Map<String, FulltextResourceKind> STEMMING_RESOURCE_PARAMETERS =
+		Map.of(PROTECTED_WORDS, FulltextResourceKind.WORD_LIST);
 	/**
-	 * The step parameters that read resources, each with the kind of resource it reads. The catalog schema checks
-	 * every such parameter of every analyzer step against the resources it names.
+	 * The parameters of the built-in steps that read resources, keyed by step name, each with the kind of resource it
+	 * reads. The catalog schema checks every such parameter of an analyzer step against the resources it names. A
+	 * parameter of the same name on a step from another provider is that provider's own: the server checks it, the
+	 * catalog schema does not.
 	 */
-	public static final Map<String, FulltextResourceKind> RESOURCE_PARAMETERS = Map.of(
-		WORDS, FulltextResourceKind.WORD_LIST,
-		PROTECTED_WORDS, FulltextResourceKind.WORD_LIST,
-		SYNONYM_LISTS, FulltextResourceKind.SYNONYM_LIST
+	public static final Map<String, Map<String, FulltextResourceKind>> RESOURCE_PARAMETERS = Map.of(
+		STOP_WORDS, Map.of(WORDS, FulltextResourceKind.WORD_LIST),
+		SYNONYMS, Map.of(SYNONYM_LISTS, FulltextResourceKind.SYNONYM_LIST),
+		CZECH_STEMMING, STEMMING_RESOURCE_PARAMETERS,
+		SLOVAK_STEMMING, STEMMING_RESOURCE_PARAMETERS,
+		POLISH_STEMMING, STEMMING_RESOURCE_PARAMETERS,
+		ROMANIAN_STEMMING, STEMMING_RESOURCE_PARAMETERS,
+		ENGLISH_STEMMING, STEMMING_RESOURCE_PARAMETERS,
+		GERMAN_STEMMING, STEMMING_RESOURCE_PARAMETERS,
+		STEMMING, STEMMING_RESOURCE_PARAMETERS
 	);
 
 	/** Prevents instantiation of this factory holder. */

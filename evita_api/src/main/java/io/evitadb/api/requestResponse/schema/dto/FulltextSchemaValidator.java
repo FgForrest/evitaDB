@@ -44,10 +44,10 @@ import java.util.stream.Stream;
 
 /**
  * Checks the references between the fulltext parts of a catalog schema that need no server: the names an analyzer
- * is based on, the resources its steps read and their kinds, the analyzers the fields use, and the reserved built-in
- * names. What depends on the
- * installed steps - that a step exists, that its parameters are valid, that it sits in its phase - is checked by the
- * server when it adopts the schema.
+ * is based on, the resources its built-in steps read and their kinds, the analyzers the fields use, and the reserved
+ * built-in names. What depends on the installed steps - that a step exists, that its parameters are valid, that it
+ * sits in its phase, the resources the steps of other providers read - is checked by the server when it adopts the
+ * schema.
  */
 final class FulltextSchemaValidator {
 
@@ -166,7 +166,8 @@ final class FulltextSchemaValidator {
 	}
 
 	/**
-	 * Validates that every parameter that reads resources names existing resources of the kind it reads.
+	 * Validates that every parameter of a built-in step that reads resources names existing resources of the kind it
+	 * reads.
 	 *
 	 * @param analyzer  the name of the analyzer, for the messages
 	 * @param scope     which definition of the analyzer the steps belong to, for the messages
@@ -185,8 +186,10 @@ final class FulltextSchemaValidator {
 			return;
 		}
 		for (final AnalysisStep step : steps) {
+			final Map<String, FulltextResourceKind> resourceParameters =
+				AnalysisSteps.RESOURCE_PARAMETERS.getOrDefault(step.name(), Map.of());
 			for (final Entry<String, Serializable> parameter : step.parameters().entrySet()) {
-				final FulltextResourceKind expectedKind = AnalysisSteps.RESOURCE_PARAMETERS.get(parameter.getKey());
+				final FulltextResourceKind expectedKind = resourceParameters.get(parameter.getKey());
 				if (expectedKind == null) {
 					continue;
 				}
@@ -197,6 +200,10 @@ final class FulltextSchemaValidator {
 					continue;
 				}
 				for (final String resourceName : names) {
+					if (resourceName == null || resourceName.isBlank()) {
+						errors.add(where + ": parameter `" + parameter.getKey() + "` names a blank resource.");
+						continue;
+					}
 					final FulltextResourceKind kind = resolveKind(resourceName, resources);
 					if (kind == null) {
 						errors.add(where + " reads resource `" + resourceName + "`, which does not exist.");

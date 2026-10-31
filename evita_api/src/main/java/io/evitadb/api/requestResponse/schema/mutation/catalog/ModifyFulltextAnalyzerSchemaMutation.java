@@ -115,6 +115,11 @@ public class ModifyFulltextAnalyzerSchemaMutation implements CombinableCatalogSc
 	) {
 		if (existingMutation instanceof CreateFulltextAnalyzerSchemaMutation creation &&
 			this.name.equals(creation.getName())) {
+			if (currentCatalogSchema.getFulltextAnalyzers().containsKey(this.name)) {
+				// the creation of a analyzer the base schema holds is a no-op when equal - folding this change
+				// into it would turn it into a conflicting creation, so both stay
+				return null;
+			}
 			// the analyzer did not exist before the pipeline - it is created with the final definition
 			return new MutationCombinationResult<>(
 				new CreateFulltextAnalyzerSchemaMutation(this.name, this.basedOn, this.allLanguages, this.languages)
