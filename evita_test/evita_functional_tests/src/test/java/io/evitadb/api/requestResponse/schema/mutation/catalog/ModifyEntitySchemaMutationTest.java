@@ -29,28 +29,38 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContex
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import javax.annotation.Nonnull;
+import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Tag;
 
@@ -74,7 +84,7 @@ class ModifyEntitySchemaMutationTest {
 	class CombineWith {
 
 		@Test
-		@DisplayName("should combine with another mutation to same schema")
+		@DisplayName("should combine with another mutation to same schema, keeping the existing changes first")
 		void shouldCombineWithAnotherMutationToSameSchema() {
 			final ModifyEntitySchemaMutation mutation = new ModifyEntitySchemaMutation(
 				"entityName",
@@ -94,14 +104,55 @@ class ModifyEntitySchemaMutationTest {
 			assertNotNull(result.current());
 			assertEquals(1, result.current().length);
 
+			// the existing mutation was collected first, so its changes stay first and the new ones apply after them
 			final ModifyEntitySchemaMutation entitySchemaMutation = (ModifyEntitySchemaMutation) result.current()[0];
 			assertEquals(2, entitySchemaMutation.getSchemaMutations().length);
 			assertInstanceOf(
-				SetAttributeSchemaUniqueMutation.class, entitySchemaMutation.getSchemaMutations()[0]
+				SetAttributeSchemaFilterableMutation.class, entitySchemaMutation.getSchemaMutations()[0]
 			);
 			assertInstanceOf(
-				SetAttributeSchemaFilterableMutation.class, entitySchemaMutation.getSchemaMutations()[1]
+				SetAttributeSchemaUniqueMutation.class, entitySchemaMutation.getSchemaMutations()[1]
 			);
+		}
+
+		@Test
+		@DisplayName("should keep the newer of two combined changes of the same property")
+		void shouldKeepNewerOfTwoCombinedChangesOfSameProperty() {
+			final EntitySchema entitySchema = EntitySchema._internalBuild("entityName");
+			final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
+				"testCatalog",
+				NamingConvention.generate("testCatalog"),
+				null,
+				EnumSet.allOf(CatalogEvolutionMode.class),
+				new EntitySchemaProvider() {
+					@Nonnull
+					@Override
+					public Collection<EntitySchemaContract> getEntitySchemas() {
+						return List.of(entitySchema);
+					}
+
+					@Nonnull
+					@Override
+					public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+						return entitySchema.getName().equals(entityType) ? Optional.of(entitySchema) : Optional.empty();
+					}
+				}
+			);
+
+			final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(catalogSchema)
+				.withEntitySchema("entityName", entity -> entity.withDescription("first"))
+				.withEntitySchema("entityName", entity -> entity.withDescription("second"));
+
+			final LocalCatalogSchemaMutation[] emitted = builder.toMutation()
+				.map(ModifyCatalogSchemaMutation::getSchemaMutations)
+				.orElseThrow();
+			assertEquals(1, emitted.length);
+			// the server applies the emitted modification to the stored entity schema
+			final EntitySchemaContract appliedSchema = ((ModifyEntitySchemaMutation) emitted[0]).mutate(
+				catalogSchema, entitySchema
+			);
+			assertNotNull(appliedSchema);
+			assertEquals("second", appliedSchema.getDescription());
 		}
 
 		@Test
