@@ -58,6 +58,7 @@ import java.util.Arrays;
 import java.util.Currency;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -66,6 +67,7 @@ import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies that re-defining an unchanged entity schema from its annotated model class after an application restart
@@ -256,6 +258,28 @@ class ClassSchemaAnalyzerRedefinitionTest implements EvitaTestSupport {
 		assertNoMutations(mutations);
 	}
 
+	@DisplayName("model faceting a scope fully clears the stored partial faceting and bucketing of that scope")
+	@Test
+	void shouldClearStoredPartialSettingsWhenModelFacetsScopeFully() {
+		defineSchemas(NO_POST_PROCESSING, FeatureModel.class, FeatureValueModel.class, FeaturedProductModel.class);
+
+		defineSchemas(NO_POST_PROCESSING, FullyFacetedProductModel.class);
+
+		assertFacetedFullyWithoutPartialBucketing("RedefinedFeaturedProduct", Scope.LIVE);
+	}
+
+	@DisplayName("model faceting the reference fully clears the stored partial faceting and bucketing")
+	@Test
+	void shouldClearStoredPartialSettingsWhenModelFacetsReferenceFully() {
+		defineSchemas(
+			NO_POST_PROCESSING, FeatureModel.class, FeatureValueModel.class, UnscopedFeaturedProductModel.class
+		);
+
+		defineSchemas(NO_POST_PROCESSING, UnscopedFullyFacetedProductModel.class);
+
+		assertFacetedFullyWithoutPartialBucketing("RedefinedUnscopedFeaturedProduct", Scope.DEFAULT_SCOPE);
+	}
+
 	@DisplayName("currency added by the model keeps the scopes the stored price is indexed in")
 	@Test
 	void shouldKeepPriceIndexedScopesWhenModelAddsCurrency() {
@@ -294,6 +318,32 @@ class ClassSchemaAnalyzerRedefinitionTest implements EvitaTestSupport {
 		);
 
 		assertNoMutations(mutations);
+	}
+
+	/**
+	 * Asserts the feature values reference of the stored entity schema is faceted in the scope and carries neither
+	 * a partial faceting nor a partial bucketing expression.
+	 *
+	 * @param entityType the entity schema to check
+	 * @param scope      the scope the model facets fully
+	 */
+	private void assertFacetedFullyWithoutPartialBucketing(@Nonnull String entityType, @Nonnull Scope scope) {
+		final ReferenceSchemaContract reference = this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntitySchemaOrThrowException(entityType)
+					.getReferenceOrThrowException(REFERENCE_FEATURE_VALUES);
+			}
+		);
+		assertTrue(reference.isFacetedInScope(scope), "The reference must stay faceted in " + scope + ".");
+		assertEquals(
+			Map.of(), reference.getFacetedPartiallyInScopes(),
+			"The stored partial faceting must not narrow a reference the model facets fully."
+		);
+		assertEquals(
+			Map.of(), reference.getBucketedPartiallyInScopes(),
+			"The stored partial bucketing must not outlive the model that dropped it."
+		);
 	}
 
 	/**
@@ -695,6 +745,93 @@ class ClassSchemaAnalyzerRedefinitionTest implements EvitaTestSupport {
 				value = @Expression(EXPRESSION_BASIC_UNIT_VALUE)
 			),
 			bucketedPartially = @Expression(EXPRESSION_BUCKETED_PARTIALLY)
+		)
+		@Nonnull
+		List<FeatureValueReference> getFeatureValues();
+
+	}
+
+	/**
+	 * The same entity as {@link FeaturedProductModel}, whose model now facets the reference fully in the live scope:
+	 * no partial faceting and no partial bucketing, the histograms unchanged.
+	 */
+	@Entity(name = "RedefinedFeaturedProduct")
+	public interface FullyFacetedProductModel {
+
+		/**
+		 * Returns the primary key.
+		 */
+		@PrimaryKey(autoGenerate = false)
+		int getId();
+
+		/**
+		 * Returns all feature values assigned to the product.
+		 */
+		@Reference(
+			name = REFERENCE_FEATURE_VALUES,
+			entity = ENTITY_FEATURE_VALUE,
+			groupEntity = ENTITY_FEATURE,
+			scope = {
+				@ScopeReferenceSettings(
+					scope = Scope.LIVE,
+					indexed = ReferenceIndexType.FOR_FILTERING,
+					indexedComponents = {
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					},
+					faceted = true,
+					bucketed = {
+						@Histogram(
+							nameOfTheIndex = HISTOGRAM_SINGLE_VALUE,
+							assignedWhen = @Expression(EXPRESSION_NOT_RANGE),
+							value = @Expression(EXPRESSION_BASIC_UNIT_VALUE)
+						),
+						@Histogram(
+							nameOfTheIndex = HISTOGRAM_RANGE_VALUE,
+							assignedWhen = @Expression(EXPRESSION_RANGE),
+							value = @Expression(EXPRESSION_RANGE_BASIC_UNIT_VALUE)
+						)
+					}
+				),
+				@ScopeReferenceSettings(scope = Scope.ARCHIVED, indexed = ReferenceIndexType.FOR_FILTERING)
+			}
+		)
+		@Nonnull
+		List<FeatureValueReference> getFeatureValues();
+
+	}
+
+	/**
+	 * The same entity as {@link UnscopedFeaturedProductModel}, whose model now facets the reference fully through the
+	 * general `@Reference` settings: no partial faceting and no partial bucketing, the histogram unchanged.
+	 */
+	@Entity(name = "RedefinedUnscopedFeaturedProduct")
+	public interface UnscopedFullyFacetedProductModel {
+
+		/**
+		 * Returns the primary key.
+		 */
+		@PrimaryKey(autoGenerate = false)
+		int getId();
+
+		/**
+		 * Returns all feature values assigned to the product.
+		 */
+		@Reference(
+			name = REFERENCE_FEATURE_VALUES,
+			entity = ENTITY_FEATURE_VALUE,
+			groupEntity = ENTITY_FEATURE,
+			indexed = ReferenceIndexType.FOR_FILTERING,
+			indexedComponents = {
+				ReferenceIndexedComponents.REFERENCED_ENTITY,
+				ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+			},
+			faceted = true,
+			bucketed = @Histogram(
+				nameOfTheIndex = HISTOGRAM_SINGLE_VALUE,
+				assignedWhen = @Expression(EXPRESSION_NOT_RANGE),
+				value = @Expression(EXPRESSION_BASIC_UNIT_VALUE)
+			)
 		)
 		@Nonnull
 		List<FeatureValueReference> getFeatureValues();
