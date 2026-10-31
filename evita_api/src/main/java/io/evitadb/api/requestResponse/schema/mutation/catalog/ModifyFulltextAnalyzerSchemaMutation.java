@@ -59,8 +59,11 @@ import java.util.stream.Stream;
  * `CatalogSchemaContract#getFulltextAnalyzers()`). The analyzer must exist; to add one use
  * {@link CreateFulltextAnalyzerSchemaMutation}.
  *
- * Mutation implements {@link CombinableCatalogSchemaMutation}: a later mutation of the same analyzer in one pipeline
- * absorbs the earlier one where the result is the same.
+ * Mutation implements {@link CombinableCatalogSchemaMutation}: in one pipeline it replaces an earlier modification
+ * of the same analyzer. It folds into an earlier {@link CreateFulltextAnalyzerSchemaMutation} of the analyzer only when
+ * the base schema does not hold the analyzer - the creation then carries the final definition. When the base schema
+ * holds it, that creation restates the existing definition and changes nothing, while folding the change into it
+ * would turn it into a conflicting creation, so both stay.
  */
 @ThreadSafe
 @Immutable
@@ -116,7 +119,7 @@ public class ModifyFulltextAnalyzerSchemaMutation implements CombinableCatalogSc
 		if (existingMutation instanceof CreateFulltextAnalyzerSchemaMutation creation &&
 			this.name.equals(creation.getName())) {
 			if (currentCatalogSchema.getFulltextAnalyzers().containsKey(this.name)) {
-				// the creation of a analyzer the base schema holds is a no-op when equal - folding this change
+				// the creation of an analyzer the base schema holds is a no-op when equal - folding this change
 				// into it would turn it into a conflicting creation, so both stay
 				return null;
 			}

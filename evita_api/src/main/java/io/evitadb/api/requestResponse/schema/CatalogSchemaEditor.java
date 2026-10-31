@@ -146,8 +146,8 @@ public interface CatalogSchemaEditor<S extends CatalogSchemaEditor<S>> extends
 	S withoutFulltextLanguage(@Nonnull String language);
 
 	/**
-	 * Declares a named fulltext resource - a list analysis steps read by name - replacing any previous content of the
-	 * name:
+	 * Declares a named fulltext resource - a list that analysis steps read by name - replacing any previous content of
+	 * the name:
 	 *
 	 * ```
 	 * catalog
@@ -168,8 +168,9 @@ public interface CatalogSchemaEditor<S extends CatalogSchemaEditor<S>> extends
 	S withFulltextResource(@Nonnull String name, @Nonnull FulltextResourceContent content);
 
 	/**
-	 * Removes a fulltext resource. The schema update is refused while an analyzer still reads the resource. Nothing
-	 * happens when the resource is not declared.
+	 * Removes a fulltext resource. The schema update is refused while an analyzer still reads the resource - checked on
+	 * the schema the whole update produces, so an update that re-points those analyzers may remove the resource too.
+	 * Nothing happens when the resource is not declared.
 	 *
 	 * @param name the name of the resource
 	 * @return this builder to allow method chaining
@@ -194,7 +195,8 @@ public interface CatalogSchemaEditor<S extends CatalogSchemaEditor<S>> extends
 
 	/**
 	 * Removes a fulltext analyzer. The schema update is refused while a searchable field or another analyzer still
-	 * names it. Nothing happens when the analyzer is not declared.
+	 * names it - checked on the schema the whole update produces, so an update that re-points those fields and
+	 * analyzers may remove the analyzer too. Nothing happens when the analyzer is not declared.
 	 *
 	 * @param name the name of the analyzer
 	 * @return this builder to allow method chaining

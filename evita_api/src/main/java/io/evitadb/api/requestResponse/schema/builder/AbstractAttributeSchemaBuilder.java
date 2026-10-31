@@ -235,6 +235,8 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 
 	/**
 	 * Returns the fulltext analyzer currently assembled from the accumulated mutations.
+	 *
+	 * @return the name of the fulltext analyzer
 	 */
 	@Nonnull
 	@Override
@@ -244,6 +246,8 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 
 	/**
 	 * Returns the length pivot currently assembled from the accumulated mutations.
+	 *
+	 * @return the length pivot
 	 */
 	@Override
 	public int getLengthPivot() {
@@ -253,6 +257,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	@Nonnull
 	@Override
 	public T analyzer(@Nonnull String analyzerName) {
+		Assert.notNull(analyzerName, "Analyzer name must not be null.");
 		return setFulltextField(analyzerName, null);
 	}
 

@@ -56,11 +56,13 @@ import java.util.stream.Stream;
 /**
  * Mutation adds how text in one language is split into words to the catalog schema (see
  * `CatalogSchemaContract#getFulltextLanguages()`). Applying it again with the same definition changes nothing; a
- * language of the same language with a different definition is refused - use
+ * language already declared with a different definition is refused - use
  * {@link ModifyFulltextLanguageSchemaMutation} to change it.
  *
- * Mutation implements {@link CombinableCatalogSchemaMutation}: a later mutation of the same language in one pipeline
- * absorbs the earlier one where the result is the same.
+ * Mutation implements {@link CombinableCatalogSchemaMutation}, but absorbs no earlier mutation: a removal of the
+ * same language before it must still run first. A later {@link RemoveFulltextLanguageSchemaMutation} of the language
+ * absorbs it, and so does a later {@link ModifyFulltextLanguageSchemaMutation} when the base schema does not hold the
+ * language.
  */
 @ThreadSafe
 @Immutable

@@ -52,6 +52,9 @@ import java.util.Map;
  * and an empty scope set: an attribute stored before accelerators and searchability existed is plainly filterable,
  * asks the filter index for no acceleration and is searchable nowhere, which is exactly what the empty values mean.
  *
+ * The format carries no fulltext field settings either: the analyzer and the length pivot take their defaults,
+ * {@link FulltextAnalyzerSchemaContract#TEXT} and {@link AttributeSchemaContract#DEFAULT_LENGTH_PIVOT}.
+ *
  * This serializer only reads - writes always go through the current {@link AttributeSchemaSerializer}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021

@@ -56,12 +56,14 @@ import java.util.stream.Stream;
 
 /**
  * Mutation adds a named fulltext analyzer to the catalog schema (see
- * `CatalogSchemaContract#getFulltextAnalyzers()`). Applying it again with the same definition changes nothing; a
+ * `CatalogSchemaContract#getFulltextAnalyzers()`). Applying it again with the same definition changes nothing; an
  * analyzer of the same name with a different definition is refused - use
  * {@link ModifyFulltextAnalyzerSchemaMutation} to change it.
  *
- * Mutation implements {@link CombinableCatalogSchemaMutation}: a later mutation of the same analyzer in one pipeline
- * absorbs the earlier one where the result is the same.
+ * Mutation implements {@link CombinableCatalogSchemaMutation}, but absorbs no earlier mutation: a removal of the
+ * same analyzer before it must still run first. A later {@link RemoveFulltextAnalyzerSchemaMutation} of the analyzer
+ * absorbs it, and so does a later {@link ModifyFulltextAnalyzerSchemaMutation} when the base schema does not hold the
+ * analyzer.
  */
 @ThreadSafe
 @Immutable

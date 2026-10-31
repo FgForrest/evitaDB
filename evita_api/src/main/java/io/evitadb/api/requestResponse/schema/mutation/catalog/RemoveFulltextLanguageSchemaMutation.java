@@ -55,8 +55,8 @@ import java.util.stream.Stream;
  * Mutation removes how text in one language is split into words from the catalog schema (see
  * `CatalogSchemaContract#getFulltextLanguages()`). Removing a language that does not exist changes nothing.
  *
- * Mutation implements {@link CombinableCatalogSchemaMutation}: a later mutation of the same language in one pipeline
- * absorbs the earlier one where the result is the same.
+ * Mutation implements {@link CombinableCatalogSchemaMutation}: it drops every earlier creation, modification or
+ * removal of the same language in one pipeline, which the removal makes pointless, and stays in the pipeline itself.
  */
 @ThreadSafe
 @Immutable

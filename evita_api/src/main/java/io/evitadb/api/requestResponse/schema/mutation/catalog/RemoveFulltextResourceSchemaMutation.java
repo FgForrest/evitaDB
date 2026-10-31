@@ -51,14 +51,14 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 /**
- * Mutation removes a named list fulltext analysis steps read from the catalog schema (see
+ * Mutation removes a fulltext resource - a named list that analysis steps read - from the catalog schema (see
  * `CatalogSchemaContract#getFulltextResources()`). Removing a resource that does not exist changes nothing.
  *
  * Whether something still refers to the resource is checked on the schema the whole update produces, so one update
  * may re-point the references and remove the resource together.
  *
- * Mutation implements {@link CombinableCatalogSchemaMutation}: a later mutation of the same resource in one pipeline
- * absorbs the earlier one where the result is the same.
+ * Mutation implements {@link CombinableCatalogSchemaMutation}: it drops every earlier creation, modification or
+ * removal of the same resource in one pipeline, which the removal makes pointless, and stays in the pipeline itself.
  */
 @ThreadSafe
 @Immutable

@@ -53,12 +53,15 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 /**
- * Mutation replaces the whole definition of a named list fulltext analysis steps read in the catalog schema (see
- * `CatalogSchemaContract#getFulltextResources()`). The resource must exist; to add one use
+ * Mutation replaces the whole definition of a fulltext resource - a named list that analysis steps read - in the
+ * catalog schema (see `CatalogSchemaContract#getFulltextResources()`). The resource must exist; to add one use
  * {@link CreateFulltextResourceSchemaMutation}.
  *
- * Mutation implements {@link CombinableCatalogSchemaMutation}: a later mutation of the same resource in one pipeline
- * absorbs the earlier one where the result is the same.
+ * Mutation implements {@link CombinableCatalogSchemaMutation}: in one pipeline it replaces an earlier modification
+ * of the same resource. It folds into an earlier {@link CreateFulltextResourceSchemaMutation} of the resource only when
+ * the base schema does not hold the resource - the creation then carries the final definition. When the base schema
+ * holds it, that creation restates the existing definition and changes nothing, while folding the change into it
+ * would turn it into a conflicting creation, so both stay.
  */
 @ThreadSafe
 @Immutable

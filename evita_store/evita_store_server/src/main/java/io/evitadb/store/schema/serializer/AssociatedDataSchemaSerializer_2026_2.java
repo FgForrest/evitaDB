@@ -41,7 +41,9 @@ import java.util.Map;
 /**
  * This {@link Serializer} implementation reads {@link AssociatedDataSchema} from the 2026.2 binary format that
  * predates the searchable scopes and the text expression. It is retained to keep released 2026.2 data readable after
- * an in-place upgrade; writing is unsupported. Associated data read through it is searchable nowhere.
+ * an in-place upgrade; writing is unsupported. Associated data read through it is searchable nowhere, and its
+ * analyzer and length pivot take their defaults, {@link FulltextAnalyzerSchemaContract#TEXT} and
+ * {@link AttributeSchemaContract#DEFAULT_LENGTH_PIVOT}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @deprecated the current version stores the searchable scopes and the text expression of associated data

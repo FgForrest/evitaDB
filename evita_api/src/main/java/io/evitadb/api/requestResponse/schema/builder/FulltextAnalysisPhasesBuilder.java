@@ -83,6 +83,9 @@ final class FulltextAnalysisPhasesBuilder implements FulltextAnalysisPhasesEdito
 	@Nonnull
 	static List<AnalysisStep> toList(@Nonnull AnalysisStep[] steps) {
 		Assert.notNull(steps, "Steps must not be null.");
+		for (final AnalysisStep step : steps) {
+			Assert.notNull(step, "An analysis step must not be null.");
+		}
 		return List.copyOf(Arrays.asList(steps));
 	}
 

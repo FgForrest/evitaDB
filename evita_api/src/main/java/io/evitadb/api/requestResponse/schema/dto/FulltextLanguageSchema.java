@@ -106,6 +106,9 @@ public final class FulltextLanguageSchema implements FulltextLanguageSchemaContr
 				"Fulltext language `" + language + "` must declare at least its tokenizer."
 			)
 		);
+		for (final AnalysisStep step : wordSplitting) {
+			Assert.notNull(step, "A word splitting step of fulltext language `" + language + "` must not be null.");
+		}
 		this.language = language;
 		this.wordSplitting = List.copyOf(wordSplitting);
 	}

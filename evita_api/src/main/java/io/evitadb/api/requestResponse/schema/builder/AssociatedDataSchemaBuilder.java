@@ -45,6 +45,7 @@ import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociat
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.experimental.Delegate;
 
@@ -206,6 +207,7 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 	@Nonnull
 	@Override
 	public AssociatedDataSchemaBuilder analyzer(@Nonnull String analyzerName) {
+		Assert.notNull(analyzerName, "Analyzer name must not be null.");
 		return setFulltextField(analyzerName, null);
 	}
 

@@ -54,13 +54,15 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 /**
- * Mutation adds a named list fulltext analysis steps read to the catalog schema (see
+ * Mutation adds a fulltext resource - a named list that analysis steps read - to the catalog schema (see
  * `CatalogSchemaContract#getFulltextResources()`). Applying it again with the same definition changes nothing; a
  * resource of the same name with a different definition is refused - use
  * {@link ModifyFulltextResourceSchemaMutation} to change it.
  *
- * Mutation implements {@link CombinableCatalogSchemaMutation}: a later mutation of the same resource in one pipeline
- * absorbs the earlier one where the result is the same.
+ * Mutation implements {@link CombinableCatalogSchemaMutation}, but absorbs no earlier mutation: a removal of the
+ * same resource before it must still run first. A later {@link RemoveFulltextResourceSchemaMutation} of the resource
+ * absorbs it, and so does a later {@link ModifyFulltextResourceSchemaMutation} when the base schema does not hold the
+ * resource.
  */
 @ThreadSafe
 @Immutable

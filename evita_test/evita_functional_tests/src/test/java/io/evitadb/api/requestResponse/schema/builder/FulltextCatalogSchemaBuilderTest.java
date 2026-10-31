@@ -192,6 +192,19 @@ class FulltextCatalogSchemaBuilderTest {
 			assertEquals(1, schema.version());
 		}
 
+		@Test
+		@DisplayName("refuses a null word splitting step instead of failing on it")
+		void shouldRefuseANullWordSplittingStep() {
+			final CreateFulltextLanguageSchemaMutation mutation = new CreateFulltextLanguageSchemaMutation(
+				"cs", new AnalysisStep[]{standardTokenizer(), null}
+			);
+
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> mutation.mutate(emptyCatalog(), EmptyEntitySchemaAccessor.INSTANCE)
+			);
+		}
+
 	}
 
 	@Nested
@@ -333,6 +346,16 @@ class FulltextCatalogSchemaBuilderTest {
 			);
 			assertEquals(1, modification.length);
 			assertInstanceOf(ModifyFulltextAnalyzerSchemaMutation.class, modification[0]);
+		}
+
+		@Test
+		@DisplayName("refuses a null analysis step instead of failing on it")
+		void shouldRefuseANullAnalysisStep() {
+			final InternalCatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(emptyCatalog());
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> builder.withFulltextAnalyzer("codes", a -> a.text(lowercase(), null))
+			);
 		}
 
 	}
@@ -599,6 +622,65 @@ class FulltextCatalogSchemaBuilderTest {
 					.withoutFulltextResource("brands")
 			);
 			assertDoesNotThrow(repointed::validate);
+		}
+
+		@Test
+		@DisplayName("names the language whose override reads a resource that does not exist")
+		void shouldNameTheLanguageOfAnOverrideReadingAMissingResource() {
+			final CatalogSchemaContract schema = schemaOf(
+				emptyCatalog(),
+				b -> b.withFulltextAnalyzer(
+					"names",
+					a -> a.words(lowercase()).language("cs", l -> l.words(stopWords(resource("brands"))))
+				)
+			);
+
+			final InvalidSchemaMutationException exception = assertThrows(
+				InvalidSchemaMutationException.class,
+				schema::validate
+			);
+			assertTrue(exception.getMessage().contains("(language `cs`)"), exception.getMessage());
+			assertTrue(exception.getMessage().contains("`brands`, which does not exist"), exception.getMessage());
+		}
+
+		@Test
+		@DisplayName("reports every problem of the fulltext parts at once")
+		void shouldReportEveryProblemAtOnce() {
+			final CatalogSchemaContract schema = schemaOf(
+				emptyCatalog(),
+				b -> b
+					.withFulltextAnalyzer("names", a -> a.words(stopWords(resource("brands"))))
+					.withFulltextAnalyzer("titles", a -> a.basedOn("ghost"))
+					.withFulltextAnalyzer("first", a -> a.basedOn("second"))
+					.withFulltextAnalyzer("second", a -> a.basedOn("first"))
+			);
+
+			final InvalidSchemaMutationException exception = assertThrows(
+				InvalidSchemaMutationException.class,
+				schema::validate
+			);
+			assertTrue(exception.getMessage().contains("`brands`, which does not exist"), exception.getMessage());
+			assertTrue(exception.getMessage().contains("`ghost`, which does not exist"), exception.getMessage());
+			assertTrue(exception.getMessage().contains("cycle"), exception.getMessage());
+		}
+
+		@Test
+		@DisplayName("refuses a resource parameter of a built-in step that does not list resource names")
+		void shouldRefuseAResourceParameterThatDoesNotListNames() {
+			final CatalogSchemaContract schema = schemaOf(
+				emptyCatalog(),
+				b -> b
+					.withFulltextResource("brands", wordList("puma"))
+					.withFulltextAnalyzer("names", a -> a.words(step(STOP_WORDS, parameter(WORDS, "brands"))))
+			);
+
+			final InvalidSchemaMutationException exception = assertThrows(
+				InvalidSchemaMutationException.class,
+				schema::validate
+			);
+			assertTrue(
+				exception.getMessage().contains("parameter `words` must list resource names"), exception.getMessage()
+			);
 		}
 
 	}

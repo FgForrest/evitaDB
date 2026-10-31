@@ -101,7 +101,10 @@ public final class AnalysisSteps {
 	public static final Set<String> BUILT_IN_RESOURCES = Set.of(
 		CZECH_STOP_WORDS, POLISH_STOP_WORDS, ROMANIAN_STOP_WORDS, ENGLISH_STOP_WORDS, GERMAN_STOP_WORDS
 	);
-	/** The resource parameters of a stemming step: the words its {@link #PROTECTED_WORDS} leave unstemmed. */
+	/**
+	 * The resource parameters every stemming step shares: {@link #PROTECTED_WORDS}, the word lists whose words the
+	 * stemmer leaves unstemmed.
+	 */
 	private static final Map<String, FulltextResourceKind> STEMMING_RESOURCE_PARAMETERS =
 		Map.of(PROTECTED_WORDS, FulltextResourceKind.WORD_LIST);
 	/**

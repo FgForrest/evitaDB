@@ -52,13 +52,13 @@ import java.util.stream.Stream;
 
 /**
  * Mutation removes a named fulltext analyzer from the catalog schema (see
- * `CatalogSchemaContract#getFulltextAnalyzers()`). Removing a analyzer that does not exist changes nothing.
+ * `CatalogSchemaContract#getFulltextAnalyzers()`). Removing an analyzer that does not exist changes nothing.
  *
  * Whether something still refers to the analyzer is checked on the schema the whole update produces, so one update
  * may re-point the references and remove the analyzer together.
  *
- * Mutation implements {@link CombinableCatalogSchemaMutation}: a later mutation of the same analyzer in one pipeline
- * absorbs the earlier one where the result is the same.
+ * Mutation implements {@link CombinableCatalogSchemaMutation}: it drops every earlier creation, modification or
+ * removal of the same analyzer in one pipeline, which the removal makes pointless, and stays in the pipeline itself.
  */
 @ThreadSafe
 @Immutable

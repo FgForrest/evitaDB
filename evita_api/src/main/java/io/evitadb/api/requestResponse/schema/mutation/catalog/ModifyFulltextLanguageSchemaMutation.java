@@ -58,8 +58,11 @@ import java.util.stream.Stream;
  * `CatalogSchemaContract#getFulltextLanguages()`). The language must exist; to add one use
  * {@link CreateFulltextLanguageSchemaMutation}.
  *
- * Mutation implements {@link CombinableCatalogSchemaMutation}: a later mutation of the same language in one pipeline
- * absorbs the earlier one where the result is the same.
+ * Mutation implements {@link CombinableCatalogSchemaMutation}: in one pipeline it replaces an earlier modification
+ * of the same language. It folds into an earlier {@link CreateFulltextLanguageSchemaMutation} of the language only when
+ * the base schema does not hold the language - the creation then carries the final definition. When the base schema
+ * holds it, that creation restates the existing definition and changes nothing, while folding the change into it
+ * would turn it into a conflicting creation, so both stay.
  */
 @ThreadSafe
 @Immutable
