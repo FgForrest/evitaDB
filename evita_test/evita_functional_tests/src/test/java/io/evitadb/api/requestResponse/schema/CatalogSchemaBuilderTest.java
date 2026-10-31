@@ -32,6 +32,9 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDescriptionMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -212,6 +215,39 @@ class CatalogSchemaBuilderTest {
 		assertTrue(
 			builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT).getAttribute(ATTRIBUTE_CODE).orElseThrow().isSortable()
 		);
+	}
+
+	@Test
+	@DisplayName("apply the cascades of a catalog mutation after the entity modifications that follow it, as the server does")
+	void shouldApplyCascadesAfterFollowingEntityModifications() {
+		// the server changes the description while the global attribute still exists and removes the attribute
+		// from the entity with the cascade once the whole batch is processed
+		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(
+			catalogSchemaWithProductUsingCode(),
+			List.of(
+				new RemoveAttributeSchemaMutation(ATTRIBUTE_CODE),
+				new ModifyEntitySchemaMutation(
+					ENTITY_PRODUCT, new ModifyAttributeSchemaDescriptionMutation(ATTRIBUTE_CODE, "changed")
+				)
+			)
+		);
+
+		assertTrue(builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT).getAttribute(ATTRIBUTE_CODE).isEmpty());
+		assertTrue(builder.getAttribute(ATTRIBUTE_CODE).isEmpty());
+	}
+
+	@Test
+	@DisplayName("keep a cascade applied once when the builder is read and extended again")
+	void shouldKeepCascadeAppliedOnceWhenExtended() {
+		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(catalogSchemaWithProductUsingCode())
+			.withoutAttribute(ATTRIBUTE_CODE);
+		assertTrue(builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT).getAttribute(ATTRIBUTE_CODE).isEmpty());
+
+		builder.withEntitySchema(ENTITY_PRODUCT, whichIs -> whichIs.withDescription("changed"));
+
+		final EntitySchemaContract product = builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT);
+		assertTrue(product.getAttribute(ATTRIBUTE_CODE).isEmpty());
+		assertEquals("changed", product.getDescription());
 	}
 
 	/**

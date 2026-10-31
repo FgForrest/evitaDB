@@ -53,6 +53,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchema
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NamingConvention;
 import lombok.experimental.Delegate;
@@ -120,6 +121,12 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 	 * {@link #toInstance()} replays the mutations from the base schema.
 	 */
 	private MutationEntitySchemaAccessor updatedEntitySchemaAccessor;
+	/**
+	 * Whether the last replay applied what catalog mutations cascade into entity schemas. The server applies those
+	 * cascades once the whole batch is processed, after every explicit mutation of it, so a mutation added later has
+	 * to be replayed before them - from the base schema.
+	 */
+	private boolean cascadesApplied;
 
 	public InternalCatalogSchemaBuilder(
 		@Nonnull CatalogSchemaContract baseSchema,
@@ -397,7 +404,8 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 		if (this.updatedSchema == null || this.updatedSchemaDirty != MutationImpact.NO_IMPACT) {
 			// if the dirty flag is set to modified previous we need to start from the base schema again
 			// and reapply all mutations
-			if (this.updatedSchemaDirty == MutationImpact.MODIFIED_PREVIOUS) {
+			// the cascades applied by the last replay have to come after the mutations added since, so it starts over
+			if (this.updatedSchemaDirty == MutationImpact.MODIFIED_PREVIOUS || this.cascadesApplied) {
 				this.lastMutationReflectedInSchema = -1;
 				this.updatedSchema = null;
 				// the entity schemas start from the base too, otherwise the replay applies their modifications twice
@@ -409,6 +417,7 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 				this.baseSchema : this.updatedSchema;
 
 			// apply the mutations not reflected in the schema
+			List<ModifyEntitySchemaMutation> cascadedMutations = null;
 			for (int i = this.lastMutationReflectedInSchema + 1; i < this.mutations.size(); i++) {
 				final LocalCatalogSchemaMutation mutation = this.mutations.get(i);
 				final CatalogSchemaWithImpactOnEntitySchemas mutationImpact = mutation.mutate(currentSchema, this.updatedEntitySchemaAccessor);
@@ -416,16 +425,23 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 					throw new GenericEvitaInternalError("Catalog schema unexpectedly removed from inside!");
 				}
 				currentSchema = mutationImpact.updatedCatalogSchema();
-				// carry what the mutation cascades into the entity schemas - for example a removed global attribute
-				// leaving every entity schema that uses it; the server applies these cascades once the whole batch is
-				// processed, the builder right away, so that every read of it reflects them
-				final ModifyEntitySchemaMutation[] cascadedMutations = mutationImpact.entitySchemaMutations();
-				if (cascadedMutations != null) {
-					for (ModifyEntitySchemaMutation cascadedMutation : cascadedMutations) {
-						cascadedMutation.mutate(currentSchema, this.updatedEntitySchemaAccessor);
+				// collect what the mutation cascades into the entity schemas - for example a removed global attribute
+				// leaving every entity schema that uses it
+				final ModifyEntitySchemaMutation[] mutationCascades = mutationImpact.entitySchemaMutations();
+				if (!ArrayUtils.isEmpty(mutationCascades)) {
+					if (cascadedMutations == null) {
+						cascadedMutations = new ArrayList<>(mutationCascades.length);
 					}
+					Collections.addAll(cascadedMutations, mutationCascades);
 				}
 			}
+			// the server applies the cascades after every explicit mutation of the batch, so the builder does too
+			if (cascadedMutations != null) {
+				for (ModifyEntitySchemaMutation cascadedMutation : cascadedMutations) {
+					cascadedMutation.mutate(currentSchema, this.updatedEntitySchemaAccessor);
+				}
+			}
+			this.cascadesApplied = cascadedMutations != null;
 			this.updatedSchema = currentSchema;
 			this.updatedSchemaDirty = MutationImpact.NO_IMPACT;
 			this.lastMutationReflectedInSchema = this.mutations.size() - 1;
