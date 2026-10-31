@@ -520,6 +520,24 @@ class CreateReflectedReferenceSchemaMutationTest {
 					+ "SetReferenceSchemaBucketedMutation"
 			);
 		}
+
+		@Test
+		@DisplayName("should keep both the removal and the creation when the re-created reference reflects another one")
+		void shouldNotCombineWhenRecreatedReferenceReflectsAnotherReference() {
+			// no mutation can redirect a reflected reference, so the pair cannot be turned into modifications
+			final CreateReflectedReferenceSchemaMutation mutation = new CreateReflectedReferenceSchemaMutation(
+				REFERENCE_NAME, "reflectedDescription", "reflectedDeprecationNotice", Cardinality.ZERO_OR_MORE,
+				REFERENCE_TYPE, "anotherOriginalRef", false, AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED, null
+			);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReference(REFERENCE_NAME)).thenReturn(of(createExistingReflectedReferenceSchema()));
+
+			assertNull(
+				mutation.combineWith(
+					Mockito.mock(CatalogSchemaContract.class), entitySchema, new RemoveReferenceSchemaMutation(REFERENCE_NAME)
+				)
+			);
+		}
 	}
 
 	@Nested

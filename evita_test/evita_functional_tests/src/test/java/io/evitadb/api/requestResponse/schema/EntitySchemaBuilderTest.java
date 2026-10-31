@@ -80,6 +80,8 @@ import static io.evitadb.test.TestTags.SCHEMA;
 @Tag(SCHEMA)
 class EntitySchemaBuilderTest {
 	private static final String REFERENCE_BRAND = "brand";
+	private static final String REFERENCE_CATEGORY_PRODUCTS = "categoryProducts";
+	private static final String REFERENCE_PRODUCT_CATEGORIES = "productCategories";
 	private final EntitySchema productSchema = EntitySchema._internalBuild(Entities.PRODUCT);
 	private final EntitySchema categorySchema = EntitySchema._internalBuild(Entities.CATEGORY);
 	private final EntitySchema brandSchema = EntitySchema._internalBuild(Entities.BRAND);
@@ -2967,6 +2969,28 @@ class EntitySchemaBuilderTest {
 	 */
 	public static class Labels implements Serializable {
 		@Serial private static final long serialVersionUID = 1121150156843379388L;
+	}
+
+	@DisplayName("refuse to redirect an existing reflected reference to another original reference")
+	@Test
+	void shouldRefuseToRedirectExistingReflectedReference() {
+		final EntitySchemaContract storedSchema = new InternalEntitySchemaBuilder(this.catalogSchema, this.categorySchema)
+			.withReflectedReferenceToEntity(REFERENCE_CATEGORY_PRODUCTS, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORIES)
+			.toInstance();
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+
+		// no mutation can change the original reference, so the new one must not be silently ignored
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> builder.withReflectedReferenceToEntity(REFERENCE_CATEGORY_PRODUCTS, Entities.PRODUCT, "productMainCategories")
+		);
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> builder.withReflectedReferenceToEntity(REFERENCE_CATEGORY_PRODUCTS, Entities.BRAND, REFERENCE_PRODUCT_CATEGORIES)
+		);
+		// the same original is still accepted
+		builder.withReflectedReferenceToEntity(REFERENCE_CATEGORY_PRODUCTS, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORIES);
+		assertTrue(builder.toMutation().isEmpty());
 	}
 
 }

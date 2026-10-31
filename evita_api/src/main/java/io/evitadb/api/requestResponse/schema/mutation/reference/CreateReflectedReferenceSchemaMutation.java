@@ -292,7 +292,13 @@ public class CreateReflectedReferenceSchemaMutation
 				Objects.equals(removeReferenceMutation.getName(), this.name) && currentReference.isPresent()
 		) {
 			// we can convert mutation to updates only if the reference type matches
-			if (currentReference.get() instanceof ReflectedReferenceSchemaContract existingVersion) {
+			if (
+				currentReference.get() instanceof ReflectedReferenceSchemaContract existingVersion &&
+					// no mutation can redirect a reflected reference to another original reference, so the removal
+					// and the creation both stay when the re-created reference reflects a different one
+					this.referencedEntityType.equals(existingVersion.getReferencedEntityType()) &&
+					this.reflectedReferenceName.equals(existingVersion.getReflectedReferenceName())
+			) {
 				final ReflectedReferenceSchemaContract createdVersion = Objects.requireNonNull(
 					(ReflectedReferenceSchemaContract) mutate(currentEntitySchema, null)
 				);
