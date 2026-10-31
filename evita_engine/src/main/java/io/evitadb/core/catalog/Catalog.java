@@ -732,8 +732,8 @@ public final class Catalog
 		this.transactionalExecutor = evita.getTransactionExecutor();
 
 		final CatalogSchema internalCatalogSchema = CatalogSchema._internalBuild(
-			catalogName, catalogSchema.getNameVariants(), null, catalogSchema.getCatalogEvolutionMode(),
-			getEntitySchemaAccessor()
+			catalogName, catalogSchema.getNameVariants(), catalogSchema.getConflictResolution().orElse(null),
+			catalogSchema.getCatalogEvolutionMode(), getEntitySchemaAccessor()
 		);
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(internalCatalogSchema));
 		//noinspection unchecked
