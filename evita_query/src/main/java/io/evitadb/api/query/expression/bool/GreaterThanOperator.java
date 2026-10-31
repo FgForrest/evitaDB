@@ -25,6 +25,7 @@ package io.evitadb.api.query.expression.bool;
 
 
 import io.evitadb.api.query.expression.AbstractBinaryOperator;
+import io.evitadb.api.query.expression.ExpressionPrecedence;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
@@ -60,6 +61,11 @@ public class GreaterThanOperator extends AbstractBinaryOperator implements Boole
 	@Override
 	protected String getOperatorSymbol() {
 		return ">";
+	}
+
+	@Override
+	protected int getPrecedence() {
+		return ExpressionPrecedence.GREATER_THAN;
 	}
 
 	@Nonnull

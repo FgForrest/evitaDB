@@ -102,6 +102,11 @@ public interface ExpressionFactory {
 	 * without forcing callers to write boilerplate null checks. The returned `Expression` shares the operand
 	 * nodes of the inputs — it does **not** clone or rewrite them.
 	 *
+	 * An operand that binds looser than the conjunction (a disjunction, or another conjunction on the right) is
+	 * wrapped in a {@link io.evitadb.api.query.expression.utility.NestedOperator}, the node the parser creates for
+	 * parentheses. The result therefore equals the parse of its own text, so an expression composed the same way on
+	 * every start compares equal to the one stored in the schema.
+	 *
 	 * @param left  left-hand operand of the conjunction, may be `null`
 	 * @param right right-hand operand of the conjunction, may be `null`
 	 * @return combined expression, or `null` if both inputs are `null`
@@ -115,7 +120,10 @@ public interface ExpressionFactory {
 			return left;
 		}
 		return new Expression(
-			new ConjunctionOperator(left.getOperand(), right.getOperand())
+			new ConjunctionOperator(
+				ExpressionPrecedence.groupedAsLeftOperand(left.getOperand(), ExpressionPrecedence.CONJUNCTION),
+				ExpressionPrecedence.groupedAsRightOperand(right.getOperand(), ExpressionPrecedence.CONJUNCTION)
+			)
 		);
 	}
 

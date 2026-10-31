@@ -781,11 +781,11 @@ class SchemaContentComparatorTest {
 			assertTrue(entityBuilder.toMutation().isPresent(), "A change of the " + setting + " must be emitted.");
 		}
 
-		@DisplayName("collect a composed expression that reads like the current one but groups its operands differently")
+		@DisplayName("collect a composed expression that groups the operands of the current one differently")
 		@Test
-		void shouldCollectComposedExpressionWithSameTextAndDifferentGrouping() {
-			// `ranged || (list && slider)` as parsed, against `(ranged || list) && slider` as composed - the composed
-			// tree has no node for its implied parentheses, so both print the same text while they mean different things
+		void shouldCollectComposedExpressionGroupingOperandsDifferently() {
+			// `ranged || (list && slider)` as parsed, against `(ranged || list) && slider` as composed - the same
+			// operands in the same order, told apart only by their grouping, which the composed text has to carry
 			final Expression parsed = ExpressionFactory.parse(
 				EXPRESSION_RANGED + " || " + EXPRESSION_LIST_MODE + " && " + EXPRESSION_SLIDER_MODE
 			);
@@ -793,7 +793,7 @@ class SchemaContentComparatorTest {
 				ExpressionFactory.parse(EXPRESSION_RANGED + " || " + EXPRESSION_LIST_MODE),
 				ExpressionFactory.parse(EXPRESSION_SLIDER_MODE)
 			);
-			assertEquals(parsed.toExpressionString(), composed.toExpressionString());
+			assertNotEquals(parsed.toExpressionString(), composed.toExpressionString());
 			assertNotEquals(parsed, composed);
 			final EntitySchemaContract productWithParsedExpression = new InternalEntitySchemaBuilder(
 				SchemaContentComparatorTest.this.baseCatalogSchema, this.productSchema
