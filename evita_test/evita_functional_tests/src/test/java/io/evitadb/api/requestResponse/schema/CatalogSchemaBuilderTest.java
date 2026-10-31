@@ -27,13 +27,21 @@ import io.evitadb.api.APITestConstants;
 import io.evitadb.api.exception.AttributeAlreadyPresentInEntitySchemaException;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
+import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
+import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.Collection;
 import java.util.EnumSet;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -49,6 +57,7 @@ import static io.evitadb.test.TestTags.SCHEMA;
 @Tag(CONTRACT)
 @Tag(SCHEMA)
 class CatalogSchemaBuilderTest {
+	private static final String ENTITY_PRODUCT = "product";
 	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
 		APITestConstants.TEST_CATALOG,
 		NamingConvention.generate(APITestConstants.TEST_CATALOG),
@@ -146,6 +155,72 @@ class CatalogSchemaBuilderTest {
 		assertNull(updatedSchema.getAttributeByName("attribute", NamingConvention.SNAKE_CASE).orElse(null));
 		assertNotNull(updatedSchema.getAttributeByName("code", NamingConvention.CAMEL_CASE).orElse(null));
 		assertNotNull(updatedSchema.getAttributeByName("code", NamingConvention.SNAKE_CASE).orElse(null));
+	}
+
+	@Test
+	@DisplayName("apply each entity schema modification once when the builder replays its mutations")
+	void shouldApplyEntitySchemaModificationsOnceWhenReplaying() {
+		// the second modification is combined with the first one, which makes the builder replay from its base;
+		// a replay over an already modified entity schema would create the reference a second time
+		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(catalogSchemaWithProduct())
+			.withEntitySchema(
+				ENTITY_PRODUCT,
+				entity -> entity.withReferenceTo(
+					"tags", "tag", Cardinality.ZERO_OR_MORE, whichIs -> whichIs.withAttribute("order", Integer.class)
+				)
+			)
+			.withEntitySchema(ENTITY_PRODUCT, entity -> entity.withDescription("changed"));
+
+		builder.toInstance();
+
+		final EntitySchemaContract productSchema = builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT);
+		assertEquals("changed", productSchema.getDescription());
+		assertTrue(productSchema.getReferenceOrThrowException("tags").getAttribute("order").isPresent());
+	}
+
+	@Test
+	@DisplayName("serve the entity schemas as its mutations leave them, without being materialized first")
+	void shouldServeCurrentEntitySchemas() {
+		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(catalogSchemaWithProduct())
+			.withEntitySchema(ENTITY_PRODUCT, entity -> entity.withDescription("changed"));
+
+		assertEquals("changed", builder.getEntitySchema(ENTITY_PRODUCT).orElseThrow().getDescription());
+		assertEquals("changed", builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT).getDescription());
+		assertEquals(
+			List.of("changed"),
+			builder.getEntitySchemas().stream().map(EntitySchemaContract::getDescription).toList()
+		);
+	}
+
+	/**
+	 * Creates a catalog schema that provides a single product entity schema with a description.
+	 */
+	@Nonnull
+	private static CatalogSchema catalogSchemaWithProduct() {
+		final EntitySchemaContract productSchema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA, EntitySchema._internalBuild(ENTITY_PRODUCT)
+		)
+			.withDescription("original")
+			.toInstance();
+		return CatalogSchema._internalBuild(
+			APITestConstants.TEST_CATALOG,
+			NamingConvention.generate(APITestConstants.TEST_CATALOG),
+			null,
+			EnumSet.allOf(CatalogEvolutionMode.class),
+			new EntitySchemaProvider() {
+				@Nonnull
+				@Override
+				public Collection<EntitySchemaContract> getEntitySchemas() {
+					return List.of(productSchema);
+				}
+
+				@Nonnull
+				@Override
+				public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+					return ENTITY_PRODUCT.equals(entityType) ? Optional.of(productSchema) : Optional.empty();
+				}
+			}
+		);
 	}
 
 }

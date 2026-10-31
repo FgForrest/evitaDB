@@ -116,8 +116,10 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 	/**
 	 * This variable represents the accessor object for the updated entity schema.
 	 * It provides access to the current state of all the entity schemas altered by the mutations of this builder.
+	 * It reflects the mutations up to {@link #lastMutationReflectedInSchema} and is replaced by a fresh one whenever
+	 * {@link #toInstance()} replays the mutations from the base schema.
 	 */
-	private final MutationEntitySchemaAccessor updatedEntitySchemaAccessor;
+	private MutationEntitySchemaAccessor updatedEntitySchemaAccessor;
 
 	public InternalCatalogSchemaBuilder(
 		@Nonnull CatalogSchemaContract baseSchema,
@@ -337,13 +339,33 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 	@Nonnull
 	@Override
 	public Collection<EntitySchemaContract> getEntitySchemas() {
+		// materialize first, so that the accessor reflects every collected mutation
+		toInstance();
 		return this.updatedEntitySchemaAccessor.getEntitySchemas();
 	}
 
 	@Nonnull
 	@Override
 	public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+		// materialize first, so that the accessor reflects every collected mutation
+		toInstance();
 		return this.updatedEntitySchemaAccessor.getEntitySchema(entityType);
+	}
+
+	/**
+	 * Returns the entity schema as the collected mutations leave it, like {@link #getEntitySchema(String)}. The method
+	 * is declared here because the delegation of {@link CatalogSchemaContract} methods to {@link #toInstance()} would
+	 * otherwise answer it from the catalog schema instance, which does not carry the modified entity schemas.
+	 *
+	 * @param entityType the name of the entity schema
+	 * @return the entity schema
+	 * @throws EvitaInvalidUsageException when the entity schema does not exist
+	 */
+	@Nonnull
+	@Override
+	public EntitySchemaContract getEntitySchemaOrThrowException(@Nonnull String entityType) {
+		return getEntitySchema(entityType)
+			.orElseThrow(() -> new EvitaInvalidUsageException("Schema for entity with name `" + entityType + "` was not found!"));
 	}
 
 	/**
@@ -378,6 +400,8 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 			if (this.updatedSchemaDirty == MutationImpact.MODIFIED_PREVIOUS) {
 				this.lastMutationReflectedInSchema = -1;
 				this.updatedSchema = null;
+				// the entity schemas start from the base too, otherwise the replay applies their modifications twice
+				this.updatedEntitySchemaAccessor = new MutationEntitySchemaAccessor(this.baseSchema);
 			}
 			// if the last mutation reflected in the schema is zero we need to start from the base schema
 			// else we can continue modification last known updated schema by adding additional mutations
@@ -414,18 +438,17 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 	 * when it contains a genuine change, its no-op mutations are kept along with it. They carry the same conflict key as
 	 * the genuine change, so they do not widen the conflict surface of the transaction.
 	 *
-	 * The final state of a modified entity schema is computed from the base entity schema here rather than read from
-	 * {@link #updatedEntitySchemaAccessor}. The accessor is not reset when {@link #toInstance()} replays the mutations
-	 * from the base schema, so it may reflect some of them twice.
+	 * The final state of a modified entity schema is computed by applying only its own modifications to the base
+	 * entity schema, rather than read from {@link #updatedEntitySchemaAccessor}, so that it judges exactly the
+	 * mutations that may be dropped.
 	 *
 	 * The modifications are applied against the final catalog schema, not against the catalog state at their own
 	 * position in the sequence. When they cannot be applied that way - an entity adopts a global attribute that the
 	 * catalog removes later - the levels depend on each other, and every collected mutation is emitted unchanged.
-	 * The same fallback covers a replay of the builder's own state that rejects a sequence the server accepts: the
-	 * accessor keeps what an earlier materialization produced, so an entity modification that creates a sub-schema
-	 * and refines it may be applied over its own result. A modification of an entity schema that does not exist at
-	 * its position in the sequence is emitted with everything else as well: the server creates such an entity schema
-	 * on the fly, while the replay has nothing to apply it to.
+	 * The same fallback covers any replay of the builder's own state that rejects a sequence: the server is the one to
+	 * judge it. A modification of an entity schema that does not exist at its position in the sequence is emitted with
+	 * everything else as well: the server creates such an entity schema on the fly, while the replay has nothing to
+	 * apply it to.
 	 *
 	 * @return the mutations to emit, in their original order
 	 */
@@ -481,13 +504,13 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 			}
 		} catch (EvitaInvalidUsageException ex) {
 			// the levels cannot be judged separately, so the mutations are emitted as collected, to be applied in
-			// their order; this happens when
-			// - the replay from the base schema rejects a sequence the server accepts: the entity schema accessor
-			//   keeps what an earlier materialization produced, so an entity modification that creates a sub-schema
-			//   and refines it is applied over its own result,
+			// their order and judged by the server; this happens when
+			// - the replay of the builder's own state rejects the sequence,
 			// - the entity modifications cannot be applied against the final catalog schema, because they depend on
 			//   a catalog state that exists only in the middle of the sequence - for example a global attribute
 			//   adopted by an entity and removed from the catalog afterwards
+			// the second case is the one that occurs in practice, guarded by a test - this catch must stay even when
+			// no other known sequence reaches it
 			return this.mutations;
 		}
 
