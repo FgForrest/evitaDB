@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -325,10 +326,12 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 		// when the attribute schema was removed before and added again, we may remove both operations
 		// and leave only operations that reset the original settings do defaults
 		if (existingMutation instanceof RemoveAttributeSchemaMutation removeAttributeSchema && Objects.equals(removeAttributeSchema.getName(), this.name)) {
-			// a removal of an attribute the entity schema does not have leaves nothing to collapse with - the attribute
-			// can still exist where the mutations apply, as a global attribute the catalog builder removed from its
-			// view of the entity - so both stay and apply one after the other
+			// both stay and apply one after the other when the removal leaves nothing to collapse with: when the entity
+			// schema does not have the attribute - it can still exist where the mutations apply, as a global attribute
+			// the catalog builder removed from its view of the entity - or when the removed attribute is a global one
+			// this mutation replaces with an attribute of the entity's own, which no change of properties turns into
 			return currentEntitySchema.getAttribute(this.name)
+				.filter(removedAttribute -> !(removedAttribute instanceof GlobalAttributeSchemaContract))
 				.map(removedAttribute -> combineWithRemovalOf(currentCatalogSchema, removedAttribute))
 				.orElse(null);
 		} else {

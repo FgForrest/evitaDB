@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
@@ -161,6 +162,34 @@ class CatalogSchemaCascadeTest implements EvitaTestSupport {
 		);
 
 		// the removal of the global attribute must not remove the local attribute the update creates in its place
+		assertLocalCodeAttribute(builtProduct.get());
+		assertLocalCodeAttribute(productSchema());
+	}
+
+	@DisplayName("keep a local attribute that replaces a removed global one in two modifications of the entity")
+	@Test
+	void shouldKeepLocalAttributeReplacingRemovedGlobalOneInTwoModifications() {
+		final AtomicReference<EntitySchemaContract> builtProduct = new AtomicReference<>();
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// the two modifications of the entity combine into one, where the removal of the global attribute
+				// meets the creation of the local one
+				final CatalogSchemaBuilder builder = session.getCatalogSchema()
+					.openForWriteWithMutations(
+						new RemoveAttributeSchemaMutation(ATTRIBUTE_CODE),
+						new ModifyEntitySchemaMutation(
+							Entities.PRODUCT, new RemoveAttributeSchemaMutation(ATTRIBUTE_CODE)
+						)
+					)
+					.withEntitySchema(
+						Entities.PRODUCT, whichIs -> whichIs.withAttribute(ATTRIBUTE_CODE, Integer.class)
+					);
+				builtProduct.set(builder.toInstance().getEntitySchemaOrThrowException(Entities.PRODUCT));
+				builder.updateVia(session);
+			}
+		);
+
 		assertLocalCodeAttribute(builtProduct.get());
 		assertLocalCodeAttribute(productSchema());
 	}
