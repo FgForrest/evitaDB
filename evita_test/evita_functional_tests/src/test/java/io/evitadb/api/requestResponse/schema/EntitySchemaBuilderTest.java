@@ -2483,6 +2483,19 @@ class EntitySchemaBuilderTest {
 		assertRecreatedAsDefinedFromScratch(storedSchema, builder, this.categorySchema, "categoryProducts", recreation);
 	}
 
+	@DisplayName("create an attribute after removing one of that name the entity schema does not have")
+	@Test
+	void shouldCreateAttributeAfterRemovingAbsentAttributeOfThatName() {
+		// a catalog builder hands its entity builders the entity without a global attribute it removed, while the
+		// server still finds the attribute when it applies the removal - so the removal stays and the creation follows
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, this.productSchema)
+			.withoutAttribute("code")
+			.withAttribute("code", Integer.class);
+
+		assertEquals(Integer.class, builder.toInstance().getAttribute("code").orElseThrow().getType());
+		assertEmittedMutationsReproduce(this.productSchema, builder);
+	}
+
 	@DisplayName("remove a stored reference again after re-creating it")
 	@Test
 	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)

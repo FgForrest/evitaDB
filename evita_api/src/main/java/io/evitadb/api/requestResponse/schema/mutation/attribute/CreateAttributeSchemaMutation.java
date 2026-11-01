@@ -325,7 +325,12 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 		// when the attribute schema was removed before and added again, we may remove both operations
 		// and leave only operations that reset the original settings do defaults
 		if (existingMutation instanceof RemoveAttributeSchemaMutation removeAttributeSchema && Objects.equals(removeAttributeSchema.getName(), this.name)) {
-			return combineWithRemovalOf(currentCatalogSchema, currentEntitySchema.getAttribute(this.name).orElseThrow());
+			// a removal of an attribute the entity schema does not have leaves nothing to collapse with - the attribute
+			// can still exist where the mutations apply, as a global attribute the catalog builder removed from its
+			// view of the entity - so both stay and apply one after the other
+			return currentEntitySchema.getAttribute(this.name)
+				.map(removedAttribute -> combineWithRemovalOf(currentCatalogSchema, removedAttribute))
+				.orElse(null);
 		} else {
 			return null;
 		}

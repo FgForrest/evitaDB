@@ -438,10 +438,17 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 					Collections.addAll(cascadedMutations, mutationCascades);
 				}
 			}
-			// the server applies the cascades after every explicit mutation of the batch, so the builder does too
+			// the server applies the cascades after every explicit mutation of the batch, so the builder does too -
+			// without the part targeting an attribute an explicit mutation removed or replaced with the entity's own
 			if (cascadedMutations != null) {
 				for (ModifyEntitySchemaMutation cascadedMutation : cascadedMutations) {
-					cascadedMutation.mutate(currentSchema, this.updatedEntitySchemaAccessor);
+					final ModifyEntitySchemaMutation applicableMutation =
+						cascadedMutation.withoutCascadeToReplacedAttributes(
+							this.updatedEntitySchemaAccessor.getEntitySchema(cascadedMutation.getName()).orElse(null)
+						);
+					if (applicableMutation != null) {
+						applicableMutation.mutate(currentSchema, this.updatedEntitySchemaAccessor);
+					}
 				}
 			}
 			this.cascadesApplied = cascadedMutations != null;

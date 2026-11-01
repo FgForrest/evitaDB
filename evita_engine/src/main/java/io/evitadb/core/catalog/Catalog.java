@@ -1123,9 +1123,22 @@ public final class Catalog
 				// previous catalog mutations when validated
 				currentSchema = exchangeCatalogSchema(updatedSchema, currentSchema);
 			}
-			// alter affected entity schemas
+			// alter affected entity schemas - without the part of a cascade targeting an attribute an explicit mutation
+			// of the batch removed or replaced with the entity's own
 			if (modifyEntitySchemaMutations != null) {
-				updateSchema(evita, sessionId, modifyEntitySchemaMutations);
+				final List<ModifyEntitySchemaMutation> applicableMutations =
+					new ArrayList<>(modifyEntitySchemaMutations.length);
+				for (final ModifyEntitySchemaMutation cascadedMutation : modifyEntitySchemaMutations) {
+					final EntitySchemaContract entitySchema = getEntitySchema(cascadedMutation.getName()).orElse(null);
+					final ModifyEntitySchemaMutation applicableMutation =
+						cascadedMutation.withoutCascadeToReplacedAttributes(entitySchema);
+					if (applicableMutation != null) {
+						applicableMutations.add(applicableMutation);
+					}
+				}
+				if (!applicableMutations.isEmpty()) {
+					updateSchema(evita, sessionId, applicableMutations.toArray(LocalCatalogSchemaMutation[]::new));
+				}
 			}
 			// drain deferred trigger rebuilds inside the try block so any cross-entity
 			// validation failure (e.g. a histogram value expression referencing a missing

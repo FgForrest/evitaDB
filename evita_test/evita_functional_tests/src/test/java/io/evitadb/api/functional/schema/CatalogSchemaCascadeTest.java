@@ -23,8 +23,11 @@
 
 package io.evitadb.api.functional.schema;
 
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
@@ -36,13 +39,18 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -127,6 +135,76 @@ class CatalogSchemaCascadeTest implements EvitaTestSupport {
 
 		assertTrue(productSchema().getAttributes().isEmpty(), () -> "Kept " + productSchema().getAttributes().keySet());
 		assertCatalogSchemaChanged();
+	}
+
+	@DisplayName("keep a local attribute that replaces a removed global one in the same update")
+	@ParameterizedTest(name = "with a catalog mutation without cascade in between: {0}")
+	@ValueSource(booleans = {false, true})
+	void shouldKeepLocalAttributeReplacingRemovedGlobalOne(boolean descriptionInBetween) {
+		final AtomicReference<EntitySchemaContract> builtProduct = new AtomicReference<>();
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final CatalogSchemaBuilder builder = session.getCatalogSchema()
+					.openForWrite()
+					.withoutAttribute(ATTRIBUTE_CODE);
+				if (descriptionInBetween) {
+					builder.withDescription(CHANGED_DESCRIPTION);
+				}
+				builder.withEntitySchema(
+					Entities.PRODUCT,
+					whichIs -> whichIs.withoutAttribute(ATTRIBUTE_CODE).withAttribute(ATTRIBUTE_CODE, Integer.class)
+				);
+				builtProduct.set(builder.toInstance().getEntitySchemaOrThrowException(Entities.PRODUCT));
+				builder.updateVia(session);
+			}
+		);
+
+		// the removal of the global attribute must not remove the local attribute the update creates in its place
+		assertLocalCodeAttribute(builtProduct.get());
+		assertLocalCodeAttribute(productSchema());
+	}
+
+	@DisplayName("keep a local attribute that replaces a changed and removed global one in the same update")
+	@Test
+	void shouldKeepLocalAttributeReplacingChangedGlobalOne() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.withAttribute(
+						ATTRIBUTE_CODE, String.class, whichIs -> whichIs.withDescription(CHANGED_DESCRIPTION)
+					)
+					.withoutAttribute(ATTRIBUTE_CODE)
+					.withEntitySchema(
+						Entities.PRODUCT,
+						whichIs -> whichIs.withoutAttribute(ATTRIBUTE_CODE).withAttribute(ATTRIBUTE_CODE, Integer.class)
+					)
+					.updateVia(session);
+			}
+		);
+
+		final AttributeSchemaContract code = assertLocalCodeAttribute(productSchema());
+		// the change of the global attribute is not carried into the local one either
+		assertNull(code.getDescription());
+	}
+
+	/**
+	 * Asserts that the entity schema has a local `code` attribute of the type the update gave it.
+	 *
+	 * @param entitySchema the entity schema to check
+	 * @return the attribute
+	 */
+	@Nonnull
+	private static AttributeSchemaContract assertLocalCodeAttribute(@Nonnull EntitySchemaContract entitySchema) {
+		final AttributeSchemaContract code = entitySchema.getAttribute(ATTRIBUTE_CODE)
+			.orElseThrow(
+				() -> new AssertionError("Missing local attribute `code`: " + entitySchema.getAttributes().keySet())
+			);
+		assertFalse(code instanceof GlobalAttributeSchemaContract, "Expected a local attribute, got " + code);
+		assertEquals(Integer.class, code.getType());
+		return code;
 	}
 
 	/**
