@@ -84,23 +84,15 @@ import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
-import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.UseGlobalAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
@@ -3577,16 +3569,11 @@ public final class Catalog
 	) {
 		final CatalogSchema currentCatalogSchema = getInternalSchema();
 		final Set<String> entityTypesChangedEarlier = new HashSet<>(schemaMutations.length);
-		// global attributes a catalog mutation earlier in the batch removes or renames
-		final Set<String> globalAttributesGoneEarlier = new HashSet<>(4);
 		for (final LocalCatalogSchemaMutation theMutation : schemaMutations) {
 			if (theMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
 				final EntityCollection entityCollection =
 					this.entityCollections.get(modifyEntitySchemaMutation.getName());
 				if (entityCollection != null) {
-					verifyNoChangeOfGlobalAttributeGoneEarlier(
-						entityCollection.getSchema(), modifyEntitySchemaMutation, globalAttributesGoneEarlier
-					);
 					entityCollection.verifySchemaMutationsApplicable(
 						currentCatalogSchema, entityTypesChangedEarlier, modifyEntitySchemaMutation.getSchemaMutations()
 					);
@@ -3599,59 +3586,6 @@ public final class Catalog
 			} else if (theMutation instanceof ModifyEntitySchemaNameMutation renameEntitySchemaMutation) {
 				entityTypesChangedEarlier.add(renameEntitySchemaMutation.getName());
 				entityTypesChangedEarlier.add(renameEntitySchemaMutation.getNewName());
-			} else if (theMutation instanceof RemoveAttributeSchemaMutation removeGlobalAttributeMutation) {
-				globalAttributesGoneEarlier.add(removeGlobalAttributeMutation.getName());
-			} else if (theMutation instanceof ModifyAttributeSchemaNameMutation renameGlobalAttributeMutation) {
-				globalAttributesGoneEarlier.add(renameGlobalAttributeMutation.getName());
-				globalAttributesGoneEarlier.remove(renameGlobalAttributeMutation.getNewName());
-			} else if (theMutation instanceof CreateGlobalAttributeSchemaMutation createGlobalAttributeMutation) {
-				globalAttributesGoneEarlier.remove(createGlobalAttributeMutation.getName());
-			}
-		}
-	}
-
-	/**
-	 * Refuses a modification of an entity schema that changes or uses a global attribute a catalog mutation earlier in
-	 * the same batch removes or renames, before anything of the batch is applied.
-	 *
-	 * The cascade of that catalog mutation takes the attribute from every entity schema using it right after the
-	 * mutation, as the replay of the WAL does, so the modification has nothing to change and fails in the middle of
-	 * the batch. Without a transaction - in warm-up - the cascade has been applied and stored by then, and the refusal
-	 * could not take it back. Creating an attribute of the entity's own of that name, and removing it, stay allowed:
-	 * the first replaces the global attribute, the second finds nothing to remove.
-	 *
-	 * @param entitySchema                the entity schema as it is before the batch
-	 * @param modifyEntitySchemaMutation  the modification of the entity schema
-	 * @param globalAttributesGoneEarlier the global attributes catalog mutations earlier in the batch remove or rename
-	 * @throws InvalidSchemaMutationException when the modification changes or uses such an attribute the entity uses
-	 */
-	private static void verifyNoChangeOfGlobalAttributeGoneEarlier(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ModifyEntitySchemaMutation modifyEntitySchemaMutation,
-		@Nonnull Set<String> globalAttributesGoneEarlier
-	) {
-		if (globalAttributesGoneEarlier.isEmpty()) {
-			return;
-		}
-		for (final LocalEntitySchemaMutation entityMutation : modifyEntitySchemaMutation.getSchemaMutations()) {
-			if (
-				entityMutation instanceof AttributeSchemaMutation attributeMutation &&
-					!(entityMutation instanceof CreateAttributeSchemaMutation) &&
-					!(entityMutation instanceof RemoveAttributeSchemaMutation) &&
-					globalAttributesGoneEarlier.contains(attributeMutation.getName()) &&
-					(
-						entityMutation instanceof UseGlobalAttributeSchemaMutation ||
-							entitySchema.getAttribute(attributeMutation.getName())
-								.filter(GlobalAttributeSchemaContract.class::isInstance)
-								.isPresent()
-					)
-			) {
-				throw new InvalidSchemaMutationException(
-					"The global attribute `" + attributeMutation.getName() + "` is removed or renamed earlier in the " +
-						"same schema update, which takes it from the entity schema `" + entitySchema.getName() +
-						"` right away - it cannot be changed or used there afterwards. Change it before removing or " +
-						"renaming the global attribute, or in a separate update."
-				);
 			}
 		}
 	}
