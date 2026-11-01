@@ -1,7 +1,7 @@
 ---
 title: Schema builders drop the mutations that leave their level of the schema unchanged, judged by value at toMutation()
 date: 2026-10-31
-updated: 2026-11-01 00:48
+updated: 2026-11-01 01:14
 status: accepted
 kind: fix
 issues: [1843, 1845, 1846, 1847, 1848, 1849, 1850, 1851, 1852, 1853, 1854, 1859, 1860]
@@ -119,6 +119,11 @@ upgrade become a problem, Option D can be added. Neither contradicts A.
 - `InternalCatalogSchemaBuilder.withoutNoOpMutations()` computes the final state of a modified entity schema from the
   base entity schema. It does not read it from `MutationEntitySchemaAccessor`: that accessor reflected mutations twice
   while `toInstance()` did not reset it on a replay from the base (#1846), and the pruning should not depend on it.
+- The entity builder prunes against its own base, so the base has to be the state the new calls apply to.
+  `InternalCatalogSchemaBuilder.withEntitySchema` therefore starts the nested entity builder from the entity schema
+  as the catalog builder's collected mutations leave it, not from the stored one. Started from the stored one, a call
+  restoring a value an earlier call of the same catalog builder changed emitted nothing, and the earlier change
+  survived - a regression of the pruning that the fourth adversarial pass found.
 - The entity modifications are applied against the final catalog schema. When one of them cannot be applied there
   (an `EvitaInvalidUsageException`, for example `UseGlobalAttributeSchemaMutation` of a global attribute the catalog
   removes later in the same builder), the levels depend on each other and the builder emits every collected mutation
@@ -179,8 +184,9 @@ issue and commit.
   reached code no builder sequence reached before: `ModifyReferenceAttributeSchemaMutation` and its compound
   counterpart returned copies instead of the examined mutation, which made `addMutations` combine the same pair
   forever, and compared a re-created attribute with the entity's attribute of that name. The managed flag of a
-  re-created reference was dropped as well, and so was a change of an attribute's indexed decimal places alone (the
-  collapse compared the type only, although the type mutation carries both).
+  re-created reference was dropped as well, and so was a change of an attribute's indexed decimal places alone, of an
+  entity and of a global attribute alike (the collapse compared the type only, although the type mutation carries
+  both; `AbstractAttributeSchemaMutation.makeTypeMutationIfDifferent` now compares them for both).
 - **A second `withReferenceTo` call** on an existing reference (#1850) appended the mutations of the first call after
   its own, so a restored value lost; they now come first.
 - **`ClassSchemaAnalyzer`** clears stored partial faceting and bucketing a model no longer declares (#1854).
@@ -244,6 +250,10 @@ issue and commit.
   `ExpressionTextGroupingTest` pins the precedence levels against the parser for every pair of operators (588 parsed
   texts unchanged; 347 cases over composed trees were red before), and `CatalogSchemaBuilderTest` covers the
   cascade order.
+- Two more adversarial passes ran over the follow-ups. The third found the decimal places of a re-created entity
+  attribute and the cascade order, the fourth the decimal places of a re-created global attribute and the stored
+  base of the nested entity builder. Each is covered by a test in `EntitySchemaBuilderTest` or
+  `CatalogSchemaBuilderTest` that was red before its fix.
 - `EntitySchemaBuilderReplayTest` compares the batched replay with the one-by-one application in content, version,
   attribute order (500 attributes; it fails when the run does not move a changed attribute to the end) and attribute
   classes. Restoring a property of 800 attributes takes about 40 s of processor time without the batching and about
@@ -256,8 +266,8 @@ issue and commit.
   7 errors - the replay speed guard (moved to the long-running tests since), `ExportS3ServiceTest` without Docker,
   and five GraphQL subscription tests with a websocket session timeout, which pass when their classes run alone.
 - On the final tree every functional test tagged `schema`, `attribute`, `reference`, `driver`, `grpc` or `expression`
-  (excluding `slow` and `flaky`) passes - 13 404 tests - except the speed guard, moved since, and two GraphQL
-  subscription tests with the same websocket timeout, which pass alone.
+  (excluding `slow` and `flaky`) passes - 13 405 tests - except two GraphQL subscription tests whose websocket client
+  timed out creating its TLS session, before any schema call. Their two classes pass alone, 31 of 31 tests.
 - Removing the `indexedPricePlaces` comparison from `SchemaContentComparator` makes exactly the matching
   genuine-change scenario fail, so the property scenarios can fail.
 
@@ -303,3 +313,4 @@ analyzer and the builders until they upgrade.
 - **2026-10-30** — start-up schema update fails during a rolling deployment
 - **2026-10-31** — #1843 filed; Option A chosen and implemented
 - **2026-10-31** — follow-ups #1845 to #1854, #1859 and #1860 fixed in #1844; #1855 to #1858 filed
+- **2026-11-01** — third and fourth adversarial pass over the follow-ups, their findings fixed in #1844; #1861 filed
