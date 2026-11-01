@@ -331,7 +331,8 @@ public final class QueryConverter {
 		} else if (parameter instanceof final HierarchyParentsBehaviour hierarchyParentsBehaviour) {
 			builder.setHierarchyParentsBehaviour(EvitaEnumConverter.toGrpcHierarchyParentsBehaviour(hierarchyParentsBehaviour));
 		} else if (parameter instanceof Expression expression) {
-			builder.setExpressionValue(expression.toString());
+			// the receiving side parses the text; toString() would quote it into a string constant
+			builder.setExpressionValue(expression.toExpressionString());
 		} else if (parameter instanceof final String[] stringArrayValue) {
 			builder.setStringArrayValue(toGrpcStringArray(stringArrayValue));
 		} else if (parameter instanceof final Integer[] integerArrayValue) {
