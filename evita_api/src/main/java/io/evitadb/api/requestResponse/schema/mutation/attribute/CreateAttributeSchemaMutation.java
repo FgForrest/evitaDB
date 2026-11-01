@@ -365,11 +365,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 						NamedSchemaWithDeprecationContract::getDeprecationNotice,
 						newValue -> new ModifyAttributeSchemaDeprecationNoticeMutation(this.name, newValue)
 					),
-					// the type mutation carries the indexed decimal places too, so a change of either is a change
-					Objects.equals(createdVersion.getType(), existingSchema.getType()) &&
-						createdVersion.getIndexedDecimalPlaces() == existingSchema.getIndexedDecimalPlaces()
-						? null
-						: new ModifyAttributeSchemaTypeMutation(this.name, createdVersion.getType(), this.indexedDecimalPlaces),
+					makeTypeMutationIfDifferent(createdVersion, existingSchema, this.indexedDecimalPlaces),
 					makeMutationIfDifferent(
 						AttributeSchemaContract.class,
 						createdVersion, existingSchema,

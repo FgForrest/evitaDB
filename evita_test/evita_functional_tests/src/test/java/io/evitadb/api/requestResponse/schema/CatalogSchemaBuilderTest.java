@@ -41,6 +41,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
@@ -62,6 +63,7 @@ import static io.evitadb.test.TestTags.SCHEMA;
 class CatalogSchemaBuilderTest {
 	private static final String ENTITY_PRODUCT = "product";
 	private static final String ATTRIBUTE_CODE = "code";
+	private static final String ATTRIBUTE_PRICE = "price";
 	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
 		APITestConstants.TEST_CATALOG,
 		NamingConvention.generate(APITestConstants.TEST_CATALOG),
@@ -262,6 +264,20 @@ class CatalogSchemaBuilderTest {
 
 		assertEquals("original", builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT).getDescription());
 		assertTrue(builder.toMutation().isEmpty(), "Restoring the stored description must leave nothing to send.");
+	}
+
+	@Test
+	@DisplayName("re-create a removed global attribute that changes only its indexed decimal places")
+	void shouldRecreateRemovedGlobalAttributeWithChangedDecimalPlaces() {
+		final CatalogSchemaContract storedSchema = new InternalCatalogSchemaBuilder(CATALOG_SCHEMA)
+			.withAttribute(ATTRIBUTE_PRICE, BigDecimal.class, whichIs -> whichIs.filterable().indexDecimalPlaces(2))
+			.toInstance();
+		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(storedSchema)
+			.withoutAttribute(ATTRIBUTE_PRICE)
+			.withAttribute(ATTRIBUTE_PRICE, BigDecimal.class, GlobalAttributeSchemaEditor::filterable);
+
+		assertEquals(0, builder.getAttribute(ATTRIBUTE_PRICE).orElseThrow().getIndexedDecimalPlaces());
+		assertTrue(builder.toMutation().isPresent(), "The changed decimal places must be sent.");
 	}
 
 	/**
