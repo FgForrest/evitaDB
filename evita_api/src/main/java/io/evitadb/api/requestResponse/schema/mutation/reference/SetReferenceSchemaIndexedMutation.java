@@ -186,8 +186,8 @@ public class SetReferenceSchemaIndexedMutation
 		if (indexedComponentsInScopes != null) {
 			this.indexedComponentsInScopes = indexedComponentsInScopes;
 		} else if (indexedInScopes == null) {
-			// Both scopes and components are inherited — use EMPTY to signal "no explicit override"
-			// rather than null, because components inheritance is always tied to scopes inheritance
+			// Inherited scopes without components — use EMPTY to signal "no explicit override" rather than
+			// null: applied to a reflected reference, such a mutation leaves its components as they are
 			this.indexedComponentsInScopes = ScopedReferenceIndexedComponents.EMPTY;
 		} else {
 			// Deliberately preserve null — for reflected references, null signals that indexed
@@ -345,7 +345,7 @@ public class SetReferenceSchemaIndexedMutation
 				result = (ReflectedReferenceSchema) result.withIndexed(this.indexedInScopes);
 				scopesChanged = true;
 			}
-			if (hasIndexedComponentsChanged(reflectedReferenceSchema)) {
+			if (!leavesComponentsAsTheyAre() && hasIndexedComponentsChanged(reflectedReferenceSchema)) {
 				// only filter when scopes are explicit (non-null); when inherited, components pass
 				// through unfiltered and are resolved later against the actual inherited scopes
 				final ScopedReferenceIndexedComponents[] componentsToApply =
@@ -475,7 +475,7 @@ public class SetReferenceSchemaIndexedMutation
 				")";
 		}
 		final String componentsDescription;
-		if (this.indexedComponentsInScopes == null) {
+		if (this.indexedComponentsInScopes == null || leavesComponentsAsTheyAre()) {
 			componentsDescription = "";
 		} else if (ArrayUtils.isEmpty(this.indexedComponentsInScopes)) {
 			componentsDescription = ", components=(none)";
@@ -488,6 +488,18 @@ public class SetReferenceSchemaIndexedMutation
 		}
 		return "Set entity reference `" + this.name + "` schema: " +
 			"indexed=" + indexedDescription + componentsDescription;
+	}
+
+	/**
+	 * Returns true when this mutation makes the index types of a reflected reference inherited without declaring
+	 * components. Such a mutation leaves the components as they are: inherited ones stay inherited and declared ones
+	 * stay declared, so a stored scope without a component is not completed with one. The constructor stores
+	 * {@link ScopedReferenceIndexedComponents#EMPTY} for the missing components, which is therefore no declaration.
+	 *
+	 * @return true when the mutation leaves the components of a reflected reference unchanged
+	 */
+	private boolean leavesComponentsAsTheyAre() {
+		return this.indexedInScopes == null && ArrayUtils.isEmpty(this.indexedComponentsInScopes);
 	}
 
 	/**
