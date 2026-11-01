@@ -515,10 +515,7 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 		try {
 			final CatalogSchemaContract updatedCatalogSchema = toInstance();
 			if (this.cascadedIntoEntitySchemas) {
-				// a catalog mutation cascading into an entity schema changes it at its own position in the sequence:
-				// a modification after it that restores the base value overrides the cascade, and the modifications
-				// of such an entity schema may depend on catalog mutations around the cascade - the levels cannot be
-				// judged separately, so the mutations are emitted as collected
+				// a cascade changed an entity schema mid-sequence: the levels cannot be judged apart, emit as collected
 				return this.mutations;
 			}
 			catalogLevelUnchanged = SchemaContentComparator.isCatalogSchemaContentEqual(

@@ -112,6 +112,12 @@ public interface CatalogContract {
 	 * mutations with an active transaction if available, applies schema modifications, and ensures persistence
 	 * and proper rollback in the event of an error.
 	 *
+	 * The entity schema changes a catalog mutation cascades into - such as the removal of a global attribute from every
+	 * entity schema using it - are applied right after that mutation, before the mutations that follow it, the way the
+	 * replay of the WAL applies them. A failure after a mutation of the batch has been registered with the active
+	 * transaction marks that transaction rollback-only: a caller that catches the exception and carries on cannot
+	 * commit it, and the transaction is rolled back when it closes.
+	 *
 	 * @param sessionId an optional session ID that can be used to register the mutations with an active session
 	 * @param schemaMutation an array of {@link LocalCatalogSchemaMutation} objects that specify the mutations
 	 *                       to apply to the catalog schema

@@ -245,8 +245,8 @@ public final class Catalog
 	 * (e.g. histogram value expressions referencing attributes on other entities) thus only sees
 	 * the final, consistent schema at the end of the batch.
 	 *
-	 * Nesting is supported: the recursive `updateSchema` call at the end of `updateSchema` (which
-	 * applies cascading `ModifyEntitySchemaMutation`s) pushes its own frame and drains it before
+	 * Nesting is supported: the recursive `updateSchema` call right after a catalog mutation (which
+	 * applies the `ModifyEntitySchemaMutation`s it cascades) pushes its own frame and drains it before
 	 * returning, so outer / inner frames never interfere.
 	 */
 	private static final ThreadLocal<Deque<Set<String>>> PENDING_TRIGGER_REBUILDS =
@@ -1047,9 +1047,11 @@ public final class Catalog
 		// collect entity types whose cross-entity trigger registry must be rebuilt, deferring
 		// the rebuild until the entire batch is applied — intermediate states may be transiently
 		// inconsistent (e.g. entity B declares a histogram referencing an attribute on entity A
-		// that a later mutation in the same batch will add). `LazyHashSet` avoids allocating the
-		// backing `HashSet` for batches that touch no entity schemas (single-mutation catalog-level
-		// calls), which is the common case.
+		// that a later mutation in the same batch will add). The cascades of a catalog mutation are
+		// a batch of their own: the nested call applying them drains its own frame, so the entity
+		// types they touch are rebuilt right after that mutation, before the rest of this batch.
+		// `LazyHashSet` avoids allocating the backing `HashSet` for batches that touch no entity
+		// schemas (single-mutation catalog-level calls), which is the common case.
 		final Deque<Set<String>> rebuildStack = PENDING_TRIGGER_REBUILDS.get();
 		final Set<String> rebuildFrame = new LazyHashSet<>(4);
 		rebuildStack.push(rebuildFrame);
@@ -1123,8 +1125,8 @@ public final class Catalog
 				// apply what the catalog mutation cascades into the entity schemas - for example a removed global
 				// attribute leaving every entity schema that uses it - right away, before the mutations that follow:
 				// the replay of the WAL applies every mutation as an update of its own, so the session must see the
-				// same order; applying the cascades at the end of the batch let a session accept a batch its replay
-				// then refused, and let them hit an attribute or an entity the batch replaced or renamed meanwhile
+				// same order; cascades applied at the end of the batch let a session accept a batch its replay then
+				// refused, and could hit an attribute or an entity the batch had replaced or renamed meanwhile
 				if (!ArrayUtils.isEmpty(cascadedMutations)) {
 					updateSchema(evita, sessionId, cascadedMutations);
 					currentSchema = getInternalSchema();
@@ -1172,7 +1174,9 @@ public final class Catalog
 	/**
 	 * Rebuilds expression triggers for every entity type collected in the given batch frame.
 	 * Called at the end of a `updateSchema(...)` batch, after every mutation in the batch has
-	 * been applied and before exceptions can escape the enclosing `try` block.
+	 * been applied and before exceptions can escape the enclosing `try` block. The cascades of a
+	 * catalog mutation are applied as a nested batch, so their frame is drained right after that
+	 * mutation, before the enclosing batch goes on.
 	 *
 	 * @param frame the batch frame holding deferred entity type names
 	 */

@@ -217,10 +217,10 @@ public class CreateReflectedReferenceSchemaMutation
 	 * re-created one, in the order they must apply; a null element stands for no change.
 	 *
 	 * No single mutation makes both the index types and declared components inherited, so a re-created reference that
-	 * inherits both takes two: the first makes the components inherited beside index types it declares none of, the
-	 * second makes the index types inherited and leaves the components. Otherwise null components make them inherited
-	 * beside declared index types, as the created reference has them; passing the components the created reference
-	 * reports would declare them instead.
+	 * inherits both, in place of one that declares its components, takes two: the first makes the components inherited
+	 * beside index types it declares none of, the second makes the index types inherited and leaves the components.
+	 * Otherwise null components make them inherited beside declared index types, as the created reference has them;
+	 * passing the components the created reference reports would declare them instead.
 	 *
 	 * @param createdVersion  the reference as the creation defines it
 	 * @param existingVersion the reference as the entity holds it before the removal
