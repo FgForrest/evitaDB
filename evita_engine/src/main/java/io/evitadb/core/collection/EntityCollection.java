@@ -2999,7 +2999,7 @@ public final class EntityCollection implements
 					updatedReference.isFacetedInScope(scope) && !originalReference.isFacetedInScope(scope);
 				// a scope that becomes indexed gains all its components, which the indexed gain already says
 				final Set<ReferenceIndexedComponents> gainedComponents =
-					becomesIndexed || !updatedReference.isIndexedInScope(scope)
+					(becomesIndexed || !updatedReference.isIndexedInScope(scope))
 						? Collections.emptySet()
 						: gainedComponents(originalReference, updatedReference, scope);
 				if (!becomesIndexed && !becomesFaceted && gainedComponents.isEmpty()) {
