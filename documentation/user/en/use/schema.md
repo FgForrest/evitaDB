@@ -833,9 +833,11 @@ By default, **every** instance of a faceted reference participates in the facet 
 </NoteTitle>
 
 The reference and facet indexes are filled as entities are inserted and updated, and evitaDB has no way to build them
-for entities that are already stored. When a stored reference becomes indexed or faceted in a scope while the
-collection contains entities, the schema change is accepted and the server logs a warning, but filtering by the
-reference - [`referenceHaving`](../query/filtering/references.md#reference-having),
+for entities that are already stored. When a stored reference becomes indexed or faceted in a scope, or gains an
+[indexed component](#indexed-components) there, while the collection contains entities, the schema change is accepted
+and the server logs a warning, but filtering by the reference -
+[`referenceHaving`](../query/filtering/references.md#reference-having),
+[`groupHaving`](../query/filtering/references.md#group-having),
 [`facetHaving`](../query/filtering/references.md#facet-having) - finds only the entities written after the change, and
 the [reference summary](../query/requirements/reference.md#reference-summary) counts only them.
 

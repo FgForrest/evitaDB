@@ -30,6 +30,7 @@ import ch.qos.logback.core.read.ListAppender;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.core.Evita;
@@ -47,6 +48,7 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
@@ -76,6 +78,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ReferenceIndexedAfterDataTest implements EvitaTestSupport {
 	private static final String REFERENCE_BRAND = "brand";
 	private static final int BRAND_PK = 1;
+	private static final String GROUP_TYPE = "brandGroup";
 	private static final String WARNING_PREFIX = "Reference `" + REFERENCE_BRAND + "` of entity `" + Entities.PRODUCT + "` became ";
 
 	private TestPaths paths;
@@ -128,6 +131,45 @@ class ReferenceIndexedAfterDataTest implements EvitaTestSupport {
 		final List<String> warnings = captureWarnings(() -> changeReference(whichIs -> whichIs.indexedForFiltering().faceted()));
 
 		assertTrue(warnings.contains(WARNING_PREFIX + "faceted in scope `LIVE`"), "Expected the warning, got: " + warnings);
+	}
+
+	@DisplayName("warn when a stored indexed reference gains an indexed component over stored entities")
+	@Test
+	void shouldWarnWhenIndexedReferenceGainsComponentOverStoredEntities() {
+		storeProduct(false, whichIs -> whichIs.withGroupType(GROUP_TYPE).indexedForFiltering());
+
+		final List<String> warnings = captureWarnings(
+			() -> changeReference(
+				whichIs -> whichIs.withGroupType(GROUP_TYPE)
+					.indexedWithComponents(
+						ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+			)
+		);
+
+		assertEquals(List.of(WARNING_PREFIX + "indexed with `REFERENCED_GROUP_ENTITY` in scope `LIVE`"), warnings);
+	}
+
+	@DisplayName("not warn when a stored indexed reference drops an indexed component")
+	@Test
+	void shouldNotWarnWhenIndexedReferenceDropsComponent() {
+		storeProduct(
+			false,
+			whichIs -> whichIs.withGroupType(GROUP_TYPE)
+				.indexedWithComponents(
+					ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+				)
+		);
+
+		final List<String> warnings = captureWarnings(
+			() -> changeReference(
+				whichIs -> whichIs.withGroupType(GROUP_TYPE)
+					.indexedWithComponents(ReferenceIndexedComponents.REFERENCED_ENTITY)
+			)
+		);
+
+		assertEquals(List.of(), warnings);
+		assertEquals(Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY), currentReference().getIndexedComponents());
 	}
 
 	@DisplayName("warn only for the scope a stored indexed reference becomes indexed in")

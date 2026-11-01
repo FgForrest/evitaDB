@@ -2962,10 +2962,12 @@ public final class EntityCollection implements
 
 	/**
 	 * Logs one warning for every stored reference and scope the schema change makes the reference indexed in, or
-	 * faceted in, where it was not indexed, or not faceted, before - while the collection holds entities.
+	 * faceted in, where it was not indexed, or not faceted, before - or indexed with a component it was not indexed
+	 * with before - while the collection holds entities.
 	 *
 	 * The reference and facet indexes are filled as entity mutations are indexed, and nothing builds them for the
-	 * entities already stored, so filters those indexes serve miss every entity stored before the change. Unlike a
+	 * entities already stored, so filters those indexes serve miss every entity stored before the change - the group
+	 * indexes a gained {@link ReferenceIndexedComponents#REFERENCED_GROUP_ENTITY} adds included. Unlike a
 	 * filter accelerator, which {@link #verifyNoAcceleratorAddedToNonEmptyCollection(EntitySchema, EntitySchema)}
 	 * refuses in the same situation, the change is accepted: applications that define their schema from model
 	 * classes apply it when they start, and refusing it would stop them from starting.
@@ -2995,7 +2997,12 @@ public final class EntityCollection implements
 					updatedReference.isIndexedInScope(scope) && !originalReference.isIndexedInScope(scope);
 				final boolean becomesFaceted =
 					updatedReference.isFacetedInScope(scope) && !originalReference.isFacetedInScope(scope);
-				if (!becomesIndexed && !becomesFaceted) {
+				// a scope that becomes indexed gains all its components, which the indexed gain already says
+				final Set<ReferenceIndexedComponents> gainedComponents =
+					becomesIndexed || !updatedReference.isIndexedInScope(scope)
+						? Collections.emptySet()
+						: gainedComponents(originalReference, updatedReference, scope);
+				if (!becomesIndexed && !becomesFaceted && gainedComponents.isEmpty()) {
 					continue;
 				}
 				if (!emptinessChecked) {
@@ -3011,29 +3018,73 @@ public final class EntityCollection implements
 						"entities. Declare the setting before inserting data, or load the data into a new catalog " +
 						"that declares it.",
 					updatedReference.getName(), updatedSchema.getName(),
-					describeIndexingGain(becomesIndexed, becomesFaceted), scope
+					describeIndexingGain(becomesIndexed, becomesFaceted, gainedComponents), scope
 				);
 			}
 		}
 	}
 
 	/**
+	 * Returns the components the reference is indexed with in the scope after the change and was not indexed with
+	 * before, in their declaration order.
+	 *
+	 * @param originalReference the reference before the change
+	 * @param updatedReference  the reference after the change
+	 * @param scope             the scope to compare
+	 * @return the gained components, empty when there are none
+	 */
+	@Nonnull
+	private static Set<ReferenceIndexedComponents> gainedComponents(
+		@Nonnull ReferenceSchemaContract originalReference,
+		@Nonnull ReferenceSchemaContract updatedReference,
+		@Nonnull Scope scope
+	) {
+		final Set<ReferenceIndexedComponents> originalComponents = originalReference.getIndexedComponents(scope);
+		EnumSet<ReferenceIndexedComponents> gained = null;
+		for (final ReferenceIndexedComponents component : updatedReference.getIndexedComponents(scope)) {
+			if (!originalComponents.contains(component)) {
+				if (gained == null) {
+					gained = EnumSet.noneOf(ReferenceIndexedComponents.class);
+				}
+				gained.add(component);
+			}
+		}
+		return gained == null ? Collections.emptySet() : gained;
+	}
+
+	/**
 	 * Describes what a reference gained in a scope for the warning of
 	 * {@link #warnAboutReferenceIndexesMissingStoredEntities(EntitySchema, EntitySchema)}.
 	 *
-	 * @param becomesIndexed whether the reference became indexed in the scope
-	 * @param becomesFaceted whether the reference became faceted in the scope
+	 * @param becomesIndexed   whether the reference became indexed in the scope
+	 * @param becomesFaceted   whether the reference became faceted in the scope
+	 * @param gainedComponents the components an already indexed reference gained in the scope
 	 * @return the description of the gain
 	 */
 	@Nonnull
-	private static String describeIndexingGain(boolean becomesIndexed, boolean becomesFaceted) {
-		if (becomesIndexed && becomesFaceted) {
-			return "indexed and faceted";
-		} else if (becomesIndexed) {
-			return "indexed";
-		} else {
-			return "faceted";
+	private static String describeIndexingGain(
+		boolean becomesIndexed,
+		boolean becomesFaceted,
+		@Nonnull Set<ReferenceIndexedComponents> gainedComponents
+	) {
+		final StringBuilder description = new StringBuilder(64);
+		if (becomesIndexed) {
+			description.append("indexed");
+		} else if (!gainedComponents.isEmpty()) {
+			description.append("indexed with ");
+			boolean first = true;
+			for (final ReferenceIndexedComponents component : gainedComponents) {
+				if (!first) {
+					description.append(", ");
+				}
+				description.append('`').append(component.name()).append('`');
+				first = false;
+			}
 		}
+		if (becomesFaceted) {
+			description.append(description.isEmpty() ? "faceted" : " and faceted");
+		}
+		return description.toString();
 	}
 
 	/**
@@ -3046,7 +3097,10 @@ public final class EntityCollection implements
 	private static boolean hasReadableIndexing(@Nonnull ReferenceSchemaContract referenceSchema) {
 		return !(referenceSchema instanceof final ReflectedReferenceSchema reflectedReference)
 			|| reflectedReference.isReflectedReferenceAvailable()
-			|| !(reflectedReference.isIndexedInherited() || reflectedReference.isFacetedInherited());
+			|| !(
+				reflectedReference.isIndexedInherited() || reflectedReference.isFacetedInherited()
+					|| reflectedReference.isIndexedComponentsInherited()
+			);
 	}
 
 	/**
