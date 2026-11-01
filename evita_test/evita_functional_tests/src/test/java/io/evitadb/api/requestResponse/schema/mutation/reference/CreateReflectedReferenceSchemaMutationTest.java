@@ -250,6 +250,59 @@ class CreateReflectedReferenceSchemaMutationTest {
 		}
 
 		@Test
+		@DisplayName("should leave declared indexed components when the re-created reference inherits its indexing")
+		void shouldLeaveDeclaredIndexedComponentsWhenRecreatedReferenceInheritsIndexing() {
+			// the re-created reference inherits its index types and its components
+			final CreateReflectedReferenceSchemaMutation mutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"reflectedDescription", "reflectedDeprecationNotice",
+					Cardinality.ZERO_OR_MORE,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					null,
+					null,
+					new Scope[]{Scope.LIVE},
+					null, null, null,
+					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+					null
+				);
+			// the existing reflected reference declares its index types and its components
+			final ReflectedReferenceSchema existingReflected = (ReflectedReferenceSchema) createExistingReflectedReferenceSchema()
+				.withIndexedComponents(
+					new ScopedReferenceIndexedComponents[]{
+						new ScopedReferenceIndexedComponents(
+							Scope.DEFAULT_SCOPE,
+							new ReferenceIndexedComponents[]{
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							}
+						)
+					}
+				);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReference(REFERENCE_NAME)).thenReturn(of(existingReflected));
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
+				Mockito.mock(CatalogSchemaContract.class), entitySchema, new RemoveReferenceSchemaMutation(REFERENCE_NAME)
+			);
+
+			assertNotNull(result);
+			assertNotNull(result.current());
+			final List<SetReferenceSchemaIndexedMutation> indexedMutations = Arrays.stream(result.current())
+				.filter(SetReferenceSchemaIndexedMutation.class::isInstance)
+				.map(SetReferenceSchemaIndexedMutation.class::cast)
+				.toList();
+			assertFalse(indexedMutations.isEmpty());
+			for (SetReferenceSchemaIndexedMutation indexedMutation : indexedMutations) {
+				// an empty array would declare no components; null with inherited index types leaves them, which is
+				// all one mutation can say - see #1862
+				assertNull(indexedMutation.getIndexedInScopes());
+				assertNull(indexedMutation.getIndexedComponentsInScopes(), String.valueOf(indexedMutation));
+			}
+		}
+
+		@Test
 		@DisplayName("should not combine when removal targets different reference")
 		void shouldNotCombineWhenRemovalTargetsDifferentReference() {
 			final CreateReflectedReferenceSchemaMutation mutation =

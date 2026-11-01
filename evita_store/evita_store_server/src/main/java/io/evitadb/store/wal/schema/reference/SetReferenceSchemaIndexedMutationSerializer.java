@@ -27,8 +27,11 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
+
+import javax.annotation.Nonnull;
 
 /**
  * Serializer for {@link SetReferenceSchemaIndexedMutation}.
@@ -64,4 +67,24 @@ public class SetReferenceSchemaIndexedMutationSerializer extends Serializer<SetR
 			input.readBoolean() ? readScopedReferenceIndexedComponentsArray(kryo, input) : null
 		);
 	}
+
+	/**
+	 * Returns the mutation a format without indexed components stands for. Their readers create it without
+	 * components, and a mutation that makes the index types inherited without components now leaves the components
+	 * of a reflected reference as they are. When those formats were written, the constructor gave such a mutation
+	 * {@link ScopedReferenceIndexedComponents#EMPTY}, which declares the components empty - so it gets them here and
+	 * replays as it did before.
+	 *
+	 * @param mutation the mutation read from a format without indexed components
+	 * @return the mutation with the components it was replayed with before
+	 */
+	@Nonnull
+	static SetReferenceSchemaIndexedMutation withComponentsOfFormatWithoutThem(
+		@Nonnull SetReferenceSchemaIndexedMutation mutation
+	) {
+		return mutation.getIndexedInScopes() == null && mutation.getIndexedComponentsInScopes() == null
+			? new SetReferenceSchemaIndexedMutation(mutation.getName(), null, ScopedReferenceIndexedComponents.EMPTY)
+			: mutation;
+	}
+
 }

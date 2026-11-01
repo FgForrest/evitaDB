@@ -716,6 +716,84 @@ class SetReferenceSchemaIndexedMutationTest {
 		}
 
 		@Test
+		@DisplayName("should leave the declared components of a reflected reference that inherits its index types again")
+		void shouldLeaveDeclaredComponentsWhenIndexTypesBecomeInherited() {
+			final SetReferenceSchemaIndexedMutation mutation =
+				new SetReferenceSchemaIndexedMutation(REFERENCE_NAME, (ScopedReferenceIndexType[]) null);
+
+			final ReflectedReferenceSchemaContract result = (ReflectedReferenceSchemaContract) mutation.mutate(
+				Mockito.mock(EntitySchemaContract.class), reflectedReferenceDeclaringEntityAndGroupComponents()
+			);
+
+			assertNull(mutation.getIndexedComponentsInScopes());
+			assertTrue(result.isIndexedInherited());
+			assertFalse(result.isIndexedComponentsInherited());
+			assertEquals(
+				Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+				result.getIndexedComponents(Scope.LIVE)
+			);
+		}
+
+		@Test
+		@DisplayName("should declare no components when inheriting the index types with an empty array, as the WAL holds it")
+		void shouldDeclareNoComponentsWhenIndexTypesBecomeInheritedWithEmptyComponents() {
+			// the form every mutation inheriting the index types had until null components got a meaning of their own;
+			// replaying it must give what it gave when it was written: the declaration cleared, the default restored
+			final SetReferenceSchemaIndexedMutation mutation = new SetReferenceSchemaIndexedMutation(
+				REFERENCE_NAME, null, ScopedReferenceIndexedComponents.EMPTY
+			);
+
+			final ReflectedReferenceSchemaContract result = (ReflectedReferenceSchemaContract) mutation.mutate(
+				Mockito.mock(EntitySchemaContract.class), reflectedReferenceDeclaringEntityAndGroupComponents()
+			);
+
+			assertTrue(result.isIndexedInherited());
+			assertFalse(result.isIndexedComponentsInherited());
+			assertEquals(Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY), result.getIndexedComponents(Scope.LIVE));
+		}
+
+		/**
+		 * Returns a reflected reference bound to its original, both indexed for filtering in `LIVE`, that declares its
+		 * own indexing and the entity and group components.
+		 */
+		@Nonnull
+		private static ReflectedReferenceSchema reflectedReferenceDeclaringEntityAndGroupComponents() {
+			final Map<Scope, ReferenceIndexType> liveScope = Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING);
+			final Map<Scope, Set<ReferenceIndexedComponents>> entityAndGroup = Map.of(
+				Scope.LIVE,
+				Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY)
+			);
+			final ReferenceSchema original = ReferenceSchema._internalBuild(
+				"originalRef", NamingConvention.generate("originalRef"),
+				null, null,
+				Cardinality.ZERO_OR_MORE,
+				"category", Collections.emptyMap(), true,
+				"categoryGroup", NamingConvention.generate("categoryGroup"), false,
+				liveScope,
+				entityAndGroup,
+				Collections.emptySet(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
+			);
+			return ReflectedReferenceSchema._internalBuild(
+				REFERENCE_NAME, NamingConvention.generate(REFERENCE_NAME),
+				null, null,
+				"category", "originalRef",
+				null,
+				liveScope, entityAndGroup,
+				null, null, null, null,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+				null
+			).withReferencedSchema(original);
+		}
+
+		@Test
 		@DisplayName("should default to REFERENCED_ENTITY when no components specified in constructor")
 		void shouldDefaultToReferencedEntityWhenNoComponents() {
 			final SetReferenceSchemaIndexedMutation mutation =

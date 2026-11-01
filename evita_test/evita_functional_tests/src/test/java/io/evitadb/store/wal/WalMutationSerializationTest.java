@@ -24,6 +24,7 @@
 package io.evitadb.store.wal;
 
 import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.expression.ExpressionFactory;
@@ -92,9 +93,13 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceI
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaBucketedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.store.shared.kryo.KryoFactory;
+import io.evitadb.store.wal.schema.reference.SetReferenceSchemaIndexedMutationSerializer_2024_11;
+import io.evitadb.store.wal.schema.reference.SetReferenceSchemaIndexedMutationSerializer_2025_5;
+import io.evitadb.store.wal.schema.reference.SetReferenceSchemaIndexedMutationSerializer_2026_1;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -102,6 +107,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import java.io.ByteArrayOutputStream;
+import java.util.List;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -563,6 +569,51 @@ public class WalMutationSerializationTest {
 			deserialized5.getBucketedPartiallyInScopes(),
 			"bucketedPartiallyInScopes should be null after round-trip"
 		);
+	}
+
+	@Test
+	@DisplayName("Should keep null and empty indexed components apart for a mutation inheriting the index types")
+	void shouldKeepNullAndEmptyIndexedComponentsApartWhenIndexTypesAreInherited() {
+		// null leaves the components of a reflected reference as they are, an empty array declares none - the WAL
+		// holds the empty array for every such mutation written before null had a meaning of its own
+		final SetReferenceSchemaIndexedMutation leavingComponents =
+			new SetReferenceSchemaIndexedMutation("reference", (ScopedReferenceIndexType[]) null);
+		final SetReferenceSchemaIndexedMutation declaringNoComponents =
+			new SetReferenceSchemaIndexedMutation("reference", null, ScopedReferenceIndexedComponents.EMPTY);
+
+		assertNull(deserialize(leavingComponents).getIndexedComponentsInScopes());
+		assertArrayEquals(
+			ScopedReferenceIndexedComponents.EMPTY, deserialize(declaringNoComponents).getIndexedComponentsInScopes()
+		);
+	}
+
+	@Test
+	@DisplayName("Should read a mutation inheriting the index types from a format without components as declaring none")
+	void shouldReadInheritedIndexTypesFromFormatWithoutComponentsAsDeclaringNone() {
+		// the formats without components were written while such a mutation got an empty array of components from its
+		// constructor, so replaying them must keep declaring none
+		final List<Serializer<SetReferenceSchemaIndexedMutation>> formatsWithoutComponents = List.of(
+			new SetReferenceSchemaIndexedMutationSerializer_2024_11(),
+			new SetReferenceSchemaIndexedMutationSerializer_2025_5(),
+			new SetReferenceSchemaIndexedMutationSerializer_2026_1()
+		);
+		for (Serializer<SetReferenceSchemaIndexedMutation> format : formatsWithoutComponents) {
+			final ByteArrayOutputStream os = new ByteArrayOutputStream(64);
+			try (final Output output = new Output(os, 64)) {
+				// the name and the flag of absent index types, which all three formats write the same way
+				output.writeString("reference");
+				output.writeBoolean(false);
+			}
+			try (final Input input = new Input(os.toByteArray())) {
+				final SetReferenceSchemaIndexedMutation read =
+					format.read(this.kryo, input, SetReferenceSchemaIndexedMutation.class);
+				assertNull(read.getIndexedInScopes(), format.getClass().getSimpleName());
+				assertArrayEquals(
+					ScopedReferenceIndexedComponents.EMPTY, read.getIndexedComponentsInScopes(),
+					format.getClass().getSimpleName()
+				);
+			}
+		}
 	}
 
 	/**

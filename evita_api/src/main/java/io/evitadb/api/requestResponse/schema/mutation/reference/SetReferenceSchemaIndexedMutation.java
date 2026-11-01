@@ -168,7 +168,14 @@ public class SetReferenceSchemaIndexedMutation
 	/**
 	 * Creates mutation that controls indexed flag with detailed per-scope index type configuration
 	 * and also specifies which reference components are indexed per scope.
-	 * Null means inherited from the reflected reference.
+	 * Null index types mean inherited from the reflected reference. On a reflected reference the components mean:
+	 *
+	 * - null with declared index types: the components are inherited from the reflected reference (a plain reference
+	 *   gets the default components),
+	 * - null with inherited index types: the components stay as they are, inherited or declared,
+	 * - an empty array: the reference declares no components; uncovered indexed scopes then get the default, except a
+	 *   scope the reference is stored with and no component. Mutations that make the index types inherited were
+	 *   always created with an empty array until the null form above existed, so replaying them keeps this meaning.
 	 */
 	@SerializableCreator
 	public SetReferenceSchemaIndexedMutation(
@@ -183,20 +190,12 @@ public class SetReferenceSchemaIndexedMutation
 		// Downstream code (getIndexed, combineWith, toString, mutate) relies on the null vs EMPTY
 		// distinction to differentiate inherited from explicitly-empty.
 		this.indexedInScopes = indexedInScopes;
-		if (indexedComponentsInScopes != null) {
-			this.indexedComponentsInScopes = indexedComponentsInScopes;
-		} else if (indexedInScopes == null) {
-			// Inherited scopes without components — use EMPTY to signal "no explicit override" rather than
-			// null: applied to a reflected reference, such a mutation leaves its components as they are
-			this.indexedComponentsInScopes = ScopedReferenceIndexedComponents.EMPTY;
-		} else {
-			// Deliberately preserve null — for reflected references, null signals that indexed
-			// components are inherited from the reflected reference
-			// (see ReflectedReferenceSchemaBuilder#withIndexedComponentsInherited).
-			// For non-reflected references, null is resolved to default components at mutation
-			// application time in the mutate() method, so the semantics are preserved for both cases.
-			this.indexedComponentsInScopes = null;
-		}
+		// Deliberately preserve null as well — with declared scopes it signals components inherited from the reflected
+		// reference (see ReflectedReferenceSchemaBuilder#withIndexedComponentsInherited), resolved to the default
+		// components for a non-reflected reference in mutate(); with inherited scopes it leaves the components of a
+		// reflected reference as they are. EMPTY is a declaration of no components and must not be produced here:
+		// it is what the WAL holds for inherited scopes written before null had a meaning of its own
+		this.indexedComponentsInScopes = indexedComponentsInScopes;
 	}
 
 	/**
@@ -475,7 +474,7 @@ public class SetReferenceSchemaIndexedMutation
 				")";
 		}
 		final String componentsDescription;
-		if (this.indexedComponentsInScopes == null || leavesComponentsAsTheyAre()) {
+		if (this.indexedComponentsInScopes == null) {
 			componentsDescription = "";
 		} else if (ArrayUtils.isEmpty(this.indexedComponentsInScopes)) {
 			componentsDescription = ", components=(none)";
@@ -491,15 +490,15 @@ public class SetReferenceSchemaIndexedMutation
 	}
 
 	/**
-	 * Returns true when this mutation makes the index types of a reflected reference inherited without declaring
-	 * components. Such a mutation leaves the components as they are: inherited ones stay inherited and declared ones
-	 * stay declared, so a stored scope without a component is not completed with one. The constructor stores
-	 * {@link ScopedReferenceIndexedComponents#EMPTY} for the missing components, which is therefore no declaration.
+	 * Returns true when this mutation makes the index types of a reflected reference inherited and says nothing about
+	 * its components. Such a mutation leaves the components as they are: inherited ones stay inherited and declared
+	 * ones stay declared, so a stored scope without a component is not completed with one. An empty array of
+	 * components is a declaration and does not qualify - see the constructor.
 	 *
 	 * @return true when the mutation leaves the components of a reflected reference unchanged
 	 */
 	private boolean leavesComponentsAsTheyAre() {
-		return this.indexedInScopes == null && ArrayUtils.isEmpty(this.indexedComponentsInScopes);
+		return this.indexedInScopes == null && this.indexedComponentsInScopes == null;
 	}
 
 	/**

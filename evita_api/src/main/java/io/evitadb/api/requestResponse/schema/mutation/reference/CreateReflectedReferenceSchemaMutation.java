@@ -410,16 +410,20 @@ public class CreateReflectedReferenceSchemaMutation
 												.stream()
 												.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
 												.toArray(ScopedReferenceIndexType[]::new),
-										createdVersion.getIndexedComponentsInScopes()
-											.entrySet()
-											.stream()
-											.map(
-												it -> new ScopedReferenceIndexedComponents(
-													it.getKey(),
-													it.getValue().toArray(ReferenceIndexedComponents[]::new)
+										// null leaves the components inherited, as the created reference has them; the
+										// components it reports for them would be a declaration
+										createdVersion.isIndexedComponentsInherited()
+											? null
+											: createdVersion.getIndexedComponentsInScopes()
+												.entrySet()
+												.stream()
+												.map(
+													it -> new ScopedReferenceIndexedComponents(
+														it.getKey(),
+														it.getValue().toArray(ReferenceIndexedComponents[]::new)
+													)
 												)
-											)
-											.toArray(ScopedReferenceIndexedComponents[]::new)
+												.toArray(ScopedReferenceIndexedComponents[]::new)
 									)
 								),
 								// emit a single mutation carrying both facetedInScopes and facetedPartially
