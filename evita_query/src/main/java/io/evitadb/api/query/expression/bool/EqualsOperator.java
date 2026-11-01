@@ -61,7 +61,7 @@ public class EqualsOperator extends AbstractBinaryOperator implements BooleanOpe
 
 	@Override
 	protected int getPrecedence() {
-		return ExpressionPrecedence.EQUALS;
+		return ExpressionPrecedence.EQUALITY;
 	}
 
 	@Nonnull

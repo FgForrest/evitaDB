@@ -60,7 +60,7 @@ public class MultiplicationOperator extends AbstractBinaryOperator {
 
 	@Override
 	protected int getPrecedence() {
-		return ExpressionPrecedence.MULTIPLICATION;
+		return ExpressionPrecedence.MULTIPLICATIVE;
 	}
 
 	@Nonnull

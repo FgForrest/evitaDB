@@ -47,9 +47,9 @@ import javax.annotation.Nonnull;
  * and the implied ones to a composed tree.
  *
  * The levels copy the order of the alternatives of the `expression` rule in `EvitaEL.g4`. ANTLR gives every
- * alternative a level of its own and the first one binds tightest, so `+` binds tighter than `-`, and `*` tighter
- * than `/` and `%` - the levels follow the grammar, not the conventional arithmetic, and have to change in the same
- * commit as the grammar. `ExpressionTextGroupingTest` pins them. Every binary operator is left-associative.
+ * alternative a level of its own and the first one binds tightest; the operators of one level share an alternative,
+ * so `10 - 2 + 3` is `(10 - 2) + 3`, as in the conventional arithmetic. The levels have to change in the same commit
+ * as the grammar, and `ExpressionTextGroupingTest` pins them. Every binary operator is left-associative.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -71,59 +71,31 @@ public final class ExpressionPrecedence {
 	 */
 	public static final int XOR = 4;
 	/**
-	 * Level of the inequality `!=`.
+	 * Level of the equality operators `==` and `!=`.
 	 */
-	public static final int NOT_EQUALS = 5;
+	public static final int EQUALITY = 5;
 	/**
-	 * Level of the equality `==`.
+	 * Level of the relational operators `>`, `>=`, `<` and `<=`.
 	 */
-	public static final int EQUALS = 6;
-	/**
-	 * Level of the comparison `<=`.
-	 */
-	public static final int LESSER_THAN_EQUALS = 7;
-	/**
-	 * Level of the comparison `<`.
-	 */
-	public static final int LESSER_THAN = 8;
-	/**
-	 * Level of the comparison `>=`.
-	 */
-	public static final int GREATER_THAN_EQUALS = 9;
-	/**
-	 * Level of the comparison `>`.
-	 */
-	public static final int GREATER_THAN = 10;
+	public static final int RELATIONAL = 6;
 	/**
 	 * Level of the null coalescing operator `??`.
 	 */
-	public static final int NULL_COALESCE = 11;
+	public static final int NULL_COALESCE = 7;
 	/**
-	 * Level of the subtraction `-`.
+	 * Level of the additive operators `+` and `-`.
 	 */
-	public static final int SUBTRACTION = 12;
+	public static final int ADDITIVE = 8;
 	/**
-	 * Level of the addition `+`.
+	 * Level of the multiplicative operators `*`, `/` and `%`, the tightest of the binary operators.
 	 */
-	public static final int ADDITION = 13;
-	/**
-	 * Level of the modulo `%`.
-	 */
-	public static final int MODULO = 14;
-	/**
-	 * Level of the division `/`.
-	 */
-	public static final int DIVISION = 15;
-	/**
-	 * Level of the multiplication `*`, the tightest of the binary operators.
-	 */
-	public static final int MULTIPLICATION = 16;
+	public static final int MULTIPLICATIVE = 9;
 	/**
 	 * Level of the prefix operators `!`, `+` and `-`, which bind tighter than any binary operator. The grammar ranks
 	 * them among themselves too, but a prefix operator parses its operand above all three, so one prefix operator
 	 * never needs parentheses inside another.
 	 */
-	public static final int PREFIX = 17;
+	public static final int PREFIX = 10;
 	/**
 	 * Level of the nodes that never need parentheses: operands, function calls, object access and the parentheses
 	 * themselves.

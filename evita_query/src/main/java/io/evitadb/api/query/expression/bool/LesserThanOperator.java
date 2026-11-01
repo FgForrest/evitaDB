@@ -65,7 +65,7 @@ public class LesserThanOperator extends AbstractBinaryOperator implements Boolea
 
 	@Override
 	protected int getPrecedence() {
-		return ExpressionPrecedence.LESSER_THAN;
+		return ExpressionPrecedence.RELATIONAL;
 	}
 
 	@Nonnull

@@ -65,7 +65,7 @@ public class LesserThanEqualsOperator extends AbstractBinaryOperator implements 
 
 	@Override
 	protected int getPrecedence() {
-		return ExpressionPrecedence.LESSER_THAN_EQUALS;
+		return ExpressionPrecedence.RELATIONAL;
 	}
 
 	@Nonnull

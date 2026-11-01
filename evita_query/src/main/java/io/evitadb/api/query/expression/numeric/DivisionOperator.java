@@ -61,7 +61,7 @@ public class DivisionOperator extends AbstractBinaryOperator {
 
 	@Override
 	protected int getPrecedence() {
-		return ExpressionPrecedence.DIVISION;
+		return ExpressionPrecedence.MULTIPLICATIVE;
 	}
 
 	@Nonnull

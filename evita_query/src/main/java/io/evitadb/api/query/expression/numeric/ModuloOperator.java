@@ -60,7 +60,7 @@ public class ModuloOperator extends AbstractBinaryOperator {
 
 	@Override
 	protected int getPrecedence() {
-		return ExpressionPrecedence.MODULO;
+		return ExpressionPrecedence.MULTIPLICATIVE;
 	}
 
 	@Nonnull

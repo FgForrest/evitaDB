@@ -62,7 +62,7 @@ public class NotEqualsOperator extends AbstractBinaryOperator implements Boolean
 
 	@Override
 	protected int getPrecedence() {
-		return ExpressionPrecedence.NOT_EQUALS;
+		return ExpressionPrecedence.EQUALITY;
 	}
 
 	@Nonnull

@@ -65,7 +65,7 @@ public class GreaterThanOperator extends AbstractBinaryOperator implements Boole
 
 	@Override
 	protected int getPrecedence() {
-		return ExpressionPrecedence.GREATER_THAN;
+		return ExpressionPrecedence.RELATIONAL;
 	}
 
 	@Nonnull

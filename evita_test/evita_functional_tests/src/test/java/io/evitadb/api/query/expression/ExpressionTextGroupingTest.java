@@ -73,8 +73,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * implies - so the printer has to add exactly the parentheses the grammar needs, and no more, which keeps the text of
  * every parsed expression unchanged.
  *
- * The precedence levels below are a copy of the order of the alternatives in `EvitaEL.g4`, where every binary
- * operator has a level of its own (so `+` binds tighter than `-`). The tests pin the printer to that order.
+ * The precedence levels below are a copy of the order of the alternatives in `EvitaEL.g4`, where the operators of one
+ * level share an alternative (so `+` and `-` bind alike and group from left to right). The tests pin the printer to
+ * that order.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -92,17 +93,17 @@ class ExpressionTextGroupingTest {
 		new BinaryOperatorUnderTest("&&", 3, ConjunctionOperator::new),
 		new BinaryOperatorUnderTest("^", 4, XorOperator::new),
 		new BinaryOperatorUnderTest("!=", 5, NotEqualsOperator::new),
-		new BinaryOperatorUnderTest("==", 6, EqualsOperator::new),
-		new BinaryOperatorUnderTest("<=", 7, LesserThanEqualsOperator::new),
-		new BinaryOperatorUnderTest("<", 8, LesserThanOperator::new),
-		new BinaryOperatorUnderTest(">=", 9, GreaterThanEqualsOperator::new),
-		new BinaryOperatorUnderTest(">", 10, GreaterThanOperator::new),
-		new BinaryOperatorUnderTest("??", 11, NullCoalesceOperator::new),
-		new BinaryOperatorUnderTest("-", 12, SubtractionOperator::new),
-		new BinaryOperatorUnderTest("+", 13, AdditionOperator::new),
-		new BinaryOperatorUnderTest("%", 14, ModuloOperator::new),
-		new BinaryOperatorUnderTest("/", 15, DivisionOperator::new),
-		new BinaryOperatorUnderTest("*", 16, MultiplicationOperator::new)
+		new BinaryOperatorUnderTest("==", 5, EqualsOperator::new),
+		new BinaryOperatorUnderTest("<=", 6, LesserThanEqualsOperator::new),
+		new BinaryOperatorUnderTest("<", 6, LesserThanOperator::new),
+		new BinaryOperatorUnderTest(">=", 6, GreaterThanEqualsOperator::new),
+		new BinaryOperatorUnderTest(">", 6, GreaterThanOperator::new),
+		new BinaryOperatorUnderTest("??", 7, NullCoalesceOperator::new),
+		new BinaryOperatorUnderTest("-", 8, SubtractionOperator::new),
+		new BinaryOperatorUnderTest("+", 8, AdditionOperator::new),
+		new BinaryOperatorUnderTest("%", 9, ModuloOperator::new),
+		new BinaryOperatorUnderTest("/", 9, DivisionOperator::new),
+		new BinaryOperatorUnderTest("*", 9, MultiplicationOperator::new)
 	);
 	/**
 	 * Every prefix operator of the grammar. All of them bind tighter than any binary operator.

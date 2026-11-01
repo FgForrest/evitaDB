@@ -23,6 +23,12 @@
 
 package io.evitadb.api.query.expression;
 
+import io.evitadb.api.query.expression.bool.EqualsOperator;
+import io.evitadb.api.query.expression.bool.GreaterThanEqualsOperator;
+import io.evitadb.api.query.expression.bool.GreaterThanOperator;
+import io.evitadb.api.query.expression.bool.LesserThanEqualsOperator;
+import io.evitadb.api.query.expression.bool.LesserThanOperator;
+import io.evitadb.api.query.expression.bool.NotEqualsOperator;
 import io.evitadb.api.query.expression.evaluate.MultiVariableEvaluationContext;
 import io.evitadb.api.query.expression.operand.ConstantOperand;
 import io.evitadb.dataType.expression.Expression;
@@ -44,8 +50,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Verifies that {@link ExpressionFactory#parse(String)} reads the whole text it is given: a text that is not an
- * expression as a whole is refused rather than cut down to its longest valid prefix, and a minus sign right before a
- * number after an operand subtracts it.
+ * expression as a whole is refused rather than cut down to its longest valid prefix, a minus sign right before a
+ * number after an operand subtracts it, and operators of one precedence level evaluate from left to right.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -90,6 +96,28 @@ class ExpressionParsingTest {
 		assertComputes("-6", "2 * -3");
 		assertComputes("2", "1 - -1");
 		assertComputes("4", "abs(-4)");
+	}
+
+	@DisplayName("evaluate arithmetic operators of one level from left to right")
+	@Test
+	void shouldEvaluateArithmeticOperatorsOfOneLevelFromLeftToRight() {
+		assertComputes("11", "10 - 2 + 3");
+		assertComputes("8", "8 / 2 * 2");
+		assertComputes("6", "7 % 4 * 2");
+		assertComputes("1", "9 * 3 % 2");
+		assertComputes("5", "$a - 1 + 1");
+	}
+
+	@DisplayName("group comparison operators of one level from left to right")
+	@Test
+	void shouldGroupComparisonOperatorsOfOneLevelFromLeftToRight() {
+		// the operator written last is the root: the ones before it form its left operand
+		assertInstanceOf(EqualsOperator.class, ExpressionFactory.parse("$a != $b == $c").getOperand());
+		assertInstanceOf(NotEqualsOperator.class, ExpressionFactory.parse("$a == $b != $c").getOperand());
+		assertInstanceOf(GreaterThanOperator.class, ExpressionFactory.parse("$a < $b > $c").getOperand());
+		assertInstanceOf(LesserThanOperator.class, ExpressionFactory.parse("$a <= $b < $c").getOperand());
+		assertInstanceOf(GreaterThanEqualsOperator.class, ExpressionFactory.parse("$a > $b >= $c").getOperand());
+		assertInstanceOf(LesserThanEqualsOperator.class, ExpressionFactory.parse("$a >= $b <= $c").getOperand());
 	}
 
 	/**

@@ -63,7 +63,7 @@ public class SubtractionOperator extends AbstractBinaryOperator {
 
 	@Override
 	protected int getPrecedence() {
-		return ExpressionPrecedence.SUBTRACTION;
+		return ExpressionPrecedence.ADDITIVE;
 	}
 
 	@Nonnull

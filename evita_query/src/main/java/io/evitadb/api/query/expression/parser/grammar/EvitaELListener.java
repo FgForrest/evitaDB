@@ -56,29 +56,17 @@ public interface EvitaELListener extends ParseTreeListener {
 	 */
 	void exitNegativeExpression(EvitaELParser.NegativeExpressionContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code additionExpression}
+	 * Enter a parse tree produced by the {@code additiveExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
 	 * @param ctx the parse tree
 	 */
-	void enterAdditionExpression(EvitaELParser.AdditionExpressionContext ctx);
+	void enterAdditiveExpression(EvitaELParser.AdditiveExpressionContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code additionExpression}
+	 * Exit a parse tree produced by the {@code additiveExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
 	 * @param ctx the parse tree
 	 */
-	void exitAdditionExpression(EvitaELParser.AdditionExpressionContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code moduloExpression}
-	 * labeled alternative in {@link EvitaELParser#expression}.
-	 * @param ctx the parse tree
-	 */
-	void enterModuloExpression(EvitaELParser.ModuloExpressionContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code moduloExpression}
-	 * labeled alternative in {@link EvitaELParser#expression}.
-	 * @param ctx the parse tree
-	 */
-	void exitModuloExpression(EvitaELParser.ModuloExpressionContext ctx);
+	void exitAdditiveExpression(EvitaELParser.AdditiveExpressionContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code xorExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
@@ -92,29 +80,29 @@ public interface EvitaELListener extends ParseTreeListener {
 	 */
 	void exitXorExpression(EvitaELParser.XorExpressionContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code multiplicationExpression}
+	 * Enter a parse tree produced by the {@code relationalExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
 	 * @param ctx the parse tree
 	 */
-	void enterMultiplicationExpression(EvitaELParser.MultiplicationExpressionContext ctx);
+	void enterRelationalExpression(EvitaELParser.RelationalExpressionContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code multiplicationExpression}
+	 * Exit a parse tree produced by the {@code relationalExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
 	 * @param ctx the parse tree
 	 */
-	void exitMultiplicationExpression(EvitaELParser.MultiplicationExpressionContext ctx);
+	void exitRelationalExpression(EvitaELParser.RelationalExpressionContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code greaterThanExpression}
+	 * Enter a parse tree produced by the {@code multiplicativeExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
 	 * @param ctx the parse tree
 	 */
-	void enterGreaterThanExpression(EvitaELParser.GreaterThanExpressionContext ctx);
+	void enterMultiplicativeExpression(EvitaELParser.MultiplicativeExpressionContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code greaterThanExpression}
+	 * Exit a parse tree produced by the {@code multiplicativeExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
 	 * @param ctx the parse tree
 	 */
-	void exitGreaterThanExpression(EvitaELParser.GreaterThanExpressionContext ctx);
+	void exitMultiplicativeExpression(EvitaELParser.MultiplicativeExpressionContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code variableExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
@@ -152,30 +140,6 @@ public interface EvitaELListener extends ParseTreeListener {
 	 */
 	void exitFunctionExpression(EvitaELParser.FunctionExpressionContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code greaterThanEqualsExpression}
-	 * labeled alternative in {@link EvitaELParser#expression}.
-	 * @param ctx the parse tree
-	 */
-	void enterGreaterThanEqualsExpression(EvitaELParser.GreaterThanEqualsExpressionContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code greaterThanEqualsExpression}
-	 * labeled alternative in {@link EvitaELParser#expression}.
-	 * @param ctx the parse tree
-	 */
-	void exitGreaterThanEqualsExpression(EvitaELParser.GreaterThanEqualsExpressionContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code lessThanEqualsExpression}
-	 * labeled alternative in {@link EvitaELParser#expression}.
-	 * @param ctx the parse tree
-	 */
-	void enterLessThanEqualsExpression(EvitaELParser.LessThanEqualsExpressionContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code lessThanEqualsExpression}
-	 * labeled alternative in {@link EvitaELParser#expression}.
-	 * @param ctx the parse tree
-	 */
-	void exitLessThanEqualsExpression(EvitaELParser.LessThanEqualsExpressionContext ctx);
-	/**
 	 * Enter a parse tree produced by the {@code orExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
 	 * @param ctx the parse tree
@@ -188,30 +152,6 @@ public interface EvitaELListener extends ParseTreeListener {
 	 */
 	void exitOrExpression(EvitaELParser.OrExpressionContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code substractionExpression}
-	 * labeled alternative in {@link EvitaELParser#expression}.
-	 * @param ctx the parse tree
-	 */
-	void enterSubstractionExpression(EvitaELParser.SubstractionExpressionContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code substractionExpression}
-	 * labeled alternative in {@link EvitaELParser#expression}.
-	 * @param ctx the parse tree
-	 */
-	void exitSubstractionExpression(EvitaELParser.SubstractionExpressionContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code notEqualsExpression}
-	 * labeled alternative in {@link EvitaELParser#expression}.
-	 * @param ctx the parse tree
-	 */
-	void enterNotEqualsExpression(EvitaELParser.NotEqualsExpressionContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code notEqualsExpression}
-	 * labeled alternative in {@link EvitaELParser#expression}.
-	 * @param ctx the parse tree
-	 */
-	void exitNotEqualsExpression(EvitaELParser.NotEqualsExpressionContext ctx);
-	/**
 	 * Enter a parse tree produced by the {@code andExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
 	 * @param ctx the parse tree
@@ -223,18 +163,6 @@ public interface EvitaELListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitAndExpression(EvitaELParser.AndExpressionContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code equalsExpression}
-	 * labeled alternative in {@link EvitaELParser#expression}.
-	 * @param ctx the parse tree
-	 */
-	void enterEqualsExpression(EvitaELParser.EqualsExpressionContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code equalsExpression}
-	 * labeled alternative in {@link EvitaELParser#expression}.
-	 * @param ctx the parse tree
-	 */
-	void exitEqualsExpression(EvitaELParser.EqualsExpressionContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code nestedExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
@@ -260,17 +188,17 @@ public interface EvitaELListener extends ParseTreeListener {
 	 */
 	void exitPositiveExpression(EvitaELParser.PositiveExpressionContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code lessThanExpression}
+	 * Enter a parse tree produced by the {@code equalityExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
 	 * @param ctx the parse tree
 	 */
-	void enterLessThanExpression(EvitaELParser.LessThanExpressionContext ctx);
+	void enterEqualityExpression(EvitaELParser.EqualityExpressionContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code lessThanExpression}
+	 * Exit a parse tree produced by the {@code equalityExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
 	 * @param ctx the parse tree
 	 */
-	void exitLessThanExpression(EvitaELParser.LessThanExpressionContext ctx);
+	void exitEqualityExpression(EvitaELParser.EqualityExpressionContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code literalExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
@@ -295,18 +223,6 @@ public interface EvitaELListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitNegatingExpression(EvitaELParser.NegatingExpressionContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code divisionExpression}
-	 * labeled alternative in {@link EvitaELParser#expression}.
-	 * @param ctx the parse tree
-	 */
-	void enterDivisionExpression(EvitaELParser.DivisionExpressionContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code divisionExpression}
-	 * labeled alternative in {@link EvitaELParser#expression}.
-	 * @param ctx the parse tree
-	 */
-	void exitDivisionExpression(EvitaELParser.DivisionExpressionContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code literalCallOperand}
 	 * labeled alternative in {@link EvitaELParser#operandOperationOperand}.
