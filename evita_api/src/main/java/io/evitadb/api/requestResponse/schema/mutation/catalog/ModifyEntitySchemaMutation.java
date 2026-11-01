@@ -32,10 +32,8 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContex
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
-import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
@@ -79,51 +77,6 @@ public class ModifyEntitySchemaMutation
 	public ModifyEntitySchemaMutation(@Nonnull String name, @Nonnull LocalEntitySchemaMutation... schemaMutations) {
 		this.name = name;
 		this.schemaMutations = schemaMutations;
-	}
-
-	/**
-	 * Returns this mutation reduced to what still applies when it is a cascade of a catalog mutation applied after the
-	 * explicit mutations of its batch: the attribute mutations whose attribute the entity schema still uses from the
-	 * catalog, and every other mutation.
-	 *
-	 * A catalog mutation of a global attribute - its removal or a change - cascades into the entity schemas using it as
-	 * mutations naming the attribute. The server applies them once the whole batch is processed, after its explicit
-	 * mutations, and the catalog builder does so too. An explicit mutation of the batch may have removed the attribute
-	 * from the entity schema or replaced it with an attribute of the entity's own of the same name; the cascade then
-	 * targets nothing it was made for, and applying it would remove or change the entity's own attribute instead.
-	 *
-	 * @param entitySchema the entity schema as the explicit mutations of the batch left it, or null when they removed
-	 *                     it
-	 * @return the mutation to apply, or null when nothing of it applies any more
-	 */
-	@Nullable
-	public ModifyEntitySchemaMutation withoutCascadeToReplacedAttributes(@Nullable EntitySchemaContract entitySchema) {
-		if (entitySchema == null) {
-			return null;
-		}
-		List<LocalEntitySchemaMutation> applicable = null;
-		for (int i = 0; i < this.schemaMutations.length; i++) {
-			final LocalEntitySchemaMutation mutation = this.schemaMutations[i];
-			final boolean stillGlobal = !(mutation instanceof AttributeSchemaMutation attributeMutation) ||
-				entitySchema.getAttribute(attributeMutation.getName())
-					.map(GlobalAttributeSchemaContract.class::isInstance)
-					.orElse(false);
-			if (!stillGlobal && applicable == null) {
-				applicable = new ArrayList<>(this.schemaMutations.length);
-				for (int j = 0; j < i; j++) {
-					applicable.add(this.schemaMutations[j]);
-				}
-			} else if (stillGlobal && applicable != null) {
-				applicable.add(mutation);
-			}
-		}
-		if (applicable == null) {
-			return this;
-		} else if (applicable.isEmpty()) {
-			return null;
-		} else {
-			return new ModifyEntitySchemaMutation(this.name, applicable.toArray(LocalEntitySchemaMutation[]::new));
-		}
 	}
 
 	@Nullable

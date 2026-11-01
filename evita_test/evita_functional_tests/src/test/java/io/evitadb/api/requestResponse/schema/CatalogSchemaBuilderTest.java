@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.APITestConstants;
 import io.evitadb.api.exception.AttributeAlreadyPresentInEntitySchemaException;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
@@ -220,10 +221,10 @@ class CatalogSchemaBuilderTest {
 	}
 
 	@Test
-	@DisplayName("apply the cascades of a catalog mutation after the entity modifications that follow it, as the server does")
-	void shouldApplyCascadesAfterFollowingEntityModifications() {
-		// the server changes the description while the global attribute still exists and removes the attribute
-		// from the entity with the cascade once the whole batch is processed
+	@DisplayName("apply the cascades of a catalog mutation before the entity modifications that follow it")
+	void shouldApplyCascadesBeforeFollowingEntityModifications() {
+		// the removal of the global attribute takes it from the entity right away, so a later change of it in the
+		// entity has nothing to change - the server refuses the batch the same way, in a session and on replay
 		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(
 			catalogSchemaWithProductUsingCode(),
 			List.of(
@@ -234,8 +235,7 @@ class CatalogSchemaBuilderTest {
 			)
 		);
 
-		assertTrue(builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT).getAttribute(ATTRIBUTE_CODE).isEmpty());
-		assertTrue(builder.getAttribute(ATTRIBUTE_CODE).isEmpty());
+		assertThrows(InvalidSchemaMutationException.class, builder::toInstance);
 	}
 
 	@Test

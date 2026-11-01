@@ -1058,12 +1058,12 @@ public final class Catalog
 			// a mid-cascade refusal cannot be undone
 			verifyEntitySchemaMutationsApplicable(schemaMutation);
 			final Optional<Transaction> transactionRef = Transaction.getTransaction();
-			ModifyEntitySchemaMutation[] modifyEntitySchemaMutations = null;
 			CatalogSchema currentSchema = originalSchema;
 			CatalogSchemaContract updatedSchema = originalSchema;
 			final Transaction transaction = transactionRef.orElse(null);
 			for (LocalCatalogSchemaMutation theMutation : schemaMutation) {
 				transactionRef.ifPresent(it -> it.registerMutation(theMutation));
+				ModifyEntitySchemaMutation[] cascadedMutations = null;
 
 				// record the mutation
 				if (sessionId != null) {
@@ -1104,14 +1104,7 @@ public final class Catalog
 					final CatalogSchemaWithImpactOnEntitySchemas schemaWithImpactOnEntitySchemas = modifyCatalogSchema(
 						theMutation, updatedSchema);
 					updatedSchema = schemaWithImpactOnEntitySchemas.updatedCatalogSchema();
-					// a mutation without cascades must not drop the cascades collected from the mutations before it
-					final ModifyEntitySchemaMutation[] cascadedMutations =
-						schemaWithImpactOnEntitySchemas.entitySchemaMutations();
-					if (!ArrayUtils.isEmpty(cascadedMutations)) {
-						modifyEntitySchemaMutations = modifyEntitySchemaMutations == null ?
-							cascadedMutations :
-							ArrayUtils.mergeArrays(modifyEntitySchemaMutations, cascadedMutations);
-					}
+					cascadedMutations = schemaWithImpactOnEntitySchemas.entitySchemaMutations();
 				}
 
 				// finish the recording
@@ -1122,22 +1115,16 @@ public final class Catalog
 				// exchange the current catalog schema so that additional entity schema mutations can take advantage of
 				// previous catalog mutations when validated
 				currentSchema = exchangeCatalogSchema(updatedSchema, currentSchema);
-			}
-			// alter affected entity schemas - without the part of a cascade targeting an attribute an explicit mutation
-			// of the batch removed or replaced with the entity's own
-			if (modifyEntitySchemaMutations != null) {
-				final List<ModifyEntitySchemaMutation> applicableMutations =
-					new ArrayList<>(modifyEntitySchemaMutations.length);
-				for (final ModifyEntitySchemaMutation cascadedMutation : modifyEntitySchemaMutations) {
-					final EntitySchemaContract entitySchema = getEntitySchema(cascadedMutation.getName()).orElse(null);
-					final ModifyEntitySchemaMutation applicableMutation =
-						cascadedMutation.withoutCascadeToReplacedAttributes(entitySchema);
-					if (applicableMutation != null) {
-						applicableMutations.add(applicableMutation);
-					}
-				}
-				if (!applicableMutations.isEmpty()) {
-					updateSchema(evita, sessionId, applicableMutations.toArray(LocalCatalogSchemaMutation[]::new));
+
+				// apply what the catalog mutation cascades into the entity schemas - for example a removed global
+				// attribute leaving every entity schema that uses it - right away, before the mutations that follow:
+				// the replay of the WAL applies every mutation as an update of its own, so the session must see the
+				// same order; applying the cascades at the end of the batch let a session accept a batch its replay
+				// then refused, and let them hit an attribute or an entity the batch replaced or renamed meanwhile
+				if (!ArrayUtils.isEmpty(cascadedMutations)) {
+					updateSchema(evita, sessionId, cascadedMutations);
+					currentSchema = getInternalSchema();
+					updatedSchema = currentSchema;
 				}
 			}
 			// drain deferred trigger rebuilds inside the try block so any cross-entity

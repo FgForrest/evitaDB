@@ -23,14 +23,19 @@
 
 package io.evitadb.api.functional.schema;
 
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
@@ -52,11 +57,13 @@ import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies that the server applies the entity schema changes a catalog schema mutation cascades - the removal of a
- * global attribute from every entity schema using it - whatever catalog mutations surround it in one update.
+ * global attribute from every entity schema using it - right after that mutation, whatever mutations surround it in
+ * one update, the way the replay of the WAL applies them.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -68,6 +75,7 @@ class CatalogSchemaCascadeTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_NAME = "name";
 	private static final String CHANGED_DESCRIPTION = "changed";
+	private static final String RENAMED_PRODUCT = "renamedProduct";
 
 	private TestPaths paths;
 	private Evita evita;
@@ -217,6 +225,70 @@ class CatalogSchemaCascadeTest implements EvitaTestSupport {
 		final AttributeSchemaContract code = assertLocalCodeAttribute(productSchema());
 		// the change of the global attribute is not carried into the local one either
 		assertNull(code.getDescription());
+	}
+
+	@DisplayName("refuse to change a global attribute in an entity after removing it in the same update")
+	@Test
+	void shouldRefuseChangingGlobalAttributeInEntityAfterRemovingIt() {
+		// the removal takes the attribute from the entity right away - as the replay of the WAL does, which applies
+		// every mutation as an update of its own - so the change that follows has nothing to change
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> updateCatalogSchema(
+				new RemoveAttributeSchemaMutation(ATTRIBUTE_CODE),
+				new ModifyEntitySchemaMutation(
+					Entities.PRODUCT, new ModifyAttributeSchemaDescriptionMutation(ATTRIBUTE_CODE, CHANGED_DESCRIPTION)
+				)
+			)
+		);
+	}
+
+	@DisplayName("keep the local replacement of a global attribute in a live catalog and after a restart")
+	@Test
+	void shouldKeepCascadeAndLocalReplacementInLiveCatalogAndAfterRestart() {
+		this.evita.updateCatalog(TEST_CATALOG, EvitaSessionContract::goLiveAndClose);
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.withoutAttribute(ATTRIBUTE_NAME)
+					.withoutAttribute(ATTRIBUTE_CODE)
+					.withEntitySchema(
+						Entities.PRODUCT,
+						whichIs -> whichIs.withoutAttribute(ATTRIBUTE_CODE).withAttribute(ATTRIBUTE_CODE, Integer.class)
+					)
+					.updateVia(session);
+			},
+			CommitBehavior.WAIT_FOR_CHANGES_VISIBLE
+		);
+		assertLocalCodeAttribute(productSchema());
+		assertTrue(productSchema().getAttribute(ATTRIBUTE_NAME).isEmpty());
+
+		// the restart replays the WAL, mutation by mutation
+		this.evita.close();
+		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
+
+		assertLocalCodeAttribute(productSchema());
+		assertTrue(productSchema().getAttribute(ATTRIBUTE_NAME).isEmpty());
+	}
+
+	@DisplayName("remove a global attribute from an entity renamed later in the same update")
+	@Test
+	void shouldRemoveGlobalAttributeFromEntityRenamedLater() {
+		updateCatalogSchema(
+			new RemoveAttributeSchemaMutation(ATTRIBUTE_CODE),
+			new ModifyEntitySchemaNameMutation(Entities.PRODUCT, RENAMED_PRODUCT, false)
+		);
+
+		final EntitySchemaContract renamed = this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntitySchemaOrThrowException(RENAMED_PRODUCT);
+			}
+		);
+		assertTrue(renamed.getAttribute(ATTRIBUTE_CODE).isEmpty(), () -> "Kept " + renamed.getAttributes().keySet());
+		assertTrue(renamed.getAttribute(ATTRIBUTE_NAME).isPresent());
 	}
 
 	/**
