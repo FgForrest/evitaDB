@@ -229,7 +229,8 @@ class ModifyReferenceAttributeSchemaMutationTest {
 				Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), existingMutation
 			);
 
-			// the schema builder continues with the examined mutation only when it gets the very same instance back
+			// the wrapper stands for the attribute mutation it wraps, so the schema builder reads the result as it reads
+			// the result of the unwrapped mutations
 			assertNotNull(result);
 			assertNull(result.origin());
 			assertNotNull(result.current());

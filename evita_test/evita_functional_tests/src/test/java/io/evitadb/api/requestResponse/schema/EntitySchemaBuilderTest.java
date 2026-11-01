@@ -65,6 +65,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
@@ -2210,19 +2211,18 @@ class EntitySchemaBuilderTest {
 	void shouldRecreateRemovedStoredReferenceWithDifferentDefinition() {
 		final EntitySchemaContract storedSchema = productWithIndexedBrandReference(true);
 		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		final UnaryOperator<EntitySchemaBuilder> recreation = it -> it.withReferenceToEntity(
+			REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
+			whichIs -> whichIs.indexed().withAttribute("b", Integer.class)
+		);
 
-		builder
-			.withoutReferenceTo(REFERENCE_BRAND)
-			.withReferenceToEntity(
-				REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs.indexed().withAttribute("b", Integer.class)
-			);
+		recreation.apply(builder.withoutReferenceTo(REFERENCE_BRAND));
 
 		final ReferenceSchemaContract reference = builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND);
 		assertEquals(Cardinality.ZERO_OR_MORE, reference.getCardinality());
 		assertEquals(Set.of("b"), reference.getAttributes().keySet());
 		assertFalse(reference.isFaceted());
-		assertEmittedMutationsReproduce(storedSchema, builder);
+		assertRecreatedAsDefinedFromScratch(storedSchema, builder, recreation);
 	}
 
 	@DisplayName("re-create a removed stored reference to an unmanaged entity type")
@@ -2231,16 +2231,19 @@ class EntitySchemaBuilderTest {
 	void shouldRecreateRemovedStoredReferenceToUnmanagedType() {
 		final EntitySchemaContract storedSchema = productWithIndexedBrandReference(false);
 		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		final UnaryOperator<EntitySchemaBuilder> recreation =
+			it -> it.withReferenceTo(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE);
 
-		builder
-			.withoutReferenceTo(REFERENCE_BRAND)
-			.withReferenceTo(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE);
+		// the removal and the re-creation collapse into a change of the cardinality, two index changes, a change of
+		// the faceting and the removal of the attribute; the faceting must survive their combination
+		recreation.apply(builder.withoutReferenceTo(REFERENCE_BRAND));
 
 		final ReferenceSchemaContract reference = builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND);
 		assertEquals(Cardinality.ZERO_OR_MORE, reference.getCardinality());
 		assertFalse(reference.isReferencedEntityTypeManaged());
 		assertEquals(Set.of(), reference.getAttributes().keySet());
-		assertEmittedMutationsReproduce(storedSchema, builder);
+		assertFalse(reference.isFaceted());
+		assertRecreatedAsDefinedFromScratch(storedSchema, builder, recreation);
 	}
 
 	@DisplayName("re-create a removed stored reference as a reference to a managed entity type")
@@ -2249,13 +2252,14 @@ class EntitySchemaBuilderTest {
 	void shouldRecreateRemovedStoredReferenceAsManaged() {
 		final EntitySchemaContract storedSchema = productWithIndexedBrandReference(false);
 		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		final UnaryOperator<EntitySchemaBuilder> recreation = it -> it.withReferenceToEntity(
+			REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, INDEXED_FACETED_WITH_ATTRIBUTE
+		);
 
-		builder
-			.withoutReferenceTo(REFERENCE_BRAND)
-			.withReferenceToEntity(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, INDEXED_FACETED_WITH_ATTRIBUTE);
+		recreation.apply(builder.withoutReferenceTo(REFERENCE_BRAND));
 
 		assertTrue(builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND).isReferencedEntityTypeManaged());
-		assertEmittedMutationsReproduce(storedSchema, builder);
+		assertRecreatedAsDefinedFromScratch(storedSchema, builder, recreation);
 	}
 
 	@DisplayName("re-create a removed stored reflected reference")
@@ -2302,6 +2306,43 @@ class EntitySchemaBuilderTest {
 		assertEmittedMutationsReproduce(storedSchema, builder);
 	}
 
+	@DisplayName("re-create a removed stored indexed and faceted reference without attributes as a plain reference")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRecreateRemovedStoredIndexedFacetedReferenceWithoutAttributesAsPlainReference() {
+		final EntitySchemaContract storedSchema = new InternalEntitySchemaBuilder(this.catalogSchema, this.productSchema)
+			.withReferenceTo(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, whichIs -> whichIs.indexed().faceted())
+			.toInstance();
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		final UnaryOperator<EntitySchemaBuilder> recreation =
+			it -> it.withReferenceTo(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE);
+
+		// the removal and the re-creation collapse into two index changes and a change of the faceting; without an
+		// attribute removal among them nothing is discarded while they are combined
+		recreation.apply(builder.withoutReferenceTo(REFERENCE_BRAND));
+
+		assertFalse(builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND).isFaceted());
+		assertRecreatedAsDefinedFromScratch(storedSchema, builder, recreation);
+	}
+
+	@DisplayName("re-create a removed stored plain reference as an indexed and faceted reference")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRecreateRemovedStoredPlainReferenceAsIndexedFacetedReference() {
+		final EntitySchemaContract storedSchema = productWithBrandReference();
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		final UnaryOperator<EntitySchemaBuilder> recreation = it -> it.withReferenceTo(
+			REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, whichIs -> whichIs.indexed().faceted()
+		);
+
+		// the mirror of the case above: the same two index changes and a change of the faceting, now switching both
+		// on - whatever order the builder ends up emitting them in, they must make the stored reference faceted
+		recreation.apply(builder.withoutReferenceTo(REFERENCE_BRAND));
+
+		assertTrue(builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND).isFaceted());
+		assertRecreatedAsDefinedFromScratch(storedSchema, builder, recreation);
+	}
+
 	@DisplayName("re-create a removed stored reference whose decimal attribute changes only its indexed decimal places")
 	@Test
 	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
@@ -2313,20 +2354,19 @@ class EntitySchemaBuilderTest {
 			)
 			.toInstance();
 		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		final UnaryOperator<EntitySchemaBuilder> recreation = it -> it.withReferenceToEntity(
+			REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+			whichIs -> whichIs.indexed().withAttribute("share", BigDecimal.class, AttributeSchemaEditor::filterable)
+		);
 
-		builder
-			.withoutReferenceTo(REFERENCE_BRAND)
-			.withReferenceToEntity(
-				REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
-				whichIs -> whichIs.indexed().withAttribute("share", BigDecimal.class, AttributeSchemaEditor::filterable)
-			);
+		recreation.apply(builder.withoutReferenceTo(REFERENCE_BRAND));
 
 		assertEquals(
 			0,
 			builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND).getAttribute("share").orElseThrow().getIndexedDecimalPlaces()
 		);
 		assertTrue(builder.toMutation().isPresent(), "The changed decimal places must be sent.");
-		assertEmittedMutationsReproduce(storedSchema, builder);
+		assertRecreatedAsDefinedFromScratch(storedSchema, builder, recreation);
 	}
 
 	@DisplayName("re-create a removed stored attribute that changes only its indexed decimal places")
@@ -2360,6 +2400,33 @@ class EntitySchemaBuilderTest {
 			.orElse(storedSchema);
 		assertNotNull(appliedSchema);
 		assertEquals(builderSchema.getReferences(), appliedSchema.getReferences());
+	}
+
+	/**
+	 * Asserts that the brand reference the builder re-created equals the one the same definition gives on a product
+	 * without references - both as the builder shows it and as the emitted mutations make it of the stored schema.
+	 * Unlike {@link #assertEmittedMutationsReproduce}, which compares two derivations of the same mutation list, the
+	 * expectation here does not come from the mutations under test, so a mutation lost while the builder combines
+	 * them shows up.
+	 *
+	 * @param storedSchema the stored schema the builder started from
+	 * @param builder      the builder that removed and re-created the reference
+	 * @param recreation   the definition the builder re-created the reference with
+	 */
+	private void assertRecreatedAsDefinedFromScratch(
+		@Nonnull EntitySchemaContract storedSchema,
+		@Nonnull EntitySchemaBuilder builder,
+		@Nonnull UnaryOperator<EntitySchemaBuilder> recreation
+	) {
+		final ReferenceSchemaContract expected = recreation.apply(new InternalEntitySchemaBuilder(this.catalogSchema, this.productSchema))
+			.toInstance()
+			.getReferenceOrThrowException(REFERENCE_BRAND);
+		assertEquals(expected, builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND));
+		final EntitySchemaContract appliedSchema = builder.toMutation()
+			.map(mutation -> mutation.mutate(this.catalogSchema, storedSchema))
+			.orElse(storedSchema);
+		assertNotNull(appliedSchema);
+		assertEquals(expected, appliedSchema.getReferenceOrThrowException(REFERENCE_BRAND));
 	}
 
 	/**

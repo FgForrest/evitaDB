@@ -54,6 +54,7 @@ import io.evitadb.test.extension.EvitaParameterResolver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
@@ -68,6 +69,8 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
+import static io.evitadb.api.query.QueryConstraints.facetHaving;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.referenceContentAllWithAttributes;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
@@ -77,6 +80,7 @@ import static io.evitadb.test.TestTags.SCHEMA;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -320,6 +324,99 @@ class EvitaClientSchemaRedefinitionTest implements EvitaTestSupport {
 						.stream()
 						.map(EntityReferenceContract::getPrimaryKey)
 						.toList()
+				);
+			}
+		);
+	}
+
+	@DisplayName("re-creating a plain reference as an indexed and faceted one and back in one update each reaches the server")
+	@UseDataSet(DATA_SET)
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldIndexFacetAndPlainAgainReferenceRecreatedInOneUpdate(@Nonnull EvitaClient evitaClient) {
+		final String catalog = "redefinitionRecreatedFacetedReference";
+		evitaClient.defineCatalog(catalog);
+		evitaClient.updateCatalog(
+			catalog,
+			session -> {
+				session.defineEntitySchema(ENTITY_BRAND).updateVia(session);
+				session.defineEntitySchema(ENTITY_ARTICLE)
+					.withReferenceToEntity(REFERENCE_ARTICLE_BRAND, ENTITY_BRAND, Cardinality.ZERO_OR_ONE)
+					.updateVia(session);
+				session.createNewEntity(ENTITY_BRAND, 1).upsertVia(session);
+				session.createNewEntity(ENTITY_ARTICLE, 1)
+					.setReference(REFERENCE_ARTICLE_BRAND, 1)
+					.upsertVia(session);
+			}
+		);
+
+		// the removal and the re-creation collapse into two index changes and a change of the faceting, which the
+		// server must accept in the order the builder sends them
+		evitaClient.updateCatalog(
+			catalog,
+			session -> {
+				session.getEntitySchemaOrThrowException(ENTITY_ARTICLE)
+					.openForWrite()
+					.withoutReferenceTo(REFERENCE_ARTICLE_BRAND)
+					.withReferenceToEntity(
+						REFERENCE_ARTICLE_BRAND, ENTITY_BRAND, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs.indexedForFiltering()
+							.faceted()
+							.withAttribute(ATTRIBUTE_ORDER, Integer.class, thatIs -> thatIs.nullable())
+					)
+					.updateVia(session);
+				session.createNewEntity(ENTITY_ARTICLE, 2)
+					.setReference(REFERENCE_ARTICLE_BRAND, 1)
+					.upsertVia(session);
+			}
+		);
+		evitaClient.queryCatalog(
+			catalog,
+			session -> {
+				final ReferenceSchemaContract reference = session.getEntitySchemaOrThrowException(ENTITY_ARTICLE)
+					.getReferenceOrThrowException(REFERENCE_ARTICLE_BRAND);
+				assertTrue(reference.isIndexed());
+				assertTrue(reference.isFaceted());
+				// an article written after the change is in the facet index
+				assertTrue(
+					session.queryListOfEntityReferences(
+							query(
+								collection(ENTITY_ARTICLE),
+								filterBy(facetHaving(REFERENCE_ARTICLE_BRAND, entityPrimaryKeyInSet(1)))
+							)
+						)
+						.stream()
+						.map(EntityReferenceContract::getPrimaryKey)
+						.toList()
+						.contains(2)
+				);
+			}
+		);
+
+		// and back: the faceting must not get lost among the index changes and the removal of the attribute
+		evitaClient.updateCatalog(
+			catalog,
+			session -> {
+				session.getEntitySchemaOrThrowException(ENTITY_ARTICLE)
+					.openForWrite()
+					.withoutReferenceTo(REFERENCE_ARTICLE_BRAND)
+					.withReferenceToEntity(REFERENCE_ARTICLE_BRAND, ENTITY_BRAND, Cardinality.ZERO_OR_ONE)
+					.updateVia(session);
+			}
+		);
+		evitaClient.queryCatalog(
+			catalog,
+			session -> {
+				final ReferenceSchemaContract reference = session.getEntitySchemaOrThrowException(ENTITY_ARTICLE)
+					.getReferenceOrThrowException(REFERENCE_ARTICLE_BRAND);
+				assertFalse(reference.isIndexed());
+				assertFalse(reference.isFaceted());
+				assertTrue(reference.getAttributes().isEmpty());
+				assertTrue(
+					session.getEntity(ENTITY_ARTICLE, 1, referenceContentAllWithAttributes())
+						.orElseThrow()
+						.getReference(REFERENCE_ARTICLE_BRAND, 1)
+						.isPresent()
 				);
 			}
 		);

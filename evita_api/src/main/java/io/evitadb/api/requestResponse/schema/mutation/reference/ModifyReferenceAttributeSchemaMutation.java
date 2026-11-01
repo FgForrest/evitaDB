@@ -182,9 +182,10 @@ public class ModifyReferenceAttributeSchemaMutation
 
 	/**
 	 * Lifts an attribute mutation returned by the combination of the wrapped attribute mutations back to the level
-	 * of references. The two wrapped mutations stand for their own wrappers: the schema builder recognizes the
-	 * examined and the existing mutation by identity, and an equal copy in their place would make it combine the
-	 * same pair again forever. Any other attribute mutation gets a new wrapper.
+	 * of references. The two wrapped mutations stand for their own wrappers, so the schema builder reads the result
+	 * as it would read one of unwrapped mutations: it tells a kept existing mutation and a kept examined one by
+	 * identity, and an equal copy would read as a replacement and as a new mutation to examine. Any other attribute
+	 * mutation gets a new wrapper.
 	 *
 	 * @param attributeMutation the attribute mutation to lift
 	 * @param existingMutation  the existing wrapper this mutation is combined with

@@ -190,9 +190,10 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutation
 
 	/**
 	 * Lifts a compound mutation returned by the combination of the wrapped compound mutations back to the level of
-	 * references. The two wrapped mutations stand for their own wrappers: the schema builder recognizes the examined
-	 * and the existing mutation by identity, and an equal copy in their place would make it combine the same pair
-	 * again forever. Any other compound mutation gets a new wrapper.
+	 * references. The two wrapped mutations stand for their own wrappers, so the schema builder reads the result as
+	 * it would read one of unwrapped mutations: it tells a kept existing mutation and a kept examined one by identity,
+	 * and an equal copy would read as a replacement and as a new mutation to examine. Any other compound mutation gets
+	 * a new wrapper.
 	 *
 	 * @param compoundMutation the compound mutation to lift
 	 * @param existingMutation the existing wrapper this mutation is combined with
