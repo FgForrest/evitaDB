@@ -1,12 +1,12 @@
 ---
 title: Schema builders drop the mutations that leave their level of the schema unchanged, judged by value at toMutation()
 date: 2026-10-31
-updated: 2026-11-01 08:55
+updated: 2026-11-01 10:10
 status: accepted
 kind: fix
-issues: [1843, 1845, 1846, 1847, 1848, 1849, 1850, 1851, 1852, 1853, 1854, 1859, 1860]
+issues: [1843, 1845, 1846, 1847, 1848, 1849, 1850, 1851, 1852, 1853, 1854, 1859, 1860, 1862, 1863]
 prs: [1844]
-areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/schema/builder, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReflectedReferenceSchema.java, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ClassSchemaAnalyzer.java, evita_query/src/main/java/io/evitadb/api/query/expression, evita_external_api/evita_external_api_grpc/shared]
+areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/schema/builder, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReflectedReferenceSchema.java, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ClassSchemaAnalyzer.java, evita_query/src/main/java/io/evitadb/api/query/expression, evita_external_api/evita_external_api_grpc/shared, evita_engine/src/main/java/io/evitadb/core/collection/EntityCollection.java]
 supersedes: []
 superseded-by: []
 relates: []
@@ -204,6 +204,18 @@ issue and commit.
   mutations of description, deprecation and cardinality, and the collapse, judge a change by the declaration
   (inherited, or the declared value), never by the effective value: a declared value equal to the inherited one is
   still a change, and inherited values are not available on a reference that is not bound.
+- **A reflected reference made to inherit its indexing again** (#1862) kept the index types inherited but declared its
+  components empty: `SetReferenceSchemaIndexedMutation` stores `EMPTY` components when it inherits the index types
+  without any, and `mutate` read that as a declaration. Such a mutation now leaves the components as they are.
+  Rejected: inheriting the components together with the index types, which the constructor comment suggested. It
+  would complete a stored indexed scope without a component, which a0e171324c deliberately prevents because the
+  scope would claim an index that was never built (`IndexedScopeRequiresEntityComponentTest`).
+- **A stored reference made indexed or faceted while the collection holds entities** (#1863) misses those entities in
+  `referenceHaving`, `facetHaving` and the facet counts, because nothing builds the indexes for stored entities.
+  `EntityCollection.updateSchema` now logs a warning and `schema.md` documents the limitation. Rejected: refusing the
+  change as `verifyNoAcceleratorAddedToNonEmptyCollection` does for filter accelerators - applications that define
+  their schema from model classes apply such a change when they start, and a refusal would stop them from starting.
+  Building the indexes is the real fix; it is a slice of #409 and was not attempted here.
 - **Composed expressions** (#1851) print the parentheses their grouping implies. `ExpressionPrecedence` copies the
   precedence levels from the order of the alternatives in `EvitaEL.g4`, where every binary operator has a level of
   its own (`+` binds tighter than `-`, see #1855), and parenthesizes only where the grammar would group differently,
@@ -273,10 +285,16 @@ issue and commit.
 - The fast functional suite over the follow-ups, before the third adversarial pass: 32 462 tests, 0 failures,
   7 errors - the replay speed guard (dropped since), `ExportS3ServiceTest` without Docker,
   and five GraphQL subscription tests with a websocket session timeout, which pass when their classes run alone.
-- On the final tree every functional test tagged `schema`, `attribute`, `reference`, `driver`, `grpc` or `expression`
-  (excluding `slow` and `flaky`) passes: 13 408 tests, 0 failures, 0 errors, with the round fix of `addMutations`.
-  The run before that fix failed only two GraphQL subscription tests whose websocket client timed out creating its
-  TLS session, before any schema call; their two classes pass alone, 31 of 31 tests.
+- On the final tree the functional tests tagged `schema`, `attribute`, `reference`, `driver`, `grpc`, `expression`,
+  `indexing` or `facet` (excluding `slow` and `flaky`) ran 19 904 tests: 0 failures, 2 errors. Both errors are GraphQL
+  subscription tests whose websocket client timed out creating its TLS session, before any schema call; their two
+  classes pass alone, 31 of 31 tests. The same tag set without `indexing` and `facet`, before #1862 and #1863, passed
+  13 408 tests with 0 failures and 0 errors.
+- `EntitySchemaBuilderTest` covers both routes of #1862, each red before its fix, and
+  `IndexedScopeRequiresEntityComponentTest` still holds the stored empty scope. `ReferenceIndexedAfterDataTest`
+  checks the #1863 warning in warm-up and live catalogs and its absence over an empty collection and for an unchanged
+  reference; it fails without the warning and without the emptiness check. The reproduction of #1863 measured a facet
+  count of 1 instead of 2 for the referenced entity after a plain reference became faceted.
 - Removing the `indexedPricePlaces` comparison from `SchemaContentComparator` makes exactly the matching
   genuine-change scenario fail, so the property scenarios can fail.
 
@@ -299,6 +317,12 @@ fixed:
 - The discarded flag of `addMutations` still applies to the rest of the examination of one mutation, not to the
   combination that set it. That is harmless while every combination setting it also queues the examined mutation,
   which ends the round; all five that set it do.
+- One `SetReferenceSchemaIndexedMutation` cannot make both the index types and declared components of a reflected
+  reference inherited (#1862): `(null, null)` becomes `(null, EMPTY)`, and in one builder a later mutation inheriting
+  the index types replaces an earlier one inheriting the components. A reflected reference that declares its
+  components and is re-created inheriting everything keeps the declared components.
+- The indexes a reference gains by a schema change stay empty for the entities stored before it (#1863, #409); only
+  the warning tells.
 - `Catalog.updateSchema` loses the cascades collected before a catalog mutation without cascades in the same batch
   (#1861): removing a global attribute and then changing the catalog description leaves the attribute in the entity
   schemas. The builders apply every cascade, so their state differs from the server's for such a batch until #1861
@@ -330,3 +354,4 @@ analyzer and the builders until they upgrade.
 - **2026-11-01** — third and fourth adversarial pass over the follow-ups, their findings fixed in #1844; #1861 filed
 - **2026-11-01** — the endless loop of #1849 traced with a debugger to the rounds of `addMutations`, not to the
   wrappers, and fixed there
+- **2026-11-01** — #1862 and #1863 found on the way and filed; #1862 fixed, #1863 documented and warned about
