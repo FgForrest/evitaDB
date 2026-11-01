@@ -223,7 +223,11 @@ public class SetReferenceSchemaIndexedMutation
 			&& this.name.equals(theExistingMutation.getName())) {
 			// null indexedInScopes = inherited from reflected reference;
 			// when either mutation uses inheritance, no scope merging is needed
-			if (this.indexedInScopes == null) {
+			if (leavesComponentsAsTheyAre() && !theExistingMutation.leavesComponentsAsTheyAre()) {
+				// the latest mutation inherits the index types and leaves the components as the existing one makes
+				// them - one mutation cannot say both, so both stay and apply one after the other
+				return null;
+			} else if (this.indexedInScopes == null) {
 				// the latest mutation says "inherit" — this overrides any prior explicit scopes
 				return new MutationCombinationResult<>(null, this);
 			} else if (theExistingMutation.indexedInScopes == null) {
