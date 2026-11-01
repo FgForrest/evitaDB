@@ -1,7 +1,7 @@
 ---
 title: Schema builders drop the mutations that leave their level of the schema unchanged, judged by value at toMutation()
 date: 2026-10-31
-updated: 2026-11-01 10:10
+updated: 2026-11-01 10:36
 status: accepted
 kind: fix
 issues: [1843, 1845, 1846, 1847, 1848, 1849, 1850, 1851, 1852, 1853, 1854, 1859, 1860, 1862, 1863]
@@ -205,11 +205,17 @@ issue and commit.
   (inherited, or the declared value), never by the effective value: a declared value equal to the inherited one is
   still a change, and inherited values are not available on a reference that is not bound.
 - **A reflected reference made to inherit its indexing again** (#1862) kept the index types inherited but declared its
-  components empty: `SetReferenceSchemaIndexedMutation` stores `EMPTY` components when it inherits the index types
-  without any, and `mutate` read that as a declaration. Such a mutation now leaves the components as they are.
-  Rejected: inheriting the components together with the index types, which the constructor comment suggested. It
-  would complete a stored indexed scope without a component, which a0e171324c deliberately prevents because the
-  scope would claim an index that was never built (`IndexedScopeRequiresEntityComponentTest`).
+  components empty: the constructor of `SetReferenceSchemaIndexedMutation` gave every mutation inheriting the index
+  types `EMPTY` components, and `mutate` reads `EMPTY` as a declaration. Null components with inherited index types
+  now leave the components as they are, and the constructor keeps them null. Rejected: inheriting the components
+  together with the index types, which the old constructor comment suggested. It would complete a stored indexed
+  scope without a component, which a0e171324c deliberately prevents because the scope would claim an index that was
+  never built (`IndexedScopeRequiresEntityComponentTest`). Rejected as well: reading `EMPTY` with inherited index
+  types as "leave" (the first version of the fix). Every such mutation in a WAL carries `EMPTY` and was applied as a
+  declaration, so a recovery or restore across the upgrade would have built another schema; an adversarial review
+  found it. The Kryo format is unchanged and no serialVersionUID moves, because no writer stored null components
+  with inherited index types before; the readers of the formats without components give such a mutation `EMPTY`,
+  as the constructor did when they were written.
 - **A stored reference made indexed or faceted while the collection holds entities** (#1863) misses those entities in
   `referenceHaving`, `facetHaving` and the facet counts, because nothing builds the indexes for stored entities.
   `EntityCollection.updateSchema` now logs a warning and `schema.md` documents the limitation. Rejected: refusing the
@@ -317,10 +323,13 @@ fixed:
 - The discarded flag of `addMutations` still applies to the rest of the examination of one mutation, not to the
   combination that set it. That is harmless while every combination setting it also queues the examined mutation,
   which ends the round; all five that set it do.
+- `SetReferenceSchemaIndexedMutation` with inherited index types means two things by its components: null leaves
+  them, `EMPTY` declares none and is what every older WAL entry holds. Anything that maps one onto the other - a
+  converter, a serializer, a constructor default - changes how the WAL replays. Over gRPC both arrive as null.
 - One `SetReferenceSchemaIndexedMutation` cannot make both the index types and declared components of a reflected
-  reference inherited (#1862): `(null, null)` becomes `(null, EMPTY)`, and in one builder a later mutation inheriting
-  the index types replaces an earlier one inheriting the components. A reflected reference that declares its
-  components and is re-created inheriting everything keeps the declared components.
+  reference inherited (#1862): with inherited index types null components leave them, and in one builder a later
+  mutation inheriting the index types replaces an earlier one inheriting the components. A reflected reference that
+  declares its components and is re-created inheriting everything keeps the declared components.
 - The indexes a reference gains by a schema change stay empty for the entities stored before it (#1863, #409); only
   the warning tells.
 - `Catalog.updateSchema` loses the cascades collected before a catalog mutation without cascades in the same batch
