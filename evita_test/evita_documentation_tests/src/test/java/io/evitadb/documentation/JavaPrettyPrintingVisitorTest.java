@@ -65,4 +65,20 @@ class JavaPrettyPrintingVisitorTest {
 		);
 	}
 
+	@DisplayName("keep a backslash in the text of an expression argument by doubling it")
+	@Test
+	void shouldEscapeBackslashInExpressionArgument() {
+		final String source = JavaPrettyPrintingVisitor.toString(
+			query(
+				collection("Product"),
+				require(page(1, 5, spacing(gap(1, "$pageNumber == 1 || 'it\\'s' == 'it\\'s'"))))
+			)
+		);
+
+		// the text escapes the apostrophe with a backslash; the Java string literal must double that backslash
+		assertTrue(
+			source.contains("ExpressionFactory.parse(\"$pageNumber == 1 || 'it\\\\'s' == 'it\\\\'s'\")"), source
+		);
+	}
+
 }

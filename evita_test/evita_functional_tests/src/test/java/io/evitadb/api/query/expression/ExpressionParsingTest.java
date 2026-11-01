@@ -51,7 +51,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * Verifies that {@link ExpressionFactory#parse(String)} reads the whole text it is given: a text that is not an
  * expression as a whole is refused rather than cut down to its longest valid prefix, a minus sign right before a
- * number after an operand subtracts it, and operators of one precedence level evaluate from left to right.
+ * number after an operand subtracts it, and operators of one precedence level evaluate from left to right. Stored text
+ * keeps being read by {@link ExpressionFactory#parseStoredPrefix(String)} as its longest valid prefix.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -76,6 +77,14 @@ class ExpressionParsingTest {
 		assertThrows(EvitaInvalidUsageException.class, () -> ExpressionFactory.parse(text));
 	}
 
+	@DisplayName("read a stored text as its longest valid prefix")
+	@Test
+	void shouldReadStoredTextAsItsLongestValidPrefix() {
+		// `1` is a valid prefix too - the longest one is kept
+		assertEquals(ExpressionFactory.parse("1 + 2"), ExpressionFactory.parseStoredPrefix("1 + 2 3"));
+		assertEquals(ExpressionFactory.parse("$a - 1 + 1"), ExpressionFactory.parseStoredPrefix("$a - 1 + 1"));
+	}
+
 	@DisplayName("keep a minus sign before a number as part of the number")
 	@Test
 	void shouldKeepMinusSignBeforeNumberAsPartOfIt() {
@@ -96,6 +105,8 @@ class ExpressionParsingTest {
 		assertComputes("-6", "2 * -3");
 		assertComputes("2", "1 - -1");
 		assertComputes("4", "abs(-4)");
+		assertComputes("5", "- -5");
+		assertComputes("7", "2 - -5");
 	}
 
 	@DisplayName("evaluate arithmetic operators of one level from left to right")

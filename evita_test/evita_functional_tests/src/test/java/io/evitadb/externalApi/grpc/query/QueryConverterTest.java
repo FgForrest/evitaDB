@@ -158,12 +158,6 @@ class QueryConverterTest {
 		assertEquals(HierarchyParentsBehaviour.COMPLETE, convertQueryParam(hierarchyParentsBehaviourValue));
 	}
 
-	/**
-	 * The `hierarchyContent` parents behaviour is the only enum parameter whose default value is also the zero value
-	 * of its gRPC counterpart, so a round-trip on its own would not tell a correctly bound arm from an unset message -
-	 * `MATCHING` survives both. The arm actually carrying the value is therefore asserted alongside the round-trip,
-	 * for both values.
-	 */
 	@Test
 	void shouldSendExpressionAsTheTextItParsesFrom() {
 		final Expression expression = ExpressionFactory.parse("$pageNumber % 2 == 0 && $pageNumber <= 10");
@@ -174,6 +168,12 @@ class QueryConverterTest {
 		assertEquals(expression.toExpressionString(), ExpressionFactory.parse((String) received).toExpressionString());
 	}
 
+	/**
+	 * The `hierarchyContent` parents behaviour is the only enum parameter whose default value is also the zero value
+	 * of its gRPC counterpart, so a round-trip on its own would not tell a correctly bound arm from an unset message -
+	 * `MATCHING` survives both. The arm actually carrying the value is therefore asserted alongside the round-trip,
+	 * for both values.
+	 */
 	@Test
 	void shouldConvertHierarchyParentsBehaviourInBothDirections() {
 		for (final HierarchyParentsBehaviour behaviour : HierarchyParentsBehaviour.values()) {

@@ -32,6 +32,9 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.dataType.expression.Expression;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -45,12 +48,13 @@ import static io.evitadb.test.TestTags.SERIALIZATION;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies that {@link ExpressionSerializer} reads back the text of an expression it stored, and that a stored text
  * the parser no longer accepts as a whole still opens the catalog the way it was read before: as its longest valid
- * prefix, with a warning naming both.
+ * prefix, with a warning naming both. A stored text without any valid prefix was never readable and still fails.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -61,6 +65,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ExpressionSerializerTest {
 	private final Kryo kryo = new Kryo();
 	private final ExpressionSerializer serializer = new ExpressionSerializer();
+	private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+	private Logger logger;
+
+	@BeforeEach
+	void attachAppender() {
+		this.logger = assertInstanceOf(
+			Logger.class,
+			LoggerFactory.getLogger(ExpressionSerializer.class),
+			"Logback backend required to capture log output."
+		);
+		this.appender.start();
+		this.logger.addAppender(this.appender);
+	}
+
+	@AfterEach
+	void detachAppender() {
+		this.logger.detachAppender(this.appender);
+		this.appender.stop();
+	}
 
 	@DisplayName("read back the expression it wrote")
 	@Test
@@ -80,27 +103,28 @@ class ExpressionSerializerTest {
 		final Output output = new Output(64);
 		output.writeString("$a > 1 2");
 
-		final ListAppender<ILoggingEvent> appender = new ListAppender<>();
-		final Logger logger = assertInstanceOf(
-			Logger.class,
-			LoggerFactory.getLogger(ExpressionSerializer.class),
-			"Logback backend required to capture log output."
-		);
-		appender.start();
-		logger.addAppender(appender);
-		final Expression read;
-		try {
-			read = this.serializer.read(this.kryo, new Input(output.toBytes()), Expression.class);
-		} finally {
-			logger.detachAppender(appender);
-			appender.stop();
-		}
+		final Expression read = this.serializer.read(this.kryo, new Input(output.toBytes()), Expression.class);
 
 		assertEquals(ExpressionFactory.parse("$a > 1"), read);
-		final List<String> warnings = warningsOf(appender);
+		final List<String> warnings = warningsOf(this.appender);
 		assertEquals(1, warnings.size(), () -> "Expected one warning, got: " + warnings);
 		assertTrue(warnings.get(0).contains("`$a > 1 2`"), warnings.get(0));
 		assertTrue(warnings.get(0).contains("`$a > 1`"), warnings.get(0));
+	}
+
+	@DisplayName("fail to read a stored text without a valid prefix, and not warn")
+	@Test
+	void shouldFailToReadStoredTextWithoutValidPrefixAndNotWarn() {
+		final Output output = new Output(64);
+		output.writeString(")");
+
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> this.serializer.read(this.kryo, new Input(output.toBytes()), Expression.class)
+		);
+
+		final List<String> warnings = warningsOf(this.appender);
+		assertTrue(warnings.isEmpty(), () -> "Expected no warning, got: " + warnings);
 	}
 
 	/**

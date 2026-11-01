@@ -277,23 +277,6 @@ class CatalogSchemaCascadeTest implements EvitaTestSupport {
 		assertTrue(productSchema().getAttribute(ATTRIBUTE_SKU).isEmpty());
 	}
 
-	/**
-	 * Returns the category's own `sku` attribute as the catalog holds it now.
-	 *
-	 * @return the attribute
-	 */
-	@Nonnull
-	private AttributeSchemaContract categorySku() {
-		return this.evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.getEntitySchemaOrThrowException(Entities.CATEGORY)
-					.getAttribute(ATTRIBUTE_SKU)
-					.orElseThrow();
-			}
-		);
-	}
-
 	@DisplayName("apply a change of an entity between a rename and a removal of the global attribute it uses")
 	@Test
 	void shouldApplyEntityChangeBetweenRenameAndRemovalOfGlobalAttribute() {
@@ -334,6 +317,15 @@ class CatalogSchemaCascadeTest implements EvitaTestSupport {
 				)
 			)
 		);
+
+		// the refused update leaves the catalog schema as it was before it
+		final CatalogSchemaContract catalogSchema = this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getCatalogSchema();
+			}
+		);
+		assertTrue(catalogSchema.getAttribute(ATTRIBUTE_CODE).isPresent());
 	}
 
 	@DisplayName("roll back a transaction that caught the refusal of a schema update, and keep the catalog replayable")
@@ -459,6 +451,23 @@ class CatalogSchemaCascadeTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				return session.getEntitySchemaOrThrowException(Entities.PRODUCT);
+			}
+		);
+	}
+
+	/**
+	 * Returns the category's own `sku` attribute as the catalog holds it now.
+	 *
+	 * @return the attribute
+	 */
+	@Nonnull
+	private AttributeSchemaContract categorySku() {
+		return this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntitySchemaOrThrowException(Entities.CATEGORY)
+					.getAttribute(ATTRIBUTE_SKU)
+					.orElseThrow();
 			}
 		);
 	}

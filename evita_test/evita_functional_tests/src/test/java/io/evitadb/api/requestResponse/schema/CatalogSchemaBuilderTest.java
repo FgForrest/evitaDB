@@ -225,8 +225,8 @@ class CatalogSchemaBuilderTest {
 	}
 
 	@Test
-	@DisplayName("apply the cascades of a catalog mutation before the entity modifications that follow it")
-	void shouldApplyCascadesBeforeFollowingEntityModifications() {
+	@DisplayName("refuse an entity modification of a global attribute that an earlier catalog mutation removed")
+	void shouldRefuseEntityModificationOfGlobalAttributeRemovedByPrecedingMutation() {
 		// the removal of the global attribute takes it from the entity right away, so a later change of it in the
 		// entity has nothing to change - the server refuses the batch the same way, in a session and on replay
 		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(
@@ -239,7 +239,10 @@ class CatalogSchemaBuilderTest {
 			)
 		);
 
-		assertThrows(InvalidSchemaMutationException.class, builder::toInstance);
+		final InvalidSchemaMutationException refusal = assertThrows(
+			InvalidSchemaMutationException.class, builder::toInstance
+		);
+		assertTrue(refusal.getMessage().contains("`" + ATTRIBUTE_CODE + "`"), refusal.getMessage());
 	}
 
 	@Test
