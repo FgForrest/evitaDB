@@ -30,9 +30,11 @@ import ch.qos.logback.core.read.ListAppender;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.core.Evita;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -45,6 +47,7 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -52,13 +55,14 @@ import static io.evitadb.test.TestTags.FACET;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies the warning the server logs when a stored reference becomes indexed or faceted in a scope while the
  * collection holds entities. The reference and facet indexes are filled as entities are indexed and nothing builds
- * them for the entities already stored (#1863), so filtering by the reference misses those entities; the server
+ * them for the entities already stored, so filtering by the reference misses those entities; the server
  * accepts such a change and warns about it instead of refusing it. The warning must not be logged when no stored
  * entity can miss anything.
  *
@@ -126,6 +130,18 @@ class ReferenceIndexedAfterDataTest implements EvitaTestSupport {
 		assertTrue(warnings.contains(WARNING_PREFIX + "faceted in scope `LIVE`"), "Expected the warning, got: " + warnings);
 	}
 
+	@DisplayName("warn only for the scope a stored indexed reference becomes indexed in")
+	@Test
+	void shouldWarnOnlyForScopeStoredReferenceBecomesIndexedIn() {
+		storeProduct(false, whichIs -> whichIs.indexedForFilteringInScope(Scope.LIVE));
+
+		final List<String> warnings = captureWarnings(
+			() -> changeReference(whichIs -> whichIs.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED))
+		);
+
+		assertEquals(List.of(WARNING_PREFIX + "indexed in scope `ARCHIVED`"), warnings);
+	}
+
 	@DisplayName("not warn when the reference becomes indexed and faceted before any entity is stored")
 	@Test
 	void shouldNotWarnWhenReferenceBecomesIndexedAndFacetedInEmptyCollection() {
@@ -146,6 +162,37 @@ class ReferenceIndexedAfterDataTest implements EvitaTestSupport {
 
 		final List<String> warnings = captureWarnings(() -> changeReference(whichIs -> whichIs.indexedForFiltering().faceted()));
 
+		assertEquals(List.of(), warnings);
+	}
+
+	@DisplayName("not warn when the change creates the reference over stored entities")
+	@Test
+	void shouldNotWarnWhenReferenceIsCreatedOverStoredEntities() {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
+			session.defineEntitySchema(Entities.BRAND).withoutGeneratedPrimaryKey().updateVia(session);
+			session.defineEntitySchema(Entities.PRODUCT).withoutGeneratedPrimaryKey().updateVia(session);
+			session.upsertEntity(session.createNewEntity(Entities.PRODUCT, 1));
+		});
+
+		// the stored product has no reference whose indexes could miss it
+		final List<String> warnings = captureWarnings(
+			() -> changeReference(whichIs -> whichIs.indexedForFiltering().faceted())
+		);
+
+		assertTrue(currentReference().isFaceted(), "The change must have created the faceted reference.");
+		assertEquals(List.of(), warnings);
+	}
+
+	@DisplayName("not warn when a stored indexed and faceted reference stops being indexed and faceted")
+	@Test
+	void shouldNotWarnWhenReferenceStopsBeingIndexedAndFaceted() {
+		storeProduct(false, whichIs -> whichIs.indexedForFiltering().faceted());
+
+		final List<String> warnings = captureWarnings(
+			() -> changeReference(whichIs -> whichIs.nonFaceted().nonIndexed())
+		);
+
+		assertFalse(currentReference().isIndexed(), "The change must have made the reference non-indexed.");
 		assertEquals(List.of(), warnings);
 	}
 
@@ -186,6 +233,23 @@ class ReferenceIndexedAfterDataTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Returns the reference of the product to the brand as the catalog holds it now, to tell a change that took
+	 * effect from one that did nothing and therefore had nothing to warn about.
+	 *
+	 * @return the current schema of the reference
+	 */
+	@Nonnull
+	private ReferenceSchemaContract currentReference() {
+		return this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntitySchemaOrThrowException(Entities.PRODUCT)
+					.getReferenceOrThrowException(REFERENCE_BRAND);
+			}
+		);
+	}
+
+	/**
 	 * Defines the product with a reference to the brand of the given definition.
 	 *
 	 * @param session    the session to define the product in
@@ -212,14 +276,18 @@ class ReferenceIndexedAfterDataTest implements EvitaTestSupport {
 	@Nonnull
 	private static List<String> captureWarnings(@Nonnull Runnable action) {
 		final List<String> warnings = new ArrayList<>();
+		final ReentrantLock warningsLock = new ReentrantLock();
 		final ListAppender<ILoggingEvent> appender = new ListAppender<>() {
 			@Override
 			protected void append(ILoggingEvent eventObject) {
 				if (eventObject.getLevel() == Level.WARN && eventObject.getFormattedMessage().startsWith(WARNING_PREFIX)) {
-					synchronized (warnings) {
-						// only the part naming the reference, the change and the scope - the advice may be reworded
-						final String message = eventObject.getFormattedMessage();
+					// only the part naming the reference, the change and the scope - the advice may be reworded
+					final String message = eventObject.getFormattedMessage();
+					warningsLock.lock();
+					try {
 						warnings.add(message.substring(0, message.indexOf('`', message.indexOf("in scope `") + 10) + 1));
+					} finally {
+						warningsLock.unlock();
 					}
 				}
 			}
@@ -235,8 +303,11 @@ class ReferenceIndexedAfterDataTest implements EvitaTestSupport {
 			logger.detachAppender(appender);
 			appender.stop();
 		}
-		synchronized (warnings) {
+		warningsLock.lock();
+		try {
 			return new ArrayList<>(warnings);
+		} finally {
+			warningsLock.unlock();
 		}
 	}
 

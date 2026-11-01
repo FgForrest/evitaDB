@@ -2961,8 +2961,8 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Logs a warning for every stored reference the schema change makes indexed or faceted in a scope it was not
-	 * indexed or faceted in before, while the collection holds entities (#1863).
+	 * Logs one warning for every stored reference and scope the schema change makes the reference indexed in, or
+	 * faceted in, where it was not indexed, or not faceted, before - while the collection holds entities.
 	 *
 	 * The reference and facet indexes are filled as entity mutations are indexed, and nothing builds them for the
 	 * entities already stored, so filters those indexes serve miss every entity stored before the change. Unlike a
@@ -2995,23 +2995,24 @@ public final class EntityCollection implements
 					updatedReference.isIndexedInScope(scope) && !originalReference.isIndexedInScope(scope);
 				final boolean becomesFaceted =
 					updatedReference.isFacetedInScope(scope) && !originalReference.isFacetedInScope(scope);
-				if (becomesIndexed || becomesFaceted) {
-					if (!emptinessChecked) {
-						if (isEmpty()) {
-							return;
-						}
-						emptinessChecked = true;
-					}
-					log.warn(
-						"Reference `{}` of entity `{}` became {} in scope `{}` while the collection already contains " +
-							"entities! Its indexes are built as entities are indexed and there is no way to build them " +
-							"for entities that are already stored, so filtering by the reference will miss those " +
-							"entities. Declare the setting before inserting data, or load the data into a new catalog " +
-							"that declares it.",
-						updatedReference.getName(), updatedSchema.getName(),
-						describeIndexingGain(becomesIndexed, becomesFaceted), scope
-					);
+				if (!becomesIndexed && !becomesFaceted) {
+					continue;
 				}
+				if (!emptinessChecked) {
+					if (isEmpty()) {
+						return;
+					}
+					emptinessChecked = true;
+				}
+				log.warn(
+					"Reference `{}` of entity `{}` became {} in scope `{}` while the collection already contains " +
+						"entities! Its indexes are built as entities are indexed and there is no way to build them " +
+						"for entities that are already stored, so filtering by the reference will miss those " +
+						"entities. Declare the setting before inserting data, or load the data into a new catalog " +
+						"that declares it.",
+					updatedReference.getName(), updatedSchema.getName(),
+					describeIndexingGain(becomesIndexed, becomesFaceted), scope
+				);
 			}
 		}
 	}
