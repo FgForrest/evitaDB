@@ -671,7 +671,9 @@ public class ClassSchemaAnalyzer {
 			final String facetedPartiallyExpr = reference.facetedPartially().value();
 			if (reference.faceted() && !editor.isFacetedInScope(Scope.DEFAULT_SCOPE)) {
 				editor.faceted();
-			} else if (!reference.faceted() && facetedPartiallyExpr.isEmpty() && editor.isFacetedInScope(Scope.DEFAULT_SCOPE)) {
+			} else if (
+				!reference.faceted() && facetedPartiallyExpr.isEmpty() && editor.isFacetedInScope(Scope.DEFAULT_SCOPE)
+			) {
 				editor.nonFaceted(Scope.DEFAULT_SCOPE);
 			}
 			applyPartialFaceting(editor, Scope.DEFAULT_SCOPE, facetedPartiallyExpr);

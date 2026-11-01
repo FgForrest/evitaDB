@@ -936,7 +936,10 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Nonnull
 	@Override
 	public Optional<ModifyEntitySchemaMutation> toMutation() {
-		if (this.mutations.isEmpty() || SchemaContentComparator.isEntitySchemaContentEqual(this.baseSchema, toInstance())) {
+		if (
+			this.mutations.isEmpty() ||
+				SchemaContentComparator.isEntitySchemaContentEqual(this.baseSchema, toInstance())
+		) {
 			return empty();
 		}
 		return of(new ModifyEntitySchemaMutation(getName(), this.mutations.toArray(EMPTY_ARRAY)));
@@ -1029,7 +1032,9 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 				}
 			}
 		}
-		return changedAttributes == null ? currentSchema : withChangedAttributes(currentSchema, changes, changedAttributes);
+		return changedAttributes == null
+			? currentSchema
+			: withChangedAttributes(currentSchema, changes, changedAttributes);
 	}
 
 	/**
