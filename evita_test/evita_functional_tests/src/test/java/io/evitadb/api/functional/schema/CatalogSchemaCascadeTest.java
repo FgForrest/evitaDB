@@ -34,10 +34,12 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDescriptionMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
+import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaDescriptionMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -77,6 +79,8 @@ class CatalogSchemaCascadeTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_NAME = "name";
 	private static final String ATTRIBUTE_SKU = "sku";
+	private static final String ATTRIBUTE_MISSING = "missing";
+	private static final String ATTRIBUTE_TEMPORARY = "temporary";
 	private static final String CHANGED_DESCRIPTION = "changed";
 	private static final String RENAMED_PRODUCT = "renamedProduct";
 
@@ -271,6 +275,32 @@ class CatalogSchemaCascadeTest implements EvitaTestSupport {
 		);
 	}
 
+	@DisplayName("apply a change of an entity between a rename and a removal of the global attribute it uses")
+	@Test
+	void shouldApplyEntityChangeBetweenRenameAndRemovalOfGlobalAttribute() {
+		// the change of the entity depends on the rename before it - a builder judging the levels apart would drop
+		// the catalog mutations around it and emit a change of an attribute that does not exist
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema()
+					.openForWriteWithMutations(
+						new ModifyAttributeSchemaNameMutation(ATTRIBUTE_CODE, ATTRIBUTE_TEMPORARY),
+						new ModifyEntitySchemaMutation(
+							Entities.PRODUCT,
+							new ModifyAttributeSchemaDescriptionMutation(ATTRIBUTE_TEMPORARY, CHANGED_DESCRIPTION),
+							new ModifyEntitySchemaDescriptionMutation(CHANGED_DESCRIPTION)
+						),
+						new RemoveAttributeSchemaMutation(ATTRIBUTE_TEMPORARY)
+					)
+					.updateVia(session);
+			}
+		);
+
+		assertEquals(CHANGED_DESCRIPTION, productSchema().getDescription());
+		assertTrue(productSchema().getAttribute(ATTRIBUTE_TEMPORARY).isEmpty());
+	}
+
 	@DisplayName("refuse to change a global attribute in an entity after removing it in the same update")
 	@Test
 	void shouldRefuseChangingGlobalAttributeInEntityAfterRemovingIt() {
@@ -285,6 +315,16 @@ class CatalogSchemaCascadeTest implements EvitaTestSupport {
 				)
 			)
 		);
+
+		// refused before anything of the batch is applied - in warm-up nothing could take back the cascade
+		assertTrue(productSchema().getAttribute(ATTRIBUTE_CODE).isPresent());
+		final CatalogSchemaContract catalogSchema = this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getCatalogSchema();
+			}
+		);
+		assertTrue(catalogSchema.getAttribute(ATTRIBUTE_CODE).isPresent());
 	}
 
 	@DisplayName("roll back a transaction that caught the refusal of a schema update, and keep the catalog replayable")
@@ -297,15 +337,15 @@ class CatalogSchemaCascadeTest implements EvitaTestSupport {
 				TEST_CATALOG,
 				session -> {
 					// the application catches the refusal and goes on - but the transaction already holds the
-					// removal of the global attribute and its cascade, and committing them would write a batch
-					// whose replay refuses it again
+					// removal of the global attribute and its cascade, and committing them with the failed change
+					// would write a batch whose replay refuses it again
 					assertThrows(
 						InvalidSchemaMutationException.class,
 						() -> session.updateCatalogSchema(
 							new RemoveAttributeSchemaMutation(ATTRIBUTE_CODE),
 							new ModifyEntitySchemaMutation(
 								Entities.PRODUCT,
-								new ModifyAttributeSchemaDescriptionMutation(ATTRIBUTE_CODE, CHANGED_DESCRIPTION)
+								new ModifyAttributeSchemaDescriptionMutation(ATTRIBUTE_MISSING, CHANGED_DESCRIPTION)
 							)
 						)
 					);
