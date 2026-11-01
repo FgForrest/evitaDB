@@ -123,7 +123,13 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 				entitySchemaAccessor
 					.getEntitySchemas()
 					.stream()
-					.filter(it -> it.getAttributes().containsKey(existingAttributeSchema.getName()))
+					// only the entity schemas using the global attribute - one with an attribute of its own of that
+					// name keeps it as it is
+					.filter(
+						it -> it.getAttribute(existingAttributeSchema.getName())
+							.filter(GlobalAttributeSchemaContract.class::isInstance)
+							.isPresent()
+					)
 					.map(it -> new ModifyEntitySchemaMutation(
 						it.getName(),
 						attributeSchemaMutation

@@ -1053,16 +1053,20 @@ public final class Catalog
 		final Deque<Set<String>> rebuildStack = PENDING_TRIGGER_REBUILDS.get();
 		final Set<String> rebuildFrame = new LazyHashSet<>(4);
 		rebuildStack.push(rebuildFrame);
+		// whether a mutation of the batch reached the transaction, which cannot take it back
+		boolean mutationRegistered = false;
 		try {
 			// refuse the whole batch before a single schema is exchanged - see the method's own documentation for why
 			// a mid-cascade refusal cannot be undone
 			verifyEntitySchemaMutationsApplicable(schemaMutation);
-			final Optional<Transaction> transactionRef = Transaction.getTransaction();
+			final Transaction transaction = Transaction.getTransaction().orElse(null);
 			CatalogSchema currentSchema = originalSchema;
 			CatalogSchemaContract updatedSchema = originalSchema;
-			final Transaction transaction = transactionRef.orElse(null);
 			for (LocalCatalogSchemaMutation theMutation : schemaMutation) {
-				transactionRef.ifPresent(it -> it.registerMutation(theMutation));
+				if (transaction != null) {
+					transaction.registerMutation(theMutation);
+					mutationRegistered = true;
+				}
 				ModifyEntitySchemaMutation[] cascadedMutations = null;
 
 				// record the mutation
@@ -1134,6 +1138,11 @@ public final class Catalog
 		} catch (RuntimeException ex) {
 			// revert all changes in the schema (for current transaction) if anything failed
 			this.schema.set(new CatalogSchemaDecorator(originalSchema));
+			// the mutations the transaction already holds - the failing one included, and the cascades and entity
+			// schemas applied before it - stay in it, so committing it would write a batch its replay refuses again
+			if (mutationRegistered) {
+				Transaction.getTransaction().ifPresent(it -> it.setRollbackOnlyWithException(ex));
+			}
 
 			// finish the recording with error
 			final MutationApplicationRecord recording = record.get();

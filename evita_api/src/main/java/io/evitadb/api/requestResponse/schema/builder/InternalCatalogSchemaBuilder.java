@@ -120,6 +120,11 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 	 * {@link #toInstance()} replays the mutations from the base schema.
 	 */
 	private MutationEntitySchemaAccessor updatedEntitySchemaAccessor;
+	/**
+	 * Names of the entity schemas the replayed catalog mutations cascaded into. Such an entity schema changes in the
+	 * middle of the sequence, so its own modifications cannot be judged against its base schema alone.
+	 */
+	private final Set<String> entitiesCascadedInto = new HashSet<>(8);
 
 	public InternalCatalogSchemaBuilder(
 		@Nonnull CatalogSchemaContract baseSchema,
@@ -403,6 +408,7 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 			if (this.updatedSchemaDirty == MutationImpact.MODIFIED_PREVIOUS) {
 				this.lastMutationReflectedInSchema = -1;
 				this.updatedSchema = null;
+				this.entitiesCascadedInto.clear();
 				// the entity schemas start from the base too, otherwise the replay applies their modifications twice
 				this.updatedEntitySchemaAccessor = new MutationEntitySchemaAccessor(this.baseSchema);
 			}
@@ -426,6 +432,7 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 				if (cascadedMutations != null) {
 					for (ModifyEntitySchemaMutation cascadedMutation : cascadedMutations) {
 						cascadedMutation.mutate(currentSchema, this.updatedEntitySchemaAccessor);
+						this.entitiesCascadedInto.add(cascadedMutation.getName());
 					}
 				}
 			}
@@ -446,7 +453,9 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 	 *   to the base entity schema yields the same content, the modifications of that entity schema are dropped.
 	 *
 	 * Mutations that create, remove or rename an entity schema carry intent a value comparison cannot judge, so they
-	 * are always kept, together with all modifications of the entity schemas they touch. A level is judged as a whole:
+	 * are always kept, together with all modifications of the entity schemas they touch. So are the modifications of
+	 * an entity schema a catalog mutation cascades into: the cascade applies at its position, and a modification after
+	 * it that restores the base value overrides it. A level is judged as a whole:
 	 * when it contains a genuine change, its no-op mutations are kept along with it. They carry the same conflict key as
 	 * the genuine change, so they do not widen the conflict surface of the transaction.
 	 *
@@ -508,7 +517,11 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 			);
 			for (Entry<String, List<ModifyEntitySchemaMutation>> entry : entityModifications.entrySet()) {
 				final String entityType = entry.getKey();
-				if (!structurallyChangedEntities.contains(entityType)) {
+				// a catalog mutation cascading into the entity schema changes it at its own position in the sequence,
+				// so a modification that restores the base value overrides the cascade and is not a no-op
+				if (
+					!structurallyChangedEntities.contains(entityType) && !this.entitiesCascadedInto.contains(entityType)
+				) {
 					this.baseSchema.getEntitySchema(entityType)
 						.filter(baseEntitySchema -> isEntitySchemaUnchanged(updatedCatalogSchema, baseEntitySchema, entry.getValue()))
 						.ifPresent(baseEntitySchema -> unchangedEntities.add(entityType));

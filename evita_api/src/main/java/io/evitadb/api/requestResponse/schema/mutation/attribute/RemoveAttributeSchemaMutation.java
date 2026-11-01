@@ -146,7 +146,13 @@ public class RemoveAttributeSchemaMutation
 				entitySchemaAccessor
 					.getEntitySchemas()
 					.stream()
-					.filter(it -> it.getAttributes().containsKey(this.name))
+					// only the entity schemas using the global attribute - one with an attribute of its own of that
+					// name keeps it
+					.filter(
+						it -> it.getAttribute(this.name)
+							.filter(GlobalAttributeSchemaContract.class::isInstance)
+							.isPresent()
+					)
 					.map(it -> new ModifyEntitySchemaMutation(
 						it.getName(),
 						this

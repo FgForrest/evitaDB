@@ -33,9 +33,12 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSortableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,6 +46,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
@@ -236,6 +240,36 @@ class CatalogSchemaBuilderTest {
 		);
 
 		assertThrows(InvalidSchemaMutationException.class, builder::toInstance);
+	}
+
+	@Test
+	@DisplayName("keep a modification of an entity overriding what a catalog mutation before it cascaded into it")
+	void shouldKeepEntityModificationOverridingPrecedingCascade() {
+		// the cascade makes the attribute of the entity sortable at its position, the modification after it restores
+		// the base value - judged against the base alone it would look like a no-op and be dropped
+		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(
+			catalogSchemaWithProductUsingCode(),
+			List.of(
+				new SetAttributeSchemaSortableMutation(ATTRIBUTE_CODE, true),
+				new ModifyEntitySchemaMutation(
+					ENTITY_PRODUCT, new SetAttributeSchemaSortableMutation(ATTRIBUTE_CODE, false)
+				)
+			)
+		);
+
+		assertFalse(
+			builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT)
+				.getAttribute(ATTRIBUTE_CODE)
+				.orElseThrow()
+				.isSortable()
+		);
+		final List<LocalCatalogSchemaMutation> emitted = Arrays.asList(
+			builder.toMutation().map(ModifyCatalogSchemaMutation::getSchemaMutations).orElseThrow()
+		);
+		assertTrue(
+			emitted.stream().anyMatch(ModifyEntitySchemaMutation.class::isInstance),
+			() -> "The modification of the entity was dropped: " + emitted
+		);
 	}
 
 	@Test

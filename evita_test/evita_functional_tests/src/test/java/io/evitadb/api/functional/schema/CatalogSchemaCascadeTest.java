@@ -26,6 +26,7 @@ package io.evitadb.api.functional.schema;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
@@ -56,6 +57,7 @@ import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -74,6 +76,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CatalogSchemaCascadeTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_NAME = "name";
+	private static final String ATTRIBUTE_SKU = "sku";
 	private static final String CHANGED_DESCRIPTION = "changed";
 	private static final String RENAMED_PRODUCT = "renamedProduct";
 
@@ -227,6 +230,47 @@ class CatalogSchemaCascadeTest implements EvitaTestSupport {
 		assertNull(code.getDescription());
 	}
 
+	@DisplayName("keep an entity's own attribute named like a global one it does not use, when the global one changes")
+	@Test
+	void shouldKeepOwnAttributeNamedLikeGlobalOneWhenGlobalOneChangesOrGoes() {
+		// the category has an attribute of its own named `sku` before the catalog declares a global `sku`
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withAttribute(ATTRIBUTE_SKU, Integer.class)
+					.updateVia(session);
+				session.getCatalogSchema().openForWrite().withAttribute(ATTRIBUTE_SKU, String.class).updateVia(session);
+				session.defineEntitySchema(Entities.PRODUCT).withGlobalAttribute(ATTRIBUTE_SKU).updateVia(session);
+			}
+		);
+
+		updateCatalogSchema(new ModifyAttributeSchemaDescriptionMutation(ATTRIBUTE_SKU, CHANGED_DESCRIPTION));
+		assertNull(categorySku().getDescription());
+		assertEquals(CHANGED_DESCRIPTION, productSchema().getAttribute(ATTRIBUTE_SKU).orElseThrow().getDescription());
+
+		updateCatalogSchema(new RemoveAttributeSchemaMutation(ATTRIBUTE_SKU));
+		assertEquals(Integer.class, categorySku().getType());
+		assertTrue(productSchema().getAttribute(ATTRIBUTE_SKU).isEmpty());
+	}
+
+	/**
+	 * Returns the category's own `sku` attribute as the catalog holds it now.
+	 *
+	 * @return the attribute
+	 */
+	@Nonnull
+	private AttributeSchemaContract categorySku() {
+		return this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntitySchemaOrThrowException(Entities.CATEGORY)
+					.getAttribute(ATTRIBUTE_SKU)
+					.orElseThrow();
+			}
+		);
+	}
+
 	@DisplayName("refuse to change a global attribute in an entity after removing it in the same update")
 	@Test
 	void shouldRefuseChangingGlobalAttributeInEntityAfterRemovingIt() {
@@ -241,6 +285,42 @@ class CatalogSchemaCascadeTest implements EvitaTestSupport {
 				)
 			)
 		);
+	}
+
+	@DisplayName("roll back a transaction that caught the refusal of a schema update, and keep the catalog replayable")
+	@Test
+	void shouldRollBackTransactionThatCaughtRefusedSchemaUpdate() {
+		this.evita.updateCatalog(TEST_CATALOG, EvitaSessionContract::goLiveAndClose);
+		final AtomicReference<Throwable> closingError = new AtomicReference<>();
+		try {
+			this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					// the application catches the refusal and goes on - but the transaction already holds the
+					// removal of the global attribute and its cascade, and committing them would write a batch
+					// whose replay refuses it again
+					assertThrows(
+						InvalidSchemaMutationException.class,
+						() -> session.updateCatalogSchema(
+							new RemoveAttributeSchemaMutation(ATTRIBUTE_CODE),
+							new ModifyEntitySchemaMutation(
+								Entities.PRODUCT,
+								new ModifyAttributeSchemaDescriptionMutation(ATTRIBUTE_CODE, CHANGED_DESCRIPTION)
+							)
+						)
+					);
+				},
+				CommitBehavior.WAIT_FOR_CHANGES_VISIBLE
+			);
+		} catch (RuntimeException ex) {
+			closingError.set(ex);
+		}
+		assertInstanceOf(RollbackException.class, closingError.get(), () -> "Closed with " + closingError.get());
+
+		assertTrue(productSchema().getAttribute(ATTRIBUTE_CODE).isPresent());
+		this.evita.close();
+		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
+		assertTrue(productSchema().getAttribute(ATTRIBUTE_CODE).isPresent());
 	}
 
 	@DisplayName("keep the local replacement of a global attribute in a live catalog and after a restart")
