@@ -28,7 +28,6 @@ import io.evitadb.index.bPlusTree.ImpactView;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.roaringbitmap.PeekableIntRankIterator;
-import io.evitadb.roaringbitmap.RoaringBatchIterator;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -78,11 +77,12 @@ import java.util.Arrays;
  * | galloping | every posting | candidates | `postings × log2(candidates / postings)` | postings ≪ candidates |
  * | skipping | every candidate | postings | `candidates × log2(postings / candidates)` | candidates ≪ postings |
  *
- * The posting lists are read where they are stored and never copied whole. The linear and the galloping merge read
- * them **in order, batch by batch**, through one small reusable buffer, so the position of a posting in its list - the
- * offset of its impact byte - is simply counted. The skipping merge jumps over postings, so it takes the position
- * from the rank the posting list's own iterator keeps while it skips. Either way positions only grow, so the impact
- * reader only ever moves forward, crossing each chunk boundary of a chunked bucket at most once.
+ * The linear and the galloping merge read a posting list **in order**: a roaring list is decoded whole, once, by its
+ * own bulk extraction, and the small tiers of a bucket are read through one small reusable buffer, so the position of
+ * a posting in its list - the offset of its impact byte - is simply counted. The skipping merge reads the list where
+ * it is stored: it jumps over postings, so it takes the position from the rank the posting list's own iterator keeps
+ * while it skips. Either way positions only grow, so the impact reader only ever moves forward, crossing each chunk
+ * boundary of a chunked bucket at most once.
  *
  * The galloping merge is what lets a short posting list against a large candidate set stay within the phase-1
  * budget: it lifted the cells meeting the budget from 25 to 32 of 36 in the index-core measurements of the fulltext
@@ -109,8 +109,9 @@ public final class FulltextPhaseOneScorer {
 	public static final int MAX_DISTANCE = 254;
 
 	/**
-	 * How many postings a posting-driven merge reads from its posting list at once. Small enough for the buffer to
-	 * stay in the L1 cache, large enough to amortise the batch call; it holds a whole array-tier bucket.
+	 * How many postings of a small tier - a single record, a sorted array of a few records - the posting feed reads
+	 * into its reusable buffer at once. Small enough for the buffer to stay in the L1 cache; it holds a whole
+	 * array-tier bucket.
 	 */
 	private static final int POSTING_BATCH_SIZE = 256;
 	/**
@@ -160,9 +161,11 @@ public final class FulltextPhaseOneScorer {
 	 *
 	 * Both come straight from the dictionary cursor
 	 * ({@link io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor#records()} and
-	 * {@link io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor#impacts()}) and are read in place,
-	 * never copied, so neither may be written while the expansion is in use. The impacts follow the posting list's own
-	 * record order, which is unsigned; entity primary keys are never negative, so it is their ascending order too.
+	 * {@link io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor#impacts()}). The impacts are read in
+	 * place; the postings are read in place too, except that a linear or galloping merge decodes a roaring posting
+	 * list into a fresh array first. Neither may be written while the expansion is in use. The impacts follow the
+	 * posting list's own record order, which is unsigned; entity primary keys are never negative, so it is their
+	 * ascending order too.
 	 *
 	 * @param postings primary keys of the entities containing the term, ascending
 	 * @param impacts  impact byte of each posting, the i-th belonging to the i-th posting
@@ -210,7 +213,7 @@ public final class FulltextPhaseOneScorer {
 	 *
 	 * The candidates ascend in signed `int` order and every posting list is read in its own record order, which is
 	 * unsigned; the two agree because entity primary keys are never negative. The expansions are only read, never
-	 * copied or written, for the duration of the call.
+	 * written, for the duration of the call.
 	 *
 	 * @param candidates primary keys of the candidate entities, ascending and distinct
 	 * @param tokens     the query tokens, each as the expansions it produced; a token without expansions matches
@@ -735,22 +738,34 @@ public final class FulltextPhaseOneScorer {
 
 	/**
 	 * Hands an expansion's postings to the posting-driven merges batch by batch, in the posting list's record order -
-	 * the order the impacts are aligned with - through one reusable buffer, so no posting list is ever copied whole. A
-	 * roaring list fills the buffer through its batch iterator, which decodes container by container; the small tiers
-	 * of a bucket (a single record, a sorted array of a few records) are read by position.
+	 * the order the impacts are aligned with. A roaring list is decoded whole, once, by its own bulk extraction -
+	 * container by container, in its unsigned record order (never {@link Bitmap#getArray()}, which moves negative ids
+	 * first and would misalign the impacts) - and handed out as a single batch; the small tiers of a bucket (a single
+	 * record, a sorted array of a few records) are read by position through one reusable buffer.
+	 *
+	 * The copy is measured, not assumed: feeding a roaring list through its batch iterator instead - no copy, one
+	 * small buffer - was 5-7 % slower on posting-dense queries of a production CMS catalog and faster on none.
 	 *
 	 * One feed serves every expansion of a scoring call, re-targeted by {@link #reset(Bitmap)}; it is never shared
 	 * between calls.
 	 */
 	private static final class PostingFeed {
 		/**
-		 * The buffer every batch is written to.
+		 * The buffer the batches of a small tier are written to.
 		 */
 		private final int[] buffer = new int[POSTING_BATCH_SIZE];
 		/**
-		 * The batch iterator of a roaring posting list, or `null` when the current list is a small tier.
+		 * The array the batches of the current posting list sit in: {@link #buffer}, or {@link #decodedPostings}.
 		 */
-		@Nullable private RoaringBatchIterator roaringBatches;
+		private int[] batches = this.buffer;
+		/**
+		 * The whole decoded current posting list when it is a roaring list, `null` for a small tier.
+		 */
+		@Nullable private int[] decodedPostings;
+		/**
+		 * Whether {@link #decodedPostings} has been handed out as its single batch already.
+		 */
+		private boolean decodedServed;
 		/**
 		 * The current posting list when it is a small tier, read by position; `null` for a roaring list.
 		 */
@@ -769,10 +784,13 @@ public final class FulltextPhaseOneScorer {
 		@Nonnull
 		PostingFeed reset(@Nonnull Bitmap postings) {
 			if (postings instanceof final RoaringBitmapBackedBitmap roaringBacked) {
-				this.roaringBatches = roaringBacked.getRoaringBitmap().getBatchIterator();
+				this.decodedPostings = roaringBacked.getRoaringBitmap().toArray();
+				this.batches = this.decodedPostings;
+				this.decodedServed = false;
 				this.positionalPostings = null;
 			} else {
-				this.roaringBatches = null;
+				this.decodedPostings = null;
+				this.batches = this.buffer;
 				this.positionalPostings = postings;
 				this.nextPosition = 0;
 			}
@@ -780,23 +798,29 @@ public final class FulltextPhaseOneScorer {
 		}
 
 		/**
-		 * Returns the buffer {@link #next()} writes each batch to; the batch occupies its prefix.
+		 * Returns the array {@link #next()} hands each batch out in; the batch occupies its prefix. It changes with
+		 * {@link #reset(Bitmap)}, so it is read after the feed is pointed at a posting list.
 		 *
-		 * @return the batch buffer
+		 * @return the batch array
 		 */
 		@Nonnull
 		int[] buffer() {
-			return this.buffer;
+			return this.batches;
 		}
 
 		/**
-		 * Reads the next batch of postings into the buffer.
+		 * Hands out the next batch of postings in {@link #buffer()}.
 		 *
 		 * @return how many postings the batch holds, `0` once the posting list is exhausted
 		 */
 		int next() {
-			if (this.roaringBatches != null) {
-				return this.roaringBatches.nextBatch(this.buffer);
+			final int[] decoded = this.decodedPostings;
+			if (decoded != null) {
+				if (this.decodedServed) {
+					return 0;
+				}
+				this.decodedServed = true;
+				return decoded.length;
 			}
 			final Bitmap postings = this.positionalPostings;
 			if (postings == null) {

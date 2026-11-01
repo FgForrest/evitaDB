@@ -253,7 +253,7 @@ class FulltextPhaseOneScorerTest {
 		@DisplayName("Every merge scores exactly like a naive lookup, on every tier of posting list")
 		void shouldScoreLikeNaiveLookupWithEveryStrategy() {
 			final Random random = new Random(2026);
-			// several roaring containers, so the batches and the ranks cross container boundaries
+			// several roaring containers, so the whole-list decode and the ranks cross container boundaries
 			final int bound = 300_000;
 			for (int round = 0; round < 120; round++) {
 				final int[] candidates = randomCandidates(random, bound);
@@ -282,14 +282,14 @@ class FulltextPhaseOneScorerTest {
 		}
 
 		@Test
-		@DisplayName("Every merge reads the right impact on both sides of a batch boundary, roaring or positional")
-		void shouldScoreLikeNaiveLookupAcrossBatchBoundaries() {
+		@DisplayName("Every merge reads the right impact on lists around the batch size, roaring or positional")
+		void shouldScoreLikeNaiveLookupAroundBatchSize() {
 			final Random random = new Random(256);
 			// one posting short of a full batch, exactly one batch, one posting over, and two full batches
 			for (final int postingCount : new int[]{255, 256, 257, 512}) {
 				final int[] postings = new int[postingCount];
 				for (int i = 0; i < postingCount; i++) {
-					// spread over several roaring containers, so a batch ends inside a container
+					// several roaring containers, so the whole-list decode and the ranks cross container boundaries
 					postings[i] = i * 300;
 				}
 				// random bytes rather than a pattern: a pattern repeating every 256 postings would hide an impact read
@@ -313,6 +313,21 @@ class FulltextPhaseOneScorerTest {
 						assertArrayEquals(expected.composites(), actual.composites(), message);
 					}
 				}
+			}
+		}
+
+		@Test
+		@DisplayName("Every merge reads a posting's impact in the posting list's unsigned record order")
+		void shouldReadImpactsInUnsignedRecordOrder() {
+			// a roaring list orders -1 after 1 (unsigned) and its impacts follow that order; a signed decode would put
+			// -1 first and hand candidate 1 the impact of -1
+			final Expansion[][] tokens = {
+				{new Expansion(new BaseBitmap(1, -1), ImpactView.of(new byte[]{10, (byte) 200}), 0)}
+			};
+			for (final MergeStrategy strategy : MergeStrategy.values()) {
+				final Result result = FulltextPhaseOneScorer.score(new int[]{1}, tokens, 1, strategy);
+				assertArrayEquals(new int[]{1}, result.primaryKeys(), strategy.name());
+				assertEquals(10, lane(result.composites()[0], 32), strategy.name());
 			}
 		}
 
