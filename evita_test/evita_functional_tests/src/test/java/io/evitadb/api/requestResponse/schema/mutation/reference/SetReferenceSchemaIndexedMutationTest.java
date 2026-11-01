@@ -171,10 +171,10 @@ class SetReferenceSchemaIndexedMutationTest {
 		}
 
 		@Test
-		@DisplayName("should not combine a mutation leaving the components with one that sets them")
-		void shouldNotCombineMutationLeavingComponentsWithOneSettingThem() {
+		@DisplayName("should keep only the components of a mutation setting them when one leaving components follows")
+		void shouldKeepOnlyComponentsOfMutationOverriddenByOneLeavingComponents() {
 			// inheriting the index types without components leaves the components as the existing mutation makes
-			// them, which one mutation cannot express together with the inherited index types
+			// them; its index types are overridden, but they would still merge into a later index declaration
 			final SetReferenceSchemaIndexedMutation leavingComponents =
 				new SetReferenceSchemaIndexedMutation(REFERENCE_NAME, (ScopedReferenceIndexType[]) null);
 			final SetReferenceSchemaIndexedMutation declaringComponents = new SetReferenceSchemaIndexedMutation(
@@ -190,9 +190,32 @@ class SetReferenceSchemaIndexedMutationTest {
 				}
 			);
 
+			final MutationCombinationResult<LocalEntitySchemaMutation> result = leavingComponents.combineWith(
+				Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), declaringComponents
+			);
+
+			assertNotNull(result);
+			assertEquals(
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					null,
+					new ScopedReferenceIndexedComponents[]{
+						new ScopedReferenceIndexedComponents(
+							Scope.LIVE,
+							new ReferenceIndexedComponents[]{
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							}
+						)
+					}
+				),
+				result.origin()
+			);
+			assertArrayEquals(new LocalEntitySchemaMutation[]{leavingComponents}, result.current());
+			// the rewritten mutation declares no index types and is left as it is, so the two do not meet forever
 			assertNull(
 				leavingComponents.combineWith(
-					Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), declaringComponents
+					Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), result.origin()
 				)
 			);
 		}

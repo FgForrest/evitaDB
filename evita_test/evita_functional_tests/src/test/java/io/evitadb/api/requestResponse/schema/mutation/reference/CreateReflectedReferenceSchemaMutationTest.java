@@ -250,8 +250,8 @@ class CreateReflectedReferenceSchemaMutationTest {
 		}
 
 		@Test
-		@DisplayName("should leave declared indexed components when the re-created reference inherits its indexing")
-		void shouldLeaveDeclaredIndexedComponentsWhenRecreatedReferenceInheritsIndexing() {
+		@DisplayName("should make declared indexed components inherited when the re-created reference inherits them")
+		void shouldMakeDeclaredIndexedComponentsInheritedWhenRecreatedReferenceInheritsThem() {
 			// the re-created reference inherits its index types and its components
 			final CreateReflectedReferenceSchemaMutation mutation =
 				new CreateReflectedReferenceSchemaMutation(
@@ -294,12 +294,15 @@ class CreateReflectedReferenceSchemaMutationTest {
 				.map(SetReferenceSchemaIndexedMutation.class::cast)
 				.toList();
 			assertFalse(indexedMutations.isEmpty());
+			// applied in order, as the server applies them, the mutations make both the index types and the components
+			// inherited, as the re-created reference has them
+			ReferenceSchemaContract applied = existingReflected;
 			for (SetReferenceSchemaIndexedMutation indexedMutation : indexedMutations) {
-				// an empty array would declare no components; null with inherited index types leaves them, which is
-				// all one mutation can say
-				assertNull(indexedMutation.getIndexedInScopes());
-				assertNull(indexedMutation.getIndexedComponentsInScopes(), String.valueOf(indexedMutation));
+				applied = indexedMutation.mutate(entitySchema, applied);
 			}
+			final ReflectedReferenceSchemaContract recreated = (ReflectedReferenceSchemaContract) applied;
+			assertTrue(recreated.isIndexedInherited(), String.valueOf(indexedMutations));
+			assertTrue(recreated.isIndexedComponentsInherited(), String.valueOf(indexedMutations));
 		}
 
 		@Test

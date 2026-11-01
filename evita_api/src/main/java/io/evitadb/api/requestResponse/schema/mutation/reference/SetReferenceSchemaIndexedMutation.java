@@ -230,23 +230,13 @@ public class SetReferenceSchemaIndexedMutation
 			// when either mutation uses inheritance, no scope merging is needed
 			if (leavesComponentsAsTheyAre() && !theExistingMutation.leavesComponentsAsTheyAre()) {
 				// the latest mutation inherits the index types and leaves the components as the existing one makes
-				// them - one mutation cannot say both, so both stay and apply one after the other
-				if (theExistingMutation.indexedComponentsInScopes == null
-					&& !ArrayUtils.isEmpty(theExistingMutation.indexedInScopes)) {
-					// this mutation overrides the index types the existing one declares, yet a later index
-					// declaration would still merge them in; only its switch of the components to inherited
-					// still matters, and saying that takes declared index types, so the rewrite declares none -
-					// a form this branch never rewrites again
-					return new MutationCombinationResult<>(
-						new SetReferenceSchemaIndexedMutation(this.name, ScopedReferenceIndexType.EMPTY, null),
-						this
-					);
-				} else {
-					// declared components would survive the inherited index types only in a mutation that says
-					// both, which loses its components over gRPC - the server reads none when the index types
-					// are inherited
-					return null;
-				}
+				// them - one mutation cannot say both, so both stay and apply one after the other; the existing one
+				// keeps only what still matters once its index types are overridden, so that none of them merges
+				// into an index declaration that follows
+				final SetReferenceSchemaIndexedMutation componentsPart = theExistingMutation.toComponentsPart(
+					currentEntitySchema.getReference(this.name).orElse(null)
+				);
+				return componentsPart == null ? null : new MutationCombinationResult<>(componentsPart, this);
 			} else if (this.indexedInScopes == null) {
 				// the latest mutation says "inherit" — this overrides any prior explicit scopes
 				return new MutationCombinationResult<>(null, this);
@@ -523,6 +513,61 @@ public class SetReferenceSchemaIndexedMutation
 	 */
 	private boolean leavesComponentsAsTheyAre() {
 		return this.indexedInScopes == null && this.indexedComponentsInScopes == null;
+	}
+
+	/**
+	 * Returns the part of this mutation that still matters when a later mutation makes the index types inherited and
+	 * leaves the components as this one makes them: what it does to the components, without the index types it
+	 * declares. A later index declaration would otherwise merge those overridden index types into its own.
+	 *
+	 * - with no components, this mutation makes the components inherited, which only declared index types can say,
+	 *   so the part declares none
+	 * - with declared components, the part declares the components this mutation leaves the reference with: those of
+	 *   the scopes it indexes, completed with the default for an indexed scope they leave uncovered, as
+	 *   {@link #mutate(EntitySchemaContract, ReferenceSchemaContract, ConsistencyChecks)} completes them
+	 *
+	 * Neither part declares index types, so neither is rewritten again and the rounds of the builder end.
+	 *
+	 * @param referenceBefore the reference before this mutation applies, or null when the entity has none yet
+	 * @return the part to replace this mutation with, or null when this mutation stays as it is: it declares no index
+	 * types, or it leaves no component in any scope
+	 */
+	@Nullable
+	private SetReferenceSchemaIndexedMutation toComponentsPart(@Nullable ReferenceSchemaContract referenceBefore) {
+		if (ArrayUtils.isEmpty(this.indexedInScopes)) {
+			return null;
+		} else if (this.indexedComponentsInScopes == null) {
+			return new SetReferenceSchemaIndexedMutation(this.name, ScopedReferenceIndexType.EMPTY, null);
+		} else {
+			final EnumMap<Scope, ReferenceIndexType> indexedScopes = new EnumMap<>(Scope.class);
+			for (final ScopedReferenceIndexType scopedIndexType : this.indexedInScopes) {
+				indexedScopes.put(scopedIndexType.scope(), scopedIndexType.indexType());
+			}
+			final Map<Scope, Set<ReferenceIndexedComponents>> leftComponents =
+				ReferenceSchema.withDefaultsForUncoveredScopes(
+					ReferenceSchema.toIndexedComponentsEnumMap(
+						ReferenceSchema.filterComponentsArrayForNoneScopes(
+							this.indexedComponentsInScopes, indexedScopes
+						)
+					),
+					indexedScopes,
+					referenceBefore
+				);
+			if (leftComponents.isEmpty()) {
+				// it indexes no scope, or only scopes stored without a component; a part declaring no components
+				// would arrive over gRPC as one leaving them, so this mutation stays as it is
+				return null;
+			}
+			final ScopedReferenceIndexedComponents[] components =
+				new ScopedReferenceIndexedComponents[leftComponents.size()];
+			int index = 0;
+			for (final Map.Entry<Scope, Set<ReferenceIndexedComponents>> entry : leftComponents.entrySet()) {
+				components[index++] = new ScopedReferenceIndexedComponents(
+					entry.getKey(), entry.getValue().toArray(ReferenceIndexedComponents.EMPTY)
+				);
+			}
+			return new SetReferenceSchemaIndexedMutation(this.name, null, components);
+		}
 	}
 
 	/**

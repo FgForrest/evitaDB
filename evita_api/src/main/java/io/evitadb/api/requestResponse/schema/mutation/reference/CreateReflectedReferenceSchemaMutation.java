@@ -213,6 +213,69 @@ public class CreateReflectedReferenceSchemaMutation
 	}
 
 	/**
+	 * Returns the mutations that change the indexing of the existing reflected reference into the indexing of the
+	 * re-created one, in the order they must apply; a null element stands for no change.
+	 *
+	 * No single mutation makes both the index types and declared components inherited, so a re-created reference that
+	 * inherits both takes two: the first makes the components inherited beside index types it declares none of, the
+	 * second makes the index types inherited and leaves the components. Otherwise null components make them inherited
+	 * beside declared index types, as the created reference has them; passing the components the created reference
+	 * reports would declare them instead.
+	 *
+	 * @param createdVersion  the reference as the creation defines it
+	 * @param existingVersion the reference as the entity holds it before the removal
+	 * @return the mutations, with null elements for the properties that stay as they are
+	 */
+	@Nonnull
+	private Stream<LocalEntitySchemaMutation> indexingMutationsOf(
+		@Nonnull ReflectedReferenceSchemaContract createdVersion,
+		@Nonnull ReflectedReferenceSchemaContract existingVersion
+	) {
+		if (createdVersion.isIndexedInherited() && createdVersion.isIndexedComponentsInherited()
+			&& !existingVersion.isIndexedComponentsInherited()) {
+			return Stream.of(
+				new SetReferenceSchemaIndexedMutation(this.name, ScopedReferenceIndexType.EMPTY, null),
+				new SetReferenceSchemaIndexedMutation(this.name, (Scope[]) null)
+			);
+		} else {
+			return Stream.of(
+				makeMutationIfDifferent(
+					createdVersion, existingVersion,
+					ref -> ref.isIndexedInherited()
+						? null
+						: Arrays.stream(Scope.values()).filter(ref::isIndexedInScope).toArray(Scope[]::new),
+					newValue -> new SetReferenceSchemaIndexedMutation(this.name, newValue)
+				),
+				makeMutationIfDifferent(
+					createdVersion, existingVersion,
+					ref -> ref.isIndexedComponentsInherited() ? null : ref.getIndexedComponentsInScopes(),
+					newValue -> new SetReferenceSchemaIndexedMutation(
+						this.name,
+						createdVersion.isIndexedInherited()
+							? null
+							: createdVersion.getReferenceIndexTypeInScopes()
+								.entrySet()
+								.stream()
+								.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
+								.toArray(ScopedReferenceIndexType[]::new),
+						createdVersion.isIndexedComponentsInherited()
+							? null
+							: createdVersion.getIndexedComponentsInScopes()
+								.entrySet()
+								.stream()
+								.map(
+									it -> new ScopedReferenceIndexedComponents(
+										it.getKey(), it.getValue().toArray(ReferenceIndexedComponents[]::new)
+									)
+								)
+								.toArray(ScopedReferenceIndexedComponents[]::new)
+					)
+				)
+			);
+		}
+	}
+
+	/**
 	 * Creates a single {@link SetReferenceSchemaBucketedMutation} carrying both bucketed histogram
 	 * definitions and bucketedPartially expressions if either property differs between created and
 	 * existing versions. Emitting a single mutation avoids the Set+Set combining problem where a second
@@ -390,44 +453,10 @@ public class CreateReflectedReferenceSchemaMutation
 										this.name,
 										createdVersion.getAttributesInheritanceBehavior(),
 										createdVersion.getAttributeInheritanceFilter()
-									),
-								makeMutationIfDifferent(
-									createdVersion, existingVersion,
-									ref -> ref.isIndexedInherited() ? null : Arrays.stream(Scope.values()).filter(ref::isIndexedInScope).toArray(Scope[]::new),
-									newValue -> new SetReferenceSchemaIndexedMutation(this.name, newValue)
-								),
-								makeMutationIfDifferent(
-									createdVersion, existingVersion,
-									ref -> ref.isIndexedComponentsInherited()
-										? null
-										: ref.getIndexedComponentsInScopes(),
-									newValue -> new SetReferenceSchemaIndexedMutation(
-										this.name,
-										createdVersion.isIndexedInherited()
-											? null
-											: createdVersion.getReferenceIndexTypeInScopes()
-												.entrySet()
-												.stream()
-												.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
-												.toArray(ScopedReferenceIndexType[]::new),
-										// beside declared index types null makes the components inherited, as the
-										// created reference has them; beside inherited ones it leaves them as they are,
-										// since no single mutation makes both inherited. Passing the components the
-										// created reference reports would declare them instead
-										createdVersion.isIndexedComponentsInherited()
-											? null
-											: createdVersion.getIndexedComponentsInScopes()
-												.entrySet()
-												.stream()
-												.map(
-													it -> new ScopedReferenceIndexedComponents(
-														it.getKey(),
-														it.getValue().toArray(ReferenceIndexedComponents[]::new)
-													)
-												)
-												.toArray(ScopedReferenceIndexedComponents[]::new)
 									)
-								),
+							),
+							indexingMutationsOf(createdVersion, existingVersion),
+							Stream.of(
 								// emit a single mutation carrying both facetedInScopes and facetedPartially
 								createCombinedFacetedMutation(createdVersion, existingVersion),
 								// emit a single mutation carrying both bucketedInScopes and bucketedPartially

@@ -37,7 +37,9 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.driver.config.ClientTimeoutOptions;
@@ -62,6 +64,7 @@ import javax.annotation.Nullable;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -110,6 +113,8 @@ class EvitaClientSchemaRedefinitionTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_TITLE = "title";
 	private static final String ATTRIBUTE_ORDER = "order";
 	private static final String REFERENCE_ARTICLE_BRAND = "brand";
+	private static final String ENTITY_BRAND_GROUP = "RedefinedBrandGroup";
+	private static final String REFERENCE_BRAND_ARTICLES = "articles";
 	/**
 	 * Post-processor making a genuine change of the global `code` attribute, which takes a catalog-wide conflict key.
 	 */
@@ -418,6 +423,88 @@ class EvitaClientSchemaRedefinitionTest implements EvitaTestSupport {
 						.getReference(REFERENCE_ARTICLE_BRAND, 1)
 						.isPresent()
 				);
+			}
+		);
+	}
+
+	@DisplayName("declared and inherited components of a reflected reference with inherited indexing reach the server")
+	@UseDataSet(DATA_SET)
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldKeepDeclaredComponentsOfReflectedReferenceWithInheritedIndexing(@Nonnull EvitaClient evitaClient) {
+		final String catalog = "redefinitionReflectedComponents";
+		evitaClient.defineCatalog(catalog);
+		evitaClient.updateCatalog(
+			catalog,
+			session -> {
+				session.defineEntitySchema(ENTITY_BRAND).updateVia(session);
+				session.defineEntitySchema(ENTITY_ARTICLE)
+					.withReferenceToEntity(
+						REFERENCE_ARTICLE_BRAND, ENTITY_BRAND, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs.withGroupType(ENTITY_BRAND_GROUP).indexedForFiltering()
+					)
+					.updateVia(session);
+				session.defineEntitySchema(ENTITY_BRAND)
+					.withReflectedReferenceToEntity(REFERENCE_BRAND_ARTICLES, ENTITY_ARTICLE, REFERENCE_ARTICLE_BRAND)
+					.updateVia(session);
+			}
+		);
+
+		// the declared indexing in between is overridden, the components it declares are not - the builder sends
+		// them beside the inherited index types, which the server must not drop
+		evitaClient.updateCatalog(
+			catalog,
+			session -> {
+				session.getEntitySchemaOrThrowException(ENTITY_BRAND)
+					.openForWrite()
+					.withReflectedReferenceToEntity(
+						REFERENCE_BRAND_ARTICLES, ENTITY_ARTICLE, REFERENCE_ARTICLE_BRAND,
+						whichIs -> whichIs
+							.indexedWithComponents(
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							)
+							.indexedInScope((Scope[]) null)
+					)
+					.updateVia(session);
+			}
+		);
+		evitaClient.queryCatalog(
+			catalog,
+			session -> {
+				final ReflectedReferenceSchemaContract reference = (ReflectedReferenceSchemaContract)
+					session.getEntitySchemaOrThrowException(ENTITY_BRAND)
+						.getReferenceOrThrowException(REFERENCE_BRAND_ARTICLES);
+				assertTrue(reference.isIndexedInherited());
+				assertFalse(reference.isIndexedComponentsInherited());
+				assertEquals(
+					Set.of(
+						ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					),
+					reference.getIndexedComponents(Scope.LIVE)
+				);
+			}
+		);
+
+		// re-created inheriting everything, the components become inherited too
+		evitaClient.updateCatalog(
+			catalog,
+			session -> {
+				session.getEntitySchemaOrThrowException(ENTITY_BRAND)
+					.openForWrite()
+					.withoutReferenceTo(REFERENCE_BRAND_ARTICLES)
+					.withReflectedReferenceToEntity(REFERENCE_BRAND_ARTICLES, ENTITY_ARTICLE, REFERENCE_ARTICLE_BRAND)
+					.updateVia(session);
+			}
+		);
+		evitaClient.queryCatalog(
+			catalog,
+			session -> {
+				final ReflectedReferenceSchemaContract reference = (ReflectedReferenceSchemaContract)
+					session.getEntitySchemaOrThrowException(ENTITY_BRAND)
+						.getReferenceOrThrowException(REFERENCE_BRAND_ARTICLES);
+				assertTrue(reference.isIndexedInherited());
+				assertTrue(reference.isIndexedComponentsInherited());
 			}
 		);
 	}

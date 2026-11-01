@@ -2396,6 +2396,65 @@ class EntitySchemaBuilderTest {
 		assertEmittedMutationsReproduce(storedSchema, builder);
 	}
 
+	@DisplayName("declare only the components set after the indexing of a reflected reference is made inherited")
+	@Test
+	void shouldNotMergeComponentsDeclaredBeforeInheritedIndexingWithOnesDeclaredAfter() {
+		final EntitySchemaContract storedSchema = new InternalEntitySchemaBuilder(
+				this.catalogSchema, this.categorySchema
+			)
+			.withReflectedReferenceToEntity("categoryProducts", Entities.PRODUCT, "productCategories")
+			.toInstance();
+		// the inherited indexing in between overrides the first declaration, so the last one alone decides - applied
+		// one by one, the mutations leave the reference indexed in the live scope only, with the entity component
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema)
+			.withReflectedReferenceToEntity(
+				"categoryProducts", Entities.PRODUCT, "productCategories",
+				whichIs -> whichIs
+					.indexedWithComponentsInScope(
+						Scope.ARCHIVED,
+						ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+					.indexedInScope((Scope[]) null)
+					.indexedWithComponentsInScope(Scope.LIVE, ReferenceIndexedComponents.REFERENCED_ENTITY)
+			);
+
+		final ReferenceSchemaContract reference = builder.toInstance().getReferenceOrThrowException("categoryProducts");
+		assertEquals(Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING), reference.getReferenceIndexTypeInScopes());
+		assertEquals(
+			Map.of(Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY)),
+			reference.getIndexedComponentsInScopes()
+		);
+		assertEmittedMutationsReproduce(storedSchema, builder);
+	}
+
+	@DisplayName("re-create a removed stored reflected reference declaring its components as one inheriting everything")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRecreateRemovedStoredReflectedReferenceDeclaringComponentsAsInheritingEverything() {
+		final EntitySchemaContract storedSchema = new InternalEntitySchemaBuilder(
+				this.catalogSchema, this.categorySchema
+			)
+			.withReflectedReferenceToEntity(
+				"categoryProducts", Entities.PRODUCT, "productCategories",
+				whichIs -> whichIs.indexedWithComponents(
+					ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+				)
+			)
+			.toInstance();
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		final UnaryOperator<EntitySchemaBuilder> recreation = it -> it.withReflectedReferenceToEntity(
+			"categoryProducts", Entities.PRODUCT, "productCategories"
+		);
+
+		recreation.apply(builder.withoutReferenceTo("categoryProducts"));
+
+		final ReflectedReferenceSchemaContract reference = (ReflectedReferenceSchemaContract) builder.toInstance()
+			.getReferenceOrThrowException("categoryProducts");
+		assertTrue(reference.isIndexedInherited());
+		assertTrue(reference.isIndexedComponentsInherited());
+		assertRecreatedAsDefinedFromScratch(storedSchema, builder, this.categorySchema, "categoryProducts", recreation);
+	}
+
 	@DisplayName("re-create a removed stored reflected reference declaring its components as one inheriting them")
 	@Test
 	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
