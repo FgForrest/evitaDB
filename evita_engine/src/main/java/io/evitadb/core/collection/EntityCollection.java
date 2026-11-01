@@ -181,6 +181,7 @@ import io.evitadb.utils.IOUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -214,6 +215,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Slf4j
 public final class EntityCollection implements
 	TransactionalLayerProducer<DataStoreChanges, EntityCollection>,
 	EntityCollectionContract,
@@ -1104,6 +1106,7 @@ public final class EntityCollection implements
 			updatedSchema = refreshReflectedSchemas(originalSchema, updatedSchema, updatedReferenceSchemas);
 
 			verifyNoAcceleratorAddedToNonEmptyCollection(originalSchema, updatedSchema);
+			warnAboutReferenceIndexesMissingStoredEntities(originalSchema, updatedSchema);
 
 			if (updatedSchema.version() > originalSchema.version()) {
 				exchangeSchema(originalSchema, updatedSchema);
@@ -2955,6 +2958,94 @@ public final class EntityCollection implements
 				);
 			}
 		}
+	}
+
+	/**
+	 * Logs a warning for every stored reference the schema change makes indexed or faceted in a scope it was not
+	 * indexed or faceted in before, while the collection holds entities (#1863).
+	 *
+	 * The reference and facet indexes are filled as entity mutations are indexed, and nothing builds them for the
+	 * entities already stored, so filters those indexes serve miss every entity stored before the change. Unlike a
+	 * filter accelerator, which {@link #verifyNoAcceleratorAddedToNonEmptyCollection(EntitySchema, EntitySchema)}
+	 * refuses in the same situation, the change is accepted: applications that define their schema from model
+	 * classes apply it when they start, and refusing it would stop them from starting.
+	 *
+	 * A reference the change creates has no stored data to miss, and a reflected reference that is not bound to its
+	 * original cannot tell the settings it inherits, so neither is reported. {@link #isEmpty()} is consulted only when
+	 * a reference gained such a scope, because it is a storage read.
+	 *
+	 * @param originalSchema the schema as it stood before the mutations were applied
+	 * @param updatedSchema  the schema the mutations produced
+	 */
+	private void warnAboutReferenceIndexesMissingStoredEntities(
+		@Nonnull EntitySchema originalSchema,
+		@Nonnull EntitySchema updatedSchema
+	) {
+		// the storage read is made once, at the first reference that gained a scope
+		boolean emptinessChecked = false;
+		for (final ReferenceSchemaContract updatedReference : updatedSchema.getReferences().values()) {
+			final ReferenceSchemaContract originalReference = originalSchema.getReferences()
+				.get(updatedReference.getName());
+			if (originalReference == null || !hasReadableIndexing(originalReference) ||
+				!hasReadableIndexing(updatedReference)) {
+				continue;
+			}
+			for (final Scope scope : Scope.values()) {
+				final boolean becomesIndexed =
+					updatedReference.isIndexedInScope(scope) && !originalReference.isIndexedInScope(scope);
+				final boolean becomesFaceted =
+					updatedReference.isFacetedInScope(scope) && !originalReference.isFacetedInScope(scope);
+				if (becomesIndexed || becomesFaceted) {
+					if (!emptinessChecked) {
+						if (isEmpty()) {
+							return;
+						}
+						emptinessChecked = true;
+					}
+					log.warn(
+						"Reference `{}` of entity `{}` became {} in scope `{}` while the collection already contains " +
+							"entities! Its indexes are built as entities are indexed and there is no way to build them " +
+							"for entities that are already stored, so filtering by the reference will miss those " +
+							"entities. Declare the setting before inserting data, or load the data into a new catalog " +
+							"that declares it.",
+						updatedReference.getName(), updatedSchema.getName(),
+						describeIndexingGain(becomesIndexed, becomesFaceted), scope
+					);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Describes what a reference gained in a scope for the warning of
+	 * {@link #warnAboutReferenceIndexesMissingStoredEntities(EntitySchema, EntitySchema)}.
+	 *
+	 * @param becomesIndexed whether the reference became indexed in the scope
+	 * @param becomesFaceted whether the reference became faceted in the scope
+	 * @return the description of the gain
+	 */
+	@Nonnull
+	private static String describeIndexingGain(boolean becomesIndexed, boolean becomesFaceted) {
+		if (becomesIndexed && becomesFaceted) {
+			return "indexed and faceted";
+		} else if (becomesIndexed) {
+			return "indexed";
+		} else {
+			return "faceted";
+		}
+	}
+
+	/**
+	 * Returns true when the indexing and faceting of the given reference can be read: a reflected reference that is
+	 * not bound to its original cannot tell the settings it inherits from it.
+	 *
+	 * @param referenceSchema the reference whose settings are to be read
+	 * @return true when the indexing and faceting of the reference can be read
+	 */
+	private static boolean hasReadableIndexing(@Nonnull ReferenceSchemaContract referenceSchema) {
+		return !(referenceSchema instanceof final ReflectedReferenceSchema reflectedReference)
+			|| reflectedReference.isReflectedReferenceAvailable()
+			|| !(reflectedReference.isIndexedInherited() || reflectedReference.isFacetedInherited());
 	}
 
 	/**
