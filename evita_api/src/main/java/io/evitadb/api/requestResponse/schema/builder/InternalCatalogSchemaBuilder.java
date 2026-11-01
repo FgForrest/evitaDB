@@ -216,7 +216,10 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 			.ifPresentOrElse(
 				existingSchema -> ofNullable(whichIs)
 					.ifPresent(schemaBuilder -> {
-							final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(toInstance(), existingSchema).cooperatingWith(() -> this);
+							// the entity builder starts from the entity as this builder holds it: started from the stored
+							// one, it would judge a call restoring a value an earlier call changed as no change and drop it
+							final EntitySchemaContract currentSchema = getEntitySchema(entityType).orElse(existingSchema);
+							final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(toInstance(), currentSchema).cooperatingWith(() -> this);
 							whichIs.accept(builder);
 							builder.toMutation()
 								.ifPresent(

@@ -250,6 +250,20 @@ class CatalogSchemaBuilderTest {
 		assertEquals("changed", product.getDescription());
 	}
 
+	@Test
+	@DisplayName("restore an entity value that an earlier entity schema call changed")
+	void shouldRestoreEntityValueChangedByEarlierCall() {
+		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(catalogSchemaWithProduct())
+			.withEntitySchema(ENTITY_PRODUCT, whichIs -> whichIs.withDescription("changed"));
+		assertEquals("changed", builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT).getDescription());
+
+		// the second call compares with the changed entity, not with the stored one, so the restoring change is kept
+		builder.withEntitySchema(ENTITY_PRODUCT, whichIs -> whichIs.withDescription("original"));
+
+		assertEquals("original", builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT).getDescription());
+		assertTrue(builder.toMutation().isEmpty(), "Restoring the stored description must leave nothing to send.");
+	}
+
 	/**
 	 * Creates a catalog schema with the global attribute `code` and a product entity schema that uses it.
 	 */
