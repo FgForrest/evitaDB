@@ -410,8 +410,10 @@ public class CreateReflectedReferenceSchemaMutation
 												.stream()
 												.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
 												.toArray(ScopedReferenceIndexType[]::new),
-										// null leaves the components inherited, as the created reference has them; the
-										// components it reports for them would be a declaration
+										// beside declared index types null makes the components inherited, as the
+										// created reference has them; beside inherited ones it leaves them as they are,
+										// since no single mutation makes both inherited. Passing the components the
+										// created reference reports would declare them instead
 										createdVersion.isIndexedComponentsInherited()
 											? null
 											: createdVersion.getIndexedComponentsInScopes()

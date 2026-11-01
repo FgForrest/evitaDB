@@ -2334,6 +2334,7 @@ class EntitySchemaBuilderTest {
 			.getReferenceOrThrowException("categoryProducts");
 		assertTrue(reference.isIndexedInherited());
 		assertTrue(reference.isIndexedComponentsInherited());
+		assertEmittedMutationsReproduce(storedSchema, builder);
 	}
 
 	@DisplayName("keep components a builder declares before it makes the indexing of a reflected reference inherited")
@@ -2368,6 +2369,30 @@ class EntitySchemaBuilderTest {
 			),
 			reference.getIndexedComponentsInScopes()
 		);
+		assertEmittedMutationsReproduce(storedSchema, builder);
+	}
+
+	@DisplayName("declare only the indexing set after the indexing of a reflected reference is made inherited")
+	@Test
+	void shouldNotMergeIndexingDeclaredBeforeInheritedIndexingWithOneDeclaredAfter() {
+		final EntitySchemaContract storedSchema = new InternalEntitySchemaBuilder(
+				this.catalogSchema, this.categorySchema
+			)
+			.withReflectedReferenceToEntity("categoryProducts", Entities.PRODUCT, "productCategories")
+			.toInstance();
+		// the inherited indexing in between overrides the first declaration, so the last one alone decides - applied
+		// one by one, the mutations leave the reference indexed in the live scope only
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema)
+			.withReflectedReferenceToEntity(
+				"categoryProducts", Entities.PRODUCT, "productCategories",
+				whichIs -> whichIs
+					.indexedInScope(Scope.LIVE, Scope.ARCHIVED)
+					.indexedInScope((Scope[]) null)
+					.indexedInScope(Scope.LIVE)
+			);
+
+		final ReferenceSchemaContract reference = builder.toInstance().getReferenceOrThrowException("categoryProducts");
+		assertEquals(Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING), reference.getReferenceIndexTypeInScopes());
 		assertEmittedMutationsReproduce(storedSchema, builder);
 	}
 

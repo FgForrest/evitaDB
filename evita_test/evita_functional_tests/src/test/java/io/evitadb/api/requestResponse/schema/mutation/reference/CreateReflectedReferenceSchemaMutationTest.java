@@ -296,7 +296,7 @@ class CreateReflectedReferenceSchemaMutationTest {
 			assertFalse(indexedMutations.isEmpty());
 			for (SetReferenceSchemaIndexedMutation indexedMutation : indexedMutations) {
 				// an empty array would declare no components; null with inherited index types leaves them, which is
-				// all one mutation can say - see #1862
+				// all one mutation can say
 				assertNull(indexedMutation.getIndexedInScopes());
 				assertNull(indexedMutation.getIndexedComponentsInScopes(), String.valueOf(indexedMutation));
 			}

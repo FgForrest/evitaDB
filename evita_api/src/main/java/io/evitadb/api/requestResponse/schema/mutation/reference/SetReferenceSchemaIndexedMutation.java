@@ -124,6 +124,8 @@ public class SetReferenceSchemaIndexedMutation
 	/**
 	 * Creates mutation that controls the indexed flag of the reference schema using a simple
 	 * boolean (applied to the default scope). Null means inherited from the reflected reference.
+	 * The mutation declares no components; the constructor that takes them describes what that means with
+	 * declared and with inherited index types.
 	 */
 	public SetReferenceSchemaIndexedMutation(
 		@Nonnull String name,
@@ -138,6 +140,8 @@ public class SetReferenceSchemaIndexedMutation
 	/**
 	 * Creates mutation that controls indexed flag per scope. Each specified scope gets
 	 * {@link ReferenceIndexType#FOR_FILTERING}. Null means inherited from the reflected reference.
+	 * The mutation declares no components; the constructor that takes them describes what that means with
+	 * declared and with inherited index types.
 	 */
 	public SetReferenceSchemaIndexedMutation(
 		@Nonnull String name,
@@ -156,7 +160,8 @@ public class SetReferenceSchemaIndexedMutation
 
 	/**
 	 * Creates mutation that controls indexed flag with detailed per-scope index type configuration.
-	 * Null means inherited from the reflected reference.
+	 * Null means inherited from the reflected reference. The mutation declares no components; the constructor
+	 * that takes them describes what that means with declared and with inherited index types.
 	 */
 	public SetReferenceSchemaIndexedMutation(
 		@Nonnull String name,
@@ -226,7 +231,22 @@ public class SetReferenceSchemaIndexedMutation
 			if (leavesComponentsAsTheyAre() && !theExistingMutation.leavesComponentsAsTheyAre()) {
 				// the latest mutation inherits the index types and leaves the components as the existing one makes
 				// them - one mutation cannot say both, so both stay and apply one after the other
-				return null;
+				if (theExistingMutation.indexedComponentsInScopes == null
+					&& !ArrayUtils.isEmpty(theExistingMutation.indexedInScopes)) {
+					// this mutation overrides the index types the existing one declares, yet a later index
+					// declaration would still merge them in; only its switch of the components to inherited
+					// still matters, and saying that takes declared index types, so the rewrite declares none -
+					// a form this branch never rewrites again
+					return new MutationCombinationResult<>(
+						new SetReferenceSchemaIndexedMutation(this.name, ScopedReferenceIndexType.EMPTY, null),
+						this
+					);
+				} else {
+					// declared components would survive the inherited index types only in a mutation that says
+					// both, which loses its components over gRPC - the server reads none when the index types
+					// are inherited
+					return null;
+				}
 			} else if (this.indexedInScopes == null) {
 				// the latest mutation says "inherit" — this overrides any prior explicit scopes
 				return new MutationCombinationResult<>(null, this);

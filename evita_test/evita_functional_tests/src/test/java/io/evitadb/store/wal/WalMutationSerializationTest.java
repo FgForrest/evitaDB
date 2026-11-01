@@ -97,6 +97,7 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSche
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.store.shared.kryo.KryoFactory;
+import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 import io.evitadb.store.wal.schema.reference.SetReferenceSchemaIndexedMutationSerializer_2024_11;
 import io.evitadb.store.wal.schema.reference.SetReferenceSchemaIndexedMutationSerializer_2025_5;
 import io.evitadb.store.wal.schema.reference.SetReferenceSchemaIndexedMutationSerializer_2026_1;
@@ -107,13 +108,15 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import java.io.ByteArrayOutputStream;
-import java.util.List;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Currency;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -612,6 +615,44 @@ public class WalMutationSerializationTest {
 					ScopedReferenceIndexedComponents.EMPTY, read.getIndexedComponentsInScopes(),
 					format.getClass().getSimpleName()
 				);
+			}
+		}
+	}
+
+	@Test
+	@DisplayName("Should read a mutation declaring the index types from a format without components as it was written")
+	void shouldReadDeclaredIndexTypesFromFormatWithoutComponentsUnchanged() {
+		// only the mutations inheriting the index types got an empty array of components when these formats were
+		// written - declared index types without components kept the components inherited, and must still do so
+		final MutationSerializationFunctions functions = new MutationSerializationFunctions() { };
+		final ScopedReferenceIndexType[] liveIndexType = {
+			new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+		};
+		// how each format writes the index types of the live scope, after the name and the flag of their presence
+		final List<Map.Entry<Serializer<SetReferenceSchemaIndexedMutation>, Consumer<Output>>> formats = List.of(
+			Map.entry(new SetReferenceSchemaIndexedMutationSerializer_2024_11(), output -> output.writeBoolean(true)),
+			Map.entry(
+				new SetReferenceSchemaIndexedMutationSerializer_2025_5(),
+				output -> functions.writeScopeArray(this.kryo, output, new Scope[]{Scope.LIVE})
+			),
+			Map.entry(
+				new SetReferenceSchemaIndexedMutationSerializer_2026_1(),
+				output -> functions.writeScopedReferenceIndexTypeArray(this.kryo, output, liveIndexType)
+			)
+		);
+		for (Map.Entry<Serializer<SetReferenceSchemaIndexedMutation>, Consumer<Output>> format : formats) {
+			final ByteArrayOutputStream os = new ByteArrayOutputStream(64);
+			try (final Output output = new Output(os, 64)) {
+				output.writeString("reference");
+				output.writeBoolean(true);
+				format.getValue().accept(output);
+			}
+			try (final Input input = new Input(os.toByteArray())) {
+				final SetReferenceSchemaIndexedMutation read =
+					format.getKey().read(this.kryo, input, SetReferenceSchemaIndexedMutation.class);
+				final String formatName = format.getKey().getClass().getSimpleName();
+				assertArrayEquals(liveIndexType, read.getIndexedInScopes(), formatName);
+				assertNull(read.getIndexedComponentsInScopes(), formatName);
 			}
 		}
 	}
