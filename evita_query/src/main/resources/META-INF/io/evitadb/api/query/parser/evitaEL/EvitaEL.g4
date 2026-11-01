@@ -98,8 +98,9 @@ variable
 literal
     : NULL # nullValueToken
     | STRING # stringValueToken
-    | INT # intValueToken
-    | FLOAT # floatValueToken
+    // the sign belongs to the number only where an operand starts, so that `5-3` subtracts
+    | MINUS? INT # intValueToken
+    | MINUS? FLOAT # floatValueToken
     | BOOLEAN # booleanValueToken
     ;
 
@@ -130,8 +131,8 @@ AND : '&&' ;
 OR : '||' ;
 
 NULL : 'null' ;
-INT : '-'? [0-9]+ ;
-FLOAT : '-'? [0-9]* '.' [0-9]+ ;
+INT : [0-9]+ ;
+FLOAT : [0-9]* '.' [0-9]+ ;
 BOOLEAN
     : 'false'
     | 'true'

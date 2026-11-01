@@ -27,6 +27,7 @@ import io.evitadb.api.query.expression.bool.ConjunctionOperator;
 import io.evitadb.api.query.expression.exception.ParserException;
 import io.evitadb.api.query.expression.parser.grammar.EvitaELLexer;
 import io.evitadb.api.query.expression.parser.grammar.EvitaELParser;
+import io.evitadb.api.query.expression.parser.grammar.EvitaELParser.ExpressionContext;
 import io.evitadb.api.query.expression.parser.visitor.DefaultExpressionVisitor;
 import io.evitadb.api.query.parser.exception.BailErrorStrategy;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
@@ -42,6 +43,7 @@ import org.antlr.v4.runtime.misc.ParseCancellationException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.function.Function;
 
 /**
  * The ExpressionFactory interface provides methods for parsing an expression string and generating the corresponding
@@ -53,15 +55,45 @@ import javax.annotation.Nullable;
 public interface ExpressionFactory {
 
 	/**
-	 * Parses a given expression string and returns the corresponding ExpressionNode object.
+	 * Parses a given expression string and returns the corresponding ExpressionNode object. The whole string must be
+	 * one expression: any input following a complete expression is a syntax error.
 	 *
 	 * @param expression the input expression string to be parsed
 	 * @return the ExpressionNode object resulting from parsing the input expression
+	 * @throws EvitaSyntaxException when the string is not an expression as a whole
 	 */
 	@Nonnull
 	static Expression parse(@Nonnull String expression) {
+		return parse(expression, parser -> parser.root().expression());
+	}
+
+	/**
+	 * Parses the text of an expression stored by an earlier version as that version read it: the longest valid prefix,
+	 * ignoring any input following it. Earlier versions accepted such text without an error; reading it this way keeps
+	 * a stored schema readable. Never use it for new input - {@link #parse(String)} refuses what this method drops.
+	 *
+	 * @param storedExpression the stored expression text
+	 * @return the expression its longest valid prefix forms
+	 */
+	@Nonnull
+	static Expression parseStoredPrefix(@Nonnull String storedExpression) {
+		return parse(storedExpression, EvitaELParser::expression);
+	}
+
+	/**
+	 * Parses the given string with the given parser rule.
+	 *
+	 * @param expression the input expression string to be parsed
+	 * @param rule       the parser rule the string is parsed with
+	 * @return the parsed expression
+	 */
+	@Nonnull
+	private static Expression parse(
+		@Nonnull String expression,
+		@Nonnull Function<EvitaELParser, ExpressionContext> rule
+	) {
 		try {
-			final ExpressionNode result = getParser(expression).expression().accept(new DefaultExpressionVisitor());
+			final ExpressionNode result = rule.apply(getParser(expression)).accept(new DefaultExpressionVisitor());
 			Assert.isPremiseValid(
 				result != null,
 				"Result of parse execution is null."

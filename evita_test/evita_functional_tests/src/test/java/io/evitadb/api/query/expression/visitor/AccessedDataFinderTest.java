@@ -94,7 +94,7 @@ public class AccessedDataFinderTest {
 					List.of(new VariablePathItem("entity"), new IdentifierPathItem("references"), new ElementPathItem("brand"), new IdentifierPathItem("attributes"), new ElementPathItem("tag")),
 					List.of(new VariablePathItem("entity"), new IdentifierPathItem("attributes"), new ElementPathItem("fallbackTag"))
 				),
-				"$entity.references['brand']?.*[$.attributes['tag']] ?*? $entity.attributes['fallbackTag'] ?? 'none']"
+				"$entity.references['brand']?.*[$.attributes['tag']] ?*? $entity.attributes['fallbackTag'] ?? 'none'"
 			),
 			Arguments.of(
 				List.of(
