@@ -1104,11 +1104,14 @@ public final class Catalog
 					final CatalogSchemaWithImpactOnEntitySchemas schemaWithImpactOnEntitySchemas = modifyCatalogSchema(
 						theMutation, updatedSchema);
 					updatedSchema = schemaWithImpactOnEntitySchemas.updatedCatalogSchema();
-					modifyEntitySchemaMutations = modifyEntitySchemaMutations == null || ArrayUtils.isEmpty(
-						schemaWithImpactOnEntitySchemas.entitySchemaMutations()) ?
-						schemaWithImpactOnEntitySchemas.entitySchemaMutations() :
-						ArrayUtils.mergeArrays(
-							modifyEntitySchemaMutations, schemaWithImpactOnEntitySchemas.entitySchemaMutations());
+					// a mutation without cascades must not drop the cascades collected from the mutations before it
+					final ModifyEntitySchemaMutation[] cascadedMutations =
+						schemaWithImpactOnEntitySchemas.entitySchemaMutations();
+					if (!ArrayUtils.isEmpty(cascadedMutations)) {
+						modifyEntitySchemaMutations = modifyEntitySchemaMutations == null ?
+							cascadedMutations :
+							ArrayUtils.mergeArrays(modifyEntitySchemaMutations, cascadedMutations);
+					}
 				}
 
 				// finish the recording
