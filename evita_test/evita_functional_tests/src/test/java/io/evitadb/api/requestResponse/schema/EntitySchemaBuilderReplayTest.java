@@ -58,9 +58,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Verifies that the entity schema builder replays its mutations to the same schema the server gets by applying them
  * one by one. The builder applies a run of mutations that change attributes alone to the attributes and builds the
  * entity schema once for the whole run, so these tests compare it with the one-by-one application in everything the
- * schema exposes: content, version, the order of the attributes and the classes they are held as. How fast the
- * replay is gets measured by `EntitySchemaBuilderReplaySpeedTest` in the long-running tests, because time depends on
- * the load of the machine.
+ * schema exposes: content, version, the order of the attributes and the classes they are held as.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
