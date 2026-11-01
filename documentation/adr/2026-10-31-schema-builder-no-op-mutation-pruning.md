@@ -1,7 +1,7 @@
 ---
 title: Schema builders drop the mutations that leave their level of the schema unchanged, judged by value at toMutation()
 date: 2026-10-31
-updated: 2026-11-01 01:14
+updated: 2026-11-01 08:55
 status: accepted
 kind: fix
 issues: [1843, 1845, 1846, 1847, 1848, 1849, 1850, 1851, 1852, 1853, 1854, 1859, 1860]
@@ -181,12 +181,18 @@ issue and commit.
   check as d8e18f9da2 did (reverted the same day after 1733 failed tests), keeps the second definition of a reference
   created in the same builder working. Switching the reference builder to create mode by itself was rejected: its
   base would be the removed stored reference, whose settings the new one would silently inherit. The re-creation
-  reached code no builder sequence reached before: `ModifyReferenceAttributeSchemaMutation` and its compound
-  counterpart returned copies instead of the examined mutation, which made `addMutations` combine the same pair
-  forever, and compared a re-created attribute with the entity's attribute of that name. The managed flag of a
-  re-created reference was dropped as well, and so was a change of an attribute's indexed decimal places alone, of an
-  entity and of a global attribute alike (the collapse compared the type only, although the type mutation carries
-  both; `AbstractAttributeSchemaMutation.makeTypeMutationIfDifferent` now compares them for both).
+  reached code no builder sequence reached before. `ModifyReferenceAttributeSchemaMutation` and its compound
+  counterpart dropped the discarded flag of the mutation they wrap and compared a re-created attribute with the
+  entity's attribute of that name. A round of `addMutations` whose combination queued mutations for the next round
+  went on appending the rest of the round, which it had queued too. When the index type and the indexed components
+  of the re-created reference both changed, the two index mutations merged mid-round and the next round met the
+  appended mutations with themselves, taking turns forever; with an attribute on the reference, the discarded flag
+  of its removal hid the loop and lost the change of the faceting instead. The round now ends at the combination
+  that queues. An earlier version of this record blamed the copies the wrappers returned: a variant that always
+  returns copies passes every re-create test, and the wrappers that returned the same instance looped as well. The
+  managed flag of a re-created reference was dropped too, and so was a change of an attribute's indexed decimal
+  places alone, of an entity and of a global attribute alike (the collapse compared the type only, although the type
+  mutation carries both; `AbstractAttributeSchemaMutation.makeTypeMutationIfDifferent` now compares them for both).
 - **A second `withReferenceTo` call** on an existing reference (#1850) appended the mutations of the first call after
   its own, so a restored value lost; they now come first.
 - **`ClassSchemaAnalyzer`** clears stored partial faceting and bucketing a model no longer declares (#1854).
@@ -244,9 +250,11 @@ issue and commit.
   websocket timeout and passed 13 of 13 when its class was re-run alone; it creates a new collection, which the
   pruning never touches.
 - Each follow-up commit carries a test that was red before its fix; the commit messages name them. Among them:
-  `EntitySchemaBuilderTest` re-creates stored standard and reflected references (a test of it looped forever before
-  the wrapper fix), `EvitaClientSchemaRedefinitionTest` re-creates a reference over gRPC in one update and checks that
-  the stored references, their attributes and the index answering a filter on them survive,
+  `EntitySchemaBuilderTest` re-creates stored standard and reflected references and compares the result with the same
+  definition in a fresh builder, before and after applying the emitted mutations (two of its tests hung in
+  `addMutations` and one lost the faceting before the round fix), `EvitaClientSchemaRedefinitionTest` re-creates a
+  reference over gRPC in one update and checks that the stored references, their attributes and the index answering
+  a filter on them survive, and makes a stored plain reference indexed and faceted and plain again over gRPC,
   `ExpressionTextGroupingTest` pins the precedence levels against the parser for every pair of operators (588 parsed
   texts unchanged; 347 cases over composed trees were red before), and `CatalogSchemaBuilderTest` covers the
   cascade order.
@@ -257,17 +265,18 @@ issue and commit.
 - `EntitySchemaBuilderReplayTest` compares the batched replay with the one-by-one application in content, version,
   attribute order (500 attributes; it fails when the run does not move a changed attribute to the end) and attribute
   classes. Restoring a property of 800 attributes takes about 40 s of processor time without the batching and about
-  3.5 s with it on an idle machine, JaCoCo agent attached. `EntitySchemaBuilderReplaySpeedTest` in the long-running
-  tests fails above 15 s; it cannot live in the fast suite, where a loaded run took 77 s of processor time.
+  3.5 s with it on an idle machine, JaCoCo agent attached, and 1.2 to 1.3 s without the agent. No test guards that
+  time: a guard failing above 15 s was dropped, because a loaded run of the fast suite took 77 s of processor time.
 - Five data-dependent functional tests (`EntityByAttributeFilteringFunctionalTest`, its partitioning variant,
   `EvitaSessionServiceFunctionalTest`) failed with an attribute order changed to definition order and pass with the
   order kept; see the rejected option of the batched replay.
 - The fast functional suite over the follow-ups, before the third adversarial pass: 32 462 tests, 0 failures,
-  7 errors - the replay speed guard (moved to the long-running tests since), `ExportS3ServiceTest` without Docker,
+  7 errors - the replay speed guard (dropped since), `ExportS3ServiceTest` without Docker,
   and five GraphQL subscription tests with a websocket session timeout, which pass when their classes run alone.
 - On the final tree every functional test tagged `schema`, `attribute`, `reference`, `driver`, `grpc` or `expression`
-  (excluding `slow` and `flaky`) passes - 13 405 tests - except two GraphQL subscription tests whose websocket client
-  timed out creating its TLS session, before any schema call. Their two classes pass alone, 31 of 31 tests.
+  (excluding `slow` and `flaky`) passes: 13 408 tests, 0 failures, 0 errors, with the round fix of `addMutations`.
+  The run before that fix failed only two GraphQL subscription tests whose websocket client timed out creating its
+  TLS session, before any schema call; their two classes pass alone, 31 of 31 tests.
 - Removing the `indexedPricePlaces` comparison from `SchemaContentComparator` makes exactly the matching
   genuine-change scenario fail, so the property scenarios can fail.
 
@@ -280,11 +289,16 @@ fixed:
 - `ExpressionFactory.parse` silently ignores trailing input (#1856).
 - The gRPC query converter sends an expression argument in its quoted form (#1857), and the generated `spacing`
   examples pass quoted expressions to `ExpressionFactory.parse` (#1858).
-- When a combination in `InternalSchemaBuilderHelper.addMutations` dismantles the examined mutation, the mutations
-  after it in the same round are processed in that round and queued for the next one as well. A mutation combined
-  with itself replaces itself, which makes that harmless; the copies the reference attribute wrapper returned turned
-  it into the endless loop of #1849. Anything that combines a mutation with itself into something else would loop
-  again.
+- Since `addMutations` ends a round at the combination that queues, a plain reference re-created as indexed and
+  faceted emits the change of the faceting before the change of the indexing. The server accepts that order only
+  because the map-based `ReferenceSchema._internalBuild` does not check faceting against indexing, as the array-based
+  one does. Adding that check there breaks
+  `EntitySchemaBuilderTest.shouldRecreateRemovedStoredPlainReferenceAsIndexedFacetedReference` and
+  `EvitaClientSchemaRedefinitionTest.shouldIndexFacetAndPlainAgainReferenceRecreatedInOneUpdate` unless the order
+  changes first.
+- The discarded flag of `addMutations` still applies to the rest of the examination of one mutation, not to the
+  combination that set it. That is harmless while every combination setting it also queues the examined mutation,
+  which ends the round; all five that set it do.
 - `Catalog.updateSchema` loses the cascades collected before a catalog mutation without cascades in the same batch
   (#1861): removing a global attribute and then changing the catalog description leaves the attribute in the entity
   schemas. The builders apply every cascade, so their state differs from the server's for such a batch until #1861
@@ -314,3 +328,5 @@ analyzer and the builders until they upgrade.
 - **2026-10-31** — #1843 filed; Option A chosen and implemented
 - **2026-10-31** — follow-ups #1845 to #1854, #1859 and #1860 fixed in #1844; #1855 to #1858 filed
 - **2026-11-01** — third and fourth adversarial pass over the follow-ups, their findings fixed in #1844; #1861 filed
+- **2026-11-01** — the endless loop of #1849 traced with a debugger to the rounds of `addMutations`, not to the
+  wrappers, and fixed there
