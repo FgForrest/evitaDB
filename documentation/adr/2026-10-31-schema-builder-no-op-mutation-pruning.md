@@ -1,7 +1,7 @@
 ---
 title: Schema builders drop the mutations that leave their level of the schema unchanged, judged by value at toMutation()
 date: 2026-10-31
-updated: 2026-11-02 09:58
+updated: 2026-11-02 11:43
 status: accepted
 kind: fix
 issues: [1837, 1843, 1845, 1846, 1847, 1848, 1849, 1850, 1851, 1852, 1853, 1854, 1855, 1856, 1857, 1858, 1859, 1860, 1861, 1862, 1863, 1864, 1865, 1868]
@@ -296,13 +296,22 @@ issue and commit.
   collection the rename is accepted with a warning, as #1863 is. Rejected: refusing the rename over stored entities,
   because a WAL written by an older version may replay one and the catalog would not load; moving the values and
   indexes, for which the engine has no machinery (#409); and renaming the elements of a compound along with the
-  attribute, because the compound's values would stay computed from the old name.
+  attribute, because the compound's values would stay computed from the old name. The move made the rename the one
+  cascaded mutation that cannot be applied twice: the WAL records a global mutation together with the entity schema
+  modifications it cascaded into, and its replay - the trunk incorporation of a live catalog as well as a restart -
+  cascades the global mutation again before it reaches the recorded ones. The entity level therefore leaves a rename
+  the entity schema already went through as it is. Rejected: recording no cascades, because the logs already written
+  carry them and every other cascaded mutation is idempotent. A reflected reference whose original does not exist
+  yet is checked against its declared attributes alone, since its inherited ones cannot be resolved; a compound left
+  naming a missing attribute is refused by the validation of the final schema.
 - **String literals** (#1865): `EvitaDataTypes.formatValue` escaped only the apostrophe. Stored expressions and
   expression arguments over gRPC are their trees printed again, so a constant with a backslash or a control
   character read back as another value or not at all, and a catalog holding one failed to open. The printing
   escapes the backslash and the control characters the way `StringUtils#translateEscapes` reads them back; the
   storage format is unchanged. Rejected: a tolerant read of text already stored, since `'C:\new'` on disk cannot
-  tell a line break from a backslash.
+  tell a line break from a backslash. The same printing writes the keys of a `Map` with `Character` keys in
+  associated data, so the conversion back to `Character` reads an escaped literal too; the three-character form is
+  read first, because older versions wrote a backslash unescaped as `'\'`.
 - **Attribute removal** (#1868): the entity and reference schema builders refuse to remove an attribute a sortable
   attribute compound is made of, but `RemoveAttributeSchemaMutation` checked nothing. A raw mutation - which is what
   the gRPC, GraphQL and REST schema APIs send - and the removal of a global attribute, which the catalog builder does
@@ -313,7 +322,10 @@ issue and commit.
   then the attribute, also within one batch. Rejected: checking compound elements in `EntitySchema#validate`, which
   is order-insensitive, because the validation runs at the session close, where in warm-up no transaction rolls the
   schema back; and removing the compounds along with the attribute, which silently changes which orderings exist
-  and contradicts the builders' refusal.
+  and contradicts the builders' refusal. `ClassSchemaAnalyzer` emits the catalog mutations before the entity
+  mutations, so a schema post-processor removing a compound and the global attribute it is made of was refused; the
+  analyzer now emits those compound removals first. Rejected: moving the global removal behind the entity mutations,
+  which breaks a local attribute created in place of the removed global one (#1861).
 
 ## Verification
 
@@ -403,7 +415,16 @@ issue and commit.
 - `AttributeRemovalTest` (#1868) was red in five of its eight tests before the fix: the raw entity and reference
   removals and both global removals were accepted, and a refused global removal left the entity schemas the cascade
   had reached before the refusing one without the attribute. `AttributeRenameTest` gained the same test for a
-  global rename, red before the up-front verification.
+  global rename, red before the up-front verification. Both are parameterised over which entity type refuses, so
+  they do not depend on the order the catalog lists the entity types in.
+- The final adversarial and quality passes over #1864, #1865 and #1868 found five more defects, each covered by a
+  test that was red first: `AttributeRenameTest#shouldRenameGlobalAttributeInLiveCatalogAndAfterRestart` (a live
+  global rename failed at trunk incorporation),
+  `#shouldRenameDeclaredAttributeOfReflectedReferenceBeforeItsOriginalExists`,
+  `#shouldNotWarnAboutRenameToTheSameName`,
+  `AttributeRemovalTest#shouldRemoveEntityCompoundAndGlobalAttributeFromSchemaPostProcessor`, and
+  `EvitaDataTypesTest#shouldConvertFormattedCharBack` with
+  `ComplexDataObjectConverterTest#shouldSerializeAndDeserializeMapWithCharacterKeys`.
 - On the final tree the functional tests tagged `schema`, `attribute`, `reference`, `driver`, `grpc`, `expression`,
   `indexing`, `facet`, `transaction`, `wal`, `query`, `data_type`, `traffic_engine` or `serialization` (excluding
   `slow` and `flaky`, `largeMachine`) ran 27 980 tests: 0 failures, 9 errors. All nine are GraphQL subscription tests
@@ -459,6 +480,17 @@ Every follow-up listed in #1843 except the server-side guard is fixed here, and 
   (#1865): changed, or failing the catalog load.
 - A catalog whose compound already names a removed attribute (#1868) stays unwritable for that collection until the
   compound is removed; removing it works.
+- The refusals of #1864 and #1868 apply to the replay of the WAL as well: a WAL tail written by an older version that
+  holds a rename or a removal of an attribute a compound is made of fails to replay after the upgrade, and so does
+  an older rename that the move semantics now refuse. A restart replays what was committed after the last
+  checkpoint (`checkpointIntervalInMillis`, one second by default), so only such a change in that window before the
+  old version stopped is affected; wait one checkpoint interval after the last schema change before stopping it.
+  Rejected for now: tolerating the refusals during a replay - the engine has no marker telling a replay from a live
+  session at the level of the schema mutations.
+- A rename or removal of an attribute of a reference that a reflected reference of another entity inherits and
+  declares a compound over is not refused up front: the reference attribute mutation sees no other entity schema.
+  The validation of the final schema refuses the result at the session close, which in warm-up leaves the catalog
+  unpublishable until the compound is removed.
 - The entity builder's replay is still quadratic: every replay re-applies the whole list, and `addMutations` scans
   the list for every new mutation. Restoring a property of 800 attributes takes about three seconds. Runs of
   reference mutations are not batched, and neither are global attributes in the catalog builder.
@@ -498,3 +530,6 @@ analyzer and the builders until they upgrade.
   fixed in #1844; a rename over stored entities warns, as #1863 does
 - **2026-11-02** — #1868 (a raw or global attribute removal left a compound naming the missing attribute) filed and
   fixed in #1844; the global rename and removal verify every entity schema using the attribute before any changes
+- **2026-11-02** — the final adversarial and quality passes over #1864, #1865 and #1868: a live global rename failed
+  at trunk incorporation and is fixed, with four smaller defects; the replay of an older WAL is documented, the
+  reflected-reference compound of another entity left to the session-close validation
