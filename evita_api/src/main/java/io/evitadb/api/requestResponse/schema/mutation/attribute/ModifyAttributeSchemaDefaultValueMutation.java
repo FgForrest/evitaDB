@@ -195,34 +195,26 @@ public class ModifyAttributeSchemaDefaultValueMutation
 		}
 	}
 
+	/**
+	 * Applies the new default value to the attribute of the entity schema - an attribute of its own, or a global
+	 * attribute it uses, which stays global: the attribute-level mutation builds the updated attribute in the class
+	 * of the existing one. A change of the default value of a global attribute cascades here from the catalog schema
+	 * into every entity schema using it.
+	 *
+	 * @throws InvalidSchemaMutationException when the attribute does not exist or the value cannot be converted to
+	 *                                        its type
+	 */
 	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final EntityAttributeSchema existingAttributeSchema = entitySchema.getAttribute(this.name)
-			.map(EntityAttributeSchema.class::cast)
+		final EntityAttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(this.name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
 				"The attribute `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			));
 		try {
-			final Serializable theDefaultValue = EvitaDataTypes.toTargetType(this.defaultValue, existingAttributeSchema.getType());
-			@SuppressWarnings({"unchecked", "rawtypes"})
-			final EntityAttributeSchema updatedAttributeSchema = EntityAttributeSchema._internalBuild(
-				this.name,
-				existingAttributeSchema.getNameVariants(),
-				existingAttributeSchema.getDescription(),
-				existingAttributeSchema.getDeprecationNotice(),
-				existingAttributeSchema.getUniquenessTypeInScopes(),
-				existingAttributeSchema.getFilterableInScopes(),
-				existingAttributeSchema.getAcceleratorsInScopes(),
-				existingAttributeSchema.getSortableInScopes(),
-				existingAttributeSchema.isLocalized(),
-				existingAttributeSchema.isNullable(),
-				existingAttributeSchema.isRepresentative(),
-				(Class) existingAttributeSchema.getType(),
-				theDefaultValue,
-				existingAttributeSchema.getIndexedDecimalPlaces(),
-				existingAttributeSchema.getConflictResolutionOverride()
+			final EntityAttributeSchemaContract updatedAttributeSchema = mutate(
+				catalogSchema, existingAttributeSchema, EntityAttributeSchemaContract.class
 			);
 			return replaceAttributeIfDifferent(
 				entitySchema, existingAttributeSchema, updatedAttributeSchema
