@@ -52,16 +52,18 @@ import java.io.Serial;
 /**
  * Mutation is responsible for renaming an existing {@link AttributeSchemaContract} in {@link EntitySchemaContract}
  * or {@link GlobalAttributeSchemaContract} in {@link CatalogSchemaContract}.
- * The attribute is moved to the new name, not copied next to the original. The rename is refused with
- * `InvalidSchemaMutationException` when another attribute holds the new name, when a sortable attribute compound of
- * the entity or of the reference is made of the attribute, and in a reflected reference for an attribute it inherits,
- * which can be renamed only in the original reference. The values the stored entities hold for the attribute, and
- * the indexes built from them, stay under the old name until the entities are indexed again - the entity collection
- * logs a warning when it holds any.
  * Mutation can be used for altering also the existing {@link AttributeSchemaContract} or
  * {@link GlobalAttributeSchemaContract} alone.
  * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * if the mutation is placed twice in the mutation pipeline.
+ *
+ * The attribute is moved to the new name, not copied next to the original. The rename is refused with
+ * `InvalidSchemaMutationException` when another attribute holds the new name, when a sortable attribute compound of
+ * the entity or of the reference is made of the attribute, and in a reflected reference for an attribute it inherits,
+ * which can be renamed only in the original reference. While the original of a reflected reference does not exist
+ * yet, its compounds are not checked: a compound left naming a missing attribute is refused by the validation of the
+ * final schema. The values the stored entities hold for the attribute, and the indexes built from them, stay under
+ * the old name until the entities are indexed again - the entity collection logs a warning when it holds any.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

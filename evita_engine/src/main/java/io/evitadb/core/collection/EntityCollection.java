@@ -3048,8 +3048,10 @@ public final class EntityCollection implements
 	 * accepted rather than refused. A rename of a global attribute reaches the collection as the rename of the
 	 * attribute in the entity, so it is reported here too.
 	 *
-	 * An attribute the same update creates holds no stored values, so only an attribute the original schema declares
-	 * is reported. {@link #isEmpty()} is consulted only when there is such a rename, because it is a storage read.
+	 * A rename to the name the attribute already has moves nothing and is not reported. An attribute the same update
+	 * creates holds no stored values, so only an attribute the original schema declares is reported - for a reflected
+	 * reference, one it declares itself (see {@link #isAttributeDeclared(EntitySchema, String, String)}).
+	 * {@link #isEmpty()} is consulted only when there is such a rename, because it is a storage read.
 	 *
 	 * @param originalSchema the schema as it stood before the mutations were applied
 	 * @param updatedSchema  the schema the mutations produced
@@ -3082,18 +3084,7 @@ public final class EntityCollection implements
 				// a rename to the name the attribute already has leaves the schema and the stored values as they are
 				continue;
 			}
-			// a reflected reference renames only the attributes it declares, and its inherited ones cannot be read
-			// before its original reference exists
-			final boolean declaredBefore = referenceName == null ?
-				originalSchema.getAttribute(rename.getName()).isPresent() :
-				originalSchema.getReference(referenceName)
-					.map(
-						reference -> reference instanceof ReflectedReferenceSchema reflectedReference ?
-							reflectedReference.getDeclaredAttributes().containsKey(rename.getName()) :
-							reference.getAttribute(rename.getName()).isPresent()
-					)
-					.orElse(false);
-			if (!declaredBefore) {
+			if (!isAttributeDeclared(originalSchema, referenceName, rename.getName())) {
 				continue;
 			}
 			if (!emptinessChecked) {
@@ -3115,6 +3106,35 @@ public final class EntityCollection implements
 					rename.getName(), referenceName, updatedSchema.getName(), rename.getNewName()
 				);
 			}
+		}
+	}
+
+	/**
+	 * Returns true when the schema declares the attribute - at the entity level, or in the reference when a reference
+	 * name is given.
+	 *
+	 * @param schema        the entity schema to look the attribute up in
+	 * @param referenceName the name of the reference holding the attribute, null for an attribute of the entity
+	 * @param attributeName the name of the attribute
+	 * @return true when the attribute is declared, false also when the schema holds no reference of that name
+	 */
+	private static boolean isAttributeDeclared(
+		@Nonnull EntitySchema schema,
+		@Nullable String referenceName,
+		@Nonnull String attributeName
+	) {
+		if (referenceName == null) {
+			return schema.getAttribute(attributeName).isPresent();
+		}
+		final Optional<ReferenceSchemaContract> reference = schema.getReference(referenceName);
+		if (reference.isEmpty()) {
+			return false;
+		} else if (reference.get() instanceof final ReflectedReferenceSchema reflectedReference) {
+			// a reflected reference renames only the attributes it declares, and its inherited ones cannot be read
+			// before its original reference exists
+			return reflectedReference.getDeclaredAttributes().containsKey(attributeName);
+		} else {
+			return reference.get().getAttribute(attributeName).isPresent();
 		}
 	}
 

@@ -146,9 +146,9 @@ final class AttributeSchemaMutationVerifier {
 	 * {@link ReferenceAttributeSchemaMutation#getReferenceAttributeSchema(ReferenceSchemaContract, String)} refuses it
 	 * first, as it can be renamed only in the original reference.
 	 *
-	 * While the original of a reflected reference does not exist yet, its inherited attributes and compounds cannot be
-	 * resolved, so only the declared attributes are checked for the new name; a compound left naming a missing
-	 * attribute is refused by the validation of the final schema.
+	 * While the original of a reflected reference does not exist yet, the attributes it inherits are not known, so
+	 * only the declared attributes are checked for the new name. No compound is checked then, not even a declared one:
+	 * a compound left naming a missing attribute is refused by the validation of the final schema.
 	 *
 	 * @param entitySchema    the entity schema holding the reference
 	 * @param referenceSchema the reference schema the attribute is renamed in
