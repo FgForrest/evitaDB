@@ -27,12 +27,16 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SortableAttributeCompoundSchemaException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 /**
  * The checks a rename by {@link ModifyAttributeSchemaNameMutation} and a removal by
@@ -52,6 +56,31 @@ final class AttributeSchemaMutationVerifier {
 
 	private AttributeSchemaMutationVerifier() {
 		// static utility
+	}
+
+	/**
+	 * Returns the entity schemas using the global attribute - the ones holding the global attribute itself under its
+	 * name. An entity schema with an attribute of its own of that name keeps it, so a change of the global attribute
+	 * neither reaches nor is verified in it. Both the verification and the cascade of a global change are built from
+	 * this list.
+	 *
+	 * @param entitySchemaAccessor the provider of the entity schemas of the catalog
+	 * @param name                 the name of the global attribute
+	 * @return the entity schemas using the global attribute, in the order the provider lists them
+	 */
+	@Nonnull
+	static List<EntitySchemaContract> entitySchemasUsingGlobalAttribute(
+		@Nonnull EntitySchemaProvider entitySchemaAccessor,
+		@Nonnull String name
+	) {
+		final Collection<EntitySchemaContract> entitySchemas = entitySchemaAccessor.getEntitySchemas();
+		final List<EntitySchemaContract> usingEntitySchemas = new ArrayList<>(entitySchemas.size());
+		for (final EntitySchemaContract entitySchema : entitySchemas) {
+			if (entitySchema.getAttribute(name).filter(GlobalAttributeSchemaContract.class::isInstance).isPresent()) {
+				usingEntitySchemas.add(entitySchema);
+			}
+		}
+		return usingEntitySchemas;
 	}
 
 	/**
@@ -111,10 +140,11 @@ final class AttributeSchemaMutationVerifier {
 	}
 
 	/**
-	 * Refuses a rename of a reference attribute to the name of another attribute of the reference, a rename of an
-	 * attribute a sortable attribute compound of the reference is made of, and a rename of an attribute a reflected
-	 * reference inherits from its original - the inherited attribute would stay next to the renamed copy, and it can be
-	 * renamed only in the original reference.
+	 * Refuses a rename of a reference attribute to the name of another attribute of the reference, and a rename of an
+	 * attribute a sortable attribute compound of the reference is made of. An attribute a reflected reference inherits
+	 * from its original never gets here: the lookup of
+	 * {@link ReferenceAttributeSchemaMutation#getReferenceAttributeSchema(ReferenceSchemaContract, String)} refuses it
+	 * first, as it can be renamed only in the original reference.
 	 *
 	 * While the original of a reflected reference does not exist yet, its inherited attributes and compounds cannot be
 	 * resolved, so only the declared attributes are checked for the new name; a compound left naming a missing
@@ -133,14 +163,6 @@ final class AttributeSchemaMutationVerifier {
 		@Nonnull String newName
 	) {
 		final String owner = "reference `" + referenceSchema.getName() + "` of entity `" + entitySchema.getName() + "`";
-		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema &&
-			!reflectedReferenceSchema.getDeclaredAttributes().containsKey(name)) {
-			throw new InvalidSchemaMutationException(
-				"The attribute `" + name + "` of " + owner + " is inherited from reference `" +
-					reflectedReferenceSchema.getReflectedReferenceName() + "` of entity `" +
-					reflectedReferenceSchema.getReferencedEntityType() + "` and can be renamed only there!"
-			);
-		}
 		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema &&
 			!reflectedReferenceSchema.isReflectedReferenceAvailable()) {
 			if (reflectedReferenceSchema.getDeclaredAttributes().containsKey(newName)) {
@@ -183,8 +205,6 @@ final class AttributeSchemaMutationVerifier {
 
 	/**
 	 * Refuses a removal of a reference attribute that a sortable attribute compound of the reference is made of.
-	 * An attribute a reflected reference inherits from its original is not removed by the mutation at all, so there
-	 * is nothing to refuse.
 	 *
 	 * @param entitySchema    the entity schema holding the reference
 	 * @param referenceSchema the reference schema the attribute is removed from
@@ -196,10 +216,6 @@ final class AttributeSchemaMutationVerifier {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull String name
 	) {
-		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema &&
-			!reflectedReferenceSchema.getDeclaredAttributes().containsKey(name)) {
-			return;
-		}
 		verifyRemovalNotInCompound(
 			referenceSchema.getSortableAttributeCompoundsForAttribute(name),
 			"The attribute `" + name + "` of reference `" + referenceSchema.getName() + "` of entity `" +

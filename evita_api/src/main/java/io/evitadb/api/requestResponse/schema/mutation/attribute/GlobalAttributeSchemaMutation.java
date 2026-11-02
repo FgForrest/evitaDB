@@ -37,7 +37,6 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
@@ -109,16 +108,8 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 			return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 		} else {
 			final String existingName = existingAttributeSchema.getName();
-			// only the entity schemas using the global attribute - one with an attribute of its own of that name keeps
-			// it as it is
-			final List<EntitySchemaContract> usingEntitySchemas = new ArrayList<>();
-			for (final EntitySchemaContract entitySchema : entitySchemaAccessor.getEntitySchemas()) {
-				if (entitySchema.getAttribute(existingName)
-					.filter(GlobalAttributeSchemaContract.class::isInstance)
-					.isPresent()) {
-					usingEntitySchemas.add(entitySchema);
-				}
-			}
+			final List<EntitySchemaContract> usingEntitySchemas =
+				AttributeSchemaMutationVerifier.entitySchemasUsingGlobalAttribute(entitySchemaAccessor, existingName);
 			if (!existingName.equals(updatedAttributeSchema.getName())) {
 				AttributeSchemaMutationVerifier.verifyRenameInCatalog(
 					catalogSchema, usingEntitySchemas, existingName, updatedAttributeSchema.getName()
