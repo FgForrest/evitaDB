@@ -1,12 +1,12 @@
 ---
 title: Schema builders drop the mutations that leave their level of the schema unchanged, judged by value at toMutation()
 date: 2026-10-31
-updated: 2026-11-01 22:34
+updated: 2026-11-02 08:31
 status: accepted
 kind: fix
-issues: [1837, 1843, 1845, 1846, 1847, 1848, 1849, 1850, 1851, 1852, 1853, 1854, 1855, 1856, 1857, 1858, 1859, 1860, 1861, 1862, 1863]
+issues: [1837, 1843, 1845, 1846, 1847, 1848, 1849, 1850, 1851, 1852, 1853, 1854, 1855, 1856, 1857, 1858, 1859, 1860, 1861, 1862, 1863, 1864, 1865]
 prs: [1844]
-areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/schema/builder, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReflectedReferenceSchema.java, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ClassSchemaAnalyzer.java, evita_query/src/main/java/io/evitadb/api/query/expression, evita_external_api/evita_external_api_grpc/shared, evita_engine/src/main/java/io/evitadb/core/collection/EntityCollection.java, evita_engine/src/main/java/io/evitadb/core/catalog/Catalog.java, evita_query/src/main/resources/META-INF/io/evitadb/api/query/parser/evitaEL, evita_store/evita_store_server/src/main/java/io/evitadb/store/shared/serializer/dataType/ExpressionSerializer.java]
+areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/schema/builder, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReflectedReferenceSchema.java, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ClassSchemaAnalyzer.java, evita_query/src/main/java/io/evitadb/api/query/expression, evita_external_api/evita_external_api_grpc/shared, evita_engine/src/main/java/io/evitadb/core/collection/EntityCollection.java, evita_engine/src/main/java/io/evitadb/core/catalog/Catalog.java, evita_query/src/main/resources/META-INF/io/evitadb/api/query/parser/evitaEL, evita_store/evita_store_server/src/main/java/io/evitadb/store/shared/serializer/dataType/ExpressionSerializer.java, evita_common/src/main/java/io/evitadb/dataType/EvitaDataTypes.java]
 supersedes: []
 superseded-by: []
 relates: []
@@ -271,7 +271,7 @@ issue and commit.
   refused where it fails, after the cascade. Rejected: a preflight refusing it before anything is applied, by the
   class of the mutations - it was tried and taken out, because it also refused valid batches: a local attribute
   created in place of the removed global one and then changed, and a change of the old name after a rename, which
-  keeps the old attribute (see `EntityCollection`); and a dry run of the whole batch over copies of the schemas,
+  kept the old attribute until #1864; and a dry run of the whole batch over copies of the schemas,
   which would decide it exactly, for warm-up alone - warm-up applies a failed batch partly in other ways as well (see
   Consequences), and a dry run is worth its code only as a general answer to that. With the cascades at their
   position, a catalog builder whose
@@ -284,6 +284,23 @@ issue and commit.
   and a failed schema update left the mutations it had registered in the transaction, so a session catching the
   error and committing wrote a batch its replay refused - the transaction is marked rollback-only now, which also
   closes #1837, the same failure raised by the rebinding of a reflected reference.
+- **Attribute rename** (#1864): the `replaceAttributeIfDifferent` helpers of the global, entity and reference
+  attribute mutations took the existing attribute out by the name of the updated one, so a rename added a copy next
+  to the original - which is why a change of the old name after a rename passed the #1861 batches. They take it out
+  by its own name, and `AttributeRenameVerifier` refuses a rename to a name another attribute holds, of an attribute
+  a sortable attribute compound is made of (every later upsert fails on a compound naming a missing attribute), and
+  of an attribute a reflected reference inherits. The rename overrides the entity-level `mutate`, which keeps it out
+  of the entity builder's batched runs. Nothing moves the stored values or their indexes; over a populated
+  collection the rename is accepted with a warning, as #1863 is. Rejected: refusing the rename over stored entities,
+  because a WAL written by an older version may replay one and the catalog would not load; moving the values and
+  indexes, for which the engine has no machinery (#409); and renaming the elements of a compound along with the
+  attribute, because the compound's values would stay computed from the old name.
+- **String literals** (#1865): `EvitaDataTypes.formatValue` escaped only the apostrophe. Stored expressions and
+  expression arguments over gRPC are their trees printed again, so a constant with a backslash or a control
+  character read back as another value or not at all, and a catalog holding one failed to open. The printing
+  escapes the backslash and the control characters the way `StringUtils#translateEscapes` reads them back; the
+  storage format is unchanged. Rejected: a tolerant read of text already stored, since `'C:\new'` on disk cannot
+  tell a line break from a backslash.
 
 ## Verification
 
@@ -364,6 +381,12 @@ issue and commit.
   `EvitaClientSchemaRedefinitionTest` (#1862 over gRPC), `ReferenceIndexedAfterDataTest` (#1863, gained components),
   and `ReflectedReferenceLocalDeclarationsFunctionalTest` (#1837: without the rollback-only mark the session that
   caught the refusal reads as not rollback-only and its close fails).
+- `AttributeRenameTest` (#1864) was red in nine of its ten tests before the fix: the renamed global, entity,
+  reference and reflected-reference attributes kept their original, no refusal fired and no warning was logged;
+  `AttributeFilterAcceleratorRefusalTest` pins the rename of an accelerated attribute on an empty and a populated
+  collection. `ExpressionStringConstantRoundTripTest`, `EvitaDataTypesTest` and `QueryConverterTest` (#1865) were red
+  without the fix, including the catalog that did not open after a restart and the expression the server could not
+  parse.
 - On the final tree the functional tests tagged `schema`, `attribute`, `reference`, `driver`, `grpc`, `expression`,
   `indexing`, `facet`, `transaction`, `wal` or `query` (excluding `slow` and `flaky`, `largeMachine`) ran 25 222
   tests: 0 failures, 11 errors. All eleven are GraphQL and REST subscription tests whose client failed the TLS
@@ -408,8 +431,13 @@ Every follow-up listed in #1843 except the server-side guard is fixed here, and 
   removes that entity. The replay, which applies every mutation on its own, refuses it the same way; reorder the
   batch.
 - A catalog builder whose replay cascaded into an entity schema emits every collected mutation, even when the batch
-  as a whole changes nothing - renaming two global attributes with equal settings A to B and B back to A emits both
-  renames, since a rename keeps its source. Re-defining a schema never renames, so #1843 stays fixed.
+  as a whole changes nothing - renaming a global attribute an entity uses from A to B and back to A emits both
+  renames. Re-defining a schema never renames, so #1843 stays fixed.
+- An attribute renamed while the collection holds entities keeps their values and indexes under the old name until a
+  full reindex (#1864, #409); only the warning tells. A catalog written before #1864 keeps the old attribute next to
+  the renamed one until it is removed by hand.
+- An expression already stored with a backslash or a control character in a string constant is read as before
+  (#1865): changed, or failing the catalog load.
 - The entity builder's replay is still quadratic: every replay re-applies the whole list, and `addMutations` scans
   the list for every new mutation. Restoring a property of 800 attributes takes about three seconds. Runs of
   reference mutations are not batched, and neither are global attributes in the catalog builder.
@@ -445,3 +473,5 @@ analyzer and the builders until they upgrade.
   batches; the adversarial passes over #1861 end with the warm-up limitation recorded
 - **2026-11-01** — a quality pass over the last commits; #1837 found fixed by the rollback-only mark and closed in
   #1844
+- **2026-11-02** — #1864 (a rename kept its source) and #1865 (string literals escaped only the apostrophe) filed and
+  fixed in #1844; a rename over stored entities warns, as #1863 does
