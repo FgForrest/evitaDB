@@ -28,31 +28,22 @@ import java.util.Set;
 /**
  * Catalog of JUnit 5 tag identifiers used across the evitaDB test suite.
  *
- * Tags are organised on three orthogonal axes — every test is expected to carry
- * at least one tag from the layer axis and one from the capability axis. The
- * cost axis is optional and holds only {@link #FLAKY}. A test too slow for the
- * fast loop is not tagged: it lives in the `evita_long_running_tests` module,
- * which runs as a whole under the `longRunning` profile.
+ * Tags are organised on two orthogonal axes — every test is expected to carry
+ * at least one tag from the layer axis and one from the capability axis. There
+ * are no cost tags: a test too slow for the fast loop lives in the
+ * `evita_long_running_tests` module, which runs as a whole under the
+ * `longRunning` profile, and a test that cannot run reliably is fixed or
+ * removed rather than quarantined.
  *
  * The taxonomy is intentionally flat (no `cap:` / `surface:` prefixes) so that
  * tag-filter expressions stay readable, e.g.
- * `mvn test -Dgroups="(facet | hierarchy) & external_api & !flaky"`.
+ * `mvn test -Dgroups="(facet | hierarchy) & external_api"`.
  *
  * The {@link #LAYER_TAGS} and {@link #CAPABILITY_TAGS} sets are consumed by
  * {@code TestTagPolicyFilter} to enforce that every test method has been
  * categorised on both axes.
  */
 public interface TestTags {
-
-	// ---------------------------------------------------------------------
-	// Cost axis — optional
-	// ---------------------------------------------------------------------
-
-	/**
-	 * Test currently known to be unstable; excluded from required runs and
-	 * only executed on demand.
-	 */
-	String FLAKY = "flaky";
 
 	// ---------------------------------------------------------------------
 	// Layer axis — where in the stack the test exercises
@@ -231,10 +222,5 @@ public interface TestTags {
 		OBSERVABILITY, TASK, SECURITY, DATA_TYPE, TRAFFIC_ENGINE, MANAGEMENT,
 		INDEXING, TEST_HARNESS
 	);
-
-	/**
-	 * Cost tags — optional.
-	 */
-	Set<String> COST_TAGS = Set.of(FLAKY);
 
 }
