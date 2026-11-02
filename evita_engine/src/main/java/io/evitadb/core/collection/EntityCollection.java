@@ -3078,6 +3078,10 @@ public final class EntityCollection implements
 			} else {
 				continue;
 			}
+			if (rename.getName().equals(rename.getNewName())) {
+				// a rename to the name the attribute already has leaves the schema and the stored values as they are
+				continue;
+			}
 			// a reflected reference renames only the attributes it declares, and its inherited ones cannot be read
 			// before its original reference exists
 			final boolean declaredBefore = referenceName == null ?

@@ -32,8 +32,10 @@ import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
@@ -46,6 +48,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
@@ -68,9 +72,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Verifies that {@link ModifyAttributeSchemaNameMutation} moves an attribute to its new name instead of adding a copy
  * next to it - for a global attribute and the entities using it, an entity attribute, a reference attribute and an
- * attribute a reflected reference declares - that it refuses a name another attribute holds and an attribute
- * a sortable attribute compound is made of, and that it warns when the collection holds entities whose values stay
- * under the old name.
+ * attribute a reflected reference declares - that it refuses a name another attribute holds, an attribute
+ * a sortable attribute compound is made of and an attribute a reflected reference inherits, and that it warns when
+ * the collection holds entities whose values stay under the old name.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -321,19 +325,29 @@ class AttributeRenameTest implements EvitaTestSupport {
 		assertTrue(reference.getAttribute(ATTRIBUTE_NOTE).isEmpty());
 	}
 
+	/**
+	 * The rename reaches the entity schemas one after another, so a refusal by one of them must leave every one
+	 * unchanged, and the catalog too. Each entity type takes its turn as the refusing one, so that whatever order the
+	 * catalog lists them in, some run has entity schemas accepting the rename before the refusing one.
+	 *
+	 * @param refusingEntityType the entity type that holds an attribute of its own under the new name
+	 */
 	@DisplayName("refuse a global rename before any entity schema using the attribute changes")
-	@Test
-	void shouldLeaveEveryEntityUnchangedWhenGlobalRenameIsRefused() {
-		// the brand refusing the rename is listed after the product and the store, so that the rename reaches entity
-		// schemas accepting it before the refusing one
+	@ParameterizedTest(name = "refused by {0}")
+	@ValueSource(strings = {Entities.PRODUCT, Entities.CATEGORY, Entities.STORE, Entities.BRAND})
+	void shouldLeaveEveryEntityUnchangedWhenGlobalRenameIsRefused(@Nonnull String refusingEntityType) {
+		final List<String> entityTypes = List.of(Entities.PRODUCT, Entities.CATEGORY, Entities.STORE, Entities.BRAND);
 		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.defineEntitySchema(Entities.STORE).withGlobalAttribute(ATTRIBUTE_CODE).updateVia(session);
-				session.defineEntitySchema(Entities.BRAND)
-					.withGlobalAttribute(ATTRIBUTE_CODE)
-					.withAttribute(ATTRIBUTE_EAN, String.class, whichIs -> whichIs.nullable())
-					.updateVia(session);
+				for (final String entityType : entityTypes) {
+					final EntitySchemaBuilder builder = session.defineEntitySchema(entityType)
+						.withGlobalAttribute(ATTRIBUTE_CODE);
+					if (entityType.equals(refusingEntityType)) {
+						builder.withAttribute(ATTRIBUTE_EAN, String.class, whichIs -> whichIs.nullable());
+					}
+					builder.updateVia(session);
+				}
 			}
 		);
 
@@ -343,8 +357,141 @@ class AttributeRenameTest implements EvitaTestSupport {
 		);
 
 		assertTrue(exception.getMessage().contains("`" + ATTRIBUTE_EAN + "` already exists"), exception::getMessage);
-		assertEquals(Set.of(ATTRIBUTE_CODE, ATTRIBUTE_LABEL, ATTRIBUTE_ORDER), attributesOf(productSchema()));
-		assertEquals(Set.of(ATTRIBUTE_CODE), attributesOf(schemaOf(Entities.STORE)));
+		assertEquals(Set.of(ATTRIBUTE_CODE), catalogAttributes());
+		for (final String entityType : entityTypes) {
+			final Set<String> attributes = attributesOf(schemaOf(entityType));
+			assertTrue(attributes.contains(ATTRIBUTE_CODE), () -> entityType + ": " + attributes);
+			assertEquals(
+				entityType.equals(refusingEntityType), attributes.contains(ATTRIBUTE_EAN),
+				() -> entityType + ": " + attributes
+			);
+		}
+	}
+
+	@DisplayName("refuse a global rename an entity compound refuses, leaving the catalog and the entity unchanged")
+	@Test
+	void shouldRefuseRenamingGlobalAttributeAnEntityCompoundIsMadeOf() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntitySchemaOrThrowException(Entities.PRODUCT)
+					.openForWrite()
+					.withSortableAttributeCompound(
+						"codeLabel", attributeElement(ATTRIBUTE_CODE), attributeElement(ATTRIBUTE_LABEL)
+					)
+					.updateVia(session);
+			}
+		);
+		final EntitySchemaContract originalSchema = productSchema();
+
+		final InvalidSchemaMutationException exception = assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> renameGlobal(ATTRIBUTE_CODE, ATTRIBUTE_EAN)
+		);
+
+		assertTrue(exception.getMessage().contains("`codeLabel`"), exception::getMessage);
+		assertEquals(Set.of(ATTRIBUTE_CODE), catalogAttributes());
+		assertEquals(originalSchema, productSchema());
+	}
+
+	@DisplayName("refuse to rename an attribute a sortable attribute compound of the reference is made of")
+	@Test
+	void shouldRefuseRenamingAttributeOfReferenceSortableAttributeCompound() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntitySchemaOrThrowException(Entities.PRODUCT)
+					.openForWrite()
+					.withReferenceToEntity(
+						REFERENCE_CATEGORIES, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs
+							.withAttribute(ATTRIBUTE_ORDER, Integer.class, attribute -> attribute.nullable())
+							.withSortableAttributeCompound(
+								"priorityOrder", attributeElement(ATTRIBUTE_PRIORITY), attributeElement(ATTRIBUTE_ORDER)
+							)
+					)
+					.updateVia(session);
+			}
+		);
+
+		final InvalidSchemaMutationException exception = assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> renameInProduct(
+				new ModifyReferenceAttributeSchemaMutation(
+					REFERENCE_CATEGORIES, new ModifyAttributeSchemaNameMutation(ATTRIBUTE_PRIORITY, ATTRIBUTE_NOTE)
+				)
+			)
+		);
+
+		assertTrue(exception.getMessage().contains("`priorityOrder`"), exception::getMessage);
+		assertEquals(
+			Set.of(ATTRIBUTE_ORDER, ATTRIBUTE_PRIORITY),
+			new TreeSet<>(productSchema().getReferenceOrThrowException(REFERENCE_CATEGORIES).getAttributes().keySet())
+		);
+	}
+
+	@DisplayName("refuse to rename an attribute a reflected reference inherits, in the reflected reference")
+	@Test
+	void shouldRefuseRenamingAttributeInheritedByReflectedReference() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withReflectedReferenceToEntity(
+						REFERENCE_PRODUCTS, Entities.PRODUCT, REFERENCE_CATEGORIES,
+						whichIs -> whichIs.withAttributesInherited()
+					)
+					.updateVia(session);
+			}
+		);
+		assertEquals(Set.of(ATTRIBUTE_NOTE, ATTRIBUTE_PRIORITY), reflectedReferenceAttributes());
+
+		final InvalidSchemaMutationException exception = assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.updateEntitySchema(
+						new ModifyEntitySchemaMutation(
+							Entities.CATEGORY,
+							new ModifyReferenceAttributeSchemaMutation(
+								REFERENCE_PRODUCTS,
+								new ModifyAttributeSchemaNameMutation(ATTRIBUTE_PRIORITY, ATTRIBUTE_ORDER)
+							)
+						)
+					);
+				}
+			)
+		);
+
+		// the refusal points at the reference the attribute can be renamed in
+		assertTrue(exception.getMessage().contains("`" + REFERENCE_CATEGORIES + "`"), exception::getMessage);
+		assertEquals(Set.of(ATTRIBUTE_NOTE, ATTRIBUTE_PRIORITY), reflectedReferenceAttributes());
+		assertEquals(
+			Set.of(ATTRIBUTE_PRIORITY),
+			new TreeSet<>(productSchema().getReferenceOrThrowException(REFERENCE_CATEGORIES).getAttributes().keySet())
+		);
+	}
+
+	@DisplayName("rename an attribute between changes of attributes the entity schema builder applies together")
+	@Test
+	void shouldRenameAttributeAmongOtherAttributeMutationsOfBuilder() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntitySchemaOrThrowException(Entities.PRODUCT)
+					.withMutations(
+						new ModifyAttributeSchemaDescriptionMutation(ATTRIBUTE_LABEL, "before the rename"),
+						new ModifyAttributeSchemaNameMutation(ATTRIBUTE_LABEL, ATTRIBUTE_TITLE),
+						new ModifyAttributeSchemaDescriptionMutation(ATTRIBUTE_TITLE, "after the rename")
+					)
+					.updateVia(session);
+			}
+		);
+
+		final EntitySchemaContract schema = productSchema();
+		assertEquals(Set.of(ATTRIBUTE_CODE, ATTRIBUTE_TITLE, ATTRIBUTE_ORDER), attributesOf(schema));
+		assertEquals("after the rename", schema.getAttribute(ATTRIBUTE_TITLE).orElseThrow().getDescription());
 	}
 
 	@DisplayName("refuse to rename an attribute a sortable attribute compound is made of")
@@ -418,6 +565,25 @@ class AttributeRenameTest implements EvitaTestSupport {
 		assertEquals(List.of(), warnings);
 	}
 
+	@DisplayName("not warn about a rename to the name the attribute already has")
+	@Test
+	void shouldNotWarnAboutRenameToTheSameName() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT).setAttribute(ATTRIBUTE_LABEL, "stored")
+				);
+			}
+		);
+
+		final List<String> warnings = captureWarnings(
+			() -> renameInProduct(new ModifyAttributeSchemaNameMutation(ATTRIBUTE_LABEL, ATTRIBUTE_LABEL))
+		);
+
+		assertEquals(List.of(), warnings);
+	}
+
 	/**
 	 * Renames the global attribute in the catalog schema.
 	 *
@@ -470,6 +636,34 @@ class AttributeRenameTest implements EvitaTestSupport {
 			session -> {
 				return session.getEntitySchemaOrThrowException(entityType);
 			}
+		);
+	}
+
+	/**
+	 * Returns the names of the global attributes the catalog schema holds now.
+	 *
+	 * @return the names, sorted
+	 */
+	@Nonnull
+	private Set<String> catalogAttributes() {
+		return this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return new TreeSet<>(session.getCatalogSchema().getAttributes().keySet());
+			}
+		);
+	}
+
+	/**
+	 * Returns the names of the attributes of the reflected reference of the category to the products as the catalog
+	 * holds it now, the inherited ones included.
+	 *
+	 * @return the names, sorted
+	 */
+	@Nonnull
+	private Set<String> reflectedReferenceAttributes() {
+		return new TreeSet<>(
+			schemaOf(Entities.CATEGORY).getReferenceOrThrowException(REFERENCE_PRODUCTS).getAttributes().keySet()
 		);
 	}
 
