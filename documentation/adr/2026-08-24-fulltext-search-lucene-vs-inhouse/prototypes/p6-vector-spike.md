@@ -826,7 +826,11 @@ A useful detail for the format: `StorageRecord` (`StorageRecord.java:64`) has 22
 (`OVERHEAD_SIZE` at `:85`), a bit for record continuation (`CONTINUATION_BIT` at `:93`) and — most
 interesting for vectors — **raw read methods without deserialization**, `readRaw` at `:326` and
 `readRawInto` at `:372`. If the vectors were to be stored in the existing structure, that is the way of
-avoiding Kryo.
+avoiding Kryo. **[2026-11-02]** No longer true as written: `readRawInto` is gone, and `readRaw`
+(`StorageRecord.java:327`) returns the record's payload bytes as written — Kryo-serialized and possibly
+compressed (`AssociatedDataStoragePartSerializer` writes the value through Kryo) — not float32 ready to score.
+Reading a vector out of an associated-data storage part without deserialization needs a reader that knows that
+format; it is P6 work.
 
 ### 5.4 An embedding cannot get into evitaDB today
 
@@ -1067,7 +1071,10 @@ and thereby refines the layout requirement. With `topK = 10` the rescoring reach
 roughly thirty candidates per query, and all of it inside the 10 ms budget. The requirement thereby moves
 from "full-precision vectors have to remain reachable even after quantization" to **"they have to be
 reachable by random access, by individual ordinals, without deserialization and without a copy onto the
-heap"** — i.e. exactly in the shape `readRaw` and `readRawInto` (§5.3) or an mmap over a dense block give. A
+heap"** — i.e. exactly in the shape `readRaw` and `readRawInto` (§5.3; **[2026-11-02]** see the correction
+there) or an mmap over a dense block give. **[2026-11-02]** The semantic leg is now a threshold filter without K,
+and the dense block would be a second copy of every raw vector, which the design no longer wants — step 7's
+storage question replaces this paragraph's top-K arithmetic. A
 second consequence of the same is temporal: full-precision vectors have to survive **any change of
 quantization**. In a model of a single live structure a change of quantization is a rebuild of the vector
 index (Elasticsearch can afford the opposite only thanks to segments, where every segment carries its own
@@ -1429,6 +1436,33 @@ rebuild's cost and the recall drift before it. **[2026-09-07]** Two things are v
 under evitaDB's thread model. Output: the rebuild cadence each candidate needs, and whether the graph
 degrades enough to make that cadence a production concern.
 
+**[2026-11-02] Threshold retrieval and where raw vectors live.** The semantic leg became a threshold filter
+without K (ADR row on the threshold filter), and two of this plan's assumptions no longer hold together with it.
+Recall@10 says nothing about a threshold set, and the ~30 raw reads per query of §7.2 were top-K arithmetic. This
+step therefore also measures:
+
+- **range retrieval**: recall of the whole admitted set against an exhaustive truth, per level and query class;
+  facet and count error; cost per level, the broad one included; the expected admitted fraction (≈ Φ(−z)) as an
+  input of the planner (§8); and the candidate cap above which an unnarrowed negated semantic constraint is
+  refused;
+- **the storage of raw vectors**. The ADR promises that every returned entity is verified against its raw
+  vector; this plan keeps only 1-bit codes and the graph on the heap; a deployment in a Kubernetes pod has little
+  page cache beside the JVM; about 140 scattered reads per query are acceptable, tens of thousands are not; the raw
+  vector stays a single copy in associated data; the model is not under evitaDB's control, so fewer dimensions are
+  not an option. Verifying everything reads ~65,000 raw vectors per query at z ≈ 1.5 on the CMS corpus. A model
+  (σ = 0.05, D = 768, the empirical Extended-RaBitQ bound ε = 2⁻ᴮ · 5.75 / √D) leaves ~172,000 entities that a
+  1-bit code cannot decide at z = 3, ~2,400 for 4 bits, ~140 for 8 bits. Candidates to measure: (1) membership
+  defined on a stored 4- or 8-bit code — the calibration computed on the same codes, quantizer state persisted
+  with the catalog, an exhaustive code scan for exact negation; (2) a cascade heap code → codes on disk → raw
+  vectors, packed so that one 4 KiB page serves several candidates, with reads sorted by offset (models as viable
+  only at high z); (3) codes on disk in cluster order, centroids on the heap (as Elasticsearch's DiskBBQ), with
+  whole-cluster accept or reject by centroid distance and radius; (4) certified per-vector error bounds
+  (‖x − x̂‖ stored with the code) that settle most entities with a guarantee. Account for the calibration sample
+  and the delta, which need raw vectors too. Measure on local SATA SSD and NVMe, cold, warm and under a
+  pod-sized cache, with cold scattered reads counted across all stages. The full experiment matrix and its gates
+  were handed to the P6 owner on 2026-11-02; the conclusions return to the ADR, which then decides its
+  verification clause again.
+
 **Step 7a — [2026-11-02] ranking across fields and legs, offline.** The ANN steps above measure recall
 against a brute-force truth; this one measures *ranking quality* against relevance judgments, so it needs a
 dataset that has them — several text fields per document and graded query-document labels (the public
@@ -1455,11 +1489,19 @@ text. Compared, by nDCG@10 per query and overall:
   corpora; how much passes for queries with no relevant document (the noise floor of each level); whether 256, 512
   or 1,024 sample vectors are enough (the threshold's spread across re-drawn samples); and how it compares with the
   simpler alternative — one static threshold per embedder from the background distribution of pseudo-queries.
+  **[2026-11-02, after the cross-validation]** The estimator is robust and entity-level: median and MAD instead of
+  mean and spread (relevant entities in the sample must not move the cut), the maximum over an entity's chunks and
+  fields, z corrected for their number k by Šidák. Three meanings of a level compete: (a) a fixed fraction of the
+  field with that estimator — the baseline; (b) an expected number of noise hits (STRICT ≈ 1, DEFAULT ≈ 10,
+  BROAD ≈ 100, z derived from the collection size); (c) the per-query cut bounded below by an automatic floor per
+  embedder from pseudo-queries. Measure all three on explicit **queries with no relevant document** and on
+  **cohorts by chunk count** (with p per chunk, k chunks admit 1 − (1 − p)^k, which favours long documents).
 
 Output: whether per-field vectors with query-time weights beat the joined baseline at all — if they do not,
 that goes back for a decision, because per-field vectors were chosen for query-time weights — which *t* to
-start from, and whether per-leg fusion weights earn
-their place in `relevance(fusion(…))`. Like §8.4's offline RRF, nothing here touches the query language.
+start from, whether per-leg fusion weights earn
+their place in `fusion(…)`, and which meaning of a level ships. Like §8.4's offline RRF, nothing here touches
+the query language.
 
 **Step 8 — path B, integration into the storage.** Only here, and only if steps 4–7 passed: vector files
 beside the catalog, mmap reading, the mapped `RandomAccessVectorValues` for the build (§4.4), registration

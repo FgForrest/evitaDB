@@ -879,6 +879,12 @@ the lifecycle too: changing the embedding model = re-embedding the catalog = a b
 write path + a rebuild of the vector index; mmapped immutable files per catalog version (§5.3) accommodate
 that.
 
+**[2026-11-02] Superseded by the semantic-search design** ([`README.md`](README.md), the rows of 2026-11-02):
+evitaDB either embeds documents itself — an embedder defined in the catalog schema, asynchronously after the
+commit — or takes the client's vectors as associated data of a new supported type `VectorEmbedding`, not `float[]`;
+the query text is embedded by the engine. The question below is answered there as well: long text is chunked and
+the entity is represented by its best chunk.
+
 **An open question that the ES verification opened (2026-08-13): is the unit of the vector index the
 entity, or a chunk?** The field type `semantic_text` has the splitting of long text into parts built
 **right into the field type** — it creates a nested object for chunks and stores per chunk its embedding,

@@ -2058,7 +2058,10 @@ unconditional degradation makes sense for us — is elaborated by Q16.
 A threshold is not proposed for F1; should the product want one, the order of preference is: a threshold on
 word coverage → a normalised threshold tied to the profile → never a threshold over the raw composite. For
 the vector leg (F2) a threshold on cosine similarity is standard with a natural scale and belongs in
-`vectorSimilarity`, not in `textMatches`.
+`vectorSimilarity`, not in `textMatches`. **[2026-11-02] Superseded for F2:** a query never carries a similarity
+number — the scale differs per model and a model change would force clients to rewrite their queries. The semantic
+leg is a threshold calibrated per query and chosen by a level (`STRICT`, `DEFAULT`, `BROAD`), queried by
+`textMatchesSemantically` or `vectorMatches` ([`../README.md`](../README.md), the row on the threshold filter).
 
 **Q15 — the name of the `profile` child vs. the query profiles from issue #12 (DISSOLVED by unification,
 2026-08-14).** The sponsor decided the direction: a rank profile is not a separate mechanism but an
