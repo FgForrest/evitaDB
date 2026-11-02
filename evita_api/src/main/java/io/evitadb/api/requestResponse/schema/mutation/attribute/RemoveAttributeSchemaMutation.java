@@ -52,7 +52,9 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
@@ -124,6 +126,18 @@ public class RemoveAttributeSchemaMutation
 			// so we can simply return current schema
 			return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 		} else {
+			// only the entity schemas using the global attribute - one with an attribute of its own of that name keeps
+			// it; all of them are verified before the first changes, because the removal reaches them one after
+			// another and a refusal by one of them would leave the ones before it without the attribute
+			final List<ModifyEntitySchemaMutation> entitySchemaMutations = new ArrayList<>();
+			for (final EntitySchemaContract entitySchema : entitySchemaAccessor.getEntitySchemas()) {
+				if (entitySchema.getAttribute(this.name)
+					.filter(GlobalAttributeSchemaContract.class::isInstance)
+					.isPresent()) {
+					AttributeSchemaMutationVerifier.verifyRemovalInEntity(entitySchema, this.name);
+					entitySchemaMutations.add(new ModifyEntitySchemaMutation(entitySchema.getName(), this));
+				}
+			}
 			return new CatalogSchemaWithImpactOnEntitySchemas(
 				CatalogSchema._internalBuild(
 					catalogSchema.version() + 1,
@@ -143,21 +157,7 @@ public class RemoveAttributeSchemaMutation
 						),
 					entitySchemaAccessor
 				),
-				entitySchemaAccessor
-					.getEntitySchemas()
-					.stream()
-					// only the entity schemas using the global attribute - one with an attribute of its own of that
-					// name keeps it
-					.filter(
-						it -> it.getAttribute(this.name)
-							.filter(GlobalAttributeSchemaContract.class::isInstance)
-							.isPresent()
-					)
-					.map(it -> new ModifyEntitySchemaMutation(
-						it.getName(),
-						this
-					))
-					.toArray(ModifyEntitySchemaMutation[]::new)
+				entitySchemaMutations.toArray(ModifyEntitySchemaMutation[]::new)
 			);
 		}
 	}
@@ -172,6 +172,7 @@ public class RemoveAttributeSchemaMutation
 			// so we can simply return current schema
 			return entitySchema;
 		} else {
+			AttributeSchemaMutationVerifier.verifyRemovalInEntity(entitySchema, this.name);
 			return EntitySchema._internalBuild(
 				entitySchema.version() + 1,
 				entitySchema.getName(),
@@ -214,6 +215,11 @@ public class RemoveAttributeSchemaMutation
 			// so we can simply return current schema
 			return referenceSchema;
 		} else {
+			if (consistencyChecks != ConsistencyChecks.SKIP) {
+				// the reference schema builders skip the check and refuse the removal on their own; a reflected
+				// reference whose original is not available yet skips it too, as its compounds cannot be resolved
+				AttributeSchemaMutationVerifier.verifyRemovalInReference(entitySchema, referenceSchema, this.name);
+			}
 			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
 				return reflectedReferenceSchema
 					.withDeclaredAttributes(

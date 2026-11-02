@@ -117,7 +117,7 @@ public interface EntityAttributeSchemaMutation extends AttributeSchemaMutation, 
 		} else {
 			final String existingName = existingAttributeSchema.getName();
 			if (!existingName.equals(updatedAttributeSchema.getName())) {
-				AttributeRenameVerifier.verifyRenameInEntity(
+				AttributeSchemaMutationVerifier.verifyRenameInEntity(
 					entitySchema, existingName, updatedAttributeSchema.getName()
 				);
 			}

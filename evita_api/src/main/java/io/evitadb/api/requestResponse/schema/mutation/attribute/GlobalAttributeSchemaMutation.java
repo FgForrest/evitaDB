@@ -104,7 +104,7 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 		} else {
 			final String existingName = existingAttributeSchema.getName();
 			if (!existingName.equals(updatedAttributeSchema.getName())) {
-				AttributeRenameVerifier.verifyRenameInCatalog(
+				AttributeSchemaMutationVerifier.verifyRenameInCatalog(
 					catalogSchema, existingName, updatedAttributeSchema.getName()
 				);
 			}

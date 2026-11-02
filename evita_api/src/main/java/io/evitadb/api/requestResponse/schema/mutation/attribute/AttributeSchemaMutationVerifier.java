@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.exception.SortableAttributeCompoundSchemaException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -34,18 +35,22 @@ import javax.annotation.Nonnull;
 import java.util.Collection;
 
 /**
- * The checks a rename by {@link ModifyAttributeSchemaNameMutation} passes before the attribute moves to its new name,
- * shared by the global, entity and reference levels the mutation applies to.
+ * The checks a rename by {@link ModifyAttributeSchemaNameMutation} and a removal by
+ * {@link RemoveAttributeSchemaMutation} pass before the attribute leaves its name, shared by the global, entity and
+ * reference levels the mutations apply to.
  *
  * A rename takes the attribute out under its old name and puts it back under the new one. It must therefore not
- * replace another attribute that holds the new name, and it must not leave a sortable attribute compound naming an
- * attribute that no longer exists - the compound index of every later upsert would fail on the missing attribute.
+ * replace another attribute that holds the new name. Neither a rename nor a removal may leave a sortable attribute
+ * compound naming an attribute that no longer exists - the compound index of every later upsert would fail on the
+ * missing attribute. The entity and reference schema builders refuse such a removal on their own; these checks cover
+ * the mutations that reach the schema without them, including the removal of a global attribute, which the catalog
+ * schema builder does not check against the compounds of the entity schemas using it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-final class AttributeRenameVerifier {
+final class AttributeSchemaMutationVerifier {
 
-	private AttributeRenameVerifier() {
+	private AttributeSchemaMutationVerifier() {
 		// static utility
 	}
 
@@ -138,6 +143,50 @@ final class AttributeRenameVerifier {
 	}
 
 	/**
+	 * Refuses a removal of an entity attribute - an attribute of its own or a global one it uses - that a sortable
+	 * attribute compound of the entity is made of.
+	 *
+	 * @param entitySchema the entity schema the attribute is removed from
+	 * @param name         the name of the attribute
+	 * @throws SortableAttributeCompoundSchemaException when the removal is refused
+	 */
+	static void verifyRemovalInEntity(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull String name
+	) {
+		verifyRemovalNotInCompound(
+			entitySchema.getSortableAttributeCompoundsForAttribute(name),
+			"The attribute `" + name + "` of entity `" + entitySchema.getName() + "`"
+		);
+	}
+
+	/**
+	 * Refuses a removal of a reference attribute that a sortable attribute compound of the reference is made of.
+	 * An attribute a reflected reference inherits from its original is not removed by the mutation at all, so there
+	 * is nothing to refuse.
+	 *
+	 * @param entitySchema    the entity schema holding the reference
+	 * @param referenceSchema the reference schema the attribute is removed from
+	 * @param name            the name of the attribute
+	 * @throws SortableAttributeCompoundSchemaException when the removal is refused
+	 */
+	static void verifyRemovalInReference(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull String name
+	) {
+		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema &&
+			!reflectedReferenceSchema.getDeclaredAttributes().containsKey(name)) {
+			return;
+		}
+		verifyRemovalNotInCompound(
+			referenceSchema.getSortableAttributeCompoundsForAttribute(name),
+			"The attribute `" + name + "` of reference `" + referenceSchema.getName() + "` of entity `" +
+				entitySchema.getName() + "`"
+		);
+	}
+
+	/**
 	 * Refuses the rename when any of the compounds is made of the attribute.
 	 *
 	 * @param compounds the sortable attribute compounds made of the attribute
@@ -148,21 +197,64 @@ final class AttributeRenameVerifier {
 		@Nonnull Collection<? extends SortableAttributeCompoundSchemaContract> compounds,
 		@Nonnull String attribute
 	) {
-		if (compounds.isEmpty()) {
-			return;
+		if (!compounds.isEmpty()) {
+			throw new InvalidSchemaMutationException(
+				attribute + " cannot be renamed, it is part of the sortable attribute " + describe(compounds) +
+					"! Remove the " + noun(compounds) + " before renaming the attribute."
+			);
 		}
-		final StringBuilder names = new StringBuilder();
+	}
+
+	/**
+	 * Refuses the removal when any of the compounds is made of the attribute, with the exception the schema builders
+	 * refuse the same removal with.
+	 *
+	 * @param compounds the sortable attribute compounds made of the attribute
+	 * @param attribute the description of the attribute the message starts with
+	 * @throws SortableAttributeCompoundSchemaException when there is such a compound
+	 */
+	private static void verifyRemovalNotInCompound(
+		@Nonnull Collection<? extends SortableAttributeCompoundSchemaContract> compounds,
+		@Nonnull String attribute
+	) {
+		if (!compounds.isEmpty()) {
+			throw new SortableAttributeCompoundSchemaException(
+				attribute + " cannot be removed, it is part of the sortable attribute " + describe(compounds) +
+					"! Remove the " + noun(compounds) + " before removing the attribute.",
+				compounds.iterator().next()
+			);
+		}
+	}
+
+	/**
+	 * Names the compounds for a refusal message, for example "compounds `a`, `b`".
+	 *
+	 * @param compounds the compounds to name, never empty
+	 * @return the noun followed by the quoted compound names
+	 */
+	@Nonnull
+	private static String describe(@Nonnull Collection<? extends SortableAttributeCompoundSchemaContract> compounds) {
+		final StringBuilder description = new StringBuilder(noun(compounds)).append(' ');
+		boolean first = true;
 		for (final SortableAttributeCompoundSchemaContract compound : compounds) {
-			if (!names.isEmpty()) {
-				names.append(", ");
+			if (!first) {
+				description.append(", ");
 			}
-			names.append('`').append(compound.getName()).append('`');
+			description.append('`').append(compound.getName()).append('`');
+			first = false;
 		}
-		throw new InvalidSchemaMutationException(
-			attribute + " cannot be renamed, it is part of the sortable attribute " +
-				(compounds.size() == 1 ? "compound " : "compounds ") + names + "! Remove the " +
-				(compounds.size() == 1 ? "compound" : "compounds") + " before renaming the attribute."
-		);
+		return description.toString();
+	}
+
+	/**
+	 * Returns "compound" or "compounds" depending on the count.
+	 *
+	 * @param compounds the compounds to count
+	 * @return the noun matching the count
+	 */
+	@Nonnull
+	private static String noun(@Nonnull Collection<? extends SortableAttributeCompoundSchemaContract> compounds) {
+		return compounds.size() == 1 ? "compound" : "compounds";
 	}
 
 }

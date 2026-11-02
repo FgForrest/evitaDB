@@ -129,7 +129,7 @@ public interface ReferenceAttributeSchemaMutation extends
 		final String existingName = existingAttributeSchema.getName();
 		if (!existingName.equals(updatedAttributeSchema.getName())) {
 			// verified here rather than in `replaceAttributeIfDifferent`, which has no entity schema to name
-			AttributeRenameVerifier.verifyRenameInReference(
+			AttributeSchemaMutationVerifier.verifyRenameInReference(
 				entitySchema, referenceSchema, existingName, updatedAttributeSchema.getName()
 			);
 		}
