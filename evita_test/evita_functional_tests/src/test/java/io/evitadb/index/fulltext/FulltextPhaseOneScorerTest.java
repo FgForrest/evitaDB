@@ -332,6 +332,32 @@ class FulltextPhaseOneScorerTest {
 		}
 
 		@Test
+		@DisplayName("A call reads only its own list from the decode buffer a longer list of an earlier call filled")
+		void shouldScoreAShortListAfterALongerOneOnTheSameThread() {
+			// the thread's decode buffer keeps the longer list past the shorter one's prefix: every even number up
+			// to 2,000, so a read past the prefix would hit the even candidates below
+			final int[] longPostings = new int[1_000];
+			for (int i = 0; i < longPostings.length; i++) {
+				longPostings[i] = 2 * i;
+			}
+			final Expansion[][] longTokens = {
+				{new Expansion(new BaseBitmap(longPostings), ImpactView.of(new byte[longPostings.length]), 0)}
+			};
+			final Expansion[][] shortTokens = {{expansion(0, 5, 50, 7, 70)}};
+			final int[] candidates = {2, 4, 5, 6, 7, 8};
+			for (final MergeStrategy strategy : MergeStrategy.values()) {
+				FulltextPhaseOneScorer.score(candidates, longTokens, candidates.length, strategy);
+				final Result result = FulltextPhaseOneScorer.score(
+					candidates, shortTokens, candidates.length, strategy
+				);
+				final Result expected = naiveScore(candidates, shortTokens, candidates.length);
+				assertArrayEquals(new int[]{7, 5}, result.primaryKeys(), strategy.name());
+				assertArrayEquals(expected.composites(), result.composites(), strategy.name());
+				assertEquals(2, result.matchedDocuments(), strategy.name());
+			}
+		}
+
+		@Test
 		@DisplayName("Every posting counts as walked, whichever merge runs and however early the candidates run out")
 		void shouldCountEveryPostingAsWalkedWhicheverMergeRuns() {
 			final int[] postings = new int[1_000];

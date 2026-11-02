@@ -1,12 +1,12 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-10-25 05:45
+updated: 2026-11-02 06:53
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
 prs: [1453, 1483, 1647, 1704]
-areas: [evita_engine, evita_api, evita_query, evita_store, evita_external_api, evita_engine/index/trigram]
+areas: [evita_engine, evita_api, evita_query, evita_store, evita_external_api, evita_engine/index/trigram, evita_engine/index/fulltext, evita_roaring_bitmap]
 supersedes: []
 superseded-by: []
 relates: [2026-07-07-roaring-bitmap-vendoring, 2026-07-10-more-optimized-data-structures, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-27-write-path-performance-tuning, 2026-08-31-trigram-query-path-optimization, 2026-08-31-front-coded-column-stores-wtf8, 2026-09-10-simd-vector-api-feasibility, 2026-09-08-jdk21-safe-modernization, 2026-09-10-jdk21-virtual-threads-and-scoped-values, 2026-10-05-schema-changes-never-refused-dormant-accelerator, 2026-09-04-millisecond-temporal-precision, 2026-10-27-string-attribute-normalization]
@@ -121,6 +121,7 @@ database entirely:
 | 2026-10-21 | Thresholds **0 / 1 / 2 edits from 1 / 4 / 8 letters** (two edits in a submitted search only), each stem variant budgeted by its own length on the stem dictionary and the typed word by its typed length on a **surface-form lane**, which is built | On the real corpus the stem base with the lane finds 95.5–99.4 % of mistyped words against 83.8–97.5 % for the typed length, at about half the noise; the lane reaches every typo the stemmer pushes out of reach (3.0–5.8 % on real text, up to 19.4 % in Romanian) for +141.5 MB (+19.9 %); 4 letters is the measured knee | [`prototypes/typo-tolerance-fulltext-dictionary.md`](prototypes/typo-tolerance-fulltext-dictionary.md) §3.4, §7.1, §10.7 a, g; [`prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md) §3, §4 |
 | 2026-10-21 | **No prefix leg below four letters**; the open-ended typo walk on the last word starts at **five letters while typing and four in a submitted search** | Three-letter keystrokes stay at 8.6–14.8 ms p99 under every query-time lever, and the only fix that meets the budget — precomputed prefix postings — stays rejected; the submitted search runs once and can afford the earlier start without breaking pattern 1 | [`prototypes/typo-tolerance-fulltext-dictionary.md`](prototypes/typo-tolerance-fulltext-dictionary.md) §9 item 1, §10.7 d, §12; [`prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md) §6 |
 | 2026-10-21 | A fuzzy `attributeContains` uses **swap expansion at both edit levels** — a Levenshtein trigram query plus the swapped variants looked up exactly — and offers **one edit from 6 characters and two from 12**; no gate of its own above those limits; no diacritics handling, no fuzzy `attributeEndsWith` | Full one-edit enumeration would reach 4–5 characters, but it needs the corpus alphabet and thousands of exact lookups per query: on the titles of a production CMS catalog (942,632 distinct values, an alphabet of 239 code points) it cost ~10 ms a query from 5 characters, and one typo on 4 characters matched 9.4 % of all values. Swap expansion keeps its structural one-edit floor of 6 and needs no alphabet. Two edits at 9 characters still took the whole corpus for a third of the patterns and ~0.5 s a query, at 12 characters 68 ms, so the two-edit limit sits above its structural 9. A gate would only compare against a full approximate scan, which every measured row above the limits beats | [`prototypes/typo-tolerance-fuzzy-contains.md`](prototypes/typo-tolerance-fuzzy-contains.md) §1, §6.5, §7; [`prototypes/typo-tolerance-fuzzy-contains-algorithm.md`](prototypes/typo-tolerance-fuzzy-contains-algorithm.md) |
+| 2026-11-02 | **The phase-one scorer decodes a roaring posting list whole, into a decode buffer each thread keeps across scoring calls** — for the two merges that read a list in order (linear, galloping); the skipping merge still walks the list where it is stored. `PersistentRoaringBitmap#decodeInto(int[])` fills the buffer, a `ThreadLocal` in `FulltextPhaseOneScorer` holds it. Decided on the F1 query-side branch, before its PR | F1 began by reading the posting lists in place, to remove the up-front `int[]` copy of every expansion that a profile of the slowest ranked queries put at 25 % of their time. Four ways to feed a list to the merges were weighed, measured on ranked queries of the CMS corpus (972,611 articles). **The batched in-place read** — the merges pull 256-posting batches from the roaring batch iterator, no copy — *rejected because* it was slower than decoding the list whole wherever the two differed (2 × HIGH 0.927, 1 × HIGH 0.955) and faster nowhere; the excess sits in the batch machinery, not in the per-value decode, which runs the same code shape in both — bisecting arms excluded the merges' consumer side, the decode loops' field state and the refill count. **A fresh array per decoded list** (`toArray()`, shipped for a day) — *rejected because* it allocates the very copy the in-place read was meant to remove, 66–403 KiB per query, 18–50 % of a ranked query's allocation. **A decode buffer per scoring call** — *rejected because* the call's longest list is still allocated once per query, so it removed only 6–45 % of the copy's allocation. **One `nextBatch` call with a buffer as long as the list**, which needs no new roaring method — not measured, and not pursued: it allocates an iterator per list and its per-container cursors are not `toArray`'s fill loop; revisit if the vendored-roaring addition becomes a burden on a re-sync. The thread-scoped buffer reaches the no-copy allocation at the fresh array's speed (no difference resolvable within ~5 %). **The accepted cost:** every thread that has scored keeps 4 bytes per posting of the longest list it decoded — ~300 KiB typically on the CMS corpus, at most 4 bytes per entity of the collection (3.7 MiB there) — and a scoring call must never be re-entered on its thread | `FulltextPhaseOneScorer#POSTING_FEED`, its `PostingFeed`; numbers in *Verification → F1: the phase-one posting feed*; the roaring addition in `evita_roaring_bitmap/UPSTREAM_SYNC.md`; retention and re-entrancy under *Open items — the fulltext core* |
 
 ### Why the in-house core won
 
@@ -473,6 +474,53 @@ letter and 140–630 µs at two, against 1.1–2.3 ms for the linear scan — `L
 read in `prototypes/typo-tolerance-fulltext-dictionary.md` §5.3. The whole-query budget was measured on the CMS
 corpus of 972,611 articles on 2026-10-20 (same document, §10.7 d–e): a keystroke meets it from five letters, and a
 submitted search with two edits costs 6.3 ms at p50 and 24.9 ms at p99, inside the 25 ms phase-1 budget.
+
+### F1: the phase-one posting feed — measured on the query-side branch
+
+F1's query path exists on the `258-fulltext-query-side` branch and has not reached the integration branch yet, so
+the opening of *The fulltext core — P1's gate is measured* ("nothing can query it yet") still describes the
+integration branch; F1's own record comes with its pull request. One decision taken on that branch is measured enough to record now: how the phase-one scorer
+feeds a roaring posting list to the linear and the galloping merge (decision row 2026-11-02).
+
+**Conditions.** `TextMatchesQueryBenchmark`, its ranked method (match, phase-one scoring and top-N), on the CMS
+corpus of 972,611 articles; a cell is a query length (1–3 words) times the words' frequency class (`MEDIUM` up to
+1,000 documents, `HIGH` above), each cell up to 32 corpus-derived queries. Every fork is its own JMH invocation, the
+arms alternate round by round, and a fork counts only when the 24-CPU box stayed quiet around it (busiest 30-second
+window at most 15 % busy; the benchmark alone is 10–12 %). Forks land in two JIT modes about 15 % apart, so six forks
+per arm resolve about 5 %, not 2 %.
+
+**The batched in-place read against decoding each list whole** (2026-11-01; ratio whole / batched of the median
+quiet-fork total, 4–6 quiet forks per arm; on 1 × HIGH of the fast-mode medians, because 5 of the batched read's 12
+quiet forks there landed in the slow JIT mode, which the whole-list decode never showed in its 4):
+
+| cell | 1 × HIGH | 2 × MEDIUM | 2 × HIGH | 3 × MEDIUM | 3 × HIGH |
+|---|---|---|---|---|---|
+| whole / batched | 0.955 | 0.987 | **0.927** (0.83–0.95 on every query) | 1.008 | 0.999 |
+
+On 3 × HIGH both keep the gain over the old up-front copy of every expansion (0.59 of its time), because the skipping
+merge walks part of the expansions without any decode at all.
+
+**Allocation and time of the three decode shapes** (2026-11-02, 6 forks per arm and cell, all 54 quiet, identical
+results in every fork; bytes per query from `-prof gc`, deterministic to under 0.2 %; time as the median fork total
+against the fresh array, bootstrap 90 % interval in brackets):
+
+| cell | fresh array per list | buffer per call | **buffer per thread** | no copy (batched read) |
+|---|---|---|---|---|
+| 1 × HIGH — bytes / query | 1,785,353 | 1,765,230 | **1,470,404** (−17.6 %) | 1,471,358 |
+| 2 × HIGH — bytes / query | 821,662 | 729,545 | **408,992** (−50.2 %) | 410,490 |
+| 3 × HIGH — bytes / query | 336,738 | 306,304 | **267,994** (−20.4 %) | 269,471 |
+| 1 × HIGH — time | 1 | 1.030 [0.882, 1.067] | **1.004** [0.859, 1.128] | — |
+| 2 × HIGH — time | 1 | 1.038 [0.968, 1.090] | **0.978** [0.937, 1.033] | — |
+| 3 × HIGH — time | 1 | 0.998 [0.936, 1.080] | **0.954** [0.908, 1.048] | — |
+
+No time interval excludes 1. The thread-scoped buffer removes all of the copy's allocation — it lands at the no-copy
+floor — with no resolvable difference in time on 1 × HIGH and a lean of 2–5 % faster on 2 × HIGH and 3 × HIGH (faster
+in 76–77 % of the bootstrap resamples), never slower beyond the noise. The call-scoped buffer lost because the
+thread-scoped one dominates it: the same code plus a `ThreadLocal`, all of the copy's allocation removed instead of
+6–45 % of it, and an equal or better estimate in every cell. A single-threaded benchmark cannot show what the
+removed allocation costs under concurrent queries; the case for removing it is that cost, not a measured latency gain.
+`FulltextPhaseOneScorerTest#shouldScoreAShortListAfterALongerOneOnTheSameThread` and `DecodeIntoTest` in the roaring
+module pin the reuse.
 
 ### P8 — measured, not planned
 
@@ -1005,6 +1053,19 @@ rather than a tuning one. Both are open items below.
   transaction-sensitive code of a 9,243-line class plus value-id code already in `dev`, so it needs the long-running B+
   tree suites and a JMH run of `BucketBPlusTreePayloadBenchmark`, because the seam adds virtual calls to the leaf hot
   path.
+- **The phase-one scorer keeps a decode buffer per thread (2026-11-02).** Every thread that has scored holds 4 bytes
+  per posting of the longest roaring list it decoded, until the thread ends: ~300 KiB typically on the CMS corpus and
+  at most 4 bytes per entity of the largest collection — 3.7 MiB there, 40 MB for a collection of ten million — times
+  the threads that query. On the server those are the bounded platform-thread request pool; an embedded instance
+  scores on whatever threads the embedding application queries from, so there the application's thread count is the
+  multiplier. Nothing caps it; if a corpus makes that total matter, decode lists above a cap into an array of the
+  call's own and keep only the shorter ones per thread. The per-thread feed rests on one invariant, stated on
+  `FulltextPhaseOneScorer#POSTING_FEED`: a scoring call is never re-entered on its thread (the expansions are resolved
+  before the call and the merges query nothing — a change that lets the scorer call back into a query must give the
+  inner call a feed of its own). If the request executor ever moves to virtual threads, the buffer is allocated per
+  request again: no leak, the saving goes (it is listed with the other per-thread caches in
+  [`2026-09-10-jdk21-virtual-threads-and-scoped-values`](../2026-09-10-jdk21-virtual-threads-and-scoped-values/README.md)).
+  Whether the removed allocation shows in latency under concurrent queries is not measured.
 
 ### Open items — the trigram substring index
 
@@ -1356,6 +1417,12 @@ metric for fuzzy `contains` is decided. What is still open:
   fulltext index now keeps its changes until the next flush; the guard only refused a state that is now safe. The
   fulltext component announces an index once it has dictionary pages on disk, so a baseline captured before an
   index's first flush leaves that flush to list it in the manifest
+- **2026-11-01** — on the F1 query-side branch, the phase-one scorer's batched in-place read of a posting list
+  replaced by a whole-list decode, after the batched read measured 5–7 % slower on posting-dense ranked queries of the
+  CMS corpus and faster on none
+- **2026-11-02** — that decode moved into a buffer each thread keeps across scoring calls, which removes the copy's
+  allocation (18–50 % of a ranked query's) at no resolvable cost in time; `PersistentRoaringBitmap#decodeInto` added
+  to the vendored roaring (*Verification → F1: the phase-one posting feed*)
 
 ## Supporting material
 

@@ -2746,14 +2746,30 @@ public class PersistentRoaringBitmap
 	@Override
 	public int[] toArray() {
 		final int[] array = new int[this.getCardinality()];
+		decodeInto(array);
+		return array;
+	}
+
+	/**
+	 * Writes the set values into the prefix of `target` in sorted (unsigned) order - the order of {@link #toArray()} -
+	 * and returns how many it wrote. It is {@link #toArray()} for a caller that decodes many bitmaps one after another
+	 * into one reused array instead of allocating a fresh array per bitmap; {@link #toArray()} itself fills through it,
+	 * so the two share one fill loop.
+	 *
+	 * @param target the array to write to, at least {@link #getCardinality()} long; the values occupy its prefix and
+	 *               the rest is left as it was
+	 * @return how many values were written - the cardinality of this bitmap
+	 * @throws ArrayIndexOutOfBoundsException when `target` is shorter than the cardinality
+	 */
+	public int decodeInto(@Nonnull int[] target) {
 		int pos = 0, pos2 = 0;
 		while (pos < this.highLowContainer.size()) {
 			final int hs = this.highLowContainer.getKeyAtIndex(pos) << 16;
 			Container c = this.highLowContainer.getContainerAtIndex(pos++);
-			c.fillLeastSignificant16bits(array, pos2, hs);
+			c.fillLeastSignificant16bits(target, pos2, hs);
 			pos2 += c.getCardinality();
 		}
-		return array;
+		return pos2;
 	}
 
 	/**

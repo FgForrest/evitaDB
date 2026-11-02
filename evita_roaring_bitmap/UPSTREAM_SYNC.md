@@ -72,13 +72,13 @@ modifications were applied. When replaying upstream changes, **keep** these:
 
 ## Local API additions (evita divergence — preserve on re-sync)
 
-Three **additive** methods that exist only in this fork. The first two were introduced for `RangeCountKernel`
+Four **additive** methods that exist only in this fork. The first two were introduced for `RangeCountKernel`
 (`evita_engine`, issue #1546), whose shape is thousands of tiny operands scanned together; both are
 widenings of an existing contract rather than new exposure of container internals, so neither moves
-the `Container`/`RoaringArray` encapsulation boundary the module is built around. The third,
-`PersistentRoaringBitmap.getIntRankIterator()`, serves the fulltext scorer (issue #258). On a re-sync,
-**re-apply them** — upstream has no counterpart on the vendored classes and will never conflict
-semantically, only textually.
+the `Container`/`RoaringArray` encapsulation boundary the module is built around. The third and the fourth,
+`PersistentRoaringBitmap.getIntRankIterator()` and `PersistentRoaringBitmap.decodeInto(int[])`, serve the
+fulltext scorer (issue #258). On a re-sync, **re-apply them** — upstream has no counterpart on the vendored
+classes and will never conflict semantically, only textually.
 
 ### `BatchIterator.nextBatch(int[] buffer, int offset, int length)`
 
@@ -131,12 +131,27 @@ posting's impact byte.
   (see "`rank(Character.MAX_VALUE)` leaves a lazy cardinality unknown" below), which would shift every
   later rank; finished bitmaps - stored posting lists - never hold one. Stated in the method JavaDoc.
 
-**Not applicable upstream.** All three are shaped by evitaDB's own call sites; none is a fix to
+### `PersistentRoaringBitmap.decodeInto(int[] target)`
+
+`toArray()` into the caller's array: writes the values into the prefix of `target` in unsigned order and
+returns how many it wrote. The fulltext scorer decodes every posting list that takes the linear or the
+galloping merge whole, and it decodes them into one buffer per thread that outlives the call instead of a
+fresh `int[]` per list — on ranked queries of a production CMS catalog (972,611 articles) that removed
+18–50 % of a query's allocation (the fulltext ADR,
+`documentation/adr/2026-08-24-fulltext-search-lucene-vs-inhouse/README.md`).
+
+- **`toArray()` now fills through it** (`decodeInto(new int[getCardinality()])`), so the fork keeps one fill
+  loop. An upstream change to `toArray()`'s loop lands in `decodeInto`; `toArray()` itself stays the
+  two-line allocate-and-delegate. `toSignedArray()` is untouched — its fast path still calls `toArray()`.
+- Precondition: `target` holds at least `getCardinality()` values, otherwise
+  `ArrayIndexOutOfBoundsException`; what lies past the prefix is left as it was.
+
+**Not applicable upstream.** All four are shaped by evitaDB's own call sites; none is a fix to
 anything upstream does wrong, so there is nothing to report or contribute.
 
 ### Where a botched re-apply gets caught
 
-All three additions are pinned by tests in this module, so a re-sync that reapplies them slightly wrong
+All four additions are pinned by tests in this module, so a re-sync that reapplies them slightly wrong
 fails here rather than somewhere downstream in `evita_engine`:
 
 - `TestRoaringBitmapWriter#addChunkHonoursItsWordRange`, `#addChunkBelowTheCurrentKeyStillLands`,
@@ -147,6 +162,10 @@ fails here rather than somewhere downstream in `evita_engine`:
   and inside a single run, which is where `limit` replaced `buffer.length`.
 - `IntRankIteratorTest` — the rank equals `rankLong` of the current value on `next`, on
   `advanceIfNeeded` within and across containers of all three kinds, on both mixed, and after a clone.
+- `DecodeIntoTest` — unsigned order across all three container kinds and a chunk of negative values,
+  checked against the int iterator rather than `toArray()` (which now shares the loop); the prefix write
+  with the tail left untouched; a shorter bitmap decoded over a longer one; the returned count; the
+  refusal of a short array.
 
 ## Computation kernels (evita-only files — preserve on re-sync)
 

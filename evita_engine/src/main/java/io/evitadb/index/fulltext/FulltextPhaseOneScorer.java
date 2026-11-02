@@ -78,11 +78,11 @@ import java.util.Arrays;
  * | skipping | every candidate | postings | `candidates × log2(postings / candidates)` | candidates ≪ postings |
  *
  * The linear and the galloping merge read a posting list **in order**: a roaring list is decoded whole, once, by its
- * own bulk extraction, and the small tiers of a bucket are read through one small reusable buffer, so the position of
- * a posting in its list - the offset of its impact byte - is simply counted. The skipping merge reads the list where
- * it is stored: it jumps over postings, so it takes the position from the rank the posting list's own iterator keeps
- * while it skips. Either way positions only grow, so the impact reader only ever moves forward, crossing each chunk
- * boundary of a chunked bucket at most once.
+ * own bulk extraction into a decode buffer the thread reuses, and the small tiers of a bucket are read through one
+ * small reusable buffer, so the position of a posting in its list - the offset of its impact byte - is simply
+ * counted. The skipping merge reads the list where it is stored: it jumps over postings, so it takes the position
+ * from the rank the posting list's own iterator keeps while it skips. Either way positions only grow, so the impact
+ * reader only ever moves forward, crossing each chunk boundary of a chunked bucket at most once.
  *
  * The galloping merge is what lets a short posting list against a large candidate set stay within the phase-1
  * budget: it lifted the cells meeting the budget from 25 to 32 of 36 in the index-core measurements of the fulltext
@@ -90,8 +90,10 @@ import java.util.Arrays;
  * candidate set that the other query words, or the other constraints of the query, have already narrowed: without
  * it, a merge would walk every posting of the word to score a few hundred candidates.
  *
- * The accumulators are allocated per call, beside the candidate array; the scorer holds no state between calls and
- * is safe to use from any number of threads.
+ * The accumulators are allocated per call, beside the candidate array. The only state kept between calls is each
+ * thread's posting feed - its decode buffer, which the next call on the same thread decodes into again - so the
+ * scorer is safe to use from any number of threads, as long as a scoring call is never re-entered on one thread (see
+ * {@link #POSTING_FEED}).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -127,6 +129,22 @@ public final class FulltextPhaseOneScorer {
 	 * candidate.
 	 */
 	private static final long SKIP_STEP_COST = 4L;
+	/**
+	 * The posting feed of the scoring calls on this thread. Its decode buffer outlives the call, so a roaring list is
+	 * decoded into memory the thread has decoded into before rather than into a fresh array per expansion: on ranked
+	 * queries of a production CMS catalog that removed 18-50 % of a query's allocation at no measurable cost in time.
+	 *
+	 * The buffer grows to the longest list the thread has decoded and stays that long - 4 bytes per posting, so at
+	 * most 4 bytes per entity of the largest collection, held once per thread that has scored. Requests served
+	 * through the server's APIs run on its request executor, a bounded pool of platform threads, which bounds the
+	 * total; an embedded application queries on its own threads, so there the bound is however many threads it
+	 * queries from. Under a thread per request the buffer would simply be allocated per request again.
+	 *
+	 * One feed per thread is safe only because a scoring call is never re-entered on its thread: the expansions are
+	 * resolved before the call and the merges call nothing that could query again. A change that lets the scorer
+	 * call back into a query must give the inner call a feed of its own.
+	 */
+	private static final ThreadLocal<PostingFeed> POSTING_FEED = ThreadLocal.withInitial(PostingFeed::new);
 
 	/**
 	 * Selects how each expansion is merged against the candidates.
@@ -162,10 +180,10 @@ public final class FulltextPhaseOneScorer {
 	 * Both come straight from the dictionary cursor
 	 * ({@link io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor#records()} and
 	 * {@link io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor#impacts()}). The impacts are read in
-	 * place; the postings are read in place too, except that a linear or galloping merge decodes a roaring posting
-	 * list into a fresh array first. Neither may be written while the expansion is in use. The impacts follow the
-	 * posting list's own record order, which is unsigned; entity primary keys are never negative, so it is their
-	 * ascending order too.
+	 * place; the postings are read in place too, except that a linear or galloping merge first decodes a roaring
+	 * posting list into a buffer its scoring thread reuses. Neither may be written while the expansion is in use. The
+	 * impacts follow the posting list's own record order, which is unsigned; entity primary keys are never negative, so
+	 * it is their ascending order too.
 	 *
 	 * @param postings primary keys of the entities containing the term, ascending
 	 * @param impacts  impact byte of each posting, the i-th belonging to the i-th posting
@@ -260,54 +278,59 @@ public final class FulltextPhaseOneScorer {
 		// accumulators above - the cheapest implementation of the counting rule
 		final byte[] tokenImpact = new byte[candidateCount];
 		final byte[] tokenTypo = new byte[candidateCount];
-		final PostingFeed feed = new PostingFeed();
+		final PostingFeed feed = POSTING_FEED.get();
 		long postingsWalked = 0L;
 
-		for (final Expansion[] expansions : tokens) {
-			boolean anyHit = false;
-			for (final Expansion expansion : expansions) {
-				final Bitmap postings = expansion.postings();
-				final int postingCount = postings.size();
-				if (postingCount == 0) {
-					continue;
-				}
-				// stored one-based, so `0` in the typo lane means "this token did not hit the candidate"
-				final byte distance = (byte) (expansion.distance() + 1);
-				final ImpactView.Reader impacts = expansion.impacts().reader();
-				anyHit |= switch (chooseMerge(strategy, candidateCount, postingCount)) {
-					case LINEAR -> linearMerge(
-						candidates, feed.reset(postings), impacts, distance, tokenImpact, tokenTypo
-					);
-					case GALLOPING -> gallopingMerge(
-						candidates, feed.reset(postings), impacts, distance, tokenImpact, tokenTypo
-					);
-					case SKIPPING -> skippingMerge(candidates, postings, impacts, distance, tokenImpact, tokenTypo);
-					case ADAPTIVE -> throw new GenericEvitaInternalError("The merge choice never yields ADAPTIVE!");
-				};
-				postingsWalked += postingCount;
-			}
-			if (anyHit) {
-				// ONE increment per query token, however many of its expansions hit
-				for (int i = 0; i < candidateCount; i++) {
-					final byte typo = tokenTypo[i];
-					if (typo == 0) {
+		try {
+			for (final Expansion[] expansions : tokens) {
+				boolean anyHit = false;
+				for (final Expansion expansion : expansions) {
+					final Bitmap postings = expansion.postings();
+					final int postingCount = postings.size();
+					if (postingCount == 0) {
 						continue;
 					}
-					matchedTokens[i]++;
-					if (Byte.toUnsignedInt(tokenImpact[i]) > Byte.toUnsignedInt(maxImpact[i])) {
-						maxImpact[i] = tokenImpact[i];
-					}
-					// the lane is one-based up to MAX_DISTANCE + 1 = 255, so it compares unsigned
-					if (bestTypo[i] == 0 || Byte.toUnsignedInt(typo) < Byte.toUnsignedInt(bestTypo[i])) {
-						bestTypo[i] = typo;
-					}
-					if (typo == 1) {
-						bestExactness[i] = 1;
-					}
+					// stored one-based, so `0` in the typo lane means "this token did not hit the candidate"
+					final byte distance = (byte) (expansion.distance() + 1);
+					final ImpactView.Reader impacts = expansion.impacts().reader();
+					anyHit |= switch (chooseMerge(strategy, candidateCount, postingCount)) {
+						case LINEAR -> linearMerge(
+							candidates, feed.reset(postings), impacts, distance, tokenImpact, tokenTypo
+						);
+						case GALLOPING -> gallopingMerge(
+							candidates, feed.reset(postings), impacts, distance, tokenImpact, tokenTypo
+						);
+						case SKIPPING -> skippingMerge(candidates, postings, impacts, distance, tokenImpact, tokenTypo);
+						case ADAPTIVE -> throw new GenericEvitaInternalError("The merge choice never yields ADAPTIVE!");
+					};
+					postingsWalked += postingCount;
 				}
-				Arrays.fill(tokenImpact, (byte) 0);
-				Arrays.fill(tokenTypo, (byte) 0);
+				if (anyHit) {
+					// ONE increment per query token, however many of its expansions hit
+					for (int i = 0; i < candidateCount; i++) {
+						final byte typo = tokenTypo[i];
+						if (typo == 0) {
+							continue;
+						}
+						matchedTokens[i]++;
+						if (Byte.toUnsignedInt(tokenImpact[i]) > Byte.toUnsignedInt(maxImpact[i])) {
+							maxImpact[i] = tokenImpact[i];
+						}
+						// the lane is one-based up to MAX_DISTANCE + 1 = 255, so it compares unsigned
+						if (bestTypo[i] == 0 || Byte.toUnsignedInt(typo) < Byte.toUnsignedInt(bestTypo[i])) {
+							bestTypo[i] = typo;
+						}
+						if (typo == 1) {
+							bestExactness[i] = 1;
+						}
+					}
+					Arrays.fill(tokenImpact, (byte) 0);
+					Arrays.fill(tokenTypo, (byte) 0);
+				}
 			}
+		} finally {
+			// the feed stays with the thread, so it must not keep the last posting list alive until the next call
+			feed.release();
 		}
 
 		// compose once, at the end, so a later ranking phase can enter between the accumulation and the composite
@@ -740,14 +763,17 @@ public final class FulltextPhaseOneScorer {
 	 * Hands an expansion's postings to the posting-driven merges batch by batch, in the posting list's record order -
 	 * the order the impacts are aligned with. A roaring list is decoded whole, once, by its own bulk extraction -
 	 * container by container, in its unsigned record order (never {@link Bitmap#getArray()}, which moves negative ids
-	 * first and would misalign the impacts) - and handed out as a single batch; the small tiers of a bucket (a single
-	 * record, a sorted array of a few records) are read by position through one reusable buffer.
+	 * first and would misalign the impacts) - into one decode buffer that grows to the longest list decoded and is
+	 * reused for every shorter one, and handed out as a single batch; the small tiers of a bucket (a single record, a
+	 * sorted array of a few records) are read by position through one reusable buffer.
 	 *
 	 * The copy is measured, not assumed: feeding a roaring list through its batch iterator instead - no copy, one
-	 * small buffer - was 5-7 % slower on posting-dense queries of a production CMS catalog and faster on none.
+	 * small buffer - was 5-7 % slower on posting-dense queries of a production CMS catalog and faster on none. The
+	 * decode buffer outlives the call for the same reason it is reused within one: a buffer of each call's own still
+	 * allocated the call's longest list once per query, most of what a fresh array per list costs.
 	 *
-	 * One feed serves every expansion of a scoring call, re-targeted by {@link #reset(Bitmap)}; it is never shared
-	 * between calls.
+	 * One feed per thread ({@link #POSTING_FEED}) serves every expansion of every scoring call on that thread,
+	 * re-targeted by {@link #reset(Bitmap)} and let go of the last list by {@link #release()}.
 	 */
 	private static final class PostingFeed {
 		/**
@@ -755,15 +781,21 @@ public final class FulltextPhaseOneScorer {
 		 */
 		private final int[] buffer = new int[POSTING_BATCH_SIZE];
 		/**
-		 * The array the batches of the current posting list sit in: {@link #buffer}, or {@link #decodedPostings}.
+		 * The array the batches of the current posting list sit in: {@link #buffer}, or {@link #decoded}.
 		 */
 		private int[] batches = this.buffer;
 		/**
-		 * The whole decoded current posting list when it is a roaring list, `null` for a small tier.
+		 * The buffer roaring lists are decoded into, as long as the longest one decoded so far; the current list
+		 * occupies its prefix of {@link #decodedLength} postings, and what lies past it is left over from longer lists.
 		 */
-		@Nullable private int[] decodedPostings;
+		private int[] decoded = new int[0];
 		/**
-		 * Whether {@link #decodedPostings} has been handed out as its single batch already.
+		 * How many postings of {@link #decoded} the current roaring list fills, `-1` when the current list is a small
+		 * tier or the feed points at no list.
+		 */
+		private int decodedLength = -1;
+		/**
+		 * Whether the decoded current list has been handed out as its single batch already.
 		 */
 		private boolean decodedServed;
 		/**
@@ -784,17 +816,32 @@ public final class FulltextPhaseOneScorer {
 		@Nonnull
 		PostingFeed reset(@Nonnull Bitmap postings) {
 			if (postings instanceof final RoaringBitmapBackedBitmap roaringBacked) {
-				this.decodedPostings = roaringBacked.getRoaringBitmap().toArray();
-				this.batches = this.decodedPostings;
+				final int postingCount = postings.size();
+				if (this.decoded.length < postingCount) {
+					this.decoded = new int[postingCount];
+				}
+				this.decodedLength = roaringBacked.getRoaringBitmap().decodeInto(this.decoded);
+				this.batches = this.decoded;
 				this.decodedServed = false;
 				this.positionalPostings = null;
 			} else {
-				this.decodedPostings = null;
+				this.decodedLength = -1;
 				this.batches = this.buffer;
 				this.positionalPostings = postings;
 				this.nextPosition = 0;
 			}
 			return this;
+		}
+
+		/**
+		 * Lets go of the current posting list at the end of a scoring call, so a feed kept for the thread holds no
+		 * index structure alive between calls; the decode buffer stays for the next call. Until the next
+		 * {@link #reset(Bitmap)} the feed points at no list.
+		 */
+		void release() {
+			this.positionalPostings = null;
+			this.decodedLength = -1;
+			this.batches = this.buffer;
 		}
 
 		/**
@@ -814,13 +861,13 @@ public final class FulltextPhaseOneScorer {
 		 * @return how many postings the batch holds, `0` once the posting list is exhausted
 		 */
 		int next() {
-			final int[] decoded = this.decodedPostings;
-			if (decoded != null) {
+			final int decodedLength = this.decodedLength;
+			if (decodedLength >= 0) {
 				if (this.decodedServed) {
 					return 0;
 				}
 				this.decodedServed = true;
-				return decoded.length;
+				return decodedLength;
 			}
 			final Bitmap postings = this.positionalPostings;
 			if (postings == null) {
