@@ -254,6 +254,32 @@ class AttributeRenameTest implements EvitaTestSupport {
 		assertEquals(Set.of(ATTRIBUTE_CODE, ATTRIBUTE_LABEL, ATTRIBUTE_ORDER), attributesOf(productSchema()));
 	}
 
+	@DisplayName("refuse a global rename before any entity schema using the attribute changes")
+	@Test
+	void shouldLeaveEveryEntityUnchangedWhenGlobalRenameIsRefused() {
+		// the brand refusing the rename is listed after the product and the store, so that the rename reaches entity
+		// schemas accepting it before the refusing one
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.STORE).withGlobalAttribute(ATTRIBUTE_CODE).updateVia(session);
+				session.defineEntitySchema(Entities.BRAND)
+					.withGlobalAttribute(ATTRIBUTE_CODE)
+					.withAttribute(ATTRIBUTE_EAN, String.class, whichIs -> whichIs.nullable())
+					.updateVia(session);
+			}
+		);
+
+		final InvalidSchemaMutationException exception = assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> renameGlobal(ATTRIBUTE_CODE, ATTRIBUTE_EAN)
+		);
+
+		assertTrue(exception.getMessage().contains("`" + ATTRIBUTE_EAN + "` already exists"), exception::getMessage);
+		assertEquals(Set.of(ATTRIBUTE_CODE, ATTRIBUTE_LABEL, ATTRIBUTE_ORDER), attributesOf(productSchema()));
+		assertEquals(Set.of(ATTRIBUTE_CODE), attributesOf(schemaOf(Entities.STORE)));
+	}
+
 	@DisplayName("refuse to rename an attribute a sortable attribute compound is made of")
 	@Test
 	void shouldRefuseRenamingAttributeOfSortableAttributeCompound() {
@@ -361,10 +387,21 @@ class AttributeRenameTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private EntitySchemaContract productSchema() {
+		return schemaOf(Entities.PRODUCT);
+	}
+
+	/**
+	 * Returns the entity schema of the entity type as the catalog holds it now.
+	 *
+	 * @param entityType the entity type
+	 * @return the entity schema
+	 */
+	@Nonnull
+	private EntitySchemaContract schemaOf(@Nonnull String entityType) {
 		return this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				return session.getEntitySchemaOrThrowException(Entities.PRODUCT);
+				return session.getEntitySchemaOrThrowException(entityType);
 			}
 		);
 	}

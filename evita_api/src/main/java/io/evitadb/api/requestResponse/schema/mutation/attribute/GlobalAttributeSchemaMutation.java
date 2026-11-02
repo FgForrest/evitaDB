@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.schema.mutation.attribute;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
@@ -36,6 +37,8 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -86,9 +89,12 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 	 * the non-changed, original catalog schema is returned.
 	 *
 	 * The existing attribute is taken out by its own name, so a rename moves the attribute to the new name rather
-	 * than adding it next to the original. A rename to a name another global attribute holds is refused.
+	 * than adding it next to the original. A rename to a name another global attribute holds is refused, and so is a
+	 * rename any entity schema using the attribute refuses - verified for all of them before the catalog schema
+	 * changes.
 	 *
-	 * @throws InvalidSchemaMutationException when the attribute is renamed to the name of another global attribute
+	 * @throws InvalidSchemaMutationException when the rename is refused by the catalog or by an entity schema using
+	 *                                        the attribute
 	 */
 	@Nonnull
 	default CatalogSchemaWithImpactOnEntitySchemas replaceAttributeIfDifferent(
@@ -103,9 +109,26 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 			return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 		} else {
 			final String existingName = existingAttributeSchema.getName();
+			// only the entity schemas using the global attribute - one with an attribute of its own of that name keeps
+			// it as it is
+			final List<EntitySchemaContract> usingEntitySchemas = new ArrayList<>();
+			for (final EntitySchemaContract entitySchema : entitySchemaAccessor.getEntitySchemas()) {
+				if (entitySchema.getAttribute(existingName)
+					.filter(GlobalAttributeSchemaContract.class::isInstance)
+					.isPresent()) {
+					usingEntitySchemas.add(entitySchema);
+				}
+			}
 			if (!existingName.equals(updatedAttributeSchema.getName())) {
 				AttributeSchemaMutationVerifier.verifyRenameInCatalog(
-					catalogSchema, existingName, updatedAttributeSchema.getName()
+					catalogSchema, usingEntitySchemas, existingName, updatedAttributeSchema.getName()
+				);
+			}
+			final ModifyEntitySchemaMutation[] entitySchemaMutations =
+				new ModifyEntitySchemaMutation[usingEntitySchemas.size()];
+			for (int i = 0; i < entitySchemaMutations.length; i++) {
+				entitySchemaMutations[i] = new ModifyEntitySchemaMutation(
+					usingEntitySchemas.get(i).getName(), attributeSchemaMutation
 				);
 			}
 			return new CatalogSchemaWithImpactOnEntitySchemas(
@@ -131,21 +154,7 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 						),
 					entitySchemaAccessor
 				),
-				entitySchemaAccessor
-					.getEntitySchemas()
-					.stream()
-					// only the entity schemas using the global attribute - one with an attribute of its own of that
-					// name keeps it as it is
-					.filter(
-						it -> it.getAttribute(existingAttributeSchema.getName())
-							.filter(GlobalAttributeSchemaContract.class::isInstance)
-							.isPresent()
-					)
-					.map(it -> new ModifyEntitySchemaMutation(
-						it.getName(),
-						attributeSchemaMutation
-					))
-					.toArray(ModifyEntitySchemaMutation[]::new)
+				entitySchemaMutations
 			);
 		}
 	}

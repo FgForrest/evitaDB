@@ -55,16 +55,20 @@ final class AttributeSchemaMutationVerifier {
 	}
 
 	/**
-	 * Refuses a rename of a global attribute to the name of another global attribute. The entity schemas using the
-	 * attribute are checked when the rename cascades into them.
+	 * Refuses a rename of a global attribute to the name of another global attribute, and any rename one of the entity
+	 * schemas using the attribute refuses. The entity schemas are verified here, before the catalog schema changes,
+	 * because the rename reaches them one after another and a refusal by one of them would leave the ones before it
+	 * renamed.
 	 *
 	 * @param catalogSchema the catalog schema the attribute is renamed in
+	 * @param entitySchemas the entity schemas using the global attribute
 	 * @param name          the current name of the attribute
 	 * @param newName       the name the attribute is renamed to
 	 * @throws InvalidSchemaMutationException when the rename is refused
 	 */
 	static void verifyRenameInCatalog(
 		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull Collection<EntitySchemaContract> entitySchemas,
 		@Nonnull String name,
 		@Nonnull String newName
 	) {
@@ -73,6 +77,9 @@ final class AttributeSchemaMutationVerifier {
 				"The attribute `" + newName + "` already exists in catalog `" + catalogSchema.getName() +
 					"` schema, the attribute `" + name + "` cannot be renamed to it!"
 			);
+		}
+		for (final EntitySchemaContract entitySchema : entitySchemas) {
+			verifyRenameInEntity(entitySchema, name, newName);
 		}
 	}
 
