@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchem
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -109,7 +110,8 @@ public class ModifyAttributeSchemaDefaultValueMutation
 	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
 		final Serializable theDefaultValue = EvitaDataTypes.toTargetType(this.defaultValue, attributeSchema.getType());
-		if (Objects.equals(attributeSchema.getDefaultValue(), theDefaultValue)) {
+		// compared by content: the default value may be an array, and an equal array is still another instance
+		if (Objects.deepEquals(attributeSchema.getDefaultValue(), theDefaultValue)) {
 			return attributeSchema;
 		} else if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
 			//noinspection unchecked,rawtypes
@@ -186,7 +188,7 @@ public class ModifyAttributeSchemaDefaultValueMutation
 			return replaceAttributeIfDifferent(
 				catalogSchema, existingAttributeSchema, updatedAttributeSchema, entitySchemaAccessor, this
 			);
-		} catch (UnsupportedDataTypeException ex) {
+		} catch (UnsupportedDataTypeException | InconvertibleDataTypeException ex) {
 			throw new InvalidSchemaMutationException(
 				"The value `" + this.defaultValue + "` cannot be automatically converted to " +
 					"attribute `" + this.name + "` type `" + existingAttributeSchema.getType() +
@@ -219,7 +221,7 @@ public class ModifyAttributeSchemaDefaultValueMutation
 			return replaceAttributeIfDifferent(
 				entitySchema, existingAttributeSchema, updatedAttributeSchema
 			);
-		} catch (UnsupportedDataTypeException ex) {
+		} catch (UnsupportedDataTypeException | InconvertibleDataTypeException ex) {
 			throw new InvalidSchemaMutationException(
 				"The value `" + this.defaultValue + "` cannot be automatically converted to " +
 					"attribute `" + this.name + "` type `" + existingAttributeSchema.getType() +
@@ -237,6 +239,10 @@ public class ModifyAttributeSchemaDefaultValueMutation
 		);
 		try {
 			final Serializable theDefaultValue = EvitaDataTypes.toTargetType(this.defaultValue, existingAttributeSchema.getType());
+			// compared by content as at the attribute level - a rebuilt attribute differs by the identity of an array
+			if (Objects.deepEquals(existingAttributeSchema.getDefaultValue(), theDefaultValue)) {
+				return referenceSchema;
+			}
 			@SuppressWarnings({"unchecked", "rawtypes"})
 			final AttributeSchema updatedAttributeSchema = AttributeSchema._internalBuild(
 				this.name,
@@ -258,7 +264,7 @@ public class ModifyAttributeSchemaDefaultValueMutation
 			return replaceAttributeIfDifferent(
 				referenceSchema, existingAttributeSchema, updatedAttributeSchema
 			);
-		} catch (UnsupportedDataTypeException ex) {
+		} catch (UnsupportedDataTypeException | InconvertibleDataTypeException ex) {
 			throw new InvalidSchemaMutationException(
 				"The value `" + this.defaultValue + "` cannot be automatically converted to " +
 					"attribute `" + this.name + "` type `" + existingAttributeSchema.getType() +

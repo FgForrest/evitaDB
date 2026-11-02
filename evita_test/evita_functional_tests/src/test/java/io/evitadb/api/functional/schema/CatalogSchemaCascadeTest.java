@@ -32,9 +32,9 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDefaultValueMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDefaultValueMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
@@ -81,6 +81,7 @@ class CatalogSchemaCascadeTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_NAME = "name";
 	private static final String ATTRIBUTE_SKU = "sku";
+	private static final String ATTRIBUTE_TAGS = "tags";
 	private static final String ATTRIBUTE_TEMPORARY = "temporary";
 	private static final String CHANGED_DESCRIPTION = "changed";
 	private static final String RENAMED_PRODUCT = "renamedProduct";
@@ -396,6 +397,30 @@ class CatalogSchemaCascadeTest implements EvitaTestSupport {
 		assertGlobalCodeDefaultValue(DEFAULT_CODE);
 	}
 
+	@DisplayName("leave the schemas unchanged when an equal array default value of a used global attribute comes again")
+	@Test
+	void shouldLeaveSchemasUnchangedWhenEqualArrayDefaultValueOfUsedGlobalAttributeComesAgain() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.withAttribute(
+						ATTRIBUTE_TAGS, String[].class, whichIs -> whichIs.withDefaultValue(new String[]{"a", "b"})
+					)
+					.withEntitySchema(Entities.PRODUCT, whichIs -> whichIs.withGlobalAttribute(ATTRIBUTE_TAGS))
+					.updateVia(session);
+			}
+		);
+		final int catalogVersion = catalogSchema().version();
+		final int productVersion = productSchema().version();
+
+		updateCatalogSchema(new ModifyAttributeSchemaDefaultValueMutation(ATTRIBUTE_TAGS, new String[]{"a", "b"}));
+
+		assertEquals(catalogVersion, catalogSchema().version(), "The equal default value changed the catalog schema.");
+		assertEquals(productVersion, productSchema().version(), "The equal default value changed the entity schema.");
+	}
+
 	@DisplayName("keep the local replacement of a global attribute in a live catalog and after a restart")
 	@Test
 	void shouldKeepCascadeAndLocalReplacementInLiveCatalogAndAfterRestart() {
@@ -489,6 +514,21 @@ class CatalogSchemaCascadeTest implements EvitaTestSupport {
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.updateCatalogSchema(mutations);
 		});
+	}
+
+	/**
+	 * Returns the catalog schema as the catalog holds it now.
+	 *
+	 * @return the catalog schema
+	 */
+	@Nonnull
+	private CatalogSchemaContract catalogSchema() {
+		return this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getCatalogSchema();
+			}
+		);
 	}
 
 	/**

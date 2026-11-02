@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
@@ -31,13 +32,17 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.junit.jupiter.api.Tag;
+
+import javax.annotation.Nonnull;
 
 import static io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutationTest.*;
 import static java.util.Optional.of;
@@ -171,6 +176,49 @@ class ModifyAttributeSchemaDefaultValueMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should keep a global attribute global when mutating entity schema")
+	void shouldMutateEntitySchemaKeepingGlobalAttributeGlobal() {
+		final ModifyAttributeSchemaDefaultValueMutation mutation = new ModifyAttributeSchemaDefaultValueMutation(
+			ATTRIBUTE_NAME, 5
+		);
+		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingGlobalAttributeSchema()));
+		Mockito.when(entitySchema.version()).thenReturn(1);
+
+		final EntitySchemaContract newEntitySchema = mutation.mutate(
+			Mockito.mock(CatalogSchemaContract.class),
+			entitySchema
+		);
+
+		assertEquals(2, newEntitySchema.version());
+		final AttributeSchemaContract newAttributeSchema = newEntitySchema.getAttribute(ATTRIBUTE_NAME).orElseThrow();
+		assertInstanceOf(GlobalAttributeSchemaContract.class, newAttributeSchema);
+		assertEquals(5, newAttributeSchema.getDefaultValue());
+	}
+
+	@Test
+	@DisplayName("Should return the same entity schema when the default value is unchanged")
+	void shouldReturnSameEntitySchemaWhenDefaultValueIsUnchanged() {
+		final ModifyAttributeSchemaDefaultValueMutation mutation = new ModifyAttributeSchemaDefaultValueMutation(
+			ATTRIBUTE_NAME, 5
+		);
+		final EntityAttributeSchemaContract existingSchema = mutation.mutate(
+			Mockito.mock(CatalogSchemaContract.class),
+			createExistingEntityAttributeSchema(),
+			EntityAttributeSchemaContract.class
+		);
+		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(existingSchema));
+
+		final EntitySchemaContract newEntitySchema = mutation.mutate(
+			Mockito.mock(CatalogSchemaContract.class),
+			entitySchema
+		);
+
+		assertSame(entitySchema, newEntitySchema);
+	}
+
+	@Test
 	@DisplayName("Should mutate reference schema")
 	void shouldMutateReferenceSchema() {
 		final ModifyAttributeSchemaDefaultValueMutation mutation = new ModifyAttributeSchemaDefaultValueMutation(
@@ -199,6 +247,106 @@ class ModifyAttributeSchemaDefaultValueMutationTest {
 			() -> {
 				mutation.mutate(Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class));
 			}
+		);
+	}
+
+	@Test
+	@DisplayName("Should refuse a default value the type of the entity attribute cannot hold")
+	void shouldThrowExceptionWhenDefaultValueCannotBeConvertedToEntityAttributeType() {
+		final ModifyAttributeSchemaDefaultValueMutation mutation = new ModifyAttributeSchemaDefaultValueMutation(
+			ATTRIBUTE_NAME, "notANumber"
+		);
+		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingEntityAttributeSchema()));
+
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> mutation.mutate(Mockito.mock(CatalogSchemaContract.class), entitySchema)
+		);
+	}
+
+	@Test
+	@DisplayName("Should refuse a default value the type of the global attribute cannot hold")
+	void shouldThrowExceptionWhenDefaultValueCannotBeConvertedToGlobalAttributeType() {
+		final ModifyAttributeSchemaDefaultValueMutation mutation = new ModifyAttributeSchemaDefaultValueMutation(
+			ATTRIBUTE_NAME, "notANumber"
+		);
+		final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
+		Mockito.when(catalogSchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingGlobalAttributeSchema()));
+
+		assertThrows(InvalidSchemaMutationException.class, () -> mutation.mutate(catalogSchema));
+	}
+
+	@Test
+	@DisplayName("Should refuse a default value the type of the reference attribute cannot hold")
+	void shouldThrowExceptionWhenDefaultValueCannotBeConvertedToReferenceAttributeType() {
+		final ModifyAttributeSchemaDefaultValueMutation mutation = new ModifyAttributeSchemaDefaultValueMutation(
+			ATTRIBUTE_NAME, "notANumber"
+		);
+		final ReferenceSchemaContract referenceSchema = createMockedReferenceSchema();
+		Mockito.when(referenceSchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingAttributeSchema()));
+
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> mutation.mutate(Mockito.mock(EntitySchemaContract.class), referenceSchema)
+		);
+	}
+
+	@Test
+	@DisplayName("Should return the same attribute schema when an equal array default value comes again")
+	void shouldReturnSameAttributeSchemaWhenArrayDefaultValueIsEqual() {
+		final AttributeSchemaContract existingSchema = createStringArrayAttributeSchema(new String[]{"a", "b"});
+		final ModifyAttributeSchemaDefaultValueMutation mutation = new ModifyAttributeSchemaDefaultValueMutation(
+			ATTRIBUTE_NAME, new String[]{"a", "b"}
+		);
+
+		final AttributeSchemaContract mutatedSchema = mutation.mutate(
+			Mockito.mock(CatalogSchemaContract.class), existingSchema, AttributeSchemaContract.class
+		);
+
+		assertSame(existingSchema, mutatedSchema);
+	}
+
+	@Test
+	@DisplayName("Should return the same reference schema when an equal array default value comes again")
+	void shouldReturnSameReferenceSchemaWhenArrayDefaultValueIsEqual() {
+		final ReferenceSchemaContract referenceSchema = createMockedReferenceSchema();
+		Mockito.when(referenceSchema.getAttribute(ATTRIBUTE_NAME))
+			.thenReturn(of(createStringArrayAttributeSchema(new String[]{"a", "b"})));
+		final ModifyAttributeSchemaDefaultValueMutation mutation = new ModifyAttributeSchemaDefaultValueMutation(
+			ATTRIBUTE_NAME, new String[]{"a", "b"}
+		);
+
+		final ReferenceSchemaContract mutatedSchema = mutation.mutate(
+			Mockito.mock(EntitySchemaContract.class), referenceSchema
+		);
+
+		assertSame(referenceSchema, mutatedSchema);
+	}
+
+	/**
+	 * Builds a `String[]` attribute holding the default value, with no other trait.
+	 *
+	 * @param defaultValue the default value the attribute holds
+	 * @return the attribute schema
+	 */
+	@Nonnull
+	private static AttributeSchemaContract createStringArrayAttributeSchema(@Nonnull String[] defaultValue) {
+		return AttributeSchema._internalBuild(
+			ATTRIBUTE_NAME,
+			null,
+			null,
+			null,
+			Scope.NO_SCOPE,
+			null,
+			Scope.NO_SCOPE,
+			false,
+			false,
+			false,
+			String[].class,
+			defaultValue,
+			0,
+			ConflictResolutionOverride.INHERITED
 		);
 	}
 

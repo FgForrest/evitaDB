@@ -2595,6 +2595,20 @@ class EntitySchemaBuilderTest {
 		assertEquals(0, appliedSchema.getAttribute("price").orElseThrow().getIndexedDecimalPlaces());
 	}
 
+	@DisplayName("re-define a stored attribute with an equal array default value and send nothing")
+	@Test
+	void shouldSendNothingWhenRedefiningStoredAttributeWithEqualArrayDefaultValue() {
+		final EntitySchemaContract storedSchema =
+			new InternalEntitySchemaBuilder(this.catalogSchema, this.productSchema)
+				.withAttribute("tags", String[].class, thatIs -> thatIs.withDefaultValue(new String[]{"a", "b"}))
+				.toInstance();
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+
+		builder.withAttribute("tags", String[].class, thatIs -> thatIs.withDefaultValue(new String[]{"a", "b"}));
+
+		assertTrue(builder.toMutation().isEmpty(), "Re-defining the stored default value must leave nothing to send.");
+	}
+
 	/**
 	 * Asserts that the mutations the builder emits, applied to the stored schema, give the references the builder
 	 * itself shows - what the server ends with is what the client saw.
