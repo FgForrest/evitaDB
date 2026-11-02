@@ -427,9 +427,9 @@ issue and commit.
   `ComplexDataObjectConverterTest#shouldSerializeAndDeserializeMapWithCharacterKeys`.
 - On the final tree the functional tests tagged `schema`, `attribute`, `reference`, `driver`, `grpc`, `expression`,
   `indexing`, `facet`, `transaction`, `wal`, `query`, `data_type`, `traffic_engine` or `serialization` (excluding
-  `slow` and `flaky`, `largeMachine`) ran 27 980 tests: 0 failures, 9 errors. All nine are GraphQL subscription tests
-  whose client failed the TLS session negotiation (`SessionProtocolNegotiationException`); their three classes pass
-  alone, 44 of 44 tests.
+  `slow` and `flaky`, `largeMachine`) ran 28 000 tests: 0 failures, 5 errors. Four are GraphQL subscription tests
+  whose client failed the TLS session negotiation (`SessionProtocolNegotiationException`), one a gRPC
+  traffic-recording export that lost its channel under load; their four classes pass alone, 47 of 47 tests.
 - Removing the `indexedPricePlaces` comparison from `SchemaContentComparator` makes exactly the matching
   genuine-change scenario fail, so the property scenarios can fail.
 
