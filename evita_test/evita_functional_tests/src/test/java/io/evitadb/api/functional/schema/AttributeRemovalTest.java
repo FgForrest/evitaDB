@@ -72,7 +72,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Verifies that removing an attribute a sortable attribute compound is made of is refused for entity, reference and
  * global attributes, preserving the schema and subsequent writes. Removing the compound first permits the attribute
- * removal, including when both removals are submitted in one schema update or by a schema post-processor.
+ * removal, including when both removals are submitted in one schema update - but not from one schema post-processor,
+ * which emits the removal of the global attribute first.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -467,36 +468,40 @@ class AttributeRemovalTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * A schema post-processor may remove a compound and the global attribute it is made of in one analysis of a model
-	 * class, although the analysis emits the mutations of the catalog schema before those of the entity schema.
+	 * A schema post-processor removing a compound and the global attribute it is made of in one analysis of a model
+	 * class is refused before any schema changes: the analysis emits the mutations of the catalog schema before those
+	 * of the entity schema, so the removal of the global attribute still finds the compound. The compound has to be
+	 * removed in an update of its own first.
 	 */
-	@DisplayName("remove an entity compound and its global attribute from a schema post-processor")
+	@DisplayName("refuse a post-processor removing an entity compound and its global attribute, leaving both in place")
 	@Test
-	void shouldRemoveEntityCompoundAndGlobalAttributeFromSchemaPostProcessor() {
+	void shouldRefusePostProcessorRemovingEntityCompoundAndGlobalAttribute() {
 		defineProduct(true);
-		this.evita.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session.defineEntitySchemaFromModelClass(
-					LabelledProductModel.class,
-					(catalogBuilder, entityBuilder) -> {
-						entityBuilder.withoutSortableAttributeCompound(COMPOUND_CODE_LABEL);
-						catalogBuilder.withoutAttribute(ATTRIBUTE_CODE);
-					}
-				);
-			}
+
+		assertThrows(
+			SortableAttributeCompoundSchemaException.class,
+			() -> this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchemaFromModelClass(
+						LabelledProductModel.class,
+						(catalogBuilder, entityBuilder) -> {
+							entityBuilder.withoutSortableAttributeCompound(COMPOUND_CODE_LABEL);
+							catalogBuilder.withoutAttribute(ATTRIBUTE_CODE);
+						}
+					);
+				}
+			)
 		);
 
-		assertTrue(catalogSchema().getAttribute(ATTRIBUTE_CODE).isEmpty());
-		assertTrue(productSchema().getAttribute(ATTRIBUTE_CODE).isEmpty());
-		assertTrue(productSchema().getSortableAttributeCompound(COMPOUND_CODE_LABEL).isEmpty());
+		assertTrue(catalogSchema().getAttribute(ATTRIBUTE_CODE).isPresent());
+		assertProductCompoundPresent();
 		assertLaterUpsertSucceeds();
 	}
 
 	/**
 	 * A schema post-processor removing the compound of one entity and the global attribute another entity's compound
-	 * is still made of is refused before any schema changes - the compound removal of the analysed entity must not be
-	 * applied ahead of a global removal that is then refused.
+	 * is still made of is refused before any schema changes, the compound of the analysed entity included.
 	 */
 	@DisplayName("refuse a post-processor global removal another entity's compound blocks, leaving every schema as it is")
 	@Test
@@ -536,8 +541,8 @@ class AttributeRemovalTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * A schema post-processor re-creating the compound over the global attribute it removes is refused: the compound
-	 * would name the missing attribute, so the analysis must not move the compound removal ahead of the global removal.
+	 * A schema post-processor re-creating the compound over the global attribute it removes is refused before any
+	 * schema changes: the compound would name the missing attribute.
 	 */
 	@DisplayName("refuse a post-processor that re-creates the compound over the global attribute it removes")
 	@Test

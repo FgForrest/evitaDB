@@ -54,6 +54,11 @@ import javax.annotation.Nonnull;
  * analyzing all annotations on the model class and constructing initial schema builders, but before the schema is
  * sealed and applied to the catalog. Modifications made via the provided builders are included in the final schema.
  *
+ * The mutations of the catalog builder are applied before those of the entity builder. A global attribute a sortable
+ * attribute compound of the entity is made of therefore cannot be removed in the same post-processor that removes the
+ * compound - the removal of the global attribute is refused while the compound exists. Remove the compound in an
+ * update of its own first.
+ *
  * **Thread-Safety**
  *
  * Implementations do not need to be thread-safe — each invocation receives dedicated builder instances that are not
