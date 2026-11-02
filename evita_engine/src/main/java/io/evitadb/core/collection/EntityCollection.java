@@ -3078,11 +3078,17 @@ public final class EntityCollection implements
 			} else {
 				continue;
 			}
+			// a reflected reference renames only the attributes it declares, and its inherited ones cannot be read
+			// before its original reference exists
 			final boolean declaredBefore = referenceName == null ?
 				originalSchema.getAttribute(rename.getName()).isPresent() :
 				originalSchema.getReference(referenceName)
-					.flatMap(reference -> reference.getAttribute(rename.getName()))
-					.isPresent();
+					.map(
+						reference -> reference instanceof ReflectedReferenceSchema reflectedReference ?
+							reflectedReference.getDeclaredAttributes().containsKey(rename.getName()) :
+							reference.getAttribute(rename.getName()).isPresent()
+					)
+					.orElse(false);
 			if (!declaredBefore) {
 				continue;
 			}

@@ -116,6 +116,10 @@ final class AttributeSchemaMutationVerifier {
 	 * reference inherits from its original - the inherited attribute would stay next to the renamed copy, and it can be
 	 * renamed only in the original reference.
 	 *
+	 * While the original of a reflected reference does not exist yet, its inherited attributes and compounds cannot be
+	 * resolved, so only the declared attributes are checked for the new name; a compound left naming a missing
+	 * attribute is refused by the validation of the final schema.
+	 *
 	 * @param entitySchema    the entity schema holding the reference
 	 * @param referenceSchema the reference schema the attribute is renamed in
 	 * @param name            the current name of the attribute
@@ -136,6 +140,16 @@ final class AttributeSchemaMutationVerifier {
 					reflectedReferenceSchema.getReflectedReferenceName() + "` of entity `" +
 					reflectedReferenceSchema.getReferencedEntityType() + "` and can be renamed only there!"
 			);
+		}
+		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema &&
+			!reflectedReferenceSchema.isReflectedReferenceAvailable()) {
+			if (reflectedReferenceSchema.getDeclaredAttributes().containsKey(newName)) {
+				throw new InvalidSchemaMutationException(
+					"The attribute `" + newName + "` already exists in " + owner + " schema, the attribute `" + name +
+						"` cannot be renamed to it!"
+				);
+			}
+			return;
 		}
 		if (referenceSchema.getAttribute(newName).isPresent()) {
 			throw new InvalidSchemaMutationException(

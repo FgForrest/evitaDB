@@ -110,6 +110,13 @@ public class ModifyAttributeSchemaNameMutation
 	 * changing one attribute alone: a rename also changes the name the attribute is kept under and is checked against
 	 * the other attributes and the sortable attribute compounds of the entity, so it is applied to the entity schema
 	 * itself.
+	 *
+	 * A rename the entity schema already went through - it uses the global attribute under the new name - is left
+	 * as it is: the write-ahead log records the rename of a global attribute together with the entity schema
+	 * modifications it cascaded into, and its replay cascades the global rename again before it reaches them. Unlike
+	 * the other changes of an attribute, a rename moves it, so a second application would not find it. A mutation
+	 * sent for such an entity schema directly is tolerated the same way, as a removal of an attribute the entity
+	 * schema no longer has is.
 	 */
 	@Nonnull
 	@Override
@@ -117,7 +124,29 @@ public class ModifyAttributeSchemaNameMutation
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nullable EntitySchemaContract entitySchema
 	) {
+		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
+		if (isGlobalRenameAppliedTo(catalogSchema, entitySchema)) {
+			return entitySchema;
+		}
 		return EntityAttributeSchemaMutation.super.mutate(catalogSchema, entitySchema);
+	}
+
+	/**
+	 * Returns true when this mutation renamed a global attribute and the entity schema already uses that global
+	 * attribute under the new name.
+	 *
+	 * @param catalogSchema the catalog schema the entity schema belongs to
+	 * @param entitySchema  the entity schema the rename is applied to
+	 * @return true when the rename has nothing left to do in the entity schema
+	 */
+	private boolean isGlobalRenameAppliedTo(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaContract entitySchema
+	) {
+		return entitySchema.getAttribute(this.name).isEmpty() &&
+			catalogSchema.getAttribute(this.name).isEmpty() &&
+			catalogSchema.getAttribute(this.newName).isPresent() &&
+			entitySchema.getAttribute(this.newName).filter(GlobalAttributeSchemaContract.class::isInstance).isPresent();
 	}
 
 	@Nonnull

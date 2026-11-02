@@ -27,9 +27,12 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
@@ -86,6 +89,8 @@ class AttributeRenameTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_MEMO = "memo";
 	private static final String REFERENCE_CATEGORIES = "categories";
 	private static final String REFERENCE_PRODUCTS = "products";
+	private static final String REFERENCE_STORES = "stores";
+	private static final String REFERENCE_BRANDS = "brands";
 	private static final String WARNING_PREFIX = "Attribute `";
 	private static final String RENAMED_TO = " was renamed to `";
 	private TestPaths paths;
@@ -252,6 +257,68 @@ class AttributeRenameTest implements EvitaTestSupport {
 
 		assertTrue(exception.getMessage().contains("`" + ATTRIBUTE_LABEL + "` already exists"), exception::getMessage);
 		assertEquals(Set.of(ATTRIBUTE_CODE, ATTRIBUTE_LABEL, ATTRIBUTE_ORDER), attributesOf(productSchema()));
+	}
+
+	@DisplayName("rename a global attribute in a live catalog and keep the rename after a restart")
+	@Test
+	void shouldRenameGlobalAttributeInLiveCatalogAndAfterRestart() {
+		this.evita.updateCatalog(TEST_CATALOG, EvitaSessionContract::goLiveAndClose);
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.updateCatalogSchema(new ModifyAttributeSchemaNameMutation(ATTRIBUTE_CODE, ATTRIBUTE_EAN));
+			},
+			CommitBehavior.WAIT_FOR_CHANGES_VISIBLE
+		);
+		assertEquals(Set.of(ATTRIBUTE_EAN, ATTRIBUTE_LABEL, ATTRIBUTE_ORDER), attributesOf(productSchema()));
+
+		// the restart replays the WAL, mutation by mutation
+		this.evita.close();
+		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
+
+		assertEquals(
+			Set.of(ATTRIBUTE_EAN),
+			this.evita.queryCatalog(TEST_CATALOG, session -> {
+				return new TreeSet<>(session.getCatalogSchema().getAttributes().keySet());
+			})
+		);
+		assertEquals(Set.of(ATTRIBUTE_EAN, ATTRIBUTE_LABEL, ATTRIBUTE_ORDER), attributesOf(productSchema()));
+	}
+
+	@DisplayName("rename an attribute a reflected reference declares before its original reference exists")
+	@Test
+	void shouldRenameDeclaredAttributeOfReflectedReferenceBeforeItsOriginalExists() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.BRAND)
+					.withReflectedReferenceToEntity(
+						REFERENCE_STORES, Entities.STORE, REFERENCE_BRANDS,
+						whichIs -> whichIs.withAttributesInherited()
+							.withAttribute(ATTRIBUTE_NOTE, String.class, attribute -> attribute.nullable())
+					)
+					.updateVia(session);
+				session.updateEntitySchema(
+					new ModifyEntitySchemaMutation(
+						Entities.BRAND,
+						new ModifyReferenceAttributeSchemaMutation(
+							REFERENCE_STORES, new ModifyAttributeSchemaNameMutation(ATTRIBUTE_NOTE, ATTRIBUTE_MEMO)
+						)
+					)
+				);
+				session.defineEntitySchema(Entities.STORE)
+					.withReferenceToEntity(
+						REFERENCE_BRANDS, Entities.BRAND, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.indexedForFiltering()
+					)
+					.updateVia(session);
+			}
+		);
+
+		final ReferenceSchemaContract reference = schemaOf(Entities.BRAND)
+			.getReferenceOrThrowException(REFERENCE_STORES);
+		assertTrue(reference.getAttribute(ATTRIBUTE_MEMO).isPresent());
+		assertTrue(reference.getAttribute(ATTRIBUTE_NOTE).isEmpty());
 	}
 
 	@DisplayName("refuse a global rename before any entity schema using the attribute changes")
