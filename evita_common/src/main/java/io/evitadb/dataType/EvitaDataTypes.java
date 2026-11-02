@@ -32,6 +32,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import io.evitadb.utils.NumberUtils;
+import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -333,10 +334,12 @@ public class EvitaDataTypes {
 	 * Conversion function for coercing arbitrary objects to `Character`. Returns `Character`
 	 * inputs unchanged. For `Number` inputs, converts to an integer and validates range
 	 * (0-65535, the valid Unicode code point range for char); throws if out of bounds. For string
-	 * inputs, accepts single-character strings, or three-character single-quoted literals like
-	 * `'A'` (strips quotes). Throws `InconvertibleDataTypeException` for multi-character strings
-	 * or out-of-range numeric values. Used by `convertSingleObject` when target type is
-	 * `Character` or `char`.
+	 * inputs, accepts single-character strings, three-character single-quoted literals like
+	 * `'A'` (strips quotes), and single-quoted literals of one escaped character as `formatValue`
+	 * writes them, like `'\\'` or `'\n'`. The three-character form is read first, because older
+	 * versions wrote the backslash unescaped as `'\'`. Throws `InconvertibleDataTypeException` for
+	 * multi-character strings, malformed escapes or out-of-range numeric values. Used by
+	 * `convertSingleObject` when target type is `Character` or `char`.
 	 */
 	private static final BiFunction<Class<?>, Serializable, Character>
 		CHAR_FUNCTION =
@@ -360,6 +363,21 @@ public class EvitaDataTypes {
 					// handle single-quoted character literal from EvitaQL, e.g., 'A'
 				} else if (str.length() == 3 && str.charAt(0) == '\'' && str.charAt(2) == '\'') {
 					return str.charAt(1);
+				} else if (
+					str.length() > 3 && str.charAt(0) == '\'' && str.charAt(1) == '\\' &&
+						str.charAt(str.length() - 1) == '\''
+				) {
+					// one escaped character, as `formatValue` writes a backslash, an apostrophe or a control character
+					final String unescaped;
+					try {
+						unescaped = StringUtils.translateEscapes(str.substring(1, str.length() - 1));
+					} catch (IllegalArgumentException | IndexOutOfBoundsException ex) {
+						throw new InconvertibleDataTypeException(requestedType, unknownObject);
+					}
+					if (unescaped.length() != 1) {
+						throw new InconvertibleDataTypeException(requestedType, unknownObject);
+					}
+					return unescaped.charAt(0);
 				} else {
 					throw new InconvertibleDataTypeException(requestedType, unknownObject);
 				}

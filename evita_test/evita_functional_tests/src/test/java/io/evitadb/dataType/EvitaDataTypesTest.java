@@ -1191,6 +1191,39 @@ class EvitaDataTypesTest {
 				)
 			);
 		}
+
+		@Test
+		@DisplayName("should convert the literal formatValue writes for a char back to the same char")
+		void shouldConvertFormattedCharBack() {
+			for (final char character : new char[]{'A', '\'', '\\', '\n', (char) 1}) {
+				final String literal = formatValue(character);
+
+				assertEquals(
+					character,
+					EvitaDataTypes.toTargetType(literal, Character.class),
+					() -> "Literal: " + literal
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should convert the three-character literal older versions wrote for a backslash")
+		void shouldConvertUnescapedBackslashLiteral() {
+			assertEquals('\\', EvitaDataTypes.toTargetType("'\\'", Character.class));
+		}
+
+		@Test
+		@DisplayName("should fail to convert a malformed or multi-character escaped literal to Character")
+		void shouldFailToConvertMalformedEscapedCharLiteral() {
+			// an unknown escape, a Unicode escape cut short, and two escaped characters
+			for (final String literal : new String[]{"'\\x'", "'\\" + "u12'", "'\\n\\n'"}) {
+				assertThrows(
+					InconvertibleDataTypeException.class,
+					() -> EvitaDataTypes.toTargetType(literal, Character.class),
+					literal
+				);
+			}
+		}
 	}
 
 	@Nested
