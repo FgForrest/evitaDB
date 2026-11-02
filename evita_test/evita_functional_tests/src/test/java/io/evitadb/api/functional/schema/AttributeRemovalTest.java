@@ -494,6 +494,81 @@ class AttributeRemovalTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * A schema post-processor removing the compound of one entity and the global attribute another entity's compound
+	 * is still made of is refused before any schema changes - the compound removal of the analysed entity must not be
+	 * applied ahead of a global removal that is then refused.
+	 */
+	@DisplayName("refuse a post-processor global removal another entity's compound blocks, leaving every schema as it is")
+	@Test
+	void shouldLeaveSchemasUnchangedWhenPostProcessorGlobalRemovalIsRefused() {
+		defineProduct(true);
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.BRAND)
+					.withGlobalAttribute(ATTRIBUTE_CODE)
+					.withAttribute(ATTRIBUTE_LABEL, String.class, whichIs -> whichIs.nullable().sortable())
+					.withSortableAttributeCompound(
+						COMPOUND_CODE_LABEL, attributeElement(ATTRIBUTE_CODE), attributeElement(ATTRIBUTE_LABEL)
+					)
+					.updateVia(session);
+			}
+		);
+
+		assertThrows(
+			SortableAttributeCompoundSchemaException.class,
+			() -> this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchemaFromModelClass(
+						LabelledProductModel.class,
+						(catalogBuilder, entityBuilder) -> {
+							entityBuilder.withoutSortableAttributeCompound(COMPOUND_CODE_LABEL);
+							catalogBuilder.withoutAttribute(ATTRIBUTE_CODE);
+						}
+					);
+				}
+			)
+		);
+
+		assertTrue(catalogSchema().getAttribute(ATTRIBUTE_CODE).isPresent());
+		assertProductCompoundPresent();
+	}
+
+	/**
+	 * A schema post-processor re-creating the compound over the global attribute it removes is refused: the compound
+	 * would name the missing attribute, so the analysis must not move the compound removal ahead of the global removal.
+	 */
+	@DisplayName("refuse a post-processor that re-creates the compound over the global attribute it removes")
+	@Test
+	void shouldRefusePostProcessorRecreatingCompoundOverRemovedGlobalAttribute() {
+		defineProduct(true);
+
+		assertThrows(
+			SortableAttributeCompoundSchemaException.class,
+			() -> this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchemaFromModelClass(
+						LabelledProductModel.class,
+						(catalogBuilder, entityBuilder) -> {
+							entityBuilder.withoutSortableAttributeCompound(COMPOUND_CODE_LABEL)
+								.withSortableAttributeCompound(
+									COMPOUND_CODE_LABEL,
+									attributeElement(ATTRIBUTE_LABEL), attributeElement(ATTRIBUTE_CODE)
+								);
+							catalogBuilder.withoutAttribute(ATTRIBUTE_CODE);
+						}
+					);
+				}
+			)
+		);
+
+		assertTrue(catalogSchema().getAttribute(ATTRIBUTE_CODE).isPresent());
+		assertProductCompoundPresent();
+	}
+
+	/**
 	 * Defines the two nullable, sortable product attributes and their compound, and stores one product.
 	 *
 	 * @param globalCode whether code is declared globally and used by the entity
