@@ -51,7 +51,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static io.evitadb.test.TestTags.DRIVER;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.SESSION;
-import static io.evitadb.test.TestTags.SLOW;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -135,7 +134,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 @Tag(DRIVER)
 @Tag(GRPC)
 @Tag(SESSION)
-@Tag(SLOW)
 public class LongRunningEvitaClientUnaryTimeoutCapTest {
 	/**
 	 * Timeout the client is configured with — the value the driver must actually honour.

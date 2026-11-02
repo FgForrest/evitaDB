@@ -37,7 +37,8 @@ must be categorised on two orthogonal axes using JUnit 5 `@Tag`s drawn from
   `INDEXING`, `STORAGE`, `DRIVER`, `SERVER`, `EXTERNAL_API`, `REST`, `GRAPHQL`, `GRPC`, `LAB`, …
 - **Capability axis (≥1 required)** — *what* behaviour is tested: e.g. `QUERY`, `FILTER`, `ORDER`,
   `FACET`, `HIERARCHY`, `PRICE`, `SCHEMA`, `TRANSACTION`, `SERIALIZATION`, `SESSION`, …
-- **Cost axis (optional, mutually exclusive)** — `SLOW`, `FLAKY`. Untagged-for-cost tests are fast.
+- **Cost axis (optional)** — `FLAKY`, for a test quarantined because it cannot run reliably. There is no slow
+  tag: a test too slow for the fast loop lives in `evita_test/evita_long_running_tests`.
 
 `INDEXING` and `TEST_HARNESS` sit on *both* required axes, so either one satisfies the policy alone.
 `TEST_HARNESS` is the home for tests of the test infrastructure itself — the tag-policy gate, the
@@ -85,7 +86,7 @@ against an embedded evitaDB instance provisioned by the test-support infrastruct
 
 ## Running tests
 
-The default fast loop runs unit + functional tests, excluding `slow`/`flaky`; the long-running and
+The default fast loop runs unit + functional tests, excluding `flaky`; the long-running and
 documentation modules skip themselves via their own surefire configuration. With the tag taxonomy the
 `unit` and `unitAndFunctional` profiles are **equivalent** (both names are kept for muscle memory):
 
@@ -98,7 +99,7 @@ Select or exclude tests by tag with JUnit 5 boolean expressions passed to surefi
 
 ```
 mvn -pl evita_test/evita_functional_tests test -Dgroups="facet & external_api"
-mvn -pl evita_test/evita_functional_tests test -Dgroups="(query | indexing) & !slow"
+mvn -pl evita_test/evita_functional_tests test -Dgroups="(query | indexing) & !flaky"
 ```
 
 Other profiles select a single specialised module: `-P documentation` runs only the documentation
@@ -116,7 +117,7 @@ the JDK internals the engine and serialization tests reflect over:
 --add-opens java.base/java.util=ALL-UNNAMED
 ```
 
-and set the runner's tag field to exclude the optional cost tags, e.g. `!slow & !flaky`. The
+and set the runner's tag field to exclude the optional cost tag, `!flaky`. The
 screenshot below illustrates only where the `--add-opens` template goes; its tag field predates the
 current taxonomy, so read it as layout guidance, not literal tag names.
 

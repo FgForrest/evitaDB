@@ -42,7 +42,6 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.ArrayUtils.insertIntIntoArrayOnIndex;
 import static io.evitadb.utils.ArrayUtils.removeIntFromArrayOnIndex;
@@ -71,7 +70,6 @@ class LongRunningTransactionalUnorderedIntArrayTest implements TimeBoundedTestSu
 
 	@DisplayName("survives generational randomized test applying modifications")
 	@ParameterizedTest(name = "TransactionalIntArray should survive generational randomized test applying modifications on it")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
 		final int initialCount = 100;

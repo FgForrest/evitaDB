@@ -47,7 +47,6 @@ import java.util.TreeSet;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -84,7 +83,6 @@ class LongRunningTransactionalMapWithBitmapValuesTest implements TimeBoundedTest
 
 	@DisplayName("survives generational randomized modify-then-delete of producer values")
 	@ParameterizedTest(name = "TransactionalMap<String, TransactionalBitmap> should survive generational randomized modify-then-delete")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
 		final int initialCount = 60;

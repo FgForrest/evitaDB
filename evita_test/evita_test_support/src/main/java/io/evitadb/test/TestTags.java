@@ -29,12 +29,14 @@ import java.util.Set;
  * Catalog of JUnit 5 tag identifiers used across the evitaDB test suite.
  *
  * Tags are organised on three orthogonal axes — every test is expected to carry
- * at least one tag from the layer axis and one from the capability axis. Tags
- * from the cost axis are optional and default to "fast".
+ * at least one tag from the layer axis and one from the capability axis. The
+ * cost axis is optional and holds only {@link #FLAKY}. A test too slow for the
+ * fast loop is not tagged: it lives in the `evita_long_running_tests` module,
+ * which runs as a whole under the `longRunning` profile.
  *
  * The taxonomy is intentionally flat (no `cap:` / `surface:` prefixes) so that
  * tag-filter expressions stay readable, e.g.
- * `mvn test -Dgroups="(facet | hierarchy) & external_api & !slow"`.
+ * `mvn test -Dgroups="(facet | hierarchy) & external_api & !flaky"`.
  *
  * The {@link #LAYER_TAGS} and {@link #CAPABILITY_TAGS} sets are consumed by
  * {@code TestTagPolicyFilter} to enforce that every test method has been
@@ -43,14 +45,8 @@ import java.util.Set;
 public interface TestTags {
 
 	// ---------------------------------------------------------------------
-	// Cost axis — optional, mutually exclusive
+	// Cost axis — optional
 	// ---------------------------------------------------------------------
-
-	/**
-	 * Slow / generative test that should be excluded from the default fast loop
-	 * and only executed in the dedicated long-running pipeline.
-	 */
-	String SLOW = "slow";
 
 	/**
 	 * Test currently known to be unstable; excluded from required runs and
@@ -237,8 +233,8 @@ public interface TestTags {
 	);
 
 	/**
-	 * Cost tags — optional, mutually exclusive (a test should carry at most one).
+	 * Cost tags — optional.
 	 */
-	Set<String> COST_TAGS = Set.of(SLOW, FLAKY);
+	Set<String> COST_TAGS = Set.of(FLAKY);
 
 }

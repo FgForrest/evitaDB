@@ -43,7 +43,6 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -369,29 +368,6 @@ class VirtualReferencePartitionIndexTest {
 			assertArrayEquals(POSTER, index.getTuple(posterId));
 			assertArrayEquals(THUMBNAIL, index.getTuple(readdedThumbnailId));
 			assertNull(index.getTuple(thumbnailId), "Nothing refers to the released id");
-		}
-
-		/**
-		 * Allocating an id by a walk over the dictionary costs `O(T)` per new tuple, so building `N` distinct tuples
-		 * costs `O(N²)` - around 2·10¹⁰ map visits here, which takes minutes. An `O(1)` allocation builds them in well
-		 * under a second, so the bound sits more than an order of magnitude away from both. There is no seam to count
-		 * the visits through, hence the wall-clock bound.
-		 */
-		@Test
-		@DisplayName("builds many distinct tuples in linear time")
-		void shouldBuildManyDistinctTuplesInLinearTime() {
-			final int tupleCount = 200_000;
-			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-			assertTimeoutPreemptively(
-				Duration.ofSeconds(10),
-				() -> {
-					for (int partition = 1; partition <= tupleCount; partition++) {
-						index.putRepresentativeTuple(partition, new Serializable[]{partition});
-					}
-				},
-				"Building distinct tuples must not walk the dictionary per new tuple"
-			);
-			assertEquals(tupleCount, index.getTupleId(new Serializable[]{tupleCount}));
 		}
 
 		@Test

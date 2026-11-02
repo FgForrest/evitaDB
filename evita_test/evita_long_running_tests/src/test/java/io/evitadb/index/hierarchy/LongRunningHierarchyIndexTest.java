@@ -54,7 +54,6 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.test.TestTags.HIERARCHY;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
@@ -79,7 +78,6 @@ class LongRunningHierarchyIndexTest implements TimeBoundedTestSupport {
 	private static final int MAX_NODES = 50;
 
 	@ParameterizedTest(name = "HierarchyIndex should survive generational randomized test applying modifications on it")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
 		final TestHierarchyNode testHierarchyNode = new TestHierarchyNode();
@@ -137,7 +135,6 @@ class LongRunningHierarchyIndexTest implements TimeBoundedTestSupport {
 	 * and no committed value was published.
 	 */
 	@ParameterizedTest(name = "HierarchyIndex rollback discards every in-transaction mutation and leaves the base intact")
-	@Tag(SLOW)
 	@Tag(TRANSACTION)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalRollbackProofTest(GenerationalTestInput input) {

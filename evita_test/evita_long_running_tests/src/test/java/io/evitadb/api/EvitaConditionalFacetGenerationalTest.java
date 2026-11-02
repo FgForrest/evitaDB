@@ -61,7 +61,6 @@ import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
 
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.api.functional.indexing.IndexingTestSupport.getGlobalIndex;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -123,7 +122,6 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 	// --- Test 1: Entity Attribute ---
 
 	@ParameterizedTest(name = "Conditional facet by entity attribute should survive generational test")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("Generational test: facetedPartially by entity attribute")
 	void shouldSurviveGenerationalTestWithEntityAttributeExpression(GenerationalTestInput input) {
@@ -224,7 +222,6 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 	// --- Test 2: Reference Attribute ---
 
 	@ParameterizedTest(name = "Conditional facet by reference attribute should survive generational test")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("Generational test: facetedPartially by reference attribute")
 	void shouldSurviveGenerationalTestWithReferenceAttributeExpression(GenerationalTestInput input) {
@@ -322,7 +319,6 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 	// --- Test 3: Group Entity Attribute (cross-entity fan-out) ---
 
 	@ParameterizedTest(name = "Conditional facet by group entity attribute should survive generational test")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("Generational test: facetedPartially by group entity attribute")
 	void shouldSurviveGenerationalTestWithGroupEntityAttributeExpression(GenerationalTestInput input) {
@@ -423,7 +419,6 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 	// --- Test 4: Referenced Entity Attribute (cross-entity fan-out) ---
 
 	@ParameterizedTest(name = "Conditional facet by referenced entity attribute should survive generational test")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("Generational test: facetedPartially by referenced entity attribute")
 	void shouldSurviveGenerationalTestWithReferencedEntityAttributeExpression(GenerationalTestInput input) {
@@ -511,7 +506,6 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 	// --- Test 5: Parent Entity Attribute (cross-entity fan-out) ---
 
 	@ParameterizedTest(name = "Conditional facet by parent entity attribute should survive generational test")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("Generational test: facetedPartially by parent entity attribute")
 	void shouldSurviveGenerationalTestWithParentEntityAttributeExpression(GenerationalTestInput input) {
