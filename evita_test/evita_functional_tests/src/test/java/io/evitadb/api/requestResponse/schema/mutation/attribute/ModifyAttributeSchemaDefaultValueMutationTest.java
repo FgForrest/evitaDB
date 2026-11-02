@@ -33,10 +33,12 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -197,18 +199,21 @@ class ModifyAttributeSchemaDefaultValueMutationTest {
 	}
 
 	@Test
-	@DisplayName("Should return the same entity schema when the default value is unchanged")
-	void shouldReturnSameEntitySchemaWhenDefaultValueIsUnchanged() {
-		final ModifyAttributeSchemaDefaultValueMutation mutation = new ModifyAttributeSchemaDefaultValueMutation(
-			ATTRIBUTE_NAME, 5
-		);
-		final EntityAttributeSchemaContract existingSchema = mutation.mutate(
+	@DisplayName("Should return the same entity schema when an equal array default value comes again")
+	void shouldReturnSameEntitySchemaWhenArrayDefaultValueIsEqual() {
+		final EntityAttributeSchemaContract existingSchema = new ModifyAttributeSchemaDefaultValueMutation(
+			ATTRIBUTE_NAME, new String[]{"a", "b"}
+		).mutate(
 			Mockito.mock(CatalogSchemaContract.class),
-			createExistingEntityAttributeSchema(),
+			createStringArrayEntityAttributeSchema(),
 			EntityAttributeSchemaContract.class
 		);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(existingSchema));
+		// another array instance with the same elements as the stored default value
+		final ModifyAttributeSchemaDefaultValueMutation mutation = new ModifyAttributeSchemaDefaultValueMutation(
+			ATTRIBUTE_NAME, new String[]{"a", "b"}
+		);
 
 		final EntitySchemaContract newEntitySchema = mutation.mutate(
 			Mockito.mock(CatalogSchemaContract.class),
@@ -259,10 +264,27 @@ class ModifyAttributeSchemaDefaultValueMutationTest {
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingEntityAttributeSchema()));
 
-		assertThrows(
+		final InvalidSchemaMutationException exception = assertThrows(
 			InvalidSchemaMutationException.class,
 			() -> mutation.mutate(Mockito.mock(CatalogSchemaContract.class), entitySchema)
 		);
+		assertInstanceOf(InconvertibleDataTypeException.class, exception.getCause());
+	}
+
+	@Test
+	@DisplayName("Should name the elements of an array default value the type of the attribute cannot hold")
+	void shouldNameArrayElementsWhenArrayDefaultValueCannotBeConverted() {
+		final ModifyAttributeSchemaDefaultValueMutation mutation = new ModifyAttributeSchemaDefaultValueMutation(
+			ATTRIBUTE_NAME, new String[]{"1", "notANumber"}
+		);
+		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingEntityAttributeSchema()));
+
+		final InvalidSchemaMutationException exception = assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> mutation.mutate(Mockito.mock(CatalogSchemaContract.class), entitySchema)
+		);
+		assertTrue(exception.getMessage().contains("`[1, notANumber]`"), exception.getMessage());
 	}
 
 	@Test
@@ -274,7 +296,11 @@ class ModifyAttributeSchemaDefaultValueMutationTest {
 		final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
 		Mockito.when(catalogSchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingGlobalAttributeSchema()));
 
-		assertThrows(InvalidSchemaMutationException.class, () -> mutation.mutate(catalogSchema));
+		final InvalidSchemaMutationException exception = assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> mutation.mutate(catalogSchema)
+		);
+		assertInstanceOf(InconvertibleDataTypeException.class, exception.getCause());
 	}
 
 	@Test
@@ -286,10 +312,11 @@ class ModifyAttributeSchemaDefaultValueMutationTest {
 		final ReferenceSchemaContract referenceSchema = createMockedReferenceSchema();
 		Mockito.when(referenceSchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingAttributeSchema()));
 
-		assertThrows(
+		final InvalidSchemaMutationException exception = assertThrows(
 			InvalidSchemaMutationException.class,
 			() -> mutation.mutate(Mockito.mock(EntitySchemaContract.class), referenceSchema)
 		);
+		assertInstanceOf(InconvertibleDataTypeException.class, exception.getCause());
 	}
 
 	@Test
@@ -322,6 +349,31 @@ class ModifyAttributeSchemaDefaultValueMutationTest {
 		);
 
 		assertSame(referenceSchema, mutatedSchema);
+	}
+
+	/**
+	 * Builds a `String[]` entity attribute without a default value or any other trait.
+	 *
+	 * @return the entity attribute schema
+	 */
+	@Nonnull
+	private static EntityAttributeSchemaContract createStringArrayEntityAttributeSchema() {
+		return EntityAttributeSchema._internalBuild(
+			ATTRIBUTE_NAME,
+			null,
+			null,
+			null,
+			Scope.NO_SCOPE,
+			null,
+			Scope.NO_SCOPE,
+			false,
+			false,
+			false,
+			String[].class,
+			null,
+			0,
+			ConflictResolutionOverride.INHERITED
+		);
 	}
 
 	/**

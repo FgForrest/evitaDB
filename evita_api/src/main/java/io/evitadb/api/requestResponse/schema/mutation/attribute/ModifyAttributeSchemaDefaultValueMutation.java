@@ -45,6 +45,7 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.StringUtils;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -190,9 +191,10 @@ public class ModifyAttributeSchemaDefaultValueMutation
 			);
 		} catch (UnsupportedDataTypeException | InconvertibleDataTypeException ex) {
 			throw new InvalidSchemaMutationException(
-				"The value `" + this.defaultValue + "` cannot be automatically converted to " +
+				"The value `" + StringUtils.toString(this.defaultValue) + "` cannot be automatically converted to " +
 					"attribute `" + this.name + "` type `" + existingAttributeSchema.getType() +
-					"` in catalog `" + catalogSchema.getName() + "`!"
+					"` in catalog `" + catalogSchema.getName() + "`!",
+				ex
 			);
 		}
 	}
@@ -223,9 +225,10 @@ public class ModifyAttributeSchemaDefaultValueMutation
 			);
 		} catch (UnsupportedDataTypeException | InconvertibleDataTypeException ex) {
 			throw new InvalidSchemaMutationException(
-				"The value `" + this.defaultValue + "` cannot be automatically converted to " +
+				"The value `" + StringUtils.toString(this.defaultValue) + "` cannot be automatically converted to " +
 					"attribute `" + this.name + "` type `" + existingAttributeSchema.getType() +
-					"` in entity `" + entitySchema.getName() + "` schema!"
+					"` in entity `" + entitySchema.getName() + "` schema!",
+				ex
 			);
 		}
 	}
@@ -266,9 +269,10 @@ public class ModifyAttributeSchemaDefaultValueMutation
 			);
 		} catch (UnsupportedDataTypeException | InconvertibleDataTypeException ex) {
 			throw new InvalidSchemaMutationException(
-				"The value `" + this.defaultValue + "` cannot be automatically converted to " +
+				"The value `" + StringUtils.toString(this.defaultValue) + "` cannot be automatically converted to " +
 					"attribute `" + this.name + "` type `" + existingAttributeSchema.getType() +
-					"` in entity `" + entitySchema.getName() + "` schema!"
+					"` in entity `" + entitySchema.getName() + "` schema!",
+				ex
 			);
 		}
 	}
