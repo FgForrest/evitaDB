@@ -1735,6 +1735,13 @@ need a session; suggest does need one, so it is covered by the default).
 
 ## 11. The vector leg and RRF (sketch)
 
+> **[2026-11-02] Superseded by the record's *Decisions taken*, 2026-11-02.** The semantic leg is a threshold
+> filter (`textMatchesSemantically` / `vectorMatches`, no K); `relevance()` becomes `relevanceText()` beside
+> `relevanceSemantic()`; and fusion is an ordering container that lists its inputs —
+> `fusion(relevanceText(), relevanceSemantic())` (always RRF; `rankConstant(…)` optional, 60 by default) — not a child of
+> `relevance()`. The sketch below is kept
+> for the reasoning that led there.
+
 > This section is a sketch, not a design. It is not based on verifying the vector part in the repository
 > nor on studying issue #23; it serves to keep the DSL in F1 from closing in a way that would prevent
 > hybrid from being added later without a breaking change.

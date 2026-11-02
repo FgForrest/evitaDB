@@ -1279,6 +1279,10 @@ of the metric is a rebuild of the graph** and Vespa refuses both without an expl
 (`AttributeChangeValidator.java:149`), whereas `neighboursToExploreAtInsert` is a cheap change. The design
 in §7 covers this with the same mechanism as a change of analyser.
 
+**[2026-11-02]** Superseded on three points (see the record's *Decisions taken*, 2026-11-02): a dimension or
+metric change is **retired, not refused** (the never-refused rule); a client-supplied vector is **associated data**
+of type `VectorEmbedding`, not an attribute; and the field opts in with `searchableSemantically(embedder)`.
+
 ### 6.8 Scoring through a reference (§1.4, O10)
 
 The research leaves open whether the composition will be index-time and the association query-time, and it

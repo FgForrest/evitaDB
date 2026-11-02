@@ -75,7 +75,9 @@ P6 **does not integrate vectors into the query language**. No new constraint, no
 computation over two rank lists, to verify that fusion makes sense (§8.4). The DSL's shape is addressed by
 O4 and depends on the results of the text gate (P5 → P1 → P2), which runs first.
 
-P6 **does not address query-side embedding** (O7). The harness produces the query vectors itself: either
+P6 **does not address query-side embedding** (O7). **[2026-11-02]** O7 is decided outside the spike: besides
+client-supplied vectors, evitaDB embeds the query text itself through the embedder named in the schema (see the
+record's *Decisions taken*, 2026-11-02); P6 still measures only with vectors the harness produces. The harness produces the query vectors itself: either
 they are part of the dataset, or they are generated the same way as the document ones. The question of who
 embeds a user's query in production is a product one and a spike will not advance it.
 
@@ -1390,6 +1392,12 @@ raw block and over each code block, because it is three things at once: the corr
 lowest planner regime (§8.1, strategy 1), and the reranker. Output: a harness that reports every metric of
 §11.6 for a strategy that is trivially correct, so that every later number has a reference. The harness
 has to be finished **before** the index, otherwise the first numbers cannot be compared with anything.
+**[2026-11-02]** The same kernel serves the per-query threshold calibration of step 7a, and its cost is benchmarked
+here (JMH, quiet box, several forks): μ_q and σ_q of one query vector against a reference sample of S ∈ {256, 512,
+1,024} vectors of 768 dimensions, for float32 through the Vector API, a plain scalar loop, 8-bit codes and 1-bit
+codes; per field and for three fields per query. The estimate to confirm or refute: ~20–60 µs per field on the SIMD
+float32 path, ~0.3–1 ms on the scalar one — negligible next to embedding the query text (milliseconds locally,
+tens to hundreds of milliseconds remotely) only on the SIMD or code paths.
 
 **Step 4 — the float32 graph baselines.** **[2026-09-07]** Build four jVector graphs — `alpha = 1.0` and
 `alpha ≈ 1.2`, each with and without `addHierarchy` — and one Lucene `HnswGraphBuilder` graph as the
@@ -1420,6 +1428,38 @@ rebuild's cost and the recall drift before it. **[2026-09-07]** Two things are v
 `View`s does to deleted-node reclamation (§4.3); and what the per-thread scratch the builder retains costs
 under evitaDB's thread model. Output: the rebuild cadence each candidate needs, and whether the graph
 degrades enough to make that cadence a production concern.
+
+**Step 7a — [2026-11-02] ranking across fields and legs, offline.** The ANN steps above measure recall
+against a brute-force truth; this one measures *ranking quality* against relevance judgments, so it needs a
+dataset that has them — several text fields per document and graded query-document labels (the public
+Shopping Queries "ESCI" benchmark fits the e-shop profile: title, description and bullet points per
+product; licence to be confirmed). Every document field is embedded separately and once more as one joined
+text. Compared, by nDCG@10 per query and overall:
+
+- **the baseline: one joined embedding per document** (title + description in one text, no field weights)
+  — what most practitioners do, and what *AI-Powered Search* does in its reference code (it never scores
+  several vector fields per document);
+- **per-field vectors combined by the fulltext rule**: the best weighted field plus *t* × the other
+  weighted fields, each field's similarity normalized first (short and long fields sit at different
+  similarity levels), for *t* ∈ {0, 0.1, 0.3, 1} — *t* = 0 is pure max, *t* = 1 a weighted sum;
+- **per-field vectors as separate RRF legs** with per-field weights;
+- **the text × vector fusion with per-leg weights**: RRF (k = 60) with leg weights {1:1, 2:1, 1:2} against
+  plain RRF, because plain RRF drags a good leg down when the other leg is weak (Turnbull, "RRF is not
+  enough", 2024). The text leg is BM25 over the same fields, standing in for evitaDB's composite;
+- **the similarity threshold and its per-query calibration** (decided 2026-11-02: the semantic leg is a threshold
+  filter, not a top-K cut; a query never carries a similarity number, only a level — `STRICT`, `DEFAULT` or `BROAD`;
+  an entity passes when `similarity ≥ μ_q + z_level · σ_q`, where μ_q and σ_q are the query's mean and spread of
+  similarity to a deterministic reference sample of the field's stored vectors, so a model change needs no
+  recalibration at all). This step validates the method and picks the shipped z per level: do the same three z
+  values give comparable result-set sizes and precision / recall on **at least three embedders** and on both
+  corpora; how much passes for queries with no relevant document (the noise floor of each level); whether 256, 512
+  or 1,024 sample vectors are enough (the threshold's spread across re-drawn samples); and how it compares with the
+  simpler alternative — one static threshold per embedder from the background distribution of pseudo-queries.
+
+Output: whether per-field vectors with query-time weights beat the joined baseline at all — if they do not,
+that goes back for a decision, because per-field vectors were chosen for query-time weights — which *t* to
+start from, and whether per-leg fusion weights earn
+their place in `relevance(fusion(…))`. Like §8.4's offline RRF, nothing here touches the query language.
 
 **Step 8 — path B, integration into the storage.** Only here, and only if steps 4–7 passed: vector files
 beside the catalog, mmap reading, the mapped `RandomAccessVectorValues` for the build (§4.4), registration
