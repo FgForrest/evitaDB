@@ -23,8 +23,13 @@
 
 package io.evitadb.api.functional.schema;
 
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.SortableAttributeCompoundSchemaException;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.data.annotation.Attribute;
+import io.evitadb.api.requestResponse.data.annotation.Entity;
+import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -42,10 +47,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.attributeNatural;
@@ -61,9 +70,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Reproduces issue #1868: removing an attribute used by a sortable attribute compound must be refused for entity,
- * reference and global attributes, preserving the schema and subsequent writes. Removing the compound first permits
- * the attribute removal, including when both removals are submitted in one schema update.
+ * Verifies that removing an attribute a sortable attribute compound is made of is refused for entity, reference and
+ * global attributes, preserving the schema and subsequent writes. Removing the compound first permits the attribute
+ * removal, including when both removals are submitted in one schema update or by a schema post-processor.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -75,6 +84,7 @@ class AttributeRemovalTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_LABEL = "label";
 	private static final String COMPOUND_CODE_LABEL = "codeLabel";
+	private static final String COMPOUND_LABEL_CODE = "labelCode";
 	private static final String REFERENCE_CATEGORIES = "categories";
 	private static final int STORED_PRODUCT_PK = 1;
 	private static final int NEW_PRODUCT_PK = 2;
@@ -247,30 +257,34 @@ class AttributeRemovalTest implements EvitaTestSupport {
 	/**
 	 * A refused global removal must leave every entity schema using the attribute unchanged, not only the one whose
 	 * compound refuses it - the removal reaches the entity schemas one after another, so the entity schemas handled
-	 * before the refusing one would otherwise lose the attribute while the catalog keeps it.
+	 * before the refusing one would otherwise lose the attribute while the catalog keeps it. Each entity type takes
+	 * its turn as the refusing one, so that whatever order the catalog lists them in, some run has entity schemas
+	 * without the compound before the refusing one.
+	 *
+	 * @param refusingEntityType the entity type whose sortable attribute compound is made of the attribute
 	 */
 	@DisplayName("refuse a global attribute removal before any entity schema using it changes")
-	@Test
-	void shouldLeaveEveryEntityUnchangedWhenGlobalRemovalIsRefused() {
-		// the compound is on the brand, which the catalog lists after the other entity types, so that the removal
-		// reaches entity schemas without the compound before the refusing one
-		final List<String> otherEntityTypes = List.of(Entities.PRODUCT, Entities.CATEGORY, Entities.STORE);
+	@ParameterizedTest(name = "refused by {0}")
+	@ValueSource(strings = {Entities.PRODUCT, Entities.CATEGORY, Entities.STORE, Entities.BRAND})
+	void shouldLeaveEveryEntityUnchangedWhenGlobalRemovalIsRefused(@Nonnull String refusingEntityType) {
+		final List<String> entityTypes = List.of(Entities.PRODUCT, Entities.CATEGORY, Entities.STORE, Entities.BRAND);
 		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.getCatalogSchema().openForWrite()
 					.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.nullable().sortable())
 					.updateVia(session);
-				for (final String entityType : otherEntityTypes) {
-					session.defineEntitySchema(entityType).withGlobalAttribute(ATTRIBUTE_CODE).updateVia(session);
+				for (final String entityType : entityTypes) {
+					final EntitySchemaBuilder builder = session.defineEntitySchema(entityType)
+						.withGlobalAttribute(ATTRIBUTE_CODE);
+					if (entityType.equals(refusingEntityType)) {
+						builder.withAttribute(ATTRIBUTE_LABEL, String.class, whichIs -> whichIs.nullable().sortable())
+							.withSortableAttributeCompound(
+								COMPOUND_CODE_LABEL, attributeElement(ATTRIBUTE_CODE), attributeElement(ATTRIBUTE_LABEL)
+							);
+					}
+					builder.updateVia(session);
 				}
-				session.defineEntitySchema(Entities.BRAND)
-					.withGlobalAttribute(ATTRIBUTE_CODE)
-					.withAttribute(ATTRIBUTE_LABEL, String.class, whichIs -> whichIs.nullable().sortable())
-					.withSortableAttributeCompound(
-						COMPOUND_CODE_LABEL, attributeElement(ATTRIBUTE_CODE), attributeElement(ATTRIBUTE_LABEL)
-					)
-					.updateVia(session);
 			}
 		);
 
@@ -285,7 +299,7 @@ class AttributeRemovalTest implements EvitaTestSupport {
 		);
 
 		assertTrue(catalogSchema().getAttribute(ATTRIBUTE_CODE).isPresent());
-		for (final String entityType : otherEntityTypes) {
+		for (final String entityType : entityTypes) {
 			final EntitySchemaContract schema = this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
@@ -294,6 +308,84 @@ class AttributeRemovalTest implements EvitaTestSupport {
 			);
 			assertTrue(schema.getAttribute(ATTRIBUTE_CODE).isPresent(), entityType);
 		}
+	}
+
+	/**
+	 * The refusal names every compound made of the attribute, so that all of them can be removed before the attribute.
+	 */
+	@DisplayName("name every sortable attribute compound made of the attribute in the refusal")
+	@Test
+	void shouldNameEveryCompoundWhenAttributeIsPartOfSeveralCompounds() {
+		defineProduct(false);
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntitySchemaOrThrowException(Entities.PRODUCT)
+					.openForWrite()
+					.withSortableAttributeCompound(
+						COMPOUND_LABEL_CODE, attributeElement(ATTRIBUTE_LABEL), attributeElement(ATTRIBUTE_CODE)
+					)
+					.updateVia(session);
+			}
+		);
+
+		final SortableAttributeCompoundSchemaException exception = assertThrows(
+			SortableAttributeCompoundSchemaException.class,
+			() -> this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.updateEntitySchema(
+						new ModifyEntitySchemaMutation(
+							Entities.PRODUCT, new RemoveAttributeSchemaMutation(ATTRIBUTE_CODE)
+						)
+					);
+				}
+			)
+		);
+
+		assertTrue(exception.getMessage().contains("sortable attribute compounds `"), exception::getMessage);
+		assertTrue(exception.getMessage().contains("`" + COMPOUND_CODE_LABEL + "`"), exception::getMessage);
+		assertTrue(exception.getMessage().contains("`" + COMPOUND_LABEL_CODE + "`"), exception::getMessage);
+		assertTrue(productSchema().getAttribute(ATTRIBUTE_CODE).isPresent());
+	}
+
+	/**
+	 * A live catalog writes the global removal to the write-ahead log together with the entity schema removal it
+	 * cascades into, and the replay - the incorporation into the trunk as well as a restart - cascades the global
+	 * removal again before it reaches the recorded one, which then finds the attribute gone and must leave it so.
+	 */
+	@DisplayName("remove a global attribute in a live catalog and keep the removal after a restart")
+	@Test
+	void shouldRemoveGlobalAttributeInLiveCatalogAndAfterRestart() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema().openForWrite()
+					.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.nullable())
+					.updateVia(session);
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withGlobalAttribute(ATTRIBUTE_CODE)
+					.withAttribute(ATTRIBUTE_LABEL, String.class, whichIs -> whichIs.nullable())
+					.updateVia(session);
+			}
+		);
+		this.evita.updateCatalog(TEST_CATALOG, EvitaSessionContract::goLiveAndClose);
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.updateCatalogSchema(new RemoveAttributeSchemaMutation(ATTRIBUTE_CODE));
+			},
+			CommitBehavior.WAIT_FOR_CHANGES_VISIBLE
+		);
+		assertTrue(catalogSchema().getAttribute(ATTRIBUTE_CODE).isEmpty());
+		assertEquals(Set.of(ATTRIBUTE_LABEL), productSchema().getAttributes().keySet());
+
+		// the restart replays the WAL, mutation by mutation
+		this.evita.close();
+		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
+
+		assertTrue(catalogSchema().getAttribute(ATTRIBUTE_CODE).isEmpty());
+		assertEquals(Set.of(ATTRIBUTE_LABEL), productSchema().getAttributes().keySet());
 	}
 
 	/**
@@ -372,6 +464,33 @@ class AttributeRemovalTest implements EvitaTestSupport {
 		assertTrue(reference.getSortableAttributeCompound(COMPOUND_CODE_LABEL).isEmpty());
 		assertTrue(reference.getAttribute(ATTRIBUTE_CODE).isEmpty());
 		assertLaterReferenceUpsertSucceeds();
+	}
+
+	/**
+	 * A schema post-processor may remove a compound and the global attribute it is made of in one analysis of a model
+	 * class, although the analysis emits the mutations of the catalog schema before those of the entity schema.
+	 */
+	@DisplayName("remove an entity compound and its global attribute from a schema post-processor")
+	@Test
+	void shouldRemoveEntityCompoundAndGlobalAttributeFromSchemaPostProcessor() {
+		defineProduct(true);
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(
+					LabelledProductModel.class,
+					(catalogBuilder, entityBuilder) -> {
+						entityBuilder.withoutSortableAttributeCompound(COMPOUND_CODE_LABEL);
+						catalogBuilder.withoutAttribute(ATTRIBUTE_CODE);
+					}
+				);
+			}
+		);
+
+		assertTrue(catalogSchema().getAttribute(ATTRIBUTE_CODE).isEmpty());
+		assertTrue(productSchema().getAttribute(ATTRIBUTE_CODE).isEmpty());
+		assertTrue(productSchema().getSortableAttributeCompound(COMPOUND_CODE_LABEL).isEmpty());
+		assertLaterUpsertSucceeds();
 	}
 
 	/**
@@ -518,5 +637,26 @@ class AttributeRemovalTest implements EvitaTestSupport {
 				return session.getCatalogSchema();
 			}
 		);
+	}
+
+	/**
+	 * Model of the product declaring only the label the product schema already holds.
+	 */
+	@Entity(name = Entities.PRODUCT)
+	public interface LabelledProductModel {
+
+		/**
+		 * Returns the primary key.
+		 */
+		@PrimaryKey(autoGenerate = false)
+		int getId();
+
+		/**
+		 * Returns the label.
+		 */
+		@Attribute(name = ATTRIBUTE_LABEL, sortable = true, nullable = true)
+		@Nullable
+		String getLabel();
+
 	}
 }

@@ -39,6 +39,10 @@ import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.At
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComplexDataObject;
@@ -1297,7 +1301,8 @@ public class ClassSchemaAnalyzer {
 				final Entity entityAnnotation = entityAnnotations.get(0);
 				// locate / create the entity schema
 				entityName.set(getNameOrElse(entityAnnotation.name(), this.modelClass::getSimpleName));
-				final EntitySchemaBuilder entityBuilder = session.getEntitySchema(entityName.get())
+				final Optional<SealedEntitySchema> storedEntitySchema = session.getEntitySchema(entityName.get());
+				final EntitySchemaBuilder entityBuilder = storedEntitySchema
 					.map(SealedEntitySchema::openForWrite)
 					.map(it -> it.cooperatingWith(() -> catalogBuilder))
 					.orElseGet(() -> {
@@ -1357,13 +1362,14 @@ public class ClassSchemaAnalyzer {
 				}
 
 				// now return the mutations that needs to be done
-				return new AnalysisResult(
+				return toAnalysisResult(
 					entityName.get(),
 					catalogBuilder.toMutation()
 						.stream()
 						.flatMap(it -> Arrays.stream(it.getSchemaMutations()))
 						.toArray(LocalCatalogSchemaMutation[]::new),
-					entityBuilder.toMutation().stream().toArray(LocalCatalogSchemaMutation[]::new)
+					entityBuilder.toMutation().stream().toArray(LocalCatalogSchemaMutation[]::new),
+					storedEntitySchema.orElse(null)
 				);
 			}
 		} catch (RuntimeException ex) {
@@ -2397,6 +2403,101 @@ public class ClassSchemaAnalyzer {
 	 * @param managed    true if the entity is expected to be managed by Evita
 	 */
 	private record TargetEntity(@Nonnull String entityType, boolean managed) {
+	}
+
+	/**
+	 * Builds the analysis result. The mutations of the catalog schema go before the mutations of the entity schema,
+	 * except the removals of the entity's sortable attribute compounds made of a global attribute the catalog
+	 * mutations remove: those go first.
+	 *
+	 * The removal of a global attribute is refused while a compound of an entity schema using the attribute is made of
+	 * it, so a post-processor removing both the compound and the global attribute would be refused although the
+	 * result is valid. Only these compound removals move, since a compound removal depends on nothing the catalog
+	 * mutations change. The other entity mutations stay after the catalog mutations, because they may depend on them
+	 * - for example a local attribute created in place of the removed global one.
+	 *
+	 * @param entityType         the name of the entity schema
+	 * @param catalogMutations   the mutations of the catalog schema
+	 * @param entityMutations    the mutations of the entity schema
+	 * @param storedEntitySchema the entity schema as stored before the analysis, null when it did not exist
+	 * @return the analysis result
+	 */
+	@Nonnull
+	private static AnalysisResult toAnalysisResult(
+		@Nonnull String entityType,
+		@Nonnull LocalCatalogSchemaMutation[] catalogMutations,
+		@Nonnull LocalCatalogSchemaMutation[] entityMutations,
+		@Nullable EntitySchemaContract storedEntitySchema
+	) {
+		if (storedEntitySchema == null || entityMutations.length != 1 ||
+			!(entityMutations[0] instanceof ModifyEntitySchemaMutation entityMutation)) {
+			return new AnalysisResult(entityType, catalogMutations, entityMutations);
+		}
+		final Set<String> removedGlobalAttributes = CollectionUtils.createHashSet(4);
+		for (final LocalCatalogSchemaMutation catalogMutation : catalogMutations) {
+			if (catalogMutation instanceof RemoveAttributeSchemaMutation globalAttributeRemoval) {
+				removedGlobalAttributes.add(globalAttributeRemoval.getName());
+			}
+		}
+		if (removedGlobalAttributes.isEmpty()) {
+			return new AnalysisResult(entityType, catalogMutations, entityMutations);
+		}
+		final LocalEntitySchemaMutation[] schemaMutations = entityMutation.getSchemaMutations();
+		final List<LocalEntitySchemaMutation> leadingMutations = new ArrayList<>(schemaMutations.length);
+		final List<LocalEntitySchemaMutation> trailingMutations = new ArrayList<>(schemaMutations.length);
+		for (final LocalEntitySchemaMutation schemaMutation : schemaMutations) {
+			if (schemaMutation instanceof RemoveSortableAttributeCompoundSchemaMutation compoundRemoval &&
+				isCompoundMadeOfAny(storedEntitySchema, compoundRemoval.getName(), removedGlobalAttributes)) {
+				leadingMutations.add(schemaMutation);
+			} else {
+				trailingMutations.add(schemaMutation);
+			}
+		}
+		if (leadingMutations.isEmpty()) {
+			return new AnalysisResult(entityType, catalogMutations, entityMutations);
+		}
+		final LocalCatalogSchemaMutation[] reorderedCatalogMutations =
+			new LocalCatalogSchemaMutation[catalogMutations.length + 1];
+		reorderedCatalogMutations[0] = new ModifyEntitySchemaMutation(
+			entityType, leadingMutations.toArray(LocalEntitySchemaMutation[]::new)
+		);
+		System.arraycopy(catalogMutations, 0, reorderedCatalogMutations, 1, catalogMutations.length);
+		return new AnalysisResult(
+			entityType,
+			reorderedCatalogMutations,
+			trailingMutations.isEmpty() ?
+				AnalysisResult.EMPTY_MUTATIONS :
+				new LocalCatalogSchemaMutation[]{
+					new ModifyEntitySchemaMutation(
+						entityType, trailingMutations.toArray(LocalEntitySchemaMutation[]::new)
+					)
+				}
+		);
+	}
+
+	/**
+	 * Returns true when the sortable attribute compound of the entity schema is made of any of the attributes.
+	 *
+	 * @param entitySchema   the entity schema holding the compound
+	 * @param compoundName   the name of the compound
+	 * @param attributeNames the names of the attributes
+	 * @return true when an element of the compound names one of the attributes
+	 */
+	private static boolean isCompoundMadeOfAny(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull String compoundName,
+		@Nonnull Set<String> attributeNames
+	) {
+		final Optional<EntitySortableAttributeCompoundSchemaContract> compound =
+			entitySchema.getSortableAttributeCompound(compoundName);
+		if (compound.isPresent()) {
+			for (final AttributeElement attributeElement : compound.get().getAttributeElements()) {
+				if (attributeNames.contains(attributeElement.attributeName())) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	/**
