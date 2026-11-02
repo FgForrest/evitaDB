@@ -1,7 +1,7 @@
 ---
 title: Schema builders drop the mutations that leave their level of the schema unchanged, judged by value at toMutation()
 date: 2026-10-31
-updated: 2026-11-02 11:43
+updated: 2026-11-02 13:12
 status: accepted
 kind: fix
 issues: [1837, 1843, 1845, 1846, 1847, 1848, 1849, 1850, 1851, 1852, 1853, 1854, 1855, 1856, 1857, 1858, 1859, 1860, 1861, 1862, 1863, 1864, 1865, 1868]
@@ -323,9 +323,15 @@ issue and commit.
   is order-insensitive, because the validation runs at the session close, where in warm-up no transaction rolls the
   schema back; and removing the compounds along with the attribute, which silently changes which orderings exist
   and contradicts the builders' refusal. `ClassSchemaAnalyzer` emits the catalog mutations before the entity
-  mutations, so a schema post-processor removing a compound and the global attribute it is made of was refused; the
-  analyzer now emits those compound removals first. Rejected: moving the global removal behind the entity mutations,
-  which breaks a local attribute created in place of the removed global one (#1861).
+  mutations, so a schema post-processor removing a compound and the global attribute it is made of stays refused,
+  before any schema changes; the compound has to be removed in an update of its own first (`SchemaPostProcessor`
+  says so). Rejected: emitting those compound removals first - it was implemented, guarded twice after review and
+  taken out. Whether the server accepts the global removal depends on state the analyzer's guard cannot see
+  reliably: another entity's compound, a second removed global attribute in the same analysis, a compound made of
+  two removed attributes, mutations pending in the catalog builder, and a stale entity schema cache on the gRPC
+  client; and when the server refuses after a moved compound removal, warm-up keeps the removal. Revisit only with a
+  server-side preflight of the whole reordered batch. Rejected as well: moving the global removal behind the entity
+  mutations, which breaks a local attribute created in place of the removed global one (#1861).
 
 ## Verification
 
@@ -417,19 +423,23 @@ issue and commit.
   had reached before the refusing one without the attribute. `AttributeRenameTest` gained the same test for a
   global rename, red before the up-front verification. Both are parameterised over which entity type refuses, so
   they do not depend on the order the catalog lists the entity types in.
-- The final adversarial and quality passes over #1864, #1865 and #1868 found five more defects, each covered by a
+- The final adversarial and quality passes over #1864, #1865 and #1868 found four more defects, each covered by a
   test that was red first: `AttributeRenameTest#shouldRenameGlobalAttributeInLiveCatalogAndAfterRestart` (a live
   global rename failed at trunk incorporation),
   `#shouldRenameDeclaredAttributeOfReflectedReferenceBeforeItsOriginalExists`,
-  `#shouldNotWarnAboutRenameToTheSameName`,
-  `AttributeRemovalTest#shouldRemoveEntityCompoundAndGlobalAttributeFromSchemaPostProcessor`, and
+  `#shouldNotWarnAboutRenameToTheSameName`, and
   `EvitaDataTypesTest#shouldConvertFormattedCharBack` with
-  `ComplexDataObjectConverterTest#shouldSerializeAndDeserializeMapWithCharacterKeys`.
+  `ComplexDataObjectConverterTest#shouldSerializeAndDeserializeMapWithCharacterKeys`. Three tests of
+  `AttributeRemovalTest` pin that a schema post-processor removing a compound and its global attribute is refused
+  before any schema changes - also when another entity's compound blocks the removal and when the compound is
+  re-created over the removed attribute; the last two were red against the reordering that was taken out.
 - On the final tree the functional tests tagged `schema`, `attribute`, `reference`, `driver`, `grpc`, `expression`,
   `indexing`, `facet`, `transaction`, `wal`, `query`, `data_type`, `traffic_engine` or `serialization` (excluding
-  `slow` and `flaky`, `largeMachine`) ran 28 000 tests: 0 failures, 5 errors. Four are GraphQL subscription tests
-  whose client failed the TLS session negotiation (`SessionProtocolNegotiationException`), one a gRPC
-  traffic-recording export that lost its channel under load; their four classes pass alone, 47 of 47 tests.
+  `slow` and `flaky`, `largeMachine`) ran 28 002 tests: 0 failures, 5 errors. Three are GraphQL subscription tests
+  whose client failed the TLS session negotiation (`SessionProtocolNegotiationException`), two gRPC tests (a
+  traffic-recording export, the management statistics) lost their channel under load; their five classes pass
+  alone, 48 of 48 tests. After the reordering was taken out, the removal, rename and analyzer tests and the gRPC
+  re-definition test pass, 154 of 154.
 - Removing the `indexedPricePlaces` comparison from `SchemaContentComparator` makes exactly the matching
   genuine-change scenario fail, so the property scenarios can fail.
 
@@ -491,6 +501,9 @@ Every follow-up listed in #1843 except the server-side guard is fixed here, and 
   declares a compound over is not refused up front: the reference attribute mutation sees no other entity schema.
   The validation of the final schema refuses the result at the session close, which in warm-up leaves the catalog
   unpublishable until the compound is removed.
+- A schema post-processor cannot remove a compound together with the global attribute it is made of, and cannot
+  replace such a global attribute with a local one: the catalog builder refuses the removal while the stored
+  compound exists. Remove the compound in an update of its own first.
 - The entity builder's replay is still quadratic: every replay re-applies the whole list, and `addMutations` scans
   the list for every new mutation. Restoring a property of 800 attributes takes about three seconds. Runs of
   reference mutations are not batched, and neither are global attributes in the catalog builder.
@@ -533,3 +546,6 @@ analyzer and the builders until they upgrade.
 - **2026-11-02** — the final adversarial and quality passes over #1864, #1865 and #1868: a live global rename failed
   at trunk incorporation and is fixed, with four smaller defects; the replay of an older WAL is documented, the
   reflected-reference compound of another entity left to the session-close validation
+- **2026-11-02** — quality gates over the commits of that review: the analyzer reordering of compound removals was
+  guarded, still found unsound by the next gate, and taken out (Johnny); the post-processor case stays refused up
+  front and documented
