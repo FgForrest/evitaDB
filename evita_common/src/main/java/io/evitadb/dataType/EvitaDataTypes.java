@@ -51,7 +51,6 @@ import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 
 import static io.evitadb.utils.MemoryMeasuringConstants.*;
 
@@ -214,16 +213,9 @@ public class EvitaDataTypes {
 	 */
 	private static final char CHAR_STRING_DELIMITER = '\'';
 	/**
-	 * String representation of the single-quote delimiter used in EvitaQL. Used in conjunction
-	 * with `STRING_DELIMITER_PATTERN` for escaping embedded quotes in string values.
+	 * The hexadecimal digits of the Unicode escape a control character without an escape of its own is written as.
 	 */
-	private static final String STRING_DELIMITER ="" + CHAR_STRING_DELIMITER;
-	/**
-	 * Compiled regex pattern for matching and escaping single-quote delimiters in string values.
-	 * Used by `formatValue()` to escape embedded quotes (e.g., `it's` becomes `it\'s`) when
-	 * formatting strings for EvitaQL query syntax.
-	 */
-	private static final Pattern STRING_DELIMITER_PATTERN = Pattern.compile(STRING_DELIMITER);
+	private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
 	/**
 	 * Parser function that attempts to parse a string to `OffsetDateTime` using ISO-8601 format
 	 * (`DateTimeFormatter.ISO_OFFSET_DATE_TIME`). Returns `null` on parse failure rather than
@@ -1483,13 +1475,53 @@ public class EvitaDataTypes {
 	}
 
 	/**
+	 * Returns the text as a string literal of EvitaQL and EvitaEL: in apostrophes, with every character the grammar
+	 * does not take as it is written as an escape `StringUtils#translateEscapes` reads back - the apostrophe that would
+	 * end the literal, the backslash that would start an escape, and the control characters the grammar refuses raw.
+	 * Any other character is written as it is.
+	 *
+	 * @param text the text to write
+	 * @return the literal
+	 */
+	@Nonnull
+	private static String toStringLiteral(@Nonnull String text) {
+		final StringBuilder literal = new StringBuilder(text.length() + 2);
+		literal.append(CHAR_STRING_DELIMITER);
+		for (int i = 0; i < text.length(); i++) {
+			final char character = text.charAt(i);
+			switch (character) {
+				case '\'' -> literal.append("\\'");
+				case '\\' -> literal.append("\\\\");
+				case '\b' -> literal.append("\\b");
+				case '\f' -> literal.append("\\f");
+				case '\n' -> literal.append("\\n");
+				case '\r' -> literal.append("\\r");
+				case '\t' -> literal.append("\\t");
+				default -> {
+					if (character < ' ') {
+						// the other control characters have no escape of their own
+						literal.append("\\u00")
+							.append(HEX_DIGITS[character >> 4])
+							.append(HEX_DIGITS[character & 0xF]);
+					} else {
+						literal.append(character);
+					}
+				}
+			}
+		}
+		return literal.append(CHAR_STRING_DELIMITER).toString();
+	}
+
+	/**
 	 * Formats a serializable value for printing in EvitaQL query syntax. Produces string
 	 * representations suitable for embedding in queries, with appropriate quoting and escaping.
 	 * This method is used by query builders, logging, and debugging tools to generate readable
 	 * EvitaQL syntax from programmatic values.
 	 *
 	 * Formatting rules:
-	 * - String, Character: single-quoted, with embedded quotes escaped as `\'`
+	 * - String, Character: single-quoted, with the apostrophe escaped as `\'`, the backslash as `\\`, and the
+	 * control characters (U+0000 to U+001F) as `\b`, `\f`, `\n`, `\r`, `\t` or a Unicode escape, so that the
+	 * EvitaQL and EvitaEL parsers read the literal back as the same text
 	 * - BigDecimal: normalized to lowercase exponential notation (e.g., `2.5e8` not `2.5E+8`)
 	 * - Number: `toString()` representation
 	 * - Boolean: `true` or `false`
@@ -1512,13 +1544,9 @@ public class EvitaDataTypes {
 		@Nullable Serializable value
 	) {
 		if (value instanceof String stringValue) {
-			return CHAR_STRING_DELIMITER
-				+ STRING_DELIMITER_PATTERN.matcher(stringValue).replaceAll("\\\\'")
-				+ STRING_DELIMITER;
+			return toStringLiteral(stringValue);
 		} else if (value instanceof Character characterValue) {
-			return CHAR_STRING_DELIMITER
-				+ STRING_DELIMITER_PATTERN.matcher(characterValue.toString()).replaceAll("\\\\'")
-				+ STRING_DELIMITER;
+			return toStringLiteral(characterValue.toString());
 		} else if (value instanceof BigDecimal bigDecimalValue) {
 			// Value normalizations were taken from
 			// https://github.com/googleapis/googleapis/blob/master/google/type/decimal.proto

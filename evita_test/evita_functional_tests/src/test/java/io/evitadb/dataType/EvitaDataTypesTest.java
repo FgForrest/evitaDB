@@ -114,6 +114,31 @@ class EvitaDataTypesTest {
 		}
 
 		@Test
+		@DisplayName("should escape the apostrophe and the backslash of a String value")
+		void shouldEscapeApostropheAndBackslashOfString() {
+			assertEquals("'it\\'s'", formatValue("it's"));
+			assertEquals("'C:\\\\new'", formatValue("C:\\new"));
+			assertEquals("'end\\\\'", formatValue("end\\"));
+		}
+
+		@Test
+		@DisplayName("should escape the control characters of a String value, which the grammar refuses raw")
+		void shouldEscapeControlCharactersOfString() {
+			assertEquals("'a\\bb\\fc\\nd\\re\\tf'", formatValue("a\bb\fc\nd\re\tf"));
+			assertEquals("'\\u0000\\u001f'", formatValue("\u0000\u001f"));
+			// the first character past the control range is written as it is
+			assertEquals("' '", formatValue(" "));
+		}
+
+		@Test
+		@DisplayName("should escape a char value the way it escapes a String value")
+		void shouldEscapeChar() {
+			assertEquals("'\\''", formatValue('\''));
+			assertEquals("'\\\\'", formatValue('\\'));
+			assertEquals("'\\n'", formatValue('\n'));
+		}
+
+		@Test
 		@DisplayName("should format BigDecimal value")
 		void shouldFormatBigDecimal() {
 			assertEquals(

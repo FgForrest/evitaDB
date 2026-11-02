@@ -168,6 +168,18 @@ class QueryConverterTest {
 		assertEquals(expression.toExpressionString(), ExpressionFactory.parse((String) received).toExpressionString());
 	}
 
+	@Test
+	void shouldSendStringConstantsOfExpressionAsWritten() {
+		// constants `C:\new`, `end\` and a tab - the text of each must parse back to the same constant on the server
+		final Expression expression = ExpressionFactory.parse(
+			"$name == 'C:\\\\new' || $name == 'end\\\\' || $name == 'tab\\tstop'"
+		);
+
+		final Object received = QueryConverter.convertQueryParam(QueryConverter.convertQueryParam(expression));
+
+		assertEquals(expression, ExpressionFactory.parse((String) received));
+	}
+
 	/**
 	 * The `hierarchyContent` parents behaviour is the only enum parameter whose default value is also the zero value
 	 * of its gRPC counterpart, so a round-trip on its own would not tell a correctly bound arm from an unset message -
