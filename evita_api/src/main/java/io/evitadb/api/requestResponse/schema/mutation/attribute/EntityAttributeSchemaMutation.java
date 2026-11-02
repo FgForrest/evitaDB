@@ -97,6 +97,13 @@ public interface EntityAttributeSchemaMutation extends AttributeSchemaMutation, 
 	/**
 	 * Replaces existing attribute schema with an updated one but only when those schemas differ. Otherwise,
 	 * the non-changed, original entity schema is returned.
+	 *
+	 * The existing attribute is taken out by its own name, so a rename moves the attribute to the new name rather
+	 * than adding it next to the original. A rename is refused when another attribute of the entity holds the new
+	 * name, and when a sortable attribute compound of the entity is made of the attribute: the compound would name
+	 * an attribute that no longer exists, and every later upsert into the collection would fail on it.
+	 *
+	 * @throws InvalidSchemaMutationException when the rename is refused for one of the reasons above
 	 */
 	@Nonnull
 	default EntitySchemaContract replaceAttributeIfDifferent(
@@ -108,6 +115,12 @@ public interface EntityAttributeSchemaMutation extends AttributeSchemaMutation, 
 			// we don't need to update entity schema - the attribute already contains the requested change
 			return entitySchema;
 		} else {
+			final String existingName = existingAttributeSchema.getName();
+			if (!existingName.equals(updatedAttributeSchema.getName())) {
+				AttributeRenameVerifier.verifyRenameInEntity(
+					entitySchema, existingName, updatedAttributeSchema.getName()
+				);
+			}
 			return EntitySchema._internalBuildWithAttributes(
 				entitySchema,
 				entitySchema.version() + 1,
@@ -115,7 +128,7 @@ public interface EntityAttributeSchemaMutation extends AttributeSchemaMutation, 
 						entitySchema.getAttributes()
 							.values()
 							.stream()
-							.filter(it -> !updatedAttributeSchema.getName().equals(it.getName())),
+							.filter(it -> !existingName.equals(it.getName())),
 						Stream.of(updatedAttributeSchema)
 					)
 					.collect(

@@ -673,15 +673,10 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("should keep the original attribute when one carrying the capability is renamed")
-		void shouldKeepOriginalAttributeWhenOneCarryingTheCapabilityIsRenamed() {
-			// the premise of the test below, asserted rather than assumed: `ModifyAttributeSchemaNameMutation` does
-			// not remove what it renames. `EntityAttributeSchemaMutation#replaceAttributeIfDifferent` filters the
-			// existing attributes by the *updated* name, so for a rename nothing is filtered out and the schema ends
-			// up carrying both. That is a pre-existing defect of the rename mutation and has nothing to do with
-			// filter index capabilities - but it is what makes the refusal below correct rather than a false
-			// positive, so it is pinned here. Fix the duplication and this test fails, which is the intent: the
-			// refusal below has to be revisited in the same breath.
+		@DisplayName("should move an attribute carrying the capability to its new name on an empty collection")
+		void shouldMoveAttributeCarryingTheCapabilityToItsNewNameOnEmptyCollection() {
+			// the counterpart of the test below: over an empty collection there is no stored data the index of the
+			// new name would miss, so the rename is accepted and moves the capability with the attribute
 			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
@@ -712,9 +707,7 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 							.contains(AttributeFilterAccelerator.SUBSTRING_SEARCH)
 					);
 					assertTrue(
-						schema.getAttribute(ATTRIBUTE_CODE).isPresent(),
-						"the renamed-from attribute is gone - the rename mutation no longer duplicates, so the " +
-							"refusal on a populated collection has become a false positive and needs revisiting"
+						schema.getAttribute(ATTRIBUTE_CODE).isEmpty(), "the rename must not leave the original behind"
 					);
 				}
 			);
@@ -723,11 +716,10 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should refuse renaming an attribute that declares the capability on a populated collection")
 		void shouldRefuseRenamingAnAttributeThatDeclaresTheCapabilityOnPopulatedCollection() {
-			// not a false positive, however much it reads like one: because the rename above leaves the original in
-			// place, the resulting schema genuinely holds a *second* attribute declaring the capability, and that
-			// one's index would have to be built over entities that are already stored. Refusing is the only honest
-			// answer available while the rename duplicates. The advice in the message is what reads oddly here, and
-			// that is a symptom of the duplication rather than of this check.
+			// not a false positive, however much it reads like one: a rename moves no data, so the values of the
+			// stored entities and the index built from them stay under the old name, and the index of the new name
+			// would have to be built over entities that are already stored. Refusing is the only honest answer
+			// available while nothing can build it
 			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {

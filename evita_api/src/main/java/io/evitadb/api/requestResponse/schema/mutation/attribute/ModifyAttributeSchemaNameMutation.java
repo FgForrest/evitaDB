@@ -103,6 +103,23 @@ public class ModifyAttributeSchemaNameMutation
 		}
 	}
 
+	/**
+	 * Applies the rename to the entity schema the way every entity attribute mutation is applied.
+	 *
+	 * The override exists so that the entity schema builder does not apply the rename within a run of mutations
+	 * changing one attribute alone: a rename also changes the name the attribute is kept under and is checked against
+	 * the other attributes and the sortable attribute compounds of the entity, so it is applied to the entity schema
+	 * itself.
+	 */
+	@Nonnull
+	@Override
+	public EntitySchemaContract mutate(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nullable EntitySchemaContract entitySchema
+	) {
+		return EntityAttributeSchemaMutation.super.mutate(catalogSchema, entitySchema);
+	}
+
 	@Nonnull
 	@Override
 	public <S extends AttributeSchemaContract> S mutate(

@@ -443,6 +443,32 @@ The attribute schema is described by:
 
 </Note>
 
+<Note type="warning">
+
+<NoteTitle toggles="false">
+
+##### Renaming an attribute does not move the data you already have
+</NoteTitle>
+
+`ModifyAttributeSchemaNameMutation` moves the attribute to its new name in the schema - of the catalog, the entity or
+the reference - and a global attribute is renamed in every entity that uses it. The values of the entities that are
+already stored, and the indexes built from them, stay under the old name. When the collection contains entities, the
+rename is accepted and the server logs a warning, but filtering and sorting by the new name find only the entities
+written after the rename. An attribute that declares a [filter accelerator](#filter-accelerators) cannot be renamed on
+a collection that contains entities at all.
+
+A rename is refused when another attribute already holds the new name, when the attribute is part of a
+[sortable attribute compound](#sortable-attribute-compounds), and when a reflected reference inherits the attribute
+from its original reference - rename it there.
+
+Rename an attribute before the first entity is inserted. For a catalog that already holds the data, the route is the
+same as for [filter accelerators](#you-cannot-switch-this-accelerator-on-for-data-you-already-have): create a new
+catalog with the renamed attribute, load the data into it, and replace the original catalog with it. Versions before
+2026.3 kept the attribute under the old name next to the renamed one; such a leftover can be removed with
+`RemoveAttributeSchemaMutation`.
+
+</Note>
+
 #### Default value
 
 An attribute may have a default value defined. The value is used when a new entity is created and no value has been

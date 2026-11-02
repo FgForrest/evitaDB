@@ -1012,6 +1012,11 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 					attributeMutation.mutate(catalogSchema, existingAttribute, EntityAttributeSchemaContract.class)
 				);
 				if (!existingAttribute.equals(updatedAttribute)) {
+					// a rename overrides the entity-level `mutate`, so it is never part of a run
+					Assert.isPremiseValid(
+						existingAttribute.getName().equals(updatedAttribute.getName()),
+						() -> "Mutation `" + mutation + "` renamed an attribute within a run of attribute mutations!"
+					);
 					if (changedAttributes == null) {
 						changedAttributes = new LinkedHashMap<>(currentSchema.getAttributes());
 					}

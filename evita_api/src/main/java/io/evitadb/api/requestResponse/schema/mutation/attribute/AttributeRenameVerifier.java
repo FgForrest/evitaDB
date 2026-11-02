@@ -1,0 +1,168 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2026
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.api.requestResponse.schema.mutation.attribute;
+
+import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
+
+import javax.annotation.Nonnull;
+import java.util.Collection;
+
+/**
+ * The checks a rename by {@link ModifyAttributeSchemaNameMutation} passes before the attribute moves to its new name,
+ * shared by the global, entity and reference levels the mutation applies to.
+ *
+ * A rename takes the attribute out under its old name and puts it back under the new one. It must therefore not
+ * replace another attribute that holds the new name, and it must not leave a sortable attribute compound naming an
+ * attribute that no longer exists - the compound index of every later upsert would fail on the missing attribute.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+ */
+final class AttributeRenameVerifier {
+
+	private AttributeRenameVerifier() {
+		// static utility
+	}
+
+	/**
+	 * Refuses a rename of a global attribute to the name of another global attribute. The entity schemas using the
+	 * attribute are checked when the rename cascades into them.
+	 *
+	 * @param catalogSchema the catalog schema the attribute is renamed in
+	 * @param name          the current name of the attribute
+	 * @param newName       the name the attribute is renamed to
+	 * @throws InvalidSchemaMutationException when the rename is refused
+	 */
+	static void verifyRenameInCatalog(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull String name,
+		@Nonnull String newName
+	) {
+		if (catalogSchema.getAttribute(newName).isPresent()) {
+			throw new InvalidSchemaMutationException(
+				"The attribute `" + newName + "` already exists in catalog `" + catalogSchema.getName() +
+					"` schema, the attribute `" + name + "` cannot be renamed to it!"
+			);
+		}
+	}
+
+	/**
+	 * Refuses a rename of an entity attribute - an attribute of its own or a global one it uses - to the name of
+	 * another attribute of the entity, and a rename of an attribute a sortable attribute compound of the entity is
+	 * made of.
+	 *
+	 * @param entitySchema the entity schema the attribute is renamed in
+	 * @param name         the current name of the attribute
+	 * @param newName      the name the attribute is renamed to
+	 * @throws InvalidSchemaMutationException when the rename is refused
+	 */
+	static void verifyRenameInEntity(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull String name,
+		@Nonnull String newName
+	) {
+		if (entitySchema.getAttribute(newName).isPresent()) {
+			throw new InvalidSchemaMutationException(
+				"The attribute `" + newName + "` already exists in entity `" + entitySchema.getName() +
+					"` schema, the attribute `" + name + "` cannot be renamed to it!"
+			);
+		}
+		verifyNotInCompound(
+			entitySchema.getSortableAttributeCompoundsForAttribute(name),
+			"The attribute `" + name + "` of entity `" + entitySchema.getName() + "`"
+		);
+	}
+
+	/**
+	 * Refuses a rename of a reference attribute to the name of another attribute of the reference, a rename of an
+	 * attribute a sortable attribute compound of the reference is made of, and a rename of an attribute a reflected
+	 * reference inherits from its original - the inherited attribute would stay next to the renamed copy, and it can be
+	 * renamed only in the original reference.
+	 *
+	 * @param entitySchema    the entity schema holding the reference
+	 * @param referenceSchema the reference schema the attribute is renamed in
+	 * @param name            the current name of the attribute
+	 * @param newName         the name the attribute is renamed to
+	 * @throws InvalidSchemaMutationException when the rename is refused
+	 */
+	static void verifyRenameInReference(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull String name,
+		@Nonnull String newName
+	) {
+		final String owner = "reference `" + referenceSchema.getName() + "` of entity `" + entitySchema.getName() + "`";
+		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema &&
+			!reflectedReferenceSchema.getDeclaredAttributes().containsKey(name)) {
+			throw new InvalidSchemaMutationException(
+				"The attribute `" + name + "` of " + owner + " is inherited from reference `" +
+					reflectedReferenceSchema.getReflectedReferenceName() + "` of entity `" +
+					reflectedReferenceSchema.getReferencedEntityType() + "` and can be renamed only there!"
+			);
+		}
+		if (referenceSchema.getAttribute(newName).isPresent()) {
+			throw new InvalidSchemaMutationException(
+				"The attribute `" + newName + "` already exists in " + owner + " schema, the attribute `" + name +
+					"` cannot be renamed to it!"
+			);
+		}
+		verifyNotInCompound(
+			referenceSchema.getSortableAttributeCompoundsForAttribute(name),
+			"The attribute `" + name + "` of " + owner
+		);
+	}
+
+	/**
+	 * Refuses the rename when any of the compounds is made of the attribute.
+	 *
+	 * @param compounds the sortable attribute compounds made of the attribute
+	 * @param attribute the description of the attribute the message starts with
+	 * @throws InvalidSchemaMutationException when there is such a compound
+	 */
+	private static void verifyNotInCompound(
+		@Nonnull Collection<? extends SortableAttributeCompoundSchemaContract> compounds,
+		@Nonnull String attribute
+	) {
+		if (compounds.isEmpty()) {
+			return;
+		}
+		final StringBuilder names = new StringBuilder();
+		for (final SortableAttributeCompoundSchemaContract compound : compounds) {
+			if (!names.isEmpty()) {
+				names.append(", ");
+			}
+			names.append('`').append(compound.getName()).append('`');
+		}
+		throw new InvalidSchemaMutationException(
+			attribute + " cannot be renamed, it is part of the sortable attribute " +
+				(compounds.size() == 1 ? "compound " : "compounds ") + names + "! Remove the " +
+				(compounds.size() == 1 ? "compound" : "compounds") + " before renaming the attribute."
+		);
+	}
+
+}

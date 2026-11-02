@@ -207,6 +207,8 @@ class ModifyEntitySchemaMutationTest {
 
 			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchema.class);
 			final EntityAttributeSchema attribute = Mockito.mock(EntityAttributeSchema.class);
+			// the replacement takes the attribute out by its own name, which the contract never leaves null
+			Mockito.doReturn("someAttribute").when(attribute).getName();
 			Mockito.doReturn(Integer.class).when(attribute).getType();
 			Mockito.doReturn(
 				AttributeSchema.toUniquenessEnumMap(
@@ -270,6 +272,8 @@ class ModifyEntitySchemaMutationTest {
 
 			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchema.class);
 			final EntityAttributeSchema attribute = Mockito.mock(EntityAttributeSchema.class);
+			// the replacement takes the attribute out by its own name, which the contract never leaves null
+			Mockito.doReturn("someAttribute").when(attribute).getName();
 			Mockito.doReturn(Integer.class).when(attribute).getType();
 			Mockito.doReturn(
 				AttributeSchema.toUniquenessEnumMap(

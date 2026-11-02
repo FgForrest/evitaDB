@@ -82,8 +82,10 @@ import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference
 	.ModifyReflectedReferenceAttributeInheritanceSchemaMutation;
 import io.evitadb.api.statistics.*;
@@ -221,6 +223,15 @@ public final class EntityCollection implements
 	EntityCollectionContract,
 	DataStoreReader,
 	CatalogRelatedDataStructure<EntityCollection> {
+
+	/**
+	 * The consequence and the remedy the warning about an attribute renamed over stored entities states, shared by
+	 * the entity and the reference attribute variant of the warning.
+	 */
+	private static final String RENAMED_ATTRIBUTE_CONSEQUENCE =
+		"The values the stored entities hold for it, and the indexes built from them, stay under the old name, so " +
+			"filtering and sorting by the new name miss those entities. Index the entities again (a full reindex) to " +
+			"move their values to the new name.";
 
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
@@ -1107,6 +1118,7 @@ public final class EntityCollection implements
 
 			verifyNoAcceleratorAddedToNonEmptyCollection(originalSchema, updatedSchema);
 			warnAboutReferenceIndexesMissingStoredEntities(originalSchema, updatedSchema);
+			warnAboutRenamedAttributesOfStoredEntities(originalSchema, updatedSchema, schemaMutation);
 
 			if (updatedSchema.version() > originalSchema.version()) {
 				exchangeSchema(originalSchema, updatedSchema);
@@ -2904,14 +2916,15 @@ public final class EntityCollection implements
 	 * pipeline collapses those into.
 	 *
 	 * **Attributes are matched by name, and that is correct even across a rename.**
-	 * {@link io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation} does not
-	 * remove the attribute it renames - `EntityAttributeSchemaMutation#replaceAttributeIfDifferent` filters the
-	 * existing attributes by the *updated* name, so the original survives alongside the copy and the schema really
-	 * does end up with a second attribute carrying the accelerator. That second attribute needs its own index built
-	 * over entities that are already stored, which is precisely what this refusal exists to prevent, so refusing is
-	 * the right answer rather than a false positive. Were that duplication ever fixed, a rename would stop growing
-	 * the schema and this per-name comparison would need to follow the attribute through it - see
-	 * `AttributeFilterAcceleratorRefusalTest.UnrelatedChanges`, whose two rename tests pin both halves of that reasoning.
+	 * {@link io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation} moves the
+	 * attribute to its new name in the schema, but nothing moves its data: the values of the stored entities and the
+	 * accelerator index built from them stay under the old name. The attribute under the new name therefore needs its
+	 * own index built over entities that are already stored, which is precisely what this refusal exists to prevent,
+	 * so refusing an attribute that carries an accelerator to a new name on a populated collection is the right
+	 * answer rather than a false positive. A rename of an attribute without an accelerator is accepted with the
+	 * warning of {@link #warnAboutRenamedAttributesOfStoredEntities(EntitySchema, EntitySchema,
+	 * LocalEntitySchemaMutation[])} - see `AttributeFilterAcceleratorRefusalTest.UnrelatedChanges`, whose two rename
+	 * tests pin both cases.
 	 *
 	 * {@link #isEmpty()} is consulted **only when an accelerator was actually added**, because it is a storage read and
 	 * the overwhelmingly common schema change adds none. In a transactional catalog that read *does* include the open
@@ -3019,6 +3032,78 @@ public final class EntityCollection implements
 						"that declares it.",
 					updatedReference.getName(), updatedSchema.getName(),
 					describeIndexingGain(becomesIndexed, becomesFaceted, gainedComponents), scope
+				);
+			}
+		}
+	}
+
+	/**
+	 * Logs one warning for every attribute of the entity or of one of its references the schema change renames while
+	 * the collection holds entities.
+	 *
+	 * A rename moves the attribute to its new name in the schema, but nothing moves the data: the values the stored
+	 * entities hold for the attribute, and the indexes built from them, stay under the old name. Filtering and
+	 * sorting by the new name therefore miss every entity stored before the rename, until the entities are indexed
+	 * again. Like the gained indexing
+	 * {@link #warnAboutReferenceIndexesMissingStoredEntities(EntitySchema, EntitySchema)} reports, the change is
+	 * accepted rather than refused. A rename of a global attribute reaches the collection as the rename of the
+	 * attribute in the entity, so it is reported here too.
+	 *
+	 * An attribute the same update creates holds no stored values, so only an attribute the original schema declares
+	 * is reported. {@link #isEmpty()} is consulted only when there is such a rename, because it is a storage read.
+	 *
+	 * @param originalSchema the schema as it stood before the mutations were applied
+	 * @param updatedSchema  the schema the mutations produced
+	 * @param mutations      the mutations that were applied
+	 */
+	private void warnAboutRenamedAttributesOfStoredEntities(
+		@Nonnull EntitySchema originalSchema,
+		@Nonnull EntitySchema updatedSchema,
+		@Nonnull LocalEntitySchemaMutation[] mutations
+	) {
+		// the storage read is made once, at the first rename of a stored attribute
+		boolean emptinessChecked = false;
+		for (final LocalEntitySchemaMutation mutation : mutations) {
+			final String referenceName;
+			final ModifyAttributeSchemaNameMutation rename;
+			if (mutation instanceof ModifyAttributeSchemaNameMutation entityAttributeRename) {
+				referenceName = null;
+				rename = entityAttributeRename;
+			} else if (
+				mutation instanceof ModifyReferenceAttributeSchemaMutation referenceAttributeMutation &&
+					referenceAttributeMutation.getAttributeSchemaMutation()
+						instanceof ModifyAttributeSchemaNameMutation referenceAttributeRename
+			) {
+				referenceName = referenceAttributeMutation.getName();
+				rename = referenceAttributeRename;
+			} else {
+				continue;
+			}
+			final boolean declaredBefore = referenceName == null ?
+				originalSchema.getAttribute(rename.getName()).isPresent() :
+				originalSchema.getReference(referenceName)
+					.flatMap(reference -> reference.getAttribute(rename.getName()))
+					.isPresent();
+			if (!declaredBefore) {
+				continue;
+			}
+			if (!emptinessChecked) {
+				if (isEmpty()) {
+					return;
+				}
+				emptinessChecked = true;
+			}
+			if (referenceName == null) {
+				log.warn(
+					"Attribute `{}` of entity `{}` was renamed to `{}` while the collection already contains " +
+						"entities! " + RENAMED_ATTRIBUTE_CONSEQUENCE,
+					rename.getName(), updatedSchema.getName(), rename.getNewName()
+				);
+			} else {
+				log.warn(
+					"Attribute `{}` of reference `{}` of entity `{}` was renamed to `{}` while the collection " +
+						"already contains entities! " + RENAMED_ATTRIBUTE_CONSEQUENCE,
+					rename.getName(), referenceName, updatedSchema.getName(), rename.getNewName()
 				);
 			}
 		}

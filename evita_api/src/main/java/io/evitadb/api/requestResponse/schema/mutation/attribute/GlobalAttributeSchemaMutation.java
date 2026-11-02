@@ -84,6 +84,11 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 	/**
 	 * Replaces existing attribute schema with updated one but only when those schemas differ. Otherwise,
 	 * the non-changed, original catalog schema is returned.
+	 *
+	 * The existing attribute is taken out by its own name, so a rename moves the attribute to the new name rather
+	 * than adding it next to the original. A rename to a name another global attribute holds is refused.
+	 *
+	 * @throws InvalidSchemaMutationException when the attribute is renamed to the name of another global attribute
 	 */
 	@Nonnull
 	default CatalogSchemaWithImpactOnEntitySchemas replaceAttributeIfDifferent(
@@ -97,6 +102,12 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 			// we don't need to update entity schema - the attribute already contains the requested change
 			return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 		} else {
+			final String existingName = existingAttributeSchema.getName();
+			if (!existingName.equals(updatedAttributeSchema.getName())) {
+				AttributeRenameVerifier.verifyRenameInCatalog(
+					catalogSchema, existingName, updatedAttributeSchema.getName()
+				);
+			}
 			return new CatalogSchemaWithImpactOnEntitySchemas(
 				CatalogSchema._internalBuild(
 					catalogSchema.version() + 1,
@@ -109,7 +120,7 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 							catalogSchema.getAttributes()
 								.values()
 								.stream()
-								.filter(it -> !updatedAttributeSchema.getName().equals(it.getName())),
+								.filter(it -> !existingName.equals(it.getName())),
 							Stream.of(updatedAttributeSchema)
 						)
 						.collect(
