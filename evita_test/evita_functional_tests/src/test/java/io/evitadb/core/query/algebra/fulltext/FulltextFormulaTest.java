@@ -170,6 +170,46 @@ class FulltextFormulaTest {
 	}
 
 	/**
+	 * Creates an expanded term over a posting list whose reads are counted, with zero impacts.
+	 *
+	 * @param term     the term
+	 * @param postings the posting list
+	 * @return the term in field 0, exact
+	 */
+	@Nonnull
+	private static ExpandedTerm countedTerm(@Nonnull String term, @Nonnull ReadCountingBitmap postings) {
+		return new ExpandedTerm(0, term, postings, ImpactView.of(new byte[postings.size()]), 0);
+	}
+
+	/**
+	 * A posting list that counts how often the formula reads its roaring bitmap - the one access through which both
+	 * matching routes reach a term's postings, so the counts tell which route a token took. Its own operations use
+	 * the bitmap field directly and are not counted.
+	 */
+	private static final class ReadCountingBitmap extends BaseBitmap {
+		/**
+		 * How many times the roaring bitmap was read.
+		 */
+		private int reads;
+
+		/**
+		 * Creates the posting list of the passed primary keys.
+		 *
+		 * @param primaryKeys the primary keys
+		 */
+		ReadCountingBitmap(@Nonnull int... primaryKeys) {
+			super(primaryKeys);
+		}
+
+		@Nonnull
+		@Override
+		public PersistentRoaringBitmap getRoaringBitmap() {
+			this.reads++;
+			return super.getRoaringBitmap();
+		}
+	}
+
+	/**
 	 * Converts tokens to the scorer's expansions, independently of the formula's own conversion.
 	 *
 	 * @param formula the formula whose tokens to convert
@@ -305,12 +345,18 @@ class FulltextFormulaTest {
 		@Test
 		@DisplayName("A token of several terms, none of which meets the narrower tokens, matches nothing")
 		void shouldMatchNothingWhenNoTermOfANarrowedTokenHits() {
-			// the first token is the narrower one, so the second narrows it term by term, and every intersection is
-			// empty
+			// the first token is the narrower one and matches 3 entities; the second spreads 12 postings over 3 terms,
+			// more than the 3 x 3 values narrowing walks, so it narrows term by term, and every intersection is empty
 			final FulltextFormula formula = query(
 				token(term("a", 0, 1, 1, 2, 1, 3, 1)),
-				token(term("b", 0, 10, 1, 11, 1), term("c", 0, 20, 1), term("d", 0, 30, 1, 31, 1))
+				token(
+					term("b", 0, 10, 1, 11, 1, 12, 1, 13, 1, 14, 1),
+					term("c", 0, 20, 1, 21, 1, 22, 1, 23, 1, 24, 1),
+					term("d", 0, 30, 1, 31, 1)
+				)
 			);
+			// both routes match the same entities, so only the rule tells that this fixture takes the narrow route
+			assertTrue(FulltextFormula.narrowsCheaper(3, 3, 12));
 
 			assertSame(EmptyBitmap.INSTANCE, formula.compute());
 		}
@@ -318,27 +364,152 @@ class FulltextFormulaTest {
 		@Test
 		@DisplayName("A token of several terms whose first term misses still matches through its later terms")
 		void shouldMatchThroughLaterTermsWhenTheFirstTermOfANarrowedTokenMisses() {
-			// the first token is the narrower one; of the second token's terms the first meets none of its entities,
-			// the second meets one and the third the other
+			// the first token is the narrower one and matches 2 entities; the second spreads 7 postings over 3 terms,
+			// more than the 3 x 2 values narrowing walks, so it narrows term by term - of its terms the first meets
+			// none of the entities, the second meets one and the third the other
 			final FulltextFormula formula = query(
 				token(term("a", 0, 5, 1, 6, 1)),
-				token(term("b", 0, 100, 1), term("c", 0, 5, 1), term("d", 0, 6, 1, 200, 1))
+				token(term("b", 0, 100, 1, 101, 1, 102, 1), term("c", 0, 5, 1), term("d", 0, 6, 1, 200, 1, 201, 1))
 			);
+			// both routes match the same entities, so only the rule tells that this fixture takes the narrow route
+			assertTrue(FulltextFormula.narrowsCheaper(3, 2, 7));
 
 			assertArrayEquals(new int[]{5, 6}, formula.compute().getArray());
 		}
 
 		@Test
-		@DisplayName("Matching leaves every term's posting list as it was")
-		void shouldLeaveEveryTermsPostingsUnchanged() {
-			// the narrower token's single posting list serves as the matching entities as it is; the wider token's
-			// terms are intersected with it and folded together, the first intersection - a subset of its own term,
-			// an array chunk - taking in a bitmap chunk and a run chunk
+		@DisplayName("A wide narrower token met by a token of many terms matches the intersection through its union")
+		void shouldMatchTheIntersectionThroughTheUnionWhenTheMatchingEntitiesAreMany() {
+			// the first token matches the 1,000 even keys below 2,000; the second spreads 1,200 postings over 20 terms,
+			// term j holding every twentieth key from j: narrowing would walk the 1,000 entities 20 times, so the
+			// second token's union - every key below 1,200 - is built and intersected once
+			final int[] evenKeys = new int[1_000];
+			for (int i = 0; i < evenKeys.length; i++) {
+				evenKeys[i] = i * 2;
+			}
+			final ExpandedTerm[] secondToken = new ExpandedTerm[20];
+			for (int j = 0; j < secondToken.length; j++) {
+				final int[] postings = new int[60];
+				for (int k = 0; k < postings.length; k++) {
+					postings[k] = j + k * 20;
+				}
+				secondToken[j] = new ExpandedTerm(
+					0, "t" + j, new BaseBitmap(postings), ImpactView.of(new byte[postings.length]), 0
+				);
+			}
+			final ExpandedTerm firstToken = new ExpandedTerm(
+				0, "even", new BaseBitmap(evenKeys), ImpactView.of(new byte[evenKeys.length]), 0
+			);
+
+			final int[] expected = new int[600];
+			for (int i = 0; i < expected.length; i++) {
+				expected[i] = i * 2;
+			}
+			assertArrayEquals(expected, query(token(firstToken), secondToken).compute().getArray());
+		}
+
+		@Test
+		@DisplayName("A token narrows term by term only while that walks fewer values than building its union")
+		void shouldNarrowTermByTermOnlyWhileItWalksFewerValuesThanTheUnion() {
+			// few matching entities against long posting lists: narrowing walks 3 x 10 values, the union 3,000
+			assertTrue(FulltextFormula.narrowsCheaper(3, 10, 3_000));
+			// one posting past a tie narrows: narrowing walks 2 x 500 values, the union 1,001
+			assertTrue(FulltextFormula.narrowsCheaper(2, 500, 1_001));
+			// many matching entities against a token of many terms: narrowing walks 20 x 1,000 values, the union 1,200
+			assertFalse(FulltextFormula.narrowsCheaper(20, 1_000, 1_200));
+			// a tie goes to the union, which computes one intersection instead of one per term
+			assertFalse(FulltextFormula.narrowsCheaper(2, 500, 1_000));
+		}
+
+		@Test
+		@DisplayName("A token narrowing term by term reads no further term once the matching entities are covered")
+		void shouldStopReadingTermsOnceNarrowingCoversTheMatchingEntities() {
+			// the narrower token matches 3 entities; the wider one spreads 21 postings over 3 terms, more than the
+			// 3 x 3 values narrowing walks, so it narrows term by term - and its first term already covers the 3
+			// entities; the wider token is passed first, so the formula has to order the tokens itself
+			final ReadCountingBitmap first = new ReadCountingBitmap(1, 2, 3, 10, 11, 12, 13);
+			final ReadCountingBitmap second = new ReadCountingBitmap(20, 21, 22, 23, 24, 25, 26);
+			final ReadCountingBitmap third = new ReadCountingBitmap(30, 31, 32, 33, 34, 35, 36);
+			final FulltextFormula formula = query(
+				token(countedTerm("b", first), countedTerm("c", second), countedTerm("d", third)),
+				token(term("a", 0, 1, 1, 2, 1, 3, 1))
+			);
+
+			assertArrayEquals(new int[]{1, 2, 3}, formula.compute().getArray());
+			assertEquals(1, first.reads, "the first term");
+			assertEquals(0, second.reads, "the second term");
+			assertEquals(0, third.reads, "the third term");
+		}
+
+		@Test
+		@DisplayName("A token taking its union reads every term, even when its first one covers the matching entities")
+		void shouldReadEveryTermWhenTheTokenTakesItsUnion() {
+			// the narrower token matches 10 entities; the wider one spreads 20 postings over 2 terms - exactly the
+			// 2 x 10 values narrowing would walk, and a tie goes to the union, which reads both terms although the
+			// first one alone covers the 10 entities
+			final ReadCountingBitmap first = new ReadCountingBitmap(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+			final ReadCountingBitmap second = new ReadCountingBitmap(100, 101, 102, 103, 104, 105, 106, 107, 108, 109);
+			final FulltextFormula formula = query(
+				token(countedTerm("a", new ReadCountingBitmap(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))),
+				token(countedTerm("b", first), countedTerm("c", second))
+			);
+
+			assertArrayEquals(new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, formula.compute().getArray());
+			assertEquals(1, first.reads, "the first term");
+			assertEquals(1, second.reads, "the second term");
+		}
+
+		@Test
+		@DisplayName("Each token weighs its route against the entities still matching after the tokens before it")
+		void shouldWeighEachTokensRouteAgainstTheEntitiesStillMatching() {
+			// the narrowest token matches 10 entities and the next one, a single term, cuts them down to 2; the widest
+			// spreads 20 postings over 2 terms - against the 10 entities first matched it would tie and take its
+			// union, against the 2 still matching it narrows term by term, and its first term covers both
+			final ReadCountingBitmap first = new ReadCountingBitmap(1, 2, 200, 201, 202, 203, 204, 205, 206, 207);
+			final ReadCountingBitmap second = new ReadCountingBitmap(300, 301, 302, 303, 304, 305, 306, 307, 308, 309);
+			final FulltextFormula formula = query(
+				token(countedTerm("a", new ReadCountingBitmap(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))),
+				token(countedTerm("b", new ReadCountingBitmap(1, 2, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59))),
+				token(countedTerm("c", first), countedTerm("d", second))
+			);
+
+			assertArrayEquals(new int[]{1, 2}, formula.compute().getArray());
+			assertEquals(1, first.reads, "the first term");
+			assertEquals(0, second.reads, "the second term");
+		}
+
+		@Test
+		@DisplayName("Matching term by term leaves every term's posting list as it was")
+		void shouldLeaveEveryTermsPostingsUnchangedWhenNarrowingTermByTerm() {
+			// the wider token's 130,003 postings outnumber the 3 x 30,000 values narrowing walks: its terms are
+			// intersected with the matching entities and folded together, the first intersection - a subset of its own
+			// term, an array chunk - taking in a bitmap chunk and a run chunk
+			assertMatchingLeavesPostingsUnchanged(400_000);
+		}
+
+		@Test
+		@DisplayName("Matching through the token's union leaves every term's posting list as it was")
+		void shouldLeaveEveryTermsPostingsUnchangedWhenIntersectingTheUnion() {
+			// the wider token's 40,003 postings are fewer than the 3 x 30,000 values narrowing would walk: its union is
+			// built and intersected with the matching entities once
+			assertMatchingLeavesPostingsUnchanged(40_000);
+		}
+
+		/**
+		 * Matches a narrower token of one posting list, keys 0 to 29,999 as a run, against a wider token of three
+		 * terms - three keys in an array chunk, every fourth key below `everyFourthBound` and the run of keys 20,000
+		 * to 49,999 - and checks the match and that no term's posting list changed. The narrower token's posting list
+		 * serves as the matching entities as it is.
+		 *
+		 * @param everyFourthBound the exclusive bound of the every-fourth-key term, which decides the route the wider
+		 *                         token takes
+		 */
+		private static void assertMatchingLeavesPostingsUnchanged(int everyFourthBound) {
 			final PersistentRoaringBitmap firstThirtyThousand = new PersistentRoaringBitmap();
 			firstThirtyThousand.add(0L, 30_000L);
 			firstThirtyThousand.runOptimize();
 			final PersistentRoaringBitmap everyFourth = new PersistentRoaringBitmap();
-			for (int primaryKey = 0; primaryKey < 40_000; primaryKey += 4) {
+			for (int primaryKey = 0; primaryKey < everyFourthBound; primaryKey += 4) {
 				everyFourth.add(primaryKey);
 			}
 			final PersistentRoaringBitmap twentyToFiftyThousand = new PersistentRoaringBitmap();

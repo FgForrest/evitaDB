@@ -296,13 +296,39 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 			widths[position] = width;
 			order[position] = i;
 		}
-		// only the narrowest token's union is built; every further token narrows it by its own terms, so the wide
-		// unions of common words are never materialized - A AND (B OR C) = (A AND B) OR (A AND C)
+		// only the narrowest token's union is built up front; every further token cuts it down either term by term -
+		// A AND (B OR C) = (A AND B) OR (A AND C) - or through its own union, whichever is estimated to walk fewer
+		// values; a token of a single term is its own union, so both routes are the same one intersection
 		PersistentRoaringBitmap matching = union(this.tokens[order[0]]);
 		for (int i = 1; i < tokenCount && !matching.isEmpty(); i++) {
-			matching = narrow(matching, this.tokens[order[i]]);
+			final ExpandedTerm[] token = this.tokens[order[i]];
+			matching = token.length > 1 && narrowsCheaper(token.length, matching.getLongCardinality(), widths[i])
+				? narrow(matching, token)
+				: PersistentRoaringBitmap.and(matching, union(token));
 		}
 		return matching.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(matching);
+	}
+
+	/**
+	 * Decides how the next token of several terms cuts down the entities matching the tokens so far. Both routes give
+	 * the same entities, at different costs: narrowing intersects every term's posting list with the matching
+	 * entities on its own, so it walks the matching entities up to once per term, while building the token's union
+	 * folds the terms' posting lists into one, one list at a time, and leaves a single intersection to compute.
+	 * Narrowing is priced at that worst case, although it skips the remaining terms once every matching entity is
+	 * covered; the summed posting count stands in for the union's cost - an estimate, as the fold works chunk by chunk
+	 * rather than value by value. Narrowing therefore pays when the matching entities are few and the token's posting
+	 * lists long - the common word after a rare one - and loses when the matching entities are already many and the
+	 * token expanded into many terms, as two common words do: it then walks the wide matching set over and over for
+	 * terms whose postings the union would read once. Both sides of the comparison are known before any intersection
+	 * is computed.
+	 *
+	 * @param termCount     the number of terms the next token expanded into
+	 * @param matchingCount the number of entities matching the tokens so far
+	 * @param postingCount  the summed posting count of the next token's terms
+	 * @return `true` when narrowing term by term is estimated to walk fewer values than building the token's union
+	 */
+	static boolean narrowsCheaper(int termCount, long matchingCount, long postingCount) {
+		return termCount * matchingCount < postingCount;
 	}
 
 	/**
@@ -325,15 +351,16 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	}
 
 	/**
-	 * Narrows the entities matching the tokens so far to those containing at least one term of the next token. Each
-	 * term's posting list is intersected with the matching entities on its own - an intersection costs about the
-	 * smaller of its two sides, so a common word's wide posting lists are never merged into one union just to be cut
-	 * down to the few entities the narrower tokens left. The intersections are folded, one at a time, into an
-	 * accumulator, so at most one of them is alive beside it however many terms the token expanded into; once the
-	 * accumulator covers every matching entity, the remaining terms cannot add anything and are skipped.
+	 * Narrows the entities matching the tokens so far to those containing at least one term of the next token, the
+	 * route {@link #narrowsCheaper(int, long, long)} picks when the matching entities are few. Each term's posting list
+	 * is intersected with the matching entities on its own, so a common word's wide posting lists are never merged
+	 * into one union just to be cut down to the few entities the narrower tokens left. The intersections are folded,
+	 * one at a time, into an accumulator, so at most one of them is alive beside it however many terms the token
+	 * expanded into; once the accumulator covers every matching entity, the remaining terms cannot add anything and
+	 * are skipped.
 	 *
 	 * @param matching the entities matching the tokens so far, not empty
-	 * @param token    the terms of the next token, at least one
+	 * @param token    the terms of the next token, at least two - a single term is intersected directly
 	 * @return the entities matching the tokens so far and the next one
 	 */
 	@Nonnull
@@ -341,11 +368,6 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 		@Nonnull PersistentRoaringBitmap matching,
 		@Nonnull ExpandedTerm[] token
 	) {
-		if (token.length == 1) {
-			return PersistentRoaringBitmap.and(
-				matching, RoaringBitmapBackedBitmap.getRoaringBitmap(token[0].postings())
-			);
-		}
 		final long matchingCount = matching.getLongCardinality();
 		PersistentRoaringBitmap narrowed = null;
 		for (final ExpandedTerm term : token) {
