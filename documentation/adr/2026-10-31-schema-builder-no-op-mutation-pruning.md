@@ -1,10 +1,10 @@
 ---
 title: Schema builders drop the mutations that leave their level of the schema unchanged, judged by value at toMutation()
 date: 2026-10-31
-updated: 2026-11-02 13:12
+updated: 2026-11-02 14:20
 status: accepted
 kind: fix
-issues: [1837, 1843, 1845, 1846, 1847, 1848, 1849, 1850, 1851, 1852, 1853, 1854, 1855, 1856, 1857, 1858, 1859, 1860, 1861, 1862, 1863, 1864, 1865, 1868]
+issues: [1837, 1843, 1845, 1846, 1847, 1848, 1849, 1850, 1851, 1852, 1853, 1854, 1855, 1856, 1857, 1858, 1859, 1860, 1861, 1862, 1863, 1864, 1865, 1868, 1869, 1870]
 prs: [1844]
 areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/schema/builder, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReflectedReferenceSchema.java, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ClassSchemaAnalyzer.java, evita_query/src/main/java/io/evitadb/api/query/expression, evita_external_api/evita_external_api_grpc/shared, evita_engine/src/main/java/io/evitadb/core/collection/EntityCollection.java, evita_engine/src/main/java/io/evitadb/core/catalog/Catalog.java, evita_query/src/main/resources/META-INF/io/evitadb/api/query/parser/evitaEL, evita_store/evita_store_server/src/main/java/io/evitadb/store/shared/serializer/dataType/ExpressionSerializer.java, evita_common/src/main/java/io/evitadb/dataType/EvitaDataTypes.java]
 supersedes: []
@@ -333,6 +333,21 @@ issue and commit.
   server-side preflight of the whole reordered batch. Rejected as well: moving the global removal behind the entity
   mutations, which breaks a local attribute created in place of the removed global one (#1861).
 
+- **Default value of a global attribute** (#1869, pre-existing since #677): the entity level of
+  `ModifyAttributeSchemaDefaultValueMutation`, reached by the cascade of a global default value change, cast the
+  entity's attribute to `EntityAttributeSchema` - a `GlobalAttributeSchema` used by the entity is a sibling class, so
+  it threw, and a successful cast would have made the attribute local. It now delegates to the attribute-level
+  mutation, which keeps the attribute in its class, as the default entity-level `mutate` of the other attribute
+  mutations does.
+
+- **Array default values** (#1870, pre-existing): `ModifyAttributeSchemaDefaultValueMutation` compared the existing
+  and the converted default value with `Objects.equals`, and the conversion allocates a new array, so an equal array
+  default always rebuilt the attribute - re-defining an entity with the same array default emitted a mutation and
+  raised the version, and so did every repeated global change cascading into the entities. The attribute level now
+  compares with `Objects.deepEquals` and returns the existing attribute, and the reference level, which rebuilt the
+  attribute without any comparison, compares the same way. `AttributeSchema.equals` still compares the default value
+  by identity (see the consequences).
+
 ## Verification
 
 - `ClassSchemaAnalyzerRedefinitionTest`, embedded with restart, covers six shapes: a representative global attribute,
@@ -438,8 +453,12 @@ issue and commit.
   `slow` and `flaky`, `largeMachine`) ran 28 002 tests: 0 failures, 5 errors. Three are GraphQL subscription tests
   whose client failed the TLS session negotiation (`SessionProtocolNegotiationException`), two gRPC tests (a
   traffic-recording export, the management statistics) lost their channel under load; their five classes pass
-  alone, 48 of 48 tests. After the reordering was taken out, the removal, rename and analyzer tests and the gRPC
-  re-definition test pass, 154 of 154.
+  alone, 48 of 48 tests. `CatalogSchemaCascadeTest` changes the default value of a used global attribute in warm-up
+  and in a live catalog followed by a restart; both tests failed before the #1869 fix.
+  `CatalogSchemaCascadeTest.shouldLeaveSchemasUnchangedWhenEqualArrayDefaultValueOfUsedGlobalAttributeComesAgain`
+  and `EntitySchemaBuilderTest.shouldSendNothingWhenRedefiningStoredAttributeWithEqualArrayDefaultValue` failed
+  before the #1870 fix, with the attribute-level and reference-level unit tests of the mutation. After the
+  reordering was taken out, the removal, rename and analyzer tests and the gRPC re-definition test pass, 154 of 154.
 - Removing the `indexedPricePlaces` comparison from `SchemaContentComparator` makes exactly the matching
   genuine-change scenario fail, so the property scenarios can fail.
 
@@ -504,6 +523,11 @@ Every follow-up listed in #1843 except the server-side guard is fixed here, and 
 - A schema post-processor cannot remove a compound together with the global attribute it is made of, and cannot
   replace such a global attribute with a local one: the catalog builder refuses the removal while the stored
   compound exists. Remove the compound in an update of its own first.
+- `AttributeSchema.equals` compares an array default value by identity (#1870). The mutation returns the existing
+  attribute for an equal array, so re-definition and replay are not affected, but an array default changed and set
+  back within one builder leaves the rebuilt attribute, and `SchemaContentComparator` emits the mutations. Rejected
+  for now: content-based equality in `AttributeSchema` - a hand-written `equals`/`hashCode` replacing Lombok's in
+  the class and its subclasses, for a case no re-definition produces.
 - The entity builder's replay is still quadratic: every replay re-applies the whole list, and `addMutations` scans
   the list for every new mutation. Restoring a property of 800 attributes takes about three seconds. Runs of
   reference mutations are not batched, and neither are global attributes in the catalog builder.
@@ -549,3 +573,7 @@ analyzer and the builders until they upgrade.
 - **2026-11-02** — quality gates over the commits of that review: the analyzer reordering of compound removals was
   guarded, still found unsound by the next gate, and taken out (Johnny); the post-processor case stays refused up
   front and documented
+- **2026-11-02** — #1869 (a global default value change failed on the entities using the attribute) found by the
+  quality gates, filed and fixed in #1844
+- **2026-11-02** — the quality gates over the #1869 fix found #1870 (equal array default values rebuilt the
+  attribute), filed and fixed in #1844
