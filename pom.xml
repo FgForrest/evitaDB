@@ -147,7 +147,7 @@
 		<maven.compiler.version>3.16.0</maven.compiler.version>
 		<maven.toolchains.version>3.3.0</maven.toolchains.version>
 		<lombok.version>1.18.46</lombok.version>
-		<grpc.version>1.84.0</grpc.version>
+		<grpc.version>1.85.1</grpc.version>
 		<bouncyCastle.version>1.86</bouncyCastle.version>
 		<swagger.version>2.2.55</swagger.version>
 		<armeria.version>1.42.0</armeria.version>
@@ -718,7 +718,7 @@
 					-->
 					<groupId>io.github.git-commit-id</groupId>
 					<artifactId>git-commit-id-maven-plugin</artifactId>
-					<version>10.0.0</version>
+					<version>10.0.1</version>
 					<executions>
 						<execution>
 							<id>get-the-git-infos</id>
@@ -772,7 +772,7 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
-				<version>3.5.5</version>
+				<version>3.6.1</version>
 				<configuration>
 					<forkCount>1</forkCount>
 					<reuseForks>true</reuseForks>
