@@ -52,7 +52,6 @@ import java.util.function.BiFunction;
 
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
 
@@ -97,7 +96,6 @@ class EvitaWarmUpTest implements EvitaTestSupport {
 	 * of entities having reflected reference to that entity. This scenario tries to simulate problem that was documented
 	 * <a href="https://github.com/FgForrest/evitaDB/issues/689">in issue #689</a>.
 	 */
-	@Tag(SLOW)
 	@Test
 	void shouldGenerateLoadOfDataInWarmUpPhase() {
 		this.evita.defineCatalog(TEST_CATALOG);

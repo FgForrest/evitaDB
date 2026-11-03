@@ -126,6 +126,13 @@ public interface ReferenceAttributeSchemaMutation extends
 		final AttributeSchemaContract updatedAttributeSchema = Objects.requireNonNull(
 			mutate(null, existingAttributeSchema, AttributeSchemaContract.class)
 		);
+		final String existingName = existingAttributeSchema.getName();
+		if (!existingName.equals(updatedAttributeSchema.getName())) {
+			// verified here rather than in `replaceAttributeIfDifferent`, which has no entity schema to name
+			AttributeSchemaMutationVerifier.verifyRenameInReference(
+				entitySchema, referenceSchema, existingName, updatedAttributeSchema.getName()
+			);
+		}
 		return replaceAttributeIfDifferent(
 			referenceSchema, existingAttributeSchema, updatedAttributeSchema
 		);
@@ -134,6 +141,10 @@ public interface ReferenceAttributeSchemaMutation extends
 	/**
 	 * Replaces existing attribute schema with an updated one but only when those schemas differ. Otherwise,
 	 * the non-changed, original reference schema is returned.
+	 *
+	 * The existing attribute is taken out by its own name, so a rename moves the attribute to the new name rather
+	 * than adding it next to the original. The checks a rename passes first are made by
+	 * {@link #mutate(EntitySchemaContract, ReferenceSchemaContract, ConsistencyChecks)}.
 	 */
 	@Nonnull
 	default ReferenceSchemaContract replaceAttributeIfDifferent(
@@ -145,11 +156,15 @@ public interface ReferenceAttributeSchemaMutation extends
 			// we don't need to update reference schema - the attribute already contains the requested change
 			return referenceSchema;
 		} else {
+			final String existingName = existingAttributeSchema.getName();
 			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
 				return reflectedReferenceSchema
 					.withDeclaredAttributes(
 						Stream.concat(
-								reflectedReferenceSchema.getDeclaredAttributes().values().stream().filter(it -> !updatedAttributeSchema.getName().equals(it.getName())),
+								reflectedReferenceSchema.getDeclaredAttributes()
+									.values()
+									.stream()
+									.filter(it -> !existingName.equals(it.getName())),
 								Stream.of(updatedAttributeSchema)
 							)
 							.collect(
@@ -179,7 +194,10 @@ public interface ReferenceAttributeSchemaMutation extends
 					referenceSchema.getAllHistogramIndexDefinitions(),
 					referenceSchema.getBucketedPartiallyInScopes(),
 					Stream.concat(
-							referenceSchema.getAttributes().values().stream().filter(it -> !updatedAttributeSchema.getName().equals(it.getName())),
+							referenceSchema.getAttributes()
+								.values()
+								.stream()
+								.filter(it -> !existingName.equals(it.getName())),
 							Stream.of(updatedAttributeSchema)
 						)
 						.collect(

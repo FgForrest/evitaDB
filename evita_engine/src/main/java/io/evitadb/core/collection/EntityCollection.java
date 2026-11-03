@@ -82,8 +82,11 @@ import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReflectedReferenceAttributeInheritanceSchemaMutation;
 import io.evitadb.api.statistics.*;
 import io.evitadb.api.statistics.CollectionIndexSummary.IndexTypeCount;
 import io.evitadb.core.buffer.DataStoreChanges;
@@ -179,6 +182,7 @@ import io.evitadb.utils.IOUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -212,11 +216,21 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Slf4j
 public final class EntityCollection implements
 	TransactionalLayerProducer<DataStoreChanges, EntityCollection>,
 	EntityCollectionContract,
 	DataStoreReader,
 	CatalogRelatedDataStructure<EntityCollection> {
+
+	/**
+	 * The consequence and the remedy the warning about an attribute renamed over stored entities states, shared by
+	 * the entity and the reference attribute variant of the warning.
+	 */
+	private static final String RENAMED_ATTRIBUTE_CONSEQUENCE =
+		"The values the stored entities hold for it, and the indexes built from them, stay under the old name, so " +
+			"filtering and sorting by the new name miss those entities. Index the entities again (a full reindex) to " +
+			"move their values to the new name.";
 
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
@@ -1102,6 +1116,8 @@ public final class EntityCollection implements
 			updatedSchema = refreshReflectedSchemas(originalSchema, updatedSchema, updatedReferenceSchemas);
 
 			verifyNoAcceleratorAddedToNonEmptyCollection(originalSchema, updatedSchema);
+			warnAboutReferenceIndexesMissingStoredEntities(originalSchema, updatedSchema);
+			warnAboutRenamedAttributesOfStoredEntities(originalSchema, updatedSchema, schemaMutation);
 
 			if (updatedSchema.version() > originalSchema.version()) {
 				exchangeSchema(originalSchema, updatedSchema);
@@ -2852,56 +2868,75 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Dry-runs the given mutations against this collection's current schema and raises the
-	 * accelerator-on-populated-collection refusal **without exchanging anything**.
+	 * Dry-runs the given mutations against this collection's current schema and raises two refusals **without
+	 * exchanging anything**: the accelerator-on-populated-collection refusal and the reflected reference inheritance
+	 * refusal.
 	 *
-	 * This exists because a catalog-level change to a global attribute fans out into one
+	 * The first is raised here because a catalog-level change to a global attribute fans out into one
 	 * {@link io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation} per consuming
 	 * collection, and {@link io.evitadb.core.catalog.Catalog#updateSchema} applies them one at a time - each
 	 * exchanging its schema and persisting a storage part in its own `finally`. A refusal raised by the *third*
 	 * collection therefore cannot undo the first two: the catalog's revert restores only the catalog schema. Running
 	 * this over every affected collection before the first exchange is what makes the cascade all-or-nothing.
 	 *
-	 * **It raises the non-empty-collection refusal and nothing else** - every other failure of the dry run is
-	 * swallowed. That is deliberate rather than lazy, and it is exactly sufficient:
+	 * The second is raised here so that it precedes the catalog recording the mutation in the transaction - otherwise,
+	 * catching the refusal and continuing the session would leave the rejected mutation queued for replay at commit.
+	 * The inheritance mutation refuses to replace a local declaration with the same-named definition of the bound
+	 * original, because the two hold independently stored values and swapping them would change query answers; the
+	 * refusal does not depend on whether data exists. Its verdict depends on this collection and on the collection
+	 * owning the reflected original, so the dry run raises it only when no mutation earlier in the batch changed
+	 * either of them - after such a change, only the real pass meets the state the mutation is applied to. Any other
+	 * failure of that mutation is swallowed like the rest.
+	 *
+	 * Other failures of the dry run are swallowed for the following reasons:
 	 *
 	 * - Replaying a mutation outside its real batch can fail for reasons that would not arise in the real pass - an
 	 *   entity mutation naming a global attribute an earlier mutation in the same batch creates, for instance.
 	 *   Surfacing those here would turn a working schema change into a spurious rejection.
-	 * - The refusals the mutations raise themselves - wrong data type, accelerator on a reference attribute - depend
-	 *   only on the attribute, which a cascade sends identically to every consuming collection. They therefore fire
-	 *   on the *first* collection visited, before anything has been exchanged, and need no preflight to be atomic.
-	 * - The non-empty-collection refusal is the one rule whose verdict differs *per collection*, which is exactly
-	 *   what lets it accept collection A and then refuse collection B. It is the only rule that needs this.
+	 * - The other refusals the mutations raise themselves - wrong data type, accelerator on a reference attribute -
+	 *   depend only on the attribute, which a cascade sends identically to every consuming collection. They therefore
+	 *   fire on the *first* collection visited, before anything has been exchanged, and need no preflight to be atomic.
+	 * - Among the rules a cascade can trigger, the non-empty-collection refusal is the one whose verdict differs
+	 *   *per collection*, which is exactly what lets it accept collection A and then refuse collection B, so all
+	 *   affected collections must be checked.
 	 *
-	 * @param catalogSchema  the catalog schema the mutations are applied against
-	 * @param schemaMutation the mutations that are about to be applied
-	 * @throws InvalidSchemaMutationException when an accelerator would be added to this non-empty collection
+	 * @param catalogSchema             the catalog schema the mutations are applied against
+	 * @param entityTypesChangedEarlier entity types that mutations preceding these in the same batch create, remove,
+	 *                                  rename or modify
+	 * @param schemaMutation            the mutations that are about to be applied
+	 * @throws InvalidSchemaMutationException when an accelerator would be added to this non-empty collection or
+	 *                                       inheritance would replace a reflected reference's local declaration
 	 */
 	public void verifySchemaMutationsApplicable(
 		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull Set<String> entityTypesChangedEarlier,
 		@Nonnull LocalEntitySchemaMutation... schemaMutation
 	) {
 		final EntitySchema originalSchema = getInternalSchema();
-		final EntitySchema updatedSchema;
-		try {
-			EntitySchema schemaSoFar = originalSchema;
-			for (final EntitySchemaMutation theMutation : schemaMutation) {
-				final EntitySchemaContract mutated = theMutation.mutate(catalogSchema, schemaSoFar);
+		EntitySchema updatedSchema = originalSchema;
+		for (final EntitySchemaMutation theMutation : schemaMutation) {
+			try {
+				final EntitySchemaContract mutated = theMutation.mutate(catalogSchema, updatedSchema);
 				if (!(mutated instanceof EntitySchema theSchema)) {
-					// the mutation drops the collection or produces something this preflight cannot reason about -
-					// leave the verdict entirely to the real pass
+					// Leave mutations this preflight cannot reason about to the real pass.
 					return;
 				}
-				schemaSoFar = theSchema;
+				updatedSchema = theSchema;
+			} catch (RuntimeException ex) {
+				// the inheritance refusal is conclusive only while no earlier mutation of the batch changed this
+				// collection or the one owning the reflected original - see the method's javadoc
+				if (ex instanceof InvalidSchemaMutationException &&
+					theMutation instanceof ModifyReflectedReferenceAttributeInheritanceSchemaMutation inheritance &&
+					!entityTypesChangedEarlier.contains(getEntityType()) &&
+					updatedSchema.getReference(inheritance.getName())
+						.map(ReferenceSchemaContract::getReferencedEntityType)
+						.filter(originalOwner -> !entityTypesChangedEarlier.contains(originalOwner))
+						.isPresent()) {
+					throw ex;
+				}
+				// Other dry-run failures can depend on surrounding catalog mutations; the real pass reports them.
+				return;
 			}
-			updatedSchema = schemaSoFar;
-		} catch (RuntimeException ex) {
-			// A deliberate swallow, and a genuine exemption from "never silently skip unexpected states" - the three
-			// reasons that must all hold for it to stay one are in this method's javadoc. Nothing is lost by staying
-			// quiet: this is a pure dry run against a copy, and the real pass runs moments later with the correct
-			// surrounding state and reports every genuine failure itself.
-			return;
 		}
 		verifyNoAcceleratorAddedToNonEmptyCollection(originalSchema, updatedSchema);
 	}
@@ -2913,25 +2948,36 @@ public final class EntityCollection implements
 	 *
 	 * **Why this is a refusal rather than a rebuild.** The indexes backing a filter accelerator are built incrementally
 	 * as entities are indexed; there is no reindexing machinery that could walk the existing entities and back-fill
-	 * one. Accepting the mutation would therefore produce an index that silently answers only for entities written
-	 * *after* the schema change - queries would return fewer results than they should, with nothing anywhere saying
-	 * why. Failing loudly at the schema boundary is the only honest outcome available, and it is cheap to work around:
-	 * declare the accelerator before the data goes in.
+	 * one. Accepting the mutation would not merely leave the stored entities out of the index, as a reference made
+	 * indexed over stored entities does (see
+	 * {@link #warnAboutReferenceIndexesMissingStoredEntities(EntitySchema, EntitySchema)}): the
+	 * trigram index posts against the value ids of the attribute's shared value tree, and
+	 * {@link io.evitadb.index.invertedIndex.InvertedIndex#attachValueIdConsumer(String)} switches those ids on only
+	 * while the tree is still empty, because ids back-filled into a populated tree would never reach disk. That premise
+	 * holds only because this refusal keeps every attach on an empty tree. With the refusal bypassed, every upsert
+	 * writing the attribute fails on it, and so does the next load of the catalog, which then reports it corrupted.
+	 * Failing loudly at the schema boundary is the only outcome available, and it is cheap to work around: declare the
+	 * accelerator before the data goes in.
 	 *
 	 * The check is a diff of the resulting schema against the original rather than an inspection of the incoming
 	 * mutations, so that every route into the schema is covered at one place - the dedicated set mutation, an
 	 * attribute created with accelerators already on it, a reference attribute, and whatever combination the mutation
 	 * pipeline collapses those into.
 	 *
-	 * **Attributes are matched by name, and that is correct even across a rename.**
-	 * {@link io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation} does not
-	 * remove the attribute it renames - `EntityAttributeSchemaMutation#replaceAttributeIfDifferent` filters the
-	 * existing attributes by the *updated* name, so the original survives alongside the copy and the schema really
-	 * does end up with a second attribute carrying the accelerator. That second attribute needs its own index built
-	 * over entities that are already stored, which is precisely what this refusal exists to prevent, so refusing is
-	 * the right answer rather than a false positive. Were that duplication ever fixed, a rename would stop growing
-	 * the schema and this per-name comparison would need to follow the attribute through it - see
-	 * `AttributeFilterAcceleratorRefusalTest.UnrelatedChanges`, whose two rename tests pin both halves of that reasoning.
+	 * **Attributes are matched by name, so a rename of an attribute that carries an accelerator is refused too.**
+	 * {@link io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation} moves the
+	 * attribute to its new name in the schema, but nothing moves its data: the values of the stored entities and the
+	 * indexes built from them stay under the old name. To this check the new name is an attribute that newly declares
+	 * the accelerator. A rename to a name that never held values would in fact be harmless - its shared value tree is
+	 * created empty on the first write, and the attribute then behaves as a renamed one without an accelerator, which
+	 * is accepted with the warning of {@link #warnAboutRenamedAttributesOfStoredEntities(EntitySchema, EntitySchema,
+	 * LocalEntitySchemaMutation[])}. But the new name may still hold a populated tree left behind by an attribute that
+	 * was renamed away from it or removed, and the attach then fails exactly as described above. The schema does not
+	 * say which of the two cases a rename is, so the refusal stays for both; renaming a plain attribute is unaffected.
+	 * `AttributeFilterAcceleratorRefusalTest.UnrelatedChanges` pins the refused and the accepted rename.
+	 *
+	 * TOBEDONE JNO #409 - once a rename moves the stored values and their indexes to the new name, accept the rename of
+	 * an attribute carrying an accelerator over stored entities and drop the paragraph above.
 	 *
 	 * {@link #isEmpty()} is consulted **only when an accelerator was actually added**, because it is a storage read and
 	 * the overwhelmingly common schema change adds none. In a transactional catalog that read *does* include the open
@@ -2978,6 +3024,251 @@ public final class EntityCollection implements
 				);
 			}
 		}
+	}
+
+	/**
+	 * Logs one warning for every stored reference and scope the schema change makes the reference indexed in, or
+	 * faceted in, where it was not indexed, or not faceted, before - or indexed with a component it was not indexed
+	 * with before - while the collection holds entities.
+	 *
+	 * The reference and facet indexes are filled as entity mutations are indexed, and nothing builds them for the
+	 * entities already stored, so filters those indexes serve miss every entity stored before the change - the group
+	 * indexes a gained {@link ReferenceIndexedComponents#REFERENCED_GROUP_ENTITY} adds included. Unlike a
+	 * filter accelerator, which {@link #verifyNoAcceleratorAddedToNonEmptyCollection(EntitySchema, EntitySchema)}
+	 * refuses in the same situation, the change is accepted: applications that define their schema from model
+	 * classes apply it when they start, and refusing it would stop them from starting.
+	 *
+	 * A reference the change creates has no stored data to miss, and a reflected reference that is not bound to its
+	 * original cannot tell the settings it inherits, so neither is reported. {@link #isEmpty()} is consulted only when
+	 * a reference gained such a scope, because it is a storage read.
+	 *
+	 * @param originalSchema the schema as it stood before the mutations were applied
+	 * @param updatedSchema  the schema the mutations produced
+	 */
+	private void warnAboutReferenceIndexesMissingStoredEntities(
+		@Nonnull EntitySchema originalSchema,
+		@Nonnull EntitySchema updatedSchema
+	) {
+		// the storage read is made once, at the first reference that gained a scope
+		boolean emptinessChecked = false;
+		for (final ReferenceSchemaContract updatedReference : updatedSchema.getReferences().values()) {
+			final ReferenceSchemaContract originalReference = originalSchema.getReferences()
+				.get(updatedReference.getName());
+			if (originalReference == null || !hasReadableIndexing(originalReference) ||
+				!hasReadableIndexing(updatedReference)) {
+				continue;
+			}
+			for (final Scope scope : Scope.values()) {
+				final boolean becomesIndexed =
+					updatedReference.isIndexedInScope(scope) && !originalReference.isIndexedInScope(scope);
+				final boolean becomesFaceted =
+					updatedReference.isFacetedInScope(scope) && !originalReference.isFacetedInScope(scope);
+				// a scope that becomes indexed gains all its components, which the indexed gain already says
+				final Set<ReferenceIndexedComponents> gainedComponents =
+					(becomesIndexed || !updatedReference.isIndexedInScope(scope))
+						? Collections.emptySet()
+						: gainedComponents(originalReference, updatedReference, scope);
+				if (!becomesIndexed && !becomesFaceted && gainedComponents.isEmpty()) {
+					continue;
+				}
+				if (!emptinessChecked) {
+					if (isEmpty()) {
+						return;
+					}
+					emptinessChecked = true;
+				}
+				log.warn(
+					"Reference `{}` of entity `{}` became {} in scope `{}` while the collection already contains " +
+						"entities! Its indexes are built as entities are indexed and there is no way to build them " +
+						"for entities that are already stored, so filtering by the reference will miss those " +
+						"entities. Declare the setting before inserting data, or load the data into a new catalog " +
+						"that declares it.",
+					updatedReference.getName(), updatedSchema.getName(),
+					describeIndexingGain(becomesIndexed, becomesFaceted, gainedComponents), scope
+				);
+			}
+		}
+	}
+
+	/**
+	 * Logs one warning for every attribute of the entity or of one of its references the schema change renames while
+	 * the collection holds entities.
+	 *
+	 * A rename moves the attribute to its new name in the schema, but nothing moves the data: the values the stored
+	 * entities hold for the attribute, and the indexes built from them, stay under the old name. Filtering and
+	 * sorting by the new name therefore miss every entity stored before the rename, until the entities are indexed
+	 * again. Like the gained indexing
+	 * {@link #warnAboutReferenceIndexesMissingStoredEntities(EntitySchema, EntitySchema)} reports, the change is
+	 * accepted rather than refused. A rename of a global attribute reaches the collection as the rename of the
+	 * attribute in the entity, so it is reported here too.
+	 *
+	 * A rename to the name the attribute already has moves nothing and is not reported. An attribute the same update
+	 * creates holds no stored values, so only an attribute the original schema declares is reported - for a reflected
+	 * reference, one it declares itself (see {@link #isAttributeDeclared(EntitySchema, String, String)}).
+	 * {@link #isEmpty()} is consulted only when there is such a rename, because it is a storage read.
+	 *
+	 * @param originalSchema the schema as it stood before the mutations were applied
+	 * @param updatedSchema  the schema the mutations produced
+	 * @param mutations      the mutations that were applied
+	 */
+	private void warnAboutRenamedAttributesOfStoredEntities(
+		@Nonnull EntitySchema originalSchema,
+		@Nonnull EntitySchema updatedSchema,
+		@Nonnull LocalEntitySchemaMutation[] mutations
+	) {
+		// the storage read is made once, at the first rename of a stored attribute
+		boolean emptinessChecked = false;
+		for (final LocalEntitySchemaMutation mutation : mutations) {
+			final String referenceName;
+			final ModifyAttributeSchemaNameMutation rename;
+			if (mutation instanceof ModifyAttributeSchemaNameMutation entityAttributeRename) {
+				referenceName = null;
+				rename = entityAttributeRename;
+			} else if (
+				mutation instanceof ModifyReferenceAttributeSchemaMutation referenceAttributeMutation &&
+					referenceAttributeMutation.getAttributeSchemaMutation()
+						instanceof ModifyAttributeSchemaNameMutation referenceAttributeRename
+			) {
+				referenceName = referenceAttributeMutation.getName();
+				rename = referenceAttributeRename;
+			} else {
+				continue;
+			}
+			if (rename.getName().equals(rename.getNewName())) {
+				// a rename to the name the attribute already has leaves the schema and the stored values as they are
+				continue;
+			}
+			if (!isAttributeDeclared(originalSchema, referenceName, rename.getName())) {
+				continue;
+			}
+			if (!emptinessChecked) {
+				if (isEmpty()) {
+					return;
+				}
+				emptinessChecked = true;
+			}
+			if (referenceName == null) {
+				log.warn(
+					"Attribute `{}` of entity `{}` was renamed to `{}` while the collection already contains " +
+						"entities! " + RENAMED_ATTRIBUTE_CONSEQUENCE,
+					rename.getName(), updatedSchema.getName(), rename.getNewName()
+				);
+			} else {
+				log.warn(
+					"Attribute `{}` of reference `{}` of entity `{}` was renamed to `{}` while the collection " +
+						"already contains entities! " + RENAMED_ATTRIBUTE_CONSEQUENCE,
+					rename.getName(), referenceName, updatedSchema.getName(), rename.getNewName()
+				);
+			}
+		}
+	}
+
+	/**
+	 * Returns true when the schema declares the attribute - at the entity level, or in the reference when a reference
+	 * name is given.
+	 *
+	 * @param schema        the entity schema to look the attribute up in
+	 * @param referenceName the name of the reference holding the attribute, null for an attribute of the entity
+	 * @param attributeName the name of the attribute
+	 * @return true when the attribute is declared, false also when the schema holds no reference of that name
+	 */
+	private static boolean isAttributeDeclared(
+		@Nonnull EntitySchema schema,
+		@Nullable String referenceName,
+		@Nonnull String attributeName
+	) {
+		if (referenceName == null) {
+			return schema.getAttribute(attributeName).isPresent();
+		}
+		final Optional<ReferenceSchemaContract> reference = schema.getReference(referenceName);
+		if (reference.isEmpty()) {
+			return false;
+		} else if (reference.get() instanceof final ReflectedReferenceSchema reflectedReference) {
+			// a reflected reference renames only the attributes it declares, and its inherited ones cannot be read
+			// before its original reference exists
+			return reflectedReference.getDeclaredAttributes().containsKey(attributeName);
+		} else {
+			return reference.get().getAttribute(attributeName).isPresent();
+		}
+	}
+
+	/**
+	 * Returns the components the reference is indexed with in the scope after the change and was not indexed with
+	 * before, in their declaration order.
+	 *
+	 * @param originalReference the reference before the change
+	 * @param updatedReference  the reference after the change
+	 * @param scope             the scope to compare
+	 * @return the gained components, empty when there are none
+	 */
+	@Nonnull
+	private static Set<ReferenceIndexedComponents> gainedComponents(
+		@Nonnull ReferenceSchemaContract originalReference,
+		@Nonnull ReferenceSchemaContract updatedReference,
+		@Nonnull Scope scope
+	) {
+		final Set<ReferenceIndexedComponents> originalComponents = originalReference.getIndexedComponents(scope);
+		EnumSet<ReferenceIndexedComponents> gained = null;
+		for (final ReferenceIndexedComponents component : updatedReference.getIndexedComponents(scope)) {
+			if (!originalComponents.contains(component)) {
+				if (gained == null) {
+					gained = EnumSet.noneOf(ReferenceIndexedComponents.class);
+				}
+				gained.add(component);
+			}
+		}
+		return gained == null ? Collections.emptySet() : gained;
+	}
+
+	/**
+	 * Describes what a reference gained in a scope for the warning of
+	 * {@link #warnAboutReferenceIndexesMissingStoredEntities(EntitySchema, EntitySchema)}.
+	 *
+	 * @param becomesIndexed   whether the reference became indexed in the scope
+	 * @param becomesFaceted   whether the reference became faceted in the scope
+	 * @param gainedComponents the components an already indexed reference gained in the scope
+	 * @return the description of the gain
+	 */
+	@Nonnull
+	private static String describeIndexingGain(
+		boolean becomesIndexed,
+		boolean becomesFaceted,
+		@Nonnull Set<ReferenceIndexedComponents> gainedComponents
+	) {
+		final StringBuilder description = new StringBuilder(64);
+		if (becomesIndexed) {
+			description.append("indexed");
+		} else if (!gainedComponents.isEmpty()) {
+			description.append("indexed with ");
+			boolean first = true;
+			for (final ReferenceIndexedComponents component : gainedComponents) {
+				if (!first) {
+					description.append(", ");
+				}
+				description.append('`').append(component.name()).append('`');
+				first = false;
+			}
+		}
+		if (becomesFaceted) {
+			description.append(description.isEmpty() ? "faceted" : " and faceted");
+		}
+		return description.toString();
+	}
+
+	/**
+	 * Returns true when the indexing and faceting of the given reference can be read: a reflected reference that is
+	 * not bound to its original cannot tell the settings it inherits from it.
+	 *
+	 * @param referenceSchema the reference whose settings are to be read
+	 * @return true when the indexing and faceting of the reference can be read
+	 */
+	private static boolean hasReadableIndexing(@Nonnull ReferenceSchemaContract referenceSchema) {
+		return !(referenceSchema instanceof final ReflectedReferenceSchema reflectedReference)
+			|| reflectedReference.isReflectedReferenceAvailable()
+			|| !(
+				reflectedReference.isIndexedInherited() || reflectedReference.isFacetedInherited()
+					|| reflectedReference.isIndexedComponentsInherited()
+			);
 	}
 
 	/**

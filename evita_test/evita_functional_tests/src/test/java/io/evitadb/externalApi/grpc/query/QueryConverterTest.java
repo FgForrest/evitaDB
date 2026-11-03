@@ -26,6 +26,7 @@ package io.evitadb.externalApi.grpc.query;
 import com.google.protobuf.Int32Value;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.order.OrderDirection;
@@ -39,6 +40,7 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour;
 import io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange;
@@ -154,6 +156,28 @@ class QueryConverterTest {
 		assertEquals(OrderDirection.DESC, convertQueryParam(orderDirectionValue));
 		final HierarchyParentsBehaviour hierarchyParentsBehaviourValue = HierarchyParentsBehaviour.COMPLETE;
 		assertEquals(HierarchyParentsBehaviour.COMPLETE, convertQueryParam(hierarchyParentsBehaviourValue));
+	}
+
+	@Test
+	void shouldSendExpressionAsTheTextItParsesFrom() {
+		final Expression expression = ExpressionFactory.parse("$pageNumber % 2 == 0 && $pageNumber <= 10");
+
+		final Object received = QueryConverter.convertQueryParam(QueryConverter.convertQueryParam(expression));
+
+		// the server parses the received text, which must give the same expression, not a string constant
+		assertEquals(expression.toExpressionString(), ExpressionFactory.parse((String) received).toExpressionString());
+	}
+
+	@Test
+	void shouldSendStringConstantsOfExpressionAsWritten() {
+		// constants `C:\new`, `end\` and a tab - the text of each must parse back to the same constant on the server
+		final Expression expression = ExpressionFactory.parse(
+			"$name == 'C:\\\\new' || $name == 'end\\\\' || $name == 'tab\\tstop'"
+		);
+
+		final Object received = QueryConverter.convertQueryParam(QueryConverter.convertQueryParam(expression));
+
+		assertEquals(expression, ExpressionFactory.parse((String) received));
 	}
 
 	/**

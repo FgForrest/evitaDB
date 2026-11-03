@@ -39,7 +39,6 @@ import java.util.concurrent.TimeUnit;
 
 import static io.evitadb.test.TestTags.CDC;
 import static io.evitadb.test.TestTags.DRIVER;
-import static io.evitadb.test.TestTags.SLOW;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
@@ -71,7 +70,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Slf4j
-@Tag(SLOW)
 @Tag(DRIVER)
 @Tag(CDC)
 @Disabled("Probabilistic stress test - needs a quiet machine; enable manually after touching SerialCdcExecutor")

@@ -94,4 +94,23 @@ class SetReferenceSchemaIndexedMutationConverterTest {
 		);
 		assertEquals(mutation, converter.convert(converter.convert(mutation)));
 	}
+
+	@Test
+	@DisplayName("should keep the components declared beside inherited index types")
+	void shouldConvertInheritedMutationDeclaringComponents() {
+		final SetReferenceSchemaIndexedMutation mutation = new SetReferenceSchemaIndexedMutation(
+			"tags",
+			null,
+			new ScopedReferenceIndexedComponents[]{
+				new ScopedReferenceIndexedComponents(
+					Scope.ARCHIVED,
+					new ReferenceIndexedComponents[]{
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					}
+				)
+			}
+		);
+		assertEquals(mutation, converter.convert(converter.convert(mutation)));
+	}
 }

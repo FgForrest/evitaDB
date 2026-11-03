@@ -654,7 +654,12 @@ public class TransactionManager implements Closeable {
 	}
 
 	/**
-	 * Commits the transaction to the transactional pipeline.
+	 * Commits the transaction to the transactional pipeline, which resolves its conflicts and appends its isolated WAL
+	 * to the shared one. From this call on the isolated WAL belongs to the pipeline, and the caller must not close
+	 * `walPersistenceService`. A transaction refused here - the catalog is suspended, the pipeline queue is full, or
+	 * the WAL reference cannot be prepared or handed over - is never appended, so this method releases its isolated
+	 * WAL itself. A suspended catalog or a full queue completes `commitProgress` exceptionally; a failure to prepare or
+	 * hand over the WAL reference is rethrown.
 	 */
 	public void commit(
 		long sessionCatalogVersion,
@@ -667,6 +672,8 @@ public class TransactionManager implements Closeable {
 		// on a pipeline that cannot run; refuse it here, at the point of acceptance, exactly as an overloaded queue does
 		final CatalogSuspension theSuspension = this.suspension.get();
 		if (theSuspension != null) {
+			// the refused transaction is never appended to the shared WAL, so nothing else releases its isolated WAL
+			IOUtils.closeQuietly(walPersistenceService::close);
 			commitProgress.completeExceptionally(
 				new TransactionException(
 					"Catalog `" + this.catalogName + "` is suspended after a failed transaction incorporation at " +
@@ -677,27 +684,37 @@ public class TransactionManager implements Closeable {
 			);
 			return;
 		}
-		this.transactionalPipeline.offer(
-			new ConflictResolutionAndWalAppendingTransactionTask(
-				getCatalogName(),
-				sessionCatalogVersion,
-				transactionId,
-				walPersistenceService.getMutationCount(),
-				walPersistenceService.getMutationSizeInBytes(),
-				catalogSchemaVersionDelta,
-				walPersistenceService.getConflictKeys(),
-				walPersistenceService.getWalReference(),
-				commitProgress
-			),
-			(subscriber, task) -> {
-				commitProgress.completeExceptionally(
-					new TransactionException(
-						"Conflict resolution transaction queue is full! Transaction cannot be processed at the moment."
-					)
-				);
-				return false;
-			}
-		);
+		try {
+			this.transactionalPipeline.offer(
+				new ConflictResolutionAndWalAppendingTransactionTask(
+					getCatalogName(),
+					sessionCatalogVersion,
+					transactionId,
+					walPersistenceService.getMutationCount(),
+					walPersistenceService.getMutationSizeInBytes(),
+					catalogSchemaVersionDelta,
+					walPersistenceService.getConflictKeys(),
+					walPersistenceService.getWalReference(),
+					commitProgress
+				),
+				(subscriber, droppedTask) -> {
+					// the dropped transaction is never appended to the shared WAL, so nothing else releases its WAL
+					droppedTask.releaseWalReference();
+					commitProgress.completeExceptionally(
+						new TransactionException(
+							"Conflict resolution transaction queue is full! Transaction cannot be processed at the " +
+								"moment."
+						)
+					);
+					return false;
+				}
+			);
+		} catch (RuntimeException ex) {
+			// the WAL reference could not be prepared, or a closed pipeline refused the task - either way the
+			// transaction is never appended to the shared WAL, and closing the service releases its isolated WAL
+			IOUtils.closeQuietly(walPersistenceService::close);
+			throw ex;
+		}
 	}
 
 	/**

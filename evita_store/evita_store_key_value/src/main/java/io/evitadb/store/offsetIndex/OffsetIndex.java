@@ -986,7 +986,7 @@ public class OffsetIndex {
 		assertOperative();
 		// `doFlush` publishes the descriptor to `fileOffsetDescriptor` itself, from inside the write-handle critical
 		// section, because the read Kryo pool has to be expired against a binding that is already live
-		doFlush(catalogVersion, false);
+		doFlush(catalogVersion);
 		// flush runs under the single-writer model: all writes (including the promotion inside doFlush) are
 		// serialized by the writeHandle ReentrantLock, so no other thread mutates the roots registry concurrently here.
 		// When there were non-flushed values, doFlush already republished the shared state (version + locations)
@@ -1115,33 +1115,41 @@ public class OffsetIndex {
 	}
 
 	/**
-	 * Closes the OffsetIndex and writes all data to disk. File contents are in sync when this method finalizes.
+	 * Closes the OffsetIndex and writes all data to disk. File contents are in sync when this method returns.
 	 * No additional operations with this instance will be possible after calling this method. All file handles are
 	 * released.
+	 *
+	 * If releasing the read handles or the final flush fails, the exception propagates, yet the instance stays closed
+	 * and its write handle is closed anyway - that is what lets the off-heap region or temporary file behind
+	 * a transaction's output be reclaimed. Whatever a failed flush wrote is unpublished, so nothing can reach it.
+	 *
+	 * @throws GenericEvitaInternalError if the instance was already closed when this method was called, or if the call
+	 *                                   finds another close of it still in progress
 	 */
 	@Nonnull
 	public FileLocation close() {
 		assertOperative();
 		// this will forbid new read handles to be created
 		this.operative = false;
+		if (this.shutdownDownProcedureActive.compareAndExchange(false, true)) {
+			throw new GenericEvitaInternalError("OffsetIndex is already being closed!");
+		}
 		try {
-			if (!this.shutdownDownProcedureActive.compareAndExchange(false, true)) {
-				// spinning lock to close all opened handles once they occur free in pool
-				clearReadOnlyOpenedHandles();
-				// at last flush OffsetIndex and close write handle - doFlush publishes the resulting descriptor to
-				// `fileOffsetDescriptor` itself (see flush), so there is nothing to assign back here
-				doFlush(
-					// if there are any non-flushed values, use their version as the last version
-					this.volatileValues.getLastNonFlushedCatalogVersionIfExists()
-						.orElse(this.roots.currentVersion()),
-					true
-				);
-				this.readOnlyKeyCompressorView = null;
-				return this.fileOffsetDescriptor.fileLocation();
-			} else {
-				throw new GenericEvitaInternalError("OffsetIndex is already being closed!");
-			}
+			// spinning lock to close all opened handles once they occur free in pool
+			clearReadOnlyOpenedHandles();
+			// at last flush OffsetIndex - doFlush publishes the resulting descriptor to
+			// `fileOffsetDescriptor` itself (see flush), so there is nothing to assign back here
+			doFlush(
+				// if there are any non-flushed values, use their version as the last version
+				this.volatileValues.getLastNonFlushedCatalogVersionIfExists()
+					.orElse(this.roots.currentVersion())
+			);
+			this.readOnlyKeyCompressorView = null;
+			return this.fileOffsetDescriptor.fileLocation();
 		} finally {
+			// the index is already inoperative and unflushed bytes are unpublished and inert, so even a failed
+			// flush must release the write handle during shutdown
+			IOUtils.closeQuietly(this.writeHandle::close);
 			this.shutdownDownProcedureActive.compareAndExchange(true, false);
 		}
 	}
@@ -1482,12 +1490,8 @@ public class OffsetIndex {
 	 * descriptor it already holds remains the current one.
 	 *
 	 * @param catalogVersion version stamped onto the promoted records
-	 * @param close          whether the write handle should be closed once the data is on disk
 	 */
-	private void doFlush(
-		long catalogVersion,
-		boolean close
-	) {
+	private void doFlush(long catalogVersion) {
 		final OffsetIndexDescriptor currentDescriptor = this.fileOffsetDescriptor;
 		// if there are any non-flushed values, we need to flush them to the disk (of if the offset index was not yet created)
 		if (this.volatileValues.hasValuesToFlush() || currentDescriptor.fileLocation() == FileLocation.EMPTY) {
@@ -1552,10 +1556,6 @@ public class OffsetIndex {
 					return newDescriptor;
 				}
 			);
-		}
-
-		if (close) {
-			IOUtils.closeQuietly(this.writeHandle::close);
 		}
 	}
 
@@ -2765,7 +2765,7 @@ public class OffsetIndex {
 	}
 
 	/**
-	 * This record is used to propagate multiple values in the {@link #doFlush(long, boolean)}
+	 * This record is used to propagate multiple values in the {@link #doFlush(long)}
 	 * method.
 	 *
 	 * @param nonFlushedValueSets set of non-flushed value sets that have been flushed

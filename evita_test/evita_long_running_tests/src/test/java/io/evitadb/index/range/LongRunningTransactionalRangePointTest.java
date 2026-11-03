@@ -39,7 +39,6 @@ import java.util.Set;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -66,7 +65,6 @@ class LongRunningTransactionalRangePointTest implements TimeBoundedTestSupport {
 	@ParameterizedTest(
 		name = "TransactionalRangePoint should survive generational randomized test"
 	)
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
 		final int maxId = 50;

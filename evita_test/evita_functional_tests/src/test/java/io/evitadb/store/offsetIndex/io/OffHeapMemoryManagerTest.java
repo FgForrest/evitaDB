@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,18 +23,37 @@
 
 package io.evitadb.store.offsetIndex.io;
 
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.lang.management.BufferPoolMXBean;
+import java.lang.management.ManagementFactory;
 import java.nio.BufferOverflowException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.parallel.Isolated;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.STORAGE;
@@ -48,12 +67,21 @@ import static io.evitadb.test.TestTags.MANAGEMENT;
  *
  * These tests exercise low-level off-heap memory management to ensure safety and correctness.
  *
+ * The class runs isolated: the tests that check the memory block is freed read the JVM's direct buffer pool, and
+ * a transaction buffer another test allocates in the same moment would hide the freed block.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("CatalogOffHeapMemoryManager off-heap regions and stream semantics")
 @Tag(STORAGE)
 @Tag(MANAGEMENT)
+@Isolated
 class OffHeapMemoryManagerTest {
+	/**
+	 * Size of the memory block in the tests that observe the block being freed. It is large enough that a drop of half
+	 * of it in the JVM's direct memory cannot come from the small buffers background work allocates meanwhile.
+	 */
+	private static final int LARGE_BLOCK_SIZE = 32 * 1024 * 1024;
 	private final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
 		TestConstants.TEST_CATALOG, 1024, 16, ChecksumFactory.NO_OP
 	);
@@ -164,62 +192,311 @@ class OffHeapMemoryManagerTest {
 	}
 
 	/**
-	 * Ensures that releasing a region via the manager frees the region and invalidates
-	 * both the output and its paired input stream so they can no longer be used.
+	 * Verifies that the manager allocates its memory block only when the first region is acquired, so an engine or
+	 * a catalog that never runs a transaction holds no off-heap memory.
 	 */
 	@Test
-	@DisplayName("shouldReleaseRegionAndIncreaseFreeRegionsWhenStreamIsReleased")
-	void shouldReleaseRegionAndIncreaseFreeRegionsWhenStreamIsReleased() {
+	@DisplayName("should allocate the memory block only when the first region is acquired")
+	void shouldAllocateMemoryBlockOnlyWhenFirstRegionIsAcquired() {
 		try (
 			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
 				TestConstants.TEST_CATALOG, 1024, 16, ChecksumFactory.NO_OP
-			);
-			final OffHeapMemoryOutputStream outputStream = memoryManager.acquireRegionOutputStream().orElseThrow()
+			)
 		) {
-			final int regionIndex = outputStream.getRegionIndex();
-			assertEquals(15, memoryManager.getFreeRegions());
-
-			// prepare input stream as well to ensure it is closed by manager's release
-			final OffHeapMemoryInputStream inputStream = outputStream.getInputStream();
-
-			// when: release via manager
-			memoryManager.releaseRegionStream(regionIndex);
-
-			// then: region is freed
-			assertEquals(16, memoryManager.getFreeRegions());
-
-			// and streams are unusable after release
-			assertThrows(RuntimeException.class, () -> outputStream.write(1));
-			assertThrows(RuntimeException.class, inputStream::read);
+			assertNull(memoryManager.memoryBlock.get());
+			try (final OffHeapMemoryOutputStream ignored = memoryManager.acquireRegionOutputStream().orElseThrow()) {
+				assertNotNull(memoryManager.memoryBlock.get());
+				assertEquals(15, memoryManager.getFreeRegions());
+			}
 		}
 	}
 
 	/**
-	 * Ensures that releasing the same region twice is rejected with GenericEvitaInternalError
-	 * and an explanatory message.
+	 * Verifies that closing a manager whose regions were all released frees its memory block at once, which the JVM's
+	 * direct buffer pool shows without any garbage collection.
 	 */
 	@Test
-	@DisplayName("shouldThrowExceptionWhenReleasingAlreadyReleasedRegion")
-	void shouldThrowExceptionWhenReleasingAlreadyReleasedRegion() {
+	@DisplayName("should free the memory block when closed with every region released")
+	void shouldFreeMemoryBlockWhenClosedWithEveryRegionReleased() throws IOException {
+		final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
+			TestConstants.TEST_CATALOG, LARGE_BLOCK_SIZE, 16, ChecksumFactory.NO_OP
+		);
+		try (final OffHeapMemoryOutputStream outputStream = memoryManager.acquireRegionOutputStream().orElseThrow()) {
+			outputStream.write(1);
+		}
+
+		final long directMemoryBeforeClose = getDirectMemoryUsed();
+		memoryManager.close();
+
+		assertNull(memoryManager.memoryBlock.get());
+		assertFreed(directMemoryBeforeClose);
+	}
+
+	/**
+	 * Verifies that closing the manager while a region is still in use leaves the region's memory readable - a WAL
+	 * reference may still be copying it - and that the block is freed once that last region is released.
+	 */
+	@Test
+	@DisplayName("should keep a region in use readable after close and free the block when it is released")
+	void shouldFreeMemoryBlockWhenLastRegionInUseIsReleasedAfterClose() throws IOException {
+		final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
+			TestConstants.TEST_CATALOG, LARGE_BLOCK_SIZE, 16, ChecksumFactory.NO_OP
+		);
+		final OffHeapMemoryOutputStream outputStream = memoryManager.acquireRegionOutputStream().orElseThrow();
+		outputStream.write("Hello world!".getBytes());
+
+		memoryManager.close();
+
+		assertNotNull(memoryManager.memoryBlock.get());
+		assertEquals("Hello world!", new String(outputStream.getInputStream().readAllBytes()));
+		assertTrue(memoryManager.acquireRegionOutputStream().isEmpty());
+
+		final long directMemoryBeforeRelease = getDirectMemoryUsed();
+		outputStream.close();
+
+		assertNull(memoryManager.memoryBlock.get());
+		assertEquals(16, memoryManager.getFreeRegions());
+		assertFreed(directMemoryBeforeRelease);
+	}
+
+	/**
+	 * Verifies that a closed manager hands out no region and allocates no memory for one.
+	 */
+	@Test
+	@DisplayName("should acquire no region after close")
+	void shouldAcquireNoRegionAfterClose() {
+		final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
+			TestConstants.TEST_CATALOG, 1024, 16, ChecksumFactory.NO_OP
+		);
+		memoryManager.close();
+
+		assertTrue(memoryManager.acquireRegionOutputStream().isEmpty());
+		assertNull(memoryManager.memoryBlock.get());
+		assertEquals(16, memoryManager.getFreeRegions());
+	}
+
+	/**
+	 * Verifies that closing the manager again changes nothing: the block the first close freed stays freed and every
+	 * region stays free.
+	 */
+	@Test
+	@DisplayName("should ignore a repeated close")
+	void shouldIgnoreRepeatedClose() {
+		final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
+			TestConstants.TEST_CATALOG, 1024, 16, ChecksumFactory.NO_OP
+		);
+		memoryManager.acquireRegionOutputStream().orElseThrow().close();
+		memoryManager.close();
+
+		memoryManager.close();
+
+		assertNull(memoryManager.memoryBlock.get());
+		assertEquals(16, memoryManager.getFreeRegions());
+	}
+
+	/**
+	 * Verifies that an open manager keeps its memory block when every region is released, so that the transactions
+	 * that follow reuse it rather than allocate a block each.
+	 */
+	@Test
+	@DisplayName("should keep the memory block for later regions while open")
+	void shouldReuseMemoryBlockWhileManagerIsOpen() {
 		try (
 			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
 				TestConstants.TEST_CATALOG, 1024, 16, ChecksumFactory.NO_OP
-			);
-			final OffHeapMemoryOutputStream outputStream = memoryManager.acquireRegionOutputStream().orElseThrow()
+			)
 		) {
-			final int regionIndex = outputStream.getRegionIndex();
+			final OffHeapMemoryOutputStream outputStream = memoryManager.acquireRegionOutputStream().orElseThrow();
+			final ByteBuffer memoryBlock = memoryManager.memoryBlock.get();
 
-			// first release succeeds
-			memoryManager.releaseRegionStream(regionIndex);
+			outputStream.close();
 
-			// second release should fail with internal error per Assert.isPremiseValid
-			final GenericEvitaInternalError ex = assertThrows(
-				GenericEvitaInternalError.class,
-				() -> memoryManager.releaseRegionStream(regionIndex)
-			);
-			// optional message check to ensure clarity
-			assertEquals("Stream at index " + regionIndex + " is already released!", ex.getMessage());
+			assertNotNull(memoryBlock);
+			assertSame(memoryBlock, memoryManager.memoryBlock.get());
+			try (final OffHeapMemoryOutputStream ignored = memoryManager.acquireRegionOutputStream().orElseThrow()) {
+				assertSame(memoryBlock, memoryManager.memoryBlock.get());
+			}
 		}
+	}
+
+	/**
+	 * Verifies that a manager with no memory or no regions hands out no region and allocates no memory block.
+	 */
+	@Test
+	@DisplayName("should hand out no region when the manager has no capacity")
+	void shouldHandOutNoRegionWhenManagerHasNoCapacity() {
+		try (
+			final CatalogOffHeapMemoryManager noMemory = new CatalogOffHeapMemoryManager(
+				TestConstants.TEST_CATALOG, 0, 16, ChecksumFactory.NO_OP
+			);
+			final CatalogOffHeapMemoryManager noRegions = new CatalogOffHeapMemoryManager(
+				TestConstants.TEST_CATALOG, 1024, 0, ChecksumFactory.NO_OP
+			)
+		) {
+			final Optional<OffHeapMemoryOutputStream> regionWithNoMemory = noMemory.acquireRegionOutputStream();
+			final Optional<OffHeapMemoryOutputStream> regionWithNoRegions = noRegions.acquireRegionOutputStream();
+
+			assertTrue(regionWithNoMemory.isEmpty());
+			assertTrue(regionWithNoRegions.isEmpty());
+			assertNull(noMemory.memoryBlock.get());
+			assertNull(noRegions.memoryBlock.get());
+		}
+	}
+
+	/**
+	 * Verifies that a memory block larger than a direct buffer can hold is refused when the manager is created - as
+	 * a configuration error at startup - rather than by the first transaction that needs the block.
+	 */
+	@Test
+	@DisplayName("should refuse a memory block larger than a direct buffer can hold when constructed")
+	void shouldRefuseMemoryBlockLargerThanDirectBufferCanHoldWhenConstructed() {
+		assertThrows(
+			ArithmeticException.class,
+			() -> new CatalogOffHeapMemoryManager(
+				TestConstants.TEST_CATALOG, Integer.MAX_VALUE + 1L, 2, ChecksumFactory.NO_OP
+			)
+		);
+	}
+
+	/**
+	 * Verifies that a region released while the manager closes leaves the allocation gauge at zero: the release
+	 * reports the memory in use before the close frees the block, or not at all, never after the block was freed.
+	 */
+	@Test
+	@DisplayName("should report no allocated memory when a region release races with close")
+	void shouldReportNoAllocatedMemoryWhenRegionReleaseRacesWithClose() throws InterruptedException {
+		final List<long[]> events = new CopyOnWriteArrayList<>();
+		final AtomicReference<Thread> releaserThread = new AtomicReference<>();
+		final CountDownLatch releaserParked = new CountDownLatch(1);
+		final CountDownLatch releaserResumes = new CountDownLatch(1);
+		final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(1024, 16, ChecksumFactory.NO_OP) {
+			@Override
+			protected void emitAllocationEvent(long allocatedMemoryBytes, long usedMemoryBytes) {
+				if (Thread.currentThread() == releaserThread.get() && releaserParked.getCount() > 0) {
+					// hold the release just before it reports, so that the close runs in between
+					releaserParked.countDown();
+					try {
+						assertTrue(releaserResumes.await(1, TimeUnit.MINUTES));
+					} catch (InterruptedException ex) {
+						Thread.currentThread().interrupt();
+						throw new IllegalStateException(ex);
+					}
+				}
+				events.add(new long[]{allocatedMemoryBytes, usedMemoryBytes});
+			}
+		};
+		final OffHeapMemoryOutputStream region = memoryManager.acquireRegionOutputStream().orElseThrow();
+		final Thread releasing = new Thread(region::close);
+		releaserThread.set(releasing);
+		final Thread closing = new Thread(memoryManager::close);
+
+		try {
+			releasing.start();
+			assertTrue(releaserParked.await(1, TimeUnit.MINUTES));
+			closing.start();
+			// the close either completes at once, or waits for the parked release to report
+			final long deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(1);
+			Thread.State closingState = closing.getState();
+			while (closingState != Thread.State.TERMINATED && closingState != Thread.State.WAITING) {
+				assertTrue(System.nanoTime() < deadline, "The close neither completed nor waited for the release.");
+				Thread.onSpinWait();
+				closingState = closing.getState();
+			}
+		} finally {
+			releaserResumes.countDown();
+		}
+		releasing.join();
+		closing.join();
+
+		assertNull(memoryManager.memoryBlock.get());
+		assertArrayEquals(new long[]{0L, 0L}, events.get(events.size() - 1));
+	}
+
+	/**
+	 * Verifies that regions acquired, written, read and released concurrently with the manager's close never see each
+	 * other's bytes, that every one of them is returned and that the block ends up freed.
+	 */
+	@Test
+	@DisplayName("should free the memory block when regions are used concurrently with close")
+	void shouldFreeMemoryBlockWhenRegionsAreUsedConcurrentlyWithClose() throws Exception {
+		final int threadCount = 8;
+		final int regionSize = 1024;
+		final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
+			TestConstants.TEST_CATALOG, 64L * regionSize, 64, ChecksumFactory.NO_OP
+		);
+		final AtomicInteger acquisitions = new AtomicInteger();
+		final CountDownLatch started = new CountDownLatch(threadCount);
+		final ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+		try {
+			final List<Future<Integer>> results = new ArrayList<>(threadCount);
+			for (int i = 0; i < threadCount; i++) {
+				final byte[] payload = new byte[regionSize];
+				Arrays.fill(payload, (byte) i);
+				results.add(
+					executor.submit(
+						() -> {
+							started.countDown();
+							int acquired = 0;
+							// each thread holds one region at most, so an empty result means the manager is closed
+							Optional<OffHeapMemoryOutputStream> region = memoryManager.acquireRegionOutputStream();
+							while (region.isPresent()) {
+								try (final OffHeapMemoryOutputStream outputStream = region.get()) {
+									outputStream.write(payload);
+									assertArrayEquals(payload, outputStream.getInputStream().readAllBytes());
+								}
+								acquired++;
+								acquisitions.incrementAndGet();
+								region = memoryManager.acquireRegionOutputStream();
+							}
+							return acquired;
+						}
+					)
+				);
+			}
+			started.await();
+			while (acquisitions.get() < 10_000) {
+				Thread.onSpinWait();
+			}
+			memoryManager.close();
+			int acquiredByThreads = 0;
+			for (Future<Integer> result : results) {
+				acquiredByThreads += result.get(1, TimeUnit.MINUTES);
+			}
+			assertEquals(acquisitions.get(), acquiredByThreads);
+		} finally {
+			executor.shutdownNow();
+		}
+
+		assertNull(memoryManager.memoryBlock.get());
+		assertEquals(64, memoryManager.getFreeRegions());
+	}
+
+	/**
+	 * Asserts that the JVM's direct memory dropped by at least half of {@link #LARGE_BLOCK_SIZE} since the given
+	 * reading.
+	 *
+	 * @param directMemoryBefore the direct memory used before the block was expected to be freed
+	 */
+	private static void assertFreed(long directMemoryBefore) {
+		final long freed = directMemoryBefore - getDirectMemoryUsed();
+		assertTrue(
+			freed >= LARGE_BLOCK_SIZE / 2,
+			"The memory block should have been freed at once, but direct memory dropped by " + freed + " bytes only."
+		);
+	}
+
+	/**
+	 * Returns the direct memory the JVM's direct buffer pool reports as used.
+	 *
+	 * @return the direct memory used in bytes
+	 */
+	private static long getDirectMemoryUsed() {
+		for (BufferPoolMXBean bufferPool : ManagementFactory.getPlatformMXBeans(BufferPoolMXBean.class)) {
+			if ("direct".equals(bufferPool.getName())) {
+				return bufferPool.getMemoryUsed();
+			}
+		}
+		throw new IllegalStateException("The JVM reports no direct buffer pool.");
 	}
 
 }

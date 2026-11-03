@@ -25,6 +25,7 @@ package io.evitadb.api.query.expression.bool;
 
 
 import io.evitadb.api.query.expression.AbstractBinaryOperator;
+import io.evitadb.api.query.expression.ExpressionPrecedence;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
@@ -52,6 +53,11 @@ public class XorOperator extends AbstractBinaryOperator implements BooleanOperat
 	@Override
 	protected String getOperatorSymbol() {
 		return "^";
+	}
+
+	@Override
+	protected int getPrecedence() {
+		return ExpressionPrecedence.XOR;
 	}
 
 	@Nonnull

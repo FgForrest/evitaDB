@@ -47,13 +47,17 @@ import io.evitadb.api.query.expression.object.SpreadAccessStep;
 import io.evitadb.api.query.expression.operand.ConstantOperand;
 import io.evitadb.api.query.expression.operand.VariableOperand;
 import io.evitadb.api.query.expression.parser.grammar.EvitaELBaseVisitor;
+import io.evitadb.api.query.expression.parser.grammar.EvitaELParser;
 import io.evitadb.api.query.expression.parser.grammar.EvitaELParser.*;
 import io.evitadb.api.query.expression.utility.NestedOperator;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.exception.ExpressionEvaluationException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.StringUtils;
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 
+import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
@@ -179,91 +183,50 @@ public class DefaultExpressionVisitor extends EvitaELBaseVisitor<ExpressionNode>
 	}
 
 	@Override
-	public ExpressionNode visitMultiplicationExpression(MultiplicationExpressionContext ctx) {
-		return new MultiplicationOperator(
-			ctx.leftExpression.accept(this),
-			ctx.rightExpression.accept(this)
-		);
+	public ExpressionNode visitMultiplicativeExpression(MultiplicativeExpressionContext ctx) {
+		final ExpressionNode left = ctx.leftExpression.accept(this);
+		final ExpressionNode right = ctx.rightExpression.accept(this);
+		return switch (ctx.operator.getType()) {
+			case EvitaELParser.STAR -> new MultiplicationOperator(left, right);
+			case EvitaELParser.DIV -> new DivisionOperator(left, right);
+			case EvitaELParser.PERCENT -> new ModuloOperator(left, right);
+			default -> throw unknownOperator(ctx.operator);
+		};
 	}
 
 	@Override
-	public ExpressionNode visitDivisionExpression(DivisionExpressionContext ctx) {
-		return new DivisionOperator(
-			ctx.leftExpression.accept(this),
-			ctx.rightExpression.accept(this)
-		);
+	public ExpressionNode visitAdditiveExpression(AdditiveExpressionContext ctx) {
+		final ExpressionNode left = ctx.leftExpression.accept(this);
+		final ExpressionNode right = ctx.rightExpression.accept(this);
+		return switch (ctx.operator.getType()) {
+			case EvitaELParser.PLUS -> new AdditionOperator(left, right);
+			case EvitaELParser.MINUS -> new SubtractionOperator(left, right);
+			default -> throw unknownOperator(ctx.operator);
+		};
 	}
 
 	@Override
-	public ExpressionNode visitModuloExpression(ModuloExpressionContext ctx) {
-		return new ModuloOperator(
-			ctx.leftExpression.accept(this),
-			ctx.rightExpression.accept(this)
-		);
+	public ExpressionNode visitRelationalExpression(RelationalExpressionContext ctx) {
+		final ExpressionNode left = ctx.leftExpression.accept(this);
+		final ExpressionNode right = ctx.rightExpression.accept(this);
+		return switch (ctx.operator.getType()) {
+			case EvitaELParser.GT -> new GreaterThanOperator(left, right);
+			case EvitaELParser.GT_EQ -> new GreaterThanEqualsOperator(left, right);
+			case EvitaELParser.LT -> new LesserThanOperator(left, right);
+			case EvitaELParser.LT_EQ -> new LesserThanEqualsOperator(left, right);
+			default -> throw unknownOperator(ctx.operator);
+		};
 	}
 
 	@Override
-	public ExpressionNode visitAdditionExpression(AdditionExpressionContext ctx) {
-		return new AdditionOperator(
-			ctx.leftExpression.accept(this),
-			ctx.rightExpression.accept(this)
-		);
-	}
-
-	@Override
-	public ExpressionNode visitSubstractionExpression(SubstractionExpressionContext ctx) {
-		return new SubtractionOperator(
-			ctx.leftExpression.accept(this),
-			ctx.rightExpression.accept(this)
-		);
-	}
-
-	@Override
-	public ExpressionNode visitGreaterThanExpression(GreaterThanExpressionContext ctx) {
-		return new GreaterThanOperator(
-			ctx.leftExpression.accept(this),
-			ctx.rightExpression.accept(this)
-		);
-	}
-
-	@Override
-	public ExpressionNode visitLessThanExpression(LessThanExpressionContext ctx) {
-		return new LesserThanOperator(
-			ctx.leftExpression.accept(this),
-			ctx.rightExpression.accept(this)
-		);
-	}
-
-	@Override
-	public ExpressionNode visitLessThanEqualsExpression(LessThanEqualsExpressionContext ctx) {
-		return new LesserThanEqualsOperator(
-			ctx.leftExpression.accept(this),
-			ctx.rightExpression.accept(this)
-		);
-	}
-
-	@Override
-	public ExpressionNode visitGreaterThanEqualsExpression(GreaterThanEqualsExpressionContext ctx) {
-		return new GreaterThanEqualsOperator(
-			ctx.leftExpression.accept(this),
-			ctx.rightExpression.accept(this)
-		);
-	}
-
-	@Override
-	public ExpressionNode visitEqualsExpression(EqualsExpressionContext ctx) {
-		return new EqualsOperator(
-			ctx.leftExpression.accept(this),
-			ctx.rightExpression.accept(this)
-		);
-	}
-
-	@Override
-	public ExpressionNode visitNotEqualsExpression(NotEqualsExpressionContext ctx) {
-		return new NotEqualsOperator(
-			ctx.leftExpression.accept(this),
-			ctx.rightExpression.accept(this)
-		);
+	public ExpressionNode visitEqualityExpression(EqualityExpressionContext ctx) {
+		final ExpressionNode left = ctx.leftExpression.accept(this);
+		final ExpressionNode right = ctx.rightExpression.accept(this);
+		return switch (ctx.operator.getType()) {
+			case EvitaELParser.EQ -> new EqualsOperator(left, right);
+			case EvitaELParser.NOT_EQ -> new NotEqualsOperator(left, right);
+			default -> throw unknownOperator(ctx.operator);
+		};
 	}
 
 	@Override
@@ -379,6 +342,18 @@ public class DefaultExpressionVisitor extends EvitaELBaseVisitor<ExpressionNode>
 	@Override
 	public ExpressionNode visitBooleanValueToken(BooleanValueTokenContext ctx) {
 		return new ConstantOperand(Boolean.parseBoolean(ctx.getText()));
+	}
+
+	/**
+	 * Creates the error for an operator token the grammar does not allow in the alternative that produced it - the
+	 * grammar and this visitor disagree.
+	 *
+	 * @param operator the operator token
+	 * @return the error to throw
+	 */
+	@Nonnull
+	private static GenericEvitaInternalError unknownOperator(@Nonnull Token operator) {
+		return new GenericEvitaInternalError("Unexpected operator `" + operator.getText() + "` in an expression!");
 	}
 
 }

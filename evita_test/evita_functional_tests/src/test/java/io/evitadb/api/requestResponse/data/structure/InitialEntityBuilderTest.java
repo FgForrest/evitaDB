@@ -219,6 +219,39 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			IllegalArgumentException.class, () -> builder.setAttribute(SORTABLE_ATTRIBUTE, new String[]{"abc", "def"}));
 	}
 
+	/**
+	 * Materializing an archived entity preserves the scope used by its mutation.
+	 */
+	@Test
+	@DisplayName("preserves archived scope when materializing an entity")
+	void shouldPreserveArchivedScopeWhenMaterializingEntity() {
+		final InitialEntityBuilder builder = new InitialEntityBuilder(PRODUCT_SCHEMA);
+		builder.setScope(Scope.ARCHIVED);
+
+		final Entity mutatedEntity = builder.toMutation().orElseThrow().mutate(PRODUCT_SCHEMA, null);
+		final Entity entity = builder.toInstance();
+
+		assertEquals(Scope.ARCHIVED, mutatedEntity.getScope());
+		assertEquals(Scope.ARCHIVED, entity.getScope());
+		assertFalse(entity.dropped());
+	}
+
+	/**
+	 * Materializing an entity without an explicit scope uses the live scope, as its mutation does.
+	 */
+	@Test
+	@DisplayName("defaults to live scope when materializing an entity")
+	void shouldDefaultToLiveScopeWhenMaterializingEntity() {
+		final InitialEntityBuilder builder = new InitialEntityBuilder(PRODUCT_SCHEMA);
+
+		final Entity mutatedEntity = builder.toMutation().orElseThrow().mutate(PRODUCT_SCHEMA, null);
+		final Entity entity = builder.toInstance();
+
+		assertEquals(Scope.LIVE, mutatedEntity.getScope());
+		assertEquals(Scope.LIVE, entity.getScope());
+		assertFalse(entity.dropped());
+	}
+
 	@Test
 	@DisplayName("includes scope mutation when scope not LIVE")
 	void shouldIncludeScopeMutationWhenScopeNotLive() {

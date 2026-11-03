@@ -42,7 +42,6 @@ import java.util.TreeSet;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
-import static io.evitadb.test.TestTags.SLOW;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -103,7 +102,6 @@ class LongRunningEntityIndexKeyTest implements TimeBoundedTestSupport {
 	}
 
 	@DisplayName("survives generational randomized test verifying TreeSet/HashSet consistency")
-	@Tag(SLOW)
 	@ParameterizedTest(
 		name = "EntityIndexKey should survive generational randomized test " +
 			"verifying TreeSet/HashSet consistency"

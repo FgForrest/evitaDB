@@ -35,7 +35,6 @@ import java.util.Random;
 import static io.evitadb.test.TestTags.CACHE;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FILTER;
-import static io.evitadb.test.TestTags.SLOW;
 
 /**
  * Long-running verification of {@link BloomFilter} behaviour.
@@ -53,7 +52,6 @@ class LongRunningBloomFilterTest {
 	private final BloomFilter bloomFilter = new BloomFilter(COUNT, 0.00001);
 
 	@Disabled("Verification of bloom filter implementation test, too long to execute every time")
-	@Tag(SLOW)
 	@Test
 	void shouldFillUpBloomFilter() {
 		int generated = 0;

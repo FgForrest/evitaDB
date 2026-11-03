@@ -66,11 +66,15 @@ public enum AttributeFilterAccelerator {
 	 * **Where it is allowed.** Only on attributes whose type is `String` or `String[]`; any other type is refused at
 	 * schema-mutation time. Enabling it on an entity collection that already holds data is refused as well - the index
 	 * is built as entities are indexed and no reindexing machinery exists, so the accelerator must be declared before
-	 * the data is inserted. It is also **entity-level attributes only**, including catalog-shared global ones:
-	 * declaring it on a *reference* attribute is refused, because the index serving it is maintained on the entity's
-	 * global index and never sees reference attribute values. That last restriction is expected to be lifted once the
-	 * index learns to host them, which is why it is a refusal rather than a silent no-op - lifting a refusal is
-	 * backward compatible, withdrawing a permission is not.
+	 * the data is inserted. Accepting it there would break the collection rather than leave the stored entities out:
+	 * the index keys its postings by value ids, which can be assigned only from the attribute's first value on, so
+	 * every write of the attribute and the next load of the catalog would fail. For the same reason an attribute that
+	 * declares it cannot be renamed while the collection holds entities - see
+	 * `EntityCollection#verifyNoAcceleratorAddedToNonEmptyCollection`. It is also **entity-level attributes only**,
+	 * including catalog-shared global ones: declaring it on a *reference* attribute is refused, because the index
+	 * serving it is maintained on the entity's global index and never sees reference attribute values. That last
+	 * restriction is expected to be lifted once the index learns to host them, which is why it is a refusal rather than
+	 * a silent no-op - lifting a refusal is backward compatible, withdrawing a permission is not.
 	 *
 	 * The measurements this design rests on - the false-positive bound that makes positions unnecessary, the posting
 	 * representation threshold, and the memory-per-value figures - are recorded in

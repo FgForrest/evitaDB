@@ -49,7 +49,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.PRICE;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
@@ -85,7 +84,6 @@ class LongRunningPriceRefIndexTest implements TimeBoundedTestSupport {
 		PRICE_LIST_BASIC, CURRENCY_EUR, PriceInnerRecordHandling.NONE
 	);
 
-	@Tag(SLOW)
 	@DisplayName("generational proof test with random add/remove operations")
 	@ParameterizedTest(name = "generational proof test with seed {0}")
 	@ArgumentsSource(TimeArgumentProvider.class)
@@ -168,7 +166,6 @@ class LongRunningPriceRefIndexTest implements TimeBoundedTestSupport {
 	 * a value oracle of that base, applies a random batch of add/remove mutations inside a transaction that is then
 	 * rolled back, and asserts the base index is unchanged and no committed value was published.
 	 */
-	@Tag(SLOW)
 	@Tag(TRANSACTION)
 	@DisplayName("rollback discards every in-transaction mutation and leaves the base intact")
 	@ParameterizedTest(name = "rollback proof test with seed {0}")

@@ -46,7 +46,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -140,7 +139,6 @@ class LongRunningTransactionalLongBPlusTreeTest implements TimeBoundedTestSuppor
 	@ParameterizedTest(
 		name = "TransactionalLongBPlusTree should survive generational randomized test applying modifications on it"
 	)
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("survives randomized insert/modify/delete operations sweeping producer values cleanly")
 	void generationalProofTest(@Nonnull GenerationalTestInput input) {
@@ -249,7 +247,6 @@ class LongRunningTransactionalLongBPlusTreeTest implements TimeBoundedTestSuppor
 	@ParameterizedTest(
 		name = "TransactionalLongBPlusTree should survive non-transactional generational insert/upsert/delete churn"
 	)
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("survives randomized non-transactional (warm-up) insert/upsert/delete churn")
 	void generationalWarmUpProofTest(@Nonnull GenerationalTestInput input) {

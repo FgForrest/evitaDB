@@ -25,15 +25,32 @@ package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.APITestConstants;
 import io.evitadb.api.exception.AttributeAlreadyPresentInEntitySchemaException;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
+import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
+import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDescriptionMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSortableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.EnumSet;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -49,6 +66,9 @@ import static io.evitadb.test.TestTags.SCHEMA;
 @Tag(CONTRACT)
 @Tag(SCHEMA)
 class CatalogSchemaBuilderTest {
+	private static final String ENTITY_PRODUCT = "product";
+	private static final String ATTRIBUTE_CODE = "code";
+	private static final String ATTRIBUTE_PRICE = "price";
 	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
 		APITestConstants.TEST_CATALOG,
 		NamingConvention.generate(APITestConstants.TEST_CATALOG),
@@ -146,6 +166,220 @@ class CatalogSchemaBuilderTest {
 		assertNull(updatedSchema.getAttributeByName("attribute", NamingConvention.SNAKE_CASE).orElse(null));
 		assertNotNull(updatedSchema.getAttributeByName("code", NamingConvention.CAMEL_CASE).orElse(null));
 		assertNotNull(updatedSchema.getAttributeByName("code", NamingConvention.SNAKE_CASE).orElse(null));
+	}
+
+	@Test
+	@DisplayName("apply each entity schema modification once when the builder replays its mutations")
+	void shouldApplyEntitySchemaModificationsOnceWhenReplaying() {
+		// the second modification is combined with the first one, which makes the builder replay from its base;
+		// a replay over an already modified entity schema would create the reference a second time
+		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(catalogSchemaWithProduct())
+			.withEntitySchema(
+				ENTITY_PRODUCT,
+				entity -> entity.withReferenceTo(
+					"tags", "tag", Cardinality.ZERO_OR_MORE, whichIs -> whichIs.withAttribute("order", Integer.class)
+				)
+			)
+			.withEntitySchema(ENTITY_PRODUCT, entity -> entity.withDescription("changed"));
+
+		builder.toInstance();
+
+		final EntitySchemaContract productSchema = builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT);
+		assertEquals("changed", productSchema.getDescription());
+		assertTrue(productSchema.getReferenceOrThrowException("tags").getAttribute("order").isPresent());
+	}
+
+	@Test
+	@DisplayName("serve the entity schemas as its mutations leave them, without being materialized first")
+	void shouldServeCurrentEntitySchemas() {
+		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(catalogSchemaWithProduct())
+			.withEntitySchema(ENTITY_PRODUCT, entity -> entity.withDescription("changed"));
+
+		assertEquals("changed", builder.getEntitySchema(ENTITY_PRODUCT).orElseThrow().getDescription());
+		assertEquals("changed", builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT).getDescription());
+		assertEquals(
+			List.of("changed"),
+			builder.getEntitySchemas().stream().map(EntitySchemaContract::getDescription).toList()
+		);
+	}
+
+	@Test
+	@DisplayName("remove a removed global attribute from the entity schemas that use it")
+	void shouldCascadeGlobalAttributeRemovalIntoEntitySchemas() {
+		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(catalogSchemaWithProductUsingCode())
+			.withoutAttribute(ATTRIBUTE_CODE);
+
+		assertTrue(builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT).getAttribute(ATTRIBUTE_CODE).isEmpty());
+	}
+
+	@Test
+	@DisplayName("carry a changed global attribute into the entity schemas that use it")
+	void shouldCascadeGlobalAttributeChangeIntoEntitySchemas() {
+		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(catalogSchemaWithProductUsingCode())
+			.withAttribute(ATTRIBUTE_CODE, String.class, GlobalAttributeSchemaEditor::sortable);
+
+		assertTrue(builder.getAttribute(ATTRIBUTE_CODE).orElseThrow().isSortable());
+		assertTrue(
+			builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT).getAttribute(ATTRIBUTE_CODE).orElseThrow().isSortable()
+		);
+	}
+
+	@Test
+	@DisplayName("refuse an entity modification of a global attribute that an earlier catalog mutation removed")
+	void shouldRefuseEntityModificationOfGlobalAttributeRemovedByPrecedingMutation() {
+		// the removal of the global attribute takes it from the entity right away, so a later change of it in the
+		// entity has nothing to change - the server refuses the batch the same way, in a session and on replay
+		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(
+			catalogSchemaWithProductUsingCode(),
+			List.of(
+				new RemoveAttributeSchemaMutation(ATTRIBUTE_CODE),
+				new ModifyEntitySchemaMutation(
+					ENTITY_PRODUCT, new ModifyAttributeSchemaDescriptionMutation(ATTRIBUTE_CODE, "changed")
+				)
+			)
+		);
+
+		final InvalidSchemaMutationException refusal = assertThrows(
+			InvalidSchemaMutationException.class, builder::toInstance
+		);
+		assertTrue(refusal.getMessage().contains("`" + ATTRIBUTE_CODE + "`"), refusal.getMessage());
+	}
+
+	@Test
+	@DisplayName("keep a modification of an entity overriding what a catalog mutation before it cascaded into it")
+	void shouldKeepEntityModificationOverridingPrecedingCascade() {
+		// the cascade makes the attribute of the entity sortable at its position, the modification after it restores
+		// the base value - judged against the base alone it would look like a no-op and be dropped
+		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(
+			catalogSchemaWithProductUsingCode(),
+			List.of(
+				new SetAttributeSchemaSortableMutation(ATTRIBUTE_CODE, true),
+				new ModifyEntitySchemaMutation(
+					ENTITY_PRODUCT, new SetAttributeSchemaSortableMutation(ATTRIBUTE_CODE, false)
+				)
+			)
+		);
+
+		assertFalse(
+			builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT)
+				.getAttribute(ATTRIBUTE_CODE)
+				.orElseThrow()
+				.isSortable()
+		);
+		final List<LocalCatalogSchemaMutation> emitted = Arrays.asList(
+			builder.toMutation().map(ModifyCatalogSchemaMutation::getSchemaMutations).orElseThrow()
+		);
+		assertTrue(
+			emitted.stream().anyMatch(ModifyEntitySchemaMutation.class::isInstance),
+			() -> "The modification of the entity was dropped: " + emitted
+		);
+	}
+
+	@Test
+	@DisplayName("keep a cascade applied once when the builder is read and extended again")
+	void shouldKeepCascadeAppliedOnceWhenExtended() {
+		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(catalogSchemaWithProductUsingCode())
+			.withoutAttribute(ATTRIBUTE_CODE);
+		assertTrue(builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT).getAttribute(ATTRIBUTE_CODE).isEmpty());
+
+		builder.withEntitySchema(ENTITY_PRODUCT, whichIs -> whichIs.withDescription("changed"));
+
+		final EntitySchemaContract product = builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT);
+		assertTrue(product.getAttribute(ATTRIBUTE_CODE).isEmpty());
+		assertEquals("changed", product.getDescription());
+	}
+
+	@Test
+	@DisplayName("restore an entity value that an earlier entity schema call changed")
+	void shouldRestoreEntityValueChangedByEarlierCall() {
+		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(catalogSchemaWithProduct())
+			.withEntitySchema(ENTITY_PRODUCT, whichIs -> whichIs.withDescription("changed"));
+		assertEquals("changed", builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT).getDescription());
+
+		// the second call compares with the changed entity, not with the stored one, so the restoring change is kept
+		builder.withEntitySchema(ENTITY_PRODUCT, whichIs -> whichIs.withDescription("original"));
+
+		assertEquals("original", builder.getEntitySchemaOrThrowException(ENTITY_PRODUCT).getDescription());
+		assertTrue(builder.toMutation().isEmpty(), "Restoring the stored description must leave nothing to send.");
+	}
+
+	@Test
+	@DisplayName("re-create a removed global attribute that changes only its indexed decimal places")
+	void shouldRecreateRemovedGlobalAttributeWithChangedDecimalPlaces() {
+		final CatalogSchemaContract storedSchema = new InternalCatalogSchemaBuilder(CATALOG_SCHEMA)
+			.withAttribute(ATTRIBUTE_PRICE, BigDecimal.class, whichIs -> whichIs.filterable().indexDecimalPlaces(2))
+			.toInstance();
+		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(storedSchema)
+			.withoutAttribute(ATTRIBUTE_PRICE)
+			.withAttribute(ATTRIBUTE_PRICE, BigDecimal.class, GlobalAttributeSchemaEditor::filterable);
+
+		assertEquals(0, builder.getAttribute(ATTRIBUTE_PRICE).orElseThrow().getIndexedDecimalPlaces());
+		assertTrue(builder.toMutation().isPresent(), "The changed decimal places must be sent.");
+	}
+
+	/**
+	 * Creates a catalog schema with the global attribute `code` and a product entity schema that uses it.
+	 */
+	@Nonnull
+	private static CatalogSchemaContract catalogSchemaWithProductUsingCode() {
+		final CatalogSchemaContract catalogWithCode = new InternalCatalogSchemaBuilder(CATALOG_SCHEMA)
+			.withAttribute(ATTRIBUTE_CODE, String.class, GlobalAttributeSchemaEditor::filterable)
+			.toInstance();
+		final EntitySchemaContract productSchema = new InternalEntitySchemaBuilder(
+			catalogWithCode, EntitySchema._internalBuild(ENTITY_PRODUCT)
+		)
+			.withGlobalAttribute(ATTRIBUTE_CODE)
+			.toInstance();
+		assertTrue(productSchema.getAttribute(ATTRIBUTE_CODE).isPresent());
+		return CatalogSchema._internalBuild(
+			catalogWithCode.version(),
+			catalogWithCode.getName(),
+			catalogWithCode.getNameVariants(),
+			catalogWithCode.getDescription(),
+			catalogWithCode.getConflictResolution().orElse(null),
+			catalogWithCode.getCatalogEvolutionMode(),
+			catalogWithCode.getAttributes(),
+			singleEntitySchemaProvider(productSchema)
+		);
+	}
+
+	/**
+	 * Creates a catalog schema that provides a single product entity schema with a description.
+	 */
+	@Nonnull
+	private static CatalogSchema catalogSchemaWithProduct() {
+		final EntitySchemaContract productSchema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA, EntitySchema._internalBuild(ENTITY_PRODUCT)
+		)
+			.withDescription("original")
+			.toInstance();
+		return CatalogSchema._internalBuild(
+			APITestConstants.TEST_CATALOG,
+			NamingConvention.generate(APITestConstants.TEST_CATALOG),
+			null,
+			EnumSet.allOf(CatalogEvolutionMode.class),
+			singleEntitySchemaProvider(productSchema)
+		);
+	}
+
+	/**
+	 * Creates an entity schema provider that knows exactly the given entity schema.
+	 */
+	@Nonnull
+	private static EntitySchemaProvider singleEntitySchemaProvider(@Nonnull EntitySchemaContract entitySchema) {
+		return new EntitySchemaProvider() {
+			@Nonnull
+			@Override
+			public Collection<EntitySchemaContract> getEntitySchemas() {
+				return List.of(entitySchema);
+			}
+
+			@Nonnull
+			@Override
+			public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+				return entitySchema.getName().equals(entityType) ? Optional.of(entitySchema) : Optional.empty();
+			}
+		};
 	}
 
 }

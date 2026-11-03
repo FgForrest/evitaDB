@@ -124,6 +124,8 @@ public class SetReferenceSchemaIndexedMutation
 	/**
 	 * Creates mutation that controls the indexed flag of the reference schema using a simple
 	 * boolean (applied to the default scope). Null means inherited from the reflected reference.
+	 * The mutation declares no components; the constructor that takes them describes what that means with
+	 * declared and with inherited index types.
 	 */
 	public SetReferenceSchemaIndexedMutation(
 		@Nonnull String name,
@@ -138,6 +140,8 @@ public class SetReferenceSchemaIndexedMutation
 	/**
 	 * Creates mutation that controls indexed flag per scope. Each specified scope gets
 	 * {@link ReferenceIndexType#FOR_FILTERING}. Null means inherited from the reflected reference.
+	 * The mutation declares no components; the constructor that takes them describes what that means with
+	 * declared and with inherited index types.
 	 */
 	public SetReferenceSchemaIndexedMutation(
 		@Nonnull String name,
@@ -156,7 +160,8 @@ public class SetReferenceSchemaIndexedMutation
 
 	/**
 	 * Creates mutation that controls indexed flag with detailed per-scope index type configuration.
-	 * Null means inherited from the reflected reference.
+	 * Null means inherited from the reflected reference. The mutation declares no components; the constructor
+	 * that takes them describes what that means with declared and with inherited index types.
 	 */
 	public SetReferenceSchemaIndexedMutation(
 		@Nonnull String name,
@@ -168,7 +173,14 @@ public class SetReferenceSchemaIndexedMutation
 	/**
 	 * Creates mutation that controls indexed flag with detailed per-scope index type configuration
 	 * and also specifies which reference components are indexed per scope.
-	 * Null means inherited from the reflected reference.
+	 * Null index types mean inherited from the reflected reference. On a reflected reference the components mean:
+	 *
+	 * - null with declared index types: the components are inherited from the reflected reference (a plain reference
+	 *   gets the default components),
+	 * - null with inherited index types: the components stay as they are, inherited or declared,
+	 * - an empty array: the reference declares no components; uncovered indexed scopes then get the default, except a
+	 *   scope the reference is stored with and no component. Mutations that make the index types inherited were
+	 *   always created with an empty array until the null form above existed, so replaying them keeps this meaning.
 	 */
 	@SerializableCreator
 	public SetReferenceSchemaIndexedMutation(
@@ -183,20 +195,12 @@ public class SetReferenceSchemaIndexedMutation
 		// Downstream code (getIndexed, combineWith, toString, mutate) relies on the null vs EMPTY
 		// distinction to differentiate inherited from explicitly-empty.
 		this.indexedInScopes = indexedInScopes;
-		if (indexedComponentsInScopes != null) {
-			this.indexedComponentsInScopes = indexedComponentsInScopes;
-		} else if (indexedInScopes == null) {
-			// Both scopes and components are inherited — use EMPTY to signal "no explicit override"
-			// rather than null, because components inheritance is always tied to scopes inheritance
-			this.indexedComponentsInScopes = ScopedReferenceIndexedComponents.EMPTY;
-		} else {
-			// Deliberately preserve null — for reflected references, null signals that indexed
-			// components are inherited from the reflected reference
-			// (see ReflectedReferenceSchemaBuilder#withIndexedComponentsInherited).
-			// For non-reflected references, null is resolved to default components at mutation
-			// application time in the mutate() method, so the semantics are preserved for both cases.
-			this.indexedComponentsInScopes = null;
-		}
+		// Deliberately preserve null as well — with declared scopes it signals components inherited from the reflected
+		// reference (see ReflectedReferenceSchemaBuilder#withIndexedComponentsInherited), resolved to the default
+		// components for a non-reflected reference in mutate(); with inherited scopes it leaves the components of a
+		// reflected reference as they are. EMPTY is a declaration of no components and must not be produced here:
+		// it is what the WAL holds for inherited scopes written before null had a meaning of its own
+		this.indexedComponentsInScopes = indexedComponentsInScopes;
 	}
 
 	/**
@@ -224,7 +228,16 @@ public class SetReferenceSchemaIndexedMutation
 			&& this.name.equals(theExistingMutation.getName())) {
 			// null indexedInScopes = inherited from reflected reference;
 			// when either mutation uses inheritance, no scope merging is needed
-			if (this.indexedInScopes == null) {
+			if (leavesComponentsAsTheyAre() && !theExistingMutation.leavesComponentsAsTheyAre()) {
+				// the latest mutation inherits the index types and leaves the components as the existing one makes
+				// them - one mutation cannot say both, so both stay and apply one after the other; the existing one
+				// keeps only what still matters once its index types are overridden, so that none of them merges
+				// into an index declaration that follows
+				final SetReferenceSchemaIndexedMutation componentsPart = theExistingMutation.toComponentsPart(
+					currentEntitySchema.getReference(this.name).orElse(null)
+				);
+				return componentsPart == null ? null : new MutationCombinationResult<>(componentsPart, this);
+			} else if (this.indexedInScopes == null) {
 				// the latest mutation says "inherit" — this overrides any prior explicit scopes
 				return new MutationCombinationResult<>(null, this);
 			} else if (theExistingMutation.indexedInScopes == null) {
@@ -345,7 +358,7 @@ public class SetReferenceSchemaIndexedMutation
 				result = (ReflectedReferenceSchema) result.withIndexed(this.indexedInScopes);
 				scopesChanged = true;
 			}
-			if (hasIndexedComponentsChanged(reflectedReferenceSchema)) {
+			if (!leavesComponentsAsTheyAre() && hasIndexedComponentsChanged(reflectedReferenceSchema)) {
 				// only filter when scopes are explicit (non-null); when inherited, components pass
 				// through unfiltered and are resolved later against the actual inherited scopes
 				final ScopedReferenceIndexedComponents[] componentsToApply =
@@ -488,6 +501,73 @@ public class SetReferenceSchemaIndexedMutation
 		}
 		return "Set entity reference `" + this.name + "` schema: " +
 			"indexed=" + indexedDescription + componentsDescription;
+	}
+
+	/**
+	 * Returns true when this mutation makes the index types of a reflected reference inherited and says nothing about
+	 * its components. Such a mutation leaves the components as they are: inherited ones stay inherited and declared
+	 * ones stay declared, so a stored scope without a component is not completed with one. An empty array of
+	 * components is a declaration and does not qualify - see the constructor.
+	 *
+	 * @return true when the mutation leaves the components of a reflected reference unchanged
+	 */
+	private boolean leavesComponentsAsTheyAre() {
+		return this.indexedInScopes == null && this.indexedComponentsInScopes == null;
+	}
+
+	/**
+	 * Returns the part of this mutation that still matters when a later mutation makes the index types inherited and
+	 * leaves the components as this one makes them: what it does to the components, without the index types it
+	 * declares. A later index declaration would otherwise merge those overridden index types into its own.
+	 *
+	 * - with no components, this mutation makes the components inherited, which only declared index types can say,
+	 *   so the part declares none
+	 * - with declared components, the part declares the components this mutation leaves the reference with: those of
+	 *   the scopes it indexes, completed with the default for an indexed scope they leave uncovered, as
+	 *   {@link #mutate(EntitySchemaContract, ReferenceSchemaContract, ConsistencyChecks)} completes them
+	 *
+	 * Neither part declares index types, so neither is rewritten again and the rounds of the builder end.
+	 *
+	 * @param referenceBefore the reference before this mutation applies, or null when the entity has none yet
+	 * @return the part to replace this mutation with, or null when this mutation stays as it is: it declares no index
+	 * types, or it leaves no component in any scope
+	 */
+	@Nullable
+	private SetReferenceSchemaIndexedMutation toComponentsPart(@Nullable ReferenceSchemaContract referenceBefore) {
+		if (ArrayUtils.isEmpty(this.indexedInScopes)) {
+			return null;
+		} else if (this.indexedComponentsInScopes == null) {
+			return new SetReferenceSchemaIndexedMutation(this.name, ScopedReferenceIndexType.EMPTY, null);
+		} else {
+			final EnumMap<Scope, ReferenceIndexType> indexedScopes = new EnumMap<>(Scope.class);
+			for (final ScopedReferenceIndexType scopedIndexType : this.indexedInScopes) {
+				indexedScopes.put(scopedIndexType.scope(), scopedIndexType.indexType());
+			}
+			final Map<Scope, Set<ReferenceIndexedComponents>> leftComponents =
+				ReferenceSchema.withDefaultsForUncoveredScopes(
+					ReferenceSchema.toIndexedComponentsEnumMap(
+						ReferenceSchema.filterComponentsArrayForNoneScopes(
+							this.indexedComponentsInScopes, indexedScopes
+						)
+					),
+					indexedScopes,
+					referenceBefore
+				);
+			if (leftComponents.isEmpty()) {
+				// it indexes no scope, or only scopes stored without a component; a part declaring no components
+				// would arrive over gRPC as one leaving them, so this mutation stays as it is
+				return null;
+			}
+			final ScopedReferenceIndexedComponents[] components =
+				new ScopedReferenceIndexedComponents[leftComponents.size()];
+			int index = 0;
+			for (final Map.Entry<Scope, Set<ReferenceIndexedComponents>> entry : leftComponents.entrySet()) {
+				components[index++] = new ScopedReferenceIndexedComponents(
+					entry.getKey(), entry.getValue().toArray(ReferenceIndexedComponents.EMPTY)
+				);
+			}
+			return new SetReferenceSchemaIndexedMutation(this.name, null, components);
+		}
 	}
 
 	/**

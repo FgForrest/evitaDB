@@ -94,7 +94,6 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.api.configuration.StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
@@ -157,7 +156,6 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 		}
 	}
 
-	@Tag(SLOW)
 	// 2024.5 (and older) is intentionally absent: the type-less 2024.5 filter-index storage format is no longer
 	// supported (its backward-compatible serializer was removed). Such catalogs must be upgraded through an
 	// intermediate 2025.x release first; attempting a direct load now fails fast with StoredVersionNotSupportedException.

@@ -440,7 +440,9 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 		} else if (value instanceof Currency currency) {
 			return "Currency.getInstance(\"" + currency.getCurrencyCode() + "\")";
 		} else if (value instanceof Expression expression) {
-			return "ExpressionFactory.parse(\"" + expression + "\")";
+			// the text the expression parses from - toString() would quote it into a string constant
+			return "ExpressionFactory.parse(\"" +
+				expression.toExpressionString().replace("\\", "\\\\").replace("\"", "\\\"") + "\")";
 		} else if (value == null) {
 			return "null";
 		} else {

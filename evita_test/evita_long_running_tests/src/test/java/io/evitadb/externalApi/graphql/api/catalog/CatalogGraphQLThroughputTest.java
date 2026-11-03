@@ -47,7 +47,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -62,7 +61,6 @@ import static io.evitadb.test.TestTags.QUERY;
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2026
  */
-@Tag(SLOW)
 @Slf4j
 @Disabled("Disabled by default due to long execution time. Enable for performance testing or benchmarking purposes.")
 @Tag(GRAPHQL)
