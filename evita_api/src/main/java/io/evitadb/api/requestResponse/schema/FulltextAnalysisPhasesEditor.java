@@ -24,8 +24,9 @@
 
 package io.evitadb.api.requestResponse.schema;
 
-import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.analysis.FulltextAnalysisPhases;
+import io.evitadb.api.requestResponse.schema.analysis.TextAnalysisStep;
+import io.evitadb.api.requestResponse.schema.analysis.WordsAnalysisStep;
 
 import javax.annotation.Nonnull;
 
@@ -44,7 +45,7 @@ public interface FulltextAnalysisPhasesEditor {
 	 * @return this editor
 	 */
 	@Nonnull
-	FulltextAnalysisPhasesEditor text(@Nonnull AnalysisStep... steps);
+	FulltextAnalysisPhasesEditor text(@Nonnull TextAnalysisStep... steps);
 
 	/**
 	 * Replaces the words phase - the changes made to each word after splitting.
@@ -53,6 +54,6 @@ public interface FulltextAnalysisPhasesEditor {
 	 * @return this editor
 	 */
 	@Nonnull
-	FulltextAnalysisPhasesEditor words(@Nonnull AnalysisStep... steps);
+	FulltextAnalysisPhasesEditor words(@Nonnull WordsAnalysisStep... steps);
 
 }

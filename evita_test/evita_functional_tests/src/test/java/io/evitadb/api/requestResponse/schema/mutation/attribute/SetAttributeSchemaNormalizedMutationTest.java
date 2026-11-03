@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
+import io.evitadb.api.requestResponse.schema.analysis.NormalizingAnalysisStep;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -214,6 +215,20 @@ class SetAttributeSchemaNormalizedMutationTest {
 			new SetAttributeSchemaNormalizedMutation(ATTRIBUTE_NAME, (AnalysisStep[]) null));
 		assertEquals(Operation.UPSERT, mutation.operation());
 		assertTrue(mutation.toString().contains("normalization=[lowercase]"));
+	}
+
+	/** An editor passes the typed array of its slot, which must not leak into the mutation's untyped one. */
+	@Test
+	@DisplayName("A typed step array is stored as an array any description fits into")
+	void shouldStoreATypedArrayAsAnUntypedOne() {
+		final SetAttributeSchemaNormalizedMutation mutation = new SetAttributeSchemaNormalizedMutation(
+			ATTRIBUTE_NAME, new NormalizingAnalysisStep[]{lowercase()}
+		);
+		final AnalysisStep[] copy = mutation.getNormalization();
+		assertEquals(AnalysisStep[].class, copy.getClass());
+		// a `NormalizingAnalysisStep[]` would refuse this with an `ArrayStoreException`
+		copy[0] = AnalysisStep.of("custom", Map.of());
+		assertEquals(AnalysisStep.of("custom", Map.of()), copy[0]);
 	}
 
 	/** Both outer schema mutation entry points apply the same statement as the attribute-level entry point. */

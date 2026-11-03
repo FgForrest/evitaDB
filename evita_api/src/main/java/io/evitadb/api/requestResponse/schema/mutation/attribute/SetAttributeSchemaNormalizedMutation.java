@@ -79,7 +79,9 @@ public class SetAttributeSchemaNormalizedMutation
 		@Nonnull String name, @Nullable AnalysisStep... normalization
 	) {
 		super(name);
-		this.normalization = normalization == null ? new AnalysisStep[0] : normalization.clone();
+		// copied into an `AnalysisStep[]`: the typed array an editor passes would refuse an untyped step stored into it
+		this.normalization = normalization == null ?
+			new AnalysisStep[0] : Arrays.copyOf(normalization, normalization.length, AnalysisStep[].class);
 	}
 
 	/**

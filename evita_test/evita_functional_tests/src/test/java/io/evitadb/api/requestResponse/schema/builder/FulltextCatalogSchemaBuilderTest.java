@@ -354,7 +354,7 @@ class FulltextCatalogSchemaBuilderTest {
 			final InternalCatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(emptyCatalog());
 			assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> builder.withFulltextAnalyzer("codes", a -> a.text(lowercase(), null))
+				() -> builder.withFulltextAnalyzer("codes", a -> a.text(htmlStrip(), null))
 			);
 		}
 
@@ -431,13 +431,15 @@ class FulltextCatalogSchemaBuilderTest {
 				declared,
 				b -> b
 					.withFulltextAnalyzer("codes", a -> a.words(asciiFolding()))
-					.withFulltextAnalyzer("codes", a -> a.words(trim()))
+					.withFulltextAnalyzer("codes", a -> a.words(englishPossessive()))
 			);
 
 			assertEquals(1, mutations.length);
 			final ModifyFulltextAnalyzerSchemaMutation modification =
 				assertInstanceOf(ModifyFulltextAnalyzerSchemaMutation.class, mutations[0]);
-			assertEquals(new FulltextAnalysisPhases(null, List.of(trim())), modification.getAllLanguages());
+			assertEquals(
+				new FulltextAnalysisPhases(null, List.of(englishPossessive())), modification.getAllLanguages()
+			);
 		}
 
 		@Test
@@ -519,7 +521,7 @@ class FulltextCatalogSchemaBuilderTest {
 				b -> b.withFulltextAnalyzer(
 					"names",
 					a -> a.words(
-						step(STOP_WORDS, parameter(WORDS, new String[]{null})),
+						wordsStep(STOP_WORDS, parameter(WORDS, new String[]{null})),
 						czechStemming(parameter(PROTECTED_WORDS, new String[]{" "}))
 					)
 				)
@@ -543,8 +545,8 @@ class FulltextCatalogSchemaBuilderTest {
 				b -> b.withFulltextAnalyzer(
 					"names",
 					a -> a.words(
-						step("append-words", parameter(WORDS, new String[]{"sale"})),
-						step("expand", parameter(SYNONYM_LISTS, "literal"))
+						wordsStep("append-words", parameter(WORDS, new String[]{"sale"})),
+						wordsStep("expand", parameter(SYNONYM_LISTS, "literal"))
 					)
 				)
 			);
@@ -671,7 +673,7 @@ class FulltextCatalogSchemaBuilderTest {
 				emptyCatalog(),
 				b -> b
 					.withFulltextResource("brands", wordList("puma"))
-					.withFulltextAnalyzer("names", a -> a.words(step(STOP_WORDS, parameter(WORDS, "brands"))))
+					.withFulltextAnalyzer("names", a -> a.words(wordsStep(STOP_WORDS, parameter(WORDS, "brands"))))
 			);
 
 			final InvalidSchemaMutationException exception = assertThrows(

@@ -24,7 +24,8 @@
 
 package io.evitadb.api.requestResponse.schema;
 
-import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
+import io.evitadb.api.requestResponse.schema.analysis.TextAnalysisStep;
+import io.evitadb.api.requestResponse.schema.analysis.WordsAnalysisStep;
 
 import javax.annotation.Nonnull;
 import java.util.function.Consumer;
@@ -36,8 +37,8 @@ import java.util.function.Consumer;
  * {@link FulltextAnalyzerSchemaContract}.
  *
  * An analyzer either is {@link #basedOn(String) based on} another one or defines its all-languages phases
- * ({@link #allLanguages(Consumer)}, or {@link #text(AnalysisStep...)} / {@link #words(AnalysisStep...)}); per-language
- * overrides may follow either way. Examples:
+ * ({@link #allLanguages(Consumer)}, or {@link #text(TextAnalysisStep...)} / {@link #words(WordsAnalysisStep...)});
+ * per-language overrides may follow either way. Examples:
  *
  * ```
  * catalog.withFulltextAnalyzer("html-title", a -> a.basedOn("text").text(htmlStrip()));
@@ -63,7 +64,7 @@ public interface FulltextAnalyzerSchemaEditor {
 	 * @return this editor
 	 */
 	@Nonnull
-	FulltextAnalyzerSchemaEditor text(@Nonnull AnalysisStep... steps);
+	FulltextAnalyzerSchemaEditor text(@Nonnull TextAnalysisStep... steps);
 
 	/**
 	 * Replaces the words phase for all languages.
@@ -72,7 +73,7 @@ public interface FulltextAnalyzerSchemaEditor {
 	 * @return this editor
 	 */
 	@Nonnull
-	FulltextAnalyzerSchemaEditor words(@Nonnull AnalysisStep... steps);
+	FulltextAnalyzerSchemaEditor words(@Nonnull WordsAnalysisStep... steps);
 
 	/**
 	 * Defines phases for all languages.

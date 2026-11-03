@@ -500,8 +500,8 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 				)
 			);
 		}
-		// Records validate individual descriptions at construction; keep the assembled contract responsible
-		// for structure too, including alternate contract implementations and deserialized schemas.
+		// a description validates itself when created; the assembled contract checks the steps again, because an
+		// alternate contract implementation or a deserialized schema may hold any list
 		for (final AnalysisStep step : getNormalization()) {
 			if (step == null) {
 				errors = Stream.concat(
@@ -509,7 +509,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 				);
 			} else {
 				try {
-					new AnalysisStep(step.name(), step.parameters());
+					AnalysisStep.of(step.name(), step.parameters());
 				} catch (final IllegalArgumentException ex) {
 					errors = Stream.concat(
 						errors, Stream.of(

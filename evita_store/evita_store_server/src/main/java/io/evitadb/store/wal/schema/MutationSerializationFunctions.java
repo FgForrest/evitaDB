@@ -101,7 +101,7 @@ public interface MutationSerializationFunctions {
 				final String parameterName = input.readString();
 				parameters.put(parameterName, (Serializable) kryo.readClassAndObject(input));
 			}
-			steps.add(new AnalysisStep(name, parameters));
+			steps.add(AnalysisStep.of(name, parameters));
 		}
 		return steps;
 	}

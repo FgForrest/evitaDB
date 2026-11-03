@@ -2526,10 +2526,10 @@ class AttributeSchemaBuilderTest {
 		@Test
 		@DisplayName("Clients accept structurally valid custom step names")
 		void shouldAcceptCustomStepsWithoutServerKnowledge() {
-			assertEquals(List.of(step("custom", parameter("setting", "value"))), createEntitySchemaBuilder()
+			assertEquals(List.of(normalizingStep("custom", parameter("setting", "value"))), createEntitySchemaBuilder()
 				.withAttribute(
 					"code", String.class, attribute ->
-						attribute.normalized(step("custom", parameter("setting", "value")))
+						attribute.normalized(normalizingStep("custom", parameter("setting", "value")))
 				)
 				.toInstance().getAttribute("code").orElseThrow().getNormalization());
 		}

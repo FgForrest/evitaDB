@@ -49,15 +49,45 @@ class AnalysisStepsTest {
 	@Test
 	@DisplayName("Factories use the public step and parameter names")
 	void shouldDescribeBuiltInStepsThroughGenericNotation() {
-		assertEquals(step(LOWERCASE), lowercase());
-		assertEquals(step(ASCII_FOLDING), asciiFolding());
-		assertEquals(step(TRIM), trim());
-		assertEquals(step(REMOVE_CHARACTERS, parameter(CHARACTERS, "- ")), removeCharacters("- "));
+		assertEquals(normalizingStep(LOWERCASE), lowercase());
+		assertEquals(wordsStep(ASCII_FOLDING), asciiFolding());
+		assertEquals(normalizingStep(TRIM), trim());
+		assertEquals(textStep(REMOVE_CHARACTERS, parameter(CHARACTERS, "- ")), removeCharacters("- "));
+		assertEquals(tokenizerStep(STANDARD_TOKENIZER), standardTokenizer());
 		assertEquals("lowercase", lowercase().toString());
 		assertEquals("remove-characters(characters='- ')", removeCharacters("- ").toString());
 		assertEquals(
-			removeCharacters("- ").hashCode(), step(REMOVE_CHARACTERS, parameter(CHARACTERS, "- ")).hashCode()
+			removeCharacters("- ").hashCode(),
+			normalizingStep(REMOVE_CHARACTERS, parameter(CHARACTERS, "- ")).hashCode()
 		);
+	}
+
+	/** A step read back from storage or an external API carries no place, yet equals the one its factory made. */
+	@Test
+	@DisplayName("Untyped descriptions equal typed ones of the same name and parameters")
+	void shouldCompareDescriptionsWhateverTheirType() {
+		final AnalysisStep untyped = AnalysisStep.of(LOWERCASE, Map.of());
+		assertEquals(lowercase(), untyped);
+		assertEquals(untyped, lowercase());
+		assertEquals(lowercase().hashCode(), untyped.hashCode());
+		assertFalse(untyped instanceof NormalizingAnalysisStep);
+		assertEquals(
+			removeCharacters("-"), AnalysisStep.of(REMOVE_CHARACTERS, Map.of(CHARACTERS, "-"))
+		);
+		assertNotEquals(removeCharacters("-"), AnalysisStep.of(REMOVE_CHARACTERS, Map.of(CHARACTERS, "/")));
+	}
+
+	/** Each factory states every place its step may take, and no other. */
+	@Test
+	@DisplayName("Factories return the types of the places their steps serve")
+	void shouldTypeBuiltInStepsByTheirPlaces() {
+		assertInstanceOf(NormalizingWordsAnalysisStep.class, lowercase());
+		assertInstanceOf(NormalizingWordsAnalysisStep.class, asciiFolding());
+		assertInstanceOf(NormalizingTextAnalysisStep.class, removeCharacters("-"));
+		assertFalse((AnalysisStep) trim() instanceof WordsAnalysisStep);
+		assertFalse((AnalysisStep) htmlStrip() instanceof NormalizingAnalysisStep);
+		assertFalse((AnalysisStep) stopWords(czechStopWords()) instanceof NormalizingAnalysisStep);
+		assertFalse((AnalysisStep) wordNumberSplit() instanceof TokenizerAnalysisStep);
 	}
 
 	/** Generic steps permit names supplied by future server providers and typed parameters. */
@@ -65,7 +95,9 @@ class AnalysisStepsTest {
 	@DisplayName("Generic steps preserve supported parameter values")
 	@SuppressWarnings({"SimplifiableAssertion", "EqualsBetweenInconvertibleTypes"})
 	void shouldDescribeCustomStepsAndTypedParameters() {
-		final AnalysisStep step = step("custom", parameter("limit", 2), parameter("factor", new BigDecimal("1.5")));
+		final AnalysisStep step = wordsStep(
+			"custom", parameter("limit", 2), parameter("factor", new BigDecimal("1.5"))
+		);
 		assertEquals(Map.of("limit", 2, "factor", new BigDecimal("1.5")), step.parameters());
 		assertEquals("custom(limit=2, factor=1.5)", step.toString());
 		assertNotEquals(step, lowercase());
@@ -86,14 +118,14 @@ class AnalysisStepsTest {
 		final int[] numbers = {1, 2};
 		final Map<String, Serializable> input = new LinkedHashMap<>();
 		input.put("numbers", numbers);
-		final AnalysisStep step = new AnalysisStep("custom", input);
+		final AnalysisStep step = AnalysisStep.of("custom", input);
 		input.clear();
 		numbers[0] = 9;
 		assertArrayEquals(new int[]{1, 2}, (int[]) step.parameters().get("numbers"));
 		((int[]) step.parameters().get("numbers"))[0] = 9;
 		assertArrayEquals(new int[]{1, 2}, (int[]) step.parameters().get("numbers"));
 		assertThrows(UnsupportedOperationException.class, () -> step.parameters().put("new", "value"));
-		final AnalysisStep equal = step("custom", parameter("numbers", new int[]{1, 2}));
+		final AnalysisStep equal = wordsStep("custom", parameter("numbers", new int[]{1, 2}));
 		assertEquals(equal, step);
 		assertEquals(equal.hashCode(), step.hashCode());
 		assertEquals("custom(numbers=[1, 2])", step.toString());
@@ -109,17 +141,19 @@ class AnalysisStepsTest {
 	@Test
 	@DisplayName("Names, values, parameter uniqueness and removal characters are validated")
 	void shouldRejectInvalidDescriptions() {
-		assertThrows(EvitaInvalidUsageException.class, () -> step(null));
-		assertThrows(EvitaInvalidUsageException.class, () -> step(" "));
-		assertThrows(EvitaInvalidUsageException.class, () -> new AnalysisStep("x", null));
+		assertThrows(EvitaInvalidUsageException.class, () -> wordsStep(null));
+		assertThrows(EvitaInvalidUsageException.class, () -> textStep(" "));
+		assertThrows(EvitaInvalidUsageException.class, () -> AnalysisStep.of("x", null));
 		assertThrows(EvitaInvalidUsageException.class, () -> parameter(null, "x"));
 		assertThrows(EvitaInvalidUsageException.class, () -> parameter(" ", "x"));
 		assertThrows(EvitaInvalidUsageException.class, () -> parameter("x", null));
 		assertThrows(EvitaInvalidUsageException.class, () -> parameter("x", (Serializable) List.of("x")));
 		assertThrows(EvitaInvalidUsageException.class, () -> parameter("x", new Object[0]));
-		assertThrows(EvitaInvalidUsageException.class, () -> step("x", (AnalysisStepParameter[]) null));
-		assertThrows(EvitaInvalidUsageException.class, () -> step("x", (AnalysisStepParameter) null));
-		assertThrows(EvitaInvalidUsageException.class, () -> step("x", parameter("a", 1), parameter("a", 2)));
+		assertThrows(EvitaInvalidUsageException.class, () -> normalizingStep("x", (AnalysisStepParameter[]) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> tokenizerStep("x", (AnalysisStepParameter) null));
+		assertThrows(
+			EvitaInvalidUsageException.class, () -> wordsStep("x", parameter("a", 1), parameter("a", 2))
+		);
 		assertThrows(EvitaInvalidUsageException.class, () -> removeCharacters(""));
 		assertThrows(EvitaInvalidUsageException.class, () -> removeCharacters(null));
 		assertEquals(" ", removeCharacters(" ").parameters().get(CHARACTERS));

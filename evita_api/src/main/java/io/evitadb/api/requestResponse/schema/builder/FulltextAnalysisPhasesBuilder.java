@@ -27,6 +27,8 @@ package io.evitadb.api.requestResponse.schema.builder;
 import io.evitadb.api.requestResponse.schema.FulltextAnalysisPhasesEditor;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.analysis.FulltextAnalysisPhases;
+import io.evitadb.api.requestResponse.schema.analysis.TextAnalysisStep;
+import io.evitadb.api.requestResponse.schema.analysis.WordsAnalysisStep;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -52,14 +54,14 @@ final class FulltextAnalysisPhasesBuilder implements FulltextAnalysisPhasesEdito
 
 	@Nonnull
 	@Override
-	public FulltextAnalysisPhasesEditor text(@Nonnull AnalysisStep... steps) {
+	public FulltextAnalysisPhasesEditor text(@Nonnull TextAnalysisStep... steps) {
 		this.text = toList(steps);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public FulltextAnalysisPhasesEditor words(@Nonnull AnalysisStep... steps) {
+	public FulltextAnalysisPhasesEditor words(@Nonnull WordsAnalysisStep... steps) {
 		this.words = toList(steps);
 		return this;
 	}

@@ -24,8 +24,8 @@
 
 package io.evitadb.api.requestResponse.schema;
 
-import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps;
+import io.evitadb.api.requestResponse.schema.analysis.TokenizerAnalysisStep;
 
 import javax.annotation.Nonnull;
 
@@ -44,7 +44,7 @@ public interface FulltextLanguageSchemaEditor {
 	 * @return this editor
 	 */
 	@Nonnull
-	FulltextLanguageSchemaEditor tokenizer(@Nonnull AnalysisStep tokenizer);
+	FulltextLanguageSchemaEditor tokenizer(@Nonnull TokenizerAnalysisStep tokenizer);
 
 	/**
 	 * Adds {@link AnalysisSteps#wordNumberSplit()} after the tokenizer: each word is also split at its letter/digit

@@ -27,6 +27,7 @@ package io.evitadb.api.requestResponse.schema.builder;
 import io.evitadb.api.requestResponse.schema.FulltextLanguageSchemaEditor;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps;
+import io.evitadb.api.requestResponse.schema.analysis.TokenizerAnalysisStep;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -42,7 +43,7 @@ final class FulltextLanguageSchemaBuilder implements FulltextLanguageSchemaEdito
 	/**
 	 * The tokenizer, the first splitting step.
 	 */
-	@Nonnull private AnalysisStep tokenizer = AnalysisSteps.standardTokenizer();
+	@Nonnull private TokenizerAnalysisStep tokenizer = AnalysisSteps.standardTokenizer();
 	/**
 	 * Whether {@link AnalysisSteps#wordNumberSplit()} follows the tokenizer.
 	 */
@@ -50,7 +51,7 @@ final class FulltextLanguageSchemaBuilder implements FulltextLanguageSchemaEdito
 
 	@Nonnull
 	@Override
-	public FulltextLanguageSchemaEditor tokenizer(@Nonnull AnalysisStep tokenizer) {
+	public FulltextLanguageSchemaEditor tokenizer(@Nonnull TokenizerAnalysisStep tokenizer) {
 		Assert.notNull(tokenizer, "Tokenizer must not be null.");
 		this.tokenizer = tokenizer;
 		return this;

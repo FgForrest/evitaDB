@@ -38,8 +38,10 @@ import java.util.Set;
  * These factories describe steps; implementations belong to the server.
  *
  * The constants are the only definition of the built-in step and parameter names: the server's built-in providers
- * report them, and a Java model can name them in `@AnalysisStepDef`, which needs a compile-time constant. A step from
- * another provider is described with {@link #step(String, AnalysisStepParameter...)}.
+ * report them, and a Java model can name them in `@AnalysisStepDef`, which needs a compile-time constant. Each
+ * factory returns the type of the place its step goes to (see {@link AnalysisStep}); a step from another provider is
+ * described by the generic factory of its place: {@link #textStep}, {@link #tokenizerStep}, {@link #wordsStep} or
+ * {@link #normalizingStep}.
  */
 public final class AnalysisSteps {
 	/** Name of the lowercase step. */
@@ -135,8 +137,8 @@ public final class AnalysisSteps {
 	 * @return description of the `lowercase` step without parameters
 	 */
 	@Nonnull
-	public static AnalysisStep lowercase() {
-		return step(LOWERCASE);
+	public static NormalizingWordsAnalysisStep lowercase() {
+		return new AnalysisStepDescription.NormalizingWords(LOWERCASE, Map.of());
 	}
 
 	/**
@@ -145,8 +147,8 @@ public final class AnalysisSteps {
 	 * @return description of the `ascii-folding` step without parameters
 	 */
 	@Nonnull
-	public static AnalysisStep asciiFolding() {
-		return step(ASCII_FOLDING);
+	public static NormalizingWordsAnalysisStep asciiFolding() {
+		return new AnalysisStepDescription.NormalizingWords(ASCII_FOLDING, Map.of());
 	}
 
 	/**
@@ -155,8 +157,8 @@ public final class AnalysisSteps {
 	 * @return description of the `trim` step without parameters
 	 */
 	@Nonnull
-	public static AnalysisStep trim() {
-		return step(TRIM);
+	public static NormalizingAnalysisStep trim() {
+		return new AnalysisStepDescription.Normalizing(TRIM, Map.of());
 	}
 
 	/**
@@ -166,10 +168,12 @@ public final class AnalysisSteps {
 	 * @return description of the `remove-characters` step carrying the `characters` parameter
 	 */
 	@Nonnull
-	public static AnalysisStep removeCharacters(@Nonnull String characters) {
+	public static NormalizingTextAnalysisStep removeCharacters(@Nonnull String characters) {
 		Assert.notNull(characters, "Characters must not be null.");
 		Assert.isTrue(!characters.isEmpty(), "Characters must not be empty.");
-		return step(REMOVE_CHARACTERS, parameter(CHARACTERS, characters));
+		return new AnalysisStepDescription.NormalizingText(
+			REMOVE_CHARACTERS, values(parameter(CHARACTERS, characters))
+		);
 	}
 
 	/**
@@ -179,8 +183,8 @@ public final class AnalysisSteps {
 	 * @return description of the `html-strip` step without parameters
 	 */
 	@Nonnull
-	public static AnalysisStep htmlStrip() {
-		return step(HTML_STRIP);
+	public static TextAnalysisStep htmlStrip() {
+		return new AnalysisStepDescription.Text(HTML_STRIP, Map.of());
 	}
 
 	/**
@@ -190,8 +194,8 @@ public final class AnalysisSteps {
 	 * @return description of the `standard` tokenizer without parameters
 	 */
 	@Nonnull
-	public static AnalysisStep standardTokenizer() {
-		return step(STANDARD_TOKENIZER);
+	public static TokenizerAnalysisStep standardTokenizer() {
+		return new AnalysisStepDescription.Tokenizer(STANDARD_TOKENIZER, Map.of());
 	}
 
 	/**
@@ -201,8 +205,8 @@ public final class AnalysisSteps {
 	 * @return description of the `word-number-split` step without parameters
 	 */
 	@Nonnull
-	public static AnalysisStep wordNumberSplit() {
-		return step(WORD_NUMBER_SPLIT);
+	public static SplittingAnalysisStep wordNumberSplit() {
+		return new AnalysisStepDescription.Splitting(WORD_NUMBER_SPLIT, Map.of());
 	}
 
 	/**
@@ -212,8 +216,8 @@ public final class AnalysisSteps {
 	 * @return description of the `stop-words` step carrying the `words` parameter
 	 */
 	@Nonnull
-	public static AnalysisStep stopWords(@Nonnull FulltextResourceReference... lists) {
-		return step(STOP_WORDS, parameter(WORDS, resourceNames(lists)));
+	public static WordsAnalysisStep stopWords(@Nonnull FulltextResourceReference... lists) {
+		return new AnalysisStepDescription.Words(STOP_WORDS, values(parameter(WORDS, resourceNames(lists))));
 	}
 
 	/**
@@ -225,8 +229,8 @@ public final class AnalysisSteps {
 	 * @return description of the `czech-stemming` step
 	 */
 	@Nonnull
-	public static AnalysisStep czechStemming(@Nonnull AnalysisStepParameter... parameters) {
-		return step(CZECH_STEMMING, parameters);
+	public static WordsAnalysisStep czechStemming(@Nonnull AnalysisStepParameter... parameters) {
+		return new AnalysisStepDescription.Words(CZECH_STEMMING, values(parameters));
 	}
 
 	/**
@@ -236,8 +240,8 @@ public final class AnalysisSteps {
 	 * @return description of the `slovak-stemming` step
 	 */
 	@Nonnull
-	public static AnalysisStep slovakStemming(@Nonnull AnalysisStepParameter... parameters) {
-		return step(SLOVAK_STEMMING, parameters);
+	public static WordsAnalysisStep slovakStemming(@Nonnull AnalysisStepParameter... parameters) {
+		return new AnalysisStepDescription.Words(SLOVAK_STEMMING, values(parameters));
 	}
 
 	/**
@@ -248,8 +252,8 @@ public final class AnalysisSteps {
 	 * @return description of the `polish-stemming` step
 	 */
 	@Nonnull
-	public static AnalysisStep polishStemming(@Nonnull AnalysisStepParameter... parameters) {
-		return step(POLISH_STEMMING, parameters);
+	public static WordsAnalysisStep polishStemming(@Nonnull AnalysisStepParameter... parameters) {
+		return new AnalysisStepDescription.Words(POLISH_STEMMING, values(parameters));
 	}
 
 	/**
@@ -259,8 +263,8 @@ public final class AnalysisSteps {
 	 * @return description of the `romanian-stemming` step
 	 */
 	@Nonnull
-	public static AnalysisStep romanianStemming(@Nonnull AnalysisStepParameter... parameters) {
-		return step(ROMANIAN_STEMMING, parameters);
+	public static WordsAnalysisStep romanianStemming(@Nonnull AnalysisStepParameter... parameters) {
+		return new AnalysisStepDescription.Words(ROMANIAN_STEMMING, values(parameters));
 	}
 
 	/**
@@ -271,8 +275,8 @@ public final class AnalysisSteps {
 	 * @return description of the `english-stemming` step
 	 */
 	@Nonnull
-	public static AnalysisStep englishStemming(@Nonnull AnalysisStepParameter... parameters) {
-		return step(ENGLISH_STEMMING, parameters);
+	public static WordsAnalysisStep englishStemming(@Nonnull AnalysisStepParameter... parameters) {
+		return new AnalysisStepDescription.Words(ENGLISH_STEMMING, values(parameters));
 	}
 
 	/**
@@ -282,8 +286,8 @@ public final class AnalysisSteps {
 	 * @return description of the `german-stemming` step
 	 */
 	@Nonnull
-	public static AnalysisStep germanStemming(@Nonnull AnalysisStepParameter... parameters) {
-		return step(GERMAN_STEMMING, parameters);
+	public static WordsAnalysisStep germanStemming(@Nonnull AnalysisStepParameter... parameters) {
+		return new AnalysisStepDescription.Words(GERMAN_STEMMING, values(parameters));
 	}
 
 	/**
@@ -295,8 +299,8 @@ public final class AnalysisSteps {
 	 * @return description of the `stemming` step
 	 */
 	@Nonnull
-	public static AnalysisStep stemming(@Nonnull AnalysisStepParameter... parameters) {
-		return step(STEMMING, parameters);
+	public static WordsAnalysisStep stemming(@Nonnull AnalysisStepParameter... parameters) {
+		return new AnalysisStepDescription.Words(STEMMING, values(parameters));
 	}
 
 	/**
@@ -306,8 +310,8 @@ public final class AnalysisSteps {
 	 * @return description of the `romanian-normalization` step without parameters
 	 */
 	@Nonnull
-	public static AnalysisStep romanianNormalization() {
-		return step(ROMANIAN_NORMALIZATION);
+	public static WordsAnalysisStep romanianNormalization() {
+		return new AnalysisStepDescription.Words(ROMANIAN_NORMALIZATION, Map.of());
 	}
 
 	/**
@@ -316,8 +320,8 @@ public final class AnalysisSteps {
 	 * @return description of the `english-possessive` step without parameters
 	 */
 	@Nonnull
-	public static AnalysisStep englishPossessive() {
-		return step(ENGLISH_POSSESSIVE);
+	public static WordsAnalysisStep englishPossessive() {
+		return new AnalysisStepDescription.Words(ENGLISH_POSSESSIVE, Map.of());
 	}
 
 	/**
@@ -328,8 +332,8 @@ public final class AnalysisSteps {
 	 * @return description of the `synonyms` step carrying the `synonyms` parameter
 	 */
 	@Nonnull
-	public static AnalysisStep synonyms(@Nonnull FulltextResourceReference... lists) {
-		return step(SYNONYMS, parameter(SYNONYM_LISTS, resourceNames(lists)));
+	public static WordsAnalysisStep synonyms(@Nonnull FulltextResourceReference... lists) {
+		return new AnalysisStepDescription.Words(SYNONYMS, values(parameter(SYNONYM_LISTS, resourceNames(lists))));
 	}
 
 	/**
@@ -460,17 +464,74 @@ public final class AnalysisSteps {
 	}
 
 	/**
-	 * Describes an installed step without executing it. The server checks provider availability, normalizer safety
-	 * and provider-specific parameter restrictions when adopting a schema. Duplicate parameter names are refused here.
+	 * Describes a text phase step of any installed provider, such as one from an extension the client has no factory
+	 * for. The server checks provider availability, the phase and the provider-specific parameter restrictions when
+	 * adopting a schema.
 	 *
-	 * @param name stable provider name, such as `lowercase` or `ascii-folding`
-	 * @param parameters named evitaDB values in declaration order; array values are defensively copied
-	 * @return immutable description suitable for a normalization chain
+	 * @param name       stable provider name
+	 * @param parameters named evitaDB values in declaration order; array values are defensively copied, duplicate
+	 *                   names refused
+	 * @return the description, accepted where a text phase step is
 	 */
 	@Nonnull
-	public static AnalysisStep step(
-		@Nonnull String name, @Nonnull AnalysisStepParameter... parameters
+	public static TextAnalysisStep textStep(@Nonnull String name, @Nonnull AnalysisStepParameter... parameters) {
+		return new AnalysisStepDescription.Text(name, values(parameters));
+	}
+
+	/**
+	 * Describes the tokenizer of any installed provider; see {@link #textStep} for what the server checks.
+	 *
+	 * @param name       stable provider name
+	 * @param parameters named evitaDB values in declaration order; array values are defensively copied, duplicate
+	 *                   names refused
+	 * @return the description, accepted where a tokenizer is
+	 */
+	@Nonnull
+	public static TokenizerAnalysisStep tokenizerStep(
+		@Nonnull String name,
+		@Nonnull AnalysisStepParameter... parameters
 	) {
+		return new AnalysisStepDescription.Tokenizer(name, values(parameters));
+	}
+
+	/**
+	 * Describes a words phase step of any installed provider; see {@link #textStep} for what the server checks.
+	 *
+	 * @param name       stable provider name
+	 * @param parameters named evitaDB values in declaration order; array values are defensively copied, duplicate
+	 *                   names refused
+	 * @return the description, accepted where a words phase step is
+	 */
+	@Nonnull
+	public static WordsAnalysisStep wordsStep(@Nonnull String name, @Nonnull AnalysisStepParameter... parameters) {
+		return new AnalysisStepDescription.Words(name, values(parameters));
+	}
+
+	/**
+	 * Describes a normalization step of any installed provider; see {@link #textStep} for what the server checks.
+	 *
+	 * @param name       stable provider name, such as `lowercase` or `ascii-folding`
+	 * @param parameters named evitaDB values in declaration order; array values are defensively copied, duplicate
+	 *                   names refused
+	 * @return the description, accepted where a normalization step is
+	 */
+	@Nonnull
+	public static NormalizingAnalysisStep normalizingStep(
+		@Nonnull String name,
+		@Nonnull AnalysisStepParameter... parameters
+	) {
+		return new AnalysisStepDescription.Normalizing(name, values(parameters));
+	}
+
+	/**
+	 * Collects parameters into the map a description holds.
+	 *
+	 * @param parameters named evitaDB values in declaration order
+	 * @return the parameters by name, in declaration order
+	 * @throws IllegalArgumentException when a parameter is null or a name repeats
+	 */
+	@Nonnull
+	private static Map<String, Serializable> values(@Nonnull AnalysisStepParameter... parameters) {
 		Assert.notNull(parameters, "Analysis parameters must not be null.");
 		final Map<String, Serializable> values = CollectionUtils.createLinkedHashMap(parameters.length);
 		for (final AnalysisStepParameter parameter : parameters) {
@@ -478,7 +539,7 @@ public final class AnalysisSteps {
 			Assert.isTrue(!values.containsKey(parameter.name()), "Duplicate analysis parameter: " + parameter.name());
 			values.put(parameter.name(), parameter.value());
 		}
-		return new AnalysisStep(name, values);
+		return values;
 	}
 
 	/**

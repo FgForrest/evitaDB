@@ -93,7 +93,8 @@ class AnalysisStepRegistryTest {
 		@DisplayName("should identify an unknown step")
 		void shouldRejectUnknownStep() {
 			assertTrue(assertThrows(EvitaInvalidUsageException.class,
-				() -> new AnalysisStepRegistry().resolve(step("absent"))).getMessage().contains("Unknown analysis step `absent`"));
+				() -> new AnalysisStepRegistry().resolve(normalizingStep("absent")))
+				.getMessage().contains("Unknown analysis step `absent`"));
 		}
 
 		/** Fulltext-only factories may be installed but cannot serve a normalization declaration. */
@@ -114,7 +115,8 @@ class AnalysisStepRegistryTest {
 				public void validate(@Nonnull Map<String, Serializable> parameters) { }
 			}));
 			assertTrue(assertThrows(EvitaInvalidUsageException.class,
-				() -> registry.resolve(step("tokenize"))).getMessage().contains("not usable as a normalizer"));
+				() -> registry.resolve(normalizingStep("tokenize"))).getMessage().contains("not usable as a normalizer")
+			);
 		}
 
 		/** Required, typed, nonempty and unknown parameters must all fail with the offending step named. */
@@ -123,11 +125,12 @@ class AnalysisStepRegistryTest {
 		void shouldRejectInvalidParameters() {
 			final AnalysisStepRegistry registry = new AnalysisStepRegistry();
 			for (final AnalysisStep description : List.of(
-				step("remove-characters"), step("remove-characters", parameter("characters", 1)),
-				step("remove-characters", parameter("characters", "")),
-				step("remove-characters", parameter("characters", "-"), parameter("extra", true)),
-				step("lowercase", parameter("locale", "tr")), step("trim", parameter("extra", true)),
-				step("ascii-folding", parameter("extra", true))
+				normalizingStep("remove-characters"), normalizingStep("remove-characters", parameter("characters", 1)),
+				normalizingStep("remove-characters", parameter("characters", "")),
+				normalizingStep("remove-characters", parameter("characters", "-"), parameter("extra", true)),
+				normalizingStep("lowercase", parameter("locale", "tr")),
+				normalizingStep("trim", parameter("extra", true)),
+				normalizingStep("ascii-folding", parameter("extra", true))
 			)) {
 				final String message = assertThrows(EvitaInvalidUsageException.class,
 					() -> registry.resolve(description)).getMessage();

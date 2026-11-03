@@ -77,7 +77,7 @@ public final class AnalysisStepConverter {
 							"Parameterless normalization step `" + step.fieldName() + "` requires `true`."
 						);
 					}
-					return new AnalysisStep(step.stepName(), Map.of());
+					return AnalysisStep.of(step.stepName(), Map.of());
 				}
 				if (!(selected.getValue() instanceof Map<?, ?> values)) {
 					throw exceptionFactory.createInvalidArgumentException("Step parameters must be a non-null object.");
@@ -98,7 +98,7 @@ public final class AnalysisStepConverter {
 						throw exceptionFactory.createInvalidArgumentException("Unknown analysis step parameter `" + name + "`.");
 					}
 				}
-				return new AnalysisStep(step.stepName(), parameters);
+				return AnalysisStep.of(step.stepName(), parameters);
 			}
 		}
 		throw exceptionFactory.createInvalidArgumentException("Unknown normalizing step input `" + selected.getKey() + "`.");

@@ -26,8 +26,9 @@ package io.evitadb.api.requestResponse.schema.builder;
 
 import io.evitadb.api.requestResponse.schema.FulltextAnalysisPhasesEditor;
 import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaEditor;
-import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.analysis.FulltextAnalysisPhases;
+import io.evitadb.api.requestResponse.schema.analysis.TextAnalysisStep;
+import io.evitadb.api.requestResponse.schema.analysis.WordsAnalysisStep;
 import io.evitadb.api.requestResponse.schema.dto.FulltextAnalyzerSchema;
 import io.evitadb.api.requestResponse.schema.dto.FulltextLanguageSchema;
 import io.evitadb.utils.Assert;
@@ -69,14 +70,14 @@ final class FulltextAnalyzerSchemaBuilder implements FulltextAnalyzerSchemaEdito
 
 	@Nonnull
 	@Override
-	public FulltextAnalyzerSchemaEditor text(@Nonnull AnalysisStep... steps) {
+	public FulltextAnalyzerSchemaEditor text(@Nonnull TextAnalysisStep... steps) {
 		this.allLanguages.text(steps);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public FulltextAnalyzerSchemaEditor words(@Nonnull AnalysisStep... steps) {
+	public FulltextAnalyzerSchemaEditor words(@Nonnull WordsAnalysisStep... steps) {
 		this.allLanguages.words(steps);
 		return this;
 	}
