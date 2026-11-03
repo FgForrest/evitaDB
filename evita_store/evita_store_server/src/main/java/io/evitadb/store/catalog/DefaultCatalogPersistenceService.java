@@ -451,6 +451,11 @@ public class DefaultCatalogPersistenceService
 	 * checkpoint can be published from another thread while a newer round is already parked: that record does not
 	 * yet supersede the newer round's files, so it must not release them.
 	 *
+	 * **The queue is ordered by round version, and the release depends on it**: it stops at the first entry whose round
+	 * is newer than the record just written. Rounds run one after another under {@link #checkpointLock} and every
+	 * retirement of a round carries that round's version, so the order holds; a caller that retired a file on behalf
+	 * of an older round after a newer one would delay its release to the next publication, never release it early.
+	 *
 	 * A round that never publishes leaves its entries parked - the next successful publication drains them, and
 	 * {@link #close()} drops them unrun once the final checkpoint has had its chance, because a file the last
 	 * published record still names must survive the process that failed to supersede it.
