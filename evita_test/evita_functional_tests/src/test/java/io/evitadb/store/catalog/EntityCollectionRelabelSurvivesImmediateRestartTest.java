@@ -101,7 +101,11 @@ class EntityCollectionRelabelSurvivesImmediateRestartTest implements EvitaTestSu
 	@AfterEach
 	void tearDown() {
 		if (this.evita != null) {
-			this.evita.close();
+			try {
+				this.evita.close();
+			} catch (RuntimeException ignored) {
+				// the cell under test may leave the engine unable to close; that must not hide its own failure
+			}
 		}
 		this.allocatedPaths.forEach(this::cleanupTestPaths);
 	}

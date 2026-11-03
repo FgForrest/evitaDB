@@ -54,7 +54,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -466,13 +469,20 @@ class CollectionRelabelChainRoundTest implements EvitaTestSupport {
 
 	@Nullable
 	private static Throwable runWithTimeout(@Nonnull Runnable action) {
+		final ExecutorService executor = Executors.newSingleThreadExecutor();
+		final Future<?> future = executor.submit(action);
 		try {
-			CompletableFuture.runAsync(action).get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+			future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
 			return null;
-		} catch (java.util.concurrent.ExecutionException ex) {
+		} catch (ExecutionException ex) {
 			return ex.getCause();
 		} catch (Exception ex) {
 			return ex;
+		} finally {
+			// a hung action must not keep running while the test goes on to reopen the same folder: interrupting
+			// is the only thing that can stop it, and a plain `CompletableFuture#cancel` never does
+			future.cancel(true);
+			executor.shutdownNow();
 		}
 	}
 

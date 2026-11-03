@@ -32,6 +32,7 @@ import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.settings.StorageSettings;
@@ -391,6 +392,12 @@ class DeferredCheckpointCompactionCrashRecoveryTest implements EvitaTestSupport 
 					.maxWasteActiveShare(1.1)
 					.fileSizeCompactionThresholdBytes(1L)
 					.minCompactionIntervalMilliseconds(0L)
+					.build()
+			)
+			// each engine its own export folder - the default one is shared and locked by whichever engine runs first
+			.export(
+				FileSystemExportOptions.builder()
+					.directory(paths.export())
 					.build()
 			)
 			.transaction(

@@ -56,7 +56,10 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -445,7 +448,9 @@ class MixedRoundRetirementOrderTest implements EvitaTestSupport {
 			case COLLECTION -> alphaCompacted && !catalogCompacted;
 			case EVERY_FILE -> catalogCompacted;
 		};
-		assertTrue(premiseHolds, compactionPremise);
+		if (!premiseHolds) {
+			problems.add("The compaction the cell is about did not happen as stated by its premise.");
+		}
 
 		// the visible state after the scenario
 		final SortedMap<String, Map<Integer, String>> expected = scenario.expected(before);
@@ -495,8 +500,11 @@ class MixedRoundRetirementOrderTest implements EvitaTestSupport {
 			expected.put(ALPHA, alpha);
 		}
 
-		// the data files of the dropped collections must eventually leave the disk
-		if (scenario.dropsCollectionFile) {
+		// the data files of the dropped collections must eventually leave the disk - but never before a bootstrap record
+		// that no longer names them is published. With no round publishing on its own, that record is written by the
+		// close, so for that checkpoint the files may only leave then, and the check after the restart below covers it;
+		// removing them earlier would delete a file the only published record still reaches.
+		if (scenario.dropsCollectionFile && checkpoint != Checkpoint.DEFERRED) {
 			assertTrue(!droppedFiles.isEmpty(), "Premise: the dropped collections own data files. " + folderBefore);
 			final Set<String> remaining = awaitFilesGone(theEvita, paths, droppedFiles);
 			if (!remaining.isEmpty()) {
@@ -624,13 +632,20 @@ class MixedRoundRetirementOrderTest implements EvitaTestSupport {
 	 */
 	@Nullable
 	private static Throwable runWithTimeout(@Nonnull Runnable action) {
+		final ExecutorService executor = Executors.newSingleThreadExecutor();
+		final Future<?> future = executor.submit(action);
 		try {
-			CompletableFuture.runAsync(action).get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+			future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
 			return null;
-		} catch (java.util.concurrent.ExecutionException ex) {
+		} catch (ExecutionException ex) {
 			return ex.getCause();
 		} catch (Exception ex) {
 			return ex;
+		} finally {
+			// a hung action must not keep running while the test goes on to reopen the same folder: interrupting
+			// is the only thing that can stop it, and a plain `CompletableFuture#cancel` never does
+			future.cancel(true);
+			executor.shutdownNow();
 		}
 	}
 
