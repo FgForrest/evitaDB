@@ -31,6 +31,8 @@ import ch.qos.logback.core.read.ListAppender;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.test.EvitaTestSupport;
@@ -47,6 +49,7 @@ import javax.annotation.Nonnull;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -219,7 +222,11 @@ class Migration_2026_3_UpgradeReportTest implements EvitaTestSupport {
 		), report.warnings());
 	}
 
-	/** A reflected reference can inherit a compound by name while it excludes one of the compound's elements. */
+	/**
+	 * A reflected reference written by 2026.2 can inherit a compound by name while it excludes one of the compound's
+	 * elements. The current engine refuses to declare that shape when the session closes, yet loads it as stored, so
+	 * the test combines the stored reflected reference with its original the way loading does instead of declaring it.
+	 */
 	@Test
 	@DisplayName("Should name only the compound elements a reflected reference inherits")
 	void shouldNameOnlyCompoundElementsTheReflectedReferenceInherits() {
@@ -229,9 +236,6 @@ class Migration_2026_3_UpgradeReportTest implements EvitaTestSupport {
 			try (final EvitaSessionContract session = evita.createReadWriteSession("compounds")) {
 				session.defineEntitySchema("brand")
 					.withLocale(Locale.ENGLISH)
-					.withReflectedReferenceToEntity(
-						"products", "product", "brand", whichIs -> whichIs.withAttributesInheritedExcept("label")
-					)
 					.updateVia(session);
 				session.defineEntitySchema("product")
 					.withLocale(Locale.ENGLISH)
@@ -246,8 +250,15 @@ class Migration_2026_3_UpgradeReportTest implements EvitaTestSupport {
 							)
 					)
 					.updateVia(session);
-				final ReferenceSchemaContract reflected =
-					session.getEntitySchemaOrThrowException("brand").getReferenceOrThrowException("products");
+				final ReferenceSchemaContract original =
+					session.getEntitySchemaOrThrowException("product").getReferenceOrThrowException("brand");
+				// everything but the name, the original and the inheritance filter is inherited from the original
+				final ReflectedReferenceSchema reflected = ReflectedReferenceSchema._internalBuild(
+					"products", null, null, "product", "brand", null,
+					null, null, null, null, null, null,
+					Collections.emptyMap(), Collections.emptyMap(),
+					AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT, new String[]{"label"}
+				).withReferencedSchema(original);
 				assertTrue(reflected.getSortableAttributeCompounds().containsKey("validityLabel"));
 				assertFalse(reflected.getAttributes().containsKey("label"));
 				final Set<String> affected = new TreeSet<>();

@@ -1191,8 +1191,9 @@ public interface Migration_2026_3 {
 	 * every text component by its locale's collator when any component is localized. Decimal FILTERs may retain
 	 * bounds folded by 2026.1 or older, even in a catalog later written by 2026.2. No scan reads entity data.
 	 *
-	 * Visible to tests: it runs after the upgrade is published, so it must hold up against every schema shape the
-	 * engine accepts, including a reflected reference whose attributes and compounds pass separate inheritance filters.
+	 * Visible to tests: it runs after the upgrade is published, so it must hold up against every schema shape a release
+	 * catalog can hold, including a reflected reference written by 2026.2 that inherits a compound without all of its
+	 * attributes - the current engine refuses to declare that shape, but loads it as stored.
 	 *
 	 * @param attributes the attributes of the entity or of one of its references, by name
 	 * @param compounds  the sortable attribute compounds over those attributes, by name
@@ -1230,7 +1231,8 @@ public interface Migration_2026_3 {
 			if (scopes.stream().noneMatch(compound::isIndexedInScope)) {
 				continue;
 			}
-			// a reflected reference may inherit a compound without one of its elements, which then holds no value here
+			// a reflected reference written by 2026.2 may inherit a compound without one of its elements, which then
+			// holds no value here
 			final List<? extends AttributeSchemaContract> components = compound.getAttributeElements().stream()
 				.map(element -> attributes.get(element.attributeName())).filter(Objects::nonNull).toList();
 			final boolean localized = components.stream().anyMatch(AttributeSchemaContract::isLocalized);
