@@ -55,7 +55,6 @@ import static io.evitadb.test.TestTags.EXPORT;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.MANAGEMENT;
-import static io.evitadb.test.TestTags.SLOW;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -90,7 +89,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(EXTERNAL_API)
 @Tag(MANAGEMENT)
 @Tag(EXPORT)
-@Tag(SLOW)
 public class LongRunningEvitaClientLargeFileDownloadTest {
 	private static final String DATA_SET = "GrpcLargeFileDownload";
 	/**

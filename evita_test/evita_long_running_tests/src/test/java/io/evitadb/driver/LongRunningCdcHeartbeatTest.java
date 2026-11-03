@@ -65,7 +65,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static io.evitadb.test.TestTags.SLOW;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -81,7 +80,6 @@ import static io.evitadb.test.TestTags.CDC;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Slf4j
-@Tag(SLOW)
 @Disabled("Long-running test - enable manually when needed")
 @DisplayName("Long-running CDC heartbeat tests")
 @Tag(DRIVER)

@@ -1044,6 +1044,9 @@ public final class Catalog
 		// internal schema is expected to be produced on the server side
 		final CatalogSchema originalSchema = getInternalSchema();
 		final AtomicReference<MutationApplicationRecord> record = new AtomicReference<>();
+		final Optional<Transaction> transactionRef = Transaction.getTransaction();
+		// whether a mutation of the batch reached the transaction, which cannot take it back
+		boolean mutationRegistered = false;
 		// collect entity types whose cross-entity trigger registry must be rebuilt, deferring
 		// the rebuild until the entire batch is applied — intermediate states may be transiently
 		// inconsistent (e.g. entity B declares a histogram referencing an attribute on entity A
@@ -1055,20 +1058,17 @@ public final class Catalog
 		final Deque<Set<String>> rebuildStack = PENDING_TRIGGER_REBUILDS.get();
 		final Set<String> rebuildFrame = new LazyHashSet<>(4);
 		rebuildStack.push(rebuildFrame);
-		// whether a mutation of the batch reached the transaction, which cannot take it back
-		boolean mutationRegistered = false;
 		try {
 			// refuse the whole batch before a single schema is exchanged - see the method's own documentation for why
 			// a mid-cascade refusal cannot be undone
 			verifyEntitySchemaMutationsApplicable(schemaMutation);
-			final Transaction transaction = Transaction.getTransaction().orElse(null);
+			final Transaction transaction = transactionRef.orElse(null);
 			CatalogSchema currentSchema = originalSchema;
 			CatalogSchemaContract updatedSchema = originalSchema;
 			for (LocalCatalogSchemaMutation theMutation : schemaMutation) {
-				if (transaction != null) {
-					transaction.registerMutation(theMutation);
-					mutationRegistered = true;
-				}
+				// Registration may append WAL continuation frames before serialization fails.
+				mutationRegistered = true;
+				transactionRef.ifPresent(it -> it.registerMutation(theMutation));
 				ModifyEntitySchemaMutation[] cascadedMutations = null;
 
 				// record the mutation
@@ -1113,9 +1113,10 @@ public final class Catalog
 					cascadedMutations = schemaWithImpactOnEntitySchemas.entitySchemaMutations();
 				}
 
-				// finish the recording
+				// finish the recording; forget it so that a failure after this mutation cannot record it again
 				if (sessionId != null) {
 					record.get().finish();
+					record.set(null);
 				}
 
 				// exchange the current catalog schema so that additional entity schema mutations can take advantage of
@@ -1137,14 +1138,19 @@ public final class Catalog
 			// validation failure (e.g. a histogram value expression referencing a missing
 			// attribute) propagates into the revert branch just like an eager rebuild would
 			drainTriggerRebuildFrame(rebuildFrame);
-		} catch (RuntimeException ex) {
-			// revert all changes in the schema (for current transaction) if anything failed
-			this.schema.set(new CatalogSchemaDecorator(originalSchema));
-			// the mutations the transaction already holds - the failing one included, and the cascades and entity
-			// schemas applied before it - stay in it, so committing it would write a batch its replay refuses again
-			if (mutationRegistered) {
-				Transaction.getTransaction().ifPresent(it -> it.setRollbackOnlyWithException(ex));
+			// store the updated catalog schema inside the try, so that a failed write is handled like any refusal
+			final CatalogSchema schemaToStore = getInternalSchema();
+			if (schemaToStore.version() > originalSchema.version()) {
+				this.dataStoreBuffer.update(getVersion(), new CatalogSchemaStoragePart(schemaToStore));
 			}
+		} catch (RuntimeException | Error ex) {
+			// Earlier collection changes cannot be undone here, and registered mutations must not reach the shared WAL.
+			// A preflight refusal remains recoverable unless an enclosing batch already registered its parent mutation.
+			if (mutationRegistered) {
+				transactionRef.ifPresent(it -> it.setRollbackOnlyWithException(ex));
+			}
+			// Restore the catalog schema; collection changes may remain until the transaction rolls back.
+			this.schema.set(new CatalogSchemaDecorator(originalSchema));
 
 			// finish the recording with error
 			final MutationApplicationRecord recording = record.get();
@@ -1161,11 +1167,6 @@ public final class Catalog
 			rebuildStack.pop();
 			if (rebuildStack.isEmpty()) {
 				PENDING_TRIGGER_REBUILDS.remove();
-			}
-			// finally, store the updated catalog schema to disk
-			final CatalogSchema currentSchema = getInternalSchema();
-			if (currentSchema.version() > originalSchema.version()) {
-				this.dataStoreBuffer.update(getVersion(), new CatalogSchemaStoragePart(currentSchema));
 			}
 		}
 		return getSchema();
@@ -3548,7 +3549,9 @@ public final class Catalog
 
 	/**
 	 * Preflights every {@link ModifyEntitySchemaMutation} in a batch against the collection it targets, so that a
-	 * refusal is raised **before** any schema is exchanged.
+	 * refusal is raised **before** any schema is exchanged. It also runs before any mutation of the batch is
+	 * registered with the transaction, so its refusal leaves the transaction usable - unless an enclosing batch has
+	 * already registered the catalog mutation that fanned out into this one.
 	 *
 	 * The problem this solves is failure atomicity, not validation coverage. A catalog-level change to a global
 	 * attribute fans out into one entity mutation per consuming collection, and the loop below applies them one at a

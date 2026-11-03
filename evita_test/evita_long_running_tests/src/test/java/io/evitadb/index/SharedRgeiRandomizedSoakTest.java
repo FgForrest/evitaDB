@@ -75,7 +75,6 @@ import static io.evitadb.api.query.QueryConstraints.page;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_LABELS;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES;
@@ -123,7 +122,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 @Tag(INDEXING)
 @Tag(REFERENCE)
 @Tag(TRANSACTION)
-@Tag(SLOW)
 @DisplayName("Shared ReducedGroupEntityIndex randomized soak — time-bounded reload cliff edge")
 class SharedRgeiRandomizedSoakTest implements EvitaTestSupport, TimeBoundedTestSupport {
 
@@ -176,7 +174,6 @@ class SharedRgeiRandomizedSoakTest implements EvitaTestSupport, TimeBoundedTestS
 	 * @param input the generational test input supplied by {@link TimeArgumentProvider} (duration + seed)
 	 */
 	@ParameterizedTest(name = "Shared RGEI commit+reload survives randomized seeds within the time budget")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void shouldSurviveRandomizedSeedsUnderTimeBudget(@Nonnull final GenerationalTestInput input) {
 		runFor(

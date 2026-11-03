@@ -6,7 +6,7 @@
 Every number below was produced by running that report (and, for the read-path rows, the unit-level probe described
 in §4). When the sort index's first-touch path changes, re-run and update this document so the two never drift
 apart. The flat-scaling property the numbers demonstrate is guarded automatically by
-`SortIndexRankScalingTest` in `evita_functional_tests`.
+`LongRunningSortIndexRankScalingTest` in `evita_long_running_tests`.
 
 ## Why this report exists
 
@@ -74,7 +74,7 @@ at 0.079 ms is the true steady state. Steady-state reads are not regressed.
 
 ## The automated guard, and proof that it works
 
-`SortIndexRankScalingTest` (functional suite, tagged `slow`) measures first-touch write and read cost at 50 000 and
+`LongRunningSortIndexRankScalingTest` (long-running suite) measures first-touch write and read cost at 50 000 and
 200 000 distinct values inside one JVM and asserts the growth ratio stays below `3.0x`. A **ratio** is asserted
 rather than a duration so the test is independent of machine speed and CI load.
 

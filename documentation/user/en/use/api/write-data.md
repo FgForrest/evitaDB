@@ -109,9 +109,13 @@ update is wrapped into a *transaction* that meets
 [the snapshot isolation level](https://en.wikipedia.org/wiki/Snapshot_isolation). More details about transaction
 handling is in [separate chapter](../../deep-dive/transactions.md).
 
-In this phase each entity write is additionally **atomic on its own**: if a single `upsertEntity` / `deleteEntity`
-fails part-way through (for example on a unique-constraint violation), only that entity's partial changes are reverted
-and the rest of the transaction stays valid, so the client may catch the error and keep writing before committing. See
+In this phase each ordinary entity write is additionally **atomic on its own**: if a single `upsertEntity` /
+`deleteEntity` fails part-way through (for example on a unique-constraint violation), only that entity's partial changes
+are reverted and the rest of the transaction stays valid, so the client may catch the error and keep writing before
+committing. An entity write may also create a collection automatically or evolve its schema implicitly. If that schema
+change fails, the whole transaction may become rollback-only: when `isRollbackOnly()` returns `true`, closing the
+session rolls back all its changes and throws a `RollbackException` with the failure as its cause, and the client must
+retry the whole transaction in a new session. See
 [Atomicity of individual entity mutations](../../deep-dive/transactions.md#atomicity-of-individual-entity-mutations).
 
 ## Model characteristics

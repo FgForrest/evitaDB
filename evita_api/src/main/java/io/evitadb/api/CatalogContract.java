@@ -109,14 +109,16 @@ public interface CatalogContract {
 	 * Updates the internal schema based on the provided schema mutations. This method processes a series of
 	 * {@link LocalCatalogSchemaMutation} objects to modify the current catalog schema, handling different types
 	 * of schema mutations including entity schema creation, removal, modification, and renaming. It registers
-	 * mutations with an active transaction if available, applies schema modifications, and ensures persistence
-	 * and proper rollback in the event of an error.
+	 * mutations with an active transaction if available, applies schema modifications, and ensures persistence.
+	 *
+	 * A failure restores the catalog schema but cannot undo changes already applied to entity collections. Once the
+	 * call has started registering its mutations with the active transaction, a failure therefore marks that
+	 * transaction rollback-only with the failure as its cause, so none of its changes are committed. A refusal raised
+	 * before the first registration, such as the up-front check of the whole batch, leaves the transaction untouched.
 	 *
 	 * The entity schema changes a catalog mutation cascades into - such as the removal of a global attribute from every
 	 * entity schema using it - are applied right after that mutation, before the mutations that follow it, the way the
-	 * replay of the WAL applies them. A failure after a mutation of the batch has been registered with the active
-	 * transaction marks that transaction rollback-only: a caller that catches the exception and carries on cannot
-	 * commit it, and the transaction is rolled back when it closes.
+	 * replay of the WAL applies them.
 	 *
 	 * @param sessionId an optional session ID that can be used to register the mutations with an active session
 	 * @param schemaMutation an array of {@link LocalCatalogSchemaMutation} objects that specify the mutations

@@ -1,7 +1,7 @@
 ---
 title: Schema builders drop the mutations that leave their level of the schema unchanged, judged by value at toMutation()
 date: 2026-10-31
-updated: 2026-11-02 14:20
+updated: 2026-11-03 11:13
 status: accepted
 kind: fix
 issues: [1837, 1843, 1845, 1846, 1847, 1848, 1849, 1850, 1851, 1852, 1853, 1854, 1855, 1856, 1857, 1858, 1859, 1860, 1861, 1862, 1863, 1864, 1865, 1868, 1869, 1870]
@@ -282,8 +282,10 @@ issue and commit.
   re-creation turned a global attribute replaced with a local one into changes of the global one's properties, and
   threw when the removed attribute was absent from the builder's entity schema - both keep the two mutations now;
   and a failed schema update left the mutations it had registered in the transaction, so a session catching the
-  error and committing wrote a batch its replay refused - the transaction is marked rollback-only now, which also
-  closes #1837, the same failure raised by the rebinding of a reflected reference.
+  error and committing wrote a batch its replay refused - the transaction is marked rollback-only now. #1841 fixed
+  the same failure raised by the rebinding of a reflected reference (#1837) on `dev` in parallel; the merge kept its
+  version, which raises the flag already before the registration, because one failing part-way may have written to
+  the WAL.
 - **Attribute rename** (#1864): the `replaceAttributeIfDifferent` helpers of the global, entity and reference
   attribute mutations took the existing attribute out by the name of the updated one, so a rename added a copy next
   to the original - which is why a change of the old name after a rename passed the #1861 batches. They take it out
@@ -577,3 +579,5 @@ analyzer and the builders until they upgrade.
   quality gates, filed and fixed in #1844
 - **2026-11-02** — the quality gates over the #1869 fix found #1870 (equal array default values rebuilt the
   attribute), filed and fixed in #1844
+- **2026-11-03** — `dev` merged with #1841, which had closed #1837 with its own rollback-only mark; the merge keeps
+  that mark and the cascades applied right after their mutation

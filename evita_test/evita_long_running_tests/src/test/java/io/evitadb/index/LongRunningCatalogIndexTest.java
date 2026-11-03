@@ -49,7 +49,6 @@ import java.util.Random;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
@@ -191,7 +190,6 @@ class LongRunningCatalogIndexTest implements TimeBoundedTestSupport {
 		int nextRecordId
 	) {}
 
-	@Tag(SLOW)
 	@DisplayName(
 		"should match reference implementation across random generations"
 	)
@@ -364,7 +362,6 @@ class LongRunningCatalogIndexTest implements TimeBoundedTestSupport {
 	 * mutation inside a transaction that is then rolled back, and asserts the base index is unchanged and no committed
 	 * value was published.
 	 */
-	@Tag(SLOW)
 	@Tag(TRANSACTION)
 	@DisplayName(
 		"rollback discards every in-transaction unique-attribute mutation and leaves the base intact"

@@ -109,9 +109,9 @@ Every generational test:
 2. Is named `LongRunning<StructureName>Test` (e.g. `LongRunningPersistentTransactionalMapTest`) and the class
    `implements TimeBoundedTestSupport`.
 3. Carries the required **layer + capability** class-level tags (e.g. `@Tag(INDEXING) @Tag(DATA_TYPE) @Tag(TRANSACTION)`).
-4. Declares the proof as a `@ParameterizedTest(name = "…")` annotated with the **cost tag `@Tag(SLOW)`** (there is
-   no `LONG_RUNNING_TEST` tag — `SLOW` is what excludes the test from the fast suite) and
-   `@ArgumentsSource(TimeArgumentProvider.class)`.
+4. Declares the proof as a `@ParameterizedTest(name = "…")` annotated with
+   `@ArgumentsSource(TimeArgumentProvider.class)`. It carries no cost tag: the module it lives in is what keeps it
+   out of the fast suite.
 5. Accepts a `@Nonnull GenerationalTestInput input` carrying `intervalInSeconds` (default 30) and `randomSeed`.
 
 ```java
@@ -123,7 +123,6 @@ class LongRunningPersistentTransactionalMapTest implements TimeBoundedTestSuppor
 
 @DisplayName("survives generational randomized test applying modifications on it")
 @ParameterizedTest(name = "PersistentTransactionalMap should survive generational randomized test applying modifications on it")
-@Tag(SLOW)
 @ArgumentsSource(TimeArgumentProvider.class)
 void generationalProofTest(@Nonnull GenerationalTestInput input) {
     final Map<String, Integer> initialState = generateRandomInitialMap(
@@ -304,9 +303,9 @@ assertThrows(StaleTransactionMemoryException.class, () -> {
 
 ## Running generational tests
 
-Generational tests live in the `evita_test/evita_long_running_tests` module (whose surefire config sets
-`skipTests=true` by default) and each proof method is tagged `@Tag(SLOW)` — so they are excluded from the
-normal fast run on two counts. There is no `LONG_RUNNING_TEST` tag; `SLOW` is the cost tag that gates them.
+Generational tests live in the `evita_test/evita_long_running_tests` module, whose surefire config sets
+`skipTests=true` by default, so they are excluded from the normal fast run. Only the `longRunning` profile runs
+the module, as a whole.
 
 **Maven:**
 ```
@@ -327,4 +326,4 @@ quotient is the floor of the weekly `All tests including long-running` CI job. A
 costs every weekly run its budget; each run draws a fresh seed, so breadth accumulates week by week.
 
 **IntelliJ IDEA:**
-Run the `LongRunning…Test` class directly, or select the `SLOW`-tagged method in your JUnit run configuration.
+Run the `LongRunning…Test` class or method directly.

@@ -52,7 +52,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
@@ -106,7 +105,6 @@ class LongRunningReducedEntityIndexTest implements TimeBoundedTestSupport {
 
 	@DisplayName("survives generational randomized test")
 	@ParameterizedTest(name = "ReducedEntityIndex should survive generational randomized test")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
 		final EntitySchemaContract schema = createEvolvingSchema();
@@ -162,7 +160,6 @@ class LongRunningReducedEntityIndexTest implements TimeBoundedTestSupport {
 	@ParameterizedTest(
 		name = "ReducedEntityIndex rollback discards every in-transaction mutation and leaves the base intact"
 	)
-	@Tag(SLOW)
 	@Tag(TRANSACTION)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalRollbackProofTest(GenerationalTestInput input) {

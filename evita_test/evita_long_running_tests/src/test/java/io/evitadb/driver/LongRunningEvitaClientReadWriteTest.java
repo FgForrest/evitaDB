@@ -97,7 +97,6 @@ import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.DRIVER;
 import static io.evitadb.test.TestTags.MANAGEMENT;
-import static io.evitadb.test.TestTags.SLOW;
 
 /**
  * This test verifies behavior of {@link EvitaClient}.
@@ -771,7 +770,6 @@ class LongRunningEvitaClientReadWriteTest implements TestConstants, EvitaTestSup
 	}
 
 	@Test
-	@Tag(SLOW)
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldReceiveHeartbeatAtRegularIntervals(EvitaClient evitaClient) throws InterruptedException {
 		final String testCatalogName = "testCatalogForHeartbeat";

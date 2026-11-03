@@ -526,7 +526,10 @@
 		</profile>
 		<profile>
 			<!--
-				Default fast-loop profile: runs everything that is not slow/flaky.
+				Default fast-loop profile: runs every test of the reactor modules that do
+				not skip their own. Slow tests are not tagged; they live in
+				`evita_test/evita_long_running_tests`, whose tests run only under the
+				`longRunning` profile.
 				The documentation tests live in their own module
 				(`evita_test/evita_documentation_tests`) and are skipped by default
 				there, so no path-based exclusion is needed here. With the new tag
@@ -540,7 +543,6 @@
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
-							<excludedGroups>slow,flaky</excludedGroups>
 							<parallel>all</parallel>
 							<useUnlimitedThreads>${surefire.useUnlimitedThreads}</useUnlimitedThreads>
 							<threadCount>${surefire.threadCount}</threadCount>
@@ -557,7 +559,6 @@
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
-							<excludedGroups>slow,flaky</excludedGroups>
 							<parallel>all</parallel>
 							<useUnlimitedThreads>${surefire.useUnlimitedThreads}</useUnlimitedThreads>
 							<threadCount>${surefire.threadCount}</threadCount>

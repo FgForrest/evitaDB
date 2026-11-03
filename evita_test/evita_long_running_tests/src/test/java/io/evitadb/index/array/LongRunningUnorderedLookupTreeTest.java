@@ -42,7 +42,6 @@ import java.util.Random;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -106,7 +105,6 @@ class LongRunningUnorderedLookupTreeTest implements TimeBoundedTestSupport {
 
 	@DisplayName("survives generational randomized insert/remove applied directly")
 	@ParameterizedTest(name = "UnorderedLookupTree should survive generational randomized modifications applied directly")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(@Nonnull GenerationalTestInput input) {
 		final TreeWithIndex tested = new TreeWithIndex(new UnorderedLookupTree());
@@ -147,7 +145,6 @@ class LongRunningUnorderedLookupTreeTest implements TimeBoundedTestSupport {
 
 	@DisplayName("survives generational randomized insert/remove committed transactionally")
 	@ParameterizedTest(name = "UnorderedLookupTree should survive generational randomized modifications committed transactionally")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalTransactionalProofTest(@Nonnull GenerationalTestInput input) {
 		final int[] nextRecordId = {1};

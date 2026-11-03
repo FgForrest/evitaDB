@@ -44,7 +44,6 @@ import java.util.TreeMap;
 import static io.evitadb.test.TestTags.COMPARATOR;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.DATA_TYPE;
-import static io.evitadb.test.TestTags.SLOW;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -74,7 +73,6 @@ class LongRunningCumulativeWeightBPlusTreeTest implements TimeBoundedTestSupport
 	private static final int KEY_SPACE = LIMIT << 1;
 
 	@ParameterizedTest(name = "survives generational randomized insert/remove/update under the natural order")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("survives randomized operations (natural order)")
 	void generationalProofTest(@Nonnull GenerationalTestInput input) {
@@ -82,7 +80,6 @@ class LongRunningCumulativeWeightBPlusTreeTest implements TimeBoundedTestSupport
 	}
 
 	@ParameterizedTest(name = "survives generational randomized insert/remove/update under a reverse comparator")
-	@Tag(SLOW)
 	@Tag(COMPARATOR)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("survives randomized operations (reverse comparator)")
