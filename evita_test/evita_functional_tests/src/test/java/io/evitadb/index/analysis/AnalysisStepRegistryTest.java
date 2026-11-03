@@ -250,7 +250,7 @@ class AnalysisStepRegistryTest {
 	@DisplayName("should remove code points rather than UTF-16 units")
 	void shouldRemoveCodePoints() {
 		final StringNormalizationStep operation = new RemoveCharactersAnalysisStepFactory().create(
-			Map.of("characters", "😀😀"), null);
+			Map.of("characters", "😀😀"), (Locale) null);
 		assertEquals("😁", operation.apply("😀😁😀"));
 		final String unchanged = new String("😁");
 		assertSame(unchanged, operation.apply(unchanged));

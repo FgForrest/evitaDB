@@ -24,7 +24,6 @@
 
 package io.evitadb.index.fulltext.analysis;
 
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.CollectionUtils;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -35,7 +34,6 @@ import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.WordlistLoader;
 import org.apache.lucene.analysis.cz.CzechAnalyzer;
 import org.apache.lucene.analysis.de.GermanAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
@@ -47,11 +45,6 @@ import org.tartarus.snowball.ext.RomanianStemmer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
@@ -204,9 +197,13 @@ public class BuiltInAnalyzers {
 		entry(ENGLISH_SEARCH_ANALYZER_NAME, searchTime(EnglishAnalyzer::new, EnglishAnalyzer::getDefaultStopSet)),
 		entry(GERMAN_ANALYZER_NAME, indexChain(GermanAnalyzer::new, GermanAnalyzer::getDefaultStopSet)),
 		entry(GERMAN_SEARCH_ANALYZER_NAME, searchTime(GermanAnalyzer::new, GermanAnalyzer::getDefaultStopSet)),
-		entry(POLISH_ANALYZER_NAME, indexChain(BuiltInAnalyzers::polishIndexChain, () -> PolishStopWords.SET)),
 		entry(
-			POLISH_SEARCH_ANALYZER_NAME, searchTime(BuiltInAnalyzers::polishSearchChain, () -> PolishStopWords.SET)
+			POLISH_ANALYZER_NAME,
+			indexChain(BuiltInAnalyzers::polishIndexChain, () -> BuiltInFulltextResources.PolishStopWords.SET)
+		),
+		entry(
+			POLISH_SEARCH_ANALYZER_NAME,
+			searchTime(BuiltInAnalyzers::polishSearchChain, () -> BuiltInFulltextResources.PolishStopWords.SET)
 		),
 		entry(SLOVAK_ANALYZER_NAME, indexChain(BuiltInAnalyzers::slovakIndexChain, null)),
 		entry(SLOVAK_SEARCH_ANALYZER_NAME, searchTime(BuiltInAnalyzers::slovakSearchChain, null)),
@@ -375,9 +372,10 @@ public class BuiltInAnalyzers {
 	 * Builds the Polish index chain: tokenize, lowercase, drop stop words, stem the accented text with the
 	 * vendored Snowball stemmer, then fold diacritics.
 	 *
-	 * Note that the stop set is evitaDB's own copy of Lucene's Polish list — see {@link PolishStopWords} — and
-	 * that Lucene's `PolishAnalyzer` is not used at all: its Stempel stemmer is a statistical trie with no rule
-	 * table, over which the query side's variant fan-out cannot be constructed.
+	 * Note that the stop set is evitaDB's own copy of Lucene's Polish list — see
+	 * {@link BuiltInFulltextResources.PolishStopWords} — and that Lucene's `PolishAnalyzer` is not used at all: its
+	 * Stempel stemmer is a statistical trie with no rule table, over which the query side's variant fan-out cannot be
+	 * constructed.
 	 *
 	 * @return the Lucene chain
 	 */
@@ -388,7 +386,7 @@ public class BuiltInAnalyzers {
 			protected TokenStreamComponents createComponents(String fieldName) {
 				final Tokenizer source = new StandardTokenizer();
 				TokenStream stream = new StopFilter(
-					new LowerCaseFilter(source), PolishStopWords.SET
+					new LowerCaseFilter(source), BuiltInFulltextResources.PolishStopWords.SET
 				);
 				stream = new SnowballFilter(stream, new PolishSnowballStemmer());
 				stream = new ASCIIFoldingFilter(stream);
@@ -415,7 +413,7 @@ public class BuiltInAnalyzers {
 			protected TokenStreamComponents createComponents(String fieldName) {
 				final Tokenizer source = new StandardTokenizer();
 				TokenStream stream = new StopFilter(
-					new LowerCaseFilter(source), PolishStopWords.SET
+					new LowerCaseFilter(source), BuiltInFulltextResources.PolishStopWords.SET
 				);
 				stream = new ASCIIFoldingFilter(stream);
 				stream = new VariantStemFilter(stream, new PolishVariantStemmer());
@@ -573,62 +571,6 @@ public class BuiltInAnalyzers {
 		@Nullable Supplier<CharArraySet> stopWords
 	) {
 		return new BuiltInAnalyzer(factory, stopWords);
-	}
-
-	/**
-	 * The Polish stop-word list, loaded from an evitaDB resource the first time a Polish chain is built.
-	 *
-	 * Held in its own class purely for that laziness: a nested class's static initializer runs when the class
-	 * is first touched, not when {@link BuiltInAnalyzers} is, which is the same idiom Lucene's own analyzers
-	 * use for their defaults.
-	 *
-	 * **Why a copy rather than `PolishAnalyzer.getDefaultStopSet()`.** That call looks free and is not: the
-	 * `DefaultsHolder` behind it loads the 2.2 MB Stempel stemmer table in the same static block, and Stempel
-	 * is not used here at all — the index side stems with {@link PolishSnowballStemmer}, whose rule table is
-	 * what the query-side variant fan-out is built over. Copying 1.2 kB of word list removed the entire
-	 * `lucene-analysis-stempel` dependency. The resource is Lucene's file verbatim, header included; its
-	 * provenance and licence (carrot2, BSD) are recorded in `evita_engine/NOTICE`.
-	 *
-	 * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
-	 */
-	private static final class PolishStopWords {
-
-		/**
-		 * Name of the stop-word resource, which sits next to this class.
-		 */
-		private static final String RESOURCE_NAME = "polish-stopwords.txt";
-		/**
-		 * The stop words, unmodifiable. Never empty: a missing or unreadable resource is a packaging error and
-		 * fails loudly rather than silently turning stop-word removal off.
-		 */
-		static final CharArraySet SET;
-
-		static {
-			try (final InputStream stream = BuiltInAnalyzers.class.getResourceAsStream(RESOURCE_NAME)) {
-				if (stream == null) {
-					throw new GenericEvitaInternalError(
-						"Polish stop-word resource `" + RESOURCE_NAME + "` is missing from the evita_engine " +
-							"artifact - the build is packaged incorrectly."
-					);
-				}
-				SET = CharArraySet.unmodifiableSet(
-					WordlistLoader.getWordSet(
-						new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8)), "#"
-					)
-				);
-			} catch (IOException e) {
-				throw new GenericEvitaInternalError(
-					"Failed to read the Polish stop-word resource `" + RESOURCE_NAME + "`: " + e.getMessage(),
-					"Failed to read the Polish stop-word resource.",
-					e
-				);
-			}
-		}
-
-		private PolishStopWords() {
-			// this class only holds the loaded set
-		}
-
 	}
 
 	/**

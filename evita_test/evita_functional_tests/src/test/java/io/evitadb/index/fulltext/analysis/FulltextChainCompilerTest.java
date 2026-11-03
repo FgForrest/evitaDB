@@ -42,7 +42,6 @@ import io.evitadb.spi.analysis.FulltextWordsAnalysisStepFactory;
 import org.apache.lucene.analysis.FilteringTokenFilter;
 import org.apache.lucene.analysis.charfilter.MappingCharFilter;
 import org.apache.lucene.analysis.charfilter.NormalizeCharMap;
-import org.apache.lucene.analysis.cz.CzechAnalyzer;
 import org.apache.lucene.analysis.pattern.PatternReplaceFilter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -161,6 +160,53 @@ class FulltextChainCompilerTest {
 					FulltextChainCompilerTest.this.analyzerRegistry.getSearchAnalyzer("product", CZECH);
 				for (final String text : samples()) {
 					assertEquals(terms(reference, text), terms(compiled, text), text);
+				}
+			}
+		}
+	}
+
+	/**
+	 * The lines of `text` for the other built-in languages against today's chains of those languages. Today's index
+	 * chains strip markup; the samples hold none, and on such text the strip changes nothing.
+	 */
+	@Nested
+	@DisplayName("Golden output of the other languages")
+	class LanguageGoldenOutput {
+
+		/** Each line produces the index terms of today's chain of its language. */
+		@Test
+		@DisplayName("should produce today's index terms")
+		void shouldProduceTodaysIndexTerms() {
+			for (final LanguageLine line : LanguageLine.values()) {
+				try (
+					final FulltextAnalyzer compiled = compile(
+						line.words, FulltextAnalysisSide.INDEX, BuiltInFulltextResources.getResources(), line.locale
+					)
+				) {
+					final FulltextAnalyzer reference =
+						FulltextChainCompilerTest.this.analyzerRegistry.getIndexAnalyzerByName(line.indexAnalyzer);
+					for (final String text : line.samples()) {
+						assertEquals(terms(reference, text), terms(compiled, text), line + ": " + text);
+					}
+				}
+			}
+		}
+
+		/** Each line produces the query terms of today's `*-search` chain of its language. */
+		@Test
+		@DisplayName("should produce today's query terms")
+		void shouldProduceTodaysQueryTerms() {
+			for (final LanguageLine line : LanguageLine.values()) {
+				try (
+					final FulltextAnalyzer compiled = compile(
+						line.words, FulltextAnalysisSide.QUERY, BuiltInFulltextResources.getResources(), line.locale
+					)
+				) {
+					final FulltextAnalyzer reference =
+						FulltextChainCompilerTest.this.analyzerRegistry.getSearchAnalyzer("product", line.locale);
+					for (final String text : line.samples()) {
+						assertEquals(terms(reference, text), terms(compiled, text), line + ": " + text);
+					}
 				}
 			}
 		}
@@ -735,24 +781,40 @@ class FulltextChainCompilerTest {
 		@Nonnull FulltextAnalysisSide side,
 		@Nonnull Map<String, FulltextResourceContent> resources
 	) {
+		return compile(words, side, resources, CZECH);
+	}
+
+	/**
+	 * Compiles a chain over the standard tokenizer for a locale and wraps it the way the registry wraps today's
+	 * chains.
+	 *
+	 * @param words     the words phase
+	 * @param side      the side to compile
+	 * @param resources the resources the steps may name
+	 * @param locale    the locale the chain is built for
+	 * @return the wrapped chain, to be closed by the caller
+	 */
+	@Nonnull
+	private FulltextAnalyzer compile(
+		@Nonnull List<AnalysisStep> words,
+		@Nonnull FulltextAnalysisSide side,
+		@Nonnull Map<String, FulltextResourceContent> resources,
+		@Nonnull Locale locale
+	) {
 		return new FulltextAnalyzer(
 			"text",
-			this.compiler.compile(List.of(), SPLITTING, words, side, new FulltextAnalysisContext(CZECH, resources))
+			this.compiler.compile(List.of(), SPLITTING, words, side, new FulltextAnalysisContext(locale, resources))
 		);
 	}
 
 	/**
-	 * Returns the built-in Czech stop list as the resource `czech-stop-words`.
+	 * Returns the built-in resources the engine serves, the Czech stop list `czech-stop-words` among them.
 	 *
-	 * @return the resources of the Czech line
+	 * @return the resources of the built-in lines
 	 */
 	@Nonnull
 	private static Map<String, FulltextResourceContent> czechResources() {
-		final List<String> words = new ArrayList<>(CzechAnalyzer.getDefaultStopSet().size());
-		for (final Object word : CzechAnalyzer.getDefaultStopSet()) {
-			words.add(new String((char[]) word));
-		}
-		return Map.of(CZECH_STOP_WORDS, new WordList(words));
+		return BuiltInFulltextResources.getResources();
 	}
 
 	/**
@@ -829,5 +891,103 @@ class FulltextChainCompilerTest {
 	@Nonnull
 	private static List<String> termsAndIncrements(@Nonnull FulltextAnalyzer analyzer, @Nonnull String text) {
 		return analyzer.getTerms(text).stream().map(term -> term.term() + "+" + term.positionIncrement()).toList();
+	}
+
+	/**
+	 * The words phase of the built-in `text` analyzer in each built-in language but Czech, with the name of today's
+	 * index chain of the language and the texts to compare the two on.
+	 */
+	private enum LanguageLine {
+		SLOVAK(
+			"sk", BuiltInAnalyzers.SLOVAK_ANALYZER_NAME, List.of(lowercase(), slovakStemming()),
+			SlovakAnalysisFixture.VOCABULARY,
+			"Pánske kožené topánky a dámska obuv, veľkosť 42 - výpredaj!",
+			"ŽLTÝ kabát pre DETI; paradajky v záhradných kvetináčoch, iPhone15 a USB-C kábel"
+		),
+		POLISH(
+			"pl", BuiltInAnalyzers.POLISH_ANALYZER_NAME,
+			List.of(lowercase(), stopWords(polishStopWords()), polishStemming()),
+			PolishAnalysisFixture.VOCABULARY,
+			"Męskie skórzane buty i damskie obuwie, rozmiar 42 - wyprzedaż!",
+			"Żółty płaszcz dla DZIECI; pomidory w ogrodowych doniczkach, iPhone15 i kabel USB-C"
+		),
+		ROMANIAN(
+			"ro", BuiltInAnalyzers.ROMANIAN_ANALYZER_NAME,
+			List.of(lowercase(), romanianNormalization(), stopWords(romanianStopWords()), romanianStemming()),
+			RomanianAnalysisFixture.VOCABULARY,
+			"Pantofi din piele pentru bărbați și încălțăminte pentru femei, mărimea 42!",
+			"Paltonul GALBEN pentru copii; roşii în grădină şi ţările vecine, iPhone15 şi cablu USB-C"
+		),
+		ENGLISH(
+			"en", BuiltInAnalyzers.ENGLISH_ANALYZER_NAME,
+			List.of(englishPossessive(), lowercase(), stopWords(englishStopWords()), englishStemming()),
+			List.of(),
+			"John's running shoes and the women's boots, size 42 - sale!",
+			"It's the BEST table we've ever had, and it isn't expensive; iPhone15 with a USB-C cable",
+			"The children were playing happily in the gardens of their grandparents' houses"
+		),
+		GERMAN(
+			"de", BuiltInAnalyzers.GERMAN_ANALYZER_NAME,
+			List.of(lowercase(), stopWords(germanStopWords()), germanStemming()),
+			List.of(),
+			"Herrenschuhe aus Leder und Damenschuhe, Größe 42 - Ausverkauf!",
+			"Die schönen Häuser der Stadt; Bücher für Kinder, iPhone15 mit USB-C Kabel",
+			"Die Kinder spielten fröhlich in den Gärten ihrer Großeltern"
+		),
+		OTHER(
+			"fr", BuiltInAnalyzers.GENERIC_ANALYZER_NAME, List.of(lowercase()), List.of(),
+			"Chaussures en cuir pour hommes, taille 42 - soldes!",
+			"L'ÉTÉ à Paris; les enfants jouent, iPhone15 et câble USB-C"
+		);
+
+		/** The locale of the language. */
+		private final Locale locale;
+		/** The name of today's index chain of the language. */
+		private final String indexAnalyzer;
+		/** The words phase of the built-in `text` analyzer in the language. */
+		private final List<AnalysisStep> words;
+		/** The lemmas of the language's fixture, possibly none. */
+		private final List<Lemma> vocabulary;
+		/** Sentences of the language. */
+		private final List<String> sentences;
+
+		/**
+		 * Declares a line.
+		 *
+		 * @param language      the language code
+		 * @param indexAnalyzer the name of today's index chain of the language
+		 * @param words         the words phase of the built-in `text` analyzer in the language
+		 * @param vocabulary    the lemmas of the language's fixture, possibly none
+		 * @param sentences     sentences of the language
+		 */
+		LanguageLine(
+			@Nonnull String language,
+			@Nonnull String indexAnalyzer,
+			@Nonnull List<AnalysisStep> words,
+			@Nonnull List<Lemma> vocabulary,
+			@Nonnull String... sentences
+		) {
+			this.locale = Locale.forLanguageTag(language);
+			this.indexAnalyzer = indexAnalyzer;
+			this.words = words;
+			this.vocabulary = vocabulary;
+			this.sentences = List.of(sentences);
+		}
+
+		/**
+		 * Returns the texts to compare the chains on: every lemma of the fixture with all its forms, then the
+		 * sentences.
+		 *
+		 * @return the sample texts
+		 */
+		@Nonnull
+		List<String> samples() {
+			final List<String> samples = new ArrayList<>(this.vocabulary.size() + this.sentences.size());
+			for (final Lemma lemma : this.vocabulary) {
+				samples.add(String.join(" ", lemma.forms()));
+			}
+			samples.addAll(this.sentences);
+			return samples;
+		}
 	}
 }

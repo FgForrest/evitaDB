@@ -5,3 +5,14 @@ io.evitadb.index.analysis.RemoveCharactersAnalysisStepFactory
 io.evitadb.index.fulltext.analysis.StandardTokenizerAnalysisStepFactory
 io.evitadb.index.fulltext.analysis.StopWordsAnalysisStepFactory
 io.evitadb.index.fulltext.analysis.CzechStemmingAnalysisStepFactory
+io.evitadb.index.fulltext.analysis.HtmlStripAnalysisStepFactory
+io.evitadb.index.fulltext.analysis.WordNumberSplitAnalysisStepFactory
+io.evitadb.index.fulltext.analysis.SlovakStemmingAnalysisStepFactory
+io.evitadb.index.fulltext.analysis.PolishStemmingAnalysisStepFactory
+io.evitadb.index.fulltext.analysis.RomanianStemmingAnalysisStepFactory
+io.evitadb.index.fulltext.analysis.EnglishStemmingAnalysisStepFactory
+io.evitadb.index.fulltext.analysis.GermanStemmingAnalysisStepFactory
+io.evitadb.index.fulltext.analysis.StemmingAnalysisStepFactory
+io.evitadb.index.fulltext.analysis.RomanianNormalizationAnalysisStepFactory
+io.evitadb.index.fulltext.analysis.EnglishPossessiveAnalysisStepFactory
+io.evitadb.index.fulltext.analysis.SynonymsAnalysisStepFactory

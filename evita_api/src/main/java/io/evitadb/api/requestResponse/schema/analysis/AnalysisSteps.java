@@ -77,7 +77,7 @@ public final class AnalysisSteps {
 	public static final String GERMAN_STEMMING = "german-stemming";
 	/** Name of the step running the built-in stemming step of the field's language, if it has one. */
 	public static final String STEMMING = "stemming";
-	/** Name of the step replacing the Romanian cedilla letters with their comma-below forms. */
+	/** Name of the step unifying the comma-below and cedilla spellings of Romanian letters. */
 	public static final String ROMANIAN_NORMALIZATION = "romanian-normalization";
 	/** Name of the step removing the English possessive `'s`. */
 	public static final String ENGLISH_POSSESSIVE = "english-possessive";
@@ -304,8 +304,11 @@ public final class AnalysisSteps {
 	}
 
 	/**
-	 * Describes replacing the Romanian cedilla letters `ş` and `ţ` with their comma-below forms `ș` and `ț`, on both
-	 * sides. It runs before stop words, so it is a step of its own and not part of Romanian stemming.
+	 * Describes unifying the two spellings of the Romanian letters `ș` / `ş` and `ț` / `ţ` (comma below and cedilla),
+	 * on both sides, so that a word meets itself whichever spelling a text uses. The built-in Romanian stop list and
+	 * stemmer are written with cedilla, so the step rewrites comma below to cedilla, and has to run after
+	 * {@link #lowercase()} and before {@link #stopWords(FulltextResourceReference...)} - which is why it is a step of
+	 * its own and not part of Romanian stemming.
 	 *
 	 * @return description of the `romanian-normalization` step without parameters
 	 */
