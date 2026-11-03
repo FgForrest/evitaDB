@@ -23,12 +23,14 @@
 
 package io.evitadb.test.fulltext;
 
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
-import io.evitadb.index.fulltext.analysis.AnalyzedTerm;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
+import io.evitadb.test.fulltext.FulltextAnalysisTestSupport;
 
 import javax.annotation.Nonnull;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -36,11 +38,13 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import static io.evitadb.test.fulltext.FulltextAnalysisTestSupport.collectTerms;
+
 /**
  * A realistic **term dictionary of folded stems** for any language with a hunspell fixture — the language-neutral
  * sibling of {@link CzechStemDictionary}, which stays as it is for its existing callers. Every inflected form of the
  * fixture ({@link HunspellWordForms}) is run through the **production index analyzer** of the language, as
- * {@link FulltextAnalyzerRegistry#getIndexAnalyzer(String, Locale)} resolves it, and the distinct terms are loaded
+ * {@link FulltextAnalyzerRegistry#getCompiledAnalyzer} resolves it, and the distinct terms are loaded
  * into evitaDB's own {@link TransactionalBucketBPlusTree}.
  *
  * Unlike {@link CzechStemDictionary}, no stemmer shortcut is taken: the index term is whatever the production chain
@@ -61,9 +65,9 @@ import java.util.TreeSet;
  */
 public final class LanguageStemDictionary {
 	/**
-	 * Entity type the analyzers are resolved for; the built-in table does not distinguish entity types.
+	 * Reserved built-in analyzer used for the dictionary.
 	 */
-	private static final String ENTITY_TYPE = "PRODUCT";
+	private static final String ANALYZER = "text";
 	/**
 	 * Leaf block size of the tree; odd on purpose, the tree derives its minimum block size as half of it.
 	 */
@@ -154,11 +158,12 @@ public final class LanguageStemDictionary {
 		final TreeSet<String> stems = new TreeSet<>();
 		final TreeMap<String, String> sample = new TreeMap<>();
 		final long[] counts = new long[3];
-		try (final FulltextAnalyzerRegistry registry = new FulltextAnalyzerRegistry()) {
-			final FulltextAnalyzer indexAnalyzer = registry.getIndexAnalyzer(ENTITY_TYPE, locale);
+		try (final FulltextAnalyzerRegistry registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry())) {
+			final FulltextAnalyzer indexAnalyzer = registry.getCompiledAnalyzer(
+				FulltextAnalysisTestSupport.SCHEMA, ANALYZER, locale).index();
 			forms.forEachForm(form -> {
 				counts[0]++;
-				final List<AnalyzedTerm> terms = indexAnalyzer.getTerms(form);
+				final List<AnalyzedTerm> terms = collectTerms(indexAnalyzer, form);
 				if (terms.isEmpty()) {
 					counts[1]++;
 					return;

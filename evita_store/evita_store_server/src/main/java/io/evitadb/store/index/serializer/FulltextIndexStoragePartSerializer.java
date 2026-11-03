@@ -37,15 +37,17 @@ import io.evitadb.store.index.serializer.PagedStreamMetadataSerializer.PagedStre
 import lombok.RequiredArgsConstructor;
 
 import java.util.Locale;
+import javax.annotation.Nonnull;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link FulltextIndexStoragePart} - the root record of a
- * fulltext index - from/to binary format: its identity, the analyzer and default pivot, the field registry in
+ * fulltext index - from/to binary format: its identity, the field registry with its analysis identities and pivots in
  * field-id order and the dictionary's page-stream metadata. The dictionary is always paged, so the metadata is
  * written without the paged flag.
  *
  * A field is written as its kind by name - as the stream kind of a {@link FulltextLeafStreamKeySerializer} key is -
- * the reference name (`null` for every kind but a reference attribute), the name, the pivot, the text expression
+ * the reference name (`null` for every kind but a reference attribute), the name, analyzer name, index fingerprint,
+ * words-phase identity, pivot, text expression
  * (`null` for a field whose values are the text), the retired flag and the keys of its length blocks.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -59,13 +61,10 @@ public class FulltextIndexStoragePartSerializer extends Serializer<FulltextIndex
 	private final KeyCompressor keyCompressor;
 
 	@Override
-	public void write(Kryo kryo, Output output, FulltextIndexStoragePart part) {
+	public void write(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull FulltextIndexStoragePart part) {
 		output.writeInt(part.getEntityIndexPrimaryKey());
 		output.writeVarLong(part.computeUniquePartIdAndSet(this.keyCompressor), true);
 		kryo.writeObject(output, part.getLocale());
-		//TODO JNO change it at the end of #258
-		output.writeString(part.getAnalyzerName());
-		output.writeDouble(part.getDefaultLengthPivot());
 
 		final FieldEntry[] fields = part.getFields();
 		output.writeVarInt(fields.length, true);
@@ -74,7 +73,9 @@ public class FulltextIndexStoragePartSerializer extends Serializer<FulltextIndex
 			output.writeString(key.kind().name());
 			output.writeString(key.referenceName());
 			output.writeString(key.name());
-			//TODO JNO change it at the end of #258
+			output.writeString(field.analyzerName());
+			output.writeLong(field.indexFingerprint());
+			output.writeLong(field.wordPhaseId());
 			output.writeDouble(field.lengthPivot());
 			output.writeString(field.textExpression());
 			output.writeBoolean(field.retired());
@@ -90,19 +91,23 @@ public class FulltextIndexStoragePartSerializer extends Serializer<FulltextIndex
 		);
 	}
 
+	@Nonnull
 	@Override
-	public FulltextIndexStoragePart read(Kryo kryo, Input input, Class<? extends FulltextIndexStoragePart> type) {
+	public FulltextIndexStoragePart read(
+		@Nonnull Kryo kryo, @Nonnull Input input, @Nonnull Class<? extends FulltextIndexStoragePart> type
+	) {
 		final int entityIndexPrimaryKey = input.readInt();
 		final long storagePartPK = input.readVarLong(true);
 		final Locale locale = kryo.readObject(input, Locale.class);
-		final String analyzerName = input.readString();
-		final double defaultLengthPivot = input.readDouble();
 
 		final FieldEntry[] fields = new FieldEntry[input.readVarInt(true)];
 		for (int i = 0; i < fields.length; i++) {
 			final FieldKind kind = FieldKind.valueOf(input.readString());
 			final String referenceName = input.readString();
 			final FulltextFieldKey key = new FulltextFieldKey(kind, referenceName, input.readString());
+			final String analyzerName = input.readString();
+			final long indexFingerprint = input.readLong();
+			final long wordPhaseId = input.readLong();
 			final double lengthPivot = input.readDouble();
 			final String textExpression = input.readString();
 			final boolean retired = input.readBoolean();
@@ -110,12 +115,13 @@ public class FulltextIndexStoragePartSerializer extends Serializer<FulltextIndex
 			for (int j = 0; j < lengthBlocks.length; j++) {
 				lengthBlocks[j] = input.readVarInt(true);
 			}
-			fields[i] = new FieldEntry(key, lengthPivot, textExpression, retired, lengthBlocks);
+			fields[i] = new FieldEntry(key, analyzerName, indexFingerprint, wordPhaseId, lengthPivot,
+				textExpression, retired, lengthBlocks);
 		}
 
 		final PagedStreamMetadata dictionary = PagedStreamMetadataSerializer.readBody(input);
 		return new FulltextIndexStoragePart(
-			entityIndexPrimaryKey, locale, analyzerName, defaultLengthPivot, fields,
+			entityIndexPrimaryKey, locale, fields,
 			dictionary.highWaterPageSequence(), dictionary.leafPageSequences(), storagePartPK
 		);
 	}

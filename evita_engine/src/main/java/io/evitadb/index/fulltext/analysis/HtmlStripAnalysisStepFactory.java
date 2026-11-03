@@ -44,8 +44,11 @@ import java.util.Set;
  * The `html-strip` step: Lucene's `HTMLStripCharFilter` in front of the tokenizer, so that tag names, attribute names
  * and values, comments, `script` and `style` bodies never become words and character entities are decoded. It acts on
  * the index side only - a stored value may be HTML, a query is what a user typed. Offsets are corrected back through
- * the removed runs, so they address the stored, markup-bearing value. What the filter changes in prose that is not
- * markup is described at {@link HtmlStrippingAnalyzerWrapper}, the wrapper this step replaces.
+ * the removed runs, so they address the stored, markup-bearing value. Inline tags join word halves; block tags
+ * separate them. A term immediately before a tag may include that tag in its corrected end offset and surface form.
+ * An entity decoding to a combining mark bypasses the boundary NFC normalization, because this filter runs after it;
+ * that accepted recall limitation is pinned by the HTML analysis tests. Plain `text` has no such text step and keeps
+ * markup as input to its tokenizer.
  */
 public final class HtmlStripAnalysisStepFactory implements FulltextTextAnalysisStepFactory {
 	/**

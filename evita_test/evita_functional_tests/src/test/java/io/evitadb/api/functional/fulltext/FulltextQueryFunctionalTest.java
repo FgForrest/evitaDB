@@ -25,6 +25,7 @@ package io.evitadb.api.functional.fulltext;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.AttributeNotFoundException;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
@@ -38,7 +39,6 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
-import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.exception.AttributeNotSearchableException;
@@ -49,14 +49,14 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bPlusTree.ImpactView;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.fulltext.FulltextIndex;
-import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Expansion;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
-import io.evitadb.index.fulltext.analysis.AnalyzedTerm;
-import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
+import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
+import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
+import io.evitadb.test.fulltext.AnalyzedTerm;
 import io.evitadb.utils.PlanPreference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -66,6 +66,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -1432,8 +1433,17 @@ public class FulltextQueryFunctionalTest {
 	) {
 		final Catalog catalog = (Catalog) evita.getCatalogInstanceOrThrowException(TEST_CATALOG);
 		final List<List<String>> tokens = new ArrayList<>(8);
-		final FulltextAnalyzer analyzer = catalog.getFulltextAnalyzerRegistry().getSearchAnalyzer(entityType, locale);
-		for (AnalyzedTerm term : analyzer.getTerms(text)) {
+		final CompiledFulltextAnalyzer compiled =
+			catalog.getFulltextAnalyzerRegistry().getCompiledAnalyzer(catalog.getSchema(), "text", locale);
+		final List<AnalyzedTerm> analyzed = new ArrayList<>();
+		compiled.splitting().analyze(text, (term, surface, start, end, increment) -> {
+			final List<String> alternatives = new ArrayList<>();
+			compiled.word().analyze(term, (value, ignored, from, to, position) -> alternatives.add(value));
+			for (int i = 0; i < alternatives.size(); i++) {
+				analyzed.add(new AnalyzedTerm(alternatives.get(i), surface.get(), start, end, i == 0 ? increment : 0));
+			}
+		});
+		for (final AnalyzedTerm term : analyzed) {
 			if (term.positionIncrement() > 0 || tokens.isEmpty()) {
 				tokens.add(new ArrayList<>(4));
 			}

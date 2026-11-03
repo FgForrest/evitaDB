@@ -25,6 +25,7 @@
 package io.evitadb.index.fulltext.analysis;
 
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.analysis.AnalysisStepRegistry;
@@ -53,6 +54,8 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.util.IOUtils;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Serializable;
@@ -62,7 +65,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import javax.annotation.Nonnull;
 
 /**
  * Compiles step lists into one Lucene analysis chain for one side of the pipeline: the text phase of an analyzer, the
@@ -107,6 +109,43 @@ public final class FulltextChainCompiler {
 	@Nonnull
 	public Analyzer compile(@Nonnull ResolvedFulltextAnalyzer analyzer, @Nonnull FulltextAnalysisSide side) {
 		return compile(analyzer.text(), analyzer.splitting(), analyzer.words(), side, analyzer.context());
+	}
+
+	/**
+	 * Compiles query analysis of one shared term, retaining text and words steps around a keyword tokenizer.
+	 * Resource preparation still uses the language tokenizer to check that synonym entries are single words.
+	 *
+	 * @param analyzer the resolved analyzer of the group
+	 * @return the query word chain owned by the caller
+	 */
+	@Nonnull
+	public Analyzer compileWordChain(@Nonnull ResolvedFulltextAnalyzer analyzer) {
+		return compile(analyzer.text(), analyzer.splitting(), analyzer.words(), FulltextAnalysisSide.QUERY,
+			analyzer.context(), true, null);
+	}
+
+	/**
+	 * Compiles the locale's shared splitting without either analyzer phase.
+	 *
+	 * @param analyzer a resolved analyzer carrying the locale's splitting
+	 * @return the splitting chain owned by the caller
+	 */
+	@Nonnull
+	public Analyzer compileSplittingChain(@Nonnull ResolvedFulltextAnalyzer analyzer) {
+		return compile(List.of(), analyzer.splitting(), List.of(), FulltextAnalysisSide.QUERY, analyzer.context());
+	}
+
+	/**
+	 * Compiles the index chain and collects the prepared words of built-in stop steps for folded query recognition.
+	 *
+	 * @param analyzer the resolved analyzer
+	 * @param foldedStopWords receives the lower-cased ASCII-folded prepared index stop words
+	 * @return the index chain owned by the caller
+	 */
+	@Nonnull
+	Analyzer compile(@Nonnull ResolvedFulltextAnalyzer analyzer, @Nonnull Set<String> foldedStopWords) {
+		return compile(analyzer.text(), analyzer.splitting(), analyzer.words(), FulltextAnalysisSide.INDEX,
+			analyzer.context(), false, foldedStopWords);
 	}
 
 	/**
@@ -217,6 +256,27 @@ public final class FulltextChainCompiler {
 		@Nonnull FulltextAnalysisSide side,
 		@Nonnull FulltextAnalysisContext context
 	) {
+		return compile(text, splitting, words, side, context, false, null);
+	}
+
+	/**
+	 * Builds a full chain or a query word chain using the same step resolution and preparation.
+	 *
+	 * @param text the text steps
+	 * @param splitting the locale's tokenizer and splitting steps
+	 * @param words the words steps
+	 * @param side the side being compiled
+	 * @param context the locale and available resources
+	 * @param keyword whether the emitted chain tokenizes each input as one term
+	 * @param foldedStopWords optional receiver of prepared built-in index stop words
+	 * @return the compiled chain owned by the caller
+	 */
+	@Nonnull
+	private Analyzer compile(
+		@Nonnull List<AnalysisStep> text, @Nonnull List<AnalysisStep> splitting,
+		@Nonnull List<AnalysisStep> words, @Nonnull FulltextAnalysisSide side,
+		@Nonnull FulltextAnalysisContext context, boolean keyword, @Nullable Set<String> foldedStopWords
+	) {
 		final List<FulltextTextAnalysisOperation> textOperations = new ArrayList<>(text.size());
 		for (final AnalysisStep step : text) {
 			final FulltextTextAnalysisStepFactory factory = resolve(
@@ -253,8 +313,20 @@ public final class FulltextChainCompiler {
 				final FulltextWordPreparation preparation = new PrecedingStepsPreparation(
 					wordOperations.toArray(FulltextWordsAnalysisOperation[]::new), tokenizer, side
 				);
-				final FulltextWordsAnalysisOperation operation =
-					factory.create(step.parameters(), stepContext(step, factory, context).withPreparation(preparation));
+				final FulltextAnalysisContext preparedContext =
+					stepContext(step, factory, context).withPreparation(preparation);
+				final FulltextWordsAnalysisOperation operation = factory.create(step.parameters(), preparedContext);
+				if (foldedStopWords != null && factory instanceof StopWordsAnalysisStepFactory) {
+					if (!(step.parameters().get(AnalysisSteps.WORDS) instanceof String[] resources)) {
+						throw new EvitaInvalidUsageException(
+							"Analysis step `" + step.name() + "` requires a String[] of word resource names.");
+					}
+					for (final String name : resources) {
+						for (final String word : preparedContext.getPreparedWords(name)) {
+							foldedStopWords.add(CompiledFulltextAnalyzer.foldStopWord(word));
+						}
+					}
+				}
 				wordOperations.add(operation);
 				placedSteps.add(new PlacedStep(step.name(), operation.getTraits(side)));
 			}
@@ -262,8 +334,9 @@ public final class FulltextChainCompiler {
 		verifyPlacements(wordOperations, List.copyOf(placedSteps), side);
 		return new CompiledChain(
 			textOperations.toArray(FulltextTextAnalysisOperation[]::new),
-			tokenizer,
-			splittingOperations.toArray(FulltextSplittingAnalysisOperation[]::new),
+			keyword ? KeywordTokenizer::new : tokenizer,
+			keyword ? new FulltextSplittingAnalysisOperation[0] :
+				splittingOperations.toArray(FulltextSplittingAnalysisOperation[]::new),
 			wordOperations.toArray(FulltextWordsAnalysisOperation[]::new),
 			side
 		);

@@ -37,8 +37,6 @@ import javax.annotation.Nonnull;
 import java.io.Closeable;
 import java.io.IOException;
 import java.text.Normalizer;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * A built Lucene analysis chain, owned and driven correctly: it turns a text into the terms an index would
@@ -55,28 +53,29 @@ import java.util.List;
  * 3. it owns the NFC normalization on the boundary, which is a correctness requirement rather than tidiness —
  *    see {@link #analyze(String, AnalyzedTermConsumer)}.
  *
- * Instances are created and shared by {@link FulltextAnalyzerRegistry}, one per analyzer name; nothing else
- * should build one, because a chain nobody owns is a chain nobody closes. For the same reason **a handle must
- * not outlive the registry that handed it out**: the registry closes every instance it created, and a caller
- * still holding one afterwards gets an {@link EvitaInvalidUsageException} from
- * {@link #analyze(String, AnalyzedTermConsumer)} rather than a Lucene internal.
+ * Instances are created and shared by {@link FulltextAnalyzerRegistry} by resolved content and locale. Eviction
+ * drops cache references without closing chains, because in-flight work may still hold them. Catalog close closes
+ * the chains still retained by the cache. A handle belongs to the catalog's lifetime; analyzing through a retained
+ * chain after close reports an {@link EvitaInvalidUsageException} from
+ * {@link #analyze(String, AnalyzedTermConsumer)}.
  *
  * **Thread safety and lifecycle.** A Lucene `Analyzer` is thread-safe and so is this wrapper, but the mechanism
  * has consequences worth knowing. The analyzer caches its stream components in a `CloseableThreadLocal`, which
- * keeps — besides a weakly-referenced `ThreadLocal` — a `WeakHashMap<Thread, T>` written under `synchronized`.
+ * keeps — besides a weakly-referenced `ThreadLocal` — a weak map keyed by `Thread`, written under `synchronized`.
  * On the platform threads the engine uses today that is exactly right: threads come from bounded pools, get
  * recycled, and the cache actually hits. Both properties would invert on virtual threads — a per-thread cache
  * is pointless when every task gets a fresh thread, and the `synchronized` block pins the carrier — so the seam
  * is left open rather than pre-solved: a custom `ReuseStrategy` can be handed to the `Analyzer` constructor,
  * making any future change local to the factory that builds the chain. What must *not* be skipped is
- * {@link #close()}: without it the `hardRefs` map holds every stream component for the lifetime of the process.
+ * {@link #close()}: explicit close releases retained components promptly. Unreachable analyzers and their components
+ * can also be collected together.
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */
 public class FulltextAnalyzer implements Closeable {
 
 	/**
-	 * Field name handed to Lucene. Analyzers here are resolved per (collection, locale) rather than per field,
+	 * Field name handed to Lucene. A resolved analyzer is shared by fields using its definition and locale,
 	 * so one constant name is enough — and it keeps every analyzer on the cheap global component-reuse strategy
 	 * instead of a per-field one.
 	 */
@@ -104,27 +103,6 @@ public class FulltextAnalyzer implements Closeable {
 	}
 
 	/**
-	 * Analyses `text` and returns all terms it produced, in order.
-	 *
-	 * Convenience form of {@link #analyze(String, AnalyzedTermConsumer)} for callers that want the whole result
-	 * at once; the write path should use the streaming form instead.
-	 *
-	 * @param text text to analyse
-	 * @return terms produced by the chain, in the order the chain emitted them
-	 */
-	@Nonnull
-	public List<AnalyzedTerm> getTerms(@Nonnull String text) {
-		final List<AnalyzedTerm> terms = new ArrayList<>(estimateTermCount(text));
-		analyze(
-			text,
-			(term, surfaceForm, startOffset, endOffset, positionIncrement) -> terms.add(
-				new AnalyzedTerm(term, surfaceForm.get(), startOffset, endOffset, positionIncrement)
-			)
-		);
-		return terms;
-	}
-
-	/**
 	 * Analyses `text` and hands every produced term to `consumer` as soon as the chain emits it.
 	 *
 	 * **The input is normalized to Unicode NFC first, and that line must not be removed.** It looks redundant
@@ -141,8 +119,8 @@ public class FulltextAnalyzer implements Closeable {
 	 * filter index: that one stores its string keys in NFD (its own on-disk format, migrated when it changes),
 	 * full-text needs NFC, and "unifying normalization in one place" would break one of the two.
 	 *
-	 * Because the terms and the offsets refer to the normalized text, so does {@link AnalyzedTerm#surfaceForm()}
-	 * — it is a slice of the normalized string, not of the caller's original.
+	 * Because the terms and the offsets refer to the normalized text, so does the surface form passed to the
+	 * consumer: it is a slice of the normalized string, not of the caller's original.
 	 *
 	 * @param text     text to analyse
 	 * @param consumer callback receiving each produced term
@@ -196,18 +174,6 @@ public class FulltextAnalyzer implements Closeable {
 	@Override
 	public void close() {
 		this.analyzer.close();
-	}
-
-	/**
-	 * Estimates how many terms a text of the given length will produce, so that the collecting list is sized
-	 * once instead of growing. Six characters per term is the rough average of a word plus its separator; the
-	 * estimate only has to be in the right order of magnitude.
-	 *
-	 * @param text text about to be analysed
-	 * @return initial capacity for the result list, at least one
-	 */
-	private static int estimateTermCount(@Nonnull String text) {
-		return Math.max(1, text.length() / 6);
 	}
 
 }

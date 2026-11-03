@@ -38,9 +38,10 @@ import io.evitadb.dataType.data.DataItemValue;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.fulltext.analysis.AnalyzedTerm;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.fulltext.AnalyzedTerm;
+import io.evitadb.test.fulltext.FulltextAnalysisTestSupport;
 import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,6 +52,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -62,6 +64,7 @@ import static io.evitadb.index.fulltext.FulltextFieldKey.associatedData;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.fulltext.FulltextAnalysisTestSupport.collectTerms;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -118,6 +121,7 @@ class FulltextAssociatedDataWritePathTest implements EvitaTestSupport {
 				.withAssociatedData(
 					BODY, String.class,
 					whichIs -> whichIs.localized().nullable().searchableInScope(Scope.LIVE, Scope.ARCHIVED)
+						.analyzer("html-text")
 				)
 				.withAssociatedData(
 					KEYWORDS, String[].class, whichIs -> whichIs.localized().nullable().searchable()
@@ -152,6 +156,32 @@ class FulltextAssociatedDataWritePathTest implements EvitaTestSupport {
 		@BeforeEach
 		void goLive() {
 			FulltextAssociatedDataWritePathTest.this.goLive();
+		}
+
+		/** An expression selecting no text must not create, register or reconcile fulltext generations. */
+		@Test
+		@DisplayName("empty extracted values create no index or field and do not retire stale fields")
+		void shouldIgnoreEmptyValueSets() {
+			write(session -> session.upsertEntity(session.createNewEntity(PRODUCT, 1)
+				.setAssociatedData(ARTICLE, Locale.ENGLISH, article("no blocks"))));
+			assertNull(fulltextIndexOf(Scope.LIVE, Locale.ENGLISH));
+			upsertBody(2, "green tea");
+			write(session -> session.upsertEntity(session.createNewEntity(PRODUCT, 3)
+				.setAssociatedData(ARTICLE, Locale.ENGLISH, article("no blocks"))));
+			assertEquals(FulltextIndex.UNKNOWN_FIELD_ID,
+				requireFulltextIndex(Scope.LIVE, Locale.ENGLISH).getFieldId(associatedData(ARTICLE)));
+			write(session -> session.upsertEntity(session.createNewEntity(PRODUCT, 4)
+				.setAssociatedData(ARTICLE, Locale.ENGLISH, article("title", "green tea"))));
+			final int original = requireFulltextIndex(Scope.LIVE, Locale.ENGLISH).getFieldId(associatedData(ARTICLE));
+			final int count = requireFulltextIndex(Scope.LIVE, Locale.ENGLISH).getFieldCount();
+			write(session -> session.defineEntitySchema(PRODUCT)
+				.withAssociatedData(ARTICLE, ComplexDataObject.class, a -> a.lengthPivot(100)).updateVia(session));
+			write(session -> session.upsertEntity(session.createNewEntity(PRODUCT, 5)
+				.setAssociatedData(ARTICLE, Locale.ENGLISH, article("no blocks"))));
+			final FulltextIndex after = requireFulltextIndex(Scope.LIVE, Locale.ENGLISH);
+			assertEquals(count, after.getFieldCount());
+			assertEquals(original, after.getFieldId(associatedData(ARTICLE)));
+			assertFalse(after.isFieldRetired(original));
 		}
 
 		@Test
@@ -638,8 +668,11 @@ class FulltextAssociatedDataWritePathTest implements EvitaTestSupport {
 	) {
 		final Set<String> expected = new TreeSet<>();
 		final FulltextAnalyzerRegistry registry = catalog().getFulltextAnalyzerRegistry();
+		final FulltextFieldDefinition definition = FulltextFieldDefinition.resolve(
+			catalog().getCollectionForEntityInternal(PRODUCT).orElseThrow().getSchema(), fieldKey);
 		for (final String text : texts) {
-			for (final AnalyzedTerm term : registry.getIndexAnalyzer(PRODUCT, locale).getTerms(text)) {
+			for (final AnalyzedTerm term : collectTerms(registry.getCompiledAnalyzer(
+				catalog().getSchema(), definition.analyzer(), locale).index(), text)) {
 				expected.add(term.term());
 			}
 		}

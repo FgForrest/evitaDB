@@ -1535,10 +1535,7 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 							((RepresentativeReferenceKey) manifest.getEntityIndexKey().discriminator()).referenceName();
 						final ReferenceSchemaContract referenceSchema =
 							schema.getReference(referenceName).orElseThrow();
-						final EntityIndex index = collectionService.readEntityIndex(
-							catalogVersion, indexPrimaryKey, schema, false, new FulltextAnalyzerRegistry(),
-							AttributeNormalizationResolver.LEGACY_NFD
-						);
+						final EntityIndex index = collectionService.readEntityIndex(catalogVersion, indexPrimaryKey, schema, false, AttributeNormalizationResolver.LEGACY_NFD);
 						final boolean convertible =
 							VirtualReferencePartitionWriter.isWrittenVirtually(referenceSchema, scope) &&
 								index.getAllPrimaryKeys().size() == 1;

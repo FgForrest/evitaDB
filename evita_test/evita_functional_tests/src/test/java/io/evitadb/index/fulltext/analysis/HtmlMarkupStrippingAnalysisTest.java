@@ -23,8 +23,9 @@
 
 package io.evitadb.index.fulltext.analysis;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.cz.CzechAnalyzer;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
+import io.evitadb.test.fulltext.AnalyzedTerm;
+import io.evitadb.test.fulltext.FulltextAnalysisTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -33,7 +34,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -41,11 +42,13 @@ import java.util.Set;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
+import static io.evitadb.test.fulltext.FulltextAnalysisTestSupport.collectTerms;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -55,14 +58,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * measurements are recorded in `p5-analyzers.md` §13; this class establishes the behaviour they rest on, at the level
  * of the terms, offsets and positions the engine actually consumes.
  *
- * The filter started as an opt-in test fixture and was made part of every index chain when associated data became
- * searchable (#258): a stored value may be HTML, and the strip is a no-op on markup-free text. The search chains do not
+ * The `html-text` index chain strips markup; `text` preserves it. The strip is a no-op on markup-free text. The search chains do not
  * strip - a query text is what a user typed. Three things are established:
  *
  * 1. **The baseline.** A chain without the character filter indexes tag names, attribute names, attribute values and
  *    entity names as terms — the vocabulary the review found dominating the dictionary (`p`, `class`, `dynamik`,
  *    `dat`, `valu`, `fals`, `quot`) is reproduced here on a synthetic body.
- * 2. **What the production index chain does with {@link HtmlStrippingAnalyzerWrapper}**: which markup vanishes, how
+ * 2. **What the production index chain does with the `html-strip` text step**: which markup vanishes, how
  *    entities decode, that inline tags join word halves while block tags separate them, and that plain text is left
  *    byte-for-byte alone.
  * 3. **The sharp edges the production wiring accepts**, each pinned as observed rather than as wished: end offsets
@@ -86,14 +88,13 @@ class HtmlMarkupStrippingAnalysisTest {
 	private static final String PAYLOAD_BODY =
 		"<p class=\"dynamic\" data-value='{\"value\": false, \"date\": \"2026\"}'>Černá pánská obuv</p>";
 
-	private final List<FulltextAnalyzer> builtChains = new ArrayList<>(4);
 	private FulltextAnalyzerRegistry registry;
 	/**
 	 * The Czech index chain without the character filter - the baseline the strip is measured against.
 	 */
 	private FulltextAnalyzer unstripped;
 	/**
-	 * The built-in Czech index chain as the registry hands it out - with {@link HtmlStrippingAnalyzerWrapper}.
+	 * The built-in Czech index chain as the registry hands it out - with the `html-strip` text step.
 	 */
 	private FulltextAnalyzer stripped;
 	/**
@@ -103,34 +104,17 @@ class HtmlMarkupStrippingAnalysisTest {
 
 	@BeforeEach
 	void setUp() {
-		this.registry = new FulltextAnalyzerRegistry();
-		this.stripped = this.registry.getIndexAnalyzer(ENTITY_TYPE, CZECH);
-		this.productionSearch = this.registry.getSearchAnalyzer(ENTITY_TYPE, CZECH);
-		this.unstripped = chain(
-			"czech-unstripped", new DiacriticsFoldingAnalyzerWrapper(new CzechAnalyzer())
-		);
+		this.registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
+		this.stripped = this.registry.getCompiledAnalyzer(
+			FulltextAnalysisTestSupport.SCHEMA, "html-text", CZECH).index();
+		this.productionSearch = FulltextAnalysisTestSupport.queryAnalyzer(CZECH);
+		this.unstripped = this.registry.getCompiledAnalyzer(
+			FulltextAnalysisTestSupport.SCHEMA, "text", CZECH).index();
 	}
 
 	@AfterEach
 	void tearDown() {
-		this.builtChains.forEach(FulltextAnalyzer::close);
-		this.builtChains.clear();
 		this.registry.close();
-	}
-
-	/**
-	 * Wraps a Lucene chain into the engine's analyzer holder — so that the terms come through exactly the code
-	 * path production uses, NFC normalization on the boundary included — and registers it for closing.
-	 *
-	 * @param name     name the chain is reported under
-	 * @param analyzer the Lucene chain
-	 * @return the wrapped analyzer
-	 */
-	@Nonnull
-	private FulltextAnalyzer chain(@Nonnull String name, @Nonnull Analyzer analyzer) {
-		final FulltextAnalyzer wrapped = new FulltextAnalyzer(name, analyzer);
-		this.builtChains.add(wrapped);
-		return wrapped;
 	}
 
 	/**
@@ -142,7 +126,7 @@ class HtmlMarkupStrippingAnalysisTest {
 	 */
 	@Nonnull
 	private static List<String> terms(@Nonnull FulltextAnalyzer analyzer, @Nonnull String text) {
-		return analyzer.getTerms(text).stream().map(AnalyzedTerm::term).toList();
+		return collectTerms(analyzer, text).stream().map(AnalyzedTerm::term).toList();
 	}
 
 	/**
@@ -154,7 +138,7 @@ class HtmlMarkupStrippingAnalysisTest {
 	 */
 	@Nonnull
 	private static List<String> surfaceForms(@Nonnull FulltextAnalyzer analyzer, @Nonnull String text) {
-		return analyzer.getTerms(text).stream().map(AnalyzedTerm::surfaceForm).toList();
+		return collectTerms(analyzer, text).stream().map(AnalyzedTerm::surfaceForm).toList();
 	}
 
 	/**
@@ -331,7 +315,9 @@ class HtmlMarkupStrippingAnalysisTest {
 		void shouldLeaveNoPositionGapForRemovedMarkup() {
 			// removed markup is not a dropped token, so a phrase spanning a tag boundary still matches: `černá obuv`
 			// as a phrase finds `<p>Černá</p>\n<p>obuv</p>`
-			for (final AnalyzedTerm analyzedTerm : HtmlMarkupStrippingAnalysisTest.this.stripped.getTerms("<p>Černá</p>\n<p>obuv</p>")) {
+			for (final AnalyzedTerm analyzedTerm : collectTerms(
+				HtmlMarkupStrippingAnalysisTest.this.stripped,
+				"<p>Černá</p>\n<p>obuv</p>")) {
 				assertEquals(
 					1, analyzedTerm.positionIncrement(), "Unexpected gap before `" + analyzedTerm.term() + "`."
 				);
@@ -353,8 +339,8 @@ class HtmlMarkupStrippingAnalysisTest {
 				"{\"title\": \"Černá obuv\", \"price\": 100}"
 			)) {
 				assertIterableEquals(
-					HtmlMarkupStrippingAnalysisTest.this.unstripped.getTerms(plainText),
-					HtmlMarkupStrippingAnalysisTest.this.stripped.getTerms(plainText),
+					collectTerms(HtmlMarkupStrippingAnalysisTest.this.unstripped, plainText),
+					collectTerms(HtmlMarkupStrippingAnalysisTest.this.stripped, plainText),
 					"Stripping changed the analysis of the markup-free text `" + plainText + "`."
 				);
 			}
@@ -371,7 +357,9 @@ class HtmlMarkupStrippingAnalysisTest {
 		void shouldKeepStartOffsetsInOriginalText() {
 			// the filter corrects offsets back through the removed runs, so a term still knows where in the STORED
 			// value it begins - the property highlighting depends on
-			final List<AnalyzedTerm> analyzed = HtmlMarkupStrippingAnalysisTest.this.stripped.getTerms("<p>Černá <b>pánská</b> obuv</p>");
+			final List<AnalyzedTerm> analyzed = collectTerms(
+				HtmlMarkupStrippingAnalysisTest.this.stripped,
+				"<p>Černá <b>pánská</b> obuv</p>");
 			assertEquals(3, analyzed.size());
 			assertEquals(3, analyzed.get(0).startOffset());
 			assertEquals(12, analyzed.get(1).startOffset());
@@ -388,7 +376,9 @@ class HtmlMarkupStrippingAnalysisTest {
 			// and the surface form cut from those offsets carries the tag. A term followed by whitespace before its
 			// tag (`Černá <b>`) is unaffected. Any consumer of `surfaceForm()` - the suggester, highlighting - has to
 			// either tolerate trailing markup or trim it; the term itself is correct
-			final List<AnalyzedTerm> analyzed = HtmlMarkupStrippingAnalysisTest.this.stripped.getTerms("<p>Černá <b>pánská</b> obuv</p>");
+			final List<AnalyzedTerm> analyzed = collectTerms(
+				HtmlMarkupStrippingAnalysisTest.this.stripped,
+				"<p>Černá <b>pánská</b> obuv</p>");
 			assertEquals(new AnalyzedTerm("cern", "Černá", 3, 8, 1), analyzed.get(0));
 			assertEquals(new AnalyzedTerm("pansk", "pánská</b>", 12, 22, 1), analyzed.get(1));
 			assertEquals(new AnalyzedTerm("obuv", "obuv", 23, 27, 1), analyzed.get(2));
@@ -480,22 +470,24 @@ class HtmlMarkupStrippingAnalysisTest {
 		}
 
 		@Test
-		@DisplayName("Strips markup in every built-in index chain and in no search chain")
-		void shouldStripInEveryIndexChainAndNoSearchChain() {
+		@DisplayName("html-text strips markup and text preserves it in every language")
+		void shouldStripOnlyInHtmlTextIndexChain() {
 			for (final String language : List.of("cs", "sk", "pl", "ro", "en", "de", "xx")) {
 				final Locale locale = new Locale(language);
 				final FulltextAnalyzer indexAnalyzer =
-					HtmlMarkupStrippingAnalysisTest.this.registry.getIndexAnalyzer(ENTITY_TYPE, locale);
+					HtmlMarkupStrippingAnalysisTest.this.registry.getCompiledAnalyzer(
+						FulltextAnalysisTestSupport.SCHEMA, "html-text", locale).index();
 				final FulltextAnalyzer searchAnalyzer =
-					HtmlMarkupStrippingAnalysisTest.this.registry.getSearchAnalyzer(ENTITY_TYPE, locale);
-				assertNotEquals(indexAnalyzer.getAnalyzerName(), searchAnalyzer.getAnalyzerName(), language);
+					HtmlMarkupStrippingAnalysisTest.this.registry.getCompiledAnalyzer(
+						FulltextAnalysisTestSupport.SCHEMA, "text", locale).index();
+				assertNotSame(indexAnalyzer, searchAnalyzer, language);
 				assertTrue(
 					terms(indexAnalyzer, "<p class=\"x\">word</p>").stream().noneMatch(it -> it.startsWith("class")),
 					"Index chain of `" + language + "` indexed markup."
 				);
 				assertTrue(
 					terms(searchAnalyzer, "<p class=\"x\">word</p>").stream().anyMatch(it -> it.startsWith("class")),
-					"Search chain of `" + language + "` stripped markup."
+					"Text index chain of `" + language + "` stripped markup."
 				);
 			}
 		}
@@ -505,36 +497,38 @@ class HtmlMarkupStrippingAnalysisTest {
 		void shouldAgreeWithUnstrippedChainOnPlainText() {
 			for (final String plainText : List.of("černá pánská obuv", "cerna panska obuv", "Velikost 5 < 10")) {
 				assertIterableEquals(
-					HtmlMarkupStrippingAnalysisTest.this.unstripped.getTerms(plainText),
-					HtmlMarkupStrippingAnalysisTest.this.stripped.getTerms(plainText)
+					collectTerms(HtmlMarkupStrippingAnalysisTest.this.unstripped, plainText),
+					collectTerms(HtmlMarkupStrippingAnalysisTest.this.stripped, plainText)
 				);
 			}
 		}
 
+		/** Prepared index stop words belong to compiled analyzer content. */
 		@Test
-		@DisplayName("Keeps the folded stop words keyed by the unchanged index analyzer name")
+		@DisplayName("should preserve prepared folded stops with and without HTML stripping")
 		void shouldKeepFoldedStopWordsOfIndexAnalyzer() {
-			assertTrue(HtmlMarkupStrippingAnalysisTest.this.registry.isFoldedStopWord(
-				BuiltInAnalyzers.ENGLISH_ANALYZER_NAME, "The"
-			));
-			assertTrue(HtmlMarkupStrippingAnalysisTest.this.registry.isFoldedStopWord(
-				BuiltInAnalyzers.CZECH_ANALYZER_NAME, "neni"
-			));
-			assertTrue(HtmlMarkupStrippingAnalysisTest.this.registry.isFoldedStopWord(
-				BuiltInAnalyzers.ENGLISH_SEARCH_ANALYZER_NAME, "the"
-			));
-			assertFalse(HtmlMarkupStrippingAnalysisTest.this.registry.isFoldedStopWord(
-				BuiltInAnalyzers.GENERIC_SEARCH_ANALYZER_NAME, "the"
-			));
+			for (final String name : List.of("text", "html-text")) {
+				assertTrue(HtmlMarkupStrippingAnalysisTest.this.registry.getCompiledAnalyzer(
+					FulltextAnalysisTestSupport.SCHEMA, name, Locale.ENGLISH)
+					.foldedStopWords().contains(CompiledFulltextAnalyzer.foldStopWord("The")));
+				assertTrue(HtmlMarkupStrippingAnalysisTest.this.registry.getCompiledAnalyzer(
+					FulltextAnalysisTestSupport.SCHEMA, name, CZECH)
+					.foldedStopWords().contains("neni"));
+				assertFalse(HtmlMarkupStrippingAnalysisTest.this.registry.getCompiledAnalyzer(
+					FulltextAnalysisTestSupport.SCHEMA, name, Locale.FRENCH)
+					.foldedStopWords().contains("the"));
+			}
 		}
 
+		/** The schema-resolved text phase controls markup stripping. */
 		@Test
-		@DisplayName("Puts the wrapper in front of the index chain the registry builds")
-		void shouldBuildIndexChainThroughTheWrapper() {
-			assertInstanceOf(
-				HtmlStrippingAnalyzerWrapper.class,
-				BuiltInAnalyzers.definitionFor(BuiltInAnalyzers.CZECH_ANALYZER_NAME).factory().get()
-			);
+		@DisplayName("should resolve the HTML strip step only for html-text")
+		void shouldBuildIndexChainThroughTheHtmlStripStep() {
+			assertEquals(List.of(io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.htmlStrip()),
+				ResolvedFulltextAnalyzer.resolve(FulltextAnalysisTestSupport.SCHEMA,
+					"html-text", CZECH).text());
+			assertTrue(ResolvedFulltextAnalyzer.resolve(FulltextAnalysisTestSupport.SCHEMA,
+				"text", CZECH).text().isEmpty());
 		}
 
 	}

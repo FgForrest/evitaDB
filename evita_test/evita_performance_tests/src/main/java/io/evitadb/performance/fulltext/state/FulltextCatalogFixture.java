@@ -35,19 +35,24 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.fulltext.FulltextFieldDefinition;
 import io.evitadb.index.fulltext.FulltextFieldKey;
 import io.evitadb.index.fulltext.FulltextIndex;
+import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
 import io.evitadb.index.fulltext.analysis.AnalyzedTermConsumer;
+import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.performance.setup.EvitaCatalogReusableSetup;
@@ -58,6 +63,7 @@ import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.file.Files;
@@ -116,8 +122,8 @@ import static io.evitadb.api.query.QueryConstraints.textMatches;
  *
  * # What every query is checked for
  *
- * The fixture analyzes each query text the way `TextMatchesTranslator` does - the search analyzer while the schema
- * still assigns the analyzer the index was built with, the index's own otherwise - and walks the same posting lists to
+ * The fixture splits query text once and applies each current field group's query word chain, skipping stale
+ * fields and recognizing folded stop words as `TextMatchesTranslator` does. It walks the same posting lists to
  * compute the strict match set and the postings the scorer reads. Its match set must equal the documents the real
  * query returns, and its count the ranked query's `totalRecordCount`, or the fixture refuses to hand itself over: a
  * mismatch means this replica of the translator has drifted, and the posting counts printed next to the measurements
@@ -340,7 +346,8 @@ public final class FulltextCatalogFixture {
 				);
 			}
 			final QueryReplica replica = new QueryReplica(
-				catalog.getFulltextAnalyzerRegistry(), collection.getSchema(), fulltextIndex, locale
+				catalog.getFulltextAnalyzerRegistry(), catalog.getSchema(), collection.getSchema(),
+				fulltextIndex, locale
 			);
 			final Map<PoolKey, List<FulltextQueryProfile>> pools;
 			final int sampledEntities;
@@ -363,7 +370,7 @@ public final class FulltextCatalogFixture {
 					+ (System.currentTimeMillis() - openedAt) + " ms; catalog=" + catalogName + " entityType="
 					+ entityType + " locale=" + locale + " documents=" + globalIndex.getAllPrimaryKeys().size()
 					+ " searchedFields=" + Arrays.toString(replica.getFieldKeys()) + " queryAnalyzer="
-					+ replica.getAnalyzerName() + " sampledEntities=" + sampledEntities + " missedTexts="
+					+ replica.describeAnalysisGroups() + " sampledEntities=" + sampledEntities + " missedTexts="
 					+ missedTexts.size()
 			);
 			int printedMisses = 0;
@@ -641,33 +648,35 @@ public final class FulltextCatalogFixture {
 	 * One word of a text as the query analyzer produced it.
 	 *
 	 * @param surfaceForm the word as written
-	 * @param terms       the distinct terms the analyzer emitted at its position, variant stems included
+	 * @param terms       the distinct splitting terms at its position
+	 * @param alternatives query word alternatives by analyzer group, empty before group analysis
 	 */
-	private record Token(@Nonnull String surfaceForm, @Nonnull String[] terms) {
+	private record Token(
+		@Nonnull String surfaceForm, @Nonnull String[] terms,
+		@Nonnull Map<CompiledFulltextAnalyzer, String[]> alternatives
+	) {
 	}
 
 	/**
 	 * The fixture's replica of what `TextMatchesTranslator` does with a query text: which analyzer reads it, which
 	 * fields it searches, and which posting lists its tokens resolve to.
 	 *
-	 * One step is left out: the translator drops a token that no searched field holds when it is a stop word typed
-	 * without diacritics (`TextMatchesTranslator#createFormula`), where the replica lets the token empty the match.
-	 * No pooled query can tell the difference - a word that resolves to no document gets no frequency class, and a
-	 * text with a token that resolves to none gets no profile - so replicating it is not worth it.
+	 * Splitting happens once; word alternatives and folded-stop decisions belong to each group with current fields.
 	 */
 	private static final class QueryReplica {
 		/**
-		 * The analyzer the translator reads the text with.
+		 * The locale's shared splitting chain.
 		 */
-		@Nonnull private final FulltextAnalyzer analyzer;
+		@Nonnull private final FulltextAnalyzer splitting;
 		/**
 		 * The searched fields that the index knows.
 		 */
 		@Nonnull private final FulltextFieldKey[] fieldKeys;
 		/**
-		 * Index ids of {@link #fieldKeys}, in the same order.
+		 * Current field ids grouped by compiled analyzer content.
 		 */
-		@Nonnull private final int[] fieldIds;
+		@Nonnull private final Map<CompiledFulltextAnalyzer, List<Integer>> groups =
+			CollectionUtils.createLinkedHashMap(4);
 		/**
 		 * The fulltext index of the searched locale.
 		 */
@@ -682,37 +691,38 @@ public final class FulltextCatalogFixture {
 		 * Resolves the analyzer and the searched fields as the translator does.
 		 *
 		 * @param analyzerRegistry the catalog's analyzer registry
+		 * @param catalogSchema    current catalog analysis definitions
 		 * @param entitySchema     schema of the queried collection
 		 * @param fulltextIndex    the fulltext index of the searched locale
 		 * @param locale           the searched locale
 		 */
 		QueryReplica(
 			@Nonnull FulltextAnalyzerRegistry analyzerRegistry,
+			@Nonnull CatalogSchemaContract catalogSchema,
 			@Nonnull EntitySchemaContract entitySchema,
 			@Nonnull FulltextIndex fulltextIndex,
 			@Nonnull Locale locale
 		) {
-			final String entityType = entitySchema.getName();
-			final String indexAnalyzerName = fulltextIndex.getAnalyzerName();
-			// the search half reads the text only while the schema still assigns the analyzer the index was built
-			// with; otherwise the index's own analyzer reads it - see `TextMatchesTranslator#resolveTokens`
-			this.analyzer = analyzerRegistry.getIndexAnalyzer(entityType, locale).getAnalyzerName()
-				.equals(indexAnalyzerName) ?
-				analyzerRegistry.getSearchAnalyzer(entityType, locale) :
-				analyzerRegistry.getIndexAnalyzerByName(indexAnalyzerName);
 			final List<FulltextFieldKey> searchedFields = collectSearchableFields(entitySchema);
 			final List<FulltextFieldKey> knownFields = new ArrayList<>(searchedFields.size());
-			final int[] knownFieldIds = new int[searchedFields.size()];
+			FulltextAnalyzer splitter = null;
 			for (final FulltextFieldKey field : searchedFields) {
-				// a field the index never saw, or retired, resolves to no id and contributes nothing
+				final FulltextFieldDefinition definition = FulltextFieldDefinition.resolve(entitySchema, field);
+				final CompiledFulltextAnalyzer compiled = analyzerRegistry.getCompiledAnalyzer(
+					catalogSchema, definition.analyzer(), locale);
+				if (splitter == null) {
+					splitter = compiled.splitting();
+				}
 				final int fieldId = fulltextIndex.getFieldId(field);
-				if (fieldId != FulltextIndex.UNKNOWN_FIELD_ID) {
-					knownFieldIds[knownFields.size()] = fieldId;
+				if (fieldId != FulltextIndex.UNKNOWN_FIELD_ID && fulltextIndex.isFieldCurrent(
+					fieldId, compiled.fingerprint().index(), definition.lengthPivot())) {
+					this.groups.computeIfAbsent(compiled, ignored -> new ArrayList<>(4)).add(fieldId);
 					knownFields.add(field);
 				}
 			}
+			this.splitting = splitter == null ?
+				analyzerRegistry.getCompiledAnalyzer(catalogSchema, "text", locale).splitting() : splitter;
 			this.fieldKeys = knownFields.toArray(FulltextFieldKey[]::new);
-			this.fieldIds = Arrays.copyOf(knownFieldIds, knownFields.size());
 			this.fulltextIndex = fulltextIndex;
 		}
 
@@ -727,17 +737,18 @@ public final class FulltextCatalogFixture {
 		}
 
 		/**
-		 * Returns the name of the analyzer the query text is read with.
+		 * Describes the current field groups used for query analysis.
 		 *
-		 * @return the analyzer name
+		 * @return the number of compiled field groups
 		 */
 		@Nonnull
-		String getAnalyzerName() {
-			return this.analyzer.getAnalyzerName();
+		String describeAnalysisGroups() {
+			return "compiled field groups: " + this.groups.size();
 		}
 
 		/**
-		 * Splits a text into tokens, grouping the terms the analyzer emits at one position, as the translator does.
+		 * Splits once and runs one query word chain per current field group. Positive position increments start
+		 * words, as in the translator; offset-containment grouping remains the open P5 comparison §6 decision.
 		 *
 		 * @param text the text
 		 * @return the tokens in text order
@@ -745,8 +756,30 @@ public final class FulltextCatalogFixture {
 		@Nonnull
 		Token[] analyze(@Nonnull String text) {
 			final TokenCollector collector = new TokenCollector();
-			this.analyzer.analyze(text, collector);
-			return collector.getTokens();
+			this.splitting.analyze(text, collector);
+			final Token[] words = collector.getTokens();
+			if (words.length > FulltextPhaseOneScorer.MAX_QUERY_TOKENS) {
+				throw new EvitaInvalidUsageException("Too many fulltext query words: " + words.length);
+			}
+			final List<Token> kept = new ArrayList<>(words.length);
+			for (final Token word : words) {
+				final Map<CompiledFulltextAnalyzer, String[]> alternatives = CollectionUtils.createLinkedHashMap(4);
+				for (final Map.Entry<CompiledFulltextAnalyzer, List<Integer>> group : this.groups.entrySet()) {
+					final Set<String> terms = CollectionUtils.createLinkedHashSet(4);
+					for (final String term : word.terms()) {
+						group.getKey().word().analyze(term,
+							(value, surface, start, end, increment) -> terms.add(value));
+					}
+					if (!terms.isEmpty() && !(group.getKey().foldedStopWords().contains(
+						CompiledFulltextAnalyzer.foldStopWord(word.surfaceForm())) && !isKnownToIndex(terms))) {
+						alternatives.put(group.getKey(), terms.toArray(String[]::new));
+					}
+				}
+				if (!alternatives.isEmpty()) {
+					kept.add(new Token(word.surfaceForm(), word.terms(), alternatives));
+				}
+			}
+			return kept.toArray(Token[]::new);
 		}
 
 		/**
@@ -840,14 +873,33 @@ public final class FulltextCatalogFixture {
 		@Nonnull
 		private RoaringBitmap matchTokenDocuments(@Nonnull Token token, @Nonnull long[] summedPostings) {
 			final RoaringBitmap documents = new RoaringBitmap();
-			for (final int fieldId : this.fieldIds) {
-				for (final String term : token.terms()) {
-					final Bitmap postings = this.fulltextIndex.getPostings(fieldId, term);
-					summedPostings[0] += postings.size();
-					documents.add(postings.getArray());
+			for (final Map.Entry<CompiledFulltextAnalyzer, String[]> group : token.alternatives().entrySet()) {
+				for (final int fieldId : this.groups.get(group.getKey())) {
+					for (final String term : group.getValue()) {
+						final Bitmap postings = this.fulltextIndex.getPostings(fieldId, term);
+						summedPostings[0] += postings.size();
+						documents.add(postings.getArray());
+					}
 				}
 			}
 			return documents;
+		}
+
+		/**
+		 * Checks folded-stop collisions across the entire corpus, including retired fields.
+		 *
+		 * @param terms the query alternatives
+		 * @return whether any field holds one of the alternatives
+		 */
+		private boolean isKnownToIndex(@Nonnull Set<String> terms) {
+			for (int fieldId = 0; fieldId < this.fulltextIndex.getFieldCount(); fieldId++) {
+				for (final String term : terms) {
+					if (!this.fulltextIndex.getPostings(fieldId, term).isEmpty()) {
+						return true;
+					}
+				}
+			}
+			return false;
 		}
 
 		/**
@@ -1112,7 +1164,7 @@ public final class FulltextCatalogFixture {
 
 	/**
 	 * Groups the terms an analyzer emits into tokens - a term with a position increment of zero belongs to the token
-	 * before it, which is how the search analyzer emits variant stems. A copy of
+	 * before it, preserving the shared splitting graph. A copy of
 	 * `TextMatchesTranslator.TokenCollector`, which is private to the translator.
 	 */
 	private static final class TokenCollector implements AnalyzedTermConsumer {
@@ -1165,7 +1217,8 @@ public final class FulltextCatalogFixture {
 		private void flush() {
 			if (!this.currentTerms.isEmpty()) {
 				this.tokens.add(
-					new Token(Objects.requireNonNull(this.currentSurfaceForm), this.currentTerms.toArray(String[]::new))
+					new Token(Objects.requireNonNull(this.currentSurfaceForm),
+						this.currentTerms.toArray(String[]::new), Map.of())
 				);
 				this.currentTerms.clear();
 			}

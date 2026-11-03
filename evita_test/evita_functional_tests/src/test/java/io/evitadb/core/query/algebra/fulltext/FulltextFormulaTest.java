@@ -33,9 +33,10 @@ import io.evitadb.core.query.algebra.fulltext.FulltextFormula.ExpandedTerm;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityToBitmapFilter;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
-import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.bPlusTree.ImpactView;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -43,13 +44,14 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.fulltext.FulltextIndex;
-import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Expansion;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
-import io.evitadb.index.fulltext.analysis.AnalyzedTerm;
+import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.test.fulltext.AnalyzedTerm;
+import io.evitadb.test.fulltext.FulltextAnalysisTestSupport;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -59,6 +61,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -71,9 +74,11 @@ import java.util.TreeSet;
 import java.util.stream.IntStream;
 
 import static io.evitadb.index.fulltext.FulltextFieldKey.attribute;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.fulltext.FulltextAnalysisTestSupport.collectTerms;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -117,8 +122,9 @@ class FulltextFormulaTest {
 
 	@BeforeAll
 	static void setUpAnalyzer() {
-		registry = new FulltextAnalyzerRegistry();
-		analyzer = registry.getIndexAnalyzer("product", Locale.forLanguageTag("cs"));
+		registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
+		analyzer = registry.getCompiledAnalyzer(
+			FulltextAnalysisTestSupport.SCHEMA, "text", Locale.forLanguageTag("cs")).index();
 	}
 
 	@AfterAll
@@ -797,7 +803,7 @@ class FulltextFormulaTest {
 		@DisplayName("Random queries match exactly the entities containing every query word in a searched field")
 		void shouldMatchLikeABruteForceOracle() {
 			final Random random = new Random(42);
-			final FulltextIndex index = new FulltextIndex(analyzer);
+			final FulltextIndex index = new FulltextIndex();
 			final String[] fields = {"title", "body"};
 			final int entityCount = 200;
 			// per entity and field, the set of analyzed terms - the oracle
@@ -806,7 +812,7 @@ class FulltextFormulaTest {
 				final List<Set<String>> entityTerms = new ArrayList<>(fields.length);
 				for (final String field : fields) {
 					final String value = randomText(random, 1 + random.nextInt(4));
-					index.addValue(attribute(field), pk, value);
+					index.addValue(attribute(field), pk, testAnalyzer(), 25.0, null, value);
 					entityTerms.add(termsOf(value));
 				}
 				model.add(entityTerms);
@@ -855,9 +861,9 @@ class FulltextFormulaTest {
 		@Test
 		@DisplayName("Postings past the sorted-array tier match and score like array-tier ones, and stay untouched")
 		void shouldMatchAndScoreOverBitmapTierPostings() {
-			final FulltextIndex index = new FulltextIndex(analyzer);
-			final int body = index.getOrAssignFieldId(attribute("body"));
-			final int title = index.getOrAssignFieldId(attribute("title"));
+			final FulltextIndex index = new FulltextIndex();
+			final int body = registerField(index, attribute("body"));
+			final int title = registerField(index, attribute("title"));
 			// two terms past the sorted-array tier, into bitmaps spanning three roaring containers, sharing every
 			// multiple of 97 * 89; and a term in the array tier on multiples of 89 alone
 			final TreeSet<Integer> kolo = new TreeSet<>();
@@ -929,7 +935,7 @@ class FulltextFormulaTest {
 		@Nonnull
 		private Set<String> termsOf(@Nonnull String text) {
 			final Set<String> terms = new TreeSet<>();
-			for (final AnalyzedTerm term : analyzer.getTerms(text)) {
+			for (final AnalyzedTerm term : collectTerms(analyzer, text)) {
 				terms.add(term.term());
 			}
 			return terms;

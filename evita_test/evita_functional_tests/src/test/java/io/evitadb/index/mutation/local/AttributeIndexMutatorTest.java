@@ -27,6 +27,7 @@ import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
@@ -35,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.EntityReferenceWithLocale;
 import io.evitadb.index.attribute.FilterIndex;
@@ -46,28 +48,27 @@ import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeCardinalityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
-
-import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.index.mutation.local.AttributeIndexMutator.executeAttributeDelta;
 import static io.evitadb.index.mutation.local.AttributeIndexMutator.executeAttributeRemoval;
@@ -435,23 +436,14 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			() -> {
 				final AttributeKey attrCode = new AttributeKey(ATTRIBUTE_CODE);
 				executeAttributeUpsert(
-					new EntityIndexLocalMutationExecutor(
-						this.containerAccessor, 2,
+					new EntityIndexLocalMutationExecutor(this.containerAccessor, 2,
 						new MockEntityIndexCreator<>(this.productIndex),
-						new MockEntityIndexCreator<>(this.catalogIndex),
-						() -> this.productSchema,
-						this.priceIdSequence::incrementAndGet,
-						UNSUPPORTED_OPERATION,
-						null,
-						null,
-						null,
-						this.classifierResolver,
-						this.usageRegistry,
-						this.catalogUsageRegistry,
-						new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
-						true,
-						new PartitionReservations()
-					),
+						new MockEntityIndexCreator<>(this.catalogIndex), () -> this.productSchema,
+						this.priceIdSequence::incrementAndGet, UNSUPPORTED_OPERATION, null, null, null,
+						this.classifierResolver, this.usageRegistry, this.catalogUsageRegistry,
+						new FulltextAnalyzerRegistry(new AnalysisStepRegistry()),
+						() -> io.evitadb.index.fulltext.FulltextIndexTestSupport.SCHEMA,
+						AttributeNormalizationResolver.LEGACY_NFD, true, new PartitionReservations()),
 					null,
 					this.productAttributeSchemaProvider,
 					getEntityAttributeValueSupplier(this.productSchema, 2),
@@ -468,23 +460,14 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			() -> {
 				final AttributeKey attrGlobalCode = new AttributeKey(ATTRIBUTE_GLOBAL_CODE);
 				executeAttributeUpsert(
-					new EntityIndexLocalMutationExecutor(
-						this.containerAccessor, 2,
+					new EntityIndexLocalMutationExecutor(this.containerAccessor, 2,
 						new MockEntityIndexCreator<>(this.productIndex),
-						new MockEntityIndexCreator<>(this.catalogIndex),
-						() -> this.productSchema,
-						this.priceIdSequence::incrementAndGet,
-						UNSUPPORTED_OPERATION,
-						null,
-						null,
-						null,
-						this.classifierResolver,
-						this.usageRegistry,
-						this.catalogUsageRegistry,
-						new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
-						true,
-						new PartitionReservations()
-					),
+						new MockEntityIndexCreator<>(this.catalogIndex), () -> this.productSchema,
+						this.priceIdSequence::incrementAndGet, UNSUPPORTED_OPERATION, null, null, null,
+						this.classifierResolver, this.usageRegistry, this.catalogUsageRegistry,
+						new FulltextAnalyzerRegistry(new AnalysisStepRegistry()),
+						() -> io.evitadb.index.fulltext.FulltextIndexTestSupport.SCHEMA,
+						AttributeNormalizationResolver.LEGACY_NFD, true, new PartitionReservations()),
 					null,
 					this.productAttributeSchemaProvider,
 					getEntityAttributeValueSupplier(this.productSchema, 2),
@@ -506,23 +489,12 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		final AttributeKey attrCode = new AttributeKey(ATTRIBUTE_CODE);
 		executeAttributeUpsert(
-			new EntityIndexLocalMutationExecutor(
-				this.containerAccessor, 2,
-				new MockEntityIndexCreator<>(this.productIndex),
-				new MockEntityIndexCreator<>(this.catalogIndex),
-				() -> this.productSchema,
-				this.priceIdSequence::incrementAndGet,
-				UNSUPPORTED_OPERATION,
-				null,
-				null,
-				null,
-				this.classifierResolver,
-				this.usageRegistry,
-				this.catalogUsageRegistry,
-				new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
-				true,
-				new PartitionReservations()
-			),
+			new EntityIndexLocalMutationExecutor(this.containerAccessor, 2,
+				new MockEntityIndexCreator<>(this.productIndex), new MockEntityIndexCreator<>(this.catalogIndex),
+				() -> this.productSchema, this.priceIdSequence::incrementAndGet, UNSUPPORTED_OPERATION, null, null,
+				null, this.classifierResolver, this.usageRegistry, this.catalogUsageRegistry,
+				new FulltextAnalyzerRegistry(new AnalysisStepRegistry()), () -> io.evitadb.index.fulltext.FulltextIndexTestSupport.SCHEMA,
+				AttributeNormalizationResolver.LEGACY_NFD, true, new PartitionReservations()),
 			null,
 			this.productAttributeSchemaProvider,
 			getEntityAttributeValueSupplier(this.productSchema, 2),
@@ -534,23 +506,12 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		final AttributeKey attrGlobalCode = new AttributeKey(ATTRIBUTE_GLOBAL_CODE);
 		executeAttributeUpsert(
-			new EntityIndexLocalMutationExecutor(
-				this.containerAccessor, 2,
-				new MockEntityIndexCreator<>(this.productIndex),
-				new MockEntityIndexCreator<>(this.catalogIndex),
-				() -> this.productSchema,
-				this.priceIdSequence::incrementAndGet,
-				UNSUPPORTED_OPERATION,
-				null,
-				null,
-				null,
-				this.classifierResolver,
-				this.usageRegistry,
-				this.catalogUsageRegistry,
-				new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
-				true,
-				new PartitionReservations()
-			),
+			new EntityIndexLocalMutationExecutor(this.containerAccessor, 2,
+				new MockEntityIndexCreator<>(this.productIndex), new MockEntityIndexCreator<>(this.catalogIndex),
+				() -> this.productSchema, this.priceIdSequence::incrementAndGet, UNSUPPORTED_OPERATION, null, null,
+				null, this.classifierResolver, this.usageRegistry, this.catalogUsageRegistry,
+				new FulltextAnalyzerRegistry(new AnalysisStepRegistry()), () -> io.evitadb.index.fulltext.FulltextIndexTestSupport.SCHEMA,
+				AttributeNormalizationResolver.LEGACY_NFD, true, new PartitionReservations()),
 			null,
 			this.productAttributeSchemaProvider,
 			getEntityAttributeValueSupplier(this.productSchema, 2),
@@ -669,23 +630,12 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			false, true
 		);
 		executeAttributeUpsert(
-			new EntityIndexLocalMutationExecutor(
-				this.containerAccessor, 2,
-				new MockEntityIndexCreator<>(this.productIndex),
-				new MockEntityIndexCreator<>(this.catalogIndex),
-				() -> this.productSchema,
-				this.priceIdSequence::incrementAndGet,
-				UNSUPPORTED_OPERATION,
-				null,
-				null,
-				null,
-				this.classifierResolver,
-				this.usageRegistry,
-				this.catalogUsageRegistry,
-				new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
-				true,
-				new PartitionReservations()
-			),
+			new EntityIndexLocalMutationExecutor(this.containerAccessor, 2,
+				new MockEntityIndexCreator<>(this.productIndex), new MockEntityIndexCreator<>(this.catalogIndex),
+				() -> this.productSchema, this.priceIdSequence::incrementAndGet, UNSUPPORTED_OPERATION, null, null,
+				null, this.classifierResolver, this.usageRegistry, this.catalogUsageRegistry,
+				new FulltextAnalyzerRegistry(new AnalysisStepRegistry()), () -> io.evitadb.index.fulltext.FulltextIndexTestSupport.SCHEMA,
+				AttributeNormalizationResolver.LEGACY_NFD, true, new PartitionReservations()),
 			null,
 			this.productAttributeSchemaProvider,
 			getEntityAttributeValueSupplier(this.productSchema, 2),

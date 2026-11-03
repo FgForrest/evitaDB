@@ -31,12 +31,13 @@ import java.util.function.Supplier;
  *
  * This is the streaming half of the tokenization contract and exists so that the write path — which analyses
  * every stored value of every indexed attribute — never has to materialize a list it immediately walks and
- * throws away. The components are passed individually rather than as an {@link AnalyzedTerm} for the same
- * reason: a consumer that only needs the term does not pay for a record per token either.
- * {@link FulltextAnalyzer#getTerms(String)} is the convenience implementation that does collect them.
+ * throws away. Components are passed individually so a consumer needing only the term pays for no record per
+ * token. A consumer that needs a materialized result can collect the callback values itself.
  *
- * The parameters mirror {@link AnalyzedTerm} exactly; see its javadoc for what each one means and why the
- * offsets and the surface form are handed out even though nothing consumes them yet.
+ * The surface form preserves the original spelling before stemming and folding. It is supplied lazily because
+ * index writes need only the term, while query splitting reads the original word. Offsets address the same
+ * NFC-normalized input in UTF-16 code units, including any correction made by text steps such as HTML stripping.
+ * Position increments preserve word boundaries and alternatives for query grouping.
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -46,11 +47,12 @@ public interface AnalyzedTermConsumer {
 	/**
 	 * Accepts a single analysed term.
 	 *
-	 * @param term              the analysed term
+	 * @param term              the emitted term, possibly lowercased, stemmed or diacritics-folded
 	 * @param surfaceForm       lazily provided substring of the NFC-normalized input the term was produced from
 	 * @param startOffset       start offset of the surface form in the NFC-normalized input
 	 * @param endOffset         end offset (exclusive) of the surface form in the NFC-normalized input
-	 * @param positionIncrement distance from the preceding term's position
+	 * @param positionIncrement distance from the preceding term's position: 1 for consecutive words, 0 for an
+	 *                          alternative at the same position, or greater than 1 when stop words were dropped
 	 */
 	void accept(
 		@Nonnull String term,

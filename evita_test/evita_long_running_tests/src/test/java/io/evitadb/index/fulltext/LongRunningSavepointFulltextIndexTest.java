@@ -25,7 +25,8 @@ package io.evitadb.index.fulltext;
 
 import io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
-import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
+import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -33,6 +34,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 
 import javax.annotation.Nonnull;
+
 import java.util.Locale;
 import java.util.Random;
 
@@ -87,12 +89,12 @@ class LongRunningSavepointFulltextIndexTest extends AbstractSavepointFuzzTest<St
 	/**
 	 * The analyzer every index in this test uses.
 	 */
-	private static FulltextAnalyzer analyzer;
+	private static CompiledFulltextAnalyzer analyzer;
 
 	@BeforeAll
 	static void setUpAnalyzer() {
-		registry = new FulltextAnalyzerRegistry();
-		analyzer = registry.getIndexAnalyzer("product", Locale.forLanguageTag("cs"));
+		registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
+		analyzer = registry.getCompiledAnalyzer(FulltextIndexModel.ANALYSIS_SCHEMA, "text", Locale.forLanguageTag("cs"));
 	}
 
 	@AfterAll
@@ -113,7 +115,7 @@ class LongRunningSavepointFulltextIndexTest extends AbstractSavepointFuzzTest<St
 		/**
 		 * The index under test.
 		 */
-		@Nonnull private final FulltextIndex index = new FulltextIndex(analyzer);
+		@Nonnull private final FulltextIndex index = new FulltextIndex();
 		/**
 		 * The model the random steps are drawn from. It is not rewound by a rollback - a generation ends with the
 		 * savepoint, so nothing draws from it afterwards.
@@ -162,7 +164,7 @@ class LongRunningSavepointFulltextIndexTest extends AbstractSavepointFuzzTest<St
 				this.index, random, random.nextInt(MAX_OPERATIONS), MAX_FIELD_COUNT, this.log
 			);
 			// applied LAST: a marker applied first could be undone by a later random step
-			this.index.addValue(MARKER_KEY, 0, "Praha kolo");
+			this.index.addValue(MARKER_KEY, 0, analyzer, 25.0, null, "Praha kolo");
 		}
 	}
 

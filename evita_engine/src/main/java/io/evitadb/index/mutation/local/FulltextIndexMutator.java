@@ -52,6 +52,8 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexType;
 import io.evitadb.index.fulltext.FulltextFieldKey;
 import io.evitadb.index.fulltext.FulltextIndex;
+import io.evitadb.index.fulltext.FulltextFieldDefinition;
+import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
 import io.evitadb.index.fulltext.SearchableTextExtractor;
 import io.evitadb.index.fulltext.SearchableTextExtractor.ExtractionMode;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor.Target;
@@ -91,7 +93,7 @@ import java.util.Set;
  * for every value the entity's storage parts hold that was written while its attribute was searchable - the same
  * invariant the attribute indexes keep, which is what lets a scope change remove exactly what is indexed. A value
  * stored before its attribute became searchable was never indexed, and removing it is a no-op (see
- * {@link FulltextIndex#removeValue(FulltextFieldKey, int, String[])}).
+ * {@link FulltextIndex#removeValue}).
  *
  * **Caller ordering.** Both the value an update removes and the union "before" a reference change are read from the
  * storage parts as they stand before the mutation, so every method here must run in the index executor, before the
@@ -153,7 +155,7 @@ public interface FulltextIndexMutator {
 		final AttributeValue existingValue = existingValueSupplier.getAttributeValue(attributeKey).orElse(null);
 		if (existingValue != null && existingValue.value() != null) {
 			removeValue(
-				globalIndex, locale, fieldKey,
+				executor, globalIndex, locale, fieldKey,
 				executor.getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING),
 				distinctValues(existingValue.value())
 			);
@@ -212,7 +214,8 @@ public interface FulltextIndexMutator {
 		final Serializable existing = existingValue != null && existingValue.exists() ? existingValue.value() : null;
 		final Serializable upserted = mutation instanceof UpsertAssociatedDataMutation upsertMutation ?
 			upsertMutation.getAssociatedDataValue() : null;
-		if (existing != null && Objects.deepEquals(existing, upserted)) {
+		if (existing != null && Objects.deepEquals(existing, upserted) &&
+			isCurrentField(executor, globalIndex, locale, fieldKey)) {
 			// the very value is written again - its text is indexed already
 			return;
 		}
@@ -232,7 +235,7 @@ public interface FulltextIndexMutator {
 			// passed the strict mode extracts the same texts leniently, and a value added leniently (a scope change)
 			// is removed leniently the very same way
 			removeValue(
-				globalIndex, locale, fieldKey,
+				executor, globalIndex, locale, fieldKey,
 				executor.getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING),
 				SearchableTextExtractor.extract(
 					existing, textExpression, entityType, associatedDataName, ExtractionMode.LENIENT
@@ -286,7 +289,8 @@ public interface FulltextIndexMutator {
 		final int primaryKey = entity.getPrimaryKeyOrThrowException();
 		forEachSearchableValue(
 			executor.getEntitySchema(), globalIndex, entity,
-			(fieldKey, locale, values, textExpression) -> removeValue(globalIndex, locale, fieldKey, primaryKey, values)
+			(fieldKey, locale, values, textExpression) -> removeValue(executor, globalIndex, locale, fieldKey,
+				primaryKey, values)
 		);
 	}
 
@@ -595,11 +599,12 @@ public interface FulltextIndexMutator {
 		@Nonnull Set<String> before,
 		@Nonnull Set<String> after
 	) {
-		if (before.equals(after)) {
+		if (before.equals(after) && isCurrentField(executor, globalIndex, locale, fieldKey)) {
 			return;
 		}
 		removeValue(
-			globalIndex, locale, fieldKey, executor.getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING),
+			executor, globalIndex, locale, fieldKey, executor.getPrimaryKeyToIndex(IndexType.ENTITY_INDEX,
+				Target.EXISTING),
 			before
 		);
 		addValue(
@@ -609,8 +614,31 @@ public interface FulltextIndexMutator {
 	}
 
 	/**
+	 * Checks the current generation before treating an identical value as already indexed.
+	 *
+	 * @param executor the mutation executor supplying current schemas
+	 * @param globalIndex the scope index
+	 * @param locale the value locale
+	 * @param fieldKey the field being written
+	 * @return true when the field is registered with the current chain and pivot
+	 */
+	private static boolean isCurrentField(
+		@Nonnull EntityIndexLocalMutationExecutor executor, @Nonnull GlobalEntityIndex globalIndex,
+		@Nonnull Locale locale, @Nonnull FulltextFieldKey fieldKey
+	) {
+		final FulltextFieldDefinition definition = FulltextFieldDefinition.resolve(executor.getEntitySchema(),
+			fieldKey);
+		final CompiledFulltextAnalyzer analyzer = executor.getFulltextAnalyzerRegistry()
+			.getCompiledAnalyzer(executor.getCatalogSchema(), definition.analyzer(), locale);
+		final FulltextIndex index = globalIndex.getFulltextIndex(locale);
+		final int fieldId = index == null ? FulltextIndex.UNKNOWN_FIELD_ID : index.getFieldId(fieldKey);
+		return fieldId != FulltextIndex.UNKNOWN_FIELD_ID &&
+			index.isFieldCurrent(fieldId, analyzer.fingerprint().index(), definition.lengthPivot());
+	}
+
+	/**
 	 * Indexes the values of an entity's field, creating the fulltext index of the locale when there is none yet.
-	 * Nothing is indexed - and no index created - for no values.
+	 * Empty text sets still reconcile a field generation with its current schema.
 	 *
 	 * @param executor    the executor of the entity mutation
 	 * @param globalIndex the global index of the scope being written
@@ -633,7 +661,7 @@ public interface FulltextIndexMutator {
 	/**
 	 * Indexes the values of an entity's field, creating the fulltext index of the locale when there is none yet and
 	 * registering a new field with the text expression its values were selected with. An existing field keeps its own
-	 * expression - see the class documentation. Nothing is indexed - and no index created - for no values.
+	 * expression - see the class documentation. Empty value sets change nothing and create no index or field.
 	 *
 	 * @param executor       the executor of the entity mutation
 	 * @param globalIndex    the global index of the scope being written
@@ -655,13 +683,13 @@ public interface FulltextIndexMutator {
 		if (values.isEmpty()) {
 			return;
 		}
-		final FulltextIndex fulltextIndex = globalIndex.getOrCreateFulltextIndex(
-			locale, executor.getFulltextAnalyzerRegistry().getIndexAnalyzer(executor.getEntityType(), locale)
-		);
-		if (textExpression != null) {
-			fulltextIndex.getOrAssignFieldId(fieldKey, fulltextIndex.getDefaultLengthPivot(), textExpression);
-		}
-		fulltextIndex.addValue(fieldKey, primaryKey, values.toArray(String[]::new));
+		final FulltextFieldDefinition definition = FulltextFieldDefinition.resolve(executor.getEntitySchema(),
+			fieldKey);
+		final CompiledFulltextAnalyzer analyzer = executor.getFulltextAnalyzerRegistry()
+			.getCompiledAnalyzer(executor.getCatalogSchema(), definition.analyzer(), locale);
+		final FulltextIndex fulltextIndex = globalIndex.getOrCreateFulltextIndex(locale);
+		fulltextIndex.addValue(fieldKey, primaryKey, analyzer, definition.lengthPivot(), textExpression,
+			values.toArray(String[]::new));
 	}
 
 	/**
@@ -712,6 +740,7 @@ public interface FulltextIndexMutator {
 	 * Removes the values of an entity's field from the fulltext index of the locale. Without an index for the locale
 	 * there is nothing to remove, and none is created for it.
 	 *
+	 * @param executor supplies the current catalog and field schemas
 	 * @param globalIndex the global index of the scope being written
 	 * @param locale      the locale of the values
 	 * @param fieldKey    the field
@@ -719,6 +748,7 @@ public interface FulltextIndexMutator {
 	 * @param values      the distinct values the field holds
 	 */
 	private static void removeValue(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull GlobalEntityIndex globalIndex,
 		@Nonnull Locale locale,
 		@Nonnull FulltextFieldKey fieldKey,
@@ -726,9 +756,15 @@ public interface FulltextIndexMutator {
 		@Nonnull Set<String> values
 	) {
 		final FulltextIndex fulltextIndex = globalIndex.getFulltextIndex(locale);
-		if (fulltextIndex != null && !values.isEmpty()) {
-			fulltextIndex.removeValue(fieldKey, primaryKey, values.toArray(String[]::new));
+		if (fulltextIndex == null) {
+			return;
 		}
+		final FulltextFieldDefinition definition = FulltextFieldDefinition.resolve(executor.getEntitySchema(),
+			fieldKey);
+		final CompiledFulltextAnalyzer analyzer = executor.getFulltextAnalyzerRegistry()
+			.getCompiledAnalyzer(executor.getCatalogSchema(), definition.analyzer(), locale);
+		fulltextIndex.removeValue(fieldKey, primaryKey, analyzer, definition.lengthPivot(),
+			values.toArray(String[]::new));
 	}
 
 	/**

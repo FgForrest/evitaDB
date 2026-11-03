@@ -24,6 +24,7 @@
 package io.evitadb.index.fulltext.typo;
 
 import io.evitadb.core.query.algebra.base.OrFormula;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -36,6 +37,7 @@ import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.test.fulltext.CzechLexicon;
 import io.evitadb.test.fulltext.CzechStemDictionary;
 import io.evitadb.test.fulltext.CzechWordForms;
+import io.evitadb.test.fulltext.FulltextAnalysisTestSupport;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.JolHeapSize;
 import org.junit.jupiter.api.AfterAll;
@@ -46,6 +48,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -57,6 +60,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.SLOW;
@@ -156,8 +160,9 @@ class ShortPrefixPrecomputationMeasurementTest {
 	 */
 	@BeforeAll
 	static void setUpAnalyzers() {
-		registry = new FulltextAnalyzerRegistry();
-		indexAnalyzer = registry.getIndexAnalyzer("PRODUCT", Locale.forLanguageTag("cs"));
+		registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
+		indexAnalyzer = registry.getCompiledAnalyzer(
+			FulltextAnalysisTestSupport.SCHEMA, "text", Locale.forLanguageTag("cs")).index();
 	}
 
 	/**
@@ -179,10 +184,10 @@ class ShortPrefixPrecomputationMeasurementTest {
 		final String[] titles = generateTitles(vocabulary.ranked());
 		final long titleNanos = System.nanoTime() - titleStart;
 
-		final FulltextIndex index = new FulltextIndex(indexAnalyzer);
+		final FulltextIndex index = new FulltextIndex();
 		final long indexStart = System.nanoTime();
 		for (int i = 0; i < titles.length; i++) {
-			index.addValue(FIELD, i + 1, titles[i]);
+			index.addValue(FIELD, i + 1, testAnalyzer(), 25.0, null, titles[i]);
 		}
 		final long indexNanos = System.nanoTime() - indexStart;
 		final int fieldId = index.getFieldId(FIELD);
@@ -310,7 +315,7 @@ class ShortPrefixPrecomputationMeasurementTest {
 			}
 
 			start = System.nanoTime();
-			index.removeValue(FIELD, pk, title);
+			index.removeValue(FIELD, pk, testAnalyzer(), 25.0, title);
 			baseRemove.add(System.nanoTime() - start);
 			for (int a = 0; a < arms.length; a++) {
 				start = System.nanoTime();
@@ -319,7 +324,7 @@ class ShortPrefixPrecomputationMeasurementTest {
 				armTouched[a].add(touched);
 			}
 			start = System.nanoTime();
-			index.addValue(FIELD, pk, title);
+			index.addValue(FIELD, pk, testAnalyzer(), 25.0, null, title);
 			baseAdd.add(System.nanoTime() - start);
 			for (int a = 0; a < arms.length; a++) {
 				start = System.nanoTime();

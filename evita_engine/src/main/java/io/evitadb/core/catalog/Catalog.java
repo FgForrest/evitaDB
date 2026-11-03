@@ -669,7 +669,6 @@ public final class Catalog
 										globalIndex = entityCollectionPersistenceService.readEntityIndex(
 											catalogVersion, globalIndexPk, indexSchema,
 											initBulk.catalog().isUsageStatisticsTracked(),
-											initBulk.catalog().getFulltextAnalyzerRegistry(),
 											entityCollection.getAttributeNormalizationResolver()
 										);
 										initBulk.addGlobalIndex(entityCollection.getEntityType(), globalIndex);
@@ -697,7 +696,6 @@ public final class Catalog
 														.readEntityIndex(
 															catalogVersion, eid, indexSchema,
 															initBulk.catalog().isUsageStatisticsTracked(),
-															initBulk.catalog().getFulltextAnalyzerRegistry(),
 															entityCollection.getAttributeNormalizationResolver()
 														);
 													if (loadedIndex.getIndexKey().type() == EntityIndexType.GLOBAL) {
@@ -883,7 +881,7 @@ public final class Catalog
 		// nothing today; it is here so that a future constructor accepting a populated schema cannot skip it
 		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 		this.usageRegistry.alignWith(internalCatalogSchema);
-		this.fulltextAnalyzerRegistry = new FulltextAnalyzerRegistry();
+		this.fulltextAnalyzerRegistry = new FulltextAnalyzerRegistry(this.analysisStepRegistry);
 		this.proxyFactory = proxyFactory;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = internalCatalogSchema.version();
@@ -981,7 +979,7 @@ public final class Catalog
 		// has its row before the first query arrives rather than from whenever one first names it
 		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 		this.usageRegistry.alignWith(catalogSchema);
-		this.fulltextAnalyzerRegistry = new FulltextAnalyzerRegistry();
+		this.fulltextAnalyzerRegistry = new FulltextAnalyzerRegistry(this.analysisStepRegistry);
 		this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
 			.filter(it -> !it.isEmpty())
 			.ifPresent(this.archiveCatalogIndex::set);

@@ -41,6 +41,7 @@ import io.evitadb.index.analysis.LowercaseAnalysisStepFactory;
 import io.evitadb.index.analysis.RemoveCharactersAnalysisStepFactory;
 import io.evitadb.spi.analysis.FulltextAnalysisContext;
 import io.evitadb.spi.analysis.FulltextAnalysisSide;
+import io.evitadb.test.fulltext.AnalyzedTerm;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -48,6 +49,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 
 import javax.annotation.Nonnull;
+
 import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -60,6 +62,7 @@ import java.util.Set;
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
+import static io.evitadb.test.fulltext.FulltextAnalysisTestSupport.collectTerms;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -255,7 +258,7 @@ class FulltextStepFactoriesTest {
 				)
 			) {
 				assertTrue(
-					!chain.getTerms("Television iPhone15 a <b>tv</b>").isEmpty(),
+					!collectTerms(chain, "Television iPhone15 a <b>tv</b>").isEmpty(),
 					factory.getName() + " in " + context.locale() + " on " + side
 				);
 			}
@@ -304,7 +307,7 @@ class FulltextStepFactoriesTest {
 					List.of(htmlStrip()), List.of(lowercase()), Locale.ROOT, Map.of(), FulltextAnalysisSide.INDEX
 				)
 			) {
-				final List<AnalyzedTerm> terms = chain.getTerms(value);
+				final List<AnalyzedTerm> terms = collectTerms(chain, value);
 
 				assertEquals(List.of("pánské", "boty", "obuv"), terms.stream().map(AnalyzedTerm::term).toList());
 				// a word directly followed by a tag ends after that tag, so only its start is exact
@@ -345,7 +348,7 @@ class FulltextStepFactoriesTest {
 						List.of(removeCharacters("-\uD835\uDD38")), List.of(lowercase()), Locale.ROOT, Map.of(), side
 					)
 				) {
-					final List<AnalyzedTerm> terms = chain.getTerms(text);
+					final List<AnalyzedTerm> terms = collectTerms(chain, text);
 
 					assertEquals(
 						List.of("usbc", "a", "b"), terms.stream().map(AnalyzedTerm::term).toList(), side.name()
@@ -396,7 +399,7 @@ class FulltextStepFactoriesTest {
 						new AnalyzedTerm("iphone", "iPhone", 0, 6, 0),
 						new AnalyzedTerm("15", "15", 6, 8, 1)
 					),
-					chain.getTerms("iPhone15")
+					collectTerms(chain, "iPhone15")
 				);
 			}
 		}
@@ -538,7 +541,7 @@ class FulltextStepFactoriesTest {
 					FulltextAnalysisSide.QUERY
 				)
 			) {
-				final List<AnalyzedTerm> terms = chain.getTerms("Mobil levně");
+				final List<AnalyzedTerm> terms = collectTerms(chain, "Mobil levně");
 
 				assertEquals(
 					Set.of("mobil", "telefon"),
@@ -629,7 +632,7 @@ class FulltextStepFactoriesTest {
 					resources, FulltextAnalysisSide.QUERY
 				)
 			) {
-				final List<AnalyzedTerm> terms = chain.getTerms("the tv now");
+				final List<AnalyzedTerm> terms = collectTerms(chain, "the tv now");
 
 				assertEquals(List.of(2, 0, 1), terms.stream().map(AnalyzedTerm::positionIncrement).toList());
 				assertEquals(List.of("tv", "televize", "now"), terms.stream().map(AnalyzedTerm::term).toList());
@@ -650,7 +653,7 @@ class FulltextStepFactoriesTest {
 					resources, FulltextAnalysisSide.QUERY
 				)
 			) {
-				final List<AnalyzedTerm> terms = chain.getTerms("mobil levně");
+				final List<AnalyzedTerm> terms = collectTerms(chain, "mobil levně");
 
 				assertEquals(
 					Set.of("mobil", "telefon", "handy"),
@@ -917,6 +920,6 @@ class FulltextStepFactoriesTest {
 	 */
 	@Nonnull
 	private static List<String> termTexts(@Nonnull FulltextAnalyzer analyzer, @Nonnull String text) {
-		return analyzer.getTerms(text).stream().map(AnalyzedTerm::term).toList();
+		return collectTerms(analyzer, text).stream().map(AnalyzedTerm::term).toList();
 	}
 }

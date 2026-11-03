@@ -23,8 +23,10 @@
 
 package io.evitadb.index.fulltext.analysis;
 
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.fulltext.analysis.AnalysisApproachMeasurer.MatchStrategy;
 import io.evitadb.index.fulltext.analysis.AnalysisApproachMeasurer.Measurement;
+import io.evitadb.test.fulltext.FulltextAnalysisTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -33,6 +35,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+
 import java.util.List;
 import java.util.Locale;
 import java.util.function.UnaryOperator;
@@ -48,7 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *
  * Two metrics, both taken from the records the design was chosen on and computed by the same
  * {@link AnalysisApproachMeasurer} that produced those records. Every accented form of the language's fixture
- * is typed on a bare keyboard and run through the language's `*-search` chain; its terms then have to share at
+ * is typed on a bare keyboard and run through the language's compiled `text` query chain; its terms then have to share at
  * least one term with the `*index*` chain's terms of
  *
  * - **that same form** — accent-typed recall, the minimum a folding pair has to deliver;
@@ -80,7 +83,7 @@ class LanguageAnalyzerPairRecallTest {
 
 	@BeforeEach
 	void setUp() {
-		this.registry = new FulltextAnalyzerRegistry();
+		this.registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 	}
 
 	@AfterEach
@@ -105,8 +108,9 @@ class LanguageAnalyzerPairRecallTest {
 		@Nonnull List<Lemma> confusableLemmas,
 		@Nonnull UnaryOperator<String> bareTyper
 	) {
-		final FulltextAnalyzer index = this.registry.getIndexAnalyzer(ENTITY_TYPE, locale);
-		final FulltextAnalyzer search = this.registry.getSearchAnalyzer(ENTITY_TYPE, locale);
+		final FulltextAnalyzer index = this.registry.getCompiledAnalyzer(
+			FulltextAnalysisTestSupport.SCHEMA, "text", locale).index();
+		final FulltextAnalyzer search = FulltextAnalysisTestSupport.queryAnalyzer(locale);
 		return new Recall(
 			AnalysisApproachMeasurer.measure(
 				index.getAnalyzerName() + "/" + search.getAnalyzerName(),

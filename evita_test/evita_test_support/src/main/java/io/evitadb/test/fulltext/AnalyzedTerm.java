@@ -21,7 +21,9 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.fulltext.analysis;
+package io.evitadb.test.fulltext;
+
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 
 import javax.annotation.Nonnull;
 
@@ -29,17 +31,8 @@ import javax.annotation.Nonnull;
  * A single term produced by {@link FulltextAnalyzer} from one analysed text, together with everything about it
  * that cannot be reconstructed afterwards.
  *
- * Two of the five components exist for consumers that do not exist yet, and both are deliberate:
- *
- * - **offsets** are what highlighting needs. Highlighting is a re-analysis of the returned page at render time
- *   with no index support behind it, so the tokenization contract has to hand the positions out even while
- *   nobody reads them;
- * - **{@link #surfaceForm()}** is the slice of the analysed text the term came from, i.e. the word as it was
- *   written before stemming and diacritics folding collapsed it. Once the chain has run, the surface form is
- *   irrecoverable — and the open question of whether the term dictionary keeps surface forms next to stems
- *   (which decides how prefix scans and typo tolerance behave, because the Levenshtein budget is measured in
- *   whichever space the dictionary lives) cannot be answered later without rewriting the chain. Emitting it
- *   now costs nothing while no one consumes it.
+ * This test-support record materializes the production streaming callback for golden output, dictionary
+ * oracles and assertions. Production consumers use the individual callback components directly.
  *
  * Note that the surface form is a slice of the **NFC-normalized** text (see {@link FulltextAnalyzer#analyze}),
  * not of the caller's original string; the offsets index into that same normalized text.

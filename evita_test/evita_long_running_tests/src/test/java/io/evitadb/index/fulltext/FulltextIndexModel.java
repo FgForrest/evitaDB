@@ -23,19 +23,27 @@
 
 package io.evitadb.index.fulltext;
 
-import io.evitadb.index.fulltext.analysis.AnalyzedTerm;
-import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
+import io.evitadb.test.fulltext.AnalyzedTerm;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.TreeMap;
 
+import static io.evitadb.test.fulltext.FulltextAnalysisTestSupport.collectTerms;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -77,6 +85,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public final class FulltextIndexModel {
+	/** A real catalog schema shared by long-running model fixtures using built-in text chains. */
+	public static final CatalogSchemaContract ANALYSIS_SCHEMA = CatalogSchema._internalBuild(
+		"test", NamingConvention.generate("test"), null, EnumSet.allOf(CatalogEvolutionMode.class),
+		EmptyEntitySchemaAccessor.INSTANCE
+	);
+
 	/**
 	 * Words the generated values are built from: Czech declension variants the Czech analyzer folds together, stop
 	 * words, and diacritics. The vocabulary is small on purpose, so the common terms collect long posting lists that
@@ -90,7 +104,7 @@ public final class FulltextIndexModel {
 	 * The pivots a newly registered field draws from: shorter and longer than the default, so the same value gets
 	 * different impacts in different fields.
 	 */
-	private static final double[] PIVOTS = {6.0, FulltextIndex.DEFAULT_LENGTH_PIVOT, 80.0};
+	private static final double[] PIVOTS = {6.0, 25.0, 80.0};
 	/**
 	 * One step in this many retires a field, and one more removes a value through a retired key.
 	 */
@@ -99,7 +113,7 @@ public final class FulltextIndexModel {
 	/**
 	 * The analyzer of the index the model drives; the expected postings are derived through it.
 	 */
-	@Nonnull private final FulltextAnalyzer analyzer;
+	@Nonnull private final CompiledFulltextAnalyzer analyzer;
 	/**
 	 * The field keys the steps draw from.
 	 */
@@ -121,7 +135,7 @@ public final class FulltextIndexModel {
 	 * @param primaryKeys the primary keys the steps draw from
 	 */
 	public FulltextIndexModel(
-		@Nonnull FulltextAnalyzer analyzer,
+		@Nonnull CompiledFulltextAnalyzer analyzer,
 		@Nonnull FulltextFieldKey[] keys,
 		@Nonnull int[] primaryKeys
 	) {
@@ -198,7 +212,9 @@ public final class FulltextIndexModel {
 	public void replayInto(@Nonnull FulltextIndex index) {
 		for (int fieldId = 0; fieldId < this.fields.size(); fieldId++) {
 			final ModelField field = this.fields.get(fieldId);
-			assertEquals(fieldId, index.getOrAssignFieldId(field.key, field.pivot), "replayed field id");
+			assertEquals(fieldId, index.getOrAssignFieldId(field.key,
+				this.analyzer.index().getAnalyzerName(), this.analyzer.fingerprint().index(),
+				this.analyzer.fingerprint().wordPhase(), field.pivot, null), "replayed field id");
 			for (final Map.Entry<Integer, ModelValue> entry : field.values.entrySet()) {
 				addValue(index, field.key, entry.getKey(), entry.getValue().elements());
 			}
@@ -363,7 +379,9 @@ public final class FulltextIndexModel {
 		}
 		if (field == null) {
 			final double pivot = PIVOTS[random.nextInt(PIVOTS.length)];
-			assertEquals(this.fields.size(), index.getOrAssignFieldId(key, pivot), "the id assigned to " + key);
+			assertEquals(this.fields.size(), index.getOrAssignFieldId(key, this.analyzer.index().getAnalyzerName(),
+				this.analyzer.fingerprint().index(), this.analyzer.fingerprint().wordPhase(), pivot, null),
+				"the id assigned to " + key);
 			field = new ModelField(key, pivot);
 			this.fields.add(field);
 			log.append("new ").append(key).append('@').append(pivot).append(' ');
@@ -461,7 +479,7 @@ public final class FulltextIndexModel {
 		final Map<String, Integer> termFrequencies = CollectionUtils.createHashMap(16);
 		int length = 0;
 		for (final String element : elements) {
-			for (final AnalyzedTerm term : this.analyzer.getTerms(element)) {
+			for (final AnalyzedTerm term : collectTerms(this.analyzer.index(), element)) {
 				termFrequencies.merge(term.term(), 1, Integer::sum);
 				if (term.positionIncrement() > 0) {
 					length++;
@@ -503,16 +521,17 @@ public final class FulltextIndexModel {
 	 * @param primaryKey the entity
 	 * @param elements   the elements of the value
 	 */
-	private static void addValue(
+	private void addValue(
 		@Nonnull FulltextIndex index,
 		@Nonnull FulltextFieldKey key,
 		int primaryKey,
 		@Nonnull String[] elements
 	) {
+		final double pivot = index.getLengthPivot(index.getFieldId(key));
 		if (elements.length == 1) {
-			index.addValue(key, primaryKey, elements[0]);
+			index.addValue(key, primaryKey, this.analyzer, pivot, null, elements[0]);
 		} else {
-			index.addValue(key, primaryKey, elements);
+			index.addValue(key, primaryKey, this.analyzer, pivot, null, elements);
 		}
 	}
 
@@ -524,16 +543,18 @@ public final class FulltextIndexModel {
 	 * @param primaryKey the entity
 	 * @param elements   the elements of the value that was indexed
 	 */
-	private static void removeValue(
+	private void removeValue(
 		@Nonnull FulltextIndex index,
 		@Nonnull FulltextFieldKey key,
 		int primaryKey,
 		@Nonnull String[] elements
 	) {
+		final int fieldId = index.getFieldId(key);
+		final double pivot = fieldId == FulltextIndex.UNKNOWN_FIELD_ID ? 25.0 : index.getLengthPivot(fieldId);
 		if (elements.length == 1) {
-			index.removeValue(key, primaryKey, elements[0]);
+			index.removeValue(key, primaryKey, this.analyzer, pivot, elements[0]);
 		} else {
-			index.removeValue(key, primaryKey, elements);
+			index.removeValue(key, primaryKey, this.analyzer, pivot, elements);
 		}
 	}
 

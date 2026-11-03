@@ -28,11 +28,11 @@ import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -41,13 +41,13 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.HistogramIndex.PersistedHistogramLeafPages;
 import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.analysis.AttributeNormalizationResolver;
-import io.evitadb.index.fulltext.FulltextFieldKey;
-import io.evitadb.index.fulltext.FulltextIndex;
-import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.OwnerFilterIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.component.HistogramIndexMapComponent;
+import io.evitadb.index.fulltext.FulltextFieldKey;
+import io.evitadb.index.fulltext.FulltextIndex;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.trigram.TrigramIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.NamingConvention;
@@ -58,6 +58,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+
 import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.time.OffsetDateTime;
@@ -78,6 +79,7 @@ import static io.evitadb.index.IndexHeapSizeAssertions.assertMatchesMeasuredHeap
 import static io.evitadb.index.IndexHeapSizeAssertions.excluded;
 import static io.evitadb.index.IndexHeapSizeAssertions.measuredHeapOf;
 import static io.evitadb.index.IndexHeapSizeAssertions.readField;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.*;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -591,13 +593,11 @@ class EntityIndexHeapSizeTest {
 			// as for the trigram map above: two entries, so that taking one out leaves the map's table in place and the
 			// difference is one map node plus the index the entry points at - which FulltextIndexHeapSizeTest measures
 			// against JOL on its own
-			try (final FulltextAnalyzerRegistry registry = new FulltextAnalyzerRegistry()) {
+			try (final FulltextAnalyzerRegistry registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry())) {
 				final GlobalEntityIndex index = newGlobalIndex();
 				for (final Locale locale : List.of(Locale.forLanguageTag("cs"), Locale.ENGLISH)) {
-					final FulltextIndex fulltext = index.getOrCreateFulltextIndex(
-						locale, registry.getIndexAnalyzer(ENTITY_TYPE, locale)
-					);
-					final int title = fulltext.getOrAssignFieldId(FulltextFieldKey.attribute("title"));
+					final FulltextIndex fulltext = index.getOrCreateFulltextIndex(locale);
+					final int title = registerField(fulltext, FulltextFieldKey.attribute("title"));
 					fulltext.addPosting(title, "žluť", AUTOBOX_CACHE_CEILING, 10);
 				}
 				final FulltextIndex dropped = index.getFulltextIndex(Locale.ENGLISH);

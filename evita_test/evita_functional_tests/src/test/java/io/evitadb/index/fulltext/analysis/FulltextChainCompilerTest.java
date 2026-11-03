@@ -26,7 +26,6 @@ package io.evitadb.index.fulltext.analysis;
 
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
-import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.analysis.FulltextResourceContent;
 import io.evitadb.api.requestResponse.schema.analysis.WordList;
@@ -44,9 +43,10 @@ import io.evitadb.spi.analysis.FulltextTextAnalysisOperation;
 import io.evitadb.spi.analysis.FulltextTextAnalysisStepFactory;
 import io.evitadb.spi.analysis.FulltextWordsAnalysisOperation;
 import io.evitadb.spi.analysis.FulltextWordsAnalysisStepFactory;
-import io.evitadb.spi.analysis.FulltextWordsPlacement;
 import io.evitadb.spi.analysis.FulltextWordsPlacement.PlacedStep;
+import io.evitadb.spi.analysis.FulltextWordsPlacement;
 import io.evitadb.test.TestConstants;
+import io.evitadb.test.fulltext.AnalyzedTerm;
 import io.evitadb.utils.NamingConvention;
 import org.apache.lucene.analysis.FilteringTokenFilter;
 import org.apache.lucene.analysis.TokenFilter;
@@ -54,17 +54,22 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.charfilter.MappingCharFilter;
 import org.apache.lucene.analysis.charfilter.NormalizeCharMap;
 import org.apache.lucene.analysis.pattern.PatternReplaceFilter;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -78,7 +83,9 @@ import java.util.regex.Pattern;
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
+import static io.evitadb.test.fulltext.FulltextAnalysisTestSupport.collectTerms;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -125,88 +132,68 @@ class FulltextChainCompilerTest {
 	private final AnalysisStepRegistry stepRegistry = new AnalysisStepRegistry();
 	/** The compiler under test. */
 	private final FulltextChainCompiler compiler = new FulltextChainCompiler(this.stepRegistry);
-	/** The registry of today's built-in chains, the reference. */
-	private FulltextAnalyzerRegistry analyzerRegistry;
-
-	/** Opens the reference registry. */
-	@BeforeEach
-	void setUp() {
-		this.analyzerRegistry = new FulltextAnalyzerRegistry();
-	}
-
-	/** Closes the reference registry and the chains it built. */
-	@AfterEach
-	void tearDown() {
-		this.analyzerRegistry.close();
-	}
-
-	/**
-	 * The built-in analyzers, resolved for each built-in language and one other, against today's chains of the
-	 * language: `text` against both sides on plain text, `html-text` against the index side on markup, which today's
-	 * index chains strip.
-	 */
+	/** Pins the compiled built-ins to the output recorded from the retired language chains. */
 	@Nested
 	@DisplayName("Golden output of the built-in analyzers")
 	class BuiltInGoldenOutput {
-
-		/** `text` produces the index terms of today's chain of each language - stemming before folding in Czech. */
+		/** Preserves plain index output, including offsets and position increments. */
 		@Test
-		@DisplayName("should produce today's index terms")
-		void shouldProduceTodaysIndexTerms() {
-			for (final LanguageLine line : LanguageLine.values()) {
-				try (
-					final FulltextAnalyzer compiled =
-						compileBuiltIn(FulltextAnalyzerSchemaContract.TEXT, FulltextAnalysisSide.INDEX, line.locale)
-				) {
-					final FulltextAnalyzer reference =
-						FulltextChainCompilerTest.this.analyzerRegistry.getIndexAnalyzerByName(line.indexAnalyzer);
-					for (final String text : line.samples()) {
-						assertEquals(terms(reference, text), terms(compiled, text), line + ": " + text);
+		@DisplayName("should preserve recorded index terms")
+		void shouldProduceTodaysIndexTerms() throws IOException {
+			verifyGolden("text", FulltextAnalysisSide.INDEX);
+		}
+
+		/** Preserves query variants and their stream order. */
+		@Test
+		@DisplayName("should preserve recorded query terms")
+		void shouldProduceTodaysQueryTerms() throws IOException {
+			verifyGolden("text", FulltextAnalysisSide.QUERY);
+		}
+
+		/** Preserves markup stripping and corrected offsets on the HTML index side. */
+		@Test
+		@DisplayName("should preserve recorded index terms on markup")
+		void shouldProduceTodaysIndexTermsOnMarkup() throws IOException {
+			verifyGolden("html-text", FulltextAnalysisSide.INDEX);
+		}
+	}
+
+	/** Reads versioned UTF-8 TSV with Base64 UTF-8 cells, preserving every Unicode and control character. */
+	private void verifyGolden(@Nonnull String name, @Nonnull FulltextAnalysisSide side) throws IOException {
+		for (final String language : List.of("cs", "sk", "pl", "ro", "en", "de", "fr")) {
+			final String resource = "/analysis/fulltext-" + name + "-" + side.name().toLowerCase(Locale.ROOT) +
+				"-" + language + ".tsv";
+			try (
+				final FulltextAnalyzer compiled = compileBuiltIn(name, side, Locale.forLanguageTag(language));
+				final InputStream stream = getClass().getResourceAsStream(resource);
+				final BufferedReader reader = new BufferedReader(new InputStreamReader(
+					assertGoldenExists(stream, resource), StandardCharsets.UTF_8))
+			) {
+				assertEquals("# version=1", reader.readLine(), resource);
+				for (final String row : reader.lines().toList()) {
+					if (!row.startsWith("#")) {
+						final String[] cells = row.split("\t", -1);
+						final String input = decodeGolden(cells[0]);
+						assertEquals(decodeGolden(cells[1]), String.join("\n", terms(compiled, input)),
+							"The output changed - bump the behaviour version of the changed step and " +
+								"re-record deliberately, or revert. " + resource + ": " + input);
 					}
 				}
 			}
 		}
+	}
 
-		/**
-		 * `text` produces the query terms of today's `*-search` chain of each language - folding before the variant
-		 * stems in Czech.
-		 */
-		@Test
-		@DisplayName("should produce today's query terms")
-		void shouldProduceTodaysQueryTerms() {
-			for (final LanguageLine line : LanguageLine.values()) {
-				try (
-					final FulltextAnalyzer compiled =
-						compileBuiltIn(FulltextAnalyzerSchemaContract.TEXT, FulltextAnalysisSide.QUERY, line.locale)
-				) {
-					final FulltextAnalyzer reference =
-						FulltextChainCompilerTest.this.analyzerRegistry.getSearchAnalyzer("product", line.locale);
-					for (final String text : line.samples()) {
-						assertEquals(terms(reference, text), terms(compiled, text), line + ": " + text);
-					}
-				}
-			}
-		}
+	/** Fails with the resource name when a golden file is missing, instead of a bare null dereference. */
+	@Nonnull
+	private static InputStream assertGoldenExists(@Nullable InputStream stream, @Nonnull String resource) {
+		assertNotNull(stream, "Golden file " + resource + " is missing - record it deliberately, never skip it.");
+		return stream;
+	}
 
-		/** `html-text` produces the index terms of today's chain of each language on markup, offsets included. */
-		@Test
-		@DisplayName("should produce today's index terms on markup")
-		void shouldProduceTodaysIndexTermsOnMarkup() {
-			for (final LanguageLine line : LanguageLine.values()) {
-				try (
-					final FulltextAnalyzer compiled = compileBuiltIn(
-						FulltextAnalyzerSchemaContract.HTML_TEXT, FulltextAnalysisSide.INDEX, line.locale
-					)
-				) {
-					final FulltextAnalyzer reference =
-						FulltextChainCompilerTest.this.analyzerRegistry.getIndexAnalyzerByName(line.indexAnalyzer);
-					for (final String sentence : line.sentences) {
-						final String text = "<p class=\"lead\">" + sentence + " &amp; <b>" + sentence + "</b></p>";
-						assertEquals(terms(reference, text), terms(compiled, text), line + ": " + text);
-					}
-				}
-			}
-		}
+	/** Decodes a complete TSV cell. */
+	@Nonnull
+	private static String decodeGolden(@Nonnull String value) {
+		return new String(Base64.getDecoder().decode(value), StandardCharsets.UTF_8);
 	}
 
 	/** Protected words stay unstemmed on both sides, but are still folded. */
@@ -244,7 +231,8 @@ class FulltextChainCompilerTest {
 				lowercase(), czechStemming(protectedWords(resource("brands")))
 			);
 			try (final FulltextAnalyzer compiled = compile(words, FulltextAnalysisSide.QUERY, brandResources())) {
-				assertEquals(List.of("cernych"), compiled.getTerms("černých").stream().map(AnalyzedTerm::term).toList());
+				assertEquals(List.of("cernych"), collectTerms(compiled, "černých")
+					.stream().map(AnalyzedTerm::term).toList());
 			}
 		}
 
@@ -306,8 +294,8 @@ class FulltextChainCompilerTest {
 					"query", compiler.compile(List.of(), SPLITTING, words, FulltextAnalysisSide.QUERY, context)
 				)
 			) {
-				assertEquals(List.of("boty"), index.getTerms("Boty").stream().map(AnalyzedTerm::term).toList());
-				assertTrue(query.getTerms("Boty").isEmpty());
+				assertEquals(List.of("boty"), collectTerms(index, "Boty").stream().map(AnalyzedTerm::term).toList());
+				assertTrue(collectTerms(query, "Boty").isEmpty());
 			}
 		}
 
@@ -592,7 +580,7 @@ class FulltextChainCompilerTest {
 		void shouldRefuseStepAfterVariantStemsOnQuerySideOnly() {
 			final List<AnalysisStep> words = List.of(lowercase(), czechStemming(), stopWords(czechStopWords()));
 			try (final FulltextAnalyzer index = compile(words, FulltextAnalysisSide.INDEX, czechResources())) {
-				assertTrue(!index.getTerms("Boty").isEmpty());
+				assertTrue(!collectTerms(index, "Boty").isEmpty());
 			}
 
 			assertThrows(
@@ -615,7 +603,7 @@ class FulltextChainCompilerTest {
 						)
 					)
 				) {
-					assertTrue(!chain.getTerms("Boty").isEmpty(), side.name());
+					assertTrue(!collectTerms(chain, "Boty").isEmpty(), side.name());
 				}
 			}
 		}
@@ -651,7 +639,8 @@ class FulltextChainCompilerTest {
 					words, FulltextAnalysisSide.QUERY, BuiltInFulltextResources.getResources(), Locale.ENGLISH
 				)
 			) {
-				assertEquals(List.of("run"), query.getTerms("the running").stream().map(AnalyzedTerm::term).toList());
+				assertEquals(List.of("run"), collectTerms(query, "the running")
+					.stream().map(AnalyzedTerm::term).toList());
 			}
 		}
 
@@ -670,7 +659,7 @@ class FulltextChainCompilerTest {
 			);
 			for (final Locale accepting : List.of(Locale.ENGLISH, Locale.FRENCH)) {
 				try (final FulltextAnalyzer chain = compile(words, FulltextAnalysisSide.QUERY, Map.of(), accepting)) {
-					assertTrue(!chain.getTerms("Café").isEmpty(), accepting.toString());
+					assertTrue(!collectTerms(chain, "Café").isEmpty(), accepting.toString());
 				}
 			}
 		}
@@ -719,7 +708,7 @@ class FulltextChainCompilerTest {
 			for (final FulltextAnalysisSide side : FulltextAnalysisSide.values()) {
 				try (final FulltextAnalyzer chain = compile(words, side, resources)) {
 					assertEquals(
-						List.of("cernych"), chain.getTerms("ČERNÝCH").stream().map(AnalyzedTerm::term).toList(),
+						List.of("cernych"), collectTerms(chain, "ČERNÝCH").stream().map(AnalyzedTerm::term).toList(),
 						side.name()
 					);
 				}
@@ -733,7 +722,8 @@ class FulltextChainCompilerTest {
 			final List<AnalysisStep> words = List.of(lowercase(), stopWords(resource("stop")));
 			final Map<String, FulltextResourceContent> resources = Map.of("stop", wordList("c\u030Cerny\u0301"));
 			try (final FulltextAnalyzer chain = compile(words, FulltextAnalysisSide.INDEX, resources)) {
-				assertEquals(List.of("boty"), chain.getTerms("černý boty").stream().map(AnalyzedTerm::term).toList());
+				assertEquals(List.of("boty"), collectTerms(chain, "černý boty")
+					.stream().map(AnalyzedTerm::term).toList());
 			}
 		}
 
@@ -748,8 +738,10 @@ class FulltextChainCompilerTest {
 				"groups", synonymList(synonymGroup("mobil", "telefon")), "stop", wordList("Mobil")
 			);
 			try (final FulltextAnalyzer query = compile(words, FulltextAnalysisSide.QUERY, resources)) {
-				assertEquals(List.of("telefon"), query.getTerms("mobil").stream().map(AnalyzedTerm::term).toList());
-				assertEquals(List.of("telefon"), query.getTerms("telefon").stream().map(AnalyzedTerm::term).toList());
+				assertEquals(List.of("telefon"), collectTerms(query, "mobil")
+					.stream().map(AnalyzedTerm::term).toList());
+				assertEquals(List.of("telefon"), collectTerms(query, "telefon")
+					.stream().map(AnalyzedTerm::term).toList());
 			}
 		}
 
@@ -1229,7 +1221,7 @@ class FulltextChainCompilerTest {
 	 */
 	@Nonnull
 	private static List<String> terms(@Nonnull FulltextAnalyzer analyzer, @Nonnull String text) {
-		return analyzer.getTerms(text).stream()
+		return collectTerms(analyzer, text).stream()
 			.map(term -> term.term() + "@" + term.startOffset() + "-" + term.endOffset() + "+" +
 				term.positionIncrement())
 			.toList();
@@ -1265,7 +1257,7 @@ class FulltextChainCompilerTest {
 	 */
 	@Nonnull
 	private static List<String> termTexts(@Nonnull FulltextAnalyzer analyzer, @Nonnull String text) {
-		return analyzer.getTerms(text).stream().map(AnalyzedTerm::term).toList();
+		return collectTerms(analyzer, text).stream().map(AnalyzedTerm::term).toList();
 	}
 
 	/**
@@ -1278,105 +1270,7 @@ class FulltextChainCompilerTest {
 	 */
 	@Nonnull
 	private static List<String> termsAndIncrements(@Nonnull FulltextAnalyzer analyzer, @Nonnull String text) {
-		return analyzer.getTerms(text).stream().map(term -> term.term() + "+" + term.positionIncrement()).toList();
+		return collectTerms(analyzer, text).stream().map(term -> term.term() + "+" + term.positionIncrement()).toList();
 	}
 
-	/**
-	 * Each built-in language and one other, with the name of today's index chain of the language and the texts to
-	 * compare the chains on. The sentences reach beyond the vocabulary: stop words, upper case, digits, punctuation,
-	 * mixed tokens.
-	 */
-	private enum LanguageLine {
-		CZECH(
-			"cs", BuiltInAnalyzers.CZECH_ANALYZER_NAME,
-			CzechAnalysisFixture.VOCABULARY,
-			"Pánské kožené boty a dámská obuv, velikost 42 - výprodej!",
-			"To je ten nejlepší stůl, který jsme kdy měli, a není drahý.",
-			"ŽLUTÝ Kabát pro DĚTI; rajčata v zahradních truhlících",
-			"iPhone15 a USB-C kabel, 3,5 mm jack, 2x baterie",
-			"Kuchyňští pomocníci a angličtí pánští krejčí šijí stříbrným nití"
-		),
-		SLOVAK(
-			"sk", BuiltInAnalyzers.SLOVAK_ANALYZER_NAME,
-			SlovakAnalysisFixture.VOCABULARY,
-			"Pánske kožené topánky a dámska obuv, veľkosť 42 - výpredaj!",
-			"ŽLTÝ kabát pre DETI; paradajky v záhradných kvetináčoch, iPhone15 a USB-C kábel"
-		),
-		POLISH(
-			"pl", BuiltInAnalyzers.POLISH_ANALYZER_NAME,
-			PolishAnalysisFixture.VOCABULARY,
-			"Męskie skórzane buty i damskie obuwie, rozmiar 42 - wyprzedaż!",
-			"Żółty płaszcz dla DZIECI; pomidory w ogrodowych doniczkach, iPhone15 i kabel USB-C"
-		),
-		ROMANIAN(
-			"ro", BuiltInAnalyzers.ROMANIAN_ANALYZER_NAME,
-			RomanianAnalysisFixture.VOCABULARY,
-			"Pantofi din piele pentru bărbați și încălțăminte pentru femei, mărimea 42!",
-			"Paltonul GALBEN pentru copii; roşii în grădină şi ţările vecine, iPhone15 şi cablu USB-C"
-		),
-		ENGLISH(
-			"en", BuiltInAnalyzers.ENGLISH_ANALYZER_NAME,
-			List.of(),
-			"John's running shoes and the women's boots, size 42 - sale!",
-			"It's the BEST table we've ever had, and it isn't expensive; iPhone15 with a USB-C cable",
-			"The children were playing happily in the gardens of their grandparents' houses"
-		),
-		GERMAN(
-			"de", BuiltInAnalyzers.GERMAN_ANALYZER_NAME,
-			List.of(),
-			"Herrenschuhe aus Leder und Damenschuhe, Größe 42 - Ausverkauf!",
-			"Die schönen Häuser der Stadt; Bücher für Kinder, iPhone15 mit USB-C Kabel",
-			"Die Kinder spielten fröhlich in den Gärten ihrer Großeltern"
-		),
-		OTHER(
-			"fr", BuiltInAnalyzers.GENERIC_ANALYZER_NAME, List.of(),
-			"Chaussures en cuir pour hommes, taille 42 - soldes!",
-			"L'ÉTÉ à Paris; les enfants jouent, iPhone15 et câble USB-C"
-		);
-
-		/** The locale of the language. */
-		private final Locale locale;
-		/** The name of today's index chain of the language. */
-		private final String indexAnalyzer;
-		/** The lemmas of the language's fixture, possibly none. */
-		private final List<Lemma> vocabulary;
-		/** Sentences of the language. */
-		private final List<String> sentences;
-
-		/**
-		 * Declares a line.
-		 *
-		 * @param language      the language code
-		 * @param indexAnalyzer the name of today's index chain of the language
-		 * @param vocabulary    the lemmas of the language's fixture, possibly none
-		 * @param sentences     sentences of the language
-		 */
-		LanguageLine(
-			@Nonnull String language,
-			@Nonnull String indexAnalyzer,
-			@Nonnull List<Lemma> vocabulary,
-			@Nonnull String... sentences
-		) {
-			this.locale = Locale.forLanguageTag(language);
-			this.indexAnalyzer = indexAnalyzer;
-			this.vocabulary = vocabulary;
-			this.sentences = List.of(sentences);
-		}
-
-		/**
-		 * Returns the texts to compare the chains on: every lemma of the fixture with all its forms, then the
-		 * sentences.
-		 *
-		 * @return the sample texts
-		 */
-		@Nonnull
-		List<String> samples() {
-			final List<String> samples = new ArrayList<>(this.vocabulary.size() + this.sentences.size());
-			for (final Lemma lemma : this.vocabulary) {
-				samples.add(String.join(" ", lemma.forms()));
-			}
-			samples.addAll(this.sentences);
-			return samples;
-		}
-	}
 }

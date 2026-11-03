@@ -24,6 +24,7 @@
 package io.evitadb.index.fulltext;
 
 import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.component.EntityIndexManifest;
 import io.evitadb.index.component.FulltextIndexMapComponent;
 import io.evitadb.index.fulltext.FieldLengthTable.LengthBlock;
@@ -42,6 +43,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -49,12 +51,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
-import static io.evitadb.index.fulltext.FulltextFieldKey.attribute;
 import static io.evitadb.index.IndexHeapSizeAssertions.AUTOBOX_CACHE_CEILING;
 import static io.evitadb.index.IndexHeapSizeAssertions.assertExceedsMeasuredHeapBy;
 import static io.evitadb.index.IndexHeapSizeAssertions.assertMatchesMeasuredHeap;
 import static io.evitadb.index.IndexHeapSizeAssertions.measuredHeapOf;
 import static io.evitadb.index.IndexHeapSizeAssertions.readField;
+import static io.evitadb.index.fulltext.FulltextFieldKey.attribute;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.*;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.TRANSACTION;
@@ -95,7 +98,7 @@ class FulltextIndexHeapSizeTest {
 	 * paged index charges, and the dictionary's column factories - lambdas the tree does not own and JOL cannot walk.
 	 */
 	private static final String[] INDEX_EXCLUSIONS = {
-		"indexAnalyzer", "pageStreamRegistry", "dictionary.valueColumnFactory", "dictionary.recordColumnFactory"
+		"pageStreamRegistry", "dictionary.valueColumnFactory", "dictionary.recordColumnFactory"
 	};
 
 	/**
@@ -111,7 +114,7 @@ class FulltextIndexHeapSizeTest {
 
 	@BeforeAll
 	static void setUpRegistry() {
-		registry = new FulltextAnalyzerRegistry();
+		registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 	}
 
 	@AfterAll
@@ -140,7 +143,7 @@ class FulltextIndexHeapSizeTest {
 	 */
 	@Nonnull
 	private static FulltextIndex newIndex() {
-		return new FulltextIndex(registry.getIndexAnalyzer("product", CZECH));
+		return new FulltextIndex();
 	}
 
 	/**
@@ -152,8 +155,8 @@ class FulltextIndexHeapSizeTest {
 	 * @param stem      the stem every field name and term starts with - its encoding decides how they are stored
 	 */
 	private static void fill(@Nonnull FulltextIndex index, int termCount, @Nonnull String stem) {
-		final int title = index.getOrAssignFieldId(attribute(stem + "title"));
-		final int body = index.getOrAssignFieldId(attribute(stem + "body"), 300.0);
+		final int title = registerField(index, attribute(stem + "title"));
+		final int body = registerField(index, attribute(stem + "body"), 300.0);
 		for (int i = 0; i < termCount; i++) {
 			final String term = stem + String.format("%05d", i);
 			for (int j = 0; j <= i % 4; j++) {
@@ -178,7 +181,7 @@ class FulltextIndexHeapSizeTest {
 	 */
 	private static void addSmallFields(@Nonnull FulltextIndex index, int count) {
 		for (int i = 0; i < count; i++) {
-			final int fieldId = index.getOrAssignFieldId(attribute("žpole" + i));
+			final int fieldId = registerField(index, attribute("žpole" + i));
 			index.addPosting(fieldId, "žslovo", AUTOBOX_CACHE_CEILING + i, 7);
 			index.getFieldLengths(fieldId).put(AUTOBOX_CACHE_CEILING + i, 3);
 		}
@@ -235,7 +238,7 @@ class FulltextIndexHeapSizeTest {
 			addSmallFields(index, 5);
 			index.retireField(attribute(stem + "title"));
 			// a new key instance, as the write path makes one per write - one the retired field does not hold
-			final int successor = index.getOrAssignFieldId(attribute(stem + "title"));
+			final int successor = registerField(index, attribute(stem + "title"));
 			index.addPosting(successor, "žnovinka", AUTOBOX_CACHE_CEILING, 100);
 			assertTrue(index.isFieldRetired(0));
 			assertEquals(7, successor);
@@ -253,18 +256,14 @@ class FulltextIndexHeapSizeTest {
 			final List<FulltextIndex.Field> fields = new ArrayList<>(lengths.length);
 			for (int fieldId = 0; fieldId < lengths.length; fieldId++) {
 				fields.add(
-					new FulltextIndex.Field(
-						source.getFieldKey(fieldId), source.getLengthPivot(fieldId), source.getTextExpression(fieldId),
+					new FulltextIndex.Field(source.getFieldKey(fieldId), source.getAnalyzerName(fieldId),
+						source.getIndexFingerprint(fieldId), source.getWordPhaseId(fieldId),
+						source.getLengthPivot(fieldId), source.getTextExpression(fieldId),
 						source.isFieldRetired(fieldId),
-						FieldLengthTable.fromPersistedBlocks(lengths[fieldId].changedBlocks().toArray(LengthBlock[]::new))
-					)
+						FieldLengthTable.fromPersistedBlocks(lengths[fieldId].changedBlocks().toArray(LengthBlock[]::new)))
 				);
 			}
-			final FulltextIndex reloaded = FulltextIndex.fromPersistedPages(
-				registry.getIndexAnalyzer("product", CZECH), source.getDefaultLengthPivot(), fields,
-				pages.orderedPageSequences(), pages.changedPages().toArray(DictionaryPage[]::new),
-				pages.highWaterPageSequence()
-			);
+			final FulltextIndex reloaded = FulltextIndex.fromPersistedPages(fields, pages.orderedPageSequences(), pages.changedPages().toArray(DictionaryPage[]::new), pages.highWaterPageSequence());
 			// trap 1 of the heap-size guide: a boxed field id below 128 is the JVM's cached Integer, and the restored page
 			// registry - excluded, as no paged index charges it - holds the same cached instances as its live page
 			// sequences. The walk subtracts them with the registry; the arithmetic charges each to the map holding it,
@@ -293,7 +292,7 @@ class FulltextIndexHeapSizeTest {
 			assertStateAfterCommit(
 				index,
 				original -> {
-					final int perex = original.getOrAssignFieldId(attribute("žperex"));
+					final int perex = registerField(original, attribute("žperex"));
 					original.addPosting(perex, "žnovinka", AUTOBOX_CACHE_CEILING, 100);
 					original.getFieldLengths(perex).put(AUTOBOX_CACHE_CEILING, 5);
 				},
@@ -338,7 +337,7 @@ class FulltextIndexHeapSizeTest {
 			final List<FulltextIndex> indexes = new ArrayList<>(LOCALES.size());
 			for (int i = 0; i < LOCALES.size(); i++) {
 				final Locale locale = LOCALES.get(i);
-				final FulltextIndex index = new FulltextIndex(registry.getIndexAnalyzer("product", locale));
+				final FulltextIndex index = new FulltextIndex();
 				fill(index, i == 0 ? 600 : 50, "ž");
 				map.put(locale, index);
 				indexes.add(index);

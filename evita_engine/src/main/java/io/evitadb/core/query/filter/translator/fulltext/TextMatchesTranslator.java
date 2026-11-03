@@ -47,6 +47,9 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.fulltext.FulltextFieldKey;
+import io.evitadb.index.fulltext.FulltextFieldDefinition;
+import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
 import io.evitadb.index.fulltext.analysis.AnalyzedTermConsumer;
@@ -58,6 +61,7 @@ import io.evitadb.utils.CollectionUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
@@ -80,14 +84,10 @@ import java.util.function.Supplier;
  *
  * ## Which analyzer reads the text
  *
- * The analyzer must produce the terms the index was built with, or the two sides stop meeting. The schema's current
- * assignment normally says which analyzer that is, and its search-side half - the one that folds diacritics and emits
- * every stem a word could have had - is what lets a query typed without accents find the accented value. But an index
- * is built once and keeps the analyzer it was built with ({@link FulltextIndex#getAnalyzerName()}), while the
- * assignment may have moved on since; until #409 reindexes, the search-side half of the *new* assignment would
- * produce terms of a chain the index never saw. So the search analyzer is used only while the assignment's index
- * analyzer is still the index's own, and the index's own analyzer reads the text otherwise: recall drops (no variant
- * stems), but nothing wrong is ever found - degrade, never wrong.
+ * The locale splits NFC text once, before any group analyzes words. Fields sharing compiled analyzer content form
+ * one group. Each group applies its query text and words phases around a keyword tokenizer to each shared term,
+ * preserving alignment even when a text step would change word boundaries. A field whose recorded index fingerprint
+ * or pivot differs from its current schema contributes nothing until a write starts a fresh generation (#409).
  *
  * ## Where the fulltext lives
  *
@@ -155,22 +155,47 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 
 		final EntitySchemaContract entitySchema = processingScope.getEntitySchemaOrThrowException();
 		final Set<Scope> scopes = processingScope.getScopes();
-		final Map<Scope, FulltextFieldKey[]> fieldsByScope = resolveFields(textMatches, entitySchema, scopes);
+		final Map<Scope, FulltextFieldDefinition[]> fieldsByScope = resolveFields(textMatches, entitySchema, scopes);
 
 		final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();
 		final FulltextAnalyzerRegistry analyzerRegistry = queryContext.getFulltextAnalyzerRegistry();
 		final String entityType = entitySchema.getName();
-		// the text is analyzed and its word count checked whether or not any scope keeps an index for the locale, so
-		// that a query never fails or passes depending on the data - a check included, the analyzer is configuration
-		final FulltextAnalyzer searchAnalyzer = analyzerRegistry.getSearchAnalyzer(entityType, locale);
-		final QueryToken[] searchTokens = analyze(searchAnalyzer, textMatches.getText());
+		final CatalogSchemaContract catalogSchema = queryContext.getCatalogSchema();
+		// All field definitions compile before any index containing data is read, including the check-only path.
+		final Map<CompiledFulltextAnalyzer, String[][]> analyzed = CollectionUtils.createHashMap(4);
+		for (final FulltextFieldDefinition[] fields : fieldsByScope.values()) {
+			for (final FulltextFieldDefinition field : fields) {
+				analyzed.put(analyzerRegistry.getCompiledAnalyzer(catalogSchema, field.analyzer(), locale), null);
+			}
+		}
+		final QueryToken[] searchTokens = analyze(analyzed.keySet().iterator().next().splitting(),
+			textMatches.getText());
+		for (final CompiledFulltextAnalyzer analyzer : analyzed.keySet()) {
+			analyzed.put(analyzer, analyzeGroups(analyzer, searchTokens));
+		}
+		final Map<Scope, List<AnalyzedFieldGroup>> groupsByScope = new EnumMap<>(Scope.class);
+		for (final Map.Entry<Scope, FulltextFieldDefinition[]> entry : fieldsByScope.entrySet()) {
+			final Map<CompiledFulltextAnalyzer, List<FulltextFieldDefinition>> grouped =
+				CollectionUtils.createLinkedHashMap(analyzed.size());
+			for (final FulltextFieldDefinition field : entry.getValue()) {
+				final CompiledFulltextAnalyzer analyzer =
+					analyzerRegistry.getCompiledAnalyzer(catalogSchema, field.analyzer(), locale);
+				grouped.computeIfAbsent(analyzer, ignored -> new ArrayList<>(4)).add(field);
+			}
+			final List<AnalyzedFieldGroup> groups = new ArrayList<>(grouped.size());
+			for (final Map.Entry<CompiledFulltextAnalyzer, List<FulltextFieldDefinition>> group : grouped.entrySet()) {
+				groups.add(new AnalyzedFieldGroup(group.getKey(),
+					group.getValue().toArray(FulltextFieldDefinition[]::new), analyzed.get(group.getKey())));
+			}
+			groupsByScope.put(entry.getKey(), groups);
+		}
 		if (filterByVisitor.isConstraintCheckOnly()) {
 			// the constraint has been checked against the schema - a check reads no index holding data
 			return EmptyFormula.INSTANCE;
 		}
 
 		final Map<Scope, Formula> formulasByScope = new EnumMap<>(Scope.class);
-		for (Map.Entry<Scope, FulltextFieldKey[]> entry : fieldsByScope.entrySet()) {
+		for (final Map.Entry<Scope, FulltextFieldDefinition[]> entry : fieldsByScope.entrySet()) {
 			final Scope scope = entry.getKey();
 			final GlobalEntityIndex globalIndex = queryContext
 				.getGlobalEntityIndexIfExists(entityType, scope)
@@ -179,18 +204,11 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			if (fulltextIndex == null || searchTokens.length == 0) {
 				formulasByScope.put(scope, EmptyFormula.INSTANCE);
 			} else {
-				final FulltextFieldKey[] fields = entry.getValue();
 				formulasByScope.put(
 					scope,
 					queryContext.computeOnlyOnce(
-						List.of((EntityIndex) globalIndex),
-						textMatches,
-						() -> createFormula(
-							fulltextIndex, fields, analyzerRegistry,
-							resolveTokens(
-								analyzerRegistry, entityType, locale, fulltextIndex, textMatches.getText(), searchTokens
-							)
-						)
+						List.of((EntityIndex) globalIndex), textMatches,
+						() -> createFormula(fulltextIndex, groupsByScope.get(scope), searchTokens)
 					)
 				);
 			}
@@ -221,16 +239,16 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 * @throws EvitaInvalidUsageException     when a processed scope has no searchable field at all
 	 */
 	@Nonnull
-	private static Map<Scope, FulltextFieldKey[]> resolveFields(
+	private static Map<Scope, FulltextFieldDefinition[]> resolveFields(
 		@Nonnull TextMatches textMatches,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Set<Scope> scopes
 	) {
-		final Map<Scope, FulltextFieldKey[]> result = new EnumMap<>(Scope.class);
+		final Map<Scope, FulltextFieldDefinition[]> result = new EnumMap<>(Scope.class);
 		final InField[] inFields = textMatches.getInFields();
 		if (inFields.length == 0) {
-			for (Scope scope : scopes) {
-				final FulltextFieldKey[] fields = collectSearchableFields(entitySchema, scope);
+			for (final Scope scope : scopes) {
+				final FulltextFieldDefinition[] fields = collectSearchableFields(entitySchema, scope);
 				Assert.isTrue(
 					fields.length > 0,
 					() -> new EvitaInvalidUsageException(
@@ -244,12 +262,12 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			}
 		} else {
 			final Set<String> names = CollectionUtils.createLinkedHashSet(inFields.length);
-			for (InField inField : inFields) {
+			for (final InField inField : inFields) {
 				names.add(inField.getFieldName());
 			}
-			final FulltextFieldKey[] fields = new FulltextFieldKey[names.size()];
+			final FulltextFieldDefinition[] fields = new FulltextFieldDefinition[names.size()];
 			int index = 0;
-			for (String name : names) {
+			for (final String name : names) {
 				final AttributeSchemaContract attributeSchema = entitySchema
 					.getAttribute(name)
 					.orElseThrow(() -> new AttributeNotFoundException(name, entitySchema));
@@ -257,15 +275,15 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 					attributeSchema.isSearchableInAnyScope(),
 					() -> new AttributeNotSearchableException(name, entitySchema)
 				);
-				for (Scope scope : scopes) {
+				for (final Scope scope : scopes) {
 					Assert.isTrue(
 						attributeSchema.isSearchableInScope(scope),
 						() -> new AttributeNotSearchableException(name, entitySchema, scope)
 					);
 				}
-				fields[index++] = FulltextFieldKey.attribute(name);
+				fields[index++] = FulltextFieldDefinition.resolve(entitySchema, FulltextFieldKey.attribute(name));
 			}
-			for (Scope scope : scopes) {
+			for (final Scope scope : scopes) {
 				result.put(scope, fields);
 			}
 		}
@@ -281,67 +299,78 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 * @return the searchable fields, empty when there is none
 	 */
 	@Nonnull
-	private static FulltextFieldKey[] collectSearchableFields(
+	private static FulltextFieldDefinition[] collectSearchableFields(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Scope scope
 	) {
-		final List<FulltextFieldKey> fields = new ArrayList<>(8);
-		for (AttributeSchemaContract attributeSchema : entitySchema.getAttributes().values()) {
+		final List<FulltextFieldDefinition> fields = new ArrayList<>(8);
+		for (final AttributeSchemaContract attributeSchema : entitySchema.getAttributes().values()) {
 			if (attributeSchema.isSearchableInScope(scope)) {
-				fields.add(FulltextFieldKey.attribute(attributeSchema.getName()));
+				fields.add(FulltextFieldDefinition.resolve(entitySchema,
+					FulltextFieldKey.attribute(attributeSchema.getName())));
 			}
 		}
-		for (ReferenceSchemaContract referenceSchema : entitySchema.getReferences().values()) {
-			for (AttributeSchemaContract attributeSchema : referenceSchema.getAttributes().values()) {
+		for (final ReferenceSchemaContract referenceSchema : entitySchema.getReferences().values()) {
+			for (final AttributeSchemaContract attributeSchema : referenceSchema.getAttributes().values()) {
 				if (attributeSchema.isSearchableInScope(scope)) {
 					fields.add(
-						FulltextFieldKey.referenceAttribute(referenceSchema.getName(), attributeSchema.getName())
+						FulltextFieldDefinition.resolve(entitySchema,
+							FulltextFieldKey.referenceAttribute(referenceSchema.getName(), attributeSchema.getName()))
 					);
 				}
 			}
 		}
-		for (AssociatedDataSchemaContract associatedDataSchema : entitySchema.getAssociatedData().values()) {
+		for (final AssociatedDataSchemaContract associatedDataSchema : entitySchema.getAssociatedData().values()) {
 			if (associatedDataSchema.isSearchableInScope(scope)) {
-				fields.add(FulltextFieldKey.associatedData(associatedDataSchema.getName()));
+				fields.add(FulltextFieldDefinition.resolve(entitySchema,
+					FulltextFieldKey.associatedData(associatedDataSchema.getName())));
 			}
 		}
-		return fields.toArray(FulltextFieldKey[]::new);
+		return fields.toArray(FulltextFieldDefinition[]::new);
 	}
 
 	/**
-	 * Returns the tokens of the text as the analyzer the index was built with understands them - see the class
-	 * documentation for why the search analyzer is used only while the assignment still names the index's analyzer.
+	 * One analyzer's searched fields and alternatives aligned with the shared query words.
 	 *
-	 * @param analyzerRegistry the catalog's analyzer registry
-	 * @param entityType       the queried collection
-	 * @param locale           the query locale
-	 * @param fulltextIndex    the index the tokens are looked up in
-	 * @param text             the text of the query
-	 * @param searchTokens     the text as the search analyzer of the current assignment tokenized it
-	 * @return the tokens in text order
+	 * @param analyzer the shared compiled content identity
+	 * @param fields the fields searched in this scope
+	 * @param alternatives each word's analyzed alternatives, empty when this group drops the word
+	 */
+	private record AnalyzedFieldGroup(
+		@Nonnull CompiledFulltextAnalyzer analyzer, @Nonnull FulltextFieldDefinition[] fields,
+		@Nonnull String[][] alternatives
+	) { }
+
+	/**
+	 * Runs a group's word chain over every term of each shared word. Position increments emitted inside the word
+	 * chain never create a new query word; every emitted term is an alternative of the same shared input word.
+	 *
+	 * @param analyzer the group's compiled chains
+	 * @param words the locale's shared words
+	 * @return alternatives aligned with the shared words
 	 */
 	@Nonnull
-	private static QueryToken[] resolveTokens(
-		@Nonnull FulltextAnalyzerRegistry analyzerRegistry,
-		@Nonnull String entityType,
-		@Nonnull Locale locale,
-		@Nonnull FulltextIndex fulltextIndex,
-		@Nonnull String text,
-		@Nonnull QueryToken[] searchTokens
-	) {
-		final String indexAnalyzerName = fulltextIndex.getAnalyzerName();
-		if (analyzerRegistry.getIndexAnalyzer(entityType, locale).getAnalyzerName().equals(indexAnalyzerName)) {
-			return searchTokens;
+	private static String[][] analyzeGroups(@Nonnull CompiledFulltextAnalyzer analyzer, @Nonnull QueryToken[] words) {
+		final String[][] alternatives = new String[words.length][];
+		for (int i = 0; i < words.length; i++) {
+			final Set<String> terms = CollectionUtils.createLinkedHashSet(4);
+			for (final String term : words[i].terms()) {
+				analyzer.word().analyze(term,
+					(value, surface, start, end, increment) -> terms.add(value));
+			}
+			alternatives[i] = terms.toArray(String[]::new);
 		}
-		// the assignment moved on since the index was built and the index has not been rebuilt yet (#409) - the
-		// search-side chain of the new assignment would produce terms the index never saw, so the index's own chain
-		// reads the text: the variant stems are lost, but nothing wrong can match
-		return analyze(analyzerRegistry.getIndexAnalyzerByName(indexAnalyzerName), text);
+		return alternatives;
 	}
 
 	/**
 	 * Analyzes the text into tokens: each term with a positive position increment starts a new token, and each term
-	 * at the same position (`positionIncrement == 0`) joins the token before it as an alternative.
+	 * at the same position (`positionIncrement == 0`) joins the token before it as an alternative. A word-number split
+	 * therefore yields separate words: a typed `UHD7800` needs `uhd7800` or `uhd`, and `7800`, which over an index
+	 * split the same way finds what Lucene's `uhd7800 OR (uhd AND 7800)` finds. Regrouping the parts with their
+	 * original by offset containment - the original or any part, ranked by how much of the group matched
+	 * (`p5-word-number-split-comparison.md` §6) - waits for a ranking lane that puts a whole-word match above a part
+	 * match: without it, the matches of a bare part would come with nothing to rank them down.
 	 *
 	 * @param analyzer the analyzer
 	 * @param text     the text of the query
@@ -364,76 +393,69 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	}
 
 	/**
-	 * Builds the formula of one scope: every term of every token is looked up in every searched field the index knows,
-	 * and each (field, term) with postings becomes one {@link ExpandedTerm}.
+	 * Looks up each group's alternatives only in its current field generations. A shared word leaves the query only
+	 * when every group with a current field drops it. Groups without current fields do not participate.
+	 * Folded stop recognition is per group and is suppressed by any corpus collision,
+	 * including postings of retired fields. A kept word with no expansion remains a word that matches nothing.
 	 *
-	 * ## Stop words typed without diacritics
-	 *
-	 * A token none of whose terms the index holds in any field is **dropped** when its surface form, lower-cased and
-	 * folded to ASCII, is a folded stop word of the analyzer the index was built with
-	 * ({@link FulltextAnalyzerRegistry#isFoldedStopWord}). The stop filters of the Czech, Polish and Romanian index
-	 * chains (and German's) run on the accented text and know accented forms only, so the index drops `není`, while
-	 * the query word `neni` passes the search chain unrecognized and - under the strict match - would empty the
-	 * result. The word's absence says nothing about the indexed texts, so the token is not asked for.
-	 *
-	 * The test is on absence from the **whole** index first, not merely from the searched fields, because folding
-	 * collides with real words: `být` is a stop word, `byt` ("apartment") is not. A word the index holds anywhere is a
-	 * real word of the corpus and stays a token - inside `inField` too, where it then matches nothing in the named
-	 * fields, which is what the user asked. Any other token without expansions still empties the result.
-	 *
-	 * Dropping happens before the tokens reach the formula, so the scorer counts matched tokens over the kept ones
-	 * only and the ranking is the one the text without the stop word would get.
-	 *
-	 * @param fulltextIndex    the fulltext index of the scope and locale
-	 * @param fields           the searched fields
-	 * @param analyzerRegistry the catalog's analyzer registry, which knows the stop words of the index's analyzer
-	 * @param tokens           the tokens of the text, analyzed for this index
-	 * @return the formula; a token whose terms occur in no searched field makes it match nothing, and so does a text
-	 * that produced no token at all or whose every token was a dropped stop word
+	 * @param fulltextIndex the locale index of this scope
+	 * @param groups the analyzed groups and their schema field identities
+	 * @param tokens the shared words with their original surface forms
+	 * @return the fulltext formula, or empty when all words were dropped
 	 */
 	@Nonnull
 	private static Formula createFormula(
-		@Nonnull FulltextIndex fulltextIndex,
-		@Nonnull FulltextFieldKey[] fields,
-		@Nonnull FulltextAnalyzerRegistry analyzerRegistry,
+		@Nonnull FulltextIndex fulltextIndex, @Nonnull List<AnalyzedFieldGroup> groups,
 		@Nonnull QueryToken[] tokens
 	) {
-		if (tokens.length == 0) {
-			return EmptyFormula.INSTANCE;
-		}
-		// a field the index never saw, or retired, resolves to no id and contributes nothing
-		final int[] fieldIds = new int[fields.length];
-		int fieldCount = 0;
-		for (FulltextFieldKey field : fields) {
-			final int fieldId = fulltextIndex.getFieldId(field);
-			if (fieldId != FulltextIndex.UNKNOWN_FIELD_ID) {
-				fieldIds[fieldCount++] = fieldId;
-			}
-		}
-		final List<ExpandedTerm[]> expandedTokens = new ArrayList<>(tokens.length);
-		final List<ExpandedTerm> expansions = new ArrayList<>(fieldCount * 2);
-		for (QueryToken token : tokens) {
-			expansions.clear();
-			for (int f = 0; f < fieldCount; f++) {
-				for (String term : token.terms()) {
-					final ExpandedTerm expandedTerm = lookUpTerm(fulltextIndex, fieldIds[f], term);
-					if (expandedTerm != null) {
-						expansions.add(expandedTerm);
-					}
+		final List<int[]> fieldIds = new ArrayList<>(groups.size());
+		for (final AnalyzedFieldGroup group : groups) {
+			final int[] ids = new int[group.fields().length];
+			int count = 0;
+			for (final FulltextFieldDefinition field : group.fields()) {
+				final int id = fulltextIndex.getFieldId(field.key());
+				if (id != FulltextIndex.UNKNOWN_FIELD_ID && fulltextIndex.isFieldCurrent(
+					id, group.analyzer().fingerprint().index(), field.lengthPivot())) {
+					ids[count++] = id;
 				}
 			}
-			if (
-				expansions.isEmpty() &&
-					analyzerRegistry.isFoldedStopWord(fulltextIndex.getAnalyzerName(), token.surfaceForm()) &&
-					!isKnownToIndex(fulltextIndex, token)
-			) {
-				// a stop word typed without diacritics - the index dropped it, see the method documentation
-				continue;
-			}
-			expandedTokens.add(expansions.toArray(ExpandedTerm[]::new));
+			fieldIds.add(Arrays.copyOf(ids, count));
 		}
-		return expandedTokens.isEmpty() ?
-			EmptyFormula.INSTANCE : new FulltextFormula(expandedTokens.toArray(ExpandedTerm[][]::new));
+		final List<ExpandedTerm[]> expandedTokens = new ArrayList<>(tokens.length);
+		for (int i = 0; i < tokens.length; i++) {
+			final List<ExpandedTerm> expansions = new ArrayList<>(8);
+			boolean kept = false;
+			for (int g = 0; g < groups.size(); g++) {
+				if (fieldIds.get(g).length == 0) {
+					continue;
+				}
+				final AnalyzedFieldGroup group = groups.get(g);
+				final String[] alternatives = group.alternatives()[i];
+				if (alternatives.length == 0) {
+					continue;
+				}
+				final int before = expansions.size();
+				for (final int fieldId : fieldIds.get(g)) {
+					for (final String term : alternatives) {
+						final ExpandedTerm expanded = lookUpTerm(fulltextIndex, fieldId, term);
+						if (expanded != null) {
+							expansions.add(expanded);
+						}
+					}
+				}
+				if (expansions.size() == before && group.analyzer().foldedStopWords().contains(
+					CompiledFulltextAnalyzer.foldStopWord(tokens[i].surfaceForm())) &&
+					!isKnownToIndex(fulltextIndex, new QueryToken(tokens[i].surfaceForm(), alternatives))) {
+					continue;
+				}
+				kept = true;
+			}
+			if (kept) {
+				expandedTokens.add(expansions.toArray(ExpandedTerm[]::new));
+			}
+		}
+		return expandedTokens.isEmpty() ? EmptyFormula.INSTANCE :
+			new FulltextFormula(expandedTokens.toArray(ExpandedTerm[][]::new));
 	}
 
 	/**
@@ -446,7 +468,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	private static boolean isKnownToIndex(@Nonnull FulltextIndex fulltextIndex, @Nonnull QueryToken token) {
 		final int fieldCount = fulltextIndex.getFieldCount();
 		for (int fieldId = 0; fieldId < fieldCount; fieldId++) {
-			for (String term : token.terms()) {
+			for (final String term : token.terms()) {
 				if (lookUpTerm(fulltextIndex, fieldId, term) != null) {
 					return true;
 				}

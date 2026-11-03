@@ -23,12 +23,10 @@
 
 package io.evitadb.index.fulltext.analysis;
 
-
-import javax.annotation.Nonnull;
 import java.util.List;
 
 /**
- * The Romanian vocabulary {@link LanguageAnalyzerPairRecallTest} measures the `romanian`/`romanian-search`
+ * The Romanian vocabulary {@link LanguageAnalyzerPairRecallTest} measures the `text` index/query
  * analyzer pair against — the Romanian sibling of {@link CzechAnalysisFixture}, built to the same protocol.
  *
  * **Sourcing.** No native Romanian speaker was available when this fixture was authored; every inflected form

@@ -219,6 +219,18 @@ class FulltextAnalyzerValidatorTest {
 			assertMessage(ex, "`names`", "`brands` does not exist");
 		}
 
+		/** A provider that only reads raw content must still honor its declared resource kind at validation. */
+		@Test
+		@DisplayName("should refuse a wrong-kind third-party resource while validating the fingerprint")
+		void shouldRefuseWrongKindResourceOfAnotherProvider() {
+			final CatalogSchemaContract schema = catalog(b -> b
+				.withFulltextResource("brands", synonymList(synonymGroup("nike", "brand")))
+				.withFulltextAnalyzer("names", a -> a.words(ReadList.step("brands"))));
+			final InvalidSchemaMutationException ex = assertThrows(InvalidSchemaMutationException.class,
+				() -> FulltextAnalyzerValidator.validate(registryWith(new ReadList()), schema));
+			assertMessage(ex, "`names`", "fingerprint", "brands");
+		}
+
 		/** On load the catalog schema is not validated first, so a broken `basedOn` reaches the validator. */
 		@Test
 		@DisplayName("should refuse basedOn naming an unknown analyzer")

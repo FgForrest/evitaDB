@@ -55,10 +55,8 @@ import static io.evitadb.utils.Assert.isPremiseValid;
  * every field, assembled by {@link FulltextIndex#fromPersistedPages} and
  * {@link FieldLengthTable#fromPersistedBlocks}.
  *
- * The analyzer is the one the root names, resolved by name through the context's
- * {@link LoadContext#fulltextAnalyzerRegistry()} - an index is read back with the analyzer that produced its terms,
- * never with whatever the language table would resolve today, which could tokenize a query differently from the
- * stored terms without any error. The name resolves only to a built-in analyzer.
+ * Loading requires no analyzer. Every field restores its built-with identities; writes and queries compare them
+ * with the current schema through the catalog's compiled analyzer cache.
  */
 public final class FulltextIndexMapLoader implements ComponentLoader {
 
@@ -85,8 +83,6 @@ public final class FulltextIndexMapLoader implements ComponentLoader {
 	 * @return the restored index, clean
 	 * @throws io.evitadb.exception.GenericEvitaInternalError  when the root, a dictionary page or a length block it
 	 *                                                         lists is not found in persistent storage
-	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the registry resolves no analyzer under the name
-	 *                                                         the root carries
 	 */
 	@Nonnull
 	private static FulltextIndex loadIndex(@Nonnull LoadContext context, @Nonnull Locale locale) {
@@ -108,8 +104,6 @@ public final class FulltextIndexMapLoader implements ComponentLoader {
 		final DictionaryPage[] pages = loadDictionaryPages(context, service, keyCompressor, pageSequences, locale);
 		final List<Field> fields = loadFields(context, service, keyCompressor, root, locale);
 		return FulltextIndex.fromPersistedPages(
-			context.fulltextAnalyzerRegistry().getIndexAnalyzerByName(root.getAnalyzerName()),
-			root.getDefaultLengthPivot(),
 			fields,
 			pageSequences,
 			pages,
@@ -210,7 +204,8 @@ public final class FulltextIndexMapLoader implements ComponentLoader {
 			}
 			fields.add(
 				new Field(
-					entry.key(), entry.lengthPivot(), entry.textExpression(), entry.retired(),
+					entry.key(), entry.analyzerName(), entry.indexFingerprint(), entry.wordPhaseId(),
+						entry.lengthPivot(), entry.textExpression(), entry.retired(),
 					FieldLengthTable.fromPersistedBlocks(blocks)
 				)
 			);

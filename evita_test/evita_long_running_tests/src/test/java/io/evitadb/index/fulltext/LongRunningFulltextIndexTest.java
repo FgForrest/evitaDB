@@ -23,10 +23,11 @@
 
 package io.evitadb.index.fulltext;
 
-import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
+import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
-import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
+import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -36,6 +37,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
+
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -127,12 +129,12 @@ class LongRunningFulltextIndexTest implements TimeBoundedTestSupport {
 	/**
 	 * The analyzer every index in this test uses.
 	 */
-	private static FulltextAnalyzer analyzer;
+	private static CompiledFulltextAnalyzer analyzer;
 
 	@BeforeAll
 	static void setUpAnalyzer() {
-		registry = new FulltextAnalyzerRegistry();
-		analyzer = registry.getIndexAnalyzer("product", Locale.forLanguageTag("cs"));
+		registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
+		analyzer = registry.getCompiledAnalyzer(FulltextIndexModel.ANALYSIS_SCHEMA, "text", Locale.forLanguageTag("cs"));
 	}
 
 	@AfterAll
@@ -149,11 +151,11 @@ class LongRunningFulltextIndexTest implements TimeBoundedTestSupport {
 		runFor(
 			input,
 			100,
-			new TestState(newModel(), new FulltextIndex(analyzer), new StringBuilder(1_024)),
+			new TestState(newModel(), new FulltextIndex(), new StringBuilder(1_024)),
 			(random, state) -> {
 				final boolean newEpoch = state.model().getFieldCount() >= MAX_FIELD_COUNT;
 				final FulltextIndexModel before = newEpoch ? newModel() : state.model();
-				final FulltextIndex index = newEpoch ? new FulltextIndex(analyzer) : state.index();
+				final FulltextIndex index = newEpoch ? new FulltextIndex() : state.index();
 				final String expectedBefore = before.expectedContent();
 				final FulltextIndexModel model = before.copy();
 				final StringBuilder log = state.log();
@@ -209,11 +211,11 @@ class LongRunningFulltextIndexTest implements TimeBoundedTestSupport {
 		runFor(
 			input,
 			100,
-			new TestState(newModel(), new FulltextIndex(analyzer), new StringBuilder(1_024)),
+			new TestState(newModel(), new FulltextIndex(), new StringBuilder(1_024)),
 			(random, state) -> {
 				final boolean newEpoch = state.model().getFieldCount() >= MAX_FIELD_COUNT;
 				final FulltextIndexModel model = newEpoch ? newModel() : state.model();
-				final FulltextIndex index = newEpoch ? new FulltextIndex(analyzer) : state.index();
+				final FulltextIndex index = newEpoch ? new FulltextIndex() : state.index();
 				final StringBuilder log = state.log();
 				log.setLength(0);
 

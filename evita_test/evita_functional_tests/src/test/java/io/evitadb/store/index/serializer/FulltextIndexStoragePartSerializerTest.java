@@ -27,11 +27,12 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.fulltext.FieldLengthTable;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.fulltext.FieldLengthTable.LengthBlock;
 import io.evitadb.index.fulltext.FieldLengthTable.LengthBlockEmission;
-import io.evitadb.index.fulltext.FulltextIndex;
+import io.evitadb.index.fulltext.FieldLengthTable;
 import io.evitadb.index.fulltext.FulltextIndex.DictionaryPage;
+import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
@@ -44,10 +45,10 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextDicti
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextFieldLengthBlockPart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextFieldLengthBlockRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart.FieldEntry;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextLeafStreamKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextLeafStreamKey.StreamKind;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextLeafStreamKey;
 import io.evitadb.store.catalog.CatalogHeaderKryoConfigurer;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
 import io.evitadb.store.shared.kryo.KryoFactory;
@@ -61,6 +62,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -72,6 +74,7 @@ import java.util.Map;
 import static io.evitadb.index.fulltext.FulltextFieldKey.associatedData;
 import static io.evitadb.index.fulltext.FulltextFieldKey.attribute;
 import static io.evitadb.index.fulltext.FulltextFieldKey.referenceAttribute;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.*;
 import static io.evitadb.store.index.serializer.StoragePartSerializerTestSupport.roundTrip;
 import static io.evitadb.test.TestTags.SERIALIZATION;
 import static io.evitadb.test.TestTags.STORAGE;
@@ -114,7 +117,7 @@ class FulltextIndexStoragePartSerializerTest {
 
 	@BeforeAll
 	static void setUpRegistry() {
-		registry = new FulltextAnalyzerRegistry();
+		registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 	}
 
 	@AfterAll
@@ -450,16 +453,16 @@ class FulltextIndexStoragePartSerializerTest {
 		 */
 		@Nonnull
 		private FulltextIndexStoragePart root() {
-			return new FulltextIndexStoragePart(
-				12, CZECH, "czech", 25.0,
-				new FieldEntry[]{
-					new FieldEntry(attribute("title"), 8.5, null, true, new int[]{0, 1, 14}),
-					new FieldEntry(associatedData("body"), 400.0, "$value.blocks.*[$.text]", false, new int[0]),
-					new FieldEntry(referenceAttribute("brand", "title"), 25.0, null, false, new int[]{3}),
-					new FieldEntry(attribute("title"), 25.0, null, false, new int[0])
-				},
-				17, new int[]{3, 17, 0, 9}, null
-			);
+			return new FulltextIndexStoragePart(12, CZECH, new FieldEntry[]{
+					new FieldEntry(attribute("title"), "text", testAnalyzer().fingerprint().index(),
+						testAnalyzer().fingerprint().wordPhase(), 8.5, null, true, new int[]{0, 1, 14}),
+					new FieldEntry(associatedData("body"), "html-text", 1234567890L, -9876543210L, 400.0, "$value.blocks.*[$.text]", false, new int[0]),
+					new FieldEntry(referenceAttribute("brand", "title"), "text",
+						testAnalyzer().fingerprint().index(), testAnalyzer().fingerprint().wordPhase(), 25.0, null,
+						false, new int[]{3}),
+					new FieldEntry(attribute("title"), "text", testAnalyzer().fingerprint().index(),
+						testAnalyzer().fingerprint().wordPhase(), 25.0, null, false, new int[0])
+				}, 17, new int[]{3, 17, 0, 9}, null);
 		}
 
 		@Test
@@ -471,11 +474,16 @@ class FulltextIndexStoragePartSerializerTest {
 			);
 			assertEquals(12, read.getEntityIndexPrimaryKey());
 			assertEquals(CZECH, read.getLocale());
-			assertEquals("czech", read.getAnalyzerName());
-			assertEquals(25.0, read.getDefaultLengthPivot());
+			assertEquals("text", read.getFields()[0].analyzerName());
+			assertEquals(testAnalyzer().fingerprint().index(), read.getFields()[0].indexFingerprint());
+			assertEquals(testAnalyzer().fingerprint().wordPhase(), read.getFields()[0].wordPhaseId());
+			assertEquals(8.5, read.getFields()[0].lengthPivot());
 			assertEquals(4, read.getFields().length);
 			for (int i = 0; i < 4; i++) {
 				assertEquals(root.getFields()[i].key(), read.getFields()[i].key());
+				assertEquals(root.getFields()[i].analyzerName(), read.getFields()[i].analyzerName());
+				assertEquals(root.getFields()[i].indexFingerprint(), read.getFields()[i].indexFingerprint());
+				assertEquals(root.getFields()[i].wordPhaseId(), read.getFields()[i].wordPhaseId());
 				assertEquals(root.getFields()[i].retired(), read.getFields()[i].retired());
 				assertEquals(root.getFields()[i].lengthPivot(), read.getFields()[i].lengthPivot());
 				assertEquals(root.getFields()[i].textExpression(), read.getFields()[i].textExpression());
@@ -501,19 +509,22 @@ class FulltextIndexStoragePartSerializerTest {
 		void shouldRefuseMalformedRoots() {
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> new FulltextIndexStoragePart(1, CZECH, "czech", 25.0, new FieldEntry[0], 0, new int[0], null)
+				() -> new FulltextIndexStoragePart(1, CZECH, new FieldEntry[0], 0, new int[0], null)
 			);
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> new FieldEntry(attribute("title"), 1.0, null, false, new int[]{2, 1})
+				() -> new FieldEntry(attribute("title"), "text", testAnalyzer().fingerprint().index(),
+					testAnalyzer().fingerprint().wordPhase(), 1.0, null, false, new int[]{2, 1})
 			);
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> new FieldEntry(attribute("title"), 1.0, null, false, new int[]{1, 1})
+				() -> new FieldEntry(attribute("title"), "text", testAnalyzer().fingerprint().index(),
+					testAnalyzer().fingerprint().wordPhase(), 1.0, null, false, new int[]{1, 1})
 			);
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> new FieldEntry(attribute("title"), 1.0, null, false, new int[]{0x10000})
+				() -> new FieldEntry(attribute("title"), "text", testAnalyzer().fingerprint().index(),
+					testAnalyzer().fingerprint().wordPhase(), 1.0, null, false, new int[]{0x10000})
 			);
 		}
 
@@ -566,9 +577,9 @@ class FulltextIndexStoragePartSerializerTest {
 		@Test
 		@DisplayName("a flushed index loads back from the serialized pages with every posting, impact and length")
 		void shouldLoadAFlushedIndexBackFromTheBytes() {
-			final FulltextIndex index = new FulltextIndex(registry.getIndexAnalyzer("product", CZECH));
-			final int title = index.getOrAssignFieldId(attribute("title"));
-			final int body = index.getOrAssignFieldId(attribute("body"), 300.0);
+			final FulltextIndex index = new FulltextIndex();
+			final int title = registerField(index, attribute("title"));
+			final int body = registerField(index, attribute("body"), 300.0);
 			// enough terms for several leaves, postings across roaring containers, impacts spanning the byte range
 			for (int i = 0; i < 1_000; i++) {
 				final String term = String.format("t%04d", i);
@@ -577,13 +588,16 @@ class FulltextIndexStoragePartSerializerTest {
 					index.addPosting(i % 3 == 0 ? body : title, term, primaryKey, 1 + (i * 7 + j * 31) % 255);
 				}
 			}
-			index.addValue(attribute("title"), 5, "Rychlá hnědá liška");
+			index.addValue(attribute("title"), 5, testAnalyzer(), fieldPivot(index, attribute("title")), null,
+				"Rychlá hnědá liška");
 			// lengths: a body block past a third of its slots, which takes the slot encoding, and sparse title blocks
 			for (int primaryKey = 1; primaryKey <= 22_000; primaryKey++) {
-				index.addValue(attribute("body"), primaryKey, "slovo " + "dlouhé ".repeat(primaryKey % 40));
+				index.addValue(attribute("body"), primaryKey, testAnalyzer(), fieldPivot(index, attribute("body")),
+					null, "slovo " + "dlouhé ".repeat(primaryKey % 40));
 			}
 			for (int primaryKey = 140_000; primaryKey < 140_050; primaryKey++) {
-				index.addValue(attribute("title"), primaryKey, "krátký titulek " + primaryKey);
+				index.addValue(attribute("title"), primaryKey, testAnalyzer(), fieldPivot(index,
+					attribute("title")), null, "krátký titulek " + primaryKey);
 			}
 
 			final PageEmission<DictionaryPage> emission = index.collectChangedPages();
@@ -610,20 +624,14 @@ class FulltextIndexStoragePartSerializerTest {
 			}
 			final FulltextIndexStoragePart root = roundTrip(
 				kryo,
-				new FulltextIndexStoragePart(
-					3, CZECH, "czech", FulltextIndex.DEFAULT_LENGTH_PIVOT,
-					new FieldEntry[]{
-						new FieldEntry(
-							attribute("title"), index.getLengthPivot(title), null, false,
-							lengthEmissions[title].blockKeys()
-						),
-						new FieldEntry(
-							attribute("body"), index.getLengthPivot(body), null, false,
-							lengthEmissions[body].blockKeys()
-						)
-					},
-					emission.highWaterPageSequence(), emission.orderedPageSequences(), null
-				),
+				new FulltextIndexStoragePart(3, CZECH, new FieldEntry[]{
+						new FieldEntry(attribute("title"), "text", testAnalyzer().fingerprint().index(),
+							testAnalyzer().fingerprint().wordPhase(), index.getLengthPivot(title), null, false,
+							lengthEmissions[title].blockKeys()),
+						new FieldEntry(attribute("body"), "text", testAnalyzer().fingerprint().index(),
+							testAnalyzer().fingerprint().wordPhase(), index.getLengthPivot(body), null, false,
+							lengthEmissions[body].blockKeys())
+					}, emission.highWaterPageSequence(), emission.orderedPageSequences(), null),
 				FulltextIndexStoragePart.class
 			);
 
@@ -650,16 +658,12 @@ class FulltextIndexStoragePartSerializerTest {
 					blocks[i] = part.getBlock();
 				}
 				fields.add(
-					new FulltextIndex.Field(
-						entry.key(), entry.lengthPivot(), entry.textExpression(), entry.retired(),
-						FieldLengthTable.fromPersistedBlocks(blocks)
-					)
+					new FulltextIndex.Field(entry.key(), entry.analyzerName(), entry.indexFingerprint(),
+						entry.wordPhaseId(), entry.lengthPivot(), entry.textExpression(),
+						entry.retired(), FieldLengthTable.fromPersistedBlocks(blocks))
 				);
 			}
-			final FulltextIndex reloaded = FulltextIndex.fromPersistedPages(
-				registry.getIndexAnalyzer("product", CZECH), root.getDefaultLengthPivot(), fields,
-				pageSequences, pages, root.getDictionaryHighWaterPageSequence()
-			);
+			final FulltextIndex reloaded = FulltextIndex.fromPersistedPages(fields, pageSequences, pages, root.getDictionaryHighWaterPageSequence());
 
 			assertEquals(index.getTermCount(), reloaded.getTermCount());
 			assertEquals(300.0, reloaded.getLengthPivot(reloaded.getFieldId(attribute("body"))));

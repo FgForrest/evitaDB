@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+
 import java.io.IOException;
 import java.text.Normalizer;
 
@@ -38,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The Czech instance of the {@link LexiconCoverageSweep}: verifies over the whole `cs_CZ` Hunspell lexicon that
- * the production {@link CzechVariantStemmer} — the query half of the `czech`/`czech-search` built-in pair —
+ * the production {@link CzechVariantStemmer} — the query half of the `text` index/query built-in pair —
  * always emits the term the index half wrote.
  *
  * The index side is the production shape: Lucene's accented `CzechStemmer` followed by folding. A word that

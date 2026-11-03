@@ -40,6 +40,7 @@ import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.fulltext.FieldLengthTable.LengthBlockEmission;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
+import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordPrimitive;
@@ -93,8 +94,8 @@ import java.util.Map;
  * quantized to `1..255` (see {@link #computeImpact(int, int, double)}). The pivot is a fixed parameter of the field,
  * not the corpus' average length: an average moves with every write, which would make every stored impact stale the
  * moment the next document arrives and make two replicas of one catalog disagree about a score. With a fixed pivot
- * the impact is a function of the query term and the document alone. Until the schema can declare a pivot, it is
- * passed to the constructor (and per field through {@link #getOrAssignFieldId(FulltextFieldKey, double)}).
+ * the impact is a function of the query term and the document alone. The pivot is
+ * supplied by the field schema at each write and recorded with its field generation.
  *
  * ## Why the key order matters
  *
@@ -159,12 +160,6 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	);
 
 	/**
-	 * The length pivot used when the caller supplies none: a field of this many tokens is "of normal length", and
-	 * its term frequencies are neither boosted nor damped by length.
-	 */
-	public static final double DEFAULT_LENGTH_PIVOT = 25.0;
-
-	/**
 	 * BM25's term-frequency saturation, `k1`. The customary value; it has not been tuned for evitaDB.
 	 */
 	public static final double BM25_K1 = 1.2;
@@ -211,16 +206,6 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * Identity of this instance in the transactional memory.
 	 */
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
-
-	/**
-	 * Analyzer of the index slot of this partition's locale; every indexed value goes through it.
-	 */
-	@Nonnull private final FulltextAnalyzer indexAnalyzer;
-
-	/**
-	 * The pivot a field gets when it is registered without one.
-	 */
-	private final double defaultLengthPivot;
 
 	/**
 	 * Field key to its id, for the fields committed with this instance (and, outside a transaction, registered since)
@@ -282,6 +267,9 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * The state of one field. Its key, pivot and text expression never change, and it is retired at most once; its
 	 * length table is replaced by its committed copy at every commit that merges the index.
 	 *
+	 * @param analyzerName   the analyzer name recorded at registration
+	 * @param indexFingerprint the persistent index-chain identity
+	 * @param wordPhaseId    the persistent index words-phase identity
 	 * @param key            the field's identity
 	 * @param lengthPivot    the field's length pivot
 	 * @param textExpression the EvitaEL expression the field's text was selected with from the stored values (the
@@ -292,11 +280,30 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 */
 	public record Field(
 		@Nonnull FulltextFieldKey key,
+		@Nonnull String analyzerName,
+		long indexFingerprint,
+		long wordPhaseId,
 		double lengthPivot,
 		@Nullable String textExpression,
 		boolean retired,
 		@Nonnull FieldLengthTable lengths
 	) {
+
+		/**
+		 * Keeps an owned analyzer name so field heap accounting does not depend on cache or string interning.
+		 *
+		 * @param key the field identity
+		 * @param analyzerName the recorded schema analyzer name
+		 * @param indexFingerprint the index-chain identity
+		 * @param wordPhaseId the index words-phase identity
+		 * @param lengthPivot the impact normalization pivot
+		 * @param textExpression the extraction expression, or null for text values
+		 * @param retired whether this generation has stopped accepting writes
+		 * @param lengths the field's value lengths
+		 */
+		public Field {
+			analyzerName = new String(analyzerName.toCharArray());
+		}
 
 		/**
 		 * Returns this field retired, with the very same length table.
@@ -305,31 +312,16 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		 */
 		@Nonnull
 		Field retire() {
-			return new Field(this.key, this.lengthPivot, this.textExpression, true, this.lengths);
+			return new Field(this.key, this.analyzerName, this.indexFingerprint, this.wordPhaseId,
+				this.lengthPivot, this.textExpression, true, this.lengths);
 		}
 
 	}
 
 	/**
-	 * Creates an empty index with {@link #DEFAULT_LENGTH_PIVOT} as the fields' default pivot.
-	 *
-	 * @param indexAnalyzer analyzer of the index slot of the partition's locale
+	 * Creates an empty locale index. Every write supplies the field's current analysis and pivot.
 	 */
-	public FulltextIndex(@Nonnull FulltextAnalyzer indexAnalyzer) {
-		this(indexAnalyzer, DEFAULT_LENGTH_PIVOT);
-	}
-
-	/**
-	 * Creates an empty index.
-	 *
-	 * @param indexAnalyzer      analyzer of the index slot of the partition's locale
-	 * @param defaultLengthPivot length pivot a field gets when registered without one; must be positive and finite
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the pivot is not positive and finite
-	 */
-	public FulltextIndex(@Nonnull FulltextAnalyzer indexAnalyzer, double defaultLengthPivot) {
-		assertPivotValid(defaultLengthPivot);
-		this.indexAnalyzer = indexAnalyzer;
-		this.defaultLengthPivot = defaultLengthPivot;
+	public FulltextIndex() {
 		this.fieldIds = CollectionUtils.createHashMap(8);
 		this.fields = NO_FIELDS;
 		this.dictionary = createDictionary();
@@ -340,23 +332,17 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	/**
 	 * Adopts already-merged parts - the constructor the commit merge builds the next version with.
 	 *
-	 * @param indexAnalyzer      analyzer of the index slot of the partition's locale
-	 * @param defaultLengthPivot length pivot a field gets when registered without one
 	 * @param fieldIds           key to id of every field not retired
 	 * @param fields             per-field state by id
 	 * @param dictionary         the term dictionary
 	 * @param pageStreamRegistry the page bookkeeping, carried by reference from the version being merged
 	 */
 	private FulltextIndex(
-		@Nonnull FulltextAnalyzer indexAnalyzer,
-		double defaultLengthPivot,
 		@Nonnull Map<FulltextFieldKey, Integer> fieldIds,
 		@Nonnull Field[] fields,
 		@Nonnull TransactionalBucketBPlusTree<String> dictionary,
 		@Nonnull PageStreamRegistry pageStreamRegistry
 	) {
-		this.indexAnalyzer = indexAnalyzer;
-		this.defaultLengthPivot = defaultLengthPivot;
 		this.fieldIds = fieldIds;
 		this.fields = fields;
 		this.dictionary = dictionary;
@@ -373,8 +359,6 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 *
 	 * An empty dictionary is persisted as the single empty page of its root leaf, and restored as such.
 	 *
-	 * @param indexAnalyzer         analyzer of the index slot of the partition's locale
-	 * @param defaultLengthPivot    length pivot a field registered later without one gets
 	 * @param fields                the registered fields in id order, retired ones included, each with its length
 	 *                              table
 	 * @param orderedPageSequences  the dictionary's page sequences in key order, as the last flush listed them
@@ -382,21 +366,17 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * @param highWaterPageSequence the highest page sequence the dictionary ever allocated
 	 * @return the restored index, clean
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when the pages do not match their list, overlap, or an
-	 *                                                        empty page is not the dictionary's only one; when the
-	 *                                                        default or any field's pivot is not positive and
-	 *                                                        finite; or when two fields of one key are persisted as
-	 *                                                        not retired
+	 *                                                        empty page is not the dictionary's only one; when a field
+	 *                                                        has a non-positive or non-finite pivot; or when two
+	 *                                                        fields of one key are persisted as not retired
 	 */
 	@Nonnull
 	public static FulltextIndex fromPersistedPages(
-		@Nonnull FulltextAnalyzer indexAnalyzer,
-		double defaultLengthPivot,
 		@Nonnull List<Field> fields,
 		@Nonnull int[] orderedPageSequences,
 		@Nonnull DictionaryPage[] pages,
 		int highWaterPageSequence
 	) {
-		assertPivotValid(defaultLengthPivot);
 		Assert.isPremiseValid(
 			orderedPageSequences.length == pages.length,
 			() -> "The dictionary lists " + orderedPageSequences.length + " pages but " + pages.length +
@@ -432,7 +412,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			}
 		}
 		return new FulltextIndex(
-			indexAnalyzer, defaultLengthPivot, fieldIds, fields.toArray(NO_FIELDS), dictionary, pageStreamRegistry
+			fieldIds, fields.toArray(NO_FIELDS), dictionary, pageStreamRegistry
 		);
 	}
 
@@ -516,65 +496,28 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * Returns the id of a field, registering it with the default pivot when it is new. An existing field is returned
-	 * whatever pivot it was registered with.
+	 * Registers a field with its built-with identity. An index-chain or pivot change retires the previous field;
+	 * an identical request preserves its id. Text expressions keep their existing extraction policy.
 	 *
-	 * @param fieldKey identity of the searchable field
-	 * @return the field's id
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the field is new and the index already holds
-	 *                                                        {@link #MAX_FIELD_ID} + 1 fields
-	 */
-	public int getOrAssignFieldId(@Nonnull FulltextFieldKey fieldKey) {
-		final int existing = getFieldId(fieldKey);
-		// the default pivot applies to a registration only - a field registered with its own keeps it
-		return existing == UNKNOWN_FIELD_ID ? getOrAssignFieldId(fieldKey, this.defaultLengthPivot) : existing;
-	}
-
-	/**
-	 * Returns the id of a field, registering it with the passed pivot when it is new. A field's pivot cannot change
-	 * once impacts were computed against it — that would take a reindex — so asking for an existing field with a
-	 * different pivot is refused. A key whose field was retired is new again, and gets a fresh id.
-	 *
-	 * @param fieldKey    identity of the searchable field
-	 * @param lengthPivot the field's length pivot; must be positive and finite
-	 * @return the field's id
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the pivot is not positive and finite, differs from
-	 *                                                        the registered one, or the field is new and the index
-	 *                                                        already holds {@link #MAX_FIELD_ID} + 1 fields
-	 */
-	public int getOrAssignFieldId(@Nonnull FulltextFieldKey fieldKey, double lengthPivot) {
-		return getOrAssignFieldId(fieldKey, lengthPivot, null);
-	}
-
-	/**
-	 * Returns the id of a field, registering it with the passed pivot and text expression when it is new. The pivot
-	 * of an existing field cannot change - see {@link #getOrAssignFieldId(FulltextFieldKey, double)} - while its text
-	 * expression is simply kept: an existing field is returned whatever expression it was registered with, and the
-	 * caller reads it back through {@link #getTextExpression(int)} to keep extracting the way the field was built.
-	 *
-	 * @param fieldKey       identity of the searchable field
-	 * @param lengthPivot    the field's length pivot; must be positive and finite
-	 * @param textExpression the expression the field's text is selected with, `null` when the values are the text
-	 * @return the field's id
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the pivot is not positive and finite, differs from
-	 *                                                        the registered one, or the field is new and the index
-	 *                                                        already holds {@link #MAX_FIELD_ID} + 1 fields
+	 * @param fieldKey the searchable field
+	 * @param analyzerName the schema analyzer name recorded for this generation
+	 * @param indexFingerprint the identity of the chain building its postings
+	 * @param wordPhaseId the identity of the index words phase
+	 * @param lengthPivot the positive finite pivot used to compute impacts
+	 * @param textExpression the recorded extraction expression, or null for text values
+	 * @return the current generation's field id
 	 */
 	public int getOrAssignFieldId(
-		@Nonnull FulltextFieldKey fieldKey,
-		double lengthPivot,
-		@Nullable String textExpression
+		@Nonnull FulltextFieldKey fieldKey, @Nonnull String analyzerName, long indexFingerprint, long wordPhaseId,
+		double lengthPivot, @Nullable String textExpression
 	) {
 		assertPivotValid(lengthPivot);
 		final int existing = getFieldId(fieldKey);
 		if (existing != UNKNOWN_FIELD_ID) {
-			final double registered = fieldAt(existing).lengthPivot();
-			Assert.isPremiseValid(
-				Double.compare(registered, lengthPivot) == 0,
-				() -> "Fulltext field " + fieldKey + " is registered with length pivot " + registered +
-					", it cannot change to " + lengthPivot + " without a reindex!"
-			);
-			return existing;
+			if (isFieldCurrent(existing, indexFingerprint, lengthPivot)) {
+				return existing;
+			}
+			retireField(fieldKey);
 		}
 		final FulltextIndexChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		// a new field changes what the index persists even before it holds a value
@@ -584,7 +527,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			fieldId <= MAX_FIELD_ID,
 			() -> "The fulltext index cannot address more than " + (MAX_FIELD_ID + 1) + " fields!"
 		);
-		final Field field = new Field(fieldKey, lengthPivot, textExpression, false, new FieldLengthTable());
+		final Field field = new Field(fieldKey, analyzerName, indexFingerprint, wordPhaseId,
+			lengthPivot, textExpression, false, new FieldLengthTable());
 		if (layer != null) {
 			layer.addField(field);
 		} else {
@@ -628,7 +572,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 
 	/**
 	 * Retires the field of a key: the key stops resolving to it, its postings and lengths stay as they are, and a
-	 * later {@link #getOrAssignFieldId(FulltextFieldKey)} of the key registers a fresh, empty field - see the class
+	 * later {@link #getFieldId(FulltextFieldKey)} of the key registers a fresh, empty field - see the class
 	 * documentation for why the old postings are kept.
 	 *
 	 * @param fieldKey identity of the searchable field
@@ -723,23 +667,52 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * Returns the name of the analyzer of the index slot every value of this index went through. The persisted index
-	 * records it, so that it is read back with the analyzer it was built with.
+	 * Returns the analyzer name recorded for a field generation.
 	 *
-	 * @return the analyzer name
+	 * @param fieldId the registered field id
+	 * @return its analyzer name
 	 */
 	@Nonnull
-	public String getAnalyzerName() {
-		return this.indexAnalyzer.getAnalyzerName();
+	public String getAnalyzerName(int fieldId) {
+		assertFieldKnown(fieldId);
+		return fieldAt(fieldId).analyzerName();
 	}
 
 	/**
-	 * Returns the pivot a field gets when it is registered without one.
+	 * Returns the index-chain fingerprint recorded for a field generation.
 	 *
-	 * @return the default length pivot
+	 * @param fieldId the registered field id
+	 * @return its persistent index fingerprint
 	 */
-	public double getDefaultLengthPivot() {
-		return this.defaultLengthPivot;
+	public long getIndexFingerprint(int fieldId) {
+		assertFieldKnown(fieldId);
+		return fieldAt(fieldId).indexFingerprint();
+	}
+
+	/**
+	 * Returns the words-phase identity recorded for a field generation.
+	 *
+	 * @param fieldId the registered field id
+	 * @return its persistent words-phase identity
+	 */
+	public long getWordPhaseId(int fieldId) {
+		assertFieldKnown(fieldId);
+		return fieldAt(fieldId).wordPhaseId();
+	}
+
+	/**
+	 * Checks whether a field's stored postings can be used with the current schema analysis and pivot.
+	 *
+	 * @param fieldId the registered field id
+	 * @param fingerprint the current index-chain fingerprint
+	 * @param lengthPivot the current schema pivot
+	 * @return true when the generation is active and both identities match
+	 */
+	public boolean isFieldCurrent(int fieldId, long fingerprint, double lengthPivot) {
+		assertFieldKnown(fieldId);
+		final Field field = fieldAt(fieldId);
+		return !isFieldRetired(fieldId) && field.indexFingerprint() == fingerprint &&
+			Double.compare(field.lengthPivot(), lengthPivot) == 0;
 	}
 
 	/**
@@ -767,88 +740,68 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * Indexes the value of an entity's field: analyzes it through the index slot, and records every distinct term
-	 * with its impact and the value's length. The entity must not already have a value indexed for the field — an
-	 * update is a {@link #removeValue(FulltextFieldKey, int, String)} of the old value followed by this.
+	 * Adds all texts of a field value using its current schema analysis, retiring a stale generation first.
 	 *
-	 * A value producing no token is indexed as nothing: no posting and no length.
-	 *
-	 * @param fieldKey   identity of the searchable field; registered with the default pivot when new
-	 * @param primaryKey primary key of the entity
-	 * @param value      the stored value
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the entity already has a value for the field
+	 * @param fieldKey the searchable field
+	 * @param primaryKey the entity primary key
+	 * @param analyzer the compiled current schema analyzer
+	 * @param lengthPivot the schema pivot used for impacts
+	 * @param textExpression the extraction expression, or null for text values
+	 * @param values all texts of this entity's field
 	 */
-	public void addValue(@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull String value) {
-		indexValues(fieldKey, primaryKey, value);
+	public void addValue(
+		@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull CompiledFulltextAnalyzer analyzer,
+		double lengthPivot, @Nullable String textExpression, @Nonnull String... values
+	) {
+		final int fieldId = getOrAssignFieldId(fieldKey, analyzer.index().getAnalyzerName(),
+			analyzer.fingerprint().index(), analyzer.fingerprint().wordPhase(), lengthPivot, textExpression);
+		indexValues(fieldId, primaryKey, analyzer.index(), values);
 	}
 
 	/**
-	 * Indexes the array value of an entity's field as one text: every element is analyzed through the index slot,
-	 * and the term frequencies and lengths of all of them are summed (see the class documentation). The entity must
-	 * not already have a value indexed for the field — an update is a
-	 * {@link #removeValue(FulltextFieldKey, int, String[])} of the whole old array followed by this.
+	 * Removes an old value only when its field still has the current index identity. A stale generation is retired
+	 * with its postings untouched; removing an entity absent from the fresh generation is a no-op.
 	 *
-	 * An array whose elements produce no token is indexed as nothing: no posting and no length.
-	 *
-	 * @param fieldKey   identity of the searchable field; registered with the default pivot when new
-	 * @param primaryKey primary key of the entity
-	 * @param values     the stored array
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the entity already has a value for the field, or
-	 *                                                        an element of the array is null
+	 * @param fieldKey the searchable field
+	 * @param primaryKey the entity primary key
+	 * @param analyzer the compiled current schema analyzer
+	 * @param lengthPivot the current schema pivot
+	 * @param values the texts previously stored for this entity
 	 */
-	public void addValue(@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull String[] values) {
-		indexValues(fieldKey, primaryKey, values);
+	public void removeValue(
+		@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull CompiledFulltextAnalyzer analyzer,
+		double lengthPivot, @Nonnull String... values
+	) {
+		final int fieldId = getFieldId(fieldKey);
+		if (fieldId == UNKNOWN_FIELD_ID) {
+			return;
+		}
+		if (!isFieldCurrent(fieldId, analyzer.fingerprint().index(), lengthPivot)) {
+			retireField(fieldKey);
+			return;
+		}
+		unindexValues(fieldId, primaryKey, analyzer.index(), values);
 	}
 
 	/**
-	 * Removes the value of an entity's field from the index: analyzes the value again — the index does not keep the
-	 * original — and removes the entity from the posting list of every term it produced, and its length. The value
-	 * must be the one that was indexed, or terms it no longer produces would keep their postings.
+	 * Analyzes and indexes the texts of a current field generation.
 	 *
-	 * Removing from a field the index has never seen or has retired, or a value producing no token, changes nothing.
-	 *
-	 * @param fieldKey   identity of the searchable field
-	 * @param primaryKey primary key of the entity
-	 * @param value      the value that was indexed
-	 */
-	public void removeValue(@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull String value) {
-		unindexValues(fieldKey, primaryKey, value);
-	}
-
-	/**
-	 * Removes the array value of an entity's field from the index — the mirror of
-	 * {@link #addValue(FulltextFieldKey, int, String[])}. The array must hold the elements that were indexed, in any
-	 * order; removing only some of them is not possible, because the entity has one entry for the whole array.
-	 *
-	 * Removing from a field the index has never seen or has retired, or an array producing no token, changes
-	 * nothing.
-	 *
-	 * @param fieldKey   identity of the searchable field
-	 * @param primaryKey primary key of the entity
-	 * @param values     the array that was indexed
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key resolves to a field and an element of the
-	 *                                                        array is null
-	 */
-	public void removeValue(@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull String[] values) {
-		unindexValues(fieldKey, primaryKey, values);
-	}
-
-	/**
-	 * The body of both `addValue` overloads: one value is an array of one element.
-	 *
-	 * @param fieldKey   identity of the searchable field; registered with the default pivot when new
+	 * @param fieldId the registered current field generation
+	 * @param analyzer the compiled index chain that built its postings
 	 * @param primaryKey primary key of the entity
 	 * @param values     the elements of the value
 	 */
-	private void indexValues(@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull String... values) {
-		final int fieldId = getOrAssignFieldId(fieldKey);
+	private void indexValues(
+		int fieldId, int primaryKey, @Nonnull FulltextAnalyzer analyzer, @Nonnull String... values
+	) {
+		final FulltextFieldKey fieldKey = fieldAt(fieldId).key();
 		final Field field = fieldAt(fieldId);
 		Assert.isPremiseValid(
 			field.lengths().getEncoded(primaryKey) == 0,
 			() -> "Entity " + primaryKey + " already has a value of fulltext field " + fieldKey + " indexed; " +
 				"remove it before indexing another."
 		);
-		final AnalyzedValue analyzed = analyze(values);
+		final AnalyzedValue analyzed = analyze(analyzer, values);
 		if (analyzed.length() == 0) {
 			return;
 		}
@@ -862,18 +815,20 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * The body of both `removeValue` overloads: one value is an array of one element.
+	 * Removes the old texts from a current field generation, leaving an absent entity untouched.
 	 *
-	 * @param fieldKey   identity of the searchable field
+	 * @param fieldId the registered current field generation
+	 * @param analyzer the compiled index chain that built its postings
 	 * @param primaryKey primary key of the entity
 	 * @param values     the elements of the value that was indexed
 	 */
-	private void unindexValues(@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull String... values) {
-		final int fieldId = getFieldId(fieldKey);
-		if (fieldId == UNKNOWN_FIELD_ID) {
+	private void unindexValues(
+		int fieldId, int primaryKey, @Nonnull FulltextAnalyzer analyzer, @Nonnull String... values
+	) {
+		if (fieldAt(fieldId).lengths().getEncoded(primaryKey) == 0) {
 			return;
 		}
-		final AnalyzedValue analyzed = analyze(values);
+		final AnalyzedValue analyzed = analyze(analyzer, values);
 		if (analyzed.length() == 0) {
 			// the mirror of addValue: a value without tokens was indexed as nothing, so there is nothing to remove -
 			// and touching the length table here would erase the length of whatever the entity really has indexed
@@ -888,14 +843,14 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 
 	/**
 	 * Records a single posting directly, bypassing analysis — the low-level counterpart of
-	 * {@link #addValue(FulltextFieldKey, int, String)} for callers that analyze themselves. Adding a posting that is
+	 * {@link #addValue} for callers that analyze themselves. Adding a posting that is
 	 * already present replaces its impact.
 	 *
 	 * Only the dictionary is touched: the field's {@link FieldLengthTable} is not, so a caller mixing this with
-	 * {@link #addValue(FulltextFieldKey, int, String)} for the same entity leaves its length and its postings
+	 * {@link #addValue} for the same entity leaves its length and its postings
 	 * disagreeing.
 	 *
-	 * @param fieldId    id of the field, as returned by {@link #getOrAssignFieldId(FulltextFieldKey)}
+	 * @param fieldId    id of the field, as returned by {@link #getFieldId(FulltextFieldKey)}
 	 * @param term       the analyzed term
 	 * @param primaryKey primary key of the entity
 	 * @param impact     the posting's impact, `1..`{@link #MAX_IMPACT}
@@ -917,7 +872,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * removing a posting that is not present changes nothing. Like {@link #addPosting}, it leaves the field's
 	 * {@link FieldLengthTable} untouched.
 	 *
-	 * @param fieldId    id of the field, as returned by {@link #getOrAssignFieldId(FulltextFieldKey)}
+	 * @param fieldId    id of the field, as returned by {@link #getFieldId(FulltextFieldKey)}
 	 * @param term       the analyzed term
 	 * @param primaryKey primary key of the entity
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when the index never assigned the field id, or the field
@@ -1015,7 +970,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * name-to-id map, the field array and every field's length table - and the term dictionary with its postings and
 	 * impacts, priced by the dictionary itself.
 	 *
-	 * Not charged: the analyzer, which the registry shares among every index using it, and the page bookkeeping, which
+	 * Not charged: the page bookkeeping, which
 	 * no paged index charges - it is flush state carried by reference through every committed copy. Each field key is
 	 * charged with its {@link Field}, the one holder a retired field's key still has; {@link #fieldIds} maps the very
 	 * same instance. A retired field and its successor registered with one key instance are charged it twice. A running
@@ -1028,9 +983,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// id and defaultLengthPivot, then the indexAnalyzer / fieldIds / fields / dictionary / dirty /
-		// pageStreamRegistry slots
-		long size = layout.sizeOfObject(Long.BYTES + Double.BYTES + 6L * layout.referenceSize())
+		// The id and the fieldIds / fields / dictionary / dirty / pageStreamRegistry slots.
+		long size = layout.sizeOfObject(Long.BYTES + 5L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
 			// the key is charged with its field, the boxed field id to this map, its only holder
 			+ MapHeapSize.sizeOf(this.fieldIds, fieldKey -> 0L, fieldId -> layout.sizeOfObject(Integer.BYTES))
@@ -1039,11 +993,11 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			// the shared empty registry belongs to no index
 			size += layout.sizeOfArray(this.fields.length, layout.referenceSize());
 			for (final Field field : this.fields) {
-				// lengthPivot and retired, then the key / textExpression / lengths slots; the expression text is the
-				// field's own copy
+				// The pivot, two identities and retired flag, then key / analyzerName / expression / lengths.
 				final String textExpression = field.textExpression();
-				size += layout.sizeOfObject(Double.BYTES + 1L + 3L * layout.referenceSize())
+				size += layout.sizeOfObject(Double.BYTES + 2L * Long.BYTES + 1L + 4L * layout.referenceSize())
 					+ getHeapSizeInBytes(field.key(), layout)
+					+ MemoryMeasuringConstants.computeStringSize(field.analyzerName())
 					+ (textExpression == null ? 0L : MemoryMeasuringConstants.computeStringSize(textExpression))
 					+ field.lengths().getHeapSizeInBytes();
 			}
@@ -1112,7 +1066,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 				mergedFieldIds.put(field.key(), fieldId);
 			}
 			mergedFields[fieldId] = new Field(
-				field.key(),
+				field.key(), field.analyzerName(), field.indexFingerprint(), field.wordPhaseId(),
 				field.lengthPivot(),
 				field.textExpression(),
 				retired,
@@ -1120,8 +1074,6 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			);
 		}
 		return new FulltextIndex(
-			this.indexAnalyzer,
-			this.defaultLengthPivot,
 			mergedFieldIds,
 			mergedFields,
 			transactionalLayer.getStateCopyWithCommittedChanges(this.dictionary),
@@ -1336,16 +1288,17 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * The term frequencies count every term the chain emits, stacked variants at increment `0` included, so a term's
 	 * frequency may exceed the length.
 	 *
+	 * @param analyzer the compiled index chain of the field
 	 * @param values the elements to analyze
 	 * @return the analysis
 	 */
 	@Nonnull
-	private AnalyzedValue analyze(@Nonnull String... values) {
+	private AnalyzedValue analyze(@Nonnull FulltextAnalyzer analyzer, @Nonnull String... values) {
 		final Map<String, int[]> termFrequencies = CollectionUtils.createHashMap(16);
 		final int[] length = new int[1];
 		for (final String value : values) {
 			Assert.isPremiseValid(value != null, "A fulltext value must not contain a null element!");
-			this.indexAnalyzer.analyze(value, (term, surfaceForm, startOffset, endOffset, positionIncrement) -> {
+			analyzer.analyze(value, (term, surfaceForm, startOffset, endOffset, positionIncrement) -> {
 				if (positionIncrement > 0) {
 					length[0]++;
 				}

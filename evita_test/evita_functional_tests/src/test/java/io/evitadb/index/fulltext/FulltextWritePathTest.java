@@ -38,9 +38,10 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.fulltext.analysis.AnalyzedTerm;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.fulltext.AnalyzedTerm;
+import io.evitadb.test.fulltext.FulltextAnalysisTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -50,6 +51,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.io.Serializable;
 import java.util.Locale;
 import java.util.Optional;
@@ -63,6 +65,7 @@ import static io.evitadb.index.fulltext.FulltextFieldKey.referenceAttribute;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.fulltext.FulltextAnalysisTestSupport.collectTerms;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -946,8 +949,11 @@ class FulltextWritePathTest implements EvitaTestSupport {
 	) {
 		final Set<String> expected = new TreeSet<>();
 		final FulltextAnalyzerRegistry registry = catalog().getFulltextAnalyzerRegistry();
+		final FulltextFieldDefinition definition = FulltextFieldDefinition.resolve(
+			catalog().getCollectionForEntityInternal(PRODUCT).orElseThrow().getSchema(), fieldKey);
 		for (final String value : values) {
-			for (final AnalyzedTerm term : registry.getIndexAnalyzer(PRODUCT, locale).getTerms(value)) {
+			for (final AnalyzedTerm term : collectTerms(registry.getCompiledAnalyzer(
+				catalog().getSchema(), definition.analyzer(), locale).index(), value)) {
 				expected.add(term.term());
 			}
 		}

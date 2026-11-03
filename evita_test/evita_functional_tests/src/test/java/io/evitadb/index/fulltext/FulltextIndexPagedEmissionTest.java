@@ -25,6 +25,7 @@ package io.evitadb.index.fulltext;
 
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.fulltext.FulltextIndex.DictionaryPage;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.invertedIndex.ValueToRecord;
@@ -38,17 +39,18 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 
 import static io.evitadb.index.fulltext.FulltextFieldKey.attribute;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.*;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.TRANSACTION;
@@ -96,7 +98,7 @@ class FulltextIndexPagedEmissionTest {
 
 	@BeforeAll
 	static void setUpRegistry() {
-		registry = new FulltextAnalyzerRegistry();
+		registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 	}
 
 	@AfterAll
@@ -111,11 +113,9 @@ class FulltextIndexPagedEmissionTest {
 	 */
 	@Nonnull
 	private static FulltextIndex newIndex() {
-		final FulltextIndex index = new FulltextIndex(
-			registry.getIndexAnalyzer("product", Locale.forLanguageTag("cs"))
-		);
-		index.getOrAssignFieldId(attribute("title"));
-		index.getOrAssignFieldId(attribute("body"));
+		final FulltextIndex index = new FulltextIndex();
+		registerField(index, attribute("title"));
+		registerField(index, attribute("body"));
 		return index;
 	}
 
@@ -306,21 +306,13 @@ class FulltextIndexPagedEmissionTest {
 			final List<FulltextIndex.Field> fields = new ArrayList<>(index.getFieldCount());
 			for (int fieldId = 0; fieldId < index.getFieldCount(); fieldId++) {
 				fields.add(
-					new FulltextIndex.Field(
-						index.getFieldKey(fieldId), index.getLengthPivot(fieldId), index.getTextExpression(fieldId),
-						index.isFieldRetired(fieldId),
-						index.getFieldLengths(fieldId)
-					)
+					new FulltextIndex.Field(index.getFieldKey(fieldId), index.getAnalyzerName(fieldId),
+						index.getIndexFingerprint(fieldId), index.getWordPhaseId(fieldId),
+						index.getLengthPivot(fieldId), index.getTextExpression(fieldId),
+						index.isFieldRetired(fieldId), index.getFieldLengths(fieldId))
 				);
 			}
-			return FulltextIndex.fromPersistedPages(
-				registry.getIndexAnalyzer("product", Locale.forLanguageTag("cs")),
-				FulltextIndex.DEFAULT_LENGTH_PIVOT,
-				fields,
-				this.orderedPageSequences,
-				listedPages(),
-				this.highWater
-			);
+			return FulltextIndex.fromPersistedPages(fields, this.orderedPageSequences, listedPages(), this.highWater);
 		}
 
 		/**
@@ -341,19 +333,18 @@ class FulltextIndexPagedEmissionTest {
 		@Test
 		@DisplayName("A fresh index is clean; a field registration and every write dirty it; a reset clears it")
 		void shouldTrackWritesSinceTheLastFlush() {
-			final FulltextIndex index = new FulltextIndex(
-				registry.getIndexAnalyzer("product", Locale.forLanguageTag("cs"))
-			);
+			final FulltextIndex index = new FulltextIndex();
 			assertFalse(index.isDirty());
 
-			index.getOrAssignFieldId(attribute("title"));
+			registerField(index, attribute("title"));
 			assertTrue(index.isDirty(), "A new field changes what the index persists.");
 			index.resetDirty();
 
-			index.getOrAssignFieldId(attribute("title"));
+			registerField(index, attribute("title"));
 			assertFalse(index.isDirty(), "Looking up an existing field writes nothing.");
 
-			index.addValue(attribute("title"), 1, "horské kolo");
+			index.addValue(attribute("title"), 1, testAnalyzer(), fieldPivot(index, attribute("title")), null,
+				"horské kolo");
 			assertTrue(index.isDirty());
 			index.resetDirty();
 

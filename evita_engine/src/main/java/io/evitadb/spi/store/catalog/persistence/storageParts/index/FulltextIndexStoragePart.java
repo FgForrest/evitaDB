@@ -47,13 +47,12 @@ import java.util.Locale;
  * - the **dictionary page list** - the sequences of the dictionary's leaf pages in key order, which a load assembles
  *   into the tree leaf by leaf - and the high-water of the dictionary's page-sequence allocator, so a sequence is never
  *   handed out twice across a restart;
- * - the **analyzer** the terms were produced by and the **default pivot** a field registered later gets.
  *
  * The pages themselves are {@link FulltextDictionaryLeafPagePart}s, and the length blocks pages of their own; both
  * are keyed by a {@link FulltextLeafStreamKey} of this index.
  *
- * The analyzer and the pivots are persisted here only until the schema owns them: an index must not be read back
- * with a different analyzer or pivot than it was built with, and today nothing else remembers which it was.
+ * Each field records its analyzer name, persistent index and words-phase identities and pivot. Loading restores
+ * these values without compiling a chain; queries skip generations that no longer agree with their schema.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -69,16 +68,6 @@ public class FulltextIndexStoragePart implements StoragePart {
 	 * The locale of the partition the index serves.
 	 */
 	@Getter @Nonnull private final Locale locale;
-	/**
-	 * Name of the analyzer that produced the index's terms.
-	 */
-	//TODO JNO change it at the end of #258
-	@Getter @Nonnull private final String analyzerName;
-	/**
-	 * Length pivot a field registered without one gets.
-	 */
-	//TODO JNO change it at the end of #258
-	@Getter private final double defaultLengthPivot;
 	/**
 	 * The registered fields, the i-th having field id `i`, retired ones included.
 	 */
@@ -104,6 +93,9 @@ public class FulltextIndexStoragePart implements StoragePart {
 	 * A retired field is persisted with everything it held, because its postings are still in the dictionary pages
 	 * under its id: dropping its entry would shift the ids of every later field off their key prefixes.
 	 *
+	 * @param analyzerName   the analyzer recorded for the field generation
+	 * @param indexFingerprint the identity of its index chain
+	 * @param wordPhaseId    the identity of its index words phase
 	 * @param key            the field's identity
 	 * @param lengthPivot    the field's length pivot, which every impact of the field was computed with
 	 * @param textExpression the EvitaEL expression the field's text was selected with from the stored values, `null`
@@ -117,7 +109,9 @@ public class FulltextIndexStoragePart implements StoragePart {
 	 */
 	public record FieldEntry(
 		@Nonnull FulltextFieldKey key,
-		//TODO JNO change it at the end of #258
+		@Nonnull String analyzerName,
+		long indexFingerprint,
+		long wordPhaseId,
 		double lengthPivot,
 		@Nullable String textExpression,
 		boolean retired,
@@ -126,6 +120,15 @@ public class FulltextIndexStoragePart implements StoragePart {
 
 		/**
 		 * Verifies the block list is a strictly ascending list of 16-bit block keys.
+		 *
+		 * @param key the field identity
+		 * @param analyzerName the analyzer name recorded at registration
+		 * @param indexFingerprint the identity of the chain building its postings
+		 * @param wordPhaseId the identity of its index words phase
+		 * @param lengthPivot the pivot used for impact normalization
+		 * @param textExpression the extraction expression, or null for text values
+		 * @param retired whether the generation stopped accepting writes
+		 * @param lengthBlocks the persisted length block keys in strictly ascending order
 		 */
 		public FieldEntry {
 			for (int i = 0; i < lengthBlocks.length; i++) {
@@ -146,8 +149,6 @@ public class FulltextIndexStoragePart implements StoragePart {
 	 *
 	 * @param entityIndexPrimaryKey           primary key of the owning entity index
 	 * @param locale                          the locale of the partition the index serves
-	 * @param analyzerName                    name of the analyzer that produced the index's terms
-	 * @param defaultLengthPivot              length pivot a field registered without one gets
 	 * @param fields                          the registered fields in field-id order
 	 * @param dictionaryHighWaterPageSequence the highest page sequence the dictionary ever allocated
 	 * @param dictionaryPageSequences         the dictionary's page sequences in key order, at least one
@@ -156,8 +157,6 @@ public class FulltextIndexStoragePart implements StoragePart {
 	public FulltextIndexStoragePart(
 		int entityIndexPrimaryKey,
 		@Nonnull Locale locale,
-		@Nonnull String analyzerName,
-		double defaultLengthPivot,
 		@Nonnull FieldEntry[] fields,
 		int dictionaryHighWaterPageSequence,
 		@Nonnull int[] dictionaryPageSequences,
@@ -169,8 +168,6 @@ public class FulltextIndexStoragePart implements StoragePart {
 		);
 		this.entityIndexPrimaryKey = entityIndexPrimaryKey;
 		this.locale = locale;
-		this.analyzerName = analyzerName;
-		this.defaultLengthPivot = defaultLengthPivot;
 		this.fields = fields;
 		this.dictionaryHighWaterPageSequence = dictionaryHighWaterPageSequence;
 		this.dictionaryPageSequences = dictionaryPageSequences;

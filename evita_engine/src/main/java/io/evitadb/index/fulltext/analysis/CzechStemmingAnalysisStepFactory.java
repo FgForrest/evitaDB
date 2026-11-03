@@ -35,8 +35,7 @@ import javax.annotation.Nonnull;
  * The `czech-stemming` step. It carries the whole diacritics fold of the language, so the two sides differ:
  *
  * - index side: Lucene's `CzechStemFilter` stems the accented word, then `ASCIIFoldingFilter` folds the stem - the
- *   stemmer switches on accented characters and finds nothing in folded text (see
- *   {@link DiacriticsFoldingAnalyzerWrapper});
+ *   stemmer switches on accented characters and finds nothing in folded text;
  * - query side: `ASCIIFoldingFilter` folds the word, then {@link VariantStemFilter} with {@link CzechVariantStemmer}
  *   emits every stem the folded word may have come from, at one position - a user typing without accents cannot be
  *   stemmed exactly, because the fold erased what the stemmer decides by.

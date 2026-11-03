@@ -244,6 +244,7 @@ public final class FulltextIndexMapComponent implements IndexComponent {
 			}
 			fields[fieldId] = new FieldEntry(
 				Objects.requireNonNull(index.getFieldKey(fieldId)),
+				index.getAnalyzerName(fieldId), index.getIndexFingerprint(fieldId), index.getWordPhaseId(fieldId),
 				index.getLengthPivot(fieldId),
 				index.getTextExpression(fieldId),
 				index.isFieldRetired(fieldId),
@@ -252,7 +253,7 @@ public final class FulltextIndexMapComponent implements IndexComponent {
 		}
 		trappedChanges.addChangeToStore(
 			new FulltextIndexStoragePart(
-				entityIndexPrimaryKey, locale, index.getAnalyzerName(), index.getDefaultLengthPivot(), fields,
+				entityIndexPrimaryKey, locale, fields,
 				pages.highWaterPageSequence(), pages.orderedPageSequences(), null
 			)
 		);

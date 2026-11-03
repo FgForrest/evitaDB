@@ -127,6 +127,7 @@ public class FulltextAssociatedDataFunctionalTest {
 					.withAssociatedData(
 						BODY, String.class,
 						whichIs -> whichIs.localized().nullable().searchableInScope(Scope.LIVE, Scope.ARCHIVED)
+						.analyzer("html-text")
 					)
 					.withAssociatedData(
 						KEYWORDS, String[].class, whichIs -> whichIs.localized().nullable().searchable()

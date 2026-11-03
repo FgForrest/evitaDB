@@ -25,26 +25,28 @@ package io.evitadb.index.fulltext.typo;
 
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
-import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.ValueColumnFactory;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
-import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.test.fulltext.CzechLexicon;
-import io.evitadb.test.fulltext.LevenshteinDictionaryWalker;
+import io.evitadb.test.fulltext.FulltextAnalysisTestSupport;
 import io.evitadb.test.fulltext.LevenshteinDictionaryWalker.Hit;
-import io.evitadb.test.fulltext.SyntheticTypos;
+import io.evitadb.test.fulltext.LevenshteinDictionaryWalker;
 import io.evitadb.test.fulltext.SyntheticTypos.TypoKind;
-import io.evitadb.test.fulltext.TypoExpansion;
+import io.evitadb.test.fulltext.SyntheticTypos;
 import io.evitadb.test.fulltext.TypoExpansion.ExpandedTerm;
 import io.evitadb.test.fulltext.TypoExpansion.LengthBase;
 import io.evitadb.test.fulltext.TypoExpansion.QueryWord;
 import io.evitadb.test.fulltext.TypoExpansion.UnfinishedWordMode;
 import io.evitadb.test.fulltext.TypoExpansion.UnfinishedWordRules;
+import io.evitadb.test.fulltext.TypoExpansion;
 import io.evitadb.test.fulltext.TypoThresholds;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.JolHeapSize;
@@ -57,6 +59,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -143,9 +146,10 @@ class CorpusTypoMeasurementTest {
 	static void loadCorpus() throws IOException {
 		final String file = System.getProperty("fulltext.corpus.file");
 		assumeTrue(file != null, "set fulltext.corpus.file to the output of CorpusTextExtractionTest to run");
-		registry = new FulltextAnalyzerRegistry();
-		searchAnalyzer = registry.getSearchAnalyzer(ENTITY_TYPE, CZECH);
-		corpus = Corpus.load(Path.of(file), registry.getIndexAnalyzer(ENTITY_TYPE, CZECH));
+		registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
+		searchAnalyzer = FulltextAnalysisTestSupport.queryAnalyzer(CZECH);
+		corpus = Corpus.load(Path.of(file), registry.getCompiledAnalyzer(
+			FulltextAnalysisTestSupport.SCHEMA, "text", CZECH).index());
 	}
 
 	@AfterAll

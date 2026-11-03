@@ -1,0 +1,14 @@
+# version=1
+# analyzer=text side=QUERY locale=en
+# index-fingerprint=2705306358525940611
+# chain (step@behaviour-version; parameters as resolved):
+# standard@1
+# english-possessive@1
+# lowercase@1
+# stop-words(words=[english-stop-words])@1
+# english-stemming@1
+# Recorded from the old language chain, compared with the compiled built-in before retirement.
+# Columns: input-base64-utf8, output-base64-utf8 (LF-separated term@start-end+positionIncrement)
+Sm9obidzIHJ1bm5pbmcgc2hvZXMgYW5kIHRoZSB3b21lbidzIGJvb3RzLCBzaXplIDQyIC0gc2FsZSE=	am9obkAwLTYrMQpydW5ANy0xNCsxCnNob2VAMTUtMjArMQp3b21lbkAyOS0zNiszCmJvb3RAMzctNDIrMQpzaXplQDQ0LTQ4KzEKNDJANDktNTErMQpzYWxlQDU0LTU4KzE=
+SXQncyB0aGUgQkVTVCB0YWJsZSB3ZSd2ZSBldmVyIGhhZCwgYW5kIGl0IGlzbid0IGV4cGVuc2l2ZTsgaVBob25lMTUgd2l0aCBhIFVTQi1DIGNhYmxl	YmVzdEA5LTEzKzMKdGFibEAxNC0xOSsxCndlJ3ZAMjAtMjUrMQpldmVyQDI2LTMwKzEKaGFkQDMxLTM0KzEKaXNuJ3RANDMtNDgrMwpleHBlbnNANDktNTgrMQppcGhvbmUxNUA2MC02OCsxCnVzYkA3Ni03OSszCmNAODAtODErMQpjYWJsQDgyLTg3KzE=
+VGhlIGNoaWxkcmVuIHdlcmUgcGxheWluZyBoYXBwaWx5IGluIHRoZSBnYXJkZW5zIG9mIHRoZWlyIGdyYW5kcGFyZW50cycgaG91c2Vz	Y2hpbGRyZW5ANC0xMisyCndlcmVAMTMtMTcrMQpwbGFpQDE4LTI1KzEKaGFwcGlsaUAyNi0zMysxCmdhcmRlbkA0MS00OCszCmdyYW5kcGFyQDU4LTcwKzMKaG91c0A3Mi03OCsx

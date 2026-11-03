@@ -23,12 +23,12 @@
 
 package io.evitadb.index.fulltext.analysis;
 
-
 import javax.annotation.Nonnull;
+
 import java.util.List;
 
 /**
- * The Polish vocabulary {@link LanguageAnalyzerPairRecallTest} measures the `polish`/`polish-search`
+ * The Polish vocabulary {@link LanguageAnalyzerPairRecallTest} measures the `text` index/query
  * analyzer pair against — the Polish sibling of {@link CzechAnalysisFixture}, built to the same protocol.
  *
  * **Bare typing is language-specific here.** A Polish user without the Polish keyboard layout types `l` for

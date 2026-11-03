@@ -138,6 +138,14 @@ public final class FulltextAnalyzerValidator {
 					);
 				}
 			}
+			try {
+				compiler.fingerprint(resolved);
+			} catch (EvitaInvalidUsageException ex) {
+				throw new InvalidSchemaMutationException(
+					"Fulltext analyzer `" + analyzer + "` cannot fingerprint " + describe(locale) + ": " +
+						ex.getMessage()
+				);
+			}
 		}
 	}
 
