@@ -452,10 +452,11 @@ The attribute schema is described by:
 
 `ModifyAttributeSchemaNameMutation` moves the attribute to its new name in the schema - of the catalog, the entity or
 the reference - and a global attribute is renamed in every entity that uses it. The values of the entities that are
-already stored, and the indexes built from them, stay under the old name. When the collection contains entities, the
-rename is accepted and the server logs a warning, but filtering and sorting by the new name find only the entities
-written after the rename. An attribute that declares a [filter accelerator](#filter-accelerators) cannot be renamed on
-a collection that contains entities at all.
+already stored, and the indexes built from them, stay under the old name; moving them along with the schema is tracked
+in [issue #409](https://github.com/FgForrest/evitaDB/issues/409). When the collection contains entities, the rename is
+accepted and the server logs a warning, but filtering and sorting by the new name find only the entities written after
+the rename. An attribute that declares a [filter accelerator](#filter-accelerators) cannot be renamed on a collection
+that contains entities at all.
 
 A rename is refused when another attribute already holds the new name, when the attribute is part of a
 [sortable attribute compound](#sortable-attribute-compounds), and when a reflected reference inherits the attribute
