@@ -1027,6 +1027,9 @@ to trunk incorporation (which the research admits in §4.5(3) as a fallback).
 
 ### 6.3 The default field weight
 
+**[2026-11-03] Superseded:** the default weight is a fractional number on the scale of the query's `fieldWeight`,
+not an enumeration - see the ADR decision of 2026-11-03. The reasoning below is kept as the losing argument.
+
 **Recommendation: named levels, not a number.**
 
 The argument is empirical. Both reference e-commerce engines are ordinal — Meilisearch does not allow a
@@ -1636,8 +1639,8 @@ budgetary side alongside the principled one: a dedicated type need be neither fi
 thereby avoids the eight-layer operation from the skill `evita-schema-change` — which changes the effort
 estimate for P6 (§6.7).
 
-**S5 — Weight: an enumeration or a number** (§6.3). An enumeration of four levels is recommended, following
-the ordinality of both reference engines. Should it turn out that rank profiles need continuous weights, the
+**S5 — Weight: an enumeration or a number** (§6.3). **[2026-11-03] Decided: a number** (ADR decision of
+2026-11-03). An enumeration of four levels is recommended, following the ordinality of both reference engines. Should it turn out that rank profiles need continuous weights, the
 transition from an enumeration to a number is additive, the opposite direction is not — hence start with an
 enumeration.
 
