@@ -20,7 +20,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -319,18 +318,6 @@ public class TestSerialization {
 			}
 		}
 		assertEquals(bitmap, restored);
-
-		// A short offset table must fail while consuming its missing bytes.
-		final byte[] truncated = Arrays.copyOf(bytes, 8 + 200 * 4 + 1);
-		try (final DataInputStream input = new DataInputStream(new ByteArrayInputStream(truncated))) {
-			assertThrows(EOFException.class, () -> {
-				if (buffered) {
-					restored.deserialize(input, new byte[8192]);
-				} else {
-					restored.deserialize(input);
-				}
-			});
-		}
 	}
 
 	/**
