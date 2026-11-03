@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-11-02 18:24
+updated: 2026-11-03 10:32
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
@@ -1008,14 +1008,11 @@ rather than a tuning one. Both are open items below.
   output is built by reflection over the mutation's constructor; and `SetAttributeSchemaSearchableMutation` has no
   external-API converter, so a change-data-capture stream reaching one through those APIs fails. The user
   documentation of `searchable()` and its schema-capability usage statistics wait for the query constraint as well.
-- **A runtime-registered analyzer does not survive a restart, and must before one can be assigned (2026-10-05).**
-  `FulltextAnalyzerRegistry#register` lives in memory only, and a catalog load resolves each persisted index's
-  analyzer by name from a registry nothing has registered into yet - so a catalog holding an index built by a
-  registered analyzer would fail to load. Nothing reaches that today: the catalog's registry uses the default
-  assignment, which resolves built-in analyzers only. Whatever lets a schema assign a registered analyzer in F1 must
-  also make its definition available before the indexes load (persisted with the catalog, or supplied by
-  configuration at start-up), and belongs with the analyzer fingerprint, which pins what an analyzer *does* under
-  its name.
+- **A runtime-registered analyzer does not survive a restart (2026-10-05) - closed 2026-11-03: runtime registration
+  is gone.** `FulltextAnalyzerRegistry#register` never had a production caller and was removed together with the
+  machinery it served - `AnalysisMode`, `AnalyzerSlot`, the assignment resolver and the phrase slot. Analyzers are
+  declared in the catalog schema instead (F1c), which is persisted and replicated through the WAL and so available
+  before the indexes load. The fingerprint that pins what an analyzer *does* under its name is still F1c's work.
 - **A persisted analyzer or pivot that disagrees with the schema degrades, it is never refused (decided 2026-10-05).**
   Until F1 moves them into the schema, each fulltext index persists the analyzer that built its terms and every field's
   length pivot (the `TODO JNO … #258` sites). When the schema later says otherwise, the catalog still loads and the

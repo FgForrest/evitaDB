@@ -44,8 +44,8 @@ import java.util.List;
  * A built Lucene analysis chain, owned and driven correctly: it turns a text into the terms an index would
  * store, or a query text into the terms it would be looked up by.
  *
- * It is a **resource holder** — one chain, the name it was built under and the {@link AnalysisMode} that name
- * was registered with — and it exists for three reasons beyond mere delegation:
+ * It is a **resource holder** — one chain and the name it was built under — and it exists for three reasons beyond
+ * mere delegation:
  *
  * 1. it owns the chain's lifecycle. A Lucene `Analyzer` has to be closed, and something has to be the thing
  *    that closes it; see {@link #close()} and the paragraph below;
@@ -83,13 +83,9 @@ public class FulltextAnalyzer implements Closeable {
 	private static final String FIELD_NAME = "value";
 
 	/**
-	 * Name this analyzer was registered under — the public identifier a schema refers to.
+	 * Name of the chain this analyzer wraps — the identifier an index records it under.
 	 */
 	@Nonnull @Getter private final String analyzerName;
-	/**
-	 * Side of the pipeline this instance may be used on, as declared when it was registered.
-	 */
-	@Nonnull @Getter private final AnalysisMode mode;
 	/**
 	 * The wrapped Lucene analysis chain.
 	 */
@@ -98,14 +94,12 @@ public class FulltextAnalyzer implements Closeable {
 	/**
 	 * Creates a wrapper around an already built Lucene analysis chain.
 	 *
-	 * @param analyzerName name the chain was registered under
-	 * @param mode         side of the pipeline the chain may be used on
+	 * @param analyzerName name of the chain
 	 * @param analyzer     the Lucene chain; this instance takes over its lifecycle and closes it in
 	 *                     {@link #close()}
 	 */
-	public FulltextAnalyzer(@Nonnull String analyzerName, @Nonnull AnalysisMode mode, @Nonnull Analyzer analyzer) {
+	public FulltextAnalyzer(@Nonnull String analyzerName, @Nonnull Analyzer analyzer) {
 		this.analyzerName = analyzerName;
-		this.mode = mode;
 		this.analyzer = analyzer;
 	}
 

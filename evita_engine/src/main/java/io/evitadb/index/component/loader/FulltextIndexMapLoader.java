@@ -57,10 +57,8 @@ import static io.evitadb.utils.Assert.isPremiseValid;
  *
  * The analyzer is the one the root names, resolved by name through the context's
  * {@link LoadContext#fulltextAnalyzerRegistry()} - an index is read back with the analyzer that produced its terms,
- * never with whatever the schema's assignment would resolve today, which could tokenize a query differently from the
- * stored terms without any error. The name resolves only to an analyzer the registry knows at load time: a
- * runtime-registered one does not survive a restart yet - see the open item "A runtime-registered analyzer does not
- * survive a restart" in `documentation/adr/2026-08-24-fulltext-search-lucene-vs-inhouse/README.md`.
+ * never with whatever the language table would resolve today, which could tokenize a query differently from the
+ * stored terms without any error. The name resolves only to a built-in analyzer.
  */
 public final class FulltextIndexMapLoader implements ComponentLoader {
 

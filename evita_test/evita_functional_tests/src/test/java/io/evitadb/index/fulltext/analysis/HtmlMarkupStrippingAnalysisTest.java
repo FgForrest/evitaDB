@@ -128,7 +128,7 @@ class HtmlMarkupStrippingAnalysisTest {
 	 */
 	@Nonnull
 	private FulltextAnalyzer chain(@Nonnull String name, @Nonnull Analyzer analyzer) {
-		final FulltextAnalyzer wrapped = new FulltextAnalyzer(name, AnalysisMode.ALL, analyzer);
+		final FulltextAnalyzer wrapped = new FulltextAnalyzer(name, analyzer);
 		this.builtChains.add(wrapped);
 		return wrapped;
 	}
@@ -497,8 +497,6 @@ class HtmlMarkupStrippingAnalysisTest {
 					terms(searchAnalyzer, "<p class=\"x\">word</p>").stream().anyMatch(it -> it.startsWith("class")),
 					"Search chain of `" + language + "` stripped markup."
 				);
-				assertEquals(AnalysisMode.SEARCH_TIME, searchAnalyzer.getMode(), language);
-				assertEquals(AnalysisMode.ALL, indexAnalyzer.getMode(), language);
 			}
 		}
 

@@ -47,7 +47,6 @@ import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
@@ -133,7 +132,7 @@ class WordNumberSplitAnalysisTest {
 	 */
 	@Nonnull
 	private FulltextAnalyzer chain(@Nonnull String name, @Nonnull Analyzer analyzer) {
-		final FulltextAnalyzer wrapped = new FulltextAnalyzer(name, AnalysisMode.ALL, analyzer);
+		final FulltextAnalyzer wrapped = new FulltextAnalyzer(name, analyzer);
 		this.builtChains.add(wrapped);
 		return wrapped;
 	}
@@ -375,32 +374,6 @@ class WordNumberSplitAnalysisTest {
 			// so the value yields `3` and `5` rather than `3.5`. Symmetric analysis keeps it harmless - the query
 			// is cut the same way - and the legacy client produced `3` and `.5mm` here, which was worse
 			assertIterableEquals(List.of("3.5mm", "3", "5", "mm"), terms(WordNumberSplitAnalysisTest.this.splitInChain, "3.5mm"));
-		}
-
-		@Test
-		@DisplayName("Registers and resolves through the registry like any other chain")
-		void shouldComposeWithRegistry() {
-			final String name = "czech-with-word-number-split";
-			try (
-				final FulltextAnalyzerRegistry custom = new FulltextAnalyzerRegistry(
-					(entityType, locale) -> ENTITY_TYPE.equals(entityType) && "cs".equals(locale.getLanguage())
-						? Optional.of(AnalyzerAssignment.uniform(name))
-						: Optional.empty()
-				)
-			) {
-				// stateless on both sides, hence no mode restriction: the value and the query must be split
-				// identically, so the step belongs to every slot
-				custom.register(name, WordNumberSplitAnalysisTest::splittingCzechChain);
-
-				final FulltextAnalyzer index = custom.getIndexAnalyzer(ENTITY_TYPE, CZECH);
-				assertEquals(name, index.getAnalyzerName());
-				assertEquals(AnalysisMode.ALL, index.getMode());
-				assertIterableEquals(List.of("iphone15", "iphon", "15"), terms(index, "iPhone15"));
-				assertIterableEquals(
-					terms(index, "iPhone15"),
-					terms(custom.getSearchAnalyzer(ENTITY_TYPE, CZECH), "iPhone15")
-				);
-			}
 		}
 
 	}

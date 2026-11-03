@@ -23,7 +23,6 @@
 
 package io.evitadb.spike;
 
-import io.evitadb.index.fulltext.analysis.AnalyzerSlot;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.spike.footprint.FootprintSpikeSupport;
@@ -234,10 +233,10 @@ public class FulltextAnalysisChainBenchmark {
 				// retains for life; the per-thread stream components created on first use are excluded and are
 				// near-identical between the two sides anyway
 				FootprintSpikeSupport.observation(
-					language + " " + AnalyzerSlot.INDEX, FootprintSpikeSupport.ownedSize(index)
+					language + " INDEX", FootprintSpikeSupport.ownedSize(index)
 				);
 				FootprintSpikeSupport.observation(
-					language + " " + AnalyzerSlot.SEARCH, FootprintSpikeSupport.ownedSize(search)
+					language + " SEARCH", FootprintSpikeSupport.ownedSize(search)
 				);
 				emittedTerms.put(language + " index/query", index.getTerms(QUERY_TEXT.get(language)).size());
 				emittedTerms.put(language + " search/query", search.getTerms(QUERY_TEXT.get(language)).size());

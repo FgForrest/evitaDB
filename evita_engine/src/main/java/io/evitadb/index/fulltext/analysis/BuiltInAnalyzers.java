@@ -106,14 +106,12 @@ import static java.util.Map.entry;
  * the full argument and for why folding is appended after the stemmer rather than before it. Slovak has no
  * Lucene stop set at all, which is why its search chain has no stop filter.
  *
- * **Built-ins carry a mode, and every `*-search` chain is {@link AnalysisMode#SEARCH_TIME}.** A variant
- * fan-out baked into an index would write every alternative stem as a real term — precisely the symmetric
- * arrangement the asymmetry above exists to avoid — so the mode machinery is used as the type-level guard
- * against it: a schema assigning `czech-search` to the indexing slot is rejected at mutation time. The three
- * `*-search` chains without a variant fan-out follow the same rule so that the name alone says which slot a chain
- * belongs to — indexed through one, a markup-bearing value would index its markup. Every index-side built-in is
- * {@link AnalysisMode#ALL}, because the query side falls back to the index's own analyzer when the assignment moved
- * on since the index was built.
+ * **A `*-search` chain never indexes.** A variant fan-out baked into an index would write every alternative stem as
+ * a real term — precisely the symmetric arrangement the asymmetry above exists to avoid — and a markup-bearing value
+ * indexed without the strip would index its markup. The language table is what keeps them apart: it names the index
+ * chain for the stored values and the `*-search` chain for the query text, and nothing else picks a chain by name
+ * except the query side, which falls back to an index's own analyzer when the table moved on since the index was
+ * built.
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -123,7 +121,7 @@ public class BuiltInAnalyzers {
 
 	/**
 	 * Name of the analyzer used for a language the table does not know. Named rather than derived, so it can be
-	 * documented and referred to from a schema like any other analyzer.
+	 * documented and recorded by an index like any other analyzer.
 	 */
 	public static final String GENERIC_ANALYZER_NAME = "generic";
 	/**
@@ -225,22 +223,22 @@ public class BuiltInAnalyzers {
 	/**
 	 * The language table proper, keyed by ISO language code. Deliberately separate from
 	 * {@link #ANALYZERS_BY_NAME}: which analyzers a language defaults to and what those analyzers *are* are two
-	 * different facts, and a schema may name any analyzer for any language.
+	 * different facts.
 	 */
 	private static final Map<String, AnalyzerAssignment> ASSIGNMENTS_BY_LANGUAGE = Map.of(
-		"cs", new AnalyzerAssignment(CZECH_ANALYZER_NAME, CZECH_SEARCH_ANALYZER_NAME, null),
-		"en", new AnalyzerAssignment(ENGLISH_ANALYZER_NAME, ENGLISH_SEARCH_ANALYZER_NAME, null),
-		"de", new AnalyzerAssignment(GERMAN_ANALYZER_NAME, GERMAN_SEARCH_ANALYZER_NAME, null),
-		"pl", new AnalyzerAssignment(POLISH_ANALYZER_NAME, POLISH_SEARCH_ANALYZER_NAME, null),
-		"sk", new AnalyzerAssignment(SLOVAK_ANALYZER_NAME, SLOVAK_SEARCH_ANALYZER_NAME, null),
-		"ro", new AnalyzerAssignment(ROMANIAN_ANALYZER_NAME, ROMANIAN_SEARCH_ANALYZER_NAME, null)
+		"cs", new AnalyzerAssignment(CZECH_ANALYZER_NAME, CZECH_SEARCH_ANALYZER_NAME),
+		"en", new AnalyzerAssignment(ENGLISH_ANALYZER_NAME, ENGLISH_SEARCH_ANALYZER_NAME),
+		"de", new AnalyzerAssignment(GERMAN_ANALYZER_NAME, GERMAN_SEARCH_ANALYZER_NAME),
+		"pl", new AnalyzerAssignment(POLISH_ANALYZER_NAME, POLISH_SEARCH_ANALYZER_NAME),
+		"sk", new AnalyzerAssignment(SLOVAK_ANALYZER_NAME, SLOVAK_SEARCH_ANALYZER_NAME),
+		"ro", new AnalyzerAssignment(ROMANIAN_ANALYZER_NAME, ROMANIAN_SEARCH_ANALYZER_NAME)
 	);
 
 	/**
 	 * The assignment a language the table does not know falls back to.
 	 */
 	private static final AnalyzerAssignment GENERIC_ASSIGNMENT =
-		new AnalyzerAssignment(GENERIC_ANALYZER_NAME, GENERIC_SEARCH_ANALYZER_NAME, null);
+		new AnalyzerAssignment(GENERIC_ANALYZER_NAME, GENERIC_SEARCH_ANALYZER_NAME);
 
 	/**
 	 * The folded stop words of the built-in analyzers asked for so far, keyed by analyzer name - see
@@ -259,8 +257,8 @@ public class BuiltInAnalyzers {
 	 * {@link #GENERIC_ANALYZER_NAME} pair for a language the table does not cover. The fallback is logged the first
 	 * time it is used for a given language.
 	 *
-	 * Every assignment is asymmetric: the indexing slot resolves to the language's index chain, the query and phrase
-	 * slots to its `*-search` chain. For `cs`, `sk`, `pl` and `ro` the two differ in folding and stem variants, for
+	 * Every assignment is asymmetric: the stored values are analysed by the language's index chain, the query text by
+	 * its `*-search` chain. For `cs`, `sk`, `pl` and `ro` the two differ in folding and stem variants, for
 	 * every language in the markup stripping only. See the class javadoc for why.
 	 *
 	 * @param locale locale whose language decides the analyzers; only its language part is consulted
@@ -276,8 +274,7 @@ public class BuiltInAnalyzers {
 		if (REPORTED_UNKNOWN_LANGUAGES.add(language)) {
 			log.warn(
 				"There is no built-in full-text analyzer for language `{}`, falling back to the `{}` analyzer " +
-					"(word-break tokenization and lowercasing only - no stop words, no stemming). Register a " +
-					"custom analyzer for this language to get language-aware behaviour.",
+					"(word-break tokenization and lowercasing only - no stop words, no stemming).",
 				language, GENERIC_ANALYZER_NAME
 			);
 		}
@@ -286,8 +283,7 @@ public class BuiltInAnalyzers {
 
 	/**
 	 * Returns the declaration of the built-in analyzer registered under `name`, or null when no built-in
-	 * analyzer carries that name. Used by {@link FulltextAnalyzerRegistry} to resolve a schema-supplied name and
-	 * to reject runtime registrations that would shadow a built-in one.
+	 * analyzer carries that name. Used by {@link FulltextAnalyzerRegistry} to resolve a name into a chain.
 	 *
 	 * @param name analyzer name
 	 * @return declaration of the built-in analyzer, or null when the name is not a built-in one
@@ -549,9 +545,8 @@ public class BuiltInAnalyzers {
 	}
 
 	/**
-	 * Wraps a factory as an index-side built-in: the chain gets {@link HtmlStrippingAnalyzerWrapper} in front of it,
-	 * and is usable on both sides of the pipeline (see the class javadoc on why an index chain must stay usable on the
-	 * query side).
+	 * Wraps a factory as an index-side built-in: the chain gets {@link HtmlStrippingAnalyzerWrapper} in front of it.
+	 * The query side may still analyse with it when it falls back to an index's own analyzer (see the class javadoc).
 	 *
 	 * @param factory   builds the Lucene chain the markup stripping is put in front of
 	 * @param stopWords supplies the stop set the chain drops, null when it has no stop filter
@@ -562,13 +557,11 @@ public class BuiltInAnalyzers {
 		@Nonnull Supplier<Analyzer> factory,
 		@Nullable Supplier<CharArraySet> stopWords
 	) {
-		return new BuiltInAnalyzer(
-			AnalysisMode.ALL, () -> new HtmlStrippingAnalyzerWrapper(factory.get()), stopWords
-		);
+		return new BuiltInAnalyzer(() -> new HtmlStrippingAnalyzerWrapper(factory.get()), stopWords);
 	}
 
 	/**
-	 * Wraps a factory as a built-in usable only while analysing query text.
+	 * Wraps a factory as a `*-search` built-in, the chain the language table names for query text.
 	 *
 	 * @param factory   builds the Lucene chain
 	 * @param stopWords supplies the stop set the chain drops, null when it has no stop filter
@@ -579,7 +572,7 @@ public class BuiltInAnalyzers {
 		@Nonnull Supplier<Analyzer> factory,
 		@Nullable Supplier<CharArraySet> stopWords
 	) {
-		return new BuiltInAnalyzer(AnalysisMode.SEARCH_TIME, factory, stopWords);
+		return new BuiltInAnalyzer(factory, stopWords);
 	}
 
 	/**
@@ -639,16 +632,13 @@ public class BuiltInAnalyzers {
 	}
 
 	/**
-	 * What a built-in name resolves to: the side(s) of the pipeline its chain may be used on, and the factory
-	 * able to build that chain.
+	 * What a built-in name resolves to: the factory able to build its chain, and the stop set that chain drops.
 	 *
-	 * @param mode      side(s) of the pipeline chains built by `factory` may be used on
 	 * @param factory   builds the Lucene chain; called at most once per registry, when the name is first used
 	 * @param stopWords supplies the stop set the chain drops, the very set its stop filter reads; null when the
 	 *                  chain has no stop filter. A supplier, so that declaring it loads no list.
 	 */
 	record BuiltInAnalyzer(
-		@Nonnull AnalysisMode mode,
 		@Nonnull Supplier<Analyzer> factory,
 		@Nullable Supplier<CharArraySet> stopWords
 	) {
