@@ -30,6 +30,7 @@ import ch.qos.logback.core.read.ListAppender;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -37,6 +38,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.core.Evita;
@@ -45,6 +47,7 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -59,6 +62,11 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
+import static io.evitadb.api.query.QueryConstraints.attributeEquals;
+import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -66,6 +74,7 @@ import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -91,6 +100,10 @@ class AttributeRenameTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_ORDER = "order";
 	private static final String ATTRIBUTE_NOTE = "note";
 	private static final String ATTRIBUTE_MEMO = "memo";
+	private static final String ATTRIBUTE_HEADLINE = "headline";
+	private static final String FORMER_TITLE = "the former title";
+	private static final String FORMER_HOLDER_REMOVED = "removed";
+	private static final String FORMER_HOLDER_RENAMED_AWAY = "renamed away";
 	private static final String REFERENCE_CATEGORIES = "categories";
 	private static final String REFERENCE_PRODUCTS = "products";
 	private static final String REFERENCE_STORES = "stores";
@@ -582,6 +595,74 @@ class AttributeRenameTest implements EvitaTestSupport {
 		);
 
 		assertEquals(List.of(), warnings);
+	}
+
+	@DisplayName("not bring back the stored values of the attribute that held the new name before")
+	@ParameterizedTest(name = "the former holder of the name was {0}")
+	@ValueSource(strings = {FORMER_HOLDER_REMOVED, FORMER_HOLDER_RENAMED_AWAY})
+	@Disabled("#409 - neither a removal nor a rename moves or drops stored values and their indexes, so an attribute "
+		+ "renamed onto a freed name inherits the values the former holder of the name left behind")
+	void shouldNotBringBackStoredValuesOfFormerHolderOfTheName(@Nonnull String howTheNameWasFreed) {
+		final int productPk = this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntitySchemaOrThrowException(Entities.PRODUCT)
+					.openForWrite()
+					.withAttribute(ATTRIBUTE_TITLE, String.class, whichIs -> whichIs.nullable().filterable())
+					.withAttribute(ATTRIBUTE_MEMO, String.class, whichIs -> whichIs.nullable().filterable())
+					.updateVia(session);
+				return session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT)
+						.setAttribute(ATTRIBUTE_TITLE, FORMER_TITLE)
+						.setAttribute(ATTRIBUTE_MEMO, "a memo")
+				).getPrimaryKeyOrThrowException();
+			}
+		);
+
+		// free the name `title`, then give it to another attribute of the same entity
+		if (FORMER_HOLDER_REMOVED.equals(howTheNameWasFreed)) {
+			renameInProduct(new RemoveAttributeSchemaMutation(ATTRIBUTE_TITLE));
+		} else {
+			renameInProduct(new ModifyAttributeSchemaNameMutation(ATTRIBUTE_TITLE, ATTRIBUTE_HEADLINE));
+		}
+		renameInProduct(new ModifyAttributeSchemaNameMutation(ATTRIBUTE_MEMO, ATTRIBUTE_TITLE));
+
+		assertFormerTitleStaysGone(productPk);
+		// the restart rebuilds the indexes from what is stored, so it must not bring the values back either
+		this.evita.close();
+		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
+		assertFormerTitleStaysGone(productPk);
+	}
+
+	/**
+	 * Asserts that neither the filter index nor the stored entity answers the former value of the attribute that held
+	 * the name `title` before it was freed.
+	 *
+	 * @param productPk the primary key of the product stored before the name was freed
+	 */
+	private void assertFormerTitleStaysGone(int productPk) {
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<Integer> matchingPks = new ArrayList<>(1);
+				for (final SealedEntity product : session.queryListOfSealedEntities(
+					query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_TITLE, FORMER_TITLE)))
+				)) {
+					matchingPks.add(product.getPrimaryKeyOrThrowException());
+				}
+				assertEquals(
+					List.of(), matchingPks,
+					"the index of the former holder of the name must not answer for the attribute renamed onto it"
+				);
+				assertNotEquals(
+					FORMER_TITLE,
+					session.getEntity(Entities.PRODUCT, productPk, attributeContentAll())
+						.orElseThrow()
+						.getAttribute(ATTRIBUTE_TITLE),
+					"the stored value of the former holder of the name must not come back under the renamed attribute"
+				);
+			}
+		);
 	}
 
 	/**
