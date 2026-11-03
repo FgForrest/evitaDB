@@ -49,6 +49,7 @@ import io.evitadb.spi.analysis.FulltextWordsPlacement.PlacedStep;
 import io.evitadb.test.TestConstants;
 import io.evitadb.utils.NamingConvention;
 import org.apache.lucene.analysis.FilteringTokenFilter;
+import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.charfilter.MappingCharFilter;
 import org.apache.lucene.analysis.charfilter.NormalizeCharMap;
@@ -61,6 +62,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -70,6 +72,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
@@ -749,6 +752,28 @@ class FulltextChainCompilerTest {
 				assertEquals(List.of("telefon"), query.getTerms("telefon").stream().map(AnalyzedTerm::term).toList());
 			}
 		}
+
+		/** A preceding step failing to wrap a word fails the compilation, and the streams built so far are closed. */
+		@Test
+		@DisplayName("should close the streams built so far when a preceding step fails to wrap")
+		void shouldCloseStreamsWhenPrecedingStepFailsToWrap() {
+			final TrackClose tracker = new TrackClose();
+			final FulltextChainCompiler compiler = new FulltextChainCompiler(registryWith(tracker, new FailToWrap()));
+			final List<AnalysisStep> words = List.of(
+				wordsStep(TrackClose.NAME), wordsStep(FailToWrap.NAME), stopWords(resource("stop"))
+			);
+
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> compiler.compile(
+					List.of(), SPLITTING, words, FulltextAnalysisSide.INDEX,
+					new FulltextAnalysisContext(CZECH, Map.of("stop", wordList("a")))
+				)
+			);
+
+			assertEquals(FailToWrap.MESSAGE, exception.getMessage());
+			assertTrue(tracker.closed.get(), "The stream the first step built must be closed.");
+		}
 	}
 
 	/**
@@ -821,6 +846,81 @@ class FulltextChainCompilerTest {
 				protected boolean accept() {
 					return false;
 				}
+			};
+		}
+	}
+
+	/**
+	 * A words step on both sides whose filter remembers being closed.
+	 */
+	private static final class TrackClose extends TestStep implements FulltextWordsAnalysisStepFactory {
+		/** The step's name. */
+		static final String NAME = "test-track-close";
+		/** Set when a filter of the step is closed. */
+		final AtomicBoolean closed = new AtomicBoolean();
+
+		@Nonnull
+		@Override
+		public String getName() {
+			return NAME;
+		}
+
+		@Nonnull
+		@Override
+		public Set<FulltextAnalysisSide> getSides() {
+			return EnumSet.allOf(FulltextAnalysisSide.class);
+		}
+
+		@Nonnull
+		@Override
+		public FulltextWordsAnalysisOperation create(
+			@Nonnull Map<String, Serializable> parameters,
+			@Nonnull FulltextAnalysisContext context
+		) {
+			return (words, side) -> new TokenFilter(words) {
+				@Override
+				public boolean incrementToken() throws IOException {
+					return this.input.incrementToken();
+				}
+
+				@Override
+				public void close() throws IOException {
+					TrackClose.this.closed.set(true);
+					super.close();
+				}
+			};
+		}
+	}
+
+	/**
+	 * A words step on both sides that fails whenever it is asked to wrap a stream.
+	 */
+	private static final class FailToWrap extends TestStep implements FulltextWordsAnalysisStepFactory {
+		/** The step's name. */
+		static final String NAME = "test-fail-to-wrap";
+		/** The message of the failure. */
+		static final String MESSAGE = "Wrapping failed.";
+
+		@Nonnull
+		@Override
+		public String getName() {
+			return NAME;
+		}
+
+		@Nonnull
+		@Override
+		public Set<FulltextAnalysisSide> getSides() {
+			return EnumSet.allOf(FulltextAnalysisSide.class);
+		}
+
+		@Nonnull
+		@Override
+		public FulltextWordsAnalysisOperation create(
+			@Nonnull Map<String, Serializable> parameters,
+			@Nonnull FulltextAnalysisContext context
+		) {
+			return (words, side) -> {
+				throw new EvitaInvalidUsageException(MESSAGE);
 			};
 		}
 	}

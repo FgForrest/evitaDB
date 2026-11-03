@@ -49,6 +49,7 @@ import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
+import org.apache.lucene.util.IOUtils;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -241,7 +242,7 @@ public final class FulltextChainCompiler {
 	 * text, and runs it as one token through the words steps before that step on the side. The text phase and the word
 	 * splitting are left out: the word is compared with the words as they reach the step, not with a text. The
 	 * synonyms a preceding step adds (Lucene's `SYNONYM` token type) are left out too: they are other words, not forms
-	 * of this one.
+	 * of this one. So is a term a preceding step leaves empty.
 	 */
 	private static final class PrecedingStepsPreparation implements FulltextWordPreparation {
 		/**
@@ -277,8 +278,14 @@ public final class FulltextChainCompiler {
 			final Tokenizer source = new KeywordTokenizer();
 			source.setReader(new StringReader(normalized));
 			TokenStream chain = source;
-			for (final FulltextWordsAnalysisOperation operation : this.operations) {
-				chain = operation.wrap(chain, this.side);
+			try {
+				for (final FulltextWordsAnalysisOperation operation : this.operations) {
+					chain = operation.wrap(chain, this.side);
+				}
+			} catch (RuntimeException e) {
+				// the streams built so far are closed through the last of them, which closes its input
+				IOUtils.closeWhileHandlingException(chain);
+				throw e;
 			}
 			try (final TokenStream stream = chain) {
 				final CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
@@ -286,8 +293,9 @@ public final class FulltextChainCompiler {
 				stream.reset();
 				final List<String> prepared = new ArrayList<>(2);
 				while (stream.incrementToken()) {
-					// a synonym is another word, not a form of this one - a stop word does not stop its synonyms
-					if (!SynonymGraphFilter.TYPE_SYNONYM.equals(type.type())) {
+					// a synonym is another word, not a form of this one - a stop word does not stop its synonyms;
+					// and a term a step emptied, such as `'s` after `english-possessive`, is no word at all
+					if (term.length() > 0 && !SynonymGraphFilter.TYPE_SYNONYM.equals(type.type())) {
 						prepared.add(term.toString());
 					}
 				}

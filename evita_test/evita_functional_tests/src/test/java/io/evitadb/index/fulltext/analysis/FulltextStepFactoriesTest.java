@@ -600,6 +600,67 @@ class FulltextStepFactoriesTest {
 			}
 		}
 
+		/** A word expanded after a removed stop word keeps the gap the stop word left; its synonyms join it there. */
+		@Test
+		@DisplayName("should keep the gap a removed stop word leaves before an expanded word")
+		void shouldKeepGapBeforeExpandedWord() {
+			final Map<String, FulltextResourceContent> resources = Map.of(
+				"stop", wordList("the"), "groups", synonymList(synonymGroup("tv", "televize"))
+			);
+			try (
+				final FulltextAnalyzer chain = chain(
+					List.of(lowercase(), stopWords(resource("stop")), synonyms(resource("groups"))), Locale.ROOT,
+					resources, FulltextAnalysisSide.QUERY
+				)
+			) {
+				final List<AnalyzedTerm> terms = chain.getTerms("the tv now");
+
+				assertEquals(List.of(2, 0, 1), terms.stream().map(AnalyzedTerm::positionIncrement).toList());
+				assertEquals(List.of("tv", "televize", "now"), terms.stream().map(AnalyzedTerm::term).toList());
+			}
+		}
+
+		/** A second synonyms step expands the words of the first and every alternative stays at the one position. */
+		@Test
+		@DisplayName("should keep the alternatives of two synonyms steps at one position")
+		void shouldKeepAlternativesOfTwoStepsAtOnePosition() {
+			final Map<String, FulltextResourceContent> resources = Map.of(
+				"first", synonymList(synonymGroup("mobil", "telefon")),
+				"second", synonymList(synonymGroup("mobil", "handy"))
+			);
+			try (
+				final FulltextAnalyzer chain = chain(
+					List.of(lowercase(), synonyms(resource("first")), synonyms(resource("second"))), Locale.ROOT,
+					resources, FulltextAnalysisSide.QUERY
+				)
+			) {
+				final List<AnalyzedTerm> terms = chain.getTerms("mobil levně");
+
+				assertEquals(
+					Set.of("mobil", "telefon", "handy"),
+					Set.of(terms.get(0).term(), terms.get(1).term(), terms.get(2).term())
+				);
+				assertEquals(List.of(1, 0, 0, 1), terms.stream().map(AnalyzedTerm::positionIncrement).toList());
+			}
+		}
+
+		/** A group word the steps before the step empty is no word - it neither expands nor is expanded to. */
+		@Test
+		@DisplayName("should leave out a group word the steps before it empty")
+		void shouldLeaveOutGroupWordStepsBeforeItEmpty() {
+			final Map<String, FulltextResourceContent> resources = Map.of(
+				"groups", synonymList(synonymGroup("'s", "shop"))
+			);
+			try (
+				final FulltextAnalyzer chain = chain(
+					List.of(englishPossessive(), synonyms(resource("groups"))), Locale.ENGLISH, resources,
+					FulltextAnalysisSide.QUERY
+				)
+			) {
+				assertEquals(List.of("shop"), termTexts(chain, "shop"));
+			}
+		}
+
 		/** A group word with a space would never meet a single query word, so it is refused. */
 		@Test
 		@DisplayName("should refuse a synonym of more than one word")

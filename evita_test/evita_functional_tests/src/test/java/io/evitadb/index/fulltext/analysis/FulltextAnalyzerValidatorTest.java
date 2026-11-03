@@ -246,6 +246,25 @@ class FulltextAnalyzerValidatorTest {
 			);
 			assertMessage(ex, "cycle of `basedOn`");
 		}
+
+		/**
+		 * A cycle of analyzers that define both phases themselves: resolving them never follows `basedOn`, so only the
+		 * walk over their languages meets the cycle.
+		 */
+		@Test
+		@DisplayName("should refuse a cycle of basedOn between analyzers defining both phases")
+		void shouldRefuseCycleBetweenAnalyzersDefiningBothPhases() {
+			final CatalogSchemaContract schema = catalog(
+				b -> b
+					.withFulltextAnalyzer("a", a -> a.basedOn("b").text(htmlStrip()).words(lowercase()))
+					.withFulltextAnalyzer("b", a -> a.basedOn("a").text(htmlStrip()).words(lowercase()))
+			);
+
+			final InvalidSchemaMutationException ex = assertThrows(
+				InvalidSchemaMutationException.class, () -> FulltextAnalyzerValidator.validate(INSTALLED, schema)
+			);
+			assertMessage(ex, "cycle of `basedOn`");
+		}
 	}
 
 	/**

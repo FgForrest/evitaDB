@@ -64,16 +64,6 @@ public record FulltextWordsPlacement(
 	}
 
 	/**
-	 * Returns the steps before the checked one, in order.
-	 *
-	 * @return the preceding steps, possibly none
-	 */
-	@Nonnull
-	public List<PlacedStep> preceding() {
-		return this.steps.subList(0, this.position);
-	}
-
-	/**
 	 * Returns the steps after the checked one, in order.
 	 *
 	 * @return the following steps, possibly none

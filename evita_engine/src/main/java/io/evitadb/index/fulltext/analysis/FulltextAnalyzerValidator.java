@@ -151,7 +151,8 @@ public final class FulltextAnalyzerValidator {
 	 * @param declaredLanguages the languages the catalog declares word splitting for
 	 * @param fieldLocales      the locales of the entities with a searchable field using it, keyed by analyzer name
 	 * @return the locales, the root locale first
-	 * @throws InvalidSchemaMutationException when an analyzer on the way along `basedOn` does not exist
+	 * @throws InvalidSchemaMutationException when an analyzer on the way along `basedOn` does not exist, or `basedOn`
+	 *                                        leads back to an analyzer already on the way
 	 */
 	@Nonnull
 	private static Set<Locale> collectLocales(
@@ -165,8 +166,14 @@ public final class FulltextAnalyzerValidator {
 		final Set<String> visited = CollectionUtils.createHashSet(4);
 		String current = analyzer;
 		String basedOnBy = null;
-		// a cycle of `basedOn` ends the walk here and is reported by the resolution that follows
-		while (current != null && visited.add(current)) {
+		while (current != null) {
+			// the walk goes the whole way, unlike the resolution, which stops at the first definition of a phase and
+			// so does not meet a cycle beyond it
+			if (!visited.add(current)) {
+				throw new InvalidSchemaMutationException(
+					"Fulltext analyzer `" + analyzer + "` is based on itself through a cycle of `basedOn`."
+				);
+			}
 			final FulltextAnalyzerSchemaContract definition;
 			try {
 				definition = ResolvedFulltextAnalyzer.find(catalogSchema, current, basedOnBy);

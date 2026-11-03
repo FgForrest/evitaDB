@@ -29,19 +29,15 @@ import io.evitadb.api.requestResponse.schema.analysis.FulltextResourceContent;
 import io.evitadb.api.requestResponse.schema.analysis.SynonymGroup;
 import io.evitadb.api.requestResponse.schema.analysis.SynonymList;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.analysis.AnalysisStepParameterDescriptor;
 import io.evitadb.spi.analysis.FulltextAnalysisContext;
 import io.evitadb.spi.analysis.FulltextAnalysisSide;
 import io.evitadb.spi.analysis.FulltextWordsAnalysisOperation;
 import io.evitadb.spi.analysis.FulltextWordsAnalysisStepFactory;
 import io.evitadb.utils.CollectionUtils;
-import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
-import org.apache.lucene.analysis.synonym.SynonymMap;
-import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.analysis.CharArrayMap;
 
 import javax.annotation.Nonnull;
-import java.io.IOException;
 import java.io.Serializable;
 import java.util.EnumSet;
 import java.util.List;
@@ -49,8 +45,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * The `synonyms` step: expands a query word to the other words of its synonym group, all at the word's position, with
- * Lucene's `SynonymGraphFilter`. It acts on the query side only, so an edit of the lists applies to the next query
+ * The `synonyms` step: expands a query word to the other words of its synonym groups, all at the word's position, with
+ * {@link SynonymExpansionFilter}. It acts on the query side only, so an edit of the lists applies to the next query
  * without reindexing. Only single words are supported. The words of a group are compared as the steps before this
  * one leave them - a word those steps remove leaves its group - and the words a query word expands to pass through the
  * steps after this one, so a stemmer placed after it stems them as it stems the query word.
@@ -122,37 +118,39 @@ public final class SynonymsAnalysisStepFactory implements FulltextWordsAnalysisS
 		@Nonnull FulltextAnalysisContext context
 	) {
 		validate(parameters);
-		final SynonymMap.Builder builder = new SynonymMap.Builder(true);
-		boolean empty = true;
+		final Map<String, Set<String>> expansions = CollectionUtils.createLinkedHashMap(16);
 		for (final String name : (String[]) parameters.get(AnalysisSteps.SYNONYM_LISTS)) {
 			final FulltextResourceContent content = context.getResource(name);
 			if (!(content instanceof SynonymList synonymList)) {
 				throw new EvitaInvalidUsageException("Fulltext resource `" + name + "` is not a synonym list.");
 			}
 			for (final SynonymGroup group : synonymList.groups()) {
-				empty &= !addGroup(builder, name, group.words(), context);
+				addGroup(expansions, name, group.words(), context);
 			}
 		}
-		if (empty) {
+		if (expansions.isEmpty()) {
 			return NO_SYNONYMS;
 		}
-		final SynonymMap synonyms = build(builder);
-		return (words, side) -> new SynonymGraphFilter(words, synonyms, false);
+		final CharArrayMap<String[]> synonyms = new CharArrayMap<>(expansions.size(), false);
+		for (final Map.Entry<String, Set<String>> entry : expansions.entrySet()) {
+			synonyms.put(entry.getKey(), entry.getValue().toArray(String[]::new));
+		}
+		final CharArrayMap<String[]> readOnly = CharArrayMap.unmodifiableMap(synonyms);
+		return (words, side) -> new SynonymExpansionFilter(words, readOnly);
 	}
 
 	/**
-	 * Adds a group to the map: every word of it, prepared by the steps before this one, expands to every other one and
-	 * keeps itself.
+	 * Adds a group to the expansions: every word of it, prepared by the steps before this one, expands to every other
+	 * one. A word in several groups expands to the words of all of them.
 	 *
-	 * @param builder the map being built
-	 * @param list    the name of the list holding the group, for the error
-	 * @param words   the words of the group, as the list holds them
-	 * @param context the context preparing the words
-	 * @return `true` when the group added anything - it adds nothing when the preparation leaves less than two words
+	 * @param expansions the other words of each word, filled in
+	 * @param list       the name of the list holding the group, for the error
+	 * @param words      the words of the group, as the list holds them
+	 * @param context    the context preparing the words
 	 * @throws EvitaInvalidUsageException when a word of the group is not a single word
 	 */
-	private static boolean addGroup(
-		@Nonnull SynonymMap.Builder builder,
+	private static void addGroup(
+		@Nonnull Map<String, Set<String>> expansions,
 		@Nonnull String list,
 		@Nonnull List<String> words,
 		@Nonnull FulltextAnalysisContext context
@@ -169,30 +167,19 @@ public final class SynonymsAnalysisStepFactory implements FulltextWordsAnalysisS
 		for (final String word : words) {
 			prepared.addAll(context.prepare(word));
 		}
+		// a group the preparation leaves with less than two words has nothing to expand to
+		if (prepared.size() < 2) {
+			return;
+		}
 		for (final String word : prepared) {
+			final Set<String> others = expansions.computeIfAbsent(
+				word, key -> CollectionUtils.createLinkedHashSet(prepared.size() - 1)
+			);
 			for (final String synonym : prepared) {
 				if (!word.equals(synonym)) {
-					builder.add(new CharsRef(word), new CharsRef(synonym), true);
+					others.add(synonym);
 				}
 			}
-		}
-		return prepared.size() > 1;
-	}
-
-	/**
-	 * Builds the map; it is built in memory, so an `IOException` cannot happen.
-	 *
-	 * @param builder the filled builder
-	 * @return the synonym map
-	 */
-	@Nonnull
-	private static SynonymMap build(@Nonnull SynonymMap.Builder builder) {
-		try {
-			return builder.build();
-		} catch (IOException e) {
-			throw new GenericEvitaInternalError(
-				"Building an in-memory synonym map failed: " + e.getMessage(), "Building a synonym map failed.", e
-			);
 		}
 	}
 }

@@ -61,13 +61,12 @@ class FulltextWordsPlacementTest {
 	/** The phase the placements here are taken from. */
 	private static final List<PlacedStep> PHASE = List.of(LOWERCASE, FOLDING, STEMMING);
 
-	/** The steps before and after the checked one are split at its position, the checked one in neither. */
+	/** The steps after the checked one are those past its position, the checked one not among them. */
 	@Test
 	@DisplayName("should split the phase at the checked step")
 	void shouldSplitPhaseAtCheckedStep() {
 		final FulltextWordsPlacement placement = new FulltextWordsPlacement(FulltextAnalysisSide.QUERY, PHASE, 1);
 
-		assertEquals(List.of(LOWERCASE), placement.preceding());
 		assertEquals(List.of(STEMMING), placement.following());
 		assertFalse(placement.isLast());
 		assertTrue(new FulltextWordsPlacement(FulltextAnalysisSide.QUERY, PHASE, 2).isLast());
