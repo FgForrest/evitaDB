@@ -24,9 +24,13 @@
 
 package io.evitadb.index.fulltext.analysis;
 
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.analysis.FulltextResourceContent;
 import io.evitadb.api.requestResponse.schema.analysis.WordList;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.spi.analysis.AnalysisStepFactory;
@@ -42,6 +46,8 @@ import io.evitadb.spi.analysis.FulltextWordsAnalysisOperation;
 import io.evitadb.spi.analysis.FulltextWordsAnalysisStepFactory;
 import io.evitadb.spi.analysis.FulltextWordsPlacement;
 import io.evitadb.spi.analysis.FulltextWordsPlacement.PlacedStep;
+import io.evitadb.test.TestConstants;
+import io.evitadb.utils.NamingConvention;
 import org.apache.lucene.analysis.FilteringTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.charfilter.MappingCharFilter;
@@ -74,9 +80,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies the step-list chains {@link FulltextChainCompiler} builds: the Czech line of the built-in `text` analyzer
- * must produce exactly the terms of today's `czech` / `czech-search` chains (markup stripping aside, which `text` does
- * not do), and the compiler must refuse what cannot form a chain.
+ * Verifies the step-list chains {@link FulltextChainCompiler} builds: the built-in `text` analyzer must produce in
+ * each built-in language exactly the terms of today's chains of the language (markup stripping aside, which `text`
+ * does not do and `html-text` does), and the compiler must refuse what cannot form a chain.
  */
 @DisplayName("Fulltext chain compiler")
 @Tag(ENGINE)
@@ -89,13 +95,13 @@ class FulltextChainCompilerTest {
 	/** The words phase of the Czech line of the built-in `text` analyzer. */
 	private static final List<AnalysisStep> CZECH_WORDS =
 		List.of(lowercase(), stopWords(czechStopWords()), czechStemming());
-	/** Texts beyond the vocabulary: stop words, upper case, digits, punctuation, mixed tokens. */
-	private static final List<String> SENTENCES = List.of(
-		"Pánské kožené boty a dámská obuv, velikost 42 - výprodej!",
-		"To je ten nejlepší stůl, který jsme kdy měli, a není drahý.",
-		"ŽLUTÝ Kabát pro DĚTI; rajčata v zahradních truhlících",
-		"iPhone15 a USB-C kabel, 3,5 mm jack, 2x baterie",
-		"Kuchyňští pomocníci a angličtí pánští krejčí šijí stříbrným nití"
+	/** A catalog schema declaring nothing: the built-in analyzers resolve in it as they are. */
+	private static final CatalogSchema EMPTY_CATALOG = CatalogSchema._internalBuild(
+		TestConstants.TEST_CATALOG,
+		NamingConvention.generate(TestConstants.TEST_CATALOG),
+		null,
+		EnumSet.allOf(CatalogEvolutionMode.class),
+		EmptyEntitySchemaAccessor.INSTANCE
 	);
 	/** A text step on both sides, splitting a word at its underscores. */
 	private static final ReplaceCharacter UNDERSCORE_TO_SPACE =
@@ -131,61 +137,23 @@ class FulltextChainCompilerTest {
 		this.analyzerRegistry.close();
 	}
 
-	/** The Czech line of `text` against today's Czech chains. */
-	@Nested
-	@DisplayName("Czech golden output")
-	class CzechGoldenOutput {
-
-		/** The index side stems the accented word, then folds it - as `czech` does. */
-		@Test
-		@DisplayName("should produce today's index terms")
-		void shouldProduceTodaysIndexTerms() {
-			try (
-				final FulltextAnalyzer compiled = compile(CZECH_WORDS, FulltextAnalysisSide.INDEX, czechResources())
-			) {
-				final FulltextAnalyzer reference =
-					FulltextChainCompilerTest.this.analyzerRegistry.getIndexAnalyzerByName(
-						BuiltInAnalyzers.CZECH_ANALYZER_NAME
-					);
-				for (final String text : samples()) {
-					assertEquals(terms(reference, text), terms(compiled, text), text);
-				}
-			}
-		}
-
-		/** The query side folds the word, then expands it to its variant stems - as `czech-search` does. */
-		@Test
-		@DisplayName("should produce today's query terms")
-		void shouldProduceTodaysQueryTerms() {
-			try (
-				final FulltextAnalyzer compiled = compile(CZECH_WORDS, FulltextAnalysisSide.QUERY, czechResources())
-			) {
-				final FulltextAnalyzer reference =
-					FulltextChainCompilerTest.this.analyzerRegistry.getSearchAnalyzer("product", CZECH);
-				for (final String text : samples()) {
-					assertEquals(terms(reference, text), terms(compiled, text), text);
-				}
-			}
-		}
-	}
-
 	/**
-	 * The lines of `text` for the other built-in languages against today's chains of those languages. Today's index
-	 * chains strip markup; the samples hold none, and on such text the strip changes nothing.
+	 * The built-in analyzers, resolved for each built-in language and one other, against today's chains of the
+	 * language: `text` against both sides on plain text, `html-text` against the index side on markup, which today's
+	 * index chains strip.
 	 */
 	@Nested
-	@DisplayName("Golden output of the other languages")
-	class LanguageGoldenOutput {
+	@DisplayName("Golden output of the built-in analyzers")
+	class BuiltInGoldenOutput {
 
-		/** Each line produces the index terms of today's chain of its language. */
+		/** `text` produces the index terms of today's chain of each language - stemming before folding in Czech. */
 		@Test
 		@DisplayName("should produce today's index terms")
 		void shouldProduceTodaysIndexTerms() {
 			for (final LanguageLine line : LanguageLine.values()) {
 				try (
-					final FulltextAnalyzer compiled = compile(
-						line.words, FulltextAnalysisSide.INDEX, BuiltInFulltextResources.getResources(), line.locale
-					)
+					final FulltextAnalyzer compiled =
+						compileBuiltIn(FulltextAnalyzerSchemaContract.TEXT, FulltextAnalysisSide.INDEX, line.locale)
 				) {
 					final FulltextAnalyzer reference =
 						FulltextChainCompilerTest.this.analyzerRegistry.getIndexAnalyzerByName(line.indexAnalyzer);
@@ -196,19 +164,41 @@ class FulltextChainCompilerTest {
 			}
 		}
 
-		/** Each line produces the query terms of today's `*-search` chain of its language. */
+		/**
+		 * `text` produces the query terms of today's `*-search` chain of each language - folding before the variant
+		 * stems in Czech.
+		 */
 		@Test
 		@DisplayName("should produce today's query terms")
 		void shouldProduceTodaysQueryTerms() {
 			for (final LanguageLine line : LanguageLine.values()) {
 				try (
-					final FulltextAnalyzer compiled = compile(
-						line.words, FulltextAnalysisSide.QUERY, BuiltInFulltextResources.getResources(), line.locale
-					)
+					final FulltextAnalyzer compiled =
+						compileBuiltIn(FulltextAnalyzerSchemaContract.TEXT, FulltextAnalysisSide.QUERY, line.locale)
 				) {
 					final FulltextAnalyzer reference =
 						FulltextChainCompilerTest.this.analyzerRegistry.getSearchAnalyzer("product", line.locale);
 					for (final String text : line.samples()) {
+						assertEquals(terms(reference, text), terms(compiled, text), line + ": " + text);
+					}
+				}
+			}
+		}
+
+		/** `html-text` produces the index terms of today's chain of each language on markup, offsets included. */
+		@Test
+		@DisplayName("should produce today's index terms on markup")
+		void shouldProduceTodaysIndexTermsOnMarkup() {
+			for (final LanguageLine line : LanguageLine.values()) {
+				try (
+					final FulltextAnalyzer compiled = compileBuiltIn(
+						FulltextAnalyzerSchemaContract.HTML_TEXT, FulltextAnalysisSide.INDEX, line.locale
+					)
+				) {
+					final FulltextAnalyzer reference =
+						FulltextChainCompilerTest.this.analyzerRegistry.getIndexAnalyzerByName(line.indexAnalyzer);
+					for (final String sentence : line.sentences) {
+						final String text = "<p class=\"lead\">" + sentence + " &amp; <b>" + sentence + "</b></p>";
 						assertEquals(terms(reference, text), terms(compiled, text), line + ": " + text);
 					}
 				}
@@ -1111,18 +1101,23 @@ class FulltextChainCompilerTest {
 	}
 
 	/**
-	 * Returns the sample texts: every lemma of the Czech fixture with all its forms, then the sentences.
+	 * Resolves a built-in analyzer for a locale, compiles one side of it and wraps it the way the registry wraps
+	 * today's chains.
 	 *
-	 * @return the texts to compare the chains on
+	 * @param analyzer the name of the built-in analyzer
+	 * @param side     the side to compile
+	 * @param locale   the locale the analyzer is resolved for
+	 * @return the wrapped chain, to be closed by the caller
 	 */
 	@Nonnull
-	private static List<String> samples() {
-		final List<String> samples = new ArrayList<>(CzechAnalysisFixture.VOCABULARY.size() + SENTENCES.size());
-		for (final Lemma lemma : CzechAnalysisFixture.VOCABULARY) {
-			samples.add(String.join(" ", lemma.forms()));
-		}
-		samples.addAll(SENTENCES);
-		return samples;
+	private FulltextAnalyzer compileBuiltIn(
+		@Nonnull String analyzer,
+		@Nonnull FulltextAnalysisSide side,
+		@Nonnull Locale locale
+	) {
+		return new FulltextAnalyzer(
+			analyzer, this.compiler.compile(ResolvedFulltextAnalyzer.resolve(EMPTY_CATALOG, analyzer, locale), side)
+		);
 	}
 
 	/**
@@ -1187,33 +1182,40 @@ class FulltextChainCompilerTest {
 	}
 
 	/**
-	 * The words phase of the built-in `text` analyzer in each built-in language but Czech, with the name of today's
-	 * index chain of the language and the texts to compare the two on.
+	 * Each built-in language and one other, with the name of today's index chain of the language and the texts to
+	 * compare the chains on. The sentences reach beyond the vocabulary: stop words, upper case, digits, punctuation,
+	 * mixed tokens.
 	 */
 	private enum LanguageLine {
+		CZECH(
+			"cs", BuiltInAnalyzers.CZECH_ANALYZER_NAME,
+			CzechAnalysisFixture.VOCABULARY,
+			"Pánské kožené boty a dámská obuv, velikost 42 - výprodej!",
+			"To je ten nejlepší stůl, který jsme kdy měli, a není drahý.",
+			"ŽLUTÝ Kabát pro DĚTI; rajčata v zahradních truhlících",
+			"iPhone15 a USB-C kabel, 3,5 mm jack, 2x baterie",
+			"Kuchyňští pomocníci a angličtí pánští krejčí šijí stříbrným nití"
+		),
 		SLOVAK(
-			"sk", BuiltInAnalyzers.SLOVAK_ANALYZER_NAME, List.of(lowercase(), slovakStemming()),
+			"sk", BuiltInAnalyzers.SLOVAK_ANALYZER_NAME,
 			SlovakAnalysisFixture.VOCABULARY,
 			"Pánske kožené topánky a dámska obuv, veľkosť 42 - výpredaj!",
 			"ŽLTÝ kabát pre DETI; paradajky v záhradných kvetináčoch, iPhone15 a USB-C kábel"
 		),
 		POLISH(
 			"pl", BuiltInAnalyzers.POLISH_ANALYZER_NAME,
-			List.of(lowercase(), stopWords(polishStopWords()), polishStemming()),
 			PolishAnalysisFixture.VOCABULARY,
 			"Męskie skórzane buty i damskie obuwie, rozmiar 42 - wyprzedaż!",
 			"Żółty płaszcz dla DZIECI; pomidory w ogrodowych doniczkach, iPhone15 i kabel USB-C"
 		),
 		ROMANIAN(
 			"ro", BuiltInAnalyzers.ROMANIAN_ANALYZER_NAME,
-			List.of(lowercase(), romanianNormalization(), stopWords(romanianStopWords()), romanianStemming()),
 			RomanianAnalysisFixture.VOCABULARY,
 			"Pantofi din piele pentru bărbați și încălțăminte pentru femei, mărimea 42!",
 			"Paltonul GALBEN pentru copii; roşii în grădină şi ţările vecine, iPhone15 şi cablu USB-C"
 		),
 		ENGLISH(
 			"en", BuiltInAnalyzers.ENGLISH_ANALYZER_NAME,
-			List.of(englishPossessive(), lowercase(), stopWords(englishStopWords()), englishStemming()),
 			List.of(),
 			"John's running shoes and the women's boots, size 42 - sale!",
 			"It's the BEST table we've ever had, and it isn't expensive; iPhone15 with a USB-C cable",
@@ -1221,14 +1223,13 @@ class FulltextChainCompilerTest {
 		),
 		GERMAN(
 			"de", BuiltInAnalyzers.GERMAN_ANALYZER_NAME,
-			List.of(lowercase(), stopWords(germanStopWords()), germanStemming()),
 			List.of(),
 			"Herrenschuhe aus Leder und Damenschuhe, Größe 42 - Ausverkauf!",
 			"Die schönen Häuser der Stadt; Bücher für Kinder, iPhone15 mit USB-C Kabel",
 			"Die Kinder spielten fröhlich in den Gärten ihrer Großeltern"
 		),
 		OTHER(
-			"fr", BuiltInAnalyzers.GENERIC_ANALYZER_NAME, List.of(lowercase()), List.of(),
+			"fr", BuiltInAnalyzers.GENERIC_ANALYZER_NAME, List.of(),
 			"Chaussures en cuir pour hommes, taille 42 - soldes!",
 			"L'ÉTÉ à Paris; les enfants jouent, iPhone15 et câble USB-C"
 		);
@@ -1237,8 +1238,6 @@ class FulltextChainCompilerTest {
 		private final Locale locale;
 		/** The name of today's index chain of the language. */
 		private final String indexAnalyzer;
-		/** The words phase of the built-in `text` analyzer in the language. */
-		private final List<AnalysisStep> words;
 		/** The lemmas of the language's fixture, possibly none. */
 		private final List<Lemma> vocabulary;
 		/** Sentences of the language. */
@@ -1249,20 +1248,17 @@ class FulltextChainCompilerTest {
 		 *
 		 * @param language      the language code
 		 * @param indexAnalyzer the name of today's index chain of the language
-		 * @param words         the words phase of the built-in `text` analyzer in the language
 		 * @param vocabulary    the lemmas of the language's fixture, possibly none
 		 * @param sentences     sentences of the language
 		 */
 		LanguageLine(
 			@Nonnull String language,
 			@Nonnull String indexAnalyzer,
-			@Nonnull List<AnalysisStep> words,
 			@Nonnull List<Lemma> vocabulary,
 			@Nonnull String... sentences
 		) {
 			this.locale = Locale.forLanguageTag(language);
 			this.indexAnalyzer = indexAnalyzer;
-			this.words = words;
 			this.vocabulary = vocabulary;
 			this.sentences = List.of(sentences);
 		}

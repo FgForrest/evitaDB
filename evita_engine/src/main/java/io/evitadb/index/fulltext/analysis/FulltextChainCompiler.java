@@ -90,6 +90,20 @@ public final class FulltextChainCompiler {
 	}
 
 	/**
+	 * Compiles the chain of one side of a resolved analyzer.
+	 *
+	 * @param analyzer the analyzer resolved for the locale of the field
+	 * @param side     the side the chain is built for
+	 * @return the compiled chain; the caller owns it and has to close it
+	 * @throws EvitaInvalidUsageException when a step is unknown, has invalid parameters, belongs to another phase,
+	 *                                    refuses its place, or the splitting does not start with a tokenizer
+	 */
+	@Nonnull
+	public Analyzer compile(@Nonnull ResolvedFulltextAnalyzer analyzer, @Nonnull FulltextAnalysisSide side) {
+		return compile(analyzer.text(), analyzer.splitting(), analyzer.words(), side, analyzer.context());
+	}
+
+	/**
 	 * Compiles the chain of one side.
 	 *
 	 * @param text      the steps of the analyzer's text phase, possibly empty
