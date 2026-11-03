@@ -456,7 +456,10 @@ already stored, and the indexes built from them, stay under the old name; moving
 in [issue #409](https://github.com/FgForrest/evitaDB/issues/409). When the collection contains entities, the rename is
 accepted and the server logs a warning, but filtering and sorting by the new name find only the entities written after
 the rename. An attribute that declares a [filter accelerator](#filter-accelerators) cannot be renamed on a collection
-that contains entities at all.
+that contains entities at all: the accelerator's index can only be started for a name with no values indexed yet, and
+because a rename moves no data, the new name may still hold the values of an attribute that was renamed away from it
+or removed. Starting the index over them would make every write of the attribute and the next load of the catalog
+fail, so such a rename is refused until issue #409 moves the stored data along with it.
 
 A rename is refused when another attribute already holds the new name, when the attribute is part of a
 [sortable attribute compound](#sortable-attribute-compounds), and when a reflected reference inherits the attribute
@@ -585,7 +588,10 @@ if it does not hold:
     references. The plan is to lift this restriction in a future version</dd>
     <dt>the entity collection does not contain any entities yet</dt>
     <dd>the index is filled as entities are inserted, and evitaDB has no way to rebuild it for data that is already
-    there - so the accelerator has to be declared before the first entity is inserted</dd>
+    there - so the accelerator has to be declared before the first entity is inserted. Accepting it later would not
+    merely leave the stored entities out: the index numbers the distinct values of the attribute from the very first
+    one, and values already stored cannot be numbered afterwards, so the next write of the attribute and the next
+    load of the catalog would fail</dd>
 </dl>
 
 <Note type="warning">
@@ -600,7 +606,8 @@ accelerator on an existing, populated catalog in place.
 
 The route today is to create a new catalog, declare the accelerator on it before inserting anything, load the data
 into it, and then replace the original catalog with the new one. Plan for this when you size a migration - it is a
-full re-import, not a schema tweak.
+full re-import, not a schema tweak. Schema changes that rebuild the indexes of data already stored are tracked in
+[issue #409](https://github.com/FgForrest/evitaDB/issues/409).
 
 </Note>
 

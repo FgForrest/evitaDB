@@ -2904,26 +2904,36 @@ public final class EntityCollection implements
 	 *
 	 * **Why this is a refusal rather than a rebuild.** The indexes backing a filter accelerator are built incrementally
 	 * as entities are indexed; there is no reindexing machinery that could walk the existing entities and back-fill
-	 * one. Accepting the mutation would therefore produce an index that silently answers only for entities written
-	 * *after* the schema change - queries would return fewer results than they should, with nothing anywhere saying
-	 * why. Failing loudly at the schema boundary is the only honest outcome available, and it is cheap to work around:
-	 * declare the accelerator before the data goes in.
+	 * one. Accepting the mutation would not merely leave the stored entities out of the index, as a reference made
+	 * indexed over stored entities does (see
+	 * {@link #warnAboutReferenceIndexesMissingStoredEntities(EntitySchema, EntitySchema)}): the
+	 * trigram index posts against the value ids of the attribute's shared value tree, and
+	 * {@link io.evitadb.index.invertedIndex.InvertedIndex#attachValueIdConsumer(String)} switches those ids on only
+	 * while the tree is still empty, because ids back-filled into a populated tree would never reach disk. That premise
+	 * holds only because this refusal keeps every attach on an empty tree. With the refusal bypassed, every upsert
+	 * writing the attribute fails on it, and so does the next load of the catalog, which then reports it corrupted.
+	 * Failing loudly at the schema boundary is the only outcome available, and it is cheap to work around: declare the
+	 * accelerator before the data goes in.
 	 *
 	 * The check is a diff of the resulting schema against the original rather than an inspection of the incoming
 	 * mutations, so that every route into the schema is covered at one place - the dedicated set mutation, an
 	 * attribute created with accelerators already on it, a reference attribute, and whatever combination the mutation
 	 * pipeline collapses those into.
 	 *
-	 * **Attributes are matched by name, and that is correct even across a rename.**
+	 * **Attributes are matched by name, so a rename of an attribute that carries an accelerator is refused too.**
 	 * {@link io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation} moves the
 	 * attribute to its new name in the schema, but nothing moves its data: the values of the stored entities and the
-	 * accelerator index built from them stay under the old name. The attribute under the new name therefore needs its
-	 * own index built over entities that are already stored, which is precisely what this refusal exists to prevent,
-	 * so refusing an attribute that carries an accelerator to a new name on a populated collection is the right
-	 * answer rather than a false positive. A rename of an attribute without an accelerator is accepted with the
-	 * warning of {@link #warnAboutRenamedAttributesOfStoredEntities(EntitySchema, EntitySchema,
-	 * LocalEntitySchemaMutation[])} - see `AttributeFilterAcceleratorRefusalTest.UnrelatedChanges`, whose two rename
-	 * tests pin both cases.
+	 * indexes built from them stay under the old name. To this check the new name is an attribute that newly declares
+	 * the accelerator. A rename to a name that never held values would in fact be harmless - its shared value tree is
+	 * created empty on the first write, and the attribute then behaves as a renamed one without an accelerator, which
+	 * is accepted with the warning of {@link #warnAboutRenamedAttributesOfStoredEntities(EntitySchema, EntitySchema,
+	 * LocalEntitySchemaMutation[])}. But the new name may still hold a populated tree left behind by an attribute that
+	 * was renamed away from it or removed, and the attach then fails exactly as described above. The schema does not
+	 * say which of the two cases a rename is, so the refusal stays for both; renaming a plain attribute is unaffected.
+	 * `AttributeFilterAcceleratorRefusalTest.UnrelatedChanges` pins the refused and the accepted rename.
+	 *
+	 * TOBEDONE JNO #409 - once a rename moves the stored values and their indexes to the new name, accept the rename of
+	 * an attribute carrying an accelerator over stored entities and drop the paragraph above.
 	 *
 	 * {@link #isEmpty()} is consulted **only when an accelerator was actually added**, because it is a storage read and
 	 * the overwhelmingly common schema change adds none. In a transactional catalog that read *does* include the open

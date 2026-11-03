@@ -56,13 +56,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Guards the refusal that protects users from a silently-incomplete substring index.
+ * Guards the refusal that keeps a substring index from being started over data that is already stored.
  *
  * The index backing a {@link AttributeFilterAccelerator} is built incrementally as entities are indexed, and no
  * reindexing machinery exists that could back-fill one for entities already stored. Declaring the capability on a
- * populated collection would therefore produce an index that answers only for entities written *after* the schema
- * change - queries would silently return fewer results than they should. The engine refuses instead, at the one
- * place every route into the schema passes through.
+ * populated collection would not merely leave those entities out: the index keys its postings by the value ids of
+ * the attribute's shared value tree, which can be switched on only while the tree is empty, so every later write of
+ * the attribute and the next load of the catalog would fail. The engine refuses instead, at the one place every
+ * route into the schema passes through - see `EntityCollection#verifyNoAcceleratorAddedToNonEmptyCollection`.
  *
  * The mirror-image case matters just as much and is asserted here too: declaring the capability **before** any data
  * goes in must work, and so must every schema change that does not add a capability, however populated the collection
@@ -716,10 +717,10 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should refuse renaming an attribute that declares the capability on a populated collection")
 		void shouldRefuseRenamingAnAttributeThatDeclaresTheCapabilityOnPopulatedCollection() {
-			// not a false positive, however much it reads like one: a rename moves no data, so the values of the
-			// stored entities and the index built from them stay under the old name, and the index of the new name
-			// would have to be built over entities that are already stored. Refusing is the only honest answer
-			// available while nothing can build it
+			// kept on purpose until #409: a rename moves no data, so the new name may still hold a populated value
+			// tree left behind by an attribute renamed away from it or removed, and starting the index over that
+			// tree fails every later write and the next catalog load. The schema cannot tell such a name from a
+			// fresh one, so the rename of an attribute declaring the capability is refused over stored entities
 			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {

@@ -1,7 +1,7 @@
 ---
 title: Schema builders drop the mutations that leave their level of the schema unchanged, judged by value at toMutation()
 date: 2026-10-31
-updated: 2026-11-03 11:13
+updated: 2026-11-03 13:21
 status: accepted
 kind: fix
 issues: [1837, 1843, 1845, 1846, 1847, 1848, 1849, 1850, 1851, 1852, 1853, 1854, 1855, 1856, 1857, 1858, 1859, 1860, 1861, 1862, 1863, 1864, 1865, 1868, 1869, 1870]
@@ -297,15 +297,21 @@ issue and commit.
   keeps it out of the entity builder's batched runs. Nothing moves the stored values or their indexes; over a populated
   collection the rename is accepted with a warning, as #1863 is. Rejected: refusing the rename over stored entities,
   because a WAL written by an older version may replay one and the catalog would not load; moving the values and
-  indexes, for which the engine has no machinery (#409); and renaming the elements of a compound along with the
-  attribute, because the compound's values would stay computed from the old name. The move made the rename the one
-  cascaded mutation that cannot be applied twice: the WAL records a global mutation together with the entity schema
-  modifications it cascaded into, and its replay - the trunk incorporation of a live catalog as well as a restart -
-  cascades the global mutation again before it reaches the recorded ones. The entity level therefore leaves a rename
-  the entity schema already went through as it is. Rejected: recording no cascades, because the logs already written
-  carry them and every other cascaded mutation is idempotent. A reflected reference whose original does not exist
-  yet is checked against its declared attributes alone, since its inherited ones cannot be resolved; a compound left
-  naming a missing attribute is refused by the validation of the final schema.
+  indexes, for which the engine has no machinery (#409); renaming the elements of a compound along with the
+  attribute, because the compound's values would stay computed from the old name; and accepting the rename of an
+  attribute that declares a filter accelerator with the same warning (Johnny, 2026-11-03). The accelerator check
+  (`EntityCollection#verifyNoAcceleratorAddedToNonEmptyCollection`) matches by name and refuses such a rename over
+  stored entities. With the check bypassed, a rename to a fresh name worked like a plain one, but a rename onto a
+  name whose value tree another attribute had left populated failed every later upsert of the attribute, and the
+  catalog no longer loaded - the trigram index switches value ids on only in an empty tree. The schema cannot tell
+  the two names apart, so the refusal stays until #409 (`TOBEDONE JNO #409` at the check). The move made the rename
+  the one cascaded mutation that cannot be applied twice: the WAL records a global mutation together with the entity
+  schema modifications it cascaded into, and its replay - the trunk incorporation of a live catalog as well as a
+  restart - cascades the global mutation again before it reaches the recorded ones. The entity level therefore leaves
+  a rename the entity schema already went through as it is. Rejected: recording no cascades, because the logs already
+  written carry them and every other cascaded mutation is idempotent. A reflected reference whose original does not
+  exist yet is checked against its declared attributes alone, since its inherited ones cannot be resolved; a compound
+  left naming a missing attribute is refused by the validation of the final schema.
 - **String literals** (#1865): `EvitaDataTypes.formatValue` escaped only the apostrophe. Stored expressions and
   expression arguments over gRPC are their trees printed again, so a constant with a backslash or a control
   character read back as another value or not at all, and a catalog holding one failed to open. The printing
@@ -581,3 +587,5 @@ analyzer and the builders until they upgrade.
   attribute), filed and fixed in #1844
 - **2026-11-03** — `dev` merged with #1841, which had closed #1837 with its own rollback-only mark; the merge keeps
   that mark and the cascades applied right after their mutation
+- **2026-11-03** — accepting the rename of an attribute with a filter accelerator over stored entities was measured
+  with the check bypassed and rejected (Johnny); the refusal is documented and marked `TOBEDONE JNO #409`
