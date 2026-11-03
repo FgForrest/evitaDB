@@ -1,5 +1,6 @@
 package io.evitadb.roaringbitmap;
 
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static io.evitadb.roaringbitmap.ValidationRangeConsumer.Value.ABSENT;
 import static io.evitadb.roaringbitmap.ValidationRangeConsumer.Value.PRESENT;
 import static org.junit.jupiter.api.Assertions.*;
@@ -1531,6 +1532,89 @@ public class TestContainer {
 				}
 			}
 			return cartesianProduct.stream();
+		}
+	}
+
+	/**
+	 * Ports upstream #895's `containerOfType` scenario.
+	 */
+	private static Container containerOfType(final int type, @Nonnull final int[] values) {
+		// values must be sorted
+		switch (type) {
+			case 0:
+				char[] chars = new char[values.length];
+				for (int i = 0; i < values.length; i++) {
+					chars[i] = (char) values[i];
+				}
+				return new ArrayContainer(chars);
+			case 1:
+				Container bitmap = new BitmapContainer();
+				for (int v : values) {
+					bitmap = bitmap.add((char) v);
+				}
+				assertTrue(bitmap instanceof BitmapContainer);
+				return bitmap;
+			default:
+				Container run = new RunContainer();
+				for (int v : values) {
+					run = run.add((char) v);
+				}
+				assertTrue(run instanceof RunContainer);
+				return run;
+		}
+	}
+
+	/**
+	 * Ports upstream #895's `valuesWith` scenario.
+	 */
+	private static int[] valuesWith(@Nonnull final int[] values, @Nonnull final int... extra) {
+		return IntStream.concat(IntStream.of(values), IntStream.of(extra)).sorted().toArray();
+	}
+
+	/**
+	 * Ports upstream #895's `crossTypeEquality` scenario.
+	 */
+	@Test
+	public void crossTypeEquality() {
+		// from CRoaring's container_comparison_unit.c (generic_equal_test); 0 = array, 1 = bitmap,
+		// 2 = run
+		int[] tens = IntStream.range(0, 100).map(i -> i * 10).toArray();
+		int[] full = IntStream.range(0, 65536).toArray();
+		int[] withoutFirst = IntStream.range(1, 65536).toArray();
+		int[] withoutSecond = IntStream.range(0, 65536).filter(i -> i != 1).toArray();
+		int[] withoutSecondToLast = IntStream.range(0, 65536).filter(i -> i != 65534).toArray();
+		int[] withoutLast = IntStream.range(0, 65535).toArray();
+		for (int t1 = 0; t1 < 3; t1++) {
+			for (int t2 = 0; t2 < 3; t2++) {
+				if (t1 + t2 == 1) {
+					// array and bitmap containers never compare equal: they hold disjoint cardinality ranges
+					// in a well-formed bitmap (CRoaring compares them by content)
+					continue;
+				}
+				String types = t1 + "/" + t2;
+				assertEquals(containerOfType(t1, new int[0]), containerOfType(t2, new int[0]), types);
+				assertEquals(containerOfType(t1, tens), containerOfType(t2, tens), types);
+				Container a = containerOfType(t1, valuesWith(tens, 273));
+				Container b = containerOfType(t2, tens);
+				assertNotEquals(a, b, types);
+				assertNotEquals(b, a, types);
+				b = containerOfType(t2, valuesWith(tens, 854));
+				assertNotEquals(a, b, types);
+				assertNotEquals(b, a, types);
+				a = containerOfType(t1, valuesWith(tens, 273, 854));
+				b = containerOfType(t2, valuesWith(tens, 273, 854));
+				assertEquals(a, b, types);
+				assertEquals(b, a, types);
+				assertEquals(containerOfType(t1, full), containerOfType(t2, full), types);
+				assertNotEquals(
+						containerOfType(t1, withoutFirst), containerOfType(t2, withoutSecond), types);
+				assertNotEquals(
+						containerOfType(t2, withoutSecond), containerOfType(t1, withoutFirst), types);
+				assertNotEquals(
+						containerOfType(t1, withoutSecondToLast), containerOfType(t2, withoutLast), types);
+				assertNotEquals(
+						containerOfType(t2, withoutLast), containerOfType(t1, withoutSecondToLast), types);
+			}
 		}
 	}
 }
