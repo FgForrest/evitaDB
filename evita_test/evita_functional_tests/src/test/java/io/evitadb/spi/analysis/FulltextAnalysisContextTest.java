@@ -37,6 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
@@ -93,6 +94,24 @@ class FulltextAnalysisContextTest {
 		assertEquals(Locale.GERMAN, next.locale());
 		assertEquals(context.resources(), next.resources());
 		assertSame(lowercase, next.preparation());
+	}
+
+	/** Narrowing keeps preparation and locale but exposes only explicitly named available resources. */
+	@Test
+	@DisplayName("should narrow resources while preserving locale and preparation")
+	void shouldNarrowResources() {
+		final FulltextWordPreparation preparation = word -> List.of(word.toLowerCase(Locale.ROOT));
+		final FulltextAnalysisContext context = new FulltextAnalysisContext(
+			Locale.GERMAN, Map.of("brands", BRANDS, "other", new WordList(List.of("other"))), preparation
+		);
+		final FulltextAnalysisContext narrowed = context.withResources(Set.of("brands", "missing"));
+		assertEquals(Map.of("brands", BRANDS), narrowed.resources());
+		assertEquals(Locale.GERMAN, narrowed.locale());
+		assertSame(preparation, narrowed.preparation());
+		assertEquals(BRANDS, narrowed.getResource("brands"));
+		assertThrows(EvitaInvalidUsageException.class, () -> narrowed.getResource("other"));
+		assertThrows(EvitaInvalidUsageException.class, () -> narrowed.getResource("missing"));
+		assertEquals(2, context.resources().size());
 	}
 
 	/** Each word of a list is prepared; the result keeps the order of the list and holds every word once. */

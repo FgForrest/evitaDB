@@ -44,7 +44,8 @@ import java.util.Set;
  * @param locale      the index locale of the field; its language decides language-dependent behaviour, and
  *                    lowercasing follows its rules
  * @param resources   the resources a step parameter may name, keyed by name - the built-in read-only ones and those
- *                    declared in the catalog schema
+ *                    declared in the catalog schema; the context a step is created with holds only those its own
+ *                    resource parameters name, see {@link #withResources(Set)}
  * @param preparation runs a word of a resource through the steps of the words phase before the step being created,
  *                    on the side being compiled - see {@link #prepare(String)}
  */
@@ -90,21 +91,44 @@ public record FulltextAnalysisContext(
 	}
 
 	/**
+	 * Narrows resource access to the names explicitly held by a step's declared resource parameters. The compiler
+	 * creates every step with a context narrowed this way, so a step finds no resource beyond the ones it names.
+	 * Missing names remain missing, so lookup reports the same usage error for unavailable and unnamed resources.
+	 *
+	 * @param names the resources the step's resource parameters name
+	 * @return a context with the same locale and word preparation and only the named available resources
+	 */
+	@Nonnull
+	public FulltextAnalysisContext withResources(@Nonnull Set<String> names) {
+		final Map<String, FulltextResourceContent> selected = CollectionUtils.createHashMap(names.size());
+		for (final String name : names) {
+			final FulltextResourceContent content = this.resources.get(name);
+			if (content != null) {
+				selected.put(name, content);
+			}
+		}
+		return new FulltextAnalysisContext(this.locale, selected, this.preparation);
+	}
+
+	/**
 	 * Returns the resource of the given name, its words as the resource holds them.
 	 *
 	 * The catalog schema checks the resource parameters of the built-in steps
 	 * ({@link io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps#RESOURCE_PARAMETERS}) without a server.
-	 * Which parameters of another provider's step name a resource only that step knows, so for those this lookup is
-	 * the only check.
+	 * A server-side provider declares its resource parameters in {@link AnalysisStepParameterDescriptor}; both its
+	 * operation and the fingerprint use this lookup, which refuses a missing resource. During compilation, a step
+	 * may read only resources explicitly named by its own parameters whose descriptors declare a resource kind;
+	 * omitted parameters and plain string parameters grant no resource access.
 	 *
 	 * @param name the name a step parameter holds
 	 * @return the content of the resource
-	 * @throws EvitaInvalidUsageException when no such resource exists
+	 * @throws EvitaInvalidUsageException when the resource does not exist or the step has no access to it
 	 */
 	@Nonnull
 	public FulltextResourceContent getResource(@Nonnull String name) {
 		final FulltextResourceContent content = this.resources.get(name);
-		Assert.isTrue(content != null, () -> "Fulltext resource `" + name + "` does not exist.");
+		Assert.isTrue(content != null, () -> "Fulltext resource `" + name + "` does not exist. " +
+			"A step may read only the resources its resource parameters name.");
 		return content;
 	}
 

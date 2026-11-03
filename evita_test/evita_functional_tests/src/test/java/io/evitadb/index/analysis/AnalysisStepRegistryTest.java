@@ -64,7 +64,8 @@ class AnalysisStepRegistryTest {
 		for (final AnalysisStep step : List.of(lowercase(), asciiFolding(), trim(), removeCharacters("-"))) {
 			assertEquals(step.name(), registry.resolve(step).getName());
 		}
-		final AnalysisStepParameterDescriptor descriptor = registry.resolve(removeCharacters("-")).getParameters().get(0);
+		final AnalysisStepParameterDescriptor descriptor =
+			registry.resolve(removeCharacters("-")).getParameters().get(0);
 		assertEquals("characters", descriptor.name());
 		assertSame(String.class, descriptor.type());
 		assertTrue(descriptor.required());
@@ -164,6 +165,43 @@ class AnalysisStepRegistryTest {
 				assertTrue(message.contains(description.name()));
 			}
 		}
+	}
+
+	/** Normalizers share the registry's array-element validation with fulltext steps. */
+	@Test
+	@DisplayName("should reject null array elements in normalization parameters")
+	void shouldRejectNullNormalizationArrayElements() {
+		final NormalizingAnalysisStepFactory provider = new NormalizingAnalysisStepFactory() {
+			@Nonnull
+			@Override
+			public String getName() { return "test-null-array-normalizer"; }
+
+			@Nonnull
+			@Override
+			public List<AnalysisStepParameterDescriptor> getParameters() {
+				return List.of(new AnalysisStepParameterDescriptor("values", String[].class, true, "Values"));
+			}
+
+			@Override
+			public void validate(@Nonnull Map<String, Serializable> parameters) {
+				fail("Null elements must be refused before provider validation.");
+			}
+
+			@Nonnull
+			@Override
+			public StringNormalizationStep create(
+				@Nonnull Map<String, Serializable> parameters, @Nullable Locale foldLocale
+			) {
+				return input -> input;
+			}
+		};
+		final AnalysisStepRegistry registry = new AnalysisStepRegistry(List.of(provider));
+		final EvitaInvalidUsageException error = assertThrows(EvitaInvalidUsageException.class,
+			() -> registry.compile(List.of(normalizingStep(provider.getName(),
+				parameter("values", new String[]{"valid", null}))), Locale.ROOT));
+		assertTrue(error.getMessage().contains(provider.getName()));
+		assertTrue(error.getMessage().contains("values"));
+		assertTrue(error.getMessage().contains("null array elements"));
 	}
 
 	/** Fulltext declarations are refused with the same distinctions as normalization ones. */

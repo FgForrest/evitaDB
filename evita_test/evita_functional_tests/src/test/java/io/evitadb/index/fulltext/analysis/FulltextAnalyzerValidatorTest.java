@@ -28,6 +28,7 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.analysis.FulltextResourceContent.FulltextResourceKind;
 import io.evitadb.api.requestResponse.schema.analysis.WordsAnalysisStep;
 import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
@@ -45,7 +46,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
-import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -54,6 +54,7 @@ import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Consumer;
+import javax.annotation.Nonnull;
 
 import static io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract.TEXT;
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
@@ -353,7 +354,8 @@ class FulltextAnalyzerValidatorTest {
 		@Nonnull
 		@Override
 		public List<AnalysisStepParameterDescriptor> getParameters() {
-			return List.of(new AnalysisStepParameterDescriptor(LIST, String.class, true, "the resource to read"));
+			return List.of(new AnalysisStepParameterDescriptor(LIST, String.class, true, "the resource to read",
+				FulltextResourceKind.WORD_LIST));
 		}
 
 		@Override

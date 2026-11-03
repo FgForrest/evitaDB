@@ -25,6 +25,7 @@
 package io.evitadb.index.fulltext.analysis;
 
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps;
+import io.evitadb.api.requestResponse.schema.analysis.FulltextResourceContent.FulltextResourceKind;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.spi.analysis.AnalysisStepParameterDescriptor;
 import io.evitadb.spi.analysis.FulltextAnalysisContext;
@@ -53,7 +54,8 @@ public final class StopWordsAnalysisStepFactory implements FulltextWordsAnalysis
 	 */
 	private static final AnalysisStepParameterDescriptor WORDS_PARAMETER = new AnalysisStepParameterDescriptor(
 		AnalysisSteps.WORDS, String[].class, true,
-		"Names of the word-list resources whose words are removed from the text, at least one."
+		"Names of the word-list resources whose words are removed from the text, at least one.",
+		FulltextResourceKind.WORD_LIST
 	);
 
 	/**

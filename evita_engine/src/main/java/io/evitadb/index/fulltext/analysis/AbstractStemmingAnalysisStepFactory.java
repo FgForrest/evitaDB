@@ -25,6 +25,7 @@
 package io.evitadb.index.fulltext.analysis;
 
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps;
+import io.evitadb.api.requestResponse.schema.analysis.FulltextResourceContent.FulltextResourceKind;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.spi.analysis.AnalysisStepParameterDescriptor;
 import io.evitadb.spi.analysis.FulltextAnalysisContext;
@@ -69,7 +70,8 @@ abstract sealed class AbstractStemmingAnalysisStepFactory implements FulltextWor
 	private static final AnalysisStepParameterDescriptor PROTECTED_WORDS_PARAMETER =
 		new AnalysisStepParameterDescriptor(
 			AnalysisSteps.PROTECTED_WORDS, String[].class, false,
-			"Names of the word-list resources whose words the stemmer leaves unstemmed."
+			"Names of the word-list resources whose words the stemmer leaves unstemmed.",
+			FulltextResourceKind.WORD_LIST
 		);
 	/**
 	 * The traits of a stemmer that keeps the diacritics.

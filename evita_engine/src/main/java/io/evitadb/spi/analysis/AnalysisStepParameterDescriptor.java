@@ -24,7 +24,12 @@
 
 package io.evitadb.spi.analysis;
 
+import io.evitadb.api.requestResponse.schema.analysis.FulltextResourceContent.FulltextResourceKind;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.Assert;
+
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 
 /**
@@ -34,11 +39,49 @@ import java.io.Serializable;
  * @param type accepted Java value type
  * @param required whether omission is invalid
  * @param description human-readable purpose and restrictions
+ * @param resourceKind the kind of resource named by this string or string-array parameter, or `null` for plain values;
+ *                     a compiled step may read only resources explicitly named by its own resource parameters, and an
+ *                     index-side one contributes the content of the resources it names to the fingerprint, never
+ *                     their names
  */
 public record AnalysisStepParameterDescriptor(
 	@Nonnull String name,
 	@Nonnull Class<? extends Serializable> type,
 	boolean required,
-	@Nonnull String description
+	@Nonnull String description,
+	@Nullable FulltextResourceKind resourceKind
 ) {
+	/**
+	 * Refuses resource metadata on a parameter that cannot hold resource names.
+	 *
+	 * @param name parameter name
+	 * @param type accepted Java value type
+	 * @param required whether omission is invalid
+	 * @param description human-readable purpose and restrictions
+	 * @param resourceKind the resource kind named by the value, or `null` for a plain value
+	 * @throws EvitaInvalidUsageException when a resource kind is declared for a type other than `String` or `String[]`
+	 */
+	public AnalysisStepParameterDescriptor {
+		Assert.isTrue(
+			resourceKind == null || type == String.class || type == String[].class,
+			"A resource parameter must have type String or String[]."
+		);
+	}
+
+	/**
+	 * Describes a parameter whose value does not name resources.
+	 *
+	 * @param name parameter name
+	 * @param type accepted Java value type
+	 * @param required whether omission is invalid
+	 * @param description human-readable purpose and restrictions
+	 */
+	public AnalysisStepParameterDescriptor(
+		@Nonnull String name,
+		@Nonnull Class<? extends Serializable> type,
+		boolean required,
+		@Nonnull String description
+	) {
+		this(name, type, required, description, null);
+	}
 }

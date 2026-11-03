@@ -26,6 +26,7 @@ package io.evitadb.index.fulltext.analysis;
 
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps;
 import io.evitadb.api.requestResponse.schema.analysis.FulltextResourceContent;
+import io.evitadb.api.requestResponse.schema.analysis.FulltextResourceContent.FulltextResourceKind;
 import io.evitadb.api.requestResponse.schema.analysis.SynonymGroup;
 import io.evitadb.api.requestResponse.schema.analysis.SynonymList;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -58,7 +59,8 @@ public final class SynonymsAnalysisStepFactory implements FulltextWordsAnalysisS
 	 */
 	private static final AnalysisStepParameterDescriptor SYNONYMS_PARAMETER = new AnalysisStepParameterDescriptor(
 		AnalysisSteps.SYNONYM_LISTS, String[].class, true,
-		"Names of the synonym-list resources whose groups a query word expands to, at least one."
+		"Names of the synonym-list resources whose groups a query word expands to, at least one.",
+		FulltextResourceKind.SYNONYM_LIST
 	);
 	/**
 	 * The operation of lists without a single group: the words pass through unchanged.

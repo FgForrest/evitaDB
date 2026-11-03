@@ -26,9 +26,12 @@ package io.evitadb.index.fulltext.analysis;
 
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps;
 import io.evitadb.spi.analysis.FulltextAnalysisContext;
+import io.evitadb.spi.analysis.FulltextAnalysisStepFactory;
 import io.evitadb.spi.analysis.FulltextWordsAnalysisOperation;
 
 import javax.annotation.Nonnull;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -76,6 +79,13 @@ public final class StemmingAnalysisStepFactory extends AbstractStemmingAnalysisS
 	@Override
 	public int getBehaviourVersion() {
 		return 1;
+	}
+
+	@Nonnull
+	@Override
+	public List<FulltextAnalysisStepFactory> getDelegates(@Nonnull Locale locale) {
+		final AbstractStemmingAnalysisStepFactory stemming = STEMMING_BY_LANGUAGE.get(locale.getLanguage());
+		return stemming == null ? List.of() : List.of(stemming);
 	}
 
 	@Nonnull

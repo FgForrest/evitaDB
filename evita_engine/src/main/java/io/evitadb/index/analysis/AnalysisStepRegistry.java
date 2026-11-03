@@ -45,14 +45,21 @@ import io.evitadb.utils.CollectionUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.UnaryOperator;
 
 /**
@@ -60,9 +67,26 @@ import java.util.function.UnaryOperator;
  * Discovery happens once at catalog creation. Only immutable compiled functions are memoized; no active attribute
  * policy is stored here. Providers and steps own no catalog-storage resources and require no close operation.
  * It resolves the steps of attribute normalization and of fulltext analyzers alike; a fulltext provider whose type
- * does not name exactly one phase, or which acts on no side, is refused at discovery.
+ * does not name exactly one phase, or which acts on no side, is refused at discovery. So is one whose declarations
+ * would let its index terms change without changing the fingerprint fields persist: an index-side parameter without
+ * a descriptor or of a type without a lossless encoding, or a parameter left out of the index side of a step without
+ * a query side of its own.
  */
 public final class AnalysisStepRegistry {
+	/**
+	 * Exact scalar descriptor types with lossless fingerprint encodings; their object arrays are accepted too.
+	 */
+	@Nonnull private static final Set<Class<?>> INDEX_PARAMETER_TYPES = Set.of(
+		String.class, Character.class, Boolean.class, Byte.class, Short.class, Integer.class, Long.class,
+		BigDecimal.class, Locale.class, Currency.class, UUID.class, LocalDate.class, LocalTime.class,
+		LocalDateTime.class, OffsetDateTime.class
+	);
+	/**
+	 * Primitive arrays already accepted by analysis parameter descriptions, encoded element by element.
+	 */
+	@Nonnull private static final Set<Class<?>> INDEX_PRIMITIVE_ARRAY_TYPES = Set.of(
+		char[].class, boolean[].class, byte[].class, short[].class, int[].class, long[].class
+	);
 	/** Installed providers, never mutated after construction. */
 	@Nonnull private final Map<String, AnalysisStepFactory> factories;
 	/** Thread-safe memoization of immutable functions, independent of schema snapshots. */
@@ -79,7 +103,7 @@ public final class AnalysisStepRegistry {
 	 *
 	 * @param factories complete provider set
 	 * @throws EvitaInvalidUsageException when two providers claim the same name, or a fulltext provider declares its
-	 *                                    phase or sides inconsistently
+	 *                                    phase, sides or index-side parameters inconsistently
 	 */
 	public AnalysisStepRegistry(@Nonnull Collection<? extends AnalysisStepFactory> factories) {
 		final List<AnalysisStepFactory> sorted = new ArrayList<>(factories);
@@ -173,10 +197,12 @@ public final class AnalysisStepRegistry {
 	/**
 	 * Refuses a fulltext provider whose type does not say one phase, or which acts on no side. The phase interfaces are
 	 * sealed under {@link FulltextAnalysisStepFactory}, but a class can still implement two of them, and a side set is
-	 * a value the type cannot check.
+	 * a value the type cannot check. It also refuses index-side declarations the fingerprint cannot trust - see
+	 * {@link #validateIndexSideParameters(FulltextAnalysisStepFactory)} and
+	 * {@link #requireEveryParameterIndexSide(FulltextAnalysisStepFactory)}.
 	 *
 	 * @param factory the discovered provider
-	 * @throws EvitaInvalidUsageException naming the provider class
+	 * @throws EvitaInvalidUsageException naming the invalid provider or its index-side parameter and type
 	 */
 	private static void validateFulltextFactory(@Nonnull FulltextAnalysisStepFactory factory) {
 		final int phases = (factory instanceof FulltextTextAnalysisStepFactory ? 1 : 0) +
@@ -189,19 +215,89 @@ public final class AnalysisStepRegistry {
 					phases + " fulltext phases - a step belongs to exactly one."
 			);
 		}
+		validateIndexSideParameters(factory);
 		final Set<FulltextAnalysisSide> sides;
 		if (factory instanceof FulltextTextAnalysisStepFactory textFactory) {
 			sides = textFactory.getSides();
 		} else if (factory instanceof FulltextWordsAnalysisStepFactory wordsFactory) {
 			sides = wordsFactory.getSides();
 		} else {
-			// the tokenizer and the further splitting steps act on both sides by their type
+			// the tokenizer and the further splitting steps act on both sides by their type, and alike
+			requireEveryParameterIndexSide(factory);
 			return;
 		}
 		if (sides.isEmpty()) {
 			throw new EvitaInvalidUsageException(
 				"Analysis step `" + factory.getName() + "` (" + factory.getClass().getName() + ") acts on no side."
 			);
+		}
+		if (!sides.contains(FulltextAnalysisSide.QUERY)) {
+			requireEveryParameterIndexSide(factory);
+		}
+	}
+
+	/**
+	 * Refuses an index-side parameter without a descriptor, or whose type is none of {@link #INDEX_PARAMETER_TYPES},
+	 * their object arrays and {@link #INDEX_PRIMITIVE_ARRAY_TYPES}. The fingerprint a field persists encodes these
+	 * values as text, and a type without a lossless text form could change the index terms without changing it.
+	 *
+	 * @param factory the discovered provider
+	 * @throws EvitaInvalidUsageException naming the provider and the parameter without a descriptor or its type
+	 */
+	private static void validateIndexSideParameters(@Nonnull FulltextAnalysisStepFactory factory) {
+		for (final String parameter : factory.getIndexSideParameters()) {
+			AnalysisStepParameterDescriptor descriptor = null;
+			for (final AnalysisStepParameterDescriptor candidate : factory.getParameters()) {
+				if (candidate.name().equals(parameter)) {
+					descriptor = candidate;
+					break;
+				}
+			}
+			if (descriptor == null) {
+				throw new EvitaInvalidUsageException(
+					"Index-side parameter `" + parameter + "` of analysis step `" + factory.getName() +
+						"` has no descriptor."
+				);
+			}
+			if (!isLosslessIndexType(descriptor.type())) {
+				throw new EvitaInvalidUsageException(
+					"Index-side parameter `" + parameter + "` of analysis step `" + factory.getName() +
+						"` has unsupported fingerprint type " + descriptor.type().getTypeName() + "."
+				);
+			}
+		}
+	}
+
+	/**
+	 * Tells whether the fingerprint can encode the values of a descriptor type without loss.
+	 *
+	 * @param type the exact type an index-side parameter's descriptor declares
+	 * @return `true` for an accepted scalar, an object array of one, or an accepted primitive array
+	 */
+	private static boolean isLosslessIndexType(@Nonnull Class<?> type) {
+		return INDEX_PARAMETER_TYPES.contains(type) || INDEX_PRIMITIVE_ARRAY_TYPES.contains(type) ||
+			(type.isArray() && INDEX_PARAMETER_TYPES.contains(type.getComponentType()));
+	}
+
+	/**
+	 * Refuses a parameter left out of the index-side parameters of a step without a query side of its own: none of
+	 * its parameters can act on the query side alone, so each one changes the index terms, and one left out would
+	 * change them without changing the fingerprint a field persists.
+	 *
+	 * @param factory a discovered provider of a tokenizer, a further splitting step, or a step acting on the index side
+	 *                only
+	 * @throws EvitaInvalidUsageException naming the provider and the parameter missing from its index-side parameters
+	 */
+	private static void requireEveryParameterIndexSide(@Nonnull FulltextAnalysisStepFactory factory) {
+		final Set<String> indexSide = factory.getIndexSideParameters();
+		for (final AnalysisStepParameterDescriptor descriptor : factory.getParameters()) {
+			if (!indexSide.contains(descriptor.name())) {
+				throw new EvitaInvalidUsageException(
+					"Parameter `" + descriptor.name() + "` of analysis step `" + factory.getName() + "` (" +
+						factory.getClass().getName() + ") is missing from its index-side parameters: the step has " +
+						"no query side of its own, so every parameter changes the index terms."
+				);
+			}
 		}
 	}
 
@@ -210,7 +306,8 @@ public final class AnalysisStepRegistry {
 	 *
 	 * @param step    persisted description
 	 * @param factory the factory the description resolved to
-	 * @throws EvitaInvalidUsageException naming the step when a parameter is missing, unknown, mistyped or invalid
+	 * @throws EvitaInvalidUsageException naming the step when a parameter is missing, unknown, mistyped, holds a `null`
+	 *                                    array element or is invalid
 	 */
 	private static void validateParameters(@Nonnull AnalysisStep step, @Nonnull AnalysisStepFactory factory) {
 		try {
@@ -233,12 +330,33 @@ public final class AnalysisStepRegistry {
 						"Parameter `" + parameter.getKey() + "` must be " + descriptor.type().getSimpleName() + "."
 					);
 				}
+				refuseNullArrayElements(parameter.getKey(), parameter.getValue());
 			}
 			factory.validate(parameters);
 		} catch (EvitaInvalidUsageException ex) {
 			throw new EvitaInvalidUsageException(
 				"Invalid parameters for analysis step `" + step.name() + "`: " + ex.getMessage(), ex
 			);
+		}
+	}
+
+	/**
+	 * Refuses an object array holding a `null` element; a primitive array cannot hold one.
+	 *
+	 * @param name  the parameter's name, for the refusal
+	 * @param value the parameter's value, already checked against the type of its descriptor
+	 * @throws EvitaInvalidUsageException naming the parameter when an element of the array is `null`
+	 */
+	private static void refuseNullArrayElements(@Nonnull String name, @Nonnull Serializable value) {
+		final Class<?> type = value.getClass();
+		if (type.isArray() && !type.getComponentType().isPrimitive()) {
+			for (final Object element : (Object[]) value) {
+				if (element == null) {
+					throw new EvitaInvalidUsageException(
+						"Parameter `" + name + "` must not contain null array elements."
+					);
+				}
+			}
 		}
 	}
 

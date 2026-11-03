@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.analysis.AnalysisStepRegistry;
+import io.evitadb.spi.analysis.AnalysisStepParameterDescriptor;
 import io.evitadb.spi.analysis.FulltextAnalysisContext;
 import io.evitadb.spi.analysis.FulltextAnalysisSide;
 import io.evitadb.spi.analysis.FulltextAnalysisStepFactory;
@@ -42,6 +43,7 @@ import io.evitadb.spi.analysis.FulltextWordsAnalysisOperation;
 import io.evitadb.spi.analysis.FulltextWordsAnalysisStepFactory;
 import io.evitadb.spi.analysis.FulltextWordsPlacement;
 import io.evitadb.spi.analysis.FulltextWordsPlacement.PlacedStep;
+import io.evitadb.utils.CollectionUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
@@ -51,13 +53,16 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.util.IOUtils;
 
-import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.io.Reader;
+import java.io.Serializable;
 import java.io.StringReader;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import javax.annotation.Nonnull;
 
 /**
  * Compiles step lists into one Lucene analysis chain for one side of the pipeline: the text phase of an analyzer, the
@@ -105,6 +110,94 @@ public final class FulltextChainCompiler {
 	}
 
 	/**
+	 * Computes persistent identities of the index chain and its words phase. Only steps acting on the index side
+	 * contribute - the tokenizer and every further splitting step always do - so a step or a parameter acting on the
+	 * query side only leaves both values unchanged; the words identity excludes text and splitting. Each stream starts
+	 * with a fixed format marker, and every field is tagged and length-prefixed or count-prefixed before XXH3 hashing.
+	 *
+	 * Parameters contribute in sorted name order, restricted to the factory's index-side declarations. Resource
+	 * parameters contribute raw content and kind, never resource names: word counts and words in list order, or
+	 * synonym group counts followed by each group's word count and words in order. Preceding steps already encode
+	 * preparation, and preserving resource order protects providers that read it in order. Delegated behaviour
+	 * contributes its names and versions recursively; a delegate cycle is a provider bug.
+	 *
+	 * Neither the analyzer's name nor the locale contributes. The locale is the lookup key: a field's stored
+	 * fingerprint is always compared with its analyzer's fingerprint in the same locale. What each step derives from
+	 * that locale is the same on both sides of the comparison; stemming delegates identify the selected stemmer.
+	 *
+	 * @param analyzer the definition resolved for the locale of the field
+	 * @return the index fingerprint and the words-only identity
+	 * @throws EvitaInvalidUsageException when a step is unknown, has invalid parameters, belongs to another phase,
+	 *                                    splitting has no tokenizer, or a required resource is missing or of another
+	 *                                    kind than its parameter declares
+	 * @throws GenericEvitaInternalError when a provider has cyclic delegates or an unsupported parameter value
+	 */
+	@Nonnull
+	public FulltextAnalyzerFingerprint fingerprint(@Nonnull ResolvedFulltextAnalyzer analyzer) {
+		final FulltextFingerprintEncoder index = new FulltextFingerprintEncoder("evitaDB-fulltext-fingerprint-1");
+		final FulltextFingerprintEncoder words = new FulltextFingerprintEncoder("evitaDB-fulltext-word-phase-1");
+		final FulltextAnalysisContext context = analyzer.context();
+		final List<AnalysisStep> splitting = analyzer.splitting();
+		fingerprintPhase("text", analyzer.text(), FulltextTextAnalysisStepFactory.class, "a text step", context, index);
+		if (splitting.isEmpty()) {
+			throw new EvitaInvalidUsageException("Word splitting must start with a tokenizer.");
+		}
+		index.count("splitting", splitting.size());
+		final AnalysisStep tokenizer = splitting.get(0);
+		index.step(tokenizer, resolve(tokenizer, FulltextTokenizerAnalysisStepFactory.class, "the tokenizer"), context);
+		for (final AnalysisStep step : splitting.subList(1, splitting.size())) {
+			index.step(step, resolve(step, FulltextSplittingAnalysisStepFactory.class, "a further splitting step"),
+				context);
+		}
+		fingerprintPhase("words", analyzer.words(), FulltextWordsAnalysisStepFactory.class, "a words step",
+			context, index, words);
+		return new FulltextAnalyzerFingerprint(index.hash(), words.hash());
+	}
+
+	/**
+	 * Resolves a text or words phase and encodes exactly the steps whose factory's sides contain the index side. Every
+	 * step is resolved and checked, selected or not; the selection is written alike to each given stream, which is how
+	 * the words phase reaches both the index and the words-phase identity.
+	 *
+	 * @param tag the stable phase identifier, written as the count field of each stream
+	 * @param steps the steps in execution order
+	 * @param expected the factory type belonging to the phase
+	 * @param role the phase's name for validation errors
+	 * @param context the locale and resources used by the steps
+	 * @param encoders the canonical streams receiving the same selected steps
+	 * @param <T> the factory type checked by the same resolver as compilation
+	 */
+	private <T extends FulltextAnalysisStepFactory> void fingerprintPhase(
+		@Nonnull String tag,
+		@Nonnull List<AnalysisStep> steps,
+		@Nonnull Class<T> expected,
+		@Nonnull String role,
+		@Nonnull FulltextAnalysisContext context,
+		@Nonnull FulltextFingerprintEncoder... encoders
+	) {
+		final List<AnalysisStep> selectedSteps = new ArrayList<>(steps.size());
+		final List<T> selectedFactories = new ArrayList<>(steps.size());
+		for (final AnalysisStep step : steps) {
+			final T factory = resolve(step, expected, role);
+			final boolean selected = switch (factory) {
+				case FulltextTextAnalysisStepFactory text -> text.getSides().contains(FulltextAnalysisSide.INDEX);
+				case FulltextWordsAnalysisStepFactory words -> words.getSides().contains(FulltextAnalysisSide.INDEX);
+				default -> throw new GenericEvitaInternalError("Only text and words phases select an analysis side.");
+			};
+			if (selected) {
+				selectedSteps.add(step);
+				selectedFactories.add(factory);
+			}
+		}
+		for (final FulltextFingerprintEncoder encoder : encoders) {
+			encoder.count(tag, selectedSteps.size());
+			for (int i = 0; i < selectedSteps.size(); i++) {
+				encoder.step(selectedSteps.get(i), selectedFactories.get(i), context);
+			}
+		}
+	}
+
+	/**
 	 * Compiles the chain of one side.
 	 *
 	 * @param text      the steps of the analyzer's text phase, possibly empty
@@ -130,23 +223,25 @@ public final class FulltextChainCompiler {
 				step, FulltextTextAnalysisStepFactory.class, "a text step"
 			);
 			if (factory.getSides().contains(side)) {
-				textOperations.add(factory.create(step.parameters(), context));
+				textOperations.add(factory.create(step.parameters(), stepContext(step, factory, context)));
 			}
 		}
 		if (splitting.isEmpty()) {
 			throw new EvitaInvalidUsageException("Word splitting must start with a tokenizer.");
 		}
 		final AnalysisStep tokenizerStep = splitting.get(0);
-		final FulltextTokenizerAnalysisOperation tokenizer = resolve(
+		final FulltextTokenizerAnalysisStepFactory tokenizerFactory = resolve(
 			tokenizerStep, FulltextTokenizerAnalysisStepFactory.class, "the tokenizer"
-		).create(tokenizerStep.parameters(), context);
+		);
+		final FulltextTokenizerAnalysisOperation tokenizer = tokenizerFactory.create(
+			tokenizerStep.parameters(), stepContext(tokenizerStep, tokenizerFactory, context)
+		);
 		final List<FulltextSplittingAnalysisOperation> splittingOperations = new ArrayList<>(splitting.size() - 1);
 		for (final AnalysisStep step : splitting.subList(1, splitting.size())) {
-			splittingOperations.add(
-				resolve(step, FulltextSplittingAnalysisStepFactory.class, "a further splitting step").create(
-					step.parameters(), context
-				)
+			final FulltextSplittingAnalysisStepFactory factory = resolve(
+				step, FulltextSplittingAnalysisStepFactory.class, "a further splitting step"
 			);
+			splittingOperations.add(factory.create(step.parameters(), stepContext(step, factory, context)));
 		}
 		final List<FulltextWordsAnalysisOperation> wordOperations = new ArrayList<>(words.size());
 		final List<PlacedStep> placedSteps = new ArrayList<>(words.size());
@@ -159,7 +254,7 @@ public final class FulltextChainCompiler {
 					wordOperations.toArray(FulltextWordsAnalysisOperation[]::new), tokenizer, side
 				);
 				final FulltextWordsAnalysisOperation operation =
-					factory.create(step.parameters(), context.withPreparation(preparation));
+					factory.create(step.parameters(), stepContext(step, factory, context).withPreparation(preparation));
 				wordOperations.add(operation);
 				placedSteps.add(new PlacedStep(step.name(), operation.getTraits(side)));
 			}
@@ -172,6 +267,36 @@ public final class FulltextChainCompiler {
 			wordOperations.toArray(FulltextWordsAnalysisOperation[]::new),
 			side
 		);
+	}
+
+	/**
+	 * Restricts a step to resources explicitly named by its own declared resource parameters, on either side.
+	 *
+	 * @param step the definition holding explicit parameter values
+	 * @param factory the validated factory declaring resource kinds
+	 * @param context the locale, available resources and word preparation
+	 * @return the context exposing only resources this step may read
+	 */
+	@Nonnull
+	private static FulltextAnalysisContext stepContext(
+		@Nonnull AnalysisStep step, @Nonnull FulltextAnalysisStepFactory factory,
+		@Nonnull FulltextAnalysisContext context
+	) {
+		final Set<String> names = CollectionUtils.createHashSet(factory.getParameters().size());
+		final Map<String, Serializable> parameters = step.parameters();
+		for (final AnalysisStepParameterDescriptor descriptor : factory.getParameters()) {
+			if (descriptor.resourceKind() != null) {
+				final Serializable value = parameters.get(descriptor.name());
+				if (value instanceof String name) {
+					names.add(name);
+				} else if (value instanceof String[] resources) {
+					for (final String name : resources) {
+						names.add(name);
+					}
+				}
+			}
+		}
+		return context.withResources(names);
 	}
 
 	/**
