@@ -666,21 +666,19 @@ public class ClassSchemaAnalyzer {
 				null
 			);
 			applyReferenceIndexedComponents(editor, reference.indexedComponents(), Scope.DEFAULT_SCOPE);
-			// faceted - reconcile DEFAULT_SCOPE with annotation
+			// faceted - reconcile DEFAULT_SCOPE with annotation; `facetedPartially` makes the reference faceted
+			// even without `faceted = true`, so it must not drop the faceting the expression below re-adds
+			final String facetedPartiallyExpr = reference.facetedPartially().value();
 			if (reference.faceted() && !editor.isFacetedInScope(Scope.DEFAULT_SCOPE)) {
 				editor.faceted();
-			} else if (!reference.faceted() && editor.isFacetedInScope(Scope.DEFAULT_SCOPE)) {
+			} else if (
+				!reference.faceted() && facetedPartiallyExpr.isEmpty() && editor.isFacetedInScope(Scope.DEFAULT_SCOPE)
+			) {
 				editor.nonFaceted(Scope.DEFAULT_SCOPE);
 			}
-			final String facetedPartiallyExpr = reference.facetedPartially().value();
-			if (!facetedPartiallyExpr.isEmpty()) {
-				editor.facetedPartially(ExpressionFactory.parse(facetedPartiallyExpr));
-			}
+			applyPartialFaceting(editor, Scope.DEFAULT_SCOPE, facetedPartiallyExpr);
 			applyBucketedHistograms(editor, Scope.DEFAULT_SCOPE, bucketedProperty);
-			final String bucketedPartiallyExpr = reference.bucketedPartially().value();
-			if (!bucketedPartiallyExpr.isEmpty()) {
-				editor.bucketedPartially(ExpressionFactory.parse(bucketedPartiallyExpr));
-			}
+			applyPartialBucketing(editor, Scope.DEFAULT_SCOPE, reference.bucketedPartially().value());
 		} else {
 			// per-scope settings COMPLETELY REPLACE general settings; assert general values stayed at defaults.
 			Assert.isTrue(
@@ -726,7 +724,9 @@ public class ClassSchemaAnalyzer {
 			for (ScopeReferenceSettings ss : scopedDefinition) {
 				final Scope scope = ss.scope();
 				applyReferenceIndexedComponents(editor, ss.indexedComponents(), scope);
-				if (ss.faceted()) {
+				// `facetedPartially` makes the reference faceted in its scope even without `faceted = true` - leaving
+				// such a scope out would make step 3 drop the faceting and step 4 re-add it on every analysis
+				if (ss.faceted() || !ss.facetedPartially().value().isEmpty()) {
 					facetedScopes.add(scope);
 				}
 			}
@@ -746,16 +746,51 @@ public class ClassSchemaAnalyzer {
 			// 4) remaining per-scope settings — ordering between them is independent.
 			for (ScopeReferenceSettings ss : scopedDefinition) {
 				final Scope scope = ss.scope();
-				final String fpExpr = ss.facetedPartially().value();
-				if (!fpExpr.isEmpty()) {
-					editor.facetedPartiallyInScope(scope, ExpressionFactory.parse(fpExpr));
-				}
+				applyPartialFaceting(editor, scope, ss.facetedPartially().value());
 				applyBucketedHistograms(editor, scope, ss.bucketed());
-				final String bpExpr = ss.bucketedPartially().value();
-				if (!bpExpr.isEmpty()) {
-					editor.bucketedPartiallyInScope(scope, ExpressionFactory.parse(bpExpr));
-				}
+				applyPartialBucketing(editor, scope, ss.bucketedPartially().value());
 			}
+		}
+	}
+
+	/**
+	 * Reconciles the partial faceting of a reference in one scope with the annotation: applies the declared
+	 * expression, or clears a stored one when the annotation declares none - otherwise the stored expression would
+	 * keep narrowing the faceting of a reference the model facets fully.
+	 *
+	 * @param editor     the reference editor
+	 * @param scope      the scope to reconcile
+	 * @param expression the expression the annotation declares, empty when it declares none
+	 */
+	private static void applyPartialFaceting(
+		@Nonnull ReferenceSchemaBuilder editor,
+		@Nonnull Scope scope,
+		@Nonnull String expression
+	) {
+		if (!expression.isEmpty()) {
+			editor.facetedPartiallyInScope(scope, ExpressionFactory.parse(expression));
+		} else if (editor.getFacetedPartiallyInScopes().containsKey(scope)) {
+			editor.nonFacetedPartially(scope);
+		}
+	}
+
+	/**
+	 * Reconciles the partial bucketing of a reference in one scope with the annotation: applies the declared
+	 * expression, or clears a stored one when the annotation declares none.
+	 *
+	 * @param editor     the reference editor
+	 * @param scope      the scope to reconcile
+	 * @param expression the expression the annotation declares, empty when it declares none
+	 */
+	private static void applyPartialBucketing(
+		@Nonnull ReferenceSchemaBuilder editor,
+		@Nonnull Scope scope,
+		@Nonnull String expression
+	) {
+		if (!expression.isEmpty()) {
+			editor.bucketedPartiallyInScope(scope, ExpressionFactory.parse(expression));
+		} else if (editor.getBucketedPartiallyInScopes().containsKey(scope)) {
+			editor.nonBucketedPartially(scope);
 		}
 	}
 
@@ -1528,10 +1563,18 @@ public class ClassSchemaAnalyzer {
 			.toArray(Currency[]::new);
 		final boolean indexedPricePlacesDiffers = entityBuilder.getIndexedPricePlaces() != sellingPriceAnnotation.indexedPricePlaces();
 		if (!entityBuilder.isWithPrice() || indexedPricePlacesDiffers || newCurrencies.length > 0) {
-			entityBuilder.withPriceInCurrency(
-				sellingPriceAnnotation.indexedPricePlaces(),
-				newCurrencies.length > 0 ? newCurrencies : new Currency[0]
-			);
+			// keep the scopes the price is already indexed in, exactly as `withPriceInCurrency` would
+			final Set<Scope> priceIndexedInScopes = entityBuilder.getPriceIndexedInScopes();
+			final Scope[] inScopes = priceIndexedInScopes.isEmpty() ?
+				Scope.DEFAULT_SCOPES : priceIndexedInScopes.toArray(Scope.NO_SCOPE);
+			if (newCurrencies.length > 0) {
+				entityBuilder.withPriceInCurrencyIndexedInScope(
+					sellingPriceAnnotation.indexedPricePlaces(), newCurrencies, inScopes
+				);
+			} else {
+				// no new currency - an empty currency array would still emit a currency mutation that allows nothing
+				entityBuilder.withPriceIndexedInScope(sellingPriceAnnotation.indexedPricePlaces(), inScopes);
+			}
 		}
 		this.sellingPriceDefined = true;
 	}

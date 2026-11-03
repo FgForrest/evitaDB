@@ -25,6 +25,7 @@ package io.evitadb.api.query.expression.object;
 
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.exception.ExpressionEvaluationException;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -42,9 +43,13 @@ import java.io.Serializable;
  * `$entity?.name`, this step wraps the {@link PropertyAccessStep} for `name` and ensures that
  * a null `$entity` produces null rather than an error.
  *
+ * The step has value equality because schemas compare their expressions by value: an expression that does not
+ * equal its own re-parse makes an unchanged schema look changed.
+ *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
 @RequiredArgsConstructor
+@EqualsAndHashCode
 public final class NullSafeAccessStep implements ObjectOperationStep {
 
 	@Serial private static final long serialVersionUID = -2195956191525819662L;

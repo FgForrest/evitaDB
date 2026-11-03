@@ -185,7 +185,8 @@ public class ObjectJsonSerializer {
 	}
 
 	private JsonNode serialize(@Nonnull Expression expression) {
-		return this.jsonNodeFactory.textNode(expression.toString());
+		// the text the expression parses from - toString() would quote it into a string constant
+		return this.jsonNodeFactory.textNode(expression.toExpressionString());
 	}
 
 	private JsonNode serialize(@Nonnull Enum<?> e) {

@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
@@ -49,6 +50,7 @@ import io.evitadb.test.Entities;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -61,6 +63,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
@@ -79,6 +84,16 @@ import static io.evitadb.test.TestTags.SCHEMA;
 @Tag(CONTRACT)
 @Tag(SCHEMA)
 class EntitySchemaBuilderTest {
+	private static final String REFERENCE_BRAND = "brand";
+	private static final String REFERENCE_CATEGORY_PRODUCTS = "categoryProducts";
+	private static final String REFERENCE_PRODUCT_CATEGORIES = "productCategories";
+	private static final String PRODUCT_CATEGORIES_DESCRIPTION = "Assigned categories.";
+	private static final String ATTRIBUTE_NOTE = "note";
+	/**
+	 * Reference definition indexed and faceted in the default scope with a reference attribute `a`.
+	 */
+	private static final Consumer<ReferenceSchemaEditor.ReferenceSchemaBuilder> INDEXED_FACETED_WITH_ATTRIBUTE =
+		whichIs -> whichIs.indexed().faceted().withAttribute("a", String.class);
 	private final EntitySchema productSchema = EntitySchema._internalBuild(Entities.PRODUCT);
 	private final EntitySchema categorySchema = EntitySchema._internalBuild(Entities.CATEGORY);
 	private final EntitySchema brandSchema = EntitySchema._internalBuild(Entities.BRAND);
@@ -2139,6 +2154,550 @@ class EntitySchemaBuilderTest {
 		assertFalse(categoryProducts instanceof ReflectedReferenceSchema);
 	}
 
+	@DisplayName("let a second definition of a stored reference restore the cardinality the first one changed")
+	@Test
+	void shouldLetSecondReferenceDefinitionRestoreChangedCardinality() {
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, productWithBrandReference());
+
+		builder
+			.withReferenceTo(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE)
+			.withReferenceTo(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE);
+
+		assertEquals(
+			Cardinality.ZERO_OR_ONE,
+			builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND).getCardinality()
+		);
+		assertTrue(builder.toMutation().isEmpty(), "Restoring the stored cardinality must leave nothing to send.");
+	}
+
+	@DisplayName("let a second definition of a stored reference restore the description the first one changed")
+	@Test
+	void shouldLetSecondReferenceDefinitionRestoreChangedDescription() {
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, productWithBrandReference());
+
+		builder
+			.withReferenceTo(
+				REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, whichIs -> whichIs.withDescription("changed")
+			)
+			.withReferenceTo(
+				REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, whichIs -> whichIs.withDescription(null)
+			);
+
+		assertNull(builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND).getDescription());
+		assertTrue(builder.toMutation().isEmpty(), "Restoring the stored description must leave nothing to send.");
+	}
+
+	@DisplayName("re-create a removed stored reference with the same definition and send nothing")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRecreateRemovedStoredReferenceWithSameDefinition() {
+		final EntitySchemaContract storedSchema = productWithIndexedBrandReference(true);
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+
+		builder
+			.withoutReferenceTo(REFERENCE_BRAND)
+			.withReferenceToEntity(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, INDEXED_FACETED_WITH_ATTRIBUTE);
+
+		assertEquals(
+			storedSchema.getReferenceOrThrowException(REFERENCE_BRAND),
+			builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND)
+		);
+		assertTrue(builder.toMutation().isEmpty(), "Re-creating the stored definition must leave nothing to send.");
+	}
+
+	@DisplayName("re-create a removed stored reference with a different definition")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRecreateRemovedStoredReferenceWithDifferentDefinition() {
+		final EntitySchemaContract storedSchema = productWithIndexedBrandReference(true);
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		final UnaryOperator<EntitySchemaBuilder> recreation = it -> it.withReferenceToEntity(
+			REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
+			whichIs -> whichIs.indexed().withAttribute("b", Integer.class)
+		);
+
+		recreation.apply(builder.withoutReferenceTo(REFERENCE_BRAND));
+
+		final ReferenceSchemaContract reference = builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND);
+		assertEquals(Cardinality.ZERO_OR_MORE, reference.getCardinality());
+		assertEquals(Set.of("b"), reference.getAttributes().keySet());
+		assertFalse(reference.isFaceted());
+		assertRecreatedAsDefinedFromScratch(storedSchema, builder, recreation);
+	}
+
+	@DisplayName("re-create a removed stored reference to an unmanaged entity type")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRecreateRemovedStoredReferenceToUnmanagedType() {
+		final EntitySchemaContract storedSchema = productWithIndexedBrandReference(false);
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		final UnaryOperator<EntitySchemaBuilder> recreation =
+			it -> it.withReferenceTo(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE);
+
+		// the removal and the re-creation collapse into a change of the cardinality, two index changes, a change of
+		// the faceting and the removal of the attribute; the faceting must survive their combination
+		recreation.apply(builder.withoutReferenceTo(REFERENCE_BRAND));
+
+		final ReferenceSchemaContract reference = builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND);
+		assertEquals(Cardinality.ZERO_OR_MORE, reference.getCardinality());
+		assertFalse(reference.isReferencedEntityTypeManaged());
+		assertEquals(Set.of(), reference.getAttributes().keySet());
+		assertFalse(reference.isFaceted());
+		assertRecreatedAsDefinedFromScratch(storedSchema, builder, recreation);
+	}
+
+	@DisplayName("re-create a removed stored reference as a reference to a managed entity type")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRecreateRemovedStoredReferenceAsManaged() {
+		final EntitySchemaContract storedSchema = productWithIndexedBrandReference(false);
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		final UnaryOperator<EntitySchemaBuilder> recreation = it -> it.withReferenceToEntity(
+			REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, INDEXED_FACETED_WITH_ATTRIBUTE
+		);
+
+		recreation.apply(builder.withoutReferenceTo(REFERENCE_BRAND));
+
+		assertTrue(builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND).isReferencedEntityTypeManaged());
+		assertRecreatedAsDefinedFromScratch(storedSchema, builder, recreation);
+	}
+
+	@DisplayName("re-create a removed stored reflected reference")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRecreateRemovedStoredReflectedReference() {
+		final EntitySchemaContract storedSchema = new InternalEntitySchemaBuilder(this.catalogSchema, this.categorySchema)
+			.withReflectedReferenceToEntity("categoryProducts", Entities.PRODUCT, "productCategories")
+			.toInstance();
+
+		final EntitySchemaBuilder sameBuilder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		sameBuilder
+			.withoutReferenceTo("categoryProducts")
+			.withReflectedReferenceToEntity("categoryProducts", Entities.PRODUCT, "productCategories");
+		assertEquals(
+			storedSchema.getReferenceOrThrowException("categoryProducts"),
+			sameBuilder.toInstance().getReferenceOrThrowException("categoryProducts")
+		);
+		assertTrue(sameBuilder.toMutation().isEmpty(), "Re-creating the stored definition must leave nothing to send.");
+
+		final EntitySchemaBuilder otherBuilder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		otherBuilder
+			.withoutReferenceTo("categoryProducts")
+			.withReflectedReferenceToEntity("categoryProducts", Entities.PRODUCT, "productMainCategories");
+		final ReflectedReferenceSchemaContract recreated = (ReflectedReferenceSchemaContract) otherBuilder.toInstance()
+			.getReferenceOrThrowException("categoryProducts");
+		assertEquals("productMainCategories", recreated.getReflectedReferenceName());
+		assertEmittedMutationsReproduce(storedSchema, otherBuilder);
+	}
+
+	@DisplayName("re-create a removed stored reflected reference declaring its indexing and faceting as one inheriting them")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRecreateRemovedStoredIndexedFacetedReflectedReferenceAsInheritingOne() {
+		final EntitySchemaContract storedSchema = new InternalEntitySchemaBuilder(this.catalogSchema, this.categorySchema)
+			.withReflectedReferenceToEntity(
+				"categoryProducts", Entities.PRODUCT, "productCategories", whichIs -> whichIs.indexed().faceted()
+			)
+			.toInstance();
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		final UnaryOperator<EntitySchemaBuilder> recreation =
+			it -> it.withReflectedReferenceToEntity("categoryProducts", Entities.PRODUCT, "productCategories");
+
+		// the removal and the re-creation collapse into modifications that make the indexing and the faceting
+		// inherited again; the components, inherited already, must stay inherited
+		recreation.apply(builder.withoutReferenceTo("categoryProducts"));
+
+		final ReflectedReferenceSchemaContract reference = (ReflectedReferenceSchemaContract) builder.toInstance()
+			.getReferenceOrThrowException("categoryProducts");
+		assertTrue(reference.isIndexedInherited());
+		assertTrue(reference.isIndexedComponentsInherited());
+		assertTrue(reference.isFacetedInherited());
+		assertRecreatedAsDefinedFromScratch(storedSchema, builder, this.categorySchema, "categoryProducts", recreation);
+	}
+
+	@DisplayName("make the indexing of a stored reflected reference inherited again and keep its components inherited")
+	@Test
+	void shouldKeepComponentsInheritedWhenIndexingOfStoredReflectedReferenceIsInheritedAgain() {
+		final EntitySchemaContract storedSchema = new InternalEntitySchemaBuilder(this.catalogSchema, this.categorySchema)
+			.withReflectedReferenceToEntity("categoryProducts", Entities.PRODUCT, "productCategories", whichIs -> whichIs.indexed())
+			.toInstance();
+		assertTrue(
+			((ReflectedReferenceSchemaContract) storedSchema.getReferenceOrThrowException("categoryProducts")).isIndexedComponentsInherited()
+		);
+		// inheriting the index types declares no components, so the inherited ones must stay inherited
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema)
+			.withReflectedReferenceToEntity(
+				"categoryProducts", Entities.PRODUCT, "productCategories", whichIs -> whichIs.indexedInScope((Scope[]) null)
+			);
+
+		final ReflectedReferenceSchemaContract reference = (ReflectedReferenceSchemaContract) builder.toInstance()
+			.getReferenceOrThrowException("categoryProducts");
+		assertTrue(reference.isIndexedInherited());
+		assertTrue(reference.isIndexedComponentsInherited());
+		assertEmittedMutationsReproduce(storedSchema, builder);
+	}
+
+	@DisplayName("keep components a builder declares before it makes the indexing of a reflected reference inherited")
+	@Test
+	void shouldKeepComponentsDeclaredBeforeIndexingOfReflectedReferenceIsInherited() {
+		final EntitySchemaContract storedSchema = new InternalEntitySchemaBuilder(this.catalogSchema, this.categorySchema)
+			.withReflectedReferenceToEntity(
+				"categoryProducts", Entities.PRODUCT, "productCategories",
+				whichIs -> whichIs.indexedWithComponents(ReferenceIndexedComponents.REFERENCED_ENTITY)
+			)
+			.toInstance();
+		// inheriting the index types says nothing about the components, so it must not undo their declaration made
+		// just before it - applied one by one, the mutations keep it
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema)
+			.withReflectedReferenceToEntity(
+				"categoryProducts", Entities.PRODUCT, "productCategories",
+				whichIs -> whichIs
+					.indexedWithComponents(
+						ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+					.indexedInScope((Scope[]) null)
+			);
+
+		final ReflectedReferenceSchemaContract reference = (ReflectedReferenceSchemaContract) builder.toInstance()
+			.getReferenceOrThrowException("categoryProducts");
+		assertTrue(reference.isIndexedInherited());
+		assertFalse(reference.isIndexedComponentsInherited());
+		assertEquals(
+			Map.of(
+				Scope.LIVE,
+				Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY)
+			),
+			reference.getIndexedComponentsInScopes()
+		);
+		assertEmittedMutationsReproduce(storedSchema, builder);
+	}
+
+	@DisplayName("declare only the indexing set after the indexing of a reflected reference is made inherited")
+	@Test
+	void shouldNotMergeIndexingDeclaredBeforeInheritedIndexingWithOneDeclaredAfter() {
+		final EntitySchemaContract storedSchema = new InternalEntitySchemaBuilder(
+				this.catalogSchema, this.categorySchema
+			)
+			.withReflectedReferenceToEntity("categoryProducts", Entities.PRODUCT, "productCategories")
+			.toInstance();
+		// the inherited indexing in between overrides the first declaration, so the last one alone decides - applied
+		// one by one, the mutations leave the reference indexed in the live scope only
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema)
+			.withReflectedReferenceToEntity(
+				"categoryProducts", Entities.PRODUCT, "productCategories",
+				whichIs -> whichIs
+					.indexedInScope(Scope.LIVE, Scope.ARCHIVED)
+					.indexedInScope((Scope[]) null)
+					.indexedInScope(Scope.LIVE)
+			);
+
+		final ReferenceSchemaContract reference = builder.toInstance().getReferenceOrThrowException("categoryProducts");
+		assertEquals(Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING), reference.getReferenceIndexTypeInScopes());
+		assertEmittedMutationsReproduce(storedSchema, builder);
+	}
+
+	@DisplayName("declare only the components set after the indexing of a reflected reference is made inherited")
+	@Test
+	void shouldNotMergeComponentsDeclaredBeforeInheritedIndexingWithOnesDeclaredAfter() {
+		final EntitySchemaContract storedSchema = new InternalEntitySchemaBuilder(
+				this.catalogSchema, this.categorySchema
+			)
+			.withReflectedReferenceToEntity("categoryProducts", Entities.PRODUCT, "productCategories")
+			.toInstance();
+		// the inherited indexing in between overrides the first declaration, so the last one alone decides - applied
+		// one by one, the mutations leave the reference indexed in the live scope only, with the entity component
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema)
+			.withReflectedReferenceToEntity(
+				"categoryProducts", Entities.PRODUCT, "productCategories",
+				whichIs -> whichIs
+					.indexedWithComponentsInScope(
+						Scope.ARCHIVED,
+						ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+					.indexedInScope((Scope[]) null)
+					.indexedWithComponentsInScope(Scope.LIVE, ReferenceIndexedComponents.REFERENCED_ENTITY)
+			);
+
+		final ReferenceSchemaContract reference = builder.toInstance().getReferenceOrThrowException("categoryProducts");
+		assertEquals(Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING), reference.getReferenceIndexTypeInScopes());
+		assertEquals(
+			Map.of(Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY)),
+			reference.getIndexedComponentsInScopes()
+		);
+		assertEmittedMutationsReproduce(storedSchema, builder);
+	}
+
+	@DisplayName("re-create a removed stored reflected reference declaring its components as one inheriting everything")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRecreateRemovedStoredReflectedReferenceDeclaringComponentsAsInheritingEverything() {
+		final EntitySchemaContract storedSchema = new InternalEntitySchemaBuilder(
+				this.catalogSchema, this.categorySchema
+			)
+			.withReflectedReferenceToEntity(
+				"categoryProducts", Entities.PRODUCT, "productCategories",
+				whichIs -> whichIs.indexedWithComponents(
+					ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+				)
+			)
+			.toInstance();
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		final UnaryOperator<EntitySchemaBuilder> recreation = it -> it.withReflectedReferenceToEntity(
+			"categoryProducts", Entities.PRODUCT, "productCategories"
+		);
+
+		recreation.apply(builder.withoutReferenceTo("categoryProducts"));
+
+		final ReflectedReferenceSchemaContract reference = (ReflectedReferenceSchemaContract) builder.toInstance()
+			.getReferenceOrThrowException("categoryProducts");
+		assertTrue(reference.isIndexedInherited());
+		assertTrue(reference.isIndexedComponentsInherited());
+		assertRecreatedAsDefinedFromScratch(storedSchema, builder, this.categorySchema, "categoryProducts", recreation);
+	}
+
+	@DisplayName("re-create a removed stored reflected reference declaring its components as one inheriting them")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRecreateRemovedStoredReflectedReferenceDeclaringComponentsAsInheritingThem() {
+		final EntitySchemaContract storedSchema = new InternalEntitySchemaBuilder(this.catalogSchema, this.categorySchema)
+			.withReflectedReferenceToEntity(
+				"categoryProducts", Entities.PRODUCT, "productCategories",
+				whichIs -> whichIs.indexedWithComponents(
+					ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+				)
+			)
+			.toInstance();
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		final UnaryOperator<EntitySchemaBuilder> recreation = it -> it.withReflectedReferenceToEntity(
+			"categoryProducts", Entities.PRODUCT, "productCategories", ReflectedReferenceSchemaBuilder::indexed
+		);
+
+		// the collapse makes the indexing inherited and leaves the declared components; the declared indexing the
+		// builder adds after it declares no components, which makes them inherited
+		recreation.apply(builder.withoutReferenceTo("categoryProducts"));
+
+		final ReflectedReferenceSchemaContract reference = (ReflectedReferenceSchemaContract) builder.toInstance()
+			.getReferenceOrThrowException("categoryProducts");
+		assertFalse(reference.isIndexedInherited());
+		assertTrue(reference.isIndexedComponentsInherited());
+		assertRecreatedAsDefinedFromScratch(storedSchema, builder, this.categorySchema, "categoryProducts", recreation);
+	}
+
+	@DisplayName("create an attribute after removing one of that name the entity schema does not have")
+	@Test
+	void shouldCreateAttributeAfterRemovingAbsentAttributeOfThatName() {
+		// a catalog builder hands its entity builders the entity without a global attribute it removed, while the
+		// server still finds the attribute when it applies the removal - so the removal stays and the creation follows
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, this.productSchema)
+			.withoutAttribute("code")
+			.withAttribute("code", Integer.class);
+
+		assertEquals(Integer.class, builder.toInstance().getAttribute("code").orElseThrow().getType());
+		assertEmittedMutationsReproduce(this.productSchema, builder);
+	}
+
+	@DisplayName("remove a stored reference again after re-creating it")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRemoveRecreatedStoredReferenceAgain() {
+		final EntitySchemaContract storedSchema = productWithIndexedBrandReference(true);
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+
+		builder
+			.withoutReferenceTo(REFERENCE_BRAND)
+			.withReferenceToEntity(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE)
+			.withoutReferenceTo(REFERENCE_BRAND);
+
+		assertTrue(builder.toInstance().getReference(REFERENCE_BRAND).isEmpty());
+		assertEmittedMutationsReproduce(storedSchema, builder);
+	}
+
+	@DisplayName("re-create a removed stored indexed and faceted reference without attributes as a plain reference")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRecreateRemovedStoredIndexedFacetedReferenceWithoutAttributesAsPlainReference() {
+		final EntitySchemaContract storedSchema = new InternalEntitySchemaBuilder(this.catalogSchema, this.productSchema)
+			.withReferenceTo(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, whichIs -> whichIs.indexed().faceted())
+			.toInstance();
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		final UnaryOperator<EntitySchemaBuilder> recreation =
+			it -> it.withReferenceTo(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE);
+
+		// the removal and the re-creation collapse into two index changes and a change of the faceting; without an
+		// attribute removal among them nothing is discarded while they are combined
+		recreation.apply(builder.withoutReferenceTo(REFERENCE_BRAND));
+
+		assertFalse(builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND).isFaceted());
+		assertRecreatedAsDefinedFromScratch(storedSchema, builder, recreation);
+	}
+
+	@DisplayName("re-create a removed stored plain reference as an indexed and faceted reference")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRecreateRemovedStoredPlainReferenceAsIndexedFacetedReference() {
+		final EntitySchemaContract storedSchema = productWithBrandReference();
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		final UnaryOperator<EntitySchemaBuilder> recreation = it -> it.withReferenceTo(
+			REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, whichIs -> whichIs.indexed().faceted()
+		);
+
+		// the mirror of the case above: the same two index changes and a change of the faceting, now switching both
+		// on - whatever order the builder ends up emitting them in, they must make the stored reference faceted
+		recreation.apply(builder.withoutReferenceTo(REFERENCE_BRAND));
+
+		assertTrue(builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND).isFaceted());
+		assertRecreatedAsDefinedFromScratch(storedSchema, builder, recreation);
+	}
+
+	@DisplayName("re-create a removed stored reference whose decimal attribute changes only its indexed decimal places")
+	@Test
+	@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	void shouldRecreateRemovedStoredReferenceWithChangedDecimalPlaces() {
+		final EntitySchemaContract storedSchema = new InternalEntitySchemaBuilder(this.catalogSchema, this.productSchema)
+			.withReferenceToEntity(
+				REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.indexed().withAttribute("share", BigDecimal.class, thatIs -> thatIs.filterable().indexDecimalPlaces(2))
+			)
+			.toInstance();
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		final UnaryOperator<EntitySchemaBuilder> recreation = it -> it.withReferenceToEntity(
+			REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+			whichIs -> whichIs.indexed().withAttribute("share", BigDecimal.class, AttributeSchemaEditor::filterable)
+		);
+
+		recreation.apply(builder.withoutReferenceTo(REFERENCE_BRAND));
+
+		assertEquals(
+			0,
+			builder.toInstance().getReferenceOrThrowException(REFERENCE_BRAND).getAttribute("share").orElseThrow().getIndexedDecimalPlaces()
+		);
+		assertTrue(builder.toMutation().isPresent(), "The changed decimal places must be sent.");
+		assertRecreatedAsDefinedFromScratch(storedSchema, builder, recreation);
+	}
+
+	@DisplayName("re-create a removed stored attribute that changes only its indexed decimal places")
+	@Test
+	void shouldRecreateRemovedStoredAttributeWithChangedDecimalPlaces() {
+		final EntitySchemaContract storedSchema = new InternalEntitySchemaBuilder(this.catalogSchema, this.productSchema)
+			.withAttribute("price", BigDecimal.class, thatIs -> thatIs.filterable().indexDecimalPlaces(2))
+			.toInstance();
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+
+		builder
+			.withoutAttribute("price")
+			.withAttribute("price", BigDecimal.class, AttributeSchemaEditor::filterable);
+
+		assertEquals(0, builder.toInstance().getAttribute("price").orElseThrow().getIndexedDecimalPlaces());
+		final EntitySchemaContract appliedSchema = builder.toMutation()
+			.map(mutation -> mutation.mutate(this.catalogSchema, storedSchema))
+			.orElse(storedSchema);
+		assertNotNull(appliedSchema);
+		assertEquals(0, appliedSchema.getAttribute("price").orElseThrow().getIndexedDecimalPlaces());
+	}
+
+	@DisplayName("re-define a stored attribute with an equal array default value and send nothing")
+	@Test
+	void shouldSendNothingWhenRedefiningStoredAttributeWithEqualArrayDefaultValue() {
+		final EntitySchemaContract storedSchema =
+			new InternalEntitySchemaBuilder(this.catalogSchema, this.productSchema)
+				.withAttribute("tags", String[].class, thatIs -> thatIs.withDefaultValue(new String[]{"a", "b"}))
+				.toInstance();
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+
+		builder.withAttribute("tags", String[].class, thatIs -> thatIs.withDefaultValue(new String[]{"a", "b"}));
+
+		assertTrue(builder.toMutation().isEmpty(), "Re-defining the stored default value must leave nothing to send.");
+	}
+
+	/**
+	 * Asserts that the mutations the builder emits, applied to the stored schema, give the references the builder
+	 * itself shows - what the server ends with is what the client saw.
+	 */
+	private void assertEmittedMutationsReproduce(@Nonnull EntitySchemaContract storedSchema, @Nonnull EntitySchemaBuilder builder) {
+		final EntitySchemaContract builderSchema = builder.toInstance();
+		final EntitySchemaContract appliedSchema = builder.toMutation()
+			.map(mutation -> mutation.mutate(this.catalogSchema, storedSchema))
+			.orElse(storedSchema);
+		assertNotNull(appliedSchema);
+		assertEquals(builderSchema.getReferences(), appliedSchema.getReferences());
+	}
+
+	/**
+	 * Asserts that the brand reference the builder re-created equals the one the same definition gives on a product
+	 * without references - both as the builder shows it and as the emitted mutations make it of the stored schema.
+	 * Unlike {@link #assertEmittedMutationsReproduce}, which compares two derivations of the same mutation list, the
+	 * expectation here does not come from the mutations under test, so a mutation lost while the builder combines
+	 * them shows up.
+	 *
+	 * @param storedSchema the stored schema the builder started from
+	 * @param builder      the builder that removed and re-created the reference
+	 * @param recreation   the definition the builder re-created the reference with
+	 */
+	private void assertRecreatedAsDefinedFromScratch(
+		@Nonnull EntitySchemaContract storedSchema,
+		@Nonnull EntitySchemaBuilder builder,
+		@Nonnull UnaryOperator<EntitySchemaBuilder> recreation
+	) {
+		assertRecreatedAsDefinedFromScratch(storedSchema, builder, this.productSchema, REFERENCE_BRAND, recreation);
+	}
+
+	/**
+	 * Asserts that the reference the builder re-created equals the one the same definition gives on the entity
+	 * without references - both as the builder shows it and as the emitted mutations make it of the stored schema.
+	 * The expectation does not come from the mutations under test, so a mutation lost or changed while the builder
+	 * combines them shows up.
+	 *
+	 * @param storedSchema  the stored schema the builder started from
+	 * @param builder       the builder that removed and re-created the reference
+	 * @param emptySchema   the schema of the same entity without references, which the expectation is defined on
+	 * @param referenceName the name of the re-created reference
+	 * @param recreation    the definition the builder re-created the reference with
+	 */
+	private void assertRecreatedAsDefinedFromScratch(
+		@Nonnull EntitySchemaContract storedSchema,
+		@Nonnull EntitySchemaBuilder builder,
+		@Nonnull EntitySchema emptySchema,
+		@Nonnull String referenceName,
+		@Nonnull UnaryOperator<EntitySchemaBuilder> recreation
+	) {
+		final ReferenceSchemaContract expected = recreation.apply(new InternalEntitySchemaBuilder(this.catalogSchema, emptySchema))
+			.toInstance()
+			.getReferenceOrThrowException(referenceName);
+		assertEquals(expected, builder.toInstance().getReferenceOrThrowException(referenceName));
+		final EntitySchemaContract appliedSchema = builder.toMutation()
+			.map(mutation -> mutation.mutate(this.catalogSchema, storedSchema))
+			.orElse(storedSchema);
+		assertNotNull(appliedSchema);
+		assertEquals(expected, appliedSchema.getReferenceOrThrowException(referenceName));
+	}
+
+	/**
+	 * Returns the product schema with a stored, indexed and faceted reference to brands of cardinality zero or one,
+	 * carrying the reference attribute `a` the product itself does not have.
+	 *
+	 * @param managed whether the brand entity type is managed by evitaDB
+	 */
+	@Nonnull
+	private EntitySchemaContract productWithIndexedBrandReference(boolean managed) {
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, this.productSchema);
+		if (managed) {
+			builder.withReferenceToEntity(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, INDEXED_FACETED_WITH_ATTRIBUTE);
+		} else {
+			builder.withReferenceTo(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, INDEXED_FACETED_WITH_ATTRIBUTE);
+		}
+		return builder.toInstance();
+	}
+
+	/**
+	 * Returns the product schema with a stored reference to brands of cardinality zero or one and no description.
+	 */
+	@Nonnull
+	private EntitySchemaContract productWithBrandReference() {
+		return new InternalEntitySchemaBuilder(this.catalogSchema, this.productSchema)
+			.withReferenceTo(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE)
+			.toInstance();
+	}
+
 	/**
 	 * Tests the cooperatingWith method functionality of the EntitySchemaBuilder.
 	 * This test verifies that the schema builder can be configured to cooperate with a catalog schema
@@ -2923,6 +3482,93 @@ class EntitySchemaBuilderTest {
 	 */
 	public static class Labels implements Serializable {
 		@Serial private static final long serialVersionUID = 1121150156843379388L;
+	}
+
+	@DisplayName("refuse to redirect an existing reflected reference to another original reference")
+	@Test
+	void shouldRefuseToRedirectExistingReflectedReference() {
+		final EntitySchemaContract storedSchema = new InternalEntitySchemaBuilder(this.catalogSchema, this.categorySchema)
+			.withReflectedReferenceToEntity(REFERENCE_CATEGORY_PRODUCTS, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORIES)
+			.toInstance();
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+
+		// no mutation can change the original reference, so the new one must not be silently ignored
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> builder.withReflectedReferenceToEntity(REFERENCE_CATEGORY_PRODUCTS, Entities.PRODUCT, "productMainCategories")
+		);
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> builder.withReflectedReferenceToEntity(REFERENCE_CATEGORY_PRODUCTS, Entities.BRAND, REFERENCE_PRODUCT_CATEGORIES)
+		);
+		// the same original is still accepted
+		builder.withReflectedReferenceToEntity(REFERENCE_CATEGORY_PRODUCTS, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORIES);
+		assertTrue(builder.toMutation().isEmpty());
+	}
+
+	@DisplayName("collect nothing when a bound reflected reference is told to inherit what it already inherits")
+	@Test
+	void shouldCollectNothingWhenBoundReflectedReferenceInheritsAlready() {
+		final EntitySchemaContract storedSchema = categoryWithBoundReflectedReference(
+			whichIs -> whichIs.withAttributesInherited(ATTRIBUTE_NOTE)
+		);
+
+		final EntitySchemaBuilder descriptionBuilder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		descriptionBuilder.withReflectedReferenceToEntity(
+			REFERENCE_CATEGORY_PRODUCTS, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORIES,
+			ReflectedReferenceSchemaBuilder::withDescriptionInherited
+		);
+		assertTrue(descriptionBuilder.toMutation().isEmpty(), "Inheriting the inherited description must send nothing.");
+
+		final EntitySchemaBuilder attributeBuilder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+		attributeBuilder.withReflectedReferenceToEntity(
+			REFERENCE_CATEGORY_PRODUCTS, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORIES,
+			whichIs -> whichIs.withAttributesInherited(ATTRIBUTE_NOTE)
+		);
+		assertTrue(attributeBuilder.toMutation().isEmpty(), "Inheriting the inherited attributes must send nothing.");
+	}
+
+	@DisplayName("collect an explicit value of a bound reflected reference even when it equals the inherited one")
+	@Test
+	void shouldCollectExplicitValueEqualToInheritedOne() {
+		final EntitySchemaContract storedSchema = categoryWithBoundReflectedReference(
+			whichIs -> whichIs.withAttributesInherited(ATTRIBUTE_NOTE)
+		);
+		final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(this.catalogSchema, storedSchema);
+
+		// declaring the value turns inheritance off, which is a change of the definition
+		builder.withReflectedReferenceToEntity(
+			REFERENCE_CATEGORY_PRODUCTS, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORIES,
+			whichIs -> whichIs.withDescription(PRODUCT_CATEGORIES_DESCRIPTION)
+		);
+
+		assertTrue(builder.toMutation().isPresent(), "An explicit description must be sent.");
+		final ReflectedReferenceSchemaContract reference = (ReflectedReferenceSchemaContract) builder.toInstance()
+			.getReferenceOrThrowException(REFERENCE_CATEGORY_PRODUCTS);
+		assertFalse(reference.isDescriptionInherited());
+	}
+
+	/**
+	 * Returns the category schema with a reflected reference to the products' category reference, bound to that
+	 * original reference the way the engine binds it, so that the inherited values are available.
+	 *
+	 * @param whichIs configures the reflected reference
+	 */
+	@Nonnull
+	private EntitySchemaContract categoryWithBoundReflectedReference(@Nonnull Consumer<ReflectedReferenceSchemaBuilder> whichIs) {
+		final EntitySchemaContract product = new InternalEntitySchemaBuilder(this.catalogSchema, this.productSchema)
+			.withReferenceToEntity(
+				REFERENCE_PRODUCT_CATEGORIES, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+				thatIs -> thatIs.withDescription(PRODUCT_CATEGORIES_DESCRIPTION).indexed().withAttribute(ATTRIBUTE_NOTE, String.class)
+			)
+			.toInstance();
+		final EntitySchema category = (EntitySchema) new InternalEntitySchemaBuilder(this.catalogSchema, this.categorySchema)
+			.withReflectedReferenceToEntity(REFERENCE_CATEGORY_PRODUCTS, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORIES, whichIs)
+			.toInstance();
+		final ReflectedReferenceSchema boundReference = ((ReflectedReferenceSchema) category.getReferenceOrThrowException(REFERENCE_CATEGORY_PRODUCTS))
+			.withReferencedSchema(product.getReferenceOrThrowException(REFERENCE_PRODUCT_CATEGORIES));
+		assertEquals(PRODUCT_CATEGORIES_DESCRIPTION, boundReference.getDescription());
+		return category.withReplacedReferenceSchema(boundReference);
 	}
 
 }

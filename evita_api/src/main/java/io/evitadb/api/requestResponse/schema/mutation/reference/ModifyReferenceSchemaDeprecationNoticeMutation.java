@@ -94,7 +94,13 @@ public class ModifyReferenceSchemaDeprecationNoticeMutation
 	) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
 		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
-			if (reflectedReferenceSchema.isReflectedReferenceAvailable() && Objects.equals(reflectedReferenceSchema.getDeprecationNotice(), this.deprecationNotice)) {
+			// a reflected reference either inherits its deprecation notice (null) or declares one, and a declared
+			// value equal to the inherited one is still a declaration - the effective value cannot tell a change apart
+			final boolean unchanged = this.deprecationNotice == null
+				? reflectedReferenceSchema.isDeprecatedInherited()
+				: !reflectedReferenceSchema.isDeprecatedInherited() &&
+					this.deprecationNotice.equals(reflectedReferenceSchema.getDeprecationNotice());
+			if (unchanged) {
 				return referenceSchema;
 			} else {
 				return reflectedReferenceSchema

@@ -24,6 +24,7 @@
 package io.evitadb.api;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -55,6 +56,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -65,6 +67,7 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
@@ -80,6 +83,7 @@ import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -605,6 +609,57 @@ class ReflectedReferenceLocalDeclarationsFunctionalTest implements EvitaTestSupp
 			assertEquals("session continued", session.getEntitySchemaOrThrowException("brand").getDescription());
 			assertTrue(reflected(session).isDescriptionInherited());
 			assertLocalAttribute(session);
+		});
+	}
+
+	/**
+	 * A refusal raised while the collection applies a schema change - here the original reference gains an attribute
+	 * the reflected reference already declares as its own, which the rebinding of the reflection rejects - comes after
+	 * the change reached the transaction. The transaction must then be rollback-only: a session catching the refusal
+	 * and going on cannot commit it, the next session writes normally and the catalog still loads after a restart.
+	 */
+	@Test
+	@DisplayName("Refusal raised while rebinding a reflection rolls back the transaction that caught it")
+	void shouldRollBackTransactionThatCaughtRefusalRaisedWhileRebindingReflection() {
+		this.defineSchema(true, false);
+		this.populatePair(false);
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
+			session.getEntitySchemaOrThrowException("brand").openForWrite()
+				.withReflectedReferenceToEntity("products", "product", "brand", reference -> reference
+					.withAttribute("laterLabel", String.class, attribute -> attribute.nullable()))
+				.updateVia(session);
+		});
+
+		final AtomicReference<Throwable> closingError = new AtomicReference<>();
+		try {
+			this.evita.updateCatalog(TEST_CATALOG, session -> {
+				final RuntimeException refusal = assertThrows(RuntimeException.class,
+					() -> session.getEntitySchemaOrThrowException("product").openForWrite()
+						.withReferenceToEntity("brand", "brand", Cardinality.ZERO_OR_MORE, reference -> reference
+							.withAttribute("laterLabel", String.class, attribute -> attribute.nullable()))
+						.updateVia(session));
+				assertTrue(refusal.getMessage().contains("laterLabel"), refusal.getMessage());
+				assertTrue(session.isRollbackOnly());
+				session.getEntitySchemaOrThrowException("brand").openForWrite()
+					.withDescription("session continued").updateVia(session);
+			});
+		} catch (RuntimeException ex) {
+			closingError.set(ex);
+		}
+		assertInstanceOf(RollbackException.class, closingError.get(), () -> "Closed with " + closingError.get());
+
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
+			session.getEntitySchemaOrThrowException("brand").openForWrite()
+				.withDescription("next session").updateVia(session);
+		});
+		this.restart();
+		this.evita.queryCatalog(TEST_CATALOG, session -> {
+			assertEquals("next session", session.getEntitySchemaOrThrowException("brand").getDescription());
+			assertTrue(
+				session.getEntitySchemaOrThrowException("product").getReferenceOrThrowException("brand")
+					.getAttribute("laterLabel").isEmpty()
+			);
+			assertTrue(reflected(session).getAttribute("laterLabel").isPresent());
 		});
 	}
 

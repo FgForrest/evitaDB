@@ -119,44 +119,65 @@ public class CreateSortableAttributeCompoundSchemaMutation
 		// when the attribute schema was removed before and added again, we may remove both operations
 		// and leave only operations that reset the original settings do defaults
 		if (existingMutation instanceof RemoveSortableAttributeCompoundSchemaMutation removeCompound &&
-			Objects.equals(removeCompound.getName(), this.name) &&
-			Arrays.equals(
-				currentEntitySchema.getSortableAttributeCompound(removeCompound.getName())
-					.map(SortableAttributeCompoundSchemaContract::getAttributeElements)
-					.map(it -> it.toArray(AttributeElement[]::new))
-					.orElseGet(() -> new AttributeElement[0]),
-				this.attributeElements
-			)
+			Objects.equals(removeCompound.getName(), this.name)
 		) {
-			final SortableAttributeCompoundSchemaContract createdVersion = Objects.requireNonNull(
-				mutate(currentEntitySchema, null, (SortableAttributeCompoundSchemaContract) null)
-			);
-			final SortableAttributeCompoundSchemaContract existingVersion = currentEntitySchema.getSortableAttributeCompound(this.name).orElseThrow();
-			return new MutationCombinationResult<>(
-				null,
-				Stream.of(
-						makeMutationIfDifferent(
-							SortableAttributeCompoundSchemaContract.class, createdVersion, existingVersion,
-							NamedSchemaContract::getDescription,
-							newValue -> new ModifySortableAttributeCompoundSchemaDescriptionMutation(this.name, newValue)
-						),
-						makeMutationIfDifferent(
-							SortableAttributeCompoundSchemaContract.class, createdVersion, existingVersion,
-							NamedSchemaWithDeprecationContract::getDeprecationNotice,
-							newValue -> new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation(this.name, newValue)
-						),
-						makeMutationIfDifferent(
-							SortableAttributeCompoundSchemaContract.class, createdVersion, existingVersion,
-							sacs -> sacs.getIndexedInScopes().toArray(Scope[]::new),
-							newValue -> new SetSortableAttributeCompoundSchemaIndexedMutation(this.name, newValue)
-						)
-					)
-					.filter(Objects::nonNull)
-					.toArray(LocalEntitySchemaMutation[]::new)
-			);
+			final Optional<? extends SortableAttributeCompoundSchemaContract> removedCompound =
+				currentEntitySchema.getSortableAttributeCompound(this.name);
+			return removedCompound.isPresent()
+				? combineWithRemovalOf(currentEntitySchema, removedCompound.get())
+				: null;
 		} else {
 			return null;
 		}
+	}
+
+	/**
+	 * Collapses the removal of a sortable attribute compound followed by this re-creation of it into the mutations
+	 * that change only what differs between the removed compound and the re-created one. A compound over different
+	 * attribute elements cannot be modified into the new one, so the two mutations then do not combine.
+	 *
+	 * The removed compound is passed in rather than looked up, because the caller knows where it lives: an entity
+	 * compound for this mutation applied to an entity, the compound of a reference when the mutation is wrapped in
+	 * {@link io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutation}.
+	 *
+	 * @param currentEntitySchema the entity schema the compound is created in
+	 * @param existingVersion     the compound the removal removes
+	 * @return the combination that discards the removal and replaces this mutation with the differing properties,
+	 * or null when the compounds differ in their attribute elements
+	 */
+	@Nullable
+	public MutationCombinationResult<LocalEntitySchemaMutation> combineWithRemovalOf(
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull SortableAttributeCompoundSchemaContract existingVersion
+	) {
+		if (!Arrays.equals(existingVersion.getAttributeElements().toArray(AttributeElement[]::new), this.attributeElements)) {
+			return null;
+		}
+		final SortableAttributeCompoundSchemaContract createdVersion = Objects.requireNonNull(
+			mutate(currentEntitySchema, null, (SortableAttributeCompoundSchemaContract) null)
+		);
+		return new MutationCombinationResult<>(
+			null,
+			Stream.of(
+					makeMutationIfDifferent(
+						SortableAttributeCompoundSchemaContract.class, createdVersion, existingVersion,
+						NamedSchemaContract::getDescription,
+						newValue -> new ModifySortableAttributeCompoundSchemaDescriptionMutation(this.name, newValue)
+					),
+					makeMutationIfDifferent(
+						SortableAttributeCompoundSchemaContract.class, createdVersion, existingVersion,
+						NamedSchemaWithDeprecationContract::getDeprecationNotice,
+						newValue -> new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation(this.name, newValue)
+					),
+					makeMutationIfDifferent(
+						SortableAttributeCompoundSchemaContract.class, createdVersion, existingVersion,
+						sacs -> sacs.getIndexedInScopes().toArray(Scope[]::new),
+						newValue -> new SetSortableAttributeCompoundSchemaIndexedMutation(this.name, newValue)
+					)
+				)
+				.filter(Objects::nonNull)
+				.toArray(LocalEntitySchemaMutation[]::new)
+		);
 	}
 
 	@Nullable

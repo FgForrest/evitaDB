@@ -1340,42 +1340,80 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		);
 	}
 
+	/**
+	 * Returns a hash code consistent with {@link #equals(Object)}: derived from the own definition of the reflected
+	 * reference only.
+	 *
+	 * @return the hash code of the own definition
+	 */
 	@Override
 	public int hashCode() {
-		int result = super.hashCode();
+		int result = this.name.hashCode();
+		result = 31 * result + this.referencedEntityType.hashCode();
 		result = 31 * result + this.reflectedReferenceName.hashCode();
-		result = 31 * result + Boolean.hashCode(this.descriptionInherited);
-		result = 31 * result + Boolean.hashCode(this.deprecatedInherited);
-		result = 31 * result + Boolean.hashCode(this.cardinalityInherited);
-		result = 31 * result + Boolean.hashCode(this.indexedInherited) + (this.indexedInherited ? 0 : this.indexedInScopes.hashCode());
-		result = 31 * result + Boolean.hashCode(this.indexedComponentsInherited) + (this.indexedComponentsInherited ? 0 : this.indexedComponentsInScopes.hashCode());
-		result = 31 * result + Boolean.hashCode(this.facetedInherited) + (this.facetedInherited ? 0 : this.facetedInScopes.hashCode());
-		result = 31 * result + this.bucketedInScopes.hashCode();
+		result = 31 * result + (this.descriptionInherited ? 1 : 31 + Objects.hashCode(this.description));
+		result = 31 * result + (this.deprecatedInherited ? 1 : 31 + Objects.hashCode(this.deprecationNotice));
+		result = 31 * result + (this.cardinalityInherited ? 1 : 31 + Objects.hashCode(this.cardinality));
+		result = 31 * result + (this.indexedInherited ? 1 : 31 + Objects.hashCode(this.indexedInScopes));
+		result = 31 * result + (this.indexedComponentsInherited ? 1 : 31 + Objects.hashCode(this.indexedComponentsInScopes));
+		result = 31 * result + (this.facetedInherited ? 1 : 31 + Objects.hashCode(this.facetedInScopes));
+		result = 31 * result + Objects.hashCode(this.facetedPartiallyInScopes);
+		result = 31 * result + Objects.hashCode(this.bucketedInScopes);
+		result = 31 * result + Objects.hashCode(this.bucketedPartiallyInScopes);
 		result = 31 * result + this.attributesInheritanceBehavior.hashCode();
 		result = 31 * result + Arrays.hashCode(this.attributeInheritanceFilter);
+		result = 31 * result + getDeclaredAttributes().hashCode();
+		result = 31 * result + getDeclaredSortableAttributeCompounds().hashCode();
 		return result;
 	}
 
+	/**
+	 * Two reflected references are equal when their own definitions are equal: the set of properties the reflected
+	 * reference declares itself, which is exactly what gets persisted. A property the reference inherits is compared
+	 * only by its inheritance flag, and the attributes and compounds only by their declared part. The state taken
+	 * over from the original reference is not compared, because it depends on whether and to which version of the
+	 * original the copy is bound: a copy read from storage is not bound at all, a copy produced by a mutation keeps
+	 * the original but not the values it took from it. The original itself is identified by the referenced entity
+	 * type and the reflected reference name, which are compared, and its content is a schema element of its own.
+	 *
+	 * Every property a mutation can change must be compared here, otherwise schema builders would drop a genuine
+	 * change of it - `ReflectedReferenceSchemaTest` fails when the schema gains an unclassified field.
+	 *
+	 * @param o the object to compare with
+	 * @return true when `o` is a reflected reference with the same own definition
+	 */
 	@Override
 	public boolean equals(Object o) {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
-		if (!super.equals(o)) return false;
 
-		ReflectedReferenceSchema that = (ReflectedReferenceSchema) o;
-		return this.descriptionInherited == that.descriptionInherited &&
-			this.deprecatedInherited == that.deprecatedInherited &&
-			this.cardinalityInherited == that.cardinalityInherited &&
-			this.indexedInherited == that.indexedInherited &&
-			Objects.equals(this.indexedInScopes, that.indexedInScopes) &&
-			this.indexedComponentsInherited == that.indexedComponentsInherited &&
-			Objects.equals(this.indexedComponentsInScopes, that.indexedComponentsInScopes) &&
-			this.facetedInherited == that.facetedInherited &&
-			Objects.equals(this.facetedInScopes, that.facetedInScopes) &&
-			Objects.equals(this.bucketedInScopes, that.bucketedInScopes) &&
-			this.attributesInheritanceBehavior == that.attributesInheritanceBehavior &&
+		final ReflectedReferenceSchema that = (ReflectedReferenceSchema) o;
+		return this.name.equals(that.name) &&
+			Objects.equals(this.nameVariants, that.nameVariants) &&
+			this.referencedEntityType.equals(that.referencedEntityType) &&
 			this.reflectedReferenceName.equals(that.reflectedReferenceName) &&
-			Arrays.equals(this.attributeInheritanceFilter, that.attributeInheritanceFilter);
+			this.referencedEntityTypeManaged == that.referencedEntityTypeManaged &&
+			this.conflictResolutionOverride == that.conflictResolutionOverride &&
+			this.descriptionInherited == that.descriptionInherited &&
+			(this.descriptionInherited || Objects.equals(this.description, that.description)) &&
+			this.deprecatedInherited == that.deprecatedInherited &&
+			(this.deprecatedInherited || Objects.equals(this.deprecationNotice, that.deprecationNotice)) &&
+			this.cardinalityInherited == that.cardinalityInherited &&
+			(this.cardinalityInherited || this.cardinality == that.cardinality) &&
+			this.indexedInherited == that.indexedInherited &&
+			(this.indexedInherited || Objects.equals(this.indexedInScopes, that.indexedInScopes)) &&
+			this.indexedComponentsInherited == that.indexedComponentsInherited &&
+			(this.indexedComponentsInherited || Objects.equals(this.indexedComponentsInScopes, that.indexedComponentsInScopes)) &&
+			this.facetedInherited == that.facetedInherited &&
+			(this.facetedInherited || Objects.equals(this.facetedInScopes, that.facetedInScopes)) &&
+			// compared always: a reference inheriting its faceting carries no expression in any valid state
+			Objects.equals(this.facetedPartiallyInScopes, that.facetedPartiallyInScopes) &&
+			Objects.equals(this.bucketedInScopes, that.bucketedInScopes) &&
+			Objects.equals(this.bucketedPartiallyInScopes, that.bucketedPartiallyInScopes) &&
+			this.attributesInheritanceBehavior == that.attributesInheritanceBehavior &&
+			Arrays.equals(this.attributeInheritanceFilter, that.attributeInheritanceFilter) &&
+			getDeclaredAttributes().equals(that.getDeclaredAttributes()) &&
+			getDeclaredSortableAttributeCompounds().equals(that.getDeclaredSortableAttributeCompounds());
 	}
 
 	/**

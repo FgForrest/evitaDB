@@ -38,6 +38,11 @@ import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ReferenceAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDescriptionMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaTypeMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -45,6 +50,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Tag;
 
@@ -56,6 +62,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -204,6 +211,111 @@ class ModifyReferenceAttributeSchemaMutationTest {
 				);
 
 			assertNull(result);
+		}
+
+		@Test
+		@DisplayName("should hand back the examined mutation itself when the attribute mutation keeps itself")
+		void shouldReturnExaminedMutationItselfWhenAttributeMutationKeepsItself() {
+			final ModifyReferenceAttributeSchemaMutation mutation = new ModifyReferenceAttributeSchemaMutation(
+				REFERENCE_NAME,
+				new SetAttributeSchemaUniqueMutation(REFERENCE_ATTRIBUTE_PRIORITY, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			);
+			final ModifyReferenceAttributeSchemaMutation existingMutation = new ModifyReferenceAttributeSchemaMutation(
+				REFERENCE_NAME,
+				new SetAttributeSchemaUniqueMutation(REFERENCE_ATTRIBUTE_PRIORITY, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE)
+			);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
+				Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), existingMutation
+			);
+
+			// the wrapper stands for the attribute mutation it wraps, so the schema builder reads the result as it reads
+			// the result of the unwrapped mutations
+			assertNotNull(result);
+			assertNull(result.origin());
+			assertNotNull(result.current());
+			assertEquals(1, result.current().length);
+			assertSame(mutation, result.current()[0]);
+		}
+
+		@Test
+		@DisplayName("should keep the discarded flag of the attribute mutation")
+		void shouldKeepDiscardedFlagOfAttributeMutation() {
+			final ModifyReferenceAttributeSchemaMutation mutation = new ModifyReferenceAttributeSchemaMutation(
+				REFERENCE_NAME, new RemoveAttributeSchemaMutation(REFERENCE_ATTRIBUTE_PRIORITY)
+			);
+			final ModifyReferenceAttributeSchemaMutation existingMutation = new ModifyReferenceAttributeSchemaMutation(
+				REFERENCE_NAME, new RemoveAttributeSchemaMutation(REFERENCE_ATTRIBUTE_PRIORITY)
+			);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
+				Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), existingMutation
+			);
+
+			assertNotNull(result);
+			assertTrue(result.discarded());
+			assertNull(result.origin());
+			assertNotNull(result.current());
+			assertEquals(1, result.current().length);
+			assertSame(mutation, result.current()[0]);
+		}
+
+		@Test
+		@DisplayName("should put the examined mutation in place of the existing one when the attribute mutations swap")
+		void shouldPutExaminedMutationInPlaceOfExistingWhenAttributeMutationsSwap() {
+			final ModifyReferenceAttributeSchemaMutation mutation = new ModifyReferenceAttributeSchemaMutation(
+				REFERENCE_NAME, new ModifyAttributeSchemaTypeMutation(REFERENCE_ATTRIBUTE_PRIORITY, Long.class, 0)
+			);
+			final ModifyReferenceAttributeSchemaMutation existingMutation = new ModifyReferenceAttributeSchemaMutation(
+				REFERENCE_NAME, new SetAttributeSchemaFilterableMutation(REFERENCE_ATTRIBUTE_PRIORITY, true)
+			);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
+				Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), existingMutation
+			);
+
+			// the type change takes the place of the filterable change, which moves after it
+			assertNotNull(result);
+			assertSame(mutation, result.origin());
+			assertNotNull(result.current());
+			assertEquals(1, result.current().length);
+			assertSame(existingMutation, result.current()[0]);
+		}
+
+		@Test
+		@DisplayName("should compare a re-created attribute with the attribute of the reference, not of the entity")
+		void shouldCompareRecreatedAttributeWithAttributeOfReference() {
+			final ModifyReferenceAttributeSchemaMutation mutation = new ModifyReferenceAttributeSchemaMutation(
+				REFERENCE_NAME,
+				new CreateAttributeSchemaMutation(
+					REFERENCE_ATTRIBUTE_PRIORITY, "newDescription", "oldDeprecationNotice", null,
+					false, false, false, false, false, Integer.class, null, 2
+				)
+			);
+			final ModifyReferenceAttributeSchemaMutation existingMutation = new ModifyReferenceAttributeSchemaMutation(
+				REFERENCE_NAME, new RemoveAttributeSchemaMutation(REFERENCE_ATTRIBUTE_PRIORITY)
+			);
+			// the entity itself has no attribute of that name
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReference(REFERENCE_NAME)).thenReturn(of(createExistingReferenceSchema()));
+			Mockito.when(entitySchema.getAttribute(REFERENCE_ATTRIBUTE_PRIORITY)).thenReturn(Optional.empty());
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
+				Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation
+			);
+
+			// the removal and the re-creation collapse into the one property that differs
+			assertNotNull(result);
+			assertNull(result.origin());
+			assertNotNull(result.current());
+			assertEquals(1, result.current().length);
+			final ModifyReferenceAttributeSchemaMutation modification =
+				assertInstanceOf(ModifyReferenceAttributeSchemaMutation.class, result.current()[0]);
+			assertEquals(REFERENCE_NAME, modification.getName());
+			final ModifyAttributeSchemaDescriptionMutation descriptionChange = assertInstanceOf(
+				ModifyAttributeSchemaDescriptionMutation.class, modification.getAttributeSchemaMutation()
+			);
+			assertEquals("newDescription", descriptionChange.getDescription());
 		}
 	}
 

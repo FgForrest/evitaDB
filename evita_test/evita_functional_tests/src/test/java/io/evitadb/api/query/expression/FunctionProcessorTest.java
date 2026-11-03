@@ -56,6 +56,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -562,6 +563,38 @@ class FunctionProcessorTest {
 
 			assertNotNull(children);
 			assertEquals(2, children.length);
+		}
+
+		@Test
+		@DisplayName("should equal an operator of the same function over equal arguments")
+		void shouldEqualOperatorOfSameFunctionOverEqualArguments() {
+			// separate processor instances, as after deserialization - the function name identifies the function
+			final FunctionOperator op = new FunctionOperator(new MaxFunctionProcessor(), List.of(num(4), num(8)));
+			final FunctionOperator sameOp = new FunctionOperator(new MaxFunctionProcessor(), List.of(num(4), num(8)));
+
+			assertEquals(op, sameOp);
+			assertEquals(op.hashCode(), sameOp.hashCode());
+		}
+
+		@Test
+		@DisplayName("should not equal an operator of another function or over other arguments")
+		void shouldNotEqualOperatorOfAnotherFunctionOrOverOtherArguments() {
+			final FunctionOperator op = new FunctionOperator(new MaxFunctionProcessor(), List.of(num(4), num(8)));
+
+			assertNotEquals(op, new FunctionOperator(new MinFunctionProcessor(), List.of(num(4), num(8))));
+			assertNotEquals(op, new FunctionOperator(new MaxFunctionProcessor(), List.of(num(4), num(9))));
+			assertNotEquals(op, new FunctionOperator(new MaxFunctionProcessor(), List.of(num(8), num(4))));
+		}
+
+		@Test
+		@DisplayName("should make an expression with a function call equal its re-parse")
+		void shouldMakeParsedFunctionExpressionsEqual() {
+			final String expression = "max($reference.attributes['size'] ?? 0, 1) > 2";
+
+			assertEquals(ExpressionFactory.parse(expression), ExpressionFactory.parse(expression));
+			assertEquals(
+				ExpressionFactory.parse(expression).hashCode(), ExpressionFactory.parse(expression).hashCode()
+			);
 		}
 	}
 }

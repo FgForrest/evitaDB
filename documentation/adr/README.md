@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-10-31 | [Schema builders drop the mutations that leave their level of the schema unchanged, judged by value at toMutation()](2026-10-31-schema-builder-no-op-mutation-pruning.md) | fix | accepted | #1837, #1843, #1845, #1846, #1847, #1848, #1849, #1850, #1851, #1852, #1853, #1854, #1855, #1856, #1857, #1858, #1859, #1860, #1861, #1862, #1863, #1864, #1865, #1868, #1869, #1870, PR #1844 |
 | 2026-10-29 | [Bound reference ordering by the filtered hierarchy and sort each target as one block](2026-10-29-traverse-ordering-route-parity.md) | fix | accepted | #1670, #1830, PR #1828 |
 | 2026-10-26 | [Fit every release into Maven Central's limits; the shaded driver becomes a recipe, a BOM aligns versions](2026-10-26-maven-central-publishing-budget.md) | infrastructure | accepted | #1805 |
 | 2026-10-26 | [Bulk-build the price and record-id trees each load rebuilds as full leaves; keep the other B+ tree ideas out](2026-10-26-bulk-built-int-keyed-trees-at-load.md) | optimization | accepted | #1802, #1808 |

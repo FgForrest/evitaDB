@@ -116,6 +116,10 @@ public interface CatalogContract {
 	 * transaction rollback-only with the failure as its cause, so none of its changes are committed. A refusal raised
 	 * before the first registration, such as the up-front check of the whole batch, leaves the transaction untouched.
 	 *
+	 * The entity schema changes a catalog mutation cascades into - such as the removal of a global attribute from every
+	 * entity schema using it - are applied right after that mutation, before the mutations that follow it, the way the
+	 * replay of the WAL applies them.
+	 *
 	 * @param sessionId an optional session ID that can be used to register the mutations with an active session
 	 * @param schemaMutation an array of {@link LocalCatalogSchemaMutation} objects that specify the mutations
 	 *                       to apply to the catalog schema

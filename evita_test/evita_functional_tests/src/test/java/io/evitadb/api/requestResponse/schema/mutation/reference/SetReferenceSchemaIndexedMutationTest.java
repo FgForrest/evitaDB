@@ -138,9 +138,10 @@ class SetReferenceSchemaIndexedMutationTest {
 		@Test
 		@DisplayName("should not throw NPE when this.indexedInScopes is null but existing is non-null")
 		void shouldNotThrowNpeWhenThisIndexedInScopesIsNullButExistingIsNonNull() {
+			// declaring no components, the mutation determines the components on its own and replaces the existing one
 			final SetReferenceSchemaIndexedMutation mutation =
 				new SetReferenceSchemaIndexedMutation(
-					REFERENCE_NAME, (ScopedReferenceIndexType[]) null
+					REFERENCE_NAME, null, ScopedReferenceIndexedComponents.EMPTY
 				);
 			final SetReferenceSchemaIndexedMutation existingMutation =
 				new SetReferenceSchemaIndexedMutation(
@@ -167,6 +168,142 @@ class SetReferenceSchemaIndexedMutationTest {
 			assertNull(
 				((SetReferenceSchemaIndexedMutation) result.current()[0]).getIndexedInScopes()
 			);
+		}
+
+		@Test
+		@DisplayName("should keep only the components of a mutation setting them when one leaving components follows")
+		void shouldKeepOnlyComponentsOfMutationOverriddenByOneLeavingComponents() {
+			// inheriting the index types without components leaves the components as the existing mutation makes
+			// them; its index types are overridden, but they would still merge into a later index declaration
+			final SetReferenceSchemaIndexedMutation leavingComponents =
+				new SetReferenceSchemaIndexedMutation(REFERENCE_NAME, (ScopedReferenceIndexType[]) null);
+			final SetReferenceSchemaIndexedMutation declaringComponents = new SetReferenceSchemaIndexedMutation(
+				REFERENCE_NAME,
+				new ScopedReferenceIndexType[]{new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)},
+				new ScopedReferenceIndexedComponents[]{
+					new ScopedReferenceIndexedComponents(
+						Scope.LIVE,
+						new ReferenceIndexedComponents[]{
+							ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+						}
+					)
+				}
+			);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result = leavingComponents.combineWith(
+				Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), declaringComponents
+			);
+
+			assertNotNull(result);
+			assertEquals(
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					null,
+					new ScopedReferenceIndexedComponents[]{
+						new ScopedReferenceIndexedComponents(
+							Scope.LIVE,
+							new ReferenceIndexedComponents[]{
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							}
+						)
+					}
+				),
+				result.origin()
+			);
+			assertArrayEquals(new LocalEntitySchemaMutation[]{leavingComponents}, result.current());
+			// the rewritten mutation declares no index types and is left as it is, so the two do not meet forever
+			assertNull(
+				leavingComponents.combineWith(
+					Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), result.origin()
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should make a mutation declaring index types declare none when one leaving components follows")
+		void shouldDeclareNoIndexTypesInMutationOverriddenByOneLeavingComponents() {
+			// the index types of the existing mutation are overridden, but they would still merge into a later index
+			// declaration - only the components it makes inherited outlive them, which takes declared index types
+			final SetReferenceSchemaIndexedMutation leavingComponents =
+				new SetReferenceSchemaIndexedMutation(REFERENCE_NAME, (ScopedReferenceIndexType[]) null);
+			final SetReferenceSchemaIndexedMutation inheritingComponents = new SetReferenceSchemaIndexedMutation(
+				REFERENCE_NAME,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				}
+			);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result = leavingComponents.combineWith(
+				Mockito.mock(CatalogSchemaContract.class),
+				Mockito.mock(EntitySchemaContract.class),
+				inheritingComponents
+			);
+
+			assertNotNull(result);
+			assertEquals(
+				new SetReferenceSchemaIndexedMutation(REFERENCE_NAME, ScopedReferenceIndexType.EMPTY, null),
+				result.origin()
+			);
+			assertArrayEquals(new LocalEntitySchemaMutation[]{leavingComponents}, result.current());
+			// the rewritten mutation declares no index types and is left as it is, so the two do not meet forever
+			assertNull(
+				leavingComponents.combineWith(
+					Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), result.origin()
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should replace a mutation leaving the components with a later one setting them")
+		void shouldReplaceMutationLeavingComponentsWithLaterOneSettingThem() {
+			// the later mutation declares the index types, so nothing the existing one leaves outlives it
+			final SetReferenceSchemaIndexedMutation leavingComponents =
+				new SetReferenceSchemaIndexedMutation(REFERENCE_NAME, (ScopedReferenceIndexType[]) null);
+			final ScopedReferenceIndexType[] liveIndexType = {
+				new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+			};
+			final SetReferenceSchemaIndexedMutation declaringComponents = new SetReferenceSchemaIndexedMutation(
+				REFERENCE_NAME,
+				liveIndexType,
+				new ScopedReferenceIndexedComponents[]{
+					new ScopedReferenceIndexedComponents(
+						Scope.LIVE, new ReferenceIndexedComponents[]{ReferenceIndexedComponents.REFERENCED_ENTITY}
+					)
+				}
+			);
+			final SetReferenceSchemaIndexedMutation inheritingComponents =
+				new SetReferenceSchemaIndexedMutation(REFERENCE_NAME, liveIndexType);
+
+			for (SetReferenceSchemaIndexedMutation laterMutation : List.of(declaringComponents, inheritingComponents)) {
+				final MutationCombinationResult<LocalEntitySchemaMutation> result = laterMutation.combineWith(
+					Mockito.mock(CatalogSchemaContract.class),
+					Mockito.mock(EntitySchemaContract.class),
+					leavingComponents
+				);
+
+				assertNotNull(result, laterMutation.toString());
+				assertNull(result.origin(), laterMutation.toString());
+				assertArrayEquals(new LocalEntitySchemaMutation[]{laterMutation}, result.current());
+			}
+		}
+
+		@Test
+		@DisplayName("should replace an equal mutation leaving the components")
+		void shouldReplaceEqualMutationLeavingComponents() {
+			final SetReferenceSchemaIndexedMutation mutation =
+				new SetReferenceSchemaIndexedMutation(REFERENCE_NAME, (ScopedReferenceIndexType[]) null);
+			final SetReferenceSchemaIndexedMutation existingMutation =
+				new SetReferenceSchemaIndexedMutation(REFERENCE_NAME, (ScopedReferenceIndexType[]) null);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
+				Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), existingMutation
+			);
+
+			assertNotNull(result);
+			assertNull(result.origin());
+			assertNotNull(result.current());
+			assertSame(mutation, result.current()[0]);
 		}
 
 		@Test
@@ -713,6 +850,84 @@ class SetReferenceSchemaIndexedMutationTest {
 					schema.getIndexedComponents(scope).toArray(ReferenceIndexedComponents.EMPTY)
 				)
 			};
+		}
+
+		@Test
+		@DisplayName("should leave the declared components of a reflected reference that inherits its index types again")
+		void shouldLeaveDeclaredComponentsWhenIndexTypesBecomeInherited() {
+			final SetReferenceSchemaIndexedMutation mutation =
+				new SetReferenceSchemaIndexedMutation(REFERENCE_NAME, (ScopedReferenceIndexType[]) null);
+
+			final ReflectedReferenceSchemaContract result = (ReflectedReferenceSchemaContract) mutation.mutate(
+				Mockito.mock(EntitySchemaContract.class), reflectedReferenceDeclaringEntityAndGroupComponents()
+			);
+
+			assertNull(mutation.getIndexedComponentsInScopes());
+			assertTrue(result.isIndexedInherited());
+			assertFalse(result.isIndexedComponentsInherited());
+			assertEquals(
+				Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+				result.getIndexedComponents(Scope.LIVE)
+			);
+		}
+
+		@Test
+		@DisplayName("should declare no components when inheriting the index types with an empty array, as the WAL holds it")
+		void shouldDeclareNoComponentsWhenIndexTypesBecomeInheritedWithEmptyComponents() {
+			// the form every mutation inheriting the index types had until null components got a meaning of their own;
+			// replaying it must give what it gave when it was written: the declaration cleared, the default restored
+			final SetReferenceSchemaIndexedMutation mutation = new SetReferenceSchemaIndexedMutation(
+				REFERENCE_NAME, null, ScopedReferenceIndexedComponents.EMPTY
+			);
+
+			final ReflectedReferenceSchemaContract result = (ReflectedReferenceSchemaContract) mutation.mutate(
+				Mockito.mock(EntitySchemaContract.class), reflectedReferenceDeclaringEntityAndGroupComponents()
+			);
+
+			assertTrue(result.isIndexedInherited());
+			assertFalse(result.isIndexedComponentsInherited());
+			assertEquals(Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY), result.getIndexedComponents(Scope.LIVE));
+		}
+
+		/**
+		 * Returns a reflected reference bound to its original, both indexed for filtering in `LIVE`, that declares its
+		 * own indexing and the entity and group components.
+		 */
+		@Nonnull
+		private static ReflectedReferenceSchema reflectedReferenceDeclaringEntityAndGroupComponents() {
+			final Map<Scope, ReferenceIndexType> liveScope = Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING);
+			final Map<Scope, Set<ReferenceIndexedComponents>> entityAndGroup = Map.of(
+				Scope.LIVE,
+				Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY)
+			);
+			final ReferenceSchema original = ReferenceSchema._internalBuild(
+				"originalRef", NamingConvention.generate("originalRef"),
+				null, null,
+				Cardinality.ZERO_OR_MORE,
+				"category", Collections.emptyMap(), true,
+				"categoryGroup", NamingConvention.generate("categoryGroup"), false,
+				liveScope,
+				entityAndGroup,
+				Collections.emptySet(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
+			);
+			return ReflectedReferenceSchema._internalBuild(
+				REFERENCE_NAME, NamingConvention.generate(REFERENCE_NAME),
+				null, null,
+				"category", "originalRef",
+				null,
+				liveScope, entityAndGroup,
+				null, null, null, null,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+				null
+			).withReferencedSchema(original);
 		}
 
 		@Test

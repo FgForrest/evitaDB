@@ -40,19 +40,12 @@ public interface EvitaELVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitNegativeExpression(EvitaELParser.NegativeExpressionContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code additionExpression}
+	 * Visit a parse tree produced by the {@code additiveExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitAdditionExpression(EvitaELParser.AdditionExpressionContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code moduloExpression}
-	 * labeled alternative in {@link EvitaELParser#expression}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitModuloExpression(EvitaELParser.ModuloExpressionContext ctx);
+	T visitAdditiveExpression(EvitaELParser.AdditiveExpressionContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code xorExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
@@ -61,19 +54,19 @@ public interface EvitaELVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitXorExpression(EvitaELParser.XorExpressionContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code multiplicationExpression}
+	 * Visit a parse tree produced by the {@code relationalExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitMultiplicationExpression(EvitaELParser.MultiplicationExpressionContext ctx);
+	T visitRelationalExpression(EvitaELParser.RelationalExpressionContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code greaterThanExpression}
+	 * Visit a parse tree produced by the {@code multiplicativeExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitGreaterThanExpression(EvitaELParser.GreaterThanExpressionContext ctx);
+	T visitMultiplicativeExpression(EvitaELParser.MultiplicativeExpressionContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code variableExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
@@ -96,20 +89,6 @@ public interface EvitaELVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitFunctionExpression(EvitaELParser.FunctionExpressionContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code greaterThanEqualsExpression}
-	 * labeled alternative in {@link EvitaELParser#expression}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitGreaterThanEqualsExpression(EvitaELParser.GreaterThanEqualsExpressionContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code lessThanEqualsExpression}
-	 * labeled alternative in {@link EvitaELParser#expression}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitLessThanEqualsExpression(EvitaELParser.LessThanEqualsExpressionContext ctx);
-	/**
 	 * Visit a parse tree produced by the {@code orExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
 	 * @param ctx the parse tree
@@ -117,33 +96,12 @@ public interface EvitaELVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitOrExpression(EvitaELParser.OrExpressionContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code substractionExpression}
-	 * labeled alternative in {@link EvitaELParser#expression}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitSubstractionExpression(EvitaELParser.SubstractionExpressionContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code notEqualsExpression}
-	 * labeled alternative in {@link EvitaELParser#expression}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitNotEqualsExpression(EvitaELParser.NotEqualsExpressionContext ctx);
-	/**
 	 * Visit a parse tree produced by the {@code andExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitAndExpression(EvitaELParser.AndExpressionContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code equalsExpression}
-	 * labeled alternative in {@link EvitaELParser#expression}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitEqualsExpression(EvitaELParser.EqualsExpressionContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code nestedExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
@@ -159,12 +117,12 @@ public interface EvitaELVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitPositiveExpression(EvitaELParser.PositiveExpressionContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code lessThanExpression}
+	 * Visit a parse tree produced by the {@code equalityExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitLessThanExpression(EvitaELParser.LessThanExpressionContext ctx);
+	T visitEqualityExpression(EvitaELParser.EqualityExpressionContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code literalExpression}
 	 * labeled alternative in {@link EvitaELParser#expression}.
@@ -179,13 +137,6 @@ public interface EvitaELVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitNegatingExpression(EvitaELParser.NegatingExpressionContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code divisionExpression}
-	 * labeled alternative in {@link EvitaELParser#expression}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitDivisionExpression(EvitaELParser.DivisionExpressionContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code literalCallOperand}
 	 * labeled alternative in {@link EvitaELParser#operandOperationOperand}.

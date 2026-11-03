@@ -69,6 +69,16 @@ public class InvalidSchemaMutationException extends SchemaAlteringException {
 	}
 
 	/**
+	 * Creates a new exception with a custom error message and the exception that made the mutation fail.
+	 *
+	 * @param message detailed error message describing why the schema mutation cannot be performed
+	 * @param cause   the exception that made the mutation fail
+	 */
+	public InvalidSchemaMutationException(@Nonnull String message, @Nonnull Throwable cause) {
+		super(message, cause);
+	}
+
+	/**
 	 * Creates a new exception indicating that an entity collection cannot be automatically created because
 	 * the required evolution mode is not enabled.
 	 *

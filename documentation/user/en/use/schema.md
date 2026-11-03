@@ -443,6 +443,36 @@ The attribute schema is described by:
 
 </Note>
 
+<Note type="warning">
+
+<NoteTitle toggles="false">
+
+##### Renaming an attribute does not move the data you already have
+</NoteTitle>
+
+`ModifyAttributeSchemaNameMutation` moves the attribute to its new name in the schema - of the catalog, the entity or
+the reference - and a global attribute is renamed in every entity that uses it. The values of the entities that are
+already stored, and the indexes built from them, stay under the old name; moving them along with the schema is tracked
+in [issue #409](https://github.com/FgForrest/evitaDB/issues/409). When the collection contains entities, the rename is
+accepted and the server logs a warning, but filtering and sorting by the new name find only the entities written after
+the rename. An attribute that declares a [filter accelerator](#filter-accelerators) cannot be renamed on a collection
+that contains entities at all: the accelerator's index can only be started for a name with no values indexed yet, and
+because a rename moves no data, the new name may still hold the values of an attribute that was renamed away from it
+or removed. Starting the index over them would make every write of the attribute and the next load of the catalog
+fail, so such a rename is refused until issue #409 moves the stored data along with it.
+
+A rename is refused when another attribute already holds the new name, when the attribute is part of a
+[sortable attribute compound](#sortable-attribute-compounds), and when a reflected reference inherits the attribute
+from its original reference - rename it there.
+
+Rename an attribute before the first entity is inserted. For a catalog that already holds the data, the route is the
+same as for [filter accelerators](#you-cannot-switch-this-accelerator-on-for-data-you-already-have): create a new
+catalog with the renamed attribute, load the data into it, and replace the original catalog with it. Versions before
+2026.3 kept the attribute under the old name next to the renamed one; such a leftover can be removed with
+`RemoveAttributeSchemaMutation`.
+
+</Note>
+
 #### Default value
 
 An attribute may have a default value defined. The value is used when a new entity is created and no value has been
@@ -558,7 +588,10 @@ if it does not hold:
     references. The plan is to lift this restriction in a future version</dd>
     <dt>the entity collection does not contain any entities yet</dt>
     <dd>the index is filled as entities are inserted, and evitaDB has no way to rebuild it for data that is already
-    there - so the accelerator has to be declared before the first entity is inserted</dd>
+    there - so the accelerator has to be declared before the first entity is inserted. Accepting it later would not
+    merely leave the stored entities out: the index numbers the distinct values of the attribute from the very first
+    one, and values already stored cannot be numbered afterwards, so the next write of the attribute and the next
+    load of the catalog would fail</dd>
 </dl>
 
 <Note type="warning">
@@ -573,7 +606,8 @@ accelerator on an existing, populated catalog in place.
 
 The route today is to create a new catalog, declare the accelerator on it before inserting anything, load the data
 into it, and then replace the original catalog with the new one. Plan for this when you size a migration - it is a
-full re-import, not a schema tweak.
+full re-import, not a schema tweak. Schema changes that rebuild the indexes of data already stored are tracked in
+[issue #409](https://github.com/FgForrest/evitaDB/issues/409).
 
 </Note>
 
@@ -824,6 +858,29 @@ If the reference is marked as *faceted*, the special <SourceClass>evita_engine/s
 When a reference is marked as faceted, all its instances are inserted into the facet reference index. References can (but don't have to) be organized into facet groups that refer to a *managed* or *non-managed* entity type. The facet index is built at **indexing time** — when entities are created or updated — so that the [reference summary](../query/requirements/reference.md#reference-summary) computation at query time reads the pre-built index directly and runs at full speed.
 
 By default, **every** instance of a faceted reference participates in the facet index. The [conditional indexing](#conditional-indexing-with-expressions) option described below lets you narrow this down using an expression.
+
+<Note type="warning">
+
+<NoteTitle toggles="false">
+
+##### Making a reference indexed or faceted later does not index the data you already have
+</NoteTitle>
+
+The reference and facet indexes are filled as entities are inserted and updated, and evitaDB has no way to build them
+for entities that are already stored. When a stored reference becomes indexed or faceted in a scope, or gains an
+[indexed component](#indexed-components) there, while the collection contains entities, the schema change is accepted
+and the server logs a warning, but filtering by the reference -
+[`referenceHaving`](../query/filtering/references.md#reference-having),
+[`groupHaving`](../query/filtering/references.md#group-having),
+[`facetHaving`](../query/filtering/references.md#facet-having) - finds only the entities written after the change, and
+the [reference summary](../query/requirements/reference.md#reference-summary) counts only them.
+
+Declare the indexing and faceting of a reference before the first entity is inserted. For a catalog that already holds
+the data, the route is the same as for
+[filter accelerators](#you-cannot-switch-this-accelerator-on-for-data-you-already-have): create a new catalog that
+declares the setting, load the data into it, and replace the original catalog with it.
+
+</Note>
 
 ##### Reference histograms
 
