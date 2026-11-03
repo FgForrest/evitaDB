@@ -277,7 +277,7 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 				// `validate()` refuses in two vocabularies, only the narrower one is a `SchemaAlteringException`, and
 				// an exception outside both leaves the schema unvalidated - none of them may reach a publication
 				try {
-					theCatalog.getSchema().validate();
+					theCatalog.validateSchema();
 				} catch (Throwable ex) {
 					theCatalog.markUnpublishableDueToInvalidSchema(ex);
 					throw ex;

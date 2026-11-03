@@ -119,4 +119,19 @@ class FulltextAnalysisContextTest {
 
 		assertTrue(exception.getMessage().contains("`groups` is not a word list"), exception.getMessage());
 	}
+
+	/**
+	 * A resource no one declared is a user error: a step of another provider may name one the catalog schema could
+	 * not check.
+	 */
+	@Test
+	@DisplayName("should refuse a resource that does not exist as a user error")
+	void shouldRefuseMissingResourceAsUserError() {
+		final FulltextAnalysisContext context = new FulltextAnalysisContext(Locale.ROOT, Map.of("brands", BRANDS));
+
+		final EvitaInvalidUsageException exception =
+			assertThrows(EvitaInvalidUsageException.class, () -> context.getResource("colors"));
+
+		assertTrue(exception.getMessage().contains("`colors` does not exist"), exception.getMessage());
+	}
 }

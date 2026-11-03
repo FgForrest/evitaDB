@@ -158,6 +158,7 @@ import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.analysis.BuiltWithAttributeNormalizationResolver;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerValidator;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
@@ -747,6 +748,11 @@ public final class Catalog
 				}
 				// after all schemas are resolved, build the expression trigger registry
 				catalog.buildInitialExpressionTriggerRegistry();
+				// the published schema compiled when the session publishing it closed; it may not any more when an
+				// analysis step it uses is no longer installed or now refuses its parameters - checked like the
+				// normalization steps above, and only now, because the analyzers are checked in the locales of the
+				// entities using them
+				FulltextAnalyzerValidator.validate(catalog.getAnalysisStepRegistry(), catalog.getSchema());
 				// derived state that is not persisted and has to come back with the collection: the reverse
 				// lookup the cross-entity facet trigger uses instead of walking every reduced index. Built
 				// here because it is the one moment that has every index in place, every schema resolved, and
@@ -3180,8 +3186,26 @@ public final class Catalog
 	}
 
 	/**
-	 * Tells whether the catalog schema as it currently stands would survive
-	 * {@link CatalogSchemaContract#validate()}.
+	 * Validates the catalog schema as it currently stands: first the checks {@link CatalogSchemaContract#validate()}
+	 * makes without a server, then those of {@link FulltextAnalyzerValidator}, which compile every fulltext analyzer
+	 * through the installed analysis steps. Every route that refuses to publish an invalid schema - the session close,
+	 * the go-live and the mid-session flush ({@link #isSchemaValid()}) - asks this one method, so that none of them
+	 * publishes a schema another would refuse, or a load would.
+	 *
+	 * The analyzers are checked second because the first check settles what they refer to: the analyzers they are
+	 * based on and the resources the built-in steps read.
+	 *
+	 * @throws SchemaAlteringException   when a rule of the schema is broken
+	 * @throws EvitaInvalidUsageException when a half-built schema cannot even be walked - see {@link #isSchemaValid()}
+	 */
+	public void validateSchema() throws SchemaAlteringException {
+		final SealedCatalogSchema catalogSchema = getSchema();
+		catalogSchema.validate();
+		FulltextAnalyzerValidator.validate(this.analysisStepRegistry, catalogSchema);
+	}
+
+	/**
+	 * Tells whether the catalog schema as it currently stands would survive {@link #validateSchema()}.
 	 *
 	 * Exists for the publications that happen while a warm-up session is **still open**, which the barrier cannot
 	 * help with: the barrier is raised when a session closes and validation refuses it, so anything publishing
@@ -3204,7 +3228,7 @@ public final class Catalog
 	 */
 	private boolean isSchemaValid() {
 		try {
-			getSchema().validate();
+			validateSchema();
 			return true;
 		} catch (EvitaInvalidUsageException ex) {
 			return false;

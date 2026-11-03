@@ -2138,13 +2138,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * @param theCatalog the catalog to be validated, must not be null
 	 */
 	private void validateCatalogSchema(
-		@Nonnull CatalogContract theCatalog
+		@Nonnull Catalog theCatalog
 	) throws SchemaAlteringException {
 		try {
-			final SealedCatalogSchema catalogSchema = theCatalog.getSchema();
-			final int catalogVersion = catalogSchema.version();
+			final int catalogVersion = theCatalog.getSchema().version();
 			if (catalogVersion > this.startCatalogSchemaVersion) {
-				catalogSchema.validate();
+				theCatalog.validateSchema();
 			}
 		} catch (Throwable ex) {
 			/* if validation fails and transaction is available, mark it as rollback only */

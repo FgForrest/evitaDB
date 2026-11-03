@@ -44,9 +44,7 @@ import java.util.Set;
  * @param locale      the index locale of the field; its language decides language-dependent behaviour, and
  *                    lowercasing follows its rules
  * @param resources   the resources a step parameter may name, keyed by name - the built-in read-only ones and those
- *                    declared in the catalog schema; for the resource parameters of the built-in steps
- *                    ({@link io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps#RESOURCE_PARAMETERS}) the
- *                    catalog schema has already checked that every name exists and is of the parameter's kind
+ *                    declared in the catalog schema
  * @param preparation runs a word of a resource through the steps of the words phase before the step being created,
  *                    on the side being compiled - see {@link #prepare(String)}
  */
@@ -94,17 +92,18 @@ public record FulltextAnalysisContext(
 	/**
 	 * Returns the resource of the given name, its words as the resource holds them.
 	 *
+	 * The catalog schema checks the resource parameters of the built-in steps
+	 * ({@link io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps#RESOURCE_PARAMETERS}) without a server, but
+	 * which parameters of another provider's step name a resource only the step knows - for those, this is the check.
+	 *
 	 * @param name the name a step parameter holds
 	 * @return the content of the resource
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when no such resource exists - the catalog schema refuses
-	 *                                                        a built-in step's parameter naming a missing resource,
-	 *                                                        so for a built-in step reaching it means that check was
-	 *                                                        bypassed
+	 * @throws EvitaInvalidUsageException when no such resource exists
 	 */
 	@Nonnull
 	public FulltextResourceContent getResource(@Nonnull String name) {
 		final FulltextResourceContent content = this.resources.get(name);
-		Assert.isPremiseValid(content != null, "Fulltext resource `" + name + "` does not exist.");
+		Assert.isTrue(content != null, () -> "Fulltext resource `" + name + "` does not exist.");
 		return content;
 	}
 
