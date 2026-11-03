@@ -1,5 +1,10 @@
 package io.evitadb.roaringbitmap;
 
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import java.io.ObjectOutputStream;
+import java.io.ObjectInputStream;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -384,7 +389,7 @@ public class SharedContainerLockstepFuzzTest {
 	private static void step(final Random random, final List<Tracked> pool) throws IOException {
 		final Tracked target = pool.get(random.nextInt(pool.size()));
 		final Tracked other = pool.get(random.nextInt(pool.size()));
-		final int operation = random.nextInt(42);
+		final int operation = random.nextInt(44);
 		switch (operation) {
 			case 0: {
 				if (target == other) {
@@ -776,9 +781,39 @@ public class SharedContainerLockstepFuzzTest {
 				target.bitmap.removeRunCompression();
 				break;
 			}
-			default: {
+			case 41: {
 				target.bitmap.clear();
 				target.model.clear();
+				break;
+			}
+			case 42: {
+				// Appending an owned chunk must grow flags without changing any peer of the old data.
+				final int size = target.bitmap.highLowContainer.size();
+				final int key = size == 0 ? 0 : target.bitmap.highLowContainer.getKeyAtIndex(size - 1) + 1;
+				if (key < 65536) {
+					pool.add(new Tracked(target.bitmap.clone(), new TreeSet<>(target.model)));
+					final ArrayContainer owned = new ArrayContainer();
+					owned.add((char) 7);
+					target.bitmap.append((char) key, owned);
+					target.model.add((key << 16) + 7);
+					assertFalse(target.bitmap.isShared(size), "appended container must be owned");
+				}
+				break;
+			}
+			default: {
+				final TreeSet<Integer> model = new TreeSet<>(other.model);
+				pool.add(new Tracked(target.bitmap.clone(), new TreeSet<>(target.model)));
+				final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+				try (final ObjectOutputStream output = new ObjectOutputStream(bytes)) {
+					other.bitmap.writeExternal(output);
+				}
+				try (final ObjectInputStream input = new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
+					target.bitmap.readExternal(input);
+				}
+				target.model.clear();
+				target.model.addAll(model);
+				assertArrayEquals(new boolean[target.bitmap.shared.length], target.bitmap.shared,
+					"readExternal must forget previous sharing");
 				break;
 			}
 		}
@@ -1075,4 +1110,335 @@ public class SharedContainerLockstepFuzzTest {
 		}
 		return new Tracked(bitmap, model);
 	}
+	/**
+	 * Deterministic counterparts of upstream #874, #882 and #883. Every operation starts with
+	 * actually co-owned containers, rather than relying on the random walk to draw that state.
+	 */
+	@Nested
+	class CopyOnWriteEdgeCases {
+
+		/**
+		 * Pins range flip's copy-before-write branch on array, bitmap and run containers, including
+		 * insertion of missing keys and removal of an entire shared container.
+		 */
+		@Test
+		void rangeFlipPreservesPeerValuesAndStorage() {
+			final PersistentRoaringBitmap source = edgeBitmap();
+			final PersistentRoaringBitmap receiver = source.clone();
+			final PeerSnapshot before = new PeerSnapshot(source);
+			assertCoOwned(source, receiver);
+			final TreeSet<Integer> expected = modelOf(receiver);
+			for (final long[] range : new long[][]{{7, 20}, {4L << 16, (4L << 16) + 20},
+				{8L << 16, (8L << 16) + 100}, {1L << 16, (3L << 16) + 8}}) {
+				receiver.flip(range[0], range[1]);
+				for (long value = range[0]; value < range[1]; value++) {
+					if (!expected.remove((int) value)) {
+						expected.add((int) value);
+					}
+				}
+				before.assertUnchanged(source, "range flip");
+				assertPair(source, receiver, expected, "range flip");
+			}
+		}
+
+		/**
+		 * #882's mixed owned/shared trim case checks backing identity even though trim preserves
+		 * the value set. Both sparse arrays and runs deliberately have spare capacity.
+		 */
+		@Test
+		void trimAfterCopyingOneContainerPreservesPeerStorage() {
+			final PersistentRoaringBitmap source = edgeBitmap();
+			final PersistentRoaringBitmap receiver = source.clone();
+			final PeerSnapshot before = new PeerSnapshot(source);
+			assertCoOwned(source, receiver);
+			receiver.add(11);
+			final Container owned = receiver.getContainerAtIndex(0);
+			assertNotSame(source.getContainerAtIndex(0), owned);
+			receiver.trim();
+			before.assertUnchanged(source, "trim after copying one container");
+			assertEquals(owned.getCardinality(), ((ArrayContainer) owned).content.length);
+			assertAllInvariants(List.of(new Tracked(source, modelOf(source)),
+				new Tracked(receiver, modelWithAdded(before.values, 11))), "trim");
+		}
+
+		/**
+		 * Removal of run compression replaces only run containers and clears their former shared
+		 * flags. Appending grows the flag array while preserving all previously shared slots.
+		 */
+		@Test
+		void reencodingAndAppendPreservePeerAndOwnedFlags() {
+			final PersistentRoaringBitmap source = edgeBitmap();
+			final PersistentRoaringBitmap receiver = source.clone();
+			final PeerSnapshot before = new PeerSnapshot(source);
+			assertCoOwned(source, receiver);
+			assertTrue(receiver.removeRunCompression());
+			for (int i = 0; i < receiver.highLowContainer.size(); i++) {
+				assertEquals(!(before.containers[i] instanceof RunContainer), receiver.isShared(i),
+					"only re-encoded slots become owned");
+			}
+			before.assertUnchanged(source, "removeRunCompression");
+			assertPair(source, receiver, modelOf(source), "removeRunCompression");
+			final TreeSet<Integer> expected = modelOf(source);
+			for (int key = 24; key < 60; key++) {
+				final ArrayContainer owned = new ArrayContainer();
+				owned.add((char) 7);
+				receiver.append((char) key, owned);
+				expected.add((key << 16) + 7);
+				assertSame(owned, receiver.getContainerAtIndex(receiver.highLowContainer.size() - 1));
+				assertFalse(receiver.isShared(receiver.highLowContainer.size() - 1));
+				before.assertUnchanged(source, "append key " + key);
+				assertPair(source, receiver, expected, "append key " + key);
+			}
+		}
+
+		/**
+		 * #883's replacement paths must forget sharing after shrinking and growing. Follow-up
+		 * writes verify the newly owned slots, and the peer retains its exact original storage.
+		 */
+		@Test
+		void replacementsForgetSharingAndPreservePeer() throws IOException {
+			for (int format = 0; format < 5; format++) {
+				for (final int count : new int[]{0, 1, 40}) {
+					final PersistentRoaringBitmap source = edgeBitmap();
+					final PersistentRoaringBitmap receiver = source.clone();
+					final PeerSnapshot before = new PeerSnapshot(source);
+					assertCoOwned(source, receiver);
+					final PersistentRoaringBitmap replacement = new PersistentRoaringBitmap();
+					for (int key = 0; key < count; key++) {
+						replacement.add((key << 16) + 9);
+					}
+					final ByteBuffer bytes = ByteBuffer.allocate(replacement.serializedSizeInBytes());
+					replacement.serialize(bytes);
+					if (format == 0) {
+						receiver.clear();
+					} else if (format == 1) {
+						receiver.deserialize(ByteBuffer.wrap(bytes.array()));
+					} else if (format == 4) {
+						final ByteArrayOutputStream external = new ByteArrayOutputStream();
+						try (final ObjectOutputStream output = new ObjectOutputStream(external)) {
+							replacement.writeExternal(output);
+						}
+						try (final ObjectInputStream input = new ObjectInputStream(
+							new ByteArrayInputStream(external.toByteArray()))) {
+							receiver.readExternal(input);
+						}
+					} else {
+						try (final DataInputStream input = new DataInputStream(new ByteArrayInputStream(bytes.array()))) {
+							if (format == 2) {
+								receiver.deserialize(input);
+							} else {
+								receiver.deserialize(input, new byte[8192]);
+							}
+						}
+					}
+					final String where = "replacement format=" + format + " count=" + count;
+					final TreeSet<Integer> expected = format == 0 ? new TreeSet<>(Integer::compareUnsigned)
+						: modelOf(replacement);
+					assertArrayEquals(new boolean[receiver.shared.length], receiver.shared, where);
+					assertFalse(receiver.lent, where);
+					before.assertUnchanged(source, where);
+					assertPair(source, receiver, expected, where);
+					for (int key = 0; key < 45; key++) {
+						receiver.add((key << 16) + 11);
+						expected.add((key << 16) + 11);
+					}
+					before.assertUnchanged(source, where + " after writes");
+					assertPair(source, receiver, expected, where + " after writes");
+				}
+			}
+		}
+
+		/**
+		 * #874's moving-index scenario inserts and removes before a shared run and bitmap, then
+		 * writes through their new indices. An untouched chunk must stay shared throughout.
+		 */
+		@Test
+		void writesAfterContainerMovesCopyOnlyChangedContainers() {
+			final PersistentRoaringBitmap source = edgeBitmap();
+			final PersistentRoaringBitmap receiver = source.clone();
+			final PeerSnapshot before = new PeerSnapshot(source);
+			assertCoOwned(source, receiver);
+			final TreeSet<Integer> expected = modelOf(source);
+			receiver.add(65536);
+			expected.add(65536);
+			receiver.remove((4 << 16) + 2);
+			expected.remove((4 << 16) + 2);
+			receiver.remove(0L, 65537L);
+			expected.removeIf(value -> Integer.toUnsignedLong(value) < 65537L);
+			receiver.remove(8 << 16);
+			expected.remove(8 << 16);
+			assertSame(before.containers[1], receiver.getContainerAtIndex(0), "untouched key 2 stays shared");
+			assertTrue(receiver.isShared(0));
+			assertFalse(receiver.isShared(receiver.highLowContainer.getIndex((char) 4)));
+			assertFalse(receiver.isShared(receiver.highLowContainer.getIndex((char) 8)));
+			before.assertUnchanged(source, "writes after moves");
+			assertPair(source, receiver, expected, "writes after moves");
+		}
+
+		/**
+		 * Result builders must size their owned flags and isolate all encodings, including partial
+		 * and complete chunks. Mutating every result chunk exposes even a single borrowed alias.
+		 */
+		@Test
+		void resultMutationsPreserveSourcesAndBackingArrays() {
+			for (int operation = 0; operation < 7; operation++) {
+				final PersistentRoaringBitmap source = edgeBitmap();
+				final PersistentRoaringBitmap peer = source.clone();
+				final PeerSnapshot before = new PeerSnapshot(source);
+				assertCoOwned(source, peer);
+				final TreeSet<Integer> sourceModel = modelOf(source);
+				final PersistentRoaringBitmap result = switch (operation) {
+					case 0 -> source.limit(100);
+					case 1 -> source.limit(source.getCardinality());
+					case 2 -> source.selectRange(7L, (22L << 16) + 100);
+					case 3 -> source.selectRange(4L << 16, (4L << 16) + 20);
+					case 4 -> PersistentRoaringBitmap.addOffset(source, 65536);
+					case 5 -> PersistentRoaringBitmap.addOffset(source, 1);
+					default -> PersistentRoaringBitmap.and(source, peer);
+				};
+				final TreeSet<Integer> expected = new TreeSet<>(Integer::compareUnsigned);
+				for (final Integer value : sourceModel) {
+					final long unsigned = Integer.toUnsignedLong(value);
+					if (operation == 0 && expected.size() < 100 || operation == 1 || operation == 6
+						|| operation == 2 && unsigned >= 7 && unsigned < (22L << 16) + 100
+						|| operation == 3 && unsigned >= (4L << 16) && unsigned < (4L << 16) + 20) {
+						expected.add(value);
+					} else if (operation == 4 || operation == 5) {
+						expected.add((int) (unsigned + (operation == 4 ? 65536 : 1)));
+					}
+				}
+				final String where = "result operation=" + operation;
+				assertPair(source, result, expected, where);
+				final int[] values = expected.stream().mapToInt(Integer::intValue).toArray();
+				for (final int value : values) {
+					result.flip(value);
+				}
+				expected.clear();
+				assertPair(source, result, expected, where + " after writes");
+				before.assertUnchanged(source, where);
+				before.assertUnchanged(peer, where + " peer");
+			}
+		}
+	}
+
+	/**
+	 * Captures every peer container and its storage identity, even if the receiver drops its last
+	 * reference. The fuzz's co-owned-after-step checker alone cannot inspect such dropped aliases.
+	 */
+	private static final class PeerSnapshot {
+		private final int[] values;
+		private final Container[] containers;
+		private final Object[] arrays;
+
+		/**
+		 * Takes an independent value copy and remembers the peer's actual storage objects.
+		 */
+		private PeerSnapshot(@Nonnull final PersistentRoaringBitmap peer) {
+			this.values = peer.toArray();
+			this.containers = new Container[peer.highLowContainer.size()];
+			this.arrays = new Object[this.containers.length];
+			for (int i = 0; i < this.containers.length; i++) {
+				this.containers[i] = peer.getContainerAtIndex(i);
+				this.arrays[i] = backingArray(this.containers[i]);
+			}
+		}
+
+		/**
+		 * Requires the exact original containers, arrays and values to survive a receiver mutation.
+		 */
+		private void assertUnchanged(@Nonnull final PersistentRoaringBitmap peer, @Nonnull final String where) {
+			assertArrayEquals(this.values, peer.toArray(), where + ": peer values changed");
+			assertEquals(this.containers.length, peer.highLowContainer.size(), where);
+			for (int i = 0; i < this.containers.length; i++) {
+				assertSame(this.containers[i], peer.getContainerAtIndex(i), where + ": peer container changed");
+				assertSame(this.arrays[i], backingArray(peer.getContainerAtIndex(i)), where + ": peer backing array changed");
+			}
+			assertLockstep(peer, where + " peer");
+		}
+	}
+
+	/**
+	 * Builds a deliberately oversized container array with alternating sparse, bitmap and run
+	 * chunks at separated keys, so insertions, deletions and flag growth all have room to happen.
+	 */
+	@Nonnull
+	private static PersistentRoaringBitmap edgeBitmap() {
+		final PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
+		for (int i = 0; i < 12; i++) {
+			final Container container;
+			if (i % 3 == 0) {
+				container = new ArrayContainer(32);
+				container.add((char) 7);
+				container.add((char) 14);
+				container.add((char) 21);
+			} else if (i % 3 == 1) {
+				container = new BitmapContainer();
+				for (int value = 0; value < 10000; value += 2) {
+					container.add((char) value);
+				}
+			} else {
+				container = new RunContainer(16);
+				container.iadd(0, 100);
+			}
+			bitmap.append((char) (2 * i), container);
+		}
+		return bitmap;
+	}
+
+	/**
+	 * Verifies the fixture really exercises container-level and array-level copy-on-write.
+	 */
+	private static void assertCoOwned(
+		@Nonnull final PersistentRoaringBitmap source, @Nonnull final PersistentRoaringBitmap receiver
+	) {
+		assertSame(source.highLowContainer.keys, receiver.highLowContainer.keys);
+		assertSame(source.highLowContainer.values, receiver.highLowContainer.values);
+		for (int i = 0; i < source.highLowContainer.size(); i++) {
+			assertSame(source.getContainerAtIndex(i), receiver.getContainerAtIndex(i));
+			assertTrue(source.isShared(i) && receiver.isShared(i));
+		}
+	}
+
+	/**
+	 * Converts bitmap values to the unsigned-ordered independent model used by the fuzz checker.
+	 */
+	@Nonnull
+	private static TreeSet<Integer> modelOf(@Nonnull final PersistentRoaringBitmap bitmap) {
+		final TreeSet<Integer> model = new TreeSet<>(Integer::compareUnsigned);
+		for (final int value : bitmap.toArray()) {
+			model.add(value);
+		}
+		return model;
+	}
+
+	/**
+	 * Derives the expected trim result without reading the receiver after its mutation.
+	 */
+	@Nonnull
+	private static TreeSet<Integer> modelWithAdded(@Nonnull final int[] values, final int added) {
+		final TreeSet<Integer> model = new TreeSet<>(Integer::compareUnsigned);
+		for (final int value : values) {
+			model.add(value);
+		}
+		model.add(added);
+		return model;
+	}
+
+	/**
+	 * Reuses the full fuzz checker and rejects a shared flag on any receiver slot it solely owns.
+	 */
+	private static void assertPair(
+		@Nonnull final PersistentRoaringBitmap source, @Nonnull final PersistentRoaringBitmap receiver,
+		@Nonnull final TreeSet<Integer> expected, @Nonnull final String where
+	) {
+		assertAllInvariants(List.of(new Tracked(source, modelOf(source)), new Tracked(receiver, expected)), where);
+		for (int i = 0; i < receiver.highLowContainer.size(); i++) {
+			final int key = receiver.highLowContainer.getKeyAtIndex(i);
+			final int sourceIndex = source.highLowContainer.getIndex((char) key);
+			if (sourceIndex < 0 || receiver.getContainerAtIndex(i) != source.getContainerAtIndex(sourceIndex)) {
+				assertFalse(receiver.isShared(i), where + ": owned slot must not retain a shared flag");
+			}
+		}
+	}
+
 }

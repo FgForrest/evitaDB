@@ -1,5 +1,6 @@
 package io.evitadb.roaringbitmap;
 
+import javax.annotation.Nonnull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -347,6 +348,55 @@ public class TestFastAggregation {
 			PersistentRoaringBitmap or = FastAggregation.or(subset);
 			int orCardinality = FastAggregation.orCardinality(subset);
 			assertEquals(or.getCardinality(), orCardinality);
+		}
+	}
+
+	/**
+	 * Ports upstream #895's `testIssue178` scenario.
+	 */
+	@Test
+	public void testIssue178() {
+		// from the Go library: one value per container
+		PersistentRoaringBitmap r1 =
+				PersistentRoaringBitmap.bitmapOf(
+						3585028, 65901253, 143441994, 211160474, 286511937, 356744840, 434332509, 502812785,
+						576097614, 646557334, 714794241, 775083485, 833704249, 889329147, 941367043);
+		PersistentRoaringBitmap r2 =
+				PersistentRoaringBitmap.bitmapOf(
+						17883, 54494426, 113908938, 174519827, 235465665, 296685741, 357644666, 420192495,
+						476104304, 523046142, 577855081, 634889665, 692460635, 751350463, 809989192, 863494316,
+						919127240);
+		assertEquals(32, FastAggregation.or(r1, r2).getCardinality());
+		assertEquals(32, FastAggregation.horizontal_or(r1, r2).getCardinality());
+		assertEquals(32, FastAggregation.priorityqueue_or(r1, r2).getCardinality());
+	}
+
+	/**
+	 * Ports upstream #895's `unionThatFillsAContainerBecomesARunContainer` scenario.
+	 */
+	@Test
+	public void unionThatFillsAContainerBecomesARunContainer() {
+		// from CRoaring's test_full_bitset_union_becomes_run
+		PersistentRoaringBitmap evens = new PersistentRoaringBitmap();
+		PersistentRoaringBitmap odds = new PersistentRoaringBitmap();
+		for (int i = 0; i < 65536; i += 2) {
+			evens.add(i);
+			odds.add(i + 1);
+		}
+		PersistentRoaringBitmap inPlace = evens.clone();
+		inPlace.or(odds);
+		PersistentRoaringBitmap[] results = {
+			inPlace,
+			PersistentRoaringBitmap.or(evens, odds),
+			FastAggregation.or(evens, odds, odds),
+			FastAggregation.horizontal_or(evens, odds, odds),
+			FastAggregation.priorityqueue_or(evens, odds, odds),
+		};
+		for (PersistentRoaringBitmap result : results) {
+			assertEquals(65536, result.getLongCardinality());
+			assertEquals(1, result.getContainerCount());
+			assertTrue(result.getContainerPointer().isRunContainer());
+			assertTrue(result.validate());
 		}
 	}
 }
