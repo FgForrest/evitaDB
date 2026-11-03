@@ -68,6 +68,7 @@ import java.util.Locale;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.IntStream;
 
 import static io.evitadb.index.fulltext.FulltextFieldKey.attribute;
 import static io.evitadb.test.TestTags.ENGINE;
@@ -422,6 +423,38 @@ class FulltextFormulaTest {
 		}
 
 		@Test
+		@DisplayName("A token takes its union once the matching entities exceed the narrowing limit")
+		void shouldTakeTheUnionOnceTheMatchingEntitiesExceedTheNarrowingLimit() {
+			final long limit = FulltextFormula.NARROWING_MATCHING_LIMIT;
+			// at the limit the walked values still decide: narrowing walks 2 x limit values, the union 100 x limit
+			assertTrue(FulltextFormula.narrowsCheaper(2, limit, 100 * limit));
+			// one entity past it the union is built, although narrowing would still walk fewer values
+			assertFalse(FulltextFormula.narrowsCheaper(2, limit + 1, 100 * limit));
+		}
+
+		@Test
+		@DisplayName("A token met by more matching entities than the limit reads every term through its union")
+		void shouldReadEveryTermThroughTheUnionPastTheNarrowingLimit() {
+			// the narrower token matches one entity more than the limit; the wider one spreads its postings over two
+			// terms, more than the 2 x matching values narrowing would walk, and its first term alone covers every
+			// matching entity - narrowing would stop reading after it, the union reads both terms
+			final int matchingCount = (int) FulltextFormula.NARROWING_MATCHING_LIMIT + 1;
+			final int[] matching = IntStream.range(0, matchingCount).toArray();
+			final ReadCountingBitmap first = new ReadCountingBitmap(
+				IntStream.range(0, 2 * matchingCount + 1).toArray()
+			);
+			final ReadCountingBitmap second = new ReadCountingBitmap(5 * matchingCount);
+			final FulltextFormula formula = query(
+				token(countedTerm("a", new ReadCountingBitmap(matching))),
+				token(countedTerm("b", first), countedTerm("c", second))
+			);
+
+			assertArrayEquals(matching, formula.compute().getArray());
+			assertEquals(1, first.reads, "the first term");
+			assertEquals(1, second.reads, "the second term");
+		}
+
+		@Test
 		@DisplayName("A token narrowing term by term reads no further term once the matching entities are covered")
 		void shouldStopReadingTermsOnceNarrowingCoversTheMatchingEntities() {
 			// the narrower token matches 3 entities; the wider one spreads 21 postings over 3 terms, more than the
@@ -481,43 +514,45 @@ class FulltextFormulaTest {
 		@Test
 		@DisplayName("Matching term by term leaves every term's posting list as it was")
 		void shouldLeaveEveryTermsPostingsUnchangedWhenNarrowingTermByTerm() {
-			// the wider token's 130,003 postings outnumber the 3 x 30,000 values narrowing walks: its terms are
+			// the wider token's 210,003 postings outnumber the 3 x 10,000 values narrowing walks: its terms are
 			// intersected with the matching entities and folded together, the first intersection - a subset of its own
 			// term, an array chunk - taking in a bitmap chunk and a run chunk
-			assertMatchingLeavesPostingsUnchanged(400_000);
+			assertMatchingLeavesPostingsUnchanged(400_000, true);
 		}
 
 		@Test
 		@DisplayName("Matching through the token's union leaves every term's posting list as it was")
 		void shouldLeaveEveryTermsPostingsUnchangedWhenIntersectingTheUnion() {
-			// the wider token's 40,003 postings are fewer than the 3 x 30,000 values narrowing would walk: its union is
+			// the wider token's 20,003 postings are fewer than the 3 x 10,000 values narrowing would walk: its union is
 			// built and intersected with the matching entities once
-			assertMatchingLeavesPostingsUnchanged(40_000);
+			assertMatchingLeavesPostingsUnchanged(20_000, false);
 		}
 
 		/**
-		 * Matches a narrower token of one posting list, keys 0 to 29,999 as a run, against a wider token of three
-		 * terms - three keys in an array chunk, every fourth key below `everyFourthBound` and the run of keys 20,000
-		 * to 49,999 - and checks the match and that no term's posting list changed. The narrower token's posting list
-		 * serves as the matching entities as it is.
+		 * Matches a narrower token of one posting list, keys 0 to 9,999 as a run, against a wider token of three
+		 * terms - three keys in an array chunk, every second key below `everySecondBound` and the run of keys 5,000 to
+		 * 14,999 - and checks the route the fixture takes, the match and that no term's posting list changed. The
+		 * narrower token's posting list serves as the matching entities as it is; at 10,000 entities it stays within
+		 * {@link FulltextFormula#NARROWING_MATCHING_LIMIT}, so the posting counts alone decide the route.
 		 *
-		 * @param everyFourthBound the exclusive bound of the every-fourth-key term, which decides the route the wider
+		 * @param everySecondBound the exclusive bound of the every-second-key term, which decides the route the wider
 		 *                         token takes
+		 * @param narrows          whether the fixture is meant to narrow term by term rather than build the union
 		 */
-		private static void assertMatchingLeavesPostingsUnchanged(int everyFourthBound) {
-			final PersistentRoaringBitmap firstThirtyThousand = new PersistentRoaringBitmap();
-			firstThirtyThousand.add(0L, 30_000L);
-			firstThirtyThousand.runOptimize();
-			final PersistentRoaringBitmap everyFourth = new PersistentRoaringBitmap();
-			for (int primaryKey = 0; primaryKey < everyFourthBound; primaryKey += 4) {
-				everyFourth.add(primaryKey);
+		private static void assertMatchingLeavesPostingsUnchanged(int everySecondBound, boolean narrows) {
+			final PersistentRoaringBitmap firstTenThousand = new PersistentRoaringBitmap();
+			firstTenThousand.add(0L, 10_000L);
+			firstTenThousand.runOptimize();
+			final PersistentRoaringBitmap everySecond = new PersistentRoaringBitmap();
+			for (int primaryKey = 0; primaryKey < everySecondBound; primaryKey += 2) {
+				everySecond.add(primaryKey);
 			}
-			final PersistentRoaringBitmap twentyToFiftyThousand = new PersistentRoaringBitmap();
-			twentyToFiftyThousand.add(20_000L, 50_000L);
-			twentyToFiftyThousand.runOptimize();
+			final PersistentRoaringBitmap fiveToFifteenThousand = new PersistentRoaringBitmap();
+			fiveToFifteenThousand.add(5_000L, 15_000L);
+			fiveToFifteenThousand.runOptimize();
 			final Bitmap[] postings = {
-				new BaseBitmap(firstThirtyThousand), new BaseBitmap(1, 3, 5), new BaseBitmap(everyFourth),
-				new BaseBitmap(twentyToFiftyThousand)
+				new BaseBitmap(firstTenThousand), new BaseBitmap(1, 3, 5), new BaseBitmap(everySecond),
+				new BaseBitmap(fiveToFifteenThousand)
 			};
 			final int[][] before = new int[postings.length][];
 			final ExpandedTerm[] terms = new ExpandedTerm[postings.length];
@@ -525,11 +560,16 @@ class FulltextFormulaTest {
 				before[i] = postings[i].getArray();
 				terms[i] = new ExpandedTerm(0, "t" + i, postings[i], ImpactView.of(new byte[postings[i].size()]), 0);
 			}
+			final long widerPostings = (long) postings[1].size() + postings[2].size() + postings[3].size();
+			assertEquals(
+				narrows, FulltextFormula.narrowsCheaper(3, postings[0].size(), widerPostings),
+				"the route the fixture is meant to take"
+			);
 
 			final Bitmap matched = query(token(terms[0]), token(terms[1], terms[2], terms[3])).compute();
 
-			// 1, 3 and 5, then 7,500 multiples of four below 30,000, then the 7,500 other keys from 20,000 to 30,000
-			assertEquals(15_003, matched.size());
+			// 1, 3 and 5, then the 5,000 even keys below 10,000, then the 2,500 odd keys from 5,000 to 9,999
+			assertEquals(7_503, matched.size());
 			for (int i = 0; i < postings.length; i++) {
 				assertArrayEquals(before[i], postings[i].getArray(), "the posting list of term " + i);
 			}

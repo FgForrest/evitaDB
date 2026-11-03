@@ -147,6 +147,7 @@ database entirely:
 | 2026-11-03 | **An analysis step's place is its type, on both sides of the wire.** On the client `AnalysisStep` is sealed: every `AnalysisSteps` factory returns the type of the places its step serves — text phase, tokenizer, further splitting, words phase, attribute normalization; `lowercase` and `ascii-folding` serve the words phase and normalization, `remove-characters` the text phase and normalization — and each schema editor accepts only the type of its slot, so a step placed where it cannot run does not compile. A description read back from storage or received over an external API carries no place (`AnalysisStep.of`) and the server checks it. On the server `FulltextAnalysisStepFactory` is sealed to four phase interfaces, so a provider cannot declare a phase its operation does not deliver; only text and words steps act per side and declare which | **A runtime check alone** — one description record, the phase checked by the server when it adopts the schema — was the cheaper option, and it is still what guards an untyped description; *rejected as the only guard because* a misplaced step then fails at schema validation on the server, far from the line that wrote it, and the aim is that a wrong declaration cannot be written at all. The cost is seven public marker interfaces and a description that is no longer a record; equality stays by name and parameters whatever the type, so a description read back equals the one its factory made | `AnalysisSteps`, `AnalysisStepDescription`, `io.evitadb.spi.analysis.FulltextAnalysisStepFactory` |
 | 2026-11-03 | **The fulltext step SPI works on Lucene types** — a text step wraps a `Reader`, a tokenizer is a Lucene `Tokenizer`, splitting and words steps wrap a `TokenStream` — and its JavaDoc says so: it is a server-side contract, weaker than the client API, which never depends on Lucene and describes steps by name and parameters only | Every step acts on Lucene's term buffer anyway, and a `TokenStream` already carries what a step needs beyond one word in, one word out: positions and their gaps, offsets, the keyword flag of a protected word, several terms at one position. **An abstraction of evitaDB's own** would shield providers from Lucene releases — *rejected because* it re-models all of that and converts every token to Lucene and back on the path tuned for latency and allocation. A Lucene release that changes these types may change the SPI; worth revisiting once third-party providers exist and an upgrade breaks them | `io.evitadb.spi.analysis` |
 | 2026-11-03 | **A searchable attribute or associated data carries a default ranking weight in its schema — a fractional number on the scale and of the type of the query's `fieldWeight`** — and the query overrides it item by item. The effective weight, most specific first: `fieldWeight` in the query, a query profile (#12), the schema default, the engine default (1 for the entity's own fields, lower for referenced entities, value open). It is read at ranking time only — never in the postings, the impact byte or the field's fingerprint — so changing it never retires a field; it is not scope-aware. The type is signed, the engine refuses negative weights for now: whether a negative weight may demote is open until learning-to-rank measurements. **Zero is allowed** — a learner produces it (L1 regularization zeroes a weight out), and it means: search the field, do not rank by it | It is the 2026-11-02 rule *schema defaults, query overrides* applied to fields: without a default every client lists `fieldWeight` for every field in every query, or depends on query profiles, which F1 does not have. The reading of 2026-10-09 — weights are passed in the query, profiles are only a shortcut — never rejected a schema default; it only dropped out. Now is the cheap moment: F1 is unreleased, so one more nullable value on the searchable mutations needs no backward-compatible reader. **The four-level `SearchWeight` enumeration** of schema-design §6.3 / S5 — *rejected because* the weights are meant to be learned (2026-10-15) and a learner outputs fractional numbers (*AI-Powered Search*'s linear model: 0.345 / 0.266 / 0.080 on z-normalized per-field BM25); the query's `fieldWeight`, the reference weight and the field-weight rule all multiply numbers, so an enumeration would need a mapping table and still could not hold a learned value. Caveat for the learned path: a linear model cannot express the rule's maximum, so a learner feeding a profile has to optimize the rule itself (`fieldWeight` and *t*) | [`prototypes/schema-design.md`](prototypes/schema-design.md) §6.3 (superseded); [`prototypes/semantic-search-prior-art.md`](prototypes/semantic-search-prior-art.md) part 3 §4 |
+| 2026-11-03 | **A further query token narrows the matching entities term by term only while they are at most 10,000** (`FulltextFormula.NARROWING_MATCHING_LIMIT`); past that the token builds its union and intersects it once. Below the limit the walked-values estimate decides as before — narrow when `termCount × matching < summed postings` | The estimate alone underprices narrowing a wide matching set: each term's intersection is a pass of its own over many containers, which counting walked values does not weigh, so plain queries of two common words on the CMS corpus stayed 1.28× slower than the shape before the estimate. **All unions first, intersected by their true size** (that earlier shape) — *rejected because* it wins only that one cell (0.81) and is 9–51 % slower in the six where the matching set stays small. **A cost factor on narrowing** — *rejected because* it moves the boundary for small matching sets too and slowed the medium-frequency queries. The limit is hand-set: the measured plateau runs from 7,000 to 10,000, below it the e-commerce queries slow down, above it the CMS gain fades — a retune stays inside the plateau | Verification: *F1: the phase-one posting feed*, "The narrowing limit" |
 
 ### Why the in-house core won
 
@@ -527,8 +528,9 @@ submitted search with two edits costs 6.3 ms at p50 and 24.9 ms at p99, inside t
 
 F1's query path exists on the `258-fulltext-query-side` branch and has not reached the integration branch yet, so
 the opening of *The fulltext core — P1's gate is measured* ("nothing can query it yet") still describes the
-integration branch; F1's own record comes with its pull request. One decision taken on that branch is measured enough to record now: how the phase-one scorer
-feeds a roaring posting list to the linear and the galloping merge (decision row 2026-11-02).
+integration branch; F1's own record comes with its pull request. Two decisions taken on that branch are measured enough to record now: how the phase-one scorer
+feeds a roaring posting list to the linear and the galloping merge (decision row 2026-11-02), and when a further
+query token narrows the matching entities term by term (decision row 2026-11-03).
 
 **Conditions.** `TextMatchesQueryBenchmark`, its ranked method (match, phase-one scoring and top-N), on the CMS
 corpus of 972,611 articles; a cell is a query length (1–3 words) times the words' frequency class (`MEDIUM` up to
@@ -569,6 +571,25 @@ thread-scoped one dominates it: the same code plus a `ThreadLocal`, all of the c
 removed allocation costs under concurrent queries; the case for removing it is that cost, not a measured latency gain.
 `FulltextPhaseOneScorerTest#shouldScoreAShortListAfterALongerOneOnTheSameThread` and `DecodeIntoTest` in the roaring
 module pin the reuse.
+
+**The narrowing limit** (2026-11-03). A scratch probe over the benchmark catalogs computed the match sets of whole plain
+`textMatches` queries in one JVM, switching the rule at run time and rotating the rules round by round (100 warm-up
+and 400 measured rounds, 32 corpus-derived queries per cell, a quiet box; a forked JMH confirmation was not run). Ratio
+of the summed per-query medians to the walked-values estimate alone:
+
+| cell | limit 10,000 | all unions first |
+|---|---|---|
+| CMS 2 × HIGH | **0.798** | 0.806 |
+| CMS 3 × HIGH | **0.968** | 1.146 |
+| CMS 2 × / 3 × MEDIUM | 0.995 / 0.997 | 1.088 / 1.228 |
+| e-commerce 2 × / 3 × HIGH | 0.996 / 0.999 | 1.278 / 1.514 |
+| e-commerce 2 × / 3 × MEDIUM | 0.999 / 0.998 | 1.118 / 1.184 |
+
+A second run swept the limit over 5,000 / 7,000 / 10,000 / 15,000 / 20,000: CMS 2 × HIGH 0.768 / 0.772 / 0.789 /
+0.817 / 0.855, CMS 3 × HIGH 0.959 / 0.956 / 0.965 / 0.997 / 0.999, e-commerce 2 × HIGH 1.034 / 1.000 / 1.000 / 0.999 /
+1.001 (one query 1.42× at 5,000), every MEDIUM cell within a percent. 10,000 reproduced across the two runs (0.798 and
+0.789 on CMS 2 × HIGH). The best route chosen per decision in hindsight would reach 0.73 there, so some headroom is
+left. `FulltextFormulaTest#shouldReadEveryTermThroughTheUnionPastTheNarrowingLimit` pins the route.
 
 ### P8 — measured, not planned
 

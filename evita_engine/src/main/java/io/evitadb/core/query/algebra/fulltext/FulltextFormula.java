@@ -85,6 +85,17 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	 */
 	private static final long CLASS_ID = 3355763462417010376L;
 	/**
+	 * The most entities matching the tokens so far that a further token cuts down term by term; past it the token
+	 * always builds its union and intersects once (see {@link #narrowsCheaper(int, long, long)}). Hand-set from an
+	 * end-to-end measurement of whole plain queries on two production corpora - a CMS catalog of 972,611 articles and
+	 * an e-commerce catalog - with the limit swept from 5,000 to 20,000. A plateau ran from 7,000 to 10,000: two common
+	 * words on the CMS corpus took 0.77-0.79 of the time without the limit, three common words 0.96, every other query
+	 * shape stayed within a percent. At 5,000 two common words on the e-commerce corpus started to slow down (1.03, one
+	 * query 1.4x); past 10,000 the CMS gain faded (0.82 at 15,000, 0.86 at 20,000, and three common words back to
+	 * 1.00). A retune should stay inside the plateau; the fulltext ADR records the measurement.
+	 */
+	static final long NARROWING_MATCHING_LIMIT = 10_000;
+	/**
 	 * The query tokens, each as the terms it expanded into.
 	 */
 	@Nonnull private final ExpandedTerm[][] tokens;
@@ -298,7 +309,8 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 		}
 		// only the narrowest token's union is built up front; every further token cuts it down either term by term -
 		// A AND (B OR C) = (A AND B) OR (A AND C) - or through its own union, whichever is estimated to walk fewer
-		// values; a token of a single term is its own union, so both routes are the same one intersection
+		// values, and term by term only while the matching entities are few; a token of a single term is its own
+		// union, so both routes are the same one intersection
 		PersistentRoaringBitmap matching = union(this.tokens[order[0]]);
 		for (int i = 1; i < tokenCount && !matching.isEmpty(); i++) {
 			final ExpandedTerm[] token = this.tokens[order[i]];
@@ -322,13 +334,19 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	 * terms whose postings the union would read once. Both sides of the comparison are known before any intersection
 	 * is computed.
 	 *
+	 * The comparison alone underprices narrowing a wide matching set: every term's intersection with it is a pass of
+	 * its own over many containers, which counting walked values does not weigh, and measured on whole queries the
+	 * union was faster there even where the count favoured narrowing. So a token narrows only while the matching
+	 * entities are at most {@link #NARROWING_MATCHING_LIMIT}.
+	 *
 	 * @param termCount     the number of terms the next token expanded into
 	 * @param matchingCount the number of entities matching the tokens so far
 	 * @param postingCount  the summed posting count of the next token's terms
-	 * @return `true` when narrowing term by term is estimated to walk fewer values than building the token's union
+	 * @return `true` when the matching entities are within {@link #NARROWING_MATCHING_LIMIT} and narrowing term by
+	 *         term is estimated to walk fewer values than building the token's union
 	 */
 	static boolean narrowsCheaper(int termCount, long matchingCount, long postingCount) {
-		return termCount * matchingCount < postingCount;
+		return matchingCount <= NARROWING_MATCHING_LIMIT && termCount * matchingCount < postingCount;
 	}
 
 	/**
