@@ -15,10 +15,13 @@ The authoritative state lives in **`evita_roaring_bitmap/UPSTREAM_SYNC.md`** —
 
 ## Key facts (do not re-derive from scratch)
 
-- **Vendored module**: `evita_roaring_bitmap/` (standalone Maven module, NOT in the root reactor — build from its own dir).
-- **Upstream working clone**: `documentation/RoaringBitmap/` (untracked in the evita repo). It has two remotes:
+- **Vendored module**: `evita_roaring_bitmap/` — a module of the root reactor, but it builds and tests on its own from
+  its directory. Its suite runs twice, once per kernel configuration (`target/surefire-reports` and
+  `target/surefire-reports-scalar`), so read both XML directories.
+- **Upstream working clone**: `documentation/RoaringBitmap/` (untracked in the evita repo), with two remotes:
   `origin` = fork `novoj/RoaringBitmap`, `upstream` = `RoaringBitmap/RoaringBitmap`. Upstream default branch is `master`.
-  If this clone is absent, clone `https://github.com/RoaringBitmap/RoaringBitmap.git` somewhere and add it as `upstream`.
+  The clone has been absent in recent reviews; then clone `https://github.com/RoaringBitmap/RoaringBitmap.git`
+  into the scratchpad (`--filter=blob:none` is enough) and use its `origin` as `upstream`.
 - **Indentation**: the vendored sources use evitaDB's **tab** indent since the house-standard pass of 2026-07-06 (`e2ad313839`); upstream keeps 2 spaces. Re-indent every ported hunk to tabs, and expect upstream diffs never to apply textually.
 - **COW fold**: `PersistentRoaringBitmap` folds in `CopyOnWriteRoaringBitmapV2` — it carries a parallel
   `boolean[] shared` array alongside `highLowContainer`. **Any ported code that populates `highLowContainer`
@@ -59,6 +62,9 @@ For each commit, classify by the files it touches, using the **exclusions** and 
 - **Skip immediately** (record as N/A) if it only touches dropped subsets: `buffer/*`, `insights/*`,
   `FrozenRoaringBitmap`, `FastRankRoaringBitmap`, `longlong/Roaring64NavigableMap`, or build/docs files
   (`gradle.properties`, `build.gradle.kts`, `README.md`, `AGENTS.md`, `jmh/`, `fuzz-tests/`, `examples/`, `bsi/`).
+- **Check the ledger's "Local defect fixes" table first.** This fork reports the defects it fixes upstream, so a
+  new upstream fix is often one of those rows coming back (seven of Review 4's fixes were). Compare the two fixes,
+  keep the stricter, and move the row to the review's sync-log section, saying which one was kept and why.
 - **Investigate** if it touches a class we kept. The two that matter most:
   - `org.roaringbitmap.RoaringBitmap` → our `PersistentRoaringBitmap`
   - `org.roaringbitmap.longlong.Roaring64Bitmap` → our `PersistentLongRoaringBitmap` (**ART-based**)
@@ -129,10 +135,10 @@ In `NOTICE`: update the "reviewed through commit … (effective coverage vX.Y.Z)
 ### 7. Verify and commit
 
 ```bash
-cd evita_roaring_bitmap && mvn -o test         # standalone module; not in root reactor
+cd evita_roaring_bitmap && mvn -o test         # builds this module alone; runs the suite twice
 ```
 
-Module suite must stay green (17,8xx+ tests). Then — **only with Johnny's go-ahead** (the standing
+Module suite must stay green (19,2xx+ tests in each of the two executions, summed from the XML reports). Then — **only with Johnny's go-ahead** (the standing
 no-git-without-permission rule applies) — commit on the task branch:
 
 ```
