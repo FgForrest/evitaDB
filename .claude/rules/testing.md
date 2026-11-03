@@ -178,8 +178,8 @@ correct change *look* broken or unrun; the worse half do the opposite — they p
 nothing at all. Treat every `BUILD SUCCESS` that is suspiciously fast, or that reports a test count you did not
 expect, as unproven until you have read the count.
 
-- **`@Nested`-only classes report `Tests run: 0` in the outer `.txt`.** The convention here is to consolidate methods into `@Nested` inner classes (see above), so most test classes have **no** direct `@Test` methods. Surefire then writes the outer-class report (`target/surefire-reports/io.evitadb.<...>.<Class>.txt`) as `Tests run: 0` and reports each nested class separately under its own `@DisplayName`. **Do not conclude "nothing ran" from the outer `.txt`.** The real number is the run's aggregate stdout line (`[INFO] Tests run: 138, Failures: 0, …`). Capture full stdout to a file and read that aggregate, or sum the per-`@DisplayName` lines — never trust the outer `.txt` alone.
-- **Never attribute a count to a nested class from the console lines.** The per-`@DisplayName` lines are reliable for the *total* and unreliable for *which class owns it*: a class with both direct `@Test` methods and a `@Nested` class has been observed printing `Tests run: 0 … -- in <outer FQCN>` and `Tests run: 31 … -- in <nested display name>` when the split is really 16 outer / 15 nested. Quoting that as "the nested class has 31" is wrong, and it is the kind of number that ends up in a decision record. For a per-class split read the XML instead, which carries one `classname` per testcase:
+- **The console names a test class by its `@DisplayName`, and its count covers every `@Nested` child.** The convention here is to consolidate methods into `@Nested` inner classes (see above), so most test classes have **no** direct `@Test` methods. Surefire prints one `Tests run: N … -- in <display name>` line per top-level test class, and N is the whole class: direct methods plus all nested ones. The outer `.txt` report (`target/surefire-reports/io.evitadb.<...>.<Class>.txt`) carries the same total under the fully qualified name. So when you search the console for a class, search for its `@DisplayName`, not its class name — and nested display names never appear there at all.
+- **Never attribute a count to a nested class without the XML.** Neither the console nor the `.txt` splits a class by its nested classes, and a number quoted as "the nested class has 31" is the kind that ends up in a decision record. The XML carries one `classname` per testcase, as the binary name `Outer$Nested`:
   ```shell
   grep -o 'classname="[^"]*"' target/surefire-reports/TEST-<fqcn>.xml | sort | uniq -c
   ```
@@ -228,10 +228,13 @@ expect, as unproven until you have read the count.
   and print `Nothing to compile - all classes are up to date.` — hiding every breakage the new signature caused. It
   once concealed 36 broken call sites this way. Only `clean test-compile` surfaces them. **After any upstream
   signature change, `clean` is not optional**, or the compile step proves nothing.
-- **`-Dtest` with exclusions only selects nothing.** A pattern made purely of negations —
-  `-Dtest='!SomeTest,!OtherTest'` — alongside `-Dgroups` matches **no** tests, prints `Tests run: 0` and exits
-  `BUILD SUCCESS`. Read as a pass, it looks like the excluded classes were the whole problem. Always lead with an
-  explicit include: `-Dtest='**/*Test,!**/SomeTest'`, and check the count is the one you expected.
+- **`-Dtest` with exclusions only fails the build for a reason that has nothing to do with your change.** A
+  pattern made purely of negations — `-Dtest='!SomeTest,!OtherTest'`, measured alongside `-Dgroups` — also
+  selects classes surefire otherwise skips, among them the deliberately untagged fixtures nested in
+  `TestTagPolicyFilterTest`. Discovery then aborts with `Test tag policy violated: 4 test(s) are missing required
+  tags`, naming `UntaggedFixture` and its siblings, before a single test runs. Do not go tagging those fixtures —
+  they exist to prove the gate fires. Always lead with an explicit include: `-Dtest='**/*Test,!**/SomeTest'`,
+  and check the count is the one you expected.
 - **`-Dtest` naming an *abstract* base class selects nothing.** Several functional suites are written as an
   abstract base with concrete per-scope subclasses (`AbstractEntityByAttributeFilteringFunctionalTest` and its
   siblings). Surefire matches the pattern against class *names* and then finds nothing runnable, so
