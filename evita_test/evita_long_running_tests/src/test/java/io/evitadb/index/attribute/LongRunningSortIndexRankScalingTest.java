@@ -39,7 +39,6 @@ import java.util.Random;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -126,9 +125,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  */
 @Tag(INDEXING)
 @Tag(ATTRIBUTE)
-@Tag(SLOW)
 @DisplayName("Sort index first-touch cost does not scale with distinct value count")
-class SortIndexRankScalingTest {
+class LongRunningSortIndexRankScalingTest {
 	/**
 	 * Czech collation rules under a **private locale variant**, so this test gets a
 	 * {@link io.evitadb.comparator.CollationKeyCache} instance no other test can reach.

@@ -83,7 +83,6 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static io.evitadb.test.TestTags.MANAGEMENT;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.STORAGE;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -365,7 +364,6 @@ class LongRunningOffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSup
 
 	@DisplayName("Survive generational insert/update/remove with compaction and history-aware reads")
 	@ParameterizedTest(name = "OffsetIndex should survive generational randomized test applying modifications on it, compression: {1}")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeAndCompressionArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input, Compression compression) {
 		final AtomicReference<Path> currentFilePath = new AtomicReference<>(this.targetFile);

@@ -53,7 +53,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.PRICE;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
@@ -143,7 +142,6 @@ class LongRunningPriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTes
 	@ParameterizedTest(
 		name = "PriceListAndCurrencyPriceRefIndex should survive generational randomized test"
 	)
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("Generational proof test")
 	void generationalProofTest(@Nonnull GenerationalTestInput input) {
@@ -253,7 +251,6 @@ class LongRunningPriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTes
 	@ParameterizedTest(
 		name = "PriceListAndCurrencyPriceRefIndex rollback discards every in-transaction mutation and leaves the base intact"
 	)
-	@Tag(SLOW)
 	@Tag(TRANSACTION)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("Generational rollback proof test")

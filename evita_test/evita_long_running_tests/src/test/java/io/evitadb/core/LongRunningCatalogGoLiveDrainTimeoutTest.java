@@ -55,7 +55,6 @@ import java.util.function.Function;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.SESSION;
-import static io.evitadb.test.TestTags.SLOW;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -129,7 +128,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@Tag(SLOW)
 @Tag(ENGINE)
 @Tag(SESSION)
 @DisplayName("Long-running go-live drain timeout and undo")

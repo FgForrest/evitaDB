@@ -133,7 +133,6 @@ import static io.evitadb.api.query.QueryConstraints.dataInLocales;
 import static io.evitadb.test.EvitaTestSupport.catalogDirectory;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.test.diagnostics.TaskHangDiagnostics.awaitTaskResult;
 import static io.evitadb.test.generator.DataGenerator.*;
@@ -497,7 +496,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 
 	@DisplayName("Catalog history should be aggregated correctly.")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
-	@Tag(SLOW)
 	@Test
 	void shouldBuildCorrectHistory(Evita evita) throws IOException {
 		// close evita first so that the processing pipeline is shut down
@@ -700,7 +698,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 
 	@DisplayName("Should handle large transaction.")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
-	@Tag(SLOW)
 	@Test
 	void shouldHandleLargeTransaction(EvitaContract evita, SealedEntitySchema productSchema) {
 		final EvitaSessionContract session = evita.createSession(
@@ -728,7 +725,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 
 	@DisplayName("Should execute multiple updates of same entity in one large transaction.")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
-	@Tag(SLOW)
 	@Test
 	void shouldExecuteMultipleUpdatesOfSameEntityInOneLargeTransaction(EvitaContract originalEvita) throws Exception {
 		final EvitaConfiguration originalConfiguration = ((Evita) originalEvita).getConfiguration();
@@ -849,7 +845,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 
 	@DisplayName("Verify code has no problems assigning new PK in concurrent environment")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
-	@Tag(SLOW)
 	@Test
 	void shouldAutomaticallyGenerateEntitiesInParallel(
 		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
@@ -889,7 +884,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 
 	@DisplayName("Verify code has no problems assigning new PK in concurrent environment and simultaneous backup & restore")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
-	@Tag(SLOW)
 	@Test
 	void shouldBackupAndRestoreCatalogDuringHeavyParallelIndexing(
 		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
@@ -994,7 +988,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 
 	@DisplayName("Verify code has no problems assigning new PK in concurrent environment and simultaneous backup & restore including WAL")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
-	@Tag(SLOW)
 	@Test
 	void shouldBackupAndRestoreCatalogDuringHeavyParallelIndexingIncludingWal(
 		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
@@ -1118,7 +1111,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 		}
 	}
 
-	@Tag(SLOW)
 	@ParameterizedTest(name = "This test verifies, that all data files are correctly rotated and compacted.")
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void shouldCorrectlyRotateAllFiles(GenerationalTestInput input) throws Exception {
@@ -1401,7 +1393,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 		}
 	}
 
-	@Tag(SLOW)
 	@ParameterizedTest(name = "This test verifies, that all data files are correctly rotated and compacted.")
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void shouldCorrectlyRotateAllFilesManyItems(GenerationalTestInput input) throws Exception {
