@@ -33,6 +33,12 @@ import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.spi.analysis.AnalysisStepFactory;
 import io.evitadb.spi.analysis.AnalysisStepParameterDescriptor;
+import io.evitadb.spi.analysis.FulltextAnalysisSide;
+import io.evitadb.spi.analysis.FulltextAnalysisStepFactory;
+import io.evitadb.spi.analysis.FulltextSplittingAnalysisStepFactory;
+import io.evitadb.spi.analysis.FulltextTextAnalysisStepFactory;
+import io.evitadb.spi.analysis.FulltextTokenizerAnalysisStepFactory;
+import io.evitadb.spi.analysis.FulltextWordsAnalysisStepFactory;
 import io.evitadb.spi.analysis.NormalizingAnalysisStepFactory;
 import io.evitadb.utils.CollectionUtils;
 
@@ -46,6 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.ServiceLoader;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 
 /**
@@ -69,7 +76,8 @@ public final class AnalysisStepRegistry {
 	 * Duplicate diagnostics are sorted by name and provider class, independent of discovery order.
 	 *
 	 * @param factories complete provider set
-	 * @throws EvitaInvalidUsageException when two providers claim the same name
+	 * @throws EvitaInvalidUsageException when two providers claim the same name, or a fulltext provider declares its
+	 *                                    phase or sides inconsistently
 	 */
 	public AnalysisStepRegistry(@Nonnull Collection<? extends AnalysisStepFactory> factories) {
 		final List<AnalysisStepFactory> sorted = new ArrayList<>(factories);
@@ -82,6 +90,9 @@ public final class AnalysisStepRegistry {
 					"Duplicate analysis step `" + factory.getName() + "`: " + previous.getClass().getName() +
 						" and " + factory.getClass().getName() + "."
 				);
+			}
+			if (factory instanceof FulltextAnalysisStepFactory fulltextFactory) {
+				validateFulltextFactory(fulltextFactory);
 			}
 		}
 		this.factories = Map.copyOf(installed);
@@ -121,6 +132,75 @@ public final class AnalysisStepRegistry {
 				"Analysis step `" + step.name() + "` is not usable as a normalizer."
 			);
 		}
+		validateParameters(step, normalizingFactory);
+		return normalizingFactory;
+	}
+
+	/**
+	 * Resolves a fulltext analysis step description and validates its declared parameters.
+	 *
+	 * @param step persisted description
+	 * @return installed fulltext-capable factory
+	 * @throws EvitaInvalidUsageException distinguishing unknown, unusable and invalid-parameter declarations
+	 */
+	@Nonnull
+	public FulltextAnalysisStepFactory resolveFulltext(@Nonnull AnalysisStep step) {
+		final AnalysisStepFactory factory = this.factories.get(step.name());
+		if (factory == null) {
+			throw new EvitaInvalidUsageException("Unknown analysis step `" + step.name() + "`.");
+		}
+		if (!(factory instanceof FulltextAnalysisStepFactory fulltextFactory)) {
+			throw new EvitaInvalidUsageException(
+				"Analysis step `" + step.name() + "` is not usable in a fulltext analyzer."
+			);
+		}
+		validateParameters(step, fulltextFactory);
+		return fulltextFactory;
+	}
+
+	/**
+	 * Refuses a fulltext provider whose type does not say one phase, or which acts on no side. The phase interfaces are
+	 * sealed under {@link FulltextAnalysisStepFactory}, but a class can still implement two of them, and a side set is
+	 * a value the type cannot check.
+	 *
+	 * @param factory the discovered provider
+	 * @throws EvitaInvalidUsageException naming the provider class
+	 */
+	private static void validateFulltextFactory(@Nonnull FulltextAnalysisStepFactory factory) {
+		final int phases = (factory instanceof FulltextTextAnalysisStepFactory ? 1 : 0) +
+			(factory instanceof FulltextTokenizerAnalysisStepFactory ? 1 : 0) +
+			(factory instanceof FulltextSplittingAnalysisStepFactory ? 1 : 0) +
+			(factory instanceof FulltextWordsAnalysisStepFactory ? 1 : 0);
+		if (phases != 1) {
+			throw new EvitaInvalidUsageException(
+				"Analysis step `" + factory.getName() + "` (" + factory.getClass().getName() + ") implements " +
+					phases + " fulltext phases - a step belongs to exactly one."
+			);
+		}
+		final Set<FulltextAnalysisSide> sides;
+		if (factory instanceof FulltextTextAnalysisStepFactory textFactory) {
+			sides = textFactory.getSides();
+		} else if (factory instanceof FulltextWordsAnalysisStepFactory wordsFactory) {
+			sides = wordsFactory.getSides();
+		} else {
+			// the tokenizer and the further splitting steps act on both sides by their type
+			return;
+		}
+		if (sides.isEmpty()) {
+			throw new EvitaInvalidUsageException(
+				"Analysis step `" + factory.getName() + "` (" + factory.getClass().getName() + ") acts on no side."
+			);
+		}
+	}
+
+	/**
+	 * Checks the declared parameters against the factory's descriptors, then lets the factory validate their values.
+	 *
+	 * @param step    persisted description
+	 * @param factory the factory the description resolved to
+	 * @throws EvitaInvalidUsageException naming the step when a parameter is missing, unknown, mistyped or invalid
+	 */
+	private static void validateParameters(@Nonnull AnalysisStep step, @Nonnull AnalysisStepFactory factory) {
 		try {
 			final Map<String, Serializable> parameters = step.parameters();
 			final Map<String, AnalysisStepParameterDescriptor> descriptors =
@@ -142,13 +222,12 @@ public final class AnalysisStepRegistry {
 					);
 				}
 			}
-			normalizingFactory.validate(parameters);
+			factory.validate(parameters);
 		} catch (EvitaInvalidUsageException ex) {
 			throw new EvitaInvalidUsageException(
 				"Invalid parameters for analysis step `" + step.name() + "`: " + ex.getMessage(), ex
 			);
 		}
-		return normalizingFactory;
 	}
 
 	/**

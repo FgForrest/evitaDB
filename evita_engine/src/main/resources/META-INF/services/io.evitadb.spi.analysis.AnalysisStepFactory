@@ -2,3 +2,6 @@ io.evitadb.index.analysis.LowercaseAnalysisStepFactory
 io.evitadb.index.analysis.AsciiFoldingAnalysisStepFactory
 io.evitadb.index.analysis.TrimAnalysisStepFactory
 io.evitadb.index.analysis.RemoveCharactersAnalysisStepFactory
+io.evitadb.index.fulltext.analysis.StandardTokenizerAnalysisStepFactory
+io.evitadb.index.fulltext.analysis.StopWordsAnalysisStepFactory
+io.evitadb.index.fulltext.analysis.CzechStemmingAnalysisStepFactory

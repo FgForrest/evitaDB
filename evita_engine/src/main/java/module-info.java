@@ -124,7 +124,10 @@ module evita.engine {
 		io.evitadb.index.analysis.LowercaseAnalysisStepFactory,
 		io.evitadb.index.analysis.AsciiFoldingAnalysisStepFactory,
 		io.evitadb.index.analysis.TrimAnalysisStepFactory,
-		io.evitadb.index.analysis.RemoveCharactersAnalysisStepFactory;
+		io.evitadb.index.analysis.RemoveCharactersAnalysisStepFactory,
+		io.evitadb.index.fulltext.analysis.StandardTokenizerAnalysisStepFactory,
+		io.evitadb.index.fulltext.analysis.StopWordsAnalysisStepFactory,
+		io.evitadb.index.fulltext.analysis.CzechStemmingAnalysisStepFactory;
 
 	uses io.evitadb.spi.export.ExportServiceFactory;
 	uses io.evitadb.spi.store.engine.EnginePersistenceServiceFactory;
@@ -148,9 +151,10 @@ module evita.engine {
 	requires zero.allocation.hashing;
 	// `org.apache.lucene.analysis.common` requires the core module NON-transitively, so the core has to
 	// be required explicitly here - the full-text analysis package uses `Analyzer`, `TokenStream` and the
-	// token attributes straight from the core.
-	requires org.apache.lucene.core;
-	requires org.apache.lucene.analysis.common;
+	// token attributes straight from the core. Both are transitive because the exported fulltext analysis SPI
+	// (`io.evitadb.spi.analysis`) names Lucene types in its signatures, so a module providing a step needs them too.
+	requires transitive org.apache.lucene.core;
+	requires transitive org.apache.lucene.analysis.common;
 
 	opens io.evitadb.core.metric.event to evita.common;
 	opens io.evitadb.core.metric.event.transaction to jdk.jfr;
