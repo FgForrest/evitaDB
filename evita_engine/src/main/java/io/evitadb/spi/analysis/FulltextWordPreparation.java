@@ -30,7 +30,8 @@ import java.util.List;
 /**
  * Prepares a word of a resource the way a step compares it: runs it through the steps of the words phase before the
  * reading step, on the side being compiled, so that `wordList("Nike")` read after `lowercase` is compared as `nike`.
- * Handed to a step in its {@link FulltextAnalysisContext}.
+ * It also tells whether the word splitting of the side brings such a word to the step whole. Handed to a step in its
+ * {@link FulltextAnalysisContext}.
  */
 @FunctionalInterface
 public interface FulltextWordPreparation {
@@ -50,5 +51,20 @@ public interface FulltextWordPreparation {
 	 */
 	@Nonnull
 	List<String> prepare(@Nonnull String word);
+
+	/**
+	 * Tells whether a word of a resource reaches the words phase as one word: whether the tokenizer of the side yields
+	 * exactly one token for it. A step matching single words refuses a word for which it does not - no text brings
+	 * that word to the step whole. The further splitting steps are not asked: `word-number-split` keeps the word
+	 * besides its parts.
+	 *
+	 * The default, for a preparation that does not know the tokenizer, counts a word without whitespace as one.
+	 *
+	 * @param word a word of a resource, as the resource holds it
+	 * @return `true` when the word reaches the words phase as a single word
+	 */
+	default boolean isSingleWord(@Nonnull String word) {
+		return word.codePoints().noneMatch(Character::isWhitespace);
+	}
 
 }

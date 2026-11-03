@@ -332,10 +332,12 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 		}
 	}
 
+	/** An analyzer the catalog schema's own validation accepts, refused only once it is compiled. */
 	@Nested
 	@DisplayName("refused by the fulltext analyzer check")
 	class FulltextAnalyzerCheck {
 
+		/** A collection defined after the analyzer in the same session must not publish the analyzer mid-session. */
 		@Test
 		@Tag(FULLTEXT)
 		@DisplayName("should not publish an analyzer that does not compile when the session then defines a collection")
@@ -381,6 +383,47 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 				}
 			);
 			assertTrue(analyzerGone, "The refused analyzer must not survive the reopen");
+		}
+
+		/** The go-live operator compiles the analyzers before it publishes, and raises the barrier when one fails. */
+		@Test
+		@Tag(FULLTEXT)
+		@DisplayName("should not publish an analyzer that does not compile when the session goes live")
+		void shouldNotPublishAnAnalyzerThatDoesNotCompileWhenTheSessionGoesLive() {
+			// `goLiveAndClose` terminates its session without `EvitaSession#closeInternal`, so the only check between
+			// this analyzer and the ALIVE bootstrap record is `Catalog#validateSchema()` in the go-live operator.
+			//
+			// CALIBRATED (2026-11-03): pointing `MakeCatalogAliveMutationOperator` back at `getSchema().validate()`
+			// alone fails this test; `shouldNotPublishTheRefusedSchemaWhenTheSameSessionGoesLive` refuses a rule that
+			// `validate()` covers and passes either way
+			final InvalidSchemaMutationException exception =
+				CatalogUnpublishableBarrierAssertions.assertRefusalRaisesTheBarrier(
+					WarmUpRefusedSchemaPersistenceTest.this.evita, TEST_CATALOG,
+					InvalidSchemaMutationException.class,
+					() -> WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
+						TEST_CATALOG,
+						session -> {
+							// a fold before the Czech stemmer does not compile in any language
+							session.getCatalogSchema()
+								.openForWrite()
+								.withFulltextAnalyzer(ANALYZER_NAMES, a -> a.words(asciiFolding(), czechStemming()))
+								.updateVia(session);
+							session.goLiveAndClose();
+						}
+					)
+				);
+			assertTrue(
+				exception.getMessage().contains("Fulltext analyzer `" + ANALYZER_NAMES + "`"),
+				() -> "The refusal must name the analyzer, but was: " + exception.getMessage()
+			);
+
+			WarmUpRefusedSchemaPersistenceTest.this.reopenCatalog();
+			final boolean analyzerGone = WarmUpRefusedSchemaPersistenceTest.this.evita.queryCatalog(
+				TEST_CATALOG, session -> {
+					return session.getCatalogSchema().getFulltextAnalyzer(ANALYZER_NAMES).isEmpty();
+				}
+			);
+			assertTrue(analyzerGone, "Going live must not publish the refused analyzer");
 		}
 	}
 

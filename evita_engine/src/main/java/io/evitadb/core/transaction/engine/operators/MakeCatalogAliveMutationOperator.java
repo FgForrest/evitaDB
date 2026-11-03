@@ -274,8 +274,9 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 				// validation lives. All three go-live entry points funnel through this operator, so the check sits
 				// here, ahead of the first publication, and raises the same barrier an ordinary close would.
 				// caught as any exception for the same reason as the warm-up close in `EvitaSession#closeInternal`:
-				// `validate()` refuses in two vocabularies, only the narrower one is a `SchemaAlteringException`, and
-				// an exception outside both leaves the schema unvalidated - none of them may reach a publication
+				// `Catalog#validateSchema()` refuses in two vocabularies, only the narrower one is a
+				// `SchemaAlteringException`, and an exception outside both leaves the schema unvalidated - none of
+				// them may reach a publication
 				try {
 					theCatalog.validateSchema();
 				} catch (Throwable ex) {

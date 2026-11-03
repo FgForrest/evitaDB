@@ -74,6 +74,7 @@ class FulltextAnalyzerValidationSchemaTest implements EvitaTestSupport {
 	private TestPaths paths;
 	private Evita evita;
 
+	/** Starts an embedded evitaDB over fresh test folders with an empty catalog in warm-up. */
 	@BeforeEach
 	void setUp() {
 		this.paths = createTestPaths("FulltextAnalyzerValidationSchema");
@@ -81,6 +82,7 @@ class FulltextAnalyzerValidationSchemaTest implements EvitaTestSupport {
 		this.evita.defineCatalog(TEST_CATALOG);
 	}
 
+	/** Closes the embedded evitaDB, when a test left it running, and removes its folders. */
 	@AfterEach
 	void tearDown() {
 		if (this.evita != null && this.evita.isActive()) {
@@ -89,6 +91,10 @@ class FulltextAnalyzerValidationSchemaTest implements EvitaTestSupport {
 		cleanupTestPaths(this.paths);
 	}
 
+	/**
+	 * A fold before the Czech stemmer does not compile in any language, so the closing session rolls back and the
+	 * refusal names the analyzer and its all-languages definition.
+	 */
 	@Test
 	@DisplayName("should refuse an analyzer whose words phase does not compile when the session closes")
 	void shouldRefuseAnalyzerThatDoesNotCompile() {
@@ -115,6 +121,7 @@ class FulltextAnalyzerValidationSchemaTest implements EvitaTestSupport {
 		assertTrue(catalogSchema().getFulltextAnalyzer(ANALYZER_NAMES).isEmpty());
 	}
 
+	/** An analyzer that does not compile in Czech alone is refused once a Czech field uses it, naming the language. */
 	@Test
 	@DisplayName("should refuse an analyzer that does not compile in the language of a field using it")
 	void shouldRefuseAnalyzerInLanguageOfField() {
@@ -142,6 +149,7 @@ class FulltextAnalyzerValidationSchemaTest implements EvitaTestSupport {
 		assertTrue(catalogSchema().getFulltextAnalyzer(ANALYZER_NAMES).isEmpty());
 	}
 
+	/** The same analyzer is accepted while the only field using it is in a language where it compiles. */
 	@Test
 	@DisplayName("should accept the same analyzer when no field uses it in that language")
 	void shouldAcceptAnalyzerOutsideLanguageOfField() {
@@ -161,6 +169,10 @@ class FulltextAnalyzerValidationSchemaTest implements EvitaTestSupport {
 		assertTrue(catalogSchema().getFulltextAnalyzer(ANALYZER_NAMES).isPresent());
 	}
 
+	/**
+	 * A warm-up session may define an analyzer that does not compile, define a collection using it and fix it before
+	 * it closes: only the final state is checked, and it survives a reopen.
+	 */
 	@Test
 	@DisplayName("should let a warm-up session pass through an analyzer that does not compile and fix it")
 	void shouldToleratePassingStateWithinSession() {

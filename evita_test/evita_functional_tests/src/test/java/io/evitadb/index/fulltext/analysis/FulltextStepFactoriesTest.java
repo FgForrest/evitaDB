@@ -354,6 +354,22 @@ class FulltextStepFactoriesTest {
 				}
 			}
 		}
+
+		/**
+		 * A listed surrogate is half of a code point, never a code point of a well-formed text, so a supplementary
+		 * character one of whose halves it is stays whole - as the same step leaves it when it normalizes a value.
+		 */
+		@Test
+		@DisplayName("should keep a supplementary character one of whose halves is listed")
+		void shouldKeepSupplementaryCharacterWhoseHalfIsListed() {
+			try (
+				final FulltextAnalyzer chain = chain(
+					List.of(removeCharacters("\uD83D")), List.of(), Locale.ROOT, Map.of(), FulltextAnalysisSide.INDEX
+				)
+			) {
+				assertEquals(List.of("a", "😀", "b"), termTexts(chain, "a😀b"));
+			}
+		}
 	}
 
 	/** The `word-number-split` step splits a word where a letter meets a digit and keeps the word itself. */
@@ -675,6 +691,28 @@ class FulltextStepFactoriesTest {
 			);
 
 			assertTrue(exception.getMessage().contains("`smart tv`"), exception.getMessage());
+		}
+
+		/**
+		 * A group word the tokenizer of the side cuts in two never reaches the step whole either, though it holds no
+		 * space, so it is refused as well.
+		 */
+		@Test
+		@DisplayName("should refuse a synonym the tokenizer splits")
+		void shouldRefuseSynonymTheTokenizerSplits() {
+			final Map<String, FulltextResourceContent> hyphenated = Map.of(
+				"groups", synonymList(synonymGroup("tričko", "t-shirt"))
+			);
+
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> chain(
+					List.of(lowercase(), synonyms(resource("groups"))), Locale.forLanguageTag("cs"), hyphenated,
+					FulltextAnalysisSide.QUERY
+				)
+			);
+
+			assertTrue(exception.getMessage().contains("`t-shirt`"), exception.getMessage());
 		}
 
 		/** A word list is a resource of another kind, never a list of synonym groups. */

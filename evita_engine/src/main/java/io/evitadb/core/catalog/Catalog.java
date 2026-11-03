@@ -3217,7 +3217,7 @@ public final class Catalog
 	 * publication and leaves the decision to the session close, which is the point at which the state is final.
 	 *
 	 * **The catch is {@link EvitaInvalidUsageException}, not {@link SchemaAlteringException}, and the difference is
-	 * load-bearing.** `validate()` does not report every refusal in the schema-altering vocabulary: walking a
+	 * load-bearing.** `validateSchema()` does not report every refusal in the schema-altering vocabulary: walking a
 	 * half-built schema reaches getters that refuse to answer at all, and `ReflectedReferenceSchema#isIndexedInScope`
 	 * throwing "the reflected reference is not available" for a reflected reference whose target is not wired yet is
 	 * exactly the intermediate state this method exists to tolerate. Catching only the narrower type turned that

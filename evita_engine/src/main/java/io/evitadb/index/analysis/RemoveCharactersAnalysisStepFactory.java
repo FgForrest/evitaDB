@@ -136,7 +136,11 @@ public final class RemoveCharactersAnalysisStepFactory
 	) {
 		validate(parameters);
 		final NormalizeCharMap.Builder removals = new NormalizeCharMap.Builder();
+		// the filter matches UTF-16 chars, so a listed surrogate would remove half of every supplementary character
+		// sharing it - a surrogate is no code point of a well-formed text, and one left unpaired in a malformed text
+		// stays here, while the normalization above removes it
 		((String) parameters.get(AnalysisSteps.CHARACTERS)).codePoints()
+			.filter(codePoint -> codePoint < Character.MIN_SURROGATE || codePoint > Character.MAX_SURROGATE)
 			.distinct()
 			.forEach(codePoint -> removals.add(Character.toString(codePoint), ""));
 		final NormalizeCharMap removalMap = removals.build();

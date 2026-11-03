@@ -93,8 +93,9 @@ public record FulltextAnalysisContext(
 	 * Returns the resource of the given name, its words as the resource holds them.
 	 *
 	 * The catalog schema checks the resource parameters of the built-in steps
-	 * ({@link io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps#RESOURCE_PARAMETERS}) without a server, but
-	 * which parameters of another provider's step name a resource only the step knows - for those, this is the check.
+	 * ({@link io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps#RESOURCE_PARAMETERS}) without a server.
+	 * Which parameters of another provider's step name a resource only that step knows, so for those this lookup is
+	 * the only check.
 	 *
 	 * @param name the name a step parameter holds
 	 * @return the content of the resource
@@ -135,7 +136,7 @@ public record FulltextAnalysisContext(
 		}
 		final Set<String> words = CollectionUtils.createLinkedHashSet(wordList.words().size());
 		for (final String word : wordList.words()) {
-			words.addAll(this.preparation.prepare(word));
+			words.addAll(prepare(word));
 		}
 		return Collections.unmodifiableSet(words);
 	}

@@ -47,9 +47,10 @@ import java.util.Set;
 /**
  * The `synonyms` step: expands a query word to the other words of its synonym groups, all at the word's position, with
  * {@link SynonymExpansionFilter}. It acts on the query side only, so an edit of the lists applies to the next query
- * without reindexing. Only single words are supported. The words of a group are compared as the steps before this
- * one leave them - a word those steps remove leaves its group - and the words a query word expands to pass through the
- * steps after this one, so a stemmer placed after it stems them as it stems the query word.
+ * without reindexing. Only single words are supported: a group word the tokenizer of the side cuts, as the standard
+ * tokenizer cuts `t-shirt`, is refused. The words of a group are compared as the steps before this one leave them -
+ * a word those steps remove leaves its group - and the words a query word expands to pass through the steps after
+ * this one, so a stemmer placed after it stems them as it stems the query word.
  */
 public final class SynonymsAnalysisStepFactory implements FulltextWordsAnalysisStepFactory {
 	/**
@@ -147,7 +148,8 @@ public final class SynonymsAnalysisStepFactory implements FulltextWordsAnalysisS
 	 * @param list       the name of the list holding the group, for the error
 	 * @param words      the words of the group, as the list holds them
 	 * @param context    the context preparing the words
-	 * @throws EvitaInvalidUsageException when a word of the group is not a single word
+	 * @throws EvitaInvalidUsageException when a word of the group does not reach the step as a single word - see
+	 *                                    {@link io.evitadb.spi.analysis.FulltextWordPreparation#isSingleWord(String)}
 	 */
 	private static void addGroup(
 		@Nonnull Map<String, Set<String>> expansions,
@@ -156,7 +158,8 @@ public final class SynonymsAnalysisStepFactory implements FulltextWordsAnalysisS
 		@Nonnull FulltextAnalysisContext context
 	) {
 		for (final String word : words) {
-			if (word.codePoints().anyMatch(Character::isWhitespace)) {
+			// a word the tokenizer splits, such as `t-shirt`, would never meet a single query word
+			if (!context.preparation().isSingleWord(word)) {
 				throw new EvitaInvalidUsageException(
 					"Synonym `" + word + "` of the list `" + list + "` is not a single word - only single words are " +
 						"supported."

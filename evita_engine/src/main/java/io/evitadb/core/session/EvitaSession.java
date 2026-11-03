@@ -2126,11 +2126,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	/**
-	 * Validates the schema of the given catalog, and marks the open transaction rollback-only when the validation does
-	 * not pass.
+	 * Validates the schema of the given catalog through {@link Catalog#validateSchema()} - its rules and its fulltext
+	 * analyzers - and marks the open transaction rollback-only when the validation does not pass. A session that has
+	 * not raised the catalog schema version skips the validation, the analyzer check included.
 	 *
-	 * Whatever the validation throws marks it, not only a {@link SchemaAlteringException}. `validate()` refuses in
-	 * two vocabularies (see the warm-up branch of {@link #closeInternal(CommitBehavior)}), and an exception outside
+	 * Whatever the validation throws marks it, not only a {@link SchemaAlteringException}. `validateSchema()` refuses
+	 * in two vocabularies (see the warm-up branch of {@link #closeInternal(CommitBehavior)}), and an exception outside
 	 * both - an engine defect the walk uncovers - means the schema was never validated at all. The transaction
 	 * commits when it closes unless it is marked, so a narrower catch would publish exactly the schema the validation
 	 * could not vouch for. The exception still propagates, so the failure surfaces as before.

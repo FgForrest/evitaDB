@@ -113,8 +113,8 @@ public final class FulltextChainCompiler {
 	 * @param side      the side the chain is built for
 	 * @param context   the locale and the resources the steps' parameters may name
 	 * @return the compiled chain; the caller owns it and has to close it
-	 * @throws EvitaInvalidUsageException when a step is unknown, has invalid parameters, belongs to another phase, or
-	 *                                    the splitting does not start with a tokenizer
+	 * @throws EvitaInvalidUsageException when a step is unknown, has invalid parameters, belongs to another phase,
+	 *                                    refuses its place, or the splitting does not start with a tokenizer
 	 */
 	@Nonnull
 	public Analyzer compile(
@@ -149,20 +149,22 @@ public final class FulltextChainCompiler {
 			);
 		}
 		final List<FulltextWordsAnalysisOperation> wordOperations = new ArrayList<>(words.size());
-		final List<String> wordStepNames = new ArrayList<>(words.size());
+		final List<PlacedStep> placedSteps = new ArrayList<>(words.size());
 		for (final AnalysisStep step : words) {
 			final FulltextWordsAnalysisStepFactory factory = resolve(
 				step, FulltextWordsAnalysisStepFactory.class, "a words step"
 			);
 			if (factory.getSides().contains(side)) {
 				final FulltextWordPreparation preparation = new PrecedingStepsPreparation(
-					wordOperations.toArray(FulltextWordsAnalysisOperation[]::new), side
+					wordOperations.toArray(FulltextWordsAnalysisOperation[]::new), tokenizer, side
 				);
-				wordOperations.add(factory.create(step.parameters(), context.withPreparation(preparation)));
-				wordStepNames.add(step.name());
+				final FulltextWordsAnalysisOperation operation =
+					factory.create(step.parameters(), context.withPreparation(preparation));
+				wordOperations.add(operation);
+				placedSteps.add(new PlacedStep(step.name(), operation.getTraits(side)));
 			}
 		}
-		verifyPlacements(wordOperations, wordStepNames, side);
+		verifyPlacements(wordOperations, List.copyOf(placedSteps), side);
 		return new CompiledChain(
 			textOperations.toArray(FulltextTextAnalysisOperation[]::new),
 			tokenizer,
@@ -175,21 +177,17 @@ public final class FulltextChainCompiler {
 	/**
 	 * Lets every words step of the side check its place among the others.
 	 *
-	 * @param operations the operations of the words steps acting on the side, in order
-	 * @param names      the names of the same steps, in the same order
-	 * @param side       the side the chain is built for
+	 * @param operations  the operations of the words steps acting on the side, in order
+	 * @param placedSteps the same steps with their traits on the side, in the same order - immutable, so that every
+	 *                    placement shares it instead of copying it
+	 * @param side        the side the chain is built for
 	 * @throws EvitaInvalidUsageException when a step refuses its place
 	 */
 	private static void verifyPlacements(
 		@Nonnull List<FulltextWordsAnalysisOperation> operations,
-		@Nonnull List<String> names,
+		@Nonnull List<PlacedStep> placedSteps,
 		@Nonnull FulltextAnalysisSide side
 	) {
-		final List<PlacedStep> phase = new ArrayList<>(operations.size());
-		for (int i = 0; i < operations.size(); i++) {
-			phase.add(new PlacedStep(names.get(i), operations.get(i).getTraits(side)));
-		}
-		final List<PlacedStep> placedSteps = List.copyOf(phase);
 		for (int i = 0; i < operations.size(); i++) {
 			operations.get(i).verifyPlacement(new FulltextWordsPlacement(side, placedSteps, i));
 		}
@@ -242,13 +240,18 @@ public final class FulltextChainCompiler {
 	 * text, and runs it as one token through the words steps before that step on the side. The text phase and the word
 	 * splitting are left out: the word is compared with the words as they reach the step, not with a text. The
 	 * synonyms a preceding step adds (Lucene's `SYNONYM` token type) are left out too: they are other words, not forms
-	 * of this one. So is a term a preceding step leaves empty.
+	 * of this one. So is a term a preceding step leaves empty. Whether the word reaches the step whole is the
+	 * tokenizer's call alone, asked over the same NFC form.
 	 */
 	private static final class PrecedingStepsPreparation implements FulltextWordPreparation {
 		/**
 		 * The operations of the preceding words steps on the side, in order.
 		 */
 		@Nonnull private final FulltextWordsAnalysisOperation[] operations;
+		/**
+		 * The tokenizer of the side, deciding which words reach the words phase whole.
+		 */
+		@Nonnull private final FulltextTokenizerAnalysisOperation tokenizer;
 		/**
 		 * The side the chain is built for.
 		 */
@@ -258,14 +261,36 @@ public final class FulltextChainCompiler {
 		 * Creates the preparation of the next words step.
 		 *
 		 * @param operations the operations of the preceding words steps on the side, in order
+		 * @param tokenizer  the tokenizer of the side, deciding which words reach the words phase whole
 		 * @param side       the side the chain is built for
 		 */
 		PrecedingStepsPreparation(
 			@Nonnull FulltextWordsAnalysisOperation[] operations,
+			@Nonnull FulltextTokenizerAnalysisOperation tokenizer,
 			@Nonnull FulltextAnalysisSide side
 		) {
 			this.operations = operations;
+			this.tokenizer = tokenizer;
 			this.side = side;
+		}
+
+		@Override
+		public boolean isSingleWord(@Nonnull String word) {
+			try (final Tokenizer source = this.tokenizer.createTokenizer()) {
+				source.setReader(new StringReader(Normalizer.normalize(word, Normalizer.Form.NFC)));
+				source.reset();
+				int tokens = 0;
+				while (source.incrementToken()) {
+					tokens++;
+				}
+				source.end();
+				// the count, not the token: `'s` is one word to the standard tokenizer, which emits it as `s`
+				return tokens == 1;
+			} catch (IOException e) {
+				throw new GenericEvitaInternalError(
+					"Splitting the word `" + word + "` failed: " + e.getMessage(), "Splitting a word failed.", e
+				);
+			}
 		}
 
 		@Nonnull
