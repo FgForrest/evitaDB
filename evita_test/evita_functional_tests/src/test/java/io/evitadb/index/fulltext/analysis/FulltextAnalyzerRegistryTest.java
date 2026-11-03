@@ -475,13 +475,14 @@ class FulltextAnalyzerRegistryTest {
 		}
 
 		@Test
-		@DisplayName("An analyzer close() itself observed is not closed a second time")
-		void shouldNotDoubleCloseWhenCloseWinsTheRace() {
+		@DisplayName("An analyzer published before close() is released by close() exactly once")
+		void shouldReleaseAnAnalyzerPublishedBeforeCloseOnce() {
 			final CloseRecordingAnalyzer built = new CloseRecordingAnalyzer();
 			final FulltextAnalyzerRegistry registry = createRegistryWithSlowAnalyzer(() -> built);
 
-			// the ordering the previous test does not cover: the entry is already published when close() runs, so
-			// close() owns it and the second half of the handshake must keep its hands off
+			// the lookup completes before close() runs, so close() owns the entry. The interleaving in between - the
+			// lookup has published its entry, close() removes and releases it before the lookup re-checks the flag -
+			// has no deterministic seam; the conditional removal in `getAnalyzerInstance` covers it untested
 			registry.getIndexAnalyzerByName(SLOW_ANALYZER_NAME);
 			registry.close();
 

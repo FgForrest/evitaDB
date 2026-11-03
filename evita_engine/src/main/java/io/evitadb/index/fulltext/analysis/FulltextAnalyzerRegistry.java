@@ -241,7 +241,9 @@ public class FulltextAnalyzerRegistry implements Closeable {
 			// close() ran while the factory was still building the chain and may have walked past this key
 			// before the entry existed - take the instance back out and release it here, because nothing else
 			// ever will. The removal is also what prevents a double close: close() likewise closes only what
-			// it removed, so a false return here means close() already owns and released this instance
+			// it removed, so a false return here means close() already owns and released this instance. That second
+			// interleaving (close() removes the published entry before this check) has no deterministic seam and is
+			// not covered by a test; `shouldNotLeakAnalyzerBuiltWhileClosing` covers the first one
 			if (this.instances.remove(name, analyzer)) {
 				analyzer.close();
 			}
