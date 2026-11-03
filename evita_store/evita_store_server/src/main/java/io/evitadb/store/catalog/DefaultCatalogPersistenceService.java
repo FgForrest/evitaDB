@@ -5442,6 +5442,11 @@ public class DefaultCatalogPersistenceService
 		if (catalogHeader.storageProtocolVersion() == STORAGE_PROTOCOL_VERSION) {
 			return storagePartPersistenceService;
 		} else {
+			if (catalogHeader.storageProtocolVersion() == 4 || catalogHeader.storageProtocolVersion() == 5) {
+				LegacyRepresentativeKeyPreflight.verifyBeforeMigrationChain(
+					catalogHeader, storagePartPersistenceService, this::createEntityCollectionPersistenceService
+				);
+			}
 			CatalogOffsetIndexStoragePartPersistenceService currentService = storagePartPersistenceService;
 			do {
 				final int catalogStorageProtocolVersion = catalogHeader.storageProtocolVersion();

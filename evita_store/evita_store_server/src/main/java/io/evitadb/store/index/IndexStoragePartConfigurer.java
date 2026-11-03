@@ -128,7 +128,12 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			SortIndexStoragePart.class,
 			new SerialVersionBasedSerializer<>(new SortIndexStoragePartSerializer(this.keyCompressor), SortIndexStoragePart.class)
 				.addBackwardCompatibleSerializer(6163295675316818632L, new SortIndexStoragePartSerializer_2025_5(this.keyCompressor))
-				.addBackwardCompatibleSerializer(-7076092972784353868L, new SortIndexStoragePartSerializer_2026_1(this.keyCompressor)),
+				.addBackwardCompatibleSerializer(
+					-7076092972784353868L, new SortIndexStoragePartSerializer_2026_1(this.keyCompressor)
+				)
+				.addBackwardCompatibleSerializer(
+					5192847362910473829L, new SortIndexStoragePartSerializer_2026_2(this.keyCompressor)
+				),
 			index++
 		);
 		kryo.register(

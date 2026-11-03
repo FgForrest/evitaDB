@@ -1,11 +1,11 @@
 ---
 title: Schema builders drop the mutations that leave their level of the schema unchanged, judged by value at toMutation()
-date: 2026-10-31
-updated: 2026-11-03 13:21
+date: 2026-11-03
+updated: 2026-11-03 15:10
 status: accepted
 kind: fix
 issues: [1837, 1843, 1845, 1846, 1847, 1848, 1849, 1850, 1851, 1852, 1853, 1854, 1855, 1856, 1857, 1858, 1859, 1860, 1861, 1862, 1863, 1864, 1865, 1868, 1869, 1870]
-prs: [1844]
+prs: [1841, 1844]
 areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/schema/builder, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReflectedReferenceSchema.java, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ClassSchemaAnalyzer.java, evita_query/src/main/java/io/evitadb/api/query/expression, evita_external_api/evita_external_api_grpc/shared, evita_engine/src/main/java/io/evitadb/core/collection/EntityCollection.java, evita_engine/src/main/java/io/evitadb/core/catalog/Catalog.java, evita_query/src/main/resources/META-INF/io/evitadb/api/query/parser/evitaEL, evita_store/evita_store_server/src/main/java/io/evitadb/store/shared/serializer/dataType/ExpressionSerializer.java, evita_common/src/main/java/io/evitadb/dataType/EvitaDataTypes.java]
 supersedes: []
 superseded-by: []
