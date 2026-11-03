@@ -1,7 +1,7 @@
 ---
 title: Upgrade released catalogs from surviving parts, refusing collisions and warning about loss
-date: 2026-10-29
-updated: 2026-10-29 18:35
+date: 2026-11-03
+updated: 2026-11-03 15:10
 status: accepted
 kind: fix
 issues: [1696, 1699]
@@ -297,3 +297,6 @@ into unproven stale membership/locale cases or histogram and price reconstructio
   no-content-read warning and conditional REINDEX wording accepted; assigned proofs converted to their outcomes,
   with the inherited decimal fold subsequently assigned the same schema-only warning policy. The release fixtures
   left the repository: the functional tests' build now writes them with the released engines.
+- **2026-11-03** — dev merged. Since #1836 the engine refuses to declare a reflected reference that inherits a
+  compound without one of its attributes, but a 2026.2 catalog can hold one and still loads, so the loss report
+  keeps tolerating it; its test now builds the stored shape. Merged.

@@ -9,7 +9,7 @@ prs: [1621]
 areas: [evita_engine/src/main/java/io/evitadb/index/cardinality, evita_engine/src/main/java/io/evitadb/index/attribute, evita_common/src/main/java/io/evitadb/comparator, evita_common/src/main/java/io/evitadb/dataType, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_store/evita_store_server/src/main/java/io/evitadb/store/index/serializer]
 supersedes: []
 superseded-by: []
-relates: [2026-10-29-release-catalog-upgrade-from-surviving-index-parts, 2026-08-10-stored-value-normalization-split, 2026-09-04-millisecond-temporal-precision, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-10-20-single-owner-partitions-as-registry-rows]
+relates: [2026-11-03-release-catalog-upgrade-from-surviving-index-parts, 2026-08-10-stored-value-normalization-split, 2026-09-04-millisecond-temporal-precision, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-10-20-single-owner-partitions-as-registry-rows]
 ---
 
 # One filter-index entry has one identity, and everything that describes an entry now uses it
@@ -459,7 +459,7 @@ should be read as the trigger to supersede this record rather than to extend the
 - **2026-10-29 update:** The release upgrade now emits a schema-based conditional loss warning even for fields without
   counters. Unchecked counters retain their uncertainty and gain conditional REINDEX advice; this updates the earlier
   no-diagnostic statement for localized fields. See
-  [2026-10-29-release-catalog-upgrade-from-surviving-index-parts](2026-10-29-release-catalog-upgrade-from-surviving-index-parts.md).
+  [2026-11-03-release-catalog-upgrade-from-surviving-index-parts](2026-11-03-release-catalog-upgrade-from-surviving-index-parts.md).
 
 - **The tie-break breaks pre-existing collator-merged data on the READ path as well as the write path, and that
   risk is accepted knowingly.** The banner at the top of this record is the operator-facing statement. Measured
@@ -566,7 +566,7 @@ should be read as the trigger to supersede this record rather than to extend the
 ## Related work
 
 -
-  [2026-10-29-release-catalog-upgrade-from-surviving-index-parts](2026-10-29-release-catalog-upgrade-from-surviving-index-parts.md)
+  [2026-11-03-release-catalog-upgrade-from-surviving-index-parts](2026-11-03-release-catalog-upgrade-from-surviving-index-parts.md)
   — The release upgrade now emits a schema-based conditional loss warning even for fields without counters. Unchecked
   counters retain their uncertainty and gain conditional REINDEX advice; this updates the earlier no-diagnostic
   statement for localized fields.
