@@ -2871,8 +2871,9 @@ public class PersistentRoaringBitmap
 			this.highLowContainer.deserialize(in, buffer);
 		} catch (InvalidRoaringFormat cookie) {
 			throw cookie.toIOException(); // we convert it to an IOException
+		} finally {
+			this.shared = new boolean[this.highLowContainer.size()];
 		}
-		this.shared = new boolean[this.highLowContainer.size()];
 	}
 
 	/**
@@ -2890,8 +2891,9 @@ public class PersistentRoaringBitmap
 			this.highLowContainer.deserialize(in);
 		} catch (InvalidRoaringFormat cookie) {
 			throw cookie.toIOException(); // we convert it to an IOException
+		} finally {
+			this.shared = new boolean[this.highLowContainer.size()];
 		}
-		this.shared = new boolean[this.highLowContainer.size()];
 	}
 
 	/**
@@ -2918,8 +2920,9 @@ public class PersistentRoaringBitmap
 			this.highLowContainer.deserialize(bbf);
 		} catch (InvalidRoaringFormat cookie) {
 			throw cookie.toIOException(); // we convert it to an IOException
+		} finally {
+			this.shared = new boolean[this.highLowContainer.size()];
 		}
-		this.shared = new boolean[this.highLowContainer.size()];
 	}
 
 	/**
@@ -3705,8 +3708,11 @@ public class PersistentRoaringBitmap
 	@Override
 	public void readExternal(ObjectInput in) throws IOException {
 		unlend();
-		this.highLowContainer.readExternal(in);
-		this.shared = new boolean[this.highLowContainer.size()];
+		try {
+			this.highLowContainer.readExternal(in);
+		} finally {
+			this.shared = new boolean[this.highLowContainer.size()];
+		}
 	}
 
 	/**
