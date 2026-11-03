@@ -433,11 +433,35 @@ class FulltextFormulaTest {
 		}
 
 		@Test
+		@DisplayName("A token met by exactly the limit of matching entities still narrows term by term")
+		void shouldNarrowTermByTermAtTheNarrowingLimit() {
+			// the narrower token matches exactly the limit of entities; the wider one spreads its postings over two
+			// terms - every key up to twice the matching entities and a single key outside them - two more than the
+			// 2 x matching values narrowing walks, so it narrows term by term, and its first term alone covers every
+			// matching entity, so the second term is never read
+			final int matchingCount = (int) FulltextFormula.NARROWING_MATCHING_LIMIT;
+			final int[] matching = IntStream.range(0, matchingCount).toArray();
+			final ReadCountingBitmap first = new ReadCountingBitmap(
+				IntStream.range(0, 2 * matchingCount + 1).toArray()
+			);
+			final ReadCountingBitmap second = new ReadCountingBitmap(5 * matchingCount);
+			final FulltextFormula formula = query(
+				token(countedTerm("a", new ReadCountingBitmap(matching))),
+				token(countedTerm("b", first), countedTerm("c", second))
+			);
+
+			assertArrayEquals(matching, formula.compute().getArray());
+			assertEquals(1, first.reads, "the first term");
+			assertEquals(0, second.reads, "the second term");
+		}
+
+		@Test
 		@DisplayName("A token met by more matching entities than the limit reads every term through its union")
 		void shouldReadEveryTermThroughTheUnionPastTheNarrowingLimit() {
 			// the narrower token matches one entity more than the limit; the wider one spreads its postings over two
-			// terms, more than the 2 x matching values narrowing would walk, and its first term alone covers every
-			// matching entity - narrowing would stop reading after it, the union reads both terms
+			// terms - every key up to twice the matching entities and a single key outside them - two more than the
+			// 2 x matching values narrowing would walk, so only the limit sends it to the union; its first term alone
+			// covers every matching entity - narrowing would stop reading after it, the union reads both terms
 			final int matchingCount = (int) FulltextFormula.NARROWING_MATCHING_LIMIT + 1;
 			final int[] matching = IntStream.range(0, matchingCount).toArray();
 			final ReadCountingBitmap first = new ReadCountingBitmap(

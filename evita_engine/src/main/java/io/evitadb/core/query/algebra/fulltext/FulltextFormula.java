@@ -89,10 +89,10 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	 * always builds its union and intersects once (see {@link #narrowsCheaper(int, long, long)}). Hand-set from an
 	 * end-to-end measurement of whole plain queries on two production corpora - a CMS catalog of 972,611 articles and
 	 * an e-commerce catalog - with the limit swept from 5,000 to 20,000. A plateau ran from 7,000 to 10,000: two common
-	 * words on the CMS corpus took 0.77-0.79 of the time without the limit, three common words 0.96, every other query
-	 * shape stayed within a percent. At 5,000 two common words on the e-commerce corpus started to slow down (1.03, one
-	 * query 1.4x); past 10,000 the CMS gain faded (0.82 at 15,000, 0.86 at 20,000, and three common words back to
-	 * 1.00). A retune should stay inside the plateau; the fulltext ADR records the measurement.
+	 * words on the CMS corpus took 0.77-0.80 of the time they took without the limit, three common words 0.96, every
+	 * other query shape stayed within a percent. At 5,000 two common words on the e-commerce corpus started to slow
+	 * down (1.03, one query 1.4x); past 10,000 the CMS gain faded (0.82 at 15,000, 0.86 at 20,000, and three common
+	 * words back to 1.00). A retune should stay inside the plateau; the fulltext ADR records the measurement.
 	 */
 	static final long NARROWING_MATCHING_LIMIT = 10_000;
 	/**
