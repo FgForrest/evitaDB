@@ -361,6 +361,21 @@ public class TestBitmapContainer {
 			assertEquals(ArrayContainer.DEFAULT_MAX_SIZE, intersection.getCardinality());
 			assertEquals(first.andCardinality(second), intersection.getCardinality());
 		}
+
+		@Test
+		@DisplayName("and(array) sizes the result by the array cardinality, not its backing capacity")
+		public void andWithArraySizesResultByCardinality() {
+			final ArrayContainer array = new ArrayContainer(1024);
+			array.add((char) 1);
+			array.add((char) 100);
+			array.add((char) 1000);
+			final BitmapContainer bitmap = new BitmapContainer();
+			bitmap.add((char) 1);
+			bitmap.add((char) 1000);
+			final ArrayContainer result = bitmap.and(array);
+			assertEquals(new ArrayContainer(new char[]{1, 1000}), result);
+			assertEquals(array.getCardinality(), result.content.length);
+		}
 	}
 
 	@Nested
@@ -1025,6 +1040,28 @@ public class TestBitmapContainer {
 			final Container disjoint = new ArrayContainer().add(20, 40);
 			assertFalse(bc.contains(disjoint));
 			assertFalse(disjoint.contains(bc));
+		}
+
+		@Test
+		@DisplayName("bitmap does not contain a run whose last value is missing")
+		public void testContainsRunContainer_Issue887() {
+			final Container bc = new BitmapContainer().iadd(0, 10000).remove((char) 100);
+			assertInstanceOf(BitmapContainer.class, bc);
+			final Container rc = new RunContainer().add(90, 101);
+			assertInstanceOf(RunContainer.class, rc);
+			assertFalse(bc.contains(rc));
+			assertTrue(bc.contains(new RunContainer().add(90, 100)));
+		}
+
+		@Test
+		@DisplayName("bitmap contains a run ending at the last value of the container only when it holds it")
+		public void testContainsRunContainerEndingAtMax_Issue887() {
+			Container bc = new BitmapContainer().iadd(0, 65535);
+			assertInstanceOf(BitmapContainer.class, bc);
+			assertFalse(bc.contains(new RunContainer().add(65530, 65536)));
+			assertTrue(bc.contains(new RunContainer().add(65530, 65535)));
+			bc = bc.add((char) 65535);
+			assertTrue(bc.contains(new RunContainer().add(65530, 65536)));
 		}
 	}
 
