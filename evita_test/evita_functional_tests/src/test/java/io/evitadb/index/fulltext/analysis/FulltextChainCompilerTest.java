@@ -33,12 +33,17 @@ import io.evitadb.spi.analysis.AnalysisStepFactory;
 import io.evitadb.spi.analysis.AnalysisStepParameterDescriptor;
 import io.evitadb.spi.analysis.FulltextAnalysisContext;
 import io.evitadb.spi.analysis.FulltextAnalysisSide;
+import io.evitadb.spi.analysis.FulltextSplittingAnalysisOperation;
+import io.evitadb.spi.analysis.FulltextSplittingAnalysisStepFactory;
 import io.evitadb.spi.analysis.FulltextTextAnalysisOperation;
 import io.evitadb.spi.analysis.FulltextTextAnalysisStepFactory;
 import io.evitadb.spi.analysis.FulltextWordsAnalysisOperation;
 import io.evitadb.spi.analysis.FulltextWordsAnalysisStepFactory;
 import org.apache.lucene.analysis.FilteringTokenFilter;
+import org.apache.lucene.analysis.charfilter.MappingCharFilter;
+import org.apache.lucene.analysis.charfilter.NormalizeCharMap;
 import org.apache.lucene.analysis.cz.CzechAnalyzer;
+import org.apache.lucene.analysis.pattern.PatternReplaceFilter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -49,18 +54,19 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -88,6 +94,20 @@ class FulltextChainCompilerTest {
 		"iPhone15 a USB-C kabel, 3,5 mm jack, 2x baterie",
 		"Kuchyňští pomocníci a angličtí pánští krejčí šijí stříbrným nití"
 	);
+	/** A text step on both sides, splitting a word at its underscores. */
+	private static final ReplaceCharacter UNDERSCORE_TO_SPACE =
+		new ReplaceCharacter("test-underscore-to-space", "_", " ", EnumSet.allOf(FulltextAnalysisSide.class));
+	/** The same text step, acting on the index side only. */
+	private static final ReplaceCharacter UNDERSCORE_TO_SPACE_ON_INDEX = new ReplaceCharacter(
+		"test-underscore-to-space-on-index", "_", " ", EnumSet.of(FulltextAnalysisSide.INDEX)
+	);
+	/** A text step on both sides, joining the parts of a word at its underscores. */
+	private static final ReplaceCharacter UNDERSCORE_TO_X =
+		new ReplaceCharacter("test-underscore-to-x", "_", "x", EnumSet.allOf(FulltextAnalysisSide.class));
+	/** A further splitting step replacing `a` by `b` in every word. */
+	private static final ReplaceInWords A_TO_B = new ReplaceInWords("test-a-to-b", "a", "b");
+	/** A further splitting step replacing `b` by `c` in every word. */
+	private static final ReplaceInWords B_TO_C = new ReplaceInWords("test-b-to-c", "b", "c");
 
 	/** The registry discovering the installed step providers. */
 	private final AnalysisStepRegistry stepRegistry = new AnalysisStepRegistry();
@@ -158,11 +178,18 @@ class FulltextChainCompilerTest {
 			final List<AnalysisStep> words = List.of(
 				lowercase(), czechStemming(protectedWords(resource("brands")))
 			);
-			try (final FulltextAnalyzer compiled = compile(words, FulltextAnalysisSide.INDEX, brandResources())) {
-				final List<String> terms = compiled.getTerms("Černých černým").stream()
-					.map(AnalyzedTerm::term).toList();
-				assertEquals("cernych", terms.get(0));
-				assertNotEquals("cernym", terms.get(1), "an unprotected word is still stemmed");
+			try (
+				final FulltextAnalyzer compiled = compile(words, FulltextAnalysisSide.INDEX, brandResources());
+				final FulltextAnalyzer unprotected = compile(
+					List.of(lowercase(), czechStemming()), FulltextAnalysisSide.INDEX, Map.of()
+				)
+			) {
+				final List<String> stem = termTexts(unprotected, "černým");
+
+				final List<String> terms = termTexts(compiled, "Černých černým");
+
+				assertEquals(1, stem.size(), "the index side stems a word to one term");
+				assertEquals(List.of("cernych", stem.get(0)), terms, "an unprotected word is still stemmed");
 			}
 		}
 
@@ -178,6 +205,32 @@ class FulltextChainCompilerTest {
 			}
 		}
 
+		/** A protected word between two stemmed ones is looked up once, and its neighbours keep all their stems. */
+		@Test
+		@DisplayName("should keep the variant stems of the words around a protected word on the query side")
+		void shouldKeepVariantStemsAroundProtectedWordOnQuerySide() {
+			final List<AnalysisStep> words = List.of(
+				lowercase(), czechStemming(protectedWords(resource("brands")))
+			);
+			try (
+				final FulltextAnalyzer compiled = compile(words, FulltextAnalysisSide.QUERY, brandResources());
+				final FulltextAnalyzer unprotected = compile(
+					List.of(lowercase(), czechStemming()), FulltextAnalysisSide.QUERY, Map.of()
+				)
+			) {
+				final List<String> neighbour = termsAndIncrements(unprotected, "černým");
+				final List<String> expected = new ArrayList<>(2 * neighbour.size() + 1);
+				expected.addAll(neighbour);
+				expected.add("cernych+1");
+				expected.addAll(neighbour);
+
+				final List<String> terms = termsAndIncrements(compiled, "černým černých černým");
+
+				assertTrue(neighbour.size() > 1, "the neighbour must have several variant stems: " + neighbour);
+				assertEquals(expected, terms);
+			}
+		}
+
 		/**
 		 * Returns resources holding the word list `brands` with one protected word, lower-cased as the chain compares.
 		 *
@@ -189,7 +242,6 @@ class FulltextChainCompilerTest {
 		}
 	}
 
-	/** Definitions that cannot form a chain are refused when compiled. */
 	/** A text or words step joins only the chains of the sides it declares. */
 	@Nested
 	@DisplayName("Sides")
@@ -237,6 +289,81 @@ class FulltextChainCompilerTest {
 		}
 	}
 
+	/** Text steps change the text before the tokenizer splits it, in their order. */
+	@Nested
+	@DisplayName("Text phase")
+	class TextPhase {
+
+		/** An index-only text step changes the index chain and leaves the query chain as it is. */
+		@Test
+		@DisplayName("should build a text step into the chains of its sides only")
+		void shouldBuildTextStepIntoChainsOfItsSidesOnly() {
+			final FulltextChainCompiler compiler = new FulltextChainCompiler(
+				registryWith(UNDERSCORE_TO_SPACE_ON_INDEX)
+			);
+			final List<AnalysisStep> text = List.of(textStep(UNDERSCORE_TO_SPACE_ON_INDEX.getName()));
+
+			try (
+				final FulltextAnalyzer index = chain(compiler, text, SPLITTING, FulltextAnalysisSide.INDEX);
+				final FulltextAnalyzer query = chain(compiler, text, SPLITTING, FulltextAnalysisSide.QUERY)
+			) {
+				assertEquals(List.of("foo", "bar"), termTexts(index, "foo_bar"));
+				assertEquals(List.of("foo_bar"), termTexts(query, "foo_bar"));
+			}
+		}
+
+		/** The second text step reads the text the first one produced. */
+		@Test
+		@DisplayName("should apply text steps in their order")
+		void shouldApplyTextStepsInTheirOrder() {
+			final FulltextChainCompiler compiler = new FulltextChainCompiler(
+				registryWith(UNDERSCORE_TO_SPACE, UNDERSCORE_TO_X)
+			);
+			final AnalysisStep toSpace = textStep(UNDERSCORE_TO_SPACE.getName());
+			final AnalysisStep toX = textStep(UNDERSCORE_TO_X.getName());
+
+			try (
+				final FulltextAnalyzer spaceFirst = chain(
+					compiler, List.of(toSpace, toX), SPLITTING, FulltextAnalysisSide.INDEX
+				);
+				final FulltextAnalyzer xFirst = chain(
+					compiler, List.of(toX, toSpace), SPLITTING, FulltextAnalysisSide.INDEX
+				)
+			) {
+				assertEquals(List.of("foo", "bar"), termTexts(spaceFirst, "foo_bar"));
+				assertEquals(List.of("fooxbar"), termTexts(xFirst, "foo_bar"));
+			}
+		}
+	}
+
+	/** Further splitting steps act on the tokenizer's words, in their order. */
+	@Nested
+	@DisplayName("Further splitting")
+	class FurtherSplitting {
+
+		/** The second splitting step reads the words the first one produced. */
+		@Test
+		@DisplayName("should apply further splitting steps in their order")
+		void shouldApplyFurtherSplittingStepsInTheirOrder() {
+			final FulltextChainCompiler compiler = new FulltextChainCompiler(registryWith(A_TO_B, B_TO_C));
+			final AnalysisStep aToB = AnalysisStep.of(A_TO_B.getName(), Map.of());
+			final AnalysisStep bToC = AnalysisStep.of(B_TO_C.getName(), Map.of());
+
+			try (
+				final FulltextAnalyzer aToBFirst = chain(
+					compiler, List.of(), List.of(standardTokenizer(), aToB, bToC), FulltextAnalysisSide.INDEX
+				);
+				final FulltextAnalyzer bToCFirst = chain(
+					compiler, List.of(), List.of(standardTokenizer(), bToC, aToB), FulltextAnalysisSide.INDEX
+				)
+			) {
+				assertEquals(List.of("cc"), termTexts(aToBFirst, "aa"));
+				assertEquals(List.of("bb"), termTexts(bToCFirst, "aa"));
+			}
+		}
+	}
+
+	/** Definitions that cannot form a chain are refused when compiled. */
 	@Nested
 	@DisplayName("Refusals")
 	class Refusals {
@@ -252,7 +379,12 @@ class FulltextChainCompilerTest {
 					new FulltextAnalysisContext(CZECH, Map.of())
 				)
 			);
-			assertTrue(exception.getMessage().contains("`lowercase` is a words step"), exception.getMessage());
+			assertTrue(
+				exception.getMessage().contains(
+					"`lowercase` is a words step, it cannot serve as a further splitting step."
+				),
+				exception.getMessage()
+			);
 		}
 
 		/** A words step cannot be the tokenizer either. */
@@ -266,7 +398,10 @@ class FulltextChainCompilerTest {
 					new FulltextAnalysisContext(CZECH, Map.of())
 				)
 			);
-			assertTrue(exception.getMessage().contains("cannot serve as the tokenizer"), exception.getMessage());
+			assertTrue(
+				exception.getMessage().contains("`lowercase` is a words step, it cannot serve as the tokenizer."),
+				exception.getMessage()
+			);
 		}
 
 		/** The tokenizer belongs to the word splitting, never to the words phase. */
@@ -280,7 +415,67 @@ class FulltextChainCompilerTest {
 					new FulltextAnalysisContext(CZECH, Map.of())
 				)
 			);
-			assertTrue(exception.getMessage().contains("`standard` is a tokenizer"), exception.getMessage());
+			assertTrue(
+				exception.getMessage().contains("`standard` is a tokenizer, it cannot serve as a words step."),
+				exception.getMessage()
+			);
+		}
+
+		/** The tokenizer splits the text, it cannot change it before splitting. */
+		@Test
+		@DisplayName("should refuse the tokenizer in the text phase")
+		void shouldRefuseTokenizerInTextPhase() {
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> FulltextChainCompilerTest.this.compiler.compile(
+					List.of(standardTokenizer()), SPLITTING, List.of(), FulltextAnalysisSide.INDEX,
+					new FulltextAnalysisContext(CZECH, Map.of())
+				)
+			);
+			assertTrue(
+				exception.getMessage().contains("`standard` is a tokenizer, it cannot serve as a text step."),
+				exception.getMessage()
+			);
+		}
+
+		/** A text step reads the whole text, so it cannot act on the words. */
+		@Test
+		@DisplayName("should refuse a text step in the words phase")
+		void shouldRefuseTextStepInWordsPhase() {
+			final FulltextChainCompiler compiler = new FulltextChainCompiler(registryWith(UNDERSCORE_TO_SPACE));
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> compiler.compile(
+					List.of(), SPLITTING, List.of(textStep(UNDERSCORE_TO_SPACE.getName())), FulltextAnalysisSide.INDEX,
+					new FulltextAnalysisContext(CZECH, Map.of())
+				)
+			);
+			assertTrue(
+				exception.getMessage().contains(
+					"`" + UNDERSCORE_TO_SPACE.getName() + "` is a text step, it cannot serve as a words step."
+				),
+				exception.getMessage()
+			);
+		}
+
+		/** A further splitting step needs the words of a tokenizer, so it cannot be one. */
+		@Test
+		@DisplayName("should refuse a further splitting step as the tokenizer")
+		void shouldRefuseFurtherSplittingStepAsTokenizer() {
+			final FulltextChainCompiler compiler = new FulltextChainCompiler(registryWith(A_TO_B));
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> compiler.compile(
+					List.of(), List.of(AnalysisStep.of(A_TO_B.getName(), Map.of())), List.of(),
+					FulltextAnalysisSide.INDEX, new FulltextAnalysisContext(CZECH, Map.of())
+				)
+			);
+			assertTrue(
+				exception.getMessage().contains(
+					"`" + A_TO_B.getName() + "` is a further splitting step, it cannot serve as the tokenizer."
+				),
+				exception.getMessage()
+			);
 		}
 
 		/** Word splitting without its tokenizer has nothing to split the text with. */
@@ -294,44 +489,22 @@ class FulltextChainCompilerTest {
 					new FulltextAnalysisContext(CZECH, czechResources())
 				)
 			);
-			assertTrue(exception.getMessage().contains("must start with a tokenizer"));
-		}
-
-		/** A normalizing-only step is installed but cannot serve a fulltext analyzer. */
-		@Test
-		@DisplayName("should refuse a normalizing-only step")
-		void shouldRefuseNormalizingOnlyStep() {
-			final EvitaInvalidUsageException exception = assertThrows(
-				EvitaInvalidUsageException.class,
-				() -> FulltextChainCompilerTest.this.stepRegistry.resolveFulltext(trim())
-			);
-			assertTrue(exception.getMessage().contains("`trim` is not usable in a fulltext analyzer"));
-		}
-
-		/** A stop-words step naming no word list is refused by the registry's parameter check. */
-		@Test
-		@DisplayName("should refuse stop words without a list")
-		void shouldRefuseStopWordsWithoutList() {
-			final EvitaInvalidUsageException exception = assertThrows(
-				EvitaInvalidUsageException.class,
-				() -> FulltextChainCompilerTest.this.stepRegistry.resolveFulltext(wordsStep(STOP_WORDS))
-			);
-			assertTrue(exception.getMessage().contains("Missing required parameter `words`"));
+			assertTrue(exception.getMessage().contains("must start with a tokenizer"), exception.getMessage());
 		}
 	}
 
 	/**
-	 * Builds a registry of the installed providers plus one more.
+	 * Builds a registry of the installed providers plus the given ones.
 	 *
-	 * @param extra the additional provider
+	 * @param extras the additional providers
 	 * @return the registry
 	 */
 	@Nonnull
-	private static AnalysisStepRegistry registryWith(@Nonnull AnalysisStepFactory extra) {
+	private static AnalysisStepRegistry registryWith(@Nonnull AnalysisStepFactory... extras) {
 		final List<AnalysisStepFactory> factories = new ArrayList<>(
 			ServiceLoader.load(AnalysisStepFactory.class).stream().map(ServiceLoader.Provider::get).toList()
 		);
-		factories.add(extra);
+		Collections.addAll(factories, extras);
 		return new AnalysisStepRegistry(factories);
 	}
 
@@ -454,6 +627,101 @@ class FulltextChainCompilerTest {
 	}
 
 	/**
+	 * A text step replacing a character by another one on the sides it is given, through Lucene's character filter,
+	 * which keeps the offsets pointing into the original text.
+	 */
+	private static final class ReplaceCharacter extends TestStep implements FulltextTextAnalysisStepFactory {
+		/** The step's name. */
+		@Nonnull private final String name;
+		/** The replacement, as the character filter reads it. */
+		@Nonnull private final NormalizeCharMap replacement;
+		/** The sides the step acts on. */
+		@Nonnull private final Set<FulltextAnalysisSide> sides;
+
+		/**
+		 * Creates the step.
+		 *
+		 * @param name        the step's name
+		 * @param character   the character to replace
+		 * @param replacement the character replacing it
+		 * @param sides       the sides the step acts on
+		 */
+		ReplaceCharacter(
+			@Nonnull String name,
+			@Nonnull String character,
+			@Nonnull String replacement,
+			@Nonnull Set<FulltextAnalysisSide> sides
+		) {
+			final NormalizeCharMap.Builder builder = new NormalizeCharMap.Builder();
+			builder.add(character, replacement);
+			this.name = name;
+			this.replacement = builder.build();
+			this.sides = sides;
+		}
+
+		@Nonnull
+		@Override
+		public String getName() {
+			return this.name;
+		}
+
+		@Nonnull
+		@Override
+		public Set<FulltextAnalysisSide> getSides() {
+			return this.sides;
+		}
+
+		@Nonnull
+		@Override
+		public FulltextTextAnalysisOperation create(
+			@Nonnull Map<String, Serializable> parameters,
+			@Nonnull FulltextAnalysisContext context
+		) {
+			return (text, side) -> new MappingCharFilter(this.replacement, text);
+		}
+	}
+
+	/**
+	 * A further splitting step replacing a pattern in every word.
+	 */
+	private static final class ReplaceInWords extends TestStep implements FulltextSplittingAnalysisStepFactory {
+		/** The step's name. */
+		@Nonnull private final String name;
+		/** The pattern to replace. */
+		@Nonnull private final Pattern pattern;
+		/** The text replacing every match. */
+		@Nonnull private final String replacement;
+
+		/**
+		 * Creates the step.
+		 *
+		 * @param name        the step's name
+		 * @param regex       the pattern to replace
+		 * @param replacement the text replacing every match
+		 */
+		ReplaceInWords(@Nonnull String name, @Nonnull String regex, @Nonnull String replacement) {
+			this.name = name;
+			this.pattern = Pattern.compile(regex);
+			this.replacement = replacement;
+		}
+
+		@Nonnull
+		@Override
+		public String getName() {
+			return this.name;
+		}
+
+		@Nonnull
+		@Override
+		public FulltextSplittingAnalysisOperation create(
+			@Nonnull Map<String, Serializable> parameters,
+			@Nonnull FulltextAnalysisContext context
+		) {
+			return words -> new PatternReplaceFilter(words, this.pattern, this.replacement, true);
+		}
+	}
+
+	/**
 	 * Compiles a chain over the standard tokenizer and wraps it the way the registry wraps today's chains.
 	 *
 	 * @param words     the words phase
@@ -515,5 +783,51 @@ class FulltextChainCompilerTest {
 			.map(term -> term.term() + "@" + term.startOffset() + "-" + term.endOffset() + "+" +
 				term.positionIncrement())
 			.toList();
+	}
+
+	/**
+	 * Compiles a chain without a words phase and wraps it the way the registry wraps today's chains.
+	 *
+	 * @param compiler  the compiler resolving the steps
+	 * @param text      the text phase
+	 * @param splitting the word splitting
+	 * @param side      the side to compile
+	 * @return the wrapped chain, to be closed by the caller
+	 */
+	@Nonnull
+	private static FulltextAnalyzer chain(
+		@Nonnull FulltextChainCompiler compiler,
+		@Nonnull List<AnalysisStep> text,
+		@Nonnull List<AnalysisStep> splitting,
+		@Nonnull FulltextAnalysisSide side
+	) {
+		return new FulltextAnalyzer(
+			"test", compiler.compile(text, splitting, List.of(), side, new FulltextAnalysisContext(CZECH, Map.of()))
+		);
+	}
+
+	/**
+	 * Returns the text of every term a chain produces for a text.
+	 *
+	 * @param analyzer the chain
+	 * @param text     the text
+	 * @return the term texts in stream order
+	 */
+	@Nonnull
+	private static List<String> termTexts(@Nonnull FulltextAnalyzer analyzer, @Nonnull String text) {
+		return analyzer.getTerms(text).stream().map(AnalyzedTerm::term).toList();
+	}
+
+	/**
+	 * Returns every term a chain produces for a text with its position increment, without the offsets - comparable
+	 * between words at different places of a text.
+	 *
+	 * @param analyzer the chain
+	 * @param text     the text
+	 * @return the terms as `term+increment`
+	 */
+	@Nonnull
+	private static List<String> termsAndIncrements(@Nonnull FulltextAnalyzer analyzer, @Nonnull String text) {
+		return analyzer.getTerms(text).stream().map(term -> term.term() + "+" + term.positionIncrement()).toList();
 	}
 }

@@ -84,8 +84,8 @@ import java.util.concurrent.TimeUnit;
 public class FulltextAnalysisChainBenchmark {
 
 	/**
-	 * Entity type the registry resolves against; no schema override is registered, so every lookup lands on the
-	 * language default.
+	 * Entity type the registry is asked for; the built-in choice depends on the locale alone, the entity type only
+	 * names the request in an error.
 	 */
 	private static final String ENTITY_TYPE = "PRODUCT";
 

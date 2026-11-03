@@ -38,8 +38,9 @@ import java.util.Map;
  * @param locale    the index locale of the field; its language decides language-dependent behaviour, and
  *                  lowercasing follows its rules
  * @param resources the resources a step parameter may name, keyed by name - the built-in read-only ones and those
- *                  declared in the catalog schema; the catalog schema has already checked that every name a
- *                  parameter holds exists and is of the parameter's kind
+ *                  declared in the catalog schema; for the resource parameters of the built-in steps
+ *                  ({@link io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps#RESOURCE_PARAMETERS}) the
+ *                  catalog schema has already checked that every name exists and is of the parameter's kind
  */
 public record FulltextAnalysisContext(
 	@Nonnull Locale locale,
@@ -64,8 +65,9 @@ public record FulltextAnalysisContext(
 	 * @param name the name a step parameter holds
 	 * @return the content of the resource
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when no such resource exists - the catalog schema refuses
-	 *                                                        a parameter naming a missing resource, so reaching it
-	 *                                                        means that check was bypassed
+	 *                                                        a built-in step's parameter naming a missing resource,
+	 *                                                        so for a built-in step reaching it means that check was
+	 *                                                        bypassed
 	 */
 	@Nonnull
 	public FulltextResourceContent getResource(@Nonnull String name) {

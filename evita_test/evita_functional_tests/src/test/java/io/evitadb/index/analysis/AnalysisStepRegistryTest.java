@@ -28,6 +28,9 @@ import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.spi.analysis.AnalysisStepFactory;
 import io.evitadb.spi.analysis.AnalysisStepParameterDescriptor;
+import io.evitadb.spi.analysis.FulltextAnalysisStepFactory;
+import io.evitadb.spi.analysis.FulltextTokenizerAnalysisStepFactory;
+import io.evitadb.spi.analysis.FulltextWordsAnalysisStepFactory;
 import io.evitadb.spi.analysis.NormalizingAnalysisStepFactory;
 import io.evitadb.spi.analysis.StringNormalizationStep;
 import org.junit.jupiter.api.DisplayName;
@@ -66,6 +69,29 @@ class AnalysisStepRegistryTest {
 		assertSame(String.class, descriptor.type());
 		assertTrue(descriptor.required());
 		assertFalse(descriptor.description().isBlank());
+	}
+
+	/** The production discovery path must find the fulltext built-ins, each as a provider of its step's phase. */
+	@Test
+	@DisplayName("should discover the built-in fulltext providers")
+	void shouldDiscoverBuiltInFulltextProviders() {
+		final AnalysisStepRegistry registry = new AnalysisStepRegistry();
+
+		final FulltextAnalysisStepFactory tokenizer = registry.resolveFulltext(standardTokenizer());
+
+		assertEquals(STANDARD_TOKENIZER, tokenizer.getName());
+		assertInstanceOf(FulltextTokenizerAnalysisStepFactory.class, tokenizer);
+		for (final AnalysisStep step : List.of(
+			lowercase(), asciiFolding(), stopWords(czechStopWords()), czechStemming()
+		)) {
+			final FulltextAnalysisStepFactory factory = registry.resolveFulltext(step);
+			assertEquals(step.name(), factory.getName());
+			assertInstanceOf(FulltextWordsAnalysisStepFactory.class, factory, step.name());
+		}
+		assertSame(
+			registry.resolve(lowercase()), registry.resolveFulltext(lowercase()),
+			"one provider serves both the normalization and the fulltext analyzers"
+		);
 	}
 
 	/** Provider conflicts, missing capabilities and invalid descriptions fail before compilation. */
@@ -136,6 +162,72 @@ class AnalysisStepRegistryTest {
 					() -> registry.resolve(description)).getMessage();
 				assertTrue(message.contains("Invalid parameters"));
 				assertTrue(message.contains(description.name()));
+			}
+		}
+	}
+
+	/** Fulltext declarations are refused with the same distinctions as normalization ones. */
+	@Nested
+	@DisplayName("Fulltext resolution")
+	class FulltextResolution {
+		/** The registry used by every test of this group. */
+		private final AnalysisStepRegistry registry = new AnalysisStepRegistry();
+
+		/** An unavailable name has its own diagnostic. */
+		@Test
+		@DisplayName("should identify an unknown step")
+		void shouldIdentifyUnknownStep() {
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class, () -> this.registry.resolveFulltext(wordsStep("absent"))
+			);
+
+			assertTrue(exception.getMessage().contains("Unknown analysis step `absent`"), exception.getMessage());
+		}
+
+		/** A normalizing-only step is installed but cannot serve a fulltext analyzer. */
+		@Test
+		@DisplayName("should refuse a normalizing-only step")
+		void shouldRefuseNormalizingOnlyStep() {
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class, () -> this.registry.resolveFulltext(trim())
+			);
+
+			assertTrue(
+				exception.getMessage().contains("`trim` is not usable in a fulltext analyzer"), exception.getMessage()
+			);
+		}
+
+		/** A stop-words step naming no word list is refused by the registry's parameter check. */
+		@Test
+		@DisplayName("should refuse stop words without a list")
+		void shouldRefuseStopWordsWithoutList() {
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class, () -> this.registry.resolveFulltext(wordsStep(STOP_WORDS))
+			);
+
+			assertTrue(exception.getMessage().contains("Missing required parameter `words`"), exception.getMessage());
+		}
+
+		/** Mistyped, empty and unknown parameters must all fail with the offending step named. */
+		@Test
+		@DisplayName("should reject invalid parameter names types and values")
+		void shouldRejectInvalidFulltextParameters() {
+			for (final AnalysisStep description : List.of(
+				wordsStep(STOP_WORDS, parameter(WORDS, 1)),
+				wordsStep(STOP_WORDS, parameter(WORDS, new String[0])),
+				wordsStep(STOP_WORDS, parameter(WORDS, new String[]{CZECH_STOP_WORDS}), parameter("extra", true)),
+				tokenizerStep(STANDARD_TOKENIZER, parameter("extra", true)),
+				wordsStep(CZECH_STEMMING, parameter(PROTECTED_WORDS, "brands")),
+				wordsStep(CZECH_STEMMING, parameter(PROTECTED_WORDS, new String[0])),
+				wordsStep(CZECH_STEMMING, parameter("extra", true)),
+				wordsStep(LOWERCASE, parameter("extra", true))
+			)) {
+				final String message = assertThrows(
+					EvitaInvalidUsageException.class, () -> this.registry.resolveFulltext(description)
+				).getMessage();
+
+				assertTrue(message.contains("Invalid parameters"), message);
+				assertTrue(message.contains(description.name()), message);
 			}
 		}
 	}

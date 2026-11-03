@@ -62,10 +62,11 @@ public final class CzechStemmingAnalysisStepFactory implements FulltextWordsAnal
 	/**
 	 * The only parameter: the names of the word-list resources whose words stay unstemmed.
 	 */
-	private static final AnalysisStepParameterDescriptor PROTECTED_WORDS_PARAMETER = new AnalysisStepParameterDescriptor(
-		AnalysisSteps.PROTECTED_WORDS, String[].class, false,
-		"Names of the word-list resources whose words the stemmer leaves unstemmed."
-	);
+	private static final AnalysisStepParameterDescriptor PROTECTED_WORDS_PARAMETER =
+		new AnalysisStepParameterDescriptor(
+			AnalysisSteps.PROTECTED_WORDS, String[].class, false,
+			"Names of the word-list resources whose words the stemmer leaves unstemmed."
+		);
 
 	/**
 	 * Creates a stateless provider for JPMS and classpath ServiceLoader discovery.

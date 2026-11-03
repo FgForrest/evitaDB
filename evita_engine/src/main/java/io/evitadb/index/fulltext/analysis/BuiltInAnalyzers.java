@@ -109,9 +109,9 @@ import static java.util.Map.entry;
  * **A `*-search` chain never indexes.** A variant fan-out baked into an index would write every alternative stem as
  * a real term — precisely the symmetric arrangement the asymmetry above exists to avoid — and a markup-bearing value
  * indexed without the strip would index its markup. The language table is what keeps them apart: it names the index
- * chain for the stored values and the `*-search` chain for the query text, and nothing else picks a chain by name
- * except the query side, which falls back to an index's own analyzer when the table moved on since the index was
- * built.
+ * chain for the stored values and the `*-search` chain for the query text. Every other lookup by name takes the name
+ * an index recorded when it was built, which is always an index chain's: reading a persisted index back, and the
+ * query side falling back to an index's own analyzer when the table moved on since the index was built.
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */

@@ -128,7 +128,7 @@ class FulltextAnalyzerRegistryTest {
 	}
 
 	/**
-	 * Returns the terms of `text` as produced by `analyzer`, for comparing what two slots emit.
+	 * Returns the terms of `text` as produced by `analyzer`, for comparing what two chains emit.
 	 *
 	 * @param analyzer analyzer to run
 	 * @param text     text to analyse

@@ -160,6 +160,12 @@ abstract sealed class AnalysisStepDescription implements AnalysisStep
 	static final class Untyped extends AnalysisStepDescription {
 		@Serial private static final long serialVersionUID = 4529735209391424618L;
 
+		/**
+		 * Creates the description; the superclass validates and copies the name and the parameters.
+		 *
+		 * @param name       nonblank step name
+		 * @param parameters named parameters using supported evitaDB data types
+		 */
 		Untyped(@Nonnull String name, @Nonnull Map<String, Serializable> parameters) {
 			super(name, parameters);
 		}
@@ -169,6 +175,12 @@ abstract sealed class AnalysisStepDescription implements AnalysisStep
 	static final class Text extends AnalysisStepDescription implements TextAnalysisStep {
 		@Serial private static final long serialVersionUID = -2016322187040474046L;
 
+		/**
+		 * Creates the description; the superclass validates and copies the name and the parameters.
+		 *
+		 * @param name       nonblank step name
+		 * @param parameters named parameters using supported evitaDB data types
+		 */
 		Text(@Nonnull String name, @Nonnull Map<String, Serializable> parameters) {
 			super(name, parameters);
 		}
@@ -178,6 +190,12 @@ abstract sealed class AnalysisStepDescription implements AnalysisStep
 	static final class NormalizingText extends AnalysisStepDescription implements NormalizingTextAnalysisStep {
 		@Serial private static final long serialVersionUID = 8125466785934262331L;
 
+		/**
+		 * Creates the description; the superclass validates and copies the name and the parameters.
+		 *
+		 * @param name       nonblank step name
+		 * @param parameters named parameters using supported evitaDB data types
+		 */
 		NormalizingText(@Nonnull String name, @Nonnull Map<String, Serializable> parameters) {
 			super(name, parameters);
 		}
@@ -187,6 +205,12 @@ abstract sealed class AnalysisStepDescription implements AnalysisStep
 	static final class Tokenizer extends AnalysisStepDescription implements TokenizerAnalysisStep {
 		@Serial private static final long serialVersionUID = 6914539917738458771L;
 
+		/**
+		 * Creates the description; the superclass validates and copies the name and the parameters.
+		 *
+		 * @param name       nonblank step name
+		 * @param parameters named parameters using supported evitaDB data types
+		 */
 		Tokenizer(@Nonnull String name, @Nonnull Map<String, Serializable> parameters) {
 			super(name, parameters);
 		}
@@ -196,6 +220,12 @@ abstract sealed class AnalysisStepDescription implements AnalysisStep
 	static final class Splitting extends AnalysisStepDescription implements SplittingAnalysisStep {
 		@Serial private static final long serialVersionUID = -4370418905924003562L;
 
+		/**
+		 * Creates the description; the superclass validates and copies the name and the parameters.
+		 *
+		 * @param name       nonblank step name
+		 * @param parameters named parameters using supported evitaDB data types
+		 */
 		Splitting(@Nonnull String name, @Nonnull Map<String, Serializable> parameters) {
 			super(name, parameters);
 		}
@@ -205,6 +235,12 @@ abstract sealed class AnalysisStepDescription implements AnalysisStep
 	static final class Words extends AnalysisStepDescription implements WordsAnalysisStep {
 		@Serial private static final long serialVersionUID = 2311447372213985367L;
 
+		/**
+		 * Creates the description; the superclass validates and copies the name and the parameters.
+		 *
+		 * @param name       nonblank step name
+		 * @param parameters named parameters using supported evitaDB data types
+		 */
 		Words(@Nonnull String name, @Nonnull Map<String, Serializable> parameters) {
 			super(name, parameters);
 		}
@@ -214,6 +250,12 @@ abstract sealed class AnalysisStepDescription implements AnalysisStep
 	static final class NormalizingWords extends AnalysisStepDescription implements NormalizingWordsAnalysisStep {
 		@Serial private static final long serialVersionUID = -7468953113390632047L;
 
+		/**
+		 * Creates the description; the superclass validates and copies the name and the parameters.
+		 *
+		 * @param name       nonblank step name
+		 * @param parameters named parameters using supported evitaDB data types
+		 */
 		NormalizingWords(@Nonnull String name, @Nonnull Map<String, Serializable> parameters) {
 			super(name, parameters);
 		}
@@ -223,6 +265,12 @@ abstract sealed class AnalysisStepDescription implements AnalysisStep
 	static final class Normalizing extends AnalysisStepDescription implements NormalizingAnalysisStep {
 		@Serial private static final long serialVersionUID = 1650861939436045716L;
 
+		/**
+		 * Creates the description; the superclass validates and copies the name and the parameters.
+		 *
+		 * @param name       nonblank step name
+		 * @param parameters named parameters using supported evitaDB data types
+		 */
 		Normalizing(@Nonnull String name, @Nonnull Map<String, Serializable> parameters) {
 			super(name, parameters);
 		}

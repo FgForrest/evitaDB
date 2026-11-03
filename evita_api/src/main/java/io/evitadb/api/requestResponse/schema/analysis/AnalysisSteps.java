@@ -34,7 +34,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Factories for analysis descriptions shared by attribute normalization and future analysis APIs.
+ * Factories for analysis descriptions shared by attribute normalization and fulltext analyzers.
  * These factories describe steps; implementations belong to the server.
  *
  * The constants are the only definition of the built-in step and parameter names: the server's built-in providers
@@ -543,7 +543,8 @@ public final class AnalysisSteps {
 	}
 
 	/**
-	 * Creates a named parameter for {@link #step(String, AnalysisStepParameter...)}.
+	 * Creates a named parameter for a step factory that takes parameters, such as
+	 * {@link #wordsStep(String, AnalysisStepParameter...)}.
 	 * Only supported evitaDB scalar values and arrays are accepted; arrays are defensively copied.
 	 *
 	 * @param name nonblank provider parameter name

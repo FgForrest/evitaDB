@@ -92,7 +92,9 @@ public final class FulltextChainCompiler {
 	) {
 		final List<FulltextTextAnalysisOperation> textOperations = new ArrayList<>(text.size());
 		for (final AnalysisStep step : text) {
-			final FulltextTextAnalysisStepFactory factory = resolve(step, FulltextTextAnalysisStepFactory.class, "text");
+			final FulltextTextAnalysisStepFactory factory = resolve(
+				step, FulltextTextAnalysisStepFactory.class, "a text step"
+			);
 			if (factory.getSides().contains(side)) {
 				textOperations.add(factory.create(step.parameters(), context));
 			}
@@ -100,20 +102,23 @@ public final class FulltextChainCompiler {
 		if (splitting.isEmpty()) {
 			throw new EvitaInvalidUsageException("Word splitting must start with a tokenizer.");
 		}
+		final AnalysisStep tokenizerStep = splitting.get(0);
 		final FulltextTokenizerAnalysisOperation tokenizer = resolve(
-			splitting.get(0), FulltextTokenizerAnalysisStepFactory.class, "tokenizer"
-		).create(splitting.get(0).parameters(), context);
+			tokenizerStep, FulltextTokenizerAnalysisStepFactory.class, "the tokenizer"
+		).create(tokenizerStep.parameters(), context);
 		final List<FulltextSplittingAnalysisOperation> splittingOperations = new ArrayList<>(splitting.size() - 1);
 		for (final AnalysisStep step : splitting.subList(1, splitting.size())) {
 			splittingOperations.add(
-				resolve(step, FulltextSplittingAnalysisStepFactory.class, "further splitting").create(
+				resolve(step, FulltextSplittingAnalysisStepFactory.class, "a further splitting step").create(
 					step.parameters(), context
 				)
 			);
 		}
 		final List<FulltextWordsAnalysisOperation> wordOperations = new ArrayList<>(words.size());
 		for (final AnalysisStep step : words) {
-			final FulltextWordsAnalysisStepFactory factory = resolve(step, FulltextWordsAnalysisStepFactory.class, "words");
+			final FulltextWordsAnalysisStepFactory factory = resolve(
+				step, FulltextWordsAnalysisStepFactory.class, "a words step"
+			);
 			if (factory.getSides().contains(side)) {
 				wordOperations.add(factory.create(step.parameters(), context));
 			}
@@ -132,7 +137,8 @@ public final class FulltextChainCompiler {
 	 *
 	 * @param step     the step
 	 * @param expected the factory type of the expected phase
-	 * @param position the expected phase or position, for the error
+	 * @param role     the place the step was put in, as a user reads it in the error, such as `the tokenizer` or
+	 *                 `a words step`
 	 * @param <T>      the factory type of the expected phase
 	 * @return the factory
 	 * @throws EvitaInvalidUsageException when the step is unknown, has invalid parameters or belongs elsewhere
@@ -141,13 +147,12 @@ public final class FulltextChainCompiler {
 	private <T extends FulltextAnalysisStepFactory> T resolve(
 		@Nonnull AnalysisStep step,
 		@Nonnull Class<T> expected,
-		@Nonnull String position
+		@Nonnull String role
 	) {
 		final FulltextAnalysisStepFactory factory = this.registry.resolveFulltext(step);
 		if (!expected.isInstance(factory)) {
 			throw new EvitaInvalidUsageException(
-				"Analysis step `" + step.name() + "` is " + describe(factory) + ", it cannot serve as " +
-					("tokenizer".equals(position) ? "the tokenizer" : "a " + position + " step") + "."
+				"Analysis step `" + step.name() + "` is " + describe(factory) + ", it cannot serve as " + role + "."
 			);
 		}
 		return expected.cast(factory);
@@ -171,6 +176,8 @@ public final class FulltextChainCompiler {
 
 	/**
 	 * The compiled chain: the operations of the phases that act on its side, asked for new Lucene objects per thread.
+	 * Unlike the built-in chains, it does not override `Analyzer#normalize`: a single term normalized through it comes
+	 * back unchanged.
 	 */
 	private static final class CompiledChain extends Analyzer {
 		/**

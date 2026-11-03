@@ -45,7 +45,8 @@ import java.util.Set;
 
 /**
  * The `stop-words` step: removes the words of the named word lists, on both sides, with Lucene's `StopFilter`. A
- * removed word leaves a gap in the positions, as it does today. The words are compared as the list holds them.
+ * removed word leaves a gap in the positions, as in the stop filters of the built-in chains. The words are compared
+ * as the list holds them.
  */
 public final class StopWordsAnalysisStepFactory implements FulltextWordsAnalysisStepFactory {
 	/**

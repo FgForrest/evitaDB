@@ -84,10 +84,37 @@ class AnalysisStepsTest {
 		assertInstanceOf(NormalizingWordsAnalysisStep.class, lowercase());
 		assertInstanceOf(NormalizingWordsAnalysisStep.class, asciiFolding());
 		assertInstanceOf(NormalizingTextAnalysisStep.class, removeCharacters("-"));
+		assertInstanceOf(NormalizingAnalysisStep.class, trim());
+		assertInstanceOf(TextAnalysisStep.class, htmlStrip());
+		assertInstanceOf(TokenizerAnalysisStep.class, standardTokenizer());
+		assertInstanceOf(SplittingAnalysisStep.class, wordNumberSplit());
+		assertInstanceOf(WordsAnalysisStep.class, stopWords(czechStopWords()));
+		assertInstanceOf(WordsAnalysisStep.class, czechStemming());
 		assertFalse((AnalysisStep) trim() instanceof WordsAnalysisStep);
 		assertFalse((AnalysisStep) htmlStrip() instanceof NormalizingAnalysisStep);
 		assertFalse((AnalysisStep) stopWords(czechStopWords()) instanceof NormalizingAnalysisStep);
 		assertFalse((AnalysisStep) wordNumberSplit() instanceof TokenizerAnalysisStep);
+	}
+
+	/** A generic factory grants its step its own place and no other, so no editor of another place accepts it. */
+	@Test
+	@DisplayName("Generic factories return the type of their place only")
+	void shouldTypeGenericStepsByTheirPlaceOnly() {
+		final List<Class<? extends AnalysisStep>> places = List.of(
+			TextAnalysisStep.class, TokenizerAnalysisStep.class, WordsAnalysisStep.class, NormalizingAnalysisStep.class
+		);
+		final List<AnalysisStep> steps = List.of(
+			textStep("custom"), tokenizerStep("custom"), wordsStep("custom"), normalizingStep("custom")
+		);
+
+		for (int i = 0; i < steps.size(); i++) {
+			for (int j = 0; j < places.size(); j++) {
+				assertEquals(
+					i == j, places.get(j).isInstance(steps.get(i)),
+					steps.get(i) + " as " + places.get(j).getSimpleName()
+				);
+			}
+		}
 	}
 
 	/** Generic steps permit names supplied by future server providers and typed parameters. */

@@ -59,6 +59,8 @@ import java.util.function.UnaryOperator;
  * Catalog-owned, immutable provider registry, shared by every collection and catalog snapshot.
  * Discovery happens once at catalog creation. Only immutable compiled functions are memoized; no active attribute
  * policy is stored here. Providers and steps own no catalog-storage resources and require no close operation.
+ * It resolves the steps of attribute normalization and of fulltext analyzers alike; a fulltext provider whose type
+ * does not name exactly one phase, or which acts on no side, is refused at discovery.
  */
 public final class AnalysisStepRegistry {
 	/** Installed providers, never mutated after construction. */
@@ -123,10 +125,7 @@ public final class AnalysisStepRegistry {
 	 */
 	@Nonnull
 	public NormalizingAnalysisStepFactory resolve(@Nonnull AnalysisStep step) {
-		final AnalysisStepFactory factory = this.factories.get(step.name());
-		if (factory == null) {
-			throw new EvitaInvalidUsageException("Unknown analysis step `" + step.name() + "`.");
-		}
+		final AnalysisStepFactory factory = lookup(step);
 		if (!(factory instanceof NormalizingAnalysisStepFactory normalizingFactory)) {
 			throw new EvitaInvalidUsageException(
 				"Analysis step `" + step.name() + "` is not usable as a normalizer."
@@ -145,10 +144,7 @@ public final class AnalysisStepRegistry {
 	 */
 	@Nonnull
 	public FulltextAnalysisStepFactory resolveFulltext(@Nonnull AnalysisStep step) {
-		final AnalysisStepFactory factory = this.factories.get(step.name());
-		if (factory == null) {
-			throw new EvitaInvalidUsageException("Unknown analysis step `" + step.name() + "`.");
-		}
+		final AnalysisStepFactory factory = lookup(step);
 		if (!(factory instanceof FulltextAnalysisStepFactory fulltextFactory)) {
 			throw new EvitaInvalidUsageException(
 				"Analysis step `" + step.name() + "` is not usable in a fulltext analyzer."
@@ -156,6 +152,22 @@ public final class AnalysisStepRegistry {
 		}
 		validateParameters(step, fulltextFactory);
 		return fulltextFactory;
+	}
+
+	/**
+	 * Finds the installed provider of a step's name, whatever it is capable of.
+	 *
+	 * @param step persisted description
+	 * @return the provider installed under the step's name
+	 * @throws EvitaInvalidUsageException when no provider of the step's name is installed
+	 */
+	@Nonnull
+	private AnalysisStepFactory lookup(@Nonnull AnalysisStep step) {
+		final AnalysisStepFactory factory = this.factories.get(step.name());
+		if (factory == null) {
+			throw new EvitaInvalidUsageException("Unknown analysis step `" + step.name() + "`.");
+		}
+		return factory;
 	}
 
 	/**

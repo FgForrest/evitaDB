@@ -86,9 +86,18 @@ public final class LowercaseAnalysisStepFactory
 	@Override
 	public StringNormalizationStep create(@Nonnull Map<String, Serializable> parameters, @Nullable Locale foldLocale) {
 		validate(parameters);
-		final String language = foldLocale == null ? "" : foldLocale.getLanguage();
-		final boolean turkish = "tr".equals(language) || "az".equals(language);
+		final boolean turkish = usesTurkishCasing(foldLocale == null ? "" : foldLocale.getLanguage());
 		return text -> lowercase(text, turkish);
+	}
+
+	/**
+	 * Tells whether a language lowercases the dotted and dotless I apart, as Turkish and Azeri do.
+	 *
+	 * @param language the language code of the locale, empty for the root locale
+	 * @return `true` for Turkish and Azeri
+	 */
+	private static boolean usesTurkishCasing(@Nonnull String language) {
+		return "tr".equals(language) || "az".equals(language);
 	}
 
 	/**
@@ -174,8 +183,7 @@ public final class LowercaseAnalysisStepFactory
 		@Nonnull FulltextAnalysisContext context
 	) {
 		validate(parameters);
-		final String language = context.locale().getLanguage();
-		final boolean turkish = "tr".equals(language) || "az".equals(language);
+		final boolean turkish = usesTurkishCasing(context.locale().getLanguage());
 		return (words, side) -> turkish ? new TurkishLowerCaseFilter(words) : new LowerCaseFilter(words);
 	}
 }

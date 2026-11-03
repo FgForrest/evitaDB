@@ -37,7 +37,8 @@ import java.io.IOException;
  * Replaces every token with the full set of stem variants a {@link VariantStemmer} derives from it, all emitted
  * **at one position**: the first variant keeps the token's incoming position increment, every further variant
  * gets increment `0`. That is the same shape Lucene's synonym filter uses, and it carries the same meaning —
- * the variants are alternatives for one query word, not a sequence of words.
+ * the variants are alternatives for one query word, not a sequence of words. A token the keyword attribute marks - a
+ * protected word - is the exception: it passes through unchanged, as the only variant of itself.
  *
  * **The query pipeline must therefore OR the terms of one position.** A consumer that ANDs them, or that treats
  * them as consecutive words, asks the index for a word that was never written and finds nothing. This filter
