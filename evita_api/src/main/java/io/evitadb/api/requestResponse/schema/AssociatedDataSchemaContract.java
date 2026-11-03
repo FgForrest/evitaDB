@@ -104,8 +104,9 @@ public interface AssociatedDataSchemaContract extends NamedSchemaWithDeprecation
 	 * - {@link ComplexDataObject} (any POJO type) - the text is selected by the {@link #getTextExpression() text
 	 *   expression}, which is mandatory for this type and forbidden for the other two.
 	 *
-	 * The rules are reported by {@link #validate()} on the assembled schema. Markup in the text is stripped by the
-	 * index analyzers, so an HTML body can be searchable as it is stored.
+	 * The rules are reported by {@link #validate()} on the assembled schema. To strip markup from a stored HTML
+	 * body before indexing, assign the `html-text` analyzer or an analyzer with an explicit `html-strip` text step.
+	 * The default `text` analyzer does not strip markup.
 	 *
 	 * **Over stored data**, declaring associated data searchable is never refused, but values stored before the
 	 * declaration are not indexed retroactively - stored data is not reindexed yet - so a search returns incomplete

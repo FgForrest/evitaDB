@@ -132,6 +132,62 @@ class FulltextChainCompilerTest {
 	private final AnalysisStepRegistry stepRegistry = new AnalysisStepRegistry();
 	/** The compiler under test. */
 	private final FulltextChainCompiler compiler = new FulltextChainCompiler(this.stepRegistry);
+	/** Every recorded query stream also pins production splitting followed by per-word alternatives. */
+	@Test
+	void shouldProduceGoldenAlternativesThroughProductionRoute() throws Exception {
+		final java.lang.reflect.Method split =
+			io.evitadb.core.query.filter.translator.fulltext.TextMatchesTranslator.class
+				.getDeclaredMethod("analyze", FulltextAnalyzer.class, String.class);
+		split.setAccessible(true);
+		final java.lang.reflect.Method groups =
+			io.evitadb.core.query.filter.translator.fulltext.TextMatchesTranslator.class
+				.getDeclaredMethod("analyzeGroups", CompiledFulltextAnalyzer.class, split.getReturnType());
+		groups.setAccessible(true);
+		try (final FulltextAnalyzerRegistry cache = new FulltextAnalyzerRegistry(this.stepRegistry)) {
+			for (final String language : List.of("cs", "sk", "pl", "ro", "en", "de", "fr")) {
+				final CompiledFulltextAnalyzer compiled =
+					cache.getCompiledAnalyzer(EMPTY_CATALOG, "text", Locale.forLanguageTag(language));
+				final String resource = "/analysis/fulltext-text-query-" + language + ".tsv";
+				try (final InputStream stream = getClass().getResourceAsStream(resource);
+					 final BufferedReader reader = new BufferedReader(new InputStreamReader(
+						 assertGoldenExists(stream, resource), StandardCharsets.UTF_8))) {
+					assertEquals("# version=1", reader.readLine(), resource);
+					for (final String row : reader.lines().toList()) {
+						if (row.startsWith("#")) {
+							continue;
+						}
+						final String[] cells = row.split("\t", -1);
+						final String input = decodeGolden(cells[0]);
+						final List<List<String>> expected = new ArrayList<>();
+						for (final String term : decodeGolden(cells[1]).split("\n")) {
+							if (term.isEmpty()) {
+								continue;
+							}
+							final int at = term.lastIndexOf('@');
+							final int increment = Integer.parseInt(term.substring(term.lastIndexOf('+') + 1));
+							if (increment > 0 || expected.isEmpty()) {
+								expected.add(new ArrayList<>());
+							}
+							final String value = term.substring(0, at);
+							if (!expected.getLast().contains(value)) {
+								expected.getLast().add(value);
+							}
+						}
+						final Object words = split.invoke(null, compiled.splitting(), input);
+						final String[][] analyzed = (String[][]) groups.invoke(null, compiled, words);
+						final List<List<String>> actual = new ArrayList<>();
+						for (final String[] alternatives : analyzed) {
+							if (alternatives.length > 0) {
+								actual.add(java.util.Arrays.asList(alternatives));
+							}
+						}
+						assertEquals(expected, actual, "Production query alternatives " + resource + ": " + input);
+					}
+				}
+			}
+		}
+	}
+
 	/** Pins the compiled built-ins to the output recorded from the retired language chains. */
 	@Nested
 	@DisplayName("Golden output of the built-in analyzers")

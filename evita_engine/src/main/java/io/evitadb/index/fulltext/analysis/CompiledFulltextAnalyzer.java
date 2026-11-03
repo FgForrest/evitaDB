@@ -24,10 +24,13 @@
 
 package io.evitadb.index.fulltext.analysis;
 
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
+import io.evitadb.spi.analysis.FulltextWordPreparation;
 import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
@@ -39,15 +42,21 @@ import java.util.Set;
  * @param index the chain used to build postings
  * @param word the query chain applied separately to each shared term
  * @param splitting the locale's shared word splitting
+ * @param queryText the resolved query-side text steps, compared by content when choosing shared splitting
+ * @param textSplitting the splitting chain preceded by queryText, with offsets corrected to the original input
  * @param fingerprint the persistent index and word-phase identities
  * @param foldedStopWords prepared built-in index stop words, lower-cased and ASCII-folded
+ * @param stopWordPreparations per-stop-step query surface preparation paired with its prepared index stop words
  */
 public record CompiledFulltextAnalyzer(
 	@Nonnull FulltextAnalyzer index,
 	@Nonnull FulltextAnalyzer word,
 	@Nonnull FulltextAnalyzer splitting,
+	@Nonnull List<AnalysisStep> queryText,
+	@Nonnull FulltextAnalyzer textSplitting,
 	@Nonnull FulltextAnalyzerFingerprint fingerprint,
-	@Nonnull Set<String> foldedStopWords
+	@Nonnull Set<String> foldedStopWords,
+	@Nonnull List<StopWordPreparation> stopWordPreparations
 ) {
 	/**
 	 * Freezes the prepared stop words.
@@ -55,11 +64,16 @@ public record CompiledFulltextAnalyzer(
 	 * @param index the index chain
 	 * @param word the query word chain
 	 * @param splitting the shared splitting chain
+	 * @param queryText the query-side text steps
+	 * @param textSplitting the text-aware splitting chain
 	 * @param fingerprint the persistent identities
 	 * @param foldedStopWords the prepared folded index stop words
+	 * @param stopWordPreparations query preparation corresponding to each built-in index stop step
 	 */
 	public CompiledFulltextAnalyzer {
+		queryText = List.copyOf(queryText);
 		foldedStopWords = Set.copyOf(foldedStopWords);
+		stopWordPreparations = List.copyOf(stopWordPreparations);
 	}
 
 	@Override
@@ -70,6 +84,48 @@ public record CompiledFulltextAnalyzer(
 	@Override
 	public int hashCode() {
 		return System.identityHashCode(this);
+	}
+
+	/**
+	 * Recognizes a folded stop word after the query steps preceding the corresponding stop filter have prepared
+	 * its original surface. Later stemming and synonyms must not change this comparison.
+	 *
+	 * @param surface the original NFC query word, including any possessive or elided article
+	 * @return true when a prepared surface form equals a folded index stop word of the same step
+	 */
+	public boolean isFoldedStopWord(@Nonnull String surface) {
+		if (this.foldedStopWords.isEmpty()) {
+			return false;
+		}
+		for (final StopWordPreparation stop : this.stopWordPreparations) {
+			for (final String prepared : stop.preparation().prepare(surface)) {
+				if (stop.foldedWords().contains(foldStopWord(prepared))) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * One built-in stop step's index words paired with preparation by its preceding query steps.
+	 * Preparation creates and closes streams per call and owns no analyzer lifecycle.
+	 *
+	 * @param foldedWords immutable lower-cased and folded words prepared on the index side
+	 * @param preparation query-side text and words operations preceding this stop step
+	 */
+	public record StopWordPreparation(
+		@Nonnull Set<String> foldedWords, @Nonnull FulltextWordPreparation preparation
+	) {
+		/**
+		 * Freezes the step's stop words independently of the compilation collector.
+		 *
+		 * @param foldedWords prepared index words
+		 * @param preparation preceding query operations
+		 */
+		public StopWordPreparation {
+			foldedWords = Set.copyOf(foldedWords);
+		}
 	}
 
 	/**

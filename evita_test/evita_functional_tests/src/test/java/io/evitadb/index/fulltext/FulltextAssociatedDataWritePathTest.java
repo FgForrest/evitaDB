@@ -77,7 +77,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Pins the fulltext write path of searchable associated data end to end on an embedded evitaDB: upserts, updates and
  * removals of `String`, `String[]` and complex data object values keep the per-locale fulltext indexes of the global
  * entity index in step, through the real executor, in both the transactional and the bulk-load state, across a scope
- * change and a restart. Markup in a stored value is stripped by the index analyzer.
+ * change and a restart. The body field explicitly uses `html-text` to strip markup.
  *
  * Expected terms are produced by the analyzer the catalog indexes with, so the assertions read as "the index holds
  * exactly what the text analyzes to".
@@ -178,10 +178,17 @@ class FulltextAssociatedDataWritePathTest implements EvitaTestSupport {
 				.withAssociatedData(ARTICLE, ComplexDataObject.class, a -> a.lengthPivot(100)).updateVia(session));
 			write(session -> session.upsertEntity(session.createNewEntity(PRODUCT, 5)
 				.setAssociatedData(ARTICLE, Locale.ENGLISH, article("no blocks"))));
+			write(session -> session.upsertEntity(session.getEntity(PRODUCT, 1, entityFetchAllContent())
+				.orElseThrow().openForWrite().setAssociatedData(ARTICLE, Locale.ENGLISH, article("changed title"))));
+			write(session -> session.upsertEntity(session.getEntity(PRODUCT, 3, entityFetchAllContent())
+				.orElseThrow().openForWrite().removeAssociatedData(ARTICLE, Locale.ENGLISH)));
 			final FulltextIndex after = requireFulltextIndex(Scope.LIVE, Locale.ENGLISH);
 			assertEquals(count, after.getFieldCount());
 			assertEquals(original, after.getFieldId(associatedData(ARTICLE)));
-			assertFalse(after.isFieldRetired(original));
+			assertFalse(after.isFieldRetired(original), "Empty removal must not retire an existing stale field");
+			write(session -> session.defineEntitySchema(PRODUCT)
+				.withAssociatedData(ARTICLE, ComplexDataObject.class, a -> a.lengthPivot(25)).updateVia(session));
+			assertIndexed(Scope.LIVE, Locale.ENGLISH, associatedData(ARTICLE), 4, "green tea");
 		}
 
 		@Test

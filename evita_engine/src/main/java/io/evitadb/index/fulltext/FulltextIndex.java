@@ -741,6 +741,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 
 	/**
 	 * Adds all texts of a field value using its current schema analysis, retiring a stale generation first.
+	 * An empty value set does nothing, including no registration or reconciliation.
 	 *
 	 * @param fieldKey the searchable field
 	 * @param primaryKey the entity primary key
@@ -753,6 +754,9 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull CompiledFulltextAnalyzer analyzer,
 		double lengthPivot, @Nullable String textExpression, @Nonnull String... values
 	) {
+		if (values.length == 0) {
+			return;
+		}
 		final int fieldId = getOrAssignFieldId(fieldKey, analyzer.index().getAnalyzerName(),
 			analyzer.fingerprint().index(), analyzer.fingerprint().wordPhase(), lengthPivot, textExpression);
 		indexValues(fieldId, primaryKey, analyzer.index(), values);
@@ -761,6 +765,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	/**
 	 * Removes an old value only when its field still has the current index identity. A stale generation is retired
 	 * with its postings untouched; removing an entity absent from the fresh generation is a no-op.
+	 * An empty value set does nothing, including no reconciliation.
 	 *
 	 * @param fieldKey the searchable field
 	 * @param primaryKey the entity primary key
@@ -772,6 +777,9 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull CompiledFulltextAnalyzer analyzer,
 		double lengthPivot, @Nonnull String... values
 	) {
+		if (values.length == 0) {
+			return;
+		}
 		final int fieldId = getFieldId(fieldKey);
 		if (fieldId == UNKNOWN_FIELD_ID) {
 			return;

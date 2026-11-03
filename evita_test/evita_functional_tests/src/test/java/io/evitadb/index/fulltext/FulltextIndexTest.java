@@ -141,6 +141,26 @@ class FulltextIndexTest {
 		return new FulltextIndex();
 	}
 
+	/** An empty direct addition does not register a field generation. */
+	@Test
+	void shouldIgnoreDirectEmptyValueSets() {
+		final FulltextIndex index = newIndex();
+		index.addValue(attribute("name"), 1, testAnalyzer(), 25.0, null, new String[0]);
+		assertEquals(0, index.getFieldCount(), "Empty direct addition must not register a field");
+	}
+
+	/** Empty removals and additions leave an existing stale field and its postings intact. */
+	@Test
+	void shouldIgnoreDirectEmptyRemovalFromStaleField() {
+		final FulltextIndex index = newIndex();
+		index.addValue(attribute("name"), 1, testAnalyzer(), 25.0, null, "Praha");
+		final int original = index.getFieldId(attribute("name"));
+		index.removeValue(attribute("name"), 2, testAnalyzer(), 50.0, new String[0]);
+		assertFalse(index.isFieldRetired(original), "Empty direct removal must not retire a stale field");
+		index.addValue(attribute("name"), 2, testAnalyzer(), 50.0, null, new String[0]);
+		assertEquals(original, index.getFieldId(attribute("name")), "Empty add must preserve the stale generation");
+	}
+
 	/** Per-field analysis generations preserve posting ownership across changes. */
 	@Nested
 	@DisplayName("Analysis generations")

@@ -705,13 +705,17 @@ public final class FulltextCatalogFixture {
 		) {
 			final List<FulltextFieldKey> searchedFields = collectSearchableFields(entitySchema);
 			final List<FulltextFieldKey> knownFields = new ArrayList<>(searchedFields.size());
-			FulltextAnalyzer splitter = null;
+			CompiledFulltextAnalyzer first = null;
+			boolean commonText = true;
 			for (final FulltextFieldKey field : searchedFields) {
 				final FulltextFieldDefinition definition = FulltextFieldDefinition.resolve(entitySchema, field);
 				final CompiledFulltextAnalyzer compiled = analyzerRegistry.getCompiledAnalyzer(
 					catalogSchema, definition.analyzer(), locale);
-				if (splitter == null) {
-					splitter = compiled.splitting();
+				// the translator splits after the query text phase only when every searched field shares it
+				if (first == null) {
+					first = compiled;
+				} else if (!first.queryText().equals(compiled.queryText())) {
+					commonText = false;
 				}
 				final int fieldId = fulltextIndex.getFieldId(field);
 				if (fieldId != FulltextIndex.UNKNOWN_FIELD_ID && fulltextIndex.isFieldCurrent(
@@ -720,8 +724,9 @@ public final class FulltextCatalogFixture {
 					knownFields.add(field);
 				}
 			}
-			this.splitting = splitter == null ?
-				analyzerRegistry.getCompiledAnalyzer(catalogSchema, "text", locale).splitting() : splitter;
+			this.splitting = first == null ?
+				analyzerRegistry.getCompiledAnalyzer(catalogSchema, "text", locale).splitting() :
+				commonText ? first.textSplitting() : first.splitting();
 			this.fieldKeys = knownFields.toArray(FulltextFieldKey[]::new);
 			this.fulltextIndex = fulltextIndex;
 		}

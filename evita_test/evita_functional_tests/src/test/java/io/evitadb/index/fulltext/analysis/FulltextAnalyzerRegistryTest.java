@@ -209,7 +209,8 @@ class FulltextAnalyzerRegistryTest {
 			built.countDown();
 			assertTrue(finish.await(30, TimeUnit.SECONDS));
 			return analyzer;
-		}).when(compiler).compile(any(ResolvedFulltextAnalyzer.class), org.mockito.ArgumentMatchers.<Set<String>>any());
+		}).when(compiler).compile(any(ResolvedFulltextAnalyzer.class),
+			org.mockito.ArgumentMatchers.<java.util.List<CompiledFulltextAnalyzer.StopWordPreparation>>any());
 		final java.lang.reflect.Field field = FulltextAnalyzerRegistry.class.getDeclaredField("compiler");
 		field.setAccessible(true);
 		field.set(registry, compiler);

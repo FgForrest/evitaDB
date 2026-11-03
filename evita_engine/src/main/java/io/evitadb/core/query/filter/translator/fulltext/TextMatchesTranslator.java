@@ -84,9 +84,11 @@ import java.util.function.Supplier;
  *
  * ## Which analyzer reads the text
  *
- * The locale splits NFC text once, before any group analyzes words. Fields sharing compiled analyzer content form
- * one group. Each group applies its query text and words phases around a keyword tokenizer to each shared term,
- * preserving alignment even when a text step would change word boundaries. A field whose recorded index fingerprint
+ * The locale splits NFC text once, before any group analyzes words. When all processed groups have equal resolved
+ * query text steps, those steps precede the shared split. Otherwise splitting uses the raw text: a boundary a group's
+ * text step would remove remains a boundary for that group, which can cost recall. Fields sharing compiled analyzer
+ * content form one group. Each group applies its query text and words phases around a keyword tokenizer to each
+ * shared term, preserving alignment. A field whose recorded index fingerprint
  * or pivot differs from its current schema contributes nothing until a write starts a fresh generation (#409).
  *
  * ## Where the fulltext lives
@@ -156,6 +158,10 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 		final EntitySchemaContract entitySchema = processingScope.getEntitySchemaOrThrowException();
 		final Set<Scope> scopes = processingScope.getScopes();
 		final Map<Scope, FulltextFieldDefinition[]> fieldsByScope = resolveFields(textMatches, entitySchema, scopes);
+		// Writes validate locales, so an undeclared locale cannot own a fulltext index. Keep field errors above.
+		if (!entitySchema.getLocales().contains(locale)) {
+			return EmptyFormula.INSTANCE;
+		}
 
 		final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();
 		final FulltextAnalyzerRegistry analyzerRegistry = queryContext.getFulltextAnalyzerRegistry();
@@ -163,27 +169,40 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 		final CatalogSchemaContract catalogSchema = queryContext.getCatalogSchema();
 		// All field definitions compile before any index containing data is read, including the check-only path.
 		final Map<CompiledFulltextAnalyzer, String[][]> analyzed = CollectionUtils.createHashMap(4);
-		for (final FulltextFieldDefinition[] fields : fieldsByScope.values()) {
-			for (final FulltextFieldDefinition field : fields) {
-				analyzed.put(analyzerRegistry.getCompiledAnalyzer(catalogSchema, field.analyzer(), locale), null);
+		final Map<String, CompiledFulltextAnalyzer> resolved = CollectionUtils.createHashMap(4);
+		final Map<Scope, Map<CompiledFulltextAnalyzer, List<FulltextFieldDefinition>>> fieldsByAnalyzer =
+			new EnumMap<>(Scope.class);
+		for (final Map.Entry<Scope, FulltextFieldDefinition[]> entry : fieldsByScope.entrySet()) {
+			final Map<CompiledFulltextAnalyzer, List<FulltextFieldDefinition>> grouped =
+				CollectionUtils.createLinkedHashMap(4);
+			for (final FulltextFieldDefinition field : entry.getValue()) {
+				// Keep the resolved handle across analysis and grouping: eviction may change a later lookup's identity.
+				final CompiledFulltextAnalyzer analyzer = resolved.computeIfAbsent(field.analyzer(),
+					name -> analyzerRegistry.getCompiledAnalyzer(catalogSchema, name, locale));
+				analyzed.put(analyzer, null);
+				grouped.computeIfAbsent(analyzer, ignored -> new ArrayList<>(4)).add(field);
+			}
+			fieldsByAnalyzer.put(entry.getKey(), grouped);
+		}
+		final CompiledFulltextAnalyzer first = analyzed.keySet().iterator().next();
+		boolean commonText = true;
+		for (final CompiledFulltextAnalyzer analyzer : analyzed.keySet()) {
+			if (!first.queryText().equals(analyzer.queryText())) {
+				commonText = false;
+				break;
 			}
 		}
-		final QueryToken[] searchTokens = analyze(analyzed.keySet().iterator().next().splitting(),
+		final QueryToken[] searchTokens = analyze(commonText ? first.textSplitting() : first.splitting(),
 			textMatches.getText());
 		for (final CompiledFulltextAnalyzer analyzer : analyzed.keySet()) {
 			analyzed.put(analyzer, analyzeGroups(analyzer, searchTokens));
 		}
 		final Map<Scope, List<AnalyzedFieldGroup>> groupsByScope = new EnumMap<>(Scope.class);
-		for (final Map.Entry<Scope, FulltextFieldDefinition[]> entry : fieldsByScope.entrySet()) {
-			final Map<CompiledFulltextAnalyzer, List<FulltextFieldDefinition>> grouped =
-				CollectionUtils.createLinkedHashMap(analyzed.size());
-			for (final FulltextFieldDefinition field : entry.getValue()) {
-				final CompiledFulltextAnalyzer analyzer =
-					analyzerRegistry.getCompiledAnalyzer(catalogSchema, field.analyzer(), locale);
-				grouped.computeIfAbsent(analyzer, ignored -> new ArrayList<>(4)).add(field);
-			}
-			final List<AnalyzedFieldGroup> groups = new ArrayList<>(grouped.size());
-			for (final Map.Entry<CompiledFulltextAnalyzer, List<FulltextFieldDefinition>> group : grouped.entrySet()) {
+		for (final Map.Entry<Scope, Map<CompiledFulltextAnalyzer, List<FulltextFieldDefinition>>> entry :
+			fieldsByAnalyzer.entrySet()) {
+			final List<AnalyzedFieldGroup> groups = new ArrayList<>(entry.getValue().size());
+			for (final Map.Entry<CompiledFulltextAnalyzer, List<FulltextFieldDefinition>> group :
+				entry.getValue().entrySet()) {
 				groups.add(new AnalyzedFieldGroup(group.getKey(),
 					group.getValue().toArray(FulltextFieldDefinition[]::new), analyzed.get(group.getKey())));
 			}
@@ -343,7 +362,9 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 
 	/**
 	 * Runs a group's word chain over every term of each shared word. Position increments emitted inside the word
-	 * chain never create a new query word; every emitted term is an alternative of the same shared input word.
+	 * chain never create a new query word; every nonempty emitted term is an alternative of that shared input word.
+	 * The text phase is reapplied after text-aware shared splitting. The only built-in query text step,
+	 * `remove-characters`, is idempotent, so applying it to an already transformed word does nothing.
 	 *
 	 * @param analyzer the group's compiled chains
 	 * @param words the locale's shared words
@@ -355,8 +376,11 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 		for (int i = 0; i < words.length; i++) {
 			final Set<String> terms = CollectionUtils.createLinkedHashSet(4);
 			for (final String term : words[i].terms()) {
-				analyzer.word().analyze(term,
-					(value, surface, start, end, increment) -> terms.add(value));
+				analyzer.word().analyze(term, (value, surface, start, end, increment) -> {
+					if (!value.isEmpty()) {
+						terms.add(value);
+					}
+				});
 			}
 			alternatives[i] = terms.toArray(String[]::new);
 		}
@@ -372,7 +396,12 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 * (`p5-word-number-split-comparison.md` §6) - waits for a ranking lane that puts a whole-word match above a part
 	 * match: without it, the matches of a bare part would come with nothing to rank them down.
 	 *
-	 * @param analyzer the analyzer
+	 * The caller supplies text-aware splitting only when every group's resolved query text phase is equal.
+	 * With heterogeneous phases it supplies raw splitting: a word boundary a group's text step removes is then
+	 * not removed for that group. Either choice is independent of group iteration order. Char filters correct
+	 * offsets to the original NFC input, so the collected surface still addresses what the user typed.
+	 *
+	 * @param analyzer the shared splitting chain, optionally preceded by the common query text phase
 	 * @param text     the text of the query
 	 * @return the tokens in text order; empty when the analysis produced no term
 	 * @throws EvitaInvalidUsageException when the text has more tokens than the scorer can count
@@ -443,8 +472,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 						}
 					}
 				}
-				if (expansions.size() == before && group.analyzer().foldedStopWords().contains(
-					CompiledFulltextAnalyzer.foldStopWord(tokens[i].surfaceForm())) &&
+				if (expansions.size() == before && group.analyzer().isFoldedStopWord(tokens[i].surfaceForm()) &&
 					!isKnownToIndex(fulltextIndex, new QueryToken(tokens[i].surfaceForm(), alternatives))) {
 					continue;
 				}

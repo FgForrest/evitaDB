@@ -755,6 +755,9 @@ public interface FulltextIndexMutator {
 		int primaryKey,
 		@Nonnull Set<String> values
 	) {
+		if (values.isEmpty()) {
+			return;
+		}
 		final FulltextIndex fulltextIndex = globalIndex.getFulltextIndex(locale);
 		if (fulltextIndex == null) {
 			return;

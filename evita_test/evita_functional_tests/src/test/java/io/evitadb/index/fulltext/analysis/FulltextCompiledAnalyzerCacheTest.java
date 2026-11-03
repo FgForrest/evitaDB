@@ -70,6 +70,28 @@ import static org.mockito.Mockito.*;
 @Tag(ENGINE)
 @Tag(FULLTEXT)
 class FulltextCompiledAnalyzerCacheTest {
+	/** Text-aware splitting keeps original offsets and surfaces; repeating character removal is idempotent. */
+	@Test
+	void shouldPreserveOriginalSurfaceAndIdempotentTextPhase() {
+		try (final FulltextAnalyzerRegistry cache = new FulltextAnalyzerRegistry(new AnalysisStepRegistry())) {
+			final CatalogSchemaContract schema = schema(b -> b
+				.withFulltextAnalyzer("joined", a -> a.text(removeCharacters("-")).words(lowercase())));
+			final CompiledFulltextAnalyzer compiled = cache.getCompiledAnalyzer(schema, "joined", Locale.ENGLISH);
+			final List<io.evitadb.test.fulltext.AnalyzedTerm> split = collectTerms(compiled.textSplitting(), "USB-C x-y");
+			assertEquals(List.of("USB-C", "x-y"), split.stream().map(t -> t.surfaceForm()).toList(),
+				"Text filters must retain surfaces from the original query");
+			assertEquals(List.of(0, 6), split.stream().map(t -> t.startOffset()).toList());
+			assertEquals(List.of(5, 9), split.stream().map(t -> t.endOffset()).toList());
+			for (final io.evitadb.test.fulltext.AnalyzedTerm term : split) {
+				final List<String> once = collectTerms(compiled.word(), term.surfaceForm()).stream()
+					.map(t -> t.term()).toList();
+				final List<String> twice = collectTerms(compiled.word(), term.term()).stream()
+					.map(t -> t.term()).toList();
+				assertEquals(once, twice, "Reapplying remove-characters to a transformed word must be a no-op");
+			}
+		}
+	}
+
 	/** Cache lookups across schema changes. */
 	@Nested
 	@DisplayName("Schema changes")

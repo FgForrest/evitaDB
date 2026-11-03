@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.analysis.AnalysisStepRegistry;
+import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer.StopWordPreparation;
 import io.evitadb.spi.analysis.AnalysisStepParameterDescriptor;
 import io.evitadb.spi.analysis.FulltextAnalysisContext;
 import io.evitadb.spi.analysis.FulltextAnalysisSide;
@@ -116,36 +117,58 @@ public final class FulltextChainCompiler {
 	 * Resource preparation still uses the language tokenizer to check that synonym entries are single words.
 	 *
 	 * @param analyzer the resolved analyzer of the group
+	 * @param stopWords index stop-word sets whose preparations are replaced by the preceding query operations
 	 * @return the query word chain owned by the caller
 	 */
 	@Nonnull
-	public Analyzer compileWordChain(@Nonnull ResolvedFulltextAnalyzer analyzer) {
+	public Analyzer compileWordChain(
+		@Nonnull ResolvedFulltextAnalyzer analyzer, @Nonnull List<StopWordPreparation> stopWords
+	) {
 		return compile(analyzer.text(), analyzer.splitting(), analyzer.words(), FulltextAnalysisSide.QUERY,
-			analyzer.context(), true, null);
+			analyzer.context(), true, stopWords);
 	}
 
 	/**
-	 * Compiles the locale's shared splitting without either analyzer phase.
+	 * Selects resolved text steps that act on query input, preserving their declared content and order.
 	 *
-	 * @param analyzer a resolved analyzer carrying the locale's splitting
+	 * @param analyzer the definition resolved for this locale
+	 * @return immutable query-side text steps, without index-only steps such as html-strip
+	 */
+	@Nonnull
+	List<AnalysisStep> queryText(@Nonnull ResolvedFulltextAnalyzer analyzer) {
+		final List<AnalysisStep> selected = new ArrayList<>(analyzer.text().size());
+		for (final AnalysisStep step : analyzer.text()) {
+			if (resolve(step, FulltextTextAnalysisStepFactory.class, "a text step")
+				.getSides().contains(FulltextAnalysisSide.QUERY)) {
+				selected.add(step);
+			}
+		}
+		return List.copyOf(selected);
+	}
+
+	/**
+	 * Compiles the locale's splitting preceded by the supplied query-side text phase, without words steps.
+	 *
+	 * @param analyzer a resolved analyzer carrying the locale's splitting and the chosen text phase
 	 * @return the splitting chain owned by the caller
 	 */
 	@Nonnull
 	public Analyzer compileSplittingChain(@Nonnull ResolvedFulltextAnalyzer analyzer) {
-		return compile(List.of(), analyzer.splitting(), List.of(), FulltextAnalysisSide.QUERY, analyzer.context());
+		return compile(analyzer.text(), analyzer.splitting(), List.of(), FulltextAnalysisSide.QUERY,
+			analyzer.context());
 	}
 
 	/**
 	 * Compiles the index chain and collects the prepared words of built-in stop steps for folded query recognition.
 	 *
 	 * @param analyzer the resolved analyzer
-	 * @param foldedStopWords receives the lower-cased ASCII-folded prepared index stop words
+	 * @param stopWords receives per-step folded index words, initially paired with their index preparation
 	 * @return the index chain owned by the caller
 	 */
 	@Nonnull
-	Analyzer compile(@Nonnull ResolvedFulltextAnalyzer analyzer, @Nonnull Set<String> foldedStopWords) {
+	Analyzer compile(@Nonnull ResolvedFulltextAnalyzer analyzer, @Nonnull List<StopWordPreparation> stopWords) {
 		return compile(analyzer.text(), analyzer.splitting(), analyzer.words(), FulltextAnalysisSide.INDEX,
-			analyzer.context(), false, foldedStopWords);
+			analyzer.context(), false, stopWords);
 	}
 
 	/**
@@ -268,14 +291,14 @@ public final class FulltextChainCompiler {
 	 * @param side the side being compiled
 	 * @param context the locale and available resources
 	 * @param keyword whether the emitted chain tokenizes each input as one term
-	 * @param foldedStopWords optional receiver of prepared built-in index stop words
+	 * @param stopWords optional collector of index stop sets and their corresponding query preparations
 	 * @return the compiled chain owned by the caller
 	 */
 	@Nonnull
 	private Analyzer compile(
 		@Nonnull List<AnalysisStep> text, @Nonnull List<AnalysisStep> splitting,
 		@Nonnull List<AnalysisStep> words, @Nonnull FulltextAnalysisSide side,
-		@Nonnull FulltextAnalysisContext context, boolean keyword, @Nullable Set<String> foldedStopWords
+		@Nonnull FulltextAnalysisContext context, boolean keyword, @Nullable List<StopWordPreparation> stopWords
 	) {
 		final List<FulltextTextAnalysisOperation> textOperations = new ArrayList<>(text.size());
 		for (final AnalysisStep step : text) {
@@ -305,26 +328,38 @@ public final class FulltextChainCompiler {
 		}
 		final List<FulltextWordsAnalysisOperation> wordOperations = new ArrayList<>(words.size());
 		final List<PlacedStep> placedSteps = new ArrayList<>(words.size());
+		int stopWordIndex = 0;
 		for (final AnalysisStep step : words) {
 			final FulltextWordsAnalysisStepFactory factory = resolve(
 				step, FulltextWordsAnalysisStepFactory.class, "a words step"
 			);
 			if (factory.getSides().contains(side)) {
 				final FulltextWordPreparation preparation = new PrecedingStepsPreparation(
+					new FulltextTextAnalysisOperation[0],
 					wordOperations.toArray(FulltextWordsAnalysisOperation[]::new), tokenizer, side
 				);
 				final FulltextAnalysisContext preparedContext =
 					stepContext(step, factory, context).withPreparation(preparation);
 				final FulltextWordsAnalysisOperation operation = factory.create(step.parameters(), preparedContext);
-				if (foldedStopWords != null && factory instanceof StopWordsAnalysisStepFactory) {
-					if (!(step.parameters().get(AnalysisSteps.WORDS) instanceof String[] resources)) {
-						throw new EvitaInvalidUsageException(
-							"Analysis step `" + step.name() + "` requires a String[] of word resource names.");
-					}
-					for (final String name : resources) {
-						for (final String word : preparedContext.getPreparedWords(name)) {
-							foldedStopWords.add(CompiledFulltextAnalyzer.foldStopWord(word));
+				if (stopWords != null && factory instanceof StopWordsAnalysisStepFactory) {
+					if (side == FulltextAnalysisSide.INDEX) {
+						if (!(step.parameters().get(AnalysisSteps.WORDS) instanceof String[] resources)) {
+							throw new EvitaInvalidUsageException(
+								"Analysis step `" + step.name() + "` requires a String[] of word resource names.");
 						}
+						final Set<String> folded = CollectionUtils.createHashSet(64);
+						for (final String name : resources) {
+							for (final String word : preparedContext.getPreparedWords(name)) {
+								folded.add(CompiledFulltextAnalyzer.foldStopWord(word));
+							}
+						}
+						stopWords.add(new StopWordPreparation(folded, preparation));
+					} else {
+						// Built-in stop steps act on both sides; pair each with exactly its own index stop set.
+						final StopWordPreparation indexed = stopWords.get(stopWordIndex);
+						stopWords.set(stopWordIndex++, new StopWordPreparation(indexed.foldedWords(),
+							new PrecedingStepsPreparation(textOperations.toArray(FulltextTextAnalysisOperation[]::new),
+								wordOperations.toArray(FulltextWordsAnalysisOperation[]::new), tokenizer, side)));
 					}
 				}
 				wordOperations.add(operation);
@@ -436,12 +471,17 @@ public final class FulltextChainCompiler {
 	/**
 	 * Prepares a word of a resource for a words step: normalizes it to NFC, as {@link FulltextAnalyzer} normalizes the
 	 * text, and runs it as one token through the words steps before that step on the side. The text phase and the word
-	 * splitting are left out: the word is compared with the words as they reach the step, not with a text. The
+	 * splitting are left out for resources: the word is compared as it reaches the step, not with a text.
+	 * For a query surface, the caller also supplies the query text operations preceding the stop step. The
 	 * synonyms a preceding step adds (Lucene's `SYNONYM` token type) are left out too: they are other words, not forms
 	 * of this one. So is a term a preceding step leaves empty. Whether the word reaches the step whole is the
 	 * tokenizer's call alone, asked over the same NFC form.
 	 */
 	private static final class PrecedingStepsPreparation implements FulltextWordPreparation {
+		/**
+		 * Optional query text operations preparing a surface; resource words leave this empty.
+		 */
+		@Nonnull private final FulltextTextAnalysisOperation[] text;
 		/**
 		 * The operations of the preceding words steps on the side, in order.
 		 */
@@ -458,15 +498,18 @@ public final class FulltextChainCompiler {
 		/**
 		 * Creates the preparation of the next words step.
 		 *
+		 * @param text       query text operations for a surface, empty when preparing resource words
 		 * @param operations the operations of the preceding words steps on the side, in order
 		 * @param tokenizer  the tokenizer of the side, deciding which words reach the words phase whole
 		 * @param side       the side the chain is built for
 		 */
 		PrecedingStepsPreparation(
+			@Nonnull FulltextTextAnalysisOperation[] text,
 			@Nonnull FulltextWordsAnalysisOperation[] operations,
 			@Nonnull FulltextTokenizerAnalysisOperation tokenizer,
 			@Nonnull FulltextAnalysisSide side
 		) {
+			this.text = text;
 			this.operations = operations;
 			this.tokenizer = tokenizer;
 			this.side = side;
@@ -495,13 +538,17 @@ public final class FulltextChainCompiler {
 		@Override
 		public List<String> prepare(@Nonnull String word) {
 			final String normalized = Normalizer.normalize(word, Normalizer.Form.NFC);
-			if (this.operations.length == 0) {
+			if (this.text.length == 0 && this.operations.length == 0) {
 				return List.of(normalized);
 			}
 			final Tokenizer source = new KeywordTokenizer();
-			source.setReader(new StringReader(normalized));
 			TokenStream chain = source;
 			try {
+				Reader reader = new StringReader(normalized);
+				for (final FulltextTextAnalysisOperation operation : this.text) {
+					reader = operation.wrap(reader, this.side);
+				}
+				source.setReader(reader);
 				for (final FulltextWordsAnalysisOperation operation : this.operations) {
 					chain = operation.wrap(chain, this.side);
 				}

@@ -28,8 +28,10 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.FulltextLanguageSchemaContract;
 import io.evitadb.api.requestResponse.schema.FulltextResourceSchemaContract;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.analysis.AnalysisStepRegistry;
+import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer.StopWordPreparation;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 
@@ -55,7 +57,8 @@ import java.util.concurrent.locks.ReentrantLock;
  * A true miss resolves content and shares chains through resolved-content equality, including query-only resources.
  * Compilation runs outside the publication lock; a concurrent loser closes its own unpublished chains. Publication
  * retains eight schema instances in insertion order and drops content entries no retained memo uses. Splitting is
- * shared separately. Only publication, eviction and close take the lock, so compiling a miss cannot block hits.
+ * shared separately; an entry with query text steps also owns a text-aware splitter. Only publication, eviction
+ * and close take the lock, so compiling a miss cannot block hits.
  *
  * Eviction drops references without closing chains held by concurrent work. Lucene's `CloseableThreadLocal` and its
  * per-thread components can be collected once their analyzer becomes unreachable. Catalog close releases retained
@@ -187,7 +190,7 @@ public class FulltextAnalyzerRegistry implements Closeable {
 			current = definition.getBasedOn().orElse(null);
 		}
 		final CompiledFulltextAnalyzer existing = this.compiled.get(resolved);
-		// A speculative compiler owns all three chains until publication, including its private splitter.
+		// A speculative compiler owns every chain until publication, including its private splitters.
 		final CompiledFulltextAnalyzer candidate = existing == null ? compile(resolved) : null;
 		this.cacheLock.lock();
 		try {
@@ -211,7 +214,9 @@ public class FulltextAnalyzerRegistry implements Closeable {
 						candidate.splitting().close();
 					}
 					result = new CompiledFulltextAnalyzer(result.index(), result.word(), shared,
-						result.fingerprint(), result.foldedStopWords());
+						result.queryText(),
+						result.textSplitting() == result.splitting() ? shared : result.textSplitting(),
+						result.fingerprint(), result.foldedStopWords(), result.stopWordPreparations());
 				}
 				this.compiled.put(resolved, result);
 			} else if (candidate != null) {
@@ -274,14 +279,14 @@ public class FulltextAnalyzerRegistry implements Closeable {
 	 */
 	@Nonnull
 	private CompiledFulltextAnalyzer compile(@Nonnull ResolvedFulltextAnalyzer resolved) {
-		final Set<String> stopWords = CollectionUtils.createHashSet(64);
+		final List<StopWordPreparation> stopWords = new ArrayList<>(2);
 		final FulltextAnalyzerFingerprint fingerprint = this.compiler.fingerprint(resolved);
 		final FulltextAnalyzer index = new FulltextAnalyzer(
 			resolved.analyzer(), this.compiler.compile(resolved, stopWords)
 		);
 		try {
 			final FulltextAnalyzer word = new FulltextAnalyzer(
-				resolved.analyzer(), this.compiler.compileWordChain(resolved)
+				resolved.analyzer(), this.compiler.compileWordChain(resolved, stopWords)
 			);
 			try {
 				final ResolvedFulltextAnalyzer splitting = new ResolvedFulltextAnalyzer(
@@ -289,7 +294,23 @@ public class FulltextAnalyzerRegistry implements Closeable {
 				);
 				final FulltextAnalyzer privateSplitting = new FulltextAnalyzer(
 					"splitting", this.compiler.compileSplittingChain(splitting));
-				return new CompiledFulltextAnalyzer(index, word, privateSplitting, fingerprint, stopWords);
+				try {
+					final List<AnalysisStep> queryText =
+						this.compiler.queryText(resolved);
+					final FulltextAnalyzer textSplitting = queryText.isEmpty() ? privateSplitting :
+						new FulltextAnalyzer(
+						"query-splitting", this.compiler.compileSplittingChain(new ResolvedFulltextAnalyzer(
+							"query-splitting", queryText, resolved.splitting(), List.of(), resolved.context())));
+					final Set<String> foldedStopWords = CollectionUtils.createHashSet(64);
+					for (final StopWordPreparation stop : stopWords) {
+						foldedStopWords.addAll(stop.foldedWords());
+					}
+					return new CompiledFulltextAnalyzer(index, word, privateSplitting, queryText,
+						textSplitting, fingerprint, foldedStopWords, stopWords);
+				} catch (RuntimeException ex) {
+					privateSplitting.close();
+					throw ex;
+				}
 			} catch (RuntimeException ex) {
 				word.close();
 				throw ex;
@@ -328,14 +349,17 @@ public class FulltextAnalyzerRegistry implements Closeable {
 	}
 
 	/**
-	 * Releases the two chains owned by a removed compiled entry. Splitting has its own cache entry and is drained
-	 * once separately, even when many analyzer groups share it.
+	 * Releases the index, word and optional text-aware splitting chains owned by a removed compiled entry.
+	 * Raw splitting has its own cache entry and is drained once separately, even when many analyzer groups share it.
 	 *
-	 * @param analyzer the removed entry whose index and word chains this caller owns
+	 * @param analyzer the removed entry whose index, word and optional text-aware splitting chains this caller owns
 	 */
 	private static void releaseCompiledChains(@Nonnull CompiledFulltextAnalyzer analyzer) {
 		analyzer.index().close();
 		analyzer.word().close();
+		if (analyzer.textSplitting() != analyzer.splitting()) {
+			analyzer.textSplitting().close();
+		}
 	}
 
 	/**
