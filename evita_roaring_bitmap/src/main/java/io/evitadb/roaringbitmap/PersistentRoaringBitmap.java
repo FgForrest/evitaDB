@@ -1623,6 +1623,10 @@ public class PersistentRoaringBitmap
 	/**
 	 * Validate the content of the bitmap. Useful after deserialization.
 	 *
+	 * It checks that the bitmap is well formed: keys are sorted, and each container is consistent
+	 * with its type. It does not check that each container uses the most compact encoding: call
+	 * {@link #runOptimize()} for that.
+	 *
 	 * @return true if the content is valid.
 	 */
 	@Nonnull
@@ -3539,9 +3543,19 @@ public class PersistentRoaringBitmap
 	}
 
 	/**
-	 * Use a run-length encoding where it is more space efficient
+	 * Use a run-length encoding where it is more space efficient, and an array or bitmap
+	 * encoding where it is not.
 	 *
-	 * @return whether a change was applied
+	 * Mutating a bitmap that contains run containers (for example with `add`,
+	 * `remove`, `flip`, range additions or removals, or `limit`) does not always
+	 * convert a run container back to an array or bitmap container when the runs stop being the
+	 * most compact encoding. Such a container can then use more memory and serialized space than
+	 * needed: in the worst case, the runs of one 65536-value chunk can take about 128 KiB where a
+	 * bitmap container takes 8 KiB. Calling this method again after such mutations converts these
+	 * containers back to their most compact encoding and recovers that space. Consider calling it
+	 * before serializing a bitmap that was mutated since its last call.
+	 *
+	 * @return true if the bitmap contains at least one run container after the call
 	 */
 	public boolean runOptimize() {
 		unlend();

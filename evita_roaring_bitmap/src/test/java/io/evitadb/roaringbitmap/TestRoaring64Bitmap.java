@@ -1,5 +1,6 @@
 package io.evitadb.roaringbitmap;
 
+import javax.annotation.Nonnull;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.roaringbitmap.Util.toUnsignedLong;
@@ -1867,6 +1868,25 @@ public class TestRoaring64Bitmap {
 
 			Assertions.assertEquals(2L, x.getLongCardinality());
 			Assertions.assertArrayEquals(new long[]{-3L, -2L}, x.toArray());
+		}
+
+		/**
+		 * Re-optimizing a mutated run container recovers space and preserves its values (upstream #886).
+		 */
+		@DisplayName("runOptimize converts runs that are no longer compact")
+		@Test
+		public void testRunOptimizeConvertsRunsThatAreNoLongerCompact() {
+			final PersistentLongRoaringBitmap bitmap = new PersistentLongRoaringBitmap();
+			bitmap.addRange(0L, 100L);
+			assertTrue(bitmap.runOptimize());
+			for (long i = 200; i < 65536; i += 2) {
+				bitmap.add(i); // each value becomes a run of length one
+			}
+			final PersistentLongRoaringBitmap expected = bitmap.clone();
+			final long before = bitmap.serializedSizeInBytes();
+			assertFalse(bitmap.runOptimize());
+			assertTrue(bitmap.serializedSizeInBytes() < before / 10);
+			assertEquals(expected, bitmap);
 		}
 
 		@DisplayName("runOptimize leaves the values intact")
