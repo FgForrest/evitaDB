@@ -127,6 +127,10 @@ class CatalogRelabelAfterDeferredCompactionTest implements EvitaTestSupport {
 
 	/**
 	 * The relabel follows the compacting round inside the minimal compaction interval, so only the round compacts.
+	 *
+	 * This is the only scenario that also has a crash-image variant: it is the one where the relabel must build on
+	 * the record the compacting round left deferred, which is what a crash at that moment would find on disk. The
+	 * other two scenarios have no deferred compaction to build on, so a crash image would add nothing to them.
 	 */
 	@Nested
 	@DisplayName("When only the round compacts")
@@ -365,11 +369,15 @@ class CatalogRelabelAfterDeferredCompactionTest implements EvitaTestSupport {
 		final int publishedFileIndex = lastPublishedRecord(paths).catalogFileIndex();
 
 		if (compactionIntervalMillis > 0L) {
-			// whatever compacted last did so no later than here - after this wait the round may compact once
-			await()
-				.pollDelay(compactionIntervalMillis + 250L, TimeUnit.MILLISECONDS)
-				.atMost(compactionIntervalMillis + 1_000L, TimeUnit.MILLISECONDS)
-				.until(() -> true);
+			// Whatever compacted last did so no later than here - after this wait the round may compact once. It is
+			// neither polling nor a detection widener: the engine compares the wall clock with the time of its last
+			// compaction, so there is no event to latch on and the interval simply has to pass.
+			try {
+				Thread.sleep(compactionIntervalMillis + 250L);
+			} catch (InterruptedException ex) {
+				Thread.currentThread().interrupt();
+				throw new IllegalStateException("Interrupted while waiting for the compaction interval to pass.", ex);
+			}
 		}
 
 		theEvita.updateCatalog(

@@ -122,43 +122,43 @@ class CollectionRelabelChainRoundTest implements EvitaTestSupport {
 	@Nested
 	@DisplayName("With the default checkpoint interval")
 	class WithDefaultCheckpoint {
-		@Test void swapInOneTransaction() { assertScenario(Checkpoint.DEFAULT, Scenario.SWAP_IN_ONE); }
-		@Test void swapStepsSeparately() { assertScenario(Checkpoint.DEFAULT, Scenario.SWAP_SEPARATELY); }
-		@Test void chainInOneTransaction() { assertScenario(Checkpoint.DEFAULT, Scenario.CHAIN_IN_ONE); }
-		@Test void chainStepsSeparately() { assertScenario(Checkpoint.DEFAULT, Scenario.CHAIN_SEPARATELY); }
-		@Test void renameBravoAlone() { assertScenario(Checkpoint.DEFAULT, Scenario.RENAME_BRAVO_ALONE); }
-		@Test void renameDeltaAlone() { assertScenario(Checkpoint.DEFAULT, Scenario.RENAME_DELTA_ALONE); }
-		@Test void renameAndCreateInOneTransaction() { assertScenario(Checkpoint.DEFAULT, Scenario.RENAME_AND_CREATE_IN_ONE); }
-		@Test void renameAndCreateSeparately() { assertScenario(Checkpoint.DEFAULT, Scenario.RENAME_AND_CREATE_SEPARATELY); }
-		@Test void createAlone() { assertScenario(Checkpoint.DEFAULT, Scenario.CREATE_ALONE); }
+		@Test void shouldLoadWhenCollectionsSwapInOneTransaction() { assertScenario(Checkpoint.DEFAULT, Scenario.SWAP_IN_ONE); }
+		@Test void shouldLoadWhenCollectionsSwapInSeparateTransactions() { assertScenario(Checkpoint.DEFAULT, Scenario.SWAP_SEPARATELY); }
+		@Test void shouldLoadWhenRenamesChainInOneTransaction() { assertScenario(Checkpoint.DEFAULT, Scenario.CHAIN_IN_ONE); }
+		@Test void shouldLoadWhenRenamesChainInSeparateTransactions() { assertScenario(Checkpoint.DEFAULT, Scenario.CHAIN_SEPARATELY); }
+		@Test void shouldLoadWhenBravoIsRenamedAlone() { assertScenario(Checkpoint.DEFAULT, Scenario.RENAME_BRAVO_ALONE); }
+		@Test void shouldLoadWhenDeltaIsRenamedAlone() { assertScenario(Checkpoint.DEFAULT, Scenario.RENAME_DELTA_ALONE); }
+		@Test void shouldLoadWhenCollectionIsRenamedAndItsNameReusedInOneTransaction() { assertScenario(Checkpoint.DEFAULT, Scenario.RENAME_AND_CREATE_IN_ONE); }
+		@Test void shouldLoadWhenCollectionIsRenamedAndItsNameReusedInSeparateTransactions() { assertScenario(Checkpoint.DEFAULT, Scenario.RENAME_AND_CREATE_SEPARATELY); }
+		@Test void shouldLoadWhenCollectionIsCreatedAlone() { assertScenario(Checkpoint.DEFAULT, Scenario.CREATE_ALONE); }
 	}
 
 	@Nested
 	@DisplayName("With a checkpoint published by every round")
 	class WithCheckpointEveryRound {
-		@Test void swapInOneTransaction() { assertScenario(Checkpoint.EVERY_ROUND, Scenario.SWAP_IN_ONE); }
-		@Test void swapStepsSeparately() { assertScenario(Checkpoint.EVERY_ROUND, Scenario.SWAP_SEPARATELY); }
-		@Test void chainInOneTransaction() { assertScenario(Checkpoint.EVERY_ROUND, Scenario.CHAIN_IN_ONE); }
-		@Test void chainStepsSeparately() { assertScenario(Checkpoint.EVERY_ROUND, Scenario.CHAIN_SEPARATELY); }
-		@Test void renameBravoAlone() { assertScenario(Checkpoint.EVERY_ROUND, Scenario.RENAME_BRAVO_ALONE); }
-		@Test void renameDeltaAlone() { assertScenario(Checkpoint.EVERY_ROUND, Scenario.RENAME_DELTA_ALONE); }
-		@Test void renameAndCreateInOneTransaction() { assertScenario(Checkpoint.EVERY_ROUND, Scenario.RENAME_AND_CREATE_IN_ONE); }
-		@Test void renameAndCreateSeparately() { assertScenario(Checkpoint.EVERY_ROUND, Scenario.RENAME_AND_CREATE_SEPARATELY); }
-		@Test void createAlone() { assertScenario(Checkpoint.EVERY_ROUND, Scenario.CREATE_ALONE); }
+		@Test void shouldLoadWhenCollectionsSwapInOneTransaction() { assertScenario(Checkpoint.EVERY_ROUND, Scenario.SWAP_IN_ONE); }
+		@Test void shouldLoadWhenCollectionsSwapInSeparateTransactions() { assertScenario(Checkpoint.EVERY_ROUND, Scenario.SWAP_SEPARATELY); }
+		@Test void shouldLoadWhenRenamesChainInOneTransaction() { assertScenario(Checkpoint.EVERY_ROUND, Scenario.CHAIN_IN_ONE); }
+		@Test void shouldLoadWhenRenamesChainInSeparateTransactions() { assertScenario(Checkpoint.EVERY_ROUND, Scenario.CHAIN_SEPARATELY); }
+		@Test void shouldLoadWhenBravoIsRenamedAlone() { assertScenario(Checkpoint.EVERY_ROUND, Scenario.RENAME_BRAVO_ALONE); }
+		@Test void shouldLoadWhenDeltaIsRenamedAlone() { assertScenario(Checkpoint.EVERY_ROUND, Scenario.RENAME_DELTA_ALONE); }
+		@Test void shouldLoadWhenCollectionIsRenamedAndItsNameReusedInOneTransaction() { assertScenario(Checkpoint.EVERY_ROUND, Scenario.RENAME_AND_CREATE_IN_ONE); }
+		@Test void shouldLoadWhenCollectionIsRenamedAndItsNameReusedInSeparateTransactions() { assertScenario(Checkpoint.EVERY_ROUND, Scenario.RENAME_AND_CREATE_SEPARATELY); }
+		@Test void shouldLoadWhenCollectionIsCreatedAlone() { assertScenario(Checkpoint.EVERY_ROUND, Scenario.CREATE_ALONE); }
 	}
 
 	@Nested
 	@DisplayName("With the checkpoint deferred until the close")
 	class WithCheckpointDeferred {
-		@Test void swapInOneTransaction() { assertScenario(Checkpoint.DEFERRED, Scenario.SWAP_IN_ONE); }
-		@Test void swapStepsSeparately() { assertScenario(Checkpoint.DEFERRED, Scenario.SWAP_SEPARATELY); }
-		@Test void chainInOneTransaction() { assertScenario(Checkpoint.DEFERRED, Scenario.CHAIN_IN_ONE); }
-		@Test void chainStepsSeparately() { assertScenario(Checkpoint.DEFERRED, Scenario.CHAIN_SEPARATELY); }
-		@Test void renameBravoAlone() { assertScenario(Checkpoint.DEFERRED, Scenario.RENAME_BRAVO_ALONE); }
-		@Test void renameDeltaAlone() { assertScenario(Checkpoint.DEFERRED, Scenario.RENAME_DELTA_ALONE); }
-		@Test void renameAndCreateInOneTransaction() { assertScenario(Checkpoint.DEFERRED, Scenario.RENAME_AND_CREATE_IN_ONE); }
-		@Test void renameAndCreateSeparately() { assertScenario(Checkpoint.DEFERRED, Scenario.RENAME_AND_CREATE_SEPARATELY); }
-		@Test void createAlone() { assertScenario(Checkpoint.DEFERRED, Scenario.CREATE_ALONE); }
+		@Test void shouldLoadWhenCollectionsSwapInOneTransaction() { assertScenario(Checkpoint.DEFERRED, Scenario.SWAP_IN_ONE); }
+		@Test void shouldLoadWhenCollectionsSwapInSeparateTransactions() { assertScenario(Checkpoint.DEFERRED, Scenario.SWAP_SEPARATELY); }
+		@Test void shouldLoadWhenRenamesChainInOneTransaction() { assertScenario(Checkpoint.DEFERRED, Scenario.CHAIN_IN_ONE); }
+		@Test void shouldLoadWhenRenamesChainInSeparateTransactions() { assertScenario(Checkpoint.DEFERRED, Scenario.CHAIN_SEPARATELY); }
+		@Test void shouldLoadWhenBravoIsRenamedAlone() { assertScenario(Checkpoint.DEFERRED, Scenario.RENAME_BRAVO_ALONE); }
+		@Test void shouldLoadWhenDeltaIsRenamedAlone() { assertScenario(Checkpoint.DEFERRED, Scenario.RENAME_DELTA_ALONE); }
+		@Test void shouldLoadWhenCollectionIsRenamedAndItsNameReusedInOneTransaction() { assertScenario(Checkpoint.DEFERRED, Scenario.RENAME_AND_CREATE_IN_ONE); }
+		@Test void shouldLoadWhenCollectionIsRenamedAndItsNameReusedInSeparateTransactions() { assertScenario(Checkpoint.DEFERRED, Scenario.RENAME_AND_CREATE_SEPARATELY); }
+		@Test void shouldLoadWhenCollectionIsCreatedAlone() { assertScenario(Checkpoint.DEFERRED, Scenario.CREATE_ALONE); }
 	}
 
 	/**

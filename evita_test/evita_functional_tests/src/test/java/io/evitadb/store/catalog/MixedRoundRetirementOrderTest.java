@@ -308,40 +308,41 @@ class MixedRoundRetirementOrderTest implements EvitaTestSupport {
 		/**
 		 * `alpha` rewritten in full - the compaction alone.
 		 */
-		UPDATE_ALPHA(true, false),
+		UPDATE_ALPHA(true),
 		/**
 		 * `alpha` rewritten in full and `beta` deleted in one transaction.
 		 */
-		UPDATE_ALPHA_DELETE_BETA(true, true),
+		UPDATE_ALPHA_DELETE_BETA(true),
 		/**
 		 * `alpha` rewritten in full and `gamma` renamed to `delta` in one transaction.
 		 */
-		UPDATE_ALPHA_RENAME_GAMMA(true, true),
+		UPDATE_ALPHA_RENAME_GAMMA(true),
 		/**
 		 * `alpha` rewritten in full and `gamma` put in place of `beta` in one transaction.
 		 */
-		UPDATE_ALPHA_REPLACE_BETA_WITH_GAMMA(true, true),
+		UPDATE_ALPHA_REPLACE_BETA_WITH_GAMMA(true),
 		/**
 		 * `beta` deleted, nothing else changed - the catalog data file supplies the compaction.
 		 */
-		DELETE_BETA(false, true),
+		DELETE_BETA(false),
 		/**
 		 * `alpha` rewritten in full in one transaction, `beta` deleted in the next one.
 		 */
-		UPDATE_ALPHA_THEN_DELETE_BETA(true, true);
+		UPDATE_ALPHA_THEN_DELETE_BETA(true);
 
 		/**
 		 * Whether `alpha` is rewritten, which is what makes its data file due for compaction.
 		 */
 		private final boolean rewritesAlpha;
-		/**
-		 * Whether a collection's data file is dropped by a deletion or relabel.
-		 */
-		private final boolean dropsCollectionFile;
-
-		Scenario(boolean rewritesAlpha, boolean dropsCollectionFile) {
+		Scenario(boolean rewritesAlpha) {
 			this.rewritesAlpha = rewritesAlpha;
-			this.dropsCollectionFile = dropsCollectionFile;
+		}
+
+		/**
+		 * Tells whether a collection's data file is dropped by a deletion or relabel.
+		 */
+		boolean dropsCollectionFile() {
+			return !droppedTypes().isEmpty();
 		}
 
 		/**
@@ -504,7 +505,7 @@ class MixedRoundRetirementOrderTest implements EvitaTestSupport {
 		// that no longer names them is published. With no round publishing on its own, that record is written by the
 		// close, so for that checkpoint the files may only leave then, and the check after the restart below covers it;
 		// removing them earlier would delete a file the only published record still reaches.
-		if (scenario.dropsCollectionFile && checkpoint != Checkpoint.DEFERRED) {
+		if (scenario.dropsCollectionFile() && checkpoint != Checkpoint.DEFERRED) {
 			assertTrue(!droppedFiles.isEmpty(), "Premise: the dropped collections own data files. " + folderBefore);
 			final Set<String> remaining = awaitFilesGone(theEvita, paths, droppedFiles);
 			if (!remaining.isEmpty()) {
@@ -543,7 +544,7 @@ class MixedRoundRetirementOrderTest implements EvitaTestSupport {
 					);
 				}
 				final Set<String> remaining = awaitFilesGone(reopened, paths, droppedFiles);
-				if (scenario.dropsCollectionFile && !remaining.isEmpty()) {
+				if (scenario.dropsCollectionFile() && !remaining.isEmpty()) {
 					problems.add("The dropped data files must be gone after the restart, but these stayed: " + remaining + ".");
 				}
 			}
