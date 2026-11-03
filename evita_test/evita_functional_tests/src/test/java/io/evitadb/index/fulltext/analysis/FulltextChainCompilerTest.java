@@ -33,13 +33,17 @@ import io.evitadb.spi.analysis.AnalysisStepFactory;
 import io.evitadb.spi.analysis.AnalysisStepParameterDescriptor;
 import io.evitadb.spi.analysis.FulltextAnalysisContext;
 import io.evitadb.spi.analysis.FulltextAnalysisSide;
+import io.evitadb.spi.analysis.FulltextAnalysisTrait;
 import io.evitadb.spi.analysis.FulltextSplittingAnalysisOperation;
 import io.evitadb.spi.analysis.FulltextSplittingAnalysisStepFactory;
 import io.evitadb.spi.analysis.FulltextTextAnalysisOperation;
 import io.evitadb.spi.analysis.FulltextTextAnalysisStepFactory;
 import io.evitadb.spi.analysis.FulltextWordsAnalysisOperation;
 import io.evitadb.spi.analysis.FulltextWordsAnalysisStepFactory;
+import io.evitadb.spi.analysis.FulltextWordsPlacement;
+import io.evitadb.spi.analysis.FulltextWordsPlacement.PlacedStep;
 import org.apache.lucene.analysis.FilteringTokenFilter;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.charfilter.MappingCharFilter;
 import org.apache.lucene.analysis.charfilter.NormalizeCharMap;
 import org.apache.lucene.analysis.pattern.PatternReplaceFilter;
@@ -539,6 +543,224 @@ class FulltextChainCompilerTest {
 		}
 	}
 
+	/** Each words step checks its place among the others through their traits. */
+	@Nested
+	@DisplayName("Placement checks")
+	class PlacementChecks {
+
+		/**
+		 * Codex's first case: a fold before the Czech stemmer makes it stem folded words - `Čeští` would be indexed as
+		 * `cest` instead of `cesk` and `český` would miss it.
+		 */
+		@Test
+		@DisplayName("should refuse a fold before a stemmer deciding by the diacritics")
+		void shouldRefuseFoldBeforeStemmerDecidingByDiacritics() {
+			for (final FulltextAnalysisSide side : FulltextAnalysisSide.values()) {
+				final EvitaInvalidUsageException exception = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> compile(List.of(lowercase(), asciiFolding(), czechStemming()), side, czechResources())
+				);
+				assertTrue(
+					exception.getMessage().contains("`ascii-folding` cannot precede it"), exception.getMessage()
+				);
+			}
+		}
+
+		/**
+		 * Codex's third case: a second Czech stemmer after the first would leak its keyword marker into the variants
+		 * the first one has not emitted yet. The query side refuses any step after the variants, the index side the
+		 * second stemming.
+		 */
+		@Test
+		@DisplayName("should refuse a words step after the variant stems on the query side")
+		void shouldRefuseWordsStepAfterVariantStemsOnQuerySide() {
+			final List<AnalysisStep> words = List.of(
+				lowercase(), czechStemming(), czechStemming(protectedWords(resource("p")))
+			);
+			final Map<String, FulltextResourceContent> resources = Map.of("p", wordList("konek"));
+
+			final EvitaInvalidUsageException query = assertThrows(
+				EvitaInvalidUsageException.class, () -> compile(words, FulltextAnalysisSide.QUERY, resources)
+			);
+			final EvitaInvalidUsageException index = assertThrows(
+				EvitaInvalidUsageException.class, () -> compile(words, FulltextAnalysisSide.INDEX, resources)
+			);
+
+			assertTrue(
+				query.getMessage().contains("must be the last words step on the query side, but `czech-stemming`"),
+				query.getMessage()
+			);
+			assertTrue(index.getMessage().contains("has already stemmed"), index.getMessage());
+		}
+
+		/** Stop words after the Czech stemmer work on stems on the index side, but would corrupt the query variants. */
+		@Test
+		@DisplayName("should refuse a step after the variant stems on the query side only")
+		void shouldRefuseStepAfterVariantStemsOnQuerySideOnly() {
+			final List<AnalysisStep> words = List.of(lowercase(), czechStemming(), stopWords(czechStopWords()));
+			try (final FulltextAnalyzer index = compile(words, FulltextAnalysisSide.INDEX, czechResources())) {
+				assertTrue(!index.getTerms("Boty").isEmpty());
+			}
+
+			assertThrows(
+				EvitaInvalidUsageException.class, () -> compile(words, FulltextAnalysisSide.QUERY, czechResources())
+			);
+		}
+
+		/** A step acting on the index side only is not on the query side, so it cannot follow the query variants. */
+		@Test
+		@DisplayName("should accept an index-only step after the variant stems")
+		void shouldAcceptIndexOnlyStepAfterVariantStems() {
+			final FulltextChainCompiler compiler = new FulltextChainCompiler(registryWith(new PassOnIndexSide()));
+			final List<AnalysisStep> words = List.of(lowercase(), czechStemming(), wordsStep(PassOnIndexSide.NAME));
+			for (final FulltextAnalysisSide side : FulltextAnalysisSide.values()) {
+				try (
+					final FulltextAnalyzer chain = new FulltextAnalyzer(
+						"text",
+						compiler.compile(
+							List.of(), SPLITTING, words, side, new FulltextAnalysisContext(CZECH, Map.of())
+						)
+					)
+				) {
+					assertTrue(!chain.getTerms("Boty").isEmpty(), side.name());
+				}
+			}
+		}
+
+		/** A stem is not a word: a second stemmer would stem it again. */
+		@Test
+		@DisplayName("should refuse a stemmer after a stemmer")
+		void shouldRefuseStemmerAfterStemmer() {
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> compile(
+					List.of(lowercase(), englishStemming(), germanStemming()), FulltextAnalysisSide.INDEX, Map.of()
+				)
+			);
+
+			assertTrue(
+				exception.getMessage().contains(
+					"`german-stemming` would stem the words step `english-stemming` has already stemmed"
+				),
+				exception.getMessage()
+			);
+		}
+
+		/** A stemmer that keeps the diacritics emits one stem per word and may be followed on the query side. */
+		@Test
+		@DisplayName("should let a step follow a stemmer that keeps the diacritics")
+		void shouldLetStepFollowStemmerThatKeepsDiacritics() {
+			final List<AnalysisStep> words = List.of(
+				lowercase(), englishStemming(), stopWords(englishStopWords()), asciiFolding()
+			);
+			try (
+				final FulltextAnalyzer query = compile(
+					words, FulltextAnalysisSide.QUERY, BuiltInFulltextResources.getResources(), Locale.ENGLISH
+				)
+			) {
+				assertEquals(List.of("run"), query.getTerms("the running").stream().map(AnalyzedTerm::term).toList());
+			}
+		}
+
+		/** `stemming()` checks its place as the step it runs in the language does, and runs none in French. */
+		@Test
+		@DisplayName("should check the place of `stemming` by the language")
+		void shouldCheckPlaceOfStemmingByLanguage() {
+			final List<AnalysisStep> words = List.of(lowercase(), asciiFolding(), stemming());
+
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> compile(words, FulltextAnalysisSide.INDEX, Map.of(), Locale.forLanguageTag("cs"))
+			);
+			assertTrue(
+				exception.getMessage().contains("Step `stemming` decides by the diacritics"), exception.getMessage()
+			);
+			for (final Locale accepting : List.of(Locale.ENGLISH, Locale.FRENCH)) {
+				try (final FulltextAnalyzer chain = compile(words, FulltextAnalysisSide.QUERY, Map.of(), accepting)) {
+					assertTrue(!chain.getTerms("Café").isEmpty(), accepting.toString());
+				}
+			}
+		}
+
+		/** A step sees the whole phase of the side with the traits of its steps, and its own position in it. */
+		@Test
+		@DisplayName("should hand a step the phase of its side with the traits")
+		void shouldHandStepPhaseOfItsSideWithTraits() {
+			final RecordPlacement recorder = new RecordPlacement();
+			final FulltextChainCompiler compiler =
+				new FulltextChainCompiler(registryWith(recorder, new PassOnIndexSide()));
+			final List<AnalysisStep> words = List.of(
+				lowercase(), wordsStep(PassOnIndexSide.NAME), asciiFolding(), wordsStep(RecordPlacement.NAME)
+			);
+
+			compiler.compile(
+				List.of(), SPLITTING, words, FulltextAnalysisSide.QUERY, new FulltextAnalysisContext(CZECH, Map.of())
+			).close();
+
+			assertEquals(1, recorder.placements.size());
+			final FulltextWordsPlacement placement = recorder.placements.get(0);
+			assertEquals(FulltextAnalysisSide.QUERY, placement.side());
+			assertEquals(2, placement.position());
+			assertEquals(
+				List.of(
+					new PlacedStep(LOWERCASE, Set.of()),
+					new PlacedStep(ASCII_FOLDING, Set.of(FulltextAnalysisTrait.FOLDS_DIACRITICS)),
+					new PlacedStep(RecordPlacement.NAME, Set.of())
+				),
+				placement.steps()
+			);
+		}
+	}
+
+	/** The words of resources are compared as the steps before the reading step leave them. */
+	@Nested
+	@DisplayName("Word preparation")
+	class WordPreparation {
+
+		/** A protected word written capitalized is protected after `lowercase`, on both sides. */
+		@Test
+		@DisplayName("should protect a word written as the user types it")
+		void shouldProtectWordWrittenAsUserTypesIt() {
+			final List<AnalysisStep> words = List.of(lowercase(), czechStemming(protectedWords(resource("brands"))));
+			final Map<String, FulltextResourceContent> resources = Map.of("brands", wordList("Černých"));
+			for (final FulltextAnalysisSide side : FulltextAnalysisSide.values()) {
+				try (final FulltextAnalyzer chain = compile(words, side, resources)) {
+					assertEquals(
+						List.of("cernych"), chain.getTerms("ČERNÝCH").stream().map(AnalyzedTerm::term).toList(),
+						side.name()
+					);
+				}
+			}
+		}
+
+		/** A list word in decomposed Unicode is normalized to NFC, as the text is. */
+		@Test
+		@DisplayName("should normalize a list word to NFC")
+		void shouldNormalizeListWordToNfc() {
+			final List<AnalysisStep> words = List.of(lowercase(), stopWords(resource("stop")));
+			final Map<String, FulltextResourceContent> resources = Map.of("stop", wordList("c\u030Cerny\u0301"));
+			try (final FulltextAnalyzer chain = compile(words, FulltextAnalysisSide.INDEX, resources)) {
+				assertEquals(List.of("boty"), chain.getTerms("černý boty").stream().map(AnalyzedTerm::term).toList());
+			}
+		}
+
+		/** A stop word does not stop its synonyms: the list word stands for itself, not for its group. */
+		@Test
+		@DisplayName("should not stop the synonyms of a stop word")
+		void shouldNotStopSynonymsOfStopWord() {
+			final List<AnalysisStep> words = List.of(
+				lowercase(), synonyms(resource("groups")), stopWords(resource("stop"))
+			);
+			final Map<String, FulltextResourceContent> resources = Map.of(
+				"groups", synonymList(synonymGroup("mobil", "telefon")), "stop", wordList("Mobil")
+			);
+			try (final FulltextAnalyzer query = compile(words, FulltextAnalysisSide.QUERY, resources)) {
+				assertEquals(List.of("telefon"), query.getTerms("mobil").stream().map(AnalyzedTerm::term).toList());
+				assertEquals(List.of("telefon"), query.getTerms("telefon").stream().map(AnalyzedTerm::term).toList());
+			}
+		}
+	}
+
 	/**
 	 * Builds a registry of the installed providers plus the given ones.
 	 *
@@ -608,6 +830,77 @@ class FulltextChainCompilerTest {
 				@Override
 				protected boolean accept() {
 					return false;
+				}
+			};
+		}
+	}
+
+	/**
+	 * A words step acting on the index side only, which leaves the words as they are.
+	 */
+	private static final class PassOnIndexSide extends TestStep implements FulltextWordsAnalysisStepFactory {
+		/** The step's name. */
+		static final String NAME = "test-pass-on-index-side";
+
+		@Nonnull
+		@Override
+		public String getName() {
+			return NAME;
+		}
+
+		@Nonnull
+		@Override
+		public Set<FulltextAnalysisSide> getSides() {
+			return EnumSet.of(FulltextAnalysisSide.INDEX);
+		}
+
+		@Nonnull
+		@Override
+		public FulltextWordsAnalysisOperation create(
+			@Nonnull Map<String, Serializable> parameters,
+			@Nonnull FulltextAnalysisContext context
+		) {
+			return (words, side) -> words;
+		}
+	}
+
+	/**
+	 * A words step on both sides recording every place it is checked in.
+	 */
+	private static final class RecordPlacement extends TestStep implements FulltextWordsAnalysisStepFactory {
+		/** The step's name. */
+		static final String NAME = "test-record-placement";
+		/** The places the step was checked in, in order. */
+		final List<FulltextWordsPlacement> placements = new ArrayList<>(2);
+
+		@Nonnull
+		@Override
+		public String getName() {
+			return NAME;
+		}
+
+		@Nonnull
+		@Override
+		public Set<FulltextAnalysisSide> getSides() {
+			return EnumSet.allOf(FulltextAnalysisSide.class);
+		}
+
+		@Nonnull
+		@Override
+		public FulltextWordsAnalysisOperation create(
+			@Nonnull Map<String, Serializable> parameters,
+			@Nonnull FulltextAnalysisContext context
+		) {
+			return new FulltextWordsAnalysisOperation() {
+				@Nonnull
+				@Override
+				public TokenStream wrap(@Nonnull TokenStream words, @Nonnull FulltextAnalysisSide side) {
+					return words;
+				}
+
+				@Override
+				public void verifyPlacement(@Nonnull FulltextWordsPlacement placement) {
+					RecordPlacement.this.placements.add(placement);
 				}
 			};
 		}

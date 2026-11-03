@@ -39,11 +39,6 @@ import javax.annotation.Nonnull;
  * them, as it does in `GermanAnalyzer`.
  */
 public final class GermanStemmingAnalysisStepFactory extends AbstractStemmingAnalysisStepFactory {
-	/**
-	 * The stemming, stateless and shared: every call creates new filters.
-	 */
-	private static final FulltextWordsAnalysisOperation STEMMING =
-		(words, side) -> new GermanLightStemFilter(new GermanNormalizationFilter(words));
 
 	/**
 	 * Creates a stateless provider for JPMS and classpath ServiceLoader discovery.
@@ -64,7 +59,10 @@ public final class GermanStemmingAnalysisStepFactory extends AbstractStemmingAna
 
 	@Nonnull
 	@Override
-	FulltextWordsAnalysisOperation createStemming(@Nonnull FulltextAnalysisContext context) {
-		return STEMMING;
+	FulltextWordsAnalysisOperation createStemming(
+		@Nonnull String stepName,
+		@Nonnull FulltextAnalysisContext context
+	) {
+		return plainStemming(stepName, words -> new GermanLightStemFilter(new GermanNormalizationFilter(words)));
 	}
 }

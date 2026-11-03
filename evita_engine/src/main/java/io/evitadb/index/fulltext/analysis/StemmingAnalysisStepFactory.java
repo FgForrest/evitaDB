@@ -80,9 +80,12 @@ public final class StemmingAnalysisStepFactory extends AbstractStemmingAnalysisS
 
 	@Nonnull
 	@Override
-	FulltextWordsAnalysisOperation createStemming(@Nonnull FulltextAnalysisContext context) {
+	FulltextWordsAnalysisOperation createStemming(
+		@Nonnull String stepName,
+		@Nonnull FulltextAnalysisContext context
+	) {
 		final AbstractStemmingAnalysisStepFactory stemming =
 			STEMMING_BY_LANGUAGE.get(context.locale().getLanguage());
-		return stemming == null ? NO_STEMMING : stemming.createStemming(context);
+		return stemming == null ? NO_STEMMING : stemming.createStemming(stepName, context);
 	}
 }

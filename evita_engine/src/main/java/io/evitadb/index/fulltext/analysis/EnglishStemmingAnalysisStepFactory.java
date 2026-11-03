@@ -37,10 +37,6 @@ import javax.annotation.Nonnull;
  * lowercased words. The words of the optional `protected-words` lists are left unstemmed.
  */
 public final class EnglishStemmingAnalysisStepFactory extends AbstractStemmingAnalysisStepFactory {
-	/**
-	 * The stemming, stateless and shared: every call creates a new filter.
-	 */
-	private static final FulltextWordsAnalysisOperation STEMMING = (words, side) -> new PorterStemFilter(words);
 
 	/**
 	 * Creates a stateless provider for JPMS and classpath ServiceLoader discovery.
@@ -61,7 +57,10 @@ public final class EnglishStemmingAnalysisStepFactory extends AbstractStemmingAn
 
 	@Nonnull
 	@Override
-	FulltextWordsAnalysisOperation createStemming(@Nonnull FulltextAnalysisContext context) {
-		return STEMMING;
+	FulltextWordsAnalysisOperation createStemming(
+		@Nonnull String stepName,
+		@Nonnull FulltextAnalysisContext context
+	) {
+		return plainStemming(stepName, PorterStemFilter::new);
 	}
 }

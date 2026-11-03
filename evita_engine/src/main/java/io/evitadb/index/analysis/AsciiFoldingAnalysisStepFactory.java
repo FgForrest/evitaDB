@@ -29,10 +29,12 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.spi.analysis.AnalysisStepParameterDescriptor;
 import io.evitadb.spi.analysis.FulltextAnalysisContext;
 import io.evitadb.spi.analysis.FulltextAnalysisSide;
+import io.evitadb.spi.analysis.FulltextAnalysisTrait;
 import io.evitadb.spi.analysis.FulltextWordsAnalysisOperation;
 import io.evitadb.spi.analysis.FulltextWordsAnalysisStepFactory;
 import io.evitadb.spi.analysis.NormalizingAnalysisStepFactory;
 import io.evitadb.spi.analysis.StringNormalizationStep;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
 
 import javax.annotation.Nonnull;
@@ -56,9 +58,26 @@ import java.util.Set;
 public final class AsciiFoldingAnalysisStepFactory
 	implements NormalizingAnalysisStepFactory, FulltextWordsAnalysisStepFactory {
 	/**
-	 * The fulltext operation, stateless and shared: every call wraps the words in a new folding filter.
+	 * The traits of the fulltext operation: the words leave it without diacritics.
 	 */
-	private static final FulltextWordsAnalysisOperation FOLDING = (words, side) -> new ASCIIFoldingFilter(words);
+	private static final Set<FulltextAnalysisTrait> FOLDING_TRAITS = EnumSet.of(FulltextAnalysisTrait.FOLDS_DIACRITICS);
+	/**
+	 * The fulltext operation, stateless and shared: every call wraps the words in a new folding filter. It declares
+	 * the fold, so that a step deciding by the diacritics refuses it before itself.
+	 */
+	private static final FulltextWordsAnalysisOperation FOLDING = new FulltextWordsAnalysisOperation() {
+		@Nonnull
+		@Override
+		public TokenStream wrap(@Nonnull TokenStream words, @Nonnull FulltextAnalysisSide side) {
+			return new ASCIIFoldingFilter(words);
+		}
+
+		@Nonnull
+		@Override
+		public Set<FulltextAnalysisTrait> getTraits(@Nonnull FulltextAnalysisSide side) {
+			return FOLDING_TRAITS;
+		}
+	};
 
 	/**
 	 * Creates a stateless provider for JPMS and classpath ServiceLoader discovery.

@@ -58,9 +58,13 @@ public final class SlovakStemmingAnalysisStepFactory extends AbstractStemmingAna
 
 	@Nonnull
 	@Override
-	FulltextWordsAnalysisOperation createStemming(@Nonnull FulltextAnalysisContext context) {
+	FulltextWordsAnalysisOperation createStemming(
+		@Nonnull String stepName,
+		@Nonnull FulltextAnalysisContext context
+	) {
 		return foldingStemming(
-			words -> new SlovakStemmer.SlovakStemFilter(words, new SlovakStemmer()), SlovakVariantStemmer::new
+			stepName, words -> new SlovakStemmer.SlovakStemFilter(words, new SlovakStemmer()),
+			SlovakVariantStemmer::new
 		);
 	}
 }

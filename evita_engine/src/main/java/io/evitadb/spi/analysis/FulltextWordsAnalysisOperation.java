@@ -27,11 +27,17 @@ package io.evitadb.spi.analysis;
 import org.apache.lucene.analysis.TokenStream;
 
 import javax.annotation.Nonnull;
+import java.util.Set;
 
 /**
  * What a {@link FulltextWordsAnalysisStepFactory words phase step} contributes to a chain: a filter of the stream of
  * words. Immutable and shared by every chain compiled from the same definition; the stream it returns is created anew
  * for every call.
+ *
+ * Besides the filter, an operation may declare its {@link FulltextAnalysisTrait traits} and check its place among the
+ * other steps of the phase. The compiler calls {@link #verifyPlacement(FulltextWordsPlacement)} of every step of a
+ * side once all of them are created, so a step refuses a neighbour it cannot work with before any text is analysed -
+ * the Czech stemmer refuses a fold before it, because it decides by the diacritics.
  */
 @FunctionalInterface
 public interface FulltextWordsAnalysisOperation {
@@ -46,5 +52,27 @@ public interface FulltextWordsAnalysisOperation {
 	 */
 	@Nonnull
 	TokenStream wrap(@Nonnull TokenStream words, @Nonnull FulltextAnalysisSide side);
+
+	/**
+	 * Returns what the step does to the words on the side, for the other steps of the phase to check against.
+	 *
+	 * @param side the side the chain is built for
+	 * @return the traits of the step on the side, none by default
+	 */
+	@Nonnull
+	default Set<FulltextAnalysisTrait> getTraits(@Nonnull FulltextAnalysisSide side) {
+		return Set.of();
+	}
+
+	/**
+	 * Checks that the step can work in its place: reads the traits of the steps before and after it and refuses a
+	 * combination it cannot handle. Accepts any place by default.
+	 *
+	 * @param placement the words phase of the side and the position of this step in it
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the step cannot work in its place
+	 */
+	default void verifyPlacement(@Nonnull FulltextWordsPlacement placement) {
+		// a step without requirements on its neighbours accepts any place
+	}
 
 }

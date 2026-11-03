@@ -61,7 +61,12 @@ public final class RomanianStemmingAnalysisStepFactory extends AbstractStemmingA
 
 	@Nonnull
 	@Override
-	FulltextWordsAnalysisOperation createStemming(@Nonnull FulltextAnalysisContext context) {
-		return foldingStemming(words -> new SnowballFilter(words, new RomanianStemmer()), RomanianVariantStemmer::new);
+	FulltextWordsAnalysisOperation createStemming(
+		@Nonnull String stepName,
+		@Nonnull FulltextAnalysisContext context
+	) {
+		return foldingStemming(
+			stepName, words -> new SnowballFilter(words, new RomanianStemmer()), RomanianVariantStemmer::new
+		);
 	}
 }

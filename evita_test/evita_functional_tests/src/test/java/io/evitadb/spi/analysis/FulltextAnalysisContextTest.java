@@ -25,7 +25,10 @@
 package io.evitadb.spi.analysis;
 
 import io.evitadb.api.requestResponse.schema.analysis.FulltextResourceContent;
+import io.evitadb.api.requestResponse.schema.analysis.SynonymGroup;
+import io.evitadb.api.requestResponse.schema.analysis.SynonymList;
 import io.evitadb.api.requestResponse.schema.analysis.WordList;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -38,11 +41,13 @@ import java.util.Map;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies what a fulltext step gets besides its parameters: the locale and the resources, kept as they were given
- * when the chain was compiled.
+ * when the chain was compiled, and the preparation of the words of the resources.
  */
 @DisplayName("Fulltext analysis context")
 @Tag(ENGINE)
@@ -63,5 +68,55 @@ class FulltextAnalysisContextTest {
 
 		assertEquals(Map.of("brands", BRANDS), context.resources());
 		assertThrows(UnsupportedOperationException.class, () -> context.resources().put("other", BRANDS));
+	}
+
+	/** A context created without a preparation hands the words over as the resource holds them. */
+	@Test
+	@DisplayName("should hand words over as the resource holds them without a preparation")
+	void shouldHandWordsOverAsResourceHoldsThemWithoutPreparation() {
+		final FulltextAnalysisContext context = new FulltextAnalysisContext(Locale.ROOT, Map.of());
+
+		assertSame(FulltextWordPreparation.NONE, context.preparation());
+		assertEquals(List.of("Nike"), context.prepare("Nike"));
+	}
+
+	/** The context of the next step differs in its preparation only. */
+	@Test
+	@DisplayName("should keep the locale and the resources when the preparation changes")
+	void shouldKeepLocaleAndResourcesWhenPreparationChanges() {
+		final FulltextAnalysisContext context =
+			new FulltextAnalysisContext(Locale.GERMAN, Map.of("brands", BRANDS));
+		final FulltextWordPreparation lowercase = word -> List.of(word.toLowerCase(Locale.ROOT));
+
+		final FulltextAnalysisContext next = context.withPreparation(lowercase);
+
+		assertEquals(Locale.GERMAN, next.locale());
+		assertEquals(context.resources(), next.resources());
+		assertSame(lowercase, next.preparation());
+	}
+
+	/** Each word of a list is prepared; the result keeps the order of the list and holds every word once. */
+	@Test
+	@DisplayName("should prepare the words of a word list in its order, each once")
+	void shouldPrepareWordsOfWordListInItsOrderEachOnce() {
+		final FulltextAnalysisContext context = new FulltextAnalysisContext(
+			Locale.ROOT, Map.of("brands", new WordList(List.of("Nike", "the", "NIKE", "Puma")))
+		).withPreparation(word -> "the".equals(word) ? List.of() : List.of(word.toLowerCase(Locale.ROOT)));
+
+		assertEquals(List.of("nike", "puma"), List.copyOf(context.getPreparedWords("brands")));
+	}
+
+	/** Only a word list has words to prepare. */
+	@Test
+	@DisplayName("should refuse to prepare the words of a resource that is not a word list")
+	void shouldRefuseToPrepareWordsOfResourceThatIsNotWordList() {
+		final FulltextAnalysisContext context = new FulltextAnalysisContext(
+			Locale.ROOT, Map.of("groups", new SynonymList(List.of(new SynonymGroup(List.of("tv", "televize")))))
+		);
+
+		final EvitaInvalidUsageException exception =
+			assertThrows(EvitaInvalidUsageException.class, () -> context.getPreparedWords("groups"));
+
+		assertTrue(exception.getMessage().contains("`groups` is not a word list"), exception.getMessage());
 	}
 }

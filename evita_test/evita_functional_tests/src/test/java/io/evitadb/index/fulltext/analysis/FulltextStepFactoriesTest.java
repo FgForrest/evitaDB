@@ -566,6 +566,40 @@ class FulltextStepFactoriesTest {
 			}
 		}
 
+		/** The words of a group are compared as the steps before the step leave them. */
+		@Test
+		@DisplayName("should expand a word of a group written as the user types it")
+		void shouldExpandWordOfGroupWrittenAsUserTypesIt() {
+			final Map<String, FulltextResourceContent> capitalized = Map.of(
+				"groups", synonymList(synonymGroup("Mobil", "Telefon"))
+			);
+			try (
+				final FulltextAnalyzer chain = chain(
+					List.of(lowercase(), synonyms(resource("groups"))), Locale.ROOT, capitalized,
+					FulltextAnalysisSide.QUERY
+				)
+			) {
+				assertEquals(Set.of("mobil", "telefon"), Set.copyOf(termTexts(chain, "MOBIL")));
+			}
+		}
+
+		/** A group word a step before removes leaves the group; a group left with one word expands to nothing. */
+		@Test
+		@DisplayName("should drop a group word the steps before it remove")
+		void shouldDropGroupWordStepsBeforeItRemove() {
+			final Map<String, FulltextResourceContent> resources = Map.of(
+				"stop", wordList("tv"), "groups", synonymList(synonymGroup("tv", "televize"))
+			);
+			try (
+				final FulltextAnalyzer chain = chain(
+					List.of(lowercase(), stopWords(resource("stop")), synonyms(resource("groups"))), Locale.ROOT,
+					resources, FulltextAnalysisSide.QUERY
+				)
+			) {
+				assertEquals(List.of("televize"), termTexts(chain, "televize"));
+			}
+		}
+
 		/** A group word with a space would never meet a single query word, so it is refused. */
 		@Test
 		@DisplayName("should refuse a synonym of more than one word")
@@ -647,6 +681,26 @@ class FulltextStepFactoriesTest {
 
 			try (final FulltextAnalyzer chain = chain(words, Locale.ENGLISH, resources, FulltextAnalysisSide.INDEX)) {
 				assertEquals(List.of("book", "jungle"), termTexts(chain, "The book of a jungle"));
+			}
+		}
+
+		/** A list written as the user types meets the words after `lowercase`; before it, the list compares as held. */
+		@Test
+		@DisplayName("should compare the listed words as the steps before it leave them")
+		void shouldCompareListedWordsAsStepsBeforeItLeaveThem() {
+			final Map<String, FulltextResourceContent> resources = Map.of("brands", wordList("Nike"));
+			for (final FulltextAnalysisSide side : FulltextAnalysisSide.values()) {
+				try (
+					final FulltextAnalyzer after = chain(
+						List.of(lowercase(), stopWords(resource("brands"))), Locale.ROOT, resources, side
+					);
+					final FulltextAnalyzer before = chain(
+						List.of(stopWords(resource("brands")), lowercase()), Locale.ROOT, resources, side
+					)
+				) {
+					assertEquals(List.of("boty"), termTexts(after, "NIKE boty"), side.name());
+					assertEquals(List.of("nike", "boty"), termTexts(before, "NIKE boty"), side.name());
+				}
 			}
 		}
 

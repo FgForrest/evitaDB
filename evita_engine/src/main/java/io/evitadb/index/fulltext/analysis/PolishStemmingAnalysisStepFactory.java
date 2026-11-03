@@ -59,9 +59,12 @@ public final class PolishStemmingAnalysisStepFactory extends AbstractStemmingAna
 
 	@Nonnull
 	@Override
-	FulltextWordsAnalysisOperation createStemming(@Nonnull FulltextAnalysisContext context) {
+	FulltextWordsAnalysisOperation createStemming(
+		@Nonnull String stepName,
+		@Nonnull FulltextAnalysisContext context
+	) {
 		return foldingStemming(
-			words -> new SnowballFilter(words, new PolishSnowballStemmer()), PolishVariantStemmer::new
+			stepName, words -> new SnowballFilter(words, new PolishSnowballStemmer()), PolishVariantStemmer::new
 		);
 	}
 }

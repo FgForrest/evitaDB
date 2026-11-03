@@ -35,6 +35,7 @@ import io.evitadb.spi.analysis.FulltextAnalysisContext;
 import io.evitadb.spi.analysis.FulltextAnalysisSide;
 import io.evitadb.spi.analysis.FulltextWordsAnalysisOperation;
 import io.evitadb.spi.analysis.FulltextWordsAnalysisStepFactory;
+import io.evitadb.utils.CollectionUtils;
 import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.util.CharsRef;
@@ -50,9 +51,9 @@ import java.util.Set;
 /**
  * The `synonyms` step: expands a query word to the other words of its synonym group, all at the word's position, with
  * Lucene's `SynonymGraphFilter`. It acts on the query side only, so an edit of the lists applies to the next query
- * without reindexing. Only single words are supported; a word of a group is compared as the list holds it, and the
- * words it expands to pass through the steps after this one - a stemmer placed after it stems them as it stems the
- * query word.
+ * without reindexing. Only single words are supported. The words of a group are compared as the steps before this
+ * one leave them - a word those steps remove leaves its group - and the words a query word expands to pass through the
+ * steps after this one, so a stemmer placed after it stems them as it stems the query word.
  */
 public final class SynonymsAnalysisStepFactory implements FulltextWordsAnalysisStepFactory {
 	/**
@@ -129,8 +130,7 @@ public final class SynonymsAnalysisStepFactory implements FulltextWordsAnalysisS
 				throw new EvitaInvalidUsageException("Fulltext resource `" + name + "` is not a synonym list.");
 			}
 			for (final SynonymGroup group : synonymList.groups()) {
-				addGroup(builder, name, group.words());
-				empty = false;
+				empty &= !addGroup(builder, name, group.words(), context);
 			}
 		}
 		if (empty) {
@@ -141,17 +141,21 @@ public final class SynonymsAnalysisStepFactory implements FulltextWordsAnalysisS
 	}
 
 	/**
-	 * Adds a group to the map: every word of it expands to every other one and keeps itself.
+	 * Adds a group to the map: every word of it, prepared by the steps before this one, expands to every other one and
+	 * keeps itself.
 	 *
 	 * @param builder the map being built
 	 * @param list    the name of the list holding the group, for the error
-	 * @param words   the words of the group
+	 * @param words   the words of the group, as the list holds them
+	 * @param context the context preparing the words
+	 * @return `true` when the group added anything - it adds nothing when the preparation leaves less than two words
 	 * @throws EvitaInvalidUsageException when a word of the group is not a single word
 	 */
-	private static void addGroup(
+	private static boolean addGroup(
 		@Nonnull SynonymMap.Builder builder,
 		@Nonnull String list,
-		@Nonnull List<String> words
+		@Nonnull List<String> words,
+		@Nonnull FulltextAnalysisContext context
 	) {
 		for (final String word : words) {
 			if (word.codePoints().anyMatch(Character::isWhitespace)) {
@@ -161,13 +165,18 @@ public final class SynonymsAnalysisStepFactory implements FulltextWordsAnalysisS
 				);
 			}
 		}
+		final Set<String> prepared = CollectionUtils.createLinkedHashSet(words.size());
 		for (final String word : words) {
-			for (final String synonym : words) {
+			prepared.addAll(context.prepare(word));
+		}
+		for (final String word : prepared) {
+			for (final String synonym : prepared) {
 				if (!word.equals(synonym)) {
 					builder.add(new CharsRef(word), new CharsRef(synonym), true);
 				}
 			}
 		}
+		return prepared.size() > 1;
 	}
 
 	/**

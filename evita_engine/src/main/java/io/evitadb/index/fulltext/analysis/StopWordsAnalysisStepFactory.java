@@ -25,8 +25,6 @@
 package io.evitadb.index.fulltext.analysis;
 
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps;
-import io.evitadb.api.requestResponse.schema.analysis.FulltextResourceContent;
-import io.evitadb.api.requestResponse.schema.analysis.WordList;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.spi.analysis.AnalysisStepParameterDescriptor;
 import io.evitadb.spi.analysis.FulltextAnalysisContext;
@@ -45,8 +43,9 @@ import java.util.Set;
 
 /**
  * The `stop-words` step: removes the words of the named word lists, on both sides, with Lucene's `StopFilter`. A
- * removed word leaves a gap in the positions, as in the stop filters of the built-in chains. The words are compared
- * as the list holds them.
+ * removed word leaves a gap in the positions, as in the stop filters of the built-in chains. The words of the lists
+ * are compared as the steps before this one leave them, so a list written as the user types matches after
+ * `lowercase`.
  */
 public final class StopWordsAnalysisStepFactory implements FulltextWordsAnalysisStepFactory {
 	/**
@@ -116,21 +115,19 @@ public final class StopWordsAnalysisStepFactory implements FulltextWordsAnalysis
 	}
 
 	/**
-	 * Collects the words of the named word lists into one read-only set.
+	 * Collects the words of the named word lists into one read-only set, each prepared by the steps before the reading
+	 * step, as {@link FulltextAnalysisContext#getPreparedWords(String)} does.
 	 *
 	 * @param names   names of word-list resources
-	 * @param context the context resolving the names
-	 * @return the words of all the lists, compared exactly
+	 * @param context the context resolving the names and preparing the words
+	 * @return the prepared words of all the lists
+	 * @throws EvitaInvalidUsageException when a resource is not a word list
 	 */
 	@Nonnull
 	static CharArraySet readWordLists(@Nonnull String[] names, @Nonnull FulltextAnalysisContext context) {
 		final CharArraySet words = new CharArraySet(64, false);
 		for (final String name : names) {
-			final FulltextResourceContent content = context.getResource(name);
-			if (!(content instanceof WordList wordList)) {
-				throw new EvitaInvalidUsageException("Fulltext resource `" + name + "` is not a word list.");
-			}
-			words.addAll(wordList.words());
+			words.addAll(context.getPreparedWords(name));
 		}
 		return CharArraySet.unmodifiableSet(words);
 	}

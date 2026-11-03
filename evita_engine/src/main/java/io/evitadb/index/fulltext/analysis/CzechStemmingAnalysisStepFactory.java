@@ -42,8 +42,8 @@ import javax.annotation.Nonnull;
  *   stemmed exactly, because the fold erased what the stemmer decides by.
  *
  * The words of the optional `protected-words` lists are left unstemmed on both sides (but folded), compared as the
- * lists hold them. The step must be the last one of the words phase on the query side, as {@link VariantStemFilter}
- * requires.
+ * steps before this one leave them. The step refuses a fold or another stemmer before it and, on the query side, any
+ * words step after it, as {@link VariantStemFilter} requires.
  */
 public final class CzechStemmingAnalysisStepFactory extends AbstractStemmingAnalysisStepFactory {
 
@@ -66,7 +66,10 @@ public final class CzechStemmingAnalysisStepFactory extends AbstractStemmingAnal
 
 	@Nonnull
 	@Override
-	FulltextWordsAnalysisOperation createStemming(@Nonnull FulltextAnalysisContext context) {
-		return foldingStemming(CzechStemFilter::new, CzechVariantStemmer::new);
+	FulltextWordsAnalysisOperation createStemming(
+		@Nonnull String stepName,
+		@Nonnull FulltextAnalysisContext context
+	) {
+		return foldingStemming(stepName, CzechStemFilter::new, CzechVariantStemmer::new);
 	}
 }
