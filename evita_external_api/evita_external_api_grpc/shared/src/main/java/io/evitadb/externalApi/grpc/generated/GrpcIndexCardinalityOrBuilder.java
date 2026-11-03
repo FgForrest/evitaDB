@@ -238,4 +238,64 @@ public interface GrpcIndexCardinalityOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcAttributeCardinalityOrBuilder getAttributesOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * How many single-owner partitions of the reference this index holds as registry rows rather than as
+   * per-referenced-entity indexes of their own (partitions). A reference indexed for filtering only keeps a partition
+   * with a single owner as a row of a registry carried by its reference-type index; the partition becomes an index
+   * once a second owner joins it. The rows are not indexes: they are counted neither in `omittedIndexCount` nor by
+   * `GrpcCollectionIndexSummary`, they are not listed by an index browse and cannot be described by a primary key, so
+   * this count is where they become visible. `0` when the reference holds no partition as a row. A change of the
+   * reference's indexing converts nothing: a reference indexed for partitioning as well creates its partitions as
+   * indexes, but the rows it held while indexed for filtering only stay rows and are still counted here, and the
+   * indexes a reference held while indexed for partitioning stay indexes after it is indexed for filtering only. Unset
+   * for every index but a reference-type one, which is the only index holding the registry - `0` there would read as
+   * "this reference has no single-owner partition", which is a different statement. Not a counter read: the rows are
+   * walked, so it costs O(single-owner partitions) of the reference.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value virtualPartitionCount = 7;</code>
+   * @return Whether the virtualPartitionCount field is set.
+   */
+  boolean hasVirtualPartitionCount();
+  /**
+   * <pre>
+   * How many single-owner partitions of the reference this index holds as registry rows rather than as
+   * per-referenced-entity indexes of their own (partitions). A reference indexed for filtering only keeps a partition
+   * with a single owner as a row of a registry carried by its reference-type index; the partition becomes an index
+   * once a second owner joins it. The rows are not indexes: they are counted neither in `omittedIndexCount` nor by
+   * `GrpcCollectionIndexSummary`, they are not listed by an index browse and cannot be described by a primary key, so
+   * this count is where they become visible. `0` when the reference holds no partition as a row. A change of the
+   * reference's indexing converts nothing: a reference indexed for partitioning as well creates its partitions as
+   * indexes, but the rows it held while indexed for filtering only stay rows and are still counted here, and the
+   * indexes a reference held while indexed for partitioning stay indexes after it is indexed for filtering only. Unset
+   * for every index but a reference-type one, which is the only index holding the registry - `0` there would read as
+   * "this reference has no single-owner partition", which is a different statement. Not a counter read: the rows are
+   * walked, so it costs O(single-owner partitions) of the reference.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value virtualPartitionCount = 7;</code>
+   * @return The virtualPartitionCount.
+   */
+  com.google.protobuf.Int32Value getVirtualPartitionCount();
+  /**
+   * <pre>
+   * How many single-owner partitions of the reference this index holds as registry rows rather than as
+   * per-referenced-entity indexes of their own (partitions). A reference indexed for filtering only keeps a partition
+   * with a single owner as a row of a registry carried by its reference-type index; the partition becomes an index
+   * once a second owner joins it. The rows are not indexes: they are counted neither in `omittedIndexCount` nor by
+   * `GrpcCollectionIndexSummary`, they are not listed by an index browse and cannot be described by a primary key, so
+   * this count is where they become visible. `0` when the reference holds no partition as a row. A change of the
+   * reference's indexing converts nothing: a reference indexed for partitioning as well creates its partitions as
+   * indexes, but the rows it held while indexed for filtering only stay rows and are still counted here, and the
+   * indexes a reference held while indexed for partitioning stay indexes after it is indexed for filtering only. Unset
+   * for every index but a reference-type one, which is the only index holding the registry - `0` there would read as
+   * "this reference has no single-owner partition", which is a different statement. Not a counter read: the rows are
+   * walked, so it costs O(single-owner partitions) of the reference.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value virtualPartitionCount = 7;</code>
+   */
+  com.google.protobuf.Int32ValueOrBuilder getVirtualPartitionCountOrBuilder();
 }

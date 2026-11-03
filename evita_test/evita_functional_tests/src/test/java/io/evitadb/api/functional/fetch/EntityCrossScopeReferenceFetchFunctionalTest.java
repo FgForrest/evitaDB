@@ -157,26 +157,43 @@ class EntityCrossScopeReferenceFetchFunctionalTest implements EvitaTestSupport {
 	}
 
 	@Test
-	@DisplayName("ARCHIVED product should NOT see LIVE group entity (scope filtering)")
-	void shouldNotFetchLiveGroupEntityForArchivedProduct() {
+	@DisplayName("ARCHIVED product should see LIVE group entity with or without the referenced entity body")
+	void shouldFetchLiveGroupEntityForArchivedProduct() {
 		archiveProduct();
 
 		this.evita.queryCatalog(TEST_CATALOG, session -> {
-			final SealedEntity product = session.queryOneSealedEntity(
-				query(
-					collection(PRODUCT),
-					filterBy(scope(Scope.ARCHIVED)),
-					require(entityFetch(referenceContent(REF_TO_PARAM, entityGroupFetch(attributeContentAll())))),
-					null
-				)
-			).orElseThrow();
+			// the group body does not depend on the referenced entity body - both fetch shapes resolve the same group
+			for (boolean fetchReferencedEntity : new boolean[]{false, true}) {
+				final SealedEntity product = session.queryOneSealedEntity(
+					query(
+						collection(PRODUCT),
+						filterBy(scope(Scope.ARCHIVED)),
+						require(
+							entityFetch(
+								referenceContent(
+									REF_TO_PARAM,
+									fetchReferencedEntity ? entityFetch(attributeContentAll()) : null,
+									entityGroupFetch(attributeContentAll())
+								)
+							)
+						),
+						null
+					)
+				).orElseThrow();
 
-			final ReferenceContract ref = product.getReferences(REF_TO_PARAM).iterator().next();
-			final Optional<SealedEntity> groupEntity = ref.getGroupEntity();
-			assertTrue(
-				groupEntity.isEmpty(),
-				"LIVE group entity must NOT be visible from ARCHIVED product (scope filtering)"
-			);
+				final ReferenceContract ref = product.getReferences(REF_TO_PARAM).iterator().next();
+				final Optional<SealedEntity> groupEntity = ref.getGroupEntity();
+				assertTrue(
+					groupEntity.isPresent(),
+					"LIVE group entity must be visible from ARCHIVED product (fetching referenced entity: " +
+						fetchReferencedEntity + ")"
+				);
+				assertEquals(
+					"Group A",
+					groupEntity.get().getAttribute(ATTR_LABEL, String.class),
+					"Group entity attribute must be accessible"
+				);
+			}
 		});
 	}
 

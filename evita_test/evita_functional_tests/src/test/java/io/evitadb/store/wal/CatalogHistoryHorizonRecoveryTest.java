@@ -170,7 +170,7 @@ class CatalogHistoryHorizonRecoveryTest implements EvitaTestSupport {
 	 * @return the oldest retained catalog version
 	 */
 	private static long oldestRetainedVersion(@Nonnull Evita evita) {
-		return oldestRetainedBlocks(evita, 1).get(0).endVersion();
+		return oldestRetainedBlocks(evita, 1).getFirst().endVersion();
 	}
 
 	/**
@@ -378,8 +378,7 @@ class CatalogHistoryHorizonRecoveryTest implements EvitaTestSupport {
 		final List<Long> recordsExpectedToSurvive = retainedRecordsBeforeRestart.stream()
 			.filter(recordVersion -> recordVersion >= firstReplayableVersion)
 			.toList();
-		final long newestRecordBeforeRestart = retainedRecordsBeforeRestart
-			.get(retainedRecordsBeforeRestart.size() - 1);
+		final long newestRecordBeforeRestart = retainedRecordsBeforeRestart.getLast();
 		assertFalse(
 			recordsExpectedToSurvive.isEmpty(),
 			"The fixture must leave at least one record above the floor, or the catalog would lose its whole history!"

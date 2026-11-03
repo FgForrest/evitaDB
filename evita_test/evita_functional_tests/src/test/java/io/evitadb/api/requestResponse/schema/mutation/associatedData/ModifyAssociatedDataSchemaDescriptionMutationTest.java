@@ -209,8 +209,8 @@ class ModifyAssociatedDataSchemaDescriptionMutationTest {
 				ctx -> mutation.collectConflictKeys(ctx).toList()
 			);
 			assertEquals(1, keys.size());
-			assertInstanceOf(CollectionConflictKey.class, keys.get(0));
-			assertEquals("product", ((CollectionConflictKey) keys.get(0)).entityType());
+			assertInstanceOf(CollectionConflictKey.class, keys.getFirst());
+			assertEquals("product", ((CollectionConflictKey) keys.getFirst()).entityType());
 		}
 
 		@Test

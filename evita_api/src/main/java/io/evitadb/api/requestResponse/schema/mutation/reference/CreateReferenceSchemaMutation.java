@@ -277,22 +277,19 @@ public class CreateReferenceSchemaMutation
 									ReferenceSchemaContract::getCardinality,
 									newValue -> new ModifyReferenceSchemaCardinalityMutation(this.name, newValue)
 								),
-								makeMutationIfDifferent(
-									ReferenceSchemaContract.class,
-									createdVersion, existingVersion,
-									ReferenceSchemaContract::getReferencedEntityType,
-									newValue -> new ModifyReferenceSchemaRelatedEntityMutation(
-										this.name, newValue, this.referencedEntityTypeManaged
-									)
-								),
-								makeMutationIfDifferent(
-									ReferenceSchemaContract.class,
-									createdVersion, existingVersion,
-									ReferenceSchemaContract::getReferencedGroupType,
-									newValue -> new ModifyReferenceSchemaRelatedEntityGroupMutation(
-										this.name, newValue, this.referencedGroupTypeManaged
-									)
-								),
+								// the type and whether evitaDB manages it make one value: a change of either is a change
+								Objects.equals(createdVersion.getReferencedEntityType(), existingVersion.getReferencedEntityType()) &&
+									createdVersion.isReferencedEntityTypeManaged() == existingVersion.isReferencedEntityTypeManaged()
+									? null
+									: new ModifyReferenceSchemaRelatedEntityMutation(
+										this.name, this.referencedEntityType, this.referencedEntityTypeManaged
+									),
+								Objects.equals(createdVersion.getReferencedGroupType(), existingVersion.getReferencedGroupType()) &&
+									createdVersion.isReferencedGroupTypeManaged() == existingVersion.isReferencedGroupTypeManaged()
+									? null
+									: new ModifyReferenceSchemaRelatedEntityGroupMutation(
+										this.name, this.referencedGroupType, this.referencedGroupTypeManaged
+									),
 								makeMutationIfDifferent(
 									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,

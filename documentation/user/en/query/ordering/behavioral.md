@@ -50,6 +50,13 @@ It's obvious that the `inScope` container is not necessary if we are only queryi
 you do use it in this case, it must match the scope of the query. If you use the `inScope` container with the `LIVE`
 scope, but the query is executed in the `ARCHIVED` scope, the engine will return an error.
 
+An `inScope` container cannot be nested in another `inScope` container that orders the same entities. With
+a different scope the inner constraints would apply only to entities that are in both scopes at once, which none are,
+and with the same scope the inner container would be redundant - so the query is rejected with an error in both cases.
+Place the containers side by side instead. This includes the body of `referenceProperty`, whose reference attributes
+belong to the queried entities. A container that orders by the properties of another entity - `entityProperty`,
+`entityGroupProperty`, `pickFirstByEntityProperty` or `traverseByEntityProperty` - may contain its own `inScope`.
+
 </Note>
 
 For example, in our demo dataset we have only a few attributes indexed in the archive - namely `url` and `code` and 

@@ -50,12 +50,16 @@ import java.util.Locale;
  * - The conflict is detected in {@link io.evitadb.index.attribute.UniqueIndex} or
  *   {@link io.evitadb.index.attribute.GlobalUniqueIndex}
  *
- * The exception provides full details about both the existing entity (that owns the value) and the new
- * entity (attempting to use it), allowing clients to resolve the conflict by either:
+ * The exception names the entity that owns the value and the entity attempting to use it, allowing clients to
+ * resolve the conflict by either:
  *
  * 1. Choosing a different unique value for the new entity
  * 2. Removing the unique constraint from the attribute schema if uniqueness is not required
  * 3. Deleting or updating the existing entity first if appropriate
+ *
+ * A reference attribute is an exception: two references to different targets are told apart only by the index
+ * of the referenced type, which tracks references rather than the entities owning them. The exception then names the
+ * reference and carries no primary keys.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2020
  */
@@ -74,17 +78,19 @@ public class UniqueValueViolationException extends EvitaInvalidUsageException {
 	 */
 	@Getter private final String existingRecordType;
 	/**
-	 * The primary key of the existing entity that owns this unique value.
+	 * The primary key of the existing entity that owns this unique value, or `null` when the conflict was detected
+	 * on a reference and the owning entity is not known.
 	 */
-	@Getter private final int existingRecordId;
+	@Getter @Nullable private final Integer existingRecordId;
 	/**
 	 * The entity type of the record being inserted or updated that conflicts.
 	 */
 	@Getter private final String newRecordType;
 	/**
-	 * The primary key of the new entity attempting to use the conflicting value.
+	 * The primary key of the new entity attempting to use the conflicting value, or `null` when the conflict was
+	 * detected on a reference and the entity is not known.
 	 */
-	@Getter private final int newRecordId;
+	@Getter @Nullable private final Integer newRecordId;
 
 	/**
 	 * Creates a new exception with full details about the unique constraint violation.
@@ -107,9 +113,11 @@ public class UniqueValueViolationException extends EvitaInvalidUsageException {
 		int newRecordId
 	) {
 		super(
-			"Unique constraint violation: attribute `" + attributeName + "` value " + value + "`" + (locale == null ? "" : " in locale `" + locale.toLanguageTag() + "`") +
-				" is already present for entity `" + existingRecordType + "` (existing entity PK: " + existingRecordId + ", " +
-				"newly inserted " + (existingRecordType.compareTo(newRecordType) == 0 ? "" : "`" + newRecordType + "`") + " entity PK: " + newRecordId + ")!"
+			describeValue(attributeName, null, locale, value) +
+				" is already used by entity `" + existingRecordType + "` with primary key " + existingRecordId +
+				" and cannot be assigned to " +
+				(existingRecordType.equals(newRecordType) ? "entity" : "entity `" + newRecordType + "`") +
+				" with primary key " + newRecordId + "!"
 		);
 		this.attributeName = attributeName;
 		this.value = value;
@@ -117,5 +125,58 @@ public class UniqueValueViolationException extends EvitaInvalidUsageException {
 		this.existingRecordType = existingRecordType;
 		this.newRecordId = newRecordId;
 		this.newRecordType = newRecordType;
+	}
+
+	/**
+	 * Creates a new exception for a unique reference attribute whose value is already present on another reference.
+	 * Used where the conflict is detected by the index of the referenced type, which knows the clashing references
+	 * but not the entities owning them - so the exception carries no primary keys.
+	 *
+	 * @param attributeName the name of the attribute with the unique constraint
+	 * @param referenceName the name of the reference carrying the attribute, or `null` when not known
+	 * @param locale the locale for which the constraint applies, or null for non-localized attributes
+	 * @param value the conflicting attribute value
+	 * @param entityType entity type owning the reference
+	 */
+	public UniqueValueViolationException(
+		@Nonnull String attributeName,
+		@Nullable String referenceName,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		@Nonnull String entityType
+	) {
+		super(
+			describeValue(attributeName, referenceName, locale, value) +
+				" is already used by another " + (referenceName == null ? "" : "`" + referenceName + "` ") +
+				"reference of an entity `" + entityType + "`!"
+		);
+		this.attributeName = attributeName;
+		this.value = value;
+		this.existingRecordId = null;
+		this.existingRecordType = entityType;
+		this.newRecordId = null;
+		this.newRecordType = entityType;
+	}
+
+	/**
+	 * Renders the common opening of the violation message: the attribute, its reference, the value and its locale.
+	 *
+	 * @param attributeName the name of the attribute with the unique constraint
+	 * @param referenceName the name of the reference carrying the attribute, or `null` for an entity attribute
+	 * @param locale the locale for which the constraint applies, or `null` for non-localized attributes
+	 * @param value the conflicting attribute value
+	 * @return the opening of the message
+	 */
+	@Nonnull
+	private static String describeValue(
+		@Nonnull String attributeName,
+		@Nullable String referenceName,
+		@Nullable Locale locale,
+		@Nonnull Serializable value
+	) {
+		return "Unique constraint violation: attribute `" + attributeName + "`" +
+			(referenceName == null ? "" : " of reference `" + referenceName + "`") +
+			" value `" + value + "`" +
+			(locale == null ? "" : " in locale `" + locale.toLanguageTag() + "`");
 	}
 }

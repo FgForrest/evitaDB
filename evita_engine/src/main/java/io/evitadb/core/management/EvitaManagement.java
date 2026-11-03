@@ -372,7 +372,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		// The WAL is deliberately excluded. Including it copies every log file wholesale, and a restore of such an
 		// archive replays them forward to the head of the log - which lands on the current state and undoes the very
 		// point-in-time this operation exists to reach.
-		final ServerTask<?, FileForFetch> backupTask = ((Catalog) sourceCatalog).createBackupTask(
+		final ServerTask<?, FileForFetch> backupTask = sourceCatalog.createBackupTask(
 			// the backup holds the version it copies against reclamation, but it is not a session at that version -
 			// registering it as one would make it a phantom read-write consumer of that version for the whole copy
 			pastMoment, catalogVersion, false, consumerControl::pinCatalogVersion

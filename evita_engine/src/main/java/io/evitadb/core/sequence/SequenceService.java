@@ -23,7 +23,9 @@
 
 package io.evitadb.core.sequence;
 
+import io.evitadb.api.exception.IdentifierOverflowException;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.exception.GenericEvitaInternalError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,6 +53,13 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class SequenceService {
+	/**
+	 * The value {@link #nextValueOrExhausted(AtomicInteger)} returns instead of a value when the sequence has already
+	 * handed out {@link Integer#MAX_VALUE}. An int sequence starts at the last value it handed out - `0` for a new one,
+	 * never less - and hands out the values above it, so `0` is never a value it hands out.
+	 */
+	public static final int EXHAUSTED = 0;
+
 	private final Map<SequenceKey, AtomicInteger> intSequences = new ConcurrentHashMap<>();
 	private final Map<SequenceKey, AtomicLong> longSequences = new ConcurrentHashMap<>();
 
@@ -146,6 +155,91 @@ public class SequenceService {
 	 */
 	public int removeSequences(@Nonnull String catalog) {
 		return removeMatchingKeys(this.intSequences, catalog) + removeMatchingKeys(this.longSequences, catalog);
+	}
+
+	/**
+	 * Draws the next value of an int sequence obtained from {@link #getOrCreateSequence}, refusing to wrap: once the
+	 * sequence has handed out {@link Integer#MAX_VALUE}, it is left untouched and {@link #EXHAUSTED} is returned
+	 * instead of a value. A wrapped sequence would hand out negative values, which are no valid primary keys, and
+	 * eventually values that are still in use.
+	 *
+	 * The caller turns {@link #EXHAUSTED} into the refusal {@link #exhausted(SequenceType, String, String)} builds,
+	 * which is what keeps resolving the names that refusal carries off the path of every successful draw. Safe for
+	 * concurrent callers - two of them never receive the same value, and the sequence never moves past the limit.
+	 *
+	 * @param sequence the sequence to draw from
+	 * @return the drawn value, or {@link #EXHAUSTED} when the sequence has nothing left to hand out
+	 */
+	public static int nextValueOrExhausted(@Nonnull AtomicInteger sequence) {
+		int current;
+		do {
+			current = sequence.get();
+			if (current == Integer.MAX_VALUE) {
+				return EXHAUSTED;
+			}
+		} while (!sequence.compareAndSet(current, current + 1));
+		return current + 1;
+	}
+
+	/**
+	 * Builds the refusal for a sequence {@link #nextValueOrExhausted(AtomicInteger)} reported as exhausted. Its public
+	 * message names the identifier space and says what the operator can do: every sequence drawn this way is persisted
+	 * with the collection or catalog whose identifiers it hands out and never reuses one, so a restart does not reset
+	 * it, and only rebuilding that collection or catalog does.
+	 *
+	 * @param sequenceType type of the exhausted sequence
+	 * @param catalogName  name of the catalog the sequence belongs to
+	 * @param entityType   name of the entity collection the sequence belongs to, `null` for a catalog-wide sequence
+	 * @return the exception to throw
+	 */
+	@Nonnull
+	public static IdentifierOverflowException exhausted(
+		@Nonnull SequenceType sequenceType,
+		@Nonnull String catalogName,
+		@Nullable String entityType
+	) {
+		final String collection = "entity collection `" + entityType + "` in catalog `" + catalogName + "`";
+		final String rebuildCollection = "rebuild the collection: insert its entities into a new collection and " +
+			"swap it in with `replaceCollection`.";
+		final String privateRemedy = " has been handed out and the next value would wrap into the negative range. " +
+			"The sequence is persisted as the last value handed out and values are never reused, so a restart does " +
+			"not reset it - ";
+		return switch (sequenceType) {
+			case ENTITY -> new IdentifierOverflowException(
+				"The primary key sequence of " + collection + " is exhausted: key " + Integer.MAX_VALUE +
+					privateRemedy + "the collection must be rebuilt.",
+				"The primary keys evitaDB generates for " + collection + " are exhausted. They are persisted " +
+					"with the collection and never reused, so a restart does not help - rebuild the collection: " +
+					"insert its entities into a new collection, where they get new primary keys, and swap it in " +
+					"with `replaceCollection`."
+			);
+			case INDEX -> new IdentifierOverflowException(
+				"The index primary key sequence of " + collection + " is exhausted: key " + Integer.MAX_VALUE +
+					privateRemedy + "the collection must be rebuilt.",
+				"The primary keys of the indexes of " + collection + " are exhausted - every index the collection " +
+					"has ever created used one up. They are persisted with the collection and never reused, so a " +
+					"restart does not help - " + rebuildCollection
+			);
+			case PRICE -> new IdentifierOverflowException(
+				"The internal price id sequence of " + collection + " is exhausted: id " + Integer.MAX_VALUE +
+					privateRemedy + "the collection must be rebuilt.",
+				"The internal price ids of " + collection + " are exhausted - every price ever added to the " +
+					"collection used one up. They are persisted with the collection and never reused, so a restart " +
+					"does not help - " + rebuildCollection
+			);
+			case ENTITY_COLLECTION -> new IdentifierOverflowException(
+				"The entity collection primary key sequence of catalog `" + catalogName + "` is exhausted: key " +
+					Integer.MAX_VALUE + privateRemedy + "the catalog must be rebuilt.",
+				"The primary keys of the entity collections of catalog `" + catalogName + "` are exhausted - every " +
+					"collection ever created in the catalog used one up. They are persisted with the catalog and " +
+					"never reused, so a restart does not help - rebuild the catalog: insert its data into a new " +
+					"catalog and swap it in with `replaceCatalog`."
+			);
+			case CATALOG_GENERATION -> throw new GenericEvitaInternalError(
+				"Catalog folder generations are not drawn through `nextValueOrExhausted`, so there is no refusal " +
+					"to build for them!"
+			);
+		};
 	}
 
 	/*

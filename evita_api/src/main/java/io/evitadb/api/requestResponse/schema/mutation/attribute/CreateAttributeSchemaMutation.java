@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -325,110 +326,133 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 		// when the attribute schema was removed before and added again, we may remove both operations
 		// and leave only operations that reset the original settings do defaults
 		if (existingMutation instanceof RemoveAttributeSchemaMutation removeAttributeSchema && Objects.equals(removeAttributeSchema.getName(), this.name)) {
-			final EntityAttributeSchemaContract createdVersion = mutate(currentCatalogSchema, null, EntityAttributeSchemaContract.class);
-			final EntityAttributeSchemaContract existingSchema = currentEntitySchema.getAttribute(this.name).orElseThrow();
-			return new MutationCombinationResult<>(
-				null,
-				Stream.of(
-						makeMutationIfDifferent(
-							AttributeSchemaContract.class,
-							createdVersion, existingSchema,
-							NamedSchemaContract::getDescription,
-							newValue -> new ModifyAttributeSchemaDescriptionMutation(this.name, newValue)
-						),
-						makeMutationIfDifferent(
-							AttributeSchemaContract.class,
-							createdVersion, existingSchema,
-							NamedSchemaWithDeprecationContract::getDeprecationNotice,
-							newValue -> new ModifyAttributeSchemaDeprecationNoticeMutation(this.name, newValue)
-						),
-						makeMutationIfDifferent(
-							AttributeSchemaContract.class,
-							createdVersion, existingSchema,
-							AttributeSchemaContract::getType,
-							newValue -> new ModifyAttributeSchemaTypeMutation(this.name, newValue, this.indexedDecimalPlaces)
-						),
-						makeMutationIfDifferent(
-							AttributeSchemaContract.class,
-							createdVersion, existingSchema,
-							AttributeSchemaContract::getDefaultValue,
-							newValue -> new ModifyAttributeSchemaDefaultValueMutation(this.name, this.defaultValue)
-						),
-						makeMutationIfDifferent(
-							AttributeSchemaContract.class,
-							createdVersion, existingSchema,
-							schema -> Arrays.stream(Scope.values())
-								.filter(schema::isFilterableInScope)
-								.toArray(Scope[]::new),
-							newValue -> new SetAttributeSchemaFilterableMutation(this.name, newValue)
-						),
-						makeMutationIfDifferent(
-							AttributeSchemaContract.class,
-							createdVersion, existingSchema,
-							// the accelerator axis is its own difference: one carrier per scope declaring at least one,
-							// so that withdrawing the last accelerator of a scope still reads as a change
-							schema -> Arrays.stream(Scope.values())
-								.filter(scope -> !schema.getAcceleratorsInScope(scope).isEmpty())
-								.map(
-									scope -> new ScopedAttributeFilterAccelerators(
-										scope,
-										schema.getAcceleratorsInScope(scope)
-											.toArray(AttributeFilterAccelerator[]::new)
-									)
-								)
-								.toArray(ScopedAttributeFilterAccelerators[]::new),
-							newValue -> new SetAttributeSchemaAcceleratedMutation(this.name, newValue)
-						),
-						makeMutationIfDifferent(
-							AttributeSchemaContract.class,
-							createdVersion, existingSchema,
-							schema -> Arrays.stream(Scope.values())
-								.map(scope -> new ScopedAttributeUniquenessType(scope, schema.getUniquenessType(scope)))
-								// filter out default values
-								.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
-								.toArray(ScopedAttributeUniquenessType[]::new),
-							newValue -> new SetAttributeSchemaUniqueMutation(this.name, newValue)
-						),
-						makeMutationIfDifferent(
-							AttributeSchemaContract.class,
-							createdVersion, existingSchema,
-							schema -> Arrays.stream(Scope.values())
-								.filter(schema::isSortableInScope)
-								.toArray(Scope[]::new),
-							newValue -> new SetAttributeSchemaSortableMutation(this.name, newValue)
-						),
-						makeMutationIfDifferent(
-							AttributeSchemaContract.class,
-							createdVersion, existingSchema,
-							AttributeSchemaContract::isLocalized,
-							newValue -> new SetAttributeSchemaLocalizedMutation(this.name, newValue)
-						),
-						makeMutationIfDifferent(
-							AttributeSchemaContract.class,
-							createdVersion, existingSchema,
-							AttributeSchemaContract::isNullable,
-							newValue -> new SetAttributeSchemaNullableMutation(this.name, newValue)
-						),
-						makeMutationIfDifferent(
-							AttributeSchemaContract.class,
-							createdVersion, existingSchema,
-							AttributeSchemaContract::isRepresentative,
-							newValue -> new SetAttributeSchemaRepresentativeMutation(this.name, newValue)
-						),
-						makeMutationIfDifferent(
-							AttributeSchemaContract.class,
-							createdVersion, existingSchema,
-							AttributeSchemaContract::getConflictResolutionOverride,
-							newValue -> new SetAttributeSchemaConflictResolutionOverrideMutation(this.name, newValue)
-						)
-					)
-					.filter(Objects::nonNull)
-					.map(LocalEntitySchemaMutation.class::cast)
-					.toArray(LocalEntitySchemaMutation[]::new)
-			);
+			// both mutations stay and apply one after the other in two cases:
+			// - the entity schema does not have the attribute: it can still exist where the mutations apply, as
+			//   a global attribute the catalog builder removed from its view of the entity,
+			// - the removed attribute is a global one and this mutation replaces it with the entity's own attribute,
+			//   which no change of properties turns a global attribute into
+			return currentEntitySchema.getAttribute(this.name)
+				.filter(removedAttribute -> !(removedAttribute instanceof GlobalAttributeSchemaContract))
+				.map(removedAttribute -> combineWithRemovalOf(currentCatalogSchema, removedAttribute))
+				.orElse(null);
 		} else {
 			return null;
 		}
+	}
+
+	/**
+	 * Collapses the removal of an attribute followed by this re-creation of the same attribute into the mutations
+	 * that change only what differs between the removed attribute and the re-created one. The removal is discarded,
+	 * and so is this mutation when nothing differs.
+	 *
+	 * The removed attribute is passed in rather than looked up, because the caller knows where it lives: an entity
+	 * attribute for this mutation applied to an entity, the attribute of a reference when the mutation is wrapped
+	 * in {@link io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation}.
+	 *
+	 * @param currentCatalogSchema the catalog schema the attribute is created in
+	 * @param existingSchema       the attribute the removal removes
+	 * @return the combination that discards the removal and replaces this mutation with the differing properties
+	 */
+	@Nonnull
+	public MutationCombinationResult<LocalEntitySchemaMutation> combineWithRemovalOf(
+		@Nonnull CatalogSchemaContract currentCatalogSchema,
+		@Nonnull AttributeSchemaContract existingSchema
+	) {
+		final EntityAttributeSchemaContract createdVersion = mutate(currentCatalogSchema, null, EntityAttributeSchemaContract.class);
+		return new MutationCombinationResult<>(
+			null,
+			Stream.of(
+					makeMutationIfDifferent(
+						AttributeSchemaContract.class,
+						createdVersion, existingSchema,
+						NamedSchemaContract::getDescription,
+						newValue -> new ModifyAttributeSchemaDescriptionMutation(this.name, newValue)
+					),
+					makeMutationIfDifferent(
+						AttributeSchemaContract.class,
+						createdVersion, existingSchema,
+						NamedSchemaWithDeprecationContract::getDeprecationNotice,
+						newValue -> new ModifyAttributeSchemaDeprecationNoticeMutation(this.name, newValue)
+					),
+					makeTypeMutationIfDifferent(createdVersion, existingSchema, this.indexedDecimalPlaces),
+					makeMutationIfDifferent(
+						AttributeSchemaContract.class,
+						createdVersion, existingSchema,
+						AttributeSchemaContract::getDefaultValue,
+						newValue -> new ModifyAttributeSchemaDefaultValueMutation(this.name, this.defaultValue)
+					),
+					makeMutationIfDifferent(
+						AttributeSchemaContract.class,
+						createdVersion, existingSchema,
+						schema -> Arrays.stream(Scope.values())
+							.filter(schema::isFilterableInScope)
+							.toArray(Scope[]::new),
+						newValue -> new SetAttributeSchemaFilterableMutation(this.name, newValue)
+					),
+					makeMutationIfDifferent(
+						AttributeSchemaContract.class,
+						createdVersion, existingSchema,
+						// the accelerator axis is its own difference: one carrier per scope declaring at least one,
+						// so that withdrawing the last accelerator of a scope still reads as a change
+						schema -> Arrays.stream(Scope.values())
+							.filter(scope -> !schema.getAcceleratorsInScope(scope).isEmpty())
+							.map(
+								scope -> new ScopedAttributeFilterAccelerators(
+									scope,
+									schema.getAcceleratorsInScope(scope)
+										.toArray(AttributeFilterAccelerator[]::new)
+								)
+							)
+							.toArray(ScopedAttributeFilterAccelerators[]::new),
+						newValue -> new SetAttributeSchemaAcceleratedMutation(this.name, newValue)
+					),
+					makeMutationIfDifferent(
+						AttributeSchemaContract.class,
+						createdVersion, existingSchema,
+						schema -> Arrays.stream(Scope.values())
+							.map(scope -> new ScopedAttributeUniquenessType(scope, schema.getUniquenessType(scope)))
+							// filter out default values
+							.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
+							.toArray(ScopedAttributeUniquenessType[]::new),
+						newValue -> new SetAttributeSchemaUniqueMutation(this.name, newValue)
+					),
+					makeMutationIfDifferent(
+						AttributeSchemaContract.class,
+						createdVersion, existingSchema,
+						schema -> Arrays.stream(Scope.values())
+							.filter(schema::isSortableInScope)
+							.toArray(Scope[]::new),
+						newValue -> new SetAttributeSchemaSortableMutation(this.name, newValue)
+					),
+					makeMutationIfDifferent(
+						AttributeSchemaContract.class,
+						createdVersion, existingSchema,
+						AttributeSchemaContract::isLocalized,
+						newValue -> new SetAttributeSchemaLocalizedMutation(this.name, newValue)
+					),
+					makeMutationIfDifferent(
+						AttributeSchemaContract.class,
+						createdVersion, existingSchema,
+						AttributeSchemaContract::isNullable,
+						newValue -> new SetAttributeSchemaNullableMutation(this.name, newValue)
+					),
+					makeMutationIfDifferent(
+						AttributeSchemaContract.class,
+						createdVersion, existingSchema,
+						AttributeSchemaContract::isRepresentative,
+						newValue -> new SetAttributeSchemaRepresentativeMutation(this.name, newValue)
+					),
+					makeMutationIfDifferent(
+						AttributeSchemaContract.class,
+						createdVersion, existingSchema,
+						AttributeSchemaContract::getConflictResolutionOverride,
+						newValue -> new SetAttributeSchemaConflictResolutionOverrideMutation(this.name, newValue)
+					)
+				)
+				.filter(Objects::nonNull)
+				.map(LocalEntitySchemaMutation.class::cast)
+				.toArray(LocalEntitySchemaMutation[]::new)
+		);
 	}
 
 	@Nonnull

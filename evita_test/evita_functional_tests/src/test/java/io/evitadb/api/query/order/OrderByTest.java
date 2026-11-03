@@ -230,7 +230,7 @@ class OrderByTest {
 			);
 
 			assertInstanceOf(OrderBy.class, copy);
-			assertFalse(((OrderBy) copy).isApplicable());
+			assertFalse(copy.isApplicable());
 		}
 
 		@Test

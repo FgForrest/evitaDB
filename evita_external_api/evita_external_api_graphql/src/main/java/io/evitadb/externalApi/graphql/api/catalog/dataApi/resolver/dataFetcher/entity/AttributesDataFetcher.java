@@ -59,6 +59,9 @@ public class AttributesDataFetcher implements DataFetcher<DataFetcherResult<Attr
         return INSTANCE;
     }
 
+	/**
+	 * Reads an explicit field locale first, otherwise the fetched entity level's locale before its enclosing context.
+	 */
     @Nonnull
     @Override
     public DataFetcherResult<AttributesContract<?>> get(DataFetchingEnvironment environment) throws Exception {
@@ -76,7 +79,10 @@ public class AttributesDataFetcher implements DataFetcher<DataFetcherResult<Attr
             return DataFetcherResult.<AttributesContract<?>>newResult().build();
         }
 
-        Locale desiredLocale = environment.getArgumentOrDefault(AttributesFieldHeaderDescriptor.LOCALE.name(), context.getDesiredLocale());
+		final Locale bodyLocale = attributes instanceof EntityDecorator entity ?
+			entity.getAttributePredicate().getRequestedLocale() : null;
+		Locale desiredLocale = environment.getArgumentOrDefault(AttributesFieldHeaderDescriptor.LOCALE.name(),
+			bodyLocale == null ? context.getDesiredLocale() : bodyLocale);
         if (desiredLocale == null) {
             // try implicit locale if no explicit locale was set
             if (attributes instanceof final EntityDecorator entity) {

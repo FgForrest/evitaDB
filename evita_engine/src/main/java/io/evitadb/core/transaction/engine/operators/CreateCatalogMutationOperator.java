@@ -42,6 +42,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -52,8 +53,8 @@ import java.util.function.Consumer;
  * instance returned by `evita.createCatalog(...)`, whose side-effect work (folder creation, initial kryo
  * serialization of the catalog schema) happens inside the work phase. Re-running `evita.createCatalog` on an
  * already-existing folder during forward replay would either throw or produce a different identity, so we prefer to
- * wedge the engine loudly (via the default `Optional.empty()` in `EngineMutationOperator`) and let an operator decide
- * how to proceed rather than risk silent corruption.
+ * wedge the engine loudly (`replayCompletionState` returns `Optional.empty()`) and let an operator decide how to
+ * proceed rather than risk silent corruption.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -194,6 +195,22 @@ public class CreateCatalogMutationOperator
 				}
 			}
 		);
+	}
+
+	/**
+	 * Forward replay is not supported - the class javadoc says why.
+	 *
+	 * @return always empty, so a crash between the write-ahead log append and the bootstrap rewrite wedges the engine
+	 */
+	@Nonnull
+	@Override
+	public Optional<ExpandedEngineState> replayCompletionState(
+		@Nonnull CreateCatalogSchemaMutation mutation,
+		long targetVersion,
+		@Nonnull ExpandedEngineState currentState,
+		@Nonnull Evita evita
+	) {
+		return Optional.empty();
 	}
 
 }

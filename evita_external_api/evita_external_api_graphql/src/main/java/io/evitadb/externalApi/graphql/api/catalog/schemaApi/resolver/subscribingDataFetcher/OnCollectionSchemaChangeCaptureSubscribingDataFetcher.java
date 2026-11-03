@@ -44,6 +44,7 @@ import io.evitadb.externalApi.graphql.api.resolver.subscribingDataFetcher.Change
 import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.Flow.Publisher;
 
 /**
@@ -67,6 +68,7 @@ public class OnCollectionSchemaChangeCaptureSubscribingDataFetcher
 	@Nonnull
 	@Override
 	protected Publisher<ChangeCatalogCapture> createPublisher(@Nonnull DataFetchingEnvironment environment) {
+		final UUID catalogId = environment.getArgument(OnCollectionSchemaChangeHeaderDescriptor.CATALOG_ID.name());
 		final Long sinceVersion = environment.getArgument(OnCollectionSchemaChangeHeaderDescriptor.SINCE_VERSION.name());
 		final Integer sinceIndex = environment.getArgument(OnCollectionSchemaChangeHeaderDescriptor.SINCE_INDEX.name());
 		final List<Operation> operation = environment.getArgument(OnCollectionSchemaChangeHeaderDescriptor.OPERATION.name());
@@ -76,6 +78,7 @@ public class OnCollectionSchemaChangeCaptureSubscribingDataFetcher
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
 		return evitaSession.registerChangeCatalogCapture(new ChangeCatalogCaptureRequest(
+			catalogId,
 			sinceVersion,
 			sinceIndex,
 			new ChangeCatalogCaptureCriteria[] {

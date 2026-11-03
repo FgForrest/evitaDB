@@ -153,7 +153,7 @@ class FilterGroupByTest {
 			);
 
 			assertInstanceOf(FilterGroupBy.class, copy);
-			assertFalse(((FilterGroupBy) copy).isApplicable());
+			assertFalse(copy.isApplicable());
 		}
 
 		@Test

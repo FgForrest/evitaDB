@@ -79,7 +79,7 @@ public class OffHeapMemoryInputStream extends AbstractRandomAccessInputStream {
 	@Override
 	public int read() throws IOException {
 		if (available() > 0) {
-			return (int) Objects.requireNonNull(this.buffer).get();
+			return Objects.requireNonNull(this.buffer).get();
 		} else {
 			return -1;
 		}

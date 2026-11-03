@@ -189,7 +189,7 @@ class ModifyCatalogSchemaConflictResolutionMutationTest {
 					ctx -> mutation.collectConflictKeys(ctx).toList()
 				);
 			assertEquals(1, keys.size());
-			assertInstanceOf(CatalogConflictKey.class, keys.get(0));
+			assertInstanceOf(CatalogConflictKey.class, keys.getFirst());
 		}
 	}
 

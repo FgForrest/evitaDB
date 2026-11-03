@@ -2496,8 +2496,8 @@ public class EntityByPriceFilteringFunctionalTest {
 						// for first occurrence strategy the price with more prioritized list might be found but is skipped, because is bigger than other inner record price
 						assertTrue(
 							pricesSubSet.isEmpty() ||
-								priceForSale.equals(pricesSubSet.get(0)) ||
-								priceForSale.priceWithTax().compareTo(pricesSubSet.get(0).priceWithTax()) <= 0,
+								priceForSale.equals(pricesSubSet.getFirst()) ||
+								priceForSale.priceWithTax().compareTo(pricesSubSet.getFirst().priceWithTax()) <= 0,
 							() -> "There must be no price for more prioritized price lists! But is for: " + priceList
 						);
 						if (!pricesSubSet.isEmpty()) {

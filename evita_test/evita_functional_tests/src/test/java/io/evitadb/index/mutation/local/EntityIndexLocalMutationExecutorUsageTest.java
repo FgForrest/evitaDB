@@ -67,8 +67,8 @@ import java.util.Map;
 
 import static io.evitadb.index.mutation.local.AttributeIndexMutator.executeAttributeUpsert;
 import static io.evitadb.index.mutation.local.ReferenceIndexMutator.attributeUpdate;
-import static io.evitadb.index.mutation.local.ReferenceIndexMutator.referenceInsert;
 import static io.evitadb.index.mutation.local.ReferenceIndexMutator.referenceInsertGlobal;
+import static io.evitadb.index.mutation.local.ReferenceIndexMutator.referenceInsertPerComponent;
 import static io.evitadb.index.mutation.local.ReferenceIndexMutator.referenceRemovalGlobal;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.HIERARCHY;
@@ -592,10 +592,11 @@ class EntityIndexLocalMutationExecutorUsageTest extends AbstractMutatorTestBase 
 	 * @param referenceKey the reference being written
 	 */
 	private void insertReferenceWithItsComponents(@Nonnull ReferenceKey referenceKey) {
-		referenceInsert(
+		referenceInsertGlobal(1, brandSchema(), this.productIndex, referenceKey, null, this.executor);
+		referenceInsertPerComponent(
 			1, this.productSchema, brandSchema(), this.executor,
-			this.productIndex, this.brandTypeIndex, this.firstReducedIndex,
-			referenceKey, null, supplierFactory(1)
+			this.brandTypeIndex, this.firstReducedIndex,
+			referenceKey, referenceKey.primaryKey(), null, supplierFactory(1)
 		);
 	}
 

@@ -17,6 +17,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.*;
 import java.nio.ByteBuffer;
@@ -728,6 +730,29 @@ public class TestRoaring64Bitmap {
 	@DisplayName("Removal")
 	class Removal {
 
+		@DisplayName("remove keeps the array container a bitmap chunk demotes to, wherever the chunk sits")
+		@ParameterizedTest
+		@ValueSource(longs = {0L, 1099511627776L, Long.MIN_VALUE})
+		public void testRemoveKeepsTheContainerItDemotesTo(long base) {
+			// 4,097 values make a bitmap container; removing one hands back an array container
+			PersistentLongRoaringBitmap bitmap = newDefaultCtor();
+			PersistentLongRoaringBitmap expected = newDefaultCtor();
+			for (int i = 0; i < 4097; i++) {
+				bitmap.addLong(base + 2L * i);
+				if (i > 0) {
+					expected.addLong(base + 2L * i);
+				}
+			}
+			bitmap.remove(base);
+
+			assertFalse(bitmap.contains(base));
+			assertEquals(4096, bitmap.getLongCardinality());
+			// an array container and a bitmap container holding the same values are not equal, so this
+			// fails when remove keeps the original bitmap container below its threshold
+			assertEquals(expected, bitmap);
+			assertArrayEquals(expected.toArray(), bitmap.toArray());
+		}
+
 		@DisplayName("Removing the only value empties the bitmap")
 		@Test
 		public void testRemove() {
@@ -1261,6 +1286,69 @@ public class TestRoaring64Bitmap {
 			assertEquals(345, xorNotInPlace.select(1));
 		}
 
+		@DisplayName("xor emptying the first bucket drops it, so first and last stay correct")
+		@Test
+		public void testXorEmptiesFirstBucket() {
+			PersistentLongRoaringBitmap rechecked = newDefaultCtor();
+			rechecked.addLong(0L);
+			rechecked.addLong(65536L);
+
+			PersistentLongRoaringBitmap processed = newDefaultCtor();
+			processed.addLong(0L);
+
+			PersistentLongRoaringBitmap xorNotInPlace = PersistentLongRoaringBitmap.xor(rechecked, processed);
+			rechecked.xor(processed);
+
+			assertFalse(rechecked.isEmpty());
+			assertEquals(1, rechecked.getLongCardinality());
+			assertEquals(65536L, rechecked.first());
+			assertEquals(65536L, rechecked.last());
+
+			assertFalse(xorNotInPlace.isEmpty());
+			assertEquals(1, xorNotInPlace.getLongCardinality());
+			assertEquals(65536L, xorNotInPlace.first());
+			assertEquals(65536L, xorNotInPlace.last());
+		}
+
+		@DisplayName("xor emptying the last bucket drops it, so first and last stay correct")
+		@Test
+		public void testXorEmptiesLastBucket() {
+			PersistentLongRoaringBitmap rechecked = newDefaultCtor();
+			rechecked.addLong(0L);
+			rechecked.addLong(65536L);
+
+			PersistentLongRoaringBitmap processed = newDefaultCtor();
+			processed.addLong(65536L);
+
+			PersistentLongRoaringBitmap xorNotInPlace = PersistentLongRoaringBitmap.xor(rechecked, processed);
+			rechecked.xor(processed);
+
+			assertFalse(rechecked.isEmpty());
+			assertEquals(1, rechecked.getLongCardinality());
+			assertEquals(0L, rechecked.first());
+			assertEquals(0L, rechecked.last());
+
+			assertFalse(xorNotInPlace.isEmpty());
+			assertEquals(1, xorNotInPlace.getLongCardinality());
+			assertEquals(0L, xorNotInPlace.first());
+			assertEquals(0L, xorNotInPlace.last());
+		}
+
+		@DisplayName("xor cancelling every bucket yields a bitmap equal to an empty one")
+		@Test
+		public void testXorCancellingEveryBucketIsEmpty() {
+			PersistentLongRoaringBitmap left = PersistentLongRoaringBitmap.bitmapOf(0L, 65536L, Long.MAX_VALUE);
+			PersistentLongRoaringBitmap right = PersistentLongRoaringBitmap.bitmapOf(0L, 65536L, Long.MAX_VALUE);
+
+			PersistentLongRoaringBitmap xorNotInPlace = PersistentLongRoaringBitmap.xor(left, right);
+			left.xor(right);
+
+			assertTrue(left.isEmpty());
+			assertEquals(newDefaultCtor(), left);
+			assertTrue(xorNotInPlace.isEmpty());
+			assertEquals(newDefaultCtor(), xorNotInPlace);
+		}
+
 		@DisplayName("xor of different buckets keeps both values")
 		@Test
 		public void testXorDifferentBucket() {
@@ -1396,6 +1484,36 @@ public class TestRoaring64Bitmap {
 	@Nested
 	@DisplayName("Flipping values and ranges")
 	class Flip {
+
+		@DisplayName("flip emptying the first bucket drops it, so first and last stay correct")
+		@Test
+		public void testFlipEmptiesFirstBucket() {
+			PersistentLongRoaringBitmap bitmap = newDefaultCtor();
+			bitmap.addLong(0L);
+			bitmap.addLong(65536L);
+
+			bitmap.flip(0L);
+
+			assertFalse(bitmap.isEmpty());
+			assertEquals(1, bitmap.getLongCardinality());
+			assertEquals(65536L, bitmap.first());
+			assertEquals(65536L, bitmap.last());
+		}
+
+		@DisplayName("flip emptying the last bucket drops it, so first and last stay correct")
+		@Test
+		public void testFlipEmptiesLastBucket() {
+			PersistentLongRoaringBitmap bitmap = newDefaultCtor();
+			bitmap.addLong(0L);
+			bitmap.addLong(65536L);
+
+			bitmap.flip(65536L);
+
+			assertFalse(bitmap.isEmpty());
+			assertEquals(1, bitmap.getLongCardinality());
+			assertEquals(0L, bitmap.first());
+			assertEquals(0L, bitmap.last());
+		}
 
 		@DisplayName("flip adds an absent value in the same container")
 		@Test
@@ -1594,7 +1712,7 @@ public class TestRoaring64Bitmap {
 			map.flip(0);
 
 			assertFalse(map.contains(0));
-			assertTrue(map.getLongCardinality() == 0);
+			assertEquals(0, map.getLongCardinality());
 		}
 	}
 
@@ -2804,12 +2922,12 @@ public class TestRoaring64Bitmap {
 			PersistentLongRoaringBitmap b1 = PersistentLongRoaringBitmap.bitmapOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
 			b1.runOptimize();
 			b1.or(b1);
-			assertTrue(b1.equals(PersistentLongRoaringBitmap.bitmapOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+			assertEquals(b1, PersistentLongRoaringBitmap.bitmapOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
 			b1.xor(b1);
 			assertTrue(b1.isEmpty());
 			b1 = PersistentLongRoaringBitmap.bitmapOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
 			b1.and(b1);
-			assertTrue(b1.equals(PersistentLongRoaringBitmap.bitmapOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+			assertEquals(b1, PersistentLongRoaringBitmap.bitmapOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
 			b1.andNot(b1);
 			assertTrue(b1.isEmpty());
 		}

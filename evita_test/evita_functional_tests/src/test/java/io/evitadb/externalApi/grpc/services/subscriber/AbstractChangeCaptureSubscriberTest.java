@@ -29,8 +29,11 @@ import com.linecorp.armeria.server.ServerConfig;
 import com.linecorp.armeria.server.ServiceConfig;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.configuration.ThreadPoolOptions;
+import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException;
+import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException.Reason;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.externalApi.grpc.generated.GrpcHeartBeat;
+import io.evitadb.externalApi.grpc.requestResponse.ErrorInfoConverter;
 import io.evitadb.test.TestConstants;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -58,7 +61,9 @@ import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -190,8 +195,8 @@ class AbstractChangeCaptureSubscriberTest implements TestConstants {
 		}
 
 		@Test
-		@DisplayName("onError emits the original throwable once and cancels subscription")
-		void shouldEmitOriginalErrorOnceAndCancelSubscriptionWhenOnErrorCalled() {
+		@DisplayName("onError emits the first failure once, as the status a unary call would get, and cancels subscription")
+		void shouldEmitFirstErrorOnceAsMappedStatusAndCancelSubscriptionWhenOnErrorCalled() {
 			AbstractChangeCaptureSubscriberTest.this.subscriber.onSubscribe(AbstractChangeCaptureSubscriberTest.this.subscription);
 			final RuntimeException cause = new RuntimeException("boom");
 
@@ -199,8 +204,48 @@ class AbstractChangeCaptureSubscriberTest implements TestConstants {
 			AbstractChangeCaptureSubscriberTest.this.subscriber.onError(new RuntimeException("second"));
 			AbstractChangeCaptureSubscriberTest.this.subscriber.close();
 
-			verify(AbstractChangeCaptureSubscriberTest.this.responseObserver, times(1)).onError(cause);
-			verify(AbstractChangeCaptureSubscriberTest.this.responseObserver, times(1)).onError(any());
+			final ArgumentCaptor<Throwable> emitted = ArgumentCaptor.forClass(Throwable.class);
+			verify(AbstractChangeCaptureSubscriberTest.this.responseObserver, times(1)).onError(emitted.capture());
+			// not the raw throwable any more - that reached the client as UNKNOWN with no error code; an unexpected
+			// failure maps to INTERNAL exactly like in a unary call, with the original kept as the cause
+			final StatusRuntimeException status = assertInstanceOf(StatusRuntimeException.class, emitted.getValue());
+			assertEquals(Status.Code.INTERNAL, status.getStatus().getCode());
+			assertSame(cause, status.getStatus().getCause());
+			verify(AbstractChangeCaptureSubscriberTest.this.subscription, times(1)).cancel();
+		}
+
+		@Test
+		@DisplayName("onError emits a refused resume position as INVALID_ARGUMENT whose details rebuild the exception")
+		void shouldEmitRefusedResumePositionWithRebuildableDetailsWhenOnErrorCalled() {
+			AbstractChangeCaptureSubscriberTest.this.subscriber.onSubscribe(AbstractChangeCaptureSubscriberTest.this.subscription);
+			final ChangeCaptureResumePositionInvalidException refusal = new ChangeCaptureResumePositionInvalidException(
+				Reason.OUTSIDE_RETENTION, UUID.randomUUID(), 42L, 17L, UUID.randomUUID(), 3L, 2
+			);
+
+			AbstractChangeCaptureSubscriberTest.this.subscriber.onError(refusal);
+
+			final ArgumentCaptor<Throwable> emitted = ArgumentCaptor.forClass(Throwable.class);
+			verify(AbstractChangeCaptureSubscriberTest.this.responseObserver, times(1)).onError(emitted.capture());
+			final StatusRuntimeException status = assertInstanceOf(StatusRuntimeException.class, emitted.getValue());
+			assertEquals(Status.Code.INVALID_ARGUMENT, status.getStatus().getCode());
+			assertTrue(
+				status.getStatus().getDescription() != null &&
+					status.getStatus().getDescription().endsWith(refusal.getPublicMessage()),
+				"The status description must carry the error code and the public message: " +
+					status.getStatus().getDescription()
+			);
+			// the client rebuilds the exception from the error details the status carries in its trailers
+			final ChangeCaptureResumePositionInvalidException rebuilt = assertInstanceOf(
+				ChangeCaptureResumePositionInvalidException.class, ErrorInfoConverter.toTypedException(status)
+			);
+			assertEquals(refusal.getReason(), rebuilt.getReason());
+			assertEquals(refusal.getCatalogId(), rebuilt.getCatalogId());
+			assertEquals(refusal.getCurrentCatalogVersion(), rebuilt.getCurrentCatalogVersion());
+			assertEquals(refusal.getCatalogVersion(), rebuilt.getCatalogVersion());
+			assertEquals(refusal.getRequestedCatalogId(), rebuilt.getRequestedCatalogId());
+			assertEquals(refusal.getRequestedSinceVersion(), rebuilt.getRequestedSinceVersion());
+			assertEquals(refusal.getRequestedSinceIndex(), rebuilt.getRequestedSinceIndex());
+			assertEquals(refusal.getPublicMessage(), rebuilt.getPublicMessage());
 			verify(AbstractChangeCaptureSubscriberTest.this.subscription, times(1)).cancel();
 		}
 
@@ -737,7 +782,10 @@ class AbstractChangeCaptureSubscriberTest implements TestConstants {
 
 			AbstractChangeCaptureSubscriberTest.this.subscriber.onComplete();
 
-			verify(AbstractChangeCaptureSubscriberTest.this.responseObserver, times(1)).onError(cause);
+			verify(AbstractChangeCaptureSubscriberTest.this.responseObserver, times(1))
+				.onError(argThat(
+					emitted -> emitted instanceof StatusRuntimeException sre && sre.getStatus().getCause() == cause
+				));
 			verify(AbstractChangeCaptureSubscriberTest.this.responseObserver, never()).onCompleted();
 		}
 

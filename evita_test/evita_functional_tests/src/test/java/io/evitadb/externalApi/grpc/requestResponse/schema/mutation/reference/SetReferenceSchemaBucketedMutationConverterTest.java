@@ -138,7 +138,7 @@ class SetReferenceSchemaBucketedMutationConverterTest {
 	void shouldRoundTripNullBucketedFieldsAsEmpty() {
 		final SetReferenceSchemaBucketedMutation mutation = new SetReferenceSchemaBucketedMutation(
 			"tags",
-			(ScopedHistogramIndexDefinition[]) null,
+			null,
 			null
 		);
 
@@ -286,7 +286,7 @@ class SetReferenceSchemaBucketedMutationConverterTest {
 		final Expression partialExpression = ExpressionFactory.parse("$active == 1");
 		final SetReferenceSchemaBucketedMutation mutation = new SetReferenceSchemaBucketedMutation(
 			"tags",
-			(ScopedHistogramIndexDefinition[]) null,
+			null,
 			new ScopedBucketedPartially[]{
 				new ScopedBucketedPartially(Scope.LIVE, partialExpression)
 			}

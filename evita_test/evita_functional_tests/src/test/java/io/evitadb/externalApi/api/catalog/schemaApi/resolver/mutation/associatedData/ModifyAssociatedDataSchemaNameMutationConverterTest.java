@@ -95,7 +95,7 @@ class ModifyAssociatedDataSchemaNameMutationConverterTest {
 			)
 		);
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(null));
 	}
 
 	@Test

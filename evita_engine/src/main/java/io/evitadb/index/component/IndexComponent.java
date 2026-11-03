@@ -35,7 +35,9 @@ import javax.annotation.Nonnull;
  * 2. announce the keys it owns into the shared {@link EntityIndexManifest} so the parent
  *    {@link io.evitadb.index.EntityIndex} can build a single coherent
  *    {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart}
- *    listing every sub-index that should be reloaded on catalog restart,
+ *    listing every sub-index that should be reloaded on catalog restart - on its own through
+ *    {@link #announceKeys(EntityIndexManifest)}, or together with the emission through
+ *    {@link #collectModifiedStorageParts(int, EntityIndexManifest, TrappedChanges)},
  * 3. clear its own dirty state once changes have been persisted,
  * 4. drop transactional layers it has registered with the
  *    {@link TransactionalLayerMaintainer} on commit/rollback.
@@ -60,6 +62,14 @@ public interface IndexComponent {
 	 * {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart}
 	 * needs to be written.
 	 *
+	 * **The announcing half must be {@link #announceKeys(EntityIndexManifest)} itself**, called from here, so the
+	 * manifest a flush writes and the baseline the parent captures without flushing can never drift apart.
+	 *
+	 * Collecting is a persistence step, not a read: an emitter that writes leaf pages stamps fresh page sequences
+	 * onto its leaves, clears their dirty flags and stages the next page list while it collects, so a collect whose
+	 * output is not written loses those pages for good. Call this only on the flush path that writes what it
+	 * returns.
+	 *
 	 * Implementations must not throw on a clean component — they must emit nothing
 	 * and contribute nothing to the manifest when there is no live data to advertise.
 	 *
@@ -76,6 +86,21 @@ public interface IndexComponent {
 		@Nonnull EntityIndexManifest manifest,
 		@Nonnull TrappedChanges trappedChanges
 	);
+
+	/**
+	 * Announces the keys this component currently owns into the shared `manifest`, and nothing else: it emits no
+	 * storage part and changes no state of the component. This is how the parent index captures its
+	 * change-detection baseline without flushing - when it is built (loaded from disk or copied by the commit-time
+	 * merge) and after every flush - so a component left dirty by a load-time repair keeps its pending changes for
+	 * the next flush that writes the parent.
+	 *
+	 * A component that announces nothing (its parts are addressed independently of the manifest, or it persists
+	 * nothing at all) implements this as a no-op.
+	 *
+	 * @param manifest the shared manifest into which this component announces the keys it currently owns; multiple
+	 *                 components write into the same instance
+	 */
+	void announceKeys(@Nonnull EntityIndexManifest manifest);
 
 	/**
 	 * Clears the dirty state of this component after a successful flush. Mirrors

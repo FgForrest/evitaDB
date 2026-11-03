@@ -28,7 +28,9 @@ import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
+import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
@@ -36,9 +38,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Currency;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -48,6 +53,8 @@ import java.util.Map;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.PRICE;
 import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.NumberUtils.unpackLow;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -240,8 +247,8 @@ class PriceListAndCurrencyPriceSuperIndexPagingTest {
 
 		final List<StoragePart> parts = flush(index);
 		assertEquals(1, parts.size(), "a SINGLE index emits exactly the one inline root part");
-		assertInstanceOf(PriceListAndCurrencySuperIndexStoragePart.class, parts.get(0), "the single part is the root");
-		final PriceListAndCurrencySuperIndexStoragePart root = (PriceListAndCurrencySuperIndexStoragePart) parts.get(0);
+		assertInstanceOf(PriceListAndCurrencySuperIndexStoragePart.class, parts.getFirst(), "the single part is the root");
+		final PriceListAndCurrencySuperIndexStoragePart root = (PriceListAndCurrencySuperIndexStoragePart) parts.getFirst();
 		assertFalse(root.isPaged(), "the root is the inline SINGLE shape");
 		assertEquals(10, root.getPriceRecords().length, "a SINGLE root carries every record inline");
 	}
@@ -458,6 +465,122 @@ class PriceListAndCurrencyPriceSuperIndexPagingTest {
 			return (int) parts.stream().filter(PriceListAndCurrencySuperIndexLeafPageRemoval.class::isInstance).count();
 		}
 
+	}
+
+	/**
+	 * The SINGLE loader calls the whole-array constructor, which must switch representation at exactly 64 records.
+	 */
+	@ParameterizedTest
+	@ValueSource(ints = {63, 64})
+	@DisplayName("the SINGLE constructor path keeps the 63/64 representation boundary")
+	void shouldKeepSinglePagedBoundaryThroughSingleConstructor(int count) {
+		final PriceRecordContract[] records = new PriceRecordContract[count];
+		for (int i = 0; i < count; i++) {
+			records[i] = rec(i + 1);
+		}
+		final PriceListAndCurrencyPriceSuperIndex index = new PriceListAndCurrencyPriceSuperIndex(
+			PRICE_INDEX_KEY, new RangeIndex(), records
+		);
+		assertEquals(count == 64, index.isPaged(), "The SINGLE constructor must split at exactly 64 records.");
+		assertArrayEquals(records, index.getPriceRecords());
+		index.markDirty();
+		final List<StoragePart> parts = flush(index);
+		final PriceListAndCurrencySuperIndexStoragePart root = parts.stream()
+			.filter(PriceListAndCurrencySuperIndexStoragePart.class::isInstance)
+			.map(PriceListAndCurrencySuperIndexStoragePart.class::cast).findFirst().orElseThrow();
+		assertEquals(count == 64, root.isPaged());
+		final List<PriceListAndCurrencySuperIndexLeafPagePart> leaves = parts.stream()
+			.filter(PriceListAndCurrencySuperIndexLeafPagePart.class::isInstance)
+			.map(PriceListAndCurrencySuperIndexLeafPagePart.class::cast).toList();
+		if (count == 63) {
+			assertTrue(leaves.isEmpty(), "SINGLE must emit no leaf pages.");
+			assertArrayEquals(records, root.getPriceRecords());
+		} else {
+			assertEquals(2, leaves.size());
+			assertEquals(33, leaves.get(0).getPriceRecords().length);
+			assertEquals(31, leaves.get(1).getPriceRecords().length);
+			assertArrayEquals(records, reassemble(parts).getPriceRecords());
+		}
+	}
+
+	/**
+	 * Reloads full persisted leaves, forces a middle split, applies emitted page updates and removals, then reloads
+	 * again. Unchanged pages must keep their identities and content and must never be emitted by the mutation.
+	 */
+	@Test
+	@DisplayName("reload, middle mutation, flush and reload retain unaffected page identities")
+	void shouldReloadMutateFlushAndReloadWithPageIdentities() {
+		final PriceRecordContract[] records = new PriceRecordContract[157];
+		for (int i = 0; i < records.length; i++) {
+			records[i] = rec(i * 3 + 3);
+		}
+		final int[] sequences = {7, 13, 29};
+		final PriceRecordContract[][] pages = {
+			Arrays.copyOfRange(records, 0, 63), Arrays.copyOfRange(records, 63, 126),
+			Arrays.copyOfRange(records, 126, records.length)
+		};
+		final PriceListAndCurrencyPriceSuperIndex loaded = PriceListAndCurrencyPriceSuperIndex.fromPersistedPages(
+			PRICE_INDEX_KEY, new RangeIndex(), sequences, pages, 50
+		);
+		assertTrue(flush(loaded).isEmpty(), "Reloaded pages must start clean.");
+		loaded.addPrice(rec(4), null);
+		final List<StoragePart> changes = flush(loaded);
+		final Map<Integer, PriceRecordContract[]> storedPages = createHashMap(5);
+		for (int i = 0; i < sequences.length; i++) {
+			storedPages.put(sequences[i], pages[i]);
+		}
+		PriceListAndCurrencySuperIndexStoragePart root = null;
+		int rewritten = 0;
+		final ReadWriteKeyCompressor keyCompressor = new ReadWriteKeyCompressor(Map.of());
+		for (final StoragePart change : changes) {
+			if (change instanceof PriceListAndCurrencySuperIndexStoragePart rootPart) {
+				assertNull(root, "A flush must emit one root.");
+				root = rootPart;
+			} else if (change instanceof PriceListAndCurrencySuperIndexLeafPagePart leaf) {
+				rewritten++;
+				assertNotEquals(13, leaf.getPageSequence(), "An unchanged page must not be rewritten.");
+				assertNotEquals(29, leaf.getPageSequence(), "An unchanged page must not be rewritten.");
+				storedPages.put(leaf.getPageSequence(), leaf.getPriceRecords());
+			} else if (change instanceof PriceListAndCurrencySuperIndexLeafPageRemoval removal) {
+				final int removedPageSequence = unpackLow(removal.computeUniquePartIdAndSet(keyCompressor));
+				assertEquals(7, removedPageSequence, "Only the split page can be retired.");
+				storedPages.remove(removedPageSequence);
+			} else {
+				fail("Unexpected price storage part: " + change.getClass());
+			}
+		}
+		assertNotNull(root);
+		assertEquals(2, rewritten, "Only the two split leaves must be emitted.");
+		assertEquals(4, root.getLeafPageSequences().length);
+		assertTrue(root.getHighWaterPageSequence() > 50, "New pages must advance the restored high-water mark.");
+		assertEquals(4, storedPages.size(), "Retired page identities must be removed.");
+		assertArrayEquals(pages[1], storedPages.get(13));
+		assertArrayEquals(pages[2], storedPages.get(29));
+		final PriceRecordContract[][] nextPages = new PriceRecordContract[root.getLeafPageSequences().length][];
+		for (int i = 0; i < nextPages.length; i++) {
+			nextPages[i] = storedPages.get(root.getLeafPageSequences()[i]);
+			assertNotNull(nextPages[i], "Every published page identity must resolve.");
+		}
+		final PriceListAndCurrencyPriceSuperIndex reloaded = PriceListAndCurrencyPriceSuperIndex.fromPersistedPages(
+			PRICE_INDEX_KEY, root.getValidityIndex(), root.getLeafPageSequences(), nextPages,
+			root.getHighWaterPageSequence()
+		);
+		final PriceRecordContract[] expected = new PriceRecordContract[records.length + 1];
+		expected[0] = records[0];
+		expected[1] = rec(4);
+		System.arraycopy(records, 1, expected, 2, records.length - 1);
+		assertArrayEquals(expected, reloaded.getPriceRecords());
+		for (final PriceRecordContract record : expected) {
+			assertEquals(record, reloaded.getPriceRecord(record.internalPriceId()));
+		}
+		assertTrue(flush(reloaded).isEmpty(), "The second reload must start clean as well.");
+		reloaded.markDirty();
+		final List<StoragePart> headerOnly = flush(reloaded);
+		assertEquals(1, headerOnly.size(), "A header-only flush must reuse all persisted leaf identities.");
+		assertArrayEquals(
+			root.getLeafPageSequences(),
+			((PriceListAndCurrencySuperIndexStoragePart) headerOnly.getFirst()).getLeafPageSequences()
+		);
 	}
 
 }

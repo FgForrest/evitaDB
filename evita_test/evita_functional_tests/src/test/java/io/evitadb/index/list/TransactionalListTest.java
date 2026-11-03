@@ -449,7 +449,7 @@ class TransactionalListTest {
 			assertStateAfterCommit(
 				TransactionalListTest.this.tested,
 				original -> {
-					original.remove(0);
+					original.removeFirst();
 					original.add(1, 3);
 					original.add(1, 4);
 					original.remove(1);
@@ -607,8 +607,8 @@ class TransactionalListTest {
 			assertStateAfterCommit(
 				TransactionalListTest.this.tested,
 				original -> {
-					original.remove(0);
-					original.remove(0);
+					original.removeFirst();
+					original.removeFirst();
 					original.add(3);
 					original.add(3);
 
@@ -1310,9 +1310,12 @@ class TransactionalListTest {
 
 		@Test
 		@DisplayName("equals returns false for non-List objects")
+		@SuppressWarnings({"SimplifiableAssertion", "EqualsBetweenInconvertibleTypes"})
 		void shouldNotBeEqualToNonListObject() {
-			assertNotEquals("not a list", TransactionalListTest.this.tested);
-			assertNotEquals(TransactionalListTest.this.tested, Integer.valueOf(1));
+			// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
+			// fix moves the literals there, so `String.equals` and `Integer.equals` would run instead of the list's
+			assertFalse(TransactionalListTest.this.tested.equals("not a list"));
+			assertFalse(TransactionalListTest.this.tested.equals(1));
 		}
 
 		@Test
@@ -1387,7 +1390,7 @@ class TransactionalListTest {
 				},
 				(original, committedVersion) -> {
 					assertEquals(1, committedVersion.size());
-					assertEquals(Integer.valueOf(10), committedVersion.get(0));
+					assertEquals(Integer.valueOf(10), committedVersion.getFirst());
 				}
 			);
 		}
@@ -1403,7 +1406,7 @@ class TransactionalListTest {
 				single,
 				original -> {
 					assertEquals(1, original.size());
-					assertEquals(Integer.valueOf(42), original.get(0));
+					assertEquals(Integer.valueOf(42), original.getFirst());
 					original.remove(Integer.valueOf(42));
 					assertTrue(original.isEmpty());
 					original.add(99);
@@ -1411,7 +1414,7 @@ class TransactionalListTest {
 				},
 				(original, committedVersion) -> {
 					assertEquals(1, committedVersion.size());
-					assertEquals(Integer.valueOf(99), committedVersion.get(0));
+					assertEquals(Integer.valueOf(99), committedVersion.getFirst());
 				}
 			);
 		}

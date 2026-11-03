@@ -319,6 +319,7 @@ public final class FastAggregation {
 				pq.add(x2);
 			}
 		}
+		answer.sealOwned();
 		return answer;
 	}
 
@@ -384,6 +385,7 @@ public final class FastAggregation {
 				pq.add(x2);
 			}
 		}
+		answer.sealOwned();
 		return answer;
 	}
 
@@ -451,6 +453,7 @@ public final class FastAggregation {
 				pq.add(x2);
 			}
 		}
+		answer.sealOwned();
 		return answer;
 	}
 
@@ -836,6 +839,9 @@ public final class FastAggregation {
 		while (bitmaps.hasNext()) {
 			buffer.add(bitmaps.next());
 		}
+		if (buffer.size() == 1) {
+			return PersistentRoaringBitmap.fromBitmap(buffer.get(0));
+		}
 		final long[] sizes = new long[buffer.size()];
 		final boolean[] istmp = new boolean[buffer.size()];
 		for (int k = 0; k < sizes.length; ++k) {
@@ -899,6 +905,9 @@ public final class FastAggregation {
 	public static PersistentRoaringBitmap priorityqueue_or(@Nonnull final PersistentRoaringBitmap... bitmaps) {
 		if (bitmaps.length == 0) {
 			return new PersistentRoaringBitmap();
+		}
+		if (bitmaps.length == 1) {
+			return PersistentRoaringBitmap.fromBitmap(bitmaps[0]);
 		}
 		// we buffer the call to getSizeInBytes(), hence the code complexity
 		final PersistentRoaringBitmap[] buffer = Arrays.copyOf(bitmaps, bitmaps.length);
@@ -966,6 +975,9 @@ public final class FastAggregation {
 		// This code could be faster, see priorityqueue_or
 		if (bitmaps.length == 0) {
 			return new PersistentRoaringBitmap();
+		}
+		if (bitmaps.length == 1) {
+			return PersistentRoaringBitmap.fromBitmap(bitmaps[0]);
 		}
 
 		final PriorityQueue<PersistentRoaringBitmap> pq =

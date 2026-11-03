@@ -66,6 +66,12 @@ import java.util.OptionalInt;
  * set, all sharing one reference name and one target primary key. {@link #discriminator()} does tell such a pair apart
  * and is what to display, but the key to compare is the pair above.
  *
+ * **Only physical indexes are browsed.** A reference indexed for filtering only keeps each partition that has a single
+ * owner as a row of a registry held by its `REFERENCED_ENTITY_TYPE` index rather than as a `REFERENCED_ENTITY` index
+ * of its own. Such a partition is never a row of a browse, and asking to describe an index under its primary key
+ * fails exactly as it does for a key that names no index. How many of them a reference holds is reported by
+ * {@link CollectionIndexCardinality.IndexCardinality#virtualPartitionCount()}.
+ *
  * How the readable parts are populated:
  *
  * - A **catalog** index carries no discriminator at all - all three fields are null, as is {@link #indexType()}.

@@ -1418,6 +1418,17 @@ public class HierarchyIndex
 		if (part != null) {
 			trappedChanges.addChangeToStore(part);
 		}
+		announceKeys(manifest);
+	}
+
+	/**
+	 * Component-loop entry point that announces presence into the manifest whenever this index carries any data,
+	 * without emitting anything.
+	 *
+	 * @param manifest the shared manifest gathered by the parent entity index
+	 */
+	@Override
+	public void announceKeys(@Nonnull EntityIndexManifest manifest) {
 		if (!isHierarchyIndexEmpty()) {
 			manifest.markHierarchyPresent();
 		}

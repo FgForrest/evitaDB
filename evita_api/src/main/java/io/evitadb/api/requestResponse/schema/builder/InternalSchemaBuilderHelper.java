@@ -111,7 +111,11 @@ public interface InternalSchemaBuilderHelper {
 					final T[] mutationsToGoThrough = Arrays.copyOf(mutationsToExamine, mutationsToExamine.length);
 					mutationsToExamine = null;
 					boolean discarded = false;
-					for (int i = 0; i < mutationsToGoThrough.length; i++) {
+					// a combination that queues mutations for the next round ends this one, because the rest of this
+					// round is queued with them: examining it here as well would append mutations the next round
+					// examines again, where they meet themselves and queue each other forever, and a second queueing
+					// in this round would overwrite the first one, losing the mutations it queued
+					for (int i = 0; i < mutationsToGoThrough.length && mutationsToExamine == null; i++) {
 						T examinedMutation = mutationsToGoThrough[i];
 						final Iterator<T> existingIt = existingMutations.iterator();
 						int index = -1;

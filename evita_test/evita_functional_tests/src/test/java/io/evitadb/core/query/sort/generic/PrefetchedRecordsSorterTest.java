@@ -77,10 +77,10 @@ class PrefetchedRecordsSorterTest {
 	private static final String ATTRIBUTE_NAME_SECOND = "second";
 
 	private final EntityComparator TEST_COMPARATOR_FIRST = new AttributeComparator(
-		ATTRIBUTE_NAME_FIRST, String.class, null, OrderDirection.ASC
+		ATTRIBUTE_NAME_FIRST, String.class, 0, null, OrderDirection.ASC
 	);
 	private final EntityComparator TEST_COMPARATOR_SECOND = new AttributeComparator(
-		ATTRIBUTE_NAME_SECOND, String.class, null, OrderDirection.ASC
+		ATTRIBUTE_NAME_SECOND, String.class, 0, null, OrderDirection.ASC
 	);
 	private PrefetchedRecordsSorterWithContext entitySorter;
 

@@ -355,7 +355,7 @@ public class TestRoaringBitmapOrNot {
 	public void orNotNonEmptyAgainstFullBitmap() {
 		PersistentRoaringBitmap rb = PersistentRoaringBitmap.bitmapOf(1, 0x10001, 0x20001);
 		PersistentRoaringBitmap full = new PersistentRoaringBitmap();
-		full.add((long) 0, (long) 0x40000);
+		full.add(0, (long) 0x40000);
 		rb.orNot(full, 0x30000);
 		assertEquals(PersistentRoaringBitmap.bitmapOf(1, 0x10001, 0x20001), rb);
 	}

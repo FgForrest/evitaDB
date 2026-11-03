@@ -289,7 +289,7 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 			// which price to use
 			assertTrue(
 				Set.of(2, 4).contains(
-					allPricesForSale.get(0).priceId()
+					allPricesForSale.getFirst().priceId()
 				)
 			);
 		}
@@ -401,7 +401,7 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 			final CumulatedPrice cumulatedPrice =
 				assertInstanceOf(
 					CumulatedPrice.class,
-					allPricesForSale.get(0)
+					allPricesForSale.getFirst()
 				);
 
 			// vip wins for buckets 1 & 2 (priceIds 2, 4 = 10 each); bucket 3 falls back to basic

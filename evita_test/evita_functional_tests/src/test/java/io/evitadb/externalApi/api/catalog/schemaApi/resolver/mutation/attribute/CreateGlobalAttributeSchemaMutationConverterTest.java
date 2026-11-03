@@ -161,7 +161,7 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 			"code",
 			null,
 			null,
-			(ScopedAttributeUniquenessType[]) null,
+			null,
 			null,
 			null,
 			null,

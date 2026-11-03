@@ -221,7 +221,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 			assertEquals(7, reverseCaptures.size());
 
 			// first mutation is transaction boundary mutation
-			assertInstanceOf(TransactionMutation.class, reverseCaptures.get(0).body());
+			assertInstanceOf(TransactionMutation.class, reverseCaptures.getFirst().body());
 
 			int index = Integer.MAX_VALUE;
 			for (ChangeCatalogCapture reverseCapture : reverseCaptures) {
@@ -248,7 +248,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 			assertEquals(17, reverseCaptures.size());
 
 			// first mutation is transaction boundary mutation
-			assertInstanceOf(TransactionMutation.class, reverseCaptures.get(0).body());
+			assertInstanceOf(TransactionMutation.class, reverseCaptures.getFirst().body());
 
 			int index = Integer.MAX_VALUE;
 			for (ChangeCatalogCapture reverseCapture : reverseCaptures) {
@@ -295,7 +295,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 			assertEquals(7, reverseCaptures.size());
 
 			// first mutation is transaction boundary mutation
-			assertInstanceOf(TransactionMutation.class, reverseCaptures.get(0).body());
+			assertInstanceOf(TransactionMutation.class, reverseCaptures.getFirst().body());
 
 			int index = Integer.MAX_VALUE;
 			for (ChangeCatalogCapture reverseCapture : reverseCaptures) {
@@ -641,7 +641,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 			).toList();
 
 			// the floor is inclusive: the anchor version's own header capture is the first one returned
-			assertEquals(priceTransactionHeader.version(), anchoredCaptures.get(0).version());
+			assertEquals(priceTransactionHeader.version(), anchoredCaptures.getFirst().version());
 			assertTrue(anchoredCaptures.stream().allMatch(capture -> capture.version() >= priceTransactionHeader.version()));
 			// and it is exactly the tail of the unanchored stream - nothing gained or lost by anchoring
 			assertEquals(

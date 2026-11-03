@@ -251,11 +251,9 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 	 * Bounded by the SHORTER of the two live parallel arrays. They are grown together, but by two separate
 	 * reallocations, so a reader with no happens-before edge can catch them mid-grow.
 	 *
-	 * A live run still bounds only *which slots exist*, not which of the two per-slot stores a reader has observed,
-	 * so a session-free reader can assemble a key out of two neighbouring slots while one is being written in
-	 * place. This column is the one in the family whose {@code keyAt} **validates** what it read, so such a hybrid
-	 * surfaces as a thrown {@link GenericEvitaInternalError} rather than as a stale value — see
-	 * {@code decodeDateTimeRange}.
+	 * A live run still bounds only *which slots exist*, not which of the two per-slot stores a reader has observed.
+	 * The session-free walks that take this bound never decode a key, so that does not reach them; a reader that did
+	 * decode one could assemble it out of two neighbouring slots while one is being written in place.
 	 */
 	@Override
 	public int observableLiveRun() {
@@ -480,18 +478,11 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 		}
 		// binary search over [from, to) comparing (from, to) lexicographically; the return encoding mirrors
 		// ArrayUtils.computeInsertPositionOfLongInOrderedArray exactly (empty-range ⇒ position 0, not present)
-		//
-		// `to` is the caller's `peek + 1`, read BEFORE this call, while the two bound arrays are read HERE and again
-		// on every hop through `compareAt`. A reader sharing no happens-before edge with a warm-up writer can pair a
-		// count raised by a grow with the arrays as they stood before it, so the search is bounded by what both
-		// arrays can actually serve. Re-reading them later inside `compareAt` is safe under that bound because the
-		// column never shrinks an array in place - a grow republishes a longer one and a shrink only lowers `size`.
-		final int bound = Math.min(to, Math.min(this.from.length, this.to.length));
-		if (bound <= from) {
+		if (to <= from) {
 			return new InsertionPosition(0, false);
 		}
 		int low = from;
-		int high = bound - 1;
+		int high = to - 1;
 		while (low <= high) {
 			final int mid = (low + high) >>> 1;
 			final int cmp = compareAt(mid, probeFrom, probeTo);
@@ -631,10 +622,10 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 	 * encoded from.
 	 *
 	 * An inverted pair is refused up front. No {@link DateTimeRange} can carry one — its own factories validate the
-	 * bounds — so seeing one means the two per-slot loads did not come from one slot: a session-free reader
-	 * assembled a hybrid key out of a column being shifted in place. Left to {@code DateTimeRange.between}, that
-	 * would surface as a client-facing {@code EvitaInvalidUsageException} blaming the caller's bounds, out of a read
-	 * the column contract promises will merely under-report.
+	 * bounds — so seeing one means the two per-slot loads did not come from one slot: the column is corrupt, or a
+	 * reader assembled a hybrid key out of a column being shifted in place, which no production reader does. Left
+	 * to {@code DateTimeRange.between}, either would surface as a client-facing {@code EvitaInvalidUsageException}
+	 * blaming the caller's bounds, rather than as the internal error it is.
 	 *
 	 * @param lower the stored lower comparison bound
 	 * @param upper the stored upper comparison bound

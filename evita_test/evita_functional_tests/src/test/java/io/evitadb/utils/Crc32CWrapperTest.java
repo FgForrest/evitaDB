@@ -88,7 +88,7 @@ class Crc32CWrapperTest {
 	@DisplayName("Should handle null boxed Long as zero")
 	void shouldHandleNullBoxedLongAsZero() {
 		final Crc32CWrapper calculator = new Crc32CWrapper();
-		calculator.withLong((Long) null);
+		calculator.withLong(null);
 		final long result = calculator.getValue();
 
 		final CRC32C expected = new CRC32C();
@@ -166,7 +166,7 @@ class Crc32CWrapperTest {
 	@DisplayName("Should handle null boxed Integer as zero")
 	void shouldHandleNullBoxedIntegerAsZero() {
 		final Crc32CWrapper calculator = new Crc32CWrapper();
-		calculator.withInt((Integer) null);
+		calculator.withInt(null);
 		final long result = calculator.getValue();
 
 		final CRC32C expected = new CRC32C();
@@ -242,7 +242,7 @@ class Crc32CWrapperTest {
 	@DisplayName("Should handle null boxed Byte as zero")
 	void shouldHandleNullBoxedByteAsZero() {
 		final Crc32CWrapper calculator = new Crc32CWrapper();
-		calculator.withByte((Byte) null);
+		calculator.withByte(null);
 		final long result = calculator.getValue();
 
 		final CRC32C expected = new CRC32C();

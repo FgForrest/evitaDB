@@ -148,7 +148,7 @@ public class PriceListAndCurrencyPriceSuperIndex
 	 * page identities. Builds one leaf per persisted page (so in-memory leaf *i* is byte-identical to persisted page
 	 * *i*), stamps each leaf with its persisted page sequence, then derives the entity-id / price-id bitmaps and the
 	 * `entityPrices` map from the reassembled records and restores the page-stream bookkeeping (high-water + the
-	 * live-page set). The reconstructed leaves are flagged dirty by the replaying inserts and cleared afterwards because
+	 * live-page set). The reconstructed leaves are flagged dirty by construction and cleared afterwards because
 	 * they are exactly what is already on disk — a boundary-stable reload: a subsequent no-mutation commit rewrites
 	 * nothing, and the first real mutation rewrites only genuinely-changed leaves instead of re-paginating the whole
 	 * index.
@@ -177,7 +177,8 @@ public class PriceListAndCurrencyPriceSuperIndex
 		final List<TransactionalElementBPlusTree<PriceRecordContract>> pageTrees =
 			new ArrayList<>(orderedPageSequences.length);
 		for (final PriceRecordContract[] pageRecords : perPagePriceRecords) {
-			TransactionalElementBPlusTree<PriceRecordContract> pageTree = newPriceRecordTree(pageRecords);
+			final TransactionalElementBPlusTree<PriceRecordContract> pageTree =
+				newPriceRecordTree(pageRecords, priceIndexKey);
 			pageTrees.add(pageTree);
 		}
 		// assemble the spine over the per-page leaves, preserving boundaries and stamping each leaf's page sequence
@@ -432,7 +433,7 @@ public class PriceListAndCurrencyPriceSuperIndex
 	 *
 	 * Publishing a staged set HERE — rather than only at the merge — is correct for every path, because of one
 	 * invariant: **a failed flush is never followed by another flush of the same data**. Note that this publish runs at
-	 * COLLECT time, before this flush has written anything (the baseline-capture pass re-enters this pipeline), so it
+	 * COLLECT time, before this flush has written anything, so it
 	 * cannot lean on the previous flush's bytes having landed by now. It does not need to: a flush that fails during
 	 * trunk incorporation SUSPENDS the catalog's transaction processing ({@code TransactionManager.suspend}), and a
 	 * flush that fails on the warm-up path makes the catalog UNPUBLISHABLE

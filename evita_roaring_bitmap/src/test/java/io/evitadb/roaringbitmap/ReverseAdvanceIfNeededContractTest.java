@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -55,7 +56,7 @@ public class ReverseAdvanceIfNeededContractTest {
 		// two values only - comfortably under DEFAULT_MAX_SIZE, so the container stays an array
 		final PersistentRoaringBitmap bitmap = PersistentRoaringBitmap.bitmapOf(1000, 2000);
 		final Container container = singleContainerOf(bitmap);
-		assertTrue(container instanceof ArrayContainer, "fixture must produce an array container");
+		assertInstanceOf(ArrayContainer.class, container, "fixture must produce an array container");
 
 		final PeekableCharIterator iterator = container.getReverseCharIterator();
 		iterator.advanceIfNeeded((char) 500);
@@ -73,13 +74,33 @@ public class ReverseAdvanceIfNeededContractTest {
 			bitmap.add(value);
 		}
 		final Container container = singleContainerOf(bitmap);
-		assertTrue(container instanceof BitmapContainer, "fixture must produce a bitmap container");
+		assertInstanceOf(BitmapContainer.class, container, "fixture must produce a bitmap container");
 
 		final PeekableCharIterator iterator = container.getReverseCharIterator();
 		iterator.advanceIfNeeded((char) 4000);
 
 		assertAtOrBelow(iterator, (char) 4000);
 		assertFalse(iterator.hasNext(), "no value is at or below 4000, so the cursor must be exhausted");
+	}
+
+	@Test
+	@DisplayName("Bitmap container: the descent reads word 0, so a value stored there is found")
+	public void bitmapContainerSeekDescendsIntoWordZero() {
+		// one value in word 0, then enough values far above the bound to force a bitmap container
+		final PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
+		bitmap.add(5);
+		for (int value = 5000; value <= 9200; value++) {
+			bitmap.add(value);
+		}
+		final Container container = singleContainerOf(bitmap);
+		assertTrue(container instanceof BitmapContainer, "fixture must produce a bitmap container");
+
+		final PeekableIntIterator iterator = bitmap.getReverseIntIterator();
+		iterator.advanceIfNeeded(4000);
+
+		assertTrue(iterator.hasNext(), "value 5 is at or below the bound, so iteration must continue");
+		assertEquals(5, iterator.peekNext());
+		assertEquals(5, iterator.next());
 	}
 
 	@Test
@@ -90,7 +111,7 @@ public class ReverseAdvanceIfNeededContractTest {
 		bitmap.add(5000L, 9000L);
 		assertTrue(bitmap.runOptimize(), "fixture must collapse into a run container");
 		final Container container = singleContainerOf(bitmap);
-		assertTrue(container instanceof RunContainer, "fixture must produce a run container");
+		assertInstanceOf(RunContainer.class, container, "fixture must produce a run container");
 
 		final PeekableCharIterator iterator = container.getReverseCharIterator();
 		iterator.advanceIfNeeded((char) 4000);

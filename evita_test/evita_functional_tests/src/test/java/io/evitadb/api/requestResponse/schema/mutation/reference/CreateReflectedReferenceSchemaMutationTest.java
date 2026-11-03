@@ -250,6 +250,62 @@ class CreateReflectedReferenceSchemaMutationTest {
 		}
 
 		@Test
+		@DisplayName("should make declared indexed components inherited when the re-created reference inherits them")
+		void shouldMakeDeclaredIndexedComponentsInheritedWhenRecreatedReferenceInheritsThem() {
+			// the re-created reference inherits its index types and its components
+			final CreateReflectedReferenceSchemaMutation mutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"reflectedDescription", "reflectedDeprecationNotice",
+					Cardinality.ZERO_OR_MORE,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					null,
+					null,
+					new Scope[]{Scope.LIVE},
+					null, null, null,
+					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+					null
+				);
+			// the existing reflected reference declares its index types and its components
+			final ReflectedReferenceSchema existingReflected = (ReflectedReferenceSchema) createExistingReflectedReferenceSchema()
+				.withIndexedComponents(
+					new ScopedReferenceIndexedComponents[]{
+						new ScopedReferenceIndexedComponents(
+							Scope.DEFAULT_SCOPE,
+							new ReferenceIndexedComponents[]{
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							}
+						)
+					}
+				);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReference(REFERENCE_NAME)).thenReturn(of(existingReflected));
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
+				Mockito.mock(CatalogSchemaContract.class), entitySchema, new RemoveReferenceSchemaMutation(REFERENCE_NAME)
+			);
+
+			assertNotNull(result);
+			assertNotNull(result.current());
+			final List<SetReferenceSchemaIndexedMutation> indexedMutations = Arrays.stream(result.current())
+				.filter(SetReferenceSchemaIndexedMutation.class::isInstance)
+				.map(SetReferenceSchemaIndexedMutation.class::cast)
+				.toList();
+			assertFalse(indexedMutations.isEmpty());
+			// applied in order, as the server applies them, the mutations make both the index types and the components
+			// inherited, as the re-created reference has them
+			ReferenceSchemaContract applied = existingReflected;
+			for (SetReferenceSchemaIndexedMutation indexedMutation : indexedMutations) {
+				applied = indexedMutation.mutate(entitySchema, applied);
+			}
+			final ReflectedReferenceSchemaContract recreated = (ReflectedReferenceSchemaContract) applied;
+			assertTrue(recreated.isIndexedInherited(), String.valueOf(indexedMutations));
+			assertTrue(recreated.isIndexedComponentsInherited(), String.valueOf(indexedMutations));
+		}
+
+		@Test
 		@DisplayName("should not combine when removal targets different reference")
 		void shouldNotCombineWhenRemovalTargetsDifferentReference() {
 			final CreateReflectedReferenceSchemaMutation mutation =
@@ -519,6 +575,62 @@ class CreateReflectedReferenceSchemaMutationTest {
 				"assignedWhen-only diff on reflected reference must still emit a "
 					+ "SetReferenceSchemaBucketedMutation"
 			);
+		}
+
+		@Test
+		@DisplayName("should keep both the removal and the creation when the re-created reference reflects another one")
+		void shouldNotCombineWhenRecreatedReferenceReflectsAnotherReference() {
+			// no mutation can redirect a reflected reference, so the pair cannot be turned into modifications
+			final CreateReflectedReferenceSchemaMutation mutation = new CreateReflectedReferenceSchemaMutation(
+				REFERENCE_NAME, "reflectedDescription", "reflectedDeprecationNotice", Cardinality.ZERO_OR_MORE,
+				REFERENCE_TYPE, "anotherOriginalRef", false, AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED, null
+			);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReference(REFERENCE_NAME)).thenReturn(of(createExistingReflectedReferenceSchema()));
+
+			assertNull(
+				mutation.combineWith(
+					Mockito.mock(CatalogSchemaContract.class), entitySchema, new RemoveReferenceSchemaMutation(REFERENCE_NAME)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should compare what the references declare, not the values they inherit")
+		void shouldCompareDeclaredValuesOfReflectedReferences() {
+			// the stored reference inherits its description, deprecation and cardinality and is not bound to its
+			// original, so none of the inherited values is available
+			final ReflectedReferenceSchema existingReflected = ReflectedReferenceSchema._internalBuild(
+				REFERENCE_NAME, null, null, REFERENCE_TYPE, REFLECTED_REFERENCE_NAME, null,
+				null, null, null, null, null, null,
+				Collections.emptyMap(), Collections.emptyMap(),
+				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT, null
+			);
+			final CreateReflectedReferenceSchemaMutation mutation = new CreateReflectedReferenceSchemaMutation(
+				REFERENCE_NAME, "declaredDescription", null, null,
+				REFERENCE_TYPE, REFLECTED_REFERENCE_NAME,
+				null, null, null, null, null, null,
+				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED, new String[]{"code"}
+			);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReference(REFERENCE_NAME)).thenReturn(of(existingReflected));
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
+				Mockito.mock(CatalogSchemaContract.class), entitySchema, new RemoveReferenceSchemaMutation(REFERENCE_NAME)
+			);
+
+			assertNotNull(result);
+			assertNull(result.origin());
+			assertNotNull(result.current());
+			final List<LocalEntitySchemaMutation> changes = Arrays.asList(result.current());
+			assertEquals(2, changes.size(), changes::toString);
+			final ModifyReferenceSchemaDescriptionMutation descriptionChange =
+				assertInstanceOf(ModifyReferenceSchemaDescriptionMutation.class, changes.get(0));
+			assertEquals("declaredDescription", descriptionChange.getDescription());
+			final ModifyReflectedReferenceAttributeInheritanceSchemaMutation inheritanceChange =
+				assertInstanceOf(ModifyReflectedReferenceAttributeInheritanceSchemaMutation.class, changes.get(1));
+			assertEquals(AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED, inheritanceChange.getAttributeInheritanceBehavior());
+			assertArrayEquals(new String[]{"code"}, inheritanceChange.getAttributeInheritanceFilter());
 		}
 	}
 
@@ -811,7 +923,7 @@ class CreateReflectedReferenceSchemaMutationTest {
 			);
 
 			assertEquals(1, keys.size());
-			assertInstanceOf(CollectionConflictKey.class, keys.get(0));
+			assertInstanceOf(CollectionConflictKey.class, keys.getFirst());
 		}
 
 		@Test

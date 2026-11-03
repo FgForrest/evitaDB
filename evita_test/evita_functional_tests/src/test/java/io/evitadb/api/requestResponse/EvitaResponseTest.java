@@ -570,11 +570,14 @@ class EvitaResponseTest {
 		 */
 		@Test
 		@DisplayName("is not equal to null")
+		@SuppressWarnings({"SimplifiableAssertion", "ObjectEqualsNull"})
 		void shouldNotEqualNull() {
 			final EvitaEntityResponse<SealedEntity> response =
 				createEmptyResponse(createBrandQuery());
 
-			assertNotEquals(null, response);
+			// deliberately not `assertNotEquals`: with `null` as its first argument it calls no `equals` at all, so
+			// the null check of the class under test would never run
+			assertFalse(response.equals(null));
 		}
 
 		/**
@@ -582,11 +585,14 @@ class EvitaResponseTest {
 		 */
 		@Test
 		@DisplayName("is not equal to different type")
+		@SuppressWarnings({"SimplifiableAssertion", "EqualsBetweenInconvertibleTypes"})
 		void shouldNotEqualDifferentType() {
 			final EvitaEntityResponse<SealedEntity> response =
 				createEmptyResponse(createBrandQuery());
 
-			assertNotEquals("string", response);
+			// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
+			// fix moves the literal there, so `String.equals` would be tested instead of the class under test
+			assertFalse(response.equals("string"));
 		}
 
 		/**

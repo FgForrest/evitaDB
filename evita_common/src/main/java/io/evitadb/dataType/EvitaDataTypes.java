@@ -28,17 +28,18 @@ import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.dataType.expression.ExpressionNode;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import io.evitadb.utils.NumberUtils;
+import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -51,7 +52,6 @@ import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 
 import static io.evitadb.utils.MemoryMeasuringConstants.*;
 
@@ -99,6 +99,9 @@ import static io.evitadb.utils.MemoryMeasuringConstants.*;
  * it reaches the same guarantee by *comparing* at the millisecond while keeping its bounds exactly as given, so
  * `getPreciseFrom()` / `getPreciseTo()` hand a client back what it supplied. Truncating range bounds here would
  * change that and buy nothing — see `DateTimeRange`'s "Comparison granularity" section
+ * - **Bounded moments:** Clamps an `OffsetDateTime` or `LocalDateTime` lying outside the window of moments
+ * expressible as epoch milliseconds in a 64-bit `long` (roughly +/- 292 million years) to the nearest edge of that
+ * window, so the JDK sentinels (`OffsetDateTime.MAX`, `LocalDateTime.MIN`, ...) are usable as "forever" markers
  * - **Null-safe:** Returns null unchanged rather than throwing exceptions
  * - **Flexible parsing:** Date/time converters try multiple ISO-8601 formats before failing
  * - **Array support:** All single-valued types also support array forms (e.g., Integer[])
@@ -159,14 +162,28 @@ public class EvitaDataTypes {
 	 */
 	private static final long MAX_SUPPORTED_EPOCH_SECOND = Long.MAX_VALUE / 1_000L - 1L;
 	/**
-	 * Human-readable form of the instant range delimited by {@link #MIN_SUPPORTED_EPOCH_SECOND} and
-	 * {@link #MAX_SUPPORTED_EPOCH_SECOND}, quoted in the message of the exception that rejects a value outside it.
-	 * The range spans roughly +/- 292 million years, so only the JDK sentinels (`LocalDateTime.MIN` / `MAX` and
-	 * their `OffsetDateTime` counterparts) fall outside it.
+	 * The earliest moment evitaDB holds - the first millisecond of {@link #MIN_SUPPORTED_EPOCH_SECOND}. An earlier
+	 * temporal value is clamped to it as it enters.
 	 */
-	private static final String SUPPORTED_MOMENT_RANGE =
-		LocalDateTime.ofEpochSecond(MIN_SUPPORTED_EPOCH_SECOND, 0, ZoneOffset.UTC) + "Z .. " +
-			LocalDateTime.ofEpochSecond(MAX_SUPPORTED_EPOCH_SECOND, 0, ZoneOffset.UTC) + "Z";
+	private static final Instant EARLIEST_SUPPORTED_INSTANT = Instant.ofEpochSecond(MIN_SUPPORTED_EPOCH_SECOND);
+	/**
+	 * The latest moment evitaDB holds - the last whole millisecond of {@link #MAX_SUPPORTED_EPOCH_SECOND}. It is the
+	 * greatest value the window admits, so a clamped value never sorts below a value that was accepted unchanged.
+	 */
+	private static final Instant LATEST_SUPPORTED_INSTANT =
+		Instant.ofEpochSecond(MAX_SUPPORTED_EPOCH_SECOND, 999L * NANOS_PER_MILLISECOND);
+	/**
+	 * {@link #EARLIEST_SUPPORTED_INSTANT} as the wall clock at UTC - the edge an earlier `LocalDateTime` is clamped
+	 * to, `LocalDateTime` being anchored at UTC everywhere evitaDB turns it into an instant.
+	 */
+	private static final LocalDateTime EARLIEST_SUPPORTED_LOCAL_DATE_TIME =
+		LocalDateTime.ofInstant(EARLIEST_SUPPORTED_INSTANT, ZoneOffset.UTC);
+	/**
+	 * {@link #LATEST_SUPPORTED_INSTANT} as the wall clock at UTC - the counterpart of
+	 * {@link #EARLIEST_SUPPORTED_LOCAL_DATE_TIME}.
+	 */
+	private static final LocalDateTime LATEST_SUPPORTED_LOCAL_DATE_TIME =
+		LocalDateTime.ofInstant(LATEST_SUPPORTED_INSTANT, ZoneOffset.UTC);
 	/**
 	 * Unmodifiable set of all data types directly supported by evitaDB. This includes primitive
 	 * types and their wrappers, date/time types, ranges, locales, currencies, UUIDs, and
@@ -197,16 +214,9 @@ public class EvitaDataTypes {
 	 */
 	private static final char CHAR_STRING_DELIMITER = '\'';
 	/**
-	 * String representation of the single-quote delimiter used in EvitaQL. Used in conjunction
-	 * with `STRING_DELIMITER_PATTERN` for escaping embedded quotes in string values.
+	 * The hexadecimal digits of the Unicode escape a control character without an escape of its own is written as.
 	 */
-	private static final String STRING_DELIMITER ="" + CHAR_STRING_DELIMITER;
-	/**
-	 * Compiled regex pattern for matching and escaping single-quote delimiters in string values.
-	 * Used by `formatValue()` to escape embedded quotes (e.g., `it's` becomes `it\'s`) when
-	 * formatting strings for EvitaQL query syntax.
-	 */
-	private static final Pattern STRING_DELIMITER_PATTERN = Pattern.compile(STRING_DELIMITER);
+	private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
 	/**
 	 * Parser function that attempts to parse a string to `OffsetDateTime` using ISO-8601 format
 	 * (`DateTimeFormatter.ISO_OFFSET_DATE_TIME`). Returns `null` on parse failure rather than
@@ -324,10 +334,12 @@ public class EvitaDataTypes {
 	 * Conversion function for coercing arbitrary objects to `Character`. Returns `Character`
 	 * inputs unchanged. For `Number` inputs, converts to an integer and validates range
 	 * (0-65535, the valid Unicode code point range for char); throws if out of bounds. For string
-	 * inputs, accepts single-character strings, or three-character single-quoted literals like
-	 * `'A'` (strips quotes). Throws `InconvertibleDataTypeException` for multi-character strings
-	 * or out-of-range numeric values. Used by `convertSingleObject` when target type is
-	 * `Character` or `char`.
+	 * inputs, accepts single-character strings, three-character single-quoted literals like
+	 * `'A'` (strips quotes), and single-quoted literals of one escaped character as `formatValue`
+	 * writes them, like `'\\'` or `'\n'`. The three-character form is read first, because older
+	 * versions wrote the backslash unescaped as `'\'`. Throws `InconvertibleDataTypeException` for
+	 * multi-character strings, malformed escapes or out-of-range numeric values. Used by
+	 * `convertSingleObject` when target type is `Character` or `char`.
 	 */
 	private static final BiFunction<Class<?>, Serializable, Character>
 		CHAR_FUNCTION =
@@ -351,6 +363,21 @@ public class EvitaDataTypes {
 					// handle single-quoted character literal from EvitaQL, e.g., 'A'
 				} else if (str.length() == 3 && str.charAt(0) == '\'' && str.charAt(2) == '\'') {
 					return str.charAt(1);
+				} else if (
+					str.length() > 3 && str.charAt(0) == '\'' && str.charAt(1) == '\\' &&
+						str.charAt(str.length() - 1) == '\''
+				) {
+					// one escaped character, as `formatValue` writes a backslash, an apostrophe or a control character
+					final String unescaped;
+					try {
+						unescaped = StringUtils.translateEscapes(str.substring(1, str.length() - 1));
+					} catch (IllegalArgumentException | IndexOutOfBoundsException ex) {
+						throw new InconvertibleDataTypeException(requestedType, unknownObject);
+					}
+					if (unescaped.length() != 1) {
+						throw new InconvertibleDataTypeException(requestedType, unknownObject);
+					}
+					return unescaped.charAt(0);
 				} else {
 					throw new InconvertibleDataTypeException(requestedType, unknownObject);
 				}
@@ -945,9 +972,9 @@ public class EvitaDataTypes {
 	 *
 	 * Knowing that a value's *type* is supported is not enough to conclude the *value* is already normal:
 	 * `OffsetDateTime`, `LocalDateTime` and `LocalTime` are supported types whose values are still truncated to
-	 * whole milliseconds and checked against the representable instant range. A caller that skips normalization
-	 * for them lets a query probe keep sub-millisecond digits the stored value no longer has, and the two never
-	 * meet again.
+	 * whole milliseconds and clamped to the representable instant range. A caller that skips normalization
+	 * for them lets a query probe keep sub-millisecond digits - or an instant beyond the range - the stored value
+	 * no longer has, and the two never meet again.
 	 *
 	 * Arrays are deliberately reported as *not* requiring normalization - the scalar
 	 * {@link #toSupportedType(Serializable)} rejects them outright, and callers holding arrays use
@@ -974,8 +1001,9 @@ public class EvitaDataTypes {
 	 *
 	 * - Returns `null` unchanged (nulls are allowed)
 	 * - Normalizes `Float` and `Double` to `BigDecimal` (throws if NaN or Infinite)
-	 * - Truncates `OffsetDateTime`, `LocalDateTime` and `LocalTime` to whole milliseconds and rejects a moment
-	 * that cannot be expressed as epoch milliseconds in a 64-bit `long`
+	 * - Truncates `OffsetDateTime`, `LocalDateTime` and `LocalTime` to whole milliseconds and clamps a moment
+	 * that cannot be expressed as epoch milliseconds in a 64-bit `long` to the nearest edge of that window - see
+	 * {@link #clampToSupportedWindow(OffsetDateTime)}
 	 * - Normalizes `LocalDateTime` to `OffsetDateTime` at UTC
 	 * - Passes through supported types unchanged (String, primitives, wrappers, BigDecimal,
 	 * OffsetDateTime, LocalDate, LocalTime, ranges, Locale, Currency, UUID, Predecessor,
@@ -998,7 +1026,6 @@ public class EvitaDataTypes {
 	 * @return normalized value, or `null` if input is `null`
 	 * @throws UnsupportedDataTypeException if the type is not supported by evitaDB (includes Float
 	 *                                      and Double with NaN/Infinite values)
-	 * @throws EvitaInvalidUsageException   if a temporal value lies outside the range evitaDB can represent
 	 */
 	@Nullable
 	public static Serializable toSupportedType(@Nullable Serializable unknownObject) throws UnsupportedDataTypeException {
@@ -1019,14 +1046,13 @@ public class EvitaDataTypes {
 	 *
 	 * Query values deliberately keep the rewrite; see {@link #toSupportedType(Serializable)}.
 	 *
-	 * The truncation of temporal values to whole milliseconds is **not** an exception - it applies here exactly as
-	 * it does on the query path, which is the entire point: the stored value and the probe that looks for it are
-	 * cut to the same precision, so they still compare equal.
+	 * The truncation of temporal values to whole milliseconds, and their clamping to the representable window, are
+	 * **not** exceptions - they apply here exactly as they do on the query path, which is the entire point: the
+	 * stored value and the probe that looks for it are cut and clamped alike, so they still compare equal.
 	 *
 	 * @param unknownObject the value to validate and normalize
 	 * @return normalized value, or `null` if input is `null`
 	 * @throws UnsupportedDataTypeException if the type is not supported by evitaDB
-	 * @throws EvitaInvalidUsageException   if a temporal value lies outside the range evitaDB can represent
 	 */
 	@Nullable
 	public static Serializable toSupportedStoredType(
@@ -1045,7 +1071,6 @@ public class EvitaDataTypes {
 	 *                                type it already is
 	 * @return normalized value, or `null` if input is `null`
 	 * @throws UnsupportedDataTypeException if the type is not supported by evitaDB
-	 * @throws EvitaInvalidUsageException   if a temporal value lies outside the range evitaDB can represent
 	 */
 	@Nullable
 	private static Serializable toSupportedType(
@@ -1069,18 +1094,16 @@ public class EvitaDataTypes {
 			return new BigDecimal(unknownObject.toString());
 		} else if (unknownObject instanceof OffsetDateTime offsetDateTime) {
 			// temporal values are handled at millisecond precision - sub-millisecond digits are discarded here so
-			// that a stored value and a query probe derived from the same instant still meet
-			final OffsetDateTime truncated = truncateToMilliseconds(offsetDateTime);
-			assertRepresentableAsEpochMilliseconds(truncated.toEpochSecond(), truncated);
-			return truncated;
+			// that a stored value and a query probe derived from the same instant still meet; a moment beyond the
+			// representable window is clamped to its edge for the same reason
+			return clampToSupportedWindow(truncateToMilliseconds(offsetDateTime));
 		} else if (unknownObject instanceof LocalDateTime localDateTime) {
-			final LocalDateTime truncated = truncateToMilliseconds(localDateTime);
-			assertRepresentableAsEpochMilliseconds(truncated.toEpochSecond(ZoneOffset.UTC), truncated);
+			final LocalDateTime normalized = clampToSupportedWindow(truncateToMilliseconds(localDateTime));
 			// always convert local date time to zoned - on the query path only, a stored value must
 			// keep the type its attribute schema declares
-			return coerceLocalDateTime ? truncated.atOffset(ZoneOffset.UTC) : truncated;
+			return coerceLocalDateTime ? normalized.atOffset(ZoneOffset.UTC) : normalized;
 		} else if (unknownObject instanceof LocalTime localTime) {
-			// a local time carries no date, so its instant can never leave the representable range
+			// a local time carries no date, so its instant can never leave the representable window
 			return truncateToMilliseconds(localTime);
 		} else if (unknownObject.getClass().isEnum()) {
 			return unknownObject.getClass().isAnnotationPresent(SupportedEnum.class) ?
@@ -1136,26 +1159,83 @@ public class EvitaDataTypes {
 	}
 
 	/**
-	 * Verifies that a temporal value can be expressed as a whole number of milliseconds since the epoch held in a
-	 * 64-bit `long` - the representation evitaDB's temporal indexes are built on.
+	 * Clamps the passed moment to the window of moments evitaDB can hold - those expressible as a whole number of
+	 * milliseconds since the epoch in a 64-bit `long`, the representation its temporal indexes are built on. The
+	 * window spans roughly +/- 292 million years, so in practice only the JDK sentinels (`OffsetDateTime.MIN` /
+	 * `MAX`) and values derived from them fall outside it.
 	 *
-	 * The verification is a plain bounds comparison rather than a `try` / `catch` around
-	 * {@link java.time.Instant#toEpochMilli()}: exceptions are not used for control flow here, and multiplying the
-	 * epoch second by 1000 is the only step that can overflow. The rejection happens at the data-type boundary on
-	 * purpose - whether a value is acceptable must not depend on whether the attribute carrying it happens to be
-	 * indexed.
+	 * The rule:
 	 *
-	 * @param epochSecond the value's moment expressed in whole seconds since the epoch
-	 * @param value       the value being validated, quoted in the rejection message
-	 * @throws EvitaInvalidUsageException when the moment lies outside the representable range
+	 * - a moment after the window becomes {@link #LATEST_SUPPORTED_INSTANT}, a moment before it becomes
+	 *   {@link #EARLIEST_SUPPORTED_INSTANT} - both whole milliseconds that `Instant#toEpochMilli` accepts, so the
+	 *   clamped value encodes into every index without overflow
+	 * - the **instant** is clamped and the **offset** is kept: `OffsetDateTime.MAX` (offset `-18:00`) becomes the
+	 *   latest supported instant seen at `-18:00`. Every offset is representable at either edge, because the
+	 *   window lies hundreds of millions of years inside the range `LocalDateTime` can express
+	 * - a moment inside the window is returned as the very same instance
+	 *
+	 * Clamping rather than refusing is what keeps the sentinels usable as "forever" markers - a gRPC client
+	 * sending the end of its own calendar arrives here as `OffsetDateTime.MAX` - and it happens on the write path
+	 * and the query path alike, so `attributeEquals(a, OffsetDateTime.MAX)` finds a value stored as
+	 * `OffsetDateTime.MAX`. The comparison is a plain bounds check: exceptions are not used for control flow, and
+	 * multiplying the epoch second by 1000 is the only step that could overflow.
+	 *
+	 * The method is public because stored data written before the window existed must be brought into it by the
+	 * storage migration. It clamps only and never truncates, so a caller that wants the millisecond granularity of
+	 * {@link #toSupportedType(Serializable)} must truncate first.
+	 *
+	 * @param value the moment to clamp
+	 * @return the moment itself when it lies inside the window, otherwise the nearest edge at the moment's offset
 	 */
-	private static void assertRepresentableAsEpochMilliseconds(long epochSecond, @Nonnull Serializable value) {
-		if (epochSecond < MIN_SUPPORTED_EPOCH_SECOND || epochSecond > MAX_SUPPORTED_EPOCH_SECOND) {
-			throw new EvitaInvalidUsageException(
-				"The temporal value `" + value + "` lies outside the range evitaDB is able to represent. " +
-					"Temporal values are handled as a whole number of milliseconds since the epoch stored in a " +
-					"64-bit long, which spans " + SUPPORTED_MOMENT_RANGE + "."
-			);
+	@Nonnull
+	public static OffsetDateTime clampToSupportedWindow(@Nonnull OffsetDateTime value) {
+		final long epochSecond = value.toEpochSecond();
+		if (epochSecond > MAX_SUPPORTED_EPOCH_SECOND) {
+			return OffsetDateTime.ofInstant(LATEST_SUPPORTED_INSTANT, value.getOffset());
+		} else if (epochSecond < MIN_SUPPORTED_EPOCH_SECOND) {
+			return OffsetDateTime.ofInstant(EARLIEST_SUPPORTED_INSTANT, value.getOffset());
+		} else {
+			return value;
+		}
+	}
+
+	/**
+	 * The `LocalDateTime` twin of {@link #clampToSupportedWindow(OffsetDateTime)}. The wall clock is read at UTC -
+	 * the anchor evitaDB uses wherever it turns a `LocalDateTime` into an instant - so the edges are
+	 * {@link #EARLIEST_SUPPORTED_LOCAL_DATE_TIME} and {@link #LATEST_SUPPORTED_LOCAL_DATE_TIME}.
+	 *
+	 * @param value the local date-time to clamp
+	 * @return the local date-time itself when it lies inside the window, otherwise the nearest edge
+	 */
+	@Nonnull
+	public static LocalDateTime clampToSupportedWindow(@Nonnull LocalDateTime value) {
+		final long epochSecond = value.toEpochSecond(ZoneOffset.UTC);
+		if (epochSecond > MAX_SUPPORTED_EPOCH_SECOND) {
+			return LATEST_SUPPORTED_LOCAL_DATE_TIME;
+		} else if (epochSecond < MIN_SUPPORTED_EPOCH_SECOND) {
+			return EARLIEST_SUPPORTED_LOCAL_DATE_TIME;
+		} else {
+			return value;
+		}
+	}
+
+	/**
+	 * The `Instant` twin of {@link #clampToSupportedWindow(OffsetDateTime)}. An `Instant` read from a legacy index
+	 * may lie beyond what an `OffsetDateTime` can express at all, so the clamp compares epoch seconds and never
+	 * converts the value.
+	 *
+	 * @param value the instant to clamp
+	 * @return the instant itself when it lies inside the window, otherwise the nearest edge
+	 */
+	@Nonnull
+	public static Instant clampToSupportedWindow(@Nonnull Instant value) {
+		final long epochSecond = value.getEpochSecond();
+		if (epochSecond > MAX_SUPPORTED_EPOCH_SECOND) {
+			return LATEST_SUPPORTED_INSTANT;
+		} else if (epochSecond < MIN_SUPPORTED_EPOCH_SECOND) {
+			return EARLIEST_SUPPORTED_INSTANT;
+		} else {
+			return value;
 		}
 	}
 
@@ -1413,13 +1493,53 @@ public class EvitaDataTypes {
 	}
 
 	/**
+	 * Returns the text as a string literal of EvitaQL and EvitaEL: in apostrophes, with every character the grammar
+	 * does not take as it is written as an escape `StringUtils#translateEscapes` reads back - the apostrophe that would
+	 * end the literal, the backslash that would start an escape, and the control characters the grammar refuses raw.
+	 * Any other character is written as it is.
+	 *
+	 * @param text the text to write
+	 * @return the literal
+	 */
+	@Nonnull
+	private static String toStringLiteral(@Nonnull String text) {
+		final StringBuilder literal = new StringBuilder(text.length() + 2);
+		literal.append(CHAR_STRING_DELIMITER);
+		for (int i = 0; i < text.length(); i++) {
+			final char character = text.charAt(i);
+			switch (character) {
+				case '\'' -> literal.append("\\'");
+				case '\\' -> literal.append("\\\\");
+				case '\b' -> literal.append("\\b");
+				case '\f' -> literal.append("\\f");
+				case '\n' -> literal.append("\\n");
+				case '\r' -> literal.append("\\r");
+				case '\t' -> literal.append("\\t");
+				default -> {
+					if (character < ' ') {
+						// the other control characters have no escape of their own
+						literal.append("\\u00")
+							.append(HEX_DIGITS[character >> 4])
+							.append(HEX_DIGITS[character & 0xF]);
+					} else {
+						literal.append(character);
+					}
+				}
+			}
+		}
+		return literal.append(CHAR_STRING_DELIMITER).toString();
+	}
+
+	/**
 	 * Formats a serializable value for printing in EvitaQL query syntax. Produces string
 	 * representations suitable for embedding in queries, with appropriate quoting and escaping.
 	 * This method is used by query builders, logging, and debugging tools to generate readable
 	 * EvitaQL syntax from programmatic values.
 	 *
 	 * Formatting rules:
-	 * - String, Character: single-quoted, with embedded quotes escaped as `\'`
+	 * - String, Character: single-quoted, with the apostrophe escaped as `\'`, the backslash as `\\`, and the
+	 * control characters (U+0000 to U+001F) as `\b`, `\f`, `\n`, `\r`, `\t` or a Unicode escape, so that the
+	 * EvitaQL and EvitaEL parsers read the literal back as the same text
 	 * - BigDecimal: normalized to lowercase exponential notation (e.g., `2.5e8` not `2.5E+8`)
 	 * - Number: `toString()` representation
 	 * - Boolean: `true` or `false`
@@ -1442,13 +1562,9 @@ public class EvitaDataTypes {
 		@Nullable Serializable value
 	) {
 		if (value instanceof String stringValue) {
-			return CHAR_STRING_DELIMITER
-				+ STRING_DELIMITER_PATTERN.matcher(stringValue).replaceAll("\\\\'")
-				+ STRING_DELIMITER;
+			return toStringLiteral(stringValue);
 		} else if (value instanceof Character characterValue) {
-			return CHAR_STRING_DELIMITER
-				+ STRING_DELIMITER_PATTERN.matcher(characterValue.toString()).replaceAll("\\\\'")
-				+ STRING_DELIMITER;
+			return toStringLiteral(characterValue.toString());
 		} else if (value instanceof BigDecimal bigDecimalValue) {
 			// Value normalizations were taken from
 			// https://github.com/googleapis/googleapis/blob/master/google/type/decimal.proto

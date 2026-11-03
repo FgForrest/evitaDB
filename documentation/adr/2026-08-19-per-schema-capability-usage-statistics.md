@@ -1,7 +1,7 @@
 ---
 title: Schema-capability usage is counted per schema element in a collection-carried registry, not per physical index
 date: 2026-08-19
-updated: 2026-08-24 09:15
+updated: 2026-10-06 11:45
 status: accepted
 kind: feature
 issues: [1429]
@@ -9,7 +9,7 @@ prs: [1430]
 areas: [evita_api/api/statistics, evita_engine/index/usage, evita_engine/index/mutation, evita_engine/core/query, evita_engine/core/collection, evita_engine/core/catalog, evita_external_api/evita_external_api_grpc, evita_test/evita_performance_tests]
 supersedes: []
 superseded-by: []
-relates: [2026-08-16-per-index-usage-statistics, 2026-08-23-usage-statistics-tracking-switch]
+relates: [2026-08-16-per-index-usage-statistics, 2026-08-23-usage-statistics-tracking-switch, 2026-10-08-scope-faithful-planning-and-facet-summary-parity]
 ---
 
 # Schema-capability usage is counted per schema element in a collection-carried registry, not per physical index
@@ -127,7 +127,10 @@ side.
   `QueryPlanBuilder.build()` drains and increments once per logical query — the drain empties the
   accumulator, which is what makes the debug modes (`VERIFY_ALTERNATIVE_INDEX_RESULTS`,
   `VERIFY_POSSIBLE_CACHING_TREES`) unable to double-flush even though they re-build and re-execute
-  plans. The empty-plan short-circuit flushes nothing.
+  plans. The empty-plan short-circuit (`QueryPlanBuilder.empty`) drains and increments the same way: a query
+  the index selection proves to match nothing is still checked against the schema
+  (`QueryPlanner#planOverEmptyIndexes`, #1695), so it counts the capabilities that check requested - counting
+  them nowhere would make a flag only such queries use look dead.
 - Update side: `AttributeIndexMutator` reports the touched element to
   `EntityIndexLocalMutationExecutor.reportAttributeTouched(...)`; `markTouched` deduplicates across the
   index fan-out, `applyChanges` flushes once per entity mutation with the same `nowMillis` as the
@@ -150,11 +153,22 @@ side.
   catalog row with requests against an update count that is zero *by construction* — a sortable global
   attribute's sort index lives in every collection declaring it, never in the catalog — which reads as
   *"nothing maintains this flag, drop it"* about a flag that is actively maintained. The request is
-  dropped rather than re-attributed, the same trade-off `recordRequestedCapability` makes for a filter
-  evaluated against another collection's structures: a number attributed to the wrong owner is worse
+  dropped rather than re-attributed: a collection-less query names no collection whose sort index it
+  used, so there is no right owner to give it to, and a number attributed to the wrong owner is worse
   than one missing. A query that **names** its collection is unaffected and records the `SORTABLE` there,
   which is also where its maintenance is counted. Pinned by
   `CatalogUsageRegistryTest.Attribution#shouldNotCountSortOnTheCatalog`.
+- **A request about another collection's element is counted on that collection, not dropped.** A
+  constraint translated in the queried collection's planning context may name an element of another
+  schema — the parent filter of a `hierarchyWithin` of a reference, the node filters of hierarchy
+  statistics of a reference, the group selector of `histogramHaving`, an ordering by a property of a
+  referenced entity. `QueryPlanningContext#recordRequestedCapability` resolves the holder in the
+  registry of the collection whose schema declares the element (its `owner`), whichever context records
+  it; nested contexts that build no plan of their own (sorter contexts, checks of nested filters) hand
+  their requests to the context they serve. Unlike the catalog case above, here the right owner is
+  known, so re-attribution protects the right flag. Pinned by
+  `RequestedCapabilityAccumulationTest.ConstraintsOfAnotherSchema` and
+  `ReferenceAndEntityCapabilityRequestTest#shouldRecordHierarchyIndexedOnTheCollectionOwningTheTree`.
 - **Holders are seeded eagerly, and seeding is deliberately narrower than dropping.** `alignWith` both
   mints and drops, so `observedSince` is literally the instant the capability was declared and an
   untouched flag is reported with honest zeros instead of being absent — an absence an operator cannot
@@ -267,7 +281,7 @@ Functional: `SchemaCapabilityUsageTest` (holder: cross-thread exactness, stamp c
 `SchemaCapabilityKeyTest`, `SchemaCapabilityUsageRegistryTest` (identity; alignment seeds the declared set
 exactly, preserves surviving holders and drops the rest, incl. the catalog pin above),
 `RequestedCapabilityAccumulationTest` (once per logical query across
-candidate plans; debug modes cannot double-flush; empty plan flushes nothing),
+candidate plans; debug modes cannot double-flush; an empty plan counts what its constraint check requested),
 `EntityCollectionUsageRegistryTest` (copy sites enumerated), `CatalogUsageRegistryTest` (collection-less
 query lands on the catalog, one update per entity mutation, restart resets and re-seeds, adoption realigns),
 `SchemaCapabilityUsageSurfaceTest` (end to end incl. drop/re-add starting over, an untouched declared
@@ -320,8 +334,9 @@ the `everRequested` fallback stays unimplemented.**
 - **Cross-collection trigger maintenance is not counted**, inherited from the per-index gap: index work
   dispatched through `IndexMutationExecutorRegistry` never reaches
   `EntityIndexLocalMutationExecutor`, so `updatedCount` is a floor. Same direction of error, same
-  documented-on-the-surface treatment. Referenced-entity cross-collection *query* attribution is
-  likewise a documented gap, not a wrong number.
+  documented-on-the-surface treatment. Referenced-entity cross-collection *query* attribution is not a
+  gap: a request about another collection's element is counted on that collection (see the attribution
+  bullet in *Key technical details* and `2026-10-08-scope-faithful-planning-and-facet-summary-parity`).
 - **A new copy site can silently reset the counters** — the same standing hazard the 2026-08-16 record
   carries for `IndexActivity`; extending the enumerated lifecycle tests is the check.
 - **No user-facing documentation page exists**, because the management surface it extends
@@ -334,6 +349,10 @@ the `everRequested` fallback stays unimplemented.**
   counters this surface complements; the holder-by-reference lifecycle discipline and the
   since-catalog-load contract were adopted from it, and the two surfaces are designed to be read side
   by side (physical earning vs. logical demand).
+- [2026-10-08-scope-faithful-planning-and-facet-summary-parity](2026-10-08-scope-faithful-planning-and-facet-summary-parity.md) — enforces this record's "once per logical query" unit across nested queries,
+  constraint checks, sorter contexts and fetch-time plans (root-context record
+  `QueryPlanningContext#countedCapabilities`), attributes requests on another collection's schema to that
+  collection, counts queries matching nothing, and records nothing on the write path.
 
 ## Timeline
 

@@ -128,7 +128,12 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			SortIndexStoragePart.class,
 			new SerialVersionBasedSerializer<>(new SortIndexStoragePartSerializer(this.keyCompressor), SortIndexStoragePart.class)
 				.addBackwardCompatibleSerializer(6163295675316818632L, new SortIndexStoragePartSerializer_2025_5(this.keyCompressor))
-				.addBackwardCompatibleSerializer(-7076092972784353868L, new SortIndexStoragePartSerializer_2026_1(this.keyCompressor)),
+				.addBackwardCompatibleSerializer(
+					-7076092972784353868L, new SortIndexStoragePartSerializer_2026_1(this.keyCompressor)
+				)
+				.addBackwardCompatibleSerializer(
+					5192847362910473829L, new SortIndexStoragePartSerializer_2026_2(this.keyCompressor)
+				),
 			index++
 		);
 		kryo.register(
@@ -162,7 +167,17 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(ValueToRecordBitmap.class, new SerialVersionBasedSerializer<>(new ValueToRecordBitmapSerializer(), ValueToRecordBitmap.class), index++);
 
 		kryo.register(RangeIndex.class, new SerialVersionBasedSerializer<>(new IntRangeIndexSerializer(), RangeIndex.class), index++);
-		kryo.register(TransactionalRangePoint.class, new SerialVersionBasedSerializer<>(new TransactionalIntRangePointSerializer(), TransactionalRangePoint.class), index++);
+		kryo.register(
+			TransactionalRangePoint.class,
+			new SerialVersionBasedSerializer<>(
+				new TransactionalIntRangePointSerializer(), TransactionalRangePoint.class
+			)
+				// every release up to 2026.2 stored a threshold's starts and ends as sets - no repeated levels
+				.addBackwardCompatibleSerializer(
+					-7357845800177404940L, new TransactionalIntRangePointSerializer_2026_2()
+				),
+			index++
+		);
 
 		// skip index, it was used by removed AttributeCardinalityIndexSerializer
 		index++;
@@ -354,6 +369,28 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			HistogramCardinalityStoragePart.class,
 			new SerialVersionBasedSerializer<>(new HistogramCardinalityStoragePartSerializer(this.keyCompressor), HistogramCardinalityStoragePart.class),
+			index++
+		);
+
+		// the root of the virtual reference partition index - a brand-new record type with no backward-compatible
+		// reader (catalogs without it simply have no root, which loads as an empty index). Appended last to keep the
+		// preceding registration ids stable.
+		kryo.register(
+			VirtualReferencePartitionIndexStoragePart.class,
+			new SerialVersionBasedSerializer<>(
+				new VirtualReferencePartitionIndexStoragePartSerializer(this.keyCompressor),
+				VirtualReferencePartitionIndexStoragePart.class
+			),
+			index++
+		);
+
+		// the granular leaf-page record of the virtual reference partition index - a brand-new record type with no
+		// backward-compatible reader. Appended last to keep the preceding registration ids stable.
+		kryo.register(
+			VirtualReferencePartitionIndexLeafPagePart.class,
+			new SerialVersionBasedSerializer<>(
+				new VirtualReferencePartitionIndexLeafPagePartSerializer(), VirtualReferencePartitionIndexLeafPagePart.class
+			),
 			index++
 		);
 

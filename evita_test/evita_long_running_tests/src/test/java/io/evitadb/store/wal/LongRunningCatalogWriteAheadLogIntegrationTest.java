@@ -85,7 +85,6 @@ import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getWalFileName;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.WAL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -310,7 +309,7 @@ public class LongRunningCatalogWriteAheadLogIntegrationTest implements EvitaTest
 			final TransactionMutation transactionMutation = (TransactionMutation) mutation;
 			final List<Mutation> mutationsInTx = txInMutations.get(transactionMutation.getVersion());
 			assertTransactionMutationEquals(
-				(TransactionMutation) mutationsInTx.get(0),
+				(TransactionMutation) mutationsInTx.getFirst(),
 				transactionMutation
 			);
 			for (int i = 0; i < transactionMutation.getMutationCount(); i++) {
@@ -326,7 +325,6 @@ public class LongRunningCatalogWriteAheadLogIntegrationTest implements EvitaTest
 		assertEquals(txRead, transactionSizes.length - startIndex);
 	}
 
-	@Tag(SLOW)
 	@Test
 	@DisplayName("should write and read small amount of transactions and reuse cache on next access")
 	void shouldWriteAndReadSmallAmountOfTransactionsAndReuseCacheOnNextAccess() {
@@ -342,7 +340,6 @@ public class LongRunningCatalogWriteAheadLogIntegrationTest implements EvitaTest
 		createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 0);
 	}
 
-	@Tag(SLOW)
 	@Test
 	@DisplayName("should read all transactions using off-heap isolated WAL")
 	void shouldReadAllTransactionsUsingOffHeapIsolatedWal() {
@@ -353,7 +350,6 @@ public class LongRunningCatalogWriteAheadLogIntegrationTest implements EvitaTest
 		readAndVerifyWal(txInMutations, this.txSizes, 0);
 	}
 
-	@Tag(SLOW)
 	@Test
 	@DisplayName("should read all transactions using file isolated WAL")
 	void shouldReadAllTransactionsUsingFileIsolatedWal() {

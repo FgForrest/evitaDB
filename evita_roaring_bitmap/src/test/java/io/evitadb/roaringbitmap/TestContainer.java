@@ -1,12 +1,8 @@
 package io.evitadb.roaringbitmap;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 import static io.evitadb.roaringbitmap.ValidationRangeConsumer.Value.ABSENT;
 import static io.evitadb.roaringbitmap.ValidationRangeConsumer.Value.PRESENT;
+import static org.junit.jupiter.api.Assertions.*;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -305,7 +301,7 @@ public class TestContainer {
 			content[2] = 4;
 			final Container c = makeContainer(content);
 			final Container c1 = c.inot(65190, 65201);
-			assertTrue(c1 instanceof ArrayContainer);
+			assertInstanceOf(ArrayContainer.class, c1);
 			assertEquals(14, c1.getCardinality());
 			assertTrue(
 				checkContent(
@@ -366,7 +362,7 @@ public class TestContainer {
 			final char[] content = {1, 3, 5, 7, 9};
 			Container c = makeContainer(content);
 			c = c.inot(4, 1000);
-			assertTrue(c instanceof ArrayContainer);
+			assertInstanceOf(ArrayContainer.class, c);
 			assertEquals(999 - 4 + 1 - 3 + 2, c.getCardinality());
 			c = c.inot(4, 1000); // back
 			assertTrue(checkContent(c, content));
@@ -388,10 +384,10 @@ public class TestContainer {
 			}
 			Container c = makeContainer(content);
 			c = c.inot(4, 1000);
-			assertTrue(c instanceof BitmapContainer);
+			assertInstanceOf(BitmapContainer.class, c);
 			assertEquals(31773, c.getCardinality());
 			c = c.inot(4, 1000); // back, as a bitmap
-			assertTrue(c instanceof BitmapContainer);
+			assertInstanceOf(BitmapContainer.class, c);
 			assertTrue(checkContent(c, content));
 		}
 
@@ -412,10 +408,10 @@ public class TestContainer {
 			}
 			Container c = makeContainer(content);
 			c = c.inot(4, 9);
-			assertTrue(c instanceof BitmapContainer);
+			assertInstanceOf(BitmapContainer.class, c);
 			assertEquals(32762, c.getCardinality());
 			c = c.inot(4, 9); // back, as a bitmap
-			assertTrue(c instanceof BitmapContainer);
+			assertInstanceOf(BitmapContainer.class, c);
 			assertTrue(checkContent(c, content));
 		}
 
@@ -436,16 +432,16 @@ public class TestContainer {
 			Container c = makeContainer(content);
 			c = c.inot(5, 31001);
 			if (c.getCardinality() <= ArrayContainer.DEFAULT_MAX_SIZE) {
-				assertTrue(c instanceof ArrayContainer);
+				assertInstanceOf(ArrayContainer.class, c);
 			} else {
-				assertTrue(c instanceof BitmapContainer);
+				assertInstanceOf(BitmapContainer.class, c);
 			}
 			assertEquals(1773, c.getCardinality());
 			c = c.inot(5, 31001); // back, as a bitmap
 			if (c.getCardinality() <= ArrayContainer.DEFAULT_MAX_SIZE) {
-				assertTrue(c instanceof ArrayContainer);
+				assertInstanceOf(ArrayContainer.class, c);
 			} else {
-				assertTrue(c instanceof BitmapContainer);
+				assertInstanceOf(BitmapContainer.class, c);
 			}
 			assertTrue(checkContent(c, content));
 		}
@@ -466,11 +462,11 @@ public class TestContainer {
 
 			Container c = makeContainer(content);
 			c = c.inot(5, 22);
-			assertTrue(c instanceof ArrayContainer);
+			assertInstanceOf(ArrayContainer.class, c);
 
 			assertEquals(10, c.getCardinality());
 			c = c.inot(5, 22); // back, as a bitmap
-			assertTrue(c instanceof ArrayContainer);
+			assertInstanceOf(ArrayContainer.class, c);
 			assertTrue(checkContent(c, content));
 		}
 	}
@@ -511,7 +507,7 @@ public class TestContainer {
 			}
 			final Container c = makeContainer(content);
 			final Container c1 = c.not(51413, 51471);
-			assertTrue(c1 instanceof ArrayContainer);
+			assertInstanceOf(ArrayContainer.class, c1);
 			assertEquals(40 + 58, c1.getCardinality());
 			final char[] rightAns = new char[98];
 			for (int i = 244; i <= 283; ++i) {
@@ -537,7 +533,7 @@ public class TestContainer {
 			}
 			final Container c = makeContainer(content);
 			final Container c1 = c.not(1, 59);
-			assertTrue(c1 instanceof ArrayContainer);
+			assertInstanceOf(ArrayContainer.class, c1);
 			assertEquals(40 + 58, c1.getCardinality());
 			final char[] rightAns = new char[98];
 			for (int i = 1; i <= 58; ++i) {
@@ -588,7 +584,7 @@ public class TestContainer {
 			final char[] content = {1, 3, 5, 7, 9};
 			final Container c = makeContainer(content);
 			final Container c1 = c.not(4, 1000);
-			assertTrue(c1 instanceof ArrayContainer);
+			assertInstanceOf(ArrayContainer.class, c1);
 			assertEquals(999 - 4 + 1 - 3 + 2, c1.getCardinality());
 			final Container c2 = c1.not(4, 1000); // back
 			assertTrue(checkContent(c2, content));
@@ -610,10 +606,10 @@ public class TestContainer {
 			}
 			final Container c = makeContainer(content);
 			final Container c1 = c.not(4, 1000);
-			assertTrue(c1 instanceof BitmapContainer);
+			assertInstanceOf(BitmapContainer.class, c1);
 			assertEquals(31773, c1.getCardinality());
 			final Container c2 = c1.not(4, 1000); // back, as a bitmap
-			assertTrue(c2 instanceof BitmapContainer);
+			assertInstanceOf(BitmapContainer.class, c2);
 			assertTrue(checkContent(c2, content));
 		}
 
@@ -634,10 +630,10 @@ public class TestContainer {
 			}
 			final Container c = makeContainer(content);
 			final Container c1 = c.not(4, 9);
-			assertTrue(c1 instanceof BitmapContainer);
+			assertInstanceOf(BitmapContainer.class, c1);
 			assertEquals(32762, c1.getCardinality());
 			final Container c2 = c1.not(4, 9); // back, as a bitmap
-			assertTrue(c2 instanceof BitmapContainer);
+			assertInstanceOf(BitmapContainer.class, c2);
 			assertTrue(checkContent(c2, content));
 		}
 
@@ -658,16 +654,16 @@ public class TestContainer {
 			final Container c = makeContainer(content);
 			final Container c1 = c.not(5, 31001);
 			if (c1.getCardinality() <= ArrayContainer.DEFAULT_MAX_SIZE) {
-				assertTrue(c1 instanceof ArrayContainer);
+				assertInstanceOf(ArrayContainer.class, c1);
 			} else {
-				assertTrue(c1 instanceof BitmapContainer);
+				assertInstanceOf(BitmapContainer.class, c1);
 			}
 			assertEquals(1773, c1.getCardinality());
 			final Container c2 = c1.not(5, 31001); // back, as a bitmap
 			if (c2.getCardinality() <= ArrayContainer.DEFAULT_MAX_SIZE) {
-				assertTrue(c2 instanceof ArrayContainer);
+				assertInstanceOf(ArrayContainer.class, c2);
 			} else {
-				assertTrue(c2 instanceof BitmapContainer);
+				assertInstanceOf(BitmapContainer.class, c2);
 			}
 			assertTrue(checkContent(c2, content));
 		}
@@ -688,10 +684,10 @@ public class TestContainer {
 			}
 			final Container c = makeContainer(content);
 			final Container c1 = c.not(4, 65536);
-			assertTrue(c1 instanceof BitmapContainer);
+			assertInstanceOf(BitmapContainer.class, c1);
 			assertEquals(32773, c1.getCardinality());
 			final Container c2 = c1.not(4, 65536); // back, as a bitmap
-			assertTrue(c2 instanceof BitmapContainer);
+			assertInstanceOf(BitmapContainer.class, c2);
 			assertTrue(checkContent(c2, content));
 		}
 
@@ -712,10 +708,10 @@ public class TestContainer {
 			}
 			final Container c = makeContainer(content);
 			final Container c1 = c.not(0, 65201);
-			assertTrue(c1 instanceof BitmapContainer);
+			assertInstanceOf(BitmapContainer.class, c1);
 			assertEquals(32438, c1.getCardinality());
 			final Container c2 = c1.not(0, 65201); // back, as a bitmap
-			assertTrue(c2 instanceof BitmapContainer);
+			assertInstanceOf(BitmapContainer.class, c2);
 			assertTrue(checkContent(c2, content));
 		}
 	}
@@ -934,7 +930,7 @@ public class TestContainer {
 
 			final Container result = rc1.or(rc2);
 			assertTrue(result.getCardinality() < ArrayContainer.DEFAULT_MAX_SIZE);
-			assertTrue(result instanceof ArrayContainer);
+			assertInstanceOf(ArrayContainer.class, result);
 		}
 	}
 
@@ -1156,7 +1152,7 @@ public class TestContainer {
 				ac.add(s);
 			}
 			final Container c = ac.runOptimize();
-			assertTrue(c instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, c);
 			assertEquals(ac, c);
 		}
 
@@ -1166,7 +1162,7 @@ public class TestContainer {
 				ac.add(s);
 			}
 			Container c = ac.runOptimize();
-			assertTrue(c instanceof ArrayContainer);
+			assertInstanceOf(ArrayContainer.class, c);
 			assertSame(ac, c);
 		}
 
@@ -1178,7 +1174,7 @@ public class TestContainer {
 				bc.add((char) i);
 			}
 			final Container c = bc.runOptimize();
-			assertTrue(c instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, c);
 			assertEquals(bc, c);
 		}
 
@@ -1190,7 +1186,7 @@ public class TestContainer {
 				bc.add((char) i);
 			}
 			final Container c = bc.runOptimize();
-			assertTrue(c instanceof BitmapContainer);
+			assertInstanceOf(BitmapContainer.class, c);
 			assertSame(c, bc);
 		}
 
@@ -1202,7 +1198,7 @@ public class TestContainer {
 				rc.add(s);
 			}
 			final Container c = rc.runOptimize();
-			assertTrue(c instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, c);
 			assertSame(c, rc);
 		}
 
@@ -1214,7 +1210,7 @@ public class TestContainer {
 				rc.add(s);
 			}
 			final Container c = rc.runOptimize();
-			assertTrue(c instanceof ArrayContainer);
+			assertInstanceOf(ArrayContainer.class, c);
 			assertEquals(c, rc);
 		}
 
@@ -1226,7 +1222,7 @@ public class TestContainer {
 				rc.add(i);
 			}
 			final Container c = rc.runOptimize();
-			assertTrue(c instanceof BitmapContainer);
+			assertInstanceOf(BitmapContainer.class, c);
 			assertEquals(c, rc);
 		}
 	}
@@ -1243,18 +1239,18 @@ public class TestContainer {
 				c = c.add((char) i);
 			}
 			assertEquals(4096, c.getCardinality());
-			assertTrue(c instanceof ArrayContainer);
+			assertInstanceOf(ArrayContainer.class, c);
 			for (int i = 0; i < 4096; ++i) {
 				c = c.add((char) i);
 			}
 			assertEquals(4096, c.getCardinality());
-			assertTrue(c instanceof ArrayContainer);
+			assertInstanceOf(ArrayContainer.class, c);
 			c = c.add((char) 4096);
 			assertEquals(4097, c.getCardinality());
-			assertTrue(c instanceof BitmapContainer);
+			assertInstanceOf(BitmapContainer.class, c);
 			c = c.remove((char) 4096);
 			assertEquals(4096, c.getCardinality());
-			assertTrue(c instanceof ArrayContainer);
+			assertInstanceOf(ArrayContainer.class, c);
 		}
 	}
 

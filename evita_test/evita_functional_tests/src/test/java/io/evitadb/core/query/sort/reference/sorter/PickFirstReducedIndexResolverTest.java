@@ -32,6 +32,7 @@ import io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver
 import io.evitadb.core.query.sort.utils.MockSortedRecordsSupplier;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -133,7 +134,7 @@ class PickFirstReducedIndexResolverTest {
 	 */
 	@Nonnull
 	private static int[] primaryKeys(@Nonnull ResolvedReducedIndexes resolved) {
-		return Arrays.stream(resolved.indexes()).mapToInt(ReducedEntityIndex::getPrimaryKey).toArray();
+		return Arrays.stream(resolved.indexes()).mapToInt(ReferencePartition::getPrimaryKey).toArray();
 	}
 
 	/**

@@ -201,7 +201,7 @@ class SchedulerTest {
 			final PaginatedList<TaskStatus<?, ?>> typeFilteredJobStatuses = SchedulerTest.this.scheduler.listTaskStatuses(1, 20, new String[] { "task" });
 			assertEquals(1, typeFilteredJobStatuses.getTotalRecordCount());
 
-			while (SchedulerTest.this.scheduler.listTaskStatuses(1, 20, null).getData().get(0).simplifiedState() != TaskSimplifiedState.FINISHED) {
+			while (SchedulerTest.this.scheduler.listTaskStatuses(1, 20, null).getData().getFirst().simplifiedState() != TaskSimplifiedState.FINISHED) {
 				synchronized (this) {
 					wait(100);
 				}
@@ -221,7 +221,7 @@ class SchedulerTest {
 			final PaginatedList<TaskStatus<?, ?>> nonMatchingFilteredJobStatusesWhenDone = SchedulerTest.this.scheduler.listTaskStatuses(1, 20, new String[] { "Non-existing task" }, TaskSimplifiedState.FINISHED);
 			assertEquals(0, nonMatchingFilteredJobStatusesWhenDone.getTotalRecordCount());
 
-			final Optional<TaskStatus<?, ?>> jobStatus = SchedulerTest.this.scheduler.getTaskStatus(typeFilteredJobStatuses.getData().get(0).taskId());
+			final Optional<TaskStatus<?, ?>> jobStatus = SchedulerTest.this.scheduler.getTaskStatus(typeFilteredJobStatuses.getData().getFirst().taskId());
 
 			assertTrue(jobStatus.isPresent());
 			assertEquals("Test task", jobStatus.get().taskName());
@@ -253,7 +253,7 @@ class SchedulerTest {
 			final PaginatedList<TaskStatus<?, ?>> jobStatuses = SchedulerTest.this.scheduler.listTaskStatuses(1, 20, null);
 			assertEquals(1, jobStatuses.getTotalRecordCount());
 
-			final Optional<TaskStatus<?, ?>> jobStatus = SchedulerTest.this.scheduler.getTaskStatus(jobStatuses.getData().get(0).taskId());
+			final Optional<TaskStatus<?, ?>> jobStatus = SchedulerTest.this.scheduler.getTaskStatus(jobStatuses.getData().getFirst().taskId());
 
 			assertTrue(jobStatus.isPresent());
 			assertEquals("Test task", jobStatus.get().taskName());
@@ -273,7 +273,7 @@ class SchedulerTest {
 				Thread.onSpinWait();
 			} while (started.get() && !interrupted.get() && System.currentTimeMillis() - start < 100_000);
 
-			final Optional<TaskStatus<?, ?>> jobStatusAgain = SchedulerTest.this.scheduler.getTaskStatus(jobStatuses.getData().get(0).taskId());
+			final Optional<TaskStatus<?, ?>> jobStatusAgain = SchedulerTest.this.scheduler.getTaskStatus(jobStatuses.getData().getFirst().taskId());
 			jobStatusAgain.ifPresent(taskStatus -> {
 				assertNull(taskStatus.result());
 				assertEquals(TaskSimplifiedState.FAILED, taskStatus.simplifiedState());
@@ -317,7 +317,7 @@ class SchedulerTest {
 			final PaginatedList<TaskStatus<?, ?>> jobStatuses =
 				SchedulerTest.this.scheduler.listTaskStatuses(1, 20, null);
 			assertEquals(1, jobStatuses.getTotalRecordCount());
-			final UUID taskId = jobStatuses.getData().get(0).taskId();
+			final UUID taskId = jobStatuses.getData().getFirst().taskId();
 			SchedulerTest.this.scheduler.cancelTask(taskId);
 
 			// the assertion that matters: the interrupt reached the worker thread
@@ -376,7 +376,7 @@ class SchedulerTest {
 			final PaginatedList<TaskStatus<?, ?>> jobStatuses =
 				SchedulerTest.this.scheduler.listTaskStatuses(1, 20, null);
 			assertEquals(1, jobStatuses.getTotalRecordCount());
-			SchedulerTest.this.scheduler.cancelTask(jobStatuses.getData().get(0).taskId());
+			SchedulerTest.this.scheduler.cancelTask(jobStatuses.getData().getFirst().taskId());
 
 			assertTrue(
 				interrupted.await(30, TimeUnit.SECONDS),
@@ -450,7 +450,7 @@ class SchedulerTest {
 			// without this the absence of an interrupt below could just as well mean the cancel never found the task,
 			// which would make the whole test pass for a reason its name does not claim
 			assertTrue(
-				SchedulerTest.this.scheduler.cancelTask(jobStatuses.getData().get(0).taskId()),
+				SchedulerTest.this.scheduler.cancelTask(jobStatuses.getData().getFirst().taskId()),
 				"the cancel never reached the task - this proves nothing about the attachment window"
 			);
 
@@ -477,8 +477,8 @@ class SchedulerTest {
 			final long before = SchedulerTest.this.scheduler.getSubmittedTaskCount();
 
 			// schedule with a long delay so the tasks never actually run during the test
-			SchedulerTest.this.scheduler.schedule((Runnable) () -> {}, 1, TimeUnit.HOURS);
-			SchedulerTest.this.scheduler.schedule((Callable<Integer>) () -> 1, 1, TimeUnit.HOURS);
+			SchedulerTest.this.scheduler.schedule(() -> {}, 1, TimeUnit.HOURS);
+			SchedulerTest.this.scheduler.schedule(() -> 1, 1, TimeUnit.HOURS);
 
 			assertEquals(before + 2, SchedulerTest.this.scheduler.getSubmittedTaskCount());
 		}
@@ -495,7 +495,7 @@ class SchedulerTest {
 		@DisplayName("counts a submitted callable")
 		void shouldCountSubmittedCallable() {
 			final long before = SchedulerTest.this.scheduler.getSubmittedTaskCount();
-			SchedulerTest.this.scheduler.submit((Callable<Integer>) () -> 1);
+			SchedulerTest.this.scheduler.submit(() -> 1);
 			assertEquals(before + 1, SchedulerTest.this.scheduler.getSubmittedTaskCount());
 		}
 
@@ -504,7 +504,7 @@ class SchedulerTest {
 		void shouldCountInvokeAllSubmissions() throws InterruptedException {
 			final long before = SchedulerTest.this.scheduler.getSubmittedTaskCount();
 			final List<Future<Integer>> futures = SchedulerTest.this.scheduler.invokeAll(
-				List.of((Callable<Integer>) () -> 1, () -> 2, () -> 3)
+				List.of(() -> 1, () -> 2, () -> 3)
 			);
 			// the counter must grow by exactly the number of futures the executor reported as submitted
 			assertEquals(before + futures.size(), SchedulerTest.this.scheduler.getSubmittedTaskCount());
@@ -514,7 +514,7 @@ class SchedulerTest {
 		@DisplayName("counts an invokeAny submission")
 		void shouldCountInvokeAnySubmission() throws InterruptedException, ExecutionException {
 			final long before = SchedulerTest.this.scheduler.getSubmittedTaskCount();
-			final Integer result = SchedulerTest.this.scheduler.invokeAny(List.of((Callable<Integer>) () -> 42));
+			final Integer result = SchedulerTest.this.scheduler.invokeAny(List.of(() -> 42));
 			assertEquals(42, result);
 			assertEquals(before + 1, SchedulerTest.this.scheduler.getSubmittedTaskCount());
 		}
@@ -524,7 +524,7 @@ class SchedulerTest {
 		void shouldCountTimedInvokeAnySubmission() throws InterruptedException, ExecutionException, TimeoutException {
 			final long before = SchedulerTest.this.scheduler.getSubmittedTaskCount();
 			final Integer result = SchedulerTest.this.scheduler.invokeAny(
-				List.of((Callable<Integer>) () -> 42), 5, TimeUnit.SECONDS
+				List.of(() -> 42), 5, TimeUnit.SECONDS
 			);
 			assertEquals(42, result);
 			assertEquals(before + 1, SchedulerTest.this.scheduler.getSubmittedTaskCount());

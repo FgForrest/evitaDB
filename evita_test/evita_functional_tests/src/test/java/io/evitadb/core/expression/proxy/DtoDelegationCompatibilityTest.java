@@ -125,7 +125,7 @@ class DtoDelegationCompatibilityTest {
 		all[partials.length] = CatchAllPartial.OBJECT_METHODS;
 		all[partials.length + 1] = CatchAllPartial.INSTANCE;
 
-		return (EntityContract) ByteBuddyProxyGenerator.instantiate(
+		return ByteBuddyProxyGenerator.instantiate(
 			new ByteBuddyDispatcherInvocationHandler<>(state, all),
 			new Class<?>[]{ DtoDelegationTestEntity.class },
 			EMPTY_CLASS_ARRAY,
@@ -151,7 +151,7 @@ class DtoDelegationCompatibilityTest {
 		all[partials.length] = CatchAllPartial.OBJECT_METHODS;
 		all[partials.length + 1] = CatchAllPartial.INSTANCE;
 
-		return (ReferenceContract) ByteBuddyProxyGenerator.instantiate(
+		return ByteBuddyProxyGenerator.instantiate(
 			new ByteBuddyDispatcherInvocationHandler<>(state, all),
 			new Class<?>[]{ DtoDelegationTestReference.class },
 			EMPTY_CLASS_ARRAY,
@@ -752,7 +752,7 @@ class DtoDelegationCompatibilityTest {
 				CatchAllPartial.INSTANCE
 			};
 
-			final EntityContract entityProxy = (EntityContract) ByteBuddyProxyGenerator.instantiate(
+			final EntityContract entityProxy = ByteBuddyProxyGenerator.instantiate(
 				new ByteBuddyDispatcherInvocationHandler<>(state, partials),
 				new Class<?>[]{ UnhandledTestEntity.class },
 				EMPTY_CLASS_ARRAY,

@@ -23,28 +23,40 @@
 
 package io.evitadb.store.kryo;
 
-import io.evitadb.exception.UnexpectedIOException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Locale;
+import org.mockito.Mockito;
+import com.esotericsoftware.kryo.io.Output;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.KryoException;
 import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.compression.ZipCompressionFactory;
 import io.evitadb.store.shared.model.FileLocation;
+import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.utils.Crc32CWrapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Stream;
+import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.Deflater;
 import org.junit.jupiter.api.Tag;
 
@@ -63,11 +75,613 @@ import static io.evitadb.test.TestTags.SERIALIZATION;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Isolated
 @DisplayName("ObservableOutput comprehensive tests")
 @Tag(STORAGE)
 @Tag(SERIALIZATION)
 public class ObservableOutputTest {
-	private static final int DEFAULT_BUFFER = ObservableOutput.DEFAULT_FLUSH_SIZE << 2;
+	/**
+	 * Covers each oversized encoding independently so failures cannot hide later matrix entries.
+	 *
+	 * @return pooled and owned outputs, first and later values, and near-limit and much larger values
+	 */
+	@Nonnull
+	static Stream<Arguments> oversizedValues() {
+		final List<Arguments> cases = new ArrayList<>();
+		for (boolean pooled : new boolean[] {false, true}) {
+			for (int prefix : new int[] {0, 80}) {
+				for (int length : new int[] {108, 256}) {
+					for (String kind : new String[] {"bytes", "string", "utf8", "ascii"}) {
+						cases.add(Arguments.of(pooled, prefix, length, kind));
+					}
+				}
+			}
+		}
+		return cases.stream();
+	}
+
+	/**
+	 * Cross-checks ASCII terminators, UTF-16 code units and flagged length prefixes against Kryo itself.
+	 *
+	 * @return encodings and boundary strings for both pooled and owned outputs
+	 */
+	@Nonnull
+	static Stream<Arguments> stringSizeBoundaries() {
+		final List<Arguments> cases = new ArrayList<>();
+		for (boolean pooled : new boolean[] {false, true}) {
+			for (int length : new int[] {0, 1, 2, 32, 33, 62, 63, 64, 8190, 8191, 8192,
+				(1 << 20) - 2, (1 << 20) - 1, 1 << 20}) {
+				cases.add(Arguments.of(pooled, false, "ASCII length " + length, "x".repeat(length)));
+			}
+			cases.add(Arguments.of(pooled, false, "mixed length 2", "xž"));
+			cases.add(Arguments.of(pooled, false, "mixed length 32", "x".repeat(31) + "ž"));
+			cases.add(Arguments.of(pooled, false, "two-byte code units", "žž"));
+			cases.add(Arguments.of(pooled, false, "three-byte code units", "€€"));
+			cases.add(Arguments.of(pooled, false, "surrogate pair", "😀"));
+			for (int length : new int[] {0, 1, 2, 33}) {
+				cases.add(Arguments.of(pooled, true, "ASCII length " + length, "x".repeat(length)));
+			}
+		}
+		return cases.stream();
+	}
+
+	/** Regressions for indivisible values and output resource disposal. */
+	@Nested
+	@DisplayName("Value boundaries and disposal")
+	class ValueBoundariesAndDisposal {
+		/**
+		 * Kryo's actual bytes must fit exactly, and one byte less must fail before the value can be split.
+		 *
+		 * @param pooled whether to borrow the frame array
+		 * @param ascii whether to use the explicit ASCII writer
+		 * @param description short case label used in parameterized test names
+		 * @param value string to encode
+		 */
+		@ParameterizedTest(name = "{index}: pooled={0}, ascii={1}, {2}")
+		@MethodSource("io.evitadb.store.kryo.ObservableOutputTest#stringSizeBoundaries")
+		@DisplayName("Should match Kryo string sizes at exact frame boundaries")
+		void shouldMatchKryoStringSizeAtFrameBoundary(
+			boolean pooled, boolean ascii, @Nonnull String description, @Nonnull String value
+		) {
+			final Consumer<Output> writer = ascii ? out -> out.writeAscii(value) : out -> out.writeString(value);
+			try (final Output reference = new Output(64, -1)) {
+				writer.accept(reference);
+				final int valueSize = reference.position();
+				final int frameSize = StorageRecord.OVERHEAD_SIZE + valueSize;
+				final ByteArrayOutputStream stream = new ByteArrayOutputStream();
+				try (final ObservableOutput<ByteArrayOutputStream> output = pooled ?
+					new ObservableOutput<>(stream, frameSize, 0L, Checksum.NO_OP, null,
+						ObservableOutputBufferPool.INSTANCE) :
+					new ObservableOutput<>(stream, frameSize, 0L, Checksum.NO_OP, null)) {
+					new StorageRecord<>(output, 1L, false, out -> {
+						writer.accept(out);
+						return value;
+					});
+					assertEquals(frameSize, stream.size());
+					try (final Input input = new Input(stream.toByteArray())) {
+						input.skip(StorageRecord.CRC_NOT_COVERED_HEAD);
+						assertArrayEquals(reference.toBytes(), input.readBytes(valueSize));
+						input.setPosition(StorageRecord.CRC_NOT_COVERED_HEAD);
+						assertEquals(value, input.readString());
+						assertEquals(StorageRecord.CRC_NOT_COVERED_HEAD + valueSize, input.position());
+					}
+				}
+				try (final ObservableOutput<ByteArrayOutputStream> output = pooled ? pooledOutput(frameSize - 1) :
+					new ObservableOutput<>(new ByteArrayOutputStream(), frameSize - 1, 0L, Checksum.NO_OP, null)) {
+					final KryoException failure = assertThrows(KryoException.class,
+						() -> new StorageRecord<>(output, 1L, false, out -> {
+							writer.accept(out);
+							return value;
+						}));
+					assertTrue(failure.getMessage().contains("value size " + valueSize + "B"), failure::getMessage);
+				}
+			}
+		}
+
+		/**
+		 * Values must fit alongside a frame header and tail, even when previous values force a continuation.
+		 *
+		 * @param pooled whether to borrow the frame array
+		 * @param prefix number of preceding payload bytes
+		 * @param length number of bytes or characters supplied to the writer
+		 * @param kind Kryo value encoding to exercise
+		 */
+		@ParameterizedTest
+		@MethodSource("io.evitadb.store.kryo.ObservableOutputTest#oversizedValues")
+		@DisplayName("Should reject oversized values with their size and outputBufferSize")
+		void shouldRejectOversizedValues(boolean pooled, int prefix, int length, @Nonnull String kind) {
+			final Consumer<Output> value = switch (kind) {
+				case "bytes" -> out -> out.writeBytes(new byte[length]);
+				case "string" -> out -> out.writeString("x".repeat(length));
+				case "utf8" -> out -> out.writeString("ž".repeat(length));
+				case "ascii" -> out -> out.writeAscii("x".repeat(length));
+				default -> throw new IllegalArgumentException(kind);
+			};
+			try (final Output reference =
+				new Output(4096)) {
+				value.accept(reference);
+				final int valueSize = reference.position();
+				try (final ObservableOutput<ByteArrayOutputStream> output = pooled ? pooledOutput(128) :
+					new ObservableOutput<>(new ByteArrayOutputStream(), 128, 0L, Checksum.NO_OP, null)) {
+					final KryoException failure = assertThrows(KryoException.class,
+						() -> new StorageRecord<>(output, 1L, false, out -> {
+							for (int i = 0; i < prefix; i++) {
+								out.writeByte(1);
+							}
+							value.accept(out);
+							return 1;
+						}));
+					assertTrue(failure.getMessage().contains("single value cannot be split across frames"),
+						failure::getMessage);
+					assertTrue(failure.getMessage().contains(valueSize + "B"), failure::getMessage);
+					assertTrue(failure.getMessage().contains("outputBufferSize=128"), failure::getMessage);
+				}
+			}
+		}
+
+		/**
+		 * An output exclusively owns its compressor and must end it on every disposal path.
+		 *
+		 * @param fail whether flushing pending raw bytes fails
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Should end the owned compressor when closing")
+		void shouldEndCompressorWhenClosing(boolean fail) {
+			final Deflater compressor = Mockito.spy(new Deflater());
+			final ByteArrayOutputStream stream = new ByteArrayOutputStream() {
+				/**
+				 * Simulates a failed raw append on disposal.
+				 *
+				 * @param bytes raw bytes to append
+				 * @param offset first source byte
+				 * @param length number of bytes to append
+				 * @throws KryoException when the failure scenario is selected
+				 */
+				@Override
+				public void write(byte[] bytes, int offset, int length) {
+					if (fail) {
+						throw new KryoException("Raw append failed");
+					}
+					super.write(bytes, offset, length);
+				}
+			};
+			final ObservableOutput<ByteArrayOutputStream> output = new ObservableOutput<>(
+				stream, 128, 0, Checksum.NO_OP, compressor, ObservableOutputBufferPool.INSTANCE);
+			try {
+				output.writeInt(1);
+				if (fail) {
+					assertThrows(KryoException.class, output::close);
+				} else {
+					output.close();
+				}
+				Mockito.verify(compressor).end();
+				assertEquals(0, output.getBuffer().length);
+			} finally {
+				compressor.end();
+			}
+		}
+
+		/**
+		 * Closing a stream must be attempted after a failed flush, preserving the first failure.
+		 *
+		 * @param unknown whether a previous failed append has already made the append position unknown
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Should close the stream and detach after a failed flush")
+		void shouldCloseStreamAfterFailedFlush(boolean unknown) {
+			final AtomicBoolean closed = new AtomicBoolean();
+			final KryoException firstFailure = new KryoException("Raw append failed");
+			final ByteArrayOutputStream stream = new ByteArrayOutputStream() {
+				/**
+				 * Fails every raw append, including the one attempted by close.
+				 *
+				 * @param bytes raw bytes to append
+				 * @param offset first source byte
+				 * @param length number of bytes to append
+				 * @throws KryoException always, preserving the same failure instance
+				 */
+				@Override
+				public void write(byte[] bytes, int offset, int length) {
+					throw firstFailure;
+				}
+				/**
+				 * Records disposal and adds a secondary failure.
+				 *
+				 * @throws IOException always, to check suppression onto the flush failure
+				 */
+				@Override
+				public void close() throws IOException {
+					closed.set(true);
+					throw new IOException("Close failed");
+				}
+			};
+			final ObservableOutput<ByteArrayOutputStream> output = new ObservableOutput<>(
+				stream, 128, 0, Checksum.NO_OP, null, ObservableOutputBufferPool.INSTANCE);
+			output.writeInt(1);
+			if (unknown) {
+				assertSame(firstFailure, assertThrows(KryoException.class, output::flush));
+			}
+			final KryoException failure = assertThrows(KryoException.class, output::close);
+			if (unknown) {
+				assertTrue(
+					failure.getMessage().toLowerCase(Locale.ROOT).contains("append position"),
+					failure::getMessage
+				);
+			} else {
+				assertSame(firstFailure, failure);
+			}
+			assertTrue(closed.get());
+			assertEquals(1, failure.getSuppressed().length);
+			assertEquals(0, output.getBuffer().length);
+		}
+	}
+
+	/** Borrowed buffers are attached only while assembling frames or pending raw data. */
+	@Nested
+	@DisplayName("Pooled frame buffers")
+	class PooledBuffers {
+		/** A completed frame returns its buffer before another output starts writing. */
+		@Test
+		@DisplayName("Should attach on write and detach after every completed record")
+		void shouldBorrowOnlyWhileWritingFrames() {
+			byte[] shared = null;
+			final List<ObservableOutput<ByteArrayOutputStream>> outputs = new ArrayList<>(100);
+			try {
+				for (int i = 0; i < 100; i++) {
+					final ObservableOutput<ByteArrayOutputStream> output = pooledOutput(1024);
+					outputs.add(output);
+					assertEquals(0, output.getBuffer().length);
+					final byte[][] active = new byte[1][];
+					new StorageRecord<>(output, 1L, false, out -> {
+						active[0] = out.getBuffer();
+						assertEquals(1024, active[0].length);
+						out.writeString("příliš žluťoučký kůň");
+						return 1;
+					});
+					if (shared == null) {
+						shared = active[0];
+					} else {
+						assertSame(shared, active[0]);
+					}
+					assertEquals(0, output.getBuffer().length);
+					assertEquals(0, output.position());
+				}
+			} finally {
+				outputs.forEach(ObservableOutput::close);
+			}
+		}
+
+		/** Flush preserves an open frame; reset and close abandon it and release the array once. */
+		@Test
+		@DisplayName("Should detach after flush, reset and close while preserving open frames")
+		void shouldDetachOnFlushResetAndClose() {
+			final ObservableOutput<ByteArrayOutputStream> output = pooledOutput(1024);
+			output.writeInt(42);
+			assertEquals(1024, output.getBuffer().length);
+			output.flush();
+			assertEquals(0, output.getBuffer().length);
+			output.markStart();
+			output.writeInt(0);
+			output.flush();
+			assertEquals(1024, output.getBuffer().length);
+			assertEquals(4, output.position());
+			output.reset();
+			assertEquals(0, output.getBuffer().length);
+			output.reset();
+			output.markStart();
+			output.writeInt(0);
+			output.close();
+			assertEquals(0, output.getBuffer().length);
+			output.close();
+			final byte[] first = ObservableOutputBufferPool.INSTANCE.borrow(1024);
+			final byte[] second = ObservableOutputBufferPool.INSTANCE.borrow(1024);
+			assertNotSame(first, second, "Repeated reset/close must never release one array twice");
+			ObservableOutputBufferPool.INSTANCE.release(first);
+			ObservableOutputBufferPool.INSTANCE.release(second);
+		}
+
+		/** Kryo slow paths must work when their first capacity check sees an empty buffer. */
+		@Test
+		@DisplayName("Should support zero-byte require and Kryo writes starting detached")
+		void shouldSupportKryoWritesStartingDetached() {
+			try (final ObservableOutput<ByteArrayOutputStream> output = pooledOutput(1024)) {
+				assertTrue(output.require(0));
+				assertEquals(1024, output.getBuffer().length);
+				output.reset();
+				final List<Consumer<ObservableOutput<ByteArrayOutputStream>>> writes = List.of(
+					out -> out.writeString("příliš žluťoučký kůň"),
+					out -> out.writeAscii("ASCII slow path"),
+					out -> out.writeString("short ASCII"),
+					out -> out.writeBytes(new byte[] {1, 2, 3}),
+					out -> out.writeInts(new int[] {42, 999}, 0, 2),
+					out -> out.writeLongs(new long[] {Long.MAX_VALUE, -1}, 0, 2),
+					out -> out.writeFloats(new float[] {1.5F}, 0, 1),
+					out -> out.writeDoubles(new double[] {1.5D}, 0, 1),
+					out -> out.writeShorts(new short[] {42}, 0, 1),
+					out -> out.writeChars(new char[] {'ž'}, 0, 1),
+					out -> out.writeBooleans(new boolean[] {true}, 0, 1),
+					out -> out.writeVarInt(123, true),
+					out -> out.writeVarLong(Long.MAX_VALUE, true)
+				);
+				for (Consumer<ObservableOutput<ByteArrayOutputStream>> write : writes) {
+					final ByteArrayOutputStream expected = new ByteArrayOutputStream();
+					try (final ObservableOutput<ByteArrayOutputStream> owned = new ObservableOutput<>(
+						expected, 1024, 0, Checksum.NO_OP, null
+					)) {
+						write.accept(owned);
+					}
+					output.getOutputStream().reset();
+					write.accept(output);
+					output.flush();
+					assertEquals(0, output.getBuffer().length);
+					assertArrayEquals(expected.toByteArray(), output.getOutputStream().toByteArray());
+				}
+			}
+		}
+
+		/**
+		 * Chained records keep one assembly buffer, including while an atomic UTF-8 value crosses a boundary.
+		 *
+		 * @param compressed whether to compress completed frames
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Should preserve chained frame bytes with optional compression")
+		void shouldPreserveChainedFrameBytes(boolean compressed) {
+			final ByteArrayOutputStream expected = new ByteArrayOutputStream();
+			final ByteArrayOutputStream actual = new ByteArrayOutputStream();
+			final Deflater ownedDeflater = compressed ? new Deflater() : null;
+			final Deflater pooledDeflater = compressed ? new Deflater() : null;
+			try (
+				final ObservableOutput<ByteArrayOutputStream> owned = new ObservableOutput<>(
+					expected, 128, 0, Crc32CChecksumFactory.INSTANCE.createChecksum(), ownedDeflater);
+				final ObservableOutput<ByteArrayOutputStream> pooled = new ObservableOutput<>(
+					actual, 128, 0, Crc32CChecksumFactory.INSTANCE.createChecksum(), pooledDeflater,
+					ObservableOutputBufferPool.INSTANCE)
+			) {
+				owned.markCumulativeChecksumStart();
+				pooled.markCumulativeChecksumStart();
+				for (int record = 0; record < 3; record++) {
+					for (ObservableOutput<ByteArrayOutputStream> output : List.of(owned, pooled)) {
+						final long start = output.getWrittenBytesSinceReset();
+						final StorageRecord<Integer> written = new StorageRecord<>(output, 1L, false, out -> {
+							final byte[] buffer = out.getBuffer();
+							for (int i = 0; i < 30; i++) {
+								out.writeInt(i);
+								out.writeString("žluťoučký kůň příliš");
+								assertSame(buffer, out.getBuffer());
+							}
+							return 1;
+						});
+						assertEquals(start, written.fileLocation().startingPosition());
+						assertEquals(output.getWrittenBytesSinceReset() - start, written.fileLocation().recordLength());
+					}
+					assertEquals(0, pooled.getBuffer().length);
+				}
+				assertEquals(owned.getWrittenBytesSinceReset(), pooled.getWrittenBytesSinceReset());
+				assertEquals(owned.markCumulativeChecksumEnd(), pooled.markCumulativeChecksumEnd());
+				assertArrayEquals(expected.toByteArray(), actual.toByteArray());
+			} finally {
+				if (ownedDeflater != null) {
+					ownedDeflater.end();
+					pooledDeflater.end();
+				}
+			}
+		}
+
+		/** A cached compressor must not retain the input array after the pool takes ownership again. */
+		@Test
+		@DisplayName("Should clear the compressor input reference after each frame")
+		void shouldClearCompressorInputReference() {
+			final AtomicReference<byte[]> input = new AtomicReference<>();
+			final Deflater deflater = new Deflater() {
+				/** Records the reference held by the compressor for lifecycle verification. */
+				@Override
+				public void setInput(byte[] bytes, int offset, int length) {
+					input.set(bytes);
+					super.setInput(bytes, offset, length);
+				}
+			};
+			try (final ObservableOutput<ByteArrayOutputStream> output = new ObservableOutput<>(
+				new ByteArrayOutputStream(), 1024, 0, Checksum.NO_OP, deflater, ObservableOutputBufferPool.INSTANCE
+			)) {
+				new StorageRecord<>(output, 1L, false, out -> {
+					out.writeBytes(new byte[500]);
+					return 1;
+				});
+				assertEquals(0, input.get().length);
+				assertEquals(0, output.getBuffer().length);
+			} finally {
+				deflater.end();
+			}
+		}
+
+		/**
+		 * Compression scratch space and the assembly array both return after an append fails.
+		 */
+		@Test
+		@DisplayName("Should return compression scratch space when writing the frame fails")
+		void shouldReleaseCompressedBuffersOnFailure() {
+			final byte[][] buffers = new byte[2][];
+			final ByteArrayOutputStream stream = new ByteArrayOutputStream() {
+				/** Fails the physical append of the finished frame. */
+				@Override
+				public void write(byte[] bytes, int offset, int length) {
+					throw new IllegalStateException("Append failed");
+				}
+			};
+			final Deflater deflater = new Deflater() {
+				/** Captures the borrowed scratch array that receives the compressed payload. */
+				@Override
+				public int deflate(byte[] output, int offset, int length) {
+					buffers[1] = output;
+					return super.deflate(output, offset, length);
+				}
+			};
+			try (final ObservableOutput<ByteArrayOutputStream> output = new ObservableOutput<>(
+				stream, 1031, 0, Checksum.NO_OP, deflater, ObservableOutputBufferPool.INSTANCE
+			)) {
+				assertThrows(IllegalStateException.class, () -> new StorageRecord<>(output, 1L, false, out -> {
+					buffers[0] = out.getBuffer();
+					out.writeBytes(new byte[500]);
+					return 1;
+				}));
+				assertEquals(0, output.getBuffer().length);
+				assertNotNull(buffers[1]);
+				final byte[] first = ObservableOutputBufferPool.INSTANCE.borrow(1031);
+				final byte[] second = ObservableOutputBufferPool.INSTANCE.borrow(1031);
+				assertNotSame(first, second);
+				if (Runtime.getRuntime().availableProcessors() > 1) {
+					assertTrue(first == buffers[0] || second == buffers[0]);
+					assertTrue(first == buffers[1] || second == buffers[1]);
+				} else {
+					assertTrue(first == buffers[0] || first == buffers[1]);
+				}
+				ObservableOutputBufferPool.INSTANCE.release(first);
+				ObservableOutputBufferPool.INSTANCE.release(second);
+			} finally {
+				deflater.end();
+			}
+		}
+
+		/**
+		 * Appended continuation frames keep their byte counts, compression savings and cumulative checksum on failure.
+		 *
+		 * @param compressed whether completed frames are compressed
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Should preserve appended frames and cumulative accounting after abandoning a frame")
+		void shouldPreserveAccountingAfterAbandoningFrame(boolean compressed) {
+			final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+			final Deflater deflater = compressed ? new Deflater() : null;
+			try (final ObservableOutput<ByteArrayOutputStream> output = new ObservableOutput<>(
+				bytes, 256, 73L, Crc32CChecksumFactory.INSTANCE.createChecksum(), deflater,
+				ObservableOutputBufferPool.INSTANCE
+			)) {
+				output.markCumulativeChecksumStart();
+				writeRecord(output, new byte[128], false);
+				final int prefixSize = bytes.size();
+				assertThrows(IllegalStateException.class, () -> new StorageRecord<>(output, 1L, false, out -> {
+					for (int i = 0; i < 80; i++) {
+						out.writeInt(i);
+					}
+					throw new IllegalStateException("Serialization failed after a continuation");
+				}));
+				assertTrue(bytes.size() > prefixSize, "A continuation must already have been appended");
+				assertEquals(73L + bytes.size(), output.getWrittenBytesSinceReset());
+				assertEquals(computeManualChecksum(bytes.toByteArray()), output.getCumulativeChecksum());
+				assertEquals(0, output.getBuffer().length);
+				assertEquals(-1, output.getStartPosition());
+				assertEquals(-1, output.getPayloadStartPosition());
+				assertEquals(-1, output.getRecordLengthPosition());
+				final long nextStart = 73L + bytes.size();
+				assertEquals(nextStart, writeRecord(output, new byte[32], false).startingPosition());
+				assertEquals(73L + bytes.size(), output.getWrittenBytesSinceReset());
+				assertEquals(computeManualChecksum(bytes.toByteArray()), output.markCumulativeChecksumEnd());
+			} finally {
+				if (deflater != null) {
+					deflater.end();
+				}
+			}
+		}
+
+		/**
+		 * Abandoning a frame keeps bytes preceding its start pending until the next flush.
+		 */
+		@Test
+		@DisplayName("Should preserve pending bytes before an abandoned frame")
+		void shouldPreservePendingBytesBeforeAbandonedFrame() {
+			try (final ObservableOutput<ByteArrayOutputStream> output = pooledOutput(1024)) {
+				output.writeInt(42);
+				assertThrows(IllegalStateException.class, () -> output.doWithOnBufferOverflowHandler(null, () -> {
+					output.markStart();
+					output.writeInt(99);
+					throw new IllegalStateException("Serialization failed");
+				}));
+				assertEquals(Integer.BYTES, output.position());
+				assertEquals(1024, output.getBuffer().length);
+				assertEquals(0, output.getOutputStream().size());
+				output.flush();
+				assertArrayEquals(new byte[] {42, 0, 0, 0}, output.getOutputStream().toByteArray());
+				assertEquals(Integer.BYTES, output.getWrittenBytesSinceReset());
+				assertEquals(0, output.getBuffer().length);
+			}
+		}
+
+		/**
+		 * Raw-record overflow uses the same abandonment path and preserves previously appended bytes.
+		 */
+		@Test
+		@DisplayName("Should preserve the append position after a raw record fails")
+		void shouldPreservePositionAfterFailedRawRecord() {
+			try (final ObservableOutput<ByteArrayOutputStream> output = pooledOutput(128)) {
+				writeRecord(output, new byte[32], false);
+				final int prefixSize = output.getOutputStream().size();
+				assertThrows(com.esotericsoftware.kryo.KryoException.class,
+					() -> StorageRecord.writeRaw(output, (byte) 0, 1L, new byte[256]));
+				assertEquals(prefixSize, output.getWrittenBytesSinceReset());
+				assertEquals(0, output.getBuffer().length);
+				assertEquals(prefixSize, writeRecord(output, new byte[16], false).startingPosition());
+			}
+		}
+
+		/** Failed frame serialization abandons the unfinished frame and returns its assembly buffer. */
+		@Test
+		@DisplayName("Should release an abandoned frame after serialization fails")
+		void shouldReleaseAbandonedFrame() {
+			try (final ObservableOutput<ByteArrayOutputStream> output = pooledOutput(1024)) {
+				assertThrows(IllegalStateException.class, () -> new StorageRecord<>(output, 1L, false, out -> {
+					out.writeInt(42);
+					throw new IllegalStateException("Serialization failed");
+				}));
+				assertEquals(0, output.getBuffer().length);
+			}
+		}
+	}
+
+	/**
+	 * Creates an initially detached output for lifecycle tests.
+	 *
+	 * @param size exact size of the borrowed frame buffer
+	 * @return a pooled output backed by a fresh in-memory stream
+	 */
+	@Nonnull
+	private static ObservableOutput<ByteArrayOutputStream> pooledOutput(int size) {
+		return new ObservableOutput<>(
+			new ByteArrayOutputStream(), size, 0, Checksum.NO_OP, null, ObservableOutputBufferPool.INSTANCE
+		);
+	}
+
+	/**
+	 * Creates a stream that accepts its first array write and fails the second, as a full disk would.
+	 *
+	 * @param target stream receiving the accepted bytes
+	 * @return a stream failing on its second array write
+	 */
+	@Nonnull
+	private static OutputStream failingOnSecondArrayWrite(@Nonnull ByteArrayOutputStream target) {
+		return new OutputStream() {
+			private int arrayWrites;
+
+			@Override
+			public void write(int b) {
+				target.write(b);
+			}
+
+			@Override
+			public void write(@Nonnull byte[] bytes, int offset, int length) throws IOException {
+				if (++this.arrayWrites == 2) {
+					throw new IOException("No space left on device");
+				}
+				target.write(bytes, offset, length);
+			}
+		};
+	}
+
+	private static final int DEFAULT_BUFFER = 65_536;
 
 	/**
 	 * Provides combinations of checksum and compression settings for parameterized tests.
@@ -190,30 +804,6 @@ public class ObservableOutputTest {
 	class ConstructorTests {
 
 		@Test
-		@DisplayName("Constructor should throw when buffer size is less than flush size")
-		void shouldThrowWhenBufferSizeLessThanFlushSize() {
-			final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			final int flushSize = 1024;
-			final int bufferSize = 512; // smaller than flushSize
-
-			assertThrows(
-				UnexpectedIOException.class,
-				() -> {
-					//noinspection EmptyTryBlock
-					try (
-						final ObservableOutput<ByteArrayOutputStream> unused = new ObservableOutput<>(
-							baos, flushSize, bufferSize, 0L,
-							Crc32CChecksumFactory.INSTANCE.createChecksum(), null
-						)
-					) {
-						// no-op
-					}
-				},
-				"Should throw when buffer size < flush size"
-			);
-		}
-
-		@Test
 		@DisplayName("Constructor should initialize total from currentFileSize parameter")
 		void shouldInitializeTotalFromCurrentFileSize() {
 			final ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -248,6 +838,21 @@ public class ObservableOutputTest {
 				// We can verify this indirectly by checking the output works
 				assertNotNull(out);
 			}
+		}
+
+		/**
+		 * A pooled frame must leave room for the checksum tail, otherwise no frame could ever be finished.
+		 */
+		@Test
+		@DisplayName("Pooled constructor should reject a frame size that cannot hold the checksum tail")
+		void shouldRejectPooledFrameSizeWithoutRoomForTail() {
+			assertThrows(
+				io.evitadb.exception.GenericEvitaInternalError.class,
+				() -> new ObservableOutput<>(
+					new ByteArrayOutputStream(), ObservableOutput.TAIL_MANDATORY_SPACE, 0L, Checksum.NO_OP, null,
+					ObservableOutputBufferPool.INSTANCE
+				)
+			);
 		}
 	}
 
@@ -1010,6 +1615,106 @@ public class ObservableOutputTest {
 	}
 
 	/**
+	 * Direct appends must compose with buffered writes, compression and cumulative checksums.
+	 */
+	@Nested
+	@DisplayName("Direct appends")
+	class DirectAppendTests {
+
+		/**
+		 * Mixes pending bytes, compressed frames and direct chunks, then reuses the output after reset.
+		 */
+		@ParameterizedTest
+		@MethodSource("io.evitadb.store.kryo.ObservableOutputTest#checksumAndCompressionSettings")
+		@DisplayName("Direct chunks preserve positions, byte counts and cumulative checksums")
+		void shouldAccountForDirectBytesAmongBufferedWrites(
+			@Nonnull ChecksumOption checksum, @Nonnull CompressionOption compression
+		) {
+			final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+			try (final ObservableOutput<ByteArrayOutputStream> output = createOutput(bytes, checksum, compression)) {
+				output.markCumulativeChecksumStart();
+				writeRecord(output, new byte[500], false);
+				final int prefixLength = bytes.size();
+				output.writeInt(123);
+				final byte[] chunk = new byte[DEFAULT_BUFFER * 2];
+				new Random(42).nextBytes(chunk);
+				output.writeDirect(chunk, 3, chunk.length - 7);
+				assertArrayEquals(
+					Arrays.copyOfRange(chunk, 3, chunk.length - 4),
+					Arrays.copyOfRange(bytes.toByteArray(), prefixLength + Integer.BYTES, bytes.size())
+				);
+				assertEquals(bytes.size(), output.getWrittenBytesSinceReset());
+				assertEquals(0, output.position());
+				final long nextStart = bytes.size();
+				assertEquals(nextStart, writeRecord(output, new byte[123], false).startingPosition());
+				assertEquals(bytes.size(), output.getWrittenBytesSinceReset());
+				assertEquals(
+					checksum == ChecksumOption.ENABLED ? computeManualChecksum(bytes.toByteArray()) : 0L,
+					output.markCumulativeChecksumEnd()
+				);
+				assertEquals(-1, output.getStartPosition());
+				assertEquals(-1, output.getPayloadStartPosition());
+				output.reset();
+				output.writeDirect(chunk, 1, 13);
+				assertEquals(13, output.total());
+				assertEquals(13, output.getWrittenBytesSinceReset());
+			}
+		}
+
+		/**
+		 * An attempted direct append cannot interleave bytes with an unfinished buffered frame.
+		 */
+		@Test
+		@DisplayName("Direct appends refuse an open frame")
+		void shouldRefuseDirectBytesWhenFrameIsOpen() {
+			final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+			try (final ObservableOutput<ByteArrayOutputStream> output = createOutput(
+				bytes, ChecksumOption.ENABLED, CompressionOption.DISABLED
+			)) {
+				output.markStart();
+				assertThrows(
+					io.evitadb.exception.EvitaInternalError.class, () -> output.writeDirect(new byte[1], 0, 1)
+				);
+				assertEquals(0, bytes.size());
+				output.reset();
+				assertDoesNotThrow(() -> output.writeDirect(new byte[1], 0, 1));
+			}
+		}
+	}
+
+	/**
+	 * A stream write that fails part-way through an append leaves the physical end of the stream unknown.
+	 */
+	@Nested
+	@DisplayName("Failed appends")
+	class FailedAppendTests {
+
+		/**
+		 * The frame header reached the stream before the payload write failed, so no later location can be trusted.
+		 */
+		@Test
+		@DisplayName("Should refuse appends after a frame was partially appended")
+		void shouldRefuseAppendsAfterPartiallyAppendedFrame() {
+			final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+			try (final ObservableOutput<OutputStream> output = new ObservableOutput<>(
+				failingOnSecondArrayWrite(bytes), 1024, 0L, Checksum.NO_OP, null, ObservableOutputBufferPool.INSTANCE
+			)) {
+				assertThrows(KryoException.class, () -> new StorageRecord<>(output, 1L, false, out -> {
+					out.writeBytes(new byte[32]);
+					return 1;
+				}));
+				assertEquals(StorageRecord.CRC_NOT_COVERED_HEAD, bytes.size());
+
+				assertThrows(KryoException.class, () -> new StorageRecord<>(output, 2L, false, out -> {
+					out.writeBytes(new byte[8]);
+					return 1;
+				}));
+				assertEquals(StorageRecord.CRC_NOT_COVERED_HEAD, bytes.size());
+			}
+		}
+	}
+
+	/**
 	 * Tests for compression behavior.
 	 */
 	@Nested
@@ -1271,7 +1976,7 @@ public class ObservableOutputTest {
 			final List<byte[]> writtenPayloads = new ArrayList<>(activePercentOfCapacity.length);
 			try (ObservableOutput<ByteArrayOutputStream> out =
 				     new ObservableOutput<>(
-					     baos, bufferSize, bufferSize, 0L,
+					     baos, bufferSize, 0L,
 					     Crc32CChecksumFactory.INSTANCE.createChecksum(), null
 				     )) {
 

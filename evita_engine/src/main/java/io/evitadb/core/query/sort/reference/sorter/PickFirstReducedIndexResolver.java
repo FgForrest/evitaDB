@@ -32,10 +32,10 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -51,7 +51,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.PrimitiveIterator.OfInt;
+import java.util.Set;
 import java.util.function.IntUnaryOperator;
 import java.util.function.Supplier;
 
@@ -62,9 +64,9 @@ import java.util.function.Supplier;
  * # The semantics it serves
  *
  * An owner sorts on the value of its **first row, in target order, that carries the sorted value**. Every row of a
- * selected owner takes part, whatever the query's filter says about the same reference - so the index set depends on
- * the selection and nothing else. It is therefore resolved at execution time, from the computed selection, rather than
- * at planning time from the candidate indexes a `referenceHaving` on the same reference happened to produce.
+ * selected owner takes part within the resolved hierarchy bound of its scope. Reference-having filters select owners
+ * without narrowing their ordering rows. The index set is resolved at execution time from the computed selection,
+ * rather than from the candidate indexes a `referenceHaving` on the same reference happened to produce.
  *
  * # How the index set is found
  *
@@ -92,6 +94,14 @@ import java.util.function.Supplier;
  *
  * When the selection holds more covered owners than the reference has reduced indexes, the whole family is walked
  * instead: the gather would not visit fewer indexes and would cost more lookups.
+ *
+ * Every candidate is resolved by the scoped read resolver of the query
+ * ({@link QueryPlanningContext#resolvePartitionForReadIfExists(ReferencedTypeEntityIndex, int)}): a registered
+ * single-owner partition is handed over as its {@link VirtualReferencePartition} - one registry lookup, the index
+ * object is never touched - and takes part in the target order exactly like a materialized one. A virtual candidate of
+ * an unselected owner may be handed over too (under the plain primary key order nothing is probed, and the whole-family
+ * fallback lists every owner's partitions); {@link PickFirstReferenceSorter} admits a virtual partition only through
+ * the unclaimed rest of the selection.
  *
  * # Target order
  *
@@ -124,6 +134,10 @@ public final class PickFirstReducedIndexResolver {
 	 */
 	@Nonnull private final Scope[] scopes;
 	/**
+	 * Resolved hierarchy targets by owner scope. An absent scope is unbounded; an empty bitmap admits no rows.
+	 */
+	@Nonnull private final Map<Scope, Bitmap> hierarchyBounds;
+	/**
 	 * Sorter ordering the targets when the ordering specification is not the plain primary key order, `null` when it
 	 * is.
 	 */
@@ -143,11 +157,11 @@ public final class PickFirstReducedIndexResolver {
 	/**
 	 * Supplier of the planning-time reduced indexes, see {@link #getPlanningIndexes()}.
 	 */
-	@Nonnull private final Supplier<ReducedEntityIndex[]> planningIndexes;
+	@Nonnull private final Supplier<ReferencePartition[]> planningIndexes;
 	/**
 	 * Memoized result of {@link #planningIndexes}.
 	 */
-	@Nullable private ReducedEntityIndex[] memoizedPlanningIndexes;
+	@Nullable private ReferencePartition[] memoizedPlanningIndexes;
 
 	/**
 	 * Creates a resolver.
@@ -157,6 +171,7 @@ public final class PickFirstReducedIndexResolver {
 	 * @param scopes            the scopes the query processes
 	 * @param targetSorter      sorter ordering the targets, `null` for the plain primary key order
 	 * @param targetsDescending whether the plain primary key order is descending
+	 * @param hierarchyBounds   resolved hierarchy targets by owner scope, with absent scopes unbounded
 	 * @param planningIndexes   supplier of the planning-time reduced indexes, see {@link #getPlanningIndexes()}
 	 */
 	public PickFirstReducedIndexResolver(
@@ -165,13 +180,15 @@ public final class PickFirstReducedIndexResolver {
 		@Nonnull Scope[] scopes,
 		@Nullable NestedContextSorter targetSorter,
 		boolean targetsDescending,
-		@Nonnull Supplier<ReducedEntityIndex[]> planningIndexes
+		@Nonnull Map<Scope, Bitmap> hierarchyBounds,
+		@Nonnull Supplier<ReferencePartition[]> planningIndexes
 	) {
 		this.queryContext = queryContext;
 		this.referenceSchema = referenceSchema;
 		this.scopes = scopes;
 		this.targetSorter = targetSorter;
 		this.targetsDescending = targetsDescending;
+		this.hierarchyBounds = Map.copyOf(hierarchyBounds);
 		this.planningIndexes = planningIndexes;
 	}
 
@@ -202,11 +219,50 @@ public final class PickFirstReducedIndexResolver {
 	}
 
 	/**
-	 * Resolves the reduced indexes that may hold a row of the selected owners, in target order: a superset of those
+	 * Returns whether the target is admitted by the resolved hierarchy bound of the owner's scope.
+	 *
+	 * @param scope  the owner's scope
+	 * @param target the referenced primary key
+	 * @return `true` when the scope is unbounded or the target belongs to its bound
+	 */
+	public boolean isTargetWithinHierarchyBound(@Nonnull Scope scope, int target) {
+		final Bitmap bound = this.hierarchyBounds.get(scope);
+		return bound == null || bound.contains(target);
+	}
+
+	/**
+	 * Returns a resolver limited to the passed scopes - the scopes an ordering nested in the `pickFirst` reference
+	 * ordering sorts (narrowed by an `inScope` container, or by the scopes a sorted compound is indexed in). Both
+	 * routes of that ordering must use the limited resolver: the index route then resolves no reduced index of the
+	 * other scopes and the prefetch route admits no owner living in them. The resolver itself is returned when it
+	 * processes none of the other scopes.
+	 *
+	 * @param orderedScopes the scopes the nested ordering sorts
+	 * @return the resolver processing only the passed scopes among its own
+	 */
+	@Nonnull
+	public PickFirstReducedIndexResolver restrictTo(@Nonnull Set<Scope> orderedScopes) {
+		final Scope[] retainedScopes = Arrays.stream(this.scopes)
+			.filter(orderedScopes::contains)
+			.toArray(Scope[]::new);
+		if (retainedScopes.length == this.scopes.length) {
+			return this;
+		}
+		return new PickFirstReducedIndexResolver(
+			this.queryContext, this.referenceSchema, retainedScopes, this.targetSorter, this.targetsDescending,
+			this.hierarchyBounds,
+			() -> Arrays.stream(getPlanningIndexes())
+				.filter(index -> orderedScopes.contains(index.getIndexKey().scope()))
+				.toArray(ReferencePartition[]::new)
+		);
+	}
+
+	/**
+	 * Resolves the partitions that may hold a row of the selected owners, in target order: a superset of those
 	 * that do under the plain primary key order, exactly those that do under any other target order.
 	 *
 	 * @param selection primary keys of the owners being sorted
-	 * @return the indexes and the rank function of their targets
+	 * @return the partitions and the rank function of their targets
 	 */
 	@Nonnull
 	public ResolvedReducedIndexes resolve(@Nonnull Bitmap selection) {
@@ -214,7 +270,7 @@ public final class PickFirstReducedIndexResolver {
 			return this.memoizedResult;
 		}
 		final PersistentRoaringBitmap selected = RoaringBitmapBackedBitmap.getRoaringBitmap(selection);
-		final List<ReducedEntityIndex> found = new ArrayList<>(64);
+		final List<ReferencePartition> found = new ArrayList<>(64);
 		if (!selected.isEmpty()) {
 			for (Scope scope : this.scopes) {
 				final ReferencedTypeEntityIndex typeIndex = getTypeIndex(scope);
@@ -222,14 +278,16 @@ public final class PickFirstReducedIndexResolver {
 					final Bitmap candidates = selectCandidates(scope, typeIndex, selected);
 					final OfInt it = candidates.iterator();
 					while (it.hasNext()) {
-						final ReducedEntityIndex index = resolveReducedIndex(it.nextInt(), scope);
+						// the scoped read resolver answers a registered single-owner partition with its virtual handle,
+						// without touching the index object
+						final ReferencePartition partition =
+							this.queryContext.resolvePartitionForReadIfExists(typeIndex, it.nextInt());
 						if (
-							index != null &&
-								(this.targetSorter == null || PersistentRoaringBitmap.intersects(
-									RoaringBitmapBackedBitmap.getRoaringBitmap(index.getAllPrimaryKeys()), selected
-								))
+							partition != null &&
+								isTargetWithinHierarchyBound(scope, partition.getReferenceKey().primaryKey()) &&
+								(this.targetSorter == null || holdsSelectedOwner(partition, selected))
 						) {
-							found.add(index);
+							found.add(partition);
 						}
 					}
 				}
@@ -256,17 +314,20 @@ public final class PickFirstReducedIndexResolver {
 	}
 
 	/**
-	 * Returns the reduced indexes for the consumers that need an index array at planning time, before any selection
-	 * exists - the block-by-block orderings of chain attributes and the single-index orderings - which therefore keep
-	 * the planning-time index set of the block orderings: the candidates of a `referenceHaving` on the same reference
-	 * when there are any, the whole family otherwise. Resolved once per instance, and only when asked for.
+	 * Returns planning-time partitions for implicit pick-first chains and constraints requiring a single partition.
+	 * Implicit pick-first chains use the hierarchy-bounded planning partitions when a bound is present, and retain
+	 * their index-selection candidates otherwise. Every supplied partition is checked against the bound here too.
+	 * Resolved once per instance, and only when asked for.
 	 *
-	 * @return the planning-time reduced indexes in target order
+	 * @return the planning-time partitions in target order - reduced entity indexes and virtual partitions
 	 */
 	@Nonnull
-	public ReducedEntityIndex[] getPlanningIndexes() {
+	public ReferencePartition[] getPlanningIndexes() {
 		if (this.memoizedPlanningIndexes == null) {
-			this.memoizedPlanningIndexes = this.planningIndexes.get();
+			final ReferencePartition[] supplied = this.planningIndexes.get();
+			this.memoizedPlanningIndexes = this.hierarchyBounds.isEmpty() ? supplied : Arrays.stream(supplied)
+				.filter(it -> isTargetWithinHierarchyBound(it.getIndexKey().scope(), it.getReferenceKey().primaryKey()))
+				.toArray(ReferencePartition[]::new);
 		}
 		return this.memoizedPlanningIndexes;
 	}
@@ -331,56 +392,53 @@ public final class PickFirstReducedIndexResolver {
 	}
 
 	/**
-	 * Resolves a candidate primary key to a reduced index of this reference's entity family in the scope, tolerating
-	 * keys that name nothing or an index of another family.
+	 * Returns true when the partition holds a row of a selected owner. A virtual partition is answered by its only
+	 * owner, read out of the handle, a materialized one by intersecting its owners with the selection.
 	 *
-	 * @param indexPrimaryKey primary key of the candidate index
-	 * @param scope           the scope the candidate was found in
-	 * @return the reduced index or `null` when the key does not name one of this reference in the scope
+	 * @param partition the partition
+	 * @param selected  the selected owners
+	 * @return true if one of the partition's owners is selected
 	 */
-	@Nullable
-	private ReducedEntityIndex resolveReducedIndex(int indexPrimaryKey, @Nonnull Scope scope) {
-		final EntityIndex index = this.queryContext.getEntityIndexByPrimaryKeyIfExists(indexPrimaryKey);
-		if (
-			index instanceof ReducedEntityIndex reducedIndex &&
-				reducedIndex.getIndexKey().type() == EntityIndexType.REFERENCED_ENTITY &&
-				reducedIndex.getIndexKey().scope() == scope &&
-				reducedIndex.getIndexKey().discriminator() instanceof RepresentativeReferenceKey rrk &&
-				this.referenceSchema.getName().equals(rrk.referenceName())
-		) {
-			return reducedIndex;
-		}
-		return null;
+	private static boolean holdsSelectedOwner(
+		@Nonnull ReferencePartition partition,
+		@Nonnull PersistentRoaringBitmap selected
+	) {
+		return partition instanceof VirtualReferencePartition virtual ?
+			selected.contains(virtual.ownerPrimaryKey()) :
+			PersistentRoaringBitmap.intersects(
+				RoaringBitmapBackedBitmap.getRoaringBitmap(partition.getAllPrimaryKeys()), selected
+			);
 	}
 
 	/**
-	 * Orders the found indexes by the rank of their target, and indexes sharing one target by their representative
-	 * attribute values.
+	 * Orders the found partitions by the rank of their target, and partitions sharing one target by their
+	 * representative attribute values.
 	 *
-	 * @param found the indexes in any order
-	 * @return the ordered indexes along with the rank function of the targets
+	 * @param found the partitions in any order
+	 * @return the ordered partitions along with the rank function of the targets
 	 */
 	@Nonnull
-	private ResolvedReducedIndexes order(@Nonnull List<ReducedEntityIndex> found) {
+	private ResolvedReducedIndexes order(@Nonnull List<ReferencePartition> found) {
 		if (this.targetSorter == null) {
 			// the plain primary key order needs no grouping: one sort by target, then by representative values
-			final ReducedEntityIndex[] ordered = found.toArray(ReducedEntityIndex[]::new);
-			final Comparator<ReducedEntityIndex> byTarget = Comparator.comparingInt(it -> it.getReferenceKey().primaryKey());
+			final ReferencePartition[] ordered = found.toArray(ReferencePartition[]::new);
+			final Comparator<ReferencePartition> byTarget =
+				Comparator.comparingInt(it -> it.getReferenceKey().primaryKey());
 			Arrays.sort(
 				ordered,
 				(this.targetsDescending ? byTarget.reversed() : byTarget)
 					.thenComparing(
-						ReducedEntityIndex::getRepresentativeReferenceKey,
+						ReferencePartition::getRepresentativeReferenceKey,
 						RepresentativeReferenceKey.GENERIC_COMPARATOR
 					)
 			);
 			return new ResolvedReducedIndexes(ordered, createTargetRank(ArrayUtils.EMPTY_INT_ARRAY));
 		}
-		final IntObjectHashMap<List<ReducedEntityIndex>> indexesByTarget = new IntObjectHashMap<>(found.size());
+		final IntObjectHashMap<List<ReferencePartition>> indexesByTarget = new IntObjectHashMap<>(found.size());
 		final RoaringBitmapWriter<PersistentRoaringBitmap> targetWriter = RoaringBitmapBackedBitmap.buildWriter();
-		for (ReducedEntityIndex index : found) {
+		for (ReferencePartition index : found) {
 			final int target = index.getReferenceKey().primaryKey();
-			List<ReducedEntityIndex> sameTarget = indexesByTarget.get(target);
+			List<ReferencePartition> sameTarget = indexesByTarget.get(target);
 			if (sameTarget == null) {
 				sameTarget = new ArrayList<>(1);
 				indexesByTarget.put(target, sameTarget);
@@ -389,10 +447,10 @@ public final class PickFirstReducedIndexResolver {
 			sameTarget.add(index);
 		}
 		final int[] orderedTargets = orderTargets(new BaseBitmap(targetWriter.get()));
-		final ReducedEntityIndex[] ordered = new ReducedEntityIndex[found.size()];
+		final ReferencePartition[] ordered = new ReferencePartition[found.size()];
 		int peak = 0;
 		for (int target : orderedTargets) {
-			final List<ReducedEntityIndex> sameTarget = indexesByTarget.get(target);
+			final List<ReferencePartition> sameTarget = indexesByTarget.get(target);
 			if (sameTarget.size() > 1) {
 				sameTarget.sort(
 					(a, b) -> RepresentativeReferenceKey.GENERIC_COMPARATOR.compare(
@@ -400,7 +458,7 @@ public final class PickFirstReducedIndexResolver {
 					)
 				);
 			}
-			for (ReducedEntityIndex index : sameTarget) {
+			for (ReferencePartition index : sameTarget) {
 				ordered[peak++] = index;
 			}
 		}
@@ -445,13 +503,13 @@ public final class PickFirstReducedIndexResolver {
 	}
 
 	/**
-	 * The reduced indexes resolved for one selection.
+	 * The partitions resolved for one selection.
 	 *
-	 * @param indexes    reduced indexes that may hold a row of the selection, in target order
+	 * @param indexes    partitions that may hold a row of the selection, in target order
 	 * @param targetRank function returning a lower number for a target that comes first in target order
 	 */
 	public record ResolvedReducedIndexes(
-		@Nonnull ReducedEntityIndex[] indexes,
+		@Nonnull ReferencePartition[] indexes,
 		@Nonnull IntUnaryOperator targetRank
 	) {
 	}

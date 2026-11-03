@@ -23,7 +23,10 @@
 
 package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
+import graphql.GraphQLContext;
+import graphql.execution.CoercedVariables;
 import graphql.language.StringValue;
+import graphql.language.Value;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
 import graphql.schema.CoercingParseValueException;
@@ -33,6 +36,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.FormattableBigDeci
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.util.Locale;
 
 /**
  * {@link Coercing} for converting between Java's side {@link BigDecimal} and client string.
@@ -44,7 +48,11 @@ import java.math.BigDecimal;
 public class BigDecimalCoercing implements Coercing<BigDecimal, String> {
 
     @Override
-    public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
+    public String serialize(
+        @Nonnull Object dataFetcherResult,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingSerializeException {
         if (dataFetcherResult instanceof BigDecimal bigDecimal) {
             return EvitaDataTypes.formatValue(bigDecimal);
         }
@@ -56,7 +64,11 @@ public class BigDecimalCoercing implements Coercing<BigDecimal, String> {
 
     @Nonnull
     @Override
-    public BigDecimal parseValue(@Nonnull Object input) throws CoercingParseValueException {
+    public BigDecimal parseValue(
+        @Nonnull Object input,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingParseValueException {
         if (!(input instanceof String stringInput)) {
             throw new CoercingParseValueException("Big decimal input is not a string.");
         }
@@ -69,7 +81,12 @@ public class BigDecimalCoercing implements Coercing<BigDecimal, String> {
 
     @Nonnull
     @Override
-    public BigDecimal parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
+    public BigDecimal parseLiteral(
+        @Nonnull Value<?> input,
+        @Nonnull CoercedVariables variables,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingParseLiteralException {
         if (!(input instanceof StringValue stringValue)) {
             throw new CoercingParseLiteralException("Big decimal input is not a StringValue.");
         }

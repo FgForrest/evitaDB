@@ -244,7 +244,7 @@ import static java.util.Optional.ofNullable;
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class HierarchyWithinRoot extends AbstractFilterConstraintContainer
-	implements HierarchyFilterConstraint, SeparateEntityScopeContainer, ConstraintContainerWithSuffix {
+	implements HierarchyFilterConstraint, DifferentEntityFilterContainer, ConstraintContainerWithSuffix {
 	@Serial private static final long serialVersionUID = -4396541048481960654L;
 	private static final String SUFFIX = "self";
 

@@ -51,7 +51,6 @@ import java.util.Random;
 import java.util.function.Supplier;
 
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
 import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
@@ -96,7 +95,6 @@ class LongRunningSavepointContainerChangesTest implements TimeBoundedTestSupport
 	private static final int REUSE_PERCENT = 30;
 
 	@ParameterizedTest(name = "Bare TransactionalContainerChanges rolls back / commits its created-removed bookkeeping")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("Bare TransactionalContainerChanges rolls back / commits its created-removed bookkeeping")
 	void shouldRoundTripBareContainer(@Nonnull GenerationalTestInput input) {
@@ -107,7 +105,6 @@ class LongRunningSavepointContainerChangesTest implements TimeBoundedTestSupport
 	}
 
 	@ParameterizedTest(name = "AttributeIndexChanges (five containers) rolls back / commits its bookkeeping")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("AttributeIndexChanges (five containers) rolls back / commits its bookkeeping")
 	void shouldRoundTripAttributeIndexChanges(@Nonnull GenerationalTestInput input) {
@@ -118,7 +115,6 @@ class LongRunningSavepointContainerChangesTest implements TimeBoundedTestSupport
 	}
 
 	@ParameterizedTest(name = "CatalogIndexChanges rolls back / commits its bookkeeping")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("CatalogIndexChanges rolls back / commits its bookkeeping")
 	void shouldRoundTripCatalogIndexChanges(@Nonnull GenerationalTestInput input) {
@@ -129,7 +125,6 @@ class LongRunningSavepointContainerChangesTest implements TimeBoundedTestSupport
 	}
 
 	@ParameterizedTest(name = "PriceRefIndex.PriceIndexChanges rolls back / commits its bookkeeping")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("PriceRefIndex.PriceIndexChanges rolls back / commits its bookkeeping")
 	void shouldRoundTripPriceRefIndexChanges(@Nonnull GenerationalTestInput input) {
@@ -140,7 +135,6 @@ class LongRunningSavepointContainerChangesTest implements TimeBoundedTestSupport
 	}
 
 	@ParameterizedTest(name = "PriceSuperIndex.PriceIndexChanges rolls back / commits its bookkeeping")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("PriceSuperIndex.PriceIndexChanges rolls back / commits its bookkeeping")
 	void shouldRoundTripPriceSuperIndexChanges(@Nonnull GenerationalTestInput input) {
@@ -151,7 +145,6 @@ class LongRunningSavepointContainerChangesTest implements TimeBoundedTestSupport
 	}
 
 	@ParameterizedTest(name = "FacetIndexChanges rolls back / commits its bookkeeping")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("FacetIndexChanges rolls back / commits its bookkeeping")
 	void shouldRoundTripFacetIndexChanges(@Nonnull GenerationalTestInput input) {
@@ -162,7 +155,6 @@ class LongRunningSavepointContainerChangesTest implements TimeBoundedTestSupport
 	}
 
 	@ParameterizedTest(name = "FacetEntityTypeIndexChanges rolls back / commits its bookkeeping")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("FacetEntityTypeIndexChanges rolls back / commits its bookkeeping")
 	void shouldRoundTripFacetEntityTypeIndexChanges(@Nonnull GenerationalTestInput input) {
@@ -173,7 +165,6 @@ class LongRunningSavepointContainerChangesTest implements TimeBoundedTestSupport
 	}
 
 	@ParameterizedTest(name = "FacetGroupIndexChanges rolls back / commits its bookkeeping")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("FacetGroupIndexChanges rolls back / commits its bookkeeping")
 	void shouldRoundTripFacetGroupIndexChanges(@Nonnull GenerationalTestInput input) {
@@ -247,7 +238,7 @@ class LongRunningSavepointContainerChangesTest implements TimeBoundedTestSupport
 	 */
 	private static void addMarker(@Nonnull LayerHolder<?> holder, @Nonnull List<RecordingProducer> pool) {
 		final Object layer = Transaction.getOrCreateTransactionalMemoryLayer(holder);
-		register(containersOf(layer).get(0), true, newProducer(pool));
+		register(containersOf(layer).getFirst(), true, newProducer(pool));
 	}
 
 	/**

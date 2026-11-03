@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,9 +31,11 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.sort.EntityReferenceSensitiveComparator;
 import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeMode;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -41,14 +43,22 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
-import static io.evitadb.core.query.sort.EntityReferenceSensitiveComparator.getReferenceByRepresentativeReferenceKey;
+import static io.evitadb.core.query.sort.EntityReferenceSensitiveComparator.getFirstValuedReference;
 
 /**
  * Comparator for sorting entities according to a sortable compound attribute value. It combines multiple attribute
  * comparators into one. This implementation adheres to {@link MergeMode#APPEND_ALL} which relates
  * to {@link TraverseByEntityProperty} ordering.
+ *
+ * The comparator sorts one traversal block at a time - the block key, naming the referenced entity of the block, is
+ * bound by {@link #withReferencedEntityId(RepresentativeReferenceKey, Runnable)}. An entity is represented in the
+ * block by its first row to that referenced entity, in the order of the representative attribute values, that carries
+ * at least one element of the compound; an entity without such a row is classified as not sortable
+ * ({@link #canSort(EntityContract)}), so it is passed on to the next block rather than claimed by this one.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -65,13 +75,34 @@ public class TraverseReferenceCompoundAttributeComparator
 	 * The id of the referenced entity that is being traversed.
 	 */
 	@Nullable private RepresentativeReferenceKey referenceKey;
+	/**
+	 * Tells whether a row carries at least one element of the compound - created once, so picking a row allocates no
+	 * lambda.
+	 */
+	@Nonnull private final Predicate<ReferenceContract> carriesValue = this::carriesAnyElement;
 
+	/**
+	 * Scopes whose compound index supplies sortable owner rows.
+	 */
+	@Nonnull private final Set<Scope> sortableScopes;
+
+	/**
+	 * Creates the comparator with the scope eligibility of the compound's index providers.
+	 *
+	 * @param compoundSchemaContract   the ordered compound
+	 * @param referenceSchema          the ordered reference
+	 * @param locale                   the locale of localized compound elements
+	 * @param attributeSchemaExtractor resolves the schemas of compound elements
+	 * @param orderDirection           the ordering direction
+	 * @param sortableScopes           ordered scopes in which the compound is indexed
+	 */
 	public TraverseReferenceCompoundAttributeComparator(
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull Function<String, AttributeSchemaContract> attributeSchemaExtractor,
-		@Nonnull OrderDirection orderDirection
+		@Nonnull OrderDirection orderDirection,
+		@Nonnull Set<Scope> sortableScopes
 	) {
 		super(
 			compoundSchemaContract,
@@ -81,8 +112,16 @@ public class TraverseReferenceCompoundAttributeComparator
 			orderDirection
 		);
 		this.referenceName = referenceSchema.getName();
+		this.sortableScopes = sortableScopes;
 	}
 
+	/**
+	 * Binds the comparator to the key of the sorted block for the duration of the lambda, which classifies and sorts
+	 * the entities of the block; the key is released whatever the outcome.
+	 *
+	 * @param referenceKey the key of the sorted block
+	 * @param lambda       the classification and sorting of the block
+	 */
 	@Override
 	public void withReferencedEntityId(@Nonnull RepresentativeReferenceKey referenceKey, @Nonnull Runnable lambda) {
 		try {
@@ -95,33 +134,58 @@ public class TraverseReferenceCompoundAttributeComparator
 		}
 	}
 
+	/**
+	 * Picks the row of the entity that represents it in the bound block: its first row to the block's referenced
+	 * entity, in the order of the representative attribute values, that carries at least one element of the compound.
+	 *
+	 * @param entity the entity whose reference is picked
+	 * @return the representing row, empty when no row of the entity to the block's referenced entity carries the value
+	 */
 	@Nonnull
 	@Override
 	protected Optional<ReferenceContract> pickReference(@Nonnull EntityContract entity) {
 		Assert.isPremiseValid(this.referenceKey != null, "Referenced entity id must be set!");
-		return getReferenceByRepresentativeReferenceKey(entity, this.referenceSchema, this.referenceKey);
+		return this.sortableScopes.contains(entity.getScope()) ?
+			getFirstValuedReference(entity, this.referenceSchema, this.referenceKey.referenceKey(), this.carriesValue) :
+			Optional.empty();
 	}
 
+	/**
+	 * Tells whether the row carries at least one element of the compound - the condition under which
+	 * {@link #canSort(EntityContract)} admits an entity represented by the row.
+	 *
+	 * @param reference the row
+	 * @return `true` when some element of the compound is set on the row
+	 */
+	private boolean carriesAnyElement(@Nonnull ReferenceContract reference) {
+		for (AttributeElement attributeElement : this.attributeElements) {
+			if (this.attributeValueFetcher.apply(reference, attributeElement.attributeName()) != null) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Compares two entities classified as sortable by {@link #canSort(EntityContract)} within the bound block by the
+	 * compound values of their representing rows - which rows they are takes no part; entities with equal values follow
+	 * their own primary keys in the direction of the ordering, as on the index route. Entities without
+	 * the value never get here, the sorter passes them on to the next block before any comparison.
+	 *
+	 * @param o1 the first entity
+	 * @param o2 the second entity
+	 * @return the comparison result
+	 */
 	@Override
 	public int compare(EntityContract o1, EntityContract o2) {
 		final ReferenceAttributeValue attribute1 = getAndMemoizeValue(o1);
 		final ReferenceAttributeValue attribute2 = getAndMemoizeValue(o2);
-		// to correctly compare the references we need to compare only attributes on the same reference
-		final boolean bothAttributesSpecified = attribute1 != ReferenceAttributeValue.MISSING && attribute2 != ReferenceAttributeValue.MISSING;
-		final boolean attributesExistOnSameReference = bothAttributesSpecified && attribute1.referencedEntityPrimaryKey() == attribute2.referencedEntityPrimaryKey();
-		if (attributesExistOnSameReference) {
-			return attribute1.compareTo(attribute2);
-		} else if (bothAttributesSpecified) {
-			return Integer.compare(attribute1.referencedEntityPrimaryKey(), attribute2.referencedEntityPrimaryKey());
-		} else {
-			if (attribute1 != ReferenceAttributeValue.MISSING) {
-				return -1;
-			} else if (attribute2 != ReferenceAttributeValue.MISSING) {
-				return 1;
-			} else {
-				return 0;
-			}
-		}
+		Assert.isPremiseValid(
+			attribute1 != ReferenceAttributeValue.MISSING && attribute2 != ReferenceAttributeValue.MISSING,
+			"Only entities classified as sortable within the bound block may be compared!"
+		);
+		final int result = attribute1.compareTo(attribute2);
+		return result == 0 ? this.pkComparator.compare(o1, o2) : result;
 	}
 
 }

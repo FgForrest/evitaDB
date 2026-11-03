@@ -135,8 +135,8 @@ class CatalogExpressionTriggerRegistryIntegrationTest implements EvitaTestSuppor
 				registry.getTriggersFor(PARAMETER_GROUP, DependencyType.GROUP_ENTITY_ATTRIBUTE);
 
 			assertEquals(1, triggers.size());
-			assertEquals(PRODUCT, triggers.get(0).getOwnerEntityType());
-			assertEquals(PARAMETER_REF, triggers.get(0).getReferenceName());
+			assertEquals(PRODUCT, triggers.getFirst().getOwnerEntityType());
+			assertEquals(PARAMETER_REF, triggers.getFirst().getReferenceName());
 		}
 
 		@Test
@@ -197,7 +197,7 @@ class CatalogExpressionTriggerRegistryIntegrationTest implements EvitaTestSuppor
 			final List<ExpressionIndexTrigger> brandTriggers =
 				registry.getTriggersFor(BRAND, DependencyType.REFERENCED_ENTITY_ATTRIBUTE);
 			assertEquals(1, brandTriggers.size());
-			assertEquals(CATEGORY, brandTriggers.get(0).getOwnerEntityType());
+			assertEquals(CATEGORY, brandTriggers.getFirst().getOwnerEntityType());
 		}
 
 		@Test
@@ -247,9 +247,9 @@ class CatalogExpressionTriggerRegistryIntegrationTest implements EvitaTestSuppor
 				registry.getTriggersFor(PARAMETER_GROUP, DependencyType.GROUP_ENTITY_ATTRIBUTE);
 
 			assertEquals(1, triggers.size());
-			assertEquals(PRODUCT, triggers.get(0).getOwnerEntityType());
-			assertEquals(PARAMETER_REF, triggers.get(0).getReferenceName());
-			assertTrue(triggers.get(0).getDependentAttributes().contains("status"));
+			assertEquals(PRODUCT, triggers.getFirst().getOwnerEntityType());
+			assertEquals(PARAMETER_REF, triggers.getFirst().getReferenceName());
+			assertTrue(triggers.getFirst().getDependentAttributes().contains("status"));
 		}
 
 	}
@@ -326,7 +326,7 @@ class CatalogExpressionTriggerRegistryIntegrationTest implements EvitaTestSuppor
 			final List<ExpressionIndexTrigger> triggers =
 				registryAfter.getTriggersFor(PARAMETER_GROUP, DependencyType.GROUP_ENTITY_ATTRIBUTE);
 			assertEquals(1, triggers.size());
-			assertTrue(triggers.get(0).getDependentAttributes().contains("priority"));
+			assertTrue(triggers.getFirst().getDependentAttributes().contains("priority"));
 		}
 
 	}

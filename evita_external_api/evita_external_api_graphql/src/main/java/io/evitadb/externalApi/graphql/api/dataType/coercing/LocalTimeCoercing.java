@@ -23,7 +23,10 @@
 
 package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
+import graphql.GraphQLContext;
+import graphql.execution.CoercedVariables;
 import graphql.language.StringValue;
+import graphql.language.Value;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
 import graphql.schema.CoercingParseValueException;
@@ -35,6 +38,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
+import java.util.Locale;
 
 /**
  * {@link Coercing} for converting between Java's side {@link LocalTime} and client string.
@@ -46,7 +50,11 @@ public class LocalTimeCoercing implements Coercing<LocalTime, String> {
     public static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_LOCAL_TIME;
 
     @Override
-    public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
+    public String serialize(
+        @Nonnull Object dataFetcherResult,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingSerializeException {
         if (!(dataFetcherResult instanceof LocalTime localTime)) {
             throw new CoercingSerializeException("Local time data fetcher result is not a local date.");
         }
@@ -59,7 +67,11 @@ public class LocalTimeCoercing implements Coercing<LocalTime, String> {
 
     @Nonnull
     @Override
-    public LocalTime parseValue(@Nonnull Object input) throws CoercingParseValueException {
+    public LocalTime parseValue(
+        @Nonnull Object input,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingParseValueException {
         if (!(input instanceof String stringInput)) {
             throw new CoercingParseValueException("Local time input is not a string.");
         }
@@ -72,7 +84,12 @@ public class LocalTimeCoercing implements Coercing<LocalTime, String> {
 
     @Nonnull
     @Override
-    public LocalTime parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
+    public LocalTime parseLiteral(
+        @Nonnull Value<?> input,
+        @Nonnull CoercedVariables variables,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingParseLiteralException {
         if (!(input instanceof StringValue stringValue)) {
             throw new CoercingParseValueException("Local time input is not a StringValue.");
         }

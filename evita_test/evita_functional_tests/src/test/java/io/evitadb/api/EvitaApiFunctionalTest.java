@@ -1635,7 +1635,7 @@ class EvitaApiFunctionalTest {
 			SealedEntity.class
 		);
 		assertEquals(1, response.getRecordData().size());
-		final SealedEntity brand = response.getRecordData().get(0);
+		final SealedEntity brand = response.getRecordData().getFirst();
 
 		assertEquals(code, brand.getAttribute("code", locale));
 		assertEquals(name, brand.getAttribute("name", locale));

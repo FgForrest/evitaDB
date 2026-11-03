@@ -437,7 +437,7 @@ public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpoint
 			if (groupedReferences.getData().isEmpty()) {
 				entityDto.e(referencePropertyName, null);
 			} else {
-				entityDto.e(referencePropertyName, createReferenceDto(entity.getLocales(), groupedReferences.getData().get(0), localized));
+				entityDto.e(referencePropertyName, createReferenceDto(entity.getLocales(), groupedReferences.getData().getFirst(), localized));
 			}
 		} else {
 			final List<Map<String, Object>> data = groupedReferences.stream()

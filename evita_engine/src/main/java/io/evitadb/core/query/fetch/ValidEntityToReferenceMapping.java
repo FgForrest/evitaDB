@@ -26,7 +26,6 @@ package io.evitadb.core.query.fetch;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
-import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
@@ -35,18 +34,10 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
-import io.evitadb.roaringbitmap.PeekableIntIterator;
-import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
-import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
-import java.util.PrimitiveIterator.OfInt;
 import java.util.function.Function;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * This DTO contains the validity mappings between main entity and referenced one. Because we fetch references for
@@ -65,11 +56,20 @@ import static java.util.Optional.ofNullable;
  * the PARAMETER 10 passes the filtering constraint for PRODUCT with pk = 2. This validity mapping allows us to
  * state that the PARAMETER with pk = 10 should be initialized only in PRODUCT with pk = 2.
  *
+ * ## How the verdicts get here
+ *
+ * The fetch judges every reference row of every fetched owner by itself and {@link #admit(int, ReferenceContract)
+ * admits} the rows that pass. Nothing written for one owner is ever read for another, so the verdict of a row depends
+ * on its owner and the row alone. A row is selected when it exists and was admitted for its owner - by its referenced
+ * primary key when two rows referencing the same entity cannot be told apart by the verdict (no filter, or a reference
+ * without duplicates), and by its {@link RepresentativeReferenceKey} otherwise.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 class ValidEntityToReferenceMapping {
 	/**
-	 * Function that produces a {@link RepresentativeReferenceKey} for a given {@link ReferenceDecorator}.
+	 * Function that produces a {@link RepresentativeReferenceKey} for a given raw or decorated {@link ReferenceContract}.
+	 * It is invoked only in the per-row verdict mode (`BY_ROW`).
 	 * For references whose cardinality allows duplicates, the produced key includes representative attribute
 	 * values extracted via {@link RepresentativeAttributeDefinition#getRepresentativeValues} to disambiguate
 	 * multiple references pointing to the same entity. For references without duplicates, the key contains
@@ -83,26 +83,34 @@ class ValidEntityToReferenceMapping {
 	 */
 	private final IntObjectMap<RepresentativeMapping> mapping;
 	/**
-	 * Internal helper variable containing a {@link PersistentRoaringBitmap} with all source entity primary keys present
-	 * in {@link #mapping}. Lazily initialized on the first call to
-	 * {@link #restrictTo(RepresentativeReferenceKey, Bitmap)} and cached for subsequent calls.
+	 * How the verdicts are recorded and read - fixed by the constructor.
 	 */
-	private PersistentRoaringBitmap knownEntityPrimaryKeys;
+	private final Verdicts verdicts;
 
 	/**
-	 * Creates a new validity mapping for tracking which referenced entities are allowed for each source entity.
+	 * Creates a new validity mapping the fetch fills row by row through {@link #admit(int, ReferenceContract)}.
+	 *
+	 * The representative key of a row is built only when it can carry a verdict of its own - for a reference allowing
+	 * duplicates whose rows are judged by a filter. Without a filter the verdict of a row depends on its referenced
+	 * primary key alone (whether the referenced entity exists), and a reference without duplicates has nothing but
+	 * that key to tell its rows apart, so in both cases the mapping records the referenced primary keys only and
+	 * builds no representative key at all.
 	 *
 	 * @param expectedEntityCount the expected number of source entities, used to pre-size internal data structures
-	 * @param referenceSchema     the schema of the reference being fetched; its cardinality determines whether
-	 *                            the representative key producer includes representative attribute values
-	 *                            (for duplicate-cardinality references) or only the reference key
+	 * @param referenceSchema     the schema of the reference being fetched
+	 * @param rowVerdicts         TRUE when the rows are judged by a filter, so that two rows referencing the same
+	 *                            entity may be given different verdicts; FALSE when the verdict of a row depends on
+	 *                            its referenced primary key alone
 	 */
 	public ValidEntityToReferenceMapping(
 		int expectedEntityCount,
-		@Nonnull ReferenceSchema referenceSchema
+		@Nonnull ReferenceSchema referenceSchema,
+		boolean rowVerdicts
 	) {
+		final boolean allowsDuplicates = referenceSchema.getCardinality().allowsDuplicates();
+		this.verdicts = rowVerdicts && allowsDuplicates ? Verdicts.BY_ROW : Verdicts.BY_PRIMARY_KEY;
 		this.mapping = new IntObjectHashMap<>(expectedEntityCount);
-		if (referenceSchema.getCardinality().allowsDuplicates()) {
+		if (allowsDuplicates) {
 			final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
 			// representative values are read off the RAW contract, never off a decorator wrapping it:
 			// `ReferenceDecorator` narrows its attribute values by the request's attribute predicate, so a
@@ -117,23 +125,28 @@ class ValidEntityToReferenceMapping {
 	}
 
 	/**
-	 * Initializes the validity mapping - for `entityPrimaryKey` the `referencedPrimaryKeys` will
-	 * become "allowed".
+	 * Admits an existing reference row of the owner entity - the row passed the filter of the fetched references (or
+	 * there is none) and its referenced entity passed the existence check of the fetch. The referenced primary key of
+	 * the row becomes one of the owner's valid referenced entities, and the row itself becomes selected for the owner
+	 * - together with every other existing row of the owner referencing the same entity, unless the mapping keeps
+	 * a verdict per row (see {@link #ValidEntityToReferenceMapping(int, ReferenceSchema, boolean)}).
+	 *
+	 * Admitting the same row twice changes nothing.
+	 *
+	 * @param ownerPrimaryKey the primary key of the owner entity
+	 * @param row             the existing reference row of the owner entity, read off the raw entity
 	 */
-	public void setInitialVisibilityForEntity(int entityPrimaryKey, @Nonnull Bitmap referencedPrimaryKeys) {
-		Assert.isPremiseValid(
-			this.knownEntityPrimaryKeys == null,
-			"Known entity primary keys are not expected to be initialized here."
-		);
-		final RepresentativeMapping matchingReferencedPrimaryKeys = ofNullable(this.mapping.get(entityPrimaryKey))
-			.orElseGet(() -> {
-				final RepresentativeMapping theSet = new RepresentativeMapping(this.representativeKeyProducer);
-				this.mapping.put(entityPrimaryKey, theSet);
-				return theSet;
-			});
-		final OfInt it = referencedPrimaryKeys.iterator();
-		while (it.hasNext()) {
-			matchingReferencedPrimaryKeys.add(it.nextInt());
+	public void admit(int ownerPrimaryKey, @Nonnull ReferenceContract row) {
+		Assert.isPremiseValid(row.exists(), "A dropped reference row cannot be admitted!");
+		RepresentativeMapping ownerMapping = this.mapping.get(ownerPrimaryKey);
+		if (ownerMapping == null) {
+			ownerMapping = new RepresentativeMapping(this.representativeKeyProducer);
+			this.mapping.put(ownerPrimaryKey, ownerMapping);
+		}
+		if (this.verdicts == Verdicts.BY_ROW) {
+			ownerMapping.admit(row);
+		} else {
+			ownerMapping.add(row.getReferencedPrimaryKey());
 		}
 	}
 
@@ -155,127 +168,27 @@ class ValidEntityToReferenceMapping {
 	}
 
 	/**
-	 * Clears all validity mappings - no referenced entity will be allowed for any of known source entities.
-	 */
-	public void forbidAll() {
-		for (IntObjectCursor<RepresentativeMapping> entry : this.mapping) {
-			entry.value.clear();
-		}
-	}
-
-	/**
-	 * Removes referenced entity primary keys from every source entity's mapping unless they are present
-	 * in the provided `referencedPrimaryKeys` set. After this call, each source entity will only retain
-	 * references to entities whose primary keys appear in the input set.
-	 *
-	 * @param referencedPrimaryKeys the set of referenced entity primary keys that should remain allowed
-	 */
-	public void forbidAllExcept(@Nonnull IntSet referencedPrimaryKeys) {
-		for (IntObjectCursor<RepresentativeMapping> entry : this.mapping) {
-			entry.value.removeAll(it -> !referencedPrimaryKeys.contains(it));
-		}
-	}
-
-	/**
-	 * Performs the same filtering as {@link #forbidAllExcept(IntSet)} — removes referenced entity primary keys
-	 * not present in the provided set — and additionally disables implicit allowance of representative keys
-	 * that lack explicit restrictions by setting {@link RepresentativeMapping#setUnrestrictedKeysAllowed(boolean)}
-	 * to `false` on each mapping entry.
-	 *
-	 * This method is used for references with duplicate cardinality, where representative attribute values
-	 * serve as discriminators and only explicitly restricted representative keys should be considered valid.
-	 *
-	 * @param referencedPrimaryKeys the set of referenced entity primary keys that should remain allowed
-	 */
-	public void forbidAllExceptIncludingDiscriminators(@Nonnull IntSet referencedPrimaryKeys) {
-		for (IntObjectCursor<RepresentativeMapping> entry : this.mapping) {
-			entry.value.removeAll(it -> !referencedPrimaryKeys.contains(it));
-			entry.value.setUnrestrictedKeysAllowed(false);
-		}
-	}
-
-	/**
-	 * Restricts the existing validity mapping - for each known mapping only the set of `referencedPrimaryKeys`
-	 * will remain "allowed".
-	 */
-	public void restrictTo(@Nonnull Bitmap referencedPrimaryKeys) {
-		for (IntObjectCursor<RepresentativeMapping> entry : this.mapping) {
-			entry.value.retainAll(referencedPrimaryKeys::contains);
-		}
-	}
-
-	/**
-	 * Restricts visibility of a specific referenced entity (identified by `representativeReferenceKey`) to only
-	 * the source entities whose primary keys are present in `entityPrimaryKeys`.
-	 *
-	 * The method handles two cases based on the representative reference key:
-	 *
-	 * - **No representative attribute values** (simple references without duplicates): iterates over all source
-	 *   entities NOT in `entityPrimaryKeys` and removes the referenced entity PK from their mappings, effectively
-	 *   making the reference invisible for those source entities.
-	 * - **With representative attribute values** (duplicate-cardinality references): for each source entity
-	 *   in `entityPrimaryKeys`, records a fine-grained per-discriminator restriction via
-	 *   {@link RepresentativeMapping#restrictTo(RepresentativeReferenceKey, Bitmap)}, allowing the mapping
-	 *   to distinguish between multiple references to the same entity based on their representative attributes.
-	 *
-	 * @param representativeReferenceKey the key identifying the referenced entity, optionally including
-	 *                                   representative attribute values for disambiguation
-	 * @param entityPrimaryKeys          the set of source entity primary keys for which this reference
-	 *                                   should remain visible
-	 */
-	public void restrictTo(
-		@Nonnull RepresentativeReferenceKey representativeReferenceKey,
-		@Nonnull Bitmap entityPrimaryKeys
-	) {
-		if (representativeReferenceKey.representativeAttributeValues().length == 0) {
-			if (this.knownEntityPrimaryKeys == null) {
-				final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-				for (IntObjectCursor<RepresentativeMapping> entry : this.mapping) {
-					writer.add(entry.key);
-				}
-				this.knownEntityPrimaryKeys = writer.get();
-			}
-			final PersistentRoaringBitmap invalidRecords = PersistentRoaringBitmap.andNot(
-				this.knownEntityPrimaryKeys,
-				RoaringBitmapBackedBitmap.getRoaringBitmap(
-					entityPrimaryKeys
-				)
-			);
-			final int referencedEntityPk = representativeReferenceKey.primaryKey();
-			final PeekableIntIterator it2 = invalidRecords.getIntIterator();
-			while (it2.hasNext()) {
-				this.mapping
-					.get(it2.next())
-					.removeAll(pk -> pk == referencedEntityPk);
-			}
-		} else {
-			final OfInt it1 = entityPrimaryKeys.iterator();
-			while (it1.hasNext()) {
-				final int entityPk = it1.nextInt();
-				RepresentativeMapping mappingForEntity = this.mapping.get(entityPk);
-				if (mappingForEntity == null) {
-					mappingForEntity = new RepresentativeMapping(this.representativeKeyProducer);
-					this.mapping.put(entityPk, mappingForEntity);
-				}
-				mappingForEntity.restrictTo(representativeReferenceKey, entityPrimaryKeys);
-			}
-		}
-	}
-
-	/**
 	 * Returns `true` if the given `reference` is allowed to be visible for the specified `entityPrimaryKey`.
-	 * Delegates to {@link RepresentativeMapping#contains(int, ReferenceContract)} which evaluates both
-	 * simple primary key presence and representative key restrictions.
+	 *
+	 * An existing reference that was admitted for the entity is selected - by its referenced primary key, or by its
+	 * representative key when the mapping keeps a verdict per row. An entity nothing was admitted for selects nothing.
 	 *
 	 * @param entityPrimaryKey the primary key of the source entity
-	 * @param reference        the reference decorator to check visibility for
+	 * @param reference        the reference to check visibility for, raw or decorated
 	 * @return `true` if the reference is allowed for the given entity, `false` otherwise
 	 */
 	public boolean isReferenceSelected(int entityPrimaryKey, @Nonnull ReferenceContract reference) {
 		// deliberately not `ofNullable(...).map(...).orElse(false)`: this is asked about every reference of every
 		// fetched entity, and that form costs two Optionals, a capturing lambda and a boxed Boolean per call
 		final RepresentativeMapping mappingForEntity = this.mapping.get(entityPrimaryKey);
-		return mappingForEntity != null && mappingForEntity.contains(entityPrimaryKey, reference);
+		if (mappingForEntity == null) {
+			return false;
+		}
+		return switch (this.verdicts) {
+			case BY_PRIMARY_KEY -> reference.exists() &&
+				mappingForEntity.containsReferencedPrimaryKey(reference.getReferencedPrimaryKey());
+			case BY_ROW -> reference.exists() && mappingForEntity.isAdmitted(reference);
+		};
 	}
 
 	@Override
@@ -285,6 +198,22 @@ class ValidEntityToReferenceMapping {
 			sb.append("\n   ").append(entry.key).append(" -> ").append(entry.value);
 		}
 		return sb.toString();
+	}
+
+	/**
+	 * How a mapping records its verdicts and reads them back.
+	 */
+	private enum Verdicts {
+		/**
+		 * The rows are admitted one by one, and a row is selected by its referenced primary key - no representative
+		 * key is ever built.
+		 */
+		BY_PRIMARY_KEY,
+		/**
+		 * The rows are admitted one by one, and a row is selected by its representative key - two rows referencing
+		 * the same entity keep verdicts of their own.
+		 */
+		BY_ROW
 	}
 
 }

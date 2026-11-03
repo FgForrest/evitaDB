@@ -191,7 +191,7 @@ public class CatalogSchemaConverter {
 					.map(EvitaEnumConverter::toGrpcScope)
 					.toList()
 			)
-			.addAllAcceleratorsInScopes(
+			.addAllAccelerated(
 				toGrpcScopedAttributeFilterAccelerators(
 					AttributeSchema.toAcceleratorsArray(attributeSchema.getAcceleratorsInScopes())
 				)
@@ -205,6 +205,7 @@ public class CatalogSchemaConverter {
 			)
 			.setLocalized(attributeSchema.isLocalized())
 			.setNullable(attributeSchema.isNullable())
+			.setRepresentative(attributeSchema.isRepresentative())
 			.setType(EvitaDataTypesConverter.toGrpcEvitaDataType(attributeSchema.getType()))
 			.setIndexedDecimalPlaces(attributeSchema.getIndexedDecimalPlaces())
 			.setConflictResolutionOverride(EvitaEnumConverter.toGrpcConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()));
@@ -236,7 +237,7 @@ public class CatalogSchemaConverter {
 		final Scope[] filterableInScopes = toBooleanScopes(attributeSchema.getFilterableInScopesList(), attributeSchema.getFilterable());
 		// absent on the wire for an older server - proto3 renders that as an empty list, which converts to `null`
 		final ScopedAttributeFilterAccelerators[] acceleratorsInScopes =
-			toScopedAttributeFilterAccelerators(attributeSchema.getAcceleratorsInScopesList());
+			toScopedAttributeFilterAccelerators(attributeSchema.getAcceleratedList());
 		final Scope[] sortableInScopes = toBooleanScopes(attributeSchema.getSortableInScopesList(), attributeSchema.getSortable());
 
 		return GlobalAttributeSchema._internalBuild(

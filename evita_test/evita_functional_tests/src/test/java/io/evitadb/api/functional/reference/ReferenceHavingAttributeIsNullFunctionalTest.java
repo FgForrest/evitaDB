@@ -2043,7 +2043,7 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 								assertTrue(
 									hasStepArgument(
 										telemetry, QueryPhase.PLANNING_FILTER_ALTERNATIVE,
-										(Predicate<String>) it -> ELIGIBLE_REFERENCE_INDEX_OPTION.matcher(it).matches()
+										it -> ELIGIBLE_REFERENCE_INDEX_OPTION.matcher(it).matches()
 									),
 									() -> "The reduced indexes of `" + sibling + "` must be an eligible index set " +
 										"for `" + nullTest + "` in " + Arrays.toString(order) + ":\n" + telemetry
@@ -2555,7 +2555,7 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 		@Nonnull QueryPhase phase,
 		@Nonnull String prefix
 	) {
-		return hasStepArgument(telemetry, phase, (Predicate<String>) argument -> argument.startsWith(prefix));
+		return hasStepArgument(telemetry, phase, argument -> argument.startsWith(prefix));
 	}
 
 	/**

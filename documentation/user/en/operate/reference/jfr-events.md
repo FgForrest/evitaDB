@@ -105,8 +105,9 @@
   <dd>Event that is fired when a new catalog version is flushed.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/DataFileCompactEvent.java</SourceClass> OffsetIndex compaction</dt>
   <dd>Event that is fired when an OffsetIndex file is compacted.</dd>
-  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/ObservableOutputChangeEvent.java</SourceClass> ObservableOutput buffers</dt>
-  <dd>Event that is fired when an ObservableOutput buffer count changes.</dd>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/ObservableOutputChangeEvent.java</SourceClass> Shared frame buffers</dt>
+  <dd>Reports JVM-wide frame buffer allocations and drops. Counts and memory include borrowed and idle arrays
+  across all engines and catalogs.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/OffsetIndexFlushEvent.java</SourceClass> OffsetIndex flushed to disk</dt>
   <dd>Event that is fired when an OffsetIndex file is flushed.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/OffsetIndexHistoryKeptEvent.java</SourceClass> OffsetIndex last record kept</dt>

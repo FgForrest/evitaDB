@@ -628,8 +628,12 @@ This section contains configuration options for the storage layer of the databas
     <dt>outputBufferSize</dt>
     <dd>
         <p>**Default:** `4MB`</p>
-        <p>The output buffer size determines how large a buffer is kept in memory for output purposes. The size of the 
-        buffer limits the maximum size of an individual record in the key/value data store.</p>
+        <p>Records are serialized into an in-memory buffer of this size before they are appended to the data files.
+        A record that does not fit is split into several chained frames, so this value does not limit record size.
+        It limits the size of one frame and of any single string or binary value inside a record. A buffer of this size
+        exists only for each frame being written at that moment, plus at most two idle buffers per CPU core across all configured sizes in a
+        JVM-wide pool. Every buffer keeps its exact configured size. Compression borrows an additional buffer while
+        finishing a frame; the idle limit accommodates both arrays even on a single CPU.</p>
     </dd>
     <dt>maxOpenedReadHandles</dt>
     <dd>
@@ -871,6 +875,10 @@ This section contains configuration options for the storage layer of the databas
             store temporary (isolated) transactional data before they are committed to the database.
             If the buffer is full, the transaction data are immediately written to the disk and the transaction 
             processing gets slower.</p>
+        <p>Each catalog allocates its own buffer when it runs its first transaction, and the engine one more for its
+            own changes, such as creating a catalog. A catalog's buffer is freed once the catalog is closed and no
+            transaction uses the buffer any more - on a JDK that does not allow freeing it explicitly, when the
+            garbage collector reclaims it.</p>
     </dd>
     <dt>transactionMemoryRegionCount</dt>
     <dd>

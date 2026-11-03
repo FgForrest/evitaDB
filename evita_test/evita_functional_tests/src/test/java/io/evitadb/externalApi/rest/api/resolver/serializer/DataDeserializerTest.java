@@ -400,8 +400,8 @@ class DataDeserializerTest {
 		final ArrayNode jsonNodes = new ArrayNode(JsonNodeFactory.instance, Arrays.asList(new TextNode("ABC"), new TextNode("DEF")));
 
 		final Object[] objects = new DataDeserializer(openAPI, new HashMap<>()).deserializeArray(arrayOf(typeRefTo(firstSchema.getName())).toSchema(), jsonNodes);
-		assertEquals("ABC", (String) objects[0]);
-		assertEquals("DEF", (String) objects[1]);
+		assertEquals("ABC", objects[0]);
+		assertEquals("DEF", objects[1]);
 	}
 
 	@Test

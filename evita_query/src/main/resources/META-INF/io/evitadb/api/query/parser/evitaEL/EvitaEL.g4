@@ -51,18 +51,15 @@ expression
     | EXCLAMATION_MARK nested = expression # negatingExpression
     | PLUS nested = expression # positiveExpression
     | MINUS nested = expression # negativeExpression
-    | leftExpression = expression STAR rightExpression = expression # multiplicationExpression
-    | leftExpression = expression DIV rightExpression = expression # divisionExpression
-    | leftExpression = expression PERCENT rightExpression = expression # moduloExpression
-    | leftExpression = expression PLUS rightExpression = expression # additionExpression
-    | leftExpression = expression MINUS rightExpression = expression # substractionExpression
+    // every alternative is a precedence level of its own, so operators of one level share an alternative and
+    // evaluate from left to right
+    | leftExpression = expression operator = (STAR | DIV | PERCENT) rightExpression = expression
+        # multiplicativeExpression
+    | leftExpression = expression operator = (PLUS | MINUS) rightExpression = expression # additiveExpression
     | value = expression DOUBLE_QUESTION_MARK defaultValue = expression # nullCoalesceExpression
-    | leftExpression = expression GT rightExpression = expression # greaterThanExpression
-    | leftExpression = expression GT_EQ rightExpression = expression # greaterThanEqualsExpression
-    | leftExpression = expression LT rightExpression = expression # lessThanExpression
-    | leftExpression = expression LT_EQ rightExpression = expression # lessThanEqualsExpression
-    | leftExpression = expression EQ rightExpression = expression # equalsExpression
-    | leftExpression = expression NOT_EQ rightExpression = expression # notEqualsExpression
+    | leftExpression = expression operator = (GT | GT_EQ | LT | LT_EQ) rightExpression = expression
+        # relationalExpression
+    | leftExpression = expression operator = (EQ | NOT_EQ) rightExpression = expression # equalityExpression
     | leftExpression = expression XOR rightExpression = expression # xorExpression
     | leftExpression = expression AND rightExpression = expression # andExpression
     | leftExpression = expression OR rightExpression = expression # orExpression
@@ -98,8 +95,9 @@ variable
 literal
     : NULL # nullValueToken
     | STRING # stringValueToken
-    | INT # intValueToken
-    | FLOAT # floatValueToken
+    // the sign belongs to the number only where an operand starts, so that `5-3` subtracts
+    | MINUS? INT # intValueToken
+    | MINUS? FLOAT # floatValueToken
     | BOOLEAN # booleanValueToken
     ;
 
@@ -130,8 +128,8 @@ AND : '&&' ;
 OR : '||' ;
 
 NULL : 'null' ;
-INT : '-'? [0-9]+ ;
-FLOAT : '-'? [0-9]* '.' [0-9]+ ;
+INT : [0-9]+ ;
+FLOAT : [0-9]* '.' [0-9]+ ;
 BOOLEAN
     : 'false'
     | 'true'

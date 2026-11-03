@@ -263,8 +263,8 @@ final class CatalogIndexProjection {
 		// see `documentation/developer/heap-size-testing.md`, trap 6. Walked through `ManagementReads#walkTolerantly`:
 		// outside a transaction a warm-up writer files a new unique index straight into this map, and this call runs
 		// on a management thread with no happens-before edge to it, so a disturbed walk is started over rather than
-		// failing the call. `getRecordCount` is tolerant of its own map in the same way, so it cannot abort this walk
-		// part-way
+		// failing the call. `getRecordCount` walks the value tree through cursors that bound every leaf read for this
+		// session-free reader, so it cannot abort this walk part-way either
 		final List<AttributeCardinality> attributes = ManagementReads.<List<AttributeCardinality>>walkTolerantly(
 			() -> new ArrayList<>(16),
 			readings -> catalogIndex.getGlobalUniqueIndexes().forEach((attributeKey, globalUniqueIndex) -> {
@@ -291,9 +291,9 @@ final class CatalogIndexProjection {
 			catalogIndex.getHeapSizeInBytes(),
 			new IndexCardinality(
 				// a catalog index has no entity-index kind, no sibling to be discriminated from, no primary-key bitmap
-				// to count entities off, and no reference dimension - all four absences are the index's shape rather
-				// than a reading that could not be taken
-				null, scope, null, null, null,
+				// to count entities off, no reference dimension and no registry of reference partitions - all five
+				// absences are the index's shape rather than a reading that could not be taken
+				null, scope, null, null, null, null,
 				attributes.toArray(AttributeCardinality[]::new)
 			),
 			activity == null ? 0L : activity.getQueryCount(),

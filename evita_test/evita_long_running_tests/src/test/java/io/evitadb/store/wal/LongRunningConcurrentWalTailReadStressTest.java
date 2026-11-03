@@ -72,7 +72,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getWalFileName;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.WAL;
 import static net.bytebuddy.matcher.ElementMatchers.is;
@@ -301,7 +300,6 @@ public class LongRunningConcurrentWalTailReadStressTest implements EvitaTestSupp
 	}
 
 	@Test
-	@Tag(SLOW)
 	@DisplayName("tailing a WAL while it is being appended must not construct an internal error")
 	void shouldNotConstructInternalErrorsWhileTailingAConcurrentlyAppendedWal() throws InterruptedException {
 		final Instrumentation instrumentation = ByteBuddyAgent.install();
@@ -504,7 +502,7 @@ public class LongRunningConcurrentWalTailReadStressTest implements EvitaTestSupp
 			detail.append("Reading a WAL while it was being appended to surfaced ")
 				.append(escapedFailures.size()).append(" failure(s) to the caller. Stack of the first:\n");
 			final StringWriter stackWriter = new StringWriter();
-			escapedFailures.get(0).printStackTrace(new PrintWriter(stackWriter));
+			escapedFailures.getFirst().printStackTrace(new PrintWriter(stackWriter));
 			detail.append(stackWriter);
 			detail.append("\nInternal errors constructed during the same run: ")
 				.append(Set.copyOf(CONSTRUCTED_ERRORS));

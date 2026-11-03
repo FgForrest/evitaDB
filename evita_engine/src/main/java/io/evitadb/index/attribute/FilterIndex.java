@@ -23,6 +23,7 @@
 
 package io.evitadb.index.attribute;
 
+import com.carrotsearch.hppc.IntIntHashMap;
 import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -40,6 +41,7 @@ import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
@@ -59,6 +61,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexLe
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPageRemoval;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -89,6 +92,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -611,16 +615,16 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	}
 
 	/**
-	 * Verifies that the provided value is an array of Serializable objects and
-	 * returns it as an array of Comparable objects. If the elements in the value array
-	 * are not Comparable, they are converted to a String representation and
-	 * returned as a String array.
+	 * Verifies that the provided value is an array of Serializable objects and returns it as an array of Comparable
+	 * objects. An array whose element type is not Comparable on its own - `Currency[]`, `Locale[]` - has every element
+	 * converted to its index key by {@link #normalizer} (the comparable wrapper), which is the very key the scalar path,
+	 * every lookup probe and the uniqueness check use; the Comparable contract is checked on that key.
 	 *
 	 * @param value the object to be verified and converted
-	 * @return an array of Comparable objects or a String array if elements are not Comparable
+	 * @return the array itself when its elements are Comparable, otherwise the array of their index keys
 	 */
 	@Nonnull
-	private static Comparable[] verifyValueArray(@Nonnull Object value) {
+	private Comparable[] verifyValueArray(@Nonnull Object value) {
 		isTrue(
 			Serializable.class.isAssignableFrom(value.getClass().getComponentType()),
 			"Value `" + unknownToString(value) + "` is expected to be Serializable, but it is not!"
@@ -629,11 +633,16 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 			return (Comparable[]) value;
 		} else {
 			final int arraySize = Array.getLength(value);
-			final String[] valuesAsString = new String[arraySize];
+			final Comparable[] keys = new Comparable[arraySize];
 			for (int i = 0; i < arraySize; i++) {
-				valuesAsString[i] = String.valueOf(Array.get(value, i));
+				final Serializable key = this.normalizer.apply(Array.get(value, i));
+				isTrue(
+					key instanceof Comparable,
+					"Value `" + unknownToString(value) + "` is expected to be Comparable, but it is not!"
+				);
+				keys[i] = (Comparable) key;
 			}
-			return valuesAsString;
+			return keys;
 		}
 	}
 
@@ -673,8 +682,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * at the supplied `indexedDecimalPlaces` rather than the value's intrinsic scale. This matches the scale the
 	 * source attribute's filter / range index stores (the main attribute path coerces range values the same way via
 	 * `EvitaDataTypes.toTargetType`), so the histogram bucket keys reconstructed from those thresholds at query time
-	 * use the same magnitude. The operation is idempotent — a range already at the target scale rebuilds to an equal
-	 * range — and preserves open-ended bounds.
+	 * use the same magnitude. The operation is idempotent — a range that retains the target scale already is returned
+	 * as it is, as a rebuild would produce an equal range — and preserves open-ended bounds.
 	 *
 	 * @param range                the source range whose precise `BigDecimal` bounds are rescaled
 	 * @param indexedDecimalPlaces decimal-places scale to encode the range thresholds at
@@ -687,8 +696,12 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	) {
 		final BigDecimal preciseFrom = range.getPreciseFrom();
 		final BigDecimal preciseTo = range.getPreciseTo();
+		final Integer retainedDecimalPlaces = range.getRetainedDecimalPlaces();
 		if (preciseFrom == null && preciseTo == null) {
 			// fully open (infinite) range — there are no bounds to rescale
+			return range;
+		} else if (retainedDecimalPlaces != null && retainedDecimalPlaces == indexedDecimalPlaces) {
+			// the thresholds of the range are computed at the very scale already, a rebuild would return an equal range
 			return range;
 		} else if (preciseFrom != null && preciseTo != null) {
 			return BigDecimalNumberRange.between(preciseFrom, preciseTo, indexedDecimalPlaces);
@@ -817,21 +830,23 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	}
 
 	/**
-	 * Returns count of records in this index.
+	 * Returns the number of distinct records holding a value in this index. A record owning several values - an array
+	 * attribute with several distinct elements - is counted once, although it sits in one bucket per element.
 	 *
-	 * Unlike {@link #getDistinctValueCount()} this walks a bucket cursor over the whole tree summing per-bucket record
-	 * counts, and is therefore `O(distinct values)` rather than a single counter read - the only cardinality reading
-	 * of the whole statistics surface that is not `O(1)`.
+	 * Unlike {@link #getDistinctValueCount()} this walks a bucket cursor over the whole tree, collecting the records
+	 * into a transient bitmap that dies with the call, and is therefore `O(records)` rather than a single counter
+	 * read - one of the few cardinality readings of the statistics surface that is not `O(1)`.
 	 *
-	 * **How expensive that is depends entirely on the attribute.** For a low-cardinality filterable attribute it is a
-	 * handful of steps. For a *unique* attribute it is one step per record, because uniqueness makes distinct values
-	 * and records the same number - and {@link UniqueIndexView#size()} routes here, so reading a unique index's
-	 * covered-record count on a collection of two million entities is a two-million-step walk. That is why
-	 * {@link io.evitadb.api.statistics.CatalogStatisticsComponent#INDEX_CARDINALITY} is declared expensive and is
-	 * never part of a polled refresh.
+	 * **How expensive that is depends on the attribute.** Every record is visited once per value it holds, so the
+	 * walk costs at least one step per covered record, and {@link UniqueIndexView#size()} routes here too: reading a
+	 * unique index's covered-record count on a collection of two million entities is a two-million-step walk. That
+	 * is why {@link io.evitadb.api.statistics.CatalogStatisticsComponent#INDEX_CARDINALITY} is declared expensive and
+	 * is never part of a polled refresh.
+	 *
+	 * @return number of distinct records covered by this index
 	 */
 	public int size() {
-		return this.invertedIndex.getLength();
+		return this.invertedIndex.getDistinctRecordCount();
 	}
 
 	/**
@@ -1213,6 +1228,11 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * memoized — outside transactions, repeated calls return the cached subset; on mutation the cache is
 	 * invalidated alongside {@link #memoizedAllRecords}.
 	 *
+	 * A record leaves the active set when its **last** open range ends, not its first: one record may hold several
+	 * ranges at once — two owners contributing `[0, 20]` and `[10, 30]` to one record of an expression histogram is the
+	 * ordinary case — and may start or end several of them at one threshold (the point's occurrence levels). The sweep
+	 * therefore counts the open ranges of every record that holds more than one; see {@link #openRanges}.
+	 *
 	 * Throws {@link GenericEvitaInternalError} when invoked on a filter index that has no range companion.
 	 *
 	 * @param innerNumericType      the inner numeric type of the source `NumberRange` (e.g. `Integer` for
@@ -1259,13 +1279,20 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 		final List<ValueToRecordBitmap> buckets = new ArrayList<>(capacityHint);
 		// the active set is mutated in place; we snapshot via clone() into each emitted bucket
 		final BaseBitmap activeSet = new BaseBitmap();
+		// open ranges beyond the first, per record holding more than one at once; null until the first such record is
+		// met, so a sweep over records holding one range at a time allocates nothing for it
+		IntIntHashMap surplus = null;
 		final Iterator<TransactionalRangePoint> iterator = this.rangeIndex.rangesIterator();
 		while (iterator.hasNext()) {
 			final TransactionalRangePoint point = iterator.next();
 			final long threshold = point.getThreshold();
-			final Bitmap starts = point.getStarts();
-			if (!starts.isEmpty()) {
-				activeSet.addAll(starts);
+			surplus = openRanges(activeSet, point.getStarts(), surplus);
+			// the levels after the first empty one are spare and empty too
+			for (final Bitmap repeatedStarts : point.getRepeatedStarts()) {
+				if (repeatedStarts.isEmpty()) {
+					break;
+				}
+				surplus = openRanges(activeSet, repeatedStarts, surplus);
 			}
 			// sentinel thresholds (Long.MIN_VALUE / Long.MAX_VALUE) cannot be materialized as
 			// bucket keys — they would overflow the inner numeric type. Their `starts` / `ends`
@@ -1284,9 +1311,12 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 					)
 				);
 			}
-			final Bitmap ends = point.getEnds();
-			if (!ends.isEmpty()) {
-				activeSet.removeAll(ends);
+			closeRanges(activeSet, point.getEnds(), surplus);
+			for (final Bitmap repeatedEnds : point.getRepeatedEnds()) {
+				if (repeatedEnds.isEmpty()) {
+					break;
+				}
+				closeRanges(activeSet, repeatedEnds, surplus);
 			}
 		}
 		final ValueToRecordBitmap[] bucketArray = buckets.toArray(new ValueToRecordBitmap[0]);
@@ -1302,6 +1332,83 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 			this.memoizedRangeHistogramSubSet = result;
 		}
 		return result;
+	}
+
+	/**
+	 * Opens one range for every record in `starts` during the range-histogram sweep of
+	 * {@link #getRangeHistogramOfAllRecords}: a record not yet active joins `activeSet`, a record already active gets
+	 * one more open range counted in `surplus`.
+	 *
+	 * The common case — no record of `starts` is active yet — is one intersection test and one bulk union; the
+	 * per-record walk runs only when a record already holds an open range.
+	 *
+	 * @param activeSet the records holding at least one open range, mutated in place
+	 * @param starts    the records whose range starts at the swept threshold (one occurrence level)
+	 * @param surplus   open ranges beyond the first per record, or `null` while no record holds more than one
+	 * @return the surplus counter, created when this call is the first to need it
+	 */
+	@Nullable
+	private static IntIntHashMap openRanges(
+		@Nonnull BaseBitmap activeSet,
+		@Nonnull Bitmap starts,
+		@Nullable IntIntHashMap surplus
+	) {
+		if (starts.isEmpty()) {
+			return surplus;
+		}
+		if (!PersistentRoaringBitmap.intersects(
+			activeSet.getRoaringBitmap(), RoaringBitmapBackedBitmap.getRoaringBitmap(starts)
+		)) {
+			activeSet.addAll(starts);
+			return surplus;
+		}
+		final IntIntHashMap theSurplus = surplus == null ? new IntIntHashMap() : surplus;
+		final OfInt it = starts.iterator();
+		while (it.hasNext()) {
+			final int recordId = it.nextInt();
+			if (!activeSet.add(recordId)) {
+				theSurplus.addTo(recordId, 1);
+			}
+		}
+		return theSurplus;
+	}
+
+	/**
+	 * Closes one range for every record in `ends` during the range-histogram sweep of
+	 * {@link #getRangeHistogramOfAllRecords}: a record with surplus open ranges loses one of them and stays active,
+	 * any other record leaves `activeSet`.
+	 *
+	 * @param activeSet the records holding at least one open range, mutated in place
+	 * @param ends      the records whose range ends at the swept threshold (one occurrence level)
+	 * @param surplus   open ranges beyond the first per record, or `null` while no record holds more than one
+	 */
+	private static void closeRanges(
+		@Nonnull BaseBitmap activeSet,
+		@Nonnull Bitmap ends,
+		@Nullable IntIntHashMap surplus
+	) {
+		if (ends.isEmpty()) {
+			return;
+		}
+		if (surplus == null || surplus.isEmpty()) {
+			activeSet.removeAll(ends);
+			return;
+		}
+		final OfInt it = ends.iterator();
+		while (it.hasNext()) {
+			final int recordId = it.nextInt();
+			final int index = surplus.indexOf(recordId);
+			if (surplus.indexExists(index)) {
+				final int remaining = surplus.indexGet(index) - 1;
+				if (remaining == 0) {
+					surplus.indexRemove(index);
+				} else {
+					surplus.indexReplace(index, remaining);
+				}
+			} else {
+				activeSet.remove(recordId);
+			}
+		}
 	}
 
 	/**
@@ -1949,6 +2056,12 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * {@link InvertedIndex#removeRecord} call then uses the RAW (un-normalized) value, because the tree applies
 	 * its own comparator-driven normalization during removal — normalizing here as well would double-fold the key
 	 * and miss the bucket. The normalizer's output therefore feeds the sanity check only, never the write.
+	 *
+	 * The premise is deliberately strict — do not relax it into a skip. The tree below already ignores a removal it
+	 * cannot match ({@link InvertedIndex#removeRecord(Serializable, int...)}: "nothing happens"), so this check is the
+	 * engine's only detector of a structure that describes the entries — a cardinality counter, an array fold —
+	 * disagreeing with the tree, and it is what surfaced #1620 from production. Skipping instead would silence every
+	 * symptom of that family and keep the wrong query results.
 	 *
 	 * @param recordId the record id to detach from the value's bucket
 	 * @param value    the raw attribute value whose association is removed

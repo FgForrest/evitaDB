@@ -44,6 +44,7 @@ import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -317,12 +318,13 @@ public class HistogramHavingTranslator
 		if (groupSelector == null) {
 			return null;
 		}
-		final FilterConstraint innerSelector = groupSelector.getChild();
-		if (innerSelector == null) {
+		final FilterConstraint[] selectorChildren = groupSelector.getChildren();
+		if (selectorChildren.length == 0) {
 			throw new EvitaInvalidUsageException(
 				"`groupSelector` of `histogramHaving` must contain a non-empty filter."
 			);
 		}
+		final FilterConstraint innerSelector = HavingTranslatorHelper.conjunctionOf(selectorChildren);
 		final String groupEntityType = getGroupEntityType(referenceSchema);
 
 		final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();

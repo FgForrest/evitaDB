@@ -596,7 +596,7 @@ class EntityDuplicateContentRequirementFunctionalTest extends AbstractEntityFetc
 					);
 
 					assertEquals(1, response.getRecordData().size());
-					final SealedEntity product = response.getRecordData().get(0);
+					final SealedEntity product = response.getRecordData().getFirst();
 					final int[] receivedPrimaryKeys = product.getReferences(Entities.STORE)
 						.stream()
 						.mapToInt(ReferenceContract::getReferencedPrimaryKey)
@@ -1372,7 +1372,7 @@ class EntityDuplicateContentRequirementFunctionalTest extends AbstractEntityFetc
 					assertEquals(
 						theParentPrimaryKey,
 						response.getRecordData()
-							.get(0)
+							.getFirst()
 							.getParentEntity()
 							.orElseThrow()
 							.getPrimaryKey()
@@ -1843,7 +1843,7 @@ class EntityDuplicateContentRequirementFunctionalTest extends AbstractEntityFetc
 
 					assertEquals(1, response.getRecordData().size());
 					final Collection<ReferenceContract> brands = response.getRecordData()
-						.get(0)
+						.getFirst()
 						.getReferences(Entities.BRAND);
 					assertFalse(brands.isEmpty());
 					for (final ReferenceContract brand : brands) {

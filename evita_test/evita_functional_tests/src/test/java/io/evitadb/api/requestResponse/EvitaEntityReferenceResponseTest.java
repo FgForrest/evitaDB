@@ -85,7 +85,7 @@ class EvitaEntityReferenceResponseTest {
 		assertEquals(3, response.getRecordData().size());
 		assertEquals(
 			"brand",
-			response.getRecordData().get(0).type()
+			response.getRecordData().getFirst().type()
 		);
 	}
 

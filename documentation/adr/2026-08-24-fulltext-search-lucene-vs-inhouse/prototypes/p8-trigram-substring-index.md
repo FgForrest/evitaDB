@@ -652,7 +652,7 @@ Conceptually:
 
 ```java
 long trigram =
-      ((long) cp1)
+      cp1
     | ((long) cp2 << 21)
     | ((long) cp3 << 42);
 ```

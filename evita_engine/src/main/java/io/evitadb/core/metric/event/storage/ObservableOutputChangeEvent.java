@@ -31,38 +31,43 @@ import jdk.jfr.Label;
 import jdk.jfr.Name;
 import lombok.Getter;
 
-import javax.annotation.Nonnull;
-
 /**
- * Event that is fired when an ObservableOutput buffer count is changed.
+ * Event reporting changes in the JVM-wide set of borrowed and idle frame buffers after allocation or dropping.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Name(AbstractStorageEvent.PACKAGE_NAME + ".ObservableOutputChange")
-@Description("Event that is fired when an ObservableOutput buffer count changes.")
-@Label("ObservableOutput buffers")
-@ExportInvocationMetric(label = "ObservableOutput buffer count changes.")
+@Description("Event reporting frame buffer allocations and drops across all engines and catalogs.")
+@Label("Shared frame buffers")
+@ExportInvocationMetric(label = "Shared frame buffer allocations and drops.")
 @Getter
 public class ObservableOutputChangeEvent extends AbstractStorageEvent {
-	@Label("Number of opened output buffers")
-	@Description("The number of open buffers used to write data to OffsetIndexes.")
+	/**
+	 * Number of arrays owned by the pool, including borrowed and idle buffers.
+	 */
+	@Label("Number of borrowed and idle frame buffers")
+	@Description("The total number of borrowed and idle arrays in the JVM-wide frame buffer pool.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int openedBuffers;
 
-	@Label("Memory occupied by opened output buffers in Bytes")
-	@Description("The amount of memory in bytes occupied by open OffsetIndex output buffers.")
+	/**
+	 * Total size in bytes of all borrowed and idle arrays owned by the pool.
+	 */
+	@Label("Memory occupied by borrowed and idle frame buffers in bytes")
+	@Description("The total size in bytes of borrowed and idle arrays in the JVM-wide frame buffer pool.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final long occupiedMemoryBytes;
 
+	/**
+	 * Captures the total number and size of borrowed and idle buffers across the JVM after allocating or dropping one.
+	 *
+	 * @param openedBuffers total number of borrowed and idle arrays
+	 * @param occupiedMemoryBytes total size in bytes of borrowed and idle arrays
+	 */
 	public ObservableOutputChangeEvent(int openedBuffers, long occupiedMemoryBytes) {
 		super(null);
 		this.openedBuffers = openedBuffers;
 		this.occupiedMemoryBytes = occupiedMemoryBytes;
 	}
 
-	public ObservableOutputChangeEvent(@Nonnull String catalogName, int openedBuffers, long occupiedMemoryBytes) {
-		super(catalogName);
-		this.openedBuffers = openedBuffers;
-		this.occupiedMemoryBytes = occupiedMemoryBytes;
-	}
 }

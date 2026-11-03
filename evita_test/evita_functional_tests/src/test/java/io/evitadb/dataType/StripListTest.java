@@ -358,7 +358,7 @@ class StripListTest {
 			assertTrue(strip.isSinglePage());
 			assertFalse(strip.isEmpty());
 			assertEquals(1, strip.getData().size());
-			assertEquals(42, strip.getData().get(0));
+			assertEquals(42, strip.getData().getFirst());
 		}
 	}
 

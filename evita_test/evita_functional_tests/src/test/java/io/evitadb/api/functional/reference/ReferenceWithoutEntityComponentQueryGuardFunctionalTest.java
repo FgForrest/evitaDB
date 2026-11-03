@@ -119,7 +119,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * nothing that needs the reduced entity indexes can be answered from it, because they were never built. Every query
  * path that reads them used to answer with an empty result, silently; a negation over one inverted into the whole
  * collection. Each path must now refuse loudly, naming the reference and the scope that lacks the component. Facet
- * computation reads a different structure and must keep working, which the controls below pin.
+ * computation reads a different structure and the filter of `referenceContent` reads the fetched rows themselves, so
+ * both must keep working, which the controls below pin.
  *
  * **How the stored shape is produced.** The shape can no longer be committed through the public API, but validation
  * runs only when the session closes, so the session that defines it sees it - schema and indexes both - exactly as a
@@ -475,36 +476,6 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 			);
 		}
 
-		/**
-		 * `referenceContent` with a filter narrows the fetched rows through the reduced entity indexes, and a blind
-		 * lookup hides every row of the entity rather than just the ones the filter rejects.
-		 */
-		@Test
-		@Tag(REQUIRE)
-		@DisplayName("should refuse referenceContent filtered by the referenced entity")
-		void shouldRefuseFilteredReferenceContent() {
-			assertRefused(
-				() -> fetchReferencedPks(
-					currentSession(),
-					query(
-						collection(PRODUCT),
-						filterBy(entityPrimaryKeyInSet(PRODUCT_A_PK)),
-						require(
-							entityFetch(
-								referenceContent(
-									REF_GROUP_ONLY,
-									filterBy(entityHaving(entityPrimaryKeyInSet(CHILD_CATEGORY_PK)))
-								)
-							)
-						)
-					),
-					REF_GROUP_ONLY
-				),
-				REF_GROUP_ONLY, Scope.LIVE,
-				"the right answer is [" + CHILD_CATEGORY_PK + "], and the blind one hides the row"
-			);
-		}
-
 		@Test
 		@Tag(ORDER)
 		@DisplayName("should refuse ordering by referenceProperty")
@@ -820,6 +791,48 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 				facetsByGroup,
 				"Each live product contributes one facet in its own group - the facet index was built regardless of " +
 					"the indexed components"
+			);
+		}
+
+		/**
+		 * The filter of `referenceContent` reads the rows of the fetched entity itself, never the reduced entity
+		 * indexes the missing component would have built, so it is answered rather than refused - and it
+		 * rejects the rows its condition rejects.
+		 */
+		@Test
+		@Tag(REQUIRE)
+		@DisplayName("should answer referenceContent filtered by the referenced entity")
+		void shouldAnswerFilteredReferenceContent() {
+			final List<List<Integer>> referenced = queryInStoredShapeSession(
+				session -> {
+					final List<List<Integer>> answers = new ArrayList<>(2);
+					for (int filteredCategory : new int[]{CHILD_CATEGORY_PK, OTHER_ROOT_CATEGORY_PK}) {
+						answers.add(
+							fetchReferencedPks(
+								session,
+								query(
+									collection(PRODUCT),
+									filterBy(entityPrimaryKeyInSet(PRODUCT_A_PK)),
+									require(
+										entityFetch(
+											referenceContent(
+												REF_GROUP_ONLY,
+												filterBy(entityHaving(entityPrimaryKeyInSet(filteredCategory)))
+											)
+										)
+									)
+								),
+								REF_GROUP_ONLY
+							)
+						);
+					}
+					return answers;
+				}
+			);
+			assertEquals(
+				List.of(List.of(CHILD_CATEGORY_PK), List.of()),
+				referenced,
+				"Product " + PRODUCT_A_PK + " references category " + CHILD_CATEGORY_PK + " and no other"
 			);
 		}
 

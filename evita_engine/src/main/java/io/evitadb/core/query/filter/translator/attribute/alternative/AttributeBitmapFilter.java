@@ -48,9 +48,13 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
+import static io.evitadb.api.query.QueryConstraints.attributeContent;
+
 /**
- * Implementation of {@link EntityToBitmapFilter} that verifies that the entity has the appropriate attribute value
- * matching the {@link EntityToBitmapFilter#filter} predicate.
+ * Implementation of {@link EntityToBitmapFilter} that selects the prefetched entities holding an attribute value the
+ * {@link AttributeValueMatcher} of a constraint accepts. It is the prefetch alternative of the filter index lookup the
+ * attribute translators perform, and it asks the very matcher the index lookup is verified with, so both answer alike.
+ * Translators create it with {@link #matching}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -87,6 +91,52 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 	 */
 	private Bitmap memoizedResult;
 
+	/**
+	 * Creates the filter that selects an entity when any value it holds under the attribute name satisfies the
+	 * {@link AttributeValueMatcher}. An array value satisfies it when any of its elements does, a missing value never
+	 * does. The attribute content the filter needs prefetched is the attribute alone.
+	 *
+	 * @param attributeName           name of the attribute whose values are tested
+	 * @param attributeSchemaAccessor locates the attribute schema in the entity schema
+	 * @param attributeValueAccessor  locates the attribute values in the entity body
+	 * @param matcherFactory          creates the matcher from the schema of the attribute, called once per entity type
+	 *                                of the examined entities
+	 * @param requiredAttributeTraits the traits the attribute schema must have
+	 * @return the filter
+	 */
+	@Nonnull
+	public static AttributeBitmapFilter matching(
+		@Nonnull String attributeName,
+		@Nonnull TriFunction<EntitySchemaContract, String, AttributeTrait[], AttributeSchemaContract>
+			attributeSchemaAccessor,
+		@Nonnull BiFunction<EntityContract, String, Stream<Optional<AttributeValue>>> attributeValueAccessor,
+		@Nonnull Function<AttributeSchemaContract, AttributeValueMatcher> matcherFactory,
+		@Nonnull AttributeTrait... requiredAttributeTraits
+	) {
+		return new AttributeBitmapFilter(
+			attributeName,
+			attributeContent(attributeName),
+			attributeSchemaAccessor,
+			attributeValueAccessor,
+			attributeSchema -> {
+				final AttributeValueMatcher matcher = matcherFactory.apply(attributeSchema);
+				return values -> values.anyMatch(value -> value.isPresent() && matcher.matches(value.get().value()));
+			},
+			requiredAttributeTraits
+		);
+	}
+
+	/**
+	 * Creates the filter from a raw factory of the test of the entity values. Prefer {@link #matching}, which wraps a
+	 * matcher into that test.
+	 *
+	 * @param attributeName the name of the attribute
+	 * @param requirements the content the prefetched entities must be fetched with
+	 * @param attributeSchemaAccessor resolves the schema of the attribute in the entity schema
+	 * @param attributeValueAccessor reads the values of the attribute of an entity
+	 * @param filterFactory creates the test of the values of an entity from the attribute schema
+	 * @param requiredAttributeTraits the traits the attribute schema must have
+	 */
 	public AttributeBitmapFilter(
 		@Nonnull String attributeName,
 		@Nonnull EntityContentRequire requirements,

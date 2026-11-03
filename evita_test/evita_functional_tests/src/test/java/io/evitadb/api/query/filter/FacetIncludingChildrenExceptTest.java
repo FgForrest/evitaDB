@@ -236,7 +236,7 @@ class FacetIncludingChildrenExceptTest {
 			);
 			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
 
-			constraint.accept(c -> visited.set((Constraint<?>) c));
+			constraint.accept(c -> visited.set(c));
 
 			assertSame(constraint, visited.get());
 		}

@@ -113,7 +113,7 @@ class OwnerUniqueIndexStaleLeafPageTwinTest {
 			pageSequences[i] = i;
 		}
 		return OwnerUniqueIndex.fromPersistedPages(
-			ENTITY_TYPE, CODE_KEY, Integer.class, pageSequences, valuePages, recordPages, valuePages.length - 1
+			ENTITY_TYPE, CODE_KEY, Integer.class, 0, pageSequences, valuePages, recordPages, valuePages.length - 1
 		);
 	}
 

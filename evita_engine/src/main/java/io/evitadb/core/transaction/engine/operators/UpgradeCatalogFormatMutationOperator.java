@@ -39,6 +39,7 @@ import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -63,8 +64,8 @@ import java.util.function.Consumer;
  *
  * Forward-replay is intentionally **not** implemented. The upgrade executor will eventually perform non-pure disk I/O
  * (migrating data files in place), and replaying that during crash recovery could corrupt an already-migrated
- * catalog. The default `Optional.empty()` in `EngineMutationOperator#replayCompletionState` therefore wedges the
- * engine loudly on a crash mid-upgrade — safer than silent re-execution.
+ * catalog. `replayCompletionState` therefore returns `Optional.empty()`, which wedges the engine loudly on a crash
+ * mid-upgrade — safer than silent re-execution.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -209,6 +210,22 @@ public class UpgradeCatalogFormatMutationOperator
 				return null;
 			}
 		);
+	}
+
+	/**
+	 * Forward replay is not supported - the class javadoc says why.
+	 *
+	 * @return always empty, so a crash between the write-ahead log append and the bootstrap rewrite wedges the engine
+	 */
+	@Nonnull
+	@Override
+	public Optional<ExpandedEngineState> replayCompletionState(
+		@Nonnull UpgradeCatalogFormatMutation mutation,
+		long targetVersion,
+		@Nonnull ExpandedEngineState currentState,
+		@Nonnull Evita evita
+	) {
+		return Optional.empty();
 	}
 
 }

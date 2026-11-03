@@ -227,7 +227,7 @@ class EntityIoStatisticsFunctionalTest implements EvitaTestSupport {
 	 */
 	private static int ioFetchCountOf(@Nonnull EvitaResponse<SealedEntity> response) {
 		return assertInstanceOf(
-			EntityFetchAwareDecorator.class, response.getRecordData().get(0)
+			EntityFetchAwareDecorator.class, response.getRecordData().getFirst()
 		).getIoFetchCount();
 	}
 
@@ -314,7 +314,7 @@ class EntityIoStatisticsFunctionalTest implements EvitaTestSupport {
 			)
 		);
 		assertEquals(1, response.getRecordData().size());
-		return assertInstanceOf(EntityFetchAwareDecorator.class, response.getRecordData().get(0));
+		return assertInstanceOf(EntityFetchAwareDecorator.class, response.getRecordData().getFirst());
 	}
 
 	/**
@@ -388,7 +388,7 @@ class EntityIoStatisticsFunctionalTest implements EvitaTestSupport {
 			)
 		);
 		assertEquals(1, response.getRecordData().size());
-		return assertInstanceOf(EntityFetchAwareDecorator.class, response.getRecordData().get(0));
+		return assertInstanceOf(EntityFetchAwareDecorator.class, response.getRecordData().getFirst());
 	}
 
 	/**
@@ -462,7 +462,7 @@ class EntityIoStatisticsFunctionalTest implements EvitaTestSupport {
 			)
 		);
 		assertEquals(1, response.getRecordData().size());
-		return assertInstanceOf(EntityFetchAwareDecorator.class, response.getRecordData().get(0));
+		return assertInstanceOf(EntityFetchAwareDecorator.class, response.getRecordData().getFirst());
 	}
 
 }

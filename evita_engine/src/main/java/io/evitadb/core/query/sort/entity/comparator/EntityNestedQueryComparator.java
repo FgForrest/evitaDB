@@ -26,11 +26,15 @@ package io.evitadb.core.query.sort.entity.comparator;
 import com.carrotsearch.hppc.IntContainer;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+import com.carrotsearch.hppc.LongIntHashMap;
+import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.order.EntityGroupProperty;
+import io.evitadb.api.query.order.EntityPrimaryKeyNatural;
 import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.core.query.QueryExecutionContext;
@@ -54,6 +58,7 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -66,8 +71,8 @@ import static java.util.Optional.ofNullable;
  *
  * - {@link #setSorters(QueryExecutionContext, Collection)} or {@link #setGroupSorters(QueryExecutionContext, Collection)} which initializes
  * the sorted provided by nested {@link QueryPlan}
- * - {@link #setFilteredEntities(int[], int[], Function)}  which initializes filtered referenced records and allows to
- * prepare all internal datastructures required form efficient comparisons
+ * - {@link #setFilteredEntities(int[], int[], Function, boolean)}  which initializes filtered referenced records and
+ * allows to prepare all internal datastructures required form efficient comparisons
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -87,6 +92,12 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	 * constraint later to this point of execution.
 	 */
 	@Nullable @Getter private EntityGroupPropertyWithScopes groupOrderBy;
+	/**
+	 * TRUE when {@link #groupOrderBy} orders the groups by their primary key - every group then has a value to be
+	 * ordered by, so the group sorters rank all of them and none joins the references without a group. The ascending
+	 * primary key order has no sorter of its own: it is the default sorter closing the plan's sorters.
+	 */
+	private boolean groupOrderByPrimaryKey;
 	/**
 	 * Locale valid for nested scope (if set on particular scope level).
 	 */
@@ -114,12 +125,33 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	 */
 	@Nullable private int[] sortedEntityIndexes;
 	/**
+	 * Positions of the referenced entities ordered by their group, keyed by the (group, referenced entity) pair -
+	 * see {@link #toGroupedReferenceKey(int, int)}. It is present only when the group of a referenced entity differs
+	 * between the references being ordered, so that the position of a referenced entity depends on the group its
+	 * reference holds. The positions in {@link #sortedEntityIndexes} then belong to the references whose group has no
+	 * value to be ordered by, and follow all positions in this map.
+	 */
+	@Nullable private LongIntHashMap groupedReferencePositions;
+	/**
 	 * Array of references that were not found by the {@link Sorter}.
 	 */
 	private IntSet nonSortedReferences;
 
+	/**
+	 * Sorts the passed entities by the sorters of the passed tuple.
+	 *
+	 * @param filteredEntities the entity primary keys to sort
+	 * @param sortersTuple     the sorters to sort by, NULL keeps the passed order
+	 * @param appendUnsorted   TRUE to append the entities no sorter ranked - those lacking every value the sorters
+	 *                         order by - after the ranked ones, FALSE to leave them out of the result
+	 * @return the sorted entity primary keys
+	 */
 	@Nonnull
-	private static int[] getSortedEntities(@Nonnull int[] filteredEntities, @Nullable SortersTuple sortersTuple) {
+	private static int[] getSortedEntities(
+		@Nonnull int[] filteredEntities,
+		@Nullable SortersTuple sortersTuple,
+		boolean appendUnsorted
+	) {
 		if (sortersTuple == null) {
 			return filteredEntities;
 		} else {
@@ -135,11 +167,18 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 				0, 0
 			);
 			for (Sorter sorter : sortersTuple.sorters()) {
+				if (!appendUnsorted && sorter instanceof NoSorter) {
+					// the plan closes its sorters with the default one, which ranks what the others left unranked
+					break;
+				}
 				sortingContext = sorter.sortAndSlice(sortingContext, result,null);
 			}
 
 			// append the rest of the records if not all are sorted
 			if (sortingContext.peak() < result.length) {
+				if (!appendUnsorted) {
+					return Arrays.copyOf(result, sortingContext.peak());
+				}
 				NoSorter.INSTANCE.sortAndSlice(sortingContext, result, null);
 			}
 
@@ -155,6 +194,7 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 		this.nextComparator = nextComparator;
 		this.orderBy = base.orderBy;
 		this.groupOrderBy = base.groupOrderBy;
+		this.groupOrderByPrimaryKey = base.groupOrderByPrimaryKey;
 		this.sorter = base.sorter;
 		this.groupSorter = base.groupSorter;
 	}
@@ -177,6 +217,12 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 			"Sorting by group property in a second dimension has no sense! It will have no effect."
 		);
 		this.groupOrderBy = new EntityGroupPropertyWithScopes(groupOrderBy, scope);
+		for (final OrderConstraint groupOrdering : groupOrderBy.getChildren()) {
+			if (groupOrdering instanceof EntityPrimaryKeyNatural) {
+				this.groupOrderByPrimaryKey = true;
+				break;
+			}
+		}
 	}
 
 	/**
@@ -204,26 +250,58 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	}
 
 	/**
+	 * Combines the group and the referenced entity primary key into the key of {@link #groupedReferencePositions}.
+	 *
+	 * @param groupPrimaryKey            primary key of the group the reference holds
+	 * @param referencedEntityPrimaryKey primary key of the referenced entity
+	 * @return the combined key
+	 */
+	private static long toGroupedReferenceKey(int groupPrimaryKey, int referencedEntityPrimaryKey) {
+		return ((long) groupPrimaryKey << 32) | (referencedEntityPrimaryKey & 0xFFFFFFFFL);
+	}
+
+	/**
 	 * Initializes internal datastructures by using previously identified {@link Sorter}. This method needs to be
 	 * preceded by {@link #setSorters(QueryExecutionContext, Collection)} call.
+	 *
+	 * @param filteredEntities                    sorted, distinct primary keys of the referenced entities to order
+	 * @param filteredEntityGroups                primary keys of the groups of those entities
+	 * @param groupToReferencedEntityIdTranslator returns the referenced entities held in the passed group
+	 * @param groupAssignmentVaries               TRUE when the group of a referenced entity differs between the
+	 *                                            references being ordered - between their owners, or within one -
+	 *                                            so the position of a referenced entity must depend on the group of
+	 *                                            the reference rather than on the entity alone
 	 */
 	public void setFilteredEntities(
 		@Nonnull int[] filteredEntities,
 		@Nonnull int[] filteredEntityGroups,
-		@Nonnull Function<Integer, int[]> groupToReferencedEntityIdTranslator
+		@Nonnull Function<Integer, int[]> groupToReferencedEntityIdTranslator,
+		boolean groupAssignmentVaries
 	) {
+		this.groupedReferencePositions = null;
 		this.entitiesFound = filteredEntities;
-		this.sortedEntityIndexes = new int[filteredEntities.length];
+		// the field shares the array, which the sorting below reorders in place
+		final int[] sortedEntityIndexes = new int[filteredEntities.length];
 		for (int i = 0; i < filteredEntities.length; i++) {
-			this.sortedEntityIndexes[i] = i;
+			sortedEntityIndexes[i] = i;
 		}
+		this.sortedEntityIndexes = sortedEntityIndexes;
 		if (!ArrayUtils.isEmpty(filteredEntities)) {
 			if (this.groupSorter == null) {
-				final int[] sortedEntities = getSortedEntities(filteredEntities, this.sorter);
-				ArrayUtils.sortSecondAlongFirstArray(sortedEntities, this.sortedEntityIndexes);
+				final int[] sortedEntities = getSortedEntities(filteredEntities, this.sorter, true);
+				ArrayUtils.sortSecondAlongFirstArray(sortedEntities, sortedEntityIndexes);
+			} else if (groupAssignmentVaries) {
+				setFilteredEntitiesByGroupedReference(
+					filteredEntities, filteredEntityGroups, groupToReferencedEntityIdTranslator, sortedEntityIndexes
+				);
 			} else {
-				final int[] sortedGroupEntities = getSortedEntities(filteredEntityGroups, this.groupSorter);
-				final int[] sortedEntities = getSortedEntities(filteredEntities, this.sorter);
+				// a group the sorters cannot rank - one that does not exist, or lacks every value they order by - has
+				// no value to be ordered by, so its entities are left to join the ungrouped ones below; an ordering by
+				// the primary key leaves no group without a value
+				final int[] sortedGroupEntities = getSortedEntities(
+					filteredEntityGroups, this.groupSorter, this.groupOrderByPrimaryKey
+				);
+				final int[] sortedEntities = getSortedEntities(filteredEntities, this.sorter, true);
 				final IntSet filteredEntitySet = new IntHashSet(filteredEntities.length);
 				for (int entityPk : filteredEntities) {
 					filteredEntitySet.add(entityPk);
@@ -231,7 +309,9 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 				int peek = -1;
 				final int[] combinedSortedEntities = new int[filteredEntities.length];
 				for (int sortedGroupEntity : sortedGroupEntities) {
-					final int[] groupEntityPks = groupToReferencedEntityIdTranslator.apply(sortedGroupEntity);
+					// `sortAlong` reorders the array in place, and the translator may hand out an array it keeps - the
+					// mapping of a whole batch caches it for every other reader of the reference in the same query
+					final int[] groupEntityPks = groupToReferencedEntityIdTranslator.apply(sortedGroupEntity).clone();
 					ArrayUtils.sortAlong(sortedEntities, groupEntityPks);
 					for (int entityPk : groupEntityPks) {
 						if (filteredEntitySet.removeAll(entityPk) > 0) {
@@ -239,9 +319,93 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 						}
 					}
 				}
-				ArrayUtils.sortSecondAlongFirstArray(combinedSortedEntities, this.sortedEntityIndexes);
+				// the entities no ordered group reached - they have no group, their group was filtered out, or it has
+				// no value to be ordered by - lack the value the groups are ordered by, so they follow all grouped
+				// ones in the order of the entities; left unset, their zero slots would sort first and shift the
+				// position of every entity
+				if (peek < combinedSortedEntities.length - 1) {
+					for (int entityPk : sortedEntities) {
+						if (filteredEntitySet.removeAll(entityPk) > 0) {
+							combinedSortedEntities[++peek] = entityPk;
+						}
+					}
+				}
+				ArrayUtils.sortSecondAlongFirstArray(combinedSortedEntities, sortedEntityIndexes);
 			}
 		}
+	}
+
+	/**
+	 * Variant of {@link #setFilteredEntities(int[], int[], Function, boolean)} for the case when the group of
+	 * a referenced entity differs between the references being ordered. Each (group, referenced entity) pair gets its
+	 * own position in {@link #groupedReferencePositions}: the groups in their order, the entities of a group in the
+	 * order of the entities. Every referenced entity also gets a position in {@link #sortedEntityIndexes} after all
+	 * of those, in the order of the entities - the position of a reference whose group has no value to be ordered by.
+	 *
+	 * @param filteredEntities                    sorted, distinct primary keys of the referenced entities to order
+	 * @param filteredEntityGroups                primary keys of the groups of those entities
+	 * @param groupToReferencedEntityIdTranslator returns the referenced entities held in the passed group
+	 * @param sortedEntityIndexes                 the array {@link #sortedEntityIndexes} holds, filled in place
+	 */
+	private void setFilteredEntitiesByGroupedReference(
+		@Nonnull int[] filteredEntities,
+		@Nonnull int[] filteredEntityGroups,
+		@Nonnull Function<Integer, int[]> groupToReferencedEntityIdTranslator,
+		@Nonnull int[] sortedEntityIndexes
+	) {
+		final int[] sortedGroupEntities = getSortedEntities(
+			filteredEntityGroups, this.groupSorter, this.groupOrderByPrimaryKey
+		);
+		final int[] sortedEntities = getSortedEntities(filteredEntities, this.sorter, true);
+		final LongIntHashMap positions = new LongIntHashMap(filteredEntities.length);
+		int position = 0;
+		for (int sortedGroupEntity : sortedGroupEntities) {
+			// see `setFilteredEntities` - the translated array must not be reordered in place
+			final int[] groupEntityPks = groupToReferencedEntityIdTranslator.apply(sortedGroupEntity).clone();
+			ArrayUtils.sortAlong(sortedEntities, groupEntityPks);
+			for (int entityPk : groupEntityPks) {
+				if (Arrays.binarySearch(filteredEntities, entityPk) >= 0) {
+					positions.put(toGroupedReferenceKey(sortedGroupEntity, entityPk), position++);
+				}
+			}
+		}
+		ArrayUtils.sortSecondAlongFirstArray(sortedEntities, sortedEntityIndexes);
+		for (int i = 0; i < sortedEntityIndexes.length; i++) {
+			sortedEntityIndexes[i] += position;
+		}
+		this.groupedReferencePositions = positions;
+	}
+
+	/**
+	 * Returns the position of the reference in the requested order, or -1 when the comparator cannot rank it.
+	 *
+	 * @param reference           the reference to locate, may be NULL
+	 * @param entitiesFound       the array {@link #entitiesFound} holds
+	 * @param sortedEntityIndexes the array {@link #sortedEntityIndexes} holds
+	 * @return the position of the reference, or -1
+	 */
+	private int getPosition(
+		@Nullable ReferenceContract reference,
+		@Nonnull int[] entitiesFound,
+		@Nonnull int[] sortedEntityIndexes
+	) {
+		if (reference == null) {
+			return -1;
+		}
+		final int referencedPrimaryKey = reference.getReferencedPrimaryKey();
+		if (this.groupedReferencePositions != null) {
+			final Optional<GroupEntityReference> group = reference.getGroup();
+			if (group.isPresent()) {
+				final int index = this.groupedReferencePositions.indexOf(
+					toGroupedReferenceKey(group.get().primaryKey(), referencedPrimaryKey)
+				);
+				if (this.groupedReferencePositions.indexExists(index)) {
+					return this.groupedReferencePositions.indexGet(index);
+				}
+			}
+		}
+		final int index = Arrays.binarySearch(entitiesFound, referencedPrimaryKey);
+		return index < 0 ? -1 : sortedEntityIndexes[index];
 	}
 
 	@Override
@@ -265,11 +429,13 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 
 	@Override
 	public int compare(ReferenceContract o1, ReferenceContract o2) {
-		Assert.isPremiseValid(this.entitiesFound != null && this.sortedEntityIndexes != null, "The comparator is not initialized!");
-		final int o1Index = o1 == null ? -1 : Arrays.binarySearch(this.entitiesFound, o1.getReferencedPrimaryKey());
-		final int o2Index = o2 == null ? -1 : Arrays.binarySearch(this.entitiesFound, o2.getReferencedPrimaryKey());
-		final int o1Position = o1Index < 0 ? -1 : this.sortedEntityIndexes[o1Index];
-		final int o2Position = o2Index < 0 ? -1 : this.sortedEntityIndexes[o2Index];
+		final int[] entitiesFound = this.entitiesFound;
+		final int[] sortedEntityIndexes = this.sortedEntityIndexes;
+		Assert.isPremiseValid(
+			entitiesFound != null && sortedEntityIndexes != null, "The comparator is not initialized!"
+		);
+		final int o1Position = getPosition(o1, entitiesFound, sortedEntityIndexes);
+		final int o2Position = getPosition(o2, entitiesFound, sortedEntityIndexes);
 		if (o1Position >= 0 && o2Position >= 0) {
 			return Integer.compare(o1Position, o2Position);
 		} else if (o1Position < 0 && o2Position >= 0) {

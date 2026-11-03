@@ -171,7 +171,7 @@ class LongRunningSavepointAttributeCardinalityIndexTest
 			}
 			final List<AttributeCardinalityKey> keys = new ArrayList<>(this.model.keySet());
 			final AttributeCardinalityKey key = keys.get(random.nextInt(keys.size()));
-			this.index.removeRecord((String) key.value(), key.recordId());
+			this.index.removeRecord(key.value(), key.recordId());
 			final int newCount = this.model.get(key) - 1;
 			if (newCount == 0) {
 				this.model.remove(key);

@@ -59,7 +59,10 @@ import java.util.stream.Stream;
  * sealed in turn down to `final` leaves. A dispatch that covers {@link NamedLocalMutation}'s three branches plus
  * {@link io.evitadb.api.requestResponse.data.mutation.parent.ParentMutation}, {@link PriceMutation},
  * {@link io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation} and
- * {@link SetEntityScopeMutation} therefore sees every mutation that can exist.
+ * {@link SetEntityScopeMutation} therefore sees every mutation that can exist. A subtype outside these families
+ * needs a branch in {@link io.evitadb.api.requestResponse.data.structure.Entity#mutateEntity}, and every new
+ * concrete subtype needs a handler in the engine's `LocalMutationHandlerRegistry`. Both refuse a mutation they do
+ * not know, so the first test applying one fails.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

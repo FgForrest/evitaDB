@@ -141,6 +141,32 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 		this.sizeInBytes = sizeInBytes;
 	}
 
+	/**
+	 * Creates the pre-image of `source` (see {@link #createPreImage()}): every field is carried over, and the three
+	 * sets the mutators add to and remove from in place are copied in their iteration order.
+	 *
+	 * @param source the part whose current content is copied
+	 */
+	private EntityBodyStoragePart(@Nonnull EntityBodyStoragePart source) {
+		this.primaryKey = source.primaryKey;
+		this.attributeLocales = new LinkedHashSet<>(source.attributeLocales);
+		this.initialRevision = source.initialRevision;
+		this.associatedDataKeys = new LinkedHashSet<>(source.associatedDataKeys);
+		this.version = source.version;
+		this.scope = source.scope;
+		this.parent = source.parent;
+		this.locales = new LinkedHashSet<>(source.locales);
+		this.sizeInBytes = source.sizeInBytes;
+		this.dirty = source.dirty;
+		this.markedForRemoval = source.markedForRemoval;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBodyStoragePart createPreImage() {
+		return new EntityBodyStoragePart(this);
+	}
+
 	@Nullable
 	@Override
 	public Long getStoragePartPK() {

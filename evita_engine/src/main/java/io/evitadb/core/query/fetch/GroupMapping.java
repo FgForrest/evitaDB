@@ -28,11 +28,8 @@ import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.IntSet;
-import com.carrotsearch.hppc.cursors.IntCursor;
 
 import javax.annotation.Nonnull;
-import java.util.Iterator;
-import java.util.NoSuchElementException;
 import java.util.stream.IntStream;
 
 /**
@@ -93,31 +90,22 @@ class GroupMapping {
 	}
 
 	/**
-	 * Retrieves the group ID associated with the specified entity primary key.
+	 * Retrieves the group IDs associated with the specified entity primary key - the default group and every other
+	 * group the entity was mapped to. An entity holding several references to one referenced entity (a reference
+	 * allowing duplicates) may hold them in the default group and in other groups at once.
 	 *
-	 * @param entityPrimaryKey the primary key of the entity for which to retrieve the group ID
-	 * @return the group ID associated with the entity, or {@code null} if no mapping exists
+	 * @param entityPrimaryKey the primary key of the entity for which to retrieve the group IDs
+	 * @return the group IDs associated with the entity, empty if no mapping exists
 	 */
 	@Nonnull
 	public IntStream getGroupId(int entityPrimaryKey) {
-		if (this.entityIds.contains(entityPrimaryKey)) {
-			return IntStream.of(this.groupPrimaryKey);
-		} else if (this.entityToGroupMapping == null) {
-			return IntStream.empty();
-		} else {
-			final IntSet groups = this.entityToGroupMapping.get(entityPrimaryKey);
-			if (groups == null) {
-				return IntStream.empty();
-			} else {
-				final Iterator<IntCursor> it = groups.iterator();
-				return IntStream.generate(() -> {
-					if (it.hasNext()) {
-						return it.next().value;
-					} else {
-						throw new NoSuchElementException();
-					}
-				}).limit(groups.size());
-			}
+		final boolean inDefaultGroup = this.entityIds.contains(entityPrimaryKey);
+		final IntSet groups = this.entityToGroupMapping == null ?
+			null : this.entityToGroupMapping.get(entityPrimaryKey);
+		if (groups == null) {
+			return inDefaultGroup ? IntStream.of(this.groupPrimaryKey) : IntStream.empty();
 		}
+		final IntStream otherGroups = IntStream.of(groups.toArray());
+		return inDefaultGroup ? IntStream.concat(IntStream.of(this.groupPrimaryKey), otherGroups) : otherGroups;
 	}
 }

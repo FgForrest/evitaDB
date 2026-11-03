@@ -24,6 +24,7 @@
 package io.evitadb.api;
 
 import io.evitadb.api.exception.CatalogNotAliveException;
+import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException;
 import io.evitadb.api.exception.IndexNotFoundException;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.InvalidMutationException;
@@ -108,8 +109,16 @@ public interface CatalogContract {
 	 * Updates the internal schema based on the provided schema mutations. This method processes a series of
 	 * {@link LocalCatalogSchemaMutation} objects to modify the current catalog schema, handling different types
 	 * of schema mutations including entity schema creation, removal, modification, and renaming. It registers
-	 * mutations with an active transaction if available, applies schema modifications, and ensures persistence
-	 * and proper rollback in the event of an error.
+	 * mutations with an active transaction if available, applies schema modifications, and ensures persistence.
+	 *
+	 * A failure restores the catalog schema but cannot undo changes already applied to entity collections. Once the
+	 * call has started registering its mutations with the active transaction, a failure therefore marks that
+	 * transaction rollback-only with the failure as its cause, so none of its changes are committed. A refusal raised
+	 * before the first registration, such as the up-front check of the whole batch, leaves the transaction untouched.
+	 *
+	 * The entity schema changes a catalog mutation cascades into - such as the removal of a global attribute from every
+	 * entity schema using it - are applied right after that mutation, before the mutations that follow it, the way the
+	 * replay of the WAL applies them.
 	 *
 	 * @param sessionId an optional session ID that can be used to register the mutations with an active session
 	 * @param schemaMutation an array of {@link LocalCatalogSchemaMutation} objects that specify the mutations
@@ -262,13 +271,18 @@ public interface CatalogContract {
 	 * Creates new publisher that emits {@link ChangeCatalogCapture}s that match the request. Change catalog capture
 	 * operates on WAL (Write Ahead Log) and can be enabled only when the catalog is in {@link CatalogState#ALIVE} state.
 	 *
+	 * The resume position of the request is checked against the incarnation of this catalog before the publisher is
+	 * created: a position recorded on another incarnation of the catalog, or lying more than one version past the last
+	 * version the catalog has finalized, is refused synchronously.
+	 *
 	 * @param request defines what events are captured
 	 * @return publisher that emits {@link ChangeCatalogCapture}s that match the request
 	 * @throws CatalogNotAliveException when the catalog is not in {@link CatalogState#ALIVE} state
+	 * @throws ChangeCaptureResumePositionInvalidException when the resume position of the request cannot be served
 	 */
 	@Nonnull
 	ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request)
-		throws CatalogNotAliveException;
+		throws CatalogNotAliveException, ChangeCaptureResumePositionInvalidException;
 
 	/**
 	 * Method checks whether there are new records in the WAL that haven't been incorporated into the catalog yet and

@@ -775,6 +775,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildOnCatalogDataChangeField() {
 		final GraphQLFieldDefinition onDataChangeField = GraphQLCatalogDataApiRootDescriptor.ON_CATALOG_DATA_CHANGE
 			.to(this.staticEndpointBuilderTransformer)
+			.argument(OnCatalogDataChangeHeaderDescriptor.CATALOG_ID.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogDataChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogDataChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogDataChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
@@ -792,6 +793,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildOnCatalogDataChangeUntypedField() {
 		final GraphQLFieldDefinition onDataChangeField = GraphQLCatalogDataApiRootDescriptor.ON_CATALOG_DATA_CHANGE_UNTYPED
 			.to(this.staticEndpointBuilderTransformer)
+			.argument(OnCatalogDataChangeHeaderDescriptor.CATALOG_ID.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogDataChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogDataChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogDataChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
@@ -812,6 +814,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		final GraphQLFieldDefinition onDataChangeField = GraphQLCatalogDataApiRootDescriptor.ON_COLLECTION_DATA_CHANGE
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(
 				this.propertyDataTypeBuilderTransformer, collectionBuildingContext.getSchema()))
+			.argument(OnCollectionDataChangeHeaderDescriptor.CATALOG_ID.to(this.argumentBuilderTransformer))
 			.argument(OnCollectionDataChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
 			.argument(OnCollectionDataChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
 			.argument(OnCollectionDataChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
@@ -835,6 +838,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		final GraphQLFieldDefinition onDataChangeField = GraphQLCatalogDataApiRootDescriptor.ON_COLLECTION_DATA_CHANGE_UNTYPED
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(
 				this.propertyDataTypeBuilderTransformer, collectionBuildingContext.getSchema()))
+			.argument(OnCollectionDataChangeHeaderDescriptor.CATALOG_ID.to(this.argumentBuilderTransformer))
 			.argument(OnCollectionDataChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
 			.argument(OnCollectionDataChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
 			.argument(OnCollectionDataChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))

@@ -658,6 +658,8 @@ Always use `EnumNameSerializer` for enums — it persists names (not ordinals), 
 
 The `SerialVersionBasedSerializer` uses the target class's `serialVersionUID` (explicitly declared via `@Serial private static final long serialVersionUID = ...L;`) to detect format changes. Every serialized object is prefixed with this UID; on deserialization, the UID is read first to dispatch to the correct serializer version.
 
+**The UID never changes by itself.** Changing what a serializer writes leaves the declared value as it was, so an unchanged UID means the format has not been versioned yet, not that it is unchanged. If the UID is not bumped, the current serializer gets released bytes stamped with the current UID and reads them in the new layout. The result is corrupt values or a Kryo failure at catalog load or WAL replay, and no `StoredVersionNotSupportedException` points at the cause.
+
 **Important — release-only backward compatibility:** We only maintain backward compatibility with the **latest released version** (the latest `release_YYYY-M` branch). If a model changes multiple times during a single development cycle (between releases), do NOT create intermediate backward-compatible serializers — just update the current serializer. Only the release format matters.
 
 **Step-by-step process:**
@@ -680,11 +682,7 @@ The `SerialVersionBasedSerializer` uses the target class's `serialVersionUID` (e
 
 3. **Decision tree:**
 
-   - **UIDs identical** → The target class hasn't changed since the release. No backward-compat serializer needed. Just update the current serializer to write/read the new field.
-
-   - **UIDs differ AND `SchemaTypeSerializer_YYYY_M.java` already exists** → A backward-compat serializer for the release format was already created earlier in this dev cycle (from a previous change to this model). Just update the current serializer. No new backward-compat file needed.
-
-   - **UIDs differ AND no `SchemaTypeSerializer_YYYY_M.java` exists** → This is the first change to this model since the release. Full workflow:
+   - **UIDs identical** → Nothing has versioned this class's format since the release, so this is its **first** format change of the cycle. Released data carries this UID. Full workflow:
 
      a. **Get the release-version serializer** from the release branch:
         ```shell
@@ -693,9 +691,9 @@ The `SerialVersionBasedSerializer` uses the target class's `serialVersionUID` (e
      b. **Save it** as `SchemaTypeSerializer_YYYY_M.java`. This becomes the backward-compatible reader for the release format.
      c. **Annotate** with `@Deprecated(since = "YYYY.M", forRemoval = true)`.
      d. **In the copy**, make `write()` throw `UnsupportedOperationException` and keep `read()` unchanged — it reads the release format.
-     e. **Modify the original serializer** to write/read the new field.
-     f. **Run the tests.** `SerialVersionBasedSerializer` will detect the UID mismatch and report the **old hash** in the error message. Capture this value.
-     g. **Register** the backward-compatible serializer with the captured hash:
+     e. **Bump** the target class's `serialVersionUID` to a new value.
+     f. **Modify the original serializer** to write/read the new field.
+     g. **Register** the backward-compatible serializer at the **release UID**, the value read from the release branch in step 2. Do it in **every** Kryo configurer that registers the class. Kryo keeps only the last registration of a class, so when two configurers are composed, a reader present in only one of them is silently dead. For example, `CatalogSchema` is registered in both `SchemaKryoConfigurer` and `CatalogHeaderKryoConfigurer`:
 
      ```java
      kryo.register(
@@ -704,10 +702,16 @@ The `SerialVersionBasedSerializer` uses the target class's `serialVersionUID` (e
      		new SchemaTypeSerializer(), SchemaType.class  // current version
      	)
      		.addBackwardCompatibleSerializer(EXISTING_HASH_1, new SchemaTypeSerializer_OLD_1())
-     		.addBackwardCompatibleSerializer(CAPTURED_OLD_HASH, new SchemaTypeSerializer_YYYY_M()),  // NEW
+     		.addBackwardCompatibleSerializer(RELEASE_UID, new SchemaTypeSerializer_YYYY_M()),  // NEW
      	index++
      );
      ```
+
+     h. **Verify** with the `kryo-bwc-audit` skill (`python3 .claude/skills/kryo-bwc-audit/audit.py`). It fails on a bump without a reader, on a reader missing from one of the configurers, and on a serializer that changed without a bump.
+
+   - **UIDs differ AND a reader for the release UID is registered** (usually `SchemaTypeSerializer_YYYY_M.java`) → An earlier change in this dev cycle already bumped the UID and kept the release format readable. Do **not** bump again; only released data is supported, so the intermediate format needs no reader. Just update the current serializer. No new backward-compat file needed.
+
+   - **UIDs differ AND no reader for the release UID is registered** → The UID was bumped earlier in this cycle without a reader, so released data already fails to load with `StoredVersionNotSupportedException`. Fix that first: create the release-format reader (steps a–d above) and register it at the release UID (step g). Then update the current serializer. Do not bump again.
 
 ### 7.3 Update Current Serializer
 
@@ -768,11 +772,11 @@ public class SchemaTypeSerializer_YYYY_M extends Serializer<SchemaType> {
 
 - [ ] `EnumNameSerializer` registered for new enum (if applicable)
 - [ ] Release branch identified, `serialVersionUID` compared (see decision tree above)
-- [ ] If first change since release: backward-compat serializer created from release-branch source, annotated `@Deprecated`, write throws
-- [ ] If subsequent change (backward-compat already exists): just update the current serializer — no new backward-compat file
+- [ ] If first change since release (UIDs identical): `serialVersionUID` bumped; backward-compat serializer created from release-branch source, annotated `@Deprecated`, write throws
+- [ ] If subsequent change (reader for the release UID already registered): UID not bumped again; just update the current serializer — no new backward-compat file
 - [ ] Current serializer updated with new field read/write
-- [ ] Tests run to capture old serial version hash (first change only)
-- [ ] Backward-compatible serializer registered with captured hash in `SchemaKryoConfigurer` (first change only)
+- [ ] Backward-compatible serializer registered at the release UID in every configurer that registers the class (first change only)
+- [ ] `python3 .claude/skills/kryo-bwc-audit/audit.py` passes
 - [ ] *(ReferenceSchema only)* Both `ReferenceSchemaSerializer` and `ReflectedReferenceSchemaSerializer` updated
 
 ---
@@ -794,14 +798,15 @@ kryo.register(NewEnum.class, new EnumNameSerializer<>(), index++);
 
 Follow the same **decision tree** as Layer 7.2 — compare the mutation class's `serialVersionUID` between the latest release branch and the current branch:
 
-1. **UIDs identical** → No backward-compat needed, just update the current serializer.
-2. **UIDs differ AND `MutationSerializer_YYYY_M.java` already exists** → Backward compat for the release format is already handled. Just update the current serializer.
-3. **UIDs differ AND no backward-compat serializer exists** → First change since release. Full workflow:
+1. **UIDs identical** → First format change of this mutation since the release; released WAL entries carry this UID. Full workflow:
    a. Get the release-version serializer from the release branch
    b. Save as `MutationSerializer_YYYY_M.java`, annotate `@Deprecated(since = "YYYY.M", forRemoval = true)`, make write throw `UnsupportedOperationException`
-   c. Modify original to write/read new field
-   d. Run tests, capture old hash from error message
-   e. Register backward-compatible serializer with old hash in `WalKryoConfigurer`
+   c. Bump the mutation class's `serialVersionUID`
+   d. Modify original to write/read new field
+   e. Register the backward-compatible serializer at the release UID in `WalKryoConfigurer` and in every other configurer that registers the mutation
+   f. Verify with `python3 .claude/skills/kryo-bwc-audit/audit.py`
+2. **UIDs differ AND a reader for the release UID is registered** (usually `MutationSerializer_YYYY_M.java`) → Backward compat for the release format is already handled. Do not bump again; just update the current serializer.
+3. **UIDs differ AND no reader for the release UID is registered** → The UID was bumped earlier in this cycle without a reader, so released WAL already fails to replay. Add the reader (steps a, b and e), then update the current serializer. Do not bump again.
 
 ### 8.3 Update Current Mutation Serializers
 
@@ -833,11 +838,11 @@ The backward-compatible serializer reads the old format without the new field an
 
 - [ ] `EnumNameSerializer` registered for new enum in `WalKryoConfigurer` (if applicable)
 - [ ] Release branch identified, mutation class `serialVersionUID` compared (see decision tree above)
-- [ ] If first change since release: backward-compat serializer(s) created from release-branch source and deprecated
-- [ ] If subsequent change (backward-compat already exists): just update the current serializer — no new backward-compat file
+- [ ] If first change since release (UIDs identical): mutation `serialVersionUID` bumped; backward-compat serializer(s) created from release-branch source and deprecated
+- [ ] If subsequent change (reader for the release UID already registered): UID not bumped again; just update the current serializer — no new backward-compat file
 - [ ] Current mutation serializers updated with new field
-- [ ] Tests run to capture old hash(es) (first change only)
-- [ ] `SerialVersionBasedSerializer` chain updated in `WalKryoConfigurer` for each mutation (first change only)
+- [ ] `SerialVersionBasedSerializer` chain updated at the release UID in `WalKryoConfigurer` (and every other configurer registering the mutation) for each mutation (first change only)
+- [ ] `python3 .claude/skills/kryo-bwc-audit/audit.py` passes
 
 ---
 
@@ -956,7 +961,7 @@ Groups A, B, and C can run concurrently. Within Group A, the three external APIs
 
 7. **Backward-compat serializer read order.** The old serializer must read fields in exactly the order the old version wrote them. Do not read the new field — it doesn't exist in old data.
 
-8. **Serial version hash capture.** After modifying a Kryo serializer, the old hash must be captured by running tests — `SerialVersionBasedSerializer` reports the mismatch. Register the old hash with the backward-compatible serializer. Forgetting this step causes deserialization failures on stored data.
+8. **Serial version bump.** Changing a Kryo serializer's layout does not change the class's `serialVersionUID`. The first layout change since the release must bump it and register the release-format reader at the old (released) value. Without the bump, the current serializer reads released bytes in the new layout and fails, or misreads, at load or replay.
 
 9. **gRPC proto field numbers are permanent.** Never reuse a field number. Always use the next available number. Old clients ignore unknown field numbers, so additions are safe.
 

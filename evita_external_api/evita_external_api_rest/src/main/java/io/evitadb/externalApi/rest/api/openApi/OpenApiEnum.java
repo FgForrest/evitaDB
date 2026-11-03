@@ -113,7 +113,7 @@ public class OpenApiEnum implements OpenApiComplexType {
 		}
 
 		this.items.forEach(schema::addEnumItemObject);
-		schema.example(this.items.get(0));
+		schema.example(this.items.getFirst());
 
 		return schema;
 	}

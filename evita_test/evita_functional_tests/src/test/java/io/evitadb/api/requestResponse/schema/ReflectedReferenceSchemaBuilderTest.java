@@ -1319,7 +1319,7 @@ class ReflectedReferenceSchemaBuilderTest {
 				),
 				() -> assertInstanceOf(
 					CreateReflectedReferenceSchemaMutation.class,
-					mutations.get(0)
+					mutations.getFirst()
 				),
 				() -> assertInstanceOf(
 					SetReferenceSchemaIndexedMutation.class,
@@ -1407,7 +1407,7 @@ class ReflectedReferenceSchemaBuilderTest {
 				),
 				() -> assertInstanceOf(
 					CreateReflectedReferenceSchemaMutation.class,
-					mutations.get(0)
+					mutations.getFirst()
 				),
 				() -> assertNotNull(
 					setIndexed.getIndexedComponentsInScopes(),
@@ -1452,7 +1452,7 @@ class ReflectedReferenceSchemaBuilderTest {
 				),
 				() -> assertInstanceOf(
 					CreateReflectedReferenceSchemaMutation.class,
-					mutations.get(0)
+					mutations.getFirst()
 				),
 				() -> assertInstanceOf(
 					SetReferenceSchemaIndexedMutation.class,
@@ -1507,7 +1507,7 @@ class ReflectedReferenceSchemaBuilderTest {
 				),
 				() -> assertInstanceOf(
 					CreateReflectedReferenceSchemaMutation.class,
-					mutations.get(0)
+					mutations.getFirst()
 				),
 				() -> assertNotNull(
 					setIndexed.getIndexedInScopes(),

@@ -411,7 +411,7 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 		@Nullable Serializable value,
 		boolean dropped
 	) implements Versioned, Droppable, Serializable, Comparable<AttributeValue>, ContentComparator<AttributeValue> {
-		@Serial private static final long serialVersionUID = -5387437940533059959L;
+		@Serial private static final long serialVersionUID = -7264845982689718290L;
 
 		/**
 		 * Method can be used for sorted arrays binary searches but doesn't represent any valid attribute value.

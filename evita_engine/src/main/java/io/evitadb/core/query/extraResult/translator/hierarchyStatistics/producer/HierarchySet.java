@@ -40,11 +40,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -60,6 +62,11 @@ public class HierarchySet {
 	 * The list contains all registered hierarchy computers along with the string key their output will be indexed.
 	 */
 	private final List<NamedComputer> computers = new LinkedList<>();
+	/**
+	 * The output names claimed by the statistics of a tree with no index in the requested scope. Such statistics
+	 * compute nothing and produce no output, but their names are taken all the same, exactly as with data.
+	 */
+	private final Set<String> claimedOutputNames = new HashSet<>(4);
 	/**
 	 * Contains optional sorter of the computed results. If the sorter is not defined the output hierarchy is sorted
 	 * by its primary key in ascending order.
@@ -134,6 +141,36 @@ public class HierarchySet {
 	}
 
 	/**
+	 * Records the `orderBy` constraint declared by the statistics of a tree with no index in the requested scope,
+	 * without a sorter - such statistics produce no output to sort, but a sibling constraint contradicting their
+	 * order must be recognized exactly as with data.
+	 *
+	 * @param orderConstraint the `orderBy` constraint declared by the statistics
+	 */
+	public void claimOrder(@Nonnull OrderBy orderConstraint) {
+		this.orderConstraint = orderConstraint;
+	}
+
+	/**
+	 * Claims the `outputName` for the statistics of a tree with no index in the requested scope. Such statistics
+	 * produce no output, but the name is taken all the same, exactly as with data.
+	 *
+	 * @param outputName the label the result of the statistics would be indexed by
+	 */
+	public void claimOutputName(@Nonnull String outputName) {
+		this.claimedOutputNames.add(outputName);
+	}
+
+	/**
+	 * Returns true when at least one computer is registered in this set, so it produces any output at all.
+	 *
+	 * @return true when there is a computer to invoke
+	 */
+	public boolean hasComputers() {
+		return !this.computers.isEmpty();
+	}
+
+	/**
 	 * Registers a `computer` with specified `outputName` to collection of {@link #computers}.
 	 */
 	public void addComputer(@Nonnull String outputName, @Nonnull AbstractHierarchyStatisticsComputer computer) {
@@ -147,6 +184,9 @@ public class HierarchySet {
 	 * @return true when the name is already claimed
 	 */
 	public boolean containsOutputName(@Nonnull String outputName) {
+		if (this.claimedOutputNames.contains(outputName)) {
+			return true;
+		}
 		for (NamedComputer namedComputer : this.computers) {
 			if (outputName.equals(namedComputer.outputName())) {
 				return true;

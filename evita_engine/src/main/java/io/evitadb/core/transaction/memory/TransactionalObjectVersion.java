@@ -101,7 +101,12 @@ public class TransactionalObjectVersion {
 				"Transactional object version sequence exhausted, which can cause unpredictable results! " +
 					"Database cannot accept any new modifications. Please restart database to start counting from the beginning."
 			);
-			throw new IdentifierOverflowException("Transactional object version sequence exhausted!");
+			throw new IdentifierOverflowException(
+				"Transactional object version sequence exhausted!",
+				"The transactional object version sequence of this evitaDB server is exhausted, so no further " +
+					"modification can be accepted. The sequence lives in memory only - restart the evitaDB server " +
+					"to continue."
+			);
 		}
 		return id;
 	}

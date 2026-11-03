@@ -44,6 +44,10 @@ package io.evitadb.externalApi.grpc.generated;
  * within each one, so those indexes are counted into `omittedIndexCount` instead. Nothing is lost analytically: a
  * per-referenced-entity index covers the records referencing one entity, so its selectivity is a property of the
  * reference, which the reference-type index above it already summarises.
+ *
+ * The single-owner partitions of a reference indexed for filtering only are not indexes but rows of a registry held by
+ * the reference-type index, so they are neither described nor counted in `omittedIndexCount`; the reference-type
+ * index reports how many it holds in `GrpcIndexCardinality.virtualPartitionCount`.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality}
@@ -350,6 +354,10 @@ private static final long serialVersionUID = 0L;
    * within each one, so those indexes are counted into `omittedIndexCount` instead. Nothing is lost analytically: a
    * per-referenced-entity index covers the records referencing one entity, so its selectivity is a property of the
    * reference, which the reference-type index above it already summarises.
+   *
+   * The single-owner partitions of a reference indexed for filtering only are not indexes but rows of a registry held by
+   * the reference-type index, so they are neither described nor counted in `omittedIndexCount`; the reference-type
+   * index reports how many it holds in `GrpcIndexCardinality.virtualPartitionCount`.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality}

@@ -40,6 +40,7 @@ module evita.external.api.grpc.shared {
 	requires io.grpc.stub;
 	requires io.grpc.protobuf;
 	requires com.google.protobuf;
+	requires proto.google.common.protos;
 	requires io.netty.handler;
 	requires com.linecorp.armeria;
 

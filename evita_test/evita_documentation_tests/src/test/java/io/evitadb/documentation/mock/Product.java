@@ -91,10 +91,10 @@ public interface Product extends SealedInstance<Product, ProductEditor>, Seriali
 	@PriceForSale
 	PriceContract getSellingPrice();
 
-	@Reference(indexed = ReferenceIndexType.FOR_FILTERING, managed = false, groupEntityManaged = false)
+	@Reference(entity = "brand", indexed = ReferenceIndexType.FOR_FILTERING, groupEntityManaged = false)
 	Brand getMarketingBrand();
 
-	@Reference(managed = false, groupEntityManaged = false)
+	@Reference(entity = "brand", groupEntityManaged = false)
 	Brand[] getLicensingBrands();
 
 	record ReferencedFiles(@Nonnull int... fileId) implements Serializable {}

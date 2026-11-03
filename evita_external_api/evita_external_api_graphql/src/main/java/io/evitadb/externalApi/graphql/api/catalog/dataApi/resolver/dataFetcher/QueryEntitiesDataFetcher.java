@@ -34,7 +34,6 @@ import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.head.Head;
 import io.evitadb.api.query.head.Label;
@@ -115,12 +114,10 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 	@Nonnull private final HierarchyOfResolver hierarchyOfResolver;
 	@Nonnull private final QueryTelemetryResolver queryTelemetryResolver;
 
+	/** Resolves the requested locale of the current entity level, excluding nested entity opinions. */
 	@Nullable
 	private static Locale extractDesiredLocale(@Nullable FilterBy filterBy) {
-		return Optional.ofNullable(filterBy)
-			.map(it -> QueryUtils.findConstraint(it, EntityLocaleEquals.class))
-			.map(EntityLocaleEquals::getLocale)
-			.orElse(null);
+		return QueryUtils.resolveLocale(filterBy);
 	}
 
 	public QueryEntitiesDataFetcher(@Nonnull CatalogSchemaContract catalogSchema,
@@ -290,7 +287,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		if (recordFields.isEmpty()) {
 			requireConstraints.add(strip(0, 0));
 		} else {
-			final SelectedField recordField = recordFields.get(0);
+			final SelectedField recordField = recordFields.getFirst();
 
 			// build paging require
 			requireConstraints.add(this.pagingRequireResolver.resolve(recordField));
@@ -344,11 +341,10 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		);
 	}
 
+	/** Builds the response context from the queried entity level's own locale opinion. */
 	@Nonnull
 	private static EntityQueryContext buildResultContext(@Nonnull Query query) {
-		final Locale desiredLocale = Optional.ofNullable(QueryUtils.findFilter(query, EntityLocaleEquals.class))
-			.map(EntityLocaleEquals::getLocale)
-			.orElse(null);
+		final Locale desiredLocale = QueryUtils.resolveLocale(query.getFilterBy());
 
 		return new EntityQueryContext(
 			desiredLocale

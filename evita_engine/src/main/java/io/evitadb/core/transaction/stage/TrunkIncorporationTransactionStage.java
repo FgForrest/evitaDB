@@ -85,6 +85,9 @@ public final class TrunkIncorporationTransactionStage
 
 	@Override
 	protected void handleNext(@Nonnull TrunkIncorporationTransactionTask task) {
+		// taking up a task here is progress towards every record waiting for incorporation - unlike conflict
+		// resolution taking up a new commit, which only queues another record behind them
+		this.transactionManager.recordPipelineProgress();
 		final CommitVersions commitVersions = new CommitVersions(task.catalogVersion(), task.catalogSchemaVersion());
 		if (task.catalogVersion() <= this.transactionManager.getLastFinalizedCatalogVersion()) {
 			// the transaction has been already processed

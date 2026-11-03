@@ -706,7 +706,7 @@ public class TestPersistentRoaringBitmap {
 			// Use a superset for andNot
 			PersistentRoaringBitmap superset = buildMultiContainerBitmap(0, 5, 42);
 			for (int key = 0; key < 5; key++) {
-				superset.add((long) (key << 16), (long) (key << 16) + 65536);
+				superset.add(key << 16, (long) (key << 16) + 65536);
 			}
 			cow.andNot(superset);
 
@@ -2696,7 +2696,7 @@ public class TestPersistentRoaringBitmap {
 		public void usedThroughRoaringBitmapReference() {
 			PersistentRoaringBitmap cow = PersistentRoaringBitmap.fromBitmap(
 				buildMultiContainerBitmap(0, 5, 42));
-			PersistentRoaringBitmap original = (PersistentRoaringBitmap) cow;
+			PersistentRoaringBitmap original = cow;
 			PersistentRoaringBitmap cloned = original.clone();
 			int[] originalBefore = original.toArray();
 
@@ -2716,7 +2716,7 @@ public class TestPersistentRoaringBitmap {
 		public void inPlaceOrThroughRoaringBitmapReference() {
 			PersistentRoaringBitmap cow = PersistentRoaringBitmap.fromBitmap(
 				buildMultiContainerBitmap(0, 5, 42));
-			PersistentRoaringBitmap original = (PersistentRoaringBitmap) cow;
+			PersistentRoaringBitmap original = cow;
 			PersistentRoaringBitmap cloned = original.clone();
 			int[] cloneBefore = cloned.toArray();
 
@@ -2735,7 +2735,7 @@ public class TestPersistentRoaringBitmap {
 			{
 				PersistentRoaringBitmap cow = PersistentRoaringBitmap.fromBitmap(
 					buildMultiContainerBitmap(0, 5, 42));
-				PersistentRoaringBitmap cloned = ((PersistentRoaringBitmap) cow).clone();
+				PersistentRoaringBitmap cloned = cow.clone();
 				int[] cloneBefore = cloned.toArray();
 
 				PersistentRoaringBitmap mask = buildMultiContainerBitmap(2, 7, 99);
@@ -2751,7 +2751,7 @@ public class TestPersistentRoaringBitmap {
 			{
 				PersistentRoaringBitmap cow = PersistentRoaringBitmap.fromBitmap(
 					buildMultiContainerBitmap(0, 5, 42));
-				PersistentRoaringBitmap cloned = ((PersistentRoaringBitmap) cow).clone();
+				PersistentRoaringBitmap cloned = cow.clone();
 				int[] cloneBefore = cloned.toArray();
 
 				PersistentRoaringBitmap mask = buildMultiContainerBitmap(2, 7, 99);
@@ -2767,7 +2767,7 @@ public class TestPersistentRoaringBitmap {
 			{
 				PersistentRoaringBitmap cow = PersistentRoaringBitmap.fromBitmap(
 					buildMultiContainerBitmap(0, 5, 42));
-				PersistentRoaringBitmap cloned = ((PersistentRoaringBitmap) cow).clone();
+				PersistentRoaringBitmap cloned = cow.clone();
 				int[] cloneBefore = cloned.toArray();
 
 				PersistentRoaringBitmap mask = buildMultiContainerBitmap(2, 7, 99);
@@ -4248,13 +4248,13 @@ public class TestPersistentRoaringBitmap {
 
 	private static PersistentRoaringBitmap denseRange(int start, int end) {
 		PersistentRoaringBitmap rb = new PersistentRoaringBitmap();
-		rb.add((long) start, (long) end);
+		rb.add(start, (long) end);
 		return rb;
 	}
 
 	private static PersistentRoaringBitmap runBitmap(int start, int end) {
 		PersistentRoaringBitmap rb = new PersistentRoaringBitmap();
-		rb.add((long) start, (long) end);
+		rb.add(start, (long) end);
 		rb.runOptimize();
 		return rb;
 	}

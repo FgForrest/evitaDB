@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.local.PartitionWriteKind;
 import io.evitadb.index.mutation.local.ReferenceIndexConsumer;
 import io.evitadb.index.mutation.local.ReferenceIndexMutator;
 import io.evitadb.utils.Functions;
@@ -67,10 +68,11 @@ final class PriceMutationFanOut {
 				(referenceSchema, indexForRemoval, indexForUpsert) -> executor.updatePriceIndex(
 					referenceSchema, mutation, indexForRemoval, indexForUpsert
 				);
+			// a price upserted as not indexed only leaves the indexes it was in
 			executor.fanOutUniquePerIndex(
 				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
 				priceRemovalConsumer, Functions.alwaysTrue(), true,
-				ReferenceIndexMutator.IterationPath.BOTH
+				ReferenceIndexMutator.IterationPath.BOTH, PartitionWriteKind.REMOVING
 			);
 			executor.updatePriceIndex(null, mutation, globalIndex, globalIndex);
 		} else {
@@ -83,7 +85,7 @@ final class PriceMutationFanOut {
 			executor.fanOutUniquePerIndex(
 				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
 				priceUpsertConsumer, Functions.alwaysTrue(), true,
-				ReferenceIndexMutator.IterationPath.BOTH
+				ReferenceIndexMutator.IterationPath.BOTH, PartitionWriteKind.ADDING
 			);
 		}
 	}

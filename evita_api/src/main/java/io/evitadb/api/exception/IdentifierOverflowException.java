@@ -29,38 +29,26 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception thrown when internal identifier sequences exceed their safe upper bounds, preventing the database from
- * accepting further modifications.
+ * Exception thrown when an identifier sequence of evitaDB has handed out the last value its type can represent. The
+ * sequence refuses to wrap around instead: a wrapped identifier collides with one that is still in use, or with a
+ * sentinel such as "no value", and silently corrupts whatever is keyed by it. The refusal comes before the sequence or
+ * anything it guards is changed, so the request that hit the limit fails and nothing else is affected.
  *
- * evitaDB uses monotonically increasing counters for various internal identifiers (e.g., transactional object version
- * sequences). These counters are implemented using atomic primitives with fixed size limits. When a counter reaches
- * its maximum safe value (typically near `Long.MAX_VALUE`), this exception is thrown to prevent overflow-related
- * data corruption.
+ * **Every sequence states its own remedy.** The public message names the exhausted identifier space and says what an
+ * operator can do about it, because the answer differs from one sequence to another:
  *
- * **When this exception occurs:**
+ * - **A sequence that lives in memory only** - the transactional object version sequence, say - starts from the
+ *   beginning after the server restarts, so a restart is the whole remedy.
+ * - **A sequence recomputed on load from the identifiers still in use** resumes one above the largest of them, so a
+ *   restart helps only when the identifiers at the top of the space have been released in the meantime.
+ * - **A sequence persisted with the data it numbers** - entity, index and internal price primary keys, the key
+ *   dictionary of a storage file, value ids of an attribute index - survives a restart unchanged and never reuses an
+ *   identifier. Only rebuilding the data helps: inserting it into a new entity collection or catalog, which starts
+ *   numbering from the beginning, and swapping that one in for the original.
  *
- * - **Transactional object version overflow**: The system has processed an extremely large number of transactional
- *   operations, exhausting the version sequence counter
- * - **After exceptionally long uptime**: The database has been running and processing modifications for an extended
- *   period without restart
- * - **High-write-volume scenarios**: Systems with very high transaction rates may eventually exhaust sequence space
- *
- * **Why this is critical:**
- *
- * Allowing identifier overflow would cause severe data consistency issues:
- * - Version numbers would wrap around, breaking transactional isolation guarantees
- * - Ordering assumptions would be violated, corrupting temporal data structures
- * - MVCC (Multi-Version Concurrency Control) mechanisms would produce incorrect results
- *
- * **Resolution:**
- *
- * **Restart the database** to reset internal counters and continue operations. The restart will:
- * - Clear transactional state and reset version sequences
- * - Preserve all persisted data
- * - Allow the system to continue accepting modifications safely
- *
- * **Note**: This exception is extremely rare in practice and typically indicates either an exceptionally long-running
- * instance or a test scenario that artificially increments counters at an unrealistic rate.
+ * Reaching any of these limits takes billions of identifiers, so the exception usually signals a workload that burns
+ * identifiers far faster than the data grows - repeatedly creating and dropping indexes or values, for instance - and
+ * is worth investigating even after the remedy has been applied.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -68,14 +56,17 @@ public class IdentifierOverflowException extends EvitaInternalError {
 	@Serial private static final long serialVersionUID = -9111617180591842555L;
 
 	/**
-	 * Creates exception with detailed internal context about which counter overflowed.
+	 * Creates the exception with a diagnostic message for the server log and a message for the client.
 	 *
-	 * @param privateMessage internal diagnostic message identifying the specific counter that overflowed
+	 * There is deliberately no constructor with a default public message: no single piece of advice is correct for
+	 * every sequence (see the class JavaDoc), so each refusal has to say what helps for the sequence it guards.
+	 *
+	 * @param privateMessage diagnostic message for the server log - the exhausted sequence, its position and its
+	 *                       owner as precisely as the refusing code knows them
+	 * @param publicMessage  message for the client naming the exhausted identifier space and what the operator can do
+	 *                       about it
 	 */
-	public IdentifierOverflowException(@Nonnull String privateMessage) {
-		super(
-			privateMessage,
-			"Internal counters exceeded safe limits, please restart the database to continue."
-		);
+	public IdentifierOverflowException(@Nonnull String privateMessage, @Nonnull String publicMessage) {
+		super(privateMessage, publicMessage);
 	}
 }

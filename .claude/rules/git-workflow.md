@@ -32,11 +32,6 @@ Do not write (co)author name or date in the PR request.
     || git config branch.$(git branch --show-current).merge 2>/dev/null | sed 's|refs/heads/||' \
     || gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'
   ```
-- **Copilot review**: `gh pr create --reviewer copilot` does not work. Create the PR first, then:
-  ```shell
-  gh api --method POST /repos/FgForrest/evitaDB/pulls/<PR_NUMBER>/requested_reviewers \
-    -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
-  ```
 - Link issues in PR description (e.g., "Closes #1075")
 
 ## Reviewing a PR

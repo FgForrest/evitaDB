@@ -63,12 +63,10 @@ import java.lang.annotation.Target;
  *
  * When a whole class is internal, annotate the class rather than each of its members.
  *
- * **Enforcement.** `InternalApiUsageTest` in `evita_functional_tests` reads the compiled class files of every
- * module, collects every member carrying this annotation and fails the build when a module outside its allowlist
- * references one. A module may always reach its own internal members; reaching one from anywhere else is a
- * deliberate, reviewable edit to that allowlist rather than an accident. The retention is
- * {@link RetentionPolicy#CLASS} because that check reads bytecode: enough for the audit, no runtime cost and
- * nothing to reflect over.
+ * **Enforcement.** None beyond this contract: the annotation tells a reader, and the IDE showing its javadoc, that
+ * the member is not theirs to rely on. A sibling module of evitaDB may reach an internal member it needs; anything
+ * else that does accepts that the member changes without notice. The retention is {@link RetentionPolicy#CLASS}:
+ * the marker stays in the class files a tool may read, at no runtime cost and with nothing to reflect over.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

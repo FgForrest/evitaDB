@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -76,6 +76,10 @@ public class RandomSorter implements Sorter {
 	 * When no seed is set ({@link #INSTANCE}), no such cross-call stability is guaranteed, since
 	 * `queryContext().getRandom()` may return a different `Random` instance for each call.
 	 *
+	 * The records preceding the slice - the first positions of the permutation - are reported to
+	 * `skippedRecordsConsumer` when one is passed: a segment learns from it which records it skipped
+	 * and must therefore withhold from the following segments.
+	 *
 	 * Out-of-range requests are handled defensively rather than throwing raw array-bounds exceptions:
 	 * a start index beyond the candidate count yields an empty slice, mirroring the behavior of the
 	 * sibling {@link io.evitadb.core.query.sort.NoSorter}. A destination `result` buffer smaller than
@@ -98,14 +102,16 @@ public class RandomSorter implements Sorter {
 		final int[] filteredRecordIds = filteredRecordIdBitmap.getArray();
 		final int end = Math.min(filteredRecordIds.length, recomputedEndIndex);
 		final int length = Math.max(0, end - recomputedStartIndex);
+		final int skippedCount = Math.min(recomputedStartIndex, filteredRecordIds.length);
 		// nothing to shuffle or copy for this page - skip the O(end) shuffle entirely instead of
 		// paying its cost just to discard the result (happens when the requested start index is at
-		// or beyond the available candidates for this sorter)
-		if (length == 0) {
+		// or beyond the available candidates for this sorter) - unless the caller needs to learn
+		// which records were skipped, which only the shuffle decides
+		if (length == 0 && (skippedRecordsConsumer == null || skippedCount == 0)) {
 			return sortingContext.createResultContext(
 				EmptyBitmap.INSTANCE,
 				0,
-				Math.min(recomputedStartIndex, filteredRecordIdBitmap.size())
+				skippedCount
 			);
 		}
 		final Random random = this.seed == null ?
@@ -113,8 +119,10 @@ public class RandomSorter implements Sorter {
 		// a seeded shuffle must produce the same permutation regardless of the requested page, so the
 		// whole prefix [0, end) has to be shuffled (consuming the same random draws every time) instead
 		// of only [start, end) - otherwise every page would reuse the same draws and return the same
-		// records
-		for (int i = 0; i < end; i++) {
+		// records; a position is final once its step is done, so shuffling the longer prefix of the
+		// skipped records changes none of the positions before `end`
+		final int shuffledPrefix = Math.max(end, skippedRecordsConsumer == null ? 0 : skippedCount);
+		for (int i = 0; i < shuffledPrefix; i++) {
 			final int swapPosition = i + random.nextInt(filteredRecordIds.length - i);
 			final int tmp = filteredRecordIds[i];
 			filteredRecordIds[i] = filteredRecordIds[swapPosition];
@@ -129,10 +137,16 @@ public class RandomSorter implements Sorter {
 		// the candidate count)
 		final int copySourceIndex = Math.min(recomputedStartIndex, filteredRecordIds.length);
 		System.arraycopy(filteredRecordIds, copySourceIndex, result, peak, copiedLength);
+		// the skipped records are the first positions of the permutation
+		if (skippedRecordsConsumer != null) {
+			for (int i = 0; i < skippedCount; i++) {
+				skippedRecordsConsumer.accept(filteredRecordIds[i]);
+			}
+		}
 		return sortingContext.createResultContext(
 			EmptyBitmap.INSTANCE,
 			copiedLength,
-			Math.min(recomputedStartIndex, filteredRecordIdBitmap.size())
+			skippedCount
 		);
 	}
 }

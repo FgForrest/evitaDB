@@ -83,7 +83,7 @@ class RemoveEntitySchemaMutationConverterTest {
 	@DisplayName("should throw exception when required entity name is missing")
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(null));
 	}
 
 	@Test

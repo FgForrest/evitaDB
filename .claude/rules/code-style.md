@@ -39,6 +39,17 @@ paths:
 - Treat every unhandled enum value, unexpected type, or impossible branch as a programming error that must
   surface immediately at runtime.
 
+## Locking
+
+- **Never use the `synchronized` keyword**, neither on a method nor as a block, in main or test code. Guard shared
+  state with `java.util.concurrent.locks.ReentrantLock` (`ReentrantReadWriteLock` when reads dominate): call `lock()`
+  immediately before `try` and `unlock()` in its `finally`. Replace `wait`/`notify` with a `Condition` of that lock.
+- **Why:** the project runs on JDK 21, where a virtual thread that blocks while it holds a monitor (file I/O, waiting
+  for another lock) pins its carrier thread, and enough pinned carriers stall every virtual thread in the JVM. evitaDB
+  starts no virtual threads itself, but an application embedding it may call it from them. A `ReentrantLock` never
+  pins, and its `tryLock` with a timeout is what the storage write handles already use.
+- The codebase still has older `synchronized` code. Convert it when you change that code; never add a new one.
+
 ## Performance-Critical Code
 
 - Prefer performance to readability in performance-critical code

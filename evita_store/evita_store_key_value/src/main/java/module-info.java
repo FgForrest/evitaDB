@@ -22,5 +22,7 @@ module evita.store.key.value {
 	requires com.esotericsoftware.kryo;
 	requires com.fasterxml.jackson.databind;
 	requires org.slf4j;
+	// sun.misc.Unsafe#invokeCleaner frees the off-heap transaction memory of a closed catalog at once
+	requires jdk.unsupported;
 
 }

@@ -39,6 +39,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex.CatalogIndexChanges;
+import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bool.TransactionalBoolean;
@@ -256,13 +257,21 @@ public class CatalogIndex implements
 			createAttributeKey(attributeSchema, allowedLocales, getIndexKey().scope(), locale, value),
 			lookupKey -> {
 				final GlobalUniqueIndex newUniqueIndex = new GlobalUniqueIndex(
-					this.getIndexKey().scope(), lookupKey, attributeSchema.getType()
+					this.getIndexKey().scope(), lookupKey, attributeSchema.getType(),
+					attributeSchema.getIndexedDecimalPlaces()
 				);
 				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newUniqueIndex));
 				this.dirty.setToTrue();
 				return newUniqueIndex;
 			}
+		);
+		// a pre-existing unique index froze its BigDecimal scale at creation; refuse to add a value keyed at a drifted
+		// schema scale rather than silently mix two scales (no-op for non-BigDecimal and for a just-created index)
+		FilterIndex.assertIndexedDecimalPlacesUnchanged(
+			theUniqueIndex.getIndexedDecimalPlaces(),
+			attributeSchema.getIndexedDecimalPlaces(),
+			attributeSchema.getName()
 		);
 		theUniqueIndex.registerUniqueKey(value, entitySchema.getName(), locale, recordId, resolver);
 	}

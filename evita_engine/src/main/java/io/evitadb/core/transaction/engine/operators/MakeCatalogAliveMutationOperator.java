@@ -75,8 +75,8 @@ import java.util.function.Consumer;
  * branches lift the suspension, so the catalog is never left refusing every session for the life of the process.
  *
  * Forward-replay is intentionally **not** implemented here. The completion phase depends on `theCatalog.goLive()`,
- * which rewrites on-disk state and cannot be safely re-executed during recovery. The default `Optional.empty()` in
- * `EngineMutationOperator` causes the transaction manager to wedge loudly.
+ * which rewrites on-disk state and cannot be safely re-executed during recovery. `replayCompletionState` therefore
+ * returns `Optional.empty()`, which makes the transaction manager wedge loudly.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -403,6 +403,22 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 		} else {
 			throw new EvitaInvalidUsageException("Unknown catalog type: `" + catalog.getClass() + "`!");
 		}
+	}
+
+	/**
+	 * Forward replay is not supported - the class javadoc says why.
+	 *
+	 * @return always empty, so a crash between the write-ahead log append and the bootstrap rewrite wedges the engine
+	 */
+	@Nonnull
+	@Override
+	public Optional<ExpandedEngineState> replayCompletionState(
+		@Nonnull MakeCatalogAliveMutation mutation,
+		long targetVersion,
+		@Nonnull ExpandedEngineState currentState,
+		@Nonnull Evita evita
+	) {
+		return Optional.empty();
 	}
 
 }

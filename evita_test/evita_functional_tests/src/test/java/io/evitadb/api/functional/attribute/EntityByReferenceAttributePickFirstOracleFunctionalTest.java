@@ -23,6 +23,7 @@
 
 package io.evitadb.api.functional.attribute;
 
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
@@ -268,19 +269,17 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 	}
 
 	/**
-	 * Compounds each reference can be ordered by on the index route. A compound with a localized element is declared
-	 * on the partitioning reference only: a reduced index of a reference indexed for filtering alone receives no
-	 * per-locale compound entries (`EntityIndexLocalMutationExecutor#insertInitialSuiteOfSortableAttributeCompounds`
-	 * skips it), so its index route cannot order by such a compound at all - an indexing gap outside the ordering
-	 * this test checks.
+	 * Both references crossed with both compounds - the one with a localized element and the one without.
+	 *
+	 * @return every reference and compound pair the index route is checked on
 	 */
 	@Nonnull
 	static Stream<Arguments> compounds() {
-		return Stream.of(
-			Arguments.of(REFERENCE_ITEMS_PARTITIONING, COMPOUND_ORDER_LABEL),
-			Arguments.of(REFERENCE_ITEMS_PARTITIONING, COMPOUND_ORDER_KIND),
-			Arguments.of(REFERENCE_ITEMS_FILTERING, COMPOUND_ORDER_KIND)
-		);
+		return Stream.of(REFERENCE_ITEMS_PARTITIONING, REFERENCE_ITEMS_FILTERING)
+			.flatMap(
+				reference -> Stream.of(COMPOUND_ORDER_LABEL, COMPOUND_ORDER_KIND)
+					.map(compound -> Arguments.of(reference, compound))
+			);
 	}
 
 	@DataSet(value = PICK_FIRST_ORACLE, destroyAfterClass = true)
@@ -305,7 +304,7 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 				session.defineEntitySchema(ENTITY_OWNER)
 					.withoutGeneratedPrimaryKey()
 					.withLocale(LOCALE)
-					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized())
+					.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::localized)
 					.withReferenceToEntity(
 						REFERENCE_ITEMS_PARTITIONING, ENTITY_TARGET, Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs.indexedForFilteringAndPartitioningInScope(BOTH_SCOPES)
@@ -343,6 +342,10 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 							.withAttribute(
 								ATTRIBUTE_KIND, String.class,
 								thatIs -> thatIs.filterableInScope(BOTH_SCOPES).sortableInScope(BOTH_SCOPES)
+							)
+							.withSortableAttributeCompound(
+								COMPOUND_ORDER_LABEL, localizedCompoundElements,
+								thatIs -> thatIs.indexedInScope(BOTH_SCOPES)
 							)
 							.withSortableAttributeCompound(
 								COMPOUND_ORDER_KIND, compoundElements, thatIs -> thatIs.indexedInScope(BOTH_SCOPES)
@@ -409,7 +412,9 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 					session.archiveEntity(ENTITY_OWNER, owner);
 					archived[owner] = true;
 				}
-				return new DataCarrier("oracleFixture", new OracleFixture(rowsByOwner, targetRank, archived));
+				return new DataCarrier(
+					"oracleFixture", new OracleFixture(rowsByOwner, targetRank, archived)
+				);
 			}
 		);
 	}

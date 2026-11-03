@@ -43,8 +43,9 @@ import java.util.Comparator;
  *
  * **There are two entry points, and which one a caller may use is a correctness constraint rather than a
  * convenience.** They serve two different **key spaces**: {@link #forFilterKey} serves the *normalized* one a filter
- * index builds through `FilterIndex#getNormalizer`, and {@link #forKey} the *raw* one, where the tree holds the
- * values exactly as the caller handed them over. {@link #forFilterKey} is therefore the wider of the two — it is the
+ * index - and a standalone unique index, which keys its values the same way - builds through
+ * `FilterIndex#getNormalizer`, and {@link #forKey} the *raw* one, where the tree holds the values exactly as the
+ * caller handed them over. {@link #forFilterKey} is therefore the wider of the two — it is the
  * only one that applies the temporal key-class remap, and the only one that can select the range column, because it
  * is the only one whose caller has an `indexedDecimalPlaces` to give. See its javadoc, and {@link #forKey}'s, for
  * what would go silently wrong otherwise.
@@ -70,7 +71,8 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 	 * key space, widened by the one column kind that needs a scale, {@link RangeValueColumn}.
 	 *
 	 * A filter index does not store its keys as the schema declares them: `FilterIndex#getNormalizer` rewrites every
-	 * value before it becomes a tree key, and this method mirrors the resulting **key class** through
+	 * value before it becomes a tree key (and so do `OwnerUniqueIndex` and `GlobalUniqueIndex`, through the very same
+	 * normalizer), and this method mirrors the resulting **key class** through
 	 * {@link #normalizedTypeOf} before delegating. That is what lets a declared {@code OffsetDateTime} /
 	 * {@code LocalDateTime} attribute ride in the single-`long` {@link LongValueColumn} as an {@link Instant} — the
 	 * tree really does hold {@link Instant}s there. The remap lives here and **only** here; {@link #forKey}'s callers
@@ -129,21 +131,19 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 	 * returned, which is behavior-identical to the universal boxed leaf.
 	 *
 	 * **The key type is taken literally, and that is the whole point of the split.** A declared
-	 * {@code OffsetDateTime} / {@code LocalDateTime} attribute lands on the boxed column here, not on the
-	 * {@link Instant}-keyed {@link LongValueColumn}: this method's callers keep values exactly as they were handed
-	 * over — `OwnerUniqueIndex` and `GlobalUniqueIndex` document that they hold RAW values — so a column that
-	 * {@link LongKeyCodec#INSTANT} would `(Instant)`-cast every key into is simply the wrong column, and selecting it
-	 * threw a `ClassCastException` on the first write. The temporal remap belongs to {@link #forFilterKey}, whose
-	 * caller really does convert its values first; keeping {@link #normalizedTypeOf} out of this method makes the
-	 * mismatch structurally impossible rather than a matter of every caller remembering to normalize.
+	 * {@code OffsetDateTime} / {@code LocalDateTime} passed here lands on the boxed column, not on the
+	 * {@link Instant}-keyed {@link LongValueColumn}: a caller of this method keeps its values exactly as they were
+	 * handed over, so a column that {@link LongKeyCodec#INSTANT} would `(Instant)`-cast every key into is simply the
+	 * wrong column - selecting it threw a `ClassCastException` on the first write, back when the unique indexes still
+	 * held raw values and asked this method for their column. The temporal remap belongs to {@link #forFilterKey},
+	 * whose callers really do convert their values first; keeping {@link #normalizedTypeOf} out of this method makes
+	 * the mismatch structurally impossible rather than a matter of every caller remembering to normalize.
 	 *
 	 * **This entry point can never select the {@link RangeValueColumn} either, for the same shape of reason.** A
 	 * range column rebuilding a {@code BigDecimalNumberRange} needs the index's `indexedDecimalPlaces` to reproduce
-	 * the bounds at the scale the tree's keys were encoded with, and neither of this method's callers has such a
-	 * scale to offer: `UniqueIndexBPlusTreeSupport.buildTree`, which serves both `OwnerUniqueIndex` and
-	 * `GlobalUniqueIndex`, and `ReferenceTypeCardinalityIndex`. A `Range`-typed attribute declared `unique` would
-	 * otherwise move its unique tree onto a column rebuilding every key at whatever default the parameter carried —
-	 * at the wrong scale, with no error anywhere. The filter-index caller uses {@link #forFilterKey} instead.
+	 * the bounds at the scale the tree's keys were encoded with, and this method's raw-key caller,
+	 * `ReferenceTypeCardinalityIndex`, has no such scale to offer. The callers that do - the filter index and the two
+	 * standalone unique indexes - use {@link #forFilterKey} instead.
 	 *
 	 * @param plainType  the plain (non-array) type of the keys the tree will actually hold
 	 * @param comparator the tree comparator, or {@code null} for natural order

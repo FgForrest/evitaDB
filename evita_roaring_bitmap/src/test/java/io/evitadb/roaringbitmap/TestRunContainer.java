@@ -1,15 +1,9 @@
 package io.evitadb.roaringbitmap;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.roaringbitmap.ArrayContainer.DEFAULT_MAX_SIZE;
 import static io.evitadb.roaringbitmap.ValidationRangeConsumer.Value.ABSENT;
 import static io.evitadb.roaringbitmap.ValidationRangeConsumer.Value.PRESENT;
+import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -180,7 +174,7 @@ public class TestRunContainer {
 
 		// this test is not checking runcontainer flip if "add" has converted
 		// a runcontainer to an array or bitmap container. Flag this as requiring thought, if it happens
-		assertTrue(container instanceof RunContainer);
+		assertInstanceOf(RunContainer.class, container);
 
 		Container result = container.inot(rangeStart, rangeEnd);
 		checker.flip(rangeStart, rangeEnd);
@@ -204,7 +198,7 @@ public class TestRunContainer {
 		int rangeStart = (int) generator.nextDouble() * (65536 - rangeSize);
 		int rangeEnd = rangeStart + rangeSize;
 
-		assertTrue(container instanceof RunContainer);
+		assertInstanceOf(RunContainer.class, container);
 
 		Container result = container.not(rangeStart, rangeEnd);
 		checker.flip(rangeStart, rangeEnd);
@@ -1860,7 +1854,7 @@ public class TestRunContainer {
 			Container result = container.not(15000, 25000);
 
 			// this result should stay as a run container.
-			assertTrue(result instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, result);
 		}
 
 		@Test
@@ -2546,10 +2540,10 @@ public class TestRunContainer {
 		public void orFullToRunContainer() {
 			Container rc = Container.rangeOfOnes(0, 1 << 15);
 			Container half = new BitmapContainer(1 << 15, 1 << 16);
-			assertTrue(rc instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, rc);
 			Container result = rc.or(half);
 			assertEquals(1 << 16, result.getCardinality());
-			assertTrue(result instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, result);
 		}
 
 		@Test
@@ -2557,10 +2551,10 @@ public class TestRunContainer {
 		public void orFullToRunContainer2() {
 			Container rc = Container.rangeOfOnes((1 << 10) - 200, 1 << 16);
 			Container half = new ArrayContainer(0, 1 << 10);
-			assertTrue(rc instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, rc);
 			Container result = rc.or(half);
 			assertEquals(1 << 16, result.getCardinality());
-			assertTrue(result instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, result);
 		}
 
 		@Test
@@ -2568,10 +2562,10 @@ public class TestRunContainer {
 		public void orFullToRunContainer3() {
 			Container rc = Container.rangeOfOnes(0, 1 << 15);
 			Container half = Container.rangeOfOnes((1 << 15) - 200, 1 << 16);
-			assertTrue(rc instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, rc);
 			Container result = rc.or(half);
 			assertEquals(1 << 16, result.getCardinality());
-			assertTrue(result instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, result);
 		}
 
 		@Test
@@ -2664,7 +2658,7 @@ public class TestRunContainer {
 			assertEquals(-1, rbc.getCardinality());
 			Container repaired = rbc.repairAfterLazy();
 			assertEquals(1 << 16, repaired.getCardinality());
-			assertTrue(repaired instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, repaired);
 		}
 
 		@Test
@@ -2674,7 +2668,7 @@ public class TestRunContainer {
 			ArrayContainer ac = new ArrayContainer(0, 1 << 10);
 			Container rbc = rc.lazyOR(ac);
 			assertEquals(1 << 16, rbc.getCardinality());
-			assertTrue(rbc instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, rbc);
 		}
 
 		@Test
@@ -2686,8 +2680,8 @@ public class TestRunContainer {
 			Container iresult = rc.lazyIOR(rc2);
 			assertEquals(1 << 16, result.getCardinality());
 			assertEquals(1 << 16, iresult.getCardinality());
-			assertTrue(result instanceof RunContainer);
-			assertTrue(iresult instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, result);
+			assertInstanceOf(RunContainer.class, iresult);
 		}
 
 		@Test
@@ -2802,8 +2796,8 @@ public class TestRunContainer {
 
 			// size ordering preference for rc: run, bitmap, array
 
-			assertTrue(bc instanceof ArrayContainer);
-			assertTrue(rc instanceof RunContainer);
+			assertInstanceOf(ArrayContainer.class, bc);
+			assertInstanceOf(RunContainer.class, rc);
 			int rcSize = rc.getCardinality();
 			int bcSize = bc.getCardinality();
 
@@ -2846,8 +2840,8 @@ public class TestRunContainer {
 
 			// size ordering preference for rc: run, array, bitmap
 
-			assertTrue(bc instanceof ArrayContainer);
-			assertTrue(rc instanceof RunContainer);
+			assertInstanceOf(ArrayContainer.class, bc);
+			assertInstanceOf(RunContainer.class, rc);
 			int rcSize = rc.getCardinality();
 			int bcSize = bc.getCardinality();
 
@@ -2893,8 +2887,8 @@ public class TestRunContainer {
 			// very small array.
 			bc = bc.add((char) 1).add((char) 2).add((char) 3).add((char) 4).add((char) 5);
 
-			assertTrue(bc instanceof ArrayContainer);
-			assertTrue(rc instanceof RunContainer);
+			assertInstanceOf(ArrayContainer.class, bc);
+			assertInstanceOf(RunContainer.class, rc);
 			int rcSize = rc.getCardinality();
 			int bcSize = bc.getCardinality();
 
@@ -3558,7 +3552,7 @@ public class TestRunContainer {
 		public void charRangeRank() {
 			Container container = new RunContainer();
 			container = container.add(16, 32);
-			assertTrue(container instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, container);
 			// results in correct value: 16
 			// assertEquals(16, container.toBitmapContainer().rank((char) 32));
 			assertEquals(16, container.rank((char) 32));
@@ -4307,14 +4301,14 @@ public class TestRunContainer {
 			RunContainer rc = new RunContainer();
 			rc.iadd(0, DEFAULT_MAX_SIZE / 2);
 			Container ac = rc.toBitmapOrArrayContainer(rc.getCardinality());
-			assertTrue(ac instanceof ArrayContainer);
+			assertInstanceOf(ArrayContainer.class, ac);
 			assertEquals(DEFAULT_MAX_SIZE / 2, ac.getCardinality());
 			for (char k = 0; k < DEFAULT_MAX_SIZE / 2; ++k) {
 				assertTrue(ac.contains(k));
 			}
 			rc.iadd(DEFAULT_MAX_SIZE / 2, 2 * DEFAULT_MAX_SIZE);
 			Container bc = rc.toBitmapOrArrayContainer(rc.getCardinality());
-			assertTrue(bc instanceof BitmapContainer);
+			assertInstanceOf(BitmapContainer.class, bc);
 			assertEquals(2 * DEFAULT_MAX_SIZE, bc.getCardinality());
 			for (char k = 0; k < 2 * DEFAULT_MAX_SIZE; ++k) {
 				assertTrue(bc.contains(k));

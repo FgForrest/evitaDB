@@ -187,8 +187,8 @@ class LongRunningSavepointAttributeIndexTest extends AbstractSavepointFuzzTest<A
 		 * Appends a fresh element at the chain tail, keeping the single chain consistent.
 		 */
 		private void appendChain() {
-			final int predecessorId = this.chain.isEmpty() ? 0 : this.chain.get(this.chain.size() - 1);
-			final int recordId = this.chain.isEmpty() ? CHAIN_BASE : this.chain.get(this.chain.size() - 1) + 1;
+			final int predecessorId = this.chain.isEmpty() ? 0 : this.chain.getLast();
+			final int recordId = this.chain.isEmpty() ? CHAIN_BASE : this.chain.getLast() + 1;
 			LongRunningAttributeIndexTest.chainInsert(this.index, predecessorId, recordId);
 			this.chain.add(recordId);
 		}
@@ -197,7 +197,7 @@ class LongRunningSavepointAttributeIndexTest extends AbstractSavepointFuzzTest<A
 		 * Removes the chain tail (the element with no successor), keeping the remaining chain consistent.
 		 */
 		private void removeChainTail() {
-			final int recordId = this.chain.remove(this.chain.size() - 1);
+			final int recordId = this.chain.removeLast();
 			LongRunningAttributeIndexTest.chainRemove(this.index, recordId);
 		}
 	}

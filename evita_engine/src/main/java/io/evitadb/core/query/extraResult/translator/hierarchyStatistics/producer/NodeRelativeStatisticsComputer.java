@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer;
 
-import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.core.query.QueryExecutionContext;
@@ -50,8 +49,25 @@ import java.util.function.Function;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsComputer {
-	private final FilterBy parentId;
+	/**
+	 * The predicate matching the node the statistics start at. It is created while the query is planned, so that its
+	 * filter is checked against the schema up front - also when the statistics are never computed, because the query
+	 * matches nothing.
+	 */
+	private final FilteringFormulaHierarchyEntityPredicate parentIdPredicate;
 
+	/**
+	 * Creates the computer of the statistics of the children of the node matched by `parentIdPredicate`.
+	 *
+	 * @param context                          the context of the enclosing hierarchy requirement
+	 * @param entityFetcher                    the fetcher of the bodies of the nodes
+	 * @param hierarchyFilterPredicateProducer the producer of the predicate of the nodes the query filter admits
+	 * @param exclusionPredicate               the predicate of the nodes the hierarchy filter excludes
+	 * @param scopePredicate                   the predicate bounding the traversal
+	 * @param statisticsBase                   the base the statistics are computed from
+	 * @param statisticsType                   the statistics to compute
+	 * @param parentIdPredicate                the predicate matching the node the statistics start at
+	 */
 	public NodeRelativeStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
@@ -60,7 +76,7 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType,
-		@Nonnull FilterBy parentId
+		@Nonnull FilteringFormulaHierarchyEntityPredicate parentIdPredicate
 	) {
 		super(
 			context, entityFetcher,
@@ -68,7 +84,7 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 			exclusionPredicate, scopePredicate,
 			statisticsBase, statisticsType
 		);
-		this.parentId = parentId;
+		this.parentIdPredicate = parentIdPredicate;
 	}
 
 	@Nonnull
@@ -78,20 +94,14 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
-		final FilteringFormulaHierarchyEntityPredicate parentIdPredicate = new FilteringFormulaHierarchyEntityPredicate(
-			executionContext.getQueryContext(),
-			this.context.entityIndex(),
-			this.parentId,
-			this.context.entitySchema(),
-			this.context.referenceSchema()
-		);
-		parentIdPredicate.initializeIfNotAlreadyInitialized(executionContext);
-		final Bitmap parentId = parentIdPredicate.getFilteringFormula().compute();
+		this.parentIdPredicate.initializeIfNotAlreadyInitialized(executionContext);
+		final Bitmap parentId = this.parentIdPredicate.getFilteringFormula().compute();
 
 		if (!parentId.isEmpty()) {
 			Assert.isTrue(
 				parentId.size() == 1,
-				() -> "The filter by constraint: `" + parentIdPredicate.getFilterDescription() + "` matches multiple (" + parentId.size() + ") hierarchy nodes! " +
+				() -> "The filter by constraint: `" + this.parentIdPredicate.getFilterDescription() + "` matches " +
+					"multiple (" + parentId.size() + ") hierarchy nodes! " +
 					"Hierarchy statistics computation expects only a single node will be matched (due to performance reasons)."
 			);
 			final Bitmap hierarchyNodes = this.context.rootHierarchyNodesSupplier().get();

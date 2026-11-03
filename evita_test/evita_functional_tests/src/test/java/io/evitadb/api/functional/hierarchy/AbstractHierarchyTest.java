@@ -326,7 +326,7 @@ abstract class AbstractHierarchyTest {
 				require(entityFetch(attributeContentAll()))
 			),
 			SealedEntity.class
-		).getRecordData().get(0);
+		).getRecordData().getFirst();
 	}
 
 	protected interface CardinalityProvider {

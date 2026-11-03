@@ -34,6 +34,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
+import static io.evitadb.utils.CollectionUtils.createHashSet;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -59,12 +60,15 @@ final class PredicateLocaleHelper {
 	/**
 	 * Combines existing locales with newly requested locales from an Evita request.
 	 *
+	 * As in {@link EvitaRequest#getRequiredLocales()}, null means no locale was requested (global data only) and
+	 * an empty set means all locales.
 	 * If `existingLocales` is null, the request's locales are returned as-is. If both are non-null,
-	 * they are merged into a new set. If only existing locales are present, they are returned unchanged.
+	 * an empty set on either side preserves the all-locales scope; otherwise they are merged into a new set.
+	 * If only existing locales are present, they are returned unchanged.
 	 *
-	 * @param existingLocales the current set of locales, or null if none were previously requested
+	 * @param existingLocales the current set of locales, empty for all locales, or null if none were requested
 	 * @param evitaRequest the request containing potentially new locale requirements
-	 * @return the combined set of locales, or null if no locales are specified in either source
+	 * @return the combined set of locales, empty for all locales, or null if neither source specifies any
 	 */
 	@Nullable
 	static Set<Locale> combineLocales(
@@ -75,7 +79,12 @@ final class PredicateLocaleHelper {
 		if (existingLocales == null) {
 			return newlyRequiredLanguages;
 		} else if (newlyRequiredLanguages != null) {
-			final Set<Locale> combined = new HashSet<>(existingLocales.size() + newlyRequiredLanguages.size());
+			if (existingLocales.isEmpty()) {
+				return existingLocales;
+			} else if (newlyRequiredLanguages.isEmpty()) {
+				return newlyRequiredLanguages;
+			}
+			final Set<Locale> combined = createHashSet(existingLocales.size() + newlyRequiredLanguages.size());
 			combined.addAll(existingLocales);
 			combined.addAll(newlyRequiredLanguages);
 			return combined;
@@ -198,18 +207,21 @@ final class PredicateLocaleHelper {
 	 *
 	 * If only an implicit locale is set (no explicit locales), returns a singleton set.
 	 * If both are set, returns a merged set. If only explicit locales are set, returns them.
+	 * An empty explicit set preserves the all-locales scope even when an implicit locale is present.
 	 * If neither is set, returns null.
 	 *
 	 * @param implicitLocale the implicit locale, if any
-	 * @param locales the set of explicitly requested locales, if any
-	 * @return a set of all locales, or null if no locales are defined
+	 * @param locales the set of explicitly requested locales, empty for all locales, or null if none were requested
+	 * @return a set of all locales, empty for all locales, or null if no locales are defined
 	 */
 	@Nullable
 	static Set<Locale> getAllLocales(
 		@Nullable Locale implicitLocale,
 		@Nullable Set<Locale> locales
 	) {
-		if (implicitLocale != null && locales == null) {
+		if (locales != null && locales.isEmpty()) {
+			return locales;
+		} else if (implicitLocale != null && locales == null) {
 			return Set.of(implicitLocale);
 		} else if (implicitLocale != null) {
 			final Set<Locale> allLocales = new HashSet<>(locales.size() + 1);

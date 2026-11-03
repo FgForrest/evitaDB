@@ -21,90 +21,12 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Regression tests for {@link RoaringArray}, the ordered key/container store backing
- * {@link PersistentRoaringBitmap}. They cover bulk append of another store, backing-array
+ * {@link PersistentRoaringBitmap}. They cover range append from another store, backing-array
  * capacity growth, and the structural, clone and serialization invariants that must survive
  * local copy-on-write / delta optimizations.
  */
 @DisplayName("RoaringArray")
 public class RoaringArrayTest {
-
-	@Nested
-	@DisplayName("Bulk append of another store")
-	class AppendOperations {
-
-		@Test
-		@DisplayName("Appending an empty store leaves size and capacity unchanged")
-		public void whenAppendEmpty_ShouldBeUnchanged() {
-			RoaringArray array = new RoaringArray();
-			array.keys = new char[2];
-			array.values = new Container[2];
-			array.size = 1;
-
-			RoaringArray appendage = new RoaringArray();
-			appendage.size = 0;
-			appendage.keys = new char[4];
-			appendage.values = new Container[4];
-
-			array.append(appendage);
-			assertEquals(1, array.size);
-			assertEquals(2, array.keys.length);
-		}
-
-		@Test
-		@DisplayName("Appending to an empty store adopts the appendage size")
-		public void whenAppendToEmpty_ShouldEqualAppendage() {
-			RoaringArray array = new RoaringArray();
-			array.size = 0;
-			array.keys = new char[4];
-			array.values = new Container[4];
-
-			RoaringArray appendage = new RoaringArray();
-			appendage.size = 3;
-			appendage.keys = new char[4];
-			appendage.values = new Container[4];
-
-			array.append(appendage);
-
-			assertEquals(3, array.size);
-			assertEquals(4, array.keys.length);
-		}
-
-		@Test
-		@DisplayName("Appending two non-empty stores sums their sizes")
-		public void whenAppendNonEmpty_SizeShouldEqualSumOfSizes() {
-			RoaringArray array = new RoaringArray();
-			array.size = 2;
-			array.keys = new char[]{0, 2, 0, 0};
-			array.values = new Container[4];
-
-			RoaringArray appendage = new RoaringArray();
-			appendage.size = 3;
-			appendage.keys = new char[]{5, 6, 7, 0};
-			appendage.values = new Container[4];
-
-			array.append(appendage);
-
-			assertEquals(5, array.size);
-		}
-
-		@Test
-		@DisplayName("Appending non-empty stores keeps keys monotonically ascending")
-		public void whenAppendNonEmpty_ResultantKeysShouldBeMonotonic() {
-			RoaringArray array = new RoaringArray();
-			array.size = 2;
-			array.keys = new char[]{0, 2, 0, 0};
-			array.values = new Container[4];
-
-			RoaringArray appendage = new RoaringArray();
-			appendage.size = 3;
-			appendage.keys = new char[]{5, 6, 7, 0};
-			appendage.values = new Container[4];
-
-			array.append(appendage);
-
-			assertArrayEquals(new char[]{0, 2, 5, 6, 7}, array.keys);
-		}
-	}
 
 	@Nested
 	@DisplayName("Backing array capacity")
@@ -171,10 +93,10 @@ public class RoaringArrayTest {
 			array.removeAtIndex(1);
 
 			assertEquals(2, array.size);
-			assertEquals(1, (int) array.getKeyAtIndex(0));
-			assertEquals(3, (int) array.getKeyAtIndex(1));
+			assertEquals(1, array.getKeyAtIndex(0));
+			assertEquals(3, array.getKeyAtIndex(1));
 			// the freed trailing slot must not retain a stale reference or key
-			assertEquals(0, (int) array.keys[2]);
+			assertEquals(0, array.keys[2]);
 			assertNull(array.values[2]);
 			assertTrue(array.validate());
 		}
@@ -187,8 +109,8 @@ public class RoaringArrayTest {
 			array.removeIndexRange(1, 4);
 
 			assertEquals(2, array.size);
-			assertEquals(1, (int) array.getKeyAtIndex(0));
-			assertEquals(5, (int) array.getKeyAtIndex(1));
+			assertEquals(1, array.getKeyAtIndex(0));
+			assertEquals(5, array.getKeyAtIndex(1));
 			assertNull(array.values[2]);
 			assertNull(array.values[3]);
 			assertNull(array.values[4]);
@@ -217,11 +139,11 @@ public class RoaringArrayTest {
 
 			// copyRange is a raw structural move; it does not adjust size
 			assertEquals(4, array.size);
-			assertEquals(10, (int) array.keys[0]);
-			assertEquals(30, (int) array.keys[1]);
-			assertEquals(40, (int) array.keys[2]);
+			assertEquals(10, array.keys[0]);
+			assertEquals(30, array.keys[1]);
+			assertEquals(40, array.keys[2]);
 			// the source tail slot is left as-is by copyRange
-			assertEquals(40, (int) array.keys[3]);
+			assertEquals(40, array.keys[3]);
 		}
 
 		@Test
@@ -233,7 +155,7 @@ public class RoaringArrayTest {
 			target.appendCopy(source, 0);
 
 			assertEquals(1, target.size);
-			assertEquals(7, (int) target.getKeyAtIndex(0));
+			assertEquals(7, target.getKeyAtIndex(0));
 			assertNotSame(
 				source.getContainerAtIndex(0), target.getContainerAtIndex(0),
 				"appendCopy must clone the container, not alias it"
@@ -310,7 +232,7 @@ public class RoaringArrayTest {
 			assertEquals(original, restored);
 			assertTrue(restored.validate());
 			// the high-bit key must survive the little-endian, unsigned encoding intact
-			assertEquals(0x8000, (int) restored.getKeyAtIndex(1));
+			assertEquals(0x8000, restored.getKeyAtIndex(1));
 		}
 
 		@Test
@@ -397,12 +319,16 @@ public class RoaringArrayTest {
 			assertDefrostsWithoutCorruptingCoOwner(array, () -> array.append((char) 7, container(7)));
 		}
 
+		/**
+		 * Pins the frozen-array guard when the production range helper appends an entire source;
+		 * co-owners must keep their original arrays while the destination appends more slots.
+		 */
 		@Test
-		@DisplayName("append(RoaringArray) defrosts before writing")
-		void appendRoaringArray() {
+		@DisplayName("append(sa, 0, size) defrosts before writing")
+		void appendWholeRange() {
 			final RoaringArray array = arrayOf(1, 2, 3);
 			final RoaringArray other = arrayOf(10, 11);
-			assertDefrostsWithoutCorruptingCoOwner(array, () -> array.append(other));
+			assertDefrostsWithoutCorruptingCoOwner(array, () -> array.append(other, 0, other.size()));
 		}
 
 		@Test

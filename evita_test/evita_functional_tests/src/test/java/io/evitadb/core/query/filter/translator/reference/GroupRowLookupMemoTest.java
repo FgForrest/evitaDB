@@ -71,9 +71,8 @@ import static org.mockito.Mockito.withSettings;
  * Pins that the matching groups' reduced group indexes of one `groupHaving` are resolved once per plan, however many
  * times the translation asks for them.
  *
- * Index discovery, the per-index pass and - on the filtered `referenceContent` fetch path - every single reduced
- * index ask for the same lookup, each time through a freshly built key: the fetch path re-translates its filter per
- * index and `histogramHaving` rewrites itself on every translation. A memo compared by the identity of a rebuilt
+ * Index discovery and the per-index pass ask for the same lookup, each time through a freshly built key:
+ * `histogramHaving` rewrites itself on every translation. A memo compared by the identity of a rebuilt
  * object never hits, answers correctly and silently costs the matching groups' index resolution once per call - so
  * no result-based test can see it. These tests count the resolutions instead.
  *

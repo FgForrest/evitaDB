@@ -584,7 +584,7 @@ class ProgressingFutureTest {
 
 		assertEquals(testException, exception.getCause());
 		assertEquals(1, onFailureCalls.size());
-		assertEquals("Failed with init: null, error: Initializer failed", onFailureCalls.get(0));
+		assertEquals("Failed with init: null, error: Initializer failed", onFailureCalls.getFirst());
 	}
 
 	/**
@@ -617,7 +617,7 @@ class ProgressingFutureTest {
 
 		assertEquals(testException, exception.getCause());
 		assertEquals(1, onFailureCalls.size());
-		assertEquals("Failed with init: null, error: NestedFutureFactory failed", onFailureCalls.get(0));
+		assertEquals("Failed with init: null, error: NestedFutureFactory failed", onFailureCalls.getFirst());
 	}
 
 	/**
@@ -653,7 +653,7 @@ class ProgressingFutureTest {
 
 		assertEquals(testException, exception.getCause());
 		assertEquals(1, onFailureCalls.size());
-		assertEquals("Failed with init: initial data, error: java.lang.RuntimeException: Nested future failed", onFailureCalls.get(0));
+		assertEquals("Failed with init: initial data, error: java.lang.RuntimeException: Nested future failed", onFailureCalls.getFirst());
 	}
 
 	/**
@@ -688,7 +688,7 @@ class ProgressingFutureTest {
 
 		assertEquals(testException, exception.getCause());
 		assertEquals(1, onFailureCalls.size());
-		assertEquals("Failed with init: initial data, error: java.lang.RuntimeException: ResultMapper failed", onFailureCalls.get(0));
+		assertEquals("Failed with init: initial data, error: java.lang.RuntimeException: ResultMapper failed", onFailureCalls.getFirst());
 	}
 
 	/**
@@ -792,7 +792,7 @@ class ProgressingFutureTest {
 		);
 		assertEquals(1, onFailureCalls.size());
 		assertTrue(
-			onFailureCalls.get(0).contains("initial data"),
+			onFailureCalls.getFirst().contains("initial data"),
 			"onFailure should be called with correct init result"
 		);
 	}
@@ -832,7 +832,7 @@ class ProgressingFutureTest {
 		}
 
 		assertEquals(1, onFailureCalls.size());
-		assertEquals("Failed with init: null, error: Initializer failed", onFailureCalls.get(0));
+		assertEquals("Failed with init: null, error: Initializer failed", onFailureCalls.getFirst());
 		// Progress should be updated to completion even on failure
 		assertTrue(progressUpdates.contains("6/6")); // 5 + 1 = 6
 	}

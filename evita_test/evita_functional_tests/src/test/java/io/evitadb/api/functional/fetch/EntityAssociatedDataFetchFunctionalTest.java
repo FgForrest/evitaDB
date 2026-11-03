@@ -92,7 +92,7 @@ class EntityAssociatedDataFetchFunctionalTest extends AbstractEntityFetchingFunc
 				assertEquals(1, productByPk.getTotalRecordCount());
 
 				assertProduct(
-					productByPk.getRecordData().get(0), productWithAssociatedData.getPrimaryKey(), false, true, false,
+					productByPk.getRecordData().getFirst(), productWithAssociatedData.getPrimaryKey(), false, true, false,
 					false
 				);
 				return null;

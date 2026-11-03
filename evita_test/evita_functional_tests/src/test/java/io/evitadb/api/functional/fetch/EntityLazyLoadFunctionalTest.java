@@ -95,7 +95,7 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				assertProduct(product, entitiesMatchingTheRequirements[0], false, false, false, false);
 
 				final SealedEntity enrichedProduct = session.enrichEntity(product, attributeContentAll());
@@ -135,7 +135,7 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				assertProduct(product, entitiesMatchingTheRequirements[0], false, false, false, false);
 
 				final SealedEntity enrichedProduct = session.enrichEntity(product, attributeContentAll());
@@ -178,7 +178,7 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				assertProduct(product, entitiesMatchingTheRequirements[0], false, false, false, false);
 				final SealedEntity enrichedProduct = session.enrichEntity(product, associatedDataContentAll());
 				assertProduct(enrichedProduct, entitiesMatchingTheRequirements[0], false, true, false, false);
@@ -218,7 +218,7 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				assertProduct(product, entitiesMatchingTheRequirements[0], false, false, false, false);
 				final SealedEntity enrichedProduct = session.enrichEntity(product, associatedDataContentAll());
 				assertNotNull(enrichedProduct.getAssociatedData(ASSOCIATED_DATA_LABELS, LOCALE_CZECH));
@@ -267,7 +267,7 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				assertProduct(product, entitiesMatchingTheRequirements[0], false, false, false, false);
 
 				final SealedEntity enrichedProduct = session.enrichEntity(product, associatedDataContentAll());
@@ -322,7 +322,7 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 					)
 				);
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				assertProduct(product, entitiesMatchingTheRequirements[0], false, false, false, false);
 
 				final SealedEntity enrichedProduct1 = session.enrichEntity(
@@ -377,7 +377,7 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				assertThrows(ContextMissingException.class, product::getPrices);
 
 				final SealedEntity enrichedProduct = session.enrichEntity(product, priceContentAll());
@@ -435,7 +435,7 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final SealedEntity returnedProduct = productByPk.getRecordData().get(0);
+				final SealedEntity returnedProduct = productByPk.getRecordData().getFirst();
 				assertThrows(ContextMissingException.class, returnedProduct::getPrices);
 
 				final SealedEntity enrichedProduct = session.enrichEntity(
@@ -475,7 +475,7 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				assertFalse(product.referencesAvailable());
 				assertThrows(ContextMissingException.class, product::getReferences);
 
@@ -536,7 +536,7 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 				);
 				assertEquals(1, productByPk.getRecordData().size());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				final SealedEntity theEntity = originalProducts
 					.stream()
 					.filter(it -> Objects.equals(it.getPrimaryKey(), entitiesMatchingTheRequirements[0]))
@@ -599,7 +599,7 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 				);
 				assertEquals(1, productByPk.getRecordData().size());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				final SealedEntity theEntity = originalProducts
 					.stream()
 					.filter(it -> Objects.equals(it.getPrimaryKey(), entitiesMatchingTheRequirements[0]))
@@ -668,7 +668,7 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 				);
 				assertEquals(1, productByPk.getRecordData().size());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				final SealedEntity theEntity = originalProducts
 					.stream()
 					.filter(it -> Objects.equals(it.getPrimaryKey(), entitiesMatchingTheRequirements[0]))
@@ -737,7 +737,7 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 				);
 				assertEquals(1, productByPk.getRecordData().size());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				final SealedEntity theEntity = originalProducts
 					.stream()
 					.filter(it -> Objects.equals(it.getPrimaryKey(), entitiesMatchingTheRequirements[0]))
@@ -808,7 +808,7 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 				);
 				assertEquals(1, productByPk.getRecordData().size());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				final SealedEntity theEntity = originalProducts
 					.stream()
 					.filter(it -> Objects.equals(it.getPrimaryKey(), entitiesMatchingTheRequirements[0]))
@@ -875,7 +875,7 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 				);
 				assertEquals(1, productByPk.getRecordData().size());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				final SealedEntity theEntity = originalProducts
 					.stream()
 					.filter(it -> Objects.equals(it.getPrimaryKey(), entitiesMatchingTheRequirements[0]))
@@ -929,7 +929,7 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 				// the narrowed read brings in `category` alone, so the enrichment that follows has to go back to the
 				// storage even though "references were fetched before" is already true
 				final SealedEntity narrowed = session.enrichEntity(
-					productByPk.getRecordData().get(0), referenceContent(Entities.CATEGORY));
+					productByPk.getRecordData().getFirst(), referenceContent(Entities.CATEGORY));
 				assertHasNotReferencesTo(narrowed, Entities.BRAND);
 				assertHasNotReferencesTo(narrowed, Entities.STORE);
 
@@ -973,7 +973,7 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				assertFalse(product.referencesAvailable());
 				assertThrows(ContextMissingException.class, product::getReferences);
 
@@ -1110,7 +1110,7 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 						)
 					)
 				);
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 
 				// `EntityCollection#enrichEntityInternal` skips the storage round trip of an enrichment that widens
 				// nothing only when the decorator's catalog version equals the one its collection is pinned to. That

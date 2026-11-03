@@ -246,7 +246,7 @@ public interface FilteredPriceRecords extends Serializable {
 			return new ResolvedFilteredPriceRecords();
 			// exactly one accessor and no filtering is known (all contents should be returned)
 		} else if (filteredPriceRecords.size() == 1 && narrowToEntityIds == null) {
-			return filteredPriceRecords.get(0);
+			return filteredPriceRecords.getFirst();
 			// all price records are resolved
 		} else {
 			final Optional<LazyEvaluatedEntityPriceRecords> lazyEvaluatedEntityPriceRecords = getLazyEvaluatedEntityPriceRecords(filteredPriceRecordAccessors, context);

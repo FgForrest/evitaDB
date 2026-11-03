@@ -43,7 +43,6 @@ import java.util.Set;
 
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.DATA_TYPE;
-import static io.evitadb.test.TestTags.SLOW;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -80,7 +79,6 @@ class LongRunningChampMapTest implements TimeBoundedTestSupport {
 
 	@DisplayName("survives generational randomized updated/removed/merged operations")
 	@ParameterizedTest(name = "ChampMap should survive generational randomized modifications")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
 		final Map<CollidableKey, Integer> initialOracle = new HashMap<>();
@@ -157,7 +155,7 @@ class LongRunningChampMapTest implements TimeBoundedTestSupport {
 				final List<Snapshot> nextRetained = new ArrayList<>(retained);
 				nextRetained.add(new Snapshot(map, new HashMap<>(oracle)));
 				while (nextRetained.size() > RETAINED_SNAPSHOTS) {
-					nextRetained.remove(0);
+					nextRetained.removeFirst();
 				}
 
 				return new TestState(code, map, oracle, nextRetained);

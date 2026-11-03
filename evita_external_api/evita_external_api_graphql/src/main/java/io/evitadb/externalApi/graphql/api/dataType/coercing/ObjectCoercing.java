@@ -24,6 +24,8 @@
 package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
 import graphql.Assert;
+import graphql.GraphQLContext;
+import graphql.execution.CoercedVariables;
 import graphql.language.*;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
@@ -35,9 +37,9 @@ import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -54,30 +56,32 @@ import static graphql.language.ObjectField.newObjectField;
 public class ObjectCoercing implements Coercing<Object, Object> {
 
 	@Override
-	public Object serialize(@Nonnull Object input) throws CoercingSerializeException {
+	public Object serialize(
+		@Nonnull Object dataFetcherResult,
+		@Nonnull GraphQLContext graphQLContext,
+		@Nonnull Locale locale
+	) throws CoercingSerializeException {
+		return dataFetcherResult;
+	}
+
+	@Nonnull
+	@Override
+	public Object parseValue(
+		@Nonnull Object input,
+		@Nonnull GraphQLContext graphQLContext,
+		@Nonnull Locale locale
+	) throws CoercingParseValueException {
 		return input;
 	}
 
 	@Nonnull
 	@Override
-	public Object parseValue(@Nonnull Object input) throws CoercingParseValueException {
-		return input;
-	}
-
-	@Nonnull
-	@Override
-	public Object parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
-		return parseLiteral(input, Collections.emptyMap());
-	}
-
-	@Nonnull
-	@Override
-	public Object parseLiteral(Object input, Map<String, Object> variables) throws CoercingParseLiteralException {
-		if (!(input instanceof Value)) {
-			throw new CoercingParseLiteralException(
-				"Expected AST type `Value` but was '" + input + "'."
-			);
-		}
+	public Object parseLiteral(
+		@Nonnull Value<?> input,
+		@Nonnull CoercedVariables variables,
+		@Nonnull GraphQLContext graphQLContext,
+		@Nonnull Locale locale
+	) throws CoercingParseLiteralException {
 		if (input instanceof FloatValue floatValue) {
 			return floatValue.getValue();
 		}
@@ -101,14 +105,14 @@ public class ObjectCoercing implements Coercing<Object, Object> {
 			//noinspection rawtypes
 			List<Value> values = arrayValue.getValues();
 			return values.stream()
-				.map(v -> parseLiteral(v, variables))
+				.map(v -> parseLiteral(v, variables, graphQLContext, locale))
 				.collect(Collectors.toList());
 		}
 		if (input instanceof ObjectValue objectValue) {
 			List<ObjectField> values = objectValue.getObjectFields();
 			Map<String, Object> parsedValues = new LinkedHashMap<>();
 			values.forEach(fld -> {
-				Object parsedValue = parseLiteral(fld.getValue(), variables);
+				Object parsedValue = parseLiteral(fld.getValue(), variables, graphQLContext, locale);
 				parsedValues.put(fld.getName(), parsedValue);
 			});
 			return parsedValues;
@@ -118,7 +122,11 @@ public class ObjectCoercing implements Coercing<Object, Object> {
 
 	@Nonnull
 	@Override
-	public Value<?> valueToLiteral(@Nonnull Object input) {
+	public Value<?> valueToLiteral(
+		@Nonnull Object input,
+		@Nonnull GraphQLContext graphQLContext,
+		@Nonnull Locale locale
+	) {
 		if (input instanceof String stringInput) {
 			return new StringValue(stringInput);
 		}
@@ -142,19 +150,23 @@ public class ObjectCoercing implements Coercing<Object, Object> {
 			return new BooleanValue(booleanInput);
 		}
 		if (FpKit.isIterable(input)) {
-			return handleIterable(FpKit.toIterable(input));
+			return handleIterable(FpKit.toIterable(input), graphQLContext, locale);
 		}
 		if (input instanceof Map<?, ?> map) {
-			return handleMap(map);
+			return handleMap(map, graphQLContext, locale);
 		}
 		throw new UnsupportedOperationException("The ObjectScalar cant handle values of type `" + input.getClass() + "`.");
 	}
 
-	private Value<?> handleMap(Map<?, ?> map) {
+	private Value<?> handleMap(
+		Map<?, ?> map,
+		@Nonnull GraphQLContext graphQLContext,
+		@Nonnull Locale locale
+	) {
 		ObjectValue.Builder builder = ObjectValue.newObjectValue();
 		for (Map.Entry<?, ?> entry : map.entrySet()) {
 			String name = String.valueOf(entry.getKey());
-			Value<?> value = valueToLiteral(entry.getValue());
+			Value<?> value = valueToLiteral(entry.getValue(), graphQLContext, locale);
 
 			builder.objectField(
 				newObjectField().name(name).value(value).build()
@@ -164,10 +176,14 @@ public class ObjectCoercing implements Coercing<Object, Object> {
 	}
 
 	@SuppressWarnings("rawtypes")
-	private Value<?> handleIterable(Iterable<?> input) {
+	private Value<?> handleIterable(
+		Iterable<?> input,
+		@Nonnull GraphQLContext graphQLContext,
+		@Nonnull Locale locale
+	) {
 		List<Value> values = new ArrayList<>();
 		for (Object val : input) {
-			values.add(valueToLiteral(val));
+			values.add(valueToLiteral(val, graphQLContext, locale));
 		}
 		return ArrayValue.newArrayValue().values(values).build();
 	}

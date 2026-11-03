@@ -109,7 +109,7 @@ public final class PathToPartialMapper {
 	 * @param ctx  the mutable mapping context accumulating results
 	 */
 	private static void processPath(@Nonnull List<PathItem> path, @Nonnull MappingContext ctx) {
-		final PathItem root = path.get(0);
+		final PathItem root = path.getFirst();
 		if (!(root instanceof VariablePathItem)) {
 			throw new ExpressionEvaluationException(
 				"Expected variable at path root, got: " + root.getClass().getSimpleName()

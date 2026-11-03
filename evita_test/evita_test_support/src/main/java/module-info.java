@@ -6,6 +6,7 @@ module evita.test.support {
 	exports io.evitadb.test.generator;
 	exports io.evitadb.test.builder;
 	exports io.evitadb.test.diagnostics;
+	exports io.evitadb.test.upgrade;
 
 	requires static lombok;
 	requires static jsr305;
@@ -45,6 +46,7 @@ module evita.test.support {
 	requires io.netty.common;
 	requires awaitility;
 	requires java.management;
+	requires jdk.management;
 
 	/*
 		The test modules run on the classpath, where the `META-INF/services` files are what registers

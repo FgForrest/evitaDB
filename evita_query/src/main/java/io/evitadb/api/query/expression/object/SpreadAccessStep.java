@@ -28,6 +28,7 @@ import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.exception.ExpressionEvaluationException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -54,9 +55,13 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * For example, in the expression `$items.*[$.price]`, this step iterates over each item in
  * `$items` and evaluates `$.price` for each one, producing a list of prices.
  *
+ * The step has value equality because schemas compare their expressions by value: an expression that does not
+ * equal its own re-parse makes an unchanged schema look changed.
+ *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
 @RequiredArgsConstructor
+@EqualsAndHashCode
 public final class SpreadAccessStep implements ObjectOperationStep {
 
 	@Serial private static final long serialVersionUID = 3389942116283673090L;

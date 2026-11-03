@@ -150,14 +150,17 @@ public class AttributeContentTranslator implements RequireConstraintTranslator<A
 	}
 
 	/**
-	 * Verifies if the attributes in the given attributeContent are known in the schema and not localized.
-	 * If the Evita request has either required locales or an implicit locale, it only verifies if the attributes are known in the schema.
+	 * Validates named attributes in the request of their body level, which
+	 * {@link ExtraResultPlanningVisitor#getEntityFetchRequest} derives. Localized names require that level
+	 * to resolve a locale, provide an implicit locale, or request localized data explicitly.
 	 *
 	 * @param entitySchema                The entity schema for attribute validation.
 	 * @param referenceSchema             The optional reference schema.
 	 * @param schema                      The attribute schema provider.
 	 * @param attributeContent            The attribute content to verify.
 	 * @param extraResultPlanningVisitor  The extra result planning visitor.
+	 * @throws AttributeNotFoundException   when a named attribute is not in the schema
+	 * @throws EntityLocaleMissingException when a named attribute is localized and the body level has no locale
 	 */
 	public static void verifyAttributes(
 		@Nonnull EntitySchemaContract entitySchema,
@@ -166,9 +169,34 @@ public class AttributeContentTranslator implements RequireConstraintTranslator<A
 		@Nonnull AttributeContent attributeContent,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor
 	) {
+		verifyAttributes(entitySchema, referenceSchema, schema, attributeContent, extraResultPlanningVisitor,
+			extraResultPlanningVisitor.getEntityFetchRequest(attributeContent));
+	}
+
+	/**
+	 * Validates named attributes against the given request - used by callers that derive the request of the body
+	 * themselves, such as the summary translators, whose bodies take their locale from the summary filter.
+	 *
+	 * @param entitySchema               the entity schema for attribute validation
+	 * @param referenceSchema            the optional reference schema
+	 * @param schema                     the attribute schema provider
+	 * @param attributeContent           the attribute content to verify
+	 * @param extraResultPlanningVisitor the extra result planning visitor
+	 * @param evitaRequest               the request fetching the body, whose required or implicit locales decide
+	 *                                   whether localized names are accepted
+	 * @throws AttributeNotFoundException   when a named attribute is not in the schema
+	 * @throws EntityLocaleMissingException when a named attribute is localized and the request has no locale
+	 */
+	public static void verifyAttributes(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaProvider<?> schema,
+		@Nonnull AttributeContent attributeContent,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor,
+		@Nonnull EvitaRequest evitaRequest
+	) {
 		final String[] attributeNames = attributeContent.getAttributeNames();
 		if (!ArrayUtils.isEmpty(attributeNames)) {
-			final EvitaRequest evitaRequest = extraResultPlanningVisitor.getEvitaRequest();
 			if (evitaRequest.getRequiredLocales() == null && evitaRequest.getImplicitLocale() == null) {
 				verifyAttributesKnownAndNotLocalized(
 					attributeNames, schema, referenceSchema, entitySchema,

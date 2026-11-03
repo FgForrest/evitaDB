@@ -327,10 +327,17 @@ level is limited.
 
 Enabling hierarchy placement implies the creation of a new
 <SourceClass>evita_engine/src/main/java/io/evitadb/index/hierarchy/HierarchyIndex.java</SourceClass> for the involved
-entity type. When another entity references a hierarchy entity and the reference is marked as *indexed*, the special
-<SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass> is created for each hierarchical entity. This index will
-hold reduced attribute and price indices of the referencing entity, allowing quick evaluation of
-[`withinHierarchy`](../query/filtering/hierarchy.md) filter conditions.
+entity type. When another entity references a hierarchy entity and the reference is marked as *indexed*, the entities
+referencing each hierarchical entity are indexed separately, allowing quick evaluation of
+[`withinHierarchy`](../query/filtering/hierarchy.md) filter conditions. With the `FOR_FILTERING_AND_PARTITIONING`
+[indexing level](#reference-indexing), every referenced hierarchical entity gets its own
+<SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass>, which also holds
+reduced attribute and price indices of the referencing entities. With the `FOR_FILTERING` level, a hierarchical entity
+referenced by several entities gets its own
+<SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass> too, while one
+referenced by a single entity is kept as a row of the
+<SourceClass>evita_engine/src/main/java/io/evitadb/index/VirtualReferencePartitionIndex.java</SourceClass> of the
+reference.
 
 ##### Orphan hierarchy nodes
 
@@ -433,6 +440,36 @@ The attribute schema is described by:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/AttributeSchemaContract.java</SourceClass></LS>
 <LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IAttributeSchema.cs</SourceClass></LS>
 </LS>
+
+</Note>
+
+<Note type="warning">
+
+<NoteTitle toggles="false">
+
+##### Renaming an attribute does not move the data you already have
+</NoteTitle>
+
+`ModifyAttributeSchemaNameMutation` moves the attribute to its new name in the schema - of the catalog, the entity or
+the reference - and a global attribute is renamed in every entity that uses it. The values of the entities that are
+already stored, and the indexes built from them, stay under the old name; moving them along with the schema is tracked
+in [issue #409](https://github.com/FgForrest/evitaDB/issues/409). When the collection contains entities, the rename is
+accepted and the server logs a warning, but filtering and sorting by the new name find only the entities written after
+the rename. An attribute that declares a [filter accelerator](#filter-accelerators) cannot be renamed on a collection
+that contains entities at all: the accelerator's index can only be started for a name with no values indexed yet, and
+because a rename moves no data, the new name may still hold the values of an attribute that was renamed away from it
+or removed. Starting the index over them would make every write of the attribute and the next load of the catalog
+fail, so such a rename is refused until issue #409 moves the stored data along with it.
+
+A rename is refused when another attribute already holds the new name, when the attribute is part of a
+[sortable attribute compound](#sortable-attribute-compounds), and when a reflected reference inherits the attribute
+from its original reference - rename it there.
+
+Rename an attribute before the first entity is inserted. For a catalog that already holds the data, the route is the
+same as for [filter accelerators](#you-cannot-switch-this-accelerator-on-for-data-you-already-have): create a new
+catalog with the renamed attribute, load the data into it, and replace the original catalog with it. Versions before
+2026.3 kept the attribute under the old name next to the renamed one; such a leftover can be removed with
+`RemoveAttributeSchemaMutation`.
 
 </Note>
 
@@ -551,7 +588,10 @@ if it does not hold:
     references. The plan is to lift this restriction in a future version</dd>
     <dt>the entity collection does not contain any entities yet</dt>
     <dd>the index is filled as entities are inserted, and evitaDB has no way to rebuild it for data that is already
-    there - so the accelerator has to be declared before the first entity is inserted</dd>
+    there - so the accelerator has to be declared before the first entity is inserted. Accepting it later would not
+    merely leave the stored entities out: the index numbers the distinct values of the attribute from the very first
+    one, and values already stored cannot be numbered afterwards, so the next write of the attribute and the next
+    load of the catalog would fail</dd>
 </dl>
 
 <Note type="warning">
@@ -566,7 +606,8 @@ accelerator on an existing, populated catalog in place.
 
 The route today is to create a new catalog, declare the accelerator on it before inserting anything, load the data
 into it, and then replace the original catalog with the new one. Plan for this when you size a migration - it is a
-full re-import, not a schema tweak.
+full re-import, not a schema tweak. Schema changes that rebuild the indexes of data already stored are tracked in
+[issue #409](https://github.com/FgForrest/evitaDB/issues/409).
 
 </Note>
 
@@ -746,6 +787,15 @@ erDiagram
     }
 ```
 
+A reflected reference must inherit every attribute used by its inherited sortable attribute compounds; otherwise
+schema validation refuses the schema when the session closes or the catalog goes live.
+Inherit the missing attributes too, or exclude the compound by name in the same inheritance filter, for example
+`withAttributesInheritedExcept("label", "validityLabel")`. A reflected reference that inherits only the attributes
+it lists (`withAttributesInherited(...)`) leaves the compound out of that list instead.
+A compound declared on the reflected reference itself is refused the same way when it uses an attribute the reflected
+reference no longer inherits, and since no inheritance filter removes it, inherit its attributes again or remove it
+with `withoutSortableAttributeCompound(...)`.
+
 Reflected references are automatically created, updated, and removed when the original reference is manipulated. It also works the other way around - when the reflected reference is manipulated, the original reference is updated.
 
 <Note type="warning">
@@ -808,6 +858,29 @@ If the reference is marked as *faceted*, the special <SourceClass>evita_engine/s
 When a reference is marked as faceted, all its instances are inserted into the facet reference index. References can (but don't have to) be organized into facet groups that refer to a *managed* or *non-managed* entity type. The facet index is built at **indexing time** — when entities are created or updated — so that the [reference summary](../query/requirements/reference.md#reference-summary) computation at query time reads the pre-built index directly and runs at full speed.
 
 By default, **every** instance of a faceted reference participates in the facet index. The [conditional indexing](#conditional-indexing-with-expressions) option described below lets you narrow this down using an expression.
+
+<Note type="warning">
+
+<NoteTitle toggles="false">
+
+##### Making a reference indexed or faceted later does not index the data you already have
+</NoteTitle>
+
+The reference and facet indexes are filled as entities are inserted and updated, and evitaDB has no way to build them
+for entities that are already stored. When a stored reference becomes indexed or faceted in a scope, or gains an
+[indexed component](#indexed-components) there, while the collection contains entities, the schema change is accepted
+and the server logs a warning, but filtering by the reference -
+[`referenceHaving`](../query/filtering/references.md#reference-having),
+[`groupHaving`](../query/filtering/references.md#group-having),
+[`facetHaving`](../query/filtering/references.md#facet-having) - finds only the entities written after the change, and
+the [reference summary](../query/requirements/reference.md#reference-summary) counts only them.
+
+Declare the indexing and faceting of a reference before the first entity is inserted. For a catalog that already holds
+the data, the route is the same as for
+[filter accelerators](#you-cannot-switch-this-accelerator-on-for-data-you-already-have): create a new catalog that
+declares the setting, load the data into it, and replace the original catalog with it.
+
+</Note>
 
 ##### Reference histograms
 
@@ -920,6 +993,22 @@ Each reference schema has a certain cardinality. The cardinality describes the e
 When you allow definition of *duplicate* references using one of the cardinality types: `ZERO_OR_MORE_WITH_DUPLICATES` or `ONE_OR_MORE_WITH_DUPLICATES`, you'll be able to define two references to the same target entity within a single entity instance. In such a case you need to select at least one reference attribute that would make the two references distinguishable and set it as `representative`. The representative attribute would then be used to identify the specific reference when querying or manipulating the entity. If no representative attribute is defined, an exception is thrown when you try to create duplicate references.
 
 There are situations when duplicate references come in handy. Imagine you have an entity type `Product` that has a reference `medias` to an entity of type `Media`. You want to be able to link multiple media items to a single product, and you also want to be able to distinguish between them based on their role (e.g., "thumbnail", "gallery", "video", etc.). In such a case you can define reference attribute `role` as `representative`, and then you'll be able to create multiple references to the same `Media` entity with different `role` values.
+
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### Representative attributes should have low cardinality
+</NoteTitle>
+
+Representative attributes are expected to have a small, closed set of values that usually mirrors an enumeration in
+your application, such as the media role or the type of relation between two products. evitaDB keeps the distinct
+combinations of representative values of a reference in a shared dictionary, which stays small and cheap to maintain
+as long as the values repeat across many references. Do not use a value that is unique to each reference (an
+identifier, a timestamp or free text) as a representative attribute: the dictionary would then grow with every
+reference created, and each new value would make writes more expensive.
+
+</Note>
 
 A [reflected reference](#reference-directionality) allows duplicates exactly when the original reference it reflects does. It inherits the cardinality of the original reference by default; when it declares its own cardinality, both cardinalities must either allow duplicates or disallow them, and a reflected reference allowing duplicates must also inherit all representative attributes of the original reference. A schema whose two references disagree - whether the mismatch is declared directly or arises later by changing the cardinality of either reference - is refused with an `InvalidSchemaMutationException` when the session that changed the schema closes.
 

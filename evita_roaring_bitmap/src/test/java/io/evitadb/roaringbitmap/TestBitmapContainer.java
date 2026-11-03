@@ -411,7 +411,7 @@ public class TestBitmapContainer {
 			final BitmapContainer half = new BitmapContainer(1 << 15, 1 << 16);
 			final Container result = bc.or(half);
 			assertEquals(1 << 16, result.getCardinality());
-			assertTrue(result instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, result);
 		}
 
 		@Test
@@ -421,7 +421,7 @@ public class TestBitmapContainer {
 			final ArrayContainer half = new ArrayContainer(1 << 15, 1 << 16);
 			final Container result = bc.or(half);
 			assertEquals(1 << 16, result.getCardinality());
-			assertTrue(result instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, result);
 		}
 
 		@Test
@@ -433,8 +433,8 @@ public class TestBitmapContainer {
 			final Container iresult = bc.ior(bc2);
 			assertEquals(1 << 16, result.getCardinality());
 			assertEquals(1 << 16, iresult.getCardinality());
-			assertTrue(result instanceof RunContainer);
-			assertTrue(iresult instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, result);
+			assertInstanceOf(RunContainer.class, iresult);
 		}
 
 		@Test
@@ -444,7 +444,7 @@ public class TestBitmapContainer {
 			final Container bc2 = Container.rangeOfOnes(3210, 1 << 16);
 			final Container iresult = bc.ior(bc2);
 			assertEquals(1 << 16, iresult.getCardinality());
-			assertTrue(iresult instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, iresult);
 		}
 
 		@Test
@@ -460,8 +460,8 @@ public class TestBitmapContainer {
 			final Container irepaired = iresult.repairAfterLazy();
 			assertEquals(1 << 16, repaired.getCardinality());
 			assertEquals(1 << 16, irepaired.getCardinality());
-			assertTrue(repaired instanceof RunContainer);
-			assertTrue(irepaired instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, repaired);
+			assertInstanceOf(RunContainer.class, irepaired);
 		}
 
 		@Test
@@ -477,8 +477,8 @@ public class TestBitmapContainer {
 			final Container irepaired = iresult.repairAfterLazy();
 			assertEquals(1 << 16, repaired.getCardinality());
 			assertEquals(1 << 16, irepaired.getCardinality());
-			assertTrue(repaired instanceof RunContainer);
-			assertTrue(irepaired instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, repaired);
+			assertInstanceOf(RunContainer.class, irepaired);
 		}
 
 		@Test
@@ -494,8 +494,8 @@ public class TestBitmapContainer {
 			final Container irepaired = iresult.repairAfterLazy();
 			assertEquals(1 << 16, repaired.getCardinality());
 			assertEquals(1 << 16, irepaired.getCardinality());
-			assertTrue(repaired instanceof RunContainer);
-			assertTrue(irepaired instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, repaired);
+			assertInstanceOf(RunContainer.class, irepaired);
 		}
 
 		@Test

@@ -23,7 +23,10 @@
 
 package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
+import graphql.GraphQLContext;
+import graphql.execution.CoercedVariables;
 import graphql.language.IntValue;
+import graphql.language.Value;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
 import graphql.schema.CoercingParseValueException;
@@ -31,6 +34,7 @@ import graphql.schema.CoercingSerializeException;
 import io.evitadb.dataType.Predecessor;
 
 import javax.annotation.Nonnull;
+import java.util.Locale;
 
 /**
  * {@link Coercing} for converting between Java's side {@link Predecessor} and client integer.
@@ -40,7 +44,11 @@ import javax.annotation.Nonnull;
 public class PredecessorCoercing implements Coercing<Predecessor, Integer> {
 
     @Override
-    public Integer serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
+    public Integer serialize(
+        @Nonnull Object dataFetcherResult,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingSerializeException {
         if (!(dataFetcherResult instanceof Predecessor predecessor)) {
             throw new CoercingSerializeException("Predecessor data fetcher result is not a Predecessor.");
         }
@@ -49,7 +57,11 @@ public class PredecessorCoercing implements Coercing<Predecessor, Integer> {
 
     @Nonnull
     @Override
-    public Predecessor parseValue(@Nonnull Object input) throws CoercingParseValueException {
+    public Predecessor parseValue(
+        @Nonnull Object input,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingParseValueException {
         if (!(input instanceof Integer integerInput)) {
             throw new CoercingParseValueException("Predecessor input value is not an integer.");
         }
@@ -62,7 +74,12 @@ public class PredecessorCoercing implements Coercing<Predecessor, Integer> {
 
     @Nonnull
     @Override
-    public Predecessor parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
+    public Predecessor parseLiteral(
+        @Nonnull Value<?> input,
+        @Nonnull CoercedVariables variables,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingParseLiteralException {
         if (!(input instanceof IntValue intValue)) {
             throw new CoercingParseValueException("Predecessor input value is not an integer.");
         }

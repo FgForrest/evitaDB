@@ -579,7 +579,7 @@ class PublishRestoredCatalogTaskTest {
 					return new RestorationSteps(
 						new ClientRunnableTask<Void>(
 							"restoreCatalog", "unpack", null,
-							(Consumer<ClientRunnableTask<Void>>) step -> {
+							step -> {
 								claim.allocate(folderContext, catalogName);
 								scratchFolderBinding.set(claim.allocatedFolderId());
 								// read from inside the step, the only moment the sequence is in flight - the phase

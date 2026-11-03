@@ -34,6 +34,7 @@ import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyProducerContext;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.NodeRelativeStatisticsComputer;
+import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 
 import javax.annotation.Nonnull;
@@ -84,11 +85,20 @@ public class HierarchyFromNodeTranslator
 					extraResultPlanningVisitor
 				),
 				context.hierarchyFilterPredicateProducer(),
-				extraResultPlanningVisitor.getQueryContext().getHierarchyHavingPredicate(context.hierarchyFilter()),
+				extraResultPlanningVisitor.getQueryContext().getHierarchyHavingPredicate(
+					context.hierarchyFilter(), context.entityIndex().getIndexKey().scope()
+				),
 				scopePredicate,
 				statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),
 				statistics.map(HierarchyStatistics::getStatisticsType).orElseGet(() -> EnumSet.noneOf(StatisticsType.class)),
-				fromNodeFilter
+				// created while planning, so that the filter of the node is checked even when nothing is computed
+				new FilteringFormulaHierarchyEntityPredicate(
+					extraResultPlanningVisitor.getQueryContext(),
+					context.entityIndex(),
+					fromNodeFilter,
+					context.entitySchema(),
+					context.referenceSchema()
+				)
 			)
 		);
 		return producer;

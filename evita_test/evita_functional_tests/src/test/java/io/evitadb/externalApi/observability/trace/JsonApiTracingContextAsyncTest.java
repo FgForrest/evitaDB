@@ -129,7 +129,7 @@ class JsonApiTracingContextAsyncTest {
 				final List<SpanData> spans = spanExporter.getFinishedSpanItems();
 				assertFalse(spans.isEmpty(), "At least one span should be exported");
 
-				final SpanData spanData = spans.get(spans.size() - 1);
+				final SpanData spanData = spans.getLast();
 				final long durationNanos = spanData.getEndEpochNanos() - spanData.getStartEpochNanos();
 				assertTrue(
 					durationNanos >= 200_000_000L,
@@ -165,7 +165,7 @@ class JsonApiTracingContextAsyncTest {
 				final List<SpanData> spans = spanExporter.getFinishedSpanItems();
 				assertFalse(spans.isEmpty());
 
-				final SpanData spanData = spans.get(spans.size() - 1);
+				final SpanData spanData = spans.getLast();
 				assertEquals(StatusCode.ERROR, spanData.getStatus().getStatusCode());
 				final boolean hasExceptionEvent = spanData.getEvents().stream()
 					.map(EventData::getName)
@@ -205,7 +205,7 @@ class JsonApiTracingContextAsyncTest {
 				final List<SpanData> spans = spanExporter.getFinishedSpanItems();
 				assertFalse(spans.isEmpty());
 
-				final SpanData spanData = spans.get(spans.size() - 1);
+				final SpanData spanData = spans.getLast();
 				assertEquals(StatusCode.ERROR, spanData.getStatus().getStatusCode());
 			}
 		}

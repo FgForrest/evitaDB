@@ -827,7 +827,7 @@ public abstract class AbstractTransactionalBPlusTree implements Serializable {
 		 */
 		@Nonnull
 		public <N extends BPlusTreeNode<N>> N leafNode() {
-			final CursorLevel deepestLevel = this.path.get(this.path.size() - 1);
+			final CursorLevel deepestLevel = this.path.getLast();
 			//noinspection unchecked
 			return (N) deepestLevel.siblings()[deepestLevel.index()];
 		}

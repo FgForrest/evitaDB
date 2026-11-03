@@ -51,6 +51,10 @@ import java.io.Serializable;
  * This constraint is a {@link FacetConstraint} and {@link HierarchyReferenceSpecificationFilterConstraint}, marking it as a facet-specific
  * hierarchy modifier.
  *
+ * The nested filter has its own subcategory locale level. Its `entityLocaleEquals` tests hierarchy nodes, does not
+ * set or conflict with the owner's locale, and does not require the owner to hold that locale. Without its own
+ * locale, localized child attributes use the enclosing owner's resolved locale.
+ *
  * ## Basic Usage (Exclude Matching Children)
  *
  * The `includingChildrenExcept` constraint accepts a single filtering constraint that defines which children to **exclude** from the

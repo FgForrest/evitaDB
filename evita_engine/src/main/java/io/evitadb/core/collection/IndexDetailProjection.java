@@ -45,9 +45,10 @@ import javax.annotation.Nonnull;
  * index.
  *
  * **The cardinality is free, in cost-class terms.** Every reading it takes is either an `O(1)` counter or a walk over
- * the buckets of an inverted index - and the heap estimate traverses those same buckets to price them, so the
- * cardinality is a strict subset of work already being done. This is what makes carrying both in one response
- * defensible where carrying either across a whole collection is not.
+ * the buckets of an inverted index or over the registry rows of a reference type index - and the heap estimate
+ * traverses those same structures to price them, so the cardinality is a strict subset of work already being done.
+ * This is what makes carrying both in one response defensible where carrying either across a whole collection is
+ * not.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @see IndexDetail
@@ -66,7 +67,10 @@ final class IndexDetailProjection {
 	 * @return the full description of that one index
 	 */
 	@Nonnull
-	static IndexDetail describe(@Nonnull String entityType, @Nonnull EntityIndex index) {
+	static IndexDetail describe(
+		@Nonnull String entityType,
+		@Nonnull EntityIndex index
+	) {
 		// read off the live index rather than off a snapshot, which is exactly right for counters that are shared
 		// across catalog versions and deliberately outside the transactional diff layer. Null when the server does not
 		// track usage statistics, in which case the row reports itself unmeasured rather than reporting zeros

@@ -52,7 +52,8 @@ collection item inside a [spread expression](#spread-operator-expr).
 | `()` | Grouping | `(2 + 4) * 2` | `12` |
 
 Standard mathematical precedence applies: multiplication, division, and modulo are evaluated before
-addition and subtraction. Use parentheses to override precedence.
+addition and subtraction, and operators of the same level are evaluated from left to right, so `10 - 2 + 3` is `11`.
+Use parentheses to override precedence.
 
 ## Comparison Operators
 
@@ -467,3 +468,8 @@ Operators are listed from highest to lowest precedence:
 | 10 | `&&` | Logical AND |
 | 11 | `\|\|` | Logical OR |
 | 12 | `*?` `?*?` | Spread null coalescing |
+
+Operators on the same line of the table bind equally and are evaluated from left to right: `8 / 2 * 2` is `8` and
+`$a != $b == $c` compares the result of `$a != $b` with `$c`. Versions before 2026.3 ranked each of the arithmetic,
+relational and equality operators on a level of its own, so a stored expression mixing operators of one line may
+evaluate differently after an upgrade - add parentheses where it relied on the old grouping.

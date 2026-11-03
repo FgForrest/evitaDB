@@ -54,20 +54,45 @@ import java.util.Optional;
 public class AssociatedDataContentTranslator implements RequireConstraintTranslator<AssociatedDataContent> {
 
 	/**
-	 * Verifies the associated data for a given AssociatedDataContent, EntitySchemaContract, and ExtraResultPlanningVisitor.
+	 * Validates named associated data in the request of their body level, which
+	 * {@link ExtraResultPlanningVisitor#getEntityFetchRequest} derives. Localized names require that level to resolve
+	 * a locale, provide an implicit locale, or request localized data explicitly.
 	 *
 	 * @param associatedDataContent      The AssociatedDataContent containing the associated data names.
 	 * @param entitySchema               The EntitySchemaContract object representing the entity schema.
 	 * @param extraResultPlanningVisitor The ExtraResultPlanningVisitor object for additional result planning.
+	 * @throws AssociatedDataNotFoundException when named associated data is not in the schema
+	 * @throws EntityLocaleMissingException    when named associated data is localized and the body level has no locale
 	 */
 	public static void verifyAssociatedData(
 		@Nonnull AssociatedDataContent associatedDataContent,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor
 	) {
+		verifyAssociatedData(associatedDataContent, entitySchema, extraResultPlanningVisitor,
+			extraResultPlanningVisitor.getEntityFetchRequest(associatedDataContent));
+	}
+
+	/**
+	 * Validates named associated data against the given request - used by callers that derive the request of the body
+	 * themselves, such as the summary translators, whose bodies take their locale from the summary filter.
+	 *
+	 * @param associatedDataContent      the requirement naming the associated data
+	 * @param entitySchema               the schema of the entity whose associated data is named
+	 * @param extraResultPlanningVisitor the extra result planning visitor
+	 * @param evitaRequest               the request fetching the body, whose required or implicit locales decide
+	 *                                   whether localized names are accepted
+	 * @throws AssociatedDataNotFoundException when named associated data is not in the schema
+	 * @throws EntityLocaleMissingException    when named associated data is localized and the request has no locale
+	 */
+	public static void verifyAssociatedData(
+		@Nonnull AssociatedDataContent associatedDataContent,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor,
+		@Nonnull EvitaRequest evitaRequest
+	) {
 		final String[] associatedDataNames = associatedDataContent.getAssociatedDataNames();
 		if (!ArrayUtils.isEmpty(associatedDataNames)) {
-			final EvitaRequest evitaRequest = extraResultPlanningVisitor.getEvitaRequest();
 			if (evitaRequest.getRequiredLocales() == null && evitaRequest.getImplicitLocale() == null) {
 				verifyAssociatedDataKnownAndNotLocalized(associatedDataNames, entitySchema);
 			} else {

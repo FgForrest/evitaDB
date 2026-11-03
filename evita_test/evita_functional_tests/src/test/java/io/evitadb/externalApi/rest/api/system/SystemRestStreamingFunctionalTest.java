@@ -168,7 +168,7 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 				}
 			},
 			2, receivedEvents -> {
-				assertConnectionAckEvent(receivedEvents.get(0));
+				assertConnectionAckEvent(receivedEvents.getFirst());
 				assertTrue(
 					winningCatalog[0] != null && hasInstalledHostEnvelope(receivedEvents, winningCatalog[0]),
 					"Expected at least one `" + CatalogInstalledIntoLiveViewDescriptor.THIS.name() +
@@ -318,7 +318,7 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 			// subscription means no engine-mutation envelopes are delivered. The harness uses `>=`
 			// semantics so additional defensive events (none expected here) would not fail.
 			2, receivedEvents -> {
-				assertConnectionAckEvent(receivedEvents.get(0));
+				assertConnectionAckEvent(receivedEvents.getFirst());
 				assertCatalogSchemaUpdatedEventPresent(receivedEvents, schemaUpdatedCatalog);
 			}
 		);

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,10 +35,12 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 
 import static io.evitadb.test.TestTags.COMPARATOR;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.ORDER;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -187,6 +189,94 @@ class SortedRecordsProviderDefaultsTest {
 			"the not-found hand-off must be exactly the absent ids"
 		);
 		assertEquals(2, resolution.notFoundRecordsCount(), "the not-found count must match the absent id count");
+	}
+
+	@Test
+	@DisplayName("resolvePositions finds nothing for an empty selection whatever the scratch buffers held before")
+	void shouldResolveNothingForEmptySelectionWithDirtyBuffers() {
+		// pooled buffers keep what their previous borrower wrote - here the provider's first record id, which is
+		// exactly what the walk compares its first record against
+		final PositionResolution resolution = PROVIDER.resolvePositions(
+			new PersistentRoaringBitmap(), 0, dirtyBuffer(512, ALL_RECORDS[0]), dirtyBuffer(512, ALL_RECORDS[0])
+		);
+
+		assertAll(
+			() -> assertArrayEquals(
+				new int[0], new BaseBitmap(resolution.mask()).getArray(),
+				"an empty selection must not match the stale contents of the selection buffer"
+			),
+			() -> assertArrayEquals(new int[0], new BaseBitmap(resolution.notFoundRecords()).getArray()),
+			() -> assertEquals(0, resolution.notFoundRecordsCount())
+		);
+	}
+
+	@Test
+	@DisplayName("mirrored merge-walk finds nothing for an empty selection whatever the scratch buffers held before")
+	void shouldResolveNothingForEmptySelectionWithDirtyBuffersWhenMirrored() {
+		// the descending share of the ascending positions runs the very same walk
+		final PositionResolution resolution = SortedRecordsProvider.resolvePositionsByArrayMergeWalk(
+			new BaseBitmap(ALL_RECORDS), RECORD_POSITIONS, new PersistentRoaringBitmap(), 0,
+			dirtyBuffer(512, ALL_RECORDS[0]), dirtyBuffer(512, ALL_RECORDS[0]), true, ALL_RECORDS.length - 1
+		);
+
+		assertAll(
+			() -> assertArrayEquals(new int[0], new BaseBitmap(resolution.mask()).getArray()),
+			() -> assertArrayEquals(new int[0], new BaseBitmap(resolution.notFoundRecords()).getArray()),
+			() -> assertEquals(0, resolution.notFoundRecordsCount())
+		);
+	}
+
+	@Test
+	@DisplayName("resolvePositions resolves a strict subset across batch boundaries with dirty scratch buffers")
+	void shouldResolveStrictSubsetAcrossBatchesWithDirtyBuffers() {
+		// two-slot buffers split both sides into several batches, and each buffer starts out full of record ids of
+		// the provider, so any read past a batch's end would produce a match
+		final int[] selectedAll = {3, 8};
+		final PositionResolution resolution = PROVIDER.resolvePositions(
+			RoaringBitmapBackedBitmap.getRoaringBitmap(new BaseBitmap(selectedAll)), selectedAll.length,
+			dirtyBuffer(2, 4), dirtyBuffer(2, 4)
+		);
+
+		assertAll(
+			// 8 -> 3, 3 -> 4
+			() -> assertArrayEquals(new int[]{3, 4}, new BaseBitmap(resolution.mask()).getArray()),
+			() -> assertArrayEquals(new int[0], new BaseBitmap(resolution.notFoundRecords()).getArray()),
+			() -> assertEquals(0, resolution.notFoundRecordsCount())
+		);
+	}
+
+	@Test
+	@DisplayName("resolvePositions hands off absent ids after the last batch with dirty scratch buffers")
+	void shouldHandOffAbsentIdsAfterLastBatchWithDirtyBuffers() {
+		// the selection outlives the provider's records: 5 falls between two batches, 13 lies past the last record,
+		// and the buffers hold the provider's record 12 from a previous borrower
+		final int[] selectedAll = {4, 5, 13};
+		final PositionResolution resolution = PROVIDER.resolvePositions(
+			RoaringBitmapBackedBitmap.getRoaringBitmap(new BaseBitmap(selectedAll)), selectedAll.length,
+			dirtyBuffer(2, 12), dirtyBuffer(2, 12)
+		);
+
+		assertAll(
+			// 4 -> 5
+			() -> assertArrayEquals(new int[]{5}, new BaseBitmap(resolution.mask()).getArray()),
+			() -> assertArrayEquals(new int[]{5, 13}, new BaseBitmap(resolution.notFoundRecords()).getArray()),
+			() -> assertEquals(2, resolution.notFoundRecordsCount())
+		);
+	}
+
+	/**
+	 * Creates a scratch buffer as a pool hands it out after a previous use: full of a value that is not the
+	 * caller's.
+	 *
+	 * @param length     the length of the buffer
+	 * @param staleValue the value every slot holds
+	 * @return the buffer
+	 */
+	@Nonnull
+	private static int[] dirtyBuffer(int length, int staleValue) {
+		final int[] buffer = new int[length];
+		Arrays.fill(buffer, staleValue);
+		return buffer;
 	}
 
 }

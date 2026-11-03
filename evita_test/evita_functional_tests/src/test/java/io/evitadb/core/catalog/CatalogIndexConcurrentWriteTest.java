@@ -49,6 +49,7 @@ import java.util.stream.Collectors;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -122,16 +123,16 @@ class CatalogIndexConcurrentWriteTest {
 		final boolean[] armed = {false};
 		uniqueIndexes.put(
 			new AttributeKey("code"),
-			filled(new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class), "code", 2)
+			filled(new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class, 0), "code", 2)
 		);
-		final GlobalUniqueIndex writing = new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("url"), String.class) {
+		final GlobalUniqueIndex writing = new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("url"), String.class, 0) {
 			@Override
 			public int size() {
 				if (armed[0] && !written[0]) {
 					written[0] = true;
 					uniqueIndexes.put(
 						new AttributeKey("late"),
-						filled(new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("late"), String.class), "late", 1)
+						filled(new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("late"), String.class, 0), "late", 1)
 					);
 				}
 				return super.size();
@@ -195,11 +196,11 @@ class CatalogIndexConcurrentWriteTest {
 		final Map<AttributeKey, GlobalUniqueIndex> uniqueIndexes = new HashMap<>();
 		uniqueIndexes.put(
 			new AttributeKey("code"),
-			filled(new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class), "code", 2)
+			filled(new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class, 0), "code", 2)
 		);
 		uniqueIndexes.put(
 			new AttributeKey("url"),
-			filled(new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("url"), String.class), "url", 3)
+			filled(new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("url"), String.class, 0), "url", 3)
 		);
 		final CatalogIndex catalogIndex =
 			new CatalogIndex(1, new CatalogIndexKey(Scope.LIVE), uniqueIndexes, new IndexActivity());
@@ -241,7 +242,7 @@ class CatalogIndexConcurrentWriteTest {
 	 * @param values  how many values the index holds
 	 */
 	private static void assertReading(@Nullable AttributeCardinality reading, int values) {
-		assertTrue(reading != null, "the unique index must be described");
+		assertNotNull(reading, "the unique index must be described");
 		assertEquals(values, reading.distinctValueCount());
 		assertEquals(values, reading.recordsCovered());
 	}

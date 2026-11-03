@@ -1727,11 +1727,20 @@ public final class BitmapContainer extends Container implements Cloneable {
 	 * {@link io.evitadb.roaringbitmap.kernel.BitmapKernels} applied to the half-open range `[0, lowbits + 1)`;
 	 * the kernel masks the partial last word, which is what makes the two formulations equal.
 	 *
+	 * The rank of `Character.MAX_VALUE` is the whole cardinality, so a known {@link #cardinality} answers it
+	 * without the 1,024-word scan. A lazy container (`cardinality == -1`) still takes the scan rather than
+	 * having its cardinality computed and stored here, unlike upstream: the `-1` is the signal that
+	 * {@link #repairAfterLazy()} has yet to run and may demote the container, and storing a count would turn
+	 * that repair into a no-op (see `LazyCardinalityProtocolTest`).
+	 *
 	 * @param lowbits value whose rank is requested
 	 * @return count of set values in `[0, lowbits]`
 	 */
 	@Override
 	public int rank(final char lowbits) {
+		if (lowbits == Character.MAX_VALUE && this.cardinality >= 0) {
+			return this.cardinality;
+		}
 		return VectorKernels.BITMAP.cardinalityInRange(this.bitmap, 0, lowbits + 1);
 	}
 
@@ -2774,8 +2783,8 @@ final class ReverseBitmapContainerCharIterator implements PeekableCharIterator {
 			}
 			long currentWord = this.bitmap[this.position];
 			currentWord &= ~0L >>> (63 - (maxval & 63));
-			// Descend through empty words, loading word 0 too (the upstream loop broke at position 0
-			// before reading bitmap[0], discarding any value stored there).
+			// descend through empty words, loading word 0 too, so that a value stored there is not
+			// skipped
 			while (currentWord == 0 && this.position > 0) {
 				this.position--;
 				currentWord = this.bitmap[this.position];

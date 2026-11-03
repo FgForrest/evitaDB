@@ -1,0 +1,591 @@
+---
+title: Schema builders drop the mutations that leave their level of the schema unchanged, judged by value at toMutation()
+date: 2026-11-03
+updated: 2026-11-03 15:10
+status: accepted
+kind: fix
+issues: [1837, 1843, 1845, 1846, 1847, 1848, 1849, 1850, 1851, 1852, 1853, 1854, 1855, 1856, 1857, 1858, 1859, 1860, 1861, 1862, 1863, 1864, 1865, 1868, 1869, 1870]
+prs: [1841, 1844]
+areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/schema/builder, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReflectedReferenceSchema.java, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ClassSchemaAnalyzer.java, evita_query/src/main/java/io/evitadb/api/query/expression, evita_external_api/evita_external_api_grpc/shared, evita_engine/src/main/java/io/evitadb/core/collection/EntityCollection.java, evita_engine/src/main/java/io/evitadb/core/catalog/Catalog.java, evita_query/src/main/resources/META-INF/io/evitadb/api/query/parser/evitaEL, evita_store/evita_store_server/src/main/java/io/evitadb/store/shared/serializer/dataType/ExpressionSerializer.java, evita_common/src/main/java/io/evitadb/dataType/EvitaDataTypes.java]
+supersedes: []
+superseded-by: []
+relates: []
+---
+
+# Schema builders drop the mutations that leave their level of the schema unchanged, judged by value at toMutation()
+
+Re-defining an unchanged schema from annotated model classes, as applications do on every start, produced schema
+mutations that changed nothing. The server records every received mutation in the transaction and derives conflict
+keys from it. A mutation of a global attribute takes a catalog-wide key, so a start-up during a rolling deployment
+collided with the old instance's writes. `InternalEntitySchemaBuilder.toMutation()` and
+`InternalCatalogSchemaBuilder.toMutation()` now compare the final schema with the base schema by value and do not
+emit the mutations of a level that ends up unchanged. Four point fixes remove the sources of the no-op mutations
+themselves. The follow-ups found on the way - replay, combine and equality defects of the builders, the text of
+composed expressions, and the defects of the expression language, the server's catalog cascades and the expression
+wire format found while fixing them - are fixed in the same pull request.
+
+## Why
+
+- The builders' own no-op check runs once per call and compares with the current builder state.
+- `combineWith` replaces an older mutation of the same kind without looking at the base schema.
+- A value that goes stored → annotation → stored therefore leaves a mutation equal to the base. This happens when
+  `ClassSchemaAnalyzer` applies the annotation and a `SchemaPostProcessor` restores the stored value.
+- The cost was not the WAL noise but failed start-ups. `ConflictingCatalogMutationException` named an entity of a
+  collection the reconciliation never touched, and an application that does not retry skipped its remaining schema
+  steps.
+
+### Previous state
+
+`toMutation()` returned every mutation that survived combining. That was acceptable while the analyzer applied each
+property once. Two-way reconciliation of annotation flags (#1199) and post-processors made "set, then restore" the
+normal start-up shape.
+
+## Options considered
+
+### Option A — compare the final schema with the base per level at `toMutation()` (chosen)
+
+The entity builder emits nothing when its final schema equals its base. The catalog builder judges two kinds of level
+separately:
+- the catalog level (global attributes, description, conflict resolution, evolution modes);
+- each existing entity schema it modifies.
+
+Create, remove and rename of entity schemas are always kept.
+
+- **Pros:**
+  - It is a small change in two methods and leaves the mutation and combine machinery untouched.
+  - It fails safe: an unreliable `equals` keeps a mutation, it never drops one, and levels that depend on each other
+    are emitted as collected.
+  - No-op mutations left inside a level that has a genuine change carry the same conflict key as that change. Every
+    mutation of an entity carries its `CollectionConflictKey`, and a catalog-level change carries `CatalogConflictKey`
+    anyway. The conflict surface therefore never widens.
+- **Cons:**
+  - No-op mutations still ride along with a genuine change in the same level and reach the WAL.
+  - It depends on a property-by-property comparison that must be kept complete.
+
+### Option B — prune per sub-schema (attribute, reference, compound) inside the mutation log (declined)
+
+- **Pros:** finer granularity, matching the original elimination logic of the builders.
+- **Cons:** it needs grouping and ordering logic for every combinable mutation kind, and the gain over A is WAL noise
+  only.
+- **Rejected because:** the maintainer judged the added logic too risky for no gain in conflict surface. It would be
+  worth revisiting if WAL or CDC consumers started to suffer from riders next to genuine changes.
+
+### Option C — rewrite the builders to hold target state and diff against the base (declined)
+
+- **Pros:** it removes combine, replay and the shared mutation log. The phantom class becomes impossible by
+  construction.
+- **Cons:**
+  - It replaces the internal model of all 11 builders, not only `toMutation()`.
+  - It cannot recover intent from a diff. A rename would read as remove plus create, and for an entity collection that
+    deletes its data.
+  - It needs an ordering layer, and a property the differ forgets silently drops a genuine change.
+- **Rejected because:** the analysis (supporting material below) found each claimed win only partly true. Its speed
+  gain appears only on replacement-heavy sequences, not at start-up, and it trades a harmless failure for harmful
+  ones.
+
+### Option A′ — judge each entity modification against the catalog state at its own position (declined)
+
+Option A applies the modifications of an entity to the final catalog schema. A position-aware variant would replay
+the catalog and the entity levels interleaved, so that every entity modification sees the catalog as it was when the
+modification was collected.
+
+- **Pros:** it judges an entity that adopts a global attribute the catalog removes later correctly, where Option A
+  falls back to emitting everything.
+- **Cons:** it needs a second replay that keeps the catalog state per position next to `toInstance()`, inside
+  a builder whose own replay is already known to be inexact (see the follow-ups).
+- **Rejected because:** the fallback covers the same sequences without new replay logic, and they are rare - a
+  migration that adopts and removes a global attribute in one builder. Worth revisiting if such migrations become
+  common enough that their riders matter.
+
+### Option D — register a mutation on the server only when it changes the schema (declined)
+
+- **Pros:** it is the only option that also protects clients already deployed with an older driver.
+- **Rejected because:** the maintainer chose to keep the server's mutation handling unchanged. Older clients keep
+  sending the no-op mutations until they upgrade, except the `representative` one, whose cause is fixed on the server
+  side of the gRPC converter.
+
+## Decision
+
+**Chosen: Option A.** It removes every phantom of #1843 and its conflict effect while touching the least code. If
+riders next to genuine changes become a problem, Option B can be layered on top. If deployed clients that cannot
+upgrade become a problem, Option D can be added. Neither contradicts A.
+
+## Key technical details
+
+- `schema/builder/SchemaContentComparator` holds the version-agnostic comparison of entity and catalog schemas.
+  `EntitySchema` and `CatalogSchema` define `equals` by name and version only, and `EntitySchema.differsFrom`
+  compares the version and omits several fields, so neither can be used. **Every new schema property must be added
+  there**, otherwise the builders drop its genuine changes. `SchemaContentComparatorTest` fails when a schema DTO
+  gains an unclassified field.
+- `InternalCatalogSchemaBuilder.withoutNoOpMutations()` computes the final state of a modified entity schema from the
+  base entity schema. It does not read it from `MutationEntitySchemaAccessor`: that accessor reflected mutations twice
+  while `toInstance()` did not reset it on a replay from the base (#1846), and the pruning should not depend on it.
+- The entity builder prunes against its own base, so the base has to be the state the new calls apply to.
+  `InternalCatalogSchemaBuilder.withEntitySchema` therefore starts the nested entity builder from the entity schema
+  as the catalog builder's collected mutations leave it, not from the stored one. Started from the stored one, a call
+  restoring a value an earlier call of the same catalog builder changed emitted nothing, and the earlier change
+  survived - a regression of the pruning that the fourth adversarial pass found.
+- The entity modifications are applied against the final catalog schema. When one of them cannot be applied there
+  (an `EvitaInvalidUsageException`, for example `UseGlobalAttributeSchemaMutation` of a global attribute the catalog
+  removes later in the same builder), the levels depend on each other and the builder emits every collected mutation
+  unchanged. The same fallback covers a replay of the builder's own state that rejects a sequence the server
+  accepts. The one known such sequence (an entity modification replayed twice, #1846) is fixed, and the fallback
+  stays for any other. Internal errors are not caught. A modification of an
+  entity schema that does not exist at its position in the sequence also emits everything before any replay: the
+  server creates that entity schema on the fly when the catalog allows adding entity types, while the replay has
+  nothing to apply it to. Removing and re-creating the same global attribute never reaches the pruning: `combineWith`
+  of the create and the remove mutation collapses the pair first.
+- Expression equality matters. `NullSafeAccessStep` (`?.`), `SpreadAccessStep` and `FunctionOperator` (#1852) had no
+  value `equals`, so any reference using such an expression never equalled its own re-parse and never pruned. All
+  three now have it; a function is identified by its name, not by its processor instance.
+- Source fixes, each needed on its own:
+  - `CatalogSchemaConverter.toGrpcGlobalAttributeSchema` now sends `representative`, so gRPC clients see the real
+    value.
+  - `ClassSchemaAnalyzer.definePrice` no longer adds an empty currency mutation.
+  - The reference reconciliation counts `facetedPartially` scopes as faceted, in both the scoped and the default-scope
+    path.
+  - The `ReferenceSchemaBuilder` setters `facetedPartiallyInScope`, `bucketedInScope` and `bucketedPartiallyInScope`
+    are no-ops when nothing changes. They compare expressions as trees (`Expression.equals`), never by their text:
+    before #1851 a tree composed by `ExpressionFactory.and` printed exactly like a parsed expression that groups its
+    operands differently, and text stays a weaker identity than the tree.
+
+### Follow-ups fixed in the same pull request
+
+Each was a separate defect of the replay, combine or equality machinery that the pruning relies on; each has its own
+issue and commit.
+
+- **Combining two entity modifications** kept the older change of a property (#1845):
+  `ModifyEntitySchemaMutation.combineWith` now takes the existing children as the base and adds the new ones.
+- **The catalog builder's replay** (#1846, #1847) resets its `MutationEntitySchemaAccessor` when it starts from the
+  base, serves entity schemas from its own state rather than from the delegated catalog DTO (Lombok's `@Delegate`
+  routed `getEntitySchemaOrThrowException` there), and applies the cascades catalog mutations return
+  (`CatalogSchemaWithImpactOnEntitySchemas.entitySchemaMutations()`) right after the mutation, as the server does
+  since #1861 (below). For a while (d8623c806e) the builder collected them and applied them after every explicit
+  mutation of the batch, mirroring the server of the time.
+- **The entity builder's replay** (#1848) applies a run of consecutive mutations that change one attribute alone to
+  the attributes and builds the entity schema once per run. A mutation qualifies when it does not override
+  `EntityAttributeSchemaMutation.mutate(CatalogSchemaContract, EntitySchemaContract)`, detected once per class; a
+  check that needs the catalog belongs to the new `verifyApplicableToEntity` hook, which is how
+  `SetAttributeSchemaFilterableMutation` joins the runs. The result of a run is the result of applying its mutations
+  one by one, attribute order included: the run holds the attributes in a `LinkedHashMap` the way
+  `replaceAttributeIfDifferent` (the path the server takes) leaves them, moving each changed one to the end, and
+  collects them into a hash map the same way. `EntitySchema._internalBuildWithAttributes` is the one copy of the
+  19-argument build both use. Rejected:
+  - keeping a changed attribute at its position in both paths: the attribute order is observable - generated test
+    data follows it, and five data-dependent functional tests failed with it;
+  - replaying from the first replaced position: the replaced mutation is nearly always the first one;
+  - indexing `addMutations` by target: it was 0.3 % of the profile;
+  - applying changes incrementally without a replay: the version diverges, and order-sensitive pairs exist.
+- **Removing and re-creating a reference in one builder** (#1849) threw. The decision to start with a create now also
+  holds when the builder state has no such reference; adding that condition, rather than replacing the stored-schema
+  check as d8e18f9da2 did (reverted the same day after 1733 failed tests), keeps the second definition of a reference
+  created in the same builder working. Switching the reference builder to create mode by itself was rejected: its
+  base would be the removed stored reference, whose settings the new one would silently inherit. The re-creation
+  reached code no builder sequence reached before. `ModifyReferenceAttributeSchemaMutation` and its compound
+  counterpart dropped the discarded flag of the mutation they wrap and compared a re-created attribute with the
+  entity's attribute of that name. A round of `addMutations` whose combination queued mutations for the next round
+  went on appending the rest of the round, which it had queued too. When the index type and the indexed components
+  of the re-created reference both changed, the two index mutations merged mid-round and the next round met the
+  appended mutations with themselves, taking turns forever; with an attribute on the reference, the discarded flag
+  of its removal hid the loop and lost the change of the faceting instead. The round now ends at the combination
+  that queues. An earlier version of this record blamed the copies the wrappers returned: a variant that always
+  returns copies passes every re-create test, and the wrappers that returned the same instance looped as well. The
+  managed flag of a re-created reference was dropped too, and so was a change of an attribute's indexed decimal
+  places alone, of an entity and of a global attribute alike (the collapse compared the type only, although the type
+  mutation carries both; `AbstractAttributeSchemaMutation.makeTypeMutationIfDifferent` now compares them for both).
+- **A second `withReferenceTo` call** on an existing reference (#1850) appended the mutations of the first call after
+  its own, so a restored value lost; they now come first.
+- **`ClassSchemaAnalyzer`** clears stored partial faceting and bucketing a model no longer declares (#1854).
+- **`ReflectedReferenceSchema.equals`** compares the reflected reference's own definition (#1853) - the inheritance
+  flags, the values only where it declares them, and the declared attributes and compounds - instead of the
+  effective values, which depend on whether and to which version of the original the copy is bound.
+- **Reflected references** (#1859, #1860): no mutation can redirect a reflected reference, so the builder refuses a
+  definition naming another original reference and the remove-and-create collapse keeps both mutations then. The
+  mutations of description, deprecation and cardinality, and the collapse, judge a change by the declaration
+  (inherited, or the declared value), never by the effective value: a declared value equal to the inherited one is
+  still a change, and inherited values are not available on a reference that is not bound.
+- **A reflected reference made to inherit its indexing again** (#1862) kept the index types inherited but declared its
+  components empty: the constructor of `SetReferenceSchemaIndexedMutation` gave every mutation inheriting the index
+  types `EMPTY` components, and `mutate` reads `EMPTY` as a declaration. Null components with inherited index types
+  now leave the components as they are, and the constructor keeps them null. Rejected: inheriting the components
+  together with the index types, which the old constructor comment suggested. It would complete a stored indexed
+  scope without a component, which a0e171324c deliberately prevents because the scope would claim an index that was
+  never built (`IndexedScopeRequiresEntityComponentTest`). Rejected as well: reading `EMPTY` with inherited index
+  types as "leave" (the first version of the fix). Every such mutation in a WAL carries `EMPTY` and was applied as a
+  declaration, so a recovery or restore across the upgrade would have built another schema; an adversarial review
+  found it. The Kryo format is unchanged and no serialVersionUID moves, because no writer stored null components
+  with inherited index types before; the readers of the formats without components give such a mutation `EMPTY`,
+  as the constructor did when they were written.
+  The limit this left - no single mutation makes both the index types and declared components inherited - is lifted
+  with the forms that exist. A re-created reference inheriting both collapses into two mutations,
+  `(EMPTY, null)` making the components inherited and `(null, null)` making the index types inherited
+  (`CreateReflectedReferenceSchemaMutation.indexingMutationsOf`). When a later mutation inheriting the index types
+  overrides an earlier one, `combineWith` rewrites the earlier one into the part that still matters
+  (`toComponentsPart`), so its overridden index types no longer merge into a declaration that follows; the gRPC
+  server reads the components of a mutation with inherited index types, which it used to drop. Rejected: a new form or
+  flag saying "inherit both", which would change the Kryo format and the gRPC message although two existing forms say
+  it in two steps.
+- **A stored reference made indexed or faceted while the collection holds entities** (#1863) misses those entities in
+  `referenceHaving`, `facetHaving` and the facet counts, because nothing builds the indexes for stored entities. An
+  indexed reference gaining an indexed component has the same gap - the group indexes of `REFERENCED_GROUP_ENTITY`
+  hold only the entities written after the change - and gets the same warning.
+  `EntityCollection.updateSchema` now logs a warning and `schema.md` documents the limitation. Rejected: refusing the
+  change as `verifyNoAcceleratorAddedToNonEmptyCollection` does for filter accelerators - applications that define
+  their schema from model classes apply such a change when they start, and a refusal would stop them from starting.
+  Building the indexes is the real fix; it is a slice of #409 and was not attempted here.
+- **Composed expressions** (#1851) print the parentheses their grouping implies. `ExpressionPrecedence` copies the
+  precedence levels from the order of the alternatives in `EvitaEL.g4`, one per documented level since #1855, and
+  parenthesizes only where the grammar would group differently,
+  so the text of every parsed expression stays byte for byte the same and no stored format changes.
+  `ExpressionFactory.and` wraps an operand that binds looser than the conjunction in a `NestedOperator`, so the
+  composed expression equals the parse of its own text. Rejected: wrapping every operand of `and` unconditionally,
+  which breaks that equality for operands that need no parentheses and leaves trees composed by constructors broken.
+
+- **EvitaEL precedence** (#1855): the grammar gave every binary operator a level of its own, so `10 - 2 + 3` was 5.
+  It now has one alternative per documented level, and operators of a level group from left to right. Rejected:
+  changing the documentation to the parser, which would make wrong arithmetic the rule. This is a breaking change
+  without a migration: expressions are stored as text in schemas and in the WAL and parsed again when a catalog opens,
+  so a stored expression mixing operators of one level evaluates differently after the upgrade.
+- **Whole-text parsing** (#1856): `ExpressionFactory.parse` read the longest valid prefix and dropped the rest, and
+  the sign in the number tokens made `5-3` read as `5`. It now parses the EOF-anchored `root` rule, and the sign moved
+  into the `literal` rule, where it applies only at the start of an operand, so `-4`, `abs(-4)` and `-4.abs()` keep
+  their negative constant. Rejected: dropping the sign and reading `-4` as a negation, which changes the tree and the
+  meaning of `-4.abs()`. A stored text the stricter parser refuses is read as its prefix, as before, with a warning
+  (`ExpressionSerializer`, `ExpressionFactory.parseStoredPrefix`); the serializer has always stored the text printed
+  from the parsed tree, so this is a safety net. Rejected: parsing stored text strictly, which would keep a catalog
+  holding such a text from opening.
+- **Expressions on the wire and in the examples** (#1857, #1858): the gRPC query converter and the generators of the
+  Java, GraphQL and REST examples printed an expression argument with `toString()`, which quotes it into a string
+  constant; they use `toExpressionString()`.
+- **Catalog cascades** (#1861): `Catalog.updateSchema` collected the cascades of catalog mutations and applied them
+  after the whole batch, and a catalog mutation without cascades dropped the ones collected before it. The replay of
+  the WAL applies every recorded mutation as an update of its own, so there a cascade ran right after its mutation,
+  and the two disagreed: a batch removing a global attribute and then changing it in an entity was accepted by the
+  session and failed at the trunk incorporation of a live catalog (and would on recovery). Deferred cascades also
+  missed an entity the batch renamed and removed a local attribute the batch put in place of the global one. The
+  server and the catalog builder now apply the cascades of a catalog mutation right after it, as the replay does.
+  Rejected: keeping the deferral and replaying schema batches as batches, which needs batch boundaries in the WAL
+  and a replay that tracks renames - a format change for a semantics no other path has; and filtering the deferred
+  cascades by whether the entity still holds the global attribute (the first answer to the review), which fixed the
+  local replacement and left the replay and the rename broken. The refused batch is the breaking part, and it is
+  refused where it fails, after the cascade. Rejected: a preflight refusing it before anything is applied, by the
+  class of the mutations - it was tried and taken out, because it also refused valid batches: a local attribute
+  created in place of the removed global one and then changed, and a change of the old name after a rename, which
+  kept the old attribute until #1864; and a dry run of the whole batch over copies of the schemas,
+  which would decide it exactly, for warm-up alone - warm-up applies a failed batch partly in other ways as well (see
+  Consequences), and a dry run is worth its code only as a general answer to that. With the cascades at their
+  position, a catalog builder whose
+  replay cascaded into an entity schema emits every collected mutation: a modification after the cascade that
+  restores the base value overrides it, and it may depend on the catalog mutations around it. Found
+  on the way: cascades reached every entity schema with an attribute of the name, also one with an attribute of its
+  own, and now reach only the ones using the global attribute; the collapse of an attribute's removal and
+  re-creation turned a global attribute replaced with a local one into changes of the global one's properties, and
+  threw when the removed attribute was absent from the builder's entity schema - both keep the two mutations now;
+  and a failed schema update left the mutations it had registered in the transaction, so a session catching the
+  error and committing wrote a batch its replay refused - the transaction is marked rollback-only now. #1841 fixed
+  the same failure raised by the rebinding of a reflected reference (#1837) on `dev` in parallel; the merge kept its
+  version, which raises the flag already before the registration, because one failing part-way may have written to
+  the WAL.
+- **Attribute rename** (#1864): the `replaceAttributeIfDifferent` helpers of the global, entity and reference
+  attribute mutations took the existing attribute out by the name of the updated one, so a rename added a copy next
+  to the original - which is why a change of the old name after a rename passed the #1861 batches. They take it out
+  by its own name, and `AttributeSchemaMutationVerifier` refuses a rename to a name another attribute holds, of an
+  attribute a sortable attribute compound is made of (every later upsert fails on a compound naming a missing
+  attribute), and of an attribute a reflected reference inherits. A global rename is verified in every entity schema
+  using the attribute before the catalog schema changes; verified only when the cascade reached each of them, a
+  refusal by one left the ones before it renamed in warm-up. The rename overrides the entity-level `mutate`, which
+  keeps it out of the entity builder's batched runs. Nothing moves the stored values or their indexes; over a populated
+  collection the rename is accepted with a warning, as #1863 is. Rejected: refusing the rename over stored entities,
+  because a WAL written by an older version may replay one and the catalog would not load; moving the values and
+  indexes, for which the engine has no machinery (#409); renaming the elements of a compound along with the
+  attribute, because the compound's values would stay computed from the old name; and accepting the rename of an
+  attribute that declares a filter accelerator with the same warning (Johnny, 2026-11-03). The accelerator check
+  (`EntityCollection#verifyNoAcceleratorAddedToNonEmptyCollection`) matches by name and refuses such a rename over
+  stored entities. With the check bypassed, a rename to a fresh name worked like a plain one, but a rename onto a
+  name whose value tree another attribute had left populated failed every later upsert of the attribute, and the
+  catalog no longer loaded - the trigram index switches value ids on only in an empty tree. The schema cannot tell
+  the two names apart, so the refusal stays until #409 (`TOBEDONE JNO #409` at the check). The move made the rename
+  the one cascaded mutation that cannot be applied twice: the WAL records a global mutation together with the entity
+  schema modifications it cascaded into, and its replay - the trunk incorporation of a live catalog as well as a
+  restart - cascades the global mutation again before it reaches the recorded ones. The entity level therefore leaves
+  a rename the entity schema already went through as it is. Rejected: recording no cascades, because the logs already
+  written carry them and every other cascaded mutation is idempotent. A reflected reference whose original does not
+  exist yet is checked against its declared attributes alone, since its inherited ones cannot be resolved; a compound
+  left naming a missing attribute is refused by the validation of the final schema.
+- **String literals** (#1865): `EvitaDataTypes.formatValue` escaped only the apostrophe. Stored expressions and
+  expression arguments over gRPC are their trees printed again, so a constant with a backslash or a control
+  character read back as another value or not at all, and a catalog holding one failed to open. The printing
+  escapes the backslash and the control characters the way `StringUtils#translateEscapes` reads them back; the
+  storage format is unchanged. Rejected: a tolerant read of text already stored, since `'C:\new'` on disk cannot
+  tell a line break from a backslash. The same printing writes the keys of a `Map` with `Character` keys in
+  associated data, so the conversion back to `Character` reads an escaped literal too; the three-character form is
+  read first, because older versions wrote a backslash unescaped as `'\'`.
+- **Attribute removal** (#1868): the entity and reference schema builders refuse to remove an attribute a sortable
+  attribute compound is made of, but `RemoveAttributeSchemaMutation` checked nothing. A raw mutation - which is what
+  the gRPC, GraphQL and REST schema APIs send - and the removal of a global attribute, which the catalog builder does
+  not check against the entity schemas, left the compound naming a missing attribute, and every later upsert into
+  the collection failed. The mutation now refuses the removal at the entity and reference level with the builders'
+  `SortableAttributeCompoundSchemaException`, and a global removal verifies every entity schema using the attribute
+  before the catalog schema changes. The check is order-sensitive like the builders': remove the compound first,
+  then the attribute, also within one batch. Rejected: checking compound elements in `EntitySchema#validate`, which
+  is order-insensitive, because the validation runs at the session close, where in warm-up no transaction rolls the
+  schema back; and removing the compounds along with the attribute, which silently changes which orderings exist
+  and contradicts the builders' refusal. `ClassSchemaAnalyzer` emits the catalog mutations before the entity
+  mutations, so a schema post-processor removing a compound and the global attribute it is made of stays refused,
+  before any schema changes; the compound has to be removed in an update of its own first (`SchemaPostProcessor`
+  says so). Rejected: emitting those compound removals first - it was implemented, guarded twice after review and
+  taken out. Whether the server accepts the global removal depends on state the analyzer's guard cannot see
+  reliably: another entity's compound, a second removed global attribute in the same analysis, a compound made of
+  two removed attributes, mutations pending in the catalog builder, and a stale entity schema cache on the gRPC
+  client; and when the server refuses after a moved compound removal, warm-up keeps the removal. Revisit only with a
+  server-side preflight of the whole reordered batch. Rejected as well: moving the global removal behind the entity
+  mutations, which breaks a local attribute created in place of the removed global one (#1861).
+
+- **Default value of a global attribute** (#1869, pre-existing since #677): the entity level of
+  `ModifyAttributeSchemaDefaultValueMutation`, reached by the cascade of a global default value change, cast the
+  entity's attribute to `EntityAttributeSchema` - a `GlobalAttributeSchema` used by the entity is a sibling class, so
+  it threw, and a successful cast would have made the attribute local. It now delegates to the attribute-level
+  mutation, which keeps the attribute in its class, as the default entity-level `mutate` of the other attribute
+  mutations does.
+
+- **Array default values** (#1870, pre-existing): `ModifyAttributeSchemaDefaultValueMutation` compared the existing
+  and the converted default value with `Objects.equals`, and the conversion allocates a new array, so an equal array
+  default always rebuilt the attribute - re-defining an entity with the same array default emitted a mutation and
+  raised the version, and so did every repeated global change cascading into the entities. The attribute level now
+  compares with `Objects.deepEquals` and returns the existing attribute, and the reference level, which rebuilt the
+  attribute without any comparison, compares the same way. `AttributeSchema.equals` still compares the default value
+  by identity (see the consequences).
+
+## Verification
+
+- `ClassSchemaAnalyzerRedefinitionTest`, embedded with restart, covers six shapes: a representative global attribute,
+  global uniqueness, uniqueness restored by a post-processor, price places restored by a post-processor, a reference
+  with partial faceting and conditional histograms, and the same reference re-declared by a trait. Four of the six
+  were red on dev 698eac82c9. All six are green. Two more tests cover the reference declared by the general
+  `@Reference` settings and a currency added over a price indexed in both scopes; the latter turns red when
+  `definePrice` passes the default scopes.
+- `EvitaClientSchemaRedefinitionTest`, over gRPC with a fresh client, has three tests that were all red, including
+  the conflict with a concurrent writer to another collection. All three are green. A fourth test is their control:
+  the same concurrent write does conflict when the re-definition changes the global attribute.
+- `SchemaContentComparatorTest` checks both directions:
+  - a genuine change of each of 16 entity-level and 4 catalog-level properties is still emitted;
+  - restored values emit nothing;
+  - per-level pruning keeps the genuine level and drops the other;
+  - an entity that adopts a global attribute removed later keeps every mutation, and the emitted list applies to the
+    base schema in its order. This scenario came from an adversarial review and threw in `toMutation()` before the
+    fallback was added;
+  - an existing entity modified twice in one builder emits the merged modification, and it applies to the base
+    schema. The replay rejected it before the fallback covered `toInstance()`;
+  - create, remove and rename of an entity schema are kept, and two modified entity schemas are judged independently;
+  - a modification of an entity schema the catalog does not have yet is emitted. Before the existence check it
+    failed the replay with an internal error;
+  - the reference setters collect nothing for a setting the reference already has, and still collect every changed
+    expression, histogram value or condition. With the three setter checks disabled, all four unchanged-setting
+    scenarios turn red. A composed expression that prints like the current one but groups its operands differently
+    is collected too. It was swallowed while the setters compared the text.
+
+  The scenarios with the replay fallbacks, the entity existence check and the composed expression came from two
+  adversarial review passes and a quality pass, each red before its fix.
+
+  It also holds a field inventory of `EntitySchema` and `CatalogSchema`.
+- The fast functional suite (`unitAndFunctional`, `largeMachine`) ran over the tree before the entity existence
+  check and the structural expression comparison were added: 31 175 tests, 0 failures, 2 errors, both environmental.
+  `ExportS3ServiceTest` found no Docker environment for its container. A GraphQL subscription test hit its 2-minute
+  websocket timeout and passed 13 of 13 when its class was re-run alone; it creates a new collection, which the
+  pruning never touches.
+- Each follow-up commit carries a test that was red before its fix; the commit messages name them. Among them:
+  `EntitySchemaBuilderTest` re-creates stored standard and reflected references and compares the result with the same
+  definition in a fresh builder, before and after applying the emitted mutations (two of its tests hung in
+  `addMutations` and one lost the faceting before the round fix), `EvitaClientSchemaRedefinitionTest` re-creates a
+  reference over gRPC in one update and checks that the stored references, their attributes and the index answering
+  a filter on them survive, and makes a stored plain reference indexed and faceted and plain again over gRPC,
+  `ExpressionTextGroupingTest` pins the precedence levels against the parser for every pair of operators (588 parsed
+  texts unchanged; 347 cases over composed trees were red before), and `CatalogSchemaBuilderTest` covers the
+  cascade order.
+- Two more adversarial passes ran over the follow-ups. The third found the decimal places of a re-created entity
+  attribute and the cascade order, the fourth the decimal places of a re-created global attribute and the stored
+  base of the nested entity builder. Each is covered by a test in `EntitySchemaBuilderTest` or
+  `CatalogSchemaBuilderTest` that was red before its fix.
+- `EntitySchemaBuilderReplayTest` compares the batched replay with the one-by-one application in content, version,
+  attribute order (500 attributes; it fails when the run does not move a changed attribute to the end) and attribute
+  classes. Restoring a property of 800 attributes takes about 40 s of processor time without the batching and about
+  3.5 s with it on an idle machine, JaCoCo agent attached, and 1.2 to 1.3 s without the agent. No test guards that
+  time: a guard failing above 15 s was dropped, because a loaded run of the fast suite took 77 s of processor time.
+- Five data-dependent functional tests (`EntityByAttributeFilteringFunctionalTest`, its partitioning variant,
+  `EvitaSessionServiceFunctionalTest`) failed with an attribute order changed to definition order and pass with the
+  order kept; see the rejected option of the batched replay.
+- The fast functional suite over the follow-ups, before the third adversarial pass: 32 462 tests, 0 failures,
+  7 errors - the replay speed guard (dropped since), `ExportS3ServiceTest` without Docker,
+  and five GraphQL subscription tests with a websocket session timeout, which pass when their classes run alone.
+- Before #1855 to #1858 and #1861 were fixed, the functional tests tagged `schema`, `attribute`, `reference`,
+  `driver`, `grpc`, `expression`, `indexing` or `facet` (excluding `slow` and `flaky`) ran 19 904 tests: 0 failures,
+  2 errors. Both errors are GraphQL subscription tests whose websocket client timed out creating its TLS session,
+  before any schema call; their two classes pass alone, 31 of 31 tests. The same tag set without `indexing` and
+  `facet`, before #1862 and #1863, passed 13 408 tests with 0 failures and 0 errors.
+- `EntitySchemaBuilderTest` covers both routes of #1862, each red before its fix, and
+  `IndexedScopeRequiresEntityComponentTest` still holds the stored empty scope. `ReferenceIndexedAfterDataTest`
+  checks the #1863 warning in warm-up and live catalogs and its absence over an empty collection and for an unchanged
+  reference; it fails without the warning and without the emptiness check. The reproduction of #1863 measured a facet
+  count of 1 instead of 2 for the referenced entity after a plain reference became faceted.
+- The fixes found on the way each carry a test that was red before them: `ExpressionTextGroupingTest` and
+  `ExpressionParsingTest` (#1855, #1856), `ExpressionSerializerTest` (a stored text read as its prefix, with a
+  warning), `QueryConverterTest` and `EvitaClientReadOnlyTest` (#1857), `JavaPrettyPrintingVisitorTest` and
+  `ObjectJsonSerializerTest` (#1858), `CatalogSchemaCascadeTest` and `CatalogSchemaBuilderTest` (#1861: live catalog,
+  warm-up, restart and rollback cases), `SetReferenceSchemaIndexedMutationConverterTest` and
+  `EvitaClientSchemaRedefinitionTest` (#1862 over gRPC), `ReferenceIndexedAfterDataTest` (#1863, gained components),
+  and `ReflectedReferenceLocalDeclarationsFunctionalTest` (#1837: without the rollback-only mark the session that
+  caught the refusal reads as not rollback-only and its close fails).
+- `AttributeRenameTest` (#1864) was red in nine of its ten tests before the fix: the renamed global, entity,
+  reference and reflected-reference attributes kept their original, no refusal fired and no warning was logged;
+  `AttributeFilterAcceleratorRefusalTest` pins the rename of an accelerated attribute on an empty and a populated
+  collection. `ExpressionStringConstantRoundTripTest`, `EvitaDataTypesTest` and `QueryConverterTest` (#1865) were red
+  without the fix, including the catalog that did not open after a restart and the expression the server could not
+  parse.
+- `AttributeRemovalTest` (#1868) was red in five of its eight tests before the fix: the raw entity and reference
+  removals and both global removals were accepted, and a refused global removal left the entity schemas the cascade
+  had reached before the refusing one without the attribute. `AttributeRenameTest` gained the same test for a
+  global rename, red before the up-front verification. Both are parameterised over which entity type refuses, so
+  they do not depend on the order the catalog lists the entity types in.
+- The final adversarial and quality passes over #1864, #1865 and #1868 found four more defects, each covered by a
+  test that was red first: `AttributeRenameTest#shouldRenameGlobalAttributeInLiveCatalogAndAfterRestart` (a live
+  global rename failed at trunk incorporation),
+  `#shouldRenameDeclaredAttributeOfReflectedReferenceBeforeItsOriginalExists`,
+  `#shouldNotWarnAboutRenameToTheSameName`, and
+  `EvitaDataTypesTest#shouldConvertFormattedCharBack` with
+  `ComplexDataObjectConverterTest#shouldSerializeAndDeserializeMapWithCharacterKeys`. Three tests of
+  `AttributeRemovalTest` pin that a schema post-processor removing a compound and its global attribute is refused
+  before any schema changes - also when another entity's compound blocks the removal and when the compound is
+  re-created over the removed attribute; the last two were red against the reordering that was taken out.
+- On the final tree the functional tests tagged `schema`, `attribute`, `reference`, `driver`, `grpc`, `expression`,
+  `indexing`, `facet`, `transaction`, `wal`, `query`, `data_type`, `traffic_engine` or `serialization` (excluding
+  `slow` and `flaky`, `largeMachine`) ran 28 002 tests: 0 failures, 5 errors. Three are GraphQL subscription tests
+  whose client failed the TLS session negotiation (`SessionProtocolNegotiationException`), two gRPC tests (a
+  traffic-recording export, the management statistics) lost their channel under load; their five classes pass
+  alone, 48 of 48 tests. `CatalogSchemaCascadeTest` changes the default value of a used global attribute in warm-up
+  and in a live catalog followed by a restart; both tests failed before the #1869 fix.
+  `CatalogSchemaCascadeTest.shouldLeaveSchemasUnchangedWhenEqualArrayDefaultValueOfUsedGlobalAttributeComesAgain`
+  and `EntitySchemaBuilderTest.shouldSendNothingWhenRedefiningStoredAttributeWithEqualArrayDefaultValue` failed
+  before the #1870 fix, with the attribute-level and reference-level unit tests of the mutation. After the
+  reordering was taken out, the removal, rename and analyzer tests and the gRPC re-definition test pass, 154 of 154.
+- Removing the `indexedPricePlaces` comparison from `SchemaContentComparator` makes exactly the matching
+  genuine-change scenario fail, so the property scenarios can fail.
+
+## Consequences & open follow-ups
+
+Every follow-up listed in #1843 except the server-side guard is fixed here, and so is everything found on the way
+(see above). What stays:
+- A stored expression mixing operators of one precedence level evaluates differently after the upgrade (#1855). No
+  migration finds or rewrites it; the documentation of the expression language says so. `ExpressionPrecedence` copies
+  the grammar and has to change in the same commit as the grammar.
+- Expression text the parser refuses as a whole - trailing input - now fails where it used to be cut short: in the
+  API, in queries and in model annotations, so an application defining its schema from a model whose annotation
+  carries such a text fails at start-up. Only stored text is still read as its prefix, with a warning (#1856).
+- Since `addMutations` ends a round at the combination that queues, a plain reference re-created as indexed and
+  faceted emits the change of the faceting before the change of the indexing. The server accepts that order only
+  because the map-based `ReferenceSchema._internalBuild` does not check faceting against indexing, as the array-based
+  one does. Adding that check there breaks
+  `EntitySchemaBuilderTest.shouldRecreateRemovedStoredPlainReferenceAsIndexedFacetedReference` and
+  `EvitaClientSchemaRedefinitionTest.shouldIndexFacetAndPlainAgainReferenceRecreatedInOneUpdate` unless the order
+  changes first.
+- The discarded flag of `addMutations` still applies to the rest of the examination of one mutation, not to the
+  combination that set it. That is harmless while every combination setting it also queues the examined mutation,
+  which ends the round; all five that set it do.
+- `SetReferenceSchemaIndexedMutation` with inherited index types means three things by its components: null leaves
+  them, `EMPTY` declares none and is what every older WAL entry holds, and declared ones declare them. Anything that
+  maps one onto another - a converter, a serializer, a constructor default - changes how the WAL replays. Over gRPC
+  null and `EMPTY` both arrive as null, and a server older than this pull request drops declared ones too, so a
+  builder sequence ending in inherited index types with declared components declares none there, as before.
+- The indexes a reference gains by a schema change - a new indexed or faceted scope, or a new indexed component - stay
+  empty for the entities stored before it (#1863, #409); only the warning tells.
+- A batch that removes a global attribute and then modifies it in an entity schema is refused (#1861); it was
+  accepted by a session before and then failed to replay. A batch refused midway in warm-up keeps what it applied
+  before the refusal, cascades included, as it keeps any explicit mutation - only the catalog schema is restored
+  (see the `catch` of `Catalog.updateSchema`). The removal and the rename of a global attribute verify every entity
+  schema using it first and are not applied partly (#1864, #1868). In a transaction, a failed schema update now
+  rolls the whole transaction back at its close, even when the session caught the error.
+- A cascade validates the cross-entity triggers of the entities it reaches at its own position, so removing a
+  global attribute that a histogram of another entity reads is refused even when a later mutation of the batch
+  removes that entity. The replay, which applies every mutation on its own, refuses it the same way; reorder the
+  batch.
+- A catalog builder whose replay cascaded into an entity schema emits every collected mutation, even when the batch
+  as a whole changes nothing - renaming a global attribute an entity uses from A to B and back to A emits both
+  renames. Re-defining a schema never renames, so #1843 stays fixed.
+- An attribute renamed while the collection holds entities keeps their values and indexes under the old name until a
+  full reindex (#1864, #409); only the warning tells. A catalog written before #1864 keeps the old attribute next to
+  the renamed one until it is removed by hand.
+- An expression already stored with a backslash or a control character in a string constant is read as before
+  (#1865): changed, or failing the catalog load.
+- A catalog whose compound already names a removed attribute (#1868) stays unwritable for that collection until the
+  compound is removed; removing it works.
+- The refusals of #1864 and #1868 apply to the replay of the WAL as well: a WAL tail written by an older version that
+  holds a rename or a removal of an attribute a compound is made of fails to replay after the upgrade, and so does
+  an older rename that the move semantics now refuse. A restart replays what was committed after the last
+  checkpoint (`checkpointIntervalInMillis`, one second by default), so only such a change in that window before the
+  old version stopped is affected; wait one checkpoint interval after the last schema change before stopping it.
+  Rejected for now: tolerating the refusals during a replay - the engine has no marker telling a replay from a live
+  session at the level of the schema mutations.
+- A rename or removal of an attribute of a reference that a reflected reference of another entity inherits and
+  declares a compound over is not refused up front: the reference attribute mutation sees no other entity schema.
+  The validation of the final schema refuses the result at the session close, which in warm-up leaves the catalog
+  unpublishable until the compound is removed.
+- A schema post-processor cannot remove a compound together with the global attribute it is made of, and cannot
+  replace such a global attribute with a local one: the catalog builder refuses the removal while the stored
+  compound exists. Remove the compound in an update of its own first.
+- `AttributeSchema.equals` compares an array default value by identity (#1870). The mutation returns the existing
+  attribute for an equal array, so re-definition and replay are not affected, but an array default changed and set
+  back within one builder leaves the rebuilt attribute, and `SchemaContentComparator` emits the mutations. Rejected
+  for now: content-based equality in `AttributeSchema` - a hand-written `equals`/`hashCode` replacing Lombok's in
+  the class and its subclasses, for a case no re-definition produces.
+- The entity builder's replay is still quadratic: every replay re-applies the whole list, and `addMutations` scans
+  the list for every new mutation. Restoring a property of 800 attributes takes about three seconds. Runs of
+  reference mutations are not batched, and neither are global attributes in the catalog builder.
+
+`toMutation()` of both builders now materializes the final schema through `toInstance()`. A builder with a pending
+`MODIFIED_PREVIOUS` therefore replays at `toMutation()`, where before it replayed at the next read. When that replay
+of the catalog builder fails on a valid sequence, `toMutation()` falls back to emitting every collected mutation.
+`InternalEntitySchemaBuilder.toMutation()` has no such fallback. Its replay starts from its base entity schema and
+keeps no accessor that could hold an earlier result; it reads only the catalog schema it cooperates with. No test of
+the functional suite found a sequence it rejects.
+
+The server-side guard (Option D) was not added. Clients on an older driver keep sending the no-op mutations of the
+analyzer and the builders until they upgrade.
+
+## Supporting material
+
+- Analysis of Options B and C against the code and history, with micro-measurements of builder cost: kept outside the
+  repository, summarised in Option C above.
+
+## Timeline
+
+- **2026-10-30** — start-up schema update fails during a rolling deployment
+- **2026-10-31** — #1843 filed; Option A chosen and implemented
+- **2026-10-31** — follow-ups #1845 to #1854, #1859 and #1860 fixed in #1844; #1855 to #1858 filed
+- **2026-11-01** — third and fourth adversarial pass over the follow-ups, their findings fixed in #1844; #1861 filed
+- **2026-11-01** — the endless loop of #1849 traced with a debugger to the rounds of `addMutations`, not to the
+  wrappers, and fixed there
+- **2026-11-01** — #1862 and #1863 found on the way and filed; #1862 fixed, #1863 documented and warned about
+- **2026-11-01** — the #1862 limit lifted and #1855 to #1858 and #1861 fixed in #1844 (#1855 as a breaking change);
+  the #1863 warning extended to gained components; adversarial passes over these fixes found that deferred cascades
+  disagree with the WAL replay, and catalog cascades now apply right after their mutation (#1861)
+- **2026-11-01** — a preflight refusing the newly refused batch up front was taken out again: it refused valid
+  batches; the adversarial passes over #1861 end with the warm-up limitation recorded
+- **2026-11-01** — a quality pass over the last commits; #1837 found fixed by the rollback-only mark and closed in
+  #1844
+- **2026-11-02** — #1864 (a rename kept its source) and #1865 (string literals escaped only the apostrophe) filed and
+  fixed in #1844; a rename over stored entities warns, as #1863 does
+- **2026-11-02** — #1868 (a raw or global attribute removal left a compound naming the missing attribute) filed and
+  fixed in #1844; the global rename and removal verify every entity schema using the attribute before any changes
+- **2026-11-02** — the final adversarial and quality passes over #1864, #1865 and #1868: a live global rename failed
+  at trunk incorporation and is fixed, with four smaller defects; the replay of an older WAL is documented, the
+  reflected-reference compound of another entity left to the session-close validation
+- **2026-11-02** — quality gates over the commits of that review: the analyzer reordering of compound removals was
+  guarded, still found unsound by the next gate, and taken out (Johnny); the post-processor case stays refused up
+  front and documented
+- **2026-11-02** — #1869 (a global default value change failed on the entities using the attribute) found by the
+  quality gates, filed and fixed in #1844
+- **2026-11-02** — the quality gates over the #1869 fix found #1870 (equal array default values rebuilt the
+  attribute), filed and fixed in #1844
+- **2026-11-03** — `dev` merged with #1841, which had closed #1837 with its own rollback-only mark; the merge keeps
+  that mark and the cascades applied right after their mutation
+- **2026-11-03** — accepting the rename of an attribute with a filter accelerator over stored entities was measured
+  with the check bypassed and rejected (Johnny); the refusal is documented and marked `TOBEDONE JNO #409`

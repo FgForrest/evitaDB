@@ -186,6 +186,9 @@ public interface ExpressionIndexTrigger {
 	 * - {@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE}: adds
 	 *   `entityHaving(entityPrimaryKeyInSet(mutatedPK))` within the `referenceHaving` clause
 	 *
+	 * The per-contribution evaluation pins an axis the condition does not read only when it needs the axis to
+	 * tell reference rows apart - see `ReevaluateExpressionExecutor#parameterizeForContribution`.
+	 *
 	 * For local-only triggers ({@link #getDependencyType()} returns `null`), this method throws
 	 * {@link UnsupportedOperationException} — local-only expressions are evaluated exclusively via
 	 * {@link #evaluate(int, ReferenceKey, WritableEntityStorageContainerAccessor, Function)}.

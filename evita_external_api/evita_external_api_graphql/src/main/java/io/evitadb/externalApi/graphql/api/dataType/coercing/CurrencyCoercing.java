@@ -23,7 +23,10 @@
 
 package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
+import graphql.GraphQLContext;
+import graphql.execution.CoercedVariables;
 import graphql.language.StringValue;
+import graphql.language.Value;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
 import graphql.schema.CoercingParseValueException;
@@ -31,6 +34,7 @@ import graphql.schema.CoercingSerializeException;
 
 import javax.annotation.Nonnull;
 import java.util.Currency;
+import java.util.Locale;
 
 /**
  * {@link Coercing} for converting between Java's side {@link Currency} and client string.
@@ -40,7 +44,11 @@ import java.util.Currency;
 public class CurrencyCoercing implements Coercing<Currency, String> {
 
     @Override
-    public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
+    public String serialize(
+        @Nonnull Object dataFetcherResult,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingSerializeException {
         if (!(dataFetcherResult instanceof Currency)) {
             throw new CoercingSerializeException("Currency data fetcher result is not a currency.");
         }
@@ -49,7 +57,11 @@ public class CurrencyCoercing implements Coercing<Currency, String> {
 
     @Nonnull
     @Override
-    public Currency parseValue(@Nonnull Object input) throws CoercingParseValueException {
+    public Currency parseValue(
+        @Nonnull Object input,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingParseValueException {
         if (!(input instanceof String stringInput)) {
             throw new CoercingParseValueException("Currency input value is not a string.");
         }
@@ -62,7 +74,12 @@ public class CurrencyCoercing implements Coercing<Currency, String> {
 
     @Nonnull
     @Override
-    public Currency parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
+    public Currency parseLiteral(
+        @Nonnull Value<?> input,
+        @Nonnull CoercedVariables variables,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingParseLiteralException {
         if (!(input instanceof StringValue stringValue)) {
             throw new CoercingParseValueException("Currency input value is not a string.");
         }

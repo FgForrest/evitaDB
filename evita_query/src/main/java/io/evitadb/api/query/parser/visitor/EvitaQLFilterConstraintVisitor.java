@@ -770,7 +770,11 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitEntityHavingConstraint(EvitaQLParser.EntityHavingConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new EntityHaving(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
+			() -> new EntityHaving(
+				ctx.args.constraints.stream()
+					.map(c -> visitChildConstraint(c, FilterConstraint.class))
+					.toArray(FilterConstraint[]::new)
+			)
 		);
 	}
 
@@ -778,7 +782,11 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitGroupHavingConstraint(GroupHavingConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new GroupHaving(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
+			() -> new GroupHaving(
+				ctx.args.constraints.stream()
+					.map(c -> visitChildConstraint(c, FilterConstraint.class))
+					.toArray(FilterConstraint[]::new)
+			)
 		);
 	}
 

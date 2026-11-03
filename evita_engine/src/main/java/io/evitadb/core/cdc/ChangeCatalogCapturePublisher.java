@@ -164,6 +164,8 @@ public class ChangeCatalogCapturePublisher implements ChangeCapturePublisher<Cha
 	 * the specified criteria from the associated request.
 	 *
 	 * @return the active instance of {@link ChangeCatalogCaptureSharedPublisher}
+	 * @throws InstanceTerminatedException if the shared publisher has to be renewed and the change observer that
+	 *                                     created this publisher has been closed since
 	 */
 	@Nonnull
 	public ChangeCatalogCaptureSharedPublisher getSharedPublisher() {

@@ -255,7 +255,7 @@ public class ExtraResultsJsonSerializer {
 						referenceSchema.getName() + "` but found `" + groupStatistics.size() + "`."
 				)
 			);
-			return serializeReferenceGroupStatistics(groupStatistics.get(0), referenceSchema, serializationContexts);
+			return serializeReferenceGroupStatistics(groupStatistics.getFirst(), referenceSchema, serializationContexts);
 		}
 	}
 
@@ -430,7 +430,7 @@ public class ExtraResultsJsonSerializer {
 						referenceSchema.getName() + "` but found `" + groupStatistics.size() + "`."
 				)
 			);
-			return serializeFacetGroupStatistics(groupStatistics.get(0), referenceSchema, serializationContexts);
+			return serializeFacetGroupStatistics(groupStatistics.getFirst(), referenceSchema, serializationContexts);
 		}
 	}
 

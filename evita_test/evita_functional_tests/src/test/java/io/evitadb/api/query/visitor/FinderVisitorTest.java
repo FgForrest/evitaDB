@@ -327,7 +327,7 @@ class FinderVisitorTest {
 			);
 
 			assertEquals(1, found.size());
-			assertEquals(attributeEquals("x", 42), found.get(0));
+			assertEquals(attributeEquals("x", 42), found.getFirst());
 		}
 
 		@Test
@@ -375,7 +375,7 @@ class FinderVisitorTest {
 
 			// Only "outside" should be found — Or and its children are blocked
 			assertEquals(1, found.size());
-			final AttributeEquals foundConstraint = (AttributeEquals) found.get(0);
+			final AttributeEquals foundConstraint = (AttributeEquals) found.getFirst();
 			assertEquals("outside", foundConstraint.getAttributeName());
 		}
 
@@ -506,7 +506,7 @@ class FinderVisitorTest {
 
 			// "blocked-child" inside Or is unreachable, but "allowed-child" inside Not is found
 			assertEquals(1, found.size());
-			assertEquals("allowed-child", found.get(0).getAttributeName());
+			assertEquals("allowed-child", found.getFirst().getAttributeName());
 		}
 	}
 
@@ -539,7 +539,7 @@ class FinderVisitorTest {
 
 			// The attributeEqualsTrue("xev") inside the additional-child filterBy
 			assertEquals(1, found.size());
-			final AttributeEquals foundEquals = (AttributeEquals) found.get(0);
+			final AttributeEquals foundEquals = (AttributeEquals) found.getFirst();
 			final Serializable[] args = foundEquals.getArguments();
 			assertEquals("xev", args[0]);
 		}

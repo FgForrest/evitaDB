@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
+import graphql.GraphQLContext;
+import graphql.execution.CoercedVariables;
 import graphql.language.IntValue;
 import graphql.language.StringValue;
 import graphql.schema.CoercingParseLiteralException;
@@ -32,6 +34,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+
+import java.util.Locale;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
@@ -54,6 +58,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @Tag(DATA_TYPE)
 class ShortCoercingTest {
 
+	private static final GraphQLContext GRAPHQL_CONTEXT = GraphQLContext.getDefault();
+	private static final Locale LOCALE = Locale.ENGLISH;
+	private static final CoercedVariables VARIABLES = CoercedVariables.emptyVariables();
+
 	private final ShortCoercing coercing = new ShortCoercing();
 
 	@Nested
@@ -63,7 +71,7 @@ class ShortCoercingTest {
 		@Test
 		@DisplayName("converts a short data fetcher result into an integer")
 		void shouldSerializeShortWhenResultIsShort() {
-			final Integer serialized = ShortCoercingTest.this.coercing.serialize((short) 4200);
+			final Integer serialized = ShortCoercingTest.this.coercing.serialize((short) 4200, GRAPHQL_CONTEXT, LOCALE);
 			assertInstanceOf(Integer.class, serialized);
 			assertEquals(Integer.valueOf(4200), serialized);
 		}
@@ -71,18 +79,18 @@ class ShortCoercingTest {
 		@Test
 		@DisplayName("preserves the whole short domain including its sign")
 		void shouldSerializeBoundaryValuesWhenResultIsShort() {
-			assertEquals(Integer.valueOf(Short.MIN_VALUE), ShortCoercingTest.this.coercing.serialize(Short.MIN_VALUE));
-			assertEquals(Integer.valueOf(Short.MAX_VALUE), ShortCoercingTest.this.coercing.serialize(Short.MAX_VALUE));
-			assertEquals(Integer.valueOf(0), ShortCoercingTest.this.coercing.serialize((short) 0));
-			assertEquals(Integer.valueOf(-1), ShortCoercingTest.this.coercing.serialize((short) -1));
+			assertEquals(Integer.valueOf(Short.MIN_VALUE), ShortCoercingTest.this.coercing.serialize(Short.MIN_VALUE, GRAPHQL_CONTEXT, LOCALE));
+			assertEquals(Integer.valueOf(Short.MAX_VALUE), ShortCoercingTest.this.coercing.serialize(Short.MAX_VALUE, GRAPHQL_CONTEXT, LOCALE));
+			assertEquals(Integer.valueOf(0), ShortCoercingTest.this.coercing.serialize((short) 0, GRAPHQL_CONTEXT, LOCALE));
+			assertEquals(Integer.valueOf(-1), ShortCoercingTest.this.coercing.serialize((short) -1, GRAPHQL_CONTEXT, LOCALE));
 		}
 
 		@Test
 		@DisplayName("rejects a data fetcher result that is not a short")
 		void shouldThrowExceptionWhenResultIsNotShort() {
-			assertThrows(CoercingSerializeException.class, () -> ShortCoercingTest.this.coercing.serialize("42"));
-			assertThrows(CoercingSerializeException.class, () -> ShortCoercingTest.this.coercing.serialize(42));
-			assertThrows(CoercingSerializeException.class, () -> ShortCoercingTest.this.coercing.serialize((byte) 42));
+			assertThrows(CoercingSerializeException.class, () -> ShortCoercingTest.this.coercing.serialize("42", GRAPHQL_CONTEXT, LOCALE));
+			assertThrows(CoercingSerializeException.class, () -> ShortCoercingTest.this.coercing.serialize(42, GRAPHQL_CONTEXT, LOCALE));
+			assertThrows(CoercingSerializeException.class, () -> ShortCoercingTest.this.coercing.serialize((byte) 42, GRAPHQL_CONTEXT, LOCALE));
 		}
 	}
 
@@ -93,8 +101,8 @@ class ShortCoercingTest {
 		@Test
 		@DisplayName("converts an integer input into a short")
 		void shouldParseIntegerInputWhenInputFitsIntoShort() {
-			assertEquals(Short.valueOf((short) 4200), ShortCoercingTest.this.coercing.parseValue(4200));
-			assertEquals(Short.valueOf((short) -4200), ShortCoercingTest.this.coercing.parseValue(-4200));
+			assertEquals(Short.valueOf((short) 4200), ShortCoercingTest.this.coercing.parseValue(4200, GRAPHQL_CONTEXT, LOCALE));
+			assertEquals(Short.valueOf((short) -4200), ShortCoercingTest.this.coercing.parseValue(-4200, GRAPHQL_CONTEXT, LOCALE));
 		}
 
 		@Test
@@ -102,26 +110,26 @@ class ShortCoercingTest {
 		void shouldParseBoundaryValuesWhenInputFitsIntoShort() {
 			assertEquals(
 				Short.valueOf(Short.MIN_VALUE),
-				ShortCoercingTest.this.coercing.parseValue((int) Short.MIN_VALUE)
+				ShortCoercingTest.this.coercing.parseValue((int) Short.MIN_VALUE, GRAPHQL_CONTEXT, LOCALE)
 			);
 			assertEquals(
 				Short.valueOf(Short.MAX_VALUE),
-				ShortCoercingTest.this.coercing.parseValue((int) Short.MAX_VALUE)
+				ShortCoercingTest.this.coercing.parseValue((int) Short.MAX_VALUE, GRAPHQL_CONTEXT, LOCALE)
 			);
 		}
 
 		@Test
 		@DisplayName("rejects an integer that overflows the short domain")
 		void shouldThrowExceptionWhenInputOverflowsShort() {
-			assertThrows(CoercingParseValueException.class, () -> ShortCoercingTest.this.coercing.parseValue(Short.MAX_VALUE + 1));
-			assertThrows(CoercingParseValueException.class, () -> ShortCoercingTest.this.coercing.parseValue(Short.MIN_VALUE - 1));
+			assertThrows(CoercingParseValueException.class, () -> ShortCoercingTest.this.coercing.parseValue(Short.MAX_VALUE + 1, GRAPHQL_CONTEXT, LOCALE));
+			assertThrows(CoercingParseValueException.class, () -> ShortCoercingTest.this.coercing.parseValue(Short.MIN_VALUE - 1, GRAPHQL_CONTEXT, LOCALE));
 		}
 
 		@Test
 		@DisplayName("rejects an input that is not an integer")
 		void shouldThrowExceptionWhenInputIsNotInteger() {
-			assertThrows(CoercingParseValueException.class, () -> ShortCoercingTest.this.coercing.parseValue("42"));
-			assertThrows(CoercingParseValueException.class, () -> ShortCoercingTest.this.coercing.parseValue((short) 42));
+			assertThrows(CoercingParseValueException.class, () -> ShortCoercingTest.this.coercing.parseValue("42", GRAPHQL_CONTEXT, LOCALE));
+			assertThrows(CoercingParseValueException.class, () -> ShortCoercingTest.this.coercing.parseValue((short) 42, GRAPHQL_CONTEXT, LOCALE));
 		}
 	}
 
@@ -132,8 +140,8 @@ class ShortCoercingTest {
 		@Test
 		@DisplayName("converts an int literal into a short")
 		void shouldParseIntLiteralWhenLiteralFitsIntoShort() {
-			assertEquals(Short.valueOf((short) 4200), ShortCoercingTest.this.coercing.parseLiteral(IntValue.of(4200)));
-			assertEquals(Short.valueOf((short) -4200), ShortCoercingTest.this.coercing.parseLiteral(IntValue.of(-4200)));
+			assertEquals(Short.valueOf((short) 4200), ShortCoercingTest.this.coercing.parseLiteral(IntValue.of(4200), VARIABLES, GRAPHQL_CONTEXT, LOCALE));
+			assertEquals(Short.valueOf((short) -4200), ShortCoercingTest.this.coercing.parseLiteral(IntValue.of(-4200), VARIABLES, GRAPHQL_CONTEXT, LOCALE));
 		}
 
 		@Test
@@ -141,11 +149,11 @@ class ShortCoercingTest {
 		void shouldParseBoundaryLiteralsWhenLiteralFitsIntoShort() {
 			assertEquals(
 				Short.valueOf(Short.MIN_VALUE),
-				ShortCoercingTest.this.coercing.parseLiteral(IntValue.of(Short.MIN_VALUE))
+				ShortCoercingTest.this.coercing.parseLiteral(IntValue.of(Short.MIN_VALUE), VARIABLES, GRAPHQL_CONTEXT, LOCALE)
 			);
 			assertEquals(
 				Short.valueOf(Short.MAX_VALUE),
-				ShortCoercingTest.this.coercing.parseLiteral(IntValue.of(Short.MAX_VALUE))
+				ShortCoercingTest.this.coercing.parseLiteral(IntValue.of(Short.MAX_VALUE), VARIABLES, GRAPHQL_CONTEXT, LOCALE)
 			);
 		}
 
@@ -154,11 +162,11 @@ class ShortCoercingTest {
 		void shouldThrowExceptionWhenLiteralOverflowsShort() {
 			assertThrows(
 				CoercingParseLiteralException.class,
-				() -> ShortCoercingTest.this.coercing.parseLiteral(IntValue.of(Short.MAX_VALUE + 1))
+				() -> ShortCoercingTest.this.coercing.parseLiteral(IntValue.of(Short.MAX_VALUE + 1), VARIABLES, GRAPHQL_CONTEXT, LOCALE)
 			);
 			assertThrows(
 				CoercingParseLiteralException.class,
-				() -> ShortCoercingTest.this.coercing.parseLiteral(IntValue.of(Short.MIN_VALUE - 1))
+				() -> ShortCoercingTest.this.coercing.parseLiteral(IntValue.of(Short.MIN_VALUE - 1), VARIABLES, GRAPHQL_CONTEXT, LOCALE)
 			);
 		}
 
@@ -169,7 +177,7 @@ class ShortCoercingTest {
 			// of this coercing - the assertion pins it so that a future change to the exception type is deliberate
 			assertThrows(
 				CoercingParseValueException.class,
-				() -> ShortCoercingTest.this.coercing.parseLiteral(StringValue.of("42"))
+				() -> ShortCoercingTest.this.coercing.parseLiteral(StringValue.of("42"), VARIABLES, GRAPHQL_CONTEXT, LOCALE)
 			);
 		}
 	}

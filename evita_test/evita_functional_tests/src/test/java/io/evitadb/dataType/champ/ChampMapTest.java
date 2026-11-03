@@ -516,10 +516,13 @@ class ChampMapTest {
 
 		@Test
 		@DisplayName("a map is never equal to a non-Map object")
+		@SuppressWarnings({"SimplifiableAssertion", "EqualsBetweenInconvertibleTypes"})
 		void shouldNotEqualNonMapObject() {
 			final ChampMap<Integer, Integer> map = mapOf(1, 2, 3);
-			assertNotEquals("not a map", map);
-			assertNotEquals(map, 1);
+			// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
+			// fix moves the literal there, so `String.equals` and `Integer.equals` would be tested instead of the map's
+			assertFalse(map.equals("not a map"));
+			assertFalse(map.equals(1));
 		}
 
 		@Test

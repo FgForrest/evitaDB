@@ -302,7 +302,7 @@ public class EntitySchemaConverter {
 					.map(EvitaEnumConverter::toGrpcScope)
 					.toList()
 			)
-			.addAllAcceleratorsInScopes(
+			.addAllAccelerated(
 				toGrpcScopedAttributeFilterAccelerators(
 					AttributeSchema.toAcceleratorsArray(attributeSchema.getAcceleratorsInScopes())
 				)
@@ -611,7 +611,8 @@ public class EntitySchemaConverter {
 			builder.setDeprecationNotice(StringValue.newBuilder().setValue(referenceSchema.getDeprecationNotice()).build());
 		}
 
-		final Predicate<String> inheritedPredicate;
+		final Predicate<String> inheritedAttributePredicate;
+		final Predicate<String> inheritedCompoundPredicate;
 		if (referenceSchema instanceof ReflectedReferenceSchema reflectedSchema) {
 			builder.setReflectedReferenceName(StringValue.of(reflectedSchema.getReflectedReferenceName()))
 				.setDescriptionInherited(reflectedSchema.isDescriptionInherited())
@@ -625,14 +626,22 @@ public class EntitySchemaConverter {
 				builder.addAttributeInheritanceFilter(attributeName);
 			}
 			final Set<String> declaredAttributes = reflectedSchema.getDeclaredAttributes().keySet();
-			inheritedPredicate = attributeName -> !declaredAttributes.contains(attributeName);
+			inheritedAttributePredicate = attributeName -> !declaredAttributes.contains(attributeName);
+			// tested against the declared attributes, every local compound would read as inherited
+			final Set<String> declaredCompounds = reflectedSchema.getDeclaredSortableAttributeCompounds().keySet();
+			inheritedCompoundPredicate = compoundName -> !declaredCompounds.contains(compoundName);
 		} else {
-			inheritedPredicate = Functions.alwaysFalse();
+			inheritedAttributePredicate = Functions.alwaysFalse();
+			inheritedCompoundPredicate = Functions.alwaysFalse();
 		}
 
 		builder
-			.putAllAttributes(toGrpcAttributeSchemas(referenceSchema.getAttributes(), includeNameVariants, inheritedPredicate))
-			.putAllSortableAttributeCompounds(toGrpcSortableAttributeCompoundSchemas(referenceSchema.getSortableAttributeCompounds(), includeNameVariants, inheritedPredicate));
+			.putAllAttributes(toGrpcAttributeSchemas(
+				referenceSchema.getAttributes(), includeNameVariants, inheritedAttributePredicate
+			))
+			.putAllSortableAttributeCompounds(toGrpcSortableAttributeCompoundSchemas(
+				referenceSchema.getSortableAttributeCompounds(), includeNameVariants, inheritedCompoundPredicate
+			));
 
 		if (includeNameVariants) {
 			referenceSchema.getNameVariants()
@@ -674,7 +683,7 @@ public class EntitySchemaConverter {
 		final Scope[] filterableInScopes = toBooleanScopes(attributeSchema.getFilterableInScopesList(), attributeSchema.getFilterable());
 		// absent on the wire for an older server - proto3 renders that as an empty list, which converts to `null`
 		final ScopedAttributeFilterAccelerators[] acceleratorsInScopes =
-			toScopedAttributeFilterAccelerators(attributeSchema.getAcceleratorsInScopesList());
+			toScopedAttributeFilterAccelerators(attributeSchema.getAcceleratedList());
 		final Scope[] sortableInScopes = toBooleanScopes(attributeSchema.getSortableInScopesList(), attributeSchema.getSortable());
 
 		if (attributeSchema.getSchemaType() == GrpcAttributeSchemaType.GLOBAL_SCHEMA) {

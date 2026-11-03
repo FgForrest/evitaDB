@@ -652,15 +652,15 @@ public class QueryPlan {
 		@Nonnull Function<SealedEntity, ?> converter
 	) {
 		if (!data.isEmpty()) {
-			if (!expectedType.isInstance(data.get(0))) {
-				if (data.get(0) instanceof SealedEntity) {
+			if (!expectedType.isInstance(data.getFirst())) {
+				if (data.getFirst() instanceof SealedEntity) {
 					//noinspection unchecked
 					data = (List<T>) data.stream()
 						.map(SealedEntity.class::cast)
 						.map(converter)
 						.toList();
 				} else {
-					throw new UnexpectedResultException(expectedType, data.get(0).getClass());
+					throw new UnexpectedResultException(expectedType, data.getFirst().getClass());
 				}
 			}
 		}

@@ -31,6 +31,7 @@ segments(
 </dl>
 
 Segments constraint container allows you to define multiple segments with limited size and different ordering rules.
+Segments cannot be nested - the ordering of a segment must not contain another `segments` container.
 Entities listed in previous segments are excluded from the next segments. Each segment lists all entities that provide 
 data for a particular order (see Note for more details) until the limit is reached. The order of the segments is
 important because it determines the order of the segments in the final result.
@@ -46,6 +47,15 @@ important because it determines the order of the segments in the final result.
 If you sort by data that may not be present in all entities, such as attribute, the entities that do not have 
 the attribute for sorting are automatically excluded from the segment. It's an implicit filtering for each of
 the segments that doesn't need to be explicitly specified in the [`segment`](#segment) constraint.
+
+When a segment orders by several constraints, an entity stays in the segment if any of them can sort it. For
+`orderBy(attributeNatural("a"), attributeNatural("b"))`, the segment first takes the entities that have `a`, sorted by
+`a`. If the segment limit is not reached yet, it continues with the entities that lack `a` but have `b`, sorted by
+`b`. The entities that have neither `a` nor `b` are left to the next segment, which processes them in the same way.
+The entities that no segment takes follow the last segment in ascending order of their primary keys.
+
+An exact ordering, such as `entityPrimaryKeyExact` or `attributeSetExact`, keeps only the entities it lists in
+the segment; the other entities are left to the next segment, and a segment limit larger than the list is only a cap.
 
 </Note>
 

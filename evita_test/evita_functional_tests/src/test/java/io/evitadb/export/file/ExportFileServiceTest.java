@@ -116,7 +116,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		final PaginatedList<FileForFetch> files = exportService.listFilesToFetch(1, Integer.MAX_VALUE, Set.of());
 		assertEquals(1, files.getTotalRecordCount());
 
-		final FileForFetch fileForFetch = files.getData().get(0);
+		final FileForFetch fileForFetch = files.getData().getFirst();
 		assertEquals("testFile.txt", fileForFetch.name());
 		assertEquals("With description ...", fileForFetch.description());
 		assertEquals("text/plain", fileForFetch.contentType());
@@ -388,7 +388,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		final PaginatedList<FileForFetch> filtered =
 			exportService.listFilesToFetch(1, 10, Set.of("TAG"));
 		assertEquals(1, filtered.getTotalRecordCount());
-		assertEquals("withOrigin.txt", filtered.getData().get(0).name());
+		assertEquals("withOrigin.txt", filtered.getData().getFirst().name());
 
 		// No filter should return both files
 		final PaginatedList<FileForFetch> all =
@@ -488,7 +488,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		final PaginatedList<FileForFetch> files =
 			exportService.listFilesToFetch(1, 10, Set.of());
 		assertEquals(1, files.getTotalRecordCount());
-		assertEquals("proper.txt", files.getData().get(0).name());
+		assertEquals("proper.txt", files.getData().getFirst().name());
 	}
 
 	// ==================== Purge Edge Case Tests ====================

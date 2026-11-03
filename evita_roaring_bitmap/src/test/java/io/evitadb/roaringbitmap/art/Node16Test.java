@@ -36,7 +36,7 @@ public class Node16Test {
 		// remove two nodes to shrink to node4
 		node16 = (Node16) node16.remove(4);
 		Node degenerativeNode = node16.remove(3);
-		Assertions.assertTrue(degenerativeNode instanceof Node4);
+		Assertions.assertInstanceOf(Node4.class, degenerativeNode);
 		// recover to node16 by re-insert two nodes
 		Node4 degenerativeNode4 = (Node4) degenerativeNode;
 		BranchNode node = degenerativeNode4.insert(leafNode4, (byte) 4);
@@ -82,7 +82,7 @@ public class Node16Test {
 			checkKeyAndPosAlign(node16);
 			leafNode = new LeafNode(16, 16);
 			Node node = node16.insert(leafNode, (byte) 16);
-			Assertions.assertTrue(node instanceof Node48);
+			Assertions.assertInstanceOf(Node48.class, node);
 			Node48 node48 = (Node48) node;
 			int maxPos = node48.getMaxPos();
 			Assertions.assertEquals(16, maxPos);
@@ -108,7 +108,7 @@ public class Node16Test {
 				nodes = nodes.insert(leafNode, key);
 			}
 			// check we are testing the correct thing
-			Assertions.assertTrue(nodes instanceof Node16);
+			Assertions.assertInstanceOf(Node16.class, nodes);
 
 			// check that searching for each key, is FOUND
 			for (int i = 0; i < insertCount; i++) {
@@ -151,7 +151,7 @@ public class Node16Test {
 				nodes = nodes.insert(leafNode, key);
 			}
 			// check we are testing the correct thing
-			Assertions.assertTrue(nodes instanceof Node16);
+			Assertions.assertInstanceOf(Node16.class, nodes);
 
 			// check that searching for each key, is FOUND
 			for (int i = 0; i < insertCount; i++) {
@@ -270,7 +270,7 @@ public class Node16Test {
 				nodes = nodes.insert(leafNode, (byte) (offset + i));
 			}
 			// check we are testing the correct data structure
-			Assertions.assertTrue(nodes instanceof Node16);
+			Assertions.assertInstanceOf(Node16.class, nodes);
 
 			// The position of a value before the "first" value dose not exist thus ILLEGAL_IDX
 			Assertions.assertEquals(BranchNode.ILLEGAL_IDX, nodes.getNextSmallerPos(nodes.getMinPos()));
@@ -310,7 +310,7 @@ public class Node16Test {
 				nodes = nodes.insert(leafNode, (byte) (offset + (i * step)));
 			}
 			// check we are testing the correct data structure
-			Assertions.assertTrue(nodes instanceof Node16);
+			Assertions.assertInstanceOf(Node16.class, nodes);
 
 			// The position of a value before the "first" value dose not exist thus ILLEGAL_IDX
 			Assertions.assertEquals(BranchNode.ILLEGAL_IDX, nodes.getNextSmallerPos(nodes.getMinPos()));

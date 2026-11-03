@@ -115,7 +115,7 @@ class IndexMutationExecutorRegistryTest {
 
 		registry.dispatch(mutation, target);
 
-		assertSame(mutation, executor.receivedMutations.get(0));
+		assertSame(mutation, executor.receivedMutations.getFirst());
 	}
 
 	@Test
@@ -129,7 +129,7 @@ class IndexMutationExecutorRegistryTest {
 
 		registry.dispatch(new TestMutationA(1), target);
 
-		assertSame(target, executor.receivedTargets.get(0));
+		assertSame(target, executor.receivedTargets.getFirst());
 	}
 
 	@Test
@@ -168,8 +168,8 @@ class IndexMutationExecutorRegistryTest {
 
 		assertEquals(1, executorA.receivedMutations.size());
 		assertEquals(1, executorB.receivedMutations.size());
-		assertEquals(1, executorA.receivedMutations.get(0).id());
-		assertEquals(2, executorB.receivedMutations.get(0).id());
+		assertEquals(1, executorA.receivedMutations.getFirst().id());
+		assertEquals(2, executorB.receivedMutations.getFirst().id());
 	}
 
 	/**

@@ -183,7 +183,7 @@ class ProgressRecordTest implements EvitaTestSupport {
 				observed.contains(0),
 				"Observer should receive initial 0%"
 			);
-			assertEquals(0, observed.get(0));
+			assertEquals(0, observed.getFirst());
 		}
 	}
 

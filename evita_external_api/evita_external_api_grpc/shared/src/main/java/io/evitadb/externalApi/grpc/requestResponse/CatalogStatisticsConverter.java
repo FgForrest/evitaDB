@@ -1314,8 +1314,9 @@ public class CatalogStatisticsConverter {
 	 * through either route is told the same thing in the same shape.
 	 *
 	 * @param index the readings to convert
-	 * @return their gRPC form, with the discriminator left unset for the global index and the reference cardinality
-	 * left unset for an index that tracks no references
+	 * @return their gRPC form, with the discriminator left unset for the global index, the reference cardinality
+	 * left unset for an index that tracks no references and the virtual partition count left unset for an index that
+	 * holds no registry of them
 	 */
 	@Nonnull
 	public static GrpcIndexCardinality toGrpcIndexCardinality(@Nonnull IndexCardinality index) {
@@ -1334,6 +1335,9 @@ public class CatalogStatisticsConverter {
 		}
 		if (index.referencedEntityCount() != null) {
 			indexBuilder.setReferencedEntityCount(Int32Value.of(index.referencedEntityCount()));
+		}
+		if (index.virtualPartitionCount() != null) {
+			indexBuilder.setVirtualPartitionCount(Int32Value.of(index.virtualPartitionCount()));
 		}
 		for (final AttributeCardinality attribute : index.attributes()) {
 			indexBuilder.addAttributes(toGrpcAttributeCardinality(attribute));
@@ -1470,6 +1474,7 @@ public class CatalogStatisticsConverter {
 			grpcIndex.hasDiscriminator() ? grpcIndex.getDiscriminator().getValue() : null,
 			grpcIndex.hasEntityCount() ? grpcIndex.getEntityCount().getValue() : null,
 			grpcIndex.hasReferencedEntityCount() ? grpcIndex.getReferencedEntityCount().getValue() : null,
+			grpcIndex.hasVirtualPartitionCount() ? grpcIndex.getVirtualPartitionCount().getValue() : null,
 			attributes
 		);
 	}

@@ -12,7 +12,7 @@ incorporated. Update it on every sync — see the `roaring-bitmap-sync` skill fo
 | Upstream repo | https://github.com/RoaringBitmap/RoaringBitmap |
 | Upstream default branch | `master` |
 | **Base commit** (fork point our sources derive from) | `952f8ce7aef1510eff07a3f325a5f8093151d993` — release **v1.6.12** (2026-02-26) |
-| **Reviewed through** (last upstream commit inspected) | `ba92f4978cb3f4c2f0d6e26342040fc59fe25508` — the post-release bump of `gradle.properties` to the next development version `1.6.16` (2026-07-23). It is `master`'s tip and the only commit after the `1.6.15` tag; **there is no 1.6.16 release.** |
+| **Reviewed through** (last upstream commit inspected) | `eaa61caff211f10becbcb487b4e92284c68f1da2` — #856, the `BitSetUtil.toLongArray` trailing-word fix (2026-10-16). It is `master`'s tip, four commits past the newest release tag `1.6.23` (`c037cc6e`, #853); of those four, #858 and #856 are the only code and are **not yet released** — `gradle.properties` already reads `1.6.24`, but no such tag exists. |
 | Vendored via fork | github.com/novoj/RoaringBitmap @ `f27cd538` (= v1.6.12 + CopyOnWriteRoaringBitmapV2 prototype) |
 
 > The **base commit** is the upstream point our vendored `.java` sources branched from. The
@@ -322,6 +322,29 @@ Two consequences worth keeping in view on a re-sync:
 demotion threshold for all three; `TestBitmapContainer`'s intersection tests cover the same ground from the
 upstream side.
 
+## Local defect fixes (evita divergence — preserve on re-sync)
+
+Defects found while auditing the vendored code (issue #1754) and fixed here. Unless a row says otherwise,
+upstream `eaa61caf` carries the defective code, so a re-sync that takes upstream's version of one of these
+methods brings the defect back; each pinning test fails on upstream's shape. When upstream fixes one, compare
+the two fixes, keep whichever is stricter, and move the row to the sync log. Rows marked *copy-on-write only*
+are defects of this fork's sharing layer: upstream's code is correct there, because nothing is shared, and
+must not be taken over as-is.
+
+| # | Where | Upstream at `eaa61caf` | Here | Pinned by |
+|---|---|---|---|---|
+| E2 | `ConstantMemoryContainerAppender.reset()` | resets the key, the target bitmap and the `dirty` flag but not the scratch words, so `add(1); reset(); add(2); get()` returns `{1, 2}` | also zeroes the scratch words | `TestRoaringBitmapWriter#resetDiscards*` (every writer configuration; the constant-memory ones fail upstream) |
+| E5 | `PersistentRoaringBitmap.limit(int)` | adds the next container's cardinality to the running total in `int`; past 2^31 the sum wraps negative, the test passes and every remaining container is copied, so a full-universe `limit(Integer.MAX_VALUE)` returns 2^32 values | compares the sum in `long`; an accepted total never exceeds `maxcardinality`, so the `int` accumulator itself cannot wrap | `LimitOverflowTest` |
+| E3 | `PersistentRoaringBitmap.addOffset(x, offset)`, the 65,536-aligned path | casts `key + container_offset` to `char` without a range check, so a key pushed out of `[0, 0xFFFF]` wraps around: `addOffset({-1}, 65536)` returns `{65535}`, `addOffset(x, -2^32)` returns `x`, and a negative offset that wraps the first key throws `IllegalArgumentException: append only` | drops keys outside `[0, 0xFFFF]` before the cast, as the unaligned path already does | `AddOffsetRangeTest` |
+| E4 | `PersistentRoaringBitmap.orNot`, static and in-place | (a) the capacity estimate subtracts full `x2` containers up to and including the first key `>= maxKey`, so a full container past the range shrinks it: `orNot({}, [65536, 131072), 1)` returns `{}`, and a positive underestimate stops the key loop early and drops chunks; (b) `rangeEnd == 0` makes `maxKey == -1` and the array size `-1` (`NegativeArraySizeException`); (c) on the boundary chunk, when only `x2` holds it, `not(0, lastRun)` keeps `x2`'s own values at or above `lastRun`, so `orNot({}, {7}, 1)` returns `{0, 7}` | counts only full `x2` containers with key `<= maxKey`; `rangeEnd == 0` returns a fully owned copy of `x1` (static) or does nothing (in-place); clips the boundary complement to `[0, lastRun)` | `OrNotRangeBoundaryTest` (set-model differential, both forms) |
+| E13 | `PersistentRoaringBitmap.computeNextAbsentValue`, `computePreviousAbsentValue` and the result assertion of `previousAbsentValue` (issue #1758) | (a) the "block of `fromValue` is absent" test is `fromValue < containerKey << 16`, a signed comparison: for container keys of 32,768 and more the shifted key is negative, so the test fails for every `fromValue` below `2^31` and the low bits are looked up in a later container: `bitmapOf((int) 2_147_483_648L).nextAbsentValue(5)` is `2_147_483_653` and `previousAbsentValue(5)` is `2_147_483_653` (larger than the argument; `AssertionError` under `-ea`), `bitmapOfRange(4_294_901_760L, 2^32).nextAbsentValue(5)` is `-1`; (b) `assert !contains((int) prevAbsentBit)` fails on the legitimate result `-1`, because `(int) -1` is `4_294_967_295`: `bitmapOf(0, -1).previousAbsentValue(0)` throws under `-ea` | `advanceUntil` returns the first container with a key at least `key`, so the block is absent exactly when `containerKey != key`; the assertion is skipped for `-1`. Reported upstream as RoaringBitmap/RoaringBitmap#880, with fix PR #881 (`6027e46c`, the same three one-line changes, not yet merged when this was written): when a re-sync brings that fix in, drop this row and move it to the sync log | `AbsentValueUnsignedKeyTest` (contains-scan model over bitmaps at and around `2^31` and at the last block; the existing `BitSet` model holds only values below `2^31`) |
+| E12 | `PersistentRoaringBitmap.contains(long minimum, long supremum)` | (a) `getIndex(lastKey)` falls back to the insertion point when the tail chunk is absent, and the tail test then checks whatever container sits there without comparing its key, or nothing at all when it is past the end: `bitmapOfRange(0, 65536).contains(0, 65537)` is `true`; (b) `highbits(supremum)` wraps `2^32` to key 0: `bitmapOfRange(0, 65536).contains(0, 2^32)` is `true`, `bitmapOf(-1).contains(0xFFFFFFFF, 2^32)` is `false` | keeps the upper key as an `int` (65,536 at `2^32`, with no tail chunk) and requires the tail container's key to equal it; the early exits stay | `ContainsRangeTest` (value-by-value model; also pins `intersects(long, long)`, which was already right) |
+| E1 | `RunContainer.ior(RunContainer x)` with `x == this`, and `Container.lazyIOR`, which dispatches run/run to it | shifts its own runs into the scratch tail and merges them back while reading `x` from the same array, so a self-union adds a spurious run at 0 | returns `this` when `x == this`. Not reachable through the bitmap API today (the horizontal xor aliasing that once reached it is fixed); defence in depth. Every other in-place operation of all three containers was checked with itself as the operand and is correct | `ContainerSelfOperandTest` |
+| E7 | `FastAggregation.priorityqueue_or` (both overloads), `priorityqueue_xor` | with one input the merge loop never runs and the input itself is returned; the union first calls `repairAfterLazy()` on it, which can replace its containers (a non-minimal run `[7,7]` becomes the array `{7}`). Mutating the result then mutates the operand | returns `PersistentRoaringBitmap.fromBitmap(input)`, a deep copy that writes nothing into the input (the `horizontal_*` folds' convention, rather than `clone()`, whose copy-on-write marking writes the operand's flags) | `SingleInputAggregationTest` (every public aggregation, one input) |
+| E8 | `PersistentRoaringBitmap.trim()` → `RoaringArray.trim()` (*copy-on-write only*) | `RoaringArray.trim()` calls `Container.trim()` on every container, which is right upstream; here it also replaced the backing arrays of containers flagged `shared`, an in-place write to a container other bitmaps (possibly published ones) still read | `RoaringArray.trim()` trims only its own key and value arrays; `PersistentRoaringBitmap.trim()` trims the containers of owned slots (no flag, or an index beyond `shared.length`) | `TrimSharedContainersTest` |
+| E6 | `RunContainer.validate()` | after the structural loop, also requires the run encoding to be no larger, serialized, than the array or bitmap encoding of the same set. The library's own `remove()` and `limit()` leave run containers that fail that test (a single-value run, for one), so `validate()` rejects data the library itself produced, also after a serialize/deserialize round trip. The loop accepts a run that extends past `0xFFFF` | accepts any structurally valid run container: at least one run; runs ascending, non-overlapping and non-adjacent; none extending past `0xFFFF`. The size comparison is dropped, because RoaringFormatSpec does not require the smallest encoding. **A deliberate decision: keep it on re-sync even if upstream keeps its check** | `RunContainerValidateTest` (includes a seeded walk over public operations, validated before and after a round trip) |
+| E10 | `RoaringArray.append(RoaringArray)` (*copy-on-write only*) | appends another array's containers by reference, which is fine upstream; here it aliased containers without any shared flag, and nothing in production called it | removed. The remaining by-reference `append(sa, from, to)` documents that its caller owns the flags; its three callers (`appendTailWithSharing`, `appendLentRange`, `appendConsumedTail`) were audited. `RunContainer.valueslength` is package-private (was `private`), like `ArrayContainer.content` and `BitmapContainer.bitmap`, so the fuzz can compare backing arrays without reflection | `SharedContainerLockstepFuzzTest` (now also checks that distinct containers never share a backing array and that a co-owned container keeps its backing array across every step), `RoaringArrayTest` |
+
 ## Sync log
 
 ### Review 1 — base v1.6.12 (`952f8ce7`) → `2863e96d`
@@ -368,7 +391,13 @@ pre-existing evita divergences; the rest are build/docs. Effective upstream vers
 **v1.6.15** — the newest actual release, whose tag `1.6.15` points at `ef131a71` (#840, incorporated).
 The reviewed-through commit sits one purely-editorial commit beyond it.
 
-#### Reverse-cursor exhaustion fix surfaced by the #837 port (evita divergence — preserve on re-sync)
+#### Reverse-cursor exhaustion fix surfaced by the #837 port (upstreamed as #841 — no longer a divergence)
+
+> **Since Review 3** upstream carries this fix as #841 (released in `1.6.17`): its
+> `ReverseArrayContainerCharIterator` re-tests `content[0]` and its `ReverseBitmapContainerCharIterator`
+> descends into word 0 and exhausts on an empty result — the same logic, line for line, as below. A re-sync of
+> either cursor now has nothing evita-specific to keep. The section stays as the record of why the fix exists.
+
 
 `PeekableCharIterator.advanceIfNeeded` is direction-aware: after the call a reverse cursor must be
 either exhausted or positioned at a value `<=` the bound. The three reverse cursors did not agree on
@@ -393,7 +422,13 @@ Deliberately **not** changed: `advanceIfNeeded` (both directions, every shape) a
 probe sequence, and probing backwards can re-emit already-consumed values. That is upstream's
 documented intersection idiom, shared by the forward cursors, and no caller violates it.
 
-#### Flyweight `clone()` independence fix (evita divergence — preserve on re-sync)
+#### Flyweight `clone()` independence fix (upstreamed as #842 — the shape still differs)
+
+> **Since Review 3** upstream fixes the same aliasing as #842 (released in `1.6.16`), by reassigning the three
+> cached cursors after `super.clone()`. The behaviour is now identical; only the shape differs, because the
+> vendored fields are `final` and the fork is built from the no-arg constructor instead. **Keep the vendored
+> shape on a re-sync** — matching upstream would mean dropping `final` from the three fields for no
+> behavioural gain.
 
 `IntIteratorFlyweight` and `ReverseIntIteratorFlyweight` cache one reusable char cursor per container
 shape (`arrIter` / `bitmapIter` / `runIter`) so that stepping between chunks allocates nothing.
@@ -414,8 +449,8 @@ The per-bitmap `RoaringIntIterator` / `RoaringReverseIntIterator` inner classes 
 they allocate a fresh char cursor per chunk, so `super.clone()` plus `iter.clone()` is sufficient
 there. Both are covered by the same test to stop the two families from drifting apart again.
 
-If upstream ever fixes this, drop the divergence; until then re-apply it after any re-sync of these
-two files.
+On a re-sync of these two files, take upstream's #842 behaviour as already present and keep the
+fresh-instance shape described above.
 
 #### `orNot` installs rebuilt arrays through `adopt` (evita divergence — preserve on re-sync)
 
@@ -456,18 +491,11 @@ unflagged; a chunk lent from a single operand is flagged, via `flagLentLast` / `
 `newAllSharedResult` is gone. The result is reachable only by the caller until it is published, so
 per-slot tracking is unconditionally safe there.
 
-**The operand side is deliberately left as the wholesale `markAllShared` fill**, and that is now
-documented on the method so it is not "optimised" later. `TransactionalBitmap` is `@ThreadSafe` and
-hands the same live `PersistentRoaringBitmap` to every concurrent read-only query thread, so one
-bitmap can be an operand of two queries at once while `shared[]` is written without synchronisation.
-A full fill is idempotent: an update lost to a racing `ensureSharedCapacity` reallocation is
-re-established by the next caller, and the value it converges on is the conservative one. Sparse
-per-slot writes have no such convergence, and the value a lost sparse write leaves behind is the
-*unsafe* one — an unflagged slot over a container the result aliases, which is exactly the
-precondition for silent cross-bitmap corruption. Narrowing this side was measured at −32 % allocation
-on the diff-layer shape and is therefore worth revisiting, but only behind two things it does not have
-today: a hard `shared.length >= size` invariant (so `ensureSharedCapacity` can never reallocate a
-published bitmap out from under a concurrent writer) and a decision about publishing those writes.
+**The operand side stays wholesale**, now as the single `lent` field described in the next section
+rather than the `markAllShared` fill of `shared[]` it replaced. Narrowing it to the chunks actually lent
+was measured at −32 % allocation on the diff-layer shape and is still worth revisiting, but a per-slot
+record written by non-owners is exactly what the next section removes; it would need a design that
+publishes those writes safely.
 
 `andNot` still never marks its subtrahend, since no container is ever carried out of it. Sizing note:
 the result flag array is allocated once at the operation's upper bound (`length1 + length2`, or
@@ -500,3 +528,111 @@ producers too; deliberately dropping a lent chunk's flag makes that fuzz fail at
 **Not applicable upstream.** `shared[]` has no upstream counterpart — upstream `RoaringBitmap` results
 are freely mutable by contract, which is exactly why it clones on carry-over instead of sharing. There
 is nothing to report or contribute here.
+
+#### Operand flags are a single `lent` field (evita divergence — preserve on re-sync)
+
+Operations that only read a bitmap used to write into its `shared[]` array: the in-place
+`or`/`xor`/`lazyor`/`naivelazyor` for the argument bitmap (`borrowAndInsert`, `appendTailWithSharing`,
+`mergeBulk`), the range-bounded `and`/`or`/`xor`/`andNot` (`selectRangeWithoutCopy`), `clone()` for its
+source, and the static `or`/`xor`/`andNot` (`markAllShared`). Several of them wrote single slots, after
+growing the array with `ensureSharedCapacity` when it was shorter than the container array. Query
+threads run these operations concurrently on the same published index bitmaps, so a reallocation by one
+thread could lose another thread's slot write, leaving an unflagged slot over a container that a result
+still aliases.
+
+Non-owners now write one field, `lent = true` ("every container of mine may be shared"). The write is
+idempotent and reallocates nothing, so a concurrent writer cannot lose it. The owner turns it into
+per-slot flags in `unlend()`, the first statement of every mutating method, and `isShared(i)` reads
+`lent || shared[i]`. That ordering is sound because every operation that used a bitmap as an operand
+must happen-before the bitmap's next mutation, which Java requires of any conflicting access anyway.
+`RoaringArray.frozen`, set by `clone()` on both sides, was already a write of the same kind and is
+unchanged.
+
+The flag array now has a strict invariant: `shared.length >= size`, with every entry past `size` false.
+It replaces the old rule that an index beyond `shared.length` means owned, together with the tolerance
+branches in `copyIfShared`, `clearSharedAt`, `sharedRemoveAt`, `sharedRemoveRange`, `mergeBulk`, `trim` and
+the in-place `andNot`/`orNot`. Builders that append owned containers straight into `highLowContainer` size
+the array once at the end, through `sealOwned()`.
+
+**The price:** a bitmap that lent anything clones every container it writes afterwards, not only the
+ones it actually lent. Static `or`/`xor`/`andNot` and `clone()` already marked every operand slot, so
+nothing changes for them. The in-place unions and the range-bounded operations become coarser for their
+argument bitmaps.
+
+Measured with JMH `-prof gc` (`RoaringOperandFlagBenchmark` in `evita_performance_tests`, 64-chunk receiver,
+128-chunk operand, half of the operand's chunks disjoint from the receiver), two control and two treatment
+rounds interleaved on a quiet box. The values are the means of the two rounds; the floor arm moved by 2-5 %
+between rounds, which is the error bar for time. Allocation is deterministic.
+
+| arm | containers | time | allocation per operation |
+|---|---|---|---|
+| in-place `or`, then the operand writes into every chunk | bitmap | 99.6 → 122.1 µs (+22.6 %) | 2,109,889 → 2,636,737 B (+25.0 %) |
+| the same | array | 38.6 → 41.7 µs (+8.0 %) | 245,592 → 273,752 B (+11.5 %) |
+| range-bounded `and`, then the operand writes into every chunk | bitmap | 103.8 → 126.1 µs (+21.5 %) | 2,383,345 → 2,926,601 B (+22.8 %) |
+| the same | array | 21.9 → 22.8 µs (+4.2 %) | 209,720 → 238,672 B (+13.8 %) |
+| the operations alone (in-place `or`, range `and`, static `or`/`xor`/`andNot`), and the receiver writing afterwards | both | within the error bar | unchanged |
+
+The extra allocation is exactly one clone per operand chunk that was not lent (64 × 8,232 B for bitmap
+chunks). No production path in evitaDB pays it today: the two in-place unions in `evita_engine`
+(`BitmapChanges.restore`, which borrows every container of the memento into an empty receiver, and
+`ReevaluateExpressionExecutor`, whose lending bitmap is a temporary that is never written afterwards) lend
+nothing that is later written, and the transactional path clones published bitmaps instead of writing
+into them.
+
+Pinned by `OperandFlagOwnershipTest` (no non-owner writes or reallocates an operand's `shared[]`; `lent`
+is set by a lending operation and expanded by the next mutation; mutations on either side stay
+invisible to the other), `SharedContainerLockstepFuzzTest` (now enforces the strict invariant after every
+step), and `OperandFlagConcurrencyTest` (eight threads borrowing from one published bitmap, followed by
+an alias audit).
+
+### Review 3 — `ba92f497` → `eaa61caf`
+
+18 upstream commits triaged. **Five functional changes incorporated** (#845 `rank(0xFFFF)`, #851 and #853 in
+the 64-bit bitmap, #858 and #856 in `BitSetUtil`); #842 and #841 were already satisfied — both are fixes that
+originated in this fork and were upstreamed; #847 was declined; the rest are build/docs or dropped subsets.
+
+| upstream | kind | touches | disposition |
+|---|---|---|---|
+| `167af565` Give flyweight iterator clones their own cached cursors (#842) | code | `IntIteratorFlyweight`, `ReverseIntIteratorFlyweight` (+`buffer/*`, tests) | **Already satisfied.** The fork's own Review 2 fix, upstreamed. Upstream reassigns the cached cursors after `super.clone()`; ours builds the fork from the no-arg constructor because the fields are `final`. Same behaviour; shape kept (see the flyweight section above). Upstream's two tests are covered by `IteratorCloneIndependenceTest`. |
+| `00e3135b` new version commit 1.6.17 | build | `gradle.properties` | N/A. |
+| `37ea47f7` Fix reverse advanceIfNeeded leaving the cursor above the bound (#841) | code | `ArrayContainer`, `BitmapContainer` (+`buffer/*`, tests) | **Already satisfied.** The fork's own Review 2 reverse-cursor fix, upstreamed; both cursors match ours line for line. Upstream's array-container and 64-bit tests were already covered by `ReverseAdvanceIfNeededContractTest`; its bitmap test — a value in word 0 found by the descent — was not, and is ported as `bitmapContainerSeekDescendsIntoWordZero`. |
+| `c0e6a59e` new version commit 1.6.18 | build | `gradle.properties` | N/A. |
+| `cd799a7e` Minor optimisations in 32 bit bit-slices (#843) | code | `bsi/*` | N/A — `bsi` is not vendored. |
+| `2dfd0fb9` new version commit 1.6.19 | build | `gradle.properties` | N/A. |
+| `684531c1` Optimize rank(0xFFFF) to use container cardinality (#845) | code | `ArrayContainer`, `BitmapContainer`, `RunContainer` (+`buffer/*`, tests) | **Incorporated, with one divergence.** `rank(Character.MAX_VALUE)` returns the cardinality without searching (array) or scanning 1,024 words (bitmap); `rangeCardinality` ending on a chunk boundary is the caller. In `BitmapContainer` the shortcut applies only when the cardinality is known: upstream computes and **stores** it for a lazy container, which would stop `repairAfterLazy` demoting it — see the section below. Upstream's tests ported to `TestRankIteratorsOfContainers`, the lazy case rewritten to pin the opposite outcome. |
+| `c105fce5` new version commit 1.6.20 | build | `gradle.properties` | N/A. |
+| `2d78571b` Add portable serialization to Roaring64Bitmap (#847) | code | `Roaring64Bitmap` (+README, tests) | **Declined.** Adds `serializePortable` / `deserializePortable` / `portableSerializedSizeInBytes`: a new cross-language interchange format, not a fix. evitaDB has no caller — the 64-bit bitmap's only production user, `TrafficRecordingIndex`, never serializes it — and the repository rule forbids production code without a production caller. Port it if evitaDB ever needs to exchange 64-bit bitmaps with another Roaring implementation. |
+| `861f2525` new version commit 1.6.21 | build | `gradle.properties` | N/A. |
+| `c3143731` fix for issue 850 (#851) | code | `Roaring64Bitmap` (+tests) | **Incorporated.** In-place `xor`, static `xor` and single-value `flip(long)` kept an **emptied** container registered in the ART, which breaks `first()` / `last()` and `equals` against a bitmap built from the same values. All three now drop it, as the vendored `and` / `andNot` / `flip(range)` / `removeLong` already did. Upstream's four tests ported to `TestRoaring64Bitmap` (`SymmetricDifference`, `Flip`), plus one asserting that a fully cancelling `xor` equals an empty bitmap. |
+| `4bae5be3` new version commit 1.6.22 | build | `gradle.properties` | N/A. |
+| `f2289086` new version commit 1.6.23 | build | `gradle.properties` | N/A. |
+| `c037cc6e` Preserve replacement containers in Roaring64Bitmap.remove (#853) | code | `Roaring64Bitmap` (+tests) | **Incorporated.** `remove(long)` discarded the container `Container.remove(char)` hands back, so a bitmap chunk falling from 4,097 to 4,096 values stayed a `BitmapContainer` below its threshold — never demoted afterwards, and unequal to the array container a fresh bitmap holds for the same values. It now delegates to `removeLong`, which already stored the replacement. Upstream's test round-trips through `serializePortable` (declined above); the port asserts the same defect through `equals` instead (`Removal.testRemoveKeepsTheContainerItDemotesTo`), since `Container.equals` does not equate an array and a bitmap container. The vendored serializer writes a per-container type tag, so the defect never reached a serialized form here. |
+| `7f2b0a58` new version commit 1.6.24 | build | `gradle.properties` | N/A. |
+| `c1cc24ab` Update Maven badge URL in README.md (#855) | docs | `README.md` | N/A. |
+| `b0a2e364` Fix BitSetUtil.toByteArray length and write it without an intermediate long[] (#858) | code | `BitSetUtil` (+`RoaringBitSetTest`, tests) | **Incorporated.** `toByteArray` sized its buffer in bits rather than bytes, returning 8x too many bytes (and overflowing for a value ≥ 2^31 - 64); it now returns `last() / 8 + 1` bytes like `BitSet.toByteArray()`, written straight from the containers with one 8 KB scratch block. Ported in full rather than only the length fix, to stay textually close to upstream. `RoaringBitSetTest` is N/A (`RoaringBitSet` is not vendored); the `TestBitSetUtil` changes are ported. evitaDB has no caller of `toByteArray`. |
+| `eaa61caf` Fix BitSetUtil.toLongArray trailing zero word for bitmaps below 64 (#856) | code | `BitSetUtil` (+tests) | **Incorporated.** `toLongArray` returned a second, always-zero word whenever the last value was below 64. Word count is now `last / 64 + 1`. Tests ported; `assertEqualBitsets` now compares both arrays exactly, since `BitSet.valueOf` ignores trailing zeros and could not see either defect. |
+
+**Net result:** incorporated #845, #851, #853, #858 and #856; #842 and #841 were the fork's own Review 2 fixes
+coming back from upstream; #847 declined for want of a caller. Effective upstream version coverage: **v1.6.23**
+(`c037cc6e`, #853) plus the two unreleased `BitSetUtil` fixes #858 and #856.
+
+#### `rank(Character.MAX_VALUE)` leaves a lazy cardinality unknown (evita divergence — preserve on re-sync)
+
+Upstream's #845 short-circuits `BitmapContainer.rank(Character.MAX_VALUE)` to the cardinality and, when the
+container is lazy (`cardinality < 0`), calls `computeCardinality()` first — which **stores** the count. The
+vendored copy takes the shortcut only when the cardinality is already known and otherwise falls through to the
+ordinary 1,024-word scan, which writes nothing.
+
+The `-1` is not a stale cache. It is the signal `repairAfterLazy()` acts on: it recomputes the count **and
+demotes** the container if it turned out sparse, but only while the cardinality is still negative. A rank
+query that fills the count in turns that repair into a no-op, and a three-value chunk stays an 8 KiB
+`BitmapContainer` for good — correct values, wrong identity, the failure `LazyCardinalityProtocolTest` exists
+to catch. No caller reaches `rank` on a lazy container today (lazy containers live only inside a multi-way
+union or a work-shy intersection, and `rankLong` / `rangeCardinality` read `getCardinality()` of neighbouring
+chunks, which would already be wrong on one), so this guards a protocol rather than fixing a live defect. It
+also keeps `rank` a pure read, which matters for a container a published bitmap shares across query threads.
+
+Pinned by `TestRankIteratorsOfContainers#rankOfMaxOnLazyContainerKeepsCardinalityUnknown` (the count stays `-1`)
+and `#rankOfMaxOnSparseLazyContainerStillDemotes` (a later `repairAfterLazy` still returns an
+`ArrayContainer`); both fail on upstream's shape. Not reported upstream: in upstream the same sequence is
+equally unreachable, and its own test asserts the repair on purpose.

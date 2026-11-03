@@ -31,12 +31,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -54,9 +55,9 @@ import static io.evitadb.test.TestTags.TRANSACTION;
  *    past several transaction versions, the registry is used to complete
  *    {@link CommitBehavior#WAIT_FOR_CHANGES_VISIBLE} for every record in the range immediately
  *    instead of waiting for the publisher to re-deliver each trunk task.
- * 2. **Time-bounded watchdog** — a periodic sweep fails records whose pending age exceeds the
- *    pipeline's worst-case latency, surfacing a descriptive exception to clients instead of a
- *    silent hang.
+ * 2. **Watchdog for lost records** — a periodic sweep fails records the pipeline made no progress
+ *    towards, or moved past, for longer than a bound, surfacing a descriptive exception to clients
+ *    instead of a silent hang.
  * 3. **Shutdown safety net** — [PendingCommitProgressRegistry#failAllPending] fails every still
  *    registered record when the transaction manager is closed.
  *
@@ -255,70 +256,172 @@ class PendingCommitProgressRegistryTest {
 	}
 
 	@Nested
-	@DisplayName("Time-bounded watchdog via sweepRecordsOlderThan")
-	class TimeBoundedSweepTest {
+	@DisplayName("Watchdog for lost records via sweepStalledRecords")
+	class StalledSweepTest {
 
 		/**
-		 * Core watchdog scenario: a record has been pending for longer than the worst-case pipeline
-		 * latency. `maxAge = Duration.ZERO` asks the sweep to treat *every* registered record as
-		 * stale relative to the wall-clock — which is exactly what the periodic task does once a
-		 * record crosses its age threshold.
+		 * The bound every case sweeps with - the default `safetyDeadlineMs()` of the transaction manager.
+		 */
+		private static final Duration MAX_STALL = Duration.ofSeconds(100);
+		/**
+		 * The live view of every case that has not reached the swept records yet.
+		 */
+		private static final long LIVE_VERSION_BELOW = 4L;
+
+		/**
+		 * The time the registry reads, moved by each case at will.
+		 */
+		private long nowNanos;
+		/**
+		 * The registry reading {@link #nowNanos}.
+		 */
+		private final PendingCommitProgressRegistry registry = new PendingCommitProgressRegistry(() -> this.nowNanos);
+
+		/**
+		 * Moves the time the registry reads to the given number of seconds after its creation.
+		 *
+		 * @param seconds the seconds since the creation of the registry
+		 */
+		private void at(long seconds) {
+			this.nowNanos = TimeUnit.SECONDS.toNanos(seconds);
+		}
+
+		/**
+		 * The core watchdog scenario: the pipeline took nothing up for the whole bound, so every record waiting
+		 * in it is lost and is failed with a descriptive exception instead of hanging its client.
 		 */
 		@Test
-		@DisplayName("should fail records older than the supplied age")
-		void shouldFailRecordsOlderThanTheSuppliedAge()
-			throws InterruptedException, TimeoutException {
-			final PendingCommitProgressRegistry registry = new PendingCommitProgressRegistry();
-			final CommitProgressRecord record = new CommitProgressRecord();
-			final CommitVersions versions = new CommitVersions(5L, 1);
+		@DisplayName("should fail every record the pipeline made no progress towards for the whole bound")
+		void shouldFailRecordsThePipelineMadeNoProgressTowards() {
+			final CommitProgressRecord first = new CommitProgressRecord();
+			final CommitProgressRecord second = new CommitProgressRecord();
+			at(0);
+			this.registry.register(5L, first, new CommitVersions(5L, 1));
+			at(10);
+			this.registry.register(6L, second, new CommitVersions(6L, 1));
 
-			registry.register(5L, record, versions);
-			// threshold of zero — every record is "older than now"
-			final int failed = registry.sweepRecordsOlderThan(Duration.ZERO);
+			at(110);
+			final int failed = this.registry.sweepStalledRecords(MAX_STALL, LIVE_VERSION_BELOW);
 
-			assertEquals(1, failed, "sweep must report the single dangling record as failed");
-			assertTrue(
-				record.isCompletedExceptionally(),
-				"dangling record must be failed once its pending age exceeds the threshold"
-			);
-			final CompletableFuture<CommitVersions> changesVisible =
-				record.onChangesVisible().toCompletableFuture();
-			final ExecutionException ex = assertThrows(
-				ExecutionException.class,
-				() -> changesVisible.get(1, TimeUnit.SECONDS)
-			);
-			assertInstanceOf(
-				TransactionException.class,
-				ex.getCause(),
-				"the sweep must raise a TransactionException so the failure is clearly identifiable"
-			);
-			assertEquals(
-				0,
-				registry.size(),
-				"swept records must be purged from the registry"
-			);
+			assertEquals(2, failed, "both records waiting in the stalled pipeline must be failed");
+			for (CommitProgressRecord record : new CommitProgressRecord[]{first, second}) {
+				final CompletableFuture<CommitVersions> changesVisible = record.onChangesVisible().toCompletableFuture();
+				final ExecutionException ex = assertThrows(
+					ExecutionException.class,
+					() -> changesVisible.get(1, TimeUnit.SECONDS)
+				);
+				assertInstanceOf(
+					TransactionException.class,
+					ex.getCause(),
+					"the sweep must raise a TransactionException so the failure is clearly identifiable"
+				);
+				assertTrue(
+					ex.getCause().getMessage().contains("without the transaction pipeline making any progress"),
+					"the failure must name the stall: " + ex.getCause().getMessage()
+				);
+			}
+			assertEquals(0, this.registry.size(), "swept records must be purged from the registry");
 		}
 
 		@Test
-		@DisplayName("should leave young records untouched")
+		@DisplayName("should leave records registered for less than the bound untouched")
 		void shouldLeaveYoungRecordsUntouched() {
-			final PendingCommitProgressRegistry registry = new PendingCommitProgressRegistry();
 			final CommitProgressRecord record = new CommitProgressRecord();
-			final CommitVersions versions = new CommitVersions(5L, 1);
+			at(0);
+			this.registry.register(5L, record, new CommitVersions(5L, 1));
 
-			registry.register(5L, record, versions);
-			// threshold of one day — everything registered during this test is way younger
-			final int failed = registry.sweepRecordsOlderThan(Duration.ofDays(1));
+			this.nowNanos = MAX_STALL.toNanos() - 1;
+			// even a live view that has reached the record does not make a young record lost
+			final int failed = this.registry.sweepStalledRecords(MAX_STALL, 5L);
 
-			assertEquals(0, failed, "nothing should be failed when all records are younger than maxAge");
-			assertFalse(
-				record.isDone(),
-				"record younger than the threshold must not be touched by the sweep"
+			assertEquals(0, failed, "nothing should be failed when all records are younger than the bound");
+			assertFalse(record.isDone(), "a record younger than the bound must not be touched by the sweep");
+			assertEquals(1, this.registry.size(), "young records must remain registered for the next sweep cycle");
+		}
+
+		/**
+		 * A single large transaction can take longer to replay than the bound on a loaded host. Failing it would
+		 * tell the client its commit was lost while the pipeline goes on to incorporate it - so every progress
+		 * report restarts the bound, and only a pipeline that stops advancing fails the record.
+		 */
+		@Test
+		@DisplayName("should spare a record for as long as the pipeline keeps making progress")
+		void shouldSpareRecordsWhileThePipelineProgresses() {
+			final CommitProgressRecord record = new CommitProgressRecord();
+			at(0);
+			this.registry.register(5L, record, new CommitVersions(5L, 1));
+
+			for (long second = 50; second <= 500; second += 50) {
+				at(second);
+				this.registry.recordPipelineProgress();
+				assertEquals(
+					0, this.registry.sweepStalledRecords(MAX_STALL, LIVE_VERSION_BELOW),
+					"a record must not be failed " + second + "s after its registration while the pipeline progresses"
+				);
+			}
+			assertFalse(record.isDone(), "a record the pipeline keeps working towards must stay pending");
+
+			// the pipeline stops advancing at 500s - the record is lost once the bound passes
+			at(599);
+			assertEquals(0, this.registry.sweepStalledRecords(MAX_STALL, LIVE_VERSION_BELOW));
+			at(600);
+			assertEquals(1, this.registry.sweepStalledRecords(MAX_STALL, LIVE_VERSION_BELOW));
+			assertTrue(record.isCompletedExceptionally(), "a record the pipeline stopped advancing towards is lost");
+		}
+
+		/**
+		 * A session creates its record when it opens, so the record's own start time includes everything the
+		 * session did before it committed. The bound starts with the registration - the moment the pipeline
+		 * takes the record over - or a long session would be failed as soon as its commit entered the pipeline.
+		 */
+		@Test
+		@DisplayName("should not count the time the session spent before it committed")
+		void shouldMeasureFromTheRegistrationRatherThanFromTheSessionStart() {
+			final CommitProgressRecord recordOfLongSession = new CommitProgressRecord() {
+				@Nonnull
+				@Override
+				public OffsetDateTime getCommitStartTime() {
+					return OffsetDateTime.now().minusDays(1);
+				}
+			};
+			at(1_000);
+			this.registry.register(5L, recordOfLongSession, new CommitVersions(5L, 1));
+
+			at(1_001);
+			final int failed = this.registry.sweepStalledRecords(MAX_STALL, LIVE_VERSION_BELOW);
+
+			assertEquals(0, failed, "a record registered a second ago must not be failed");
+			assertFalse(recordOfLongSession.isDone(), "the age of the session must not make its commit look lost");
+		}
+
+		/**
+		 * Progress of the pipeline spares only records it is still working towards. One the live view has
+		 * already reached was skipped by its completion path, and no amount of further progress repairs that.
+		 */
+		@Test
+		@DisplayName("should fail a record the live view moved past although the pipeline keeps making progress")
+		void shouldFailRecordsTheLiveViewMovedPast() {
+			final CommitProgressRecord skipped = new CommitProgressRecord();
+			final CommitProgressRecord waiting = new CommitProgressRecord();
+			at(0);
+			this.registry.register(5L, skipped, new CommitVersions(5L, 1));
+			this.registry.register(8L, waiting, new CommitVersions(8L, 1));
+
+			at(100);
+			this.registry.recordPipelineProgress();
+			final int failed = this.registry.sweepStalledRecords(MAX_STALL, 6L);
+
+			assertEquals(1, failed, "only the record the live view moved past must be failed");
+			final ExecutionException ex = assertThrows(
+				ExecutionException.class,
+				() -> skipped.onChangesVisible().toCompletableFuture().get(1, TimeUnit.SECONDS)
 			);
-			assertEquals(
-				1, registry.size(),
-				"young records must remain registered for the next sweep cycle"
+			assertTrue(
+				ex.getCause().getMessage().contains("the live view has already moved past it"),
+				"the failure must name the skipped completion: " + ex.getCause().getMessage()
 			);
+			assertFalse(waiting.isDone(), "a record above the live view is still being worked towards");
+			assertEquals(1, this.registry.size(), "the record still being worked towards must stay registered");
 		}
 
 		/**
@@ -330,18 +433,18 @@ class PendingCommitProgressRegistryTest {
 		@Test
 		@DisplayName("should remove already-completed entries without overwriting them")
 		void shouldRemoveAlreadyCompletedEntriesWithoutOverwriting() {
-			final PendingCommitProgressRegistry registry = new PendingCommitProgressRegistry();
 			final CommitProgressRecord record = new CommitProgressRecord();
 			final CommitVersions versions = new CommitVersions(5L, 1);
-
-			registry.register(5L, record, versions);
+			at(0);
+			this.registry.register(5L, record, versions);
 			// complete the record successfully before the sweep — the auto-deregister should have
 			// already removed it, but the test also verifies the sweep is robust to races
 			record.complete(CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION, versions, SYNCHRONOUS);
 			record.complete(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE, versions, SYNCHRONOUS);
 			record.complete(CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, versions, SYNCHRONOUS);
 
-			final int failed = registry.sweepRecordsOlderThan(Duration.ZERO);
+			at(1_000);
+			final int failed = this.registry.sweepStalledRecords(MAX_STALL, LIVE_VERSION_BELOW);
 
 			assertEquals(0, failed, "already-completed record must not be counted as failed");
 			assertTrue(

@@ -113,7 +113,7 @@ class LongRunningSavepointGlobalUniqueIndexTest extends AbstractSavepointFuzzTes
 		private int forcedSeq = 1_000_000;
 
 		GlobalUniqueState(@Nonnull Random random, @Nonnull Catalog catalog) {
-			this.index = new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class);
+			this.index = new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class, 0);
 			this.classifierResolver = new EntityTypeClassifierResolver() {
 				@Override
 				public int toEntityTypePrimaryKey(@Nonnull String entityType) {

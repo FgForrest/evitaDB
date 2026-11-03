@@ -123,6 +123,8 @@ class StoragePartGroupRegistrationTest {
 			Map.entry("ReferenceTypeCardinalityIndexStoragePart", StoragePartGroup.REFERENCE_INDEX),
 			Map.entry("GroupCardinalityIndexStoragePart", StoragePartGroup.REFERENCE_INDEX),
 			Map.entry("ReferenceTypeCardinalityIndexLeafPagePart", StoragePartGroup.REFERENCE_INDEX),
+			Map.entry("VirtualReferencePartitionIndexStoragePart", StoragePartGroup.REFERENCE_INDEX),
+			Map.entry("VirtualReferencePartitionIndexLeafPagePart", StoragePartGroup.REFERENCE_INDEX),
 
 			Map.entry("FacetIndexStoragePart", StoragePartGroup.FACET_INDEX),
 			Map.entry("HierarchyIndexStoragePart", StoragePartGroup.HIERARCHY_INDEX),

@@ -73,7 +73,7 @@ class TransactionalBucketBPlusTreeLongPayloadTest {
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private static TransactionalBucketBPlusTree<Integer> newLongTree(int blockSize) {
 		final ValueColumnFactory factory =
-			ValueColumnFactory.forKey(Integer.class, (Comparator) Comparator.naturalOrder());
+			ValueColumnFactory.forKey(Integer.class, Comparator.naturalOrder());
 		//noinspection unchecked
 		return TransactionalBucketBPlusTree.withLongPayload(
 			blockSize, blockSize / 2,
@@ -227,6 +227,82 @@ class TransactionalBucketBPlusTreeLongPayloadTest {
 	class Transactional {
 
 		@Test
+		@DisplayName("removing the long record of an absent key in a transaction opens no write layer on its leaf")
+		void shouldOpenNoWriteLayerWhenRemovingAbsentLongRecord() {
+			final TransactionalBucketBPlusTree<Integer> tree = newLongTree(3);
+			tree.addLongRecord(1, payloadFor(1));
+			tree.addLongRecord(2, payloadFor(2));
+			// both keys fit one leaf, so the root IS the leaf every removal below lands on
+			final BPlusLeafTreeNode<Integer> leaf = (BPlusLeafTreeNode<Integer>) tree.getRoot();
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					assertFalse(tested.removeLongRecord(99));
+					assertNull(
+						Transaction.getTransactionalMemoryLayerIfExists(leaf),
+						"an absent key must be settled on the current state: no layer opened, nothing copied"
+					);
+				},
+				(original, committed) -> {
+					assertEquals(2, committed.size());
+					assertEquals(payloadFor(1), committed.getLongRecordEqualTo(1).getAsLong());
+					assertEquals(payloadFor(2), committed.getLongRecordEqualTo(2).getAsLong());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("removing the long record of a present key in a transaction writes through a layer on its leaf")
+		void shouldWriteThroughLayerWhenRemovingPresentLongRecord() {
+			final TransactionalBucketBPlusTree<Integer> tree = newLongTree(3);
+			tree.addLongRecord(1, payloadFor(1));
+			tree.addLongRecord(2, payloadFor(2));
+			// both keys fit one leaf, so the root IS the leaf every removal below lands on
+			final BPlusLeafTreeNode<Integer> leaf = (BPlusLeafTreeNode<Integer>) tree.getRoot();
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					assertTrue(tested.removeLongRecord(1));
+					assertNotNull(
+						Transaction.getTransactionalMemoryLayerIfExists(leaf),
+						"a removal that changes the leaf must write into the transaction's layer, not the shared node"
+					);
+				},
+				(original, committed) -> {
+					assertEquals(payloadFor(1), original.getLongRecordEqualTo(1).getAsLong());
+					assertEquals(1, committed.size());
+					assertEquals(OptionalLong.empty(), committed.getLongRecordEqualTo(1));
+					assertEquals(payloadFor(2), committed.getLongRecordEqualTo(2).getAsLong());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("removing the long record of a key inserted earlier in the same transaction removes it")
+		void shouldRemoveLongRecordInsertedEarlierInSameTransaction() {
+			final TransactionalBucketBPlusTree<Integer> tree = newLongTree(9);
+			tree.addLongRecord(2, payloadFor(2));
+			tree.addLongRecord(4, payloadFor(4));
+			tree.addLongRecord(6, payloadFor(6));
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					// key 5 lives only in the transaction's layer, never in the shared node
+					tested.addLongRecord(5, payloadFor(5));
+					assertTrue(tested.removeLongRecord(5));
+					assertFalse(tested.removeLongRecord(5), "a key removed once is absent from the layer");
+				},
+				(original, committed) -> {
+					assertEquals(3, committed.size());
+					assertEquals(OptionalLong.empty(), committed.getLongRecordEqualTo(5));
+					for (int key = 2; key <= 6; key += 2) {
+						assertEquals(payloadFor(key), committed.getLongRecordEqualTo(key).getAsLong());
+					}
+				}
+			);
+		}
+
+		@Test
 		@DisplayName("commits inserted long payloads")
 		void shouldCommitInsertedPayloads() {
 			final TransactionalBucketBPlusTree<Integer> tree = newLongTree(3);
@@ -376,7 +452,7 @@ class TransactionalBucketBPlusTreeLongPayloadTest {
 				tree.addLongRecord(i, 1_000_000_000L + i);
 			}
 
-			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().getFirst();
 			assertEquals(1, tree.enumerateLeaves().size(), "five values must never outgrow a 255-bucket leaf");
 			assertEquals(5, leaf.getRecords().size(), "the payload column holds exactly the five live values");
 			assertEquals(255, leaf.getRecords().capacity(), "the LOGICAL capacity is the block size, unchanged");

@@ -107,13 +107,14 @@ public class EntityContractAccessor implements ObjectPropertyAccessor {
 			case ASSOCIATED_DATA_PROPERTY -> new EntityAssociatedDataEvaluationDto(entity, false);
 			case LOCALIZED_ASSOCIATED_DATA_PROPERTY -> new EntityAssociatedDataEvaluationDto(entity, true);
 			case REFERENCES_PROPERTY -> new EntityReferencesEvaluationDto(entity);
-			case PARENT_ENTITY_PROPERTY -> entity.parentAvailable() ? (Serializable) entity.getParentEntity().orElse(null) : null;
+			case PARENT_ENTITY_PROPERTY -> entity.parentAvailable() ? entity.getParentEntity().orElse(null) : null;
 			case ALL_LOCALES_PROPERTY -> localesToLanguageTags(entity.getAllLocales());
 			case LOCALES_PROPERTY -> localesToLanguageTags(entity.getLocales());
 			case SCOPE_PROPERTY -> entity.getScope().name();
-			case ALL_PRICES_FOR_SALE_PROPERTY -> entity.pricesAvailable() ? (Serializable) new ArrayList<>(entity.getAllPricesForSale()) : null;
+			case ALL_PRICES_FOR_SALE_PROPERTY -> entity.pricesAvailable() ? new ArrayList<>(entity.getAllPricesForSale())
+				: null;
 			case PRICE_FOR_SALE_PROPERTY -> entity.getPriceForSaleIfAvailable().orElse(null);
-			case PRICES_PROPERTY -> entity.pricesAvailable() ? (Serializable) new ArrayList<>(entity.getPrices()) : null;
+			case PRICES_PROPERTY -> entity.pricesAvailable() ? new ArrayList<>(entity.getPrices()) : null;
 			case ACCOMPANYING_PRICE_PROPERTY -> entity.isPriceForSaleContextAvailable() ? entity.getAccompanyingPrice().orElse(null) : null;
 			case PRICE_INNER_RECORD_HANDLING_PROPERTY -> entity.pricesAvailable() ? entity.getPriceInnerRecordHandling().name() : null;
 			case VERSION_PROPERTY -> entity.version();

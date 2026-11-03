@@ -1519,12 +1519,16 @@ class RangeIndexTest {
 
 		@Test
 		@DisplayName("Is not equal to null or to an instance of a different type")
+		@SuppressWarnings({"SimplifiableAssertion", "EqualsBetweenInconvertibleTypes", "ObjectEqualsNull"})
 		void shouldNotBeEqualToNullOrDifferentType() {
 			final RangeIndex a = new RangeIndex();
 			a.addRecord(5, 10, 1);
 
-			assertNotEquals(null, a);
-			assertNotEquals("not a range index", a);
+			// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
+			// fix moves the literal there, so `String.equals` would be tested instead of the class under test - and
+			// with `null` first it calls no `equals` at all
+			assertFalse(a.equals(null));
+			assertFalse(a.equals("not a range index"));
 		}
 
 		@Test

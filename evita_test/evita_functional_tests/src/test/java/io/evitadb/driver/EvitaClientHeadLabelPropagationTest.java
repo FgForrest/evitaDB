@@ -322,7 +322,7 @@ class EvitaClientHeadLabelPropagationTest implements TestConstants, EvitaTestSup
 			1, collections.size(),
 			() -> "expected exactly one collection on the wire: " + sentRequest.getQuery()
 		);
-		assertEquals(Entities.PRODUCT, collections.get(0).getEntityType());
+		assertEquals(Entities.PRODUCT, collections.getFirst().getEntityType());
 	}
 
 	/**
@@ -337,7 +337,7 @@ class EvitaClientHeadLabelPropagationTest implements TestConstants, EvitaTestSup
 		final QueryRequestCapturingInterceptor capture = new QueryRequestCapturingInterceptor();
 		try (final EvitaClient client = new EvitaClient(
 			clientConfiguration(evitaServer),
-			(Consumer<GrpcClientBuilder>) builder -> builder.intercept(capture)
+			builder -> builder.intercept(capture)
 		)) {
 			client.queryCatalog(TEST_CATALOG, queryInvocation);
 		}

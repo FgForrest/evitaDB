@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,6 +52,7 @@ import io.evitadb.comparator.NullsLastComparatorWrapper;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
@@ -726,6 +727,58 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 					0, Integer.MAX_VALUE
 				);
 
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should order a segment of a query without a collection by a scoped ascending primary key")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldOrderSegmentByScopedAscendingPrimaryKeyWithoutCollection(
+		Evita evita, List<SealedEntity> originalProductEntities
+	) {
+		final String codeAttribute1 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 5);
+		final String codeAttribute2 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 8);
+		final String codeAttribute3 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 11);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// every selected entity is live, so the live scope container must not change what the segment takes -
+				// the query has no collection, so no collection index tells which records the scope holds
+				final List<EntityReference> scoped = session.query(
+					query(
+						filterBy(attributeInSet(ATTRIBUTE_CODE, codeAttribute1, codeAttribute2, codeAttribute3)),
+						orderBy(
+							segments(
+								segment(orderBy(inScope(Scope.LIVE, entityPrimaryKeyNatural(ASC))), limit(1)),
+								segment(orderBy(entityPrimaryKeyNatural(DESC)))
+							)
+						),
+						require(page(1, Integer.MAX_VALUE))
+					),
+					EntityReference.class
+				).getRecordData();
+				final List<EntityReference> unscoped = session.query(
+					query(
+						filterBy(attributeInSet(ATTRIBUTE_CODE, codeAttribute1, codeAttribute2, codeAttribute3)),
+						orderBy(
+							segments(
+								segment(orderBy(entityPrimaryKeyNatural(ASC)), limit(1)),
+								segment(orderBy(entityPrimaryKeyNatural(DESC)))
+							)
+						),
+						require(page(1, Integer.MAX_VALUE))
+					),
+					EntityReference.class
+				).getRecordData();
+				// the first segment takes the product with the smallest primary key, the second orders the rest from
+				// the greatest one
+				final int[] primaryKeys = unscoped.stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray();
+				assertEquals(3, primaryKeys.length);
+				final int[] expected = {primaryKeys[0], primaryKeys[2], primaryKeys[1]};
+				assertArrayEquals(expected, unscoped.stream().mapToInt(EntityReference::getPrimaryKey).toArray());
+				assertArrayEquals(expected, scoped.stream().mapToInt(EntityReference::getPrimaryKey).toArray());
 				return null;
 			}
 		);
@@ -3480,11 +3533,11 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 				session -> {
 					final EvitaResponse<EntityReference> result = getByAttributeSize(session, 900);
 					assertEquals(1, result.getTotalRecordCount());
-					assertEquals(updatedProductId.get(), result.getRecordData().get(0).getPrimaryKeyOrThrowException());
+					assertEquals(updatedProductId.get(), result.getRecordData().getFirst().getPrimaryKeyOrThrowException());
 
 					final EvitaResponse<EntityReference> anotherResult = getByAttributeSize(session, 1400);
 					assertEquals(1, anotherResult.getTotalRecordCount());
-					assertEquals(updatedProductId.get(), anotherResult.getRecordData().get(0).getPrimaryKeyOrThrowException());
+					assertEquals(updatedProductId.get(), anotherResult.getRecordData().getFirst().getPrimaryKeyOrThrowException());
 					return null;
 				}
 			);
@@ -3495,7 +3548,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 			evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
-					final SealedEntity alteredProduct = originalProductEntities.get(0);
+					final SealedEntity alteredProduct = originalProductEntities.getFirst();
 					updatedProductId.set(alteredProduct.getPrimaryKeyOrThrowException());
 					session.upsertEntity(
 						alteredProduct.openForWrite().setAttribute(
@@ -3804,7 +3857,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 
 				assertEquals(
 					lookedUpProduct,
-					result.getRecordData().get(0)
+					result.getRecordData().getFirst()
 				);
 				return null;
 			}
@@ -3853,7 +3906,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 
 				assertEquals(
 					lookedUpProduct,
-					result.getRecordData().get(0)
+					result.getRecordData().getFirst()
 				);
 				return null;
 			}
@@ -4037,7 +4090,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 					SealedEntity.class
 				);
 				assertEquals(1, result.getRecordData().size());
-				final SealedEntity sealedEntity = result.getRecordData().get(0);
+				final SealedEntity sealedEntity = result.getRecordData().getFirst();
 				assertEquals(2, sealedEntity.getLocales().size());
 				assertTrue(sealedEntity.getLocales().contains(Locale.ENGLISH));
 				assertTrue(sealedEntity.getLocales().contains(CZECH_LOCALE));
@@ -4065,7 +4118,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 							)
 						)
 					)
-				).get(0);
+				).getFirst();
 			}
 		);
 		final String productUrl = product.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
@@ -4084,7 +4137,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 							)
 						)
 					)
-				).get(0);
+				).getFirst();
 			}
 		);
 		final String categoryUrl = category.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
@@ -5931,7 +5984,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> {
 						final Boolean alias = sealedEntity.getAttribute(ATTRIBUTE_ALIAS);
-						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						final Long priority = sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
 						return Boolean.TRUE.equals(alias) &&
 							priority != null &&
 							!(priority > priorityHigh) &&
@@ -5977,7 +6030,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> {
 						final Boolean alias = sealedEntity.getAttribute(ATTRIBUTE_ALIAS);
-						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						final Long priority = sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
 						return Boolean.TRUE.equals(alias) &&
 							priority != null &&
 							(priority > priorityAttribute || !(priority < priorityAttribute));
@@ -6025,7 +6078,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> {
 						final Boolean alias = sealedEntity.getAttribute(ATTRIBUTE_ALIAS);
-						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						final Long priority = sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
 						return Boolean.TRUE.equals(alias) &&
 							priority != null &&
 							(!(priority > priorityHigh) || !(priority < priorityLow));
@@ -6071,7 +6124,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> {
 						final Boolean alias = sealedEntity.getAttribute(ATTRIBUTE_ALIAS);
-						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						final Long priority = sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
 						return Boolean.TRUE.equals(alias) &&
 							priority != null &&
 							!(priority > priorityHigh || priority < priorityLow);
@@ -6190,7 +6243,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 				assertResultIs(
 					originalProductEntities,
 					sealedEntity -> {
-						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						final Long priority = sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
 						final boolean isSizeNull = ofNullable((IntegerNumberRange[]) sealedEntity.getAttributeArray(ATTRIBUTE_SIZE))
 							.map(it -> it.length == 0)
 							.orElse(true);
@@ -6237,7 +6290,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> {
 						final Boolean alias = sealedEntity.getAttribute(ATTRIBUTE_ALIAS);
-						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						final Long priority = sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
 						final boolean isSizeNotNull = ofNullable((IntegerNumberRange[]) sealedEntity.getAttributeArray(ATTRIBUTE_SIZE))
 							.map(it -> it.length > 0)
 							.orElse(false);
@@ -6400,7 +6453,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> {
 						final Boolean alias = sealedEntity.getAttribute(ATTRIBUTE_ALIAS);
-						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						final Long priority = sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
 						final Boolean visible = sealedEntity.getAttribute(ATTRIBUTE_VISIBLE);
 						return Boolean.TRUE.equals(alias) &&
 							((priority != null && priority > priorityAttribute) || !Boolean.TRUE.equals(visible));

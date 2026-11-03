@@ -357,6 +357,48 @@ public final class EntitySchema implements EntitySchemaContract {
 	}
 
 	/**
+	 * This method is for internal purposes only. It returns a copy of the entity schema with the given attributes
+	 * and version, and everything else taken over from the source schema - the single place that copies an entity
+	 * schema for a change of its attributes, so that a property added to the schema cannot be forgotten in one of
+	 * the copies.
+	 *
+	 * Do not use this method from in the client code!
+	 *
+	 * @param entitySchema the schema to copy
+	 * @param version      the version of the copy
+	 * @param attributes   the attributes of the copy, in the order the copy keeps them
+	 * @return the copy of the schema with the given attributes
+	 */
+	@Nonnull
+	public static EntitySchema _internalBuildWithAttributes(
+		@Nonnull EntitySchemaContract entitySchema,
+		int version,
+		@Nonnull Map<String, EntityAttributeSchemaContract> attributes
+	) {
+		return _internalBuild(
+			version,
+			entitySchema.getName(),
+			entitySchema.getNameVariants(),
+			entitySchema.getDescription(),
+			entitySchema.getDeprecationNotice(),
+			entitySchema.getConflictResolution().orElse(null),
+			entitySchema.isWithGeneratedPrimaryKey(),
+			entitySchema.isWithHierarchy(),
+			entitySchema.getHierarchyIndexedInScopes(),
+			entitySchema.isWithPrice(),
+			entitySchema.getPriceIndexedInScopes(),
+			entitySchema.getIndexedPricePlaces(),
+			entitySchema.getLocales(),
+			entitySchema.getCurrencies(),
+			attributes,
+			entitySchema.getAssociatedData(),
+			entitySchema.getReferences(),
+			entitySchema.getEvolutionMode(),
+			entitySchema.getSortableAttributeCompounds()
+		);
+	}
+
+	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of original Entity from different
 	 * package than current, but still internal code of the Evita ecosystems.
 	 *
@@ -580,11 +622,13 @@ public final class EntitySchema implements EntitySchemaContract {
 				referenceSchemaContract.getDescription(),
 				referenceSchemaContract.getDeprecationNotice(),
 				referenceSchemaContract.getReferencedEntityType(),
-				referenceSchemaContract.getEntityTypeNameVariants(entityType -> null),
+				referenceSchemaContract.isReferencedEntityTypeManaged() ?
+					Collections.emptyMap() : referenceSchemaContract.getEntityTypeNameVariants(s -> null),
 				referenceSchemaContract.isReferencedEntityTypeManaged(),
 				referenceSchemaContract.getCardinality(),
 				referenceSchemaContract.getReferencedGroupType(),
-				referenceSchemaContract.getGroupTypeNameVariants(entityType -> null),
+				referenceSchemaContract.isReferencedGroupTypeManaged() ?
+					Collections.emptyMap() : referenceSchemaContract.getGroupTypeNameVariants(s -> null),
 				referenceSchemaContract.isReferencedGroupTypeManaged(),
 				referenceSchemaContract.getReferenceIndexTypeInScopes()
 					.entrySet()

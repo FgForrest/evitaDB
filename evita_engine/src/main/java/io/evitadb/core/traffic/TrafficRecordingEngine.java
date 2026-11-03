@@ -770,9 +770,9 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 		 * Completes the mutation application lifecycle by handling an exception, closing
 		 * the tracing block, and recording the mutation execution for tracking and analysis.
 		 *
-		 * @param ex the exception to be handled and recorded with the tracing block; must not be null
+		 * @param ex the failure to be handled and recorded with the tracing block; must not be null
 		 */
-		public void finishWithException(@Nonnull Exception ex) {
+		public void finishWithException(@Nonnull Throwable ex) {
 			this.ref.setError(ex);
 			this.ref.close();
 			try {

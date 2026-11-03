@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
+import graphql.GraphQLContext;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingSerializeException;
 import io.evitadb.dataType.BigDecimalNumberRange;
@@ -93,7 +94,11 @@ public class AnyCoercing extends ObjectCoercing {
 	}
 
 	@Override
-	public Object serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
+	public Object serialize(
+		@Nonnull Object dataFetcherResult,
+		@Nonnull GraphQLContext graphQLContext,
+		@Nonnull Locale locale
+	) throws CoercingSerializeException {
 		final Coercing<?, ?> coercing;
 		final Class<?> dataFetcherResultClass = dataFetcherResult.getClass();
 		if (dataFetcherResultClass.isPrimitive()) {
@@ -105,6 +110,6 @@ public class AnyCoercing extends ObjectCoercing {
 		if (coercing == null) {
 			throw new CoercingSerializeException("Could not find coercing for value of type `" + dataFetcherResult.getClass().getName() + "`.");
 		}
-		return coercing.serialize(dataFetcherResult);
+		return coercing.serialize(dataFetcherResult, graphQLContext, locale);
 	}
 }

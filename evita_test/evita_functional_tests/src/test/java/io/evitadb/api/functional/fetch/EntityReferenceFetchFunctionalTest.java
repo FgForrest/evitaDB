@@ -920,7 +920,7 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 	void shouldFilterStoreReferencesByEntityHavingAttributeEquals(
 		Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalStores
 	) {
-		final SealedEntity firstStore = originalStores.get(0);
+		final SealedEntity firstStore = originalStores.getFirst();
 		final String targetStoreCode = firstStore.getAttribute(ATTRIBUTE_CODE, String.class);
 		final int targetStorePk = firstStore.getPrimaryKey();
 
@@ -1037,7 +1037,7 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 	void shouldFilterReferencesByNegatedEntityHaving(
 		Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalStores
 	) {
-		final SealedEntity excludedStore = originalStores.get(0);
+		final SealedEntity excludedStore = originalStores.getFirst();
 		final String excludedCode = excludedStore.getAttribute(ATTRIBUTE_CODE, String.class);
 		final int excludedPk = excludedStore.getPrimaryKeyOrThrowException();
 
@@ -2178,7 +2178,7 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 			)
 		);
 		assertEquals(1, response.getRecordData().size());
-		return assertInstanceOf(ServerEntityDecorator.class, response.getRecordData().get(0));
+		return assertInstanceOf(ServerEntityDecorator.class, response.getRecordData().getFirst());
 	}
 
 	/**
@@ -2271,7 +2271,7 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 			)
 		);
 		assertEquals(1, response.getRecordData().size());
-		return assertInstanceOf(ServerEntityDecorator.class, response.getRecordData().get(0));
+		return assertInstanceOf(ServerEntityDecorator.class, response.getRecordData().getFirst());
 	}
 
 	/**
@@ -2393,7 +2393,7 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 			)
 		);
 		assertEquals(1, response.getRecordData().size());
-		return assertInstanceOf(ServerEntityDecorator.class, response.getRecordData().get(0));
+		return assertInstanceOf(ServerEntityDecorator.class, response.getRecordData().getFirst());
 	}
 
 	/**

@@ -37,6 +37,7 @@ import javax.annotation.Nonnull;
 import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -402,12 +403,15 @@ class EntityIndexKeyTest {
 
 		@Test
 		@DisplayName("should not equal null")
+		@SuppressWarnings({"SimplifiableAssertion", "ObjectEqualsNull"})
 		void shouldNotEqualNull() {
 			final EntityIndexKey key = new EntityIndexKey(
 				EntityIndexType.GLOBAL, Scope.LIVE, null
 			);
 
-			assertNotEquals(null, key);
+			// deliberately not `assertNotEquals`: with `null` as its first argument it calls no `equals` at all, so
+			// the null check of the class under test would never run
+			assertFalse(key.equals(null));
 		}
 
 		@Test

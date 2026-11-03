@@ -332,7 +332,7 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 	 *
 	 * Enrichment logic:
 	 * - Attributes: Union of existing and new attribute sets (empty set dominates as "all attributes")
-	 * - Locales: Union of existing and new locale sets
+	 * - Locales: Union of existing and new locale sets (empty set dominates as "all locales")
 	 * - RequiresAttributes: OR logic (once true, stays true)
 	 *
 	 * @param evitaRequest the request containing additional attribute and locale requirements to merge
@@ -364,9 +364,10 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 	/**
 	 * Returns all locales available in this predicate (implicit + explicit).
 	 *
-	 * Combines implicit locale with the explicit locale set for a complete view of all accessible locales.
+	 * Combines implicit locale with the explicit locale set for a complete view of all accessible locales. An empty
+	 * explicit set means all locales and is returned as is, even when an implicit locale is present.
 	 *
-	 * @return a set of all locales, or null if no locales are defined
+	 * @return a set of all locales, empty when every locale is accessible, or null if no locales are defined
 	 */
 	@Nullable
 	public Set<Locale> getAllLocales() {

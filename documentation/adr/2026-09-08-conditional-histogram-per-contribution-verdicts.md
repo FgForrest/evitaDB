@@ -1,7 +1,7 @@
 ---
 title: Conditional histogram triggers answer per contribution, and the mutated entity's PK is pinned inside the scope container
 date: 2026-09-08
-updated: 2026-09-14 07:15
+updated: 2026-10-08 14:40
 status: accepted
 kind: fix
 issues: [1470]
@@ -9,7 +9,8 @@ prs: [1555]
 areas: [evita_engine/src/main/java/io/evitadb/index/mutation, evita_engine/src/main/java/io/evitadb/core/collection]
 supersedes: []
 superseded-by: []
-relates: [2026-08-31-cross-entity-histogram-removal-pre-pass, 2026-04-23-bucketed-histogram-indexing]
+relates: [2026-08-31-cross-entity-histogram-removal-pre-pass, 2026-04-23-bucketed-histogram-indexing,
+  2026-10-08-cross-entity-condition-pins-only-what-it-reads]
 ---
 
 # A cross-entity condition is answered per `(referencedEntity, owner)` contribution, not per owner
@@ -70,6 +71,10 @@ merges the PK into it, so the identity is asserted in the one place that guarant
 of that, `parameterizeForContribution` takes **both** axes from the resolved contribution itself —
 `entityHaving(pk = referencedEntityPK)` always, `groupHaving(pk = groupPK)` when grouped — which makes the pin
 uniform across every dependency type and deletes the dependency-type switch rather than extending it.
+
+> **Narrowed 2026-10-08.** "Always" no longer holds. Every pin requires the target entity to exist, so an axis
+> the condition does not read is now pinned only when the rows cannot be told apart otherwise. See
+> [[2026-10-08-cross-entity-condition-pins-only-what-it-reads]].
 
 - **Pros:** one mechanism covers all six dependency types; injection order stops mattering, because a descending
   injector finds the container wherever an earlier pass left it; for `REFERENCED_ENTITY_*` it reduces to the pin

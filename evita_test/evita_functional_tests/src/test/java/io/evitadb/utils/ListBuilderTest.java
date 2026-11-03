@@ -166,9 +166,9 @@ class ListBuilderTest {
 			@SuppressWarnings("unchecked")
 			final List<Object> listResult = (List<Object>) result;
 			assertEquals(1, listResult.size());
-			assertInstanceOf(Map.class, listResult.get(0));
+			assertInstanceOf(Map.class, listResult.getFirst());
 			@SuppressWarnings("unchecked")
-			final Map<String, Object> mapElement = (Map<String, Object>) listResult.get(0);
+			final Map<String, Object> mapElement = (Map<String, Object>) listResult.getFirst();
 			assertEquals("value", mapElement.get("key"));
 		}
 
@@ -184,9 +184,9 @@ class ListBuilderTest {
 			@SuppressWarnings("unchecked")
 			final List<Object> listResult = (List<Object>) result;
 			assertEquals(1, listResult.size());
-			assertInstanceOf(List.class, listResult.get(0));
+			assertInstanceOf(List.class, listResult.getFirst());
 			@SuppressWarnings("unchecked")
-			final List<Object> nestedList = (List<Object>) listResult.get(0);
+			final List<Object> nestedList = (List<Object>) listResult.getFirst();
 			assertEquals(2, nestedList.size());
 			assertEquals("nested1", nestedList.get(0));
 			assertEquals("nested2", nestedList.get(1));

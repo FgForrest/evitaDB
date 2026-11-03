@@ -24,6 +24,7 @@
 package io.evitadb.index;
 
 import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -42,6 +43,7 @@ import io.evitadb.index.component.AttributeCardinalityIndexMapComponent;
 import io.evitadb.index.component.HistogramIndexMapComponent;
 import io.evitadb.index.component.PriceIndexComponent;
 import io.evitadb.index.component.ReferenceTypeCardinalityComponent;
+import io.evitadb.index.component.VirtualReferencePartitionComponent;
 import io.evitadb.index.component.loader.AttributeCardinalityIndexMapLoader;
 import io.evitadb.index.component.loader.AttributeIndexLoader;
 import io.evitadb.index.component.loader.FacetIndexLoader;
@@ -50,6 +52,7 @@ import io.evitadb.index.component.loader.HistogramIndexMapLoader;
 import io.evitadb.index.component.loader.IndexReloadPlan;
 import io.evitadb.index.component.loader.LoadedComponentBundle;
 import io.evitadb.index.component.loader.ReferenceTypeCardinalityLoader;
+import io.evitadb.index.component.loader.VirtualReferencePartitionLoader;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.TransactionalMap;
@@ -110,6 +113,13 @@ import static java.util.Optional.ofNullable;
  * histogram indexes back the {@link io.evitadb.api.query.require.ReferenceHistogramStatistics} computation for
  * non-grouped references: the accumulator calls {@link #getHistogramFilterIndex(String, Locale)} to obtain the
  * source {@link io.evitadb.index.attribute.FilterIndex} and runs histogram bucket computation against it.
+ *
+ * **Virtual reference partitions** — this index also carries one {@link VirtualReferencePartitionIndex}, recording
+ * what is known about single-owner reference partitions that have no reduced entity index of their own: the owner
+ * each partition belongs to, its representative attribute tuple, its sortable attribute and compound values, and
+ * its chain predecessors. It is exposed by {@link #getVirtualReferencePartitionIndex()}, persisted as its own root
+ * and leaf-page storage parts, and loaded back by
+ * {@link io.evitadb.index.component.loader.VirtualReferencePartitionLoader}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -202,6 +212,14 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	@Nonnull
 	private final ReferenceTypeCardinalityIndex indexPrimaryKeyCardinality;
 	/**
+	 * Keeps the owner, the referenced entity and the representative attribute values of the reference partitions
+	 * that have no reduced entity index of their own. It is registered on both families of this index, but only a
+	 * {@link EntityIndexType#REFERENCED_ENTITY_TYPE} index ever hands it out - see
+	 * {@link #getVirtualReferencePartitionIndex()} - so the group family's instance stays empty and persists nothing.
+	 */
+	@Nonnull
+	private final VirtualReferencePartitionIndex virtualReferencePartitionIndex;
+	/**
 	 * This transactional map (index) contains for each attribute single instance of {@link FilterIndex}
 	 * (respective single instance for each attribute-locale combination in case of language specific attribute).
 	 */
@@ -284,6 +302,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	) {
 		super(primaryKey, entityType, entityIndexKey, usageStatisticsTracking);
 		this.indexPrimaryKeyCardinality = new ReferenceTypeCardinalityIndex();
+		this.virtualReferencePartitionIndex = new VirtualReferencePartitionIndex();
 		this.cardinalityIndexes = new TransactionalMap<>(
 			CollectionUtils.createHashMap(16), AttributeCardinalityIndex.class, Function.identity()
 		);
@@ -312,6 +331,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull HierarchyIndex hierarchyIndex,
 		@Nonnull FacetIndex facetIndex,
 		@Nonnull ReferenceTypeCardinalityIndex indexPrimaryKeyCardinality,
+		@Nonnull VirtualReferencePartitionIndex virtualReferencePartitionIndex,
 		@Nonnull Map<AttributeIndexKey, AttributeCardinalityIndex> cardinalityIndexes,
 		@Nonnull Map<String, HistogramIndex> histogramIndexes,
 		@Nullable IndexActivity activity
@@ -322,6 +342,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			attributeIndex, hierarchyIndex, facetIndex, activity
 		);
 		this.indexPrimaryKeyCardinality = indexPrimaryKeyCardinality;
+		this.virtualReferencePartitionIndex = virtualReferencePartitionIndex;
 		this.cardinalityIndexes = new TransactionalMap<>(
 			cardinalityIndexes, AttributeCardinalityIndex.class, Function.identity()
 		);
@@ -337,9 +358,9 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	/**
 	 * Returns the read-side reload plan for `ReferencedTypeEntityIndex`. Unlike the reduced
 	 * variants, RTEI does not carry a price sub-index (its `priceIndex` field is
-	 * `VoidPriceIndex.INSTANCE`), so the plan omits any price loader. The plan adds three
-	 * subclass-owned loaders: per-attribute cardinality, histogram map, and the cross-reference
-	 * type-cardinality bookkeeping.
+	 * `VoidPriceIndex.INSTANCE`), so the plan omits any price loader. The plan adds four
+	 * subclass-owned loaders: per-attribute cardinality, histogram map, the cross-reference
+	 * type-cardinality bookkeeping and the virtual reference partition index.
 	 *
 	 * @return the immutable reload plan for this subclass
 	 */
@@ -355,6 +376,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		.add(new AttributeCardinalityIndexMapLoader())
 		.add(new HistogramIndexMapLoader())
 		.add(new ReferenceTypeCardinalityLoader())
+		.add(new VirtualReferencePartitionLoader())
 		.build((bundles, context) -> {
 			final LoadedComponentBundle.AttributeIndexes attributes =
 				(LoadedComponentBundle.AttributeIndexes) bundles.get(LoadedComponentBundle.AttributeIndexes.class);
@@ -370,6 +392,9 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			final LoadedComponentBundle.ReferenceTypeCardinality refTypeCardinality =
 				(LoadedComponentBundle.ReferenceTypeCardinality)
 					bundles.get(LoadedComponentBundle.ReferenceTypeCardinality.class);
+			final LoadedComponentBundle.VirtualReferencePartitions virtualReferencePartitions =
+				(LoadedComponentBundle.VirtualReferencePartitions)
+					bundles.get(LoadedComponentBundle.VirtualReferencePartitions.class);
 			final io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart manifest =
 				context.entityIndexStoragePart();
 			return new ReferencedTypeEntityIndex(
@@ -392,6 +417,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 				hierarchy.hierarchyIndex(),
 				facet.facetIndex(),
 				refTypeCardinality.referenceTypeCardinalityIndex(),
+				virtualReferencePartitions.virtualReferencePartitionIndex(),
 				cardinalities.cardinalityIndexes(),
 				histograms.histogramIndexes(),
 				// loaded from disk — the counters start over, which is what "since catalog load" means, and are
@@ -420,7 +446,8 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	@Override
 	public boolean isEmpty() {
 		// null check required: parent constructor calls isEmpty() before subclass fields are initialized
-		return super.isEmpty() && this.indexPrimaryKeyCardinality.isEmpty() && this.histogramIndexes.isEmpty();
+		return super.isEmpty() && this.indexPrimaryKeyCardinality.isEmpty() && this.histogramIndexes.isEmpty() &&
+			this.virtualReferencePartitionIndex.isEmpty();
 	}
 
 	@Nonnull
@@ -502,10 +529,10 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	}
 
 	/**
-	 * Registers the four subclass-owned {@link io.evitadb.index.component.IndexComponent}
+	 * Registers the five subclass-owned {@link io.evitadb.index.component.IndexComponent}
 	 * adapters into the parent {@link EntityIndex#addComponent} loop so cardinality / histogram /
-	 * reference-type-cardinality flush, reset and remove-layer all flow through the uniform
-	 * component path. The void price component preserves the parity with peer subclasses — its
+	 * reference-type-cardinality / virtual-reference-partition flush, reset and remove-layer all flow through
+	 * the uniform component path. The void price component preserves the parity with peer subclasses — its
 	 * `getPriceListAndCurrencyIndexes()` returns the empty collection so the manifest contribution
 	 * is trivially empty.
 	 *
@@ -523,6 +550,30 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		addComponent(
 			new ReferenceTypeCardinalityComponent(this.indexPrimaryKeyCardinality, getReferenceName())
 		);
+		addComponent(
+			new VirtualReferencePartitionComponent(this.virtualReferencePartitionIndex, getReferenceName())
+		);
+	}
+
+	/**
+	 * Returns the index of the reference partitions that have no reduced entity index of their own.
+	 *
+	 * Only partitions of referenced entities are kept there - a group is never a virtual partition - so the index is
+	 * handed out by a {@link EntityIndexType#REFERENCED_ENTITY_TYPE} index alone, and asking the
+	 * {@link EntityIndexType#REFERENCED_GROUP_ENTITY_TYPE} one is a programming error.
+	 *
+	 * @return the virtual reference partition index of this reference
+	 */
+	@Nonnull
+	public VirtualReferencePartitionIndex getVirtualReferencePartitionIndex() {
+		// a plain branch rather than an assertion with a message, so the valid path builds no string
+		if (getIndexKey().type() != EntityIndexType.REFERENCED_ENTITY_TYPE) {
+			throw new GenericEvitaInternalError(
+				"Virtual reference partitions are kept only by the referenced entity type index, not by `" +
+					getIndexKey().type() + "`!"
+			);
+		}
+		return this.virtualReferencePartitionIndex;
 	}
 
 	/**
@@ -793,22 +844,24 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		final VMLayout layout = VMLayout.current();
 		// the reference name, attribute name and locale of an attribute key all belong to the schema
 		final long attributeIndexKey = layout.sizeOfObject(3L * layout.referenceSize());
-		// the priceIndex / indexPrimaryKeyCardinality / cardinalityIndexes / histogramIndexes / histogramComponent
-		// slots
-		return getBaseHeapSizeInBytes(5L * layout.referenceSize())
+		// the priceIndex / indexPrimaryKeyCardinality / virtualReferencePartitionIndex / cardinalityIndexes /
+		// histogramIndexes / histogramComponent slots
+		return getBaseHeapSizeInBytes(6L * layout.referenceSize())
 			+ this.indexPrimaryKeyCardinality.getHeapSizeInBytes()
+			+ this.virtualReferencePartitionIndex.getHeapSizeInBytes()
 			+ this.cardinalityIndexes.getHeapSizeInBytes(
 				key -> attributeIndexKey, AttributeCardinalityIndex::getHeapSizeInBytes
 			)
 			+ this.histogramIndexes.getHeapSizeInBytes(
 				histogramName -> 0L, HistogramIndex::getHeapSizeInBytes
 			)
-			// the four components this class registers: a price one over the void singleton, a cardinality one holding
-			// its map plus the index key, and a reference-type cardinality one holding its index plus the reference
-			// name. All three are pure adapters over fields charged above, so their shells are all they cost
+			// the five components this class registers: a price one over the void singleton, a cardinality one holding
+			// its map plus the index key, and a reference-type cardinality one and a virtual reference partition one,
+			// each holding its index plus the reference name. All four are pure adapters over fields charged above, so
+			// their shells are all they cost
 			+ layout.sizeOfObject(layout.referenceSize())
-			+ 2L * layout.sizeOfObject(2L * layout.referenceSize())
-			// the fourth prices itself: alongside its map and the index key it holds the on-disk leaf-page baseline of
+			+ 3L * layout.sizeOfObject(2L * layout.referenceSize())
+			// the fifth prices itself: alongside its map and the index key it holds the on-disk leaf-page baseline of
 			// the last flush, which no field of this index points at and which a shell charge would report as free
 			+ this.histogramComponent.getHeapSizeInBytes();
 	}
@@ -835,6 +888,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.indexPrimaryKeyCardinality),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.virtualReferencePartitionIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalityIndexes),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.histogramIndexes),
 			// the very same holder, not a copy: this is one logical index carried into the next catalog version
@@ -846,7 +900,8 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// drop our own diff layer (no-op for VoidTransactionMemoryProducer) and propagate the
 		// recursive remove into every registered component via the base method — the base loop
-		// covers the AttributeCardinality, Histogram and ReferenceTypeCardinality components too
+		// covers the AttributeCardinality, Histogram, ReferenceTypeCardinality and VirtualReferencePartition
+		// components too
 		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
 	}
 

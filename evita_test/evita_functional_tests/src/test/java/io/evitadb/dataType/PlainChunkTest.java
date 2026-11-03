@@ -405,7 +405,7 @@ class PlainChunkTest {
 
 			// all threads must get the exact same
 			// List instance (identity, not just equality)
-			final List<String> first = results.get(0);
+			final List<String> first = results.getFirst();
 			for (final List<String> result : results) {
 				assertSame(
 					first, result,

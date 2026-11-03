@@ -39,6 +39,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -69,7 +70,11 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.text.Normalizer;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -78,6 +83,7 @@ import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -258,19 +264,43 @@ public abstract sealed class SortIndex
 	}
 
 	/**
-	 * Creates a normalizer if any part of the comparator base is of type {@link String}.
+	 * Creates the normalizer a comparator of prefetched entities applies to the compound values it reads from entity
+	 * bodies - one element normalizer per compound element, see
+	 * {@link #createComparatorNormalizerFor(ComparatorSource, int)}, except that a `BigDecimal` element is left exact,
+	 * because the sort index of a compound keeps it exact too.
 	 *
-	 * @see #normalizer
+	 * @param comparatorBase       one descriptor per compound element
+	 * @param indexedDecimalPlaces the `indexedDecimalPlaces` of each element's attribute schema, in element order
+	 * @return the normalizer of a compound value, identity when no element needs one
 	 */
 	@Nonnull
-	public static UnaryOperator<Serializable> createNormalizerFor(@Nonnull ComparatorSource[] comparatorBase) {
-		return createNormalizerFor(comparatorBase, 0);
+	public static UnaryOperator<Serializable> createComparatorNormalizerFor(
+		@Nonnull ComparatorSource[] comparatorBase,
+		@Nonnull int[] indexedDecimalPlaces
+	) {
+		Assert.isPremiseValid(
+			comparatorBase.length == indexedDecimalPlaces.length,
+			"Expected decimal places for each of " + comparatorBase.length + " compound elements!"
+		);
+		//noinspection unchecked
+		final UnaryOperator<Serializable>[] normalizers = new UnaryOperator[comparatorBase.length];
+		boolean atLeastOneNormalizerFound = false;
+		for (int i = 0; i < comparatorBase.length; i++) {
+			// the index of a compound keeps a `BigDecimal` element exact, so the comparators must not round it either
+			final Optional<UnaryOperator<Serializable>> normalizer =
+				createComparatorNormalizerFor(comparatorBase[i], indexedDecimalPlaces[i], false);
+			normalizers[i] = normalizer.orElseGet(UnaryOperator::identity);
+			atLeastOneNormalizerFound = atLeastOneNormalizerFound || normalizer.isPresent();
+		}
+		return atLeastOneNormalizerFound ?
+			new ComparableArrayNormalizer<>(normalizers) : UnaryOperator.identity();
 	}
 
 	/**
 	 * Creates a normalizer if any element of the comparator base needs canonicalization (a {@link String},
-	 * {@link Locale}, {@link Currency} or {@link java.math.BigDecimal}). `BigDecimal` elements are scaled to an
-	 * order-preserving `int` using `indexedDecimalPlaces`, applied uniformly to every `BigDecimal` element.
+	 * {@link Locale}, {@link Currency}, or an `OffsetDateTime`, `LocalDateTime` or `LocalTime` normalized to its
+	 * millisecond form - see {@link #getNormalizedType(Class)}). `BigDecimal` elements are NOT scaled - see the comment
+	 * in the loop below.
 	 *
 	 * @param comparatorBase       one descriptor per compound element
 	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` elements (0 for other types)
@@ -299,24 +329,67 @@ public abstract sealed class SortIndex
 	}
 
 	/**
-	 * Creates a normalizer if the comparator base is of type {@link String}, {@link Locale} or {@link Currency}.
-	 * `BigDecimal` is intentionally NOT normalized here: the query-side comparators that call this overload compare raw
-	 * `BigDecimal` entity values among themselves, where natural order is already correct. The index-side scaling is
-	 * supplied through the {@link #createNormalizerFor(ComparatorSource, int)} overload.
+	 * Creates the normalizer a comparator of prefetched entities applies to the values it reads from entity bodies, if
+	 * the comparator base is of type {@link String}, {@link Locale}, {@link Currency}, {@link BigDecimal},
+	 * {@link BigDecimalNumberRange} or one of the temporal types normalized to their millisecond form, so the comparator
+	 * orders the entities exactly as the sort index of the attribute does.
 	 *
+	 * The sort index holds a `BigDecimal` rounded to the attribute's `indexedDecimalPlaces` (see
+	 * {@link #createNormalizerFor(ComparatorSource, int)}), while the entity body keeps the value as written, so two
+	 * values differing only past that scale are one value - a tie - to the index. The comparator rounds them the same
+	 * way, half up, but keeps them `BigDecimal`: equal and ordered exactly like the scaled `int` keys of the index,
+	 * without their `int` range limit. A `BigDecimalNumberRange` compares by its bounds encoded at a decimal scale, and
+	 * the entity body keeps each range at the scale of its own bounds, so the ranges of two entities are comparable only
+	 * once both are re-encoded at the attribute's `indexedDecimalPlaces`, the scale the sort index holds them at.
+	 *
+	 * @param comparatorBase       descriptor of the compared value
+	 * @param indexedDecimalPlaces the `indexedDecimalPlaces` of the attribute schema the value belongs to
+	 * @return the normalizer, or empty when the type needs none
 	 * @see #normalizer
 	 */
 	@Nonnull
-	public static Optional<UnaryOperator<Serializable>> createNormalizerFor(@Nonnull ComparatorSource comparatorBase) {
-		return createNormalizerFor(comparatorBase, 0, false);
+	public static Optional<UnaryOperator<Serializable>> createComparatorNormalizerFor(
+		@Nonnull ComparatorSource comparatorBase,
+		int indexedDecimalPlaces
+	) {
+		return createComparatorNormalizerFor(comparatorBase, indexedDecimalPlaces, true);
+	}
+
+	/**
+	 * Shared implementation behind the two public `createComparatorNormalizerFor` overloads. `roundBigDecimal` gates
+	 * the rounding of a `BigDecimal` to `indexedDecimalPlaces`: a plain attribute's sort index rounds it, a compound's
+	 * keeps it exact.
+	 *
+	 * @param comparatorBase       descriptor of the compared value
+	 * @param indexedDecimalPlaces the `indexedDecimalPlaces` of the attribute schema the value belongs to
+	 * @param roundBigDecimal      whether a `BigDecimal` is rounded to `indexedDecimalPlaces`
+	 * @return the normalizer, or empty when the type needs none
+	 */
+	@Nonnull
+	private static Optional<UnaryOperator<Serializable>> createComparatorNormalizerFor(
+		@Nonnull ComparatorSource comparatorBase,
+		int indexedDecimalPlaces,
+		boolean roundBigDecimal
+	) {
+		if (BigDecimalNumberRange.class.isAssignableFrom(comparatorBase.type())) {
+			return Optional.of(
+				value -> value == null ? null : NumberUtils.normalizeForIndexing(value, indexedDecimalPlaces)
+			);
+		} else if (roundBigDecimal && BigDecimal.class.isAssignableFrom(comparatorBase.type())) {
+			return Optional.of(
+				value -> value instanceof BigDecimal bd ? bd.setScale(indexedDecimalPlaces, RoundingMode.HALF_UP) : value
+			);
+		} else {
+			return createNormalizerFor(comparatorBase, indexedDecimalPlaces, false);
+		}
 	}
 
 	/**
 	 * Creates a normalizer if the comparator base needs canonicalization. In addition to the {@link String} /
-	 * {@link Locale} / {@link Currency} forms, a {@link java.math.BigDecimal} element is scaled to an order-preserving
-	 * `int` using `indexedDecimalPlaces`, matching the shared filter value tree so a both-flagged attribute's sort keys
-	 * never diverge from its filter keys. The scaled-int normalizer is idempotent (an already-scaled `Integer` and
-	 * `null` pass through unchanged).
+	 * {@link Locale} / {@link Currency} / temporal forms, a {@link java.math.BigDecimal} element is scaled to an
+	 * order-preserving `int` using `indexedDecimalPlaces`, matching the shared filter value tree so a both-flagged
+	 * attribute's sort keys never diverge from its filter keys. The scaled-int normalizer is idempotent (an
+	 * already-scaled `Integer` and `null` pass through unchanged).
 	 *
 	 * @param comparatorBase       descriptor of the element
 	 * @param indexedDecimalPlaces decimal-places scale used to encode a `BigDecimal` element
@@ -366,7 +439,11 @@ public abstract sealed class SortIndex
 	 * Rehydrates a sort index from its persisted state in **owner** or **view** mode. When `sharedSupplier` resolves a
 	 * shared tree the persisted `sortedRecordValues` / `cardinalities` are IGNORED (the slim part omits them) and a
 	 * {@link SortIndexView} is built; otherwise an {@link OwnerSortIndex} is rebuilt from the persisted arrays.
-	 * `sortedRecords` is always taken as-is.
+	 * `sortedRecords` is always taken as-is, and so are the persisted values - nothing here normalizes a raw temporal
+	 * value an owner part of 2026.2 or an older release stored, nor re-sorts the localized texts or locales such a
+	 * release ordered by the bare collator or the language tag: the storage migration to protocol 7 rewrites every
+	 * such part before a catalog of that release loads. A catalog that reaches protocol 7 with such a part otherwise -
+	 * only a development build of 2026.3 writes one - is not supported, and its values are read as they are stored.
 	 *
 	 * @param comparatorBase       one descriptor per element (a single entry for plain attributes)
 	 * @param referenceKey         owning reference discriminator, or `null` for the global index
@@ -433,9 +510,42 @@ public abstract sealed class SortIndex
 	}
 
 	/**
+	 * Returns the type a normalized value of the passed declared type has - the type the normalizer of this class turns
+	 * a value of `type` into. A temporal type takes the form {@link FilterIndex#getNormalizedKeyType(Class)} names for
+	 * it, `Locale` and `Currency` their comparable wrappers, and every other type stays itself. A `BigDecimal` stays
+	 * itself on purpose: the only values validated against this type are compound elements, which are never scaled.
+	 *
+	 * @param type the declared type of an attribute or compound element
+	 * @return the type of its normalized values
+	 */
+	@Nonnull
+	static Class<?> getNormalizedType(@Nonnull Class<?> type) {
+		return isTemporal(type) ? FilterIndex.getNormalizedKeyType(type) : assertComparable(type);
+	}
+
+	/**
+	 * Returns `true` for the temporal types whose sort values are normalized exactly as {@link FilterIndex} normalizes
+	 * its keys: `OffsetDateTime` and `LocalDateTime` to a millisecond `Instant` (the latter anchored at UTC) and
+	 * `LocalTime` to a millisecond `LocalTime`.
+	 *
+	 * @param type the declared type of an attribute or compound element
+	 * @return `true` when the type is one of the three temporal types
+	 */
+	static boolean isTemporal(@Nonnull Class<?> type) {
+		return OffsetDateTime.class.isAssignableFrom(type) ||
+			LocalDateTime.class.isAssignableFrom(type) ||
+			LocalTime.class.isAssignableFrom(type);
+	}
+
+	/**
 	 * Shared implementation behind the two public `createNormalizerFor(ComparatorSource, …)` overloads. `scaleBigDecimal`
 	 * gates the `BigDecimal` scaled-int branch: the index path enables it (keys must match the shared filter tree); the
 	 * query-comparator path leaves it off (raw `BigDecimal` natural order is already correct for sorting result rows).
+	 *
+	 * Temporal values are normalized on both paths, by the very function
+	 * {@link FilterIndex#getNormalizer(Class, int)} keys the filter tree with, so every sort index - an owner, a view
+	 * over the filter tree, an element of a compound - and the comparison of prefetched entities order one moment
+	 * written at two offsets as one value. That function is idempotent, so an already-normalized value passes through.
 	 */
 	@Nonnull
 	private static Optional<UnaryOperator<Serializable>> createNormalizerFor(
@@ -443,7 +553,11 @@ public abstract sealed class SortIndex
 		int indexedDecimalPlaces,
 		boolean scaleBigDecimal
 	) {
-		if (String.class.isAssignableFrom(comparatorBase.type())) {
+		if (isTemporal(comparatorBase.type())) {
+			final Function<Object, Serializable> temporalNormalizer =
+				FilterIndex.getNormalizer(comparatorBase.type(), 0);
+			return Optional.of(temporalNormalizer::apply);
+		} else if (String.class.isAssignableFrom(comparatorBase.type())) {
 			return Optional.of(
 				text -> text == null
 					? null
@@ -675,6 +789,56 @@ public abstract sealed class SortIndex
 	 */
 	public int getDistinctValueCount() {
 		return valueCount();
+	}
+
+	/**
+	 * Returns a lazy iterator over the distinct values of this index in its value order - ascending, or descending when
+	 * asked - normalized exactly as the index stores them (see {@link #getValueOfRecord(int)}). Every step reads one
+	 * bucket of the value tree and nothing is materialized up front, so a walk stopped early costs only the values it
+	 * passed.
+	 *
+	 * @param descending TRUE to walk from the largest value down
+	 * @return the iterator, empty when the index holds no value
+	 */
+	@Nonnull
+	public Iterator<Serializable> getDistinctValueIterator(boolean descending) {
+		final InvertedIndex tree = valueTreeOrNull();
+		if (tree == null) {
+			return Collections.emptyIterator();
+		}
+		final Iterator<ValueToRecord> it = descending ? tree.getValueReverseIterator() : tree.getValueIterator();
+		return new Iterator<>() {
+			@Override
+			public boolean hasNext() {
+				return it.hasNext();
+			}
+
+			@Override
+			public Serializable next() {
+				return it.next().getValue();
+			}
+		};
+	}
+
+	/**
+	 * Returns the value the record is ordered by, exactly as this index stores it - the normalized form, so a
+	 * `Locale` comes back as a {@link ComparableLocale}, a temporal value as its `Instant` and a compound as the
+	 * {@link ComparableArray} of its normalized elements. The value is the one of the block the record occupies, read
+	 * by position, so no lookup by value - which would normalize the value once more - is ever made.
+	 *
+	 * The answer is meaningful only between two mutations: within a running one a record may already have left its
+	 * old block without having entered the new one.
+	 *
+	 * @param recordId the record whose value is requested
+	 * @return the stored value of the record, empty when the record is not part of this index
+	 */
+	@Nonnull
+	public Optional<Serializable> getValueOfRecord(int recordId) {
+		final int position = this.sortedRecords.indexOf(recordId);
+		if (position < 0) {
+			return Optional.empty();
+		}
+		return Optional.of(createSortedComparableForwardSeeker().getValueToCompareOn(position));
 	}
 
 	/**
@@ -1460,17 +1624,23 @@ public abstract sealed class SortIndex
 		 * Validating constructor that asserts each value matches the type declared by the corresponding
 		 * {@link ComparatorSource} element before wrapping the array (null values are permitted).
 		 *
+		 * The values are the normalized ones, so an element declared as `Locale` or `Currency` holds the comparable
+		 * wrapper the normalizer turned it into and an element declared as `OffsetDateTime` or `LocalDateTime` holds an
+		 * `Instant` - the type {@link #getNormalizedType(Class)} maps the declared type to - and that is the type the
+		 * value is checked against.
+		 *
 		 * @param comparatorBase the per-element type/order descriptors of the owning compound
-		 * @param value          the values to wrap, aligned positionally with `comparatorBase`
-		 * @throws IllegalArgumentException if any non-null value is not an instance of its declared element type
+		 * @param value          the normalized values to wrap, aligned positionally with `comparatorBase`
+		 * @throws IllegalArgumentException if any non-null value is not an instance of its normalized element type
 		 */
 		public ComparableArray(@Nonnull ComparatorSource[] comparatorBase, @Nonnull Serializable[] value) {
 			this(value);
 			for (int i = 0; i < comparatorBase.length; i++) {
+				final Class<?> normalizedType = getNormalizedType(comparatorBase[i].type());
 				isTrue(
-					value[i] == null || comparatorBase[i].type().isInstance(value[i]),
-					"Value on index `" + i + "` must be of type `" + comparatorBase[i].type()
-						.getName() + "` but is `" + value[i] + "`!"
+					value[i] == null || normalizedType.isInstance(value[i]),
+					"Value on index `" + i + "` must be of type `" + normalizedType.getName() + "` but is `" +
+						value[i] + "`!"
 				);
 			}
 		}

@@ -67,13 +67,13 @@ import javax.annotation.Nonnull;
 public abstract class AbstractInterruptionTransformer implements Plugin {
 	/**
 	 * The advice visitor, resolved once per plugin instance because
-	 * {@link #apply(DynamicType.Builder, TypeDescription, ClassFileLocator)} is invoked for every type in the module.
+	 * {@link #apply(DynamicType.Builder, TypeDescription, ClassFileLocator)} is invoked for every class in the module.
 	 */
 	@Nonnull private final AsmVisitorWrapper advice;
 
 	/**
 	 * Resolves the matcher and the advice visitor once, because
-	 * {@link #apply(DynamicType.Builder, TypeDescription, ClassFileLocator)} runs for every type in the module.
+	 * {@link #apply(DynamicType.Builder, TypeDescription, ClassFileLocator)} runs for every class in the module.
 	 *
 	 * Note that {@link #interruptibleMethods()} is invoked from here and therefore must not depend on subclass state.
 	 */
@@ -97,9 +97,20 @@ public abstract class AbstractInterruptionTransformer implements Plugin {
 	@Nonnull
 	protected abstract ElementMatcher.Junction<MethodDescription> interruptibleMethods();
 
+	/**
+	 * Accepts every class of the module and declines its module descriptor.
+	 *
+	 * Byte Buddy 1.18 hands `module-info` to the plugin as a type of its own, whose modifiers carry `ACC_MODULE`
+	 * (`0x8000`). Accepting it fails the whole `transform` goal with "Illegal modifiers 32768 for class
+	 * module-info", because a module descriptor cannot be redefined as a class. It declares no methods, so declining
+	 * it leaves nothing unwoven.
+	 *
+	 * @param target the type the plugin engine offers for transformation
+	 * @return false for the module descriptor, true for every other type
+	 */
 	@Override
 	public boolean matches(@Nonnull TypeDescription target) {
-		return true;
+		return !target.isModuleType();
 	}
 
 	@Nonnull

@@ -38,7 +38,6 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
-import static io.evitadb.test.TestTags.SLOW;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assumptions.abort;
 
@@ -134,7 +133,6 @@ public abstract class AbstractSavepointFuzzTest<R> implements TimeBoundedTestSup
 	}
 
 	@ParameterizedTest(name = "Savepoint rollback restores the exact pre-savepoint state")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("Savepoint rollback restores the exact pre-savepoint state")
 	protected void shouldRestoreStateOnSavepointRollback(@Nonnull GenerationalTestInput input) {
@@ -158,7 +156,6 @@ public abstract class AbstractSavepointFuzzTest<R> implements TimeBoundedTestSup
 	}
 
 	@ParameterizedTest(name = "Savepoint commit keeps the in-savepoint state")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("Savepoint commit keeps the in-savepoint state")
 	protected void shouldKeepStateOnSavepointCommit(@Nonnull GenerationalTestInput input) {
@@ -182,7 +179,6 @@ public abstract class AbstractSavepointFuzzTest<R> implements TimeBoundedTestSup
 	}
 
 	@ParameterizedTest(name = "Warm-up savepoint rollback restores the exact pre-savepoint state")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("Warm-up savepoint rollback restores the exact pre-savepoint state")
 	protected void shouldRestoreStateOnWarmUpSavepointRollback(@Nonnull GenerationalTestInput input) {
@@ -206,7 +202,6 @@ public abstract class AbstractSavepointFuzzTest<R> implements TimeBoundedTestSup
 	}
 
 	@ParameterizedTest(name = "Warm-up savepoint commit keeps the in-savepoint state")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("Warm-up savepoint commit keeps the in-savepoint state")
 	protected void shouldKeepStateOnWarmUpSavepointCommit(@Nonnull GenerationalTestInput input) {

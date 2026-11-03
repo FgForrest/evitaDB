@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.trafficRecording.TransientTrafficRecording
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.kryo.ObservableOutput;
+import io.evitadb.store.kryo.ObservableOutputBufferPool;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.MemoryNotAvailableException;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.NumberedByteBuffer;
@@ -177,11 +178,24 @@ public class SessionTraffic implements Closeable {
 		return null;
 	}
 
+	/**
+	 * Creates session recording state with a detached output borrowing exact-size frame buffers.
+	 * Off-heap memory blocks are acquired lazily as serialized records fill the current block.
+	 *
+	 * @param sessionId unique identifier of the recorded session
+	 * @param catalogVersion catalog version targeted by the session
+	 * @param created date and time when the session was created
+	 * @param outputBufferSize maximal serialized frame size, including its header and checksum
+	 * @param bufferSupplier supplier of numbered off-heap blocks used to retain serialized traffic
+	 * @param obtain supplier that leases a Kryo instance for processing the serialization queue
+	 * @param free consumer that returns the leased Kryo instance after processing
+	 * @throws io.evitadb.exception.GenericEvitaInternalError if the frame size cannot fit the mandatory tail
+	 */
 	public SessionTraffic(
 		@Nonnull UUID sessionId,
 		long catalogVersion,
 		@Nonnull OffsetDateTime created,
-		@Nonnull byte[] writeBuffer,
+		int outputBufferSize,
 		@Nonnull Supplier<NumberedByteBuffer> bufferSupplier,
 		@Nonnull Supplier<Kryo> obtain,
 		@Nonnull Consumer<Kryo> free
@@ -205,9 +219,11 @@ public class SessionTraffic implements Closeable {
 					}
 				}
 			),
-			writeBuffer,
+			outputBufferSize,
+			0L,
 			Checksum.NO_OP,
-			null
+			null,
+			ObservableOutputBufferPool.INSTANCE
 		);
 	}
 
@@ -285,42 +301,35 @@ public class SessionTraffic implements Closeable {
 
 	/**
 	 * Discards the current session by calculating its duration, marking it as discarded,
-	 * and returning the current buffer data.
-	 *
-	 * @return a byte array representing the current buffer contents for the session.
+	 * and retaining its recorded memory blocks for the recorder to release.
 	 */
-	public byte[] discard() {
+	public void discard() {
 		if (this.finished == null) {
 			this.durationInMillis = (int) (System.currentTimeMillis() - this.created.toInstant().toEpochMilli());
 			this.finished = FinishReason.DISCARDED;
 		}
-		return this.observableOutput.getBuffer();
 	}
 
 	/**
-	 * Marks the session as finished.
+	 * Marks the session as regularly finished, records its duration and drains the serialization queue.
+	 * Completed frames return their buffers to the shared pool as they are appended to the recorded memory blocks.
 	 *
-	 * @return buffer used for writing (so it could be reused for another session)
+	 * @throws RuntimeException if a queued record cannot be serialized
 	 */
-	@Nonnull
-	public byte[] finish() {
+	public void finish() {
 		this.durationInMillis = (int) (System.currentTimeMillis() - this.created.toInstant().toEpochMilli());
 		this.finished = FinishReason.REGULAR_FINISH;
 		// process the queue to ensure all records are serialized
 		this.processQueue(true);
-		return this.observableOutput.getBuffer();
 	}
 
 	/**
-	 * Marks the session as finished due to memory shortage.
-	 *
-	 * @return buffer used for writing (so it could be reused for another session)
+	 * Marks the session as finished due to memory shortage and records its duration.
+	 * Previously recorded memory blocks remain available for the recorder to release.
 	 */
-	@Nonnull
-	public byte[] finishDueToMemoryShortage() {
+	public void finishDueToMemoryShortage() {
 		this.durationInMillis = (int) (System.currentTimeMillis() - this.created.toInstant().toEpochMilli());
 		this.finished = FinishReason.MEMORY_SHORTAGE;
-		return this.observableOutput.getBuffer();
 	}
 
 	/**

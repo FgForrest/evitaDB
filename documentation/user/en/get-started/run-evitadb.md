@@ -75,6 +75,42 @@ implementation 'io.evitadb:evita_db:2026.1.0'
 </CodeTabsBlock>
 </CodeTabs>
 
+#### Align versions with the BOM
+
+Import `evita_bom` to keep your evitaDB dependencies on one version. The BOM manages only evitaDB
+artifacts; your application chooses its third-party library versions.
+
+<CodeTabs>
+<CodeTabsBlock>
+```Maven
+<dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>io.evitadb</groupId>
+            <artifactId>evita_bom</artifactId>
+            <version>2026.3.0</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+    </dependencies>
+</dependencyManagement>
+<dependencies>
+    <dependency>
+        <groupId>io.evitadb</groupId>
+        <artifactId>evita_db</artifactId>
+        <type>pom</type>
+    </dependency>
+</dependencies>
+```
+</CodeTabsBlock>
+<CodeTabsBlock>
+```Gradle
+implementation platform('io.evitadb:evita_bom:2026.3.0')
+implementation 'io.evitadb:evita_db'
+```
+</CodeTabsBlock>
+</CodeTabs>
+
 ### Start evitaDB server
 
 To start the evitaDB server, you need to instantiate <SourceClass>evita_engine/src/main/java/io/evitadb/core/Evita.java</SourceClass>,
@@ -109,7 +145,6 @@ exception when you enable the corresponding API in evitaDB's configuration.
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_grpc</artifactId>
     <version>2026.1.0</version>
-    <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
@@ -129,7 +164,6 @@ implementation 'io.evitadb:evita_external_api_grpc:2026.1.0'
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_graphql</artifactId>
     <version>2026.1.0</version>
-    <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
@@ -149,7 +183,6 @@ implementation 'io.evitadb:evita_external_api_graphql:2026.1.0'
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_rest</artifactId>
     <version>2026.1.0</version>
-    <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>

@@ -93,7 +93,7 @@ class ClientCallableTaskTest implements TestConstants {
 		final ArrayList<Integer> progress = new ArrayList<>();
 		do {
 			final int theProgress = task.getStatus().progress();
-			if (progress.isEmpty() || progress.get(progress.size() - 1) < theProgress) {
+			if (progress.isEmpty() || progress.getLast() < theProgress) {
 				progress.add(theProgress);
 			}
 		} while (!finalFuture.isDone());

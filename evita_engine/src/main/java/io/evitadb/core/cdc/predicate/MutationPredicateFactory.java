@@ -40,6 +40,7 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.function.Predicate;
 
 import static java.util.Optional.ofNullable;
@@ -58,12 +59,18 @@ public interface MutationPredicateFactory {
 	 * the given version and index - i.e. `sinceVersion`/`sinceIndex` act as an inclusive lower bound. Used together
 	 * with a forward-ordered mutation stream (oldest first).
 	 *
-	 * @param request request to be used for creating the predicate chain
+	 * @param request   request to be used for creating the predicate chain
+	 * @param catalogId identity of the catalog incarnation the mutation stream belongs to, stamped onto every capture
+	 *                  created through the predicate chain
 	 * @return predicate chain that filters out mutations that match the given request
 	 */
 	@Nonnull
-	static MutationPredicate createChangeCatalogCapturePredicate(@Nonnull ChangeCatalogCaptureRequest request) {
+	static MutationPredicate createChangeCatalogCapturePredicate(
+		@Nonnull ChangeCatalogCaptureRequest request,
+		@Nullable UUID catalogId
+	) {
 		return createPredicateUsingComparator(
+			catalogId,
 			request.sinceVersion(),
 			request.sinceIndex(),
 			request.criteria(),
@@ -79,12 +86,18 @@ public interface MutationPredicateFactory {
 	 * the given version and index. Thus the method is named "reversed" as it is used to capture changes in the reversed
 	 * order.
 	 *
-	 * @param criteria criteria to be used for creating the predicate chain
+	 * @param criteria  criteria to be used for creating the predicate chain
+	 * @param catalogId identity of the catalog incarnation the mutation stream belongs to, stamped onto every capture
+	 *                  created through the predicate chain
 	 * @return predicate chain that filters out mutations that match the given criteria
 	 */
 	@Nonnull
-	static MutationPredicate createReversedChangeCatalogCapturePredicate(@Nonnull ChangeCatalogCaptureRequest criteria) {
+	static MutationPredicate createReversedChangeCatalogCapturePredicate(
+		@Nonnull ChangeCatalogCaptureRequest criteria,
+		@Nullable UUID catalogId
+	) {
 		return createPredicateUsingComparator(
+			catalogId,
 			criteria.sinceVersion(),
 			criteria.sinceIndex(),
 			criteria.criteria(),
@@ -130,6 +143,11 @@ public interface MutationPredicateFactory {
 	 * Method creates a predicate chain that filters out mutations that match the given {@link ChangeCatalogCaptureRequest}
 	 * request using the given version / index comparator.
 	 *
+	 * @param catalogId           identity of the catalog incarnation the mutation stream belongs to, stamped onto
+	 *                            every capture created through the predicate chain; `null` when unknown
+	 * @param sinceCatalogVersion the version the captured mutations start at (or end at for a reversed stream)
+	 * @param sinceIndex          the index within that version the captured mutations start at
+	 * @param criteria            criteria the captured mutations must match any of
 	 * @param versionComparator comparator to be used for comparing versions
 	 * @param indexComparator   comparator to be used for comparing indexes
 	 * @param direction         direction of the stream
@@ -137,6 +155,7 @@ public interface MutationPredicateFactory {
 	 */
 	@Nonnull
 	static MutationPredicate createPredicateUsingComparator(
+		@Nullable UUID catalogId,
 		@Nullable Long sinceCatalogVersion,
 		@Nullable Integer sinceIndex,
 		@Nullable ChangeCatalogCaptureCriteria[] criteria,
@@ -144,7 +163,7 @@ public interface MutationPredicateFactory {
 		@Nonnull Comparator<Integer> indexComparator,
 		@Nonnull StreamDirection direction
 	) {
-		MutationPredicateContext context = new MutationPredicateContext(direction);
+		final MutationPredicateContext context = new MutationPredicateContext(direction, catalogId);
 		MutationPredicate mutationPredicate = null;
 		if (sinceCatalogVersion != null) {
 			mutationPredicate = ofNullable(sinceIndex)

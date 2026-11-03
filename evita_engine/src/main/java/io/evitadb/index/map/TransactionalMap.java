@@ -395,6 +395,12 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	@Override
 	public V remove(@Nullable Object key) {
 		Assert.notNull(key, "Null keys are not supported in transactional maps!");
+		// with no diff layer open yet the delegate IS the current state, so an absent key is settled there and the
+		// removal stays a pure read: a layer opened for it would change nothing, yet the commit would still rebuild
+		// the whole map from it instead of handing the delegate over
+		if (getTransactionalMemoryLayerIfExists(this) == null && !this.mapDelegate.containsKey(key)) {
+			return null;
+		}
 		final MapChanges<K, V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			//noinspection unchecked

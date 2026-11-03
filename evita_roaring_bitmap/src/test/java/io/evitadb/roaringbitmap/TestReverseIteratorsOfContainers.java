@@ -38,7 +38,7 @@ public class TestReverseIteratorsOfContainers {
 		PeekableCharIterator pii = container.getCharIterator();
 		for (int i = 0; i < data.length; ++i) {
 			pii.advanceIfNeeded(data[i]);
-			assertEquals((int) data[i], (int) pii.peekNext());
+			assertEquals(data[i], (int) pii.peekNext());
 		}
 		pii = container.getCharIterator();
 		for (int i = 0; i < data.length; ++i) {

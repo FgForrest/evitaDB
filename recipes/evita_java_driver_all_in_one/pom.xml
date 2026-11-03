@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~
+  ~                         _ _        ____  ____
+  ~               _____   _(_) |_ __ _|  _ \| __ )
+  ~              / _ \ \ / / | __/ _` | | | |  _ \
+  ~             |  __/\ V /| | || (_| | |_| | |_) |
+  ~              \___| \_/ |_|\__\__,_|____/|____/
+  ~
+  ~   Copyright (c) 2023-2026
+  ~
+  ~   Licensed under the Business Source License, Version 1.1 (the "License");
+  ~   you may not use this file except in compliance with the License.
+  ~   You may obtain a copy of the License at
+  ~
+  ~   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+  ~
+  ~   Unless required by applicable law or agreed to in writing, software
+  ~   distributed under the License is distributed on an "AS IS" BASIS,
+  ~   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~   See the License for the specific language governing permissions and
+  ~   limitations under the License.
+  -->
+
+<!--
+    Standalone recipe for a Java driver jar with its dependencies shaded.
+    Build: mvn -Drevision=<evitaDB version> install
+    The version must match a released evita_java_driver. You may change the groupId
+    when deploying the result into your own repository.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>io.evitadb</groupId>
+	<artifactId>evita_java_driver_all_in_one</artifactId>
+	<version>${revision}</version>
+	<packaging>jar</packaging>
+	<name>evitaDB - Java driver all-in-one (gRPC client side)</name>
+	<description>Standalone recipe for the shaded evitaDB Java driver.</description>
+	<organization>
+		<name>FG Forrest, a.s.</name>
+		<url>https://www.fg.cz</url>
+	</organization>
+	<properties>
+		<maven.compiler.release>17</maven.compiler.release>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+	</properties>
+	<!--
+		Resolves every third-party library at the version evitaDB was built and tested with. Without this import
+		Maven's nearest-wins mediation picks other versions of the shaded libraries (e.g. Guava's `-android` flavour
+		and older Jackson and Netty patch releases). Everything is shaded into the jar, so the pins cannot leak into
+		the application that uses it.
+	-->
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>io.evitadb</groupId>
+				<artifactId>evita_root</artifactId>
+				<version>${revision}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+	<dependencies>
+		<dependency>
+			<groupId>io.evitadb</groupId>
+			<artifactId>evita_java_driver</artifactId>
+			<version>${revision}</version>
+		</dependency>
+	</dependencies>
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-clean-plugin</artifactId>
+				<version>3.5.0</version>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-resources-plugin</artifactId>
+				<version>3.5.0</version>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<version>3.16.0</version>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>3.5.5</version>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-install-plugin</artifactId>
+				<version>3.2.0</version>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-deploy-plugin</artifactId>
+				<version>3.2.0</version>
+			</plugin>
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>flatten-maven-plugin</artifactId>
+				<version>1.8.0</version>
+				<configuration>
+					<!-- Resolve the version and remove dependencies already contained in the jar.
+					     resolveCiFriendliesOnly with pomElements fails in flatten 1.8.0. -->
+					<flattenMode>fatjar</flattenMode>
+					<outputDirectory>${project.build.directory}</outputDirectory>
+				</configuration>
+				<executions>
+					<execution>
+						<id>flatten</id>
+						<phase>process-resources</phase>
+						<goals>
+							<goal>flatten</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+				<version>3.5.1</version>
+				<configuration>
+					<archive>
+						<manifest>
+							<addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+						</manifest>
+					</archive>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-shade-plugin</artifactId>
+				<version>3.6.2</version>
+				<executions>
+					<execution>
+						<phase>package</phase>
+						<goals>
+							<goal>shade</goal>
+						</goals>
+					</execution>
+				</executions>
+				<configuration>
+					<createDependencyReducedPom>false</createDependencyReducedPom>
+					<relocations>
+						<relocation>
+							<pattern>io.grpc</pattern>
+							<shadedPattern>io.evitadb.dependencies.io.grpc</shadedPattern>
+						</relocation>
+						<relocation>
+							<pattern>grpc.binlog</pattern>
+							<shadedPattern>io.evitadb.dependencies.grpc.binlog</shadedPattern>
+						</relocation>
+						<relocation>
+							<pattern>grpc.channelz</pattern>
+							<shadedPattern>io.evitadb.dependencies.grpc.channelz</shadedPattern>
+						</relocation>
+						<relocation>
+							<pattern>grpc.health</pattern>
+							<shadedPattern>io.evitadb.dependencies.grpc.health</shadedPattern>
+						</relocation>
+						<relocation>
+							<pattern>grpc.reflection</pattern>
+							<shadedPattern>io.evitadb.dependencies.grpc.reflection</shadedPattern>
+						</relocation>
+						<relocation>
+							<pattern>io.micrometer</pattern>
+							<shadedPattern>io.evitadb.dependencies.io.micrometer</shadedPattern>
+						</relocation>
+						<relocation>
+							<pattern>io.netty</pattern>
+							<shadedPattern>io.evitadb.dependencies.io.netty</shadedPattern>
+						</relocation>
+						<relocation>
+							<pattern>io.perfmark</pattern>
+							<shadedPattern>io.evitadb.dependencies.io.perfmark</shadedPattern>
+						</relocation>
+						<relocation>
+							<pattern>net</pattern>
+							<shadedPattern>io.evitadb.dependencies.net</shadedPattern>
+						</relocation>
+						<relocation>
+							<pattern>google</pattern>
+							<shadedPattern>io.evitadb.dependencies.google</shadedPattern>
+						</relocation>
+						<relocation>
+							<pattern>com</pattern>
+							<shadedPattern>io.evitadb.dependencies.com</shadedPattern>
+						</relocation>
+						<relocation>
+							<pattern>org</pattern>
+							<shadedPattern>io.evitadb.dependencies.org</shadedPattern>
+						</relocation>
+						<relocation>
+							<pattern>reactor</pattern>
+							<shadedPattern>io.evitadb.dependencies.reactor</shadedPattern>
+						</relocation>
+					</relocations>
+					<artifactSet>
+						<excludes>
+							<exclude>com.google.android:*</exclude>
+						</excludes>
+					</artifactSet>
+					<filters>
+						<filter>
+							<artifact>ch.qos.logback:logback-classic</artifact>
+							<includes>
+								<include>**</include>
+							</includes>
+						</filter>
+						<filter>
+							<artifact>io.netty:netty-common</artifact>
+							<excludes>
+								<exclude>META-INF/services/reactor.blockhound.integration.BlockHoundIntegration</exclude>
+							</excludes>
+						</filter>
+						<filter>
+							<artifact>*:*</artifact>
+							<excludes>
+								<exclude>META-INF/versions/**</exclude>
+								<excludes>META-INF/*.SF</excludes>
+								<excludes>META-INF/*.DSA</excludes>
+								<excludes>META-INF/*.RSA</excludes>
+							</excludes>
+						</filter>
+					</filters>
+					<transformers>
+						<transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer" />
+						<transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+						<transformer implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer" />
+						<transformer implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer">
+							<!-- JDK 17 still defaults to the platform charset, which mangles non-ASCII notices. -->
+							<encoding>UTF-8</encoding>
+						</transformer>
+						<transformer implementation="org.apache.maven.plugins.shade.resource.DontIncludeResourceTransformer">
+							<resource>META-INF/MANIFEST.MF</resource>
+						</transformer>
+						<transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+							<resource>META-INF/maven/com.google.guava/guava/pom.xml</resource>
+						</transformer>
+						<transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+							<resource>META-INF/maven/org.antlr/antlr4-runtime/pom.xml</resource>
+						</transformer>
+						<transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+							<resource>META-INF/DEPENDENCIES</resource>
+						</transformer>
+						<transformer implementation="org.apache.maven.plugins.shade.resource.properties.PropertiesTransformer">
+							<!-- required configuration -->
+							<resource>META-INF/io.netty.versions.properties</resource>
+							<ordinalKey>ordinal</ordinalKey>
+						</transformer>
+						<transformer implementation="org.apache.maven.plugins.shade.resource.properties.PropertiesTransformer">
+							<!-- required configuration -->
+							<resource>META-INF/maven/org.antlr/antlr4-runtime/pom.properties</resource>
+							<ordinalKey>ordinal</ordinalKey>
+						</transformer>
+						<transformer implementation="org.apache.maven.plugins.shade.resource.properties.PropertiesTransformer">
+							<!-- required configuration -->
+							<resource>META-INF/maven/com.google.guava/guava/pom.properties</resource>
+							<ordinalKey>ordinal</ordinalKey>
+						</transformer>
+					</transformers>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+</project>

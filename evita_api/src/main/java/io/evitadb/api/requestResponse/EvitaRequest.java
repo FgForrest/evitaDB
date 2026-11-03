@@ -316,6 +316,7 @@ public class EvitaRequest {
 	 * existing one with a different entity type, optional filter/order
 	 * constraints, and entity fetch requirements. Memoized values
 	 * that depend on the changed parts are reset.
+	 * A supplied filter resolves its own level's locale before inheriting this request's locale.
 	 *
 	 * @param evitaRequest the original request to derive from
 	 * @param entityType   the new entity type (may be null)
@@ -373,8 +374,7 @@ public class EvitaRequest {
 		this.primaryKeys = evitaRequest.primaryKeys;
 		if (filterBy != null) {
 			this.localeExamined = true;
-			this.locale = ofNullable(QueryUtils.findConstraint(filterBy, EntityLocaleEquals.class))
-				.map(EntityLocaleEquals::getLocale)
+			this.locale = ofNullable(QueryUtils.resolveLocale(filterBy))
 				.orElseGet(evitaRequest::getLocale);
 		} else {
 			this.localeExamined = evitaRequest.localeExamined;
@@ -518,7 +518,8 @@ public class EvitaRequest {
 	 * existing one with a different entity type, optional
 	 * filter/order constraints, locale, and scopes. Most memoized
 	 * values are reset except those explicitly copied from the
-	 * original request.
+	 * original request. The explicit locale override wins; without it the nested filter's own level opinion
+	 * wins over the enclosing request's resolved locale.
 	 *
 	 * @param evitaRequest the original request to derive from
 	 * @param entityType   the new entity type
@@ -566,8 +567,10 @@ public class EvitaRequest {
 		this.additionalPriceLists = evitaRequest.getFetchesAdditionalPriceLists();
 		this.defaultAccompanyingPricePriceLists = evitaRequest.getDefaultAccompanyingPricePriceLists();
 		this.accompanyingPrices = null;
+		final Locale filterLocale = QueryUtils.resolveLocale(filterBy);
 		this.localeExamined = true;
-		this.locale = locale == null ? evitaRequest.getLocale() : locale;
+		this.locale = locale == null ?
+			ofNullable(filterLocale).orElseGet(evitaRequest::getLocale) : locale;
 		this.requiredLocales = null;
 		this.requiredLocaleSet = null;
 		this.requiresParent = null;
@@ -633,15 +636,15 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns locale of the entity that is being requested.
+	 * Returns the requested entity level's resolved locale, coalescing equal opinions and rejecting conflicts.
+	 * Locales inside a different entity level do not set the locale of this request. Failed resolution is not memoized,
+	 * so conflicting opinions are refused on every access.
 	 */
 	@Nullable
 	public Locale getLocale() {
 		if (!this.localeExamined) {
+			this.locale = QueryUtils.resolveLocale(this.query.getFilterBy());
 			this.localeExamined = true;
-			this.locale = ofNullable(QueryUtils.findFilter(this.query, EntityLocaleEquals.class))
-				.map(EntityLocaleEquals::getLocale)
-				.orElse(null);
 		}
 		return this.locale;
 	}
@@ -656,9 +659,9 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns locale of the entity that is being requested. If locale
-	 * is not explicitly set in the query it falls back to
-	 * {@link #getImplicitLocale()}.
+	 * Returns {@link #getLocale()} or, when it is NULL, {@link #getImplicitLocale()}.
+	 *
+	 * @return the locale of this request, NULL when neither is known
 	 */
 	@Nullable
 	public Locale getRequiredOrImplicitLocale() {
@@ -1942,7 +1945,8 @@ public class EvitaRequest {
 	 * to the changed entity type and the filtering constraints.
 	 *
 	 * The iteration order of `scopes` becomes the requested order of the copy, which a unique lookup
-	 * prefers the earlier scopes by - pass an ordered set when the order matters.
+	 * prefers the earlier scopes by - pass an ordered set when the order matters. An explicit locale wins;
+	 * otherwise the nested filter's own opinion takes precedence over the enclosing request's locale.
 	 */
 	@Nonnull
 	public EvitaRequest deriveCopyWith(

@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.EntityConstraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.utils.ArrayUtils;
@@ -44,11 +45,13 @@ import java.io.Serializable;
  * rather than properties of the relationship.
  *
  * This constraint requires the reference schema to have the `REFERENCED_ENTITY` component enabled in its indexed
- * components configuration and a group type defined.
+ * components configuration.
  *
- * This constraint is an {@link EntityConstraint} and {@link SeparateEntityScopeContainer}, declaring that it defines a filtering context for
- * a different entity type than the query's primary collection. It is supported in the {@code REFERENCE}, {@code INLINE_REFERENCE},
- * {@code FACET}, and {@code SEGMENT} constraint domains.
+ * This constraint is an {@link EntityConstraint} and a {@link DifferentEntityFilterContainer} (which extends
+ * {@link SeparateEntityScopeContainer}), declaring that its children filter the referenced entity rather than the
+ * entity or reference enclosing it. They form a locale level of their own: an {@link EntityLocaleEquals} among them
+ * is the referenced entity's locale, and without one they inherit the enclosing level's locale. It is supported in
+ * the {@code REFERENCE}, {@code INLINE_REFERENCE}, {@code FACET}, and {@code SEGMENT} constraint domains.
  *
  * ## Basic Usage
  *
@@ -90,22 +93,10 @@ import java.io.Serializable;
  * - **Reference attribute**: `referenceHaving("brand", attributeEquals("category", "primary"))` — filters on relation attribute `category`.
  * - **Entity attribute**: `referenceHaving("brand", entityHaving(attributeEquals("name", "Apple")))` — filters on brand entity's `name`.
  *
- * ## Single Child Constraint
+ * ## Several children are combined with logical AND
  *
- * The `entityHaving` container accepts exactly one child constraint. If you need multiple filtering conditions, use a logical container like
- * {@link And} or {@link Or}:
- *
- * ```
- * referenceHaving(
- *     "supplier",
- *     entityHaving(
- *         or(
- *             attributeEquals("country", "USA"),
- *             attributeEquals("country", "Canada")
- *         )
- *     )
- * )
- * ```
+ * All child constraints must be satisfied by the same target entity. Multiple children have the same meaning
+ * as a single {@link And} containing those children. Use {@link Or} to express alternatives.
  *
  * ## Relationship to Other Constraints
  *
@@ -127,23 +118,36 @@ import java.io.Serializable;
 	}
 )
 public class EntityHaving extends AbstractFilterConstraintContainer
-	implements EntityConstraint<FilterConstraint>, SeparateEntityScopeContainer {
+	implements EntityConstraint<FilterConstraint>, DifferentEntityFilterContainer {
 	@Serial private static final long serialVersionUID = 7151549459608672988L;
 
-	private EntityHaving() {}
-
+	/**
+	 * Creates a scope filter whose children must all match the same target entity.
+	 * Null children are omitted, as in {@link FilterBy}.
+	 *
+	 * @param children the filters combined with logical AND
+	 */
 	@Creator
-	public EntityHaving(@Nonnull FilterConstraint child) {
-		super(child);
+	public EntityHaving(@Nonnull @Child(uniqueChildren = true) FilterConstraint... children) {
+		super(children);
 	}
 
 	/**
-	 * Returns the single child filter constraint, or `null` if there are no children.
+	 * Returns the sole child, an {@link And} combining several children, or `null` for an empty container.
+	 *
+	 * @deprecated Use {@link #getChildren()} to access all filters in their original order.
 	 */
+	@Deprecated(since = "2026.3")
 	@Nullable
 	public FilterConstraint getChild() {
 		final FilterConstraint[] children = getChildren();
-		return children.length > 0 ? children[0] : null;
+		if (children.length == 0) {
+			return null;
+		} else if (children.length == 1) {
+			return children[0];
+		} else {
+			return new And(children);
+		}
 	}
 
 	@Override
@@ -151,6 +155,9 @@ public class EntityHaving extends AbstractFilterConstraintContainer
 		return getChildren().length > 0;
 	}
 
+	/**
+	 * Copies this scope filter with all supplied children, preserving their order.
+	 */
 	@Nonnull
 	@Override
 	public FilterConstraint getCopyWithNewChildren(
@@ -161,11 +168,7 @@ public class EntityHaving extends AbstractFilterConstraintContainer
 			ArrayUtils.isEmpty(additionalChildren),
 			"EntityHaving cannot have additional children."
 		);
-		Assert.isPremiseValid(
-			children.length <= 1,
-			"EntityHaving can have only one child."
-		);
-		return children.length == 0 ? new EntityHaving() : new EntityHaving(children[0]);
+		return new EntityHaving(children);
 	}
 
 	@Nonnull

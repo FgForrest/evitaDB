@@ -28,13 +28,17 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.order.Segment;
+import io.evitadb.api.query.order.Segments;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.dataType.Scope;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -50,6 +54,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -61,6 +66,7 @@ import static io.evitadb.test.TestTags.ORDER;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pins the semantics of `pickFirstByEntityProperty` ordering by a reference attribute on a small hand-built dataset
@@ -288,6 +294,46 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 			.stream()
 			.mapToInt(EntityReference::getPrimaryKey)
 			.toArray();
+	}
+
+	/**
+	 * Runs a query whose first segment orders the owners of `segmentOwners` by `segmentOrdering` and whose second
+	 * segment orders the rest by descending primary key, and returns the owner primary keys in result order.
+	 */
+	@Nonnull
+	private static int[] querySegments(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull SortRoute route,
+		@Nonnull Integer[] owners,
+		@Nonnull Integer[] segmentOwners,
+		@Nonnull OrderConstraint segmentOrdering
+	) {
+		return querySegments(
+			session, route, owners,
+			segment(entityHaving(entityPrimaryKeyInSet(segmentOwners)), orderBy(segmentOrdering))
+		);
+	}
+
+	/**
+	 * Runs a query whose first segment is `firstSegment` and whose second segment orders the rest by descending
+	 * primary key, and returns the owner primary keys in result order.
+	 */
+	@Nonnull
+	private static int[] querySegments(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull SortRoute route,
+		@Nonnull Integer[] owners,
+		@Nonnull Segment firstSegment
+	) {
+		return queryOrder(session, route, owners, null, segmentsWithDescendingRest(firstSegment));
+	}
+
+	/**
+	 * Returns the segments made of `firstSegment` followed by a segment ordering the rest by descending primary key.
+	 */
+	@Nonnull
+	private static Segments segmentsWithDescendingRest(@Nonnull Segment firstSegment) {
+		return segments(firstSegment, segment(orderBy(entityPrimaryKeyNatural(OrderDirection.DESC))));
 	}
 
 	/**
@@ -559,6 +605,215 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 		);
 	}
 
+	@DisplayName("A segment excludes the owners its ordering cannot sort and leaves them to the next segment")
+	@UseDataSet(PICK_FIRST_REFERENCES)
+	@ParameterizedTest(name = "{0} via {1}")
+	@MethodSource("plainReferenceRoutes")
+	void shouldExcludeOwnersWithoutValueFromSegment(
+		String referenceName, SortRoute route, EvitaSessionContract session
+	) {
+		// owner 4's only row carries no `order`, owner 5 has no row at all and neither carries `score`; the segment
+		// documentation excludes an entity lacking the sorted data from the segment, so the second segment orders
+		// every owner the first one could not sort by descending primary key
+		final Integer[] owners = {2, 4, 5, 6, 8};
+		final OrderConstraint byOrder = referenceProperty(referenceName, attributeNatural(ATTRIBUTE_ORDER));
+		final OrderConstraint byReferencedPrimaryKey = referenceProperty(
+			referenceName, entityPrimaryKeyNatural(OrderDirection.ASC)
+		);
+		final OrderConstraint byTraversedOrder = referenceProperty(
+			referenceName,
+			traverseByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+			attributeNatural(ATTRIBUTE_ORDER)
+		);
+		assertAll(
+			() -> assertOrder(
+				new int[]{8, 6, 5, 4, 2}, querySegments(session, route, owners, new Integer[]{4}, byOrder),
+				"value-less owner alone"
+			),
+			() -> assertOrder(
+				new int[]{8, 6, 5, 4, 2}, querySegments(session, route, owners, new Integer[]{4, 8}, byOrder),
+				"value-less owner next to an owner with the value"
+			),
+			() -> assertOrder(
+				new int[]{8, 6, 5, 4, 2},
+				querySegments(session, route, owners, new Integer[]{5}, byReferencedPrimaryKey),
+				"owner without a row alone, by referenced primary key"
+			),
+			() -> assertOrder(
+				new int[]{8, 6, 5, 4, 2},
+				querySegments(session, route, owners, new Integer[]{4, 5}, byTraversedOrder),
+				"value-less owners, by traversed order"
+			),
+			() -> assertOrder(
+				new int[]{8, 6, 5, 4, 2},
+				querySegments(session, route, owners, new Integer[]{4}, attributeNatural(ATTRIBUTE_SCORE)),
+				"owner without the entity attribute alone"
+			),
+			() -> assertOrder(
+				new int[]{8, 6, 5, 4, 2},
+				querySegments(
+					session, route, owners, new Integer[]{2, 8},
+					referenceProperty(REFERENCE_UNUSED_TARGETS, attributeNatural(ATTRIBUTE_ORDER))
+				),
+				"ordering by a reference no owner has"
+			)
+		);
+	}
+
+	@DisplayName("A segment limit counts only the owners its ordering sorts")
+	@UseDataSet(PICK_FIRST_REFERENCES)
+	@ParameterizedTest(name = "{0} via {1}")
+	@MethodSource("plainReferenceRoutes")
+	void shouldNotFillSegmentLimitWithOwnersWithoutValue(
+		String referenceName, SortRoute route, EvitaSessionContract session
+	) {
+		// the first segment selects owners 2 (20), 4 (no value) and 8 (60) and may take three of them, yet only two
+		// carry the value - owner 4 is left to the second segment rather than filling the third slot
+		final Integer[] owners = {2, 4, 5, 6, 8};
+		final Segment limited = segment(
+			entityHaving(entityPrimaryKeyInSet(2, 4, 8)),
+			orderBy(referenceProperty(referenceName, attributeNatural(ATTRIBUTE_ORDER))),
+			limit(3)
+		);
+		final int[] expected = {2, 8, 6, 5, 4};
+		final List<Executable> assertions = new ArrayList<>(4);
+		assertions.add(() -> assertOrder(expected, querySegments(session, route, owners, limited), "one page"));
+		for (int pageSize : new int[]{1, 2, 3}) {
+			assertions.add(
+				() -> assertOrder(
+					expected,
+					queryAllPages(session, route, owners, pageSize, segmentsWithDescendingRest(limited)),
+					"pages of " + pageSize
+				)
+			);
+		}
+		assertAll(assertions);
+	}
+
+	@DisplayName("A segment ordered by several sorters keeps an owner any of them sorts")
+	@UseDataSet(PICK_FIRST_REFERENCES)
+	@ParameterizedTest(name = "{0} via {1}")
+	@MethodSource("plainReferenceRoutes")
+	void shouldKeepOwnerSortedByLaterSorterOfSegment(
+		String referenceName, SortRoute route, EvitaSessionContract session
+	) {
+		// `pin` sorts owners 10 (1) and 3 (2); owner 2 lacks it but the next sorter sorts it - by `score` 20 or by its
+		// first row's `order` 20 - so it stays in the segment unless `pin` alone fills the limit; owners 4 and 5 lack
+		// the data of every sorter and are left to the next segment, or to the ascending primary key order after the
+		// last segment
+		final Integer[] owners = {2, 3, 4, 5, 10};
+		final OrderConstraint[] byPinThenScore = {attributeNatural(ATTRIBUTE_PIN), attributeNatural(ATTRIBUTE_SCORE)};
+		final OrderConstraint[] byPinThenOrder = {
+			attributeNatural(ATTRIBUTE_PIN), referenceProperty(referenceName, attributeNatural(ATTRIBUTE_ORDER))
+		};
+		final List<Executable> assertions = new ArrayList<>(64);
+		for (OrderConstraint[] ordering : new OrderConstraint[][]{byPinThenScore, byPinThenOrder}) {
+			final Segment unlimited = segment(orderBy(ordering));
+			final Segment filledByFirstSorter = segment(orderBy(ordering), limit(2));
+			final Segment filledBySecondSorter = segment(orderBy(ordering), limit(3));
+			final Object[][] cases = {
+				{"no limit", segmentsWithDescendingRest(unlimited), new int[]{10, 3, 2, 5, 4}},
+				{"limit reached by pin", segmentsWithDescendingRest(filledByFirstSorter), new int[]{10, 3, 5, 4, 2}},
+				{
+					"limit reached by the next sorter", segmentsWithDescendingRest(filledBySecondSorter),
+					new int[]{10, 3, 2, 5, 4}
+				},
+				{"only segment, rest by primary key", segments(filledByFirstSorter), new int[]{10, 3, 2, 4, 5}}
+			};
+			for (Object[] theCase : cases) {
+				final String label = Arrays.toString(ordering) + ", " + theCase[0];
+				final Segments segments = (Segments) theCase[1];
+				final int[] expected = (int[]) theCase[2];
+				assertions.add(() -> assertOrder(expected, queryOrder(session, route, owners, null, segments), label));
+				for (int pageSize : new int[]{1, 2, 3}) {
+					assertions.add(
+						() -> assertOrder(
+							expected,
+							queryAllPages(session, route, owners, pageSize, segments),
+							label + ", pages of " + pageSize
+						)
+					);
+				}
+			}
+		}
+		assertAll(assertions);
+	}
+
+	@DisplayName("A segment ordered by ascending primary key keeps every owner it selects")
+	@UseDataSet(PICK_FIRST_REFERENCES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("sortRoutes")
+	void shouldKeepEveryOwnerOfSegmentOrderedByAscendingPrimaryKey(SortRoute route, EvitaSessionContract session) {
+		// every owner carries its primary key, so an explicit ascending primary key order sorts all of them - alone,
+		// as a fallback after an attribute some owners lack, and inside a scope container alike
+		final Integer[] owners = {2, 4, 5, 6, 8};
+		final Segment ascendingFirstTwo = segment(orderBy(entityPrimaryKeyNatural(OrderDirection.ASC)), limit(2));
+		assertAll(
+			() -> assertOrder(
+				new int[]{2, 4, 8, 6, 5}, querySegments(session, route, owners, ascendingFirstTwo),
+				"ascending primary key alone"
+			),
+			() -> assertOrder(
+				new int[]{2, 4, 8, 6, 5},
+				queryAllPages(session, route, owners, 1, segmentsWithDescendingRest(ascendingFirstTwo)),
+				"ascending primary key alone, pages of 1"
+			),
+			() -> assertOrder(
+				new int[]{2, 4, 8, 6, 5},
+				queryAllPages(session, route, owners, 3, segmentsWithDescendingRest(ascendingFirstTwo)),
+				"ascending primary key alone, pages of 3"
+			),
+			() -> assertOrder(
+				new int[]{8, 4, 5, 6, 2},
+				querySegments(
+					session, route, owners,
+					segment(
+						entityHaving(entityPrimaryKeyInSet(4, 5, 8)),
+						orderBy(attributeNatural(ATTRIBUTE_SCORE), entityPrimaryKeyNatural(OrderDirection.ASC))
+					)
+				),
+				"ascending primary key after a missing attribute"
+			),
+			() -> assertOrder(
+				new int[]{8, 4, 5, 6, 2},
+				querySegments(
+					session, route, owners,
+					segment(
+						entityHaving(entityPrimaryKeyInSet(4, 5, 8)),
+						orderBy(
+							attributeNatural(ATTRIBUTE_SCORE),
+							inScope(Scope.LIVE, entityPrimaryKeyNatural(OrderDirection.ASC))
+						)
+					)
+				),
+				"ascending primary key in a scope container after a missing attribute"
+			)
+		);
+	}
+
+	@DisplayName("Owners no segment sorts follow all segments in ascending primary key order")
+	@UseDataSet(PICK_FIRST_REFERENCES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("sortRoutes")
+	void shouldAppendOwnersNoSegmentSortsByAscendingPrimaryKey(SortRoute route, EvitaSessionContract session) {
+		// the only segment selects owners 4 and 8 and sorts owner 8 alone; owner 4 joins the unselected owners after
+		// the segments
+		final Integer[] owners = {2, 4, 5, 6, 8};
+		assertOrder(
+			new int[]{8, 2, 4, 5, 6},
+			queryOrder(
+				session, route, owners, null,
+				segments(
+					segment(
+						entityHaving(entityPrimaryKeyInSet(4, 8)),
+						orderBy(attributeNatural(ATTRIBUTE_SCORE, OrderDirection.DESC))
+					)
+				)
+			),
+			"rest after the only segment"
+		);
+	}
+
 	@DisplayName("Should order by the referenced primary key over rows sharing one target on both routes")
 	@UseDataSet(PICK_FIRST_REFERENCES)
 	@ParameterizedTest(name = "{0}")
@@ -595,6 +850,63 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 			),
 			"unused reference"
 		);
+	}
+
+	@DisplayName("Should page through the descending primary key order on both routes")
+	@UseDataSet(PICK_FIRST_REFERENCES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("sortRoutes")
+	void shouldPageThroughDescendingPrimaryKeyOrder(SortRoute route, EvitaSessionContract session) {
+		// every page continues where the previous one ended, without "Some records were not sorted or skipped!"
+		final Integer[] owners = {2, 4, 5, 6, 8};
+		final List<Executable> assertions = new ArrayList<>(3);
+		for (int pageSize : new int[]{1, 2, 3}) {
+			assertions.add(
+				() -> assertOrder(
+					new int[]{8, 6, 5, 4, 2},
+					queryAllPages(session, route, owners, pageSize, entityPrimaryKeyNatural(OrderDirection.DESC)),
+					"pages of " + pageSize
+				)
+			);
+		}
+		assertAll(assertions);
+	}
+
+	@DisplayName("A limited segment in random order hands the records it skips on no page to the next segment")
+	@UseDataSet(PICK_FIRST_REFERENCES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("sortRoutes")
+	void shouldPageThroughLimitedSegmentInRandomOrder(SortRoute route, EvitaSessionContract session) {
+		// a seeded permutation is stable, so every paging must reproduce the single-page answer: two owners in random
+		// order, then the other three by descending primary key; several seeds must not all pick the same two owners
+		// in the same order, which a deterministic order would
+		final Integer[] owners = {2, 4, 5, 6, 8};
+		final List<Executable> assertions = new ArrayList<>(32);
+		final Set<String> randomParts = CollectionUtils.createHashSet(6);
+		for (long seed = 1; seed <= 6; seed++) {
+			final Segments randomFirst = segmentsWithDescendingRest(
+				segment(orderBy(randomWithSeed(seed)), limit(2))
+			);
+			final int[] onePage = queryOrder(session, route, owners, null, randomFirst);
+			randomParts.add(onePage[0] + "," + onePage[1]);
+			final int[] rest = Arrays.stream(new int[]{8, 6, 5, 4, 2})
+				.filter(pk -> pk != onePage[0] && pk != onePage[1])
+				.toArray();
+			final String label = "seed " + seed + " gave " + Arrays.toString(onePage);
+			assertions.add(() -> assertOrder(rest, Arrays.copyOfRange(onePage, 2, 5), label + ", rest"));
+			for (int pageSize : new int[]{1, 2, 3}) {
+				assertions.add(
+					() -> assertOrder(
+						onePage, queryAllPages(session, route, owners, pageSize, randomFirst),
+						label + ", pages of " + pageSize
+					)
+				);
+			}
+		}
+		assertions.add(
+			() -> assertTrue(randomParts.size() > 1, "every seed placed the same owners first: " + randomParts)
+		);
+		assertAll(assertions);
 	}
 
 }

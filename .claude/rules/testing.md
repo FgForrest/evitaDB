@@ -23,10 +23,14 @@ Every test method must carry **at least one layer tag** and **at least one capab
 `io.evitadb.test.TestTags`. The policy is enforced by `TestTagPolicyFilter` in **strict mode by
 default** — an untagged test aborts discovery, so the build fails before any test executes. Set
 `-Dtest.tag.policy=warn` to downgrade to logging-only, or `-Dtest.tag.policy=off` to silence the
-check entirely (only useful for ad-hoc local iteration on a freshly-stubbed test class). Cost tags
-(`slow`, `flaky`) are optional.
+check entirely (only useful for ad-hoc local iteration on a freshly-stubbed test class).
 
-- **Cost (optional, mutually exclusive)**: `slow`, `flaky`
+- **There are no cost tags.** A test that cannot run reliably is fixed or removed, not quarantined behind a
+  tag no workflow runs.
+- **There is no `slow` tag.** A test too slow for the fast loop goes to `evita_long_running_tests`, which
+  runs as a whole under `-P longRunning` (the weekly `long-running-tests` workflow). A slow tag inside
+  `evita_functional_tests` used to exclude a test from every workflow at once - the fast loop filtered it
+  out and the long-running profile never ran that module.
 - **Layer (≥1 required)**: `contract`, `engine`, `indexing`, `storage`, `driver`, `server`,
   `external_api`, `rest`, `graphql`, `grpc`, `lab`, `system_api`, `observability_api`, `cli`,
   `test_harness`
@@ -61,18 +65,24 @@ The test suite is split across four sibling modules under `evita_test/`:
 
 ## Running tests
 
-- **Default fast loop** — the `unitAndFunctional` profile excludes `slow`/`flaky`-tagged tests in functional_tests; the long-running and documentation modules are skipped via their own surefire config:
+- **Default fast loop** — the `unitAndFunctional` profile runs the functional tests; the long-running and documentation modules are skipped via their own surefire config:
   ```bash
   mvn -pl evita_test/evita_functional_tests test -P unitAndFunctional
   ```
 - **Tag-filter expressions** — pass to surefire via `-Dgroups` / `-DexcludedGroups`; JUnit 5 supports boolean expressions:
   ```bash
   mvn -pl evita_test/evita_functional_tests test -Dgroups="facet & external_api"
-  mvn -pl evita_test/evita_functional_tests test -Dgroups="(query | indexing) & !slow"
+  mvn -pl evita_test/evita_functional_tests test -Dgroups="(query | indexing) & !external_api"
   ```
 - **Documentation runners** — `mvn -P documentation`. The matching profile in the docs module flips its `skipTests` to `false`; the root profile sets `skipTests=true` everywhere else, so only documentation tests run. Running them against anything but the public demo server takes a rig — see "Documentation runners" below.
 - **Slow / long-running tests** — `mvn -P longRunning`. Same pattern as `documentation`; selects only the long-running module.
-- **Picking the right tags for a code change** — map the changed source path to layer + capability tags. For example, a change under `evita_engine/src/main/java/io/evitadb/index/facet/` calls for `(facet | indexing) & !slow`; under `evita_external_api/evita_external_api_rest/` use `rest & external_api`. The full path-to-tag mapping is documented in the `TestTags` JavaDoc and in the bulk-tagging script committed during the rollout.
+- **Release upgrade fixtures** — the functional tests' build writes them in `generate-test-resources` with the
+  released engines (`tools/fixtures/GenerateReleaseFixtures.java`), so the first build on an empty local repository
+  needs Maven Central. `-DreleaseFixtures.skip=true` builds without it; the release upgrade tests then fail, each
+  naming the fixture it misses. IntelliJ needs
+  `mvn generate-test-resources -P intellij-idea-only -pl evita_test/evita_functional_tests` after every rebuild of the
+  module.
+- **Picking the right tags for a code change** — map the changed source path to layer + capability tags. For example, a change under `evita_engine/src/main/java/io/evitadb/index/facet/` calls for `facet | indexing`; under `evita_external_api/evita_external_api_rest/` use `rest & external_api`. The full path-to-tag mapping is documented in the `TestTags` JavaDoc and in the bulk-tagging script committed during the rollout.
 
 ## Documentation runners — running them locally
 
@@ -313,7 +323,7 @@ more likely and can never cause a false failure. Say which one it is in a commen
 cannot be hit deterministically — no seam exists between the two statements that race — the answer is not
 to give up on coverage, and not to sweep the loop into `evita_functional_tests` either. In the fast loop a
 probabilistic test fails once per few hundred CI runs and teaches everyone to press re-run. That module
-exists precisely for tests that need time and an idle box. Tag it `@Tag(SLOW)`, and in order of preference:
+exists precisely for tests that need time and an idle box. Put it there, and in order of preference:
 
 1. **Introduce a real seam** and test it deterministically in the fast loop, if one can exist.
 2. **Stress test in `evita_long_running_tests`, ENABLED** — sweep the timing rather than fixing it,

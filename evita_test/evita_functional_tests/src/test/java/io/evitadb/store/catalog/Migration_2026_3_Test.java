@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Covers the counter re-key transform that upgrades a catalog from storage protocol 6 to 7.
+ * Covers the counter re-key transform that upgrades a catalog from storage protocol 6 to 8.
  *
  * The transform's whole job is to put a persisted {@link io.evitadb.index.cardinality.AttributeCardinalityIndex}
  * into the form the fixed engine would have built: keys canonicalized through the same normalizer the shared

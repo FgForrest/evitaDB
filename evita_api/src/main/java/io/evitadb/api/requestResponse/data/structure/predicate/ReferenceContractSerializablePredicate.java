@@ -760,10 +760,11 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	/**
 	 * Retrieves a set of all locales available in the current instance. If an implicit locale is set and
 	 * no explicit locales are available, a set containing only the implicit locale is returned. If both
-	 * implicit and explicit locales are present, a merged set of both is returned. If no implicit locale
-	 * is set, the explicit locales are returned.
+	 * implicit and explicit locales are present, a merged set of both is returned - unless the explicit set is
+	 * empty, which means all locales and is returned as is. If no implicit locale is set, the explicit locales
+	 * are returned.
 	 *
-	 * @return a set of available locales, potentially empty, or null if no locales are defined.
+	 * @return a set of available locales, empty when every locale is available, or null if no locales are defined.
 	 */
 	@Nullable
 	public Set<Locale> getAllLocales() {

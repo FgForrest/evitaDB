@@ -1,7 +1,7 @@
 ---
 title: A resource handed to a JVM-lifetime registry is released by its owner's close, never by the registry
 date: 2026-09-14
-updated: 2026-09-14 15:30
+updated: 2026-10-25 20:15
 status: accepted
 kind: fix
 issues: []
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_engine/src/main/java/io/evitadb/core, evita_engine/src/main/java/io/evitadb/core/cache, evita_engine/src/main/java/io/evitadb/core/cdc, evita_engine/src/main/java/io/evitadb/core/executor, evita_store/evita_store_server/src/main/java/io/evitadb/store/engine]
 supersedes: []
 superseded-by: []
-relates: []
+relates: [2026-10-25-frame-scoped-output-buffers]
 ---
 
 # A resource handed to a JVM-lifetime registry is released by its owner's close, never by the registry

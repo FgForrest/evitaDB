@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -167,51 +167,59 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		final String[] priceLists = priceDiscount.getInPriceLists();
 		final QueryPriceMode queryPriceMode = orderByVisitor.getQueryPriceMode();
 
-		// if prefetch happens we need to prefetch prices so that the entity comparator can work
-		orderByVisitor.addRequirementToPrefetch(PriceContent.respectingFilter());
-
 		// are filtered prices used in the filtering?
 		final Collection<PriceFilteringEnvelopeContainer> sellingPriceFilteringEnvelopeContainers = FormulaFinder.find(
 			orderByVisitor.getFilteringFormula(), PriceFilteringEnvelopeContainer.class, LookUp.SHALLOW
 		);
-
-		final Sorter thisSorter;
-		if (!sellingPriceFilteringEnvelopeContainers.isEmpty()) {
-			// collect all the selling price record accessors
-			final Collection<FilteredPriceRecordAccessor> sellingPriceRecordAccessors = FormulaFinder.find(
-				orderByVisitor.getFilteringFormula(), FilteredPriceRecordAccessor.class, LookUp.SHALLOW
-			);
-			// if so, create filtered prices sorter
-			thisSorter = new FilteredPricesSorter(
-				// with specific kind of comparator
-				createPriceComparator(
-					priceDiscount.getOrder(),
-					queryPriceMode,
-					sellingPriceFilteringEnvelopeContainers.stream()
-						.map(it -> createReferencePriceFormula(orderByVisitor, it, priceLists, queryPriceMode))
-						.toList()
-				),
-				sellingPriceRecordAccessors
-			);
-		} else {
-			// otherwise, we cannot sort the entities by price
-			thisSorter = NoSorter.INSTANCE;
+		if (sellingPriceFilteringEnvelopeContainers.isEmpty()) {
+			// without a price filter there is no price for sale and so no discount to sort by on either route - the
+			// prefetched entities carry no price context either, so no prefetch comparator is registered and no price
+			// is prefetched; outside a segment every entity of the ordered scopes keeps its ascending primary key
+			// order, a segment takes none of them
+			return orderByVisitor.isWithinSegment() ?
+				Stream.empty() : Stream.of(orderByVisitor.restrictToOrderedScopes(NoSorter.INSTANCE));
 		}
+
+		// if prefetch happens we need to prefetch prices so that the entity comparator can work
+		orderByVisitor.addRequirementToPrefetch(PriceContent.respectingFilter());
+
+		// collect all the selling price record accessors
+		final Collection<FilteredPriceRecordAccessor> sellingPriceRecordAccessors = FormulaFinder.find(
+			orderByVisitor.getFilteringFormula(), FilteredPriceRecordAccessor.class, LookUp.SHALLOW
+		);
+		// create filtered prices sorter
+		final Sorter thisSorter = new FilteredPricesSorter(
+			// with specific kind of comparator
+			createPriceComparator(
+				priceDiscount.getOrder(),
+				queryPriceMode,
+				sellingPriceFilteringEnvelopeContainers.stream()
+					.map(it -> createReferencePriceFormula(orderByVisitor, it, priceLists, queryPriceMode))
+					.toList()
+			),
+			sellingPriceRecordAccessors
+		);
 
 		// and for the scenario where the entities are prefetched instantiate different comparator - for entity objects
 		final EntityComparator entityComparator;
 		final Function<PriceContract, BigDecimal> priceExtractor = queryPriceMode == QueryPriceMode.WITH_TAX ?
 			PriceContract::priceWithTax : PriceContract::priceWithoutTax;
+		final boolean withinSegment = orderByVisitor.isWithinSegment();
 		if (priceDiscount.getOrder() == OrderDirection.ASC) {
-			entityComparator = new EntityPriceDiscountEntityComparator(priceExtractor, Comparator.naturalOrder(), priceLists);
+			entityComparator = new EntityPriceDiscountEntityComparator(
+				priceExtractor, Comparator.naturalOrder(), priceLists, withinSegment
+			);
 		} else {
-			entityComparator = new EntityPriceDiscountEntityComparator(priceExtractor, Comparator.reverseOrder(), priceLists);
+			entityComparator = new EntityPriceDiscountEntityComparator(
+				priceExtractor, Comparator.reverseOrder(), priceLists, withinSegment
+			);
 		}
 
 		// return both sorters
+		// an `inScope` ordering sorts only the entities of its scope on either route, the others are passed on
 		return Stream.of(
-			new PrefetchedRecordsSorter(entityComparator),
-			thisSorter
+			orderByVisitor.restrictToOrderedScopes(new PrefetchedRecordsSorter(entityComparator)),
+			orderByVisitor.restrictToOrderedScopes(thisSorter)
 		);
 	}
 
@@ -249,6 +257,11 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		 */
 		private final String[] discountPriceLists;
 		/**
+		 * `true` when the comparator orders a segment, which classifies every entity up front so that an entity without
+		 * a discount is left out of the segment even when it is the only one there - it is never compared then.
+		 */
+		private final boolean withinSegment;
+		/**
 		 * Memoized discounts for the entities so that for each entity the discount is calculated only once.
 		 * NULL values are represented by {@link #NEGATIVE_DISCOUNT}.
 		 */
@@ -262,6 +275,23 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		@Override
 		public Iterable<EntityContract> getNonSortedEntities() {
 			return this.nonSortedEntities == null ? List.of() : this.nonSortedEntities;
+		}
+
+		/**
+		 * Within a segment, classifies the entity as sortable when it has a price for sale and a discount against it,
+		 * memoizing the discount for the comparisons that follow; outside a segment every entity is sortable and the
+		 * ones without a discount are reported while comparing.
+		 *
+		 * @param entity the entity to classify
+		 * @return `true` when the entity is to be sorted by this comparator
+		 */
+		@SuppressWarnings("NumberEquality")
+		@Override
+		public boolean canSort(@Nonnull EntityContract entity) {
+			if (!this.withinSegment) {
+				return true;
+			}
+			return entity.getPriceForSaleIfAvailable().isPresent() && getPriceDiscount(entity) != NEGATIVE_DISCOUNT;
 		}
 
 		@SuppressWarnings({"NumberEquality", "ObjectInstantiationInEqualsHashCode"})

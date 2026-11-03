@@ -77,7 +77,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.io.Serializable;
-import java.lang.ref.SoftReference;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -159,20 +158,14 @@ public class OffsetIndex {
 	 */
 	private final Pool<byte[]> decompressionPool;
 	/**
-	 * Size of the memory buffer used for write operations, in bytes.
-	 * This buffer size limits the maximum size of individual records that can be written to the offset index.
+	 * Size of the in-memory buffer used to serialize records before appending them to data files, in bytes.
+	 * Larger records are split into chained frames, so this limits one frame and any single string or binary value,
+	 * rather than the record size. Writers borrow a buffer of this size from the shared pool only while a frame is
+	 * assembled, and the {@link #decompressionPool} keeps arrays of this size for reads; larger buffers use more
+	 * memory.
 	 * Sourced from {@link StorageOptions#outputBufferSize()}, typically defaults to 2MB.
 	 */
 	private final int outputBufferSize;
-	/**
-	 * Reusable scratch buffer for the {@link #copySnapshotTo} record-copy loop, retained across compactions so each
-	 * compaction does not allocate a fresh {@link #outputBufferSize}-byte array. Held through a {@link SoftReference}
-	 * so idle collections do not pin the (default 2MB) buffer under memory pressure, and allocated lazily so a
-	 * never-compacted collection pays nothing. A single slot is sufficient — and no pool is needed — because every
-	 * writer of this instance is serialized by the {@link #writeHandle} lock, so at most one compaction reads it at a
-	 * time. See {@link #getCompactionScratchBuffer()}.
-	 */
-	@Nullable private SoftReference<byte[]> compactionScratchBuffer;
 	/**
 	 * Maximum number of read handles that can be simultaneously opened to the file.
 	 * Read handles are pooled to limit resource usage and prevent file descriptor exhaustion.
@@ -993,7 +986,7 @@ public class OffsetIndex {
 		assertOperative();
 		// `doFlush` publishes the descriptor to `fileOffsetDescriptor` itself, from inside the write-handle critical
 		// section, because the read Kryo pool has to be expired against a binding that is already live
-		doFlush(catalogVersion, false);
+		doFlush(catalogVersion);
 		// flush runs under the single-writer model: all writes (including the promotion inside doFlush) are
 		// serialized by the writeHandle ReentrantLock, so no other thread mutates the roots registry concurrently here.
 		// When there were non-flushed values, doFlush already republished the shared state (version + locations)
@@ -1021,29 +1014,10 @@ public class OffsetIndex {
 	}
 
 	/**
-	 * Returns the scratch buffer used by the {@link #copySnapshotTo} record-copy loop, lazily (re)allocating it if it
-	 * has never been created or was reclaimed by the GC. The buffer is sized to {@link #outputBufferSize} (the bound on
-	 * a single record fragment) and reused across compactions. Must be called only from within the {@link #writeHandle}
-	 * critical section, which serializes every writer of this instance — so the single-slot, no-synchronization design
-	 * is safe.
-	 *
-	 * @return a reusable {@link #outputBufferSize}-byte scratch buffer for the raw record copy
-	 */
-	@Nonnull
-	byte[] getCompactionScratchBuffer() {
-		final SoftReference<byte[]> ref = this.compactionScratchBuffer;
-		byte[] buffer = ref == null ? null : ref.get();
-		if (buffer == null) {
-			buffer = new byte[this.outputBufferSize];
-			this.compactionScratchBuffer = new SoftReference<>(buffer);
-		}
-		return buffer;
-	}
-
-	/**
 	 * Copies entire living data set to the target output stream. The output stream is not closed in
 	 * the method, the caller is responsible for closing the stream.
 	 *
+	 * Temporary serializers are closed on success and failure, releasing their exclusively owned compressors.
 	 * The living data set is resolved as-of `catalogVersion`: the per-version snapshot exposed by
 	 * {@link #getEntries(long)} is copied verbatim, with no per-key historical reconstruction.
 	 *
@@ -1091,22 +1065,24 @@ public class OffsetIndex {
 									if (updatedStorageParts != null && updatedStorageParts.length > 0) {
 										overriddenEntries = CollectionUtils.createHashMap(updatedStorageParts.length);
 										final ByteArrayOutputStream baos = new ByteArrayOutputStream(this.outputBufferSize);
-										final ObservableOutput<ByteArrayOutputStream> observableOutput = new ObservableOutput<>(
+										try (final ObservableOutput<ByteArrayOutputStream> observableOutput =
+											new ObservableOutput<>(
 											baos, this.outputBufferSize, 0,
 											this.checksumFactory.createChecksum(),
 											this.compressionFactory.createCompressor().orElse(null)
-										);
-										for (StoragePart value : updatedStorageParts) {
-											final RecordKey recordKey = new RecordKey(
-												this.recordTypeRegistry.idFor(value.getClass()),
-												ofNullable(value.getStoragePartPK())
-													.orElseGet(() -> value.computeUniquePartIdAndSet(compressor))
-											);
-											baos.reset();
-											observableOutput.reset();
-											serializeValue(value, observableOutput);
-											observableOutput.flush();
-											overriddenEntries.put(recordKey, baos.toByteArray());
+										)) {
+											for (StoragePart value : updatedStorageParts) {
+												final RecordKey recordKey = new RecordKey(
+													this.recordTypeRegistry.idFor(value.getClass()),
+													ofNullable(value.getStoragePartPK())
+														.orElseGet(() -> value.computeUniquePartIdAndSet(compressor))
+												);
+												baos.reset();
+												observableOutput.reset();
+												serializeValue(value, observableOutput);
+												observableOutput.flush();
+												overriddenEntries.put(recordKey, baos.toByteArray());
+											}
 										}
 									} else {
 										overriddenEntries = Collections.emptyMap();
@@ -1139,33 +1115,41 @@ public class OffsetIndex {
 	}
 
 	/**
-	 * Closes the OffsetIndex and writes all data to disk. File contents are in sync when this method finalizes.
+	 * Closes the OffsetIndex and writes all data to disk. File contents are in sync when this method returns.
 	 * No additional operations with this instance will be possible after calling this method. All file handles are
 	 * released.
+	 *
+	 * If releasing the read handles or the final flush fails, the exception propagates, yet the instance stays closed
+	 * and its write handle is closed anyway - that is what lets the off-heap region or temporary file behind
+	 * a transaction's output be reclaimed. Whatever a failed flush wrote is unpublished, so nothing can reach it.
+	 *
+	 * @throws GenericEvitaInternalError if the instance was already closed when this method was called, or if the call
+	 *                                   finds another close of it still in progress
 	 */
 	@Nonnull
 	public FileLocation close() {
 		assertOperative();
 		// this will forbid new read handles to be created
 		this.operative = false;
+		if (this.shutdownDownProcedureActive.compareAndExchange(false, true)) {
+			throw new GenericEvitaInternalError("OffsetIndex is already being closed!");
+		}
 		try {
-			if (!this.shutdownDownProcedureActive.compareAndExchange(false, true)) {
-				// spinning lock to close all opened handles once they occur free in pool
-				clearReadOnlyOpenedHandles();
-				// at last flush OffsetIndex and close write handle - doFlush publishes the resulting descriptor to
-				// `fileOffsetDescriptor` itself (see flush), so there is nothing to assign back here
-				doFlush(
-					// if there are any non-flushed values, use their version as the last version
-					this.volatileValues.getLastNonFlushedCatalogVersionIfExists()
-						.orElse(this.roots.currentVersion()),
-					true
-				);
-				this.readOnlyKeyCompressorView = null;
-				return this.fileOffsetDescriptor.fileLocation();
-			} else {
-				throw new GenericEvitaInternalError("OffsetIndex is already being closed!");
-			}
+			// spinning lock to close all opened handles once they occur free in pool
+			clearReadOnlyOpenedHandles();
+			// at last flush OffsetIndex - doFlush publishes the resulting descriptor to
+			// `fileOffsetDescriptor` itself (see flush), so there is nothing to assign back here
+			doFlush(
+				// if there are any non-flushed values, use their version as the last version
+				this.volatileValues.getLastNonFlushedCatalogVersionIfExists()
+					.orElse(this.roots.currentVersion())
+			);
+			this.readOnlyKeyCompressorView = null;
+			return this.fileOffsetDescriptor.fileLocation();
 		} finally {
+			// the index is already inoperative and unflushed bytes are unpublished and inert, so even a failed
+			// flush must release the write handle during shutdown
+			IOUtils.closeQuietly(this.writeHandle::close);
 			this.shutdownDownProcedureActive.compareAndExchange(true, false);
 		}
 	}
@@ -1506,12 +1490,8 @@ public class OffsetIndex {
 	 * descriptor it already holds remains the current one.
 	 *
 	 * @param catalogVersion version stamped onto the promoted records
-	 * @param close          whether the write handle should be closed once the data is on disk
 	 */
-	private void doFlush(
-		long catalogVersion,
-		boolean close
-	) {
+	private void doFlush(long catalogVersion) {
 		final OffsetIndexDescriptor currentDescriptor = this.fileOffsetDescriptor;
 		// if there are any non-flushed values, we need to flush them to the disk (of if the offset index was not yet created)
 		if (this.volatileValues.hasValuesToFlush() || currentDescriptor.fileLocation() == FileLocation.EMPTY) {
@@ -1576,10 +1556,6 @@ public class OffsetIndex {
 					return newDescriptor;
 				}
 			);
-		}
-
-		if (close) {
-			IOUtils.closeQuietly(this.writeHandle::close);
 		}
 	}
 
@@ -2789,7 +2765,7 @@ public class OffsetIndex {
 	}
 
 	/**
-	 * This record is used to propagate multiple values in the {@link #doFlush(long, boolean)}
+	 * This record is used to propagate multiple values in the {@link #doFlush(long)}
 	 * method.
 	 *
 	 * @param nonFlushedValueSets set of non-flushed value sets that have been flushed

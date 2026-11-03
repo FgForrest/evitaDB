@@ -434,8 +434,8 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 		List<SealedEntity> originalProducts,
 		Map<Integer, SealedEntity> originalCategories
 	) {
-		final int expectedAssociatedDataCount = originalProducts.get(0).getSchema().getAssociatedData().size();
-		final int expectedReferenceCount = originalProducts.get(0).getSchema().getReferences().size();
+		final int expectedAssociatedDataCount = originalProducts.getFirst().getSchema().getAssociatedData().size();
+		final int expectedReferenceCount = originalProducts.getFirst().getSchema().getReferences().size();
 		final SealedEntity theProduct = originalProducts
 			.stream()
 			.filter(it -> it.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH) != null)

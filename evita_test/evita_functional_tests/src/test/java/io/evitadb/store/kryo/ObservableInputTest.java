@@ -542,6 +542,44 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 	@DisplayName("Compressed record tests")
 	class CompressedRecordTests {
 
+		/**
+		 * Verifies decompression through the constructor that reuses a caller-provided input buffer.
+		 */
+		@DisplayName("Compressed payload should round-trip with a pre-allocated input buffer")
+		@Test
+		void shouldReadCompressedRecordWithPreAllocatedBuffer() {
+			final int bufferSize = 4_096;
+			final byte[] payload = new byte[2_048];
+			Arrays.fill(payload, (byte) 42);
+			final ByteArrayOutputStream stream = new ByteArrayOutputStream(bufferSize);
+			try (
+				final ObservableOutput<ByteArrayOutputStream> output = new ObservableOutput<>(
+					stream, new byte[bufferSize], Crc32CChecksumFactory.INSTANCE.createChecksum(),
+					ZipCompressionFactory.INSTANCE.createCompressor().orElseThrow()
+				)
+			) {
+				output.markStart();
+				output.markRecordLengthPosition();
+				output.writeInt(0);
+				output.writeByte(0);
+				output.markPayloadStart();
+				output.writeBytes(payload);
+				output.markEnd((byte) 0);
+			}
+
+			final byte[] recordBytes = stream.toByteArray();
+			assertTrue(BitUtils.isBitSet(recordBytes[4], StorageRecord.COMPRESSION_BIT));
+			try (
+				final ObservableInput<ByteArrayInputStream> input = new ObservableInput<>(
+					new ByteArrayInputStream(recordBytes), new byte[bufferSize],
+					Crc32CChecksumFactory.INSTANCE.createChecksum(),
+					ZipCompressionFactory.INSTANCE.createDecompressor().orElseThrow()
+				)
+			) {
+				readCompressedRecordAndVerify(input, payload.length, payload);
+			}
+		}
+
 		@DisplayName("Single compressed record written with plain Kryo Output should be read intact")
 		@Test
 		void shouldReadSingleCompressedRecord() {

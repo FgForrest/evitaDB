@@ -166,4 +166,61 @@ public interface GrpcRegisterChangeCatalogCaptureRequestOrBuilder extends
    * @return The content.
    */
   io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent getContent();
+
+  /**
+   * <pre>
+   * Identity of the catalog incarnation `sinceVersion`/`sinceIndex` was recorded on - together they form the
+   * resume position of a consumer continuing a stream it consumed before. Catalog versions mean something only
+   * within one incarnation: replacing, restoring or duplicating a catalog starts a different version sequence
+   * under the same name, and a position from the previous one would otherwise wait - silently, with heartbeats
+   * flowing - for a version the new catalog may reach much later. When set and the session's catalog is a
+   * different incarnation, the stream fails before its acknowledgement with
+   * `ChangeCaptureResumePositionInvalidException` (reason `DIFFERENT_INCARNATION`). If unset, no identity is
+   * checked; a `sinceVersion` more than one version past the catalog is refused either way (reason
+   * `AHEAD_OF_CATALOG`). Servers that predate this field ignore it - a client recognises such a server by the
+   * absence of `GrpcRegisterChangeCatalogCaptureResponse.catalogId` on the acknowledgement and has to compare
+   * the identity itself.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 5;</code>
+   * @return Whether the catalogId field is set.
+   */
+  boolean hasCatalogId();
+  /**
+   * <pre>
+   * Identity of the catalog incarnation `sinceVersion`/`sinceIndex` was recorded on - together they form the
+   * resume position of a consumer continuing a stream it consumed before. Catalog versions mean something only
+   * within one incarnation: replacing, restoring or duplicating a catalog starts a different version sequence
+   * under the same name, and a position from the previous one would otherwise wait - silently, with heartbeats
+   * flowing - for a version the new catalog may reach much later. When set and the session's catalog is a
+   * different incarnation, the stream fails before its acknowledgement with
+   * `ChangeCaptureResumePositionInvalidException` (reason `DIFFERENT_INCARNATION`). If unset, no identity is
+   * checked; a `sinceVersion` more than one version past the catalog is refused either way (reason
+   * `AHEAD_OF_CATALOG`). Servers that predate this field ignore it - a client recognises such a server by the
+   * absence of `GrpcRegisterChangeCatalogCaptureResponse.catalogId` on the acknowledgement and has to compare
+   * the identity itself.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 5;</code>
+   * @return The catalogId.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUuid getCatalogId();
+  /**
+   * <pre>
+   * Identity of the catalog incarnation `sinceVersion`/`sinceIndex` was recorded on - together they form the
+   * resume position of a consumer continuing a stream it consumed before. Catalog versions mean something only
+   * within one incarnation: replacing, restoring or duplicating a catalog starts a different version sequence
+   * under the same name, and a position from the previous one would otherwise wait - silently, with heartbeats
+   * flowing - for a version the new catalog may reach much later. When set and the session's catalog is a
+   * different incarnation, the stream fails before its acknowledgement with
+   * `ChangeCaptureResumePositionInvalidException` (reason `DIFFERENT_INCARNATION`). If unset, no identity is
+   * checked; a `sinceVersion` more than one version past the catalog is refused either way (reason
+   * `AHEAD_OF_CATALOG`). Servers that predate this field ignore it - a client recognises such a server by the
+   * absence of `GrpcRegisterChangeCatalogCaptureResponse.catalogId` on the acknowledgement and has to compare
+   * the identity itself.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 5;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getCatalogIdOrBuilder();
 }

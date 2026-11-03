@@ -274,7 +274,7 @@ class BigDecimalNumberRangeTest {
 				new BigDecimal("88.10000"), new BigDecimal("118.10000")
 			);
 			assertTrue(range.isWithin(new BigDecimal("90")));
-			assertTrue(range.isWithin((Number) 90));
+			assertTrue(range.isWithin(90));
 		}
 
 		@Test
@@ -306,7 +306,7 @@ class BigDecimalNumberRangeTest {
 		void shouldEvaluateOpenEndedFromOnlyRangeWithFractionalInput() {
 			final BigDecimalNumberRange range = BigDecimalNumberRange.from(new BigDecimal("88.10000"));
 			assertTrue(range.isWithin(new BigDecimal("90")));
-			assertTrue(range.isWithin((Number) 90));
+			assertTrue(range.isWithin(90));
 			assertFalse(range.isWithin(new BigDecimal("88.09")));
 			assertFalse(range.isWithin((Number) new BigDecimal("88.09")));
 		}
@@ -316,7 +316,7 @@ class BigDecimalNumberRangeTest {
 		void shouldEvaluateOpenEndedToOnlyRangeWithFractionalInput() {
 			final BigDecimalNumberRange range = BigDecimalNumberRange.to(new BigDecimal("118.10000"));
 			assertTrue(range.isWithin(new BigDecimal("90")));
-			assertTrue(range.isWithin((Number) 90));
+			assertTrue(range.isWithin(90));
 			assertFalse(range.isWithin(new BigDecimal("118.11")));
 			assertFalse(range.isWithin((Number) new BigDecimal("118.11")));
 		}
@@ -328,7 +328,7 @@ class BigDecimalNumberRangeTest {
 				new BigDecimal("88.10000"), new BigDecimal("118.10000"), 4
 			);
 			assertTrue(range.isWithin(new BigDecimal("90")));
-			assertTrue(range.isWithin((Number) 90));
+			assertTrue(range.isWithin(90));
 			assertTrue(range.isWithin(new BigDecimal("88.1")));
 			assertTrue(range.isWithin(new BigDecimal("118.1")));
 			assertFalse(range.isWithin(new BigDecimal("88.09")));

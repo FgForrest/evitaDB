@@ -104,7 +104,7 @@ class TransactionalMemoryTest {
 			(original, committed) -> {
 				assertNull(this.tested1.get("c"));
 				assertNull(this.underlyingData1.get("c"));
-				assertEquals(3, committed.get(0).get("c"));
+				assertEquals(3, committed.getFirst().get("c"));
 
 				assertNull(this.tested2.get("c"));
 				assertNull(this.underlyingData2.get("c"));

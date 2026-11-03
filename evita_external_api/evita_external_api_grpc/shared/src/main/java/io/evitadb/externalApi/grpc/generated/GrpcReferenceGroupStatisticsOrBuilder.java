@@ -107,7 +107,8 @@ public interface GrpcReferenceGroupStatisticsOrBuilder extends
 
   /**
    * <pre>
-   * Contains number of distinct entities in the response that possess any reference in this group.
+   * Contains number of distinct entities of the query result, filtered without its user filter part, that possess
+   * any reference in this group.
    * </pre>
    *
    * <code>int32 count = 4;</code>

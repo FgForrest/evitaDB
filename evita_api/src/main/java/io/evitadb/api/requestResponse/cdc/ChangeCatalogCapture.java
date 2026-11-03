@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.cdc;
 
+import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -33,10 +34,18 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * Record represents a CDC event that is sent to the subscriber if it matches the subscriber's request.
  *
+ * `catalogId`, `version` and `index` together form the position of the capture. A consumer that wants to resume
+ * the stream later stores all three and passes them back in {@link ChangeCatalogCaptureRequest} - the version alone
+ * means nothing once the catalog has been replaced by another incarnation with its own version sequence.
+ *
+ * @param catalogId        the identity ({@link CatalogContract#getCatalogId()}) of the catalog incarnation that
+ *                         produced the capture, `null` when its producer does not know the identity - for example
+ *                         a capture created by the compatibility constructor
  * @param version          the version of the catalog where the operation was performed
  * @param index            the index of the event within the enclosed transaction, index 0 is the transaction
  *                         lead event
@@ -51,6 +60,7 @@ import java.util.Objects;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public record ChangeCatalogCapture(
+	@Nullable UUID catalogId,
 	long version,
 	int index,
 	@Nonnull OffsetDateTime timestamp,
@@ -60,6 +70,36 @@ public record ChangeCatalogCapture(
 	@Nonnull Operation operation,
 	@Nullable CatalogBoundMutation body
 ) implements ChangeCapture {
+
+	/**
+	 * Creates a capture that does not know the catalog incarnation it belongs to - the form every capture had before
+	 * the identity became part of its position. Its {@link #catalogId()} is `null`, so the capture cannot be used
+	 * to resume a stream safely across a replacement of the catalog.
+	 *
+	 * @param version          the version of the catalog where the operation was performed
+	 * @param index            the index of the event within the enclosed transaction
+	 * @param timestamp        the timestamp when the operation was performed
+	 * @param area             the area of the operation
+	 * @param entityType       the name of the affected entity type, if any
+	 * @param entityPrimaryKey the primary key of the affected entity, if any
+	 * @param operation        the operation that was performed
+	 * @param body             optional body of the operation
+	 * @deprecated every capture produced by evitaDB carries the identity of its catalog incarnation, use the
+	 *             canonical constructor that accepts it
+	 */
+	@Deprecated(since = "2026.3", forRemoval = true)
+	public ChangeCatalogCapture(
+		long version,
+		int index,
+		@Nonnull OffsetDateTime timestamp,
+		@Nonnull CaptureArea area,
+		@Nullable String entityType,
+		@Nullable Integer entityPrimaryKey,
+		@Nonnull Operation operation,
+		@Nullable CatalogBoundMutation body
+	) {
+		this(null, version, index, timestamp, area, entityType, entityPrimaryKey, operation, body);
+	}
 
 	/**
 	 * Creates a new {@link ChangeCatalogCapture} instance of data capture.
@@ -76,6 +116,7 @@ public record ChangeCatalogCapture(
 		@Nullable CatalogBoundMutation mutation
 	) {
 		return new ChangeCatalogCapture(
+			context.getCatalogId(),
 			context.getVersion(),
 			context.getIndex(),
 			context.getTimestamp(),
@@ -103,6 +144,7 @@ public record ChangeCatalogCapture(
 		@Nullable CatalogBoundMutation mutation
 	) {
 		return new ChangeCatalogCapture(
+			context.getCatalogId(),
 			context.getVersion(),
 			context.getIndex(),
 			context.getTimestamp(),
@@ -129,6 +171,7 @@ public record ChangeCatalogCapture(
 		@Nullable CatalogBoundMutation mutation
 	) {
 		return new ChangeCatalogCapture(
+			context.getCatalogId(),
 			context.getVersion(),
 			context.getIndex(),
 			context.getTimestamp(),
@@ -153,6 +196,7 @@ public record ChangeCatalogCapture(
 				return this.body == null ?
 					this :
 					new ChangeCatalogCapture(
+						this.catalogId,
 						this.version,
 						this.index,
 						this.timestamp,
@@ -167,13 +211,14 @@ public record ChangeCatalogCapture(
 		}
 	}
 
-	// timestamp is intentionally excluded - version+index uniquely identify the CDC position
+	// timestamp is intentionally excluded - catalogId+version+index uniquely identify the CDC position
 	@Override
 	public boolean equals(Object o) {
 		if (!(o instanceof ChangeCatalogCapture that)) return false;
 
 		return this.index == that.index &&
 			this.version == that.version &&
+			Objects.equals(this.catalogId, that.catalogId) &&
 			Objects.equals(this.body, that.body) &&
 			this.area == that.area &&
 			Objects.equals(this.entityType, that.entityType) &&
@@ -183,7 +228,8 @@ public record ChangeCatalogCapture(
 
 	@Override
 	public int hashCode() {
-		int result = Long.hashCode(this.version);
+		int result = Objects.hashCode(this.catalogId);
+		result = 31 * result + Long.hashCode(this.version);
 		result = 31 * result + this.index;
 		result = 31 * result + this.area.hashCode();
 		result = 31 * result + Objects.hashCode(this.entityType);

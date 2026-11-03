@@ -31,7 +31,6 @@ import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.EntityFetch;
@@ -184,12 +183,10 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 		);
 	}
 
+	/** Resolves only the queried entity level's own locale opinion. */
 	@Nullable
 	private static Locale extractDesiredLocale(@Nullable FilterBy filterBy) {
-		return Optional.ofNullable(filterBy)
-			.map(it -> QueryUtils.findConstraint(it, EntityLocaleEquals.class))
-			.map(EntityLocaleEquals::getLocale)
-			.orElse(null);
+		return QueryUtils.resolveLocale(filterBy);
 	}
 
 	/**

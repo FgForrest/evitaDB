@@ -205,7 +205,7 @@ class ConstraintCreatorTest {
 			final List<ValueParameterDescriptor> result = creator.valueParameters();
 
 			assertEquals(1, result.size());
-			assertSame(valueParam, result.get(0));
+			assertSame(valueParam, result.getFirst());
 		}
 
 		@Test
@@ -225,7 +225,7 @@ class ConstraintCreatorTest {
 			final List<ChildParameterDescriptor> result = creator.childParameters();
 
 			assertEquals(1, result.size());
-			assertSame(childParam, result.get(0));
+			assertSame(childParam, result.getFirst());
 		}
 
 		@Test
@@ -246,7 +246,7 @@ class ConstraintCreatorTest {
 			final List<AdditionalChildParameterDescriptor> result = creator.additionalChildParameters();
 
 			assertEquals(1, result.size());
-			assertSame(additionalChildParam, result.get(0));
+			assertSame(additionalChildParam, result.getFirst());
 		}
 
 		@Test

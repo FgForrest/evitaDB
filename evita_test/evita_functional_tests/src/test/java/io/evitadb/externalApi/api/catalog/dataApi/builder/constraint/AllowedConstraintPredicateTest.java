@@ -65,7 +65,7 @@ class AllowedConstraintPredicateTest {
 	                           Set<Class<? extends Constraint<?>>> forbidden,
 	                           Class<? extends Constraint<?>> testedConstraint) {
 		final AllowedConstraintPredicate predicate = new AllowedConstraintPredicate(
-			ConstraintDescriptorProvider.getConstraint(constraintClass).creator().childParameters().get(0),
+			ConstraintDescriptorProvider.getConstraint(constraintClass).creator().childParameters().getFirst(),
 			allowed,
 			forbidden
 		);
@@ -90,7 +90,7 @@ class AllowedConstraintPredicateTest {
 	                              Set<Class<? extends Constraint<?>>> forbidden,
 	                              Class<? extends Constraint<?>> testedConstraint) {
 		final AllowedConstraintPredicate predicate = new AllowedConstraintPredicate(
-			ConstraintDescriptorProvider.getConstraint(constraintClass).creator().childParameters().get(0),
+			ConstraintDescriptorProvider.getConstraint(constraintClass).creator().childParameters().getFirst(),
 			allowed,
 			forbidden
 		);

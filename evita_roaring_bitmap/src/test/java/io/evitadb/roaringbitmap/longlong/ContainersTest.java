@@ -39,23 +39,23 @@ public class ContainersTest {
 		long cidx = containers.addContainer(arrayContainer);
 		long cidx0 = cidx;
 		Container container = containers.getContainer(cidx);
-		Assertions.assertTrue(container == arrayContainer);
+		Assertions.assertSame(arrayContainer, container);
 		BitmapContainer bitmapContainer = new BitmapContainer();
 		cidx = containers.addContainer(bitmapContainer);
 		long cidx1 = cidx;
 		container = containers.getContainer(cidx);
-		Assertions.assertTrue(container == bitmapContainer);
+		Assertions.assertSame(bitmapContainer, container);
 		RunContainer runContainer = new RunContainer();
 		cidx = containers.addContainer(runContainer);
 		container = containers.getContainer(cidx);
-		Assertions.assertTrue(container == runContainer);
+		Assertions.assertSame(runContainer, container);
 		long containerSize = containers.getContainerSize();
-		Assertions.assertTrue(containerSize == 3);
+		Assertions.assertEquals(3, containerSize);
 		ArrayContainer anotherArrayContainer = new ArrayContainer();
 		containers.replace(cidx, anotherArrayContainer);
 		container = containers.getContainer(cidx);
-		Assertions.assertTrue(container != arrayContainer);
-		Assertions.assertTrue(container == anotherArrayContainer);
+		Assertions.assertNotSame(arrayContainer, container);
+		Assertions.assertSame(anotherArrayContainer, container);
 		ContainerIterator containerIterator = containers.iterator();
 		int i = 0;
 		while (containerIterator.hasNext()) {
@@ -68,13 +68,13 @@ public class ContainersTest {
 			}
 			i++;
 		}
-		Assertions.assertTrue(i == 3);
+		Assertions.assertEquals(3, i);
 		Container replacedContainer = containers.getContainer(cidx0);
 		Assertions.assertEquals(23, replacedContainer.select(0));
 		ArrayContainer arrayContainer1 = new ArrayContainer(new char[]{10, 20, 30});
 		containers.replace(cidx1, arrayContainer1);
 		replacedContainer = containers.getContainer(cidx1);
-		Assertions.assertTrue(replacedContainer == arrayContainer1);
+		Assertions.assertSame(arrayContainer1, replacedContainer);
 	}
 
 	@DisplayName("Containers serialize and deserialize via stream and ByteBuffer")
@@ -99,7 +99,7 @@ public class ContainersTest {
 		long containerSize = deseredOne.getContainerSize();
 		Assertions.assertEquals(1, containerSize);
 		Container container = containers.getContainer(containerIdx);
-		Assertions.assertTrue(container instanceof ArrayContainer);
+		Assertions.assertInstanceOf(ArrayContainer.class, container);
 		ArrayContainer deseredArrayContainer = (ArrayContainer) container;
 		Assertions.assertEquals(20, deseredArrayContainer.getCardinality());
 
@@ -111,7 +111,7 @@ public class ContainersTest {
 		containerSize = deserBBOne.getContainerSize();
 		Assertions.assertEquals(1, containerSize);
 		container = deserBBOne.getContainer(containerIdx);
-		Assertions.assertTrue(container instanceof ArrayContainer);
+		Assertions.assertInstanceOf(ArrayContainer.class, container);
 		Assertions.assertEquals(20, container.getCardinality());
 	}
 }

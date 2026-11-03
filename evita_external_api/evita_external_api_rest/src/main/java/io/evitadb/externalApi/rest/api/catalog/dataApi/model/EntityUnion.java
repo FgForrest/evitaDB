@@ -28,27 +28,35 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.model.UnionDescriptor;
 
 /**
- * Descriptor of union of {@link EntityContract}s of all collections present in evitaDB for schema-based external APIs.
+ * Descriptors of unions of {@link EntityContract}s of all collections present in evitaDB for schema-based external
+ * APIs. The unions are the response types of the endpoints fetching an entity of unknown collection by a globally
+ * unique attribute, therefore they are registered only when the catalog has at least one collection and a globally
+ * unique attribute.
  *
- * Note: this descriptor is meant be template for generated specific DTOs base on internal data. Fields in this
- * descriptor are supposed to be dynamically registered to target generated DTO.
+ * The unions are deliberately named apart from the common base object `Entity`
+ * ({@link EntityDescriptor#THIS_CLASSIFIER}) that every entity object extends via `allOf`. Sharing the name would make
+ * every entity object extend the union containing it.
+ *
+ * The descriptors carry no member types: the builder adds the entity object of every collection when it registers
+ * the union.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public interface EntityUnion {
 
 	UnionDescriptor THIS = UnionDescriptor.builder()
-		.name("Entity")
+		.name("EntityUnion")
 		.description("""
-			Gathers all specific entity objects into one.
+			Gathers all specific entity objects into one. Returned by endpoints fetching entities of unknown collection.
 			""")
 		.discriminator(EntityDescriptor.TYPE)
 		.build();
 
 	UnionDescriptor THIS_LOCALIZED = UnionDescriptor.builder()
-		.name("LocalizedEntity")
+		.name("LocalizedEntityUnion")
 		.description("""
-			Gathers all specific localized entity objects into one.
+			Gathers all specific localized entity objects into one. Returned by localized endpoints fetching entities
+			of unknown collection.
 			""")
 		.discriminator(EntityDescriptor.TYPE)
 		.build();

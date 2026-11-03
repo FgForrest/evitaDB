@@ -279,7 +279,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		void shouldCreateWithPrePopulatedMaps() {
 			// unique is a STANDALONE structure; filter is backed by the shared value index; sort/chain are owners
 			final AttributeIndexKey uniqueKey = new AttributeIndexKey(null, ATTRIBUTE_CODE, null);
-			final UniqueIndex uniqueIdx = new OwnerUniqueIndex(ENTITY_TYPE, uniqueKey, String.class);
+			final UniqueIndex uniqueIdx = new OwnerUniqueIndex(ENTITY_TYPE, uniqueKey, String.class, 0);
 			uniqueIdx.registerUniqueKey("ABC", 1);
 
 			final AttributeIndexKey filterKey = new AttributeIndexKey(null, ATTRIBUTE_NAME, null);
@@ -919,7 +919,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 			chainIdx.upsertPredecessor(Predecessor.HEAD, 1);
 
 			final AttributeIndexKey uniqueKey = new AttributeIndexKey(null, ATTRIBUTE_CODE, null);
-			final UniqueIndex uniqueIdx = new OwnerUniqueIndex(ENTITY_TYPE, uniqueKey, String.class);
+			final UniqueIndex uniqueIdx = new OwnerUniqueIndex(ENTITY_TYPE, uniqueKey, String.class, 0);
 			uniqueIdx.registerUniqueKey("ABC", 1);
 
 			final Map<AttributeIndexKey, InvertedIndex> sharedValues = new HashMap<>();

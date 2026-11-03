@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.dataType.Scope;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -713,6 +714,15 @@ class EvitaQLOrderConstraintVisitorTest {
         );
         assertEquals(orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(1)), orderBy(random()), limit(5)), segment(orderBy(randomWithSeed(8L))))), constraint7);
 
+        // nested segments parse - the engine rejects them when it plans the query
+        final OrderConstraint nestedConstraint = parseOrderConstraintUnsafe(
+            "orderBy(segments(segment(orderBy(inScope(LIVE, segments(segment(orderBy(random()))))))))"
+        );
+        assertEquals(
+            orderBy(segments(segment(orderBy(inScope(Scope.LIVE, segments(segment(orderBy(random())))))))),
+            nestedConstraint
+        );
+
         final OrderConstraint constraint8 = parseOrderConstraint(
             "orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(@pk)),orderBy(random()),limit(@limit)),segment(orderBy(randomWithSeed(@seed))))))",
             Map.of("pk", 10, "limit", 20, "seed", 8L)
@@ -732,6 +742,18 @@ class EvitaQLOrderConstraintVisitorTest {
         assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy(segments(segment(orderBy(random()), limit(?))))"));
         assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("orderBy(segments(segment(orderBy(random()), limit(5))))"));
     }
+
+	/**
+	 * A segment accepts the entity scope with several children without changing its own grammar rule.
+	 */
+	@Test
+	@DisplayName("Parses a segment with several entity filters")
+	void shouldParseSeveralChildrenWhenInsideSegment() {
+		final OrderConstraint expected = orderBy(segments(segment(
+			entityHaving(attributeEquals("first", true), attributeEquals("second", true)), orderBy(random())
+		)));
+		assertEquals(expected, parseOrderConstraintUnsafe(expected.toString()));
+	}
 
     @Test
     void shouldParseInScopeConstraint() {

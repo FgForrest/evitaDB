@@ -1345,6 +1345,35 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	}
 
 	/**
+	 * Tests that the condition of a spacing gap reaches the server as the expression it is. The client sends the
+	 * expression as a query parameter, and the server parses its text - a quoted text would parse as a string
+	 * constant, never true, and the gap would take no place on the page.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 */
+	@Test
+	@DisplayName("query a page whose spacing gap has an expression condition")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldQueryPageWithSpacingGapCondition(EvitaClient evitaClient) {
+		final EvitaResponse<EntityReference> result = evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(page(1, 5, spacing(gap(2, "$pageNumber == 1"))))
+					),
+					EntityReference.class
+				);
+			}
+		);
+
+		// the gap takes two of the five places on the first page
+		assertEquals(3, result.getRecordData().size());
+		assertEquals(PRODUCT_COUNT, result.getTotalRecordCount());
+	}
+
+	/**
 	 * Tests that the client resolves the output names of every `hierarchyOfReference` constraint in the query, not
 	 * only of the first one naming the reference. Repeating the constraint for a single reference is a supported
 	 * pattern - the results merge into one container in the response - so the driver has to look for the output name
@@ -1387,10 +1416,10 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertFalse(categoryHierarchy.get("sideMenu").isEmpty());
 		// each output name is deserialized with the `entityFetch` of the constraint that declared it - `megaMenu`
 		// asked for a body with attributes, `sideMenu` asked for nothing but the reference
-		final EntityClassifier megaMenuEntity = categoryHierarchy.get("megaMenu").get(0).entity();
+		final EntityClassifier megaMenuEntity = categoryHierarchy.get("megaMenu").getFirst().entity();
 		assertInstanceOf(SealedEntity.class, megaMenuEntity);
 		assertTrue(((SealedEntity) megaMenuEntity).getAttributeValue(ATTRIBUTE_CODE).isPresent());
-		assertInstanceOf(EntityReference.class, categoryHierarchy.get("sideMenu").get(0).entity());
+		assertInstanceOf(EntityReference.class, categoryHierarchy.get("sideMenu").getFirst().entity());
 	}
 
 	/**
@@ -1424,10 +1453,10 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertNotNull(hierarchy);
 		assertFalse(hierarchy.getSelfHierarchy("megaMenu").isEmpty());
 		assertFalse(hierarchy.getSelfHierarchy("sideMenu").isEmpty());
-		final EntityClassifier megaMenuEntity = hierarchy.getSelfHierarchy("megaMenu").get(0).entity();
+		final EntityClassifier megaMenuEntity = hierarchy.getSelfHierarchy("megaMenu").getFirst().entity();
 		assertInstanceOf(SealedEntity.class, megaMenuEntity);
 		assertTrue(((SealedEntity) megaMenuEntity).getAttributeValue(ATTRIBUTE_CODE).isPresent());
-		assertInstanceOf(EntityReference.class, hierarchy.getSelfHierarchy("sideMenu").get(0).entity());
+		assertInstanceOf(EntityReference.class, hierarchy.getSelfHierarchy("sideMenu").getFirst().entity());
 	}
 
 	/**

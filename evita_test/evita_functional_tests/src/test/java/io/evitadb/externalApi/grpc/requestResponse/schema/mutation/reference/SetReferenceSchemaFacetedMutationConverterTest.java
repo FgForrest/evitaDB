@@ -195,7 +195,7 @@ class SetReferenceSchemaFacetedMutationConverterTest {
 		final SetReferenceSchemaFacetedMutation mutation =
 			new SetReferenceSchemaFacetedMutation(
 				"tags",
-				(Scope[]) null,
+				null,
 				null
 			);
 

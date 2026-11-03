@@ -153,7 +153,7 @@ public class OrNotReferenceHavingFilterFunctionalTest extends AbstractReferenceF
 		List<SealedEntity> originalProducts,
 		List<SealedEntity> originalStores
 	) {
-		final SealedEntity targetStore = originalStores.get(0);
+		final SealedEntity targetStore = originalStores.getFirst();
 		final int targetStorePk = targetStore.getPrimaryKey();
 
 		evita.queryCatalog(

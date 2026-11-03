@@ -325,7 +325,7 @@ public class ExpressionWithEntityDataTest {
 							entityFetch(priceContentAll())
 						)
 					)
-				).getRecordData().get(0);
+				).getRecordData().getFirst();
 
 				// priceForSale properties
 				final Serializable priceForSale = evaluate("$entity.priceForSale", product);

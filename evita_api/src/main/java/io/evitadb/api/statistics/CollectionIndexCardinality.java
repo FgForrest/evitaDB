@@ -56,12 +56,23 @@ import java.util.OptionalInt;
  * Nothing is lost analytically - a per-referenced-entity index covers the records referencing one entity, so its
  * selectivity is a property of the reference, which the `REFERENCED_ENTITY_TYPE` index above it already summarises.
  *
+ * **Single-owner partitions of filter-only references are not indexes**
+ *
+ * A reference indexed for filtering only keeps each partition that has a single owner as a row of a registry held by
+ * its {@link EntityIndexType#REFERENCED_ENTITY_TYPE} index, not as a {@link EntityIndexType#REFERENCED_ENTITY} index
+ * of its own. Such a partition is therefore neither described nor counted in {@link #omittedIndexCount()}: the
+ * indexes this component, {@link CollectionIndexSummary} and an index browse ({@link BrowsedIndex}) report are
+ * *physical* indexes, and a partition held as a row cannot be described by its primary key either. The rows are
+ * counted separately, in {@link IndexCardinality#virtualPartitionCount()} of the reference type index that holds them.
+ *
  * **Cost**
  *
- * Every reading here is an `O(1)` counter read except the number of records **covered** by a *filter* index, which
- * sums the record counts of the index's buckets and is therefore `O(distinct values)`. A unique index is not the
- * expensive one, despite the intuition: its covered-record count is a bitmap cardinality and its distinct-value count
- * a cached bucket counter, neither of which walks anything.
+ * Every reading here is an `O(1)` counter read except two. The number of records **covered** by a *filter* index sums
+ * the record counts of the index's buckets and is therefore `O(distinct values)`. A unique index is not the expensive
+ * one, despite the intuition: its covered-record count is a bitmap cardinality and its distinct-value count a cached
+ * bucket counter, neither of which walks anything. The number of single-owner partitions held as registry rows
+ * ({@link IndexCardinality#virtualPartitionCount()}) is counted by a walk of the registry's rows and is therefore
+ * `O(single-owner partitions)` of that reference.
  *
  * How much the filter index costs depends on the attribute, and the two ends are far apart. For a low-cardinality
  * filterable attribute it is a handful of steps - cheap precisely in the pathological case this component exists to
@@ -125,6 +136,11 @@ public record CollectionIndexCardinality(
 	 *                              primary-key bitmap to read one off; see {@link #entityCountIfKnown()}
 	 * @param referencedEntityCount how many distinct referenced entities this index tracks, or `null` for an index
 	 *                              that tracks none; see {@link #referencedEntityCountIfKnown()}
+	 * @param virtualPartitionCount how many single-owner partitions of the reference this index holds as registry
+	 *                              rows rather than as {@link EntityIndexType#REFERENCED_ENTITY} indexes of their own,
+	 *                              or `null` for an index that holds no such registry - every index but a
+	 *                              {@link EntityIndexType#REFERENCED_ENTITY_TYPE} one; see
+	 *                              {@link #virtualPartitionCountIfKnown()}
 	 * @param attributes            one entry per attribute index held by this index, in no guaranteed order
 	 */
 	public record IndexCardinality(
@@ -133,6 +149,7 @@ public record CollectionIndexCardinality(
 		@Nullable String discriminator,
 		@Nullable Integer entityCount,
 		@Nullable Integer referencedEntityCount,
+		@Nullable Integer virtualPartitionCount,
 		@Nonnull AttributeCardinality[] attributes
 	) {
 
@@ -165,6 +182,39 @@ public record CollectionIndexCardinality(
 				OptionalInt.empty() : OptionalInt.of(this.referencedEntityCount);
 		}
 
+		/**
+		 * The number of single-owner partitions this index holds as registry rows, when it holds such a registry.
+		 *
+		 * A reference indexed for filtering only keeps each partition that has a single owner as a row of a registry
+		 * carried by its {@link EntityIndexType#REFERENCED_ENTITY_TYPE} index; a partition gets a
+		 * {@link EntityIndexType#REFERENCED_ENTITY} index of its own once a second owner joins it, and goes back to
+		 * being a row when it is left with one. The rows are not indexes - they are counted neither in
+		 * {@link CollectionIndexCardinality#omittedIndexCount()} nor by {@link CollectionIndexSummary}, they are not
+		 * listed by an index browse, and they cannot be described by a primary key - so this count is where they
+		 * become visible. `0` means the reference holds no single-owner partition as a row.
+		 *
+		 * A change of the reference's indexing converts nothing. A reference indexed for partitioning as well creates
+		 * its partitions as indexes, but the rows it held while indexed for filtering only stay rows and are still
+		 * counted here; the indexes a reference held while indexed for partitioning stay indexes after it is indexed
+		 * for filtering only.
+		 *
+		 * **Empty is a statement about the index kind, not a missing measurement**, exactly as for
+		 * {@link #referencedEntityCountIfKnown()}: only the {@link EntityIndexType#REFERENCED_ENTITY_TYPE} index holds
+		 * the registry, and reporting `0` for any other index would read as "this reference has no single-owner
+		 * partition".
+		 *
+		 * Unlike the other readings of this record it is not a counter read: the rows are walked, so it costs
+		 * `O(single-owner partitions)` of the reference.
+		 *
+		 * @return the number of single-owner partitions held as registry rows, empty for an index that holds no
+		 * registry
+		 */
+		@Nonnull
+		public OptionalInt virtualPartitionCountIfKnown() {
+			return this.virtualPartitionCount == null ?
+				OptionalInt.empty() : OptionalInt.of(this.virtualPartitionCount);
+		}
+
 		@Override
 		public boolean equals(Object o) {
 			if (this == o) return true;
@@ -175,6 +225,7 @@ public record CollectionIndexCardinality(
 				this.scope == that.scope &&
 				Objects.equals(this.discriminator, that.discriminator) &&
 				Objects.equals(this.referencedEntityCount, that.referencedEntityCount) &&
+				Objects.equals(this.virtualPartitionCount, that.virtualPartitionCount) &&
 				Arrays.equals(this.attributes, that.attributes);
 		}
 
@@ -185,6 +236,7 @@ public record CollectionIndexCardinality(
 			result = 31 * result + (this.discriminator == null ? 0 : this.discriminator.hashCode());
 			result = 31 * result + (this.entityCount == null ? 0 : this.entityCount.hashCode());
 			result = 31 * result + (this.referencedEntityCount == null ? 0 : this.referencedEntityCount.hashCode());
+			result = 31 * result + (this.virtualPartitionCount == null ? 0 : this.virtualPartitionCount.hashCode());
 			return 31 * result + Arrays.hashCode(this.attributes);
 		}
 
@@ -196,6 +248,7 @@ public record CollectionIndexCardinality(
 				", discriminator=" + this.discriminator +
 				", entityCount=" + this.entityCount +
 				", referencedEntityCount=" + this.referencedEntityCount +
+				", virtualPartitionCount=" + this.virtualPartitionCount +
 				", attributes=" + Arrays.toString(this.attributes) + '}';
 		}
 
@@ -211,23 +264,15 @@ public record CollectionIndexCardinality(
 	 *                          selectivities genuinely differ
 	 * @param indexType         which of the attribute's index structures this reading describes
 	 * @param distinctValueCount how many distinct values the structure holds
-	 * @param recordsCovered    how many records those values cover between them, as the index's own membership set
-	 *                          reports it; `recordsCovered` divided by `distinctValueCount` is the average number of
-	 *                          records sharing one value, and a large quotient is what "this index is not earning its
-	 *                          keep" looks like.
+	 * @param recordsCovered    how many distinct records those values cover between them; `recordsCovered` divided by
+	 *                          `distinctValueCount` is the average number of records sharing one value, and a large
+	 *                          quotient is what "this index is not earning its keep" looks like.
 	 *
-	 *                          **For {@link AttributeIndexType#UNIQUE} this is the engine's membership bitmap, and it
-	 *                          can read lower than the number of records that still hold a value.** One record owns
-	 *                          several values in a single unique index when the attribute is localized *and* unique
-	 *                          globally, because that combination has one locale-less key covering every locale. The
-	 *                          bitmap is an eager cache that drops a record on the **first** of its values removed and
-	 *                          nothing re-adds it while siblings remain, so removing one locale leaves the record
-	 *                          uncounted here even though the index still holds its other locales.
-	 *
-	 *                          Reported as-is deliberately: this bitmap is what the engine itself queries the index
-	 *                          through, so a separately-computed "truer" figure would describe an index the engine
-	 *                          does not have. Read it as *the index's membership as the engine sees it*, and use
-	 *                          `distinctValueCount` when the question is how much the index actually holds.
+	 *                          **For {@link AttributeIndexType#UNIQUE} the two readings can differ the other way.**
+	 *                          A localized attribute unique across locales has one locale-less key, so one record owns
+	 *                          a distinct value per locale in it, and an array attribute's record owns every element;
+	 *                          `distinctValueCount` then exceeds `recordsCovered`. The count is exact: a record is
+	 *                          covered for as long as it holds any value in the index.
 	 */
 	public record AttributeCardinality(
 		@Nonnull String attributeName,

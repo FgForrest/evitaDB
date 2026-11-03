@@ -575,7 +575,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					if (result.languageContainers().isEmpty()) {
 						return null;
 					} else {
-						return (DynamicNode) wrapFileContainer(it, result);
+						return wrapFileContainer(it, result);
 					}
 				})
 				.filter(Objects::nonNull)

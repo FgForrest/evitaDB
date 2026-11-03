@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -138,8 +138,10 @@ public class FilteredPricesSorter implements Sorter {
 		final PriceRecordContract[] translatedResult = this.priceRecordsLookupResult.getPriceRecords();
 		Arrays.sort(translatedResult, getPriceRecordComparator());
 
-		// determine the count and set of non-found (not-sorted) entities
-		Bitmap notFoundEntities = this.priceRecordsLookupResult.getNotFoundEntities();
+		// determine the count and set of non-found (not-sorted) entities - the entities without any price record are
+		// not among the sorted price records at all, the ones the comparator cannot sort are sorted after the others
+		final Bitmap entitiesWithoutPrice = this.priceRecordsLookupResult.getNotFoundEntities();
+		Bitmap notFoundEntities = entitiesWithoutPrice;
 		if (this.priceRecordComparator instanceof NonSortedRecordsProvider notSortedRecordsProvider && notSortedRecordsProvider.getNonSortedRecords() != null) {
 			if (notFoundEntities == null) {
 				notFoundEntities = notSortedRecordsProvider.getNonSortedRecords();
@@ -153,13 +155,16 @@ public class FilteredPricesSorter implements Sorter {
 			}
 		}
 		final int notFoundEntitiesLength = notFoundEntities == null ? 0 : notFoundEntities.size();
+		// only the comparator's non-sorted entities occupy the tail of the sorted price records
+		final int sortedRecords = translatedResult.length - notFoundEntitiesLength +
+			(entitiesWithoutPrice == null ? 0 : entitiesWithoutPrice.size());
 
 		final int recomputedStartIndex = sortingContext.recomputedStartIndex();
 		final int recomputedEndIndex = sortingContext.recomputedEndIndex();
 
 		// slice the output and cut appropriate page from it
 		final int peak = sortingContext.peak();
-		final int pageSize = Math.min(recomputedEndIndex - recomputedStartIndex, translatedResult.length - notFoundEntitiesLength - recomputedStartIndex);
+		final int pageSize = Math.min(recomputedEndIndex - recomputedStartIndex, sortedRecords - recomputedStartIndex);
 		int writtenRecords = 0;
 		int skippedRecords = 0;
 		for (int i = 0; i < recomputedStartIndex + pageSize; i++) {

@@ -72,4 +72,22 @@ public interface EntityStoragePart extends StoragePart {
 	@Nonnull
 	OptionalInt sizeInBytes();
 
+	/**
+	 * Returns a copy of this part carrying every field this part carries, including the bookkeeping that never reaches
+	 * the disk (the dirty flag, pending key assignments), whose content no later mutation of THIS instance can reach.
+	 * Every array and collection the part's mutators write into in place is duplicated; the immutable elements they
+	 * hold (references, attribute values, prices, associated data values) are shared.
+	 *
+	 * The data store buffer keeps a trapped part by reference and hands that very instance to the executors, which
+	 * mutate it in place. A savepoint that only put the instance back into its slot would therefore restore nothing;
+	 * it restores this pre-image instead, taken before the instance was handed out (see
+	 * `DataStoreChanges#getStoragePart`).
+	 *
+	 * The copy is `O(size of the part)` — one array or set copy per mutable member, no deserialization.
+	 *
+	 * @return an independent copy of this part's current content
+	 */
+	@Nonnull
+	EntityStoragePart createPreImage();
+
 }

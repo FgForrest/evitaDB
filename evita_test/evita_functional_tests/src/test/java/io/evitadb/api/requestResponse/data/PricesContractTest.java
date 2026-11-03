@@ -238,7 +238,7 @@ class PricesContractTest extends AbstractBuilderTest {
 				currency, moment, convertToClassifiers(priceLists), accompanyingPrices
 			);
 			assertEquals(1, allPricesResult.size());
-			assertEquals(priceForSaleWithAccompanyingPrices, allPricesResult.get(0));
+			assertEquals(priceForSaleWithAccompanyingPrices, allPricesResult.getFirst());
 		}
 	}
 
@@ -304,7 +304,7 @@ class PricesContractTest extends AbstractBuilderTest {
 			currency, moment, convertToClassifiers(priceLists), accompanyingPrices
 		);
 		assertEquals(1, allPricesResult.size());
-		assertEquals(priceForSaleWithAccompanyingPrices, allPricesResult.get(0));
+		assertEquals(priceForSaleWithAccompanyingPrices, allPricesResult.getFirst());
 	}
 
 	/**

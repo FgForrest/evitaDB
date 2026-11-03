@@ -848,9 +848,8 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 		} else if (layer != null) {
 			return createNode(theKeys, theChildren, thePeek, true);
 		} else if (!this.transactionalLayer) {
-			// nodes created during splits/merges are built with transactionalLayer=false so they do
-			// not allocate STM layers mid-transaction; on commit they must be rebuilt as participating
-			// (transactionalLayer=true) nodes so subsequent transactions can layer changes over them
+			// A non-participating layer copy must become a participating committed node so subsequent
+			// transactions and their savepoints can track its writes.
 			return createNode(theKeys, theChildren, thePeek, true);
 		} else {
 			return self();

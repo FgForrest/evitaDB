@@ -40,13 +40,9 @@ import java.util.EnumSet;
 import java.util.List;
 import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.SCHEMA;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link EntitySchemaDecorator} verifying that it correctly
@@ -264,7 +260,7 @@ class EntitySchemaDecoratorTest {
 			final EntitySchemaDecorator decorator2 =
 				new EntitySchemaDecorator(() -> CATALOG_SCHEMA, EntitySchema._internalBuild(Entities.BRAND));
 
-			assertFalse(decorator1.equals(decorator2));
+			assertNotEquals(decorator1, decorator2);
 		}
 
 		@Test

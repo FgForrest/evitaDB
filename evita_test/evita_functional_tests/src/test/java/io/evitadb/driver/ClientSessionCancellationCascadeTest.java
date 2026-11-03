@@ -128,7 +128,7 @@ class ClientSessionCancellationCascadeTest implements TestConstants, EvitaTestSu
 
 		try (final EvitaClient client = new EvitaClient(
 			clientConfiguration(evitaServer, ClientConnectionOptions.DEFAULT_PING_INTERVAL_MILLIS),
-			(Consumer<GrpcClientBuilder>) builder -> builder.intercept(faultInjector)
+			builder -> builder.intercept(faultInjector)
 		)) {
 			// (a) the transport failure is surfaced as a dedicated TransportException, not the CANCELLED-mapped
 			// GenericEvitaInternalError, and the original transport cause is preserved

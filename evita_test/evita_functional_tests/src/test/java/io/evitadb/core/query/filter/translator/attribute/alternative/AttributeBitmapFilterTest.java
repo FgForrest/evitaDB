@@ -24,11 +24,23 @@
 package io.evitadb.core.query.filter.translator.attribute.alternative;
 
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.filter.AttributeBetween;
+import io.evitadb.api.query.filter.AttributeContains;
+import io.evitadb.api.query.filter.AttributeEndsWith;
+import io.evitadb.api.query.filter.AttributeGreaterThan;
+import io.evitadb.api.query.filter.AttributeGreaterThanEquals;
+import io.evitadb.api.query.filter.AttributeInRange;
+import io.evitadb.api.query.filter.AttributeLessThan;
+import io.evitadb.api.query.filter.AttributeLessThanEquals;
+import io.evitadb.api.query.filter.AttributeStartsWith;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.AttributeContent;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -40,15 +52,21 @@ import io.evitadb.core.query.filter.translator.TestQueryExecutionContext;
 import io.evitadb.core.query.filter.translator.attribute.AttributeBetweenTranslator;
 import io.evitadb.core.query.filter.translator.attribute.AttributeContainsTranslator;
 import io.evitadb.core.query.filter.translator.attribute.AttributeEndsWithTranslator;
+import io.evitadb.core.query.filter.translator.attribute.AttributeGreaterThanEqualsTranslator;
+import io.evitadb.core.query.filter.translator.attribute.AttributeGreaterThanTranslator;
 import io.evitadb.core.query.filter.translator.attribute.AttributeInRangeTranslator;
+import io.evitadb.core.query.filter.translator.attribute.AttributeLessThanEqualsTranslator;
+import io.evitadb.core.query.filter.translator.attribute.AttributeLessThanTranslator;
 import io.evitadb.core.query.filter.translator.attribute.AttributeStartsWithTranslator;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,17 +79,20 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.core.query.filter.translator.attribute.AbstractAttributeComparisonTranslator.getPredicate;
-import static io.evitadb.core.query.filter.translator.attribute.AbstractAttributeStringSearchTranslator.transformPredicate;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -81,7 +102,9 @@ import static io.evitadb.test.TestTags.FILTER;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
- * This test verifies behaviour of {@link AttributeBitmapFilter}.
+ * This test verifies behaviour of {@link AttributeBitmapFilter}: the filter built from the
+ * {@link AttributeValueMatcher} a translator creates selects the prefetched entities holding a value the matcher
+ * accepts, and only them.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -90,6 +113,18 @@ import static io.evitadb.test.TestTags.ATTRIBUTE;
 @Tag(ATTRIBUTE)
 class AttributeBitmapFilterTest {
 	public static final String NUMBER_RANGE = "numberRange";
+	private static final Supplier<OffsetDateTime> NOW =
+		() -> OffsetDateTime.of(2007, 6, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+	private static final AttributeBetweenTranslator BETWEEN = new AttributeBetweenTranslator();
+	private static final AttributeInRangeTranslator IN_RANGE = new AttributeInRangeTranslator();
+	private static final AttributeContainsTranslator CONTAINS = new AttributeContainsTranslator();
+	private static final AttributeEndsWithTranslator ENDS_WITH = new AttributeEndsWithTranslator();
+	private static final AttributeStartsWithTranslator STARTS_WITH = new AttributeStartsWithTranslator();
+	private static final AttributeGreaterThanTranslator GREATER_THAN = new AttributeGreaterThanTranslator();
+	private static final AttributeGreaterThanEqualsTranslator GREATER_THAN_EQUALS =
+		new AttributeGreaterThanEqualsTranslator();
+	private static final AttributeLessThanTranslator LESS_THAN = new AttributeLessThanTranslator();
+	private static final AttributeLessThanEqualsTranslator LESS_THAN_EQUALS = new AttributeLessThanEqualsTranslator();
 	private static final int SEED = 40;
 	public static final EnumSet<Scope> TEST_SCOPES = EnumSet.of(Scope.LIVE);
 	private AttributeSchemaAccessor attributeSchemaAccessor;
@@ -134,19 +169,15 @@ class AttributeBitmapFilterTest {
 	void shouldFilterByNumberBetween() {
 		final long from = 20000L;
 		final long to = 80000L;
-		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
+		final AttributeBetween constraint = attributeBetween(DataGenerator.ATTRIBUTE_PRIORITY, from, to);
+		final AttributeBitmapFilter filter = createFilter(
 			DataGenerator.ATTRIBUTE_PRIORITY,
-			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, attributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, TEST_SCOPES, attributeTraits),
-			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
-			attributeSchema -> AttributeBetweenTranslator.getComparablePredicate(o -> (java.io.Serializable) o, Comparator.naturalOrder(), from, to)
+			attributeSchema -> BETWEEN.createMatcher(constraint, attributeSchema, keyOf(attributeSchema), NOW)
 		);
 
 		final Bitmap result = filter.filter(
 			createTestFilterByVisitor(
-				filterBy(
-					attributeBetween(DataGenerator.ATTRIBUTE_PRIORITY, from, to)
-				),
+				filterBy(constraint),
 				filter
 			)
 		);
@@ -161,21 +192,12 @@ class AttributeBitmapFilterTest {
 
 	@Test
 	void shouldFilterByNumberRangeOverlap() {
-		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
+		final AttributeBetween constraint = attributeBetween(NUMBER_RANGE, 40, 50);
+		final AttributeBitmapFilter filter = createFilter(
 			NUMBER_RANGE,
-			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, attributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, TEST_SCOPES, attributeTraits),
-			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
-			attributeSchema -> AttributeBetweenTranslator.getNumberRangePredicate(40, 50)
+			attributeSchema -> BETWEEN.createMatcher(constraint, attributeSchema, keyOf(attributeSchema), NOW)
 		);
-		final Bitmap result = filter.filter(
-			createTestFilterByVisitor(
-				filterBy(
-					attributeBetween(NUMBER_RANGE, 40, 50)
-				),
-				filter
-			)
-		);
+		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
@@ -189,21 +211,13 @@ class AttributeBitmapFilterTest {
 	void shouldFilterByDateTimeRangeOverlap() {
 		final OffsetDateTime from = OffsetDateTime.of(2007, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 		final OffsetDateTime to = OffsetDateTime.of(2008, 12, 31, 23, 59, 59, 0, ZoneOffset.UTC);
-		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
+		final AttributeBetween constraint = attributeBetween(DataGenerator.ATTRIBUTE_VALIDITY, from, to);
+		final AttributeBitmapFilter filter = createFilter(
 			DataGenerator.ATTRIBUTE_VALIDITY,
-			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, attributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, TEST_SCOPES, attributeTraits),
-			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
-			attributeSchema -> AttributeBetweenTranslator.getDateTimePredicate(from, to)
+			attributeSchema -> BETWEEN.createMatcher(constraint, attributeSchema, keyOf(attributeSchema), NOW)
 		);
 
-		final Bitmap result = filter.filter(
-			createTestFilterByVisitor(
-				filterBy(
-					attributeBetween(DataGenerator.ATTRIBUTE_VALIDITY, from, to)
-				),
-				filter)
-		);
+		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
@@ -215,18 +229,12 @@ class AttributeBitmapFilterTest {
 
 	@Test
 	void shouldFilterByNumberRangeWithin() {
-		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
+		final AttributeInRange constraint = attributeInRange(NUMBER_RANGE, 45);
+		final AttributeBitmapFilter filter = createFilter(
 			NUMBER_RANGE,
-			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, attributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, TEST_SCOPES, attributeTraits),
-			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
-			attributeSchema -> AttributeInRangeTranslator.getNumberRangePredicate(45)
+			attributeSchema -> IN_RANGE.createMatcher(constraint, attributeSchema, keyOf(attributeSchema), NOW)
 		);
-		final Bitmap result = filter.filter(
-			createTestFilterByVisitor(filterBy(
-				attributeInRange(NUMBER_RANGE, 45)
-			), filter)
-		);
+		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
@@ -239,19 +247,13 @@ class AttributeBitmapFilterTest {
 	@Test
 	void shouldFilterByDateTimeRangeWithin() {
 		final OffsetDateTime theMoment = OffsetDateTime.of(2007, 6, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
+		final AttributeInRange constraint = attributeInRange(DataGenerator.ATTRIBUTE_VALIDITY, theMoment);
+		final AttributeBitmapFilter filter = createFilter(
 			DataGenerator.ATTRIBUTE_VALIDITY,
-			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, attributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, TEST_SCOPES, attributeTraits),
-			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
-			attributeSchema -> AttributeInRangeTranslator.getDateTimeRangePredicate(theMoment)
+			attributeSchema -> IN_RANGE.createMatcher(constraint, attributeSchema, keyOf(attributeSchema), NOW)
 		);
 
-		final Bitmap result = filter.filter(
-			createTestFilterByVisitor(filterBy(
-				attributeInRange(DataGenerator.ATTRIBUTE_VALIDITY, theMoment)
-			), filter)
-		);
+		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
@@ -265,19 +267,13 @@ class AttributeBitmapFilterTest {
 	void shouldFilterByStringContains() {
 		final String attributeName = DataGenerator.ATTRIBUTE_CODE;
 		final String textToSearch = "Hat";
-		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
+		final AttributeContains constraint = attributeContains(attributeName, textToSearch);
+		final AttributeBitmapFilter filter = createFilter(
 			attributeName,
-			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
-			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
-			attributeSchema -> transformPredicate(theValue -> AttributeContainsTranslator.createPredicate().test(theValue, textToSearch))
+			attributeSchema -> CONTAINS.createMatcher(constraint, attributeSchema, keyOf(attributeSchema), NOW)
 		);
 
-		final Bitmap result = filter.filter(
-			createTestFilterByVisitor(filterBy(
-				attributeContains(attributeName, textToSearch)
-			), filter)
-		);
+		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
@@ -291,19 +287,13 @@ class AttributeBitmapFilterTest {
 	void shouldFilterByStringEndsWith() {
 		final String attributeName = DataGenerator.ATTRIBUTE_CODE;
 		final String textToSearch = "1";
-		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
+		final AttributeEndsWith constraint = attributeEndsWith(attributeName, textToSearch);
+		final AttributeBitmapFilter filter = createFilter(
 			attributeName,
-			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
-			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
-			attributeSchema -> transformPredicate(theValue -> AttributeEndsWithTranslator.createPredicate().test(theValue, textToSearch))
+			attributeSchema -> ENDS_WITH.createMatcher(constraint, attributeSchema, keyOf(attributeSchema), NOW)
 		);
 
-		final Bitmap result = filter.filter(
-			createTestFilterByVisitor(filterBy(
-				attributeEndsWith(attributeName, textToSearch)
-			), filter)
-		);
+		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
@@ -317,19 +307,13 @@ class AttributeBitmapFilterTest {
 	void shouldFilterByStringStartsWith() {
 		final String attributeName = DataGenerator.ATTRIBUTE_CODE;
 		final String textToSearch = "Practical";
-		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
+		final AttributeStartsWith constraint = attributeStartsWith(attributeName, textToSearch);
+		final AttributeBitmapFilter filter = createFilter(
 			attributeName,
-			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
-			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
-			attributeSchema -> transformPredicate(theValue -> AttributeStartsWithTranslator.createPredicate().test(theValue, textToSearch))
+			attributeSchema -> STARTS_WITH.createMatcher(constraint, attributeSchema, keyOf(attributeSchema), NOW)
 		);
 
-		final Bitmap result = filter.filter(
-			createTestFilterByVisitor(filterBy(
-				attributeStartsWith(attributeName, textToSearch)
-			), filter)
-		);
+		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
@@ -343,23 +327,15 @@ class AttributeBitmapFilterTest {
 	void shouldFilterByNumberGreaterThanEquals() {
 		final String attributeName = DataGenerator.ATTRIBUTE_QUANTITY;
 		final BigDecimal theNumber = new BigDecimal("200");
-		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
+		final AttributeGreaterThanEquals constraint = attributeGreaterThanEquals(attributeName, theNumber);
+		final AttributeBitmapFilter filter = createFilter(
 			attributeName,
-			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
-			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
-			attributeSchema -> getPredicate(
-				this.attributeSchemaAccessor.getReferenceSchema(),
-				this.attributeSchemaAccessor.getAttributeSchema(attributeName, TEST_SCOPES),
-				null, theNumber, result -> result >= 0
+			attributeSchema -> GREATER_THAN_EQUALS.createMatcher(
+				constraint, attributeSchema, keyOf(attributeSchema), NOW
 			)
 		);
 
-		final Bitmap result = filter.filter(
-			createTestFilterByVisitor(filterBy(
-				attributeGreaterThanEquals(attributeName, theNumber)
-			), filter)
-		);
+		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
@@ -373,23 +349,13 @@ class AttributeBitmapFilterTest {
 	void shouldFilterByNumberGreaterThan() {
 		final String attributeName = DataGenerator.ATTRIBUTE_QUANTITY;
 		final BigDecimal theNumber = new BigDecimal("200");
-		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
+		final AttributeGreaterThan constraint = attributeGreaterThan(attributeName, theNumber);
+		final AttributeBitmapFilter filter = createFilter(
 			attributeName,
-			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
-			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
-			attributeSchema -> getPredicate(
-				this.attributeSchemaAccessor.getReferenceSchema(),
-				this.attributeSchemaAccessor.getAttributeSchema(attributeName, TEST_SCOPES),
-				null, theNumber, result -> result > 0
-			)
+			attributeSchema -> GREATER_THAN.createMatcher(constraint, attributeSchema, keyOf(attributeSchema), NOW)
 		);
 
-		final Bitmap result = filter.filter(
-			createTestFilterByVisitor(filterBy(
-				attributeGreaterThan(attributeName, theNumber)
-			), filter)
-		);
+		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
@@ -403,23 +369,13 @@ class AttributeBitmapFilterTest {
 	void shouldFilterByNumberLesserThan() {
 		final String attributeName = DataGenerator.ATTRIBUTE_QUANTITY;
 		final BigDecimal theNumber = new BigDecimal("200");
-		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
+		final AttributeLessThan constraint = attributeLessThan(attributeName, theNumber);
+		final AttributeBitmapFilter filter = createFilter(
 			attributeName,
-			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
-			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
-			attributeSchema -> getPredicate(
-				this.attributeSchemaAccessor.getReferenceSchema(),
-				this.attributeSchemaAccessor.getAttributeSchema(attributeName, TEST_SCOPES),
-				null, theNumber, result -> result < 0
-			)
+			attributeSchema -> LESS_THAN.createMatcher(constraint, attributeSchema, keyOf(attributeSchema), NOW)
 		);
 
-		final Bitmap result = filter.filter(
-			createTestFilterByVisitor(filterBy(
-				attributeLessThan(attributeName, theNumber)
-			), filter)
-		);
+		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
@@ -433,23 +389,13 @@ class AttributeBitmapFilterTest {
 	void shouldFilterByNumberLesserThanEquals() {
 		final String attributeName = DataGenerator.ATTRIBUTE_QUANTITY;
 		final BigDecimal theNumber = new BigDecimal("200");
-		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
+		final AttributeLessThanEquals constraint = attributeLessThanEquals(attributeName, theNumber);
+		final AttributeBitmapFilter filter = createFilter(
 			attributeName,
-			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
-			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
-			attributeSchema -> getPredicate(
-				this.attributeSchemaAccessor.getReferenceSchema(),
-				this.attributeSchemaAccessor.getAttributeSchema(attributeName, TEST_SCOPES),
-				null, theNumber, result -> result <= 0
-			)
+			attributeSchema -> LESS_THAN_EQUALS.createMatcher(constraint, attributeSchema, keyOf(attributeSchema), NOW)
 		);
 
-		final Bitmap result = filter.filter(
-			createTestFilterByVisitor(filterBy(
-				attributeLessThanEquals(attributeName, theNumber)
-			), filter)
-		);
+		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
@@ -505,6 +451,129 @@ class AttributeBitmapFilterTest {
 			final BigDecimal attribute = this.entities.get(ePK).getAttribute(attributeName);
 			assertNotNull(attribute);
 		}
+	}
+
+	@Test
+	void shouldCreateTheMatcherOncePerEntityType() {
+		final AtomicInteger created = new AtomicInteger();
+		final AttributeBetween constraint = attributeBetween(DataGenerator.ATTRIBUTE_PRIORITY, 20000L, 80000L);
+		final AttributeBitmapFilter filter = createFilter(
+			DataGenerator.ATTRIBUTE_PRIORITY,
+			attributeSchema -> {
+				created.incrementAndGet();
+				return BETWEEN.createMatcher(constraint, attributeSchema, keyOf(attributeSchema), NOW);
+			}
+		);
+
+		filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
+
+		assertEquals(1, created.get());
+	}
+
+	@Test
+	void shouldSelectNoEntityHoldingNoValue() {
+		final String attributeName = DataGenerator.ATTRIBUTE_QUANTITY;
+		final AttributeLessThan constraint = attributeLessThan(attributeName, new BigDecimal("1000000"));
+		final AttributeBitmapFilter filter = createFilter(
+			attributeName,
+			attributeSchema -> LESS_THAN.createMatcher(constraint, attributeSchema, keyOf(attributeSchema), NOW)
+		);
+
+		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
+
+		final long withValue = this.entities.values().stream()
+			.filter(it -> it.getAttribute(attributeName) != null)
+			.count();
+		assertTrue(withValue < this.entities.size());
+		assertEquals(withValue, result.size());
+		for (int ePK : result.getArray()) {
+			assertNotNull(this.entities.get(ePK).getAttribute(attributeName));
+		}
+	}
+
+	@Test
+	void shouldSelectEntityWhenAnyValueOfTheStreamMatches() {
+		final AttributeBetween constraint = attributeBetween(DataGenerator.ATTRIBUTE_PRIORITY, 20000L, 80000L);
+		final Function<AttributeSchemaContract, AttributeValueMatcher> matcherFactory =
+			attributeSchema -> BETWEEN.createMatcher(constraint, attributeSchema, keyOf(attributeSchema), NOW);
+		final AttributeBitmapFilter singleValueFilter = createFilter(DataGenerator.ATTRIBUTE_PRIORITY, matcherFactory);
+		final Bitmap expected = singleValueFilter.filter(
+			createTestFilterByVisitor(filterBy(constraint), singleValueFilter)
+		);
+		assertFalse(expected.isEmpty());
+
+		// the value of the entity follows an absent value and a value outside the interval
+		final AttributeBitmapFilter filter = createFilter(
+			DataGenerator.ATTRIBUTE_PRIORITY,
+			(entityContract, theAttributeName) -> Stream.of(
+				Optional.<AttributeValue>empty(),
+				Optional.of(new AttributeValue(new AttributeKey(theAttributeName), 1L)),
+				entityContract.getAttributeValue(theAttributeName, null)
+			),
+			matcherFactory
+		);
+		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
+
+		assertArrayEquals(expected.getArray(), result.getArray());
+	}
+
+	@Test
+	void shouldSelectNothingWhenNoEntityIsPrefetched() {
+		final AttributeBetween constraint = attributeBetween(DataGenerator.ATTRIBUTE_PRIORITY, 20000L, 80000L);
+		final AttributeBitmapFilter filter = createFilter(
+			DataGenerator.ATTRIBUTE_PRIORITY,
+			attributeSchema -> BETWEEN.createMatcher(constraint, attributeSchema, keyOf(attributeSchema), NOW)
+		);
+
+		assertTrue(filter.filter(new TestQueryExecutionContext(
+			this.entitySchema,
+			Query.query(collection(Entities.PRODUCT), filterBy(constraint), require(filter.getEntityRequire())),
+			Collections.emptyMap()
+		)).isEmpty());
+	}
+
+	/**
+	 * Creates the filter of the attribute over the entities of the test, the matcher being created from the schema of
+	 * the attribute.
+	 */
+	@Nonnull
+	private AttributeBitmapFilter createFilter(
+		@Nonnull String attributeName,
+		@Nonnull Function<AttributeSchemaContract, AttributeValueMatcher> matcherFactory
+	) {
+		return createFilter(
+			attributeName,
+			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
+			matcherFactory
+		);
+	}
+
+	/**
+	 * Creates the filter of the attribute over the entities of the test, reading the values of an entity with the
+	 * given accessor.
+	 */
+	@Nonnull
+	private AttributeBitmapFilter createFilter(
+		@Nonnull String attributeName,
+		@Nonnull BiFunction<EntityContract, String, Stream<Optional<AttributeValue>>> attributeValueAccessor,
+		@Nonnull Function<AttributeSchemaContract, AttributeValueMatcher> matcherFactory
+	) {
+		return AttributeBitmapFilter.matching(
+			attributeName,
+			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(
+				entitySchema, theAttributeName, TEST_SCOPES, attributeTraits
+			),
+			attributeValueAccessor,
+			matcherFactory
+		);
+	}
+
+	/**
+	 * Returns the key of the filter index of the not localized attribute.
+	 */
+	@Nonnull
+	private static AttributeIndexKey keyOf(@Nonnull AttributeSchemaContract attributeSchema) {
+		return AttributeIndex.createAttributeKey(null, attributeSchema, null);
 	}
 
 	@Nonnull

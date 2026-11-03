@@ -103,10 +103,21 @@ public final class PickFirstReferenceTargetRanking {
 	 * must fall through to the next sorter on the prefetch route as well.
 	 *
 	 * @param entity the entity being sorted
-	 * @return true if the entity may be sorted by the owning comparator
+	 * @return `true` if the entity may be sorted by the owning comparator
 	 */
 	public boolean admits(@Nonnull EntityContract entity) {
 		return this.indexResolver.isProcessedScope(entity.getScope());
+	}
+
+	/**
+	 * Returns whether the row's target belongs to the hierarchy bound of its owner's scope.
+	 *
+	 * @param entity    the owner, already admitted by the ordering scopes
+	 * @param reference the row considered by the picker
+	 * @return `true` when the row may represent the owner
+	 */
+	public boolean admits(@Nonnull EntityContract entity, @Nonnull ReferenceContract reference) {
+		return this.indexResolver.isTargetWithinHierarchyBound(entity.getScope(), reference.getReferencedPrimaryKey());
 	}
 
 	/**

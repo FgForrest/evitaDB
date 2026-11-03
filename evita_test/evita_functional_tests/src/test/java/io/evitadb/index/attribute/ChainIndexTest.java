@@ -1432,7 +1432,7 @@ class ChainIndexTest {
 			populateStandardChain();
 
 			final SortedRecordsSupplier asc =
-				(SortedRecordsSupplier) ChainIndexTest.this.index
+				ChainIndexTest.this.index
 					.getAscendingOrderRecordsSupplier();
 
 			assertArrayEquals(
@@ -1447,7 +1447,7 @@ class ChainIndexTest {
 			populateStandardChain();
 
 			final SortedRecordsSupplier desc =
-				(SortedRecordsSupplier) ChainIndexTest.this.index
+				ChainIndexTest.this.index
 					.getDescendingOrderRecordsSupplier();
 
 			assertArrayEquals(
@@ -1470,7 +1470,7 @@ class ChainIndexTest {
 			idx.upsertPredecessor(new Predecessor(10), 20);
 
 			final SortedRecordsSupplier asc =
-				(SortedRecordsSupplier) idx.getAscendingOrderRecordsSupplier();
+				idx.getAscendingOrderRecordsSupplier();
 
 			assertInstanceOf(ReferenceSortedRecordsProvider.class, asc);
 			assertArrayEquals(new int[]{10, 20}, asc.getSortedRecordIds());
@@ -1482,10 +1482,10 @@ class ChainIndexTest {
 			populateStandardChain();
 
 			final SortedRecordsSupplier first =
-				(SortedRecordsSupplier) ChainIndexTest.this.index
+				ChainIndexTest.this.index
 					.getAscendingOrderRecordsSupplier();
 			final SortedRecordsSupplier second =
-				(SortedRecordsSupplier) ChainIndexTest.this.index
+				ChainIndexTest.this.index
 					.getAscendingOrderRecordsSupplier();
 
 			// a consistent chain is served straight from the live element tree, so each call builds a fresh
@@ -1501,9 +1501,9 @@ class ChainIndexTest {
 			populateStandardChain();
 
 			final SortedRecordsSupplier asc =
-				(SortedRecordsSupplier) ChainIndexTest.this.index.getAscendingOrderRecordsSupplier();
+				ChainIndexTest.this.index.getAscendingOrderRecordsSupplier();
 			final SortedRecordsSupplier desc =
-				(SortedRecordsSupplier) ChainIndexTest.this.index.getDescendingOrderRecordsSupplier();
+				ChainIndexTest.this.index.getDescendingOrderRecordsSupplier();
 
 			// both directions expose the same direction-independent record-id set, each read from the element tree
 			assertArrayEquals(
@@ -1522,9 +1522,9 @@ class ChainIndexTest {
 			ChainIndexTest.this.index.upsertPredecessor(new Predecessor(5), 6);
 
 			final SortedRecordsSupplier ascAfter =
-				(SortedRecordsSupplier) ChainIndexTest.this.index.getAscendingOrderRecordsSupplier();
+				ChainIndexTest.this.index.getAscendingOrderRecordsSupplier();
 			final SortedRecordsSupplier descAfter =
-				(SortedRecordsSupplier) ChainIndexTest.this.index.getDescendingOrderRecordsSupplier();
+				ChainIndexTest.this.index.getDescendingOrderRecordsSupplier();
 
 			assertArrayEquals(new int[]{1, 2, 3, 4, 5, 6}, ascAfter.getSortedRecordIds());
 			assertArrayEquals(new int[]{6, 5, 4, 3, 2, 1}, descAfter.getSortedRecordIds());
@@ -1537,9 +1537,9 @@ class ChainIndexTest {
 
 			// request the descending supplier FIRST so any request-order dependency would surface
 			final SortedRecordsSupplier desc =
-				(SortedRecordsSupplier) ChainIndexTest.this.index.getDescendingOrderRecordsSupplier();
+				ChainIndexTest.this.index.getDescendingOrderRecordsSupplier();
 			final SortedRecordsSupplier asc =
-				(SortedRecordsSupplier) ChainIndexTest.this.index.getAscendingOrderRecordsSupplier();
+				ChainIndexTest.this.index.getAscendingOrderRecordsSupplier();
 
 			// both directions expose the same record-id set regardless of which was requested first
 			assertArrayEquals(
@@ -1563,7 +1563,7 @@ class ChainIndexTest {
 			// read the committed supplier order before the transaction
 			assertArrayEquals(
 				EXPECTED_CHAIN,
-				((SortedRecordsSupplier) ChainIndexTest.this.index.getAscendingOrderRecordsSupplier())
+				ChainIndexTest.this.index.getAscendingOrderRecordsSupplier()
 					.getSortedRecordIds()
 			);
 
@@ -1572,9 +1572,9 @@ class ChainIndexTest {
 				original -> original.upsertPredecessor(new Predecessor(5), 6),
 				(original, committed) -> {
 					final SortedRecordsSupplier asc =
-						(SortedRecordsSupplier) committed.getAscendingOrderRecordsSupplier();
+						committed.getAscendingOrderRecordsSupplier();
 					final SortedRecordsSupplier desc =
-						(SortedRecordsSupplier) committed.getDescendingOrderRecordsSupplier();
+						committed.getDescendingOrderRecordsSupplier();
 					assertArrayEquals(new int[]{1, 2, 3, 4, 5, 6}, asc.getSortedRecordIds());
 					assertArrayEquals(new int[]{6, 5, 4, 3, 2, 1}, desc.getSortedRecordIds());
 					// both directions expose the same record-id set on the merged copy
@@ -1590,7 +1590,7 @@ class ChainIndexTest {
 			// pre-warm the committed supplier caches so the memoized lookup/bitmap fields are live before the transaction
 			assertArrayEquals(
 				EXPECTED_CHAIN,
-				((SortedRecordsSupplier) ChainIndexTest.this.index.getAscendingOrderRecordsSupplier())
+				ChainIndexTest.this.index.getAscendingOrderRecordsSupplier()
 					.getSortedRecordIds()
 			);
 
@@ -1601,7 +1601,7 @@ class ChainIndexTest {
 					assertNull(committed);
 					assertArrayEquals(
 						EXPECTED_CHAIN,
-						((SortedRecordsSupplier) original.getAscendingOrderRecordsSupplier()).getSortedRecordIds()
+						original.getAscendingOrderRecordsSupplier().getSortedRecordIds()
 					);
 				}
 			);

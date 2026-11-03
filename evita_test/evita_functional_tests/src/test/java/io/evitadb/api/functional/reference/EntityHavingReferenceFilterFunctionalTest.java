@@ -72,7 +72,7 @@ public class EntityHavingReferenceFilterFunctionalTest extends AbstractReference
 		List<SealedEntity> originalProducts,
 		List<SealedEntity> originalStores
 	) {
-		final SealedEntity targetStore = originalStores.get(0);
+		final SealedEntity targetStore = originalStores.getFirst();
 		final String targetCode = targetStore.getAttribute(ATTRIBUTE_CODE, String.class);
 		final int targetPk = targetStore.getPrimaryKey();
 
@@ -130,7 +130,7 @@ public class EntityHavingReferenceFilterFunctionalTest extends AbstractReference
 		List<SealedEntity> originalProducts,
 		List<SealedEntity> originalParameters
 	) {
-		final SealedEntity targetParameter = originalParameters.get(0);
+		final SealedEntity targetParameter = originalParameters.getFirst();
 		final String targetCode = targetParameter.getAttribute(ATTRIBUTE_CODE, String.class);
 		final int targetPk = targetParameter.getPrimaryKey();
 

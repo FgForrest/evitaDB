@@ -162,7 +162,7 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLEndpointExecutionC
 						"GraphQL",
 						executionContext.httpRequest(),
 						() -> executeRequestAsync(executionContext, graphQLRequest)
-							.thenApply(response -> (EndpointResponse) new SuccessEndpointResponse(response))
+							.thenApply(SuccessEndpointResponse::new)
 					)
 				);
 			});
@@ -273,7 +273,7 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLEndpointExecutionC
 	 * Maps a throwable from async GraphQL execution to an appropriate RuntimeException.
 	 */
 	@Nonnull
-	private RuntimeException mapToGraphQLException(@Nonnull Throwable cause) {
+	private static RuntimeException mapToGraphQLException(@Nonnull Throwable cause) {
 		// unwrap CompletionException to get the real cause
 		if (cause instanceof CompletionException ce && ce.getCause() != null) {
 			cause = ce.getCause();

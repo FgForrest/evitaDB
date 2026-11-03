@@ -236,7 +236,7 @@ class ReevaluateExpressionExecutorTest {
 			);
 
 			assertEquals(1, entries.size());
-			assertNull(entries.get(0).groupPK());
+			assertNull(entries.getFirst().groupPK());
 		}
 	}
 
@@ -440,7 +440,9 @@ class ReevaluateExpressionExecutorTest {
 			// Act
 			ReevaluateExpressionExecutorTest.this.executor.execute(mutation, target);
 
-			// Assert: evaluateFilter was called with a filter that includes BOTH entity PK and group PK scoping
+			// Assert: evaluateFilter was called with the group PK merged into the condition's own `groupHaving`.
+			// The referenced entity is NOT pinned: the condition does not read it, the contribution's owner set
+			// already scopes the answer, and a pin would make it require the referenced entity to exist
 			final ArgumentCaptor<FilterBy> filterCaptor = ArgumentCaptor.forClass(FilterBy.class);
 			verify(target).evaluateFilter(filterCaptor.capture(), eq(Scope.LIVE));
 
@@ -454,7 +456,10 @@ class ReevaluateExpressionExecutorTest {
 				if (child instanceof ReferenceHaving rh) {
 					foundReferenceHaving = true;
 					assertContainsGroupHavingWithPK(rh, 2);
-					assertContainsEntityHavingWithPK(rh, 3);
+					assertTrue(
+						FinderVisitor.findConstraints(rh, EntityHaving.class::isInstance).isEmpty(),
+						"A condition that does not read the referenced entity must not pin it: " + rh
+					);
 				}
 			}
 			assertTrue(foundReferenceHaving, "Filter should contain ReferenceHaving");
@@ -886,6 +891,54 @@ class ReevaluateExpressionExecutorTest {
 		}
 
 		@Test
+		@DisplayName("skips a partition the type index advertises but the collection no longer holds")
+		void shouldSkipStalePartitionPrimaryKeyWhenResolvingUngroupedOwners() {
+			final FilterBy triggerFilter = new FilterBy(
+				new ReferenceHaving(
+					REFERENCE_NAME,
+					new EntityHaving(
+						new AttributeEquals("isActive", true)
+					)
+				)
+			);
+			final StubFacetTrigger facetTrigger = new StubFacetTrigger(
+				REFERENCE_NAME, triggerFilter, DependencyType.REFERENCED_ENTITY_ATTRIBUTE
+			);
+			final AffectedReferenceGroup group = new AffectedReferenceGroup(
+				3, null, new BaseBitmap(100)
+			);
+			final TestTarget testTarget = createTestTargetUngrouped(
+				group, ReferenceIndexType.FOR_FILTERING
+			);
+			final IndexMutationTarget target = testTarget.target();
+			// the type index also advertises a partition primary key the collection does not hold (a stale
+			// selector) - the by-primary-key lookup answers null for it
+			final ReferencedTypeEntityIndex rtei = (ReferencedTypeEntityIndex) target.getIndexIfExists(
+				new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, REFERENCE_NAME)
+			);
+			final int stalePartitionPk = nextStoragePk();
+			rtei.insertPrimaryKeyIfMissing(stalePartitionPk, 3);
+			assertNull(target.getIndexByPrimaryKeyIfExists(stalePartitionPk));
+
+			final ReevaluateExpressionMutation mutation = ReevaluateExpressionMutation.withoutOldValues(
+				REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE
+			);
+			when(target.evaluateFilter(any(FilterBy.class), eq(Scope.LIVE)))
+				.thenReturn(new BaseBitmap(100));
+			when(target.getFacetTrigger(REFERENCE_NAME, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE))
+				.thenReturn(facetTrigger);
+			when(target.getHistogramTriggers(REFERENCE_NAME, Scope.LIVE))
+				.thenReturn(Collections.emptyList());
+
+			// Act - must neither throw nor lose the owners of the partition that does exist
+			assertDoesNotThrow(() -> ReevaluateExpressionExecutorTest.this.executor.execute(mutation, target));
+
+			// the resolution still found owner 100 through the live partition, so the trigger was evaluated
+			verify(target, times(1)).evaluateFilter(any(), any());
+			verify(target).resolvePartitionIfExists(stalePartitionPk);
+		}
+
+		@Test
 		@DisplayName("skips processing when no facet or histogram triggers exist")
 		void shouldSkipProcessingWhenNoTriggersExist() {
 			final AffectedReferenceGroup group = new AffectedReferenceGroup(
@@ -990,7 +1043,7 @@ class ReevaluateExpressionExecutorTest {
 		}
 
 		/**
-		 * Reproduces production `INVALID_ARGUMENT` failure (issue #1233): a production catalog,
+		 * Reproduces a production `INVALID_ARGUMENT` failure: a production catalog,
 		 * `ParameterValue` upsert blowing up with ``A total of `2` constraints were found in a query,
 		 * but expected is only one: <the two constraints>.``
 		 *
@@ -1053,8 +1106,8 @@ class ReevaluateExpressionExecutorTest {
 		}
 
 		/**
-		 * Companion regression for issue #1233: once the existence check stops throwing on multiple
-		 * sibling `GroupHaving` constraints, the per-group evaluation must still produce a
+		 * Companion regression of the multiple-`GroupHaving` failure: once the existence check stops throwing on
+		 * multiple sibling `GroupHaving` constraints, the per-group evaluation must still produce a
 		 * **correctly scoped** filter — i.e. the group PK must be injected into **every** sibling
 		 * `GroupHaving`, not just the first one. Otherwise the unscoped sibling would match across
 		 * all groups, producing the same cross-reference false positive that
@@ -1121,7 +1174,7 @@ class ReevaluateExpressionExecutorTest {
 		}
 
 		/**
-		 * Pre-existing limitation surfaced while fixing issue #1233: `parameterize` /
+		 * A limitation found next to the multiple-`GroupHaving` failure: `parameterize` /
 		 * `parameterizeWithGroupScope` previously walked only the top-level direct children of
 		 * `FilterBy`. When the trigger filter wrapped its `ReferenceHaving` instances in an
 		 * `Or` (e.g. expression `attrA == X || attrB == Y` on the same reference), neither inner
@@ -1269,7 +1322,7 @@ class ReevaluateExpressionExecutorTest {
 				1, matches.size(),
 				"Exactly one ReferenceHaving for REFERENCE_NAME (the inner, cross-scope one) must exist"
 			);
-			final ReferenceHaving inner = matches.get(0);
+			final ReferenceHaving inner = matches.getFirst();
 			final FilterConstraint[] innerChildren = inner.getChildren();
 			assertEquals(
 				1, innerChildren.length,
@@ -1358,6 +1411,21 @@ class ReevaluateExpressionExecutorTest {
 	// -- target factory methods --
 
 	/**
+	 * Creates the mock {@link IndexMutationTarget} every factory below starts from. The partition resolvers are
+	 * default methods of the interface built on the stubbed by-primary-key lookup, so the mock runs the real ones -
+	 * stubbing them separately would let them disagree.
+	 *
+	 * @return the mock target
+	 */
+	@Nonnull
+	private static IndexMutationTarget mockTarget() {
+		final IndexMutationTarget target = mock(IndexMutationTarget.class);
+		when(target.resolvePartitionIfExists(anyInt())).thenCallRealMethod();
+		when(target.resolvePartitionForOwnerReadIfExists(any(), anyInt())).thenCallRealMethod();
+		return target;
+	}
+
+	/**
 	 * Creates a mock {@link IndexMutationTarget} backed by real indexes and schemas for grouped
 	 * references. The target's `evaluateFilter`, `getFacetTrigger`, and `getHistogramTriggers`
 	 * remain as mock stubs for per-test configuration.
@@ -1371,7 +1439,7 @@ class ReevaluateExpressionExecutorTest {
 		@Nonnull AffectedEntityResolution affected,
 		@Nonnull ReferenceIndexType indexType
 	) {
-		final IndexMutationTarget target = mock(IndexMutationTarget.class);
+		final IndexMutationTarget target = mockTarget();
 
 		final ReferenceSchema refSchema = createRealReferenceSchema(indexType);
 		final EntitySchema entitySchema = createRealEntitySchema(refSchema);
@@ -1404,7 +1472,7 @@ class ReevaluateExpressionExecutorTest {
 		@Nonnull AffectedReferenceGroup group,
 		@Nonnull ReferenceIndexType indexType
 	) {
-		final IndexMutationTarget target = mock(IndexMutationTarget.class);
+		final IndexMutationTarget target = mockTarget();
 
 		final ReferenceSchema refSchema = createRealReferenceSchema(indexType);
 		final EntitySchema entitySchema = createRealEntitySchema(refSchema);
@@ -1453,7 +1521,7 @@ class ReevaluateExpressionExecutorTest {
 		@Nonnull AffectedReferenceGroup group,
 		@Nonnull ReferenceIndexType indexType
 	) {
-		final IndexMutationTarget target = mock(IndexMutationTarget.class);
+		final IndexMutationTarget target = mockTarget();
 
 		// Schema WITHOUT a group type
 		final ReferenceSchema refSchema = createRealReferenceSchemaUngrouped(indexType);
@@ -1852,20 +1920,6 @@ class ReevaluateExpressionExecutorTest {
 	}
 
 	/**
-	 * Asserts that a {@link ReferenceHaving} constraint contains an {@link EntityHaving} clause
-	 * with an {@link EntityPrimaryKeyInSet} constraint matching the given entity PK.
-	 *
-	 * @param rh       the reference having constraint to inspect
-	 * @param entityPK the expected entity primary key
-	 */
-	private static void assertContainsEntityHavingWithPK(@Nonnull ReferenceHaving rh, int entityPK) {
-		assertTrue(
-			containsEntityHavingWithPK(rh, entityPK),
-			"ReferenceHaving should contain EntityHaving with entityPrimaryKeyInSet(" + entityPK + ")"
-		);
-	}
-
-	/**
 	 * Checks whether a {@link ReferenceHaving} contains a {@link GroupHaving} with an
 	 * {@link EntityPrimaryKeyInSet} constraint matching the given PK.
 	 *
@@ -1883,33 +1937,6 @@ class ReevaluateExpressionExecutorTest {
 				for (final FilterConstraint andChild : and.getChildren()) {
 					if (andChild instanceof GroupHaving gh) {
 						if (containsPKInSet(gh.getChildren(), groupPK)) {
-							return true;
-						}
-					}
-				}
-			}
-		}
-		return false;
-	}
-
-	/**
-	 * Checks whether a {@link ReferenceHaving} contains an {@link EntityHaving} with an
-	 * {@link EntityPrimaryKeyInSet} constraint matching the given PK.
-	 *
-	 * @param rh       the constraint to inspect
-	 * @param entityPK the expected PK value
-	 * @return true if found
-	 */
-	private static boolean containsEntityHavingWithPK(@Nonnull ReferenceHaving rh, int entityPK) {
-		for (final FilterConstraint child : rh.getChildren()) {
-			if (child instanceof EntityHaving eh) {
-				if (containsPKInSet(eh.getChildren(), entityPK)) {
-					return true;
-				}
-			} else if (child instanceof And and) {
-				for (final FilterConstraint andChild : and.getChildren()) {
-					if (andChild instanceof EntityHaving eh) {
-						if (containsPKInSet(eh.getChildren(), entityPK)) {
 							return true;
 						}
 					}

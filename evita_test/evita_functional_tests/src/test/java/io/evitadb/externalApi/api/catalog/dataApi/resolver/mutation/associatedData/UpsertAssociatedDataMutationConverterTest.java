@@ -207,7 +207,7 @@ class UpsertAssociatedDataMutationConverterTest {
 		fromRange.add(10L);
 		fromRange.add(null);
 
-		final UpsertAssociatedDataMutation localMutation = (UpsertAssociatedDataMutation) this.converter.convertFromInput(
+		final UpsertAssociatedDataMutation localMutation = this.converter.convertFromInput(
 			map()
 				.e(AssociatedDataMutationDescriptor.NAME.name(), "arrayOfRangesAttribute")
 				.e(

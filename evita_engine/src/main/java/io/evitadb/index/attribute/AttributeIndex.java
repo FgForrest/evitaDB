@@ -403,7 +403,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * @return the attribute key with the compound name and optional locale
 	 */
 	@Nonnull
-	private static AttributeIndexKey createAttributeKey(
+	public static AttributeIndexKey createAttributeKey(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
@@ -419,6 +419,30 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 					attributeName -> referenceSchema.getAttribute(attributeName).orElse(null)
 			) ? locale : null
 		);
+	}
+
+	/**
+	 * Creates the comparator base the sort index of a sortable attribute compound orders its values by - one
+	 * descriptor per element, in element order, with the element attribute's type and the element's direction and
+	 * null behaviour.
+	 *
+	 * @param compoundSchema        the sortable attribute compound schema
+	 * @param attributeTypeProvider resolves the value type of each element attribute by name
+	 * @return the comparator base of the compound
+	 */
+	@Nonnull
+	public static ComparatorSource[] createComparatorBase(
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
+		@Nonnull Function<String, Class<?>> attributeTypeProvider
+	) {
+		return compoundSchema.getAttributeElements()
+			.stream()
+			.map(it -> new ComparatorSource(
+				attributeTypeProvider.apply(it.attributeName()),
+				it.direction(),
+				it.behaviour()
+			))
+			.toArray(ComparatorSource[]::new);
 	}
 
 	/**
@@ -1119,17 +1143,34 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 				final UniqueIndex newUniqueIndex = new OwnerUniqueIndex(
 					this.entityType,
 					ownerKey,
-					attributeSchema.getType()
+					attributeSchema.getType(),
+					attributeSchema.getIndexedDecimalPlaces()
 				);
 				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newUniqueIndex));
 				return newUniqueIndex;
 			}
 		);
+		// a pre-existing unique index froze its BigDecimal scale at creation; refuse to add a value keyed at a drifted
+		// schema scale rather than silently mix two scales (no-op for non-BigDecimal and for a just-created index)
+		if (theUniqueIndex instanceof OwnerUniqueIndex ownerUniqueIndex) {
+			FilterIndex.assertIndexedDecimalPlacesUnchanged(
+				ownerUniqueIndex.getIndexedDecimalPlaces(),
+				attributeSchema.getIndexedDecimalPlaces(),
+				attributeSchema.getName()
+			);
+		}
 		// registerUniqueKey mutates the standalone unique index in place — declare it for the O(Δ) commit walk (the
 		// folded case writes through the shared filter tree, which the filter-insert path already marks)
 		uniqueIndexes.markValueMutated(lookupKey);
-		theUniqueIndex.registerUniqueKey(value, recordId);
+		try {
+			theUniqueIndex.registerUniqueKey(value, recordId);
+		} catch (UniqueValueViolationException ex) {
+			if (isReferencedTypeIndex()) {
+				throw referencedTypeViolation(lookupKey, ex.getValue());
+			}
+			throw ex;
+		}
 		return UniquenessEnforcement.BY_OWNER_INDEX;
 	}
 
@@ -1198,7 +1239,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * @param value           the attribute value to insert
 	 * @param recordId        the primary key the value is attributed to
 	 * @param foldedUnique    `true` when this is a folded unique attribute write (enforce uniqueness + register the view)
-	 * @throws UniqueValueViolationException when `foldedUnique` is set and the value is already owned by another record
+	 * @throws UniqueValueViolationException when `foldedUnique` is set and any record already holds the value
 	 */
 	public void insertFilterAttribute(
 		@Nullable ReferenceSchemaContract referenceSchema,
@@ -1226,7 +1267,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * @param recordId        the primary key the value is attributed to
 	 * @param foldedUnique    `true` when this is a folded unique attribute write
 	 * @param sink            learns about the values born by this write, or `null` when nobody is interested
-	 * @throws UniqueValueViolationException when `foldedUnique` is set and the value is already owned by another record
+	 * @throws UniqueValueViolationException when `foldedUnique` is set and any record already holds the value
 	 */
 	public void insertFilterAttribute(
 		@Nullable ReferenceSchemaContract referenceSchema,
@@ -1314,7 +1355,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * @param value           the array elements to add
 	 * @param recordId        the primary key the values are attributed to
 	 * @param foldedUnique    `true` when this is a folded unique attribute write (enforce uniqueness + register the view)
-	 * @throws UniqueValueViolationException when `foldedUnique` is set and any element is already owned by another record
+	 * @throws UniqueValueViolationException when `foldedUnique` is set and any record already holds an element
 	 */
 	public void addDeltaFilterAttribute(
 		@Nullable ReferenceSchemaContract referenceSchema,
@@ -1343,8 +1384,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * @param recordId        the primary key the values are attributed to
 	 * @param foldedUnique    `true` when this is a folded unique attribute write
 	 * @param sink            learns about the values born by this write, or `null` when nobody is interested
-	 * @throws UniqueValueViolationException when `foldedUnique` is set and any element is already owned by
-	 *                                       another record
+	 * @throws UniqueValueViolationException when `foldedUnique` is set and any record already holds an element
 	 */
 	public void addDeltaFilterAttribute(
 		@Nullable ReferenceSchemaContract referenceSchema,
@@ -1628,14 +1668,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			lookupKey -> {
 				// a sortable attribute compound has no shared filter twin by construction, so it is always an owner
 				final SortIndex newSortIndex = new OwnerSortIndex(
-					compoundSchema.getAttributeElements()
-						.stream()
-						.map(it -> new ComparatorSource(
-							attributeTypeProvider.apply(it.attributeName()),
-							it.direction(),
-							it.behaviour()
-						))
-						.toArray(ComparatorSource[]::new),
+					createComparatorBase(compoundSchema, attributeTypeProvider),
 					this.referenceKey,
 					lookupKey
 				);
@@ -1934,8 +1967,12 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * {@inheritDoc}
 	 *
 	 * **Every walk here is a `forEach`**, for the reason spelled out on {@link #collectKeys}: an accessor asked for on
-	 * this path leaves a view object cached in the map for the lifetime of the index, and this path runs from every
-	 * entity index constructor as well as from every flush.
+	 * this path leaves a view object cached in the map for the lifetime of the index, and this path runs on every
+	 * flush.
+	 *
+	 * Only the flush that writes the result may call this: the emitters it reaches stamp page sequences, clear leaf
+	 * dirty flags and stage page lists as they collect, so a collect whose output is discarded loses pages for good -
+	 * see {@link io.evitadb.index.component.IndexComponent#announceKeys} for the read-only half.
 	 */
 	@Override
 	public void getModifiedStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges trappedChanges) {
@@ -1996,7 +2033,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		);
 		// refresh the empty-drop-reclaim snapshots from the surviving sub-indexes now that each has staged this commit's page set:
 		// a reused instance (warm-up / repeated flush) then diffs the next drop against the pages just written here, not a
-		// stale construction-time snapshot. Idempotent: re-running it (the baseline-capture pass) reproduces the same maps,
+		// stale construction-time snapshot. Idempotent: re-running it over an unchanged index reproduces the same maps,
 		// and on a transactional commit the pre-merge instance this mutates is discarded (the merge-copy rebuilds afresh).
 		this.persistedChainLeafPages = snapshotLeafPages(this.chainIndex, ChainIndex::currentLeafPageSequences);
 		this.persistedFilterInvertedLeafPages = snapshotLeafPages(this.sharedValueIndex, InvertedIndex::currentLeafPageSequences);
@@ -2473,7 +2510,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * @param theFilterIndex  the filter view over the shared tree to probe
 	 * @param value           the scalar value or array of values being attributed to `recordId`
 	 * @param recordId        the record claiming the value(s)
-	 * @throws UniqueValueViolationException when any value is already owned by a different record
+	 * @throws UniqueValueViolationException when any value is already owned by any record, `recordId` included
 	 */
 	private void enforceFoldedUniqueness(
 		@Nonnull AttributeIndexKey lookupKey,
@@ -2493,10 +2530,22 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	}
 
 	/**
-	 * Asserts a single folded unique value is free to be claimed by `recordId`. The shared bucket for a unique value
-	 * holds at most one record; any record other than the one being (re)attributed is a violation — the same ≠-self
-	 * rule the standalone {@link UniqueIndex} enforces (an idempotent re-claim by the same record is allowed, and a
-	 * reindex that already removed the prior owner sees an empty/own bucket).
+	 * Asserts a single folded unique value is free to be claimed by `recordId`: its shared bucket must be empty -
+	 * **even when the record already in it is `recordId` itself**, the same strict rule the standalone
+	 * {@link OwnerUniqueIndex} enforces.
+	 *
+	 * The upsert path releases a record's prior value before it registers the new one, so a legitimate write never
+	 * meets its own value here. A bucket holds one entry however many times its record is added, so tolerating a
+	 * second claim would let one entry stand for two registrations, and removing either would drop the value the
+	 * other still holds. In a reduced or type-level index the "record" is a partition rather than one owner of one
+	 * value, which is exactly where such a second claim could otherwise slip through unnoticed.
+	 *
+	 * @param lookupKey       the (filter == unique) key of the folded attribute
+	 * @param attributeSchema the attribute schema (for the violation message)
+	 * @param theFilterIndex  the filter view over the shared tree to probe
+	 * @param value           the single value being claimed
+	 * @param recordId        the record claiming the value
+	 * @throws UniqueValueViolationException when any record, `recordId` included, already holds the value
 	 */
 	private void assertFoldedUniqueValueFree(
 		@Nonnull AttributeIndexKey lookupKey,
@@ -2506,16 +2555,44 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		int recordId
 	) {
 		final Bitmap bucket = theFilterIndex.getRecordsEqualTo(value);
-		final int size = bucket.size();
-		for (int i = 0; i < size; i++) {
-			final int existing = bucket.get(i);
-			if (existing != recordId) {
-				throw new UniqueValueViolationException(
-					attributeSchema.getName(), lookupKey.locale(), value,
-					this.entityType, existing, this.entityType, recordId
-				);
+		if (!bucket.isEmpty()) {
+			if (isReferencedTypeIndex()) {
+				throw referencedTypeViolation(lookupKey, value);
 			}
+			throw new UniqueValueViolationException(
+				attributeSchema.getName(), lookupKey.locale(), value,
+				this.entityType, bucket.getFirst(), this.entityType, recordId
+			);
 		}
+	}
+
+	/**
+	 * Returns `true` when this index belongs to a {@link io.evitadb.index.ReferencedTypeEntityIndex}: the only
+	 * reference-scoped index without a representative reference key. Its records are the primary keys of the reduced
+	 * indexes of the referenced targets, not of the entities owning the references.
+	 *
+	 * @return `true` for the attribute index of a referenced-type index
+	 */
+	private boolean isReferencedTypeIndex() {
+		return this.referenceKey == null && getScope() == AttributeScope.REFERENCE;
+	}
+
+	/**
+	 * Creates the violation reported by a referenced-type index. Its records identify reduced indexes rather than
+	 * entities, so the exception names the reference and carries no primary keys, which would read as entity keys.
+	 *
+	 * @param lookupKey the key of the unique attribute
+	 * @param value     the value already in use
+	 * @return the exception to throw
+	 */
+	@Nonnull
+	private UniqueValueViolationException referencedTypeViolation(
+		@Nonnull AttributeIndexKey lookupKey,
+		@Nonnull Serializable value
+	) {
+		return new UniqueValueViolationException(
+			lookupKey.attributeName(), lookupKey.referenceName(), lookupKey.locale(), value, this.entityType
+		);
 	}
 
 	/**

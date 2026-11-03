@@ -1,7 +1,7 @@
 ---
 title: Answer the B+ tree insert-boundary asserts from the descent instead of a captured cursor path
 date: 2026-08-01
-updated: 2026-09-03 10:45
+updated: 2026-10-26 16:22
 status: accepted
 kind: optimization
 issues: [1333]
@@ -9,7 +9,12 @@ prs: [1356]
 areas: [evita_engine/index/bPlusTree]
 supersedes: []
 superseded-by: []
-relates: [2026-07-10-more-optimized-data-structures, 2026-07-31-bulk-ingest-write-path, 2026-08-05-schema-handling-write-path-optimizations, 2026-09-03-content-sized-value-tree-columns]
+relates:
+  - 2026-07-10-more-optimized-data-structures
+  - 2026-07-31-bulk-ingest-write-path
+  - 2026-08-05-schema-handling-write-path-optimizations
+  - 2026-09-03-content-sized-value-tree-columns
+  - 2026-10-26-bulk-built-int-keyed-trees-at-load
 ---
 
 # Free the B+ tree insert and read paths from the cursor path
@@ -190,6 +195,9 @@ walk.
 - **`Element` under random key order** is the one latency arm inside the noise band (−2.7 %).
   `Element`'s production workload is ascending by documented contract, so that is not the arm that
   governs it, but it is also not evidence of a win.
+  *Corrected by `2026-10-26-bulk-built-int-keyed-trees-at-load`:* ascending holds for the price super index only; a
+  reference index receives an entity's older price ids when the entity gains the reference, so middle
+  inserts are a normal event there.
 - **Residual per-insert allocation on `Element` (55.3 B) and `Long` (115.7 B)** at block 256 is not
   decomposed. Probably split-time node allocation; these arms cannot separate it.
 - A pleasing second-order effect worth knowing: under ascending keys the descent is rightmost at every

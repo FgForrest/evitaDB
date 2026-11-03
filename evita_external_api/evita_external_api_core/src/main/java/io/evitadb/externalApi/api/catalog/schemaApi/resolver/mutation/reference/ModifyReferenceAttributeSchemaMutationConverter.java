@@ -97,14 +97,14 @@ public class ModifyReferenceAttributeSchemaMutationConverter
 				"Field `" + ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name() + "` in mutation `" + getMutationName() + "` is required and is expected to have exactly one mutation")
 		);
 		Assert.isTrue(
-			attributeSchemaMutations.get(0) instanceof ReferenceAttributeSchemaMutation,
+			attributeSchemaMutations.getFirst() instanceof ReferenceAttributeSchemaMutation,
 			() -> getExceptionFactory().createInvalidArgumentException(
 				"Field `" + ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name() + "` in mutation `" + getMutationName() + "` isn't supported by reference attributes.")
 		);
 
 		return new ModifyReferenceAttributeSchemaMutation(
 			input.getProperty(ReferenceSchemaMutationDescriptor.NAME),
-			(ReferenceAttributeSchemaMutation) attributeSchemaMutations.get(0)
+			(ReferenceAttributeSchemaMutation) attributeSchemaMutations.getFirst()
 		);
 	}
 

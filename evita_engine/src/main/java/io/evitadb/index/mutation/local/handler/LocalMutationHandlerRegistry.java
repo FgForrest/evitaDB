@@ -36,8 +36,8 @@ import java.util.Map;
  * get keyed by `mutation.getClass()`.
  *
  * Unknown mutation classes surface as `GenericEvitaInternalError`. A new concrete mutation type
- * added to `evita_api` must be paired with a new entry here — `LocalMutationHandlerRegistryCoverageTest`
- * enforces this contract via classpath scan.
+ * added to `evita_api` must be paired with a new entry here; until it is, {@link #resolve(LocalMutation)}
+ * refuses the first mutation of that type the engine applies, so the first test writing one fails loudly.
  */
 public final class LocalMutationHandlerRegistry {
 
@@ -100,18 +100,6 @@ public final class LocalMutationHandlerRegistry {
 			);
 		}
 		return (LocalMutationHandler<M>) handler;
-	}
-
-	/**
-	 * Whether a handler is registered for the given concrete mutation class. Used by the
-	 * coverage test (`LocalMutationHandlerRegistryCoverageTest`) to assert no concrete
-	 * `LocalMutation` subclass is left orphaned.
-	 *
-	 * @param mutationClass the concrete `LocalMutation` subclass to test
-	 * @return `true` if a handler is registered
-	 */
-	public static boolean hasHandler(@Nonnull Class<? extends LocalMutation<?, ?>> mutationClass) {
-		return HANDLERS.containsKey(mutationClass);
 	}
 
 	private static <M extends LocalMutation<?, ?>> void register(

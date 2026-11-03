@@ -28,6 +28,9 @@ import com.google.protobuf.Int32Value;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.query.QueryConstraints;
+import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.filter.EntityLocaleEquals;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.HierarchyContent;
@@ -1048,6 +1051,28 @@ public class EntityConverter {
 	) {
 	}
 
+	/**
+	 * Reconstructs a body's locale exactly at the reference level that requested it, so client predicates expose
+	 * the localized data the server fetched. Entity and group opinions are independent of each other.
+	 *
+	 * @param ownerRequest the request that fetched the owner
+	 * @param entityType the body's entity type
+	 * @param fetchContext the reference requirements
+	 * @param group whether this is a group body
+	 * @return the request used to decorate the received body
+	 */
+	@Nonnull
+	private static EvitaRequest deriveReferenceBodyRequest(
+		@Nonnull EvitaRequest ownerRequest, @Nonnull String entityType,
+		@Nonnull RequirementContext fetchContext, boolean group
+	) {
+		final Locale locale = QueryUtils.resolveReferenceBodyLocale(fetchContext.filterBy(), group, null);
+		return ownerRequest.deriveCopyWith(
+			entityType, locale == null ? null : new FilterBy(new EntityLocaleEquals(locale)), null,
+			group ? fetchContext.entityGroupFetch() : fetchContext.entityFetch()
+		);
+	}
+
 	private static class ClientReferenceFetcher implements ReferenceFetcher {
 		private final EntityClassifierWithParent parentEntity;
 		private final Map<EntityReference, SealedEntity> entityIndex;
@@ -1063,6 +1088,9 @@ public class EntityConverter {
 			@Nonnull EvitaRequest evitaRequest
 		) {
 			this.parentEntity = parentEntity;
+			// the request decorating a body depends on its reference only, so the rows of one reference share it
+			final Map<String, EvitaRequest> entityRequests = new HashMap<>();
+			final Map<String, EvitaRequest> groupRequests = new HashMap<>();
 			this.entityIndex = grpcReference.stream()
 				.filter(GrpcReference::hasReferencedEntity)
 				.map(it -> {
@@ -1075,7 +1103,12 @@ public class EntityConverter {
 						"Server returned referenced entity, but it's not requested in the request?!"
 					);
 					final GrpcSealedEntity referencedEntity = it.getReferencedEntity();
-					final EvitaRequest referenceRequest = evitaRequest.deriveCopyWith(referencedEntity.getEntityType(), fetchCtx.entityFetch());
+					final EvitaRequest referenceRequest = entityRequests.computeIfAbsent(
+						referenceName,
+						name -> deriveReferenceBodyRequest(
+							evitaRequest, referencedEntity.getEntityType(), fetchCtx, false
+						)
+					);
 					return toEntity(entitySchemaFetcher, referenceRequest, referencedEntity, SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER);
 				})
 				.collect(
@@ -1096,7 +1129,12 @@ public class EntityConverter {
 						"Server returned referenced entity, but it's not requested in the request?!"
 					);
 					final GrpcSealedEntity referencedEntity = it.getGroupReferencedEntity();
-					final EvitaRequest referenceRequest = evitaRequest.deriveCopyWith(referencedEntity.getEntityType(), fetchCtx.entityGroupFetch());
+					final EvitaRequest referenceRequest = groupRequests.computeIfAbsent(
+						referenceName,
+						name -> deriveReferenceBodyRequest(
+							evitaRequest, referencedEntity.getEntityType(), fetchCtx, true
+						)
+					);
 					return toEntity(entitySchemaFetcher, referenceRequest, referencedEntity, SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER);
 				})
 				.collect(

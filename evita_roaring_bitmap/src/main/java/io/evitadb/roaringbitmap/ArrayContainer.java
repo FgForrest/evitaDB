@@ -1439,10 +1439,15 @@ public final class ArrayContainer extends Container implements Cloneable {
 	}
 
 	/**
-	 * Number of stored values `<=` `lowbits`, via binary search; O(log n).
+	 * Number of stored values `<=` `lowbits`, via binary search; O(log n). The rank of
+	 * `Character.MAX_VALUE` is the whole cardinality, answered without searching.
 	 */
 	@Override
 	public int rank(final char lowbits) {
+		// rank(Character.MAX_VALUE) is the full cardinality (see Container.rank javadoc)
+		if (lowbits == Character.MAX_VALUE) {
+			return this.cardinality;
+		}
 		int answer = Util.unsignedBinarySearch(this.content, 0, this.cardinality, lowbits);
 		if (answer >= 0) {
 			return answer + 1;
@@ -1635,13 +1640,13 @@ public final class ArrayContainer extends Container implements Cloneable {
 	public int nextAbsentValue(final char fromValue) {
 		int index = Util.advanceUntil(this.content, -1, this.cardinality, fromValue);
 		if (index >= this.cardinality) {
-			return (int) (fromValue);
+			return fromValue;
 		}
 		if (index == this.cardinality - 1) {
 			return fromValue == this.content[this.cardinality - 1] ? (int) (fromValue) + 1 : (int) (fromValue);
 		}
 		if (this.content[index] != fromValue) {
-			return (int) (fromValue);
+			return fromValue;
 		}
 		if (this.content[index + 1] > fromValue + 1) {
 			return (int) (fromValue) + 1;
@@ -1675,13 +1680,13 @@ public final class ArrayContainer extends Container implements Cloneable {
 	public int previousAbsentValue(final char fromValue) {
 		int index = Util.advanceUntil(this.content, -1, this.cardinality, fromValue);
 		if (index >= this.cardinality) {
-			return (int) (fromValue);
+			return fromValue;
 		}
 		if (index == 0) {
 			return fromValue == this.content[0] ? (int) (fromValue) - 1 : (int) (fromValue);
 		}
 		if (this.content[index] != fromValue) {
-			return (int) (fromValue);
+			return fromValue;
 		}
 		if (this.content[index - 1] < fromValue - 1) {
 			return (int) (fromValue) - 1;

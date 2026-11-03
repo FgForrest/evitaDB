@@ -178,7 +178,7 @@ class UpsertAttributeMutationConverterTest {
 		fromRange.add(10L);
 		fromRange.add(null);
 
-		final UpsertAttributeMutation localMutation = (UpsertAttributeMutation) this.converter.convertFromInput(
+		final UpsertAttributeMutation localMutation = this.converter.convertFromInput(
 			map()
 				.e(AttributeMutationDescriptor.NAME.name(), "arrayOfRangesAttribute")
 				.e(

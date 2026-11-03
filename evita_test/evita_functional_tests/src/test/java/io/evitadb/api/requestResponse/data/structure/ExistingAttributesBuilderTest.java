@@ -45,6 +45,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Locale;
 import org.junit.jupiter.api.Tag;
@@ -582,6 +584,115 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 					new AttributeKey("int")
 				).orElseThrow().dropped()
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Removing an already removed attribute")
+	class RemovingAlreadyRemovedTest {
+
+		/**
+		 * Returns attributes in which the non-localized `int` and the German `greetings` were removed, so both of them
+		 * are kept only as dropped tombstones - the shape in which an entity carries an attribute removed in one of
+		 * its earlier versions.
+		 */
+		@Nonnull
+		private Attributes<EntityAttributeSchemaContract> attributesWithRemovedValues() {
+			final Attributes<EntityAttributeSchemaContract> attributes =
+				new ExistingEntityAttributesBuilder(
+					PRODUCT_SCHEMA,
+					ExistingAttributesBuilderTest.this.initialAttributes
+				)
+					.removeAttribute("int")
+					.removeAttribute("greetings", Locale.GERMAN)
+					.build();
+			assertTrue(attributes.getAttributeValue(new AttributeKey("int")).orElseThrow().dropped());
+			assertTrue(
+				attributes.getAttributeValue(new AttributeKey("greetings", Locale.GERMAN)).orElseThrow().dropped()
+			);
+			return attributes;
+		}
+
+		@Test
+		@DisplayName("should ignore its removal")
+		void shouldIgnoreRemovalOfAlreadyRemovedAttribute() {
+			final Attributes<EntityAttributeSchemaContract> base = attributesWithRemovedValues();
+			final ExistingEntityAttributesBuilder builder =
+				new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, base)
+					.removeAttribute("int");
+
+			assertNull(builder.getAttribute("int"));
+			assertEquals(0, builder.buildChangeSet().count());
+			assertSame(base, builder.build());
+		}
+
+		@Test
+		@DisplayName("should ignore null value set on it")
+		void shouldIgnoreNullValueSetOnAlreadyRemovedAttribute() {
+			final Attributes<EntityAttributeSchemaContract> base = attributesWithRemovedValues();
+			final ExistingEntityAttributesBuilder builder =
+				new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, base)
+					.setAttribute("int", (Integer) null);
+
+			assertNull(builder.getAttribute("int"));
+			assertEquals(0, builder.buildChangeSet().count());
+			assertSame(base, builder.build());
+		}
+
+		@Test
+		@DisplayName("should ignore empty array set on it")
+		void shouldIgnoreEmptyArraySetOnAlreadyRemovedAttribute() {
+			final Attributes<EntityAttributeSchemaContract> base = attributesWithRemovedValues();
+			final ExistingEntityAttributesBuilder builder =
+				new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, base)
+					.setAttribute("int", (Serializable[]) new Integer[0]);
+
+			assertNull(builder.getAttribute("int"));
+			assertEquals(0, builder.buildChangeSet().count());
+			assertSame(base, builder.build());
+		}
+
+		@Test
+		@DisplayName("should discard value set on it before the removal")
+		void shouldDiscardValueSetOnAlreadyRemovedAttributeBeforeRemoval() {
+			final Attributes<EntityAttributeSchemaContract> base = attributesWithRemovedValues();
+			final ExistingEntityAttributesBuilder builder =
+				new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, base)
+					.setAttribute("int", 7);
+			assertEquals(Integer.valueOf(7), builder.getAttribute("int"));
+
+			builder.removeAttribute("int");
+
+			assertNull(builder.getAttribute("int"));
+			assertEquals(0, builder.buildChangeSet().count());
+			assertSame(base, builder.build());
+		}
+
+		@Test
+		@DisplayName("should ignore removal mutation added directly")
+		void shouldIgnoreRemoveMutationOfAlreadyRemovedAttribute() {
+			final Attributes<EntityAttributeSchemaContract> base = attributesWithRemovedValues();
+			final ExistingEntityAttributesBuilder builder =
+				new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, base)
+					.addMutation(new RemoveAttributeMutation("int"));
+
+			assertNull(builder.getAttribute("int"));
+			assertEquals(0, builder.buildChangeSet().count());
+			assertSame(base, builder.build());
+		}
+
+		@Test
+		@DisplayName("should ignore removal mutation of localized attribute added directly")
+		void shouldIgnoreRemoveMutationOfAlreadyRemovedLocalizedAttribute() {
+			final Attributes<EntityAttributeSchemaContract> base = attributesWithRemovedValues();
+			final ExistingEntityAttributesBuilder builder =
+				new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, base)
+					.addMutation(new RemoveAttributeMutation("greetings", Locale.GERMAN));
+
+			assertNull(builder.getAttribute("greetings", Locale.GERMAN));
+			assertEquals("Hello", builder.getAttribute("greetings", Locale.ENGLISH));
+			assertEquals(0, builder.buildChangeSet().count());
+			assertSame(base, builder.build());
 		}
 	}
 

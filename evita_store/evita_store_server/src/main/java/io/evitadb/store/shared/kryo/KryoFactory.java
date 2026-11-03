@@ -49,6 +49,7 @@ import io.evitadb.store.shared.serializer.complexData.DataItemMapSerializer;
 import io.evitadb.store.shared.serializer.complexData.DataItemValueSerializer;
 import io.evitadb.store.shared.serializer.dataType.*;
 import io.evitadb.store.shared.serializer.dataType.EnumSetSerializer;
+import io.evitadb.store.shared.serializer.dataType.LocaleSerializer;
 import io.evitadb.store.shared.serializer.trie.TrieNodeSerializer;
 import io.evitadb.store.shared.serializer.trie.TrieSerializer;
 import io.evitadb.utils.Assert;
@@ -164,6 +165,7 @@ public class KryoFactory {
 		kryoInstance.register(ShortNumberRange[].class, new GenericArraySerializer<>(ShortNumberRange.class), index++);
 		kryoInstance.register(ByteNumberRange.class, new ByteNumberRangeSerializer(), index++);
 		kryoInstance.register(ByteNumberRange[].class, new GenericArraySerializer<>(ByteNumberRange.class), index++);
+		// evitaDB's own serializer, not Kryo's - Kryo's drops the script and the extensions of the locale
 		kryoInstance.register(Locale.class, new LocaleSerializer(), index++);
 		kryoInstance.register(Locale[].class, new GenericArraySerializer<>(Locale.class), index++);
 		kryoInstance.register(EnumSet.class, new EnumSetSerializer(), index++);

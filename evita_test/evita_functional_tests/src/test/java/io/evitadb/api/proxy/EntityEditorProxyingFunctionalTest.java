@@ -539,7 +539,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			relatedProduct.getPrimaryKey()
 		);
 		assertEquals(1, referenceList.size());
-		final ReferenceContract ref = referenceList.get(0);
+		final ReferenceContract ref = referenceList.getFirst();
 		assertEquals(relationType, ref.getAttribute(ATTRIBUTE_RELATION_TYPE, String.class));
 		assertEquals(
 			"Recommended",
@@ -681,7 +681,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		assertEquals(1, survivingForRelated.size(),
 			"Exactly one reference must remain for the targeted related entity after the removal");
 		assertEquals(CATEGORY_SIMILAR,
-			survivingForRelated.get(0).getAttribute(ATTRIBUTE_RELATION_TYPE, String.class),
+			survivingForRelated.getFirst().getAttribute(ATTRIBUTE_RELATION_TYPE, String.class),
 			"The 'accessory' reference must have been removed and the CATEGORY_SIMILAR one must survive");
 
 		editor2.upsertVia(evitaSession);
@@ -697,7 +697,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			Entities.PRODUCT, related.getPrimaryKey());
 		assertEquals(1, survivingPersistedForRelated.size());
 		assertEquals(CATEGORY_SIMILAR,
-			survivingPersistedForRelated.get(0).getAttribute(ATTRIBUTE_RELATION_TYPE, String.class));
+			survivingPersistedForRelated.getFirst().getAttribute(ATTRIBUTE_RELATION_TYPE, String.class));
 	}
 
 	/**
@@ -3565,11 +3565,11 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					}
 				);
 				assertEquals(1, product1.getProductCategoriesAsList().size());
-				assertEquals(3, product1.getProductCategoriesAsList().get(0).getPrimaryKey());
+				assertEquals(3, product1.getProductCategoriesAsList().getFirst().getPrimaryKey());
 
 				final List<Integer> removedCategories = product1.removeAllProductCategoriesAndReturnTheirIds();
 				assertEquals(1, removedCategories.size());
-				assertEquals(3, removedCategories.get(0).intValue());
+				assertEquals(3, removedCategories.getFirst().intValue());
 				product1.addProductCategory(
 					4, catEd -> {
 						catEd.setLabel(CZECH_LOCALE, "a");
@@ -3577,7 +3577,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					}
 				);
 				assertEquals(1, product1.getProductCategoriesAsList().size());
-				assertEquals(4, product1.getProductCategoriesAsList().get(0).getPrimaryKey());
+				assertEquals(4, product1.getProductCategoriesAsList().getFirst().getPrimaryKey());
 
 				evitaSession.upsertEntity(product1);
 
@@ -3586,7 +3586,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				).orElseThrow();
 
 				assertEquals(1, product1Again.getProductCategoriesAsList().size());
-				assertEquals(4, product1Again.getProductCategoriesAsList().get(0).getPrimaryKey());
+				assertEquals(4, product1Again.getProductCategoriesAsList().getFirst().getPrimaryKey());
 			}
 		);
 	}
@@ -3903,7 +3903,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		assertEquals(1, remaining.size(),
 			"After remove(category=SIMILAR, id=X) exactly one duplicate (the 'different' one) must remain");
 		assertEquals(CATEGORY_DIFFERENT,
-			remaining.get(0).getAttribute(ATTRIBUTE_RELATION_TYPE, String.class),
+			remaining.getFirst().getAttribute(ATTRIBUTE_RELATION_TYPE, String.class),
 			"The surviving duplicate must be the 'different' one - id+category remove must NOT touch it");
 
 		editor.upsertVia(evitaSession);
@@ -3916,7 +3916,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		assertEquals(1, reloaded.size(),
 			"After persist+reload only one duplicate must remain");
 		assertEquals(CATEGORY_DIFFERENT,
-			reloaded.get(0).getAttribute(ATTRIBUTE_RELATION_TYPE, String.class));
+			reloaded.getFirst().getAttribute(ATTRIBUTE_RELATION_TYPE, String.class));
 	}
 
 	@DisplayName("Should treat @AttributeRef parameter as attribute predicate, not referenced id")
@@ -3968,7 +3968,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			.stream().toList();
 		assertEquals(1, remainingInBuilder.size(),
 			"Exactly one category reference must remain - the matching-priority one was removed");
-		assertEquals(categoryBPk, remainingInBuilder.get(0).getReferencedPrimaryKey(),
+		assertEquals(categoryBPk, remainingInBuilder.getFirst().getReferencedPrimaryKey(),
 			"The surviving reference must point to category B (priorityToKeep)");
 
 		// persisted
@@ -3979,7 +3979,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		final List<ReferenceContract> remainingPersisted = reloaded.getReferences(Entities.CATEGORY)
 			.stream().toList();
 		assertEquals(1, remainingPersisted.size());
-		assertEquals(categoryBPk, remainingPersisted.get(0).getReferencedPrimaryKey());
+		assertEquals(categoryBPk, remainingPersisted.getFirst().getReferencedPrimaryKey());
 	}
 
 	@DisplayName("Should throw EvitaInvalidUsageException naming reference on null id")
@@ -4063,11 +4063,11 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			"addOrUpdate must FIND the existing persisted reference and update it - not create a duplicate");
 		assertEquals(
 			"Updated",
-			afterUpdate.get(0).getAttribute(ATTRIBUTE_PRODUCT_LABEL, Locale.ENGLISH, String.class),
+			afterUpdate.getFirst().getAttribute(ATTRIBUTE_PRODUCT_LABEL, Locale.ENGLISH, String.class),
 			"The new English label must be applied to the existing reference");
 		assertEquals(
 			"Počáteční",
-			afterUpdate.get(0).getAttribute(ATTRIBUTE_PRODUCT_LABEL, CZECH_LOCALE, String.class),
+			afterUpdate.getFirst().getAttribute(ATTRIBUTE_PRODUCT_LABEL, CZECH_LOCALE, String.class),
 			"Czech label from phase 1 must be preserved - if it is null, " +
 				"the reference was recreated rather than updated");
 
@@ -4083,10 +4083,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			"After persistence there must still be exactly one reference for (refId, relationType)");
 		assertEquals(
 			"Updated",
-			reloadedRefs.get(0).getAttribute(ATTRIBUTE_PRODUCT_LABEL, Locale.ENGLISH, String.class));
+			reloadedRefs.getFirst().getAttribute(ATTRIBUTE_PRODUCT_LABEL, Locale.ENGLISH, String.class));
 		assertEquals(
 			"Počáteční",
-			reloadedRefs.get(0).getAttribute(ATTRIBUTE_PRODUCT_LABEL, CZECH_LOCALE, String.class));
+			reloadedRefs.getFirst().getAttribute(ATTRIBUTE_PRODUCT_LABEL, CZECH_LOCALE, String.class));
 	}
 
 	@DisplayName("Should update duplicated reference when predicate matches")

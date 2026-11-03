@@ -99,10 +99,11 @@ import java.util.Optional;
  * Unless overridden by {@link FacetCalculationRules} or per-group behavior constraints, the same defaults apply as
  * for `referenceSummary`:
  *
- * 1. Only entities in the current query result are counted.
+ * 1. Only entities the current query would return if its `userFilter` part were left out are counted.
  * 2. Filters outside `userFilter` are always respected.
  * 3. References within the same group are combined with logical OR.
- * 4. References across different groups or references are combined with logical AND.
+ * 4. References across different groups of the same reference are combined with logical AND.
+ * 5. Options of different references are always combined with logical AND.
  *
  * ## Example — combining generic and per-reference settings
  *

@@ -28,6 +28,8 @@ import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
 import io.evitadb.core.query.algebra.locale.LocaleFormula;
@@ -35,15 +37,16 @@ import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.NegationResolution;
+import io.evitadb.core.query.filter.VirtualPartitionRows;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.entity.alternative.LocaleEntityToBitmapFilter;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.bitmap.Bitmap;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Locale;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link EntityLocaleEquals} to {@link AbstractFormula}.
@@ -57,8 +60,12 @@ public class EntityLocaleEqualsTranslator implements FilteringConstraintTranslat
 	public Formula translate(@Nonnull EntityLocaleEquals entityLocaleEquals, @Nonnull FilterByVisitor filterByVisitor) {
 		final Locale locale = entityLocaleEquals.getLocale();
 
-		ofNullable(filterByVisitor.getProcessingScope().getEntityNestedQueryComparator())
-			.ifPresent(it -> it.setLocale(locale));
+		final VirtualPartitionRows virtualPartitionRows =
+			filterByVisitor.getProcessingScope().getVirtualPartitionRows();
+		if (virtualPartitionRows != null) {
+			// rows of single-owner partitions answered exactly - the type-level index keeps no locales (see below)
+			return translateForVirtualPartitionRows(locale, virtualPartitionRows, filterByVisitor);
+		}
 
 		if (filterByVisitor.isEntityTypeKnown()) {
 			filterByVisitor.registerFormulaPostProcessor(
@@ -71,6 +78,15 @@ public class EntityLocaleEqualsTranslator implements FilteringConstraintTranslat
 				.getEntityIndexStream()
 				.anyMatch(ReferencedTypeEntityIndex.class::isInstance);
 			if (unsupportedIndex) {
+				if (filterByVisitor.getProcessingScope().getNegationResolution() == NegationResolution.PER_ROW) {
+					// the type-level index cannot tell which partitions hold an owner having the locale, so every
+					// partition stays a candidate: the caller re-examines each candidate row by row against its own
+					// reduced index, which keeps the locales of its owners - see NegationResolution. Skipping the
+					// leaf instead would drop it from an enclosing `or`, narrowing the candidates to the other
+					// branches, and leave an enclosing `not` with nothing to negate; a negation stays the super set
+					// as a whole, because `NotTranslator` widens every negation to it in this resolution
+					return filterByVisitor.getSuperSetFormula();
+				}
 				return SkipFormula.INSTANCE;
 			} else if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
@@ -90,6 +106,38 @@ public class EntityLocaleEqualsTranslator implements FilteringConstraintTranslat
 				new LocaleEntityToBitmapFilter(locale)
 			);
 		}
+	}
+
+	/**
+	 * Selects the rows of registered single-owner partitions whose only owner has the locale - the answer the locale
+	 * index of the reduced entity index of each partition gives, which holds exactly its owners having the locale.
+	 * The owner lives in the scope of its partition, so the global index of the owner collection in that scope knows
+	 * its locales. The result is a plain constant, never a {@link LocaleFormula}: the reduced entity indexes answer
+	 * the leaf without the locale post-processor ever running, so nothing may strip it here either.
+	 *
+	 * Costs one pass over the rows, a bitmap lookup each.
+	 *
+	 * @param locale          the requested locale
+	 * @param rows            the rows answered
+	 * @param filterByVisitor the visitor translating the body
+	 * @return the constant over the partition primary keys of the matching rows, or {@link EmptyFormula#INSTANCE}
+	 */
+	@Nonnull
+	private static Formula translateForVirtualPartitionRows(
+		@Nonnull Locale locale,
+		@Nonnull VirtualPartitionRows rows,
+		@Nonnull FilterByVisitor filterByVisitor
+	) {
+		final String entityType = filterByVisitor.getProcessingScope().getEntitySchemaOrThrowException().getName();
+		final Formula ownersWithLocale = filterByVisitor.getGlobalEntityIndexIfExists(entityType, rows.getScope())
+			.map(it -> it.getRecordsWithLanguageFormula(locale))
+			.orElse(EmptyFormula.INSTANCE);
+		if (!(ownersWithLocale instanceof ConstantFormula ownersConstant)) {
+			// no owner of the scope has the locale
+			return EmptyFormula.INSTANCE;
+		}
+		final Bitmap owners = ownersConstant.getDelegate();
+		return rows.select(row -> owners.contains(rows.getOwnerPrimaryKey(row)));
 	}
 
 	/**

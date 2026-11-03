@@ -164,6 +164,19 @@ public final class ReflectedReferenceSchemaBuilder
 				existingSchema != null,
 				"When not creating new reflected reference schema, the existing schema must be provided!"
 			);
+			// no mutation can redirect a reflected reference to another original reference, so a definition
+			// that names a different one cannot be applied to the existing reflected reference
+			Assert.isTrue(
+				entityType.equals(existingSchema.getReferencedEntityType()) &&
+					reflectedReferenceName.equals(existingSchema.getReflectedReferenceName()),
+				() -> new InvalidSchemaMutationException(
+					"Reflected reference `" + name + "` reflects reference `" +
+						existingSchema.getReflectedReferenceName() + "` of entity `" +
+						existingSchema.getReferencedEntityType() + "` and cannot reflect reference `" +
+						reflectedReferenceName + "` of entity `" + entityType + "` instead, " +
+						"you need first to remove it to create a reflected reference of another one."
+				)
+			);
 			// baseSchema is resolved in the super() call above via resolvePersistedReflectedReference —
 			// it uses the raw persisted reflected reference, never the caller-supplied `existingSchema`.
 			// The caller builds `existingSchema` from `toInstance()`, so it already reflects every

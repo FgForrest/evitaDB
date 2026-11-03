@@ -603,12 +603,15 @@ class LazyHashSetDelegateTest {
 		@DisplayName(
 			"Should not equal null when uninitialized"
 		)
+		@SuppressWarnings({"SimplifiableAssertion", "ObjectEqualsNull"})
 		void shouldNotEqualNullWhenUninitialized() {
 			final LazyHashSet<String> set =
 				new LazyHashSet<>(4);
 
 			// no object should ever equal null
-			assertNotEquals(null, set);
+			// deliberately not `assertNotEquals`: with `null` as its first argument it calls no `equals` at all, so
+			// the null check of the class under test would never run
+			assertFalse(set.equals(null));
 		}
 
 		@Test

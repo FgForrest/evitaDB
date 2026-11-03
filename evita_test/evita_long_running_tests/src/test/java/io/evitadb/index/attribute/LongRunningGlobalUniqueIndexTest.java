@@ -29,7 +29,6 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityTypeClassifierResolver;
-import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.Entities;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
@@ -56,7 +55,6 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
@@ -115,13 +113,12 @@ class LongRunningGlobalUniqueIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@ParameterizedTest(name = "GlobalUniqueIndex should survive generational randomized test applying modifications on it")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
 		final int initialCount = 100;
 		final Map<String, Integer> mapToCompare = new HashMap<>();
 		final Set<Integer> currentRecordSet = new HashSet<>();
-		final GlobalUniqueIndex initialUniqueIndex = new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class);
+		final GlobalUniqueIndex initialUniqueIndex = new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class, 0);
 
 		runFor(
 			input,
@@ -165,7 +162,7 @@ class LongRunningGlobalUniqueIndexTest implements TimeBoundedTestSupport {
 						final GlobalUniqueIndex newGlobalUniqueIndex = new GlobalUniqueIndex(
 							Scope.LIVE,
 							committed.getAttributeKey(),
-							committed.getType(),
+							committed.getType(), 0,
 							snapshot.values(),
 							snapshot.payloads(),
 							new HashMap<>(committed.getLocaleIndex())
@@ -191,7 +188,6 @@ class LongRunningGlobalUniqueIndexTest implements TimeBoundedTestSupport {
 	 * unchanged and no committed value was published.
 	 */
 	@ParameterizedTest(name = "GlobalUniqueIndex rollback discards every in-transaction mutation and leaves the base intact")
-	@Tag(SLOW)
 	@Tag(TRANSACTION)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalRollbackProofTest(GenerationalTestInput input) {
@@ -287,7 +283,7 @@ class LongRunningGlobalUniqueIndexTest implements TimeBoundedTestSupport {
 		@Nonnull Map<String, Integer> mapToCompare,
 		@Nonnull StringBuilder codeBuffer
 	) {
-		final GlobalUniqueIndex uniqueIndex = new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class);
+		final GlobalUniqueIndex uniqueIndex = new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class, 0);
 		for (final Entry<String, Integer> entry : mapToCompare.entrySet()) {
 			codeBuffer.append("uniqueIndex.registerUniqueKey(\"").append(entry.getKey()).append("\", ").append(entry.getValue()).append(");\n");
 			uniqueIndex.registerUniqueKey(entry.getKey(), Entities.PRODUCT, null, entry.getValue(), CLASSIFIER_RESOLVER);
@@ -297,8 +293,8 @@ class LongRunningGlobalUniqueIndexTest implements TimeBoundedTestSupport {
 
 	/**
 	 * Reads the full logical content of the index into a value-comparable snapshot: the unique value → packed entity
-	 * tuple mapping (read off the transaction-aware inline snapshot) plus the per-entity-type record-id bitmap for
-	 * {@link Entities#PRODUCT} (a separate transactional structure). Packed payloads are stable within a transaction —
+	 * tuple mapping (read off the transaction-aware inline snapshot) plus the {@link Entities#PRODUCT} records owning
+	 * those values (read off the same payloads). Packed payloads are stable within a transaction —
 	 * the entity-type id and locale id assignments do not change — so two snapshots taken before and after a rollback
 	 * can be compared with `.equals` to prove exact restoration. The same helper doubles as the savepoint oracle reader.
 	 */
@@ -311,15 +307,16 @@ class LongRunningGlobalUniqueIndexTest implements TimeBoundedTestSupport {
 		for (int i = 0; i < values.length; i++) {
 			valueToPayload.put(String.valueOf(values[i]), payloads[i]);
 		}
-		return new GlobalUniqueSnapshot(valueToPayload, toList(index.getRecordIds(Entities.PRODUCT, CLASSIFIER_RESOLVER)));
+		return new GlobalUniqueSnapshot(
+			valueToPayload, toList(UniqueIndexTestSupport.ownerRecordIds(index, Entities.PRODUCT, CLASSIFIER_RESOLVER))
+		);
 	}
 
 	/**
-	 * Converts a bitmap into an ascending list of its record ids (a value type with deep `.equals`).
+	 * Converts ascending record ids into a list (a value type with deep `.equals`).
 	 */
 	@Nonnull
-	private static List<Integer> toList(@Nonnull Bitmap bitmap) {
-		final int[] array = bitmap.getArray();
+	private static List<Integer> toList(@Nonnull int[] array) {
 		final List<Integer> list = new ArrayList<>(array.length);
 		for (final int value : array) {
 			list.add(value);

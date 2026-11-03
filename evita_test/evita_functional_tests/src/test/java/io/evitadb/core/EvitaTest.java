@@ -81,6 +81,7 @@ import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.executor.SequentialTask;
 import io.evitadb.core.management.EvitaManagement;
 import io.evitadb.core.session.task.SessionKiller;
+import io.evitadb.core.session.task.SessionKillerTestSupport.HeldInvocation;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
@@ -153,6 +154,9 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.core.session.task.SessionKillerTestSupport.awaitExpiry;
+import static io.evitadb.core.session.task.SessionKillerTestSupport.awaitInactivityPastTimeout;
+import static io.evitadb.core.session.task.SessionKillerTestSupport.internal;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
@@ -903,38 +907,52 @@ class EvitaTest implements EvitaTestSupport {
 	 * - Inactive sessions are detected and killed by the session killer
 	 * - Active sessions remain active after the session killer runs
 	 * - The count of active sessions is correctly updated
+	 *
+	 * The verdict does not depend on timing: the periodic tick of the instance's killer is stopped, so only the
+	 * explicit run decides, the inactive session is waited for until it reports inactivity past the timeout, and
+	 * the active session has a real call held open, which the killer must spare however long the run takes.
 	 */
 	@Test
 	@DisplayName("Automatic killing of inactive sessions")
-	void shouldKillInactiveSessionsAutomatically() throws NoSuchFieldException, IllegalAccessException {
+	void shouldKillInactiveSessionsAutomatically() throws Exception {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
 			EvitaSessionContract::goLiveAndClose
 		);
 		this.evita.close();
 
+		final int inactivityTimeoutSeconds = 1;
 		this.evita = new Evita(
-			getEvitaConfiguration(1)
+			getEvitaConfiguration(inactivityTimeoutSeconds)
 		);
 
-		final EvitaSessionContract sessionInactive = this.evita.createReadOnlySession(TEST_CATALOG);
-		final EvitaSessionContract sessionActive = this.evita.createReadOnlySession(TEST_CATALOG);
-
-		assertEquals(2L, this.evita.getActiveSessions().count());
-
-		final long start = System.currentTimeMillis();
-		do {
-			assertNotNull(sessionActive.getCatalogSchema());
-		} while (!(System.currentTimeMillis() - start > 2000));
-
+		// the instance exposes its killer to nobody, and constructing one here would bypass the configuration
 		final Field sessionKillerField = Evita.class.getDeclaredField("sessionKiller");
 		sessionKillerField.setAccessible(true);
 		final SessionKiller sessionKiller = (SessionKiller) sessionKillerField.get(this.evita);
-		sessionKiller.run();
+		// stop the periodic tick - it would race the session count and the verdicts below
+		sessionKiller.close();
 
-		assertFalse(sessionInactive.isActive());
-		assertTrue(sessionActive.isActive());
-		assertEquals(1L, this.evita.getActiveSessions().count());
+		final EvitaSessionContract sessionInactive = this.evita.createReadOnlySession(TEST_CATALOG);
+		// read-write, because the held call is an `execute()`, which opens a transaction on an alive catalog
+		final EvitaSessionContract sessionActive = this.evita.createReadWriteSession(TEST_CATALOG);
+
+		assertEquals(2L, this.evita.getActiveSessions().count());
+
+		try (final HeldInvocation heldInvocation = HeldInvocation.start(internal(sessionActive))) {
+			heldInvocation.awaitEntered();
+			// both sessions are old enough to be killed, only the active one has a call in flight
+			awaitExpiry(internal(sessionInactive), inactivityTimeoutSeconds);
+			awaitInactivityPastTimeout(internal(sessionActive), inactivityTimeoutSeconds);
+
+			sessionKiller.run();
+
+			assertFalse(sessionInactive.isActive());
+			assertTrue(sessionActive.isActive());
+			assertEquals(1L, this.evita.getActiveSessions().count());
+			heldInvocation.release();
+			heldInvocation.awaitCompletion();
+		}
 	}
 
 	/**

@@ -68,7 +68,7 @@ public class Node256Test {
 			}
 			int maxPos = node256.getMaxPos();
 			Node node = node256.remove(maxPos);
-			Assertions.assertTrue(node instanceof Node48);
+			Assertions.assertInstanceOf(Node48.class, node);
 			Node48 node48 = (Node48) node;
 			LeafNode minLeafNode48 = (LeafNode) node48.getChild(node48.getMinPos());
 			LeafNode minLeafNode256 = (LeafNode) node256.getChild(node256.getMinPos());
@@ -92,7 +92,7 @@ public class Node256Test {
 				nodes = nodes.insert(leafNode, key);
 			}
 			// check we are testing the correct thing
-			Assertions.assertTrue(nodes instanceof Node256);
+			Assertions.assertInstanceOf(Node256.class, nodes);
 
 			// check that searching for each key, is FOUND
 			for (int i = 0; i < insertCount; i++) {
@@ -132,7 +132,7 @@ public class Node256Test {
 				nodes = nodes.insert(leafNode, key);
 			}
 			// check we are testing the correct thing
-			Assertions.assertTrue(nodes instanceof Node256);
+			Assertions.assertInstanceOf(Node256.class, nodes);
 
 			// check that searching for each key, is FOUND
 			for (int i = 0; i < insertCount; i++) {
@@ -216,7 +216,7 @@ public class Node256Test {
 				nodes = nodes.insert(leafNode, (byte) (offset + i));
 			}
 			// check we are testing the correct data structure
-			Assertions.assertTrue(nodes instanceof Node256);
+			Assertions.assertInstanceOf(Node256.class, nodes);
 
 			// this is bad test, because it's checking the internal implementation which really
 			// should not matter, because the small nodes do not use this gappy method, therefore
@@ -261,7 +261,7 @@ public class Node256Test {
 				nodes = nodes.insert(leafNode, (byte) (offset + (i * step)));
 			}
 			// check we are testing the correct data structure
-			Assertions.assertTrue(nodes instanceof Node256);
+			Assertions.assertInstanceOf(Node256.class, nodes);
 
 			// this is bad test, because it's checking the internal implementation which really
 			// should not matter, because the small nodes do not use this gap method, therefore

@@ -269,10 +269,10 @@ public class AssociatedData implements AssociatedDataContract {
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
 		final AssociatedDataSchemaContract schema = ofNullable(this.associatedDataTypes.get(associatedDataName))
 			.orElseThrow(() -> new AssociatedDataNotFoundException(associatedDataName, this.entitySchema));
-		return (T) (schema.isLocalized() ?
+		return (schema.isLocalized() ?
 			ofNullable(this.associatedDataValues.get(new AssociatedDataKey(associatedDataName, locale))) :
 			ofNullable(this.associatedDataValues.get(new AssociatedDataKey(associatedDataName))))
-			.map(AssociatedDataContract.AssociatedDataValue::value)
+			.map(AssociatedDataValue::value)
 			.map(it -> ComplexDataObjectConverter.getOriginalForm(it, dtoType, reflectionLookup))
 			.orElse(null);
 	}

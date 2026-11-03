@@ -23,6 +23,7 @@
 
 package io.evitadb.core.transaction.memory;
 
+import io.evitadb.api.exception.IdentifierOverflowException;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
@@ -219,9 +220,12 @@ public final class WarmUpSavepoint {
 	private WarmUpSavepoint() {
 		Assert.isPremiseValid(
 			this.stamp != 0,
-			() -> new GenericEvitaInternalError(
+			() -> new IdentifierOverflowException(
 				"The warm-up savepoint stamp sequence is exhausted - a wrapped stamp would silently skip first-touch " +
-					"captures, so no further savepoint may be opened in this process."
+					"captures, so no further savepoint may be opened in this process.",
+				"The warm-up savepoint stamp sequence of this evitaDB server is exhausted, so no further entity can " +
+					"be written in warm-up mode. The sequence lives in memory only - restart the evitaDB server to " +
+					"continue."
 			)
 		);
 	}
@@ -257,8 +261,8 @@ public final class WarmUpSavepoint {
 	 * journalling sits behind an `if (!isTransactionAvailable())` gate is correct only because that gate is
 	 * unconditionally taken while a savepoint is open, and the delegate-branch backstop in
 	 * {@link #verifyRollbackSupported(TransactionalLayerCreator)} guards only the no-transaction path for the same
-	 * reason. A second call site would invalidate all of it at once, so `WarmUpRollbackConformanceTest` asserts there
-	 * is none.
+	 * reason. A second call site would invalidate all of it at once, so the bracket must stay the only caller of this
+	 * method.
 	 *
 	 * @return the opened savepoint
 	 * @throws GenericEvitaInternalError when a savepoint is already open on this thread
@@ -497,8 +501,7 @@ public final class WarmUpSavepoint {
 	 *
 	 * The check is live whenever a savepoint is open — which, the bracket being unconditional, is during every
 	 * warm-up root entity mutation, and equally in the per-structure rollback unit tests that open a savepoint
-	 * directly. The backstop's dedicated coverage is `WarmUpRollbackBackstopTest` (behaviour) and
-	 * `WarmUpRollbackConformanceTest` (the declarations it reads).
+	 * directly. The backstop's dedicated coverage is `WarmUpRollbackBackstopTest`.
 	 *
 	 * @param layerCreator the creator whose delegate branch is about to be taken
 	 * @throws GenericEvitaInternalError when a savepoint is open and the creator does not declare rollback support

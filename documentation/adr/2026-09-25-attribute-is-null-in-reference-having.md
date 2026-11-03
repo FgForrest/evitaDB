@@ -1,7 +1,7 @@
 ---
 title: attributeIsNull inside referenceHaving widens candidate discovery and is answered one reference row at a time
 date: 2026-09-25
-updated: 2026-09-29 07:26
+updated: 2026-10-14 22:34
 status: accepted
 kind: fix
 issues: [1584]
@@ -9,7 +9,7 @@ prs: [1664]
 areas: [evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute, evita_query/src/main/java/io/evitadb/api/query/filter/EntityScope.java, evita_api/src/main/java/io/evitadb/api/requestResponse/EvitaRequest.java, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference/ReferenceBodyTransposer.java, evita_engine/src/main/java/io/evitadb/core/query/filter/FilterByVisitor.java, evita_engine/src/main/java/io/evitadb/index/cardinality/ReferenceTypeCardinalityIndex.java]
 supersedes: []
 superseded-by: []
-relates: [2026-09-17-row-scoped-reference-having-body, 2026-09-15-bidirectional-reference-counterpart-rewrite]
+relates: [2026-10-20-reference-content-filter-row-by-row, 2026-09-17-row-scoped-reference-having-body, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-10-06-unique-indexes-keep-no-record-set, 2026-10-08-scope-faithful-planning-and-facet-summary-parity, 2026-10-20-single-owner-partitions-as-registry-rows]
 ---
 
 # `attributeIsNull` inside `referenceHaving` widens candidate discovery and is answered one reference row at a time
@@ -96,6 +96,12 @@ partitions can contribute. `ReferenceTypeCardinalityIndex` already stores the ro
   the same reference on every fixture measured, so the fix introduces no outlier; and the single-row partitions
   it would skip are exactly what #1615 (single-owner partition compression) restructures. Revisit with #1615,
   or if a null body on a single-row-heavy reference shows up in a production profile.
+- **Superseded for single-owner partitions (2026-10-12 note):** #1615 keeps a single-owner partition of a filtering-only
+  reference as a registry row, answered from the type-level structures as one operand instead of walked; on the
+  production retail corpus the three body shapes measured over `Product.media` (`attributeEquals`, `attributeIs` NULL
+  and NOT_NULL) went from 157-227 ms to 2.6-4.5 ms. Option C stays deferred for multi-owner partitions and references
+  indexed for partitioning - see
+  [2026-10-20-single-owner-partitions-as-registry-rows](2026-10-20-single-owner-partitions-as-registry-rows.md).
 
 ### Option D — rewrite `attributeIsNull(a)` to `not(attributeIsNotNull(a))` at the constraint level (declined)
 
@@ -281,7 +287,8 @@ Unique lookups (`UniqueAttributeLookupBenchmark`, results in its `.md`) are flat
 ## Consequences & open follow-ups
 
 - **A null body now costs a walk over the whole partition family** — ~0.76 µs per partition. Option C is the
-  lever and belongs with #1615.
+  lever and belongs with #1615. **Superseded for single-owner partitions (2026-10-12 note):** #1615 answers them as
+  registry rows from the type level, so the walk now covers only partitions with an index object - see Option C.
 - **The row-scoped record's fast-path claim was wrong for attribute leaves until now.** It measured the fast
   path on a synthetic body; in the engine every attribute leaf is wrapped, so a plain
   `referenceHaving(R, attributeEquals(a, v))` took the quadratic rebuild on `dev`. Anything else that wraps
@@ -300,13 +307,14 @@ Unique lookups (`UniqueAttributeLookupBenchmark`, results in its `.md`) are flat
   (localized, unique across locales) index is affected; the value tree stays correct, so lookups by value are
   right. No query reads that bitmap any more; `IndexCardinalityProjection` still reports its size. It is never
   persisted - the storage part carries (value, record id) pairs and both load paths rebuild the bitmap from them -
-  so a restart repairs it, and until then every commit carries it forward. #1658 proposes removing it together
-  with `UniqueIndex#getRecordIds` / `#getRecordIdsFormula`, which no production code calls.
+  so a restart repairs it, and until then every commit carries it forward. Removed by #1658 together with
+  `UniqueIndex#getRecordIds` / `#getRecordIdsFormula` - see `2026-10-06-unique-indexes-keep-no-record-set`.
 - **`GlobalUniqueIndex#entitiesPerType` has the same eager removal**, and unlike the bitmap above it was still
   read - by the null and not-null tests of a catalog attribute, on `dev` too. That read is gone (see Key technical
   details); `GlobalUniqueIndex#getRecordIds` / `#getRecordIdsFormula` now have no production caller, and the
   bitmap feeds only `GlobalUniqueIndex#getRecordCount` in the catalog statistics, which it undercounts in the same
-  way. Whether it can go the way #1658 proposes for the collection's bitmap belongs to that issue.
+  way. Removed by #1658 as well, the record count now read off the value tree - see
+  `2026-10-06-unique-indexes-keep-no-record-set`.
 - **An `AttributeFormula` over a read that ignores the query locale must say so.** The constructors default
   `localeImplied` to true, and a wrong true is silent: it drops `entityLocaleEquals` on prefetch-capable plans
   only, so the index-scan plan keeps answering correctly. Every translator building a localized formula over the
@@ -317,6 +325,8 @@ Unique lookups (`UniqueAttributeLookupBenchmark`, results in its `.md`) are flat
   - a filtered `referenceContent(R, filterBy(…))` drops rows from the other scope that the unfiltered one
     returns, even with a filter every row satisfies: one of several contradictory cross-scope visibility rules,
     all recorded with a probe matrix in #1652.
+    The filter of `referenceContent` is judged per row of every owner since
+    `2026-10-20-reference-content-filter-row-by-row`, whichever scope indexes the reference.
 
 ## Related work
 
@@ -325,6 +335,9 @@ Unique lookups (`UniqueAttributeLookupBenchmark`, results in its `.md`) are flat
   #1584 as open.
 - `2026-09-15-bidirectional-reference-counterpart-rewrite` — the counterpart route, which evaluated a
   filterable null test correctly per row already and inherited only defect C.
+- `2026-10-08-scope-faithful-planning-and-facet-summary-parity` — the parent filter of a hierarchy constraint over several scopes is resolved in each
+  scope's own tree, so the "first listed scope wins" rule of this record never picks one scope there: a unique
+  value may select one node per scope.
 
 ## Timeline
 
@@ -335,3 +348,4 @@ Unique lookups (`UniqueAttributeLookupBenchmark`, results in its `.md`) are flat
 - **2026-09-28** — the null tests of a catalog attribute moved from the catalog's per-entity-type bitmap to the
   collection's filter indexes after an entity that removed one locale's value read as null
 - **2026-09-29** — the later fixes re-measured against the build of 2026-09-25: flat, unique lookups included
+- **2026-09-30** — both undercounting record sets removed by #1658 (`2026-10-06-unique-indexes-keep-no-record-set`)

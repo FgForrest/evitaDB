@@ -25,6 +25,7 @@ package io.evitadb.api.query.expression.numeric;
 
 
 import io.evitadb.api.query.expression.AbstractUnaryOperator;
+import io.evitadb.api.query.expression.ExpressionPrecedence;
 import io.evitadb.api.query.expression.evaluate.PossibleRange;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
@@ -68,6 +69,6 @@ public class NegativeOperator extends AbstractUnaryOperator {
 
 	@Override
 	public String toString() {
-		return "-" + getOperand();
+		return "-" + ExpressionPrecedence.prefixOperandText(getOperand());
 	}
 }

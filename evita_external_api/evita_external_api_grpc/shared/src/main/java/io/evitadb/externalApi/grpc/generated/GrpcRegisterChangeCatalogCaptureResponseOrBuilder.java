@@ -33,8 +33,8 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
 
   /**
    * <pre>
-   * Identification of the registered subscription. Present on every message, not just the initial
-   * acknowledgement.
+   * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` messages (when a
+   * subscription id is available), unset on `CHANGE` messages.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -43,8 +43,8 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
   boolean hasUuid();
   /**
    * <pre>
-   * Identification of the registered subscription. Present on every message, not just the initial
-   * acknowledgement.
+   * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` messages (when a
+   * subscription id is available), unset on `CHANGE` messages.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -53,8 +53,8 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcUuid getUuid();
   /**
    * <pre>
-   * Identification of the registered subscription. Present on every message, not just the initial
-   * acknowledgement.
+   * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` messages (when a
+   * subscription id is available), unset on `CHANGE` messages.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -141,4 +141,49 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcHeartBeatOrBuilder getHeartBeatOrBuilder();
+
+  /**
+   * <pre>
+   * Identity of the catalog incarnation the subscription is bound to - every capture of the stream belongs to
+   * its version sequence, so a consumer storing `capture.version`/`capture.index` as its resume position stores
+   * this value with it and passes it back as `GrpcRegisterChangeCatalogCaptureRequest.catalogId`. Populated
+   * when `responseType` is `ACKNOWLEDGEMENT` or `HEARTBEAT`; unset on `CHANGE` messages, whose captures
+   * belong to the incarnation the acknowledgement named. Its presence on the acknowledgement also tells the
+   * client that the server checked `GrpcRegisterChangeCatalogCaptureRequest.catalogId`; an acknowledgement
+   * without it comes from a server that predates the field and ignored the requested identity.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 5;</code>
+   * @return Whether the catalogId field is set.
+   */
+  boolean hasCatalogId();
+  /**
+   * <pre>
+   * Identity of the catalog incarnation the subscription is bound to - every capture of the stream belongs to
+   * its version sequence, so a consumer storing `capture.version`/`capture.index` as its resume position stores
+   * this value with it and passes it back as `GrpcRegisterChangeCatalogCaptureRequest.catalogId`. Populated
+   * when `responseType` is `ACKNOWLEDGEMENT` or `HEARTBEAT`; unset on `CHANGE` messages, whose captures
+   * belong to the incarnation the acknowledgement named. Its presence on the acknowledgement also tells the
+   * client that the server checked `GrpcRegisterChangeCatalogCaptureRequest.catalogId`; an acknowledgement
+   * without it comes from a server that predates the field and ignored the requested identity.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 5;</code>
+   * @return The catalogId.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUuid getCatalogId();
+  /**
+   * <pre>
+   * Identity of the catalog incarnation the subscription is bound to - every capture of the stream belongs to
+   * its version sequence, so a consumer storing `capture.version`/`capture.index` as its resume position stores
+   * this value with it and passes it back as `GrpcRegisterChangeCatalogCaptureRequest.catalogId`. Populated
+   * when `responseType` is `ACKNOWLEDGEMENT` or `HEARTBEAT`; unset on `CHANGE` messages, whose captures
+   * belong to the incarnation the acknowledgement named. Its presence on the acknowledgement also tells the
+   * client that the server checked `GrpcRegisterChangeCatalogCaptureRequest.catalogId`; an acknowledgement
+   * without it comes from a server that predates the field and ignored the requested identity.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 5;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getCatalogIdOrBuilder();
 }

@@ -37,8 +37,9 @@ import java.io.Serial;
  * transaction (re)writes only the leaf pages it actually changed instead of re-materializing the whole range-point array.
  *
  * The page carries the leaf's range points as a {@link TransactionalRangePoint} array — the same `(threshold, starts,
- * ends)` element shape the monolithic {@code FilterIndexStoragePart} inlines via its {@code RangeIndex} — in ascending
- * threshold order; the routing spine that orders the leaves is NOT persisted (it is reconstructed on load),
+ * ends)` element shape, occurrence levels included, that the monolithic {@code FilterIndexStoragePart} inlines via its
+ * {@code RangeIndex} — in ascending threshold order; the routing spine that orders the leaves is NOT persisted (it is
+ * reconstructed on load),
  * and a leaf page stores no separators. The border sentinels (`Long.MIN_VALUE` / `Long.MAX_VALUE`) live in the first /
  * last pages.
  *

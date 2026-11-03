@@ -118,7 +118,7 @@ class ObservabilityTracingBlockReferenceTest {
 			assertEquals(1, spans.size());
 			assertEquals(
 				StatusCode.OK,
-				spans.get(0).getStatus().getStatusCode()
+				spans.getFirst().getStatus().getStatusCode()
 			);
 		}
 
@@ -145,7 +145,7 @@ class ObservabilityTracingBlockReferenceTest {
 				spanExporter.getFinishedSpanItems();
 			assertEquals(1, spans.size());
 
-			final SpanData spanData = spans.get(0);
+			final SpanData spanData = spans.getFirst();
 			assertEquals(
 				StatusCode.ERROR,
 				spanData.getStatus().getStatusCode()
@@ -195,7 +195,7 @@ class ObservabilityTracingBlockReferenceTest {
 				spanExporter.getFinishedSpanItems();
 			assertEquals(1, spans.size());
 
-			final SpanData spanData = spans.get(0);
+			final SpanData spanData = spans.getFirst();
 			final long durationNanos =
 				spanData.getEndEpochNanos()
 					- spanData.getStartEpochNanos();
@@ -240,7 +240,7 @@ class ObservabilityTracingBlockReferenceTest {
 			assertEquals(1, spans.size());
 			assertEquals(
 				StatusCode.OK,
-				spans.get(0).getStatus().getStatusCode()
+				spans.getFirst().getStatus().getStatusCode()
 			);
 		}
 
@@ -268,7 +268,7 @@ class ObservabilityTracingBlockReferenceTest {
 				spanExporter.getFinishedSpanItems();
 			assertEquals(1, spans.size());
 
-			final SpanData spanData = spans.get(0);
+			final SpanData spanData = spans.getFirst();
 			assertEquals(
 				StatusCode.ERROR,
 				spanData.getStatus().getStatusCode()

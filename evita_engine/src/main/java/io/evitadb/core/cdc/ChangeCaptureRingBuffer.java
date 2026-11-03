@@ -98,6 +98,17 @@ class ChangeCaptureRingBuffer<T extends ChangeCapture> extends RingBuffer<T, Wal
 	}
 
 	/**
+	 * Returns the newest catalog version whose captures are visible in the buffer. The captures of a version are
+	 * offered before the version becomes visible, so a copy that runs to the end of the buffer after this was read
+	 * has seen every capture up to and including it.
+	 *
+	 * @return the newest visible catalog version
+	 */
+	public long getEffectiveLastCatalogVersion() {
+		return getEffectiveEnd().version();
+	}
+
+	/**
 	 * Returns the effective start index of the buffer.
 	 *
 	 * @return the effective start index

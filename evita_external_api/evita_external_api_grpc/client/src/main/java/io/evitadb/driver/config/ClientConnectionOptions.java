@@ -67,6 +67,13 @@ import java.net.UnknownHostException;
  *                          idles out. `0` disables the idle timeout entirely (the connection then lives until closed
  *                          by the peer, a ping failure or the pool). A negative value falls back to the default; keep
  *                          it strictly above {@link #pingIntervalMillis()} to preserve the watchdog.
+ * @param connectTimeoutMillis The connect timeout in milliseconds - how long opening a new connection to the server may
+ *                          take. It bounds the whole setup of the connection, not only the TCP connect: the TLS
+ *                          handshake and the HTTP/2 protocol negotiation that follow it count against it too, and a
+ *                          connection that does not finish them in time fails the call before it reaches the server.
+ *                          A loaded client host or a slow network stretches the handshake, so the default is
+ *                          `10000` (10 s) rather than Armeria's own `3200` ms. Any value of `0` or below falls back to
+ *                          the default - the connection setup cannot be left unbounded.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record ClientConnectionOptions(
@@ -75,24 +82,28 @@ public record ClientConnectionOptions(
 	int port,
 	int systemApiPort,
 	int pingIntervalMillis,
-	int idleTimeoutMillis
+	int idleTimeoutMillis,
+	int connectTimeoutMillis
 ) {
 	public static final String DEFAULT_HOST = "localhost";
 	public static final int DEFAULT_PORT = 5555;
 	public static final int DEFAULT_SYSTEM_API_PORT = 5555;
 	public static final int DEFAULT_PING_INTERVAL_MILLIS = 30_000;
 	public static final int DEFAULT_IDLE_TIMEOUT_MILLIS = 300_000;
+	public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 10_000;
 
 	/**
-	 * Normalizes the keep-alive settings to honour their documented contracts: a negative ping interval falls back
+	 * Normalizes the connection settings to honour their documented contracts: a negative ping interval falls back
 	 * to the default, `0` disables the ping, and any positive value below Armeria's `1000` ms minimum is raised to
-	 * that floor; a negative idle timeout falls back to the default while `0` disables it.
+	 * that floor; a negative idle timeout falls back to the default while `0` disables it; a connect timeout of `0` or
+	 * below falls back to the default, because Armeria accepts only a positive one.
 	 */
 	public ClientConnectionOptions {
 		pingIntervalMillis = pingIntervalMillis < 0
 			? DEFAULT_PING_INTERVAL_MILLIS
 			: pingIntervalMillis == 0 ? 0 : Math.max(pingIntervalMillis, 1000);
 		idleTimeoutMillis = idleTimeoutMillis < 0 ? DEFAULT_IDLE_TIMEOUT_MILLIS : idleTimeoutMillis;
+		connectTimeoutMillis = connectTimeoutMillis <= 0 ? DEFAULT_CONNECT_TIMEOUT_MILLIS : connectTimeoutMillis;
 	}
 
 	/**
@@ -101,7 +112,7 @@ public record ClientConnectionOptions(
 	public ClientConnectionOptions() {
 		this(
 			resolveDefaultClientId(), DEFAULT_HOST, DEFAULT_PORT, DEFAULT_SYSTEM_API_PORT,
-			DEFAULT_PING_INTERVAL_MILLIS, DEFAULT_IDLE_TIMEOUT_MILLIS
+			DEFAULT_PING_INTERVAL_MILLIS, DEFAULT_IDLE_TIMEOUT_MILLIS, DEFAULT_CONNECT_TIMEOUT_MILLIS
 		);
 	}
 
@@ -145,6 +156,7 @@ public record ClientConnectionOptions(
 		private int systemApiPort = DEFAULT_SYSTEM_API_PORT;
 		private int pingIntervalMillis = DEFAULT_PING_INTERVAL_MILLIS;
 		private int idleTimeoutMillis = DEFAULT_IDLE_TIMEOUT_MILLIS;
+		private int connectTimeoutMillis = DEFAULT_CONNECT_TIMEOUT_MILLIS;
 
 		Builder() {
 			this.clientId = resolveDefaultClientId();
@@ -157,6 +169,7 @@ public record ClientConnectionOptions(
 			this.systemApiPort = connectionOptions.systemApiPort();
 			this.pingIntervalMillis = connectionOptions.pingIntervalMillis();
 			this.idleTimeoutMillis = connectionOptions.idleTimeoutMillis();
+			this.connectTimeoutMillis = connectionOptions.connectTimeoutMillis();
 		}
 
 		@Nonnull
@@ -211,11 +224,24 @@ public record ClientConnectionOptions(
 			return this;
 		}
 
+		/**
+		 * Sets the connect timeout in milliseconds. See {@link ClientConnectionOptions#connectTimeoutMillis()} for the
+		 * semantics and the accepted range (any value of `0` or below falls back to the default).
+		 *
+		 * @param connectTimeoutMillis the connect timeout in milliseconds
+		 * @return this builder for chaining
+		 */
+		@Nonnull
+		public ClientConnectionOptions.Builder connectTimeoutMillis(int connectTimeoutMillis) {
+			this.connectTimeoutMillis = connectTimeoutMillis;
+			return this;
+		}
+
 		@Nonnull
 		public ClientConnectionOptions build() {
 			return new ClientConnectionOptions(
 				this.clientId, this.host, this.port, this.systemApiPort,
-				this.pingIntervalMillis, this.idleTimeoutMillis
+				this.pingIntervalMillis, this.idleTimeoutMillis, this.connectTimeoutMillis
 			);
 		}
 	}

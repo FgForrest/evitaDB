@@ -332,7 +332,7 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 		final Set<String> acceptHeaders = parseAcceptHeaders(executionContext);
 		if (acceptHeaders == null) {
 			// missing accept header means that client supports all media types
-			return Optional.of(getSupportedResponseContentTypes().iterator().next());
+			return Optional.of(getSupportedResponseContentTypes().getFirst());
 		}
 
 		for (String supportedMediaType : getSupportedResponseContentTypes()) {
@@ -343,7 +343,7 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 
 		if (acceptHeaders.stream().anyMatch(it -> it.contains(MimeTypes.ALL))) {
 			// no exact preferred media type found, but we can use this fallback at least
-			return Optional.of(getSupportedResponseContentTypes().iterator().next());
+			return Optional.of(getSupportedResponseContentTypes().getFirst());
 		}
 
 		throw new HttpExchangeException(

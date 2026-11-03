@@ -49,12 +49,14 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.VirtualReferencePartitionIndexEntries;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ExceptionUtils;
+import io.evitadb.utils.NumberUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -69,8 +71,10 @@ import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -719,6 +723,146 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 	}
 
 	@Test
+	@DisplayName("a reloaded catalog with virtual partitions registers each single-owner partition as covered by its owner")
+	void reloadOfVirtualCatalogRegistersSingleOwnerPartitionsAsCovered() {
+		prepare(CatalogState.ALIVE, "CHECKBOX");
+		tx(session -> session.createNewEntity(ENTITY_BRAND, SECOND_BRAND_PK).upsertVia(session));
+		// each brand is referenced by one product alone - two single-owner partitions of the `brand` reference
+		upsertProducts(1, 1, 1, BRAND_PK);
+		upsertProducts(2, 2, 1, SECOND_BRAND_PK);
+		// the second product moves its single-owner partition to the archive
+		tx(session -> session.archiveEntity(ENTITY_PRODUCT, 2));
+
+		this.evita.close();
+		this.evita = new Evita(getEvitaConfiguration());
+		awaitCatalogLoaded();
+
+		final EntityCollection collection = (EntityCollection) getProductCollection();
+		int registeredPartitions = 0;
+		for (final Scope scope : Scope.values()) {
+			final EntityIndex typeIndex = collection.getIndexByKeyIfExists(
+				new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, REF_BRAND)
+			);
+			assertNotNull(typeIndex, "reference `" + REF_BRAND + "` must have partitions in scope " + scope);
+			final Map<Integer, Integer> ownerByPartition = registeredOwners((ReferencedTypeEntityIndex) typeIndex);
+			assertEquals(
+				1, ownerByPartition.size(),
+				"scope " + scope + ": exactly one single-owner partition of `" + REF_BRAND + "` must be registered"
+			);
+			final ReducedIndexMembership membership = membershipOf(REF_BRAND, scope);
+			assertNotNull(membership, "scope " + scope + ": the reloaded catalog must rebuild the lookup of `" +
+				REF_BRAND + "`");
+			final Set<Integer> covered = toSet(membership.getCoveredIndexPrimaryKeys());
+			final Set<Integer> residual = toSet(membership.getResidualIndexPrimaryKeys());
+			for (final Map.Entry<Integer, Integer> registered : ownerByPartition.entrySet()) {
+				final int partitionPk = registered.getKey();
+				final int owner = registered.getValue();
+				assertTrue(
+					covered.contains(partitionPk),
+					"scope " + scope + ": registered partition " + partitionPk + " must be covered - its owner is " +
+						"known from its row - but the lookup covers " + covered + " and leaves " + residual +
+						" residual"
+				);
+				assertFalse(
+					residual.contains(partitionPk),
+					"scope " + scope + ": registered partition " + partitionPk + " must not be residual"
+				);
+				assertEquals(
+					Set.of(owner), toSet(membership.getCoveredOwners()),
+					"scope " + scope + ": the only covered owner of `" + REF_BRAND + "` is the owner of its row"
+				);
+				assertEquals(
+					Set.of(partitionPk), toSet(membership.getIndexPrimaryKeys(owner)),
+					"scope " + scope + ": owner " + owner + " must name exactly its registered partition"
+				);
+				registeredPartitions++;
+			}
+		}
+		assertEquals(2, registeredPartitions, "one registered partition per scope must have been checked");
+		// the single-owner partitions are their rows only, and the lookup must agree with the rows and the index objects
+		assertBrandPartitionsAreRowsOnly(2);
+		assertMembershipMatchesIndexes();
+	}
+
+	@ParameterizedTest
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("single-owner partitions written as registry rows keep the lookup complete before any reload")
+	void virtuallyWrittenSingleOwnerPartitionsKeepTheLookupComplete(@Nonnull CatalogState state) {
+		prepare(state, "CHECKBOX");
+		tx(session -> session.createNewEntity(ENTITY_BRAND, SECOND_BRAND_PK).upsertVia(session));
+		// each brand is referenced by one product alone - two single-owner partitions, each its registry row only
+		tx(session -> session.createNewEntity(ENTITY_PRODUCT, 1).setReference(REF_BRAND, BRAND_PK).upsertVia(session));
+		tx(session -> session.createNewEntity(ENTITY_PRODUCT, 2)
+			.setReference(REF_BRAND, SECOND_BRAND_PK)
+			.upsertVia(session));
+		assertBrandPartitionsAreRowsOnly(2);
+		assertMembershipMatchesIndexes();
+
+		// the last owner leaves its partition (1 -> 0)
+		tx(session -> session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+			.orElseThrow()
+			.openForWrite()
+			.removeReference(REF_BRAND, BRAND_PK)
+			.upsertVia(session));
+		assertBrandPartitionsAreRowsOnly(1);
+		assertMembershipMatchesIndexes();
+
+		// the owner moves its partition to the archive, and is removed there
+		tx(session -> session.archiveEntity(ENTITY_PRODUCT, 2));
+		assertBrandPartitionsAreRowsOnly(1);
+		assertMembershipMatchesIndexes();
+		tx(session -> session.deleteEntity(ENTITY_PRODUCT, 2));
+		assertBrandPartitionsAreRowsOnly(0);
+		assertMembershipMatchesIndexes();
+	}
+
+	/**
+	 * Asserts that the partitions of `brand` exist as registry rows only, in both scopes together - none of them has
+	 * an index object.
+	 *
+	 * @param expectedRows how many registry rows the reference has in both scopes together
+	 */
+	private void assertBrandPartitionsAreRowsOnly(int expectedRows) {
+		final EntityCollection collection = (EntityCollection) getProductCollection();
+		int rows = 0;
+		for (final Scope scope : Scope.values()) {
+			final EntityIndex typeIndex = collection.getIndexByKeyIfExists(
+				new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, REF_BRAND)
+			);
+			if (typeIndex == null) {
+				continue;
+			}
+			for (final Integer partitionPk : registeredOwners((ReferencedTypeEntityIndex) typeIndex).keySet()) {
+				assertNull(
+					collection.getIndexByPrimaryKeyIfExists(partitionPk),
+					"scope " + scope + ": registered partition " + partitionPk + " of `" + REF_BRAND + "` must not " +
+						"have an index object"
+				);
+				rows++;
+			}
+		}
+		assertEquals(expectedRows, rows, "the registry rows of `" + REF_BRAND + "` in both scopes");
+	}
+
+	/**
+	 * Reads the registered single-owner partitions of a type index out of its registry, by partition primary key.
+	 *
+	 * @param typeIndex the referenced-type entity index
+	 * @return the owner of each registered partition, by the partition's primary key
+	 */
+	@Nonnull
+	private static Map<Integer, Integer> registeredOwners(@Nonnull ReferencedTypeEntityIndex typeIndex) {
+		final Map<Integer, Integer> result = new TreeMap<>();
+		VirtualReferencePartitionIndexEntries.forEachOwnerRow(
+			typeIndex.getVirtualReferencePartitionIndex(),
+			(partitionPrimaryKey, ownerAndTarget) -> result.put(
+				partitionPrimaryKey, NumberUtils.unpackHigh(ownerAndTarget)
+			)
+		);
+		return result;
+	}
+
+	@Test
 	@DisplayName("every reference the lookup is keyed by is still declared by the schema")
 	void everyReferenceNameInTheLookupIsInTheSchema() {
 		prepare(CatalogState.ALIVE, "CHECKBOX");
@@ -976,13 +1120,12 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 			// every covered index's entries must name exactly its members, in both directions
 			final Map<Integer, Set<Integer>> expected = CollectionUtils.createHashMap(covered.size());
 			for (final Integer indexPk : covered) {
-				final EntityIndex reducedIndex = collection.getIndexByPrimaryKeyIfExists(indexPk);
+				final Bitmap members = ownersOf(collection, referenceName, scope, indexPk);
 				assertNotNull(
-					reducedIndex,
+					members,
 					"scope " + scope + ", reference `" + referenceName + "`: covered index " + indexPk
 						+ " does not exist"
 				);
-				final Bitmap members = reducedIndex.getAllPrimaryKeys();
 				assertTrue(
 					members.size() <= membership.getCoverageThreshold(),
 					"scope " + scope + ", reference `" + referenceName + "`: covered index " + indexPk
@@ -1034,19 +1177,50 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 		@Nonnull Set<Integer> advertised
 	) {
 		for (final Integer indexPk : advertised) {
-			final EntityIndex reducedIndex = collection.getIndexByPrimaryKeyIfExists(indexPk);
+			final Bitmap owners = ownersOf(collection, referenceName, scope, indexPk);
 			assertNotNull(
-				reducedIndex,
+				owners,
 				"scope " + scope + ", reference `" + referenceName + "`: advertised index " + indexPk
 					+ " does not exist"
 			);
 			assertFalse(
-				reducedIndex.getAllPrimaryKeys().isEmpty(),
+				owners.isEmpty(),
 				"scope " + scope + ", reference `" + referenceName + "`: advertised index " + indexPk
 					+ " holds no owners - the advertisement and the index's membership must be dropped in the "
 					+ "same step, or the lookup is left accounting for an index nothing can be found in"
 			);
 		}
+	}
+
+	/**
+	 * Returns the owners of an advertised reduced index: those of its index object when it has one, otherwise the
+	 * only owner the registry row of a single-owner partition without an index object names.
+	 *
+	 * @param collection    the collection to inspect
+	 * @param referenceName reference advertising the index
+	 * @param scope         the scope whose indexes are read
+	 * @param indexPk       the primary key of the advertised index
+	 * @return the owners, or `null` when neither the index object nor a registry row exists
+	 */
+	@Nullable
+	private static Bitmap ownersOf(
+		@Nonnull EntityCollection collection,
+		@Nonnull String referenceName,
+		@Nonnull Scope scope,
+		int indexPk
+	) {
+		final EntityIndex reducedIndex = collection.getIndexByPrimaryKeyIfExists(indexPk);
+		if (reducedIndex != null) {
+			return reducedIndex.getAllPrimaryKeys();
+		}
+		final EntityIndex typeIndex = collection.getIndexByKeyIfExists(
+			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName)
+		);
+		if (!(typeIndex instanceof final ReferencedTypeEntityIndex referencedTypeIndex)) {
+			return null;
+		}
+		final OptionalLong row = referencedTypeIndex.getVirtualReferencePartitionIndex().getPartitionOwner(indexPk);
+		return row.isPresent() ? new BaseBitmap(NumberUtils.unpackHigh(row.getAsLong())) : null;
 	}
 
 	/**
@@ -1294,7 +1468,7 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 	) {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.defineEntitySchema(ENTITY_CATEGORY).updateVia(session);
 				session.defineEntitySchema(ENTITY_BRAND).updateVia(session);
 				session.defineEntitySchema(ENTITY_TAG).updateVia(session);
@@ -1447,7 +1621,7 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 	private void prepareReflected() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.defineEntitySchema(ENTITY_PARAMETER_VALUE).updateVia(session);
 				session.defineEntitySchema(ENTITY_PARAMETER)
 					.withAttribute(

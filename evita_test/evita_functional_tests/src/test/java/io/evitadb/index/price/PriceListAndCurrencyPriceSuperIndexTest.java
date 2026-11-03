@@ -26,6 +26,9 @@ package io.evitadb.index.price;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.core.exception.PriceAlreadyAssignedToEntityException;
+import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer.Savepoint;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -63,14 +66,18 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Currency;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 import java.util.function.IntConsumer;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -98,6 +105,81 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 	private static final PriceIndexKey PRICE_INDEX_KEY = new PriceIndexKey("basic", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE);
 	private static final IntConsumer NOOP_NOT_FOUND_CALLBACK = notFound -> {};
 	private static PriceRecordContract[] PRICE_RECORDS;
+
+	/**
+	 * Exercises real price add/remove paths when a prior entity split a leaf before the failing entity's savepoint.
+	 */
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	@DisplayName("savepoint rollback restores prices in leaves split earlier in the transaction, including after commit")
+	void shouldRestoreSplitLeavesCreatedBeforeSavepoint(boolean bulk) {
+		final PriceRecordContract[] records = new PriceRecordContract[127];
+		for (int i = 0; i < records.length; i++) {
+			final int key = (i + 1) * 3;
+			records[i] = new PriceRecord(key, key, key, 121, 100);
+		}
+		final PriceListAndCurrencyPriceSuperIndex index;
+		if (bulk) {
+			final RangeIndex validityIndex = new RangeIndex();
+			for (final PriceRecordContract record : records) {
+				validityIndex.addRecord(Long.MIN_VALUE, Long.MAX_VALUE, record.internalPriceId());
+			}
+			index = new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY, validityIndex, records);
+		} else {
+			index = new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY);
+			for (final PriceRecordContract record : records) {
+				index.addPrice(record, null);
+			}
+		}
+		final int splitKey = bulk ? 4 : 384;
+		final int deletedKey = bulk ? 6 : 381;
+		final int insertedKey = bulk ? 5 : 383;
+		final PriceRecordContract splitRecord = new PriceRecord(splitKey, splitKey, splitKey, 121, 100);
+		final PriceRecordContract[] expected = Arrays.copyOf(records, records.length + 1);
+		expected[records.length] = splitRecord;
+		Arrays.sort(expected, Comparator.comparingInt(PriceRecordContract::internalPriceId));
+		assertStateAfterCommit(
+			index,
+			tested -> {
+				assertEquals(3, tested.priceRecords.leafPageHandles().size(), "Both fixtures must start at 3 leaves.");
+				tested.addPrice(splitRecord, null);
+				assertEquals(4, tested.priceRecords.leafPageHandles().size(), "The earlier entity must split a leaf.");
+				final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+				final Savepoint savepoint = maintainer.openSavepoint();
+				tested.removePrice(deletedKey, deletedKey, null);
+				tested.addPrice(new PriceRecord(insertedKey, insertedKey, insertedKey, 121, 100), null);
+				assertNull(tested.getPriceRecordIfPresent(deletedKey));
+				assertNotNull(tested.getPriceRecordIfPresent(insertedKey));
+				maintainer.rollbackSavepoint(savepoint);
+				assertAll(
+					() -> assertNotNull(tested.getPriceRecordIfPresent(deletedKey), "Deleted price must return"),
+					() -> assertNull(tested.getPriceRecordIfPresent(insertedKey), "Savepoint price must disappear"),
+					() -> assertRestoredPriceState(tested, expected)
+				);
+			},
+			(original, committed) -> {
+				assertRestoredPriceState(original, records);
+				assertRestoredPriceState(committed, expected);
+			}
+		);
+	}
+
+	/**
+	 * Compares all price records and both presence bitmaps so rollback cannot leave the tree and index disagreeing.
+	 */
+	private static void assertRestoredPriceState(
+		@Nonnull PriceListAndCurrencyPriceSuperIndex index, @Nonnull PriceRecordContract[] expected
+	) {
+		final int[] keys = Arrays.stream(expected).mapToInt(PriceRecordContract::internalPriceId).toArray();
+		assertArrayEquals(expected, index.getPriceRecords());
+		assertArrayEquals(keys, index.getIndexedPriceIds().getArray());
+		assertArrayEquals(keys, index.getIndexedPriceEntityIds().getArray());
+		assertArrayEquals(keys, index.getIndexedRecordIdsValidNowFormula(OffsetDateTime.now()).compute().getArray());
+		for (final PriceRecordContract record : expected) {
+			assertEquals(record, index.getPriceRecord(record.internalPriceId()));
+			assertEquals(1, index.getEntityPrices(record.entityPrimaryKey()).getSize());
+		}
+	}
 
 	@BeforeAll
 	static void beforeAll() {
@@ -1015,7 +1097,7 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 
 			assertTrue(found);
 			assertEquals(1, streamed.size());
-			assertEquals(10, streamed.get(0).internalPriceId());
+			assertEquals(10, streamed.getFirst().internalPriceId());
 		}
 
 		@Test

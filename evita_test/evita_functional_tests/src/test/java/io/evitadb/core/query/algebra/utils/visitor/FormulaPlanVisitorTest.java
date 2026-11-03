@@ -263,7 +263,7 @@ class FormulaPlanVisitorTest {
 			assertEquals(2, plan.children().size());
 
 			// first occurrence, reached through the nested container, is described in full
-			final FormulaPlan firstOccurrence = plan.children().get(0).children().get(0);
+			final FormulaPlan firstOccurrence = plan.children().getFirst().children().getFirst();
 			assertFalse(firstOccurrence.isReference());
 			assertNotNull(firstOccurrence.description());
 

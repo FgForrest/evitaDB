@@ -1,7 +1,7 @@
 ---
 title: Off-record number reads must not restore a buffer limit the read has invalidated
 date: 2026-09-13
-updated: 2026-09-14 19:10
+updated: 2026-10-01 15:40
 status: accepted
 kind: fix
 issues: [1551]
@@ -9,7 +9,7 @@ prs: [1571, 1572]
 areas: [evita_store/evita_store_key_value/src/main/java/io/evitadb/store/kryo, evita_engine/src/main/java/io/evitadb/spi/store/catalog/wal, evita_store/evita_store_server/src/main/java/io/evitadb/store/wal, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_engine/src/main/java/io/evitadb/core/cdc]
 supersedes: []
 superseded-by: []
-relates: [2026-08-28-attributable-internal-error-metrics, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-24-grpc-streaming-backpressure-readiness-gate]
+relates: [2026-08-28-attributable-internal-error-metrics, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-24-grpc-streaming-backpressure-readiness-gate, 2026-10-01-cdc-catch-up-delivers-everything-owed-or-fails]
 ---
 
 # Off-record number reads must not restore a buffer limit the read has invalidated
@@ -107,6 +107,9 @@ written to"*.
   it deserialized. **That last asymmetry no longer exists**: both paths now require the whole record (see *The
   workaround*), which removes the sharpest edge of this objection without rescuing the option, since the first
   two reasons are untouched.
+- **Reversed** by `2026-10-01-cdc-catch-up-delivers-everything-owed-or-fails`: the counter noise this option would only have relabelled was a second reader
+  defect (compressed records miscounted their bytes), and with it fixed a failure the bounded read reports is
+  real - which is exactly what a CDC subscriber has to be told.
 
 ### Option D — mark the tail-read failure `@NotMonitored` (declined)
 

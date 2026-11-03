@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -66,7 +66,14 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.attribute.SortIndex;
+import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.index.usage.SchemaCapabilityUsage;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import lombok.experimental.Delegate;
@@ -89,6 +96,10 @@ import static java.util.Optional.ofNullable;
  */
 public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	private static final Map<Class<? extends OrderConstraint>, OrderingConstraintTranslator<? extends OrderConstraint>> TRANSLATORS;
+	/**
+	 * The entity indexes of a reference ordering, whose sort data live in the partitions of the reference instead.
+	 */
+	private static final EntityIndex[] EMPTY_ENTITY_INDEXES = new EntityIndex[0];
 
 	/* initialize list of all FilterableConstraint handlers once for a lifetime */
 	static {
@@ -133,10 +144,24 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * Contemporary stack for auxiliary data resolved for each level of the query.
 	 */
 	private final Deque<ProcessingScope> scope = new ArrayDeque<>(16);
+	/**
+	 * Set while the sorters of a segment ordering are being created - see {@link #isWithinSegment()}.
+	 */
+	private boolean withinSegment;
 
 	/**
 	 * Method creates the {@link Sorter} implementation that could be used for sorting primary keys of entities
-	 * in (referenced not queried) `entityCollection` in specified scopes.
+	 * in (referenced not queried) `entityCollection` in specified scopes. A scope the collection holds no entity of
+	 * contributes no sorter, but the ordering is translated over an empty index of that scope as well, so that it is
+	 * checked against the schema in every scope whether or not an entity happens to live there.
+	 *
+	 * The ordering is translated in a nested query context of `entityCollection`, which never builds a plan of its
+	 * own, so the schema capabilities the ordering requests there are handed to the passed `queryContext` before the
+	 * sorter is returned - the context the sorter was created for, which counts them with the logical query it belongs
+	 * to (see {@link QueryPlanningContext#drainRequestedCapabilitiesToCount()}). The hand-over is what makes the
+	 * ordering count at any depth: a sorter created while another sorter's ordering is translated - an ordering by a
+	 * property of an entity the ordered entity references - hands its requests to the nested context of the enclosing
+	 * sorter, which hands them on with its own.
 	 */
 	@Nonnull
 	public static NestedContextSorter createSorter(
@@ -161,7 +186,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 					entityType,
 					null,
 					new OrderBy(orderBy.getChildren()),
-					queryContext.getLocale(),
+					locale,
 					scopes
 				),
 				queryContext.getEvitaSession()
@@ -172,26 +197,26 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 				.map(GlobalEntityIndex.class::cast)
 				.filter(Objects::nonNull)
 				.toArray(GlobalEntityIndex[]::new);
-			final List<Sorter> sorters;
-			if (entityIndexes.length == 0) {
-				sorters = List.of();
-			} else {
-				// create a visitor
-				final OrderByVisitor orderByVisitor = new OrderByVisitor(nestedQueryContext);
-				// now analyze the filter by in a nested context with exchanged primary entity index
-				sorters = orderByVisitor.executeInContext(
-					entityIndexes,
-					entityType,
-					locale,
-					new AttributeSchemaAccessor(nestedQueryContext.getCatalogSchema(), entityCollection.getSchema()),
-					() -> {
-						for (OrderConstraint innerConstraint : orderBy.getChildren()) {
-							innerConstraint.accept(orderByVisitor);
-						}
-						// create a deferred sorter that will log the execution time to query telemetry
-						return orderByVisitor.getSorters();
-					}
-				);
+			// a scope holding no entity of the type sorts nothing, but the ordering is checked against the schema over
+			// an empty index of it all the same - the query must not fail or pass depending on the data
+			final GlobalEntityIndex[] emptyIndexes = scopes.stream()
+				.filter(
+					scope -> entityCollection.getIndexByKeyIfExists(
+						new EntityIndexKey(EntityIndexType.GLOBAL, scope)
+					) == null
+				)
+				.map(scope -> GlobalEntityIndex.createEmptyIndex(entityType, scope))
+				.toArray(GlobalEntityIndex[]::new);
+			if (emptyIndexes.length > 0) {
+				translateNestedOrderBy(orderBy, locale, entityCollection, nestedQueryContext, emptyIndexes);
+			}
+			final List<Sorter> sorters = entityIndexes.length == 0 ?
+				List.of() :
+				translateNestedOrderBy(orderBy, locale, entityCollection, nestedQueryContext, entityIndexes);
+			// the nested context is thrown away with its plan never built - what the ordering named is counted only
+			// when the context the sorter is created for takes it over
+			for (final SchemaCapabilityUsage requestedCapability : nestedQueryContext.drainRequestedCapabilities()) {
+				queryContext.registerRequestedCapability(requestedCapability);
 			}
 			return new NestedContextSorter(
 				nestedQueryContext.createExecutionContext(),
@@ -201,6 +226,48 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		} finally {
 			queryContext.popStep();
 		}
+	}
+
+	/**
+	 * Translates the ordering of the entities of `entityCollection` over the passed indexes in the nested query
+	 * context created by `createSorter`.
+	 *
+	 * The schema capabilities the ordering names are recorded in the nested query context, whose collection declares
+	 * them. That context builds no plan, so `createSorter` hands them over to the context it creates the sorter for.
+	 *
+	 * @param orderBy            the ordering to translate
+	 * @param locale             the locale of the ordering, NULL when there is none
+	 * @param entityCollection   the collection of the entities to order
+	 * @param nestedQueryContext the nested query context targeting `entityCollection`
+	 * @param entityIndexes      the global indexes of the entities, one per scope
+	 * @return the sorters of the ordering
+	 */
+	@Nonnull
+	private static List<Sorter> translateNestedOrderBy(
+		@Nonnull ConstraintContainer<OrderConstraint> orderBy,
+		@Nullable Locale locale,
+		@Nonnull EntityCollection entityCollection,
+		@Nonnull QueryPlanningContext nestedQueryContext,
+		@Nonnull GlobalEntityIndex[] entityIndexes
+	) {
+		// create a visitor
+		final OrderByVisitor orderByVisitor = new OrderByVisitor(nestedQueryContext);
+		// now analyze the filter by in a nested context with exchanged primary entity index
+		return orderByVisitor.executeInContext(
+			entityIndexes,
+			entityCollection.getEntityType(),
+			locale,
+			new AttributeSchemaAccessor(
+				nestedQueryContext.getCatalogSchema(), entityCollection.getSchema(), null, nestedQueryContext
+			),
+			() -> {
+				for (OrderConstraint innerConstraint : orderBy.getChildren()) {
+					innerConstraint.accept(orderByVisitor);
+				}
+				// create a deferred sorter that will log the execution time to query telemetry
+				return orderByVisitor.getSorters();
+			}
+		);
 	}
 
 	public OrderByVisitor(@Nonnull QueryPlanningContext queryContext) {
@@ -245,6 +312,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 					.filter(Optional::isPresent)
 					.map(Optional::get)
 					.toArray(EntityIndex[]::new),
+				null,
 				this.queryContext.isEntityTypeKnown() ?
 					this.queryContext.getSchema().getName() : null,
 				null,
@@ -293,6 +361,52 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 */
 	@Nonnull
 	public final List<Sorter> collectIsolatedSorters(@Nonnull Runnable lambda) {
+		return collectIsolatedSorters(lambda, true);
+	}
+
+	/**
+	 * Collects the sorters of a segment ordering: the lambda registers them within an isolated processing scope
+	 * exactly as in {@link #collectIsolatedSorters(Runnable)}, but the result lacks the default {@link NoSorter} that
+	 * {@link #getSorters()} appends to every chain lacking one, and while the lambda runs {@link #isWithinSegment()}
+	 * answers `true`. The result therefore holds only the sorters the ordering constraints produced themselves - it
+	 * may be empty - and the records none of them can sort stay unsorted, so that they fall out of the segment.
+	 *
+	 * @param lambda the lambda to execute within the isolated scope that creates and registers the sorter chain
+	 * @return the sorters registered by the lambda in registration order, possibly an empty list
+	 */
+	@Nonnull
+	public final List<Sorter> collectSegmentSorters(@Nonnull Runnable lambda) {
+		final boolean previouslyWithinSegment = this.withinSegment;
+		this.withinSegment = true;
+		try {
+			return collectIsolatedSorters(lambda, false);
+		} finally {
+			this.withinSegment = previouslyWithinSegment;
+		}
+	}
+
+	/**
+	 * Returns `true` while the sorters of a segment ordering are being created (see
+	 * {@link #collectSegmentSorters(Runnable)}). A segment takes only the entities its ordering can sort, so a
+	 * translator must neither register a sorter that places entities lacking the sorted data, nor a prefetch
+	 * comparator that sorts them - outside a segment, such a fallback keeps the entities in the ordering.
+	 *
+	 * @return `true` within a segment ordering
+	 */
+	public boolean isWithinSegment() {
+		return this.withinSegment;
+	}
+
+	/**
+	 * Runs the lambda within a new isolated {@link ProcessingScope} and returns the sorters it registered.
+	 *
+	 * @param lambda              the lambda that creates and registers the sorter chain
+	 * @param appendDefaultSorter `true` to return {@link #getSorters()} - ending with the default {@link NoSorter}
+	 *                            when the chain lacks one - `false` to return the registered sorters only
+	 * @return the collected sorters
+	 */
+	@Nonnull
+	private List<Sorter> collectIsolatedSorters(@Nonnull Runnable lambda, boolean appendDefaultSorter) {
 		try {
 			final ProcessingScope currentScope = getProcessingScope();
 			final LinkedList<Set<Scope>> requestedScopes = new LinkedList<>();
@@ -302,6 +416,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 					// the requested scopes never change
 					requestedScopes,
 					currentScope.entityIndex(),
+					currentScope.referencePartitions(),
 					currentScope.entityType(),
 					currentScope.referenceSchema(),
 					currentScope.locale(),
@@ -312,7 +427,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 				)
 			);
 			lambda.run();
-			return getSorters();
+			return appendDefaultSorter ? getSorters() : new ArrayList<>(getProcessingScope().sorters());
 		} finally {
 			this.scope.pop();
 		}
@@ -336,6 +451,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 				new ProcessingScope(
 					requestedScopes,
 					entityIndex,
+					null,
 					entityType,
 					null,
 					locale,
@@ -352,11 +468,10 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	}
 
 	/**
-	 * Sets different {@link EntityIndex} to be used in scope of lambda, which orders entities by a reference.
+	 * Sets the partitions of a reference to be used in scope of lambda, which orders entities by the reference.
 	 *
-	 * @param entityIndex             reduced indexes of the reference, used by consumers that need them at planning
-	 *                                time; ignored in favour of the resolver's planning indexes when a resolver is
-	 *                                passed
+	 * @param referencePartitions     partitions of the reference, used by consumers that need them at planning time;
+	 *                                ignored in favour of the resolver's planning partitions when a resolver is passed
 	 * @param referenceSchema         the reference the entities are ordered by
 	 * @param locale                  locale of the ordering or `null` for the locale of the query
 	 * @param attributeSchemaAccessor accessor of the reference attribute schemas
@@ -366,7 +481,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * @return the result of the lambda
 	 */
 	public final <T> T executeInContext(
-		@Nonnull EntityIndex[] entityIndex,
+		@Nonnull ReferencePartition[] referencePartitions,
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
@@ -381,7 +496,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 			this.scope.push(
 				new ProcessingScope(
 					requestedScopes,
-					entityIndex,
+					EMPTY_ENTITY_INDEXES,
+					referencePartitions,
 					referenceSchema.getReferencedEntityType(),
 					referenceSchema,
 					locale,
@@ -410,18 +526,150 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	}
 
 	/**
-	 * Returns index which is best suited for supplying {@link SortIndex}.
+	 * Returns the primary keys of the records of the ordered scopes when an `inScope` container narrows them below the
+	 * scopes of the query, and `null` when the ordering applies to every queried scope. An entity-level ordering whose
+	 * sorter cannot tell the scopes apart (primary key and price orders) wraps it in a {@link ScopedSorter} with these
+	 * records, so that it sorts only the entities of its scope. Nested reference orderings use the same restriction
+	 * on their selected owners while retaining the enclosing traversal blocks. A query without a collection has no
+	 * collection index telling which records a scope holds and gets `null`.
 	 *
-	 * Within a `pickFirst` reference ordering the indexes depend on the selection and are resolved at execution time
-	 * by {@link ProcessingScope#pickFirstIndexResolver()}; a consumer asking for them at planning time gets
-	 * {@link PickFirstReducedIndexResolver#getPlanningIndexes()}.
+	 * @return the records of the ordered scopes, or `null` when the ordering is not narrowed
+	 */
+	@Nullable
+	public Bitmap getRecordsOfNarrowedScopes() {
+		final ProcessingScope processingScope = getProcessingScope();
+		final Set<Scope> orderedScopes = processingScope.getScopes();
+		if (
+			!this.queryContext.isEntityTypeKnown() ||
+				orderedScopes.containsAll(this.queryContext.getScopes())
+		) {
+			return null;
+		}
+		final List<PersistentRoaringBitmap> scopeRecords = new ArrayList<>(orderedScopes.size());
+		for (Scope scope : orderedScopes) {
+			this.queryContext.getGlobalEntityIndexIfExists(scope)
+				.ifPresent(
+					index -> scopeRecords.add(RoaringBitmapBackedBitmap.getRoaringBitmap(index.getAllPrimaryKeys()))
+				);
+		}
+		if (scopeRecords.isEmpty()) {
+			return EmptyBitmap.INSTANCE;
+		} else if (scopeRecords.size() == 1) {
+			return new BaseBitmap(scopeRecords.get(0));
+		} else {
+			return new BaseBitmap(
+				PersistentRoaringBitmap.or(scopeRecords.toArray(PersistentRoaringBitmap[]::new))
+			);
+		}
+	}
+
+	/**
+	 * Restricts the passed sorter to the entities of the ordered scopes when an `inScope` container narrows them below
+	 * the scopes of the query (see {@link #getRecordsOfNarrowedScopes()}) - the entities of the other scopes are then
+	 * passed on to the next sorter. Otherwise the sorter is returned unchanged.
+	 *
+	 * @param sorter the sorter that cannot tell the scopes of the entities apart
+	 * @return the sorter restricted to the ordered scopes, or the passed sorter when the ordering is not narrowed
+	 */
+	@Nonnull
+	public Sorter restrictToOrderedScopes(@Nonnull Sorter sorter) {
+		final Bitmap recordsOfNarrowedScopes = getRecordsOfNarrowedScopes();
+		return recordsOfNarrowedScopes == null ? sorter : new ScopedSorter(recordsOfNarrowedScopes, sorter);
+	}
+
+	/**
+	 * Returns the resolver of the reduced indexes of the enclosing `pickFirst` reference ordering, limited to the
+	 * scopes the current ordering sorts - an `inScope` container nested in the reference ordering narrows them below
+	 * the scopes the resolver was created for, and neither route may then sort the owners of the other scopes.
+	 *
+	 * @return the resolver limited to the ordered scopes, or `null` outside a `pickFirst` reference ordering
+	 */
+	@Nullable
+	public PickFirstReducedIndexResolver getPickFirstIndexResolver() {
+		final ProcessingScope processingScope = getProcessingScope();
+		final PickFirstReducedIndexResolver resolver = processingScope.pickFirstIndexResolver();
+		return resolver == null ? null : resolver.restrictTo(processingScope.getScopes());
+	}
+
+	/**
+	 * Returns the indexes supplying the sort data of the ordered entities themselves, limited to the scopes the
+	 * ordering applies to. Within a reference ordering the sort data live in the partitions of the reference - see
+	 * {@link #getPartitionsForSort()}.
+	 *
+	 * @return the indexes of the ordered scopes
+	 * @throws GenericEvitaInternalError when called within a reference ordering
 	 */
 	@Nonnull
 	public EntityIndex[] getIndexesForSort() {
 		final ProcessingScope theScope = this.scope.peek();
 		isPremiseValid(theScope != null, "Scope is unexpectedly empty!");
-		final PickFirstReducedIndexResolver resolver = theScope.pickFirstIndexResolver();
-		return resolver == null ? theScope.entityIndex() : resolver.getPlanningIndexes();
+		isPremiseValid(
+			theScope.referenceSchema() == null,
+			"Within a reference ordering the sort data must be read from the reference partitions!"
+		);
+		return retainOrderedScopes(theScope.entityIndex(), theScope.getScopes());
+	}
+
+	/**
+	 * Returns the partitions of the reference the current reference ordering sorts by - materialized
+	 * {@link io.evitadb.index.ReducedEntityIndex reduced entity indexes} and
+	 * {@link io.evitadb.index.VirtualReferencePartition virtual partitions} of the registered single-owner partitions,
+	 * which have no sort or chain index of their own and are answered from the registry row.
+	 *
+	 * Within a `pickFirst` reference ordering the partitions depend on the selection and are resolved at execution time
+	 * by {@link ProcessingScope#pickFirstIndexResolver()}; a consumer asking for them at planning time gets
+	 * {@link PickFirstReducedIndexResolver#getPlanningIndexes()}.
+	 *
+	 * @return the partitions of the ordered scopes in target order
+	 * @throws GenericEvitaInternalError when called outside a reference ordering
+	 */
+	@Nonnull
+	public ReferencePartition[] getPartitionsForSort() {
+		final ProcessingScope theScope = this.scope.peek();
+		isPremiseValid(theScope != null, "Scope is unexpectedly empty!");
+		final PickFirstReducedIndexResolver resolver = getPickFirstIndexResolver();
+		if (resolver != null) {
+			return resolver.getPlanningIndexes();
+		}
+		final ReferencePartition[] partitions = theScope.referencePartitions();
+		isPremiseValid(partitions != null, "Reference partitions are available only within a reference ordering!");
+		final Set<Scope> orderedScopes = theScope.getScopes();
+		return orderedScopes.containsAll(this.queryContext.getScopes()) ? partitions :
+			Arrays.stream(partitions)
+				.filter(partition -> orderedScopes.contains(partition.getIndexKey().scope()))
+				.toArray(ReferencePartition[]::new);
+	}
+
+	/**
+	 * Returns the indexes of the passed scopes. The array is returned as is when every index belongs to one of them -
+	 * the common case without an `inScope` container - so that nothing is allocated.
+	 *
+	 * @param indexes       the indexes of the processing scope
+	 * @param orderedScopes the scopes the ordering applies to
+	 * @return the indexes of the ordered scopes
+	 */
+	@Nonnull
+	private static EntityIndex[] retainOrderedScopes(
+		@Nonnull EntityIndex[] indexes,
+		@Nonnull Set<Scope> orderedScopes
+	) {
+		int retained = 0;
+		for (EntityIndex index : indexes) {
+			if (orderedScopes.contains(index.getIndexKey().scope())) {
+				retained++;
+			}
+		}
+		if (retained == indexes.length) {
+			return indexes;
+		}
+		final EntityIndex[] result = new EntityIndex[retained];
+		int position = 0;
+		for (EntityIndex index : indexes) {
+			if (orderedScopes.contains(index.getIndexKey().scope())) {
+				result[position++] = index;
+			}
+		}
+		return result;
 	}
 
 	/**
@@ -464,8 +712,17 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 			throw new GenericEvitaInternalError("Should never happen");
 		}
 		// compose sorters one after another
-		final Deque<Sorter> sortersQueue = getProcessingScope().sorters();
-		currentSorters.forEach(sortersQueue::add);
+		final ProcessingScope processingScope = getProcessingScope();
+		final Deque<Sorter> sortersQueue = processingScope.sorters();
+		if (processingScope.referenceSchema() == null) {
+			currentSorters.forEach(sortersQueue::add);
+		} else {
+			// restrict each child independently, preserving the block for its following child orderings
+			final Bitmap scopeRecords = getRecordsOfNarrowedScopes();
+			currentSorters.forEach(
+				sorter -> sortersQueue.add(scopeRecords == null ? sorter : new ScopedSorter(scopeRecords, sorter))
+			);
+		}
 	}
 
 	/**
@@ -507,7 +764,10 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * attribute schema information.
 	 *
 	 * @param requiredScopes          contains set of scopes that are requested in input query
-	 * @param entityIndex             contains index, that should be used for accessing {@link SortIndex}.
+	 * @param entityIndex             contains index, that should be used for accessing {@link SortIndex} of the ordered
+	 *                                entities, empty within a reference ordering
+	 * @param referencePartitions     contains the partitions of the reference a reference ordering sorts by, `null`
+	 *                                outside of such ordering
 	 * @param entityType              contains entity type the context refers to
 	 * @param referenceSchema         contains reference schema the scope relates to
 	 * @param locale                  contains locale the context refers to
@@ -520,6 +780,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	public record ProcessingScope(
 		@Nonnull Deque<Set<Scope>> requiredScopes,
 		@Nonnull EntityIndex[] entityIndex,
+		@Nullable ReferencePartition[] referencePartitions,
 		@Nullable String entityType,
 		@Nullable ReferenceSchema referenceSchema,
 		@Nullable Locale locale,

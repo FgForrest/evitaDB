@@ -254,7 +254,7 @@ class PriceSuperIndexPagedPersistenceTest implements EvitaTestSupport {
 						)
 					);
 					assertEquals(1, matches.size(), "Exactly one entity should match price " + pk);
-					assertEquals(pk, matches.get(0).getPrimaryKey(), "Wrong primary key for price " + pk);
+					assertEquals(pk, matches.getFirst().getPrimaryKey(), "Wrong primary key for price " + pk);
 				}
 				return null;
 			}
@@ -298,7 +298,7 @@ class PriceSuperIndexPagedPersistenceTest implements EvitaTestSupport {
 						)
 					);
 					assertEquals(1, matches.size(), "Exactly one entity should match surviving price " + pk);
-					assertEquals(pk, matches.get(0).getPrimaryKey(), "Wrong primary key for surviving price " + pk);
+					assertEquals(pk, matches.getFirst().getPrimaryKey(), "Wrong primary key for surviving price " + pk);
 				}
 				return null;
 			}

@@ -25,6 +25,7 @@ package io.evitadb.api.query.expression.bool;
 
 
 import io.evitadb.api.query.expression.AbstractBinaryOperator;
+import io.evitadb.api.query.expression.ExpressionPrecedence;
 import io.evitadb.api.query.expression.exception.ParserException;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -56,6 +57,11 @@ public class EqualsOperator extends AbstractBinaryOperator implements BooleanOpe
 	@Override
 	protected String getOperatorSymbol() {
 		return "==";
+	}
+
+	@Override
+	protected int getPrecedence() {
+		return ExpressionPrecedence.EQUALITY;
 	}
 
 	@Nonnull

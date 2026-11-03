@@ -60,8 +60,8 @@ import static io.evitadb.roaringbitmap.Util.lowbitsAsInteger;
  * unchanged: the result *aliases* those `Container` instances with its inputs. Every borrowed slot
  * is flagged in the parallel {@link #shared} array, and the first in-place mutation of such a slot
  * clones it just-in-time (see `copyIfShared`) before writing, so no bitmap ever observes another's
- * data change underneath it. A static op leaves its operands logically unchanged but raises their
- * `shared[]` flags too, since they now co-own the carried-over containers.
+ * data change underneath it. A borrowing operation leaves its operands logically unchanged but sets
+ * {@link #lent}, conservatively protecting all their containers before their next mutation.
  * {@link #and(PersistentRoaringBitmap, PersistentRoaringBitmap) and} shares nothing — an
  * intersection only ever produces freshly computed containers. This trades one boolean flag per
  * chunk for avoiding a full container copy, sharply cutting allocation and GC pressure when
@@ -74,9 +74,11 @@ import static io.evitadb.roaringbitmap.Util.lowbitsAsInteger;
  * In the transactional MVCC commit path — clone at commit, read-only for the rest of the version's
  * life — no structural write ever happens, so the clone never pays the O(containers) array copy.
  *
- * Thread-safety: because a static op writes `shared[]` flags on its operands as a side effect, it
- * must not run concurrently with any other access to those operands, and a shared result must be
- * safely published before another thread mutates it. The `frozen` flag has the same constraint.
+ * Thread-safety: non-owners only set {@link #lent}, an idempotent write that reallocates nothing;
+ * concurrent operand use is allowed. Every operation that used a bitmap as an operand must
+ * happen-before its next mutation, and results must be safely published between threads.
+ * Array-level {@code frozen} marking in {@link #clone()} remains an idempotent single-field write.
+ * Concurrent mutation is not supported.
  *
  * Credits: derived from the RoaringBitmap project
  * (https://github.com/RoaringBitmap/RoaringBitmap) by Daniel Lemire et al., Apache License 2.0.
@@ -102,16 +104,18 @@ public class PersistentRoaringBitmap
 	 */
 	@Nonnull RoaringArray highLowContainer;
 	/**
-	 * Copy-on-write flags parallel to `highLowContainer.values[]`: `shared[i] == true` means the
-	 * container at index `i` is a borrowed reference co-owned by another bitmap and MUST be cloned
-	 * before any in-place mutation.
-	 *
-	 * May be shorter than the container array: static/lazy builders that produce fully owned results
-	 * append containers directly to `highLowContainer` and leave `shared[]` lagging. Any index beyond
-	 * `shared.length` is therefore treated as owned (`false`), which is why the shift/remove helpers
-	 * tolerate an undersized array rather than assuming a strict parallel length.
+	 * Copy-on-write flags parallel to {@link #highLowContainer}. Length is at least its live size;
+	 * every entry beyond that size is false. A live slot is effectively shared when
+	 * {@code lent || shared[i]}, and must be cloned before an in-place write.
+	 * Only the owner or a private result builder writes this array.
 	 */
 	@Nonnull boolean[] shared;
+	/**
+	 * All containers may be shared. Non-owners only set this plain field to true, idempotently;
+	 * the owner materializes it through {@link #unlend()} before mutation. Every operand operation
+	 * must happen-before the next mutation, making its write visible without {@code volatile}.
+	 */
+	boolean lent;
 
 	/**
 	 * Generate a copy of the provided bitmap, but with
@@ -146,9 +150,13 @@ public class PersistentRoaringBitmap
 			for (int pos = 0; pos < x.highLowContainer.size(); pos++) {
 				int key = (x.highLowContainer.getKeyAtIndex(pos));
 				key += container_offset;
+				if (key < 0 || key > 0xFFFF) {
+					continue;
+				}
 				answer.highLowContainer.append(
 					(char) key, x.highLowContainer.getContainerAtIndex(pos).clone());
 			}
+			answer.sealOwned();
 			return answer;
 		} else {
 			PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
@@ -180,6 +188,7 @@ public class PersistentRoaringBitmap
 					answer.highLowContainer.append((char) (key + 1), offsetted[1]);
 				}
 			}
+			answer.sealOwned();
 			answer.repairAfterLazy();
 			return answer;
 		}
@@ -217,6 +226,7 @@ public class PersistentRoaringBitmap
 					: Container.rangeOfOnes(lbStart, lbLast + 1);
 			answer.highLowContainer.append((char) hbStart, c);
 			answer.highLowContainer.appendCopiesAfter(rb.highLowContainer, (char) hbLast);
+			answer.sealOwned();
 			return answer;
 		}
 		int ifirst = rb.highLowContainer.getIndex((char) hbStart);
@@ -243,6 +253,7 @@ public class PersistentRoaringBitmap
 			answer.highLowContainer.append((char) hbLast, c);
 		}
 		answer.highLowContainer.appendCopiesAfter(rb.highLowContainer, (char) hbLast);
+		answer.sealOwned();
 		return answer;
 	}
 
@@ -261,7 +272,7 @@ public class PersistentRoaringBitmap
 	public static PersistentRoaringBitmap add(
 		@Nonnull final PersistentRoaringBitmap rb, final int rangeStart, final int rangeEnd) {
 		if (rangeStart >= 0) {
-			return add(rb, (long) rangeStart, (long) rangeEnd);
+			return add(rb, rangeStart, (long) rangeEnd);
 		}
 		// rangeStart being -ve and rangeEnd being positive is not expected)
 		// so assume both -ve
@@ -349,7 +360,7 @@ public class PersistentRoaringBitmap
 	 * is thread-safe as long as the provided bitmaps remain unchanged.
 	 *
 	 * Containers of `x1` that have no counterpart in `x2` are carried into the result by structural
-	 * sharing (copy-on-write): the result aliases them and `x1`'s `shared[]` flags are raised. Chunks
+	 * sharing (copy-on-write): the result aliases them and sets `x1.lent`. Chunks
 	 * present in both inputs are recomputed and owned. See the class-level copy-on-write note.
 	 *
 	 * @param x1 first bitmap
@@ -507,6 +518,7 @@ public class PersistentRoaringBitmap
 		}
 		// copy the containers after the active area.
 		answer.highLowContainer.appendCopiesAfter(bm.highLowContainer, (char) hbLast);
+		answer.sealOwned();
 		return answer;
 	}
 
@@ -525,7 +537,7 @@ public class PersistentRoaringBitmap
 	public static PersistentRoaringBitmap flip(
 		@Nonnull final PersistentRoaringBitmap rb, final int rangeStart, final int rangeEnd) {
 		if (rangeStart >= 0) {
-			return flip(rb, (long) rangeStart, (long) rangeEnd);
+			return flip(rb, rangeStart, (long) rangeEnd);
 		}
 		// rangeStart being -ve and rangeEnd being positive is not expected)
 		// so assume both -ve
@@ -596,9 +608,9 @@ public class PersistentRoaringBitmap
 	 * thread-safe as long as the provided bitmaps remain unchanged.
 	 *
 	 * Chunks present in only one input are carried into the result by structural sharing
-	 * (copy-on-write): the result aliases those containers and the source's `shared[]` flags are
-	 * raised. Chunks present in both inputs are merged into freshly owned containers. See the
-	 * class-level copy-on-write note.
+	 * (copy-on-write): the result aliases those containers and sets the source's `lent` flag. Chunks
+	 * present in both inputs are merged into freshly owned containers. See the class-level
+	 * copy-on-write note.
 	 *
 	 * If you have more than 2 bitmaps, consider using the FastAggregation class.
 	 *
@@ -788,6 +800,7 @@ public class PersistentRoaringBitmap
 				}
 			}
 			answer.highLowContainer.appendCopiesAfter(rb.highLowContainer, (char) hbLast);
+			answer.sealOwned();
 			return answer;
 		}
 		int ifirst = rb.highLowContainer.getIndex((char) hbStart);
@@ -808,6 +821,7 @@ public class PersistentRoaringBitmap
 			}
 		}
 		answer.highLowContainer.appendCopiesAfter(rb.highLowContainer, (char) hbLast);
+		answer.sealOwned();
 		return answer;
 	}
 
@@ -825,7 +839,7 @@ public class PersistentRoaringBitmap
 	public static PersistentRoaringBitmap remove(
 		@Nonnull final PersistentRoaringBitmap rb, final int rangeStart, final int rangeEnd) {
 		if (rangeStart >= 0) {
-			return remove(rb, (long) rangeStart, (long) rangeEnd);
+			return remove(rb, rangeStart, (long) rangeEnd);
 		}
 		// rangeStart being -ve and rangeEnd being positive is not expected)
 		// so assume both -ve
@@ -837,9 +851,8 @@ public class PersistentRoaringBitmap
 	 * operation is thread-safe as long as the provided bitmaps remain unchanged.
 	 *
 	 * Chunks present in only one input are carried into the result by structural sharing
-	 * (copy-on-write): the result aliases those containers and the source's `shared[]` flags are
-	 * raised. Chunks present in both inputs are recomputed and owned. See the class-level
-	 * copy-on-write note.
+	 * (copy-on-write): the result aliases those containers and sets the source's `lent` flag. Chunks
+	 * present in both inputs are recomputed and owned. See the class-level copy-on-write note.
 	 *
 	 * If you have more than 2 bitmaps, consider using the FastAggregation class.
 	 *
@@ -964,7 +977,7 @@ public class PersistentRoaringBitmap
 	@Deprecated
 	public static PersistentRoaringBitmap and(
 		@Nonnull final Iterator<? extends PersistentRoaringBitmap> bitmaps, final int rangeStart, final int rangeEnd) {
-		return and(bitmaps, (long) rangeStart, (long) rangeEnd);
+		return and(bitmaps, rangeStart, (long) rangeEnd);
 	}
 
 	/**
@@ -1009,7 +1022,7 @@ public class PersistentRoaringBitmap
 		@Nonnull final PersistentRoaringBitmap x1, @Nonnull final PersistentRoaringBitmap x2, final int rangeStart,
 		final int rangeEnd
 	) {
-		return andNot(x1, x2, (long) rangeStart, (long) rangeEnd);
+		return andNot(x1, x2, rangeStart, (long) rangeEnd);
 	}
 
 	/**
@@ -1029,6 +1042,9 @@ public class PersistentRoaringBitmap
 	public static PersistentRoaringBitmap orNot(
 		@Nonnull final PersistentRoaringBitmap x1, @Nonnull final PersistentRoaringBitmap x2, long rangeEnd) {
 		rangeSanityCheck(0, rangeEnd);
+		if (rangeEnd == 0) {
+			return fromBitmap(x1);
+		}
 		int maxKey = (int) ((rangeEnd - 1) >>> 16);
 		int lastRun = (rangeEnd & 0xFFFF) == 0 ? 0x10000 : (int) (rangeEnd & 0xFFFF);
 		int size = 0;
@@ -1043,11 +1059,8 @@ public class PersistentRoaringBitmap
 			++remainder;
 		}
 		int correction = 0;
-		for (int i = 0; i < x2.highLowContainer.size - remainder; ++i) {
+		for (int i = 0; i < length2 && x2.highLowContainer.getKeyAtIndex(i) <= maxKey; ++i) {
 			correction += x2.highLowContainer.getContainerAtIndex(i).isFull() ? 1 : 0;
-			if (x2.highLowContainer.getKeyAtIndex(i) >= maxKey) {
-				break;
-			}
 		}
 		// it's almost certain that the bitmap will grow, so make a conservative overestimate,
 		// this avoids temporary allocation, and can trim afterwards
@@ -1086,6 +1099,9 @@ public class PersistentRoaringBitmap
 			} else if (key == s2) { // insert the complement
 				newValues[size] =
 					x2.highLowContainer.getContainerAtIndex(pos2).not(0, key == maxKey ? lastRun : 0x10000);
+				if (key == maxKey && lastRun < 0x10000) {
+					newValues[size] = newValues[size].iremove(lastRun, 0x10000);
+				}
 				++pos2;
 				s2 = pos2 < length2 ? x2.highLowContainer.getKeyAtIndex(pos2) : maxKey + 1;
 			} else { // key missing from both
@@ -1118,6 +1134,7 @@ public class PersistentRoaringBitmap
 		result.highLowContainer.keys = newKeys;
 		result.highLowContainer.values = newValues;
 		result.highLowContainer.size = size + remainder;
+		result.sealOwned();
 		return result;
 	}
 
@@ -1157,7 +1174,7 @@ public class PersistentRoaringBitmap
 	@Deprecated
 	public static PersistentRoaringBitmap or(
 		@Nonnull final Iterator<? extends PersistentRoaringBitmap> bitmaps, final int rangeStart, final int rangeEnd) {
-		return or(bitmaps, (long) rangeStart, (long) rangeEnd);
+		return or(bitmaps, rangeStart, (long) rangeEnd);
 	}
 
 	/**
@@ -1216,7 +1233,7 @@ public class PersistentRoaringBitmap
 	@Deprecated
 	public static PersistentRoaringBitmap xor(
 		@Nonnull final Iterator<? extends PersistentRoaringBitmap> bitmaps, final int rangeStart, final int rangeEnd) {
-		return xor(bitmaps, (long) rangeStart, (long) rangeEnd);
+		return xor(bitmaps, rangeStart, (long) rangeEnd);
 	}
 
 	/**
@@ -1281,6 +1298,7 @@ public class PersistentRoaringBitmap
 		} else if (pos2 == length2) {
 			answer.highLowContainer.appendCopy(x1.highLowContainer, pos1, length1);
 		}
+		answer.sealOwned();
 		return answer;
 	}
 
@@ -1308,12 +1326,15 @@ public class PersistentRoaringBitmap
 	@Nonnull
 	protected static PersistentRoaringBitmap lazyorfromlazyinputs(
 		@Nonnull final PersistentRoaringBitmap x1, @Nonnull final PersistentRoaringBitmap x2) {
+		x1.unlend();
+		x2.unlend();
 		final PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
 		int pos1 = 0, pos2 = 0;
 		final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
 		// a consumed input may itself be holding chunks BORROWED from a third bitmap; those keep
 		// their co-ownership as they pass through, so the answer never mutates a live container
 		final boolean[] resultShared = new boolean[length1 + length2];
+		answer.shared = resultShared;
 		main:
 		if (pos1 < length1 && pos2 < length2) {
 			char s1 = x1.highLowContainer.getKeyAtIndex(pos1);
@@ -1367,7 +1388,6 @@ public class PersistentRoaringBitmap
 		} else if (pos2 == length2) {
 			appendConsumedTail(answer, resultShared, x1, pos1, length1);
 		}
-		answer.shared = resultShared;
 		return answer;
 	}
 
@@ -1383,21 +1403,11 @@ public class PersistentRoaringBitmap
 	}
 
 	/**
-	 * Marks ALL containers in a bitmap as shared.
-	 *
-	 * Deliberately an idempotent full fill rather than a per-slot record of what a caller actually
-	 * lent. A `PersistentRoaringBitmap` reachable through the engine's transactional bitmap can be an
-	 * operand of two concurrent queries at once, and this array is written without synchronisation:
-	 * re-asserting every slot converges on the conservative value, so an update lost to a racing
-	 * writer (or to the reallocation inside {@link #ensureSharedCapacity}) is re-established by the
-	 * next caller. Sparse writes would have no such convergence, and the value a lost sparse write
-	 * leaves behind is the unsafe one - an unflagged slot over a container the result aliases. The
-	 * result side carries no such constraint and IS tracked per slot; see {@link #flagLentLast}.
+	 * Sets only the operand's {@link #lent} field, idempotently protecting all its containers.
+	 * Result flags remain precise; operand arrays are never written or reallocated by borrowers.
 	 */
 	private static void markAllShared(@Nonnull final PersistentRoaringBitmap bitmap) {
-		final int size = bitmap.highLowContainer.size();
-		bitmap.ensureSharedCapacity(size);
-		Arrays.fill(bitmap.shared, 0, size, true);
+		bitmap.lent = true;
 	}
 
 	/**
@@ -1541,7 +1551,7 @@ public class PersistentRoaringBitmap
 						.remove(0, lbStart)
 						.iremove(lbLast + 1, Util.maxLowBitAsInteger() + 1);
 				if (!c.isEmpty()) {
-					answer.highLowContainer.append((char) hbStart, c);
+					answer.append((char) hbStart, c);
 				}
 			}
 			return answer;
@@ -1551,7 +1561,7 @@ public class PersistentRoaringBitmap
 		if (ifirst >= 0) {
 			final Container c = rb.highLowContainer.getContainerAtIndex(ifirst).remove(0, lbStart);
 			if (!c.isEmpty()) {
-				answer.highLowContainer.append((char) hbStart, c);
+				answer.append((char) hbStart, c);
 			}
 		}
 
@@ -1563,16 +1573,12 @@ public class PersistentRoaringBitmap
 
 			if (i >= 0) {
 				final Container c = rb.highLowContainer.getContainerAtIndex(i);
-				// A fully-included middle chunk is carried over by reference, so the source and the
-				// extracted answer co-own it. Raise the copy-on-write flag on both: the source clones
-				// before a later in-place mutation, and the answer stays consistent for whichever
-				// aggregation consumes it. Boundary chunks above go through remove()/iremove(), which
-				// always allocate, so they are owned and need no flag.
+				// A middle chunk is borrowed: flag the private answer's slot and lend the source.
+				// Boundary chunks go through allocating remove()/iremove() and stay owned.
 				final int insertAt = -j - 1;
 				answer.highLowContainer.insertNewKeyValueAt(insertAt, (char) hb, c);
 				answer.sharedInsertAt(insertAt, true);
-				rb.ensureSharedCapacity(i + 1);
-				rb.shared[i] = true;
+				rb.lent = true;
 			}
 		}
 
@@ -1582,7 +1588,7 @@ public class PersistentRoaringBitmap
 					.getContainerAtIndex(ilast)
 					.remove(lbLast + 1, Util.maxLowBitAsInteger() + 1);
 			if (!c.isEmpty()) {
-				answer.highLowContainer.append((char) hbLast, c);
+				answer.append((char) hbLast, c);
 			}
 		}
 		return answer;
@@ -1607,6 +1613,7 @@ public class PersistentRoaringBitmap
 	/**
 	 * Package-private constructor: wraps an existing RoaringArray and shared flags.
 	 * Used by static binary ops to construct results that share containers with the inputs.
+	 * Flags must cover every live slot and have a false tail beyond the live size.
 	 */
 	PersistentRoaringBitmap(@Nonnull final RoaringArray highLowContainer, @Nonnull final boolean[] shared) {
 		this.highLowContainer = highLowContainer;
@@ -1632,6 +1639,7 @@ public class PersistentRoaringBitmap
 	 * @param dat set values
 	 */
 	public void add(@Nonnull final int... dat) {
+		unlend();
 		this.addN(dat, 0, dat.length);
 	}
 
@@ -1647,6 +1655,7 @@ public class PersistentRoaringBitmap
 	 * @param n      how many values should be set to true
 	 */
 	public void addN(@Nonnull final int[] dat, final int offset, final int n) {
+		unlend();
 		if ((n < 0) || (offset < 0)) {
 			throw new IllegalArgumentException("Negative values do not make sense.");
 		}
@@ -1719,6 +1728,7 @@ public class PersistentRoaringBitmap
 	 */
 	@Override
 	public void add(final int x) {
+		unlend();
 		final char hb = Util.highbits(x);
 		final int i = this.highLowContainer.getIndex(hb);
 		if (i >= 0) {
@@ -1739,6 +1749,7 @@ public class PersistentRoaringBitmap
 	 * @param rangeEnd   exclusive ending of range
 	 */
 	public void add(final long rangeStart, final long rangeEnd) {
+		unlend();
 		rangeSanityCheck(rangeStart, rangeEnd);
 		if (rangeStart >= rangeEnd) {
 			return; // empty range
@@ -1776,6 +1787,7 @@ public class PersistentRoaringBitmap
 	 */
 	@Override
 	public void remove(final int x) {
+		unlend();
 		final char hb = Util.highbits(x);
 		final int i = this.highLowContainer.getIndex(hb);
 		if (i < 0) {
@@ -1791,10 +1803,17 @@ public class PersistentRoaringBitmap
 	}
 
 	/**
-	 * Recover allocated but unused memory.
+	 * Recover allocated but unused memory in owned containers and this bitmap's parallel arrays.
+	 * Shared containers stay untouched because trimming replaces their backing arrays in place.
 	 */
 	@Override
 	public void trim() {
+		unlend();
+		for (int i = 0; i < this.highLowContainer.size(); ++i) {
+			if (!isShared(i)) {
+				this.highLowContainer.getContainerAtIndex(i).trim();
+			}
+		}
 		this.highLowContainer.trim();
 		this.shared = Arrays.copyOf(this.shared, this.highLowContainer.size());
 	}
@@ -1808,8 +1827,9 @@ public class PersistentRoaringBitmap
 	 */
 	@Deprecated
 	public void add(final int rangeStart, final int rangeEnd) {
+		unlend();
 		if (rangeStart >= 0) {
-			add((long) rangeStart, (long) rangeEnd);
+			add(rangeStart, (long) rangeEnd);
 		}
 		// rangeStart being -ve and rangeEnd being positive is not expected)
 		// so assume both -ve
@@ -1861,6 +1881,7 @@ public class PersistentRoaringBitmap
 	 * @param x2 other bitmap
 	 */
 	public void and(@Nonnull final PersistentRoaringBitmap x2) {
+		unlend();
 		if (x2 == this) {
 			return;
 		}
@@ -1897,6 +1918,7 @@ public class PersistentRoaringBitmap
 	 * @param x2 other bitmap
 	 */
 	public void andNot(@Nonnull final PersistentRoaringBitmap x2) {
+		unlend();
 		if (x2 == this) {
 			clear();
 			return;
@@ -1904,10 +1926,6 @@ public class PersistentRoaringBitmap
 		int pos1 = 0, pos2 = 0, intersectionSize = 0;
 		final int length1 = this.highLowContainer.size(), length2 = x2.highLowContainer.size();
 		final boolean[] newShared = new boolean[length1];
-		// All-owned static builders (flip, add(range), addOffset) can leave shared[] shorter than the
-		// container array; entries beyond shared.length are owned (false). Grow it so the raw index
-		// reads below stay in bounds, matching sharedRemoveAt's tolerance of an undersized shared[].
-		ensureSharedCapacity(length1);
 
 		while (pos1 < length1 && pos2 < length2) {
 			final char s1 = this.highLowContainer.getKeyAtIndex(pos1);
@@ -1955,10 +1973,14 @@ public class PersistentRoaringBitmap
 	 * @param rangeEnd end point of the range (exclusive).
 	 */
 	public void orNot(@Nonnull final PersistentRoaringBitmap other, long rangeEnd) {
+		unlend();
 		if (other == this) {
 			throw new UnsupportedOperationException("orNot between a bitmap and itself?");
 		}
 		rangeSanityCheck(0, rangeEnd);
+		if (rangeEnd == 0) {
+			return;
+		}
 		final int maxKey = (int) ((rangeEnd - 1) >>> 16);
 		final int lastRun = (rangeEnd & 0xFFFF) == 0 ? 0x10000 : (int) (rangeEnd & 0xFFFF);
 		int size = 0;
@@ -1971,11 +1993,8 @@ public class PersistentRoaringBitmap
 			++remainder;
 		}
 		int correction = 0;
-		for (int i = 0; i < other.highLowContainer.size - remainder; ++i) {
+		for (int i = 0; i < length2 && other.highLowContainer.getKeyAtIndex(i) <= maxKey; ++i) {
 			correction += other.highLowContainer.getContainerAtIndex(i).isFull() ? 1 : 0;
-			if (other.highLowContainer.getKeyAtIndex(i) >= maxKey) {
-				break;
-			}
 		}
 		// it's almost certain that the bitmap will grow, so make a conservative overestimate,
 		// this avoids temporary allocation, and can trim afterwards
@@ -2019,6 +2038,9 @@ public class PersistentRoaringBitmap
 						.highLowContainer
 						.getContainerAtIndex(pos2)
 						.not(0, key == maxKey ? lastRun : 0x10000);
+				if (key == maxKey && lastRun < 0x10000) {
+					newValues[size] = newValues[size].iremove(lastRun, 0x10000);
+				}
 				++pos2;
 				s2 = pos2 < length2 ? other.highLowContainer.getKeyAtIndex(pos2) : maxKey + 1;
 			} else { // key missing from both
@@ -2036,10 +2058,6 @@ public class PersistentRoaringBitmap
 		// copy over everything which will remain without being complemented
 		if (remainder > 0) {
 			final int srcOffset = this.highLowContainer.size - remainder;
-			// All-owned static builders can leave shared[] shorter than the container array; entries
-			// beyond shared.length are owned (false). Grow it so the raw-index copy below stays in
-			// bounds, matching sharedRemoveAt's tolerance of an undersized shared[].
-			ensureSharedCapacity(this.highLowContainer.size);
 			System.arraycopy(this.highLowContainer.keys, srcOffset, newKeys, size, remainder);
 			System.arraycopy(this.highLowContainer.values, srcOffset, newValues, size, remainder);
 			System.arraycopy(this.shared, srcOffset, newShared, size, remainder);
@@ -2058,6 +2076,7 @@ public class PersistentRoaringBitmap
 	 * @return true if the added int wasn't already contained in the bitmap. False otherwise.
 	 */
 	public boolean checkedAdd(final int x) {
+		unlend();
 		final char hb = Util.highbits(x);
 		final int i = this.highLowContainer.getIndex(hb);
 		if (i >= 0) {
@@ -2092,6 +2111,7 @@ public class PersistentRoaringBitmap
 	 * @return true if the unset bit was already in the bitmap
 	 */
 	public boolean checkedRemove(final int x) {
+		unlend();
 		final char hb = Util.highbits(x);
 		final char lb = Util.lowbits(x);
 		final int i = this.highLowContainer.getIndex(hb);
@@ -2130,6 +2150,7 @@ public class PersistentRoaringBitmap
 	 * reset to an empty bitmap; result occupies as much space a newly created bitmap.
 	 */
 	public void clear() {
+		unlend();
 		this.highLowContainer = new RoaringArray(); // lose references
 		this.shared = new boolean[RoaringArray.INITIAL_CAPACITY];
 	}
@@ -2348,12 +2369,12 @@ public class PersistentRoaringBitmap
 	 * @return the bitmap's heap footprint in bytes, including alignment padding
 	 */
 	public long getHeapSizeInBytes(@Nonnull final HeapLayout layout) {
-		// this object: the highLowContainer and shared references
-		long size = layout.sizeOfObject(2L * layout.referenceSize());
+		// this object: the highLowContainer and shared references, and the lent flag
+		long size = layout.sizeOfObject(2L * layout.referenceSize() + 1L);
 		// the RoaringArray: its keys/values references, the `size` counter and the `frozen` flag
 		size += layout.sizeOfObject(2L * layout.referenceSize() + Integer.BYTES + 1L);
 		// the backbone arrays at their allocated lengths - `keys` and `values` grow together, while
-		// `shared` is allowed to lag behind them, so all three are read rather than derived from one.
+		// `shared` covers the live size but can have different capacity, so each length is read.
 		// `values` is read ONCE, so the containers below come from the very array charged here
 		final Container[] theValues = this.highLowContainer.values;
 		size += layout.sizeOfArray(this.highLowContainer.keys.length, Character.BYTES);
@@ -2396,7 +2417,7 @@ public class PersistentRoaringBitmap
 		     (currentcardinality < maxcardinality) && (i < this.highLowContainer.size());
 		     i++) {
 			Container c = this.highLowContainer.getContainerAtIndex(i);
-			if (c.getCardinality() + currentcardinality <= maxcardinality) {
+			if ((long) c.getCardinality() + currentcardinality <= maxcardinality) {
 				answer.highLowContainer.appendCopy(this.highLowContainer, i);
 				currentcardinality += c.getCardinality();
 			} else {
@@ -2406,6 +2427,7 @@ public class PersistentRoaringBitmap
 				break;
 			}
 		}
+		answer.sealOwned();
 		return answer;
 	}
 
@@ -2642,7 +2664,7 @@ public class PersistentRoaringBitmap
 		long prevAbsentBit = computePreviousAbsentValue(fromValue);
 		assert prevAbsentBit <= 0xFFFFFFFFL;
 		assert prevAbsentBit <= Util.toUnsignedLong(fromValue);
-		assert !contains((int) prevAbsentBit);
+		assert prevAbsentBit == -1L || !contains((int) prevAbsentBit);
 		return prevAbsentBit;
 	}
 
@@ -2787,14 +2809,15 @@ public class PersistentRoaringBitmap
 			return false;
 		}
 		char firstKey = Util.highbits(minimum);
-		char lastKey = Util.highbits(supremum);
+		// At 2^32 the exclusive upper key is 65536, one past the final chunk.
+		int lastKey = (int) (supremum >>> 16);
 		int span = lastKey - firstKey;
 		int len = this.highLowContainer.size;
 		if (len < span) {
 			return false;
 		}
 		int begin = this.highLowContainer.getIndex(firstKey);
-		int end = this.highLowContainer.getIndex(lastKey);
+		int end = lastKey == 1 << 16 ? len : this.highLowContainer.getIndex((char) lastKey);
 		end = end < 0 ? -end - 1 : end;
 		if (begin < 0 || end - begin != span) {
 			return false;
@@ -2809,7 +2832,8 @@ public class PersistentRoaringBitmap
 		if (!this.highLowContainer.getContainerAtIndex(begin).contains(min, 1 << 16)) {
 			return false;
 		}
-		if (sup != 0 && end < len && !this.highLowContainer.getContainerAtIndex(end).contains(0, sup)) {
+		if (sup != 0 && (end == len || this.highLowContainer.getKeyAtIndex(end) != lastKey
+			|| !this.highLowContainer.getContainerAtIndex(end).contains(0, sup))) {
 			return false;
 		}
 		for (int i = begin + 1; i < end; ++i) {
@@ -2838,6 +2862,7 @@ public class PersistentRoaringBitmap
 	 * @throws IOException Signals that an I/O exception has occurred.
 	 */
 	public void deserialize(@Nonnull final DataInput in, @Nullable final byte[] buffer) throws IOException {
+		unlend();
 		try {
 			this.highLowContainer.deserialize(in, buffer);
 		} catch (InvalidRoaringFormat cookie) {
@@ -2856,6 +2881,7 @@ public class PersistentRoaringBitmap
 	 * @throws IOException Signals that an I/O exception has occurred.
 	 */
 	public void deserialize(@Nonnull final DataInput in) throws IOException {
+		unlend();
 		try {
 			this.highLowContainer.deserialize(in);
 		} catch (InvalidRoaringFormat cookie) {
@@ -2883,6 +2909,7 @@ public class PersistentRoaringBitmap
 	 * @throws IOException Signals that an I/O exception has occurred.
 	 */
 	public void deserialize(@Nonnull final ByteBuffer bbf) throws IOException {
+		unlend();
 		try {
 			this.highLowContainer.deserialize(bbf);
 		} catch (InvalidRoaringFormat cookie) {
@@ -2940,6 +2967,7 @@ public class PersistentRoaringBitmap
 	 * @param x integer value
 	 */
 	public void flip(final int x) {
+		unlend();
 		final char hb = Util.highbits(x);
 		final int i = this.highLowContainer.getIndex(hb);
 		if (i >= 0) {
@@ -2966,6 +2994,7 @@ public class PersistentRoaringBitmap
 	 * @param rangeEnd   exclusive ending of range
 	 */
 	public void flip(final long rangeStart, final long rangeEnd) {
+		unlend();
 		rangeSanityCheck(rangeStart, rangeEnd);
 		if (rangeStart >= rangeEnd) {
 			return; // empty range
@@ -3012,8 +3041,9 @@ public class PersistentRoaringBitmap
 	 */
 	@Deprecated
 	public void flip(final int rangeStart, final int rangeEnd) {
+		unlend();
 		if (rangeStart >= 0) {
-			flip((long) rangeStart, (long) rangeEnd);
+			flip(rangeStart, (long) rangeEnd);
 		} else {
 			// rangeStart being -ve and rangeEnd being positive is not expected)
 			// so assume both -ve
@@ -3224,8 +3254,8 @@ public class PersistentRoaringBitmap
 	 * everything as shared, so the first mutator on either side clones only the affected container
 	 * (see {@link #shared}). The `keys[]`/`values[]` backing arrays of {@link #highLowContainer} are
 	 * themselves shared too: both sides' `RoaringArray` are marked {@code frozen}, so the arrays are
-	 * only copied on the first structural write (`RoaringArray.defrost()`) — in the transactional MVCC
-	 * commit path that never happens, making this clone effectively O(1) instead of O(containers).
+	 * only copied on the first structural write (`RoaringArray.defrost()`). The clone takes O(containers)
+	 * time to allocate and fill its flag array, without copying any container or the key/value arrays.
 	 */
 	// COW clone deliberately builds an independent copy with shared-flag bookkeeping, not super.clone()
 	@SuppressWarnings("CloneDoesntCallSuperClone")
@@ -3240,9 +3270,8 @@ public class PersistentRoaringBitmap
 			new RoaringArray(this.highLowContainer.keys, this.highLowContainer.values, size);
 		clonedArray.frozen = true;
 
-		// Container-level COW (unchanged): mark everything shared in both this and the clone.
-		ensureSharedCapacity(size);
-		Arrays.fill(this.shared, 0, size, true);
+		// Lend through one field; only the private clone's flags are filled.
+		this.lent = true;
 		final boolean[] cloneShared = new boolean[size];
 		Arrays.fill(cloneShared, true);
 
@@ -3346,12 +3375,13 @@ public class PersistentRoaringBitmap
 	 * In-place bitwise OR (union) operation. The current bitmap is modified.
 	 *
 	 * Chunks that exist only in `x2` are borrowed into this bitmap by structural sharing rather than
-	 * copied; both bitmaps flag those slots shared, so a later mutation on either side clones the
-	 * affected container on demand. `x2` itself is not modified apart from its `shared[]` flags.
+	 * copied; the receiver flags the borrowed slots and sets `x2.lent`, so a later mutation on either
+	 * side clones the affected container on demand. No operand flag array is changed.
 	 *
 	 * @param x2 other bitmap
 	 */
 	public void or(@Nonnull final PersistentRoaringBitmap x2) {
+		unlend();
 		if (this == x2) {
 			return;
 		}
@@ -3405,6 +3435,7 @@ public class PersistentRoaringBitmap
 	 * @param rangeEnd   exclusive ending of range
 	 */
 	public void remove(final long rangeStart, final long rangeEnd) {
+		unlend();
 
 		rangeSanityCheck(rangeStart, rangeEnd);
 
@@ -3476,8 +3507,9 @@ public class PersistentRoaringBitmap
 	 */
 	@Deprecated
 	public void remove(final int rangeStart, final int rangeEnd) {
+		unlend();
 		if (rangeStart >= 0) {
-			remove((long) rangeStart, (long) rangeEnd);
+			remove(rangeStart, (long) rangeEnd);
 		}
 		// rangeStart being -ve and rangeEnd being positive is not expected)
 		// so assume both -ve
@@ -3490,6 +3522,7 @@ public class PersistentRoaringBitmap
 	 * @return whether a change was applied
 	 */
 	public boolean removeRunCompression() {
+		unlend();
 		boolean answer = false;
 		for (int i = 0; i < this.highLowContainer.size(); i++) {
 			Container c = this.highLowContainer.getContainerAtIndex(i);
@@ -3511,6 +3544,7 @@ public class PersistentRoaringBitmap
 	 * @return whether a change was applied
 	 */
 	public boolean runOptimize() {
+		unlend();
 		boolean answer = false;
 		for (int i = 0; i < this.highLowContainer.size(); i++) {
 			final Container previous = this.highLowContainer.getContainerAtIndex(i);
@@ -3592,6 +3626,7 @@ public class PersistentRoaringBitmap
 					answer.highLowContainer.append((char) hbStart, c);
 				}
 			}
+			answer.sealOwned();
 			return answer;
 		}
 		int ifirst = this.highLowContainer.getIndex((char) hbStart);
@@ -3624,6 +3659,7 @@ public class PersistentRoaringBitmap
 				answer.highLowContainer.append((char) hbLast, c);
 			}
 		}
+		answer.sealOwned();
 		return answer;
 	}
 
@@ -3634,6 +3670,7 @@ public class PersistentRoaringBitmap
 	 */
 	@Override
 	public void append(char key, @Nonnull final Container container) {
+		unlend();
 		this.highLowContainer.append(key, container);
 		ensureSharedCapacity(this.highLowContainer.size());
 	}
@@ -3653,6 +3690,7 @@ public class PersistentRoaringBitmap
 	 */
 	@Override
 	public void readExternal(ObjectInput in) throws IOException {
+		unlend();
 		this.highLowContainer.readExternal(in);
 		this.shared = new boolean[this.highLowContainer.size()];
 	}
@@ -3661,12 +3699,13 @@ public class PersistentRoaringBitmap
 	 * In-place bitwise XOR (symmetric difference) operation. The current bitmap is modified.
 	 *
 	 * Chunks that exist only in `x2` are borrowed into this bitmap by structural sharing rather than
-	 * copied; both bitmaps flag those slots shared, so a later mutation on either side clones the
-	 * affected container on demand. `x2` itself is not modified apart from its `shared[]` flags.
+	 * copied; the receiver flags the borrowed slots and sets `x2.lent`, so a later mutation on either
+	 * side clones the affected container on demand. No operand flag array is changed.
 	 *
 	 * @param x2 other bitmap
 	 */
 	public void xor(@Nonnull final PersistentRoaringBitmap x2) {
+		unlend();
 		if (x2 == this) {
 			clear();
 			return;
@@ -3732,6 +3771,7 @@ public class PersistentRoaringBitmap
 	 * @param x2 other bitmap
 	 */
 	protected void lazyor(@Nonnull final PersistentRoaringBitmap x2) {
+		unlend();
 		if (this == x2) {
 			return;
 		}
@@ -3766,7 +3806,7 @@ public class PersistentRoaringBitmap
 					}
 					s1 = this.highLowContainer.getKeyAtIndex(pos1);
 				} else {
-					borrowAndInsert(pos1, s2, x2, pos2, length2);
+					borrowAndInsert(pos1, s2, x2, pos2);
 					pos1++;
 					length1++;
 					pos2++;
@@ -3827,6 +3867,7 @@ public class PersistentRoaringBitmap
 	 * @param x2 other bitmap
 	 */
 	protected void naivelazyor(@Nonnull final PersistentRoaringBitmap x2) {
+		unlend();
 		naivelazyor(x2, true);
 	}
 
@@ -3844,6 +3885,7 @@ public class PersistentRoaringBitmap
 	 *                          immediately, as this method did before the sparse policy existed
 	 */
 	protected void naivelazyor(@Nonnull final PersistentRoaringBitmap x2, final boolean arrayUnionAllowed) {
+		unlend();
 		if (this == x2) {
 			return;
 		}
@@ -3955,6 +3997,7 @@ public class PersistentRoaringBitmap
 	 * container is cloned before it is repaired in place.
 	 */
 	protected void repairAfterLazy() {
+		unlend();
 		for (int k = 0; k < this.highLowContainer.size(); ++k) {
 			copyIfShared(k);
 			final Container c = this.highLowContainer.getContainerAtIndex(k);
@@ -3978,11 +4021,27 @@ public class PersistentRoaringBitmap
 	}
 
 	/**
-	 * Returns whether the container at the given index is marked as shared.
-	 * Package-private for testing.
+	 * Returns the effective copy-on-write flag of a live slot.
 	 */
 	boolean isShared(int i) {
-		return i < this.shared.length && this.shared[i];
+		return this.lent || this.shared[i];
+	}
+
+	/**
+	 * Materializes pending lending before any owner mutation, leaving the spare flag tail false.
+	 */
+	private void unlend() {
+		if (this.lent) {
+			Arrays.fill(this.shared, 0, this.highLowContainer.size(), true);
+			this.lent = false;
+		}
+	}
+
+	/**
+	 * Finishes a private all-owned builder by sizing its initially false flag array.
+	 */
+	void sealOwned() {
+		ensureSharedCapacity(this.highLowContainer.size());
 	}
 
 	/**
@@ -3999,7 +4058,7 @@ public class PersistentRoaringBitmap
 	 * This is the COW guard -- must be called BEFORE any in-place mutation.
 	 */
 	private void copyIfShared(int i) {
-		if (i < this.shared.length && this.shared[i]) {
+		if (isShared(i)) {
 			this.highLowContainer.setContainerAtIndex(
 				i,
 				this.highLowContainer.getContainerAtIndex(i).clone()
@@ -4010,13 +4069,10 @@ public class PersistentRoaringBitmap
 
 	/**
 	 * Drops the copy-on-write flag of slot `i`, i.e. records that this bitmap is now the sole owner of
-	 * whatever container the slot holds. Tolerates a `shared[]` shorter than the container array, since
-	 * an absent entry already means owned.
+	 * whatever container the slot holds. The owner has already materialized pending lending.
 	 */
 	private void clearSharedAt(final int i) {
-		if (i < this.shared.length) {
-			this.shared[i] = false;
-		}
+		this.shared[i] = false;
 	}
 
 	/**
@@ -4043,12 +4099,6 @@ public class PersistentRoaringBitmap
 	 */
 	private void sharedRemoveAt(int i) {
 		final int size = this.highLowContainer.size(); // already decremented
-		// Static/lazy builders that produce all-owned results (e.g. flip, orNot, addOffset) populate
-		// highLowContainer via RoaringArray-level appends and may leave shared[] shorter than the
-		// container array. Every container beyond shared.length is necessarily owned (only the three
-		// sharing paths create shared containers, and all of them grow shared[] to cover their slots),
-		// so growing here and treating absent entries as false is correct, not just crash-safe.
-		ensureSharedCapacity(size + 1);
 		System.arraycopy(this.shared, i + 1, this.shared, i, size - i);
 		this.shared[size] = false;
 	}
@@ -4062,30 +4112,24 @@ public class PersistentRoaringBitmap
 			return;
 		}
 		final int newSize = this.highLowContainer.size(); // already decremented
-		// See sharedRemoveAt: tolerate an undersized shared[] left by all-owned builders; the old
-		// size was newSize + (end - begin), and entries beyond shared.length are owned (false).
-		ensureSharedCapacity(newSize + (end - begin));
 		System.arraycopy(this.shared, end, this.shared, begin, newSize - begin);
 		Arrays.fill(this.shared, newSize, newSize + (end - begin), false);
 	}
 
 	/**
 	 * Borrows a container from x2 at pos2 by structural sharing, inserts it into this bitmap
-	 * at pos1, and updates both bitmaps' shared[] tracking arrays.
+	 * at pos1, flags the receiver slot and sets the source's {@link #lent} field.
 	 *
 	 * @param pos1    insertion index in this bitmap
 	 * @param s2      the key to insert
 	 * @param x2      the source bitmap
 	 * @param pos2    the container index in x2
-	 * @param length2 the size of x2's container array (used for ensureSharedCapacity)
 	 */
 	private void borrowAndInsert(
-		int pos1, char s2, @Nonnull final PersistentRoaringBitmap x2, int pos2,
-		int length2
+		final int pos1, final char s2, @Nonnull final PersistentRoaringBitmap x2, final int pos2
 	) {
 		final Container c = x2.highLowContainer.getContainerAtIndex(pos2);
-		x2.ensureSharedCapacity(length2);
-		x2.shared[pos2] = true;
+		x2.lent = true;
 		this.highLowContainer.insertNewKeyValueAt(pos1, s2, c);
 		sharedInsertAt(pos1, true);
 	}
@@ -4099,13 +4143,15 @@ public class PersistentRoaringBitmap
 	 * @param length2 ending index (exclusive) in x2
 	 */
 	private void appendTailWithSharing(@Nonnull final PersistentRoaringBitmap x2, int pos2, int length2) {
+		if (pos2 >= length2) {
+			return;
+		}
 		final int startSize = this.highLowContainer.size();
 		this.highLowContainer.append(x2.highLowContainer, pos2, length2);
 		final int newSize = this.highLowContainer.size();
 		ensureSharedCapacity(newSize);
 		Arrays.fill(this.shared, startSize, newSize, true);
-		x2.ensureSharedCapacity(length2);
-		Arrays.fill(x2.shared, pos2, length2, true);
+		x2.lent = true;
 	}
 
 	/** Op selector for {@link #mergeBulk}: in-place union (or). */
@@ -4136,10 +4182,10 @@ public class PersistentRoaringBitmap
 	 * `dst < left` at the entry point to drop the container it just emptied.
 	 *
 	 * Copy-on-write is preserved rather than upstream's clone-everything approach: a source-only chunk
-	 * is borrowed by structural sharing and both operands' {@link #shared} flag is raised for it
+	 * is borrowed by structural sharing, flagging the receiver slot and setting {@code x2.lent}
 	 * (mirroring {@link #borrowAndInsert}); a receiver-only chunk keeps its existing ownership flag; an
 	 * overlapping chunk whose receiver container is shared is cloned before the in-place op, so its
-	 * result is always owned. `x2` is not mutated apart from its {@link #shared} flags.
+	 * result is always owned. `x2` is not mutated apart from its {@link #lent} field.
 	 *
 	 * @param x2    the source bitmap being merged into this one
 	 * @param dst   number of already-final leading entries copied over verbatim
@@ -4186,12 +4232,8 @@ public class PersistentRoaringBitmap
 		final boolean[] newShared = new boolean[total];
 		System.arraycopy(keys1, 0, newKeys, 0, dst);
 		System.arraycopy(values1, 0, newValues, 0, dst);
-		// carry the already-final prefix's sharing flags; an all-owned builder may leave shared[]
-		// shorter than the container array, in which case the absent tail is owned (false)
-		System.arraycopy(this.shared, 0, newShared, 0, Math.min(dst, this.shared.length));
-
-		// x2's shared[] must be able to record every source container we may borrow below
-		x2.ensureSharedCapacity(length2);
+		// Entry unlending has materialized the receiver's effective flags.
+		System.arraycopy(this.shared, 0, newShared, 0, dst);
 
 		int pos = dst;
 		int i = left;
@@ -4203,22 +4245,22 @@ public class PersistentRoaringBitmap
 				// receiver-only chunk: keep as-is, preserving its ownership flag
 				newKeys[pos] = k1;
 				newValues[pos] = values1[i];
-				newShared[pos] = i < this.shared.length && this.shared[i];
+				newShared[pos] = isShared(i);
 				pos++;
 				i++;
 			} else if (k1 > k2) {
-				// source-only chunk: borrow by structural sharing (both operands flagged shared)
+				// source-only chunk: flag the receiver slot and lend the source
 				newKeys[pos] = k2;
 				newValues[pos] = values2[j];
 				newShared[pos] = true;
-				x2.shared[j] = true;
+				x2.lent = true;
 				pos++;
 				j++;
 			} else {
 				// overlapping chunk: the receiver's container is mutated in place, so a co-owned one
 				// has to be cloned first
 				final Container base = values1[i];
-				final boolean sharedBase = i < this.shared.length && this.shared[i];
+				final boolean sharedBase = isShared(i);
 				final Container c;
 				if (op == MERGE_XOR) {
 					c = (sharedBase ? base.clone() : base).ixor(values2[j]);
@@ -4243,7 +4285,7 @@ public class PersistentRoaringBitmap
 		while (i < length1) {
 			newKeys[pos] = keys1[i];
 			newValues[pos] = values1[i];
-			newShared[pos] = i < this.shared.length && this.shared[i];
+			newShared[pos] = isShared(i);
 			pos++;
 			i++;
 		}
@@ -4251,7 +4293,7 @@ public class PersistentRoaringBitmap
 			newKeys[pos] = keys2[j];
 			newValues[pos] = values2[j];
 			newShared[pos] = true;
-			x2.shared[j] = true;
+			x2.lent = true;
 			pos++;
 			j++;
 		}
@@ -4274,7 +4316,7 @@ public class PersistentRoaringBitmap
 			return Util.toUnsignedLong(fromValue);
 		}
 		char containerKey = this.highLowContainer.getKeyAtIndex(containerIndex);
-		if (fromValue < containerKey << 16) {
+		if (containerKey != key) {
 			return Util.toUnsignedLong(fromValue);
 		}
 		Container container = this.highLowContainer.getContainerAtIndex(containerIndex);
@@ -4311,7 +4353,7 @@ public class PersistentRoaringBitmap
 			return Util.toUnsignedLong(fromValue);
 		}
 		char containerKey = this.highLowContainer.getKeyAtIndex(containerIndex);
-		if (fromValue < containerKey << 16) {
+		if (containerKey != key) {
 			return Util.toUnsignedLong(fromValue);
 		}
 		Container container = this.highLowContainer.getContainerAtIndex(containerIndex);

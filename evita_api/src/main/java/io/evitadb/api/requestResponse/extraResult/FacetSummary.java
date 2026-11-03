@@ -119,7 +119,7 @@ public class FacetSummary extends ReferenceSummary {
 	) {
 		// FacetGroupStatistics extends ReferenceGroupStatistics, so the cast is safe
 		return super.prettyPrint(
-			(Function<ReferenceGroupStatistics, String>) (Function<?, ?>) groupRenderer,
+			groupRenderer,
 			facetRenderer
 		);
 	}

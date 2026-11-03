@@ -429,8 +429,9 @@ public class TransactionalComplexObjArray<
 	 * holds any raw mutable state of its own:
 	 *
 	 * - {@link io.evitadb.index.range.TransactionalRangePoint} — a `TransactionalBoolean` dirty flag plus two
-	 *   `TransactionalBitmap`s (`starts` / `ends`, assigned only by its constructors), all three of which journal
-	 *   their own warm-up writes.
+	 *   `TransactionalBitmap`s (`starts` / `ends`) and two optional arrays of further `TransactionalBitmap`s (the
+	 *   repeated occurrence levels), all assigned only by its constructors and all journalling their own warm-up
+	 *   writes; growing a level array mints a new point instead of resizing the array.
 	 * - {@link io.evitadb.index.invertedIndex.ValueToRecordBitmap} — an immutable value plus one `TransactionalBitmap`.
 	 *
 	 * Both are in fact held by the B+ trees today (the range point in a `TransactionalLongBPlusTree`, the bucket in the

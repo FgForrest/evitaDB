@@ -131,9 +131,14 @@ esac
 # `export.fileSystem.directory` must also be pinned: it defaults to `./export` relative to the working
 # directory and evitaDB takes an exclusive folder lock on it, so two engines started from the same
 # project directory fight over it and the second dies with FolderAlreadyUsedException.
+#
+# `api.certificate.folderPath` is pinned for the same reason: its default `./evita-server-certificates/` resolves
+# against the working directory, so the server would reuse - and fail on - whatever key file a checkout happens to
+# hold there. Each run generates its own self-signed pair next to its logs instead.
 APP_ARGS=(
 	"storage.storageDirectory=${TARGET_DATA_DIR}"
 	"export.fileSystem.directory=${TARGET_DATA_DIR}/export"
+	"api.certificate.folderPath=${LOG_DIR}/certificates/"
 	"storage.compress=${COMPRESS}"
 	"server.trafficRecording.enabled=false"
 	"server.closeSessionsAfterSecondsOfInactivity=0"

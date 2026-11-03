@@ -46,7 +46,7 @@ import java.util.Random;
  *
  * Run with `-Dreport.n=<distinct values>` (default 320,000) and `-Dreport.txs=<measured transactions>` (default 12).
  * Being a report rather than a benchmark, it prints to stdout and asserts nothing — the flat-scaling invariant it
- * exists to illustrate is guarded automatically by `SortIndexRankScalingTest` in the functional suite.
+ * exists to illustrate is guarded automatically by `LongRunningSortIndexRankScalingTest` in the long-running suite.
  *
  * The measured numbers, the conditions they were taken under and their interpretation live in
  * `documentation/performance/individual/SortIndexAliveWriteReport/README.md`. Re-run this report and update that

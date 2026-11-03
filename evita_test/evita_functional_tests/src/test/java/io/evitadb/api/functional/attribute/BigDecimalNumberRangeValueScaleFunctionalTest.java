@@ -129,7 +129,7 @@ class BigDecimalNumberRangeValueScaleFunctionalTest {
 					", so the indexed longs are at a different scale than the query bounds. Expected 1 record, got " +
 					result.size() + "."
 			);
-			assertEquals(1, result.get(0).getPrimaryKey());
+			assertEquals(1, result.getFirst().getPrimaryKey());
 			return null;
 		});
 	}
@@ -222,7 +222,7 @@ class BigDecimalNumberRangeValueScaleFunctionalTest {
 					"entity was not found - the array range element was not re-encoded to indexedDecimalPlaces=" +
 					INDEXED_DECIMAL_PLACES + ". Expected 1 record, got " + result.size() + "."
 			);
-			assertEquals(1, result.get(0).getPrimaryKey());
+			assertEquals(1, result.getFirst().getPrimaryKey());
 			return null;
 		});
 	}
@@ -268,7 +268,7 @@ class BigDecimalNumberRangeValueScaleFunctionalTest {
 					"not found via attributeInRange - the range value was not re-encoded to indexedDecimalPlaces=" +
 					INDEXED_DECIMAL_PLACES + ". Expected 1 record, got " + result.size() + "."
 			);
-			assertEquals(1, result.get(0).getPrimaryKey());
+			assertEquals(1, result.getFirst().getPrimaryKey());
 			return null;
 		});
 	}
@@ -417,7 +417,7 @@ class BigDecimalNumberRangeValueScaleFunctionalTest {
 					"Scalar BigDecimal 88.1 (scale 5) within [88, 100] should always be found regardless of " +
 						"indexedDecimalPlaces. Expected 1 record, got " + result.size() + "."
 				);
-				assertEquals(1, result.get(0).getPrimaryKey());
+				assertEquals(1, result.getFirst().getPrimaryKey());
 				return null;
 			});
 		}
@@ -492,7 +492,7 @@ class BigDecimalNumberRangeValueScaleFunctionalTest {
 					"Scalar 88.10000 must match attributeEquals(88.100) - scalar equality is scale-insensitive. " +
 						"Expected 1 record, got " + result.size() + "."
 				);
-				assertEquals(1, result.get(0).getPrimaryKey());
+				assertEquals(1, result.getFirst().getPrimaryKey());
 				return null;
 			});
 		}
@@ -532,7 +532,7 @@ class BigDecimalNumberRangeValueScaleFunctionalTest {
 					"Array element 88.1 (scale 5) within [88, 100] should always be found regardless of " +
 						"indexedDecimalPlaces. Expected 1 record, got " + result.size() + "."
 				);
-				assertEquals(1, result.get(0).getPrimaryKey());
+				assertEquals(1, result.getFirst().getPrimaryKey());
 				return null;
 			});
 		}
@@ -697,7 +697,7 @@ class BigDecimalNumberRangeValueScaleFunctionalTest {
 						"was not found via referenceHaving - the reference range value was not re-encoded to " +
 						"indexedDecimalPlaces=" + INDEXED_DECIMAL_PLACES + ". Expected 1 record, got " + result.size() + "."
 				);
-				assertEquals(1, result.get(0).getPrimaryKey());
+				assertEquals(1, result.getFirst().getPrimaryKey());
 				return null;
 			});
 		}
@@ -737,7 +737,7 @@ class BigDecimalNumberRangeValueScaleFunctionalTest {
 						"owning entity was not found - the reference range array element was not re-encoded to " +
 						"indexedDecimalPlaces=" + INDEXED_DECIMAL_PLACES + ". Expected 1 record, got " + result.size() + "."
 				);
-				assertEquals(1, result.get(0).getPrimaryKey());
+				assertEquals(1, result.getFirst().getPrimaryKey());
 				return null;
 			});
 		}

@@ -2,6 +2,7 @@ package io.evitadb.roaringbitmap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -235,6 +236,128 @@ public class TestRankIteratorsOfContainers {
 		while (iterator.hasNext()) {
 			assertEquals((iterator.peekNext()) + 1, iterator.peekNextRank());
 			iterator.next();
+		}
+	}
+
+	/**
+	 * rank(Character.MAX_VALUE) must equal getCardinality() for every container type. This is the
+	 * path used by rangeCardinality when a query ends on a container boundary (upstream issue #844).
+	 */
+	@Test
+	@DisplayName("Rank of the largest char equals the cardinality for every container type")
+	public void rankOfMaxEqualsCardinality() {
+		final Random rnd = new Random(42);
+
+		final ArrayContainer ac = new ArrayContainer();
+		fillRandom(ac, rnd);
+		assertEquals(ac.getCardinality(), ac.rank(Character.MAX_VALUE));
+		ac.add(Character.MAX_VALUE);
+		assertEquals(ac.getCardinality(), ac.rank(Character.MAX_VALUE));
+
+		final BitmapContainer bc = new BitmapContainer();
+		fillRandom(bc, rnd);
+		assertEquals(bc.getCardinality(), bc.rank(Character.MAX_VALUE));
+		bc.add(Character.MAX_VALUE);
+		assertEquals(bc.getCardinality(), bc.rank(Character.MAX_VALUE));
+
+		// empty bitmap container
+		assertEquals(0, new BitmapContainer().rank(Character.MAX_VALUE));
+
+		// nearly full / full bitmap
+		final BitmapContainer almostFull = new BitmapContainer();
+		fillRange(almostFull, 0, 65535);
+		assertEquals(almostFull.getCardinality(), almostFull.rank(Character.MAX_VALUE));
+		final BitmapContainer full = new BitmapContainer();
+		fillRange(full, 0, 65536);
+		assertEquals(full.getCardinality(), full.rank(Character.MAX_VALUE));
+		assertEquals(65536, full.rank(Character.MAX_VALUE));
+
+		final RunContainer rc = new RunContainer();
+		fillRandom(rc, rnd);
+		assertEquals(rc.getCardinality(), rc.rank(Character.MAX_VALUE));
+		fillRange(rc, 60000, 65536);
+		assertEquals(rc.getCardinality(), rc.rank(Character.MAX_VALUE));
+
+		// empty / single-point containers
+		assertEquals(0, new ArrayContainer().rank(Character.MAX_VALUE));
+		assertEquals(0, new RunContainer().rank(Character.MAX_VALUE));
+		final ArrayContainer single = new ArrayContainer();
+		single.add(Character.MAX_VALUE);
+		assertEquals(1, single.rank(Character.MAX_VALUE));
+	}
+
+	/**
+	 * A lazily-built bitmap container must answer rank(Character.MAX_VALUE) correctly **without** storing
+	 * its cardinality. Upstream repairs the cardinality here; the vendored copy deliberately does not,
+	 * because `-1` tells {@link BitmapContainer#repairAfterLazy()} that it still has to run and may demote
+	 * the container (see `LazyCardinalityProtocolTest`).
+	 */
+	@Test
+	@DisplayName("Rank of the largest char on a lazy bitmap container is correct and leaves the cardinality unknown")
+	public void rankOfMaxOnLazyContainerKeepsCardinalityUnknown() {
+		final BitmapContainer lazy = new BitmapContainer();
+		fillRange(lazy, 0, 10000);
+		final ArrayContainer other = new ArrayContainer();
+		other.add((char) 20000);
+		other.add(Character.MAX_VALUE);
+		lazy.ilazyor(other);
+		assertTrue(lazy.cardinality < 0, "precondition: lazy or invalidates cardinality");
+
+		assertEquals(10002, lazy.rank(Character.MAX_VALUE));
+		assertEquals(lazy.rank((char) 0xFFFE) + 1, lazy.rank(Character.MAX_VALUE));
+		assertTrue(lazy.cardinality < 0, "rank must not stand in for repairAfterLazy");
+
+		final Container repaired = lazy.repairAfterLazy();
+		assertEquals(10002, repaired.getCardinality());
+		assertEquals(10002, repaired.rank(Character.MAX_VALUE));
+	}
+
+	/**
+	 * A sparse lazy result must still be demoted by repairAfterLazy after its rank was asked for, which is
+	 * exactly what storing the cardinality inside rank would break.
+	 */
+	@Test
+	@DisplayName("A rank query on a sparse lazy bitmap container does not stop repairAfterLazy demoting it")
+	public void rankOfMaxOnSparseLazyContainerStillDemotes() {
+		final BitmapContainer lazy = new BitmapContainer();
+		final ArrayContainer few = new ArrayContainer();
+		few.add((char) 1000);
+		few.add((char) 2000);
+		few.add((char) 3000);
+		lazy.ilazyor(few);
+		assertTrue(lazy.cardinality < 0, "precondition: lazy or invalidates cardinality");
+
+		assertEquals(3, lazy.rank(Character.MAX_VALUE));
+
+		final Container repaired = lazy.repairAfterLazy();
+		assertTrue(repaired instanceof ArrayContainer, "a three-value chunk must be demoted to an array");
+		assertEquals(3, repaired.getCardinality());
+	}
+
+	/** Full-container rangeCardinality must match getCardinality (upstream issue #844). */
+	@Test
+	@DisplayName("A range covering one whole chunk counts that chunk's cardinality")
+	public void rangeCardinalityFullContainer() {
+		final PersistentRoaringBitmap rb = new PersistentRoaringBitmap();
+		// one sparse container (array)
+		for (int i = 0; i < 100; i++) {
+			rb.add(i * 3);
+		}
+		// one dense container (bitmap)
+		rb.add(1L << 16, (1L << 16) + 40000);
+		// one run-friendly container
+		rb.add(2L << 16, (2L << 16) + 65536);
+
+		final ContainerPointer p = rb.getContainerPointer();
+		while (p.getContainer() != null) {
+			final long key = p.key() & 0xFFFFL;
+			final long start = key << 16;
+			final long end = start + (1L << 16);
+			assertEquals(
+				p.getContainer().getCardinality(),
+				rb.rangeCardinality(start, end),
+				"full-container range for key " + key);
+			p.advance();
 		}
 	}
 }

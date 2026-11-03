@@ -45,7 +45,6 @@ import java.util.Random;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -68,8 +67,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * The tree path is taken while the selected count `K` (padded by the two absent ids the selections always append)
  * satisfies `(K + 2) * 64 <= N`; the small-`N` methods keep several selection sizes below that threshold and several
- * above it so both branches run, while the large-`N` method drives tree-path selections whose resolved positions span
- * multiple B+tree leaves AND multiple 16-bit RoaringBitmap containers (positions beyond 65536).
+ * above it so both branches run. The large-`N` case, whose tree-path selections resolve to positions spanning multiple
+ * B+tree leaves AND multiple 16-bit RoaringBitmap containers (positions beyond 65536), takes too long for the fast
+ * loop and lives in `LongRunningSortIndexTreeProviderEquivalenceTest`, which shares the helpers below.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -79,12 +79,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SortIndexTreeProviderEquivalenceTest {
 
 	private static final int RECORD_COUNT = 2_000;
-
-	/**
-	 * Record count for the multi-leaf / multi-container coverage: large enough that a tree-path selection resolves to
-	 * mask positions beyond the first 16-bit RoaringBitmap container (65536) and spanning many B+tree leaves.
-	 */
-	private static final int LARGE_RECORD_COUNT = 70_000;
 
 	/**
 	 * First 16-bit RoaringBitmap container boundary: positions `>= 65536` fall into the second container.
@@ -128,27 +122,6 @@ class SortIndexTreeProviderEquivalenceTest {
 		final int[] descendingOrder = fixture.ascendingOrder().clone();
 		reverse(descendingOrder);
 		verifyDenseColdPath(fixture, true, descendingOrder, 11L);
-	}
-
-	@Test
-	@Tag(SLOW)
-	@DisplayName("tree-path resolution spanning many leaves and multiple bitmap containers matches array and oracle")
-	void shouldMatchAcrossMultipleLeavesAndContainers() {
-		// a large index whose sorted order exceeds one 16-bit RoaringBitmap container (positions run up to ~70000)
-		final Fixture fixture = buildFixture(20260706L, LARGE_RECORD_COUNT);
-		// tree path requires (K + 2) * 64 <= LARGE_RECORD_COUNT (K up to ~1091); these selections spread present ids
-		// across the whole order so the resolved masks span many B+tree leaves AND both bitmap containers
-		final int[] treePathSizes = {200, 500, 800, 1000};
-
-		final SortedRecordsProvider ascending = fixture.sortIndex().getAscendingOrderRecordsSupplier();
-		verifyProvider(ascending, fixture.ascendingOrder(), fixture.presentRecordIds(), treePathSizes, 42L);
-		assertMaskSpansBothContainers(ascending, fixture.ascendingOrder().length);
-
-		final int[] descendingOrder = fixture.ascendingOrder().clone();
-		reverse(descendingOrder);
-		final SortedRecordsProvider descending = fixture.sortIndex().getDescendingOrderRecordsSupplier();
-		verifyProvider(descending, descendingOrder, fixture.presentRecordIds(), treePathSizes, 99L);
-		assertMaskSpansBothContainers(descending, descendingOrder.length);
 	}
 
 	/**
@@ -390,7 +363,7 @@ class SortIndexTreeProviderEquivalenceTest {
 	 * selection sizes (each mixed with a slice of absent records) and asserts the mask, the emitted order and the
 	 * not-found hand-off all match the oracle.
 	 */
-	private static void verifyProvider(
+	static void verifyProvider(
 		@Nonnull SortedRecordsProvider provider,
 		@Nonnull int[] expectedOrder,
 		@Nonnull int[] presentRecordIds,
@@ -662,7 +635,7 @@ class SortIndexTreeProviderEquivalenceTest {
 	 * records at the lowest (0) and the highest (`recordCount - 1`) sorted positions and asserts the resolved mask holds
 	 * exactly those two positions, the higher of which lies beyond the first container boundary (65536).
 	 */
-	private static void assertMaskSpansBothContainers(@Nonnull SortedRecordsProvider provider, int recordCount) {
+	static void assertMaskSpansBothContainers(@Nonnull SortedRecordsProvider provider, int recordCount) {
 		final int lastPosition = recordCount - 1;
 		assertTrue(lastPosition >= CONTAINER_BOUNDARY, "the large index must place positions beyond the first container");
 		// resolve by the two records seated at positions 0 and lastPosition (selectedRecordCount 2 -> tree path)
@@ -704,7 +677,7 @@ class SortIndexTreeProviderEquivalenceTest {
 	 * alongside the independently-computed ascending order and the present record ids.
 	 */
 	@Nonnull
-	private static Fixture buildFixture(long seed, int recordCount) {
+	static Fixture buildFixture(long seed, int recordCount) {
 		final Random random = new Random(seed);
 		final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
 		final List<int[]> pairs = new ArrayList<>(recordCount);
@@ -777,7 +750,7 @@ class SortIndexTreeProviderEquivalenceTest {
 	/**
 	 * Reverses the given array in place.
 	 */
-	private static void reverse(@Nonnull int[] array) {
+	static void reverse(@Nonnull int[] array) {
 		for (int i = 0, j = array.length - 1; i < j; i++, j--) {
 			final int tmp = array[i];
 			array[i] = array[j];
@@ -788,7 +761,7 @@ class SortIndexTreeProviderEquivalenceTest {
 	/**
 	 * Immutable test fixture bundling the index under test with the independent oracle order and present record ids.
 	 */
-	private record Fixture(
+	record Fixture(
 		@Nonnull SortIndex sortIndex,
 		@Nonnull int[] ascendingOrder,
 		@Nonnull int[] presentRecordIds

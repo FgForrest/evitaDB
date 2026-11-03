@@ -27,6 +27,7 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.data.AssociatedDataEditor.AssociatedDataBuilder;
+import io.evitadb.api.requestResponse.data.mutation.associatedData.RemoveAssociatedDataMutation;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
@@ -38,6 +39,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.Locale;
 import java.util.Set;
@@ -476,6 +478,60 @@ class ExistingAssociatedDataBuilderTest extends AbstractBuilderTest {
 				1L, englishGreeting.version()
 			);
 			assertFalse(englishGreeting.dropped());
+		}
+	}
+
+	@Nested
+	@DisplayName("Removing already removed associated data")
+	class RemovingAlreadyRemovedTest {
+
+		/**
+		 * Returns associated data in which the non-localized `int` and the German `greetings` were removed, so both of
+		 * them are kept only as dropped tombstones - the shape in which an entity carries associated data removed in
+		 * one of its earlier versions.
+		 */
+		@Nonnull
+		private AssociatedData associatedDataWithRemovedValues() {
+			final AssociatedData associatedData =
+				new ExistingAssociatedDataBuilder(
+					PRODUCT_SCHEMA,
+					ExistingAssociatedDataBuilderTest.this.initialAssociatedData
+				)
+					.removeAssociatedData("int")
+					.removeAssociatedData("greetings", Locale.GERMAN)
+					.build();
+			assertTrue(associatedData.getAssociatedDataValue(new AssociatedDataKey("int")).orElseThrow().dropped());
+			assertTrue(
+				associatedData.getAssociatedDataValue(new AssociatedDataKey("greetings", Locale.GERMAN))
+					.orElseThrow()
+					.dropped()
+			);
+			return associatedData;
+		}
+
+		@Test
+		@DisplayName("should ignore removal mutation added directly")
+		void shouldIgnoreRemoveMutationOfAlreadyRemovedAssociatedData() {
+			final AssociatedData base = associatedDataWithRemovedValues();
+			final ExistingAssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, base);
+			builder.addMutation(new RemoveAssociatedDataMutation(new AssociatedDataKey("int")));
+
+			assertNull(builder.getAssociatedData("int"));
+			assertEquals(0, builder.buildChangeSet().count());
+			assertSame(base, builder.build());
+		}
+
+		@Test
+		@DisplayName("should ignore removal mutation of localized associated data added directly")
+		void shouldIgnoreRemoveMutationOfAlreadyRemovedLocalizedAssociatedData() {
+			final AssociatedData base = associatedDataWithRemovedValues();
+			final ExistingAssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, base);
+			builder.addMutation(new RemoveAssociatedDataMutation(new AssociatedDataKey("greetings", Locale.GERMAN)));
+
+			assertNull(builder.getAssociatedData("greetings", Locale.GERMAN));
+			assertEquals("Hello", builder.getAssociatedData("greetings", Locale.ENGLISH));
+			assertEquals(0, builder.buildChangeSet().count());
+			assertSame(base, builder.build());
 		}
 	}
 

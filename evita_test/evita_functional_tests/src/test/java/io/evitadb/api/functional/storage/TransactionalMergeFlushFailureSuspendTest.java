@@ -310,7 +310,7 @@ class TransactionalMergeFlushFailureSuspendTest implements EvitaTestSupport {
 						assertEquals(0, matches.size(), "Deleted timestamp of pk " + pk + " must match nothing!");
 					} else {
 						assertEquals(1, matches.size(), "Exactly one entity should match timestamp of pk " + pk);
-						assertEquals(pk, matches.get(0).getPrimaryKey(), "Wrong primary key for timestamp of pk " + pk);
+						assertEquals(pk, matches.getFirst().getPrimaryKey(), "Wrong primary key for timestamp of pk " + pk);
 					}
 				}
 				return null;
@@ -337,7 +337,7 @@ class TransactionalMergeFlushFailureSuspendTest implements EvitaTestSupport {
 						1, matches.size(),
 						"A suspended catalog must still serve pk " + pk + " from the last good version."
 					);
-					assertEquals(pk, matches.get(0).getPrimaryKey(), "Wrong primary key for timestamp of pk " + pk);
+					assertEquals(pk, matches.getFirst().getPrimaryKey(), "Wrong primary key for timestamp of pk " + pk);
 				}
 				return null;
 			}

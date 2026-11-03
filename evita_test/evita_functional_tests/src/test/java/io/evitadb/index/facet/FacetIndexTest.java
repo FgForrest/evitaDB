@@ -132,7 +132,7 @@ class FacetIndexTest {
 				new int[]{1, 3},
 				committed.getFacetReferencingEntityIdsFormula(
 					BRAND_ENTITY, this.fct.apply(BRAND_ENTITY), new ArrayBitmap(1)
-				).get(0).compute().getArray(),
+				).getFirst().compute().getArray(),
 				"A no-op re-add must leave the committed facet index exactly as it was!"
 			)
 		);
@@ -182,14 +182,14 @@ class FacetIndexTest {
 		);
 
 		assertEquals(1, brandReferencingEntityIds.size());
-		assertArrayEquals(new int[]{1, 3}, brandReferencingEntityIds.get(0).compute().getArray());
+		assertArrayEquals(new int[]{1, 3}, brandReferencingEntityIds.getFirst().compute().getArray());
 
 		final List<FacetGroupFormula> storeReferencingEntityIds = this.facetIndex.getFacetReferencingEntityIdsFormula(
 			STORE_ENTITY, this.fct.apply(STORE_ENTITY), new ArrayBitmap(1)
 		);
 
 		assertEquals(1, storeReferencingEntityIds.size());
-		assertArrayEquals(new int[]{5}, storeReferencingEntityIds.get(0).compute().getArray());
+		assertArrayEquals(new int[]{5}, storeReferencingEntityIds.getFirst().compute().getArray());
 
 		assertEquals(0, this.facetIndex.getFacetReferencingEntityIdsFormula(BRAND_ENTITY, this.fct.apply(BRAND_ENTITY), new ArrayBitmap(8)).size());
 		assertEquals(0, this.facetIndex.getFacetReferencingEntityIdsFormula(STORE_ENTITY, this.fct.apply(STORE_ENTITY), new ArrayBitmap(8)).size());
@@ -493,7 +493,7 @@ class FacetIndexTest {
 			);
 
 			assertEquals(1, formulas.size());
-			assertArrayEquals(new int[]{100, 101}, formulas.get(0).compute().getArray());
+			assertArrayEquals(new int[]{100, 101}, formulas.getFirst().compute().getArray());
 		}
 
 		@Test

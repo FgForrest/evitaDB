@@ -1019,7 +1019,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.map(Entry::getKey)
 			.toList();
 		assertFalse(uniqueRanges.isEmpty());
-		final IntegerNumberRange uniqueRange = uniqueRanges.get(0);
+		final IntegerNumberRange uniqueRange = uniqueRanges.getFirst();
 
 		final EvitaResponse<SealedEntity> entities = queryEntities(
 			evita,
@@ -1507,7 +1507,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				assertEquals(1, products.size());
-				final SealedEntity p = products.get(0);
+				final SealedEntity p = products.getFirst();
 				// check that it has at least 2 referenced parents
 				assertTrue(p.getReferences(Entities.CATEGORY)
 					.iterator()
@@ -1592,7 +1592,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				assertEquals(1, products.size());
-				final SealedEntity p = products.get(0);
+				final SealedEntity p = products.getFirst();
 				// check that it has at least 2 referenced parents
 				assertTrue(p.getReferences(Entities.CATEGORY)
 					.iterator()
@@ -1679,7 +1679,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				assertEquals(1, products.size());
-				final SealedEntity p = products.get(0);
+				final SealedEntity p = products.getFirst();
 				// check that it has only one referenced parents
 				assertTrue(p.getReferences(Entities.CATEGORY)
 					.iterator()

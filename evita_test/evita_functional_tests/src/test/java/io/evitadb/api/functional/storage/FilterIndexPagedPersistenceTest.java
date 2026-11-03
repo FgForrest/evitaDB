@@ -417,7 +417,7 @@ class FilterIndexPagedPersistenceTest implements EvitaTestSupport {
 						assertEquals(0, matches.size(), "Deleted timestamp of pk " + pk + " must match nothing!");
 					} else {
 						assertEquals(1, matches.size(), "Exactly one entity should match timestamp of pk " + pk);
-						assertEquals(pk, matches.get(0).getPrimaryKey(), "Wrong primary key for timestamp of pk " + pk);
+						assertEquals(pk, matches.getFirst().getPrimaryKey(), "Wrong primary key for timestamp of pk " + pk);
 					}
 				}
 				return null;
@@ -492,7 +492,7 @@ class FilterIndexPagedPersistenceTest implements EvitaTestSupport {
 						)
 					);
 					assertEquals(1, matches.size(), "Exactly one entity should match range point " + rangePoint(pk));
-					assertEquals(pk, matches.get(0).getPrimaryKey(), "Wrong primary key for range point " + rangePoint(pk));
+					assertEquals(pk, matches.getFirst().getPrimaryKey(), "Wrong primary key for range point " + rangePoint(pk));
 				}
 				return null;
 			}
@@ -522,7 +522,7 @@ class FilterIndexPagedPersistenceTest implements EvitaTestSupport {
 						query(collection(Entities.PRODUCT), filterBy(attributeInRange(ATTRIBUTE_RANGE, rangePoint(pk))))
 					);
 					assertEquals(1, matches.size(), "Exactly one entity should match surviving range point " + rangePoint(pk));
-					assertEquals(pk, matches.get(0).getPrimaryKey(), "Wrong primary key for surviving range point " + rangePoint(pk));
+					assertEquals(pk, matches.getFirst().getPrimaryKey(), "Wrong primary key for surviving range point " + rangePoint(pk));
 				}
 				return null;
 			}
@@ -562,7 +562,7 @@ class FilterIndexPagedPersistenceTest implements EvitaTestSupport {
 						)
 					);
 					assertEquals(1, matches.size(), "Exactly one entity should match " + code(pk));
-					assertEquals(pk, matches.get(0).getPrimaryKey(), "Wrong primary key for " + code(pk));
+					assertEquals(pk, matches.getFirst().getPrimaryKey(), "Wrong primary key for " + code(pk));
 				}
 				return null;
 			}
@@ -593,7 +593,7 @@ class FilterIndexPagedPersistenceTest implements EvitaTestSupport {
 						query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_CODE, code(pk))))
 					);
 					assertEquals(1, matches.size(), "Exactly one entity should match surviving " + code(pk));
-					assertEquals(pk, matches.get(0).getPrimaryKey(), "Wrong primary key for surviving " + code(pk));
+					assertEquals(pk, matches.getFirst().getPrimaryKey(), "Wrong primary key for surviving " + code(pk));
 				}
 				return null;
 			}

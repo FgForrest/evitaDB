@@ -352,11 +352,11 @@ duration of the probe.</dd>
   <dt><code>io_evitadb_storage_data_file_compact_total</code> (COUNTER)</dt>
   <dd>OffsetIndex compaction.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_observable_output_change_occupied_memory_bytes</code> (GAUGE)</dt>
-  <dd><strong>Memory occupied by opened output buffers in Bytes</strong>: The amount of memory in bytes occupied by open OffsetIndex output buffers.</dd>
+  <dd><strong>Memory occupied by borrowed and idle frame buffers in bytes</strong>: The total size in bytes of borrowed and idle arrays in the JVM-wide frame buffer pool.</dd>
   <dt><code>io_evitadb_storage_observable_output_change_opened_buffers</code> (GAUGE)</dt>
-  <dd><strong>Number of opened output buffers</strong>: The number of open buffers used to write data to OffsetIndexes.</dd>
+  <dd><strong>Number of borrowed and idle frame buffers</strong>: The total number of borrowed and idle arrays in the JVM-wide frame buffer pool.</dd>
   <dt><code>io_evitadb_storage_observable_output_change_total</code> (COUNTER)</dt>
-  <dd>ObservableOutput buffer count changes.</dd>
+  <dd>Shared frame buffer allocations and drops.</dd>
   <dt><code>io_evitadb_storage_offset_index_flush_active_disk_size_bytes</code> (GAUGE)</dt>
   <dd><strong>Active part of disk size in Bytes</strong>: The size in Bytes of the active part of the OffsetIndex on disk.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_flush_active_records</code> (GAUGE)</dt>

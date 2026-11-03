@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,6 +48,12 @@ import java.util.function.IntConsumer;
  * and when the limit is reached, it excludes all primary keys that has been already sorted by this segment and passes
  * the rest to another sorter in the chain (probably another segment sorter).
  *
+ * The segment consists only of the records its {@link #embeddedSorters} place: a record they pass on because it
+ * lacks the data they sort by is not part of the segment, does not count towards its limit and is handed to the next
+ * sorter in the chain together with the records the segment did not select. The embedded sorters therefore carry no
+ * default {@link io.evitadb.core.query.sort.NoSorter} that would place such records, unless the segment orders by
+ * the ascending primary key (see `SegmentsTranslator`).
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class SegmentSorter implements Sorter {
@@ -65,12 +71,29 @@ public class SegmentSorter implements Sorter {
 	 */
 	private final int limit;
 
+	/**
+	 * Creates the sorter of one segment.
+	 *
+	 * @param embeddedSorters the sorters of the segment ordering, possibly empty when the ordering can sort no record
+	 * @param filter          the filter selecting the records the segment may take, or `null` to select all
+	 * @param limit           the maximum number of records the segment takes
+	 */
 	public SegmentSorter(@Nonnull List<Sorter> embeddedSorters, @Nullable Formula filter, int limit) {
 		this.embeddedSorters = embeddedSorters;
 		this.filter = filter;
 		this.limit = limit;
 	}
 
+	/**
+	 * Lets the embedded sorters sort the selected records up to the segment limit and passes everything they did not
+	 * place or skip - the records the segment did not select, the ones beyond its limit and the ones its ordering
+	 * cannot sort - to the next sorter.
+	 *
+	 * @param sortingContext         the records to sort and the requested slice
+	 * @param result                 the array the sorted records are written to
+	 * @param skippedRecordsConsumer consumer of the records skipped before the requested slice, or `null`
+	 * @return the context carrying the records left for the next sorter
+	 */
 	@Nonnull
 	@Override
 	public SortingContext sortAndSlice(
@@ -78,6 +101,10 @@ public class SegmentSorter implements Sorter {
 		@Nonnull int[] result,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
+		if (this.embeddedSorters.isEmpty()) {
+			// the segment ordering can sort no record at all, so the segment is empty
+			return sortingContext;
+		}
 		final QueryExecutionContext queryContext = sortingContext.queryContext();
 		final Bitmap nonSortedKeys = sortingContext.nonSortedKeys();
 		final ConstantFormula nonSortedKeysFormula = new ConstantFormula(nonSortedKeys);

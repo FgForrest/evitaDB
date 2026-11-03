@@ -311,7 +311,7 @@ These are domain-specific objects that implement `TransactionalLayerProducer` (o
 | `EntityCollection`               | `TransactionalReference<EntitySchema>`, etc.             |
 | `EntityIndex`                    | `TransactionalBoolean`, `TransactionalBitmap`, `TransactionalMap<Locale, TransactionalBitmap>` |
 | `AttributeIndex`                 | `PersistentTransactionalProducerMap<AttributeIndexKey, InvertedIndex>` (and `RangeIndex`/`UniqueIndex`/`SortIndex`/`ChainIndex`); derived `TransactionalMap` view caches |
-| `OwnerUniqueIndex`               | `PersistentTransactionalMap<Serializable, Integer>`, `TransactionalBitmap`, `TransactionalBoolean` |
+| `OwnerUniqueIndex`               | `TransactionalBucketBPlusTree` (value→record), `TransactionalBoolean` |
 | `OwnerSortIndex`                 | `TransactionalUnorderedIntArray`, `TransactionalObjectBPlusTree` (value→cardinality) |
 | `OwnerFilterIndex` / `InvertedIndex` | `TransactionalBucketBPlusTree` (columnar bucket store), optional `RangeIndex` |
 | `FacetIndex`                     | `TransactionalMap<EntityReference, FacetReferenceIndex>` |

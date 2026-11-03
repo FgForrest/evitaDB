@@ -23,13 +23,17 @@
 
 package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
+import graphql.GraphQLContext;
+import graphql.execution.CoercedVariables;
 import graphql.language.StringValue;
+import graphql.language.Value;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
 import graphql.schema.CoercingParseValueException;
 import graphql.schema.CoercingSerializeException;
 
 import javax.annotation.Nonnull;
+import java.util.Locale;
 import java.util.UUID;
 
 /**
@@ -40,7 +44,11 @@ import java.util.UUID;
 public class UuidCoercing implements Coercing<UUID, String> {
 
     @Override
-    public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
+    public String serialize(
+        @Nonnull Object dataFetcherResult,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingSerializeException {
         if (!(dataFetcherResult instanceof UUID)) {
             throw new CoercingSerializeException("UUID data fetcher result is not a UUID.");
         }
@@ -49,7 +57,11 @@ public class UuidCoercing implements Coercing<UUID, String> {
 
     @Nonnull
     @Override
-    public UUID parseValue(@Nonnull Object input) throws CoercingParseValueException {
+    public UUID parseValue(
+        @Nonnull Object input,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingParseValueException {
         if (!(input instanceof String stringInput)) {
             throw new CoercingParseValueException("UUID input value is not a string.");
         }
@@ -62,7 +74,12 @@ public class UuidCoercing implements Coercing<UUID, String> {
 
     @Nonnull
     @Override
-    public UUID parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
+    public UUID parseLiteral(
+        @Nonnull Value<?> input,
+        @Nonnull CoercedVariables variables,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingParseLiteralException {
         if (!(input instanceof StringValue stringValue)) {
             throw new CoercingParseValueException("UUID input value is not a string.");
         }

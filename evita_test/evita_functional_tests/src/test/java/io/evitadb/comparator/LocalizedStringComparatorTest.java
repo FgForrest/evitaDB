@@ -519,7 +519,7 @@ class LocalizedStringComparatorTest {
 		}
 
 		@Test
-		@DisplayName("sweep is idempotent and safe when nothing was cached")
+		@DisplayName("repeated sweeps are safe when nothing was cached")
 		void shouldTolerateRepeatedAndEmptySweeps() {
 			assertDoesNotThrow(CollationKeyCache::sweepAll);
 			assertDoesNotThrow(CollationKeyCache::sweepAll);

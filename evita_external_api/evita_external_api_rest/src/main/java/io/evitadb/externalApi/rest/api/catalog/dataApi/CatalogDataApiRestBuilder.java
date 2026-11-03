@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PaginatedListDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.StripListDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDescriptor;
@@ -194,6 +195,8 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 		this.buildingContext.registerType(PaginatedListDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(StripListDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
 
+		// the common base of all entity objects (their `allOf`) and the item type of `RecordPage` / `RecordStrip`
+		this.buildingContext.registerType(EntityDescriptor.THIS_CLASSIFIER.to(this.objectBuilderTransformer).build());
 		this.entityObjectBuilder.buildCommonTypes();
 		// should be used interface builder, but that is doable once we have a robust framework for creating interfaces in OpenAPI
 		this.buildingContext.registerType(ReferenceDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
@@ -201,6 +204,11 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 		this.fullResponseObjectBuilder.buildCommonTypes();
 	}
 
+	/**
+	 * Builds collection endpoints and, when the catalog has globally unique attributes, the unknown-entity endpoints
+	 * together with the entity unions they return. Without such endpoints nothing references the unions, so they are
+	 * not registered.
+	 */
 	private void buildEndpoints() {
 		this.buildingContext.registerEndpoint(this.endpointBuilder.buildCollectionsEndpoint());
 
@@ -230,9 +238,6 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			this.buildingContext.registerEndpoint(this.endpointBuilder.buildDeleteEntitiesByQueryEndpoint(entitySchema));
 		});
 
-		buildEntityUnion(false).ifPresent(this.buildingContext::registerType);
-		buildEntityUnion(true).ifPresent(this.buildingContext::registerType);
-
 		final List<GlobalAttributeSchemaContract> globallyUniqueAttributes = this.buildingContext.getSchema()
 			.getAttributes()
 			.values()
@@ -240,6 +245,9 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			.filter(GlobalAttributeSchemaContract::isUniqueGloballyInAnyScope)
 			.toList();
 		if(!globallyUniqueAttributes.isEmpty()) {
+			buildEntityUnion(false).ifPresent(this.buildingContext::registerType);
+			buildEntityUnion(true).ifPresent(this.buildingContext::registerType);
+
 			this.endpointBuilder.buildGetUnknownEntityEndpoint(globallyUniqueAttributes, false)
 				.ifPresent(this.buildingContext::registerEndpoint);
 			this.endpointBuilder.buildListUnknownEntityEndpoint(globallyUniqueAttributes, false)

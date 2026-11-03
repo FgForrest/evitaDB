@@ -296,7 +296,7 @@ class SetReferenceSchemaBucketedMutationConverterTest {
 				SetReferenceSchemaBucketedMutationDescriptor.BUCKETED_IN_SCOPES.name()
 			);
 		assertEquals(1, bucketedList.size());
-		assertEquals("$price * $quantity", bucketedList.get(0).get(
+		assertEquals("$price * $quantity", bucketedList.getFirst().get(
 			ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name()
 		));
 	}
@@ -369,7 +369,7 @@ class SetReferenceSchemaBucketedMutationConverterTest {
 		assertEquals(1, bucketedList.size());
 		assertEquals(
 			"$active == 1",
-			bucketedList.get(0).get(ScopedHistogramIndexDefinitionDescriptor.ASSIGNED_WHEN.name())
+			bucketedList.getFirst().get(ScopedHistogramIndexDefinitionDescriptor.ASSIGNED_WHEN.name())
 		);
 	}
 

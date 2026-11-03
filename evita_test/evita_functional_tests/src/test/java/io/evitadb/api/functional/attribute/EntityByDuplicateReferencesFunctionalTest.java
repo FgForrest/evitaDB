@@ -44,9 +44,8 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencePartitions;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -67,6 +66,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -117,17 +117,19 @@ public class EntityByDuplicateReferencesFunctionalTest {
 	private final static int BRAND_COUNT = 10;
 
 	/**
-	 * Retrieves the referenced entity index based on the provided parameters.
+	 * Retrieves the partition of the referenced entity based on the provided parameters - its index object, or the
+	 * virtual handle of its registry row when the partition is a single-owner one. Meant for checking that the
+	 * partition exists, not for reading what it holds.
 	 *
 	 * @param evita                         the evita instance, must not be null
 	 * @param scope                         the scope in which the index resides, must not be null
 	 * @param entityType                    the type of the entity for which the index is being retrieved, must not be null
 	 * @param recordId                      the unique record identifier of the entity
 	 * @param representativeAttributeValues an array of representative attribute values used as part of the reference key, must not be null
-	 * @return the referenced entity index if it exists, or null if it does not exist
+	 * @return the partition if it exists, or null if it does not exist
 	 */
 	@Nullable
-	static EntityIndex getReferencedEntityIndex(
+	static ReferencePartition getReferencedEntityIndex(
 		@Nonnull Evita evita,
 		@Nonnull Scope scope,
 		@Nonnull String entityType,
@@ -138,15 +140,10 @@ public class EntityByDuplicateReferencesFunctionalTest {
 		final Catalog catalog = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 		final EntityCollectionContract collection = catalog.getCollectionForEntity(entityType).orElseThrow();
 		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
-		return ((EntityCollection) collection).getIndexByKeyIfExists(
-			new EntityIndexKey(
-				EntityIndexType.REFERENCED_ENTITY,
-				scope,
-				new RepresentativeReferenceKey(
-					new ReferenceKey(referenceName, recordId),
-					representativeAttributeValues
-				)
-			)
+		return ReferencePartitions.resolverByKeyForOwnerRead(
+			((EntityCollection) collection).getDataStoreReader(), scope, referenceName
+		).apply(
+			new RepresentativeReferenceKey(new ReferenceKey(referenceName, recordId), representativeAttributeValues)
 		);
 	}
 
@@ -320,6 +317,37 @@ public class EntityByDuplicateReferencesFunctionalTest {
 		final List<HierarchyItem> childItems = categoryHierarchy.getChildItems(rootItem.getCode());
 		for (HierarchyItem childItem : childItems) {
 			addProducts(products, productsInCategory, categoryHierarchy, country, childItem, productFilter);
+		}
+	}
+
+	/**
+	 * Appends the selected owners in target traversal order, walking every country's chain of a target in
+	 * representative country order. A country filter selects owners but never limits their ordering rows.
+	 *
+	 * @param result owners in traversal order, each added once
+	 * @param productsInCategory the complete country chains of every category
+	 * @param categoryHierarchy the target hierarchy
+	 * @param rootItem the current target
+	 * @param selectedOwners primary keys admitted by the country filter
+	 */
+	private static void addProductsFromEveryCountry(
+		@Nonnull LinkedHashSet<SealedEntity> result,
+		@Nonnull Map<EntityCountry, List<SealedEntity>> productsInCategory,
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nonnull HierarchyItem rootItem,
+		@Nonnull Set<Integer> selectedOwners
+	) {
+		final int categoryId = Integer.parseInt(rootItem.getCode());
+		productsInCategory.entrySet().stream()
+			.filter(entry -> entry.getKey().entityPrimaryKey() == categoryId)
+			.sorted(Comparator.comparing(
+				entry -> entry.getKey().country(), Comparator.nullsFirst(Comparator.naturalOrder())
+			))
+			.forEach(entry -> entry.getValue().stream()
+				.filter(product -> selectedOwners.contains(product.getPrimaryKeyOrThrowException()))
+				.forEach(result::add));
+		for (final HierarchyItem child : categoryHierarchy.getChildItems(rootItem.getCode())) {
+			addProductsFromEveryCountry(result, productsInCategory, categoryHierarchy, child, selectedOwners);
 		}
 	}
 
@@ -1341,7 +1369,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				// product can be found by new country in category 1
 				final List<EntityReferenceContract> foundProducts = getProductByCategoryCountry(session, "FR");
 				assertEquals(1, foundProducts.size());
-				assertEquals(1, foundProducts.get(0).getPrimaryKey());
+				assertEquals(1, foundProducts.getFirst().getPrimaryKey());
 
 				// product cannot be found by old country in category 1
 				final List<EntityReferenceContract> notFoundProducts = getProductByCategoryCountry(session, "DE");
@@ -1410,10 +1438,10 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				// product can be found by empty country in category 1
 				final List<EntityReferenceContract> foundProducts = getProductByNullCategoryCountry(session);
 				assertEquals(1, foundProducts.size());
-				assertEquals(1, foundProducts.get(0).getPrimaryKey());
+				assertEquals(1, foundProducts.getFirst().getPrimaryKey());
 				final List<EntityReferenceContract> foundProductsUS = getProductByCategoryCountry(session, "US");
 				assertEquals(1, foundProductsUS.size());
-				assertEquals(1, foundProductsUS.get(0).getPrimaryKey());
+				assertEquals(1, foundProductsUS.getFirst().getPrimaryKey());
 
 				// product cannot be found by old country in category 1
 				final List<EntityReferenceContract> notFoundProductsDE = getProductByCategoryCountry(session, "DE");
@@ -1461,11 +1489,11 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				// product can be found by restored country in category 1
 				final List<EntityReferenceContract> foundProductsDE = getProductByCategoryCountry(session, "DE");
 				assertEquals(1, foundProductsDE.size());
-				assertEquals(1, foundProductsDE.get(0).getPrimaryKey());
+				assertEquals(1, foundProductsDE.getFirst().getPrimaryKey());
 
 				final List<EntityReferenceContract> foundProductsUSAfterRestore = getProductByCategoryCountry(session, "US");
 				assertEquals(1, foundProductsUSAfterRestore.size());
-				assertEquals(1, foundProductsUSAfterRestore.get(0).getPrimaryKey());
+				assertEquals(1, foundProductsUSAfterRestore.getFirst().getPrimaryKey());
 
 				// product cannot be found by empty country in category 1
 				final List<EntityReferenceContract> notFoundProductsNull = getProductByNullCategoryCountry(session);
@@ -1650,6 +1678,15 @@ public class EntityByDuplicateReferencesFunctionalTest {
 						addProducts(products, productsInCategory, categoryHierarchy, country, rootItem);
 					}
 
+					final Set<Integer> selectedOwners = products.stream()
+						.map(EntityClassifier::getPrimaryKeyOrThrowException).collect(Collectors.toSet());
+					final LinkedHashSet<SealedEntity> orderedProducts = new LinkedHashSet<>(products.size());
+					for (final HierarchyItem rootItem : categoryHierarchy.getRootItems()) {
+						addProductsFromEveryCountry(
+							orderedProducts, productsInCategory, categoryHierarchy, rootItem, selectedOwners
+						);
+					}
+
 					assertEquals(
 						products.size(),
 						foundProducts.size(),
@@ -1657,7 +1694,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 							", but found " + foundProducts.size()
 					);
 					assertArrayEquals(
-						products.stream()
+						orderedProducts.stream()
 						        .mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
 						        .toArray(),
 						foundProducts.stream()
@@ -1726,6 +1763,15 @@ public class EntityByDuplicateReferencesFunctionalTest {
 						);
 					}
 
+					final Set<Integer> selectedOwners = products.stream()
+						.map(EntityClassifier::getPrimaryKeyOrThrowException).collect(Collectors.toSet());
+					final LinkedHashSet<SealedEntity> orderedProducts = new LinkedHashSet<>(products.size());
+					for (final HierarchyItem rootItem : categoryHierarchy.getRootItems()) {
+						addProductsFromEveryCountry(
+							orderedProducts, productsInCategory, categoryHierarchy, rootItem, selectedOwners
+						);
+					}
+
 					assertEquals(
 						products.size(),
 						foundProducts.size(),
@@ -1733,7 +1779,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 							", but found " + foundProducts.size()
 					);
 					assertArrayEquals(
-						products.stream()
+						orderedProducts.stream()
 						        .mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
 						        .toArray(),
 						foundProducts.stream()

@@ -260,7 +260,7 @@ message GrpcAttributeSchema {
   // The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
   // filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
   // server sends - means no acceleration anywhere.
-  repeated GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 22;
+  repeated GrpcScopedAttributeFilterAccelerators accelerated = 22;
 }
 
 // This is the definition object for associated data that is stored along with

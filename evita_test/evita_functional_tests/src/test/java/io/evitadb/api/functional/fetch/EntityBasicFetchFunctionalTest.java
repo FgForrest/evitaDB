@@ -99,7 +99,7 @@ class EntityBasicFetchFunctionalTest extends AbstractEntityFetchingFunctionalTes
 				);
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
-				assertEquals(new EntityReference(Entities.PRODUCT, 2), productByPk.getRecordData().get(0));
+				assertEquals(new EntityReference(Entities.PRODUCT, 2), productByPk.getRecordData().getFirst());
 				return null;
 			}
 		);
@@ -173,7 +173,7 @@ class EntityBasicFetchFunctionalTest extends AbstractEntityFetchingFunctionalTes
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				assertProduct(productByPk.getRecordData().get(0), 2, false, false, false, false);
+				assertProduct(productByPk.getRecordData().getFirst(), 2, false, false, false, false);
 				return null;
 			}
 		);
@@ -200,7 +200,7 @@ class EntityBasicFetchFunctionalTest extends AbstractEntityFetchingFunctionalTes
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final BinaryEntity binaryEntity = productByPk.getRecordData().get(0);
+				final BinaryEntity binaryEntity = productByPk.getRecordData().getFirst();
 				assertEquals(Entities.PRODUCT, binaryEntity.getType());
 				assertNotNull(binaryEntity.getEntityStoragePart());
 				assertNotNull(binaryEntity.getAttributeStorageParts());
@@ -267,7 +267,7 @@ class EntityBasicFetchFunctionalTest extends AbstractEntityFetchingFunctionalTes
 					BinaryEntity.class
 				);
 				assertEquals(1, productByPk.getRecordData().size());
-				return productByPk.getRecordData().get(0).getReferenceStoragePart();
+				return productByPk.getRecordData().getFirst().getReferenceStoragePart();
 			},
 			SessionFlags.BINARY
 		);
@@ -302,7 +302,7 @@ class EntityBasicFetchFunctionalTest extends AbstractEntityFetchingFunctionalTes
 				);
 				assertEquals(1, productByPk.getRecordData().size());
 
-				final BinaryEntity binaryEntity = productByPk.getRecordData().get(0);
+				final BinaryEntity binaryEntity = productByPk.getRecordData().getFirst();
 				assertNotNull(binaryEntity.getEntityStoragePart());
 
 				final EntityFetchAwareDecorator fetchAware = assertInstanceOf(

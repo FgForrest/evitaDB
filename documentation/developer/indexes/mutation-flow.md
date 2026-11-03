@@ -96,8 +96,8 @@ then calls into the per-domain mutators:
 | `RemovePriceMutation` / non-indexed | `updatePriceIndex` on reduced 1st |     Yes (removal)      |
 | `SetParentMutation`                 | `setParent`                       |           No           |
 | `RemoveParentMutation`              | `removeParent`                    |           No           |
-| `InsertReferenceMutation`           | `referenceInsert` + facets        |          Yes           |
-| `RemoveReferenceMutation`           | `referenceRemoval` + facets       |          Yes           |
+| `InsertReferenceMutation`           | `referenceInsert*` + facets       |          Yes           |
+| `RemoveReferenceMutation`           | `referenceRemoval*` + facets      |          Yes           |
 | `SetReferenceGroupMutation`         | facet group swap + group indexes  |          Yes           |
 | `RemoveReferenceGroupMutation`      | facet group clear + group indexes |          Yes           |
 | `ReferenceAttributeMutation`        | `attributeUpdate` on ref indexes  |          Yes           |
@@ -136,10 +136,19 @@ Called once at the end of the mutation batch, for the work that can only be reso
 mutation for the entity has been applied. It:
 
 1. Processes locale additions and removals that were accumulated during the batch (via
-   `containerAccessor.getAddedLocales()` / `getRemovedLocales()`).
+   `containerAccessor.getAddedLocales()` / `getRemovedLocales()`) in the reduced indexes of every
+   reference the entity has at this point. Until then every reduced index holds the locales the entity
+   had *before* the batch -- also one the entity enters or leaves mid-batch, which
+   `indexAllExistingData` / `removeAllExistingData` populate or clear with those locales rather than
+   with the entity body's current ones -- so this step moves all of them alike, whichever order the
+   batch listed its mutations in.
 2. Removes the entity from the indexes if `containerAccessor.isEntityRemovedEntirely()`
    returns `true`.
-3. Iterates all `accessedIndexes`, records index-maintenance activity against each, and removes any
+3. Demotes every partition the mutation left with one owner of two: when it still has a single owner,
+   its row in the registry of single-owner partitions is registered and filled from the partition's
+   index object, which is then retired (`VirtualReferencePartitionWriter#partitionLeftWithOneOwner`,
+   see [index-hierarchy.md](index-hierarchy.md#how-writes-reach-a-row)).
+4. Iterates all `accessedIndexes`, records index-maintenance activity against each, and removes any
    that have become empty (except the LIVE-scope global index, which is never removed).
 
 This work historically lived in `commit()`. It was moved because the collector invoked `commit()`
@@ -241,6 +250,11 @@ Group indexes (`REFERENCED_GROUP_*`) are only maintained when the reference sche
 `ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY` enabled for the active scope
 (see [schema-settings.md](schema-settings.md#reference-indexed-components)).
 
+A partition with a single owner of a reference indexed `FOR_FILTERING` is not a `ReducedEntityIndex`
+at all but a row of the registry of single-owner partitions carried by the `REFERENCED_ENTITY_TYPE`
+index; the mutator writes it through its `VirtualReferencePartition` handle (see
+[index-hierarchy.md](index-hierarchy.md#reference-partitions-and-the-registry-of-single-owner-partitions)).
+
 > **Note on group index keying:** The `RepresentativeReferenceKey` discriminator for
 > `REFERENCED_GROUP_ENTITY` contains the **referenced entity PK** (the target entity of
 > the reference), not the group entity PK. This is because reference attributes are
@@ -298,7 +312,7 @@ sequenceDiagram
     participant G as GlobalEntityIndex
     participant TI as ReferencedTypeEntityIndex
     participant RI as ReducedEntityIndex
-    Note over O: referenceInsert()
+    Note over O: reference insertion
     O ->> G: referenceInsertGlobal()<br/>addFacet(referenceKey, groupId, epk)
     O ->> TI: insertPrimaryKeyIfMissing(reducedIndexPK, referencedEntityPK)
     O ->> TI: upsert all reference attributes (keyed by reducedIndexPK)
@@ -328,6 +342,13 @@ sequenceDiagram
       prices, facets, locales, and sortable compounds into the reduced index.
     - Adds the facet to the reduced index.
 
+   For a reference indexed `FOR_FILTERING` the partition-local half takes the partition in the form the
+   executor acquired it in. An owner entering a partition that has no owner yet registers its row in the
+   registry of single-owner partitions and writes its sort values and chain predecessors into the row
+   (`ReferenceIndexMutator#ownerEnteredVirtualPartition`); an owner joining a partition kept as the row of
+   another owner first promotes it -- an index object is installed under the row's primary key and
+   populated with the first owner -- and then enters the object as above, which drops the row.
+
 ### Mirror Removal
 
 Removal follows the **reverse order**: per-component first, then global.
@@ -338,7 +359,7 @@ sequenceDiagram
     participant TI as ReferencedTypeEntityIndex
     participant RI as ReducedEntityIndex
     participant G as GlobalEntityIndex
-    Note over O: referenceRemoval()
+    Note over O: reference removal
     O ->> TI: removePrimaryKey(reducedIndexPK, referencedEntityPK)
     O ->> TI: remove all reference attributes (keyed by reducedIndexPK)
     O ->> RI: removePrimaryKey(epk)
@@ -350,6 +371,9 @@ sequenceDiagram
 The removal of per-component data happens before the global facet removal so that the reduced
 index can still consult the global index during its cleanup phase (this matters specifically
 for price indexes; see [Price Mutations](#price-mutations)).
+
+The last owner leaving a partition kept as a registry row drops the row; an owner leaving a partition
+with two owners leaves it an index object until `applyChanges()` demotes it into a row.
 
 ### Cross-Reference Propagation
 
@@ -402,7 +426,8 @@ orchestrator. This method:
    **current** (post-mutation) key.
 
 When the stored and current keys differ, the orchestrator migrates the entity from the old
-reduced index to the new one by calling `referenceRemoval` followed by `referenceInsert`.
+reduced index to the new one by calling `referenceRemovalPerComponent` on the former partition followed by
+`referenceInsertPerComponent` on the new one.
 
 ### Facet Management
 
@@ -432,15 +457,21 @@ When `ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY` is enabled:
 
 ### Test Blueprint Hints -- References
 
-- **Invariant (`FOR_FILTERING`):** After inserting reference R(name="brand", pk=42) on entity E,
-  the `ReducedEntityIndex` for brand#42 must contain E's PK, locales, and reference attributes.
+- **Invariant (`FOR_FILTERING`):** After inserting reference R(name="brand", pk=42) on entity E as
+  the only owner of brand#42, there must be no `ReducedEntityIndex` for brand#42; the registry of
+  single-owner partitions must hold its row, naming E and carrying E's sortable reference attribute
+  values. Once a second entity references brand#42, the `ReducedEntityIndex` for brand#42 must
+  contain both PKs, their locales, and reference attributes, and the row must be gone.
   Entity-level attributes, prices, and facets must **not** be present.
 - **Invariant (`FOR_FILTERING_AND_PARTITIONING`):** After inserting reference R(name="brand",
   pk=42) on entity E, the `ReducedEntityIndex` for brand#42 must contain E's PK **and** all of
   E's indexed entity-level attributes, prices, locales, reference attributes, and facets.
 - **Invariant:** After removing the last reference to brand#42 from entity E, the
   `ReducedEntityIndex` for brand#42 must no longer contain E's PK. If no other entity
-  references brand#42, the index should be empty and eligible for cleanup in `commit()`.
+  references brand#42, the index should be empty and eligible for cleanup in `applyChanges()`; under
+  `FOR_FILTERING`, if exactly one other entity still references brand#42, the index is retired in
+  `applyChanges()` and that entity owns the row of brand#42 in the registry of single-owner
+  partitions. When E was the only owner of a partition kept as a row, the row is dropped.
 - **Invariant:** Cross-reference propagation -- when entity E has references to brand#42 and
   category#7, and a new reference to tag#3 is inserted, then the `ReducedEntityIndex` for
   brand#42 must contain a facet entry for tag#3 (and vice versa for category#7).

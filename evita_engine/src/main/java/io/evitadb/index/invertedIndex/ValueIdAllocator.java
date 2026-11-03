@@ -23,13 +23,13 @@
 
 package io.evitadb.index.invertedIndex;
 
+import io.evitadb.api.exception.IdentifierOverflowException;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
@@ -147,6 +147,7 @@ public class ValueIdAllocator
 	 * Mints the next value id for a distinct value this tree has never held before, in a transaction-safe way.
 	 *
 	 * @return the freshly minted id, always greater than {@link #UNASSIGNED_VALUE_ID}
+	 * @throws IdentifierOverflowException when the id space is exhausted, before the counter changes
 	 */
 	public int allocate() {
 		final ValueIdAllocatorChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
@@ -176,12 +177,16 @@ public class ValueIdAllocator
 	 * @return the exception to throw; never thrown by this method itself, so the caller's `throw` stays visible
 	 */
 	@Nonnull
-	static GenericEvitaInternalError exhausted() {
-		return new GenericEvitaInternalError(
+	static IdentifierOverflowException exhausted() {
+		return new IdentifierOverflowException(
 			"The value id space of this shared value tree is exhausted — " + Integer.MAX_VALUE +
 				" ids have been minted since the tree was created and ids are never reused within a generation. " +
-				"Reclaiming the holes requires a generation-scoped compaction of the tree.",
-			"The value id space of this shared value tree is exhausted!"
+				"The high-water mark is persisted with the tree, so a restart does not reset it, and the " +
+				"generation-scoped compaction that would reclaim the holes is not implemented - the entity " +
+				"collection must be rebuilt.",
+			"The value ids of an attribute value index (used by substring search) are exhausted. They are " +
+				"persisted with the index and never reused, so a restart does not help - rebuild the entity " +
+				"collection: insert its entities into a new collection and swap it in with `replaceCollection`."
 		);
 	}
 

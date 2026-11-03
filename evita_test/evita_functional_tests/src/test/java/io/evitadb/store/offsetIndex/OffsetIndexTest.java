@@ -23,24 +23,36 @@
 
 package io.evitadb.store.offsetIndex;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.zip.Deflater;
+import org.junit.jupiter.params.provider.ValueSource;
+import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.io.Input;
 import com.github.javafaker.Faker;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.function.Functions;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
+import io.evitadb.store.checksum.Checksum;
+import io.evitadb.store.checksum.Crc32CChecksum;
+import io.evitadb.store.checksum.Crc32CChecksumFactory;
+import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
 import io.evitadb.store.offsetIndex.OffsetIndexSerializationService.FileLocationAndWrittenBytes;
+import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
+import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.RecordTypeUsage;
@@ -66,12 +78,15 @@ import org.mockito.Mockito;
 import org.opentest4j.AssertionFailedError;
 
 import javax.annotation.Nonnull;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -83,7 +98,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -94,11 +111,15 @@ import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.compu
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.MEM_TABLE_RECORD_SIZE;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -108,6 +129,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
+@DisplayName("Offset index operations")
 @Tag(STORAGE)
 @Tag(MANAGEMENT)
 class OffsetIndexTest implements EvitaTestSupport {
@@ -425,6 +447,156 @@ class OffsetIndexTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * A successful close must release the real transaction output, including its off-heap region or spill file.
+	 *
+	 * @param spillToFile whether to spill the acquired region before closing the index
+	 */
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	@DisplayName("Should release transaction output when the index closes")
+	void shouldReleaseTransactionOutputWhenCloseSucceeds(boolean spillToFile) {
+		assertCloseReleasesTransactionOutput(
+			spillToFile,
+			(offsetIndex, checksumHook) -> assertDoesNotThrow(offsetIndex::close)
+		);
+	}
+
+	/**
+	 * A failed final flush must release the real transaction output, including its off-heap region or spill file.
+	 * The failure is injected through the checksum and must reach the caller of `close()` unchanged.
+	 *
+	 * @param spillToFile whether to spill the acquired region before closing the index
+	 */
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	@DisplayName("Should release transaction output when the final close flush fails")
+	void shouldReleaseTransactionOutputWhenCloseFlushFails(boolean spillToFile) {
+		final KryoException flushFailure = new KryoException("Final flush checksum failed");
+		assertCloseReleasesTransactionOutput(
+			spillToFile,
+			(offsetIndex, checksumHook) -> {
+				checksumHook.set(() -> {
+					throw flushFailure;
+				});
+
+				assertSame(flushFailure, assertThrows(KryoException.class, offsetIndex::close));
+			}
+		);
+	}
+
+	/**
+	 * A close that finds another close in progress must be rejected without disturbing the shutdown the first one
+	 * owns: the operations that shutdown admits stay admitted, and the first close finishes and releases the
+	 * transaction output. Issuing the competing close from the checksum hook in the middle of the final flush
+	 * overlaps the two closes deterministically.
+	 */
+	@Test
+	@DisplayName("Should reject a competing close without disturbing the close in progress")
+	void shouldRejectCompetingCloseWithoutDisturbingCloseInProgress() {
+		final AtomicReference<RuntimeException> competingCloseFailure = new AtomicReference<>();
+		final AtomicReference<RuntimeException> admissionFailure = new AtomicReference<>();
+		assertCloseReleasesTransactionOutput(
+			false,
+			(offsetIndex, checksumHook) -> {
+				// the hook disarms itself, so the competing close is issued exactly once
+				checksumHook.set(() -> {
+					checksumHook.set(null);
+					try {
+						offsetIndex.close();
+					} catch (RuntimeException ex) {
+						competingCloseFailure.set(ex);
+					}
+					try {
+						offsetIndex.count(1L);
+					} catch (RuntimeException ex) {
+						admissionFailure.set(ex);
+					}
+				});
+
+				assertDoesNotThrow(offsetIndex::close);
+
+				assertInstanceOf(
+					EvitaInternalError.class, competingCloseFailure.get(),
+					"The close issued during the final flush must be rejected"
+				);
+				assertNull(admissionFailure.get(), "The rejected close must leave the shutdown in progress intact");
+			}
+		);
+	}
+
+	/**
+	 * Builds the output of a transaction - a single 64-byte off-heap region backed by a temporary file to spill
+	 * into - and an index holding one record written into it, lets `close` close the index and then verifies the
+	 * output has been released: the region is back in the memory manager and the temporary file is gone.
+	 *
+	 * Every checksum the output computes first runs the hook handed to `close`, which lets a scenario act in the
+	 * middle of the final flush. The hook stays unarmed until `close` sets it, so the record is written without it.
+	 *
+	 * @param spillToFile whether to spill the acquired region to the temporary file before closing the index
+	 * @param close       closes the index and checks the outcome of the call; receives the index and the hook
+	 */
+	private void assertCloseReleasesTransactionOutput(
+		boolean spillToFile,
+		@Nonnull BiConsumer<OffsetIndex, AtomicReference<Runnable>> close
+	) {
+		final int regionCount = 1;
+		final AtomicReference<Runnable> checksumHook = new AtomicReference<>();
+		final Crc32CChecksumFactory checksumFactory = new Crc32CChecksumFactory() {
+			@Nonnull
+			@Override
+			public Checksum createChecksum() {
+				return createCumulativeChecksum(0L);
+			}
+
+			@Nonnull
+			@Override
+			public Checksum createCumulativeChecksum(long initialChecksum) {
+				return new Crc32CChecksum(initialChecksum) {
+					@Override
+					public long getValue() {
+						final Runnable hook = checksumHook.get();
+						if (hook != null) {
+							hook.run();
+						}
+						return super.getValue();
+					}
+				};
+			}
+		};
+		try (
+			final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
+			final ObservableOutputKeeper outputKeeper = ObservableOutputKeeper._internalBuild(new Scheduler(executor));
+			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
+				TEST_CATALOG, 64, regionCount, checksumFactory);
+			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
+				this.targetFile, 256, false, outputKeeper, memoryManager, checksumFactory,
+				CompressionFactory.NO_COMPRESSION)
+		) {
+			final OffsetIndexDescriptor descriptor = createInitialOffsetIndexDescriptor();
+			final OffsetIndex offsetIndex = new OffsetIndex(
+				0L, descriptor, 256, 1, 5, 5, checksumFactory, CompressionFactory.NO_COMPRESSION,
+				this.offsetIndexRecordTypeRegistry, writeHandle, null, null
+			);
+			offsetIndex.put(1L, new EntityBodyStoragePart(1));
+			assertEquals(0, memoryManager.getFreeRegions());
+			if (spillToFile) {
+				writeHandle.checkAndExecuteAndSync(
+					"Spill transaction output", () -> {}, output -> output.writeBytes(new byte[128])
+				);
+				assertTrue(Files.exists(this.targetFile));
+			}
+
+			close.accept(offsetIndex, checksumHook);
+
+			assertFalse(offsetIndex.isOperative());
+			assertAll(
+				() -> assertEquals(regionCount, memoryManager.getFreeRegions()),
+				() -> assertFalse(Files.exists(this.targetFile), "The temporary transaction file must be released")
+			);
+		}
+	}
+
+	/**
 	 * Serialization round-trip: records written through the public API survive a flush, a reload
 	 * from the persisted descriptor and a snapshot copy, and read back intact - covering empty
 	 * indexes, bulk inserts, record removal and manual binary deserialization.
@@ -432,6 +604,133 @@ class OffsetIndexTest implements EvitaTestSupport {
 	@Nested
 	@DisplayName("Persistence round-trip")
 	class PersistenceRoundTrip {
+
+		/**
+		 * Snapshot-local serializers own their compressors but must leave the caller's stream open.
+		 *
+		 * @param fail whether progress reporting aborts the snapshot
+		 * @throws IOException if the storage fixture cannot be created
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Snapshot serializers end compressors on success and failure without closing the caller stream")
+		void shouldEndSnapshotCompressors(boolean fail) throws IOException {
+			final StorageSettings settings = Mockito.spy(configure(
+				StorageOptions.builder().outputBufferSize(4096).build(), ChecksumCheck.YES, Compression.YES));
+			final List<Deflater> compressors = new ArrayList<>();
+			Mockito.doAnswer(invocation -> {
+				final Deflater compressor = Mockito.spy(new Deflater());
+				compressors.add(compressor);
+				return Optional.of(compressor);
+			}).when(settings).createCompressor();
+			final AtomicBoolean closed = new AtomicBoolean();
+			try (final ObservableOutputKeeper keeper = createMockedObservableOutputKeeper()) {
+				final OffsetIndex index = createNewOffsetIndex(
+					0L, settings, createWriteOnlyFileHandle(OffsetIndexTest.this.targetFile, settings, keeper),
+					OffsetIndexTest.this.offsetIndexRecordTypeRegistry);
+				try {
+					index.put(1L, new EntityBodyStoragePart(1));
+					index.flush(1L);
+					final int initialCompressors = compressors.size();
+					final ByteArrayOutputStream target = new ByteArrayOutputStream() {
+						/** Observes whether the snapshot closes the caller-owned destination. */
+						@Override
+						public void close() {
+							closed.set(true);
+						}
+					};
+					if (fail) {
+						assertThrows(IllegalStateException.class, () -> index.copySnapshotTo(
+							target, count -> { throw new IllegalStateException("Progress failed"); },
+							1L, new EntityBodyStoragePart(1)));
+					} else {
+						index.copySnapshotTo(target, null, 1L, new EntityBodyStoragePart(1));
+					}
+					assertFalse(closed.get());
+					assertEquals(initialCompressors + 2, compressors.size());
+					for (int i = initialCompressors; i < compressors.size(); i++) {
+						Mockito.verify(compressors.get(i)).end();
+					}
+				} finally {
+					IOUtils.closeQuietly(index::close);
+				}
+			} finally {
+				compressors.forEach(Deflater::end);
+			}
+		}
+
+		/**
+		 * Copies records written with a larger frame buffer, including a record spanning several frames.
+		 */
+		@Test
+		@DisplayName("Snapshot copy accepts source frames larger than the copying buffer")
+		void shouldCopySnapshotWithFramesLargerThanOutputBuffer() throws IOException {
+			final StorageSettings writerSettings = configure(
+				StorageOptions.builder().outputBufferSize(1_048_576).build(), ChecksumCheck.YES, Compression.NO
+			);
+			final StorageSettings copierSettings = configure(
+				StorageOptions.builder().outputBufferSize(65_536).build(), ChecksumCheck.YES, Compression.NO
+			);
+			final AssociatedDataStoragePart[] parts = new AssociatedDataStoragePart[3];
+			final long[] ids = new long[parts.length];
+			final Path snapshot = Files.createTempFile("snapshot-large-frames", ".kryo");
+			try (final ObservableOutputKeeper keeper = createMockedObservableOutputKeeper()) {
+				final OffsetIndexDescriptor descriptor;
+				final OffsetIndex writer = createNewOffsetIndex(
+					0L, writerSettings,
+					createWriteOnlyFileHandle(OffsetIndexTest.this.targetFile, writerSettings, keeper),
+					OffsetIndexTest.this.offsetIndexRecordTypeRegistry
+				);
+				try {
+					for (int i = 0; i < parts.length; i++) {
+						final String[] value = new String[i == 2 ? 400 : 40 + i * 10];
+						for (int j = 0; j < value.length; j++) {
+							value[j] = "payload".repeat(1_170) + j;
+						}
+						parts[i] = new AssociatedDataStoragePart(i + 1, new AssociatedDataKey("largePayload"));
+						parts[i].replaceAssociatedData(new AssociatedDataValue(new AssociatedDataKey("largePayload"), value));
+						ids[i] = writer.put(1L, parts[i]);
+					}
+					descriptor = writer.flush(1L);
+					assertTrue(writer.getEntries(1L).stream().allMatch(
+						entry -> entry.getValue().recordLength() > copierSettings.outputBufferSize()
+					));
+					assertTrue(writer.getEntries(1L).stream().anyMatch(
+						entry -> entry.getValue().recordLength() > 3 * writerSettings.outputBufferSize()
+					));
+				} finally {
+					IOUtils.closeQuietly(writer::close);
+				}
+				final OffsetIndexDescriptor copiedDescriptor;
+				final OffsetIndex copier = loadOffsetIndex(
+					1L, descriptor, copierSettings,
+					createWriteOnlyFileHandle(OffsetIndexTest.this.targetFile, copierSettings, keeper),
+					OffsetIndexTest.this.offsetIndexRecordTypeRegistry
+				);
+				try (final FileOutputStream output = new FileOutputStream(snapshot.toFile())) {
+					copiedDescriptor = copier.copySnapshotTo(output, null, 2L);
+				} finally {
+					IOUtils.closeQuietly(copier::close);
+				}
+				final OffsetIndex copied = loadOffsetIndex(
+					2L, copiedDescriptor, copierSettings, createWriteOnlyFileHandle(snapshot, copierSettings, keeper),
+					OffsetIndexTest.this.offsetIndexRecordTypeRegistry
+				);
+				try {
+					assertEquals(parts.length, copied.count(2L));
+					for (int i = 0; i < parts.length; i++) {
+						final AssociatedDataStoragePart actual = copied.get(2L, ids[i], AssociatedDataStoragePart.class);
+						assertEquals(parts[i], actual);
+						assertNotNull(actual);
+						assertArrayEquals((String[]) parts[i].getValue().value(), (String[]) actual.getValue().value());
+					}
+				} finally {
+					IOUtils.closeQuietly(copied::close);
+				}
+			} finally {
+				Files.deleteIfExists(snapshot);
+			}
+		}
 
 		@DisplayName("Offset index can be stored empty.")
 		@ParameterizedTest
@@ -2034,6 +2333,73 @@ class OffsetIndexTest implements EvitaTestSupport {
 							"reloaded removed key 2 should be absent");
 						assertFalse(reloaded.contains(2L, 2, EntityBodyStoragePart.class),
 							"reloaded removed key 2 should not be contained");
+					} finally {
+						if (reloaded != null) {
+							IOUtils.closeQuietly(reloaded::close);
+						}
+					}
+				}
+			}
+
+			@DisplayName("a record removed and put back within one version keeps the put, also after reload")
+			@Test
+			void shouldKeepRecordPutAfterRemovalInSameVersion() {
+				final StorageSettings storageSettings = new StorageSettings(
+					StorageOptions.temporary(),
+					DEFAULT_TRANSACTION_OPTIONS
+				);
+				try (final ObservableOutputKeeper observableOutputKeeper = createMockedObservableOutputKeeper()) {
+					final EntityBodyStoragePart original = bodyPartWithLocale(1, 1, Locale.ENGLISH);
+					final EntityBodyStoragePart rePut = bodyPartWithLocale(2, 1, Locale.GERMAN);
+					OffsetIndexDescriptor descriptor = null;
+
+					final OffsetIndex offsetIndex = createNewOffsetIndex(
+						0L,
+						storageSettings,
+						createWriteOnlyFileHandle(
+							OffsetIndexTest.this.targetFile, storageSettings, observableOutputKeeper
+						),
+						OffsetIndexTest.this.offsetIndexRecordTypeRegistry
+					);
+					try {
+						offsetIndex.put(1L, original);
+						offsetIndex.flush(1L);
+						// one flush applies a removal and then a put of the same record key in iteration order - the
+						// shape a flush takes when a record is dropped and written anew within the same version
+						offsetIndex.remove(2L, 1, EntityBodyStoragePart.class);
+						offsetIndex.put(2L, rePut);
+						descriptor = offsetIndex.flush(2L);
+
+						assertEquals(rePut, offsetIndex.get(2L, 1, EntityBodyStoragePart.class),
+							"get at v2 should return the record put after the removal");
+						assertEquals(original, offsetIndex.get(1L, 1, EntityBodyStoragePart.class),
+							"get at v1 should still return the record flushed there");
+						assertEquals(1, offsetIndex.count(2L),
+							"count at v2 should be one - the removal and the put fold into an overwrite");
+					} finally {
+						IOUtils.closeQuietly(offsetIndex::close);
+					}
+
+					OffsetIndex reloaded = null;
+					try {
+						reloaded = loadOffsetIndex(
+							2L,
+							descriptor,
+							storageSettings,
+							createWriteOnlyFileHandle(
+								OffsetIndexTest.this.targetFile, storageSettings, observableOutputKeeper
+							),
+							OffsetIndexTest.this.offsetIndexRecordTypeRegistry
+						);
+
+						assertEquals(rePut, reloaded.get(2L, 1, EntityBodyStoragePart.class),
+							"reloaded get should return the record put after the removal");
+						assertTrue(reloaded.contains(2L, 1, EntityBodyStoragePart.class),
+							"reloaded contains should agree with get");
+						assertEquals(1, reloaded.count(2L),
+							"reloaded count should be one");
+						assertEquals(1, reloaded.count(2L, EntityBodyStoragePart.class),
+							"reloaded per-type count should be one");
 					} finally {
 						if (reloaded != null) {
 							IOUtils.closeQuietly(reloaded::close);

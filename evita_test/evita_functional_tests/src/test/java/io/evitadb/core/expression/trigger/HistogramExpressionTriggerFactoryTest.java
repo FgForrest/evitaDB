@@ -126,7 +126,7 @@ class HistogramExpressionTriggerFactoryTest {
 				);
 
 			assertEquals(1, triggers.size());
-			final HistogramExpressionTrigger trigger = triggers.get(0);
+			final HistogramExpressionTrigger trigger = triggers.getFirst();
 			// reference-level condition reads entity.attributes['status'] -- local-only trigger
 			assertFalse(trigger.hasFilterByConstraint());
 			assertEquals(Set.of(ATTR_STATUS), trigger.getLocalEntityAttributes());
@@ -165,7 +165,7 @@ class HistogramExpressionTriggerFactoryTest {
 				);
 
 			assertEquals(1, triggers.size());
-			final HistogramExpressionTrigger trigger = triggers.get(0);
+			final HistogramExpressionTrigger trigger = triggers.getFirst();
 			// per-histogram condition reads $reference.attributes['visible'] -- local-only trigger
 			assertFalse(trigger.hasFilterByConstraint());
 			assertEquals(Set.of(ATTR_VISIBLE), trigger.getLocalReferenceAttributes());
@@ -211,7 +211,7 @@ class HistogramExpressionTriggerFactoryTest {
 				);
 
 			assertEquals(1, triggers.size());
-			final HistogramExpressionTrigger trigger = triggers.get(0);
+			final HistogramExpressionTrigger trigger = triggers.getFirst();
 			assertFalse(trigger.hasFilterByConstraint());
 			// AND-combined: trigger sees BOTH entity-level and reference-level attributes
 			assertEquals(Set.of(ATTR_STATUS), trigger.getLocalEntityAttributes());
@@ -258,7 +258,7 @@ class HistogramExpressionTriggerFactoryTest {
 				);
 
 			assertEquals(1, triggers.size());
-			final HistogramExpressionTrigger trigger = triggers.get(0);
+			final HistogramExpressionTrigger trigger = triggers.getFirst();
 			// cross-entity AND-combined expression -- FilterBy must exist
 			assertTrue(trigger.hasFilterByConstraint());
 			assertNotNull(trigger.getFilterByConstraint());
@@ -296,7 +296,7 @@ class HistogramExpressionTriggerFactoryTest {
 				);
 
 			assertEquals(1, triggers.size());
-			final HistogramExpressionTrigger trigger = triggers.get(0);
+			final HistogramExpressionTrigger trigger = triggers.getFirst();
 			assertFalse(trigger.hasFilterByConstraint());
 			assertTrue(trigger.getLocalEntityAttributes().isEmpty());
 			assertTrue(trigger.getLocalReferenceAttributes().isEmpty());

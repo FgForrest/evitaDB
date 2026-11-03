@@ -496,6 +496,23 @@ class ComplexDataObjectConverterTest {
 			}
 
 			@Test
+			@DisplayName("should serialize and deserialize map with char keys written as escaped literals")
+			void shouldSerializeAndDeserializeMapWithCharacterKeys() {
+				final Map<Character, String> characterMap = new HashMap<>();
+				characterMap.put('\\', "backslash");
+				characterMap.put('\n', "line break");
+				characterMap.put('a', "letter");
+
+				final ContainerWithCharacterMapKeys dto = new ContainerWithCharacterMapKeys(characterMap);
+				final Serializable serializedForm = new ComplexDataObjectConverter<>(dto).getSerializableForm();
+				final ContainerWithCharacterMapKeys deserialized = ComplexDataObjectConverter.getOriginalForm(
+					serializedForm, ContainerWithCharacterMapKeys.class, reflectionLookup
+				);
+
+				assertEquals(characterMap, deserialized.getCharacterKeyMap());
+			}
+
+			@Test
 			@DisplayName("should serialize map with null values")
 			void shouldSerializeMapWithNullValues() {
 				final Map<String, String> mapWithNulls = new HashMap<>();
@@ -608,7 +625,7 @@ class ComplexDataObjectConverterTest {
 				);
 				assertNotNull(deserialized.getStringList());
 				assertEquals(1, deserialized.getStringList().size());
-				assertEquals("world", deserialized.getStringList().get(0));
+				assertEquals("world", deserialized.getStringList().getFirst());
 			}
 		}
 
@@ -1535,6 +1552,18 @@ class ComplexDataObjectConverterTest {
 		@Serial private static final long serialVersionUID = 5L;
 		private Map<Integer, String> integerKeyMap;
 		private Map<Locale, String> localeKeyMap;
+	}
+
+	/**
+	 * Container with a map whose char keys include the backslash and a control character, which the serialized form
+	 * writes as escaped literals.
+	 */
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class ContainerWithCharacterMapKeys implements Serializable {
+		@Serial private static final long serialVersionUID = 19L;
+		private Map<Character, String> characterKeyMap;
 	}
 
 	/**

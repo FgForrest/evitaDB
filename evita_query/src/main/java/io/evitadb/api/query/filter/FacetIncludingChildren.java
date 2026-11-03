@@ -54,6 +54,10 @@ import java.util.Optional;
  * hierarchy modifier. It implements {@link ConstraintWithSuffix}, allowing two syntactic variants: `includingChildren()`
  * and `includingChildrenHaving(...)`.
  *
+ * The nested filter has its own subcategory locale level. Its `entityLocaleEquals` tests hierarchy nodes, does not
+ * set or conflict with the owner's locale, and does not require the owner to hold that locale. Without its own
+ * locale, localized child attributes use the enclosing owner's resolved locale.
+ *
  * ## Basic Usage (Include All Children)
  *
  * Without additional filtering, `includingChildren` propagates the facet match to all descendants:

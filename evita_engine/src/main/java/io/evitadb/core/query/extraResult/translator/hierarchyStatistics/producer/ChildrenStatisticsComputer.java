@@ -37,6 +37,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.function.Function;
@@ -75,6 +76,10 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
 		final Bitmap hierarchyNodes = this.context.rootHierarchyNodesSupplier().get();
+		if (hierarchyNodes.isEmpty() && this.context.hierarchyFilter() instanceof HierarchyWithin) {
+			// the `hierarchyWithin` selects no node in this scope, so there are no children to describe
+			return Collections.emptyList();
+		}
 		final ChildrenStatisticsHierarchyVisitor childrenVisitor = new ChildrenStatisticsHierarchyVisitor(
 			executionContext,
 			this.context.removeEmptyResults(),

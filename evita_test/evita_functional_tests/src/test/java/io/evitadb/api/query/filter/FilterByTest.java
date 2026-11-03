@@ -153,7 +153,7 @@ class FilterByTest {
 			);
 
 			assertInstanceOf(FilterBy.class, copy);
-			assertFalse(((FilterBy) copy).isApplicable());
+			assertFalse(copy.isApplicable());
 		}
 
 		@Test

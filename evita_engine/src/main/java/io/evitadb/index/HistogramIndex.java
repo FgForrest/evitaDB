@@ -107,8 +107,9 @@ public abstract class HistogramIndex
 	/**
 	 * Canonicalizes a histogram value into the exact key form the inner {@link FilterIndex} stores. For a
 	 * `BigDecimal` value type this scales the value into the order-preserving `Integer` the source filter index
-	 * uses at its `indexedDecimalPlaces` (matching `FilterIndex.getNormalizer`); every other type passes through
-	 * unchanged. This lets insert and remove agree on the same key regardless of whether the upstream value
+	 * uses at its `indexedDecimalPlaces`, and for a `BigDecimalNumberRange` it rescales the thresholds to that same
+	 * scale (both matching `FilterIndex.getNormalizer`); the other numeric types and ranges a histogram admits pass
+	 * through unchanged. This lets insert and remove agree on the same key regardless of whether the upstream value
 	 * arrived already scaled (`Integer`) or as a raw `BigDecimal`. The user-facing `BigDecimal` boundaries are
 	 * reconstructed from the source attribute's real `indexedDecimalPlaces` at query time.
 	 */
@@ -441,8 +442,8 @@ public abstract class HistogramIndex
 	 * strings, handed in at construction and outliving every index built from them, and the map that files this
 	 * index is keyed by that very histogram name. {@link #valueType} addresses a {@link Class}, which the JVM owns
 	 * for the lifetime of its class loader. {@link #valueNormalizer} is a lambda — the identity function for every
-	 * type but `BigDecimal` — whose captured state is a scale `int`, and which JOL cannot walk to confirm either
-	 * way. All four are therefore reference slots and nothing more.
+	 * type a histogram admits but `BigDecimal` and `BigDecimalNumberRange` — whose captured state is at most a scale
+	 * `int`, and which JOL cannot walk to confirm either way. All four are therefore reference slots and nothing more.
 	 *
 	 * @param ownFieldBytes the field bytes the concrete subclass adds to the base's own
 	 * @return the owned heap footprint of the inherited state, in bytes, including alignment padding

@@ -45,6 +45,7 @@ import io.evitadb.driver.config.ClientTlsOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
+import io.evitadb.test.builder.CatalogCopySupport;
 import io.evitadb.test.builder.CopyExistingEntityBuilder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;

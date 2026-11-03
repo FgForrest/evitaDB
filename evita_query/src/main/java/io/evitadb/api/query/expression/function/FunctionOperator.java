@@ -102,6 +102,37 @@ public class FunctionOperator implements ExpressionNode {
 		visitor.visit(this);
 	}
 
+	/**
+	 * Two operators are equal when they call the function of the same name over equal arguments. The function is
+	 * identified by its name, not by the processor instance: processors are looked up by name and a deserialized
+	 * operator carries its own instance. Schemas compare their expressions by value, so an expression with a function
+	 * call has to equal its own re-parse.
+	 *
+	 * @param o the object to compare with
+	 * @return true when `o` is an operator calling the same function over equal arguments
+	 */
+	@Override
+	public boolean equals(@Nullable Object o) {
+		if (this == o) {
+			return true;
+		}
+		if (!(o instanceof FunctionOperator that)) {
+			return false;
+		}
+		return this.functionProcessor.getName().equals(that.functionProcessor.getName()) &&
+			this.argumentOperands.equals(that.argumentOperands);
+	}
+
+	/**
+	 * Returns a hash code consistent with {@link #equals(Object)}: derived from the function name and the arguments.
+	 *
+	 * @return the hash code of the operator
+	 */
+	@Override
+	public int hashCode() {
+		return 31 * this.functionProcessor.getName().hashCode() + this.argumentOperands.hashCode();
+	}
+
 	@Override
 	public String toString() {
 		final int size = this.argumentOperands.size();

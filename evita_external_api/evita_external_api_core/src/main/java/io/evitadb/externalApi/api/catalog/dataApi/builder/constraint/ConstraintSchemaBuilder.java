@@ -847,11 +847,11 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 		if (constraintValueStructure == ConstraintValueStructure.NONE) {
 			return buildNoneConstraintValue();
 		} else if (constraintValueStructure == ConstraintValueStructure.PRIMITIVE) {
-			return buildPrimitiveConstraintValue(buildContext, valueParameters.get(0), false, valueTypeSupplier);
+			return buildPrimitiveConstraintValue(buildContext, valueParameters.getFirst(), false, valueTypeSupplier);
 		} else if (constraintValueStructure == ConstraintValueStructure.RANGE) {
 			return buildWrapperRangeConstraintValue(buildContext, valueParameters, valueTypeSupplier);
 		} else if (constraintValueStructure == ConstraintValueStructure.CONTAINER) {
-			final Map<String, SIMPLE_TYPE> childConstraint = buildChildConstraintValue(buildContext, childParameters.get(0));
+			final Map<String, SIMPLE_TYPE> childConstraint = buildChildConstraintValue(buildContext, childParameters.getFirst());
 			Assert.isPremiseValid(
 				childConstraint.size() == 1,
 				() -> createSchemaBuildingError("`" + ConstraintValueStructure.CONTAINER + "` structure should have exactly one child constraint.")

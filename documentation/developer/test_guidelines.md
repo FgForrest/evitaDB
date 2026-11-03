@@ -37,7 +37,8 @@ must be categorised on two orthogonal axes using JUnit 5 `@Tag`s drawn from
   `INDEXING`, `STORAGE`, `DRIVER`, `SERVER`, `EXTERNAL_API`, `REST`, `GRAPHQL`, `GRPC`, `LAB`, …
 - **Capability axis (≥1 required)** — *what* behaviour is tested: e.g. `QUERY`, `FILTER`, `ORDER`,
   `FACET`, `HIERARCHY`, `PRICE`, `SCHEMA`, `TRANSACTION`, `SERIALIZATION`, `SESSION`, …
-- **Cost axis (optional, mutually exclusive)** — `SLOW`, `FLAKY`. Untagged-for-cost tests are fast.
+- There are no cost tags. A test too slow for the fast loop lives in `evita_test/evita_long_running_tests`;
+  a test that cannot run reliably is fixed or removed rather than quarantined.
 
 `INDEXING` and `TEST_HARNESS` sit on *both* required axes, so either one satisfies the policy alone.
 `TEST_HARNESS` is the home for tests of the test infrastructure itself — the tag-policy gate, the
@@ -85,7 +86,7 @@ against an embedded evitaDB instance provisioned by the test-support infrastruct
 
 ## Running tests
 
-The default fast loop runs unit + functional tests, excluding `slow`/`flaky`; the long-running and
+The default fast loop runs unit + functional tests; the long-running and
 documentation modules skip themselves via their own surefire configuration. With the tag taxonomy the
 `unit` and `unitAndFunctional` profiles are **equivalent** (both names are kept for muscle memory):
 
@@ -98,12 +99,20 @@ Select or exclude tests by tag with JUnit 5 boolean expressions passed to surefi
 
 ```
 mvn -pl evita_test/evita_functional_tests test -Dgroups="facet & external_api"
-mvn -pl evita_test/evita_functional_tests test -Dgroups="(query | indexing) & !slow"
+mvn -pl evita_test/evita_functional_tests test -Dgroups="(query | indexing) & !external_api"
 ```
 
 Other profiles select a single specialised module: `-P documentation` runs only the documentation
 suite, `-P longRunning` only the long-running suite (see the sections below), and `-P full` adds the
-heavy out-of-reactor modules (performance tests, all-in-one driver, the jacoco aggregator).
+heavy modules (performance tests and the jacoco aggregator). The shaded Java driver is built separately
+from the [standalone recipe](../../recipes/evita_java_driver_all_in_one).
+
+The release upgrade tests open catalogs written by the released engines. Those fixtures are not
+committed: the functional tests' build writes them in `generate-test-resources` with
+[a Java program](../../tools/fixtures/GenerateReleaseFixtures.java) that downloads the two releases from
+Maven Central on first use, and skips the step while nothing it depends on has changed. An offline build
+with an empty local repository fails there; `-DreleaseFixtures.skip=true` builds without the fixtures,
+and the release upgrade tests then fail, each naming the fixture it misses.
 
 To run tests from IntelliJ IDEA, add these arguments to the JUnit configuration template — they open
 the JDK internals the engine and serialization tests reflect over:
@@ -115,7 +124,7 @@ the JDK internals the engine and serialization tests reflect over:
 --add-opens java.base/java.util=ALL-UNNAMED
 ```
 
-and set the runner's tag field to exclude the optional cost tags, e.g. `!slow & !flaky`. The
+and leave the runner's tag field empty, or set it to the layer and capability tags you want. The
 screenshot below illustrates only where the `--add-opens` template goes; its tag field predates the
 current taxonomy, so read it as layout guidance, not literal tag names.
 

@@ -536,7 +536,7 @@ class BidirectionalReferenceRewriterTest {
 				fixture.isApplicable(),
 				"Duplicate rows per (owner, referenced) pair were declined only because the reduced indexes of that " +
 					"branch are addressed by index primary key, which used to be resolved against the queried " +
-					"collection. `QueryPlanningContext#getEntityIndexByPrimaryKey(String, int, Class)` now names the " +
+					"collection. `QueryPlanningContext#resolvePartitionsOfTarget` now names the " +
 					"collection, so there is nothing left to decline."
 			);
 		}

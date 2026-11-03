@@ -223,7 +223,7 @@ class EvaluationContextTest {
 				.collect(Collectors.toList());
 
 			assertEquals(1, names.size());
-			assertEquals("myVar", names.get(0));
+			assertEquals("myVar", names.getFirst());
 		}
 
 		@Test

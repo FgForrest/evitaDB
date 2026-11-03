@@ -656,6 +656,11 @@ message GrpcIndexTypeCount {
 // This is what turns the historically opaque single index count into something a developer can act on: forty
 // thousand indexes of one referenced entity and forty global ones are very different situations that used to render
 // as the same number.
+//
+// The counts are of physical indexes. A reference indexed for filtering only keeps each partition that has a single
+// owner as a row of a registry held by its reference-type index rather than as a per-referenced-entity index of its
+// own, so such a partition is not counted here. How many of them a reference holds is reported by
+// `GrpcIndexCardinality.virtualPartitionCount`.
 message GrpcCollectionIndexSummary {
 
   // Total number of indexes in this collection (indexes).
@@ -715,6 +720,19 @@ message GrpcIndexCardinality {
   google.protobuf.Int32Value referencedEntityCount = 5;
   // One entry per attribute index held by this index, in no guaranteed order.
   repeated GrpcAttributeCardinality attributes = 6;
+  // How many single-owner partitions of the reference this index holds as registry rows rather than as
+  // per-referenced-entity indexes of their own (partitions). A reference indexed for filtering only keeps a partition
+  // with a single owner as a row of a registry carried by its reference-type index; the partition becomes an index
+  // once a second owner joins it. The rows are not indexes: they are counted neither in `omittedIndexCount` nor by
+  // `GrpcCollectionIndexSummary`, they are not listed by an index browse and cannot be described by a primary key, so
+  // this count is where they become visible. `0` when the reference holds no partition as a row. A change of the
+  // reference's indexing converts nothing: a reference indexed for partitioning as well creates its partitions as
+  // indexes, but the rows it held while indexed for filtering only stay rows and are still counted here, and the
+  // indexes a reference held while indexed for partitioning stay indexes after it is indexed for filtering only. Unset
+  // for every index but a reference-type one, which is the only index holding the registry - `0` there would read as
+  // "this reference has no single-owner partition", which is a different statement. Not a counter read: the rows are
+  // walked, so it costs O(single-owner partitions) of the reference.
+  google.protobuf.Int32Value virtualPartitionCount = 7;
 
 }
 
@@ -733,6 +751,10 @@ message GrpcIndexCardinality {
 // within each one, so those indexes are counted into `omittedIndexCount` instead. Nothing is lost analytically: a
 // per-referenced-entity index covers the records referencing one entity, so its selectivity is a property of the
 // reference, which the reference-type index above it already summarises.
+//
+// The single-owner partitions of a reference indexed for filtering only are not indexes but rows of a registry held by
+// the reference-type index, so they are neither described nor counted in `omittedIndexCount`; the reference-type
+// index reports how many it holds in `GrpcIndexCardinality.virtualPartitionCount`.
 message GrpcCollectionIndexCardinality {
 
   // One entry per described index, in no guaranteed order. Indexes holding no attribute index and no reference
@@ -827,6 +849,12 @@ message GrpcEntityCollectionStatisticsSnapshot {
 // - the per-reference-type index types carry a reference name and no primary key - one index covers the whole
 //   reference,
 // - the per-referenced-entity index types carry both, plus whatever else distinguishes the target.
+//
+// Only physical indexes are browsed. A reference indexed for filtering only keeps each partition that has a single
+// owner as a row of a registry held by its reference-type index rather than as a per-referenced-entity index of its
+// own; such a partition is never a row of a browse, and asking to describe an index under its primary key fails
+// exactly as it does for a key that names no index. How many of them a reference holds is reported by
+// `GrpcIndexCardinality.virtualPartitionCount`.
 message GrpcBrowsedIndex {
 
   // Type of this index. Unset when the index is one the catalog holds itself - see `GrpcIndexCardinality.indexType`

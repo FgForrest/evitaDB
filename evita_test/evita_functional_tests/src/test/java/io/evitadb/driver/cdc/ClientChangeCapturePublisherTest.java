@@ -879,14 +879,18 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 
 		@Nonnull
 		@Override
-		protected Optional<HeartBeat> deserializeAcknowledgementResponse(Object itemResponse) {
-			return itemResponse instanceof HeartBeat hb ? Optional.of(hb) : Optional.empty();
-		}
-
-		@Nonnull
-		@Override
-		protected Optional<ChangeSystemCapture> deserializeCaptureResponse(Object itemResponse) {
-			return itemResponse instanceof ChangeSystemCapture cap ? Optional.of(cap) : Optional.empty();
+		protected ClientChangeCaptureSubscriber<ChangeSystemCapture, Object, Object> createInternalSubscriber(
+			@Nonnull Flow.Subscriber<? super ChangeSystemCapture> subscriber,
+			@Nonnull Duration streamingTimeout,
+			int flowControlWindow
+		) {
+			return new ClientChangeCaptureSubscriber<>(
+				subscriber,
+				itemResponse -> itemResponse instanceof HeartBeat hb ? Optional.of(hb) : Optional.empty(),
+				itemResponse -> itemResponse instanceof ChangeSystemCapture cap ? Optional.of(cap) : Optional.empty(),
+				streamingTimeout,
+				flowControlWindow
+			);
 		}
 	}
 

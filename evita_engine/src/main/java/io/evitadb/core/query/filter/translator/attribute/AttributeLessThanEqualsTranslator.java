@@ -24,13 +24,19 @@
 package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AttributeLessThanEquals;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
+import java.time.OffsetDateTime;
+import java.util.function.Supplier;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link AttributeLessThanEquals} to {@link AbstractFormula}.
@@ -38,7 +44,8 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class AttributeLessThanEqualsTranslator extends AbstractAttributeComparisonTranslator
-	implements FilteringConstraintTranslator<AttributeLessThanEquals> {
+	implements FilteringConstraintTranslator<AttributeLessThanEquals>,
+	AttributeValueMatchingTranslator<AttributeLessThanEquals> {
 
 	public AttributeLessThanEqualsTranslator() {
 		super(
@@ -51,7 +58,24 @@ public class AttributeLessThanEqualsTranslator extends AbstractAttributeComparis
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull AttributeLessThanEquals attributeLessThanEquals, @Nonnull FilterByVisitor filterByVisitor) {
-		return translateInternal(attributeLessThanEquals, filterByVisitor);
+		return translateInternal(attributeLessThanEquals, filterByVisitor, this);
+	}
+
+	@Nonnull
+	@Override
+	public AttributeValueMatcher createMatcher(
+		@Nonnull AttributeLessThanEquals attributeLessThanEquals,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Supplier<OffsetDateTime> now
+	) {
+		return createComparisonMatcher(attributeLessThanEquals, attributeSchema, attributeIndexKey);
+	}
+
+	@Nonnull
+	@Override
+	public Serializable[] getIndexProbeValues(@Nonnull AttributeLessThanEquals attributeLessThanEquals) {
+		return new Serializable[]{attributeLessThanEquals.getAttributeValue()};
 	}
 
 }

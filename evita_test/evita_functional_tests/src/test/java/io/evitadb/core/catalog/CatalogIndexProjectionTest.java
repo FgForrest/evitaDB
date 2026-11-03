@@ -417,6 +417,9 @@ class CatalogIndexProjectionTest {
 			assertNull(detail.cardinality().entityCount());
 			assertTrue(detail.cardinality().entityCountIfKnown().isEmpty());
 			assertNull(detail.cardinality().referencedEntityCount());
+			// a catalog index holds no registry of reference partitions, so it reports no count rather than zero
+			assertNull(detail.cardinality().virtualPartitionCount());
+			assertTrue(detail.cardinality().virtualPartitionCountIfKnown().isEmpty());
 			assertEquals(0, detail.cardinality().attributes().length);
 			// nothing has been recorded on this index's holder, so both counters read zero and both stamps state
 			// absence rather than the epoch, which a client would render as a date in 1970
@@ -478,6 +481,30 @@ class CatalogIndexProjectionTest {
 			final AttributeCardinality code = readingOf(attributes, "code");
 			assertNull(code.locale());
 			assertEquals(2, code.distinctValueCount());
+			assertEquals(2, code.recordsCovered());
+		}
+
+		@Test
+		@DisplayName("reports the records a global unique index covers, not the values it holds")
+		void shouldCountRecordsNotValuesOfAGlobalUniqueIndex() {
+			// a localized `uniqueGlobally` attribute keys one locale-less index, so entity 1 owns one value per
+			// locale there - the only shape in which the records covered fall below the values held
+			final AttributeKey attributeKey = new AttributeKey("code");
+			final GlobalUniqueIndex uniqueIndex = new GlobalUniqueIndex(Scope.LIVE, attributeKey, String.class, 0);
+			uniqueIndex.registerUniqueKey("en-x", ENTITY_TYPE, Locale.ENGLISH, 1, RESOLVER);
+			uniqueIndex.registerUniqueKey("de-x", ENTITY_TYPE, Locale.GERMAN, 1, RESOLVER);
+			uniqueIndex.registerUniqueKey("en-y", ENTITY_TYPE, Locale.ENGLISH, 2, RESOLVER);
+			final Map<AttributeKey, GlobalUniqueIndex> uniqueIndexes = new HashMap<>();
+			uniqueIndexes.put(attributeKey, uniqueIndex);
+			final CatalogIndex index = new CatalogIndex(
+				1, new CatalogIndexKey(Scope.LIVE), uniqueIndexes, new IndexActivity()
+			);
+
+			final AttributeCardinality[] attributes = CatalogIndexProjection.describe(index).cardinality().attributes();
+
+			assertEquals(1, attributes.length);
+			final AttributeCardinality code = readingOf(attributes, "code");
+			assertEquals(3, code.distinctValueCount());
 			assertEquals(2, code.recordsCovered());
 		}
 
@@ -693,7 +720,7 @@ class CatalogIndexProjectionTest {
 		@Nullable Locale locale,
 		int values
 	) {
-		final GlobalUniqueIndex index = new GlobalUniqueIndex(scope, attributeKey, String.class);
+		final GlobalUniqueIndex index = new GlobalUniqueIndex(scope, attributeKey, String.class, 0);
 		for (int value = 0; value < values; value++) {
 			index.registerUniqueKey(
 				attributeKey.attributeName() + "-" + value, ENTITY_TYPE, locale, value + 1, RESOLVER

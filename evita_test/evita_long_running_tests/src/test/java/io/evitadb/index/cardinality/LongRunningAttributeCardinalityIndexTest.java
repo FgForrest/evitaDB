@@ -41,7 +41,6 @@ import java.util.Random;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
@@ -62,7 +61,6 @@ class LongRunningAttributeCardinalityIndexTest implements TimeBoundedTestSupport
 
 	@DisplayName("survives generational randomized test applying modifications on it")
 	@ParameterizedTest(name = "AttributeCardinalityIndex should survive generational randomized test applying modifications on it")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
 		final int initialCount = 30;
@@ -103,7 +101,6 @@ class LongRunningAttributeCardinalityIndexTest implements TimeBoundedTestSupport
 	 */
 	@DisplayName("rollback discards every in-transaction mutation and leaves the base intact")
 	@ParameterizedTest(name = "AttributeCardinalityIndex rollback discards every in-transaction mutation and leaves the base intact")
-	@Tag(SLOW)
 	@Tag(TRANSACTION)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalRollbackProofTest(GenerationalTestInput input) {
@@ -171,7 +168,7 @@ class LongRunningAttributeCardinalityIndexTest implements TimeBoundedTestSupport
 				final List<AttributeCardinalityKey> keys =
 					new ArrayList<>(referenceMap.keySet());
 				final AttributeCardinalityKey key = keys.get(random.nextInt(keys.size()));
-				index.addRecord((String) key.value(), key.recordId());
+				index.addRecord(key.value(), key.recordId());
 				referenceMap.merge(key, 1, Integer::sum);
 			} else if (operation == 2) {
 				// decrement an entry with count > 1; fall back to increment when none exists
@@ -186,12 +183,12 @@ class LongRunningAttributeCardinalityIndexTest implements TimeBoundedTestSupport
 					final List<AttributeCardinalityKey> keys =
 						new ArrayList<>(referenceMap.keySet());
 					final AttributeCardinalityKey key = keys.get(random.nextInt(keys.size()));
-					index.addRecord((String) key.value(), key.recordId());
+					index.addRecord(key.value(), key.recordId());
 					referenceMap.merge(key, 1, Integer::sum);
 				} else {
 					final AttributeCardinalityKey key =
 						candidates.get(random.nextInt(candidates.size()));
-					index.removeRecord((String) key.value(), key.recordId());
+					index.removeRecord(key.value(), key.recordId());
 					referenceMap.merge(key, -1, Integer::sum);
 				}
 			} else {
@@ -207,12 +204,12 @@ class LongRunningAttributeCardinalityIndexTest implements TimeBoundedTestSupport
 					final List<AttributeCardinalityKey> keys =
 						new ArrayList<>(referenceMap.keySet());
 					final AttributeCardinalityKey key = keys.get(random.nextInt(keys.size()));
-					index.addRecord((String) key.value(), key.recordId());
+					index.addRecord(key.value(), key.recordId());
 					referenceMap.merge(key, 1, Integer::sum);
 				} else {
 					final AttributeCardinalityKey key =
 						candidates.get(random.nextInt(candidates.size()));
-					index.removeRecord((String) key.value(), key.recordId());
+					index.removeRecord(key.value(), key.recordId());
 					referenceMap.remove(key);
 				}
 			}

@@ -85,7 +85,7 @@ class TimeArgumentProviderTest {
 			.provideArguments(null, contextWith(parameters))
 			.toList();
 		assertEquals(1, arguments.size(), "The provider must supply exactly one input.");
-		return (GenerationalTestInput) arguments.get(0).get()[0];
+		return (GenerationalTestInput) arguments.getFirst().get()[0];
 	}
 
 	@Test

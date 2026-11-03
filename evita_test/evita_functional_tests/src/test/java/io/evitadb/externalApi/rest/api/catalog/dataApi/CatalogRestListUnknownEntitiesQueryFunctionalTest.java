@@ -147,7 +147,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 			),
 			SealedEntity.class
 		);
-		assertNotEquals((String) liveEntity.getAttribute(ATTRIBUTE_CODE), (String) archivedEntity.getAttribute(ATTRIBUTE_CODE));
+		assertNotEquals(liveEntity.getAttribute(ATTRIBUTE_CODE), (String) archivedEntity.getAttribute(ATTRIBUTE_CODE));
 
 		final var expectedBodyOfArchivedEntities = Stream.of(liveEntity, archivedEntity)
 			.map(entity -> new EntityReference(entity.getType(), entity.getPrimaryKey()))
@@ -249,7 +249,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 				)
 			)
 		);
-		final String urlAttribute = (String) getAttributesByPks(evita, new Integer[] {entity.getPrimaryKey()}, ATTRIBUTE_URL, Locale.ENGLISH).get(0);
+		final String urlAttribute = (String) getAttributesByPks(evita, new Integer[] {entity.getPrimaryKey()}, ATTRIBUTE_URL, Locale.ENGLISH).getFirst();
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/entity/list")

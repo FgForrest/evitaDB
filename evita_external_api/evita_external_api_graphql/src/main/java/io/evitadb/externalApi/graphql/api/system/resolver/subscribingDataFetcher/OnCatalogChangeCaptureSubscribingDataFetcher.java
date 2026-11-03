@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.Flow.Publisher;
 
 /**
@@ -70,6 +71,7 @@ public class OnCatalogChangeCaptureSubscribingDataFetcher extends ChangeCaptureS
 		final String catalogName = Objects.requireNonNull(
 			environment.getArgument(OnCatalogChangeCaptureSubscriptionHeaderDescriptor.CATALOG_NAME.name())
 		);
+		final UUID catalogId = environment.getArgument(OnCatalogChangeCaptureSubscriptionHeaderDescriptor.CATALOG_ID.name());
 		final Long sinceVersion = environment.getArgument(OnCatalogChangeCaptureSubscriptionHeaderDescriptor.SINCE_VERSION.name());
 		final Integer sinceIndex = environment.getArgument(OnCatalogChangeCaptureSubscriptionHeaderDescriptor.SINCE_INDEX.name());
 		final ChangeCatalogCaptureCriteria[] criteria = parseCriteriaArgument(environment);
@@ -83,6 +85,7 @@ public class OnCatalogChangeCaptureSubscribingDataFetcher extends ChangeCaptureS
 			session -> {
 				return session.registerChangeCatalogCapture(
 					new ChangeCatalogCaptureRequest(
+						catalogId,
 						sinceVersion,
 						sinceIndex,
 						criteria,

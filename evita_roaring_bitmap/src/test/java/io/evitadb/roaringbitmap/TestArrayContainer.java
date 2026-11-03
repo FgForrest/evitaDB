@@ -1,13 +1,8 @@
 package io.evitadb.roaringbitmap;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.roaringbitmap.ValidationRangeConsumer.Value.ABSENT;
 import static io.evitadb.roaringbitmap.ValidationRangeConsumer.Value.PRESENT;
+import static org.junit.jupiter.api.Assertions.*;
 
 import com.google.common.primitives.Ints;
 import org.junit.jupiter.api.DisplayName;
@@ -271,7 +266,7 @@ public class TestArrayContainer {
 			final BitmapContainer half = new BitmapContainer(1 << 12, 1 << 16);
 			final Container result = ac.or(half);
 			assertEquals(1 << 16, result.getCardinality());
-			assertTrue(result instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, result);
 		}
 
 		@Test
@@ -281,7 +276,7 @@ public class TestArrayContainer {
 			final ArrayContainer half = new ArrayContainer(1 << 15, 1 << 16);
 			final Container result = ac.or(half);
 			assertEquals(1 << 16, result.getCardinality());
-			assertTrue(result instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, result);
 		}
 
 		@Test
@@ -293,7 +288,7 @@ public class TestArrayContainer {
 			assertEquals(-1, rbc.getCardinality());
 			final Container repaired = rbc.repairAfterLazy();
 			assertEquals(1 << 16, repaired.getCardinality());
-			assertTrue(repaired instanceof RunContainer);
+			assertInstanceOf(RunContainer.class, repaired);
 		}
 
 		@Test
@@ -789,7 +784,7 @@ public class TestArrayContainer {
 		@DisplayName("nextValue across a single run")
 		public void testNextValue2() {
 			final Container container = new ArrayContainer().iadd(64, 129);
-			assertTrue(container instanceof ArrayContainer);
+			assertInstanceOf(ArrayContainer.class, container);
 			assertEquals(64, container.nextValue((char) 0));
 			assertEquals(64, container.nextValue((char) 64));
 			assertEquals(65, container.nextValue((char) 65));
@@ -802,7 +797,7 @@ public class TestArrayContainer {
 		@DisplayName("nextValue across two runs")
 		public void testNextValueBetweenRuns() {
 			final Container container = new ArrayContainer().iadd(64, 129).iadd(256, 321);
-			assertTrue(container instanceof ArrayContainer);
+			assertInstanceOf(ArrayContainer.class, container);
 			assertEquals(64, container.nextValue((char) 0));
 			assertEquals(64, container.nextValue((char) 64));
 			assertEquals(65, container.nextValue((char) 65));
@@ -816,7 +811,7 @@ public class TestArrayContainer {
 		public void testNextValue3() {
 			final Container container =
 				new ArrayContainer().iadd(64, 129).iadd(200, 501).iadd(5000, 5201);
-			assertTrue(container instanceof ArrayContainer);
+			assertInstanceOf(ArrayContainer.class, container);
 			assertEquals(64, container.nextValue((char) 0));
 			assertEquals(64, container.nextValue((char) 63));
 			assertEquals(64, container.nextValue((char) 64));
@@ -836,7 +831,7 @@ public class TestArrayContainer {
 		@DisplayName("previousValue across a single run")
 		public void testPreviousValue1() {
 			final Container container = new ArrayContainer().iadd(64, 129);
-			assertTrue(container instanceof ArrayContainer);
+			assertInstanceOf(ArrayContainer.class, container);
 			assertEquals(-1, container.previousValue((char) 0));
 			assertEquals(-1, container.previousValue((char) 63));
 			assertEquals(64, container.previousValue((char) 64));
@@ -850,7 +845,7 @@ public class TestArrayContainer {
 		public void testPreviousValue2() {
 			final Container container =
 				new ArrayContainer().iadd(64, 129).iadd(200, 501).iadd(5000, 5201);
-			assertTrue(container instanceof ArrayContainer);
+			assertInstanceOf(ArrayContainer.class, container);
 			assertEquals(-1, container.previousValue((char) 0));
 			assertEquals(-1, container.previousValue((char) 63));
 			assertEquals(64, container.previousValue((char) 64));
@@ -1131,7 +1126,7 @@ public class TestArrayContainer {
 
 			container = new ArrayContainer();
 			final Container c = container.iadd(0, ArrayContainer.DEFAULT_MAX_SIZE);
-			assertTrue(container == c, "Container type changed!");
+			assertSame(container, c, "Container type changed!");
 			final ValidationRangeConsumer consumer7 =
 				ValidationRangeConsumer.ofSize(ArrayContainer.DEFAULT_MAX_SIZE);
 			container.forAllUntil(0, (char) ArrayContainer.DEFAULT_MAX_SIZE, consumer7);

@@ -38,6 +38,7 @@ import static io.evitadb.test.TestTags.REFERENCE;
  * - single default group mapping
  * - multiple groups per different entityPrimaryKeys
  * - multiple groups for the same entityPrimaryKey
+ * - the default group and another one for the same entityPrimaryKey
  */
 @DisplayName("GroupMapping should correctly map entities to groups in all scenarios")
 @Tag(ENGINE)
@@ -102,5 +103,21 @@ class ReferencedEntityFetcherGroupMappingTest {
 
 		final int[] groups = mapping.getGroupId(eSame).sorted().toArray();
 		assertArrayEquals(new int[]{g1, g2}, groups);
+	}
+
+	@Test
+	@DisplayName("shouldReturnDefaultAndOtherGroupForSameEntityWhenMappedToBoth")
+	void shouldReturnDefaultAndOtherGroupForSameEntityWhenMappedToBoth() {
+		// two duplicates of one referenced entity in one owner, each in another group - the first one sets the
+		// default group, the second one must not hide behind it
+		final int defaultGroup = 100;
+		final int eSame = 42;
+		final int g1 = 200;
+
+		final GroupMapping mapping =
+			new GroupMapping(eSame, defaultGroup, 8);
+		mapping.addMapping(eSame, g1);
+
+		assertArrayEquals(new int[]{defaultGroup, g1}, mapping.getGroupId(eSame).sorted().toArray());
 	}
 }

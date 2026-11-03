@@ -478,7 +478,7 @@ class EntityIndexRoundTripTest {
 					uniqueIndexes.put(
 						attrKey,
 						new OwnerUniqueIndex(
-							entityType, attrKey, uniquePart.getType(),
+							entityType, attrKey, uniquePart.getType(), 0,
 							Objects.requireNonNull(uniquePart.getValues()),
 							Objects.requireNonNull(uniquePart.getRecordIds())
 						)
@@ -1243,6 +1243,9 @@ class EntityIndexRoundTripTest {
 				reloadHierarchyIndex(storage),
 				reloadFacetIndex(storage),
 				freshRefType,
+				// the fixture writes no virtual reference partition, so the flush emits no root of that index (the
+				// captured storage would reject the unknown part type) and the loader reads the absent root as empty
+				new VirtualReferencePartitionIndex(),
 				reloadCardinalityIndexes(storage),
 				histogramIndexes,
 				new IndexActivity()

@@ -24,13 +24,19 @@
 package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AttributeLessThan;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
+import java.time.OffsetDateTime;
+import java.util.function.Supplier;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link AttributeLessThan} to {@link AbstractFormula}.
@@ -38,7 +44,7 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class AttributeLessThanTranslator extends AbstractAttributeComparisonTranslator
-	implements FilteringConstraintTranslator<AttributeLessThan> {
+	implements FilteringConstraintTranslator<AttributeLessThan>, AttributeValueMatchingTranslator<AttributeLessThan> {
 
 	public AttributeLessThanTranslator() {
 		super(
@@ -51,7 +57,24 @@ public class AttributeLessThanTranslator extends AbstractAttributeComparisonTran
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull AttributeLessThan attributeLessThan, @Nonnull FilterByVisitor filterByVisitor) {
-		return translateInternal(attributeLessThan, filterByVisitor);
+		return translateInternal(attributeLessThan, filterByVisitor, this);
+	}
+
+	@Nonnull
+	@Override
+	public AttributeValueMatcher createMatcher(
+		@Nonnull AttributeLessThan attributeLessThan,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Supplier<OffsetDateTime> now
+	) {
+		return createComparisonMatcher(attributeLessThan, attributeSchema, attributeIndexKey);
+	}
+
+	@Nonnull
+	@Override
+	public Serializable[] getIndexProbeValues(@Nonnull AttributeLessThan attributeLessThan) {
+		return new Serializable[]{attributeLessThan.getAttributeValue()};
 	}
 
 }

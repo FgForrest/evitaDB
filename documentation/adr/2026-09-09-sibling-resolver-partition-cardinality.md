@@ -1,7 +1,7 @@
 ---
 title: Bound the cross-entity facet walk with a size-thresholded owner→partition index, not a blanket one
 date: 2026-09-09
-updated: 2026-09-14 11:05
+updated: 2026-10-12 02:40
 status: accepted
 kind: optimization
 issues: [1529]
@@ -14,7 +14,7 @@ areas:
 supersedes: []
 superseded-by: []
 relates: [2026-04-23-conditional-facet-indexing, 2026-08-31-cross-entity-histogram-removal-pre-pass,
-  2026-09-18-reference-planning-from-owner-membership]
+  2026-09-18-reference-planning-from-owner-membership, 2026-10-20-single-owner-partitions-as-registry-rows]
 ---
 
 # Bound the sibling-resolver walk with a size-thresholded owner→partition index

@@ -654,7 +654,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 							defaultValueProvider.apply(
 								entity.getAttributeValue(
 										attributeName,
-										locale
+										it
 									)
 									.filter(Droppable::exists)
 									.map(AttributeValue::value)

@@ -1,7 +1,7 @@
 ---
 title: Decompose index storage into granular paged parts and slim the index data structures
 date: 2026-07-10
-updated: 2026-09-03 10:45
+updated: 2026-10-25 20:15
 status: accepted
 kind: optimization
 issues: [760, 1252]
@@ -9,7 +9,7 @@ prs: [1268]
 areas: [evita_engine/index, evita_engine/store, evita_common/dataType/bPlusTree, evita_roaring_bitmap]
 supersedes: []
 superseded-by: []
-relates: [2026-07-27-write-path-performance-tuning, 2026-08-01-bplustree-cursor-free-insert-path, 2026-09-03-content-sized-value-tree-columns, 2026-08-26-warm-up-per-entity-mutation-atomicity]
+relates: [2026-07-27-write-path-performance-tuning, 2026-08-01-bplustree-cursor-free-insert-path, 2026-09-03-content-sized-value-tree-columns, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-10-25-frame-scoped-output-buffers]
 ---
 
 # Granular storage parts and slimmer index data structures
@@ -53,7 +53,7 @@ was involved; `ChainIndex` kept one monolithic materialised order.
 | 2026-07-07 | Demote multi-bitmap buckets to **single-record form at commit** | Most inverted-index buckets hold exactly one record; a full bitmap per bucket is pure overhead | commit `4cd7922a6` |
 | 2026-07-07 | Paged persistence and churn/collapse optimizations for `ChainIndex`, keeping the **materialised order** and paging it positionally | See the rejected designs below — every alternative either lost restart-stable sort order or persisted data that is positionally reconstructible for free | `design/2026-07-02-chainindex-churn-and-collapse-plan.md` |
 | 2026-07-08 | Observed-interval **compaction cadence gate** with a max-waste override | Compaction was firing on a fixed cadence regardless of how much waste had accumulated | commit `3263d8628` |
-| 2026-07-08 | Recycle per-transaction off-heap WAL `ObservableOutput` buffers | Per-transaction buffer allocation was visible on the write path | commit `2bc70680c` |
+| 2026-07-08 | Recycle per-transaction off-heap WAL `ObservableOutput` buffers — **superseded** by `2026-10-25-frame-scoped-output-buffers`, which borrows the arrays per frame from a JVM-wide pool and removed this free list | Per-transaction buffer allocation was visible on the write path | commit `2bc70680c` |
 | 2026-07-08 | Replace the CRC32C combine **matrix rebuild with a static GF(2) ladder**, then a bare-long cumulative checksum | The matrix was rebuilt per combine; the ladder is constant and the bare-long form removes the `forceValue` calls entirely | commits `c12952397`, `2ab3b0ccb` |
 | 2026-07-08 | `ThreadLocal` for both FrontCoded scratch variants — **not** `com.esotericsoftware.kryo.util.Pool` | Measured: the Kryo pool's acquire/release overhead exceeds the scratch it protects at this granularity | `design/2026-07-08-front-coded-stringcolumn-aggressive-reuse.md` |
 | 2026-07-09 | Flat-buffer `copyRangeTo` / splice and structural-share duplicate for `FrontCodedStringColumn`; BMP-safe byte-compare fast path for `findKeyPosition` | The column was re-encoding on every range copy and comparing through full string decode | commits `202a335da`, `55ed58adb`, `34792fc73` |

@@ -152,7 +152,12 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 				this.associatedDataMutations.remove(associatedDataKey);
 			}
 		} else if (localMutation instanceof RemoveAssociatedDataMutation removeAssociatedDataMutation) {
-			if (this.baseAssociatedData.getAssociatedDataValueWithoutSchemaCheck(associatedDataKey).isEmpty()) {
+			// a dropped base value is a tombstone of an earlier removal - there is nothing left to remove
+			if (
+				this.baseAssociatedData.getAssociatedDataValueWithoutSchemaCheck(associatedDataKey)
+					.filter(Droppable::exists)
+					.isEmpty()
+			) {
 				this.associatedDataMutations.remove(associatedDataKey);
 			} else {
 				if (isValueDiffers(removeAssociatedDataMutation)) {

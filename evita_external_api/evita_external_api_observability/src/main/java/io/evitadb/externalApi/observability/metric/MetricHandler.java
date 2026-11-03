@@ -64,6 +64,7 @@ import javax.annotation.Nonnull;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -296,6 +297,17 @@ public class MetricHandler {
 	}
 
 	/**
+	 * Converts the duration of a recorded event to fractional milliseconds, the unit of every duration histogram.
+	 * The labelled and the unlabelled histogram share it, so neither truncates the sub-millisecond part.
+	 *
+	 * @param duration duration of the recorded event
+	 * @return the duration in fractional milliseconds
+	 */
+	private static double toMilliseconds(@Nonnull Duration duration) {
+		return duration.toNanos() / 1_000_000.0;
+	}
+
+	/**
 	 * Checks if the provided string is a custom event class name.
 	 *
 	 * @param string name of the event class
@@ -520,11 +532,18 @@ public class MetricHandler {
 
 	/**
 	 * Task that listens for JFR events and transforms them into Prometheus metrics.
+	 * Duration histograms preserve fractional milliseconds from the recorded nanosecond duration.
 	 */
 	private static class MetricTask extends ClientInfiniteCallableTask<Void, Void> {
 		private final AtomicReference<RecordingStream> recordingStream = new AtomicReference<>();
 		@Getter private final CompletableFuture<Boolean> initialized = new CompletableFuture<>();
 
+		/**
+		 * Creates a task exporting the selected events with the configured query labels.
+		 *
+		 * @param allowedMetrics event classes to record and export
+		 * @param exportedQueryLabels query label names to export
+		 */
 		public MetricTask(
 			@Nonnull Set<Class<? extends CustomMetricsExecutionEvent>> allowedMetrics,
 			@Nonnull Set<String> exportedQueryLabels
@@ -594,7 +613,7 @@ public class MetricHandler {
 										chainLambda(
 											lambdaRef,
 											recordedEvent -> ((Histogram) durationMetric)
-												.observe(recordedEvent.getDuration().toMillis())
+												.observe(toMilliseconds(recordedEvent.getDuration()))
 										);
 									} else {
 										chainLambda(
@@ -604,7 +623,7 @@ public class MetricHandler {
 													Arrays.stream(labelValueExporters)
 														.map(exporter -> ofNullable(exporter.apply(recordedEvent)).orElse(NOT_APPLICABLE))
 														.toArray(String[]::new))
-												.observe(recordedEvent.getDuration().toMillis())
+												.observe(toMilliseconds(recordedEvent.getDuration()))
 										);
 									}
 								});

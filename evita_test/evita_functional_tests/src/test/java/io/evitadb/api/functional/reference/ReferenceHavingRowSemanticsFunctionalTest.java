@@ -944,13 +944,9 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 	 * `not(entityHaving(...))` inside a **`referenceContent` filter** has to be complemented per reference row,
 	 * exactly as {@link #shouldComplementEntityHavingAgainstTheReferenceRow} requires of the filtering path.
 	 *
-	 * The two paths reach the same helper by different routes. `ReferenceHavingTranslator` establishes its scope
-	 * as `ReducedEntityIndex.class`, while `ReferencedEntityFetcher#computeResultWithPassedIndex` establishes one
-	 * as `AbstractReducedEntityIndex.class` - the **superclass** - even though the index it hands over is a
-	 * `ReducedEntityIndex`. A dispatch testing `ReducedEntityIndex.class.isAssignableFrom(scope.getIndexType())`
-	 * is therefore false on the fetch path, which sends it to the collection-wide lookup: that answers "does this
-	 * owner reference anything matching" and, once negated, drops an owner's row to B because a different row of
-	 * the same owner points at A.
+	 * The fetch judges every reference row of the owner by itself. A collection-wide reading would answer "does this
+	 * owner reference anything matching" and, once negated, drop an owner's row to B because a different row of the
+	 * same owner points at A.
 	 *
 	 * @param evita            the engine
 	 * @param originalProducts all products, fully fetched, as the dataset built them
@@ -1006,12 +1002,8 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 	 * row, exactly as {@link #shouldComplementEntityPrimaryKeyInSetAgainstTheReferenceRow} requires of the filtering
 	 * path.
 	 *
-	 * The fetch path reaches its per-index evaluation through
-	 * `ReferencedEntityFetcher#computeResultWithPassedIndex`, which suppresses `EntityPrimaryKeyInSet` while the
-	 * body is translated - the constraint is expected to have been applied already, by the index discovery that
-	 * chose which reduced indexes to visit. Under a negation that expectation does not hold: discovery widens a
-	 * negated leaf to the whole candidate set, so the complement has to be taken inside each index, and there is
-	 * nothing left there to take it against.
+	 * The complement has to be taken against the row itself: a reading that applies the constraint to the set of
+	 * referenced entities up front and negates that set cannot tell the rows of one owner apart.
 	 *
 	 * @param evita            the engine
 	 * @param originalProducts all products, fully fetched, as the dataset built them
@@ -1224,9 +1216,8 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 	 * {@link #shouldBindGroupHavingAndAttributeToTheSameRow} requires of the filtering path.
 	 *
 	 * The reference group is a property of the ROW, not of the referenced entity: two owners may reference the
-	 * same category and put that row in different groups. `ReferencedEntityFetcher` answers the constraint by
-	 * translating the matching groups into referenced entity primary keys and then dropping whole reduced indexes
-	 * whose target is not among them, which cannot tell those two owners apart.
+	 * same category and put that row in different groups. Translating the matching groups into referenced entity
+	 * primary keys and keeping every row whose target is among them cannot tell those two owners apart.
 	 *
 	 * The fixture is built to tell them apart: product 1 holds category A in the matched group, product 3 holds
 	 * category A in the other one. A target-scoped reading admits category A for both.

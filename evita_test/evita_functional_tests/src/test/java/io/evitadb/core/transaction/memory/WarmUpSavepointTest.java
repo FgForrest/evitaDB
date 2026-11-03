@@ -400,7 +400,7 @@ class WarmUpSavepointTest {
 				"self-check: both participants must actually have been rewound"
 			);
 			assertEquals(
-				"invalidate", observed.get(observed.size() - 1),
+				"invalidate", observed.getLast(),
 				"An invalidation drops state DERIVED from the participants, so it must run only once every one of " +
 					"them is back - never at its own position inside the reverse replay."
 			);

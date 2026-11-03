@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.facet.FacetLocaleFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.extraResult.translator.reference.FilterFormulaFacetOptimizeVisitor;
 import io.evitadb.index.bitmap.Bitmap;
@@ -63,6 +64,11 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 	 */
 	private final Formula baseFormulaWithoutUserFilter;
 	/**
+	 * Contains true if {@link #baseFormula} holds an owner guard of a localized facet filter. It is decided once, so
+	 * that a summary without one projects no owner condition for each of its facet groups.
+	 */
+	private final boolean ownerLocaleGuarded;
+	/**
 	 * Contains current match count (the base-line).
 	 */
 	private final int baseMatchCount;
@@ -89,17 +95,18 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 		// now replace common parts of the formula with cached counterparts
 		this.executionContext = queryContext;
 		this.baseFormula = queryContext.analyse(optimizedFormula);
+		this.ownerLocaleGuarded = FacetLocaleFormula.containsOwnerGuard(this.baseFormula);
 		this.baseFormulaWithoutUserFilter = baseFormulaWithoutUserFilter;
 		this.baseMatchCount = baseFormula.compute().size();
 		this.facetFormulaGenerator = new FacetFormulaGenerator(
+			queryContext::getFacetRelationType,
 			queryContext::isFacetGroupConjunction,
-			queryContext::isFacetGroupDisjunction,
 			queryContext::isFacetGroupNegation,
 			queryContext::isFacetGroupExclusive
 		);
 		this.impactFormulaGenerator = new ImpactFormulaGenerator(
+			queryContext::getFacetRelationType,
 			queryContext::isFacetGroupConjunction,
-			queryContext::isFacetGroupDisjunction,
 			queryContext::isFacetGroupNegation,
 			queryContext::isFacetGroupExclusive
 		);
@@ -107,11 +114,19 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 
 	@Nullable
 	@Override
-	public RequestImpact calculateImpact(@Nonnull ReferenceSchemaContract referenceSchema, int facetId, @Nullable Integer facetGroupId, boolean required, @Nonnull Bitmap[] facetEntityIds) {
+	public RequestImpact calculateImpact(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		int facetId,
+		@Nullable Integer facetGroupId,
+		boolean required,
+		@Nonnull Bitmap[] facetEntityIds,
+		@Nonnull FacetGroupOccurrences facetGroupOccurrences
+	) {
 		final ImpactFormulaGenerator generator = this.impactFormulaGenerator;
 		// create formula that would capture the requested facet selected
 		final Formula hypotheticalFormula = generator.generateFormula(
-			this.baseFormula, this.baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
+			this.baseFormula, this.baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds,
+			facetGroupOccurrences
 		);
 		// initialize the formula
 		hypotheticalFormula.initialize(this.executionContext);
@@ -123,14 +138,22 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 			difference,
 			hypotheticalCount,
 			hypotheticalCount > 0 &&
-				(difference != 0 || generator.hasSenseAlone(hypotheticalFormula, referenceSchema, facetGroupId, facetId, facetEntityIds))
+				(difference != 0 || generator.hasSenseAlone(
+					hypotheticalFormula, referenceSchema, facetGroupId, facetId, facetGroupOccurrences
+				))
 		);
 	}
 
 	@Nonnull
 	@Override
-	public Formula createCountFormula(@Nonnull ReferenceSchemaContract referenceSchema, int facetId, @Nullable Integer facetGroupId, @Nonnull Bitmap[] facetEntityIds) {
-		// create formula that would capture all mandatory filtering constraints plus this single facet selected
+	public Formula createCountFormula(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		int facetId,
+		@Nullable Integer facetGroupId,
+		@Nonnull Bitmap[] facetEntityIds
+	) {
+		// create formula that would capture all mandatory filtering constraints plus this single facet selected in
+		// the group of the counted entry only
 		final Formula hypotheticalFormula = this.facetFormulaGenerator.generateFormula(
 			this.baseFormula, this.baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
 		);
@@ -157,6 +180,15 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 				this.baseFormulaWithoutUserFilter,
 				allFacetEntityIds
 			);
+		}
+		final Formula ownerCondition = this.ownerLocaleGuarded ?
+			FacetLocaleFormula.retainOwnerConditions(
+				this.baseFormula, referenceSchema.getName(), this.baseFormulaWithoutUserFilter
+			) : null;
+		if (ownerCondition != null) {
+			final Formula guardedFormula = FormulaFactory.and(hypotheticalFormula, ownerCondition);
+			guardedFormula.initialize(this.executionContext);
+			return guardedFormula;
 		}
 		// initialize the formula
 		hypotheticalFormula.initialize(this.executionContext);

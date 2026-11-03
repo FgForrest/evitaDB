@@ -190,9 +190,13 @@ class ConstantMemoryContainerAppender<
 		this.currentKey += appendToUnderlying();
 	}
 
+	/**
+	 * Discards the buffered chunk and starts a fresh bitmap with the existing writer configuration.
+	 */
 	@Override
 	public void reset() {
 		this.currentKey = 0;
+		Arrays.fill(this.bitmap, 0L);
 		this.underlying = this.newUnderlying.get();
 		this.dirty = false;
 	}

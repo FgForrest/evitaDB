@@ -449,7 +449,7 @@ public class ReferenceAttributeIndexKeyCollisionFunctionalTest implements EvitaT
 
 				evita.queryCatalog(
 					TEST_CATALOG,
-					(Consumer<EvitaSessionContract>) readSession -> {
+					readSession -> {
 						assertEquals(
 							Set.of(1), ownersMatching(readSession, new BigDecimal("5")),
 							"the moved owner should be reachable through its new key"
@@ -586,7 +586,7 @@ public class ReferenceAttributeIndexKeyCollisionFunctionalTest implements EvitaT
 				// a single tree entry twice over - without that there is no double contribution and nothing to lose
 				evita.queryCatalog(
 					TEST_CATALOG,
-					(Consumer<EvitaSessionContract>) readSession -> {
+					readSession -> {
 						assertEquals(
 							Set.of(1),
 							ownersMatchingValue(readSession, ATTRIBUTE_QUANTITIES, FIRST_OWNER_QUANTITY),
@@ -733,7 +733,7 @@ public class ReferenceAttributeIndexKeyCollisionFunctionalTest implements EvitaT
 				// met, sharing nothing, losing nothing
 				evita.queryCatalog(
 					TEST_CATALOG,
-					(Consumer<EvitaSessionContract>) readSession -> {
+					readSession -> {
 						assertEquals(
 							Set.of(1, 2),
 							ownersMatchingValue(readSession, ATTRIBUTE_STOCKED_AT, FIRST_OWNER_INSTANT),
@@ -777,7 +777,7 @@ public class ReferenceAttributeIndexKeyCollisionFunctionalTest implements EvitaT
 
 				evita.queryCatalog(
 					TEST_CATALOG,
-					(Consumer<EvitaSessionContract>) readSession -> {
+					readSession -> {
 						assertEquals(
 							Set.of(2),
 							ownersMatchingValue(readSession, ATTRIBUTE_STOCKED_AT, SECOND_OWNER_INSTANT.plusHours(2)),
@@ -988,7 +988,7 @@ public class ReferenceAttributeIndexKeyCollisionFunctionalTest implements EvitaT
 			evita.defineCatalog(TEST_CATALOG);
 			evita.updateCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					defineUniqueOnlySchema(session);
 					session.createNewEntity(ENTITY_STOCK, SHARED_STOCK_PK).upsertVia(session);
 					upsertOwner(session, 1, FIRST_OWNER_QUANTITY);
@@ -1038,7 +1038,7 @@ public class ReferenceAttributeIndexKeyCollisionFunctionalTest implements EvitaT
 
 				evita.queryCatalog(
 					TEST_CATALOG,
-					(Consumer<EvitaSessionContract>) readSession -> {
+					readSession -> {
 						assertEquals(
 							Set.of(2), ownersMatchingValue(readSession, ATTRIBUTE_CURRENCY, Currency.getInstance("EUR")),
 							"the owner that did not move must keep its own entry"
@@ -1063,7 +1063,7 @@ public class ReferenceAttributeIndexKeyCollisionFunctionalTest implements EvitaT
 				// would also not throw. The value has to be QUERYABLE at its new key and absent from the old one
 				evita.queryCatalog(
 					TEST_CATALOG,
-					(Consumer<EvitaSessionContract>) readSession -> {
+					readSession -> {
 						assertEquals(
 							Set.of(2),
 							ownersMatchingValue(readSession, ATTRIBUTE_CURRENCY, Currency.getInstance("CHF")),

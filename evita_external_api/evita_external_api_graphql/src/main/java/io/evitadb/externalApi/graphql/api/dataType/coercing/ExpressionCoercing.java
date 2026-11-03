@@ -23,7 +23,10 @@
 
 package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
+import graphql.GraphQLContext;
+import graphql.execution.CoercedVariables;
 import graphql.language.StringValue;
+import graphql.language.Value;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
 import graphql.schema.CoercingParseValueException;
@@ -32,6 +35,7 @@ import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.dataType.expression.ExpressionNode;
 
 import javax.annotation.Nonnull;
+import java.util.Locale;
 
 /**
  * {@link Coercing} for converting between Java's side {@link ExpressionNode} and client string.
@@ -41,7 +45,11 @@ import javax.annotation.Nonnull;
 public class ExpressionCoercing implements Coercing<ExpressionNode, String> {
 
     @Override
-    public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
+    public String serialize(
+        @Nonnull Object dataFetcherResult,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingSerializeException {
         if (!(dataFetcherResult instanceof ExpressionNode)) {
             throw new CoercingSerializeException("ExpressionFactory data fetcher result is not an expression.");
         }
@@ -50,7 +58,11 @@ public class ExpressionCoercing implements Coercing<ExpressionNode, String> {
 
     @Nonnull
     @Override
-    public ExpressionNode parseValue(@Nonnull Object input) throws CoercingParseValueException {
+    public ExpressionNode parseValue(
+        @Nonnull Object input,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingParseValueException {
         if (!(input instanceof String stringInput)) {
             throw new CoercingParseValueException("ExpressionFactory input value is not a string.");
         }
@@ -63,7 +75,12 @@ public class ExpressionCoercing implements Coercing<ExpressionNode, String> {
 
     @Nonnull
     @Override
-    public ExpressionNode parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
+    public ExpressionNode parseLiteral(
+        @Nonnull Value<?> input,
+        @Nonnull CoercedVariables variables,
+        @Nonnull GraphQLContext graphQLContext,
+        @Nonnull Locale locale
+    ) throws CoercingParseLiteralException {
         if (!(input instanceof StringValue stringValue)) {
             throw new CoercingParseValueException("ExpressionFactory input value is not a string.");
         }

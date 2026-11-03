@@ -54,6 +54,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -62,6 +64,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -1118,6 +1121,127 @@ class ReflectedReferenceSchemaTest {
 
 			assertNotEquals(a, b);
 		}
+
+		@Test
+		@DisplayName("should equal its unbound copy once bound to the original reference")
+		void shouldEqualUnboundCopyWhenBound() {
+			final ReflectedReferenceSchema unbound = createFullyInheritingReflectedReference(Map.of());
+			final ReflectedReferenceSchema bound = unbound.withReferencedSchema(createOriginalReference());
+			final ReflectedReferenceSchema boundWithAttributes = unbound.withReferencedSchema(
+				createOriginalReferenceWithAttributes(Map.of("a", createAttribute("a", String.class)))
+			);
+
+			assertEquals(unbound, bound);
+			assertEquals(bound, unbound);
+			assertEquals(unbound.hashCode(), bound.hashCode());
+			assertEquals(unbound, boundWithAttributes);
+			assertEquals(unbound.hashCode(), boundWithAttributes.hashCode());
+		}
+
+		@Test
+		@DisplayName("should equal a copy whose inherited value was overridden and inherited again")
+		void shouldEqualCopyWhoseInheritedValueWasRestored() {
+			final ReflectedReferenceSchema bound = createFullyInheritingReflectedReference(Map.of())
+				.withReferencedSchema(createOriginalReference());
+			final ReflectedReferenceSchema restored = (ReflectedReferenceSchema) (
+				(ReflectedReferenceSchema) bound.withDescription("overridden")
+			).withDescription(null);
+
+			assertEquals(bound, restored);
+			assertEquals(bound.hashCode(), restored.hashCode());
+		}
+
+		@Test
+		@DisplayName("should not equal a copy declaring explicitly the value it would inherit")
+		void shouldNotEqualCopyDeclaringInheritedValueExplicitly() {
+			final ReferenceSchema original = createOriginalReference();
+			final ReflectedReferenceSchema inheriting = createFullyInheritingReflectedReference(Map.of())
+				.withReferencedSchema(original);
+			final ReflectedReferenceSchema explicit = (ReflectedReferenceSchema) inheriting.withDescription(
+				original.getDescription()
+			);
+
+			assertEquals(original.getDescription(), explicit.getDescription());
+			assertNotEquals(inheriting, explicit);
+		}
+
+		@Test
+		@DisplayName("should not equal a copy that inherits the attribute the other declares")
+		void shouldNotEqualCopyInheritingAttributeTheOtherDeclares() {
+			final AttributeSchema attribute = createAttribute("a", String.class);
+			final ReflectedReferenceSchema declaring = createFullyInheritingReflectedReference(Map.of("a", attribute))
+				.withReferencedSchema(createOriginalReferenceWithAttributes(Map.of()));
+			final ReflectedReferenceSchema inheriting = createFullyInheritingReflectedReference(Map.of())
+				.withReferencedSchema(createOriginalReferenceWithAttributes(Map.of("a", attribute)));
+
+			assertEquals(declaring.getAttributes(), inheriting.getAttributes());
+			assertNotEquals(declaring, inheriting);
+		}
+
+		@Test
+		@DisplayName("should classify every field as part of the own definition or as derived")
+		void shouldClassifyEveryField() {
+			final Set<String> ownDefinition = Set.of(
+				"name", "nameVariants", "referencedEntityType", "reflectedReferenceName", "referencedEntityTypeManaged",
+				"conflictResolutionOverride", "descriptionInherited", "description", "deprecatedInherited",
+				"deprecationNotice", "cardinalityInherited", "cardinality", "indexedInherited", "indexedInScopes",
+				"indexedComponentsInherited", "indexedComponentsInScopes", "facetedInherited", "facetedInScopes",
+				"facetedPartiallyInScopes", "bucketedInScopes", "bucketedPartiallyInScopes",
+				"attributesInheritanceBehavior", "attributeInheritanceFilter", "attributes", "sortableAttributeCompounds"
+			);
+			final Set<String> derived = Set.of(
+				// the bound original and what is taken over from it
+				"reflectedReference", "inheritedAttributes", "referencedGroupType", "groupTypeNameVariants",
+				"referencedGroupTypeManaged", "entityTypeNameVariants",
+				// indexes derived from the compared properties
+				"indexedScopes", "histogramNameVariantIndexInScopes", "representativeAttributeDefinition",
+				"sortableAttributeCompoundNameIndex", "attributeNameIndex", "nonNullableOrDefaultValueAttributes",
+				"attributeToSortableAttributeCompoundIndex"
+			);
+			final Set<String> declaredFields = new TreeSet<>();
+			for (Class<?> type = ReflectedReferenceSchema.class; type != Object.class; type = type.getSuperclass()) {
+				for (Field field : type.getDeclaredFields()) {
+					if (!Modifier.isStatic(field.getModifiers()) && !field.isSynthetic()) {
+						declaredFields.add(field.getName());
+					}
+				}
+			}
+			final Set<String> classified = new TreeSet<>(ownDefinition);
+			classified.addAll(derived);
+			assertEquals(
+				classified, declaredFields,
+				"Every field of a reflected reference must be compared by equals as part of its own definition, " +
+					"or classified as derived from the original or from the compared properties."
+			);
+		}
+	}
+
+	/**
+	 * Creates an unbound reflected reference to `Product.productRef` that inherits every property and every attribute
+	 * of the original reference and declares the given attributes itself.
+	 *
+	 * @param declaredAttributes the attributes declared on the reflected reference
+	 * @return the unbound reflected reference
+	 */
+	@Nonnull
+	private static ReflectedReferenceSchema createFullyInheritingReflectedReference(
+		@Nonnull Map<String, AttributeSchemaContract> declaredAttributes
+	) {
+		return ReflectedReferenceSchema._internalBuild(
+			"reflected",
+			null, null,
+			"Product",
+			"productRef",
+			null,
+			null,
+			null,
+			null,
+			null, null, null,
+			declaredAttributes,
+			Collections.emptyMap(),
+			AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+			null
+		);
 	}
 
 	@Nested
@@ -1260,7 +1384,7 @@ class ReflectedReferenceSchemaTest {
 				NamingConvention.generate("Product"),
 				null, null,
 				null,
-				true, false, (Set<Scope>) null, false, (Set<Scope>) null, 2,
+				true, false, null, false, (Set<Scope>) null, 2,
 				Collections.emptySet(), Collections.emptySet(),
 				Collections.emptyMap(), Collections.emptyMap(),
 				Map.of("productRef", originalReference),

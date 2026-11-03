@@ -1,7 +1,7 @@
 ---
 title: The range index computes its signed multiplicity in one counting pass, and the JoinFormula/DisentangleFormula pair is deleted
 date: 2026-09-18
-updated: 2026-09-18 20:30
+updated: 2026-10-29 10:16
 status: accepted
 kind: optimization
 issues: [1539, 1546]
@@ -9,7 +9,7 @@ prs: [1602]
 areas: [evita_engine/core/query/algebra/base, evita_engine/index/range, evita_test/evita_performance_tests]
 supersedes: []
 superseded-by: []
-relates: [2026-09-10-simd-vector-api-feasibility, 2026-09-18-range-counting-kernel-per-operand-overhead]
+relates: [2026-11-03-release-catalog-upgrade-from-surviving-index-parts, 2026-09-10-simd-vector-api-feasibility, 2026-09-18-range-counting-kernel-per-operand-overhead]
 ---
 
 # The range index computes its signed multiplicity in one counting pass, and the JoinFormula/DisentangleFormula pair is deleted
@@ -66,12 +66,16 @@ buffer to its operand would remove almost all of it.
 Each range contributes one start and one end, so `count_start − count_end ∈ {0,1}` and the whole computation
 collapses to an XOR-fold of every operand — no counters at all.
 
-- **Rejected because:** unsound under the class contract. `RangeIndex`'s javadoc forbids only *shared borders*, so
-  one record may hold overlapping ranges: `(2,15)` and `(5,20)` at `t=10` give `count_starts=2, count_ends=0`, so
-  `>` says present while parity says absent. No production feeder can currently produce that shape
-  (`FilterIndex.addRange` consolidates through `Range.consolidateRange` first), which is exactly why it is
-  dangerous: parity would pass every existing test and every current caller, and break the first time the
-  invariant moved. Revisit only if the index itself starts enforcing at-most-one-active-range-per-record.
+- **Rejected because:** unsound under the class contract. One record may hold overlapping ranges: `(2,15)` and
+  `(5,20)` at `t=10` give `count_starts=2, count_ends=0`, so `>` says present while parity says absent. Production
+  feeds exactly that shape. Only `FilterIndex`'s range-array path consolidates through `Range.consolidateRange`.
+  The contribution-keyed indexes hand one record id the unconsolidated ranges of every owner: overlapping, nested
+  and sharing borders. These are the referenced-type and group-type indexes of a reference,
+  `ReducedGroupEntityIndex` and the expression histogram indexes, and the shared record is a referenced entity's
+  partition or a group's owner (#1699). Since #1699 the index also keeps a shared border as many times as it occurs.
+  So parity would be wrong on live data, not just on some future caller, and the rejection stands more firmly.
+  Revisit only if every caller consolidated its ranges per record. #1699 rejected that for its cost: a write to a
+  popular target would rewrite every range its partition holds.
   **That rejection is now a test rather than an argument** —
   `RangeIndexTest.RangeQueries#shouldCountOverlappingRangesOfOneRecordRatherThanCancelThem` probes exactly this
   pair, and the randomised oracle generates overlapping and nested arrangements too (see Verification).
@@ -357,6 +361,11 @@ actually sees.
 
 ## Consequences & open follow-ups
 
+- **2026-10-29 update:** The release upgrade rebuilds shared-border companions from surviving bucket memberships under
+  the current counting semantics, preserving distinct scalar contributions and consolidating array contributions per
+  record. See
+  [2026-11-03-release-catalog-upgrade-from-surviving-index-parts](2026-11-03-release-catalog-upgrade-from-surviving-index-parts.md).
+
 - **The workload is the tail, and the tail differs by an order of magnitude between catalogs.** Two production
   e-commerce catalogs were censused, and they disagree about this code path more than any other measurement here:
 
@@ -425,6 +434,11 @@ actually sees.
   with its measured loss recorded in its javadoc so it is not re-proposed.
 
 ## Related work
+
+-
+  [2026-11-03-release-catalog-upgrade-from-surviving-index-parts](2026-11-03-release-catalog-upgrade-from-surviving-index-parts.md)
+  — The release upgrade rebuilds shared-border companions from surviving bucket memberships under the current counting
+  semantics, preserving distinct scalar contributions and consolidating array contributions per record.
 
 - `2026-09-10-simd-vector-api-feasibility` — the analysis that proposed this kernel (§11) and estimated 5–20×.
   This record revises that estimate and reorders its SIMD step behind the sparse-emission fix.

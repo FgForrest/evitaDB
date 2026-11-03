@@ -41,7 +41,7 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.index.attribute.SortIndex.createComparatorFor;
-import static io.evitadb.index.attribute.SortIndex.createNormalizerFor;
+import static io.evitadb.index.attribute.SortIndex.createComparatorNormalizerFor;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -71,18 +71,42 @@ public class ReferenceAttributeReferenceComparator implements ReferenceComparato
 	 */
 	private IntHashSet nonSortedReferences;
 
+	/**
+	 * Creates the comparator of the references by the given reference attribute.
+	 *
+	 * @param attributeName        the name of the reference attribute
+	 * @param type                 the type of the attribute value
+	 * @param indexedDecimalPlaces the `indexedDecimalPlaces` of the attribute schema - the scale a range value is
+	 *                             compared at
+	 * @param locale               the locale to read a localized attribute in, or `null`
+	 * @param orderDirection       the direction to sort in
+	 */
 	public ReferenceAttributeReferenceComparator(
 		@Nonnull String attributeName,
 		@Nonnull Class<?> type,
+		int indexedDecimalPlaces,
 		@Nullable Locale locale,
 		@Nonnull OrderDirection orderDirection
 	) {
-		this(attributeName, type, locale, orderDirection, null);
+		this(attributeName, type, indexedDecimalPlaces, locale, orderDirection, null);
 	}
 
+	/**
+	 * Creates the comparator of the references by the given reference attribute, falling back to the next comparator
+	 * for the references the attribute does not order.
+	 *
+	 * @param attributeName        the name of the reference attribute
+	 * @param type                 the type of the attribute value
+	 * @param indexedDecimalPlaces the `indexedDecimalPlaces` of the attribute schema - the scale a range value is
+	 *                             compared at
+	 * @param locale               the locale to read a localized attribute in, or `null`
+	 * @param orderDirection       the direction to sort in
+	 * @param nextComparator       the comparator of the references the attribute does not order, or `null`
+	 */
 	public ReferenceAttributeReferenceComparator(
 		@Nonnull String attributeName,
 		@Nonnull Class<?> type,
+		int indexedDecimalPlaces,
 		@Nullable Locale locale,
 		@Nonnull OrderDirection orderDirection,
 		@Nullable ReferenceComparator nextComparator
@@ -90,7 +114,8 @@ public class ReferenceAttributeReferenceComparator implements ReferenceComparato
 		final ComparatorSource comparatorSource = new ComparatorSource(
 			type, orderDirection, OrderBehaviour.NULLS_LAST
 		);
-		final Optional<UnaryOperator<Serializable>> normalizerFor = createNormalizerFor(comparatorSource);
+		final Optional<UnaryOperator<Serializable>> normalizerFor =
+			createComparatorNormalizerFor(comparatorSource, indexedDecimalPlaces);
 		final UnaryOperator<Serializable> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
 		//noinspection unchecked
 		this.comparator = createComparatorFor(locale, comparatorSource);

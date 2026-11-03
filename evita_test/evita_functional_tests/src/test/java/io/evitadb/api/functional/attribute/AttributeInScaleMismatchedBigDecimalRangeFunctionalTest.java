@@ -301,7 +301,7 @@ public class AttributeInScaleMismatchedBigDecimalRangeFunctionalTest implements 
 
 					evita.queryCatalog(
 						TEST_CATALOG,
-						(Consumer<EvitaSessionContract>) readSession -> {
+						readSession -> {
 							// the old range no longer matches
 							assertEquals(setOf(), matchedPrimaryKeys(readSession, bd("2.0")));
 							// the new range matches across its span and boundaries

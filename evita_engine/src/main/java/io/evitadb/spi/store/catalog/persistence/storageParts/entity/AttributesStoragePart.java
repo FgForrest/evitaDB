@@ -164,6 +164,27 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 		this.sizeInBytes = sizeInBytes;
 	}
 
+	/**
+	 * Creates the pre-image of `source` (see {@link #createPreImage()}): every field is carried over and the
+	 * attribute array, which {@link ArrayUtils#insertRecordIntoOrderedArray} may write into in place, is copied.
+	 *
+	 * @param source the part whose current content is copied
+	 */
+	private AttributesStoragePart(@Nonnull AttributesStoragePart source) {
+		this.entityPrimaryKey = source.entityPrimaryKey;
+		this.attributeSetKey = source.attributeSetKey;
+		this.sizeInBytes = source.sizeInBytes;
+		this.storagePartPK = source.storagePartPK;
+		this.attributes = Arrays.copyOf(source.attributes, source.attributes.length);
+		this.dirty = source.dirty;
+	}
+
+	@Nonnull
+	@Override
+	public AttributesStoragePart createPreImage() {
+		return new AttributesStoragePart(this);
+	}
+
 	@Override
 	public EntityAttributesSetKey getStoragePartSourceKey() {
 		return this.attributeSetKey;

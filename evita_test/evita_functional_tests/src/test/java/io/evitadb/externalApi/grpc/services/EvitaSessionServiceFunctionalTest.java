@@ -543,7 +543,7 @@ class EvitaSessionServiceFunctionalTest {
 						entityLocaleEquals(?),
 						priceInCurrency(?),
 						priceInPriceLists(?, ?),
-						userFilter(						
+						userFilter(
 							facetHaving(?, entityPrimaryKeyInSet(?, ?))
 						)
 					)
@@ -803,7 +803,7 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(?),
 						priceInPriceLists(?, ?),
 						userFilter(
-							facetHaving(?, entityPrimaryKeyInSet(?, ?)),						
+							facetHaving(?, entityPrimaryKeyInSet(?, ?)),
 						)
 					)
 				),
@@ -917,7 +917,7 @@ class EvitaSessionServiceFunctionalTest {
 						associatedDataContentAll(),
 						priceContentRespectingFilter(),
 						referenceContent(?, ?)
-					),				
+					),
 					facetSummary(?),
 					priceType(?)
 				)
@@ -2826,8 +2826,8 @@ class EvitaSessionServiceFunctionalTest {
 		);
 		final List<GrpcChangeCatalogCapture> recordCaptures = recordPage.getChangeCaptureList();
 		assertEquals(4, recordCaptures.size(), "the entity capture plus its three local mutations must arrive together");
-		final long expectedVersion = recordCaptures.get(0).getVersion().getValue();
-		final int expectedIndex = recordCaptures.get(0).getIndex().getValue();
+		final long expectedVersion = recordCaptures.getFirst().getVersion().getValue();
+		final int expectedIndex = recordCaptures.getFirst().getIndex().getValue();
 		for (final GrpcChangeCatalogCapture capture : recordCaptures) {
 			assertEquals(expectedVersion, capture.getVersion().getValue());
 			assertEquals(expectedIndex, capture.getIndex().getValue());
@@ -3073,8 +3073,8 @@ class EvitaSessionServiceFunctionalTest {
 		// header(V) + two entity records, each an entity-level capture plus the one local mutation it fanned
 		// out into - 1 + 2 * 2 = 5 captures total, the header (index 0) leading the forward stream
 		assertEquals(5, captures.size());
-		assertEquals(recordVersion, captures.get(0).getVersion().getValue());
-		assertEquals(0, captures.get(0).getIndex().getValue(), "the transaction header occupies index 0 and must lead the forward stream");
+		assertEquals(recordVersion, captures.getFirst().getVersion().getValue());
+		assertEquals(0, captures.getFirst().getIndex().getValue(), "the transaction header occupies index 0 and must lead the forward stream");
 
 		int previousIndex = -1;
 		for (final GrpcChangeCatalogCapture capture : captures) {

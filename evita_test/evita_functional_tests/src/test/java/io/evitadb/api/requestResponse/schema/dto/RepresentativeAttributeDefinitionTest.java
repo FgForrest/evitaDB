@@ -331,16 +331,22 @@ class RepresentativeAttributeDefinitionTest {
 
 		@Test
 		@DisplayName("should return false when compared to null")
+		@SuppressWarnings({"SimplifiableAssertion", "ObjectEqualsNull"})
 		void shouldReturnFalseWhenComparedToNull() {
 			final RepresentativeAttributeDefinition rad = new RepresentativeAttributeDefinition(prepareAttributes());
-			assertNotEquals(null, rad);
+			// deliberately not `assertNotEquals`: with `null` as its first argument it calls no `equals` at all, so
+			// the null check of the class under test would never run
+			assertFalse(rad.equals(null));
 		}
 
 		@Test
 		@DisplayName("should return false when compared to different type")
+		@SuppressWarnings({"SimplifiableAssertion", "EqualsBetweenInconvertibleTypes"})
 		void shouldReturnFalseWhenComparedToDifferentType() {
 			final RepresentativeAttributeDefinition rad = new RepresentativeAttributeDefinition(prepareAttributes());
-			assertNotEquals("a string", rad);
+			// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
+			// fix moves the literal there, so `String.equals` would be tested instead of the class under test
+			assertFalse(rad.equals("a string"));
 		}
 
 		@Test

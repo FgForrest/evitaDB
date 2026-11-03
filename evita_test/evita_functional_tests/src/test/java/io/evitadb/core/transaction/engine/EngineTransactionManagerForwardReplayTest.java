@@ -273,8 +273,8 @@ class EngineTransactionManagerForwardReplayTest implements EvitaTestSupport {
 	@Test
 	@DisplayName("should refuse further mutations when forward replay is unsupported for crashed mutation")
 	void shouldRefuseFurtherMutationsWhenForwardReplayUnsupported() {
-		// `CreateCatalogSchemaMutation` has no `replayCompletionState` override — its operator
-		// returns the default `Optional.empty()`, which signals "replay not supported". When the
+		// the operator of `CreateCatalogSchemaMutation` cannot replay forward — its `replayCompletionState`
+		// returns `Optional.empty()`, which signals "replay not supported". When the
 		// transaction manager encounters this during startup it must wedge and refuse subsequent
 		// `applyMutation` calls; otherwise the next append would attempt to write at the same
 		// version as the crashed WAL entry and either overwrite it or fail with a confusing error.

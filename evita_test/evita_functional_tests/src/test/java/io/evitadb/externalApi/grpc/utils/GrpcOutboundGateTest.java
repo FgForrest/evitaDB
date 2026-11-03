@@ -60,7 +60,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * so a service method's hand-off lands back on the transport event loop, where the gate detects the
  * self-deadlock and runs ungated on purpose. Every functional test that streams therefore takes the
  * *ungated* branch, and the gated one is only reached by an end-to-end test that opts into real thread
- * pools - which lives in the long-running module behind `@Tag(SLOW)`. Driving the gate directly against
+ * pools - which lives in the long-running module. Driving the gate directly against
  * a fake observer is what keeps its contract checked on every build.
  *
  * The behaviours pinned here are the ones whose absence is invisible until production:

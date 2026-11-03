@@ -1,7 +1,7 @@
 ---
 title: Mark members that are public only for cross-module reach with @Internal, and enforce it from bytecode
 date: 2026-09-23
-updated: 2026-09-30 07:30
+updated: 2026-10-20 09:00
 status: accepted
 kind: infrastructure
 issues: [1640]
@@ -15,7 +15,7 @@ areas:
   - evita_test/evita_functional_tests
 supersedes: []
 superseded-by: []
-relates: [2026-09-23-reference-decode-narrowing-by-referenced-key]
+relates: [2026-09-23-reference-decode-narrowing-by-referenced-key, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures]
 ---
 
 # `@Internal` marks what JPMS cannot: a member that is public only so a sibling module can reach it
@@ -26,6 +26,10 @@ string naming the supported alternative. Eleven members carry it today — the n
 feature, two session flags and both `getReferenceChunkTransformer()` accessors.
 `InternalApiUsageTest` reads the compiled class files of every module and fails the build when a
 module outside a seven-entry allowlist references one.
+
+**Update 2026-10-20 (#1615):** `InternalApiUsageTest` and its fixtures were removed, which reverses the enforcement
+half of this record (option E1 below); the annotation, its required alternative and its scoping rule stand, stated
+in the javadoc of `Internal`. Why: `2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures`.
 
 ## Why
 

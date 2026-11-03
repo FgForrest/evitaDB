@@ -33,6 +33,7 @@ import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.ReferenceContent;
+import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -61,7 +62,9 @@ import java.util.Optional;
 public class EntityFetchTranslator implements RequireConstraintTranslator<EntityFetch>, SelfTraversingTranslator {
 
 	/**
-	 * Verify the fetch requirement for a given referenced type.
+	 * Verify the fetch requirement for a given referenced type against the main request derived for that type - the
+	 * fetch has no body level of its own, so it takes the locale of the query and inherits its `dataInLocales`. The
+	 * hierarchy statistics validate their bodies this way.
 	 *
 	 * @param entitySchema        the schema of the referenced entity
 	 * @param requirement         the fetch requirement to be verified
@@ -73,6 +76,27 @@ public class EntityFetchTranslator implements RequireConstraintTranslator<Entity
 		@Nonnull EntityFetchRequire requirement,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
 	) throws EntityLocaleMissingException {
+		verifyEntityFetchLocalizedAttributes(entitySchema, requirement, extraResultPlanner,
+			ExtraResultPlanningVisitor.deriveBodyRequest(
+				extraResultPlanner.getEvitaRequest(), entitySchema.getName(), null, requirement
+			));
+	}
+
+	/**
+	 * Validates a summary body using its resolved filter locale and its own data requirements.
+	 *
+	 * @param entitySchema       the schema of the referenced entity
+	 * @param requirement        the fetch requirement to be verified
+	 * @param extraResultPlanner the visitor used for extra result planning
+	 * @param fetchRequest       the request fetching the body, carrying the locale of its level
+	 * @throws EntityLocaleMissingException if there are missing localized attributes or associated data
+	 */
+	public static void verifyEntityFetchLocalizedAttributes(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull EntityFetchRequire requirement,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
+		@Nonnull EvitaRequest fetchRequest
+	) {
 		final EntityContentRequire[] requirements = requirement.getRequirements();
 		String[] missingLocalizedAttributes = null;
 		String[] missingLocalizedAssociatedData = null;
@@ -80,11 +104,11 @@ public class EntityFetchTranslator implements RequireConstraintTranslator<Entity
 			try {
 				if (require instanceof AttributeContent attributeContent) {
 					AttributeContentTranslator.verifyAttributes(
-						entitySchema, null, entitySchema, attributeContent, extraResultPlanner
+						entitySchema, null, entitySchema, attributeContent, extraResultPlanner, fetchRequest
 					);
 				} else if (require instanceof AssociatedDataContent associatedDataContent) {
 					AssociatedDataContentTranslator.verifyAssociatedData(
-						associatedDataContent, entitySchema, extraResultPlanner
+						associatedDataContent, entitySchema, extraResultPlanner, fetchRequest
 					);
 				} else if (require instanceof ReferenceContent referenceContent) {
 					final Collection<ReferenceSchemaContract> referencedEntityReferenceSchemas = referenceContent.isAllRequested() ?
@@ -96,7 +120,8 @@ public class EntityFetchTranslator implements RequireConstraintTranslator<Entity
 					for (ReferenceSchemaContract referencedEntityReferenceSchema : referencedEntityReferenceSchemas) {
 						referenceContent.getAttributeContent()
 							.ifPresent(it -> AttributeContentTranslator.verifyAttributes(
-								entitySchema, referencedEntityReferenceSchema, referencedEntityReferenceSchema, it, extraResultPlanner
+								entitySchema, referencedEntityReferenceSchema, referencedEntityReferenceSchema, it,
+								extraResultPlanner, fetchRequest
 							));
 					}
 				} else if (require instanceof DataInLocales) {

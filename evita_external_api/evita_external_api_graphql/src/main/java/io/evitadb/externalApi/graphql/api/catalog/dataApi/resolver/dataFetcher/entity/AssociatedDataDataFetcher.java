@@ -59,6 +59,9 @@ public class AssociatedDataDataFetcher implements DataFetcher<DataFetcherResult<
         return INSTANCE;
     }
 
+	/**
+	 * Reads an explicit field locale first, otherwise the fetched entity level's locale before its enclosing context.
+	 */
     @Nonnull
     @Override
     public DataFetcherResult<AssociatedDataContract> get(DataFetchingEnvironment environment) throws Exception {
@@ -73,7 +76,10 @@ public class AssociatedDataDataFetcher implements DataFetcher<DataFetcherResult<
             return DataFetcherResult.<AssociatedDataContract>newResult().build();
         }
 
-        Locale desiredLocale = environment.getArgumentOrDefault(AssociatedDataFieldHeaderDescriptor.LOCALE.name(), context.getDesiredLocale());
+		final Locale bodyLocale = associatedData instanceof EntityDecorator entity ?
+			entity.getAssociatedDataPredicate().getRequestedLocale() : null;
+		Locale desiredLocale = environment.getArgumentOrDefault(AssociatedDataFieldHeaderDescriptor.LOCALE.name(),
+			bodyLocale == null ? context.getDesiredLocale() : bodyLocale);
         if (desiredLocale == null) {
             // try implicit locale if no explicit locale was set
             if (associatedData instanceof final EntityDecorator entity) {

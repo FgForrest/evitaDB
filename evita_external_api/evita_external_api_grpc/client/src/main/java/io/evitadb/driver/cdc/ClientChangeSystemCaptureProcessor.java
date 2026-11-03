@@ -34,6 +34,7 @@ import javax.annotation.Nonnull;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Flow.Subscriber;
 import java.util.function.Consumer;
 
 import static io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter.toChangeSystemCapture;
@@ -62,7 +63,29 @@ public class ClientChangeSystemCaptureProcessor extends
 
 	@Nonnull
 	@Override
-	protected Optional<HeartBeat> deserializeAcknowledgementResponse(GrpcRegisterSystemChangeCaptureResponse itemResponse) {
+	protected ClientChangeCaptureSubscriber<ChangeSystemCapture, GrpcRegisterSystemChangeCaptureRequest, GrpcRegisterSystemChangeCaptureResponse> createInternalSubscriber(
+		@Nonnull Subscriber<? super ChangeSystemCapture> subscriber,
+		@Nonnull Duration streamingTimeout,
+		int flowControlWindow
+	) {
+		// system captures carry everything they need on the wire - the decoding is stateless and shared
+		return new ClientChangeCaptureSubscriber<>(
+			subscriber,
+			ClientChangeSystemCaptureProcessor::deserializeAcknowledgementResponse,
+			ClientChangeSystemCaptureProcessor::deserializeCaptureResponse,
+			streamingTimeout,
+			flowControlWindow
+		);
+	}
+
+	/**
+	 * Decodes the heartbeat carried by an acknowledgement or a heartbeat response.
+	 *
+	 * @param itemResponse the response received from the server
+	 * @return the heartbeat, or empty when the response carries a capture
+	 */
+	@Nonnull
+	private static Optional<HeartBeat> deserializeAcknowledgementResponse(@Nonnull GrpcRegisterSystemChangeCaptureResponse itemResponse) {
 		if (itemResponse.getResponseType() == GrpcCaptureResponseType.ACKNOWLEDGEMENT
 			|| itemResponse.getResponseType() == GrpcCaptureResponseType.HEARTBEAT) {
 			return Optional.of(toHeartBeat(itemResponse.getUuid(), itemResponse.getHeartBeat()));
@@ -71,9 +94,14 @@ public class ClientChangeSystemCaptureProcessor extends
 		}
 	}
 
+	/**
+	 * Decodes the capture carried by a change response.
+	 *
+	 * @param itemResponse the response received from the server
+	 * @return the capture, or empty when the response is an acknowledgement or a heartbeat
+	 */
 	@Nonnull
-	@Override
-	protected Optional<ChangeSystemCapture> deserializeCaptureResponse(GrpcRegisterSystemChangeCaptureResponse itemResponse) {
+	private static Optional<ChangeSystemCapture> deserializeCaptureResponse(@Nonnull GrpcRegisterSystemChangeCaptureResponse itemResponse) {
 		if (itemResponse.getResponseType() == GrpcCaptureResponseType.CHANGE) {
 			return Optional.of(toChangeSystemCapture(itemResponse.getCapture()));
 		} else {

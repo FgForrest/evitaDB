@@ -60,6 +60,15 @@ public class SystemRestBuildingContext extends RestBuildingContext {
 			.toList();
 	}
 
+	/**
+	 * Identifies this document in OpenAPI validation diagnostics.
+	 */
+	@Nonnull
+	@Override
+	protected String getOpenApiDocumentName() {
+		return "system";
+	}
+
 	@Nonnull
 	@Override
 	protected String getOpenApiTitle() {

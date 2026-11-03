@@ -51,8 +51,7 @@ import javax.annotation.Nonnull;
  * The per-owner formulas are deliberately **not** inner formulas. They are positionally paired with
  * {@link #ownerPrimaryKeys}, and {@link io.evitadb.core.query.algebra.utils.visitor.FormulaCloner} is allowed to drop
  * children its mutator rejects - a dropped child would silently relabel every owner after it. They are kept as internal
- * state instead, exactly as {@link ReferenceOwnerTranslatingFormula} keeps its expander, and the hash, the
- * transactional ids and the cost estimates below account for them explicitly.
+ * state instead, and the hash, transactional ids and cost estimates below account for them explicitly.
  *
  * The per-owner test is a short-circuiting {@link PersistentRoaringBitmap#intersects(PersistentRoaringBitmap,
  * PersistentRoaringBitmap)} - no intersection is ever materialised, because only emptiness matters.
@@ -87,7 +86,7 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 	/**
 	 * Transactional id of the counterpart type-level index the candidate owners were read from. The candidate set is
 	 * baked into this formula at planning time, so the formula becomes obsolete whenever anything in that index
-	 * changes - the same "catch-all" consideration {@link ReferenceOwnerTranslatingFormula} makes.
+	 * changes, including changes to owners absent from the candidate set when the formula was planned.
 	 */
 	private final long counterpartTypeIndexTransactionalId;
 

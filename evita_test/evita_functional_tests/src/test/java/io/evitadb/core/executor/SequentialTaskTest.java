@@ -588,7 +588,7 @@ class SequentialTaskTest {
 
 			final PaginatedList<TaskStatus<?, ?>> statuses = this.scheduler.listTaskStatuses(1, 20, null);
 			assertEquals(1, statuses.getTotalRecordCount());
-			this.scheduler.cancelTask(statuses.getData().get(0).taskId());
+			this.scheduler.cancelTask(statuses.getData().getFirst().taskId());
 
 			assertTrue(
 				interrupted.await(30, TimeUnit.SECONDS),

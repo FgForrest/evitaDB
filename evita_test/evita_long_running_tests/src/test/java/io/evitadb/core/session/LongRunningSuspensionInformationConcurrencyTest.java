@@ -36,7 +36,6 @@ import java.util.concurrent.TimeoutException;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.SESSION;
-import static io.evitadb.test.TestTags.SLOW;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -78,7 +77,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@Tag(SLOW)
 @Tag(ENGINE)
 @Tag(SESSION)
 @DisplayName("Long-running forcefully-closed session census stress test")

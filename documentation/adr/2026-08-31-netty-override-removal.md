@@ -1,7 +1,7 @@
 ---
 title: Drop the netty version override instead of pinning tcnative to take netty 4.2.17
 date: 2026-08-31
-updated: 2026-08-31 14:52
+updated: 2026-10-17 17:12
 status: accepted
 kind: infrastructure
 issues: []
@@ -147,7 +147,15 @@ io.netty.channel.StacklessClosedChannelException`, raised from
 - **GHSA-8c42-7qj2-3j46 stays open** against `io.netty:netty-codec-http` until armeria ships netty
   >= 4.2.17. Dependabot will keep proposing netty bumps; each one needs the tcnative check above
   before it is taken, and a bump that only raises the codecs must not be merged on a green compile.
+  **Closed on 2026-10-17 by armeria 1.42.0**, which depends on netty 4.2.18.Final and tcnative
+  2.0.84.Final in lockstep, so Option A held and no override was recreated. The same bump closed
+  GHSA-c4c3-7fpv-j4q5 and GHSA-fccg-mwvh-qqg4. Unlike the CORS advisory, both of those were reachable:
+  they are flaws in netty's `SslClientHelloHandler`, and armeria's `HttpsConnectionAcceptHandler`
+  extends that class, so it parses the ClientHello on every TLS port.
 - **Dependabot's netty PRs (#1424, #1472) were closed undone.** They will reappear on netty 4.2.18,
   which is intended — the reappearing PR is the prompt to re-check whether armeria has caught up.
+  **They did not reappear.** With the override gone, no pom in the reactor declares a netty artifact,
+  so Dependabot's version updates have nothing to bump. The prompt came from Dependabot *security
+  alerts* instead. Check those, not the PR list, when tracking netty.
 - **The tcnative version skew is not detectable by the compile gate.** Any future dependency work
   that touches the web stack needs the external-API test groups run, not just `install -DskipTests`.

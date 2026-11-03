@@ -1,5 +1,6 @@
 package io.evitadb.roaringbitmap;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -39,13 +40,27 @@ public class TestBitSetUtil {
 		assertEquals(bitset, BitSetUtil.bitsetOf(bitmap), "bitsetOf doesn't match");
 		assertEquals(
 			bitset, BitSetUtil.bitsetOfWithoutCopy(bitmap), "bitsetOfWithoutCopy doesn't match");
+		// exact array comparisons: BitSet.valueOf ignores trailing zero bytes and words, so it cannot see
+		// an output that is too long
+		assertArrayEquals(
+			bitset.toByteArray(), BitSetUtil.toByteArray(bitmap), "toByteArray bytes don't match");
 		assertEquals(
 			bitset, BitSet.valueOf(BitSetUtil.toByteArray(bitmap)), "toByteArray doesn't match");
+		assertArrayEquals(
+			bitset.toLongArray(), BitSetUtil.toLongArray(bitmap), "toLongArray doesn't match");
 
 		PersistentRoaringBitmap runBitmap = bitmap.clone();
 		runBitmap.runOptimize();
+		assertArrayEquals(
+			bitset.toByteArray(),
+			BitSetUtil.toByteArray(runBitmap),
+			"toByteArray bytes don't match for run optimized bitmap");
 		assertEquals(
 			bitset, BitSetUtil.bitsetOf(runBitmap), "bitsetOf doesn't match for run optimized bitmap");
+		assertArrayEquals(
+			bitset.toLongArray(),
+			BitSetUtil.toLongArray(runBitmap),
+			"toLongArray doesn't match for run optimized bitmap");
 	}
 
 	@Nested
@@ -173,6 +188,80 @@ public class TestBitSetUtil {
 	 * These ByteBuffer -> PersistentRoaringBitmap cases replicate the similar BitSet / long[] ->
 	 * PersistentRoaringBitmap tests above, exercising the ByteBuffer entry point instead.
 	 */
+	@Nested
+	@DisplayName("Exporting a bitmap as word and byte arrays")
+	class ToWordAndByteArrays {
+
+		@Test
+		@DisplayName("Word arrays are sized to the word holding the last value")
+		public void testLastValueAtWordBoundaries() {
+			for (final int value : new int[] {0, 1, 62, 63, 64, 65, 127, 128, 65535, 65536, 65599, 65600}) {
+				final BitSet single = new BitSet();
+				single.set(value);
+				assertEqualBitsets(single, PersistentRoaringBitmap.bitmapOf(value));
+
+				final BitSet range = new BitSet();
+				range.set(0, value + 1);
+				assertEqualBitsets(range, PersistentRoaringBitmap.bitmapOfRange(0, value + 1));
+			}
+		}
+
+		@Test
+		@DisplayName("Byte arrays are sized to the byte holding the last value")
+		public void testLastValueAtByteBoundaries() {
+			for (final int value :
+				new int[] {0, 1, 7, 8, 9, 55, 56, 63, 64, 65, 127, 128, 65535, 65536, 65543, 65544}) {
+				final BitSet single = new BitSet();
+				single.set(value);
+				assertEqualBitsets(single, PersistentRoaringBitmap.bitmapOf(value));
+
+				final BitSet range = new BitSet();
+				range.set(0, value + 1);
+				assertEqualBitsets(range, PersistentRoaringBitmap.bitmapOfRange(0, value + 1));
+			}
+		}
+
+		@Test
+		@DisplayName("toByteArray matches BitSet byte for byte across array, bitmap and run containers with gaps")
+		public void testToByteArrayMixedContainers() {
+			final Random random = new Random(8570);
+			for (int trial = 0; trial < 50; trial++) {
+				final BitSet bitset = new BitSet();
+				final PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
+				// containers of every type, with gaps, and the last one ending at an arbitrary bit
+				final int containers = 1 + random.nextInt(6);
+				for (int c = 0; c < containers; c++) {
+					final int base = (2 * c + random.nextInt(2)) << 16;
+					switch (random.nextInt(3)) {
+						case 0 -> { // array
+							for (int k = 0; k < 100; k++) {
+								final int value = base + random.nextInt(1 << 16);
+								bitset.set(value);
+								bitmap.add(value);
+							}
+						}
+						case 1 -> { // bitmap
+							for (int k = 0; k < 10000; k++) {
+								final int value = base + random.nextInt(1 << 16);
+								bitset.set(value);
+								bitmap.add(value);
+							}
+						}
+						case 2 -> { // run
+							final int start = base + random.nextInt(1 << 15);
+							final int end = start + 1 + random.nextInt(1 << 15);
+							bitset.set(start, end);
+							bitmap.add((long) start, (long) end);
+						}
+						default -> throw new IllegalStateException("random.nextInt(3) returned a value outside [0, 3)");
+					}
+				}
+				bitmap.runOptimize();
+				assertArrayEquals(bitset.toByteArray(), BitSetUtil.toByteArray(bitmap));
+			}
+		}
+	}
+
 	@Nested
 	@DisplayName("Building a bitmap from a ByteBuffer")
 	class FromByteBuffer {

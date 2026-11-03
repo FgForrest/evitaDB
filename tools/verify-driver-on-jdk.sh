@@ -33,6 +33,9 @@
 # The server listens on the default port 5555 with the default (generated) certificate, which the
 # driver downloads through the system API - exactly what a fresh client installation does.
 #
+# Build the driver jar with:
+#   mvn -f recipes/evita_java_driver_all_in_one/pom.xml -Drevision=<evitaDB version> install
+#
 # Usage:
 #   tools/verify-driver-on-jdk.sh --server-jar <evita-server.jar> --driver-jar <all-in-one.jar> \
 #       --client-java-home <JDK dir> [--server-java-home <JDK dir>] [--expect-java <feature>]

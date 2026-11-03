@@ -117,6 +117,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -124,13 +125,14 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.ZipFile;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.WAL_FILE_SUFFIX;
 import static io.evitadb.api.query.QueryConstraints.dataInLocales;
 import static io.evitadb.test.EvitaTestSupport.catalogDirectory;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.test.diagnostics.TaskHangDiagnostics.awaitTaskResult;
 import static io.evitadb.test.generator.DataGenerator.*;
@@ -494,7 +496,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 
 	@DisplayName("Catalog history should be aggregated correctly.")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
-	@Tag(SLOW)
 	@Test
 	void shouldBuildCorrectHistory(Evita evita) throws IOException {
 		// close evita first so that the processing pipeline is shut down
@@ -697,7 +698,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 
 	@DisplayName("Should handle large transaction.")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
-	@Tag(SLOW)
 	@Test
 	void shouldHandleLargeTransaction(EvitaContract evita, SealedEntitySchema productSchema) {
 		final EvitaSessionContract session = evita.createSession(
@@ -725,7 +725,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 
 	@DisplayName("Should execute multiple updates of same entity in one large transaction.")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
-	@Tag(SLOW)
 	@Test
 	void shouldExecuteMultipleUpdatesOfSameEntityInOneLargeTransaction(EvitaContract originalEvita) throws Exception {
 		final EvitaConfiguration originalConfiguration = ((Evita) originalEvita).getConfiguration();
@@ -750,7 +749,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 					ServerOptions.builder(originalConfiguration.server())
 						.transactionThreadPool(
 							ThreadPoolOptions.transactionThreadPoolBuilder()
-								.threadPriority(Thread.MAX_PRIORITY)
 								.queueSize(16_384)
 								.build()
 						)
@@ -847,7 +845,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 
 	@DisplayName("Verify code has no problems assigning new PK in concurrent environment")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
-	@Tag(SLOW)
 	@Test
 	void shouldAutomaticallyGenerateEntitiesInParallel(
 		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
@@ -868,7 +865,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 					ServerOptions.builder(originalConfiguration.server())
 						.transactionThreadPool(
 							ThreadPoolOptions.transactionThreadPoolBuilder()
-								.threadPriority(Thread.MAX_PRIORITY)
 								.queueSize(16_384)
 								.build()
 						)
@@ -888,7 +884,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 
 	@DisplayName("Verify code has no problems assigning new PK in concurrent environment and simultaneous backup & restore")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
-	@Tag(SLOW)
 	@Test
 	void shouldBackupAndRestoreCatalogDuringHeavyParallelIndexing(
 		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
@@ -909,7 +904,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 					ServerOptions.builder(originalConfiguration.server())
 						.transactionThreadPool(
 							ThreadPoolOptions.transactionThreadPoolBuilder()
-								.threadPriority(Thread.MAX_PRIORITY)
 								.queueSize(16_384)
 								.build()
 						)
@@ -994,7 +988,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 
 	@DisplayName("Verify code has no problems assigning new PK in concurrent environment and simultaneous backup & restore including WAL")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
-	@Tag(SLOW)
 	@Test
 	void shouldBackupAndRestoreCatalogDuringHeavyParallelIndexingIncludingWal(
 		EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
@@ -1015,7 +1008,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 					ServerOptions.builder(originalConfiguration.server())
 						.transactionThreadPool(
 							ThreadPoolOptions.transactionThreadPoolBuilder()
-								.threadPriority(Thread.MAX_PRIORITY)
 								.queueSize(16_384)
 								.build()
 						)
@@ -1028,14 +1020,32 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 
 		try {
 			final AtomicReference<CompletableFuture<FileForFetch>> lastBackupProcess = new AtomicReference<>();
+			// the version visible right before the backup is requested - the backup captures the version published
+			// when it starts, which can only be this one or a later one
+			final AtomicLong versionBeforeBackup = new AtomicLong(-1L);
 			final Set<PkWithCatalogVersion> insertedPrimaryKeysAndAssociatedTxs = automaticallyGenerateEntitiesInParallel(
 				evita, productSchema,
-				theEvita -> lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, null, false))
+				theEvita -> {
+					versionBeforeBackup.set(
+						theEvita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion)
+					);
+					lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, null, true));
+				}
 			);
 
-			final Path backupFilePath = lastBackupProcess.get().get().path(
+			final CompletableFuture<FileForFetch> fileForFetchCompletableFuture = lastBackupProcess.get();
+			assertNotNull(fileForFetchCompletableFuture, "No backup process was started!");
+			final Path backupFilePath = fileForFetchCompletableFuture.get().path(
 				((FileSystemExportOptions) evita.getConfiguration().export()).getDirectory());
 			assertTrue(backupFilePath.toFile().exists(), "Backup file does not exist!");
+			// this is what makes the test the WAL-including variant: the archive must carry the write-ahead log, so the
+			// restore below replays the transactions committed while the data files were being copied
+			try (final ZipFile backupArchive = new ZipFile(backupFilePath.toFile())) {
+				assertTrue(
+					backupArchive.stream().anyMatch(entry -> entry.getName().endsWith(WAL_FILE_SUFFIX)),
+					"Backup including WAL must contain at least one write-ahead log file!"
+				);
+			}
 
 			final String restoredCatalogName = TEST_CATALOG + "_restored";
 			final CompletableFuture<Void> restoreFuture = evita.management().restoreCatalog(
@@ -1056,6 +1066,18 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 				session -> {
 					final long restoredCatalogVersion = session.getCatalogVersion();
 					log.info("Restored catalog is version: " + restoredCatalogVersion);
+
+					// the replayed WAL may move the restored catalog past the version the data files were copied at,
+					// but never behind the version that was already visible when the backup was requested
+					assertTrue(
+						restoredCatalogVersion >= versionBeforeBackup.get(),
+						"Restored catalog version `" + restoredCatalogVersion + "` must not be lower than the version `" +
+							versionBeforeBackup.get() + "` visible when the backup was requested!"
+					);
+					assertTrue(
+						restoredCatalogVersion <= originalCatalogVersion,
+						"Restored catalog version must not exceed the original one!"
+					);
 
 					final AtomicInteger productCount = new AtomicInteger();
 					insertedPrimaryKeysAndAssociatedTxs
@@ -1089,7 +1111,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 		}
 	}
 
-	@Tag(SLOW)
 	@ParameterizedTest(name = "This test verifies, that all data files are correctly rotated and compacted.")
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void shouldCorrectlyRotateAllFiles(GenerationalTestInput input) throws Exception {
@@ -1372,7 +1393,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 		}
 	}
 
-	@Tag(SLOW)
 	@ParameterizedTest(name = "This test verifies, that all data files are correctly rotated and compacted.")
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void shouldCorrectlyRotateAllFilesManyItems(GenerationalTestInput input) throws Exception {

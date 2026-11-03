@@ -30,7 +30,7 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
-import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.attribute.UniqueIndexTestSupport;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -49,7 +49,6 @@ import java.util.Random;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
@@ -191,7 +190,6 @@ class LongRunningCatalogIndexTest implements TimeBoundedTestSupport {
 		int nextRecordId
 	) {}
 
-	@Tag(SLOW)
 	@DisplayName(
 		"should match reference implementation across random generations"
 	)
@@ -364,7 +362,6 @@ class LongRunningCatalogIndexTest implements TimeBoundedTestSupport {
 	 * mutation inside a transaction that is then rolled back, and asserts the base index is unchanged and no committed
 	 * value was published.
 	 */
-	@Tag(SLOW)
 	@Tag(TRANSACTION)
 	@DisplayName(
 		"rollback discards every in-transaction unique-attribute mutation and leaves the base intact"
@@ -442,7 +439,10 @@ class LongRunningCatalogIndexTest implements TimeBoundedTestSupport {
 				createNonLocalizedAttributeSchema(attributeName, String.class);
 			final GlobalUniqueIndex globalUniqueIndex = index.getGlobalUniqueIndex(attributeSchema, null);
 			if (globalUniqueIndex != null) {
-				recordIdsByAttribute.put(attributeName, toList(globalUniqueIndex.getRecordIds(ENTITY_TYPE, CLASSIFIER_RESOLVER)));
+				recordIdsByAttribute.put(
+					attributeName,
+					toList(UniqueIndexTestSupport.ownerRecordIds(globalUniqueIndex, ENTITY_TYPE, CLASSIFIER_RESOLVER))
+				);
 				sizeByAttribute.put(attributeName, globalUniqueIndex.size());
 			}
 		}
@@ -450,11 +450,10 @@ class LongRunningCatalogIndexTest implements TimeBoundedTestSupport {
 	}
 
 	/**
-	 * Converts a bitmap into an ascending list of its record ids (a value type with deep `.equals`).
+	 * Converts ascending record ids into a list (a value type with deep `.equals`).
 	 */
 	@Nonnull
-	private static List<Integer> toList(@Nonnull Bitmap bitmap) {
-		final int[] array = bitmap.getArray();
+	private static List<Integer> toList(@Nonnull int[] array) {
 		final List<Integer> list = new ArrayList<>(array.length);
 		for (final int value : array) {
 			list.add(value);

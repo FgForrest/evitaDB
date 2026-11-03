@@ -23,6 +23,7 @@
 
 package io.evitadb.index.page;
 
+import io.evitadb.api.exception.IdentifierOverflowException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.PagedLeafHandle;
 import org.junit.jupiter.api.DisplayName;
@@ -413,6 +414,56 @@ class PageStreamRegistryTest {
 			assertEquals(NO_PAGE, registry.highWater(1));
 			assertTrue(registry.livePages(1).isEmpty());
 			assertEquals(0, registry.allocate(1), "A forgotten stream re-allocates from zero.");
+		}
+	}
+
+	@Nested
+	@DisplayName("Exhaustion")
+	class Exhaustion {
+
+		@Test
+		@DisplayName("hands out the last page sequence, then refuses without moving the high-water")
+		void shouldHandOutTheLastPageSequenceAndRefuseTheNext() {
+			final PageStreamRegistry registry = new PageStreamRegistry();
+			// restored just below the limit through the cold-load path, with the live page at the persisted high-water
+			registry.restore(1, Integer.MAX_VALUE - 1, livePagesOf(Integer.MAX_VALUE - 1));
+			registry.allocate(2);
+
+			assertEquals(Integer.MAX_VALUE, registry.allocate(1), "The last page sequence is still handed out.");
+			final IdentifierOverflowException exception = assertThrows(
+				IdentifierOverflowException.class, () -> registry.allocate(1)
+			);
+
+			assertTrue(
+				exception.getPrivateMessage().contains("Page stream 1 ") &&
+					exception.getPrivateMessage().contains(String.valueOf(Integer.MAX_VALUE)),
+				"The private message must name the stream and its position: " + exception.getPrivateMessage()
+			);
+			final String publicMessage = exception.getPublicMessage();
+			assertTrue(
+				publicMessage.contains("page sequences of a persisted index are exhausted") &&
+					publicMessage.contains("a restart does not help") &&
+					publicMessage.contains("`replaceCollection`") &&
+					publicMessage.contains("`replaceCatalog`"),
+				"The public message must name the id space and the remedy: " + publicMessage
+			);
+			// the refusal comes before the high-water moves, and it stays refused
+			assertEquals(Integer.MAX_VALUE, registry.highWater(1));
+			assertEquals(Set.of(Integer.MAX_VALUE - 1), registry.livePages(1));
+			assertThrows(IdentifierOverflowException.class, () -> registry.allocate(1));
+			assertEquals(Integer.MAX_VALUE, registry.highWater(1));
+			// other streams keep allocating
+			assertEquals(1, registry.allocate(2));
+		}
+
+		@Test
+		@DisplayName("a stream restored at the last page sequence refuses its very first allocation")
+		void shouldRefuseTheFirstAllocationOfAStreamRestoredAtTheLimit() {
+			final PageStreamRegistry registry = new PageStreamRegistry();
+			registry.restore(1, Integer.MAX_VALUE, livePagesOf(Integer.MAX_VALUE));
+
+			assertThrows(IdentifierOverflowException.class, () -> registry.allocate(1));
+			assertEquals(Integer.MAX_VALUE, registry.highWater(1));
 		}
 	}
 }

@@ -318,6 +318,123 @@ class TransactionalElementBPlusTreeTest {
 	class DeleteOperationsTest {
 
 		@Test
+		@DisplayName("deleting an absent key in a transaction opens no write layer on its leaf")
+		void shouldOpenNoWriteLayerWhenDeletingAbsentKey() {
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(3);
+			tree.insert(rec(1));
+			tree.insert(rec(2));
+			// both keys fit one leaf, so the root IS the leaf every removal below lands on
+			final BPlusLeafTreeNode<PriceRecordContract> leaf = (BPlusLeafTreeNode<PriceRecordContract>) tree.getRoot();
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					tested.delete(99);
+					assertNull(
+						Transaction.getTransactionalMemoryLayerIfExists(leaf),
+						"an absent key must be settled on the current state: no layer opened, nothing copied"
+					);
+				},
+				(original, committed) -> {
+					assertEquals(2, committed.size());
+					assertEquals(rec(1), committed.search(1));
+					assertEquals(rec(2), committed.search(2));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("deleting a present key in a transaction writes through a layer on its leaf")
+		void shouldWriteThroughLayerWhenDeletingPresentKey() {
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(3);
+			tree.insert(rec(1));
+			tree.insert(rec(2));
+			// both keys fit one leaf, so the root IS the leaf every removal below lands on
+			final BPlusLeafTreeNode<PriceRecordContract> leaf = (BPlusLeafTreeNode<PriceRecordContract>) tree.getRoot();
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					tested.delete(1);
+					assertNotNull(
+						Transaction.getTransactionalMemoryLayerIfExists(leaf),
+						"a removal that changes the leaf must write into the transaction's layer, not the shared node"
+					);
+				},
+				(original, committed) -> {
+					assertEquals(2, original.size());
+					assertEquals(rec(1), original.search(1));
+					assertEquals(1, committed.size());
+					assertNull(committed.search(1));
+					assertEquals(rec(2), committed.search(2));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("deleting a key after an insert in the same transaction shifted its position removes that key")
+		void shouldDeleteKeyWhosePositionAnEarlierInsertShifted() {
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(8);
+			tree.insert(rec(2));
+			tree.insert(rec(4));
+			tree.insert(rec(6));
+			assertFalse(tree.isRootInternal(), "all keys must share one leaf for the insert to shift the deleted one");
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					// the insert moves key 4 from the second to the third slot of the transaction's layer
+					tested.insert(rec(1));
+					tested.delete(4);
+				},
+				(original, committed) -> {
+					verifyTreeConsistency(original, 2, 4, 6);
+					verifyTreeConsistency(committed, 1, 2, 6);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("deleting a key inserted earlier in the same transaction removes it")
+		void shouldDeleteKeyInsertedEarlierInSameTransaction() {
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(8);
+			tree.insert(rec(2));
+			tree.insert(rec(4));
+			tree.insert(rec(6));
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					// key 5 lives only in the transaction's layer, never in the shared node
+					tested.insert(rec(5));
+					tested.delete(5);
+					assertNull(tested.search(5), "the key must be gone from the transaction's own view");
+				},
+				(original, committed) -> {
+					verifyTreeConsistency(original, 2, 4, 6);
+					verifyTreeConsistency(committed, 2, 4, 6);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("deleting a key twice in one transaction removes it once")
+		void shouldDeleteKeyOnceWhenDeletedTwiceInSameTransaction() {
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(8);
+			tree.insert(rec(2));
+			tree.insert(rec(4));
+			tree.insert(rec(6));
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					tested.delete(4);
+					// the key is still in the shared node, but no longer in the transaction's layer
+					tested.delete(4);
+				},
+				(original, committed) -> {
+					verifyTreeConsistency(original, 2, 4, 6);
+					verifyTreeConsistency(committed, 2, 6);
+				}
+			);
+		}
+
+		@Test
 		@DisplayName("ignores deletion of an absent key")
 		void shouldIgnoreAbsentKey() {
 			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(3);
@@ -401,8 +518,8 @@ class TransactionalElementBPlusTreeTest {
 			while (it.hasNext()) {
 				seen.add(it.next().internalPriceId());
 			}
-			assertEquals(16, seen.get(0));
-			assertEquals(38, seen.get(seen.size() - 1));
+			assertEquals(16, seen.getFirst());
+			assertEquals(38, seen.getLast());
 			assertEquals(12, seen.size());
 		}
 
@@ -419,8 +536,8 @@ class TransactionalElementBPlusTreeTest {
 			while (it.hasNext()) {
 				seen.add(it.next().internalPriceId());
 			}
-			assertEquals(14, seen.get(0));
-			assertEquals(0, seen.get(seen.size() - 1));
+			assertEquals(14, seen.getFirst());
+			assertEquals(0, seen.getLast());
 			assertEquals(8, seen.size());
 		}
 	}
@@ -727,6 +844,25 @@ class TransactionalElementBPlusTreeTest {
 			}
 			assertTrue(dirtyOrNew >= 1, "The mutated leaf must be flagged for re-emission");
 			assertTrue(dirtyOrNew <= 3, "A single deletion must not dirty the whole tree (" + dirtyOrNew + ")");
+		}
+
+		@Test
+		@DisplayName("deleting an absent key outside a transaction flags no leaf for re-emission")
+		void shouldFlagNoLeafDirtyWhenDeletingAbsentKey() {
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(4);
+			for (int key = 0; key < 80; key += 2) {
+				tree.insert(rec(key));
+			}
+			assertTrue(tree.isRootInternal(), "Test needs a multi-leaf tree so the absent key lands on an inner leaf");
+			emitPages(tree, new AtomicInteger(0));
+
+			// an odd key falls between two present keys of some leaf, which must stay untouched
+			tree.delete(41);
+
+			for (final LeafPageHandle<PriceRecordContract> handle : tree.<PriceRecordContract>leafPageHandles()) {
+				assertFalse(handle.isDirty(), "A delete that changed nothing must not flag its leaf for re-emission");
+			}
+			assertEquals(40, tree.size());
 		}
 
 		@Test
@@ -1711,12 +1847,12 @@ class TransactionalElementBPlusTreeTest {
 	}
 
 	@Nested
-	@DisplayName("Reader bounds when a leaf peek runs ahead of its array")
+	@DisplayName("Session-free heap walk when a leaf peek runs ahead of its array")
 	class TornLeafReaderBoundTest {
 
 		/**
-		 * Builds a single-leaf tree left in exactly the shape a cross-thread reader can observe: a `peek` that belongs
-		 * to a growth whose longer array is not visible beside it.
+		 * Builds a single-leaf tree left in exactly the shape a session-free management reader can observe: a `peek`
+		 * that belongs to a growth whose longer array is not visible beside it.
 		 *
 		 * A content-sized leaf sizes its array to its load, so a leaf holding four elements really does own a four-slot
 		 * array and a read one slot past it really does run off the end — which is what makes the bound an assertion
@@ -1749,98 +1885,6 @@ class TransactionalElementBPlusTreeTest {
 		void shouldBoundTheHeapWalkWhenPeekRunsAheadOfTheArray() {
 			// reached from EntityCollection#describeIndex, which takes no snapshot and holds no transaction
 			assertTrue(tornSingleLeafTree().getHeapSizeInBytes() > 0, "the heap walk must survive the torn leaf");
-		}
-
-		@Test
-		@DisplayName("point lookup stays inside the array it read")
-		void shouldBoundPointLookupWhenPeekRunsAheadOfTheArray() {
-			// this is the hot price-record lookup - a query thread resolving prices shares no transaction binding with
-			// a warm-up thread growing the same leaf
-			final TransactionalElementBPlusTree<PriceRecordContract> tree = tornSingleLeafTree();
-			for (int key = 0; key < 4; key++) {
-				assertEquals(rec(key), tree.search(key), "point lookup must still find every live element");
-			}
-			// past the last key, so an unbounded binary search walks up into the slot the array does not carry
-			assertNull(tree.search(9), "a lookup past the end must miss rather than run off the array");
-		}
-
-		@Test
-		@DisplayName("forward iteration stays inside the array it read")
-		void shouldBoundForwardIterationWhenPeekRunsAheadOfTheArray() {
-			final List<PriceRecordContract> forward = new ArrayList<>();
-			final Iterator<PriceRecordContract> it = tornSingleLeafTree().valueIterator();
-			while (it.hasNext()) {
-				forward.add(it.next());
-			}
-			assertEquals(
-				List.of(rec(0), rec(1), rec(2), rec(3)), forward,
-				"the forward walk must stop at the live run"
-			);
-		}
-
-		@Test
-		@DisplayName("reverse iteration stays inside the array it read")
-		void shouldBoundReverseIterationWhenPeekRunsAheadOfTheArray() {
-			final List<PriceRecordContract> reverse = new ArrayList<>();
-			final Iterator<PriceRecordContract> it = tornSingleLeafTree().valueReverseIterator();
-			while (it.hasNext()) {
-				reverse.add(it.next());
-			}
-			assertEquals(
-				List.of(rec(3), rec(2), rec(1), rec(0)), reverse,
-				"the reverse walk must stop at the live run"
-			);
-		}
-
-		@Test
-		@DisplayName("the keyed-start iterator stays inside the array it read")
-		void shouldBoundKeyedStartIterationWhenPeekRunsAheadOfTheArray() {
-			// the search for key 2 settles before it ever reaches the phantom slot, so the bound that fires here is
-			// the one in `loadCurrentLeaf` - the two tests below drive the separate `findKeyPosition` bound
-			final List<PriceRecordContract> tail = new ArrayList<>();
-			final Iterator<PriceRecordContract> it = tornSingleLeafTree().greaterOrEqualValueIterator(2);
-			while (it.hasNext()) {
-				tail.add(it.next());
-			}
-			assertEquals(List.of(rec(2), rec(3)), tail, "the keyed walk must stop at the live run");
-		}
-
-		@Test
-		@DisplayName("a keyed-start iterator opened past the last key yields nothing rather than running off the array")
-		void shouldBoundKeyedStartIterationPastTheLastKey() {
-			// the key lands in the phantom slot the raised peek claims and the array does not carry, so the leaf's own
-			// `findKeyPosition` search walks into it - a bound the key-2 case above never reaches
-			final Iterator<PriceRecordContract> it = tornSingleLeafTree().greaterOrEqualValueIterator(9);
-
-			assertFalse(it.hasNext(), "no live element is keyed above 9, so the walk must be empty");
-		}
-
-		@Test
-		@DisplayName("a reverse iterator opened from a key stays inside the array it read")
-		void shouldBoundKeyedReverseIterationWhenPeekRunsAheadOfTheArray() {
-			// the reverse keyed constructor resolves its start through the same `findKeyPosition`, and reaches it
-			// through a different navigator - so it is asserted rather than assumed to follow from the forward case
-			final List<PriceRecordContract> reverse = new ArrayList<>();
-			final Iterator<PriceRecordContract> it = tornSingleLeafTree().lesserOrEqualValueIterator(9);
-			while (it.hasNext()) {
-				reverse.add(it.next());
-			}
-
-			assertEquals(
-				List.of(rec(3), rec(2), rec(1), rec(0)), reverse,
-				"a keyed reverse walk opened past the end must fall back onto the live run"
-			);
-		}
-
-		@Test
-		@DisplayName("the verbose rendering stays inside the array it read")
-		void shouldBoundVerboseRenderingWhenPeekRunsAheadOfTheArray() {
-			// a debugger or a log statement is exactly how a live tree gets read off a thread that never wrote to it,
-			// and an out-of-bounds thrown out of toString would break the diagnostics used to investigate it
-			assertFalse(
-				tornSingleLeafTree().toString().isEmpty(),
-				"the verbose rendering must survive the torn leaf"
-			);
 		}
 
 	}

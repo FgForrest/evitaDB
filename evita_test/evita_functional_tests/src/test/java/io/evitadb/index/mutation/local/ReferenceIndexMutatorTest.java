@@ -57,7 +57,8 @@ import java.util.Map;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.index.mutation.local.ReferenceIndexMutator.attributeUpdate;
-import static io.evitadb.index.mutation.local.ReferenceIndexMutator.referenceInsert;
+import static io.evitadb.index.mutation.local.ReferenceIndexMutator.referenceInsertGlobal;
+import static io.evitadb.index.mutation.local.ReferenceIndexMutator.referenceInsertPerComponent;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static io.evitadb.test.TestTags.INDEXING;
@@ -140,10 +141,11 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, Scope.DEFAULT_SCOPE, rrk)
 		);
 		final ReferenceSchema referenceSchema = this.productSchema.getReferenceOrThrowException(Entities.BRAND);
-		referenceInsert(
+		referenceInsertGlobal(1, referenceSchema, this.entityIndex, referenceKey, null, this.executor);
+		referenceInsertPerComponent(
 			1, this.productSchema, referenceSchema, this.executor,
-			this.entityIndex, this.referenceTypesIndex, referenceIndex,
-			referenceKey, null,
+			this.referenceTypesIndex, referenceIndex,
+			referenceKey, referenceKey.primaryKey(), null,
 			getEntityAttributeValueSupplierFactory(this.productSchema, 1)
 		);
 
@@ -172,10 +174,11 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 		final ReferenceSchema referenceSchema =
 			this.productSchema.getReferenceOrThrowException(Entities.BRAND);
 
-		referenceInsert(
+		referenceInsertGlobal(1, referenceSchema, this.entityIndex, referenceKey, null, this.executor);
+		referenceInsertPerComponent(
 			1, this.productSchema, referenceSchema, this.executor,
-			this.entityIndex, this.referenceTypesIndex, referenceIndex,
-			referenceKey, null, entityAttributeValueSupplierFactory
+			this.referenceTypesIndex, referenceIndex,
+			referenceKey, referenceKey.primaryKey(), null, entityAttributeValueSupplierFactory
 		);
 		final ReferenceAttributeMutation referenceMutation = new ReferenceAttributeMutation(
 			referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_VARIANT_COUNT), 55)

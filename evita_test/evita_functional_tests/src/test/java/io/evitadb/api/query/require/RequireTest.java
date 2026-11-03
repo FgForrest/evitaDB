@@ -122,7 +122,7 @@ class RequireTest {
 			);
 
 			assertInstanceOf(Require.class, copy);
-			assertFalse(((Require) copy).isApplicable());
+			assertFalse(copy.isApplicable());
 		}
 
 		@Test

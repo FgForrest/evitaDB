@@ -170,6 +170,17 @@ public record EvitaClientConfiguration(
 		return this.connection.idleTimeoutMillis();
 	}
 
+	/**
+	 * Returns the connect timeout in milliseconds.
+	 *
+	 * Delegates to {@link ClientConnectionOptions#connectTimeoutMillis()}.
+	 *
+	 * @return the connect timeout in milliseconds
+	 */
+	public int connectTimeoutMillis() {
+		return this.connection.connectTimeoutMillis();
+	}
+
 	// ============================================================================================
 	// Deprecated delegate accessor methods for backward compatibility
 	// ============================================================================================
@@ -469,6 +480,20 @@ public record EvitaClientConfiguration(
 		@Nonnull
 		public EvitaClientConfiguration.Builder idleTimeoutMillis(int idleTimeoutMillis) {
 			this.connectionBuilder.idleTimeoutMillis(idleTimeoutMillis);
+			return this;
+		}
+
+		/**
+		 * Sets the connect timeout in milliseconds.
+		 *
+		 * Delegates to {@link ClientConnectionOptions.Builder#connectTimeoutMillis(int)}.
+		 *
+		 * @param connectTimeoutMillis the connect timeout in milliseconds (`0` or below falls back to the default)
+		 * @return this builder for chaining
+		 */
+		@Nonnull
+		public EvitaClientConfiguration.Builder connectTimeoutMillis(int connectTimeoutMillis) {
+			this.connectionBuilder.connectTimeoutMillis(connectTimeoutMillis);
 			return this;
 		}
 

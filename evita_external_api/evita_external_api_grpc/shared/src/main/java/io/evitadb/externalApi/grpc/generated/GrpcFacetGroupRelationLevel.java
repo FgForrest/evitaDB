@@ -46,7 +46,7 @@ public enum GrpcFacetGroupRelationLevel
   WITH_DIFFERENT_FACETS_IN_GROUP(0),
   /**
    * <pre>
-   * Defines relation type between two facets in the different groups or references.
+   * Defines relation type between two facets in the different groups of the same reference.
    * </pre>
    *
    * <code>WITH_DIFFERENT_GROUPS = 1;</code>
@@ -65,7 +65,7 @@ public enum GrpcFacetGroupRelationLevel
   public static final int WITH_DIFFERENT_FACETS_IN_GROUP_VALUE = 0;
   /**
    * <pre>
-   * Defines relation type between two facets in the different groups or references.
+   * Defines relation type between two facets in the different groups of the same reference.
    * </pre>
    *
    * <code>WITH_DIFFERENT_GROUPS = 1;</code>

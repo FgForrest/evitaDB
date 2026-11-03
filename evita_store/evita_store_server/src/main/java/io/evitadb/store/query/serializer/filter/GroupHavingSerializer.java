@@ -28,8 +28,12 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.GroupHaving;
+import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
+
+import javax.annotation.Nonnull;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link GroupHaving} from/to binary format.
@@ -39,9 +43,15 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class GroupHavingSerializer extends Serializer<GroupHaving> {
 
+	/**
+	 * Writes exactly one filter to preserve the recording format, combining multiple children with AND.
+	 * Empty scope filters cannot be recorded.
+	 */
 	@Override
-	public void write(Kryo kryo, Output output, GroupHaving object) {
-		kryo.writeClassAndObject(output, object.getChildren()[0]);
+	public void write(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull GroupHaving object) {
+		final FilterConstraint[] children = object.getChildren();
+		Assert.isTrue(children.length > 0, "Cannot serialize an empty GroupHaving constraint.");
+		kryo.writeClassAndObject(output, children.length == 1 ? children[0] : new And(children));
 	}
 
 	@Override

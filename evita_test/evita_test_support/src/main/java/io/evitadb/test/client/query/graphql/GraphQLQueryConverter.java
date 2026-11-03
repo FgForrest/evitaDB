@@ -30,7 +30,6 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
-import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.head.Head;
 import io.evitadb.api.query.require.*;
@@ -177,10 +176,7 @@ public class GraphQLQueryConverter {
 		final String entityType = ofNullable(query.getCollection())
 			.map(Collection::getEntityType)
 			.orElseThrow(() -> new EntityCollectionRequiredException("Collection must be provided for GraphQL query."));
-		final Locale locale = ofNullable(query.getFilterBy())
-			.map(f -> QueryUtils.findConstraint(f, EntityLocaleEquals.class, SeparateEntityContentRequireContainer.class))
-			.map(EntityLocaleEquals::getLocale)
-			.orElse(null);
+		final Locale locale = QueryUtils.resolveLocale(query.getFilterBy());
 		final Require require = query.getRequire();
 
 		final GraphQLOutputFieldsBuilder fieldsBuilder = new GraphQLOutputFieldsBuilder(1);

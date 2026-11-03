@@ -407,11 +407,15 @@ class ValueToRecordBitmapTest implements TimeBoundedTestSupport {
 
 		@Test
 		@DisplayName("equals(null) and equals(wrongType) return false")
+		@SuppressWarnings({"SimplifiableAssertion", "EqualsBetweenInconvertibleTypes", "ObjectEqualsNull"})
 		void shouldHandleNullAndWrongType() {
 			final ValueToRecordBitmap bucket =
 				new ValueToRecordBitmap("val");
-			assertNotEquals(null, bucket);
-			assertNotEquals("string", bucket);
+			// deliberately not `assertNotEquals`: it calls `equals` on its first argument, and the IDE's argument-order
+			// fix moves the literal there, so `String.equals` would be tested instead of the class under test - and
+			// with `null` first it calls no `equals` at all
+			assertFalse(bucket.equals(null));
+			assertFalse(bucket.equals("string"));
 		}
 
 		@Test

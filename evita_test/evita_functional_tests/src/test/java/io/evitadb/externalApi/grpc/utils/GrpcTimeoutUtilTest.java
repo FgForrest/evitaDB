@@ -182,8 +182,13 @@ class GrpcTimeoutUtilTest {
 		// the stopwatch starts before the contexts do: each context's own clock begins when it is built,
 		// so measuring from here keeps `elapsedMillis` an upper bound on the scheduler's notion of elapsed
 		final long startNanos = System.nanoTime();
-		final ServiceRequestContext capturedContext = contextWithConfiguredTimeout();
+		// The ratcheting context is built FIRST, and the order is load-bearing. Each horizon is measured
+		// from its own context's start, so a gap between the two builds shifts one against the other.
+		// Built second, the ratchet loses that gap from its lead. The lead is at least 360 ms, the
+		// assertion needs more than one spacing (120 ms), and a cold first build under parallel load took
+		// ~290 ms. Built first, the gap only widens the lead.
 		final ServiceRequestContext ratchetingContext = contextWithConfiguredTimeout();
+		final ServiceRequestContext capturedContext = contextWithConfiguredTimeout();
 		// captured once, before the first re-arm - this is what every producing loop must do
 		final long capturedBudget = GrpcTimeoutUtil.captureRequestTimeoutMillis(capturedContext);
 

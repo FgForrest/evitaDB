@@ -113,7 +113,7 @@ public class ConstraintKeyBuilder {
 		}
 		keyBuilder.add(constraintDescriptor.fullName());
 
-		keyBuilder.set(0, StringUtils.toSpecificCase(keyBuilder.get(0), PROPERTY_NAME_NAMING_CONVENTION));
+		keyBuilder.set(0, StringUtils.toSpecificCase(keyBuilder.getFirst(), PROPERTY_NAME_NAMING_CONVENTION));
 		for (int i = 1; i < keyBuilder.size(); i++) {
 			keyBuilder.set(i, StringUtils.toSpecificCase(keyBuilder.get(i), PROPERTY_NAME_PART_NAMING_CONVENTION));
 		}

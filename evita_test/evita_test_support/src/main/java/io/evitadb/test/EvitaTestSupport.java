@@ -450,7 +450,7 @@ public interface EvitaTestSupport extends TestConstants {
 			final TlsKeyPair tlsKeyPair = TlsKeyPair.ofSelfSigned();
 			final Path certificatePath = Path.of(certificateFolderPath);
 			try (final JcaPEMWriter pemWriterIssued = new JcaPEMWriter(new FileWriter(certificatePath.resolve(certificateName + CertificateUtils.getCertificateExtension()).toFile()))) {
-				pemWriterIssued.writeObject(tlsKeyPair.certificateChain().get(0));
+				pemWriterIssued.writeObject(tlsKeyPair.certificateChain().getFirst());
 			}
 
 			try (final PemWriter privateKeyWriter = new PemWriter(new FileWriter(certificatePath.resolve(certificateName + CertificateUtils.getCertificateKeyExtension()).toFile()))) {

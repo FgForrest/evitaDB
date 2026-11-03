@@ -46,6 +46,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -173,10 +174,12 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 					referenceSchema.getDeprecationNotice(),
 					referenceSchema.getCardinality(),
 					referenceSchema.getReferencedEntityType(),
-					referenceSchema.getEntityTypeNameVariants(entityType -> null),
+					referenceSchema.isReferencedEntityTypeManaged() ?
+						Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
 					referenceSchema.isReferencedEntityTypeManaged(),
 					referenceSchema.getReferencedGroupType(),
-					referenceSchema.getGroupTypeNameVariants(entityType -> null),
+					referenceSchema.isReferencedGroupTypeManaged() ?
+						Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
 					referenceSchema.isReferencedGroupTypeManaged(),
 					referenceSchema.getReferenceIndexTypeInScopes(),
 					referenceSchema.getIndexedComponentsInScopes(),

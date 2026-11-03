@@ -23,27 +23,38 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.core.Evita;
+import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+
+import java.util.function.Consumer;
 
 import static io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutationTest.*;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 
@@ -56,7 +67,7 @@ import static io.evitadb.test.TestTags.ATTRIBUTE;
 @Tag(CONTRACT)
 @Tag(SCHEMA)
 @Tag(ATTRIBUTE)
-class RemoveAttributeSchemaMutationTest {
+class RemoveAttributeSchemaMutationTest implements EvitaTestSupport {
 
 	@Test
 	@DisplayName("Should remove previous global attribute create mutation with same name")
@@ -197,6 +208,79 @@ class RemoveAttributeSchemaMutationTest {
 			Mockito.mock(EntitySchemaContract.class), referenceSchema);
 		assertNotNull(newReferenceSchema);
 		assertFalse(newReferenceSchema.getAttribute(ATTRIBUTE_NAME).isPresent());
+	}
+
+	/**
+	 * Verifies removal of an attribute preserves managed type metadata. An unmanaged entity type
+	 * also exercises the managed group lookup independently of the entity lookup.
+	 */
+	@Tag(ENGINE)
+	@ParameterizedTest
+	@ValueSource(booleans = {true, false})
+	@DisplayName("Should remove attribute from reference with managed entity or group types")
+	void shouldRemoveAttributeFromReferenceWithManagedTypes(boolean managedEntityType) {
+		final TestPaths paths = createTestPaths("RemoveAttributeSchemaMutationTest");
+		try (final Evita evita = new Evita(newTestEvitaConfigurationBuilder(paths).build())) {
+			evita.defineCatalog("testCatalog");
+			evita.updateCatalog("testCatalog", session -> {
+				if (managedEntityType) {
+					session.defineEntitySchema("BrandType").updateVia(session);
+				}
+				session.defineEntitySchema("GroupType").updateVia(session);
+				final EntitySchemaBuilder builder = session.defineEntitySchema("Product");
+				final Consumer<ReferenceSchemaBuilder> configureReference = reference -> reference
+					.withGroupTypeRelatedToEntity("GroupType")
+					.withAttribute(ATTRIBUTE_NAME, String.class);
+				if (managedEntityType) {
+					builder.withReferenceToEntity(
+						"brand", "BrandType", Cardinality.ZERO_OR_MORE, configureReference
+					);
+				} else {
+					builder.withReferenceTo(
+						"brand", "BrandType", Cardinality.ZERO_OR_MORE, configureReference
+					);
+				}
+				builder.updateVia(session);
+				final EntitySchemaContract schema = session.getEntitySchemaOrThrowException("Product");
+				final ReferenceSchemaContract reference = schema.getReference("brand").orElseThrow();
+				assertTrue(reference.getAttribute(ATTRIBUTE_NAME).isPresent());
+
+				final EntitySchemaBuilder updatedBuilder = session.getEntitySchemaOrThrowException("Product")
+					.openForWrite();
+				if (managedEntityType) {
+					updatedBuilder.withReferenceToEntity(
+						"brand", "BrandType", Cardinality.ZERO_OR_MORE,
+						thatIs -> thatIs.withoutAttribute(ATTRIBUTE_NAME)
+					);
+				} else {
+					updatedBuilder.withReferenceTo(
+						"brand", "BrandType", Cardinality.ZERO_OR_MORE,
+						thatIs -> thatIs.withoutAttribute(ATTRIBUTE_NAME)
+					);
+				}
+				updatedBuilder.updateVia(session);
+				final ReferenceSchemaContract updatedReference = session.getEntitySchemaOrThrowException("Product")
+					.getReference("brand")
+					.orElseThrow();
+
+				assertNotNull(updatedReference);
+				assertTrue(updatedReference.getAttribute(ATTRIBUTE_NAME).isEmpty());
+				assertEquals("BrandType", updatedReference.getReferencedEntityType());
+				assertEquals(managedEntityType, updatedReference.isReferencedEntityTypeManaged());
+				assertEquals("GroupType", updatedReference.getReferencedGroupType());
+				assertTrue(updatedReference.isReferencedGroupTypeManaged());
+				assertEquals(
+					NamingConvention.generate("BrandType"),
+					updatedReference.getEntityTypeNameVariants(session::getEntitySchemaOrThrowException)
+				);
+				assertEquals(
+					NamingConvention.generate("GroupType"),
+					updatedReference.getGroupTypeNameVariants(session::getEntitySchemaOrThrowException)
+				);
+			});
+		} finally {
+			cleanupTestPaths(paths);
+		}
 	}
 
 	@Test
