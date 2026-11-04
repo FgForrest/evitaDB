@@ -56,17 +56,22 @@ public interface BucketBPlusTree<K extends Comparable<K>> extends
 	 * Returns a forward {@link BucketCursor} positioned before the first bucket, walking the buckets in ascending key
 	 * order.
 	 *
+	 * Any subsequent write to this tree in the same transaction invalidates the cursor; see {@link BucketCursor}.
+	 *
 	 * @return a fresh forward cursor over all buckets
 	 */
 	@Nonnull
 	BucketCursor<K> cursor();
 
 	/**
-	 * Returns a forward {@link BucketCursor} positioned at (or, when absent, at the insertion point of) the given value,
-	 * walking the buckets in ascending key order from there.
+	 * Returns a forward {@link BucketCursor} positioned before the inclusive lower bound of the given value,
+	 * walking the buckets in ascending key order from there. The first {@link BucketCursor#next()} positions it at
+	 * the first bucket whose key is greater than or equal to the lower bound.
 	 *
-	 * @param value the value to position the cursor at
-	 * @return a fresh forward cursor positioned at the value
+	 * Any subsequent write to this tree in the same transaction invalidates the cursor; see {@link BucketCursor}.
+	 *
+	 * @param value the inclusive lower bound; need not be present in the tree
+	 * @return a fresh forward cursor before the inclusive lower bound
 	 */
 	@Nonnull
 	BucketCursor<K> cursor(@Nonnull K value);
@@ -74,6 +79,8 @@ public interface BucketBPlusTree<K extends Comparable<K>> extends
 	/**
 	 * Returns a reverse {@link BucketCursor} positioned after the last bucket, walking the buckets in descending key
 	 * order.
+	 *
+	 * Any subsequent write to this tree in the same transaction invalidates the cursor; see {@link BucketCursor}.
 	 *
 	 * @return a fresh reverse cursor over all buckets
 	 */

@@ -211,7 +211,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 */
 	private static final long NO_LOCATION = 0L;
 	/**
-	 * Isolates the slot out of a packed `(leafId << 32) | slot` directory entry.
+	 * Isolates the slot out of a packed {@code (leafId << 32) | slot} directory entry.
 	 */
 	private static final long SLOT_MASK = 0xFFFF_FFFFL;
 	/**
@@ -1710,7 +1710,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * sees the whole previous directory or the whole new one, and the rebuild fills a fresh location array rather than
 	 * the live one.
 	 *
-	 * @param valueIdLocations         `valueId -> (leafId << 32) | slot`, `0` meaning "no entry"
+	 * @param valueIdLocations         {@code valueId -> (leafId << 32) | slot}, `0` meaning "no entry"
 	 * @param leafById                 the `leafId -> leaf` indirection the entries resolve through
 	 * @param directoryVersionByLeafId `leafId -> the leaf instance version token last folded in`, which lets a rebuild
 	 *                                 re-stamp only the leaves whose content actually changed, exactly as the page
@@ -2387,29 +2387,37 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	/**
 	 * Returns a forward NEUTRAL cursor over the buckets, ordered ascending by value.
 	 *
+	 * Writes completed before creation are visible. Any subsequent write to this tree in the same transaction
+	 * invalidates the cursor; see {@link BucketCursor} for the navigation contract.
+	 *
 	 * @return a forward bucket cursor
 	 */
 	@Nonnull
 	@Override
 	public BucketCursor<K> cursor() {
-		return new ForwardBucketCursor<>(createLeftmostCursor());
+		return new ForwardBucketCursor<>(this, createLeftmostCursor());
 	}
 
 	/**
 	 * Returns a forward NEUTRAL cursor over the buckets, ordered ascending by value, starting from the first bucket
 	 * whose value is greater than or equal to the passed value (which need not be present).
 	 *
+	 * Writes completed before creation are visible. Any subsequent write to this tree in the same transaction
+	 * invalidates the cursor; see {@link BucketCursor} for the navigation contract.
+	 *
 	 * @param value the lower-bound value (inclusive)
-	 * @return a forward bucket cursor starting at the value
+	 * @return a forward bucket cursor positioned before the first bucket at or above the value
 	 */
 	@Nonnull
 	@Override
 	public BucketCursor<K> cursor(@Nonnull K value) {
-		return new ForwardBucketCursor<>(createCursor(value), value);
+		return new ForwardBucketCursor<>(this, createCursor(value), value);
 	}
 
 	/**
 	 * Returns a reverse NEUTRAL cursor over the buckets, ordered descending by value.
+	 *
+	 * Any subsequent write to this tree in the same transaction invalidates the cursor; see {@link BucketCursor}.
 	 *
 	 * @return a reverse bucket cursor
 	 */
@@ -2565,9 +2573,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	public interface LeafPageHandle<K extends Comparable<K>> extends PagedLeafHandle {
 
 		/**
-		 * Returns a fresh leaf-scoped cursor over this leaf's buckets in ascending value order. The cursor reads the
-		 * live node columns (the transaction-aware committed-with-changes structure reached from the current root), so
-		 * the emitter sees read-your-writes content.
+		 * Returns a fresh leaf-scoped cursor over this leaf's buckets in ascending value order. The cursor captures
+		 * the transaction-aware columns at creation, including preceding writes. Subsequent writes to the tree in
+		 * the same transaction invalidate it; see {@link BucketCursor}.
 		 *
 		 * @return a fresh single-leaf bucket cursor
 		 */
@@ -2579,7 +2587,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * Returns one {@link LeafPageHandle} per leaf, in ascending key order — the page-emission view of the tree for the
 	 * granular FilterIndex write path. The handles wrap the live leaf nodes reached from the current
 	 * (transaction-aware) root, so stamping a page sequence through a handle mutates the node the merge will carry
-	 * forward, and the cursors materialize read-your-writes content.
+	 * forward. Each cursor captures the columns when created; subsequent writes invalidate it as described by
+	 * {@link BucketCursor}.
 	 *
 	 * @return the ordered leaf-page handles; never empty
 	 */
@@ -2818,6 +2827,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.impacts = leaf.getImpacts();
 			this.peek = leaf.getPeek();
 			this.leafId = leaf.getId();
+		}
+
+		@Override
+		public boolean seek(@Nonnull M key) {
+			throw new GenericEvitaInternalError("Seeking is not supported by a page-scoped cursor!");
 		}
 
 		@Override
@@ -3853,8 +3867,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * arithmetic over the descent, so a descent that keeps three extra locals answers them without a path:
 	 *
 	 * - the **fence** is the separator at the deepest level whose descent was not into the rightmost child. Walking
-	 *   down, the last level satisfying `childIndex < node.getPeek()` is exactly the level the cursor's bottom-up walk
-	 *   stops at first, so overwriting a single local at every such level lands on the same key.
+	 *   down, the last level satisfying {@code childIndex < node.getPeek()} is exactly the level the cursor's
+	 *   bottom-up walk stops at first, so overwriting a single local at every such level lands on the same key.
 	 * - the **predecessor** hangs off the deepest level whose descent was not into the leftmost child. When that level
 	 *   is the leaf's own parent, `children[childIndex - 1]` is the predecessor leaf directly and the right-spine walk
 	 *   below is a no-op; when it is higher up, the walk follows the left neighbour's right spine. One rule covers
@@ -4300,14 +4314,20 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	}
 
 	/**
-	 * NEUTRAL cursor over the buckets of the tree, exposing each bucket without allocating per step; consumers adapt it
-	 * into `ValueToRecord` flyweights and `(value, cardinality)` pairs. Advance with {@link #next()}, then read the
-	 * current bucket via the accessors. {@link #records()} returns a lean {@link SingleRecordBitmap} for a single
-	 * bucket, a read-only {@link SortedArrayBitmap} view for a small multi bucket and the live
-	 * {@link TransactionalBitmap} for a large one - so the tier is visible in the TYPE it answers with, and never
-	 * as raw storage the caller could write into. A consumer that has to tell the tiers apart tests that type; it
-	 * must not infer the tier from {@link #size()}, because the promote and demote thresholds differ and a bucket's
-	 * representation is therefore not a function of its cardinality.
+	 * NEUTRAL cursor over the buckets of the tree; consumers adapt it into `ValueToRecord` flyweights and
+	 * `(value, cardinality)` pairs. Keys may be decoded and cached lazily; a seek that leaves the current leaf costs
+	 * a fresh root descent. Advance with {@link #next()} or {@link #seek(Comparable)}, then read the current bucket
+	 * via the accessors. {@link #records()} returns a lean {@link SingleRecordBitmap} for a single bucket, a read-only
+	 * {@link SortedArrayBitmap} view for a small multi bucket and the live {@link TransactionalBitmap} for a large
+	 * one - so the tier is visible in the TYPE it answers with, and never as raw storage the caller could write into.
+	 * A consumer that has to tell the tiers apart tests that type; it must not infer the tier from {@link #size()},
+	 * because the promote and demote thresholds differ and a bucket's representation is therefore not a function of
+	 * its cardinality.
+	 *
+	 * A cursor must not be used after any write to its tree in the same transaction: insertion, removal, posting
+	 * update or impact update. This applies to both {@link #next()} and {@link #seek(Comparable)}. Navigation after
+	 * such a write is undefined and can mix columns captured before the write with the current view. Create a fresh
+	 * cursor after completing the writes to observe them consistently.
 	 *
 	 * @param <K> the value (key) type
 	 */
@@ -4321,7 +4341,26 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		boolean next();
 
 		/**
-		 * Returns the value of the current bucket. Valid only after a {@link #next()} that returned true.
+		 * Advances to the first bucket whose key is greater than or equal to `key` in the tree's comparator order.
+		 * The cursor must already be positioned and `key` must be strictly greater than its current key. On success,
+		 * accessors read the sought bucket immediately; the next {@link #next()} advances beyond it. On exhaustion,
+		 * accessors are invalid and subsequent {@link #next()} calls return false.
+		 *
+		 * Only forward tree cursors support seeking; reverse and page-scoped cursors reject it explicitly. A seek may
+		 * descend from the root, which makes it a keyed walk: it is for session-bound readers only, never for the
+		 * session-free management reads behind {@link TransactionalBucketBPlusTree#cursor()}, which the class
+		 * documentation describes.
+		 *
+		 * @param key the strictly advancing lower bound, in the tree's comparator order
+		 * @return true when positioned at a bucket, false when no bucket reaches the lower bound
+		 * @throws GenericEvitaInternalError if the cursor is not positioned at a bucket (before its first advance or
+		 *                                   after exhaustion), the key does not advance, or seeking is unsupported
+		 */
+		boolean seek(@Nonnull K key);
+
+		/**
+		 * Returns the value of the current bucket. Valid after {@link #next()} or {@link #seek(Comparable)} returns
+		 * true.
 		 *
 		 * @return the current bucket's value
 		 */
@@ -4388,15 +4427,15 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		int size();
 
 		/**
-		 * Returns the version id of the leaf node the current bucket lives in. Valid only after a {@link #next()} that
-		 * returned true. The leaf id is a per-page version token: an untouched leaf keeps its id across a commit (the
-		 * commit-merge returns the same instance) while a leaf whose content changed becomes a fresh instance with a
-		 * fresh id (see {@code BPlusLeafTreeNode.createCopyWithMergedTransactionalMemory}). Consumers use it to build a
-		 * leaf-granular formula-cache staleness token — a cached read over a value range is invalidated only when a leaf
-		 * it actually crossed changes, instead of on any write to the whole index.
+		 * Returns the version id of the leaf node the current bucket lives in. Valid after {@link #next()} or
+		 * {@link #seek(Comparable)} returns true. The leaf id is a per-page version token: an untouched leaf keeps its
+		 * id across a commit (the commit-merge returns the same instance) while a leaf whose content changed becomes a
+		 * fresh instance with a fresh id (see {@code BPlusLeafTreeNode.createCopyWithMergedTransactionalMemory}).
+		 * Consumers use it to build a leaf-granular formula-cache staleness token. A cached read over a value range is
+		 * invalidated only when a leaf it actually crossed changes, instead of on any write to the whole index.
 		 *
 		 * @return the current bucket's leaf version id
-		 * @throws GenericEvitaInternalError if called before a {@link #next()} that returned true
+		 * @throws GenericEvitaInternalError if the cursor is not positioned at a bucket
 		 */
 		long currentLeafId();
 	}
@@ -7546,7 +7585,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 
 		/**
 		 * Adds multiple records to the existing bucket at `index`, promoting it if needed. Journals exactly as
-		 * {@link #addToExistingBucket(int, Comparable, int)} does — nothing on the multi and no-op arms, a demotion
+		 * {@link #addToExistingBucket(int, Comparable, int, int)} does — nothing on the multi and no-op arms, a demotion
 		 * inverse before the promotion's first column write.
 		 *
 		 * @param index the bucket index
@@ -8281,13 +8320,30 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	}
 
 	/**
-	 * Forward {@link BucketCursor}: walks leaves left to right, caching the current leaf's columns so per-bucket access
-	 * is plain array indexing.
+	 * Forward {@link BucketCursor}: walks leaves left to right, caching the loaded leaf's columns and lazily decoding
+	 * its current and final keys.
+	 *
+	 * @param <M> the bucket key type
 	 */
 	private static final class ForwardBucketCursor<M extends Comparable<M>> implements BucketCursor<M> {
-		@Nonnull private final BPlusTreeNode<M, ?>[][] path;
-		@Nonnull private final int[] pathIndex;
-		@Nonnull private final int[] pathPeeks;
+		/**
+		 * The tree supplying comparator order and fresh descents while this cursor remains valid.
+		 */
+		@Nonnull private final TransactionalBucketBPlusTree<M> tree;
+		/**
+		 * The sibling arrays of the captured root-to-leaf descent, one per level. Together with `pathIndex` and
+		 * `pathPeeks` it is rewritten from a fresh descent when a seek leaves the loaded leaf, so none of the three is
+		 * final.
+		 */
+		@Nonnull private BPlusTreeNode<M, ?>[][] path;
+		/**
+		 * The slot of the walked node within each level's siblings; the walk advances the deepest level first.
+		 */
+		@Nonnull private int[] pathIndex;
+		/**
+		 * The last slot the walk may step to at each level, stored beside the sibling array it bounds.
+		 */
+		@Nonnull private int[] pathPeeks;
 		private int currentIndex;
 		private boolean positioned;
 		private boolean exhausted;
@@ -8298,55 +8354,107 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Nullable private OverflowColumn leafImpacts;
 		private int leafPeek;
 		private long leafId;
+		/**
+		 * The decoded current key, or `null` until read at this index. Shared by value reads and seek validation.
+		 */
+		@Nullable private M currentKey;
+		/**
+		 * The decoded final key, or `null` until the first seek on the loaded leaf needs its upper bound.
+		 */
+		@Nullable private M lastLeafKey;
 
-		ForwardBucketCursor(@Nonnull Cursor<M> cursor) {
-			final List<CursorLevel<M>> cursorPath = cursor.path();
-			//noinspection unchecked
-			this.path = new BPlusTreeNode[cursorPath.size()][];
-			this.pathIndex = new int[this.path.length];
-			this.pathPeeks = new int[this.path.length];
-			for (int i = 0; i < cursorPath.size(); i++) {
-				final CursorLevel<M> cursorLevel = cursorPath.get(i);
-				this.path[i] = cursorLevel.siblings();
-				this.pathIndex[i] = cursorLevel.index();
-				this.pathPeeks[i] = cursorLevel.peek();
-			}
-			loadCurrentLeaf();
-			// the leftmost descent can end inside a node being unlinked from its parent, which leaves no leaf at the
-			// bottom of the path. Stepping over that subtree keeps the under-report proportional to it, instead of
-			// reporting the WHOLE tree empty because its first subtree happened to be mid-merge
-			this.exhausted = this.leafPeek < 0 && !moveToNextLeaf();
-			// set AFTER the recovery step too: that step parks on the first bucket, and the first `next()` is the
-			// call that is supposed to land on it
-			this.currentIndex = -1;
+		/**
+		 * Opens a forward cursor on a captured path, recovering past an emptied leftmost subtree if necessary.
+		 *
+		 * @param tree the tree supplying comparator order and fresh descents for seeks
+		 * @param cursor the captured initial root-to-leaf path
+		 */
+		ForwardBucketCursor(@Nonnull TransactionalBucketBPlusTree<M> tree, @Nonnull Cursor<M> cursor) {
+			this.tree = tree;
+			initializePath(cursor);
 		}
 
-		ForwardBucketCursor(@Nonnull Cursor<M> cursor, @Nonnull M key) {
+		/**
+		 * Opens a forward cursor one position before the first bucket at or above the lower bound.
+		 *
+		 * @param tree the tree supplying comparator order and fresh descents for seeks
+		 * @param cursor the captured path to the leaf responsible for the lower bound
+		 * @param key the inclusive lower bound
+		 */
+		ForwardBucketCursor(
+			@Nonnull TransactionalBucketBPlusTree<M> tree, @Nonnull Cursor<M> cursor, @Nonnull M key
+		) {
+			this(tree, cursor);
+			positionBefore(key);
+		}
+
+		/**
+		 * Replaces the traversal path and cached transactional columns, leaving the cursor before its first bucket.
+		 *
+		 * @param cursor the fresh descent whose sibling arrays and bounds become this cursor's path
+		 */
+		private void initializePath(@Nonnull Cursor<M> cursor) {
 			final List<CursorLevel<M>> cursorPath = cursor.path();
-			//noinspection unchecked
-			this.path = new BPlusTreeNode[cursorPath.size()][];
-			this.pathIndex = new int[this.path.length];
-			this.pathPeeks = new int[this.path.length];
+			if (this.path == null || this.path.length != cursorPath.size()) {
+				//noinspection unchecked
+				this.path = new BPlusTreeNode[cursorPath.size()][];
+				this.pathIndex = new int[this.path.length];
+				this.pathPeeks = new int[this.path.length];
+			}
 			for (int i = 0; i < cursorPath.size(); i++) {
 				final CursorLevel<M> cursorLevel = cursorPath.get(i);
 				this.path[i] = cursorLevel.siblings();
 				this.pathIndex[i] = cursorLevel.index();
 				this.pathPeeks[i] = cursorLevel.peek();
 			}
-			final BPlusLeafTreeNode<M> startLeaf = cursor.leafNode();
-			final InsertionPosition insertionPosition = startLeaf.getKeyColumn().findKeyPosition(
-				key, 0, startLeaf.size(), startLeaf.getComparator()
-			);
 			loadCurrentLeaf();
-			// position one before the start so the first next() lands on the start bucket
-			this.currentIndex = insertionPosition.position() - 1;
-			if (insertionPosition.position() <= this.leafPeek) {
-				this.exhausted = false;
-			} else {
-				// start key is greater than every key in this leaf - jump to the next leaf on the first next()
-				this.exhausted = false;
-				this.currentIndex = this.leafPeek;
+			// The descent can end inside a node being unlinked from its parent. Recover before positioning, so the
+			// first next() still visits the first surviving bucket instead of skipping it or losing the whole tail.
+			this.exhausted = this.leafPeek < 0 && !moveToNextLeaf();
+			// Recovery parks at index 0; reset AFTER it so the first next() visits the first surviving bucket.
+			this.currentIndex = -1;
+			this.positioned = false;
+		}
+
+		/**
+		 * Binary-searches the loaded leaf's transactional key column and parks immediately before the inclusive lower
+		 * bound. Does nothing when the cursor is already exhausted: the tree is empty or no readable leaf follows the
+		 * descent.
+		 *
+		 * @param key the inclusive lower bound within the newly loaded leaf, or beyond its final bucket
+		 */
+		private void positionBefore(@Nonnull M key) {
+			if (!this.exhausted) {
+				this.currentIndex = this.leafKeys.findKeyPosition(
+					key, 0, this.leafPeek + 1, this.tree.comparator
+				).position() - 1;
+				this.currentKey = null;
 			}
+		}
+
+		@Override
+		public boolean seek(@Nonnull M key) {
+			final M currentValue = value();
+			Assert.isPremiseValid(
+				compareKeys(key, currentValue, this.tree.comparator) > 0,
+				"Seek key must be greater than the current bucket's key!"
+			);
+			if (this.lastLeafKey == null) {
+				this.lastLeafKey = this.currentIndex == this.leafPeek
+					? currentValue : this.leafKeys.keyAt(this.leafPeek);
+			}
+			if (compareKeys(key, this.lastLeafKey, this.tree.comparator) <= 0) {
+				// Keep the columns captured at leaf load; any subsequent tree write invalidates the cursor.
+				this.currentIndex = this.leafKeys.findKeyPosition(
+					key, this.currentIndex + 1, this.leafPeek + 1, this.tree.comparator
+				).position();
+				this.currentKey = null;
+				return true;
+			}
+			// A fresh descent replaces every saved path level and reloads its columns.
+			initializePath(this.tree.createCursor(key));
+			positionBefore(key);
+			return next();
 		}
 
 		@Override
@@ -8356,6 +8464,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			}
 			if (this.currentIndex < this.leafPeek) {
 				this.currentIndex++;
+				this.currentKey = null;
 				this.positioned = true;
 				return true;
 			}
@@ -8372,7 +8481,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Override
 		public M value() {
 			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
-			return this.leafKeys.keyAt(this.currentIndex);
+			if (this.currentKey == null) {
+				this.currentKey = this.currentIndex == this.leafPeek && this.lastLeafKey != null
+					? this.lastLeafKey : this.leafKeys.keyAt(this.currentIndex);
+			}
+			return this.currentKey;
 		}
 
 		@Override
@@ -8432,7 +8545,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			return this.leafId;
 		}
 
+		/**
+		 * Loads the captured leaf columns and clears decoded keys, including when the path ends in an emptied node.
+		 */
 		private void loadCurrentLeaf() {
+			this.currentKey = null;
+			this.lastLeafKey = null;
 			final BPlusTreeNode<M, ?> bottom =
 				this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
 			// a descent that stopped inside an EMPTIED node parks on a slot that node has already nulled, so the
@@ -8456,6 +8574,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.leafId = leaf.getId();
 		}
 
+		/**
+		 * Walks the saved path to the next readable leaf, stepping past subtrees being unlinked.
+		 *
+		 * @return true when parked at the next leaf's first bucket, false when the path is exhausted
+		 */
 		private boolean moveToNextLeaf() {
 			int level = this.pathIndex.length - 1;
 			BPlusTreeNode<?, ?>[] parentLevel = this.path[level];
@@ -8544,6 +8667,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			}
 			loadCurrentLeaf();
 			this.exhausted = this.leafPeek < 0;
+		}
+
+		@Override
+		public boolean seek(@Nonnull M key) {
+			throw new GenericEvitaInternalError("Forward seeking is not supported by a reverse cursor!");
 		}
 
 		@Override
@@ -8903,7 +9031,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * and tracking the current node index and peek.
 	 *
 	 * @param siblings the sibling nodes at the current level
-	 * @param index    the index of the current node within the siblings array (must be > 0 and <= peek)
+	 * @param index    the current node slot within the captured siblings array
 	 * @param peek     the last meaningful index in the siblings array
 	 */
 	private record CursorLevel<M extends Comparable<M>>(
