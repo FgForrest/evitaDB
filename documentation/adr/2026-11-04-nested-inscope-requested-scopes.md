@@ -265,6 +265,6 @@ scope, and the composer of the query has to leave the container out.
 
 - **2024-12-18** — `ScopeEnforcer` introduced (`ca897c3a27`).
 - **2026-10-05** — the residual check moved into the nested context (`90f3d80d22`), merged on 2026-10-08 in #1720.
-- **2026-11-04** — PR #1884 opened; #1880 analysed; the first implementation (Option C) replaced by Option A after review; the pre-flight
+- **2026-11-04** — #1880 analysed; the first implementation (Option C) replaced by Option A after review; the pre-flight
   and the refusal of an inert `scope` added after a second review, every filter of the require section after a third;
-  #1883 split off.
+  #1883 split off; PR #1884 opened.
