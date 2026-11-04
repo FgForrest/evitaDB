@@ -68,8 +68,10 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.IntStream;
 
@@ -862,29 +864,37 @@ class FulltextFormulaTest {
 		@DisplayName("Postings past the sorted-array tier match and score like array-tier ones, and stay untouched")
 		void shouldMatchAndScoreOverBitmapTierPostings() {
 			final FulltextIndex index = new FulltextIndex();
-			final int body = registerField(index, attribute("body"));
-			final int title = registerField(index, attribute("title"));
+			final int body = registerExactField(index, attribute("body"), 25.0);
 			// two terms past the sorted-array tier, into bitmaps spanning three roaring containers, sharing every
-			// multiple of 97 * 89; and a term in the array tier on multiples of 89 alone
+			// multiple of 97 * 89; and a term in the array tier on multiples of 89 alone - each value repeating its
+			// terms a varying number of times, so the impacts differ
 			final TreeSet<Integer> kolo = new TreeSet<>();
 			final TreeSet<Integer> hrad = new TreeSet<>();
 			final TreeSet<Integer> kola = new TreeSet<>();
+			final Map<Integer, StringBuilder> bodies = new TreeMap<>();
 			for (int primaryKey = 0; primaryKey <= 140_000; primaryKey += 97) {
-				index.addPosting(body, "kolo", primaryKey, 1 + primaryKey % 255);
+				bodies.computeIfAbsent(primaryKey, pk -> new StringBuilder(64))
+					.append("kolo ".repeat(1 + primaryKey % 5));
 				kolo.add(primaryKey);
 			}
 			for (int primaryKey = 0; primaryKey <= 140_000; primaryKey += 89) {
-				index.addPosting(body, "hrad", primaryKey, 1 + primaryKey % 251);
+				bodies.computeIfAbsent(primaryKey, pk -> new StringBuilder(64))
+					.append("hrad ".repeat(1 + primaryKey % 3));
 				hrad.add(primaryKey);
 			}
+			for (final Map.Entry<Integer, StringBuilder> value : bodies.entrySet()) {
+				addWords(index, attribute("body"), value.getKey(), value.getValue().toString());
+			}
 			for (int multiple = 1; multiple <= 10; multiple++) {
-				index.addPosting(title, "kola", 89 * multiple, multiple);
+				addWords(index, attribute("title"), 89 * multiple, "kola ".repeat(multiple));
 				kola.add(89 * multiple);
 			}
-			assertInstanceOf(TransactionalBitmap.class, index.getPostings(body, "kolo"), "The fixture needs a bitmap.");
-			assertInstanceOf(TransactionalBitmap.class, index.getPostings(body, "hrad"), "The fixture needs a bitmap.");
-			final int[] koloBefore = index.getPostings(body, "kolo").getArray();
-			final int[] hradBefore = index.getPostings(body, "hrad").getArray();
+			assertInstanceOf(TransactionalBitmap.class, postingsOf(index, body, "kolo"), "The fixture needs a bitmap.");
+			assertInstanceOf(TransactionalBitmap.class, postingsOf(index, body, "hrad"), "The fixture needs a bitmap.");
+			final int[] koloBefore = postingsOf(index, body, "kolo").getArray();
+			final int[] hradBefore = postingsOf(index, body, "hrad").getArray();
+			final byte[] koloImpactsBefore = impactsOf(index, body, "kolo");
+			final byte[] hradImpactsBefore = impactsOf(index, body, "hrad");
 
 			final String[] fields = {"body", "title"};
 			// a two-term token takes the union branch, a single-term one the branch adopting the posting bitmap
@@ -905,9 +915,11 @@ class FulltextFormulaTest {
 				FulltextPhaseOneScorer.score(actual, expansionsOf(formula), actual.length),
 				formula.getFulltextScores(actual, actual.length)
 			);
-			// the formula reads the dictionary's own posting bitmaps, it must never write them
-			assertArrayEquals(koloBefore, index.getPostings(body, "kolo").getArray());
-			assertArrayEquals(hradBefore, index.getPostings(body, "hrad").getArray());
+			// the formula reads the dictionary's own posting bitmaps and impacts, it must never write them
+			assertArrayEquals(koloBefore, postingsOf(index, body, "kolo").getArray());
+			assertArrayEquals(hradBefore, postingsOf(index, body, "hrad").getArray());
+			assertArrayEquals(koloImpactsBefore, impactsOf(index, body, "kolo"));
+			assertArrayEquals(hradImpactsBefore, impactsOf(index, body, "hrad"));
 		}
 
 		/**
@@ -959,12 +971,14 @@ class FulltextFormulaTest {
 			for (final String field : fields) {
 				final int fieldId = index.getFieldId(attribute(field));
 				for (final String term : wordTerms) {
-					final Bitmap postings = index.getPostings(fieldId, term);
-					if (!postings.isEmpty()) {
-						result.add(
-							new ExpandedTerm(fieldId, term, postings, ImpactView.of(index.getImpacts(fieldId, term)), 0)
-						);
-					}
+					// looked up the way the query path does: the walk from the term itself, whose first key is the
+					// term when the field holds it
+					index.forEachTerm(fieldId, term, (visited, postings, impacts) -> {
+						if (visited.equals(term) && !postings.isEmpty()) {
+							result.add(new ExpandedTerm(fieldId, visited, postings, impacts, 0));
+						}
+						return false;
+					});
 				}
 			}
 			return result.toArray(ExpandedTerm[]::new);

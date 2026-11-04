@@ -508,9 +508,8 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 
 	/**
 	 * Looks up one exact term of one field, reading the postings and impacts from the leaf the dictionary cursor stands
-	 * on - one descent and no copy, where {@link FulltextIndex#getPostings} and {@link FulltextIndex#getImpacts} would
-	 * take two descents and copy the impacts. The walk starts at the term itself, the smallest key carrying it as a
-	 * prefix, so the first key visited is the term when the field holds it.
+	 * on - one descent, and no copy of the impacts. The walk starts at the term itself, the smallest key carrying it as
+	 * a prefix, so the first key visited is the term when the field holds it.
 	 *
 	 * @param fulltextIndex the fulltext index
 	 * @param fieldId       id of the field

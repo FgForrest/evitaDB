@@ -98,6 +98,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -141,7 +142,7 @@ class GlobalEntityIndexFulltextPersistenceTest {
 	private static final EntityIndexKey ENTITY_INDEX_KEY = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE);
 	private static final Locale CZECH = Locale.forLanguageTag("cs");
 	private static final Locale ENGLISH = Locale.ENGLISH;
-	/** Primary keys below this bound are probed for their lengths; the fixtures stay below it. */
+	/** Primary keys below this bound are probed for an indexed value; the fixtures stay below it. */
 	private static final int LENGTH_PROBE_BOUND = 150_000;
 	private static final Consumer<NonFlushedBlock> NO_OP_NON_FLUSHED_BLOCK_CALLBACK = Functions.noOpConsumer();
 	private static final Consumer<Optional<OffsetDateTime>> NO_OP_OLDEST_RECORD_CALLBACK = Functions.noOpConsumer();
@@ -192,32 +193,48 @@ class GlobalEntityIndexFulltextPersistenceTest {
 
 	/**
 	 * Fills a fulltext index with enough terms for several dictionary pages and with lengths in two blocks of the title
-	 * table and one of the body table.
+	 * table and one of the body table. Every entity holds one value per field: its own text, and the synthetic terms
+	 * spread over the entities of their field, each repeated a varying number of times so the impacts differ.
 	 *
 	 * @param index     the index
 	 * @param seed      tells the terms and impacts of two fixtures apart
-	 * @param termCount how many terms to add
+	 * @param termCount how many synthetic terms to add
 	 */
 	private static void fill(@Nonnull FulltextIndex index, int seed, int termCount) {
-		final int title = registerField(index, attribute("title"));
-		final int body = registerField(index, attribute("body"), 300.0);
-		for (int i = 0; i < termCount; i++) {
-			final String term = String.format("t%d_%04d", seed, i);
-			for (int j = 0; j <= i % 4; j++) {
-				index.addPosting(i % 3 == 0 ? body : title, term, j * 70_000 + i, 1 + (i * 7 + j * 31 + seed) % 255);
-			}
-		}
+		registerField(index, attribute("title"));
+		registerField(index, attribute("body"), 300.0);
+		final Map<Integer, StringBuilder> titles = new TreeMap<>();
 		for (int primaryKey = 1; primaryKey <= 300; primaryKey++) {
-			index.addValue(attribute("title"), primaryKey, testAnalyzer(), fieldPivot(index, attribute("title")),
-				null, "krátký titulek " + primaryKey);
+			titles.put(primaryKey, new StringBuilder(64).append("krátký titulek ").append(primaryKey).append(' '));
 		}
 		for (int primaryKey = 70_001; primaryKey <= 70_050; primaryKey++) {
-			index.addValue(attribute("title"), primaryKey, testAnalyzer(), fieldPivot(index, attribute("title")),
-				null, "jiný titulek " + primaryKey);
+			titles.put(primaryKey, new StringBuilder(64).append("jiný titulek ").append(primaryKey).append(' '));
 		}
+		final Map<Integer, StringBuilder> bodies = new TreeMap<>();
 		for (int primaryKey = 1; primaryKey <= 100; primaryKey++) {
-			index.addValue(attribute("body"), primaryKey, testAnalyzer(), fieldPivot(index, attribute("body")),
-				null, "slovo " + "dlouhé ".repeat(primaryKey % 30));
+			bodies.put(primaryKey, new StringBuilder(256).append("slovo ").append("dlouhé ".repeat(primaryKey % 30)));
+		}
+		final Integer[] titleKeys = titles.keySet().toArray(Integer[]::new);
+		final Integer[] bodyKeys = bodies.keySet().toArray(Integer[]::new);
+		for (int i = 0; i < termCount; i++) {
+			final String term = String.format("t%d_%04d", seed, i);
+			// one to four entities each, never the same one twice
+			for (int j = 0; j <= i % 4; j++) {
+				final String occurrences = (term + ' ').repeat(1 + (i * 7 + j * 31 + seed) % 5);
+				if (i % 3 == 0) {
+					bodies.get(bodyKeys[(i + j * 25) % bodyKeys.length]).append(occurrences);
+				} else {
+					titles.get(titleKeys[(i + j * 87) % titleKeys.length]).append(occurrences);
+				}
+			}
+		}
+		for (final Map.Entry<Integer, StringBuilder> value : titles.entrySet()) {
+			index.addValue(attribute("title"), value.getKey(), testAnalyzer(), fieldPivot(index, attribute("title")),
+				null, value.getValue().toString());
+		}
+		for (final Map.Entry<Integer, StringBuilder> value : bodies.entrySet()) {
+			index.addValue(attribute("body"), value.getKey(), testAnalyzer(), fieldPivot(index, attribute("body")),
+				null, value.getValue().toString());
 		}
 	}
 
@@ -314,7 +331,7 @@ class GlobalEntityIndexFulltextPersistenceTest {
 
 	/**
 	 * Describes a fulltext index the way it reads: each field's analysis identities and pivot, every term, postings and
-	 * impacts, and every length below {@link #LENGTH_PROBE_BOUND}.
+	 * impacts, and every entity below {@link #LENGTH_PROBE_BOUND} with a value indexed.
 	 *
 	 * @param index the index
 	 * @return one line per fact
@@ -334,12 +351,9 @@ class GlobalEntityIndexFulltextPersistenceTest {
 				lines.add(term + " " + Arrays.toString(postings.getArray()) + " " + Arrays.toString(impacts.toArray()));
 				return true;
 			});
-			final FieldLengthTable lengths = index.getFieldLengths(fieldId);
-			lines.add("lengths " + lengths.size());
 			for (int primaryKey = 0; primaryKey < LENGTH_PROBE_BOUND; primaryKey++) {
-				final int encoded = lengths.getEncoded(primaryKey);
-				if (encoded != 0) {
-					lines.add(primaryKey + "=" + encoded);
+				if (index.hasIndexedValue(fieldId, primaryKey)) {
+					lines.add(primaryKey + " indexed");
 				}
 			}
 		}
@@ -407,7 +421,9 @@ class GlobalEntityIndexFulltextPersistenceTest {
 			assertFalse(flush(index).isEmpty());
 			assertTrue(flush(index).isEmpty(), "Nothing was written since the last flush.");
 
-			czech.addPosting(czech.getFieldId(attribute("title")), "novinka", 5, 100);
+			// an entity without a title value yet
+			czech.addValue(attribute("title"), 500, testAnalyzer(), fieldPivot(czech, attribute("title")), null,
+				"novinka");
 			final List<StoragePart> parts = flush(index);
 			assertEquals(1, partsOf(parts, FulltextIndexStoragePart.class).size(), "The written index rewrites its root.");
 			assertTrue(
@@ -562,10 +578,8 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		void shouldReloadAFieldWithoutLengthsBesideAFieldWithLengths() {
 			final GlobalEntityIndex index = newGlobalIndex();
 			final FulltextIndex czech = index.getOrCreateFulltextIndex(CZECH);
-			// field 0 holds postings only, so the length stream is first named by field 1
-			final int code = registerField(czech, attribute("code"));
-			czech.addPosting(code, "abc123", 1, 10);
-			czech.addPosting(code, "xyz789", 2, 20);
+			// field 0 is registered without a value, so the length stream is first named by field 1
+			registerField(czech, attribute("code"));
 			czech.addValue(attribute("title"), 1, testAnalyzer(), fieldPivot(czech, attribute("title")), null,
 				"zelený čaj");
 			czech.addValue(attribute("title"), 70_001, testAnalyzer(), fieldPivot(czech, attribute("title")), null,
@@ -573,7 +587,9 @@ class GlobalEntityIndexFulltextPersistenceTest {
 
 			final List<StoragePart> parts = flush(index);
 			final FulltextIndexStoragePart root = partsOf(parts, FulltextIndexStoragePart.class).get(0);
-			assertEquals(0, root.getFields()[0].lengthBlocks().length, "The postings-only field has no length block.");
+			assertEquals(
+				0, root.getFields()[0].lengthBlocks().length, "The field without a value has no length block."
+			);
 			assertEquals(2, root.getFields()[1].lengthBlocks().length);
 
 			try (final Disk disk = new Disk()) {
@@ -587,8 +603,9 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		void shouldReloadAnIndexWithoutAnyLengths() {
 			final GlobalEntityIndex index = newGlobalIndex();
 			final FulltextIndex czech = index.getOrCreateFulltextIndex(CZECH);
-			final int code = registerField(czech, attribute("code"));
-			czech.addPosting(code, "abc123", 1, 10);
+			registerField(czech, attribute("code"));
+			// a value without a token is indexed as nothing - no posting, and no length
+			czech.addValue(attribute("code"), 1, testAnalyzer(), fieldPivot(czech, attribute("code")), null, "!!!");
 
 			final List<StoragePart> parts = flush(index);
 			assertTrue(
@@ -800,7 +817,9 @@ class GlobalEntityIndexFulltextPersistenceTest {
 					loaded,
 					original -> {
 						final FulltextIndex czech = original.getFulltextIndex(CZECH);
-						czech.addPosting(czech.getFieldId(attribute("title")), "novinka", 5, 100);
+						// an entity without a title value yet
+						czech.addValue(attribute("title"), 500, testAnalyzer(), fieldPivot(czech, attribute("title")),
+							null, "novinka");
 						original.getOrCreateFulltextIndex(ENGLISH)
 							.addValue(attribute("title"), 1, testAnalyzer(), 25.0, null, "a brand new title");
 						// the flush of a transaction runs before its commit merge
@@ -846,8 +865,8 @@ class GlobalEntityIndexFulltextPersistenceTest {
 					(original, committed) -> {
 						assertNotNull(committed);
 						assertEquals(
-							index.getFulltextIndex(CZECH).getTermCount(),
-							committed.getFulltextIndex(CZECH).getTermCount(),
+							termCount(index.getFulltextIndex(CZECH)),
+							termCount(committed.getFulltextIndex(CZECH)),
 							"The unflushed index is carried forward."
 						);
 

@@ -49,6 +49,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Function;
 
 import static io.evitadb.index.IndexHeapSizeAssertions.AUTOBOX_CACHE_CEILING;
@@ -102,6 +103,17 @@ class FulltextIndexHeapSizeTest {
 	};
 
 	/**
+	 * How many entities the body field of {@link #fill} holds a value of, in one length block - past the third of a
+	 * block above which the table stores the block densely.
+	 */
+	private static final int BODY_ENTITIES = 25_000;
+
+	/**
+	 * How many entities the title field of {@link #fill} holds a value of, in one sparse length block.
+	 */
+	private static final int TITLE_ENTITIES = 300;
+
+	/**
 	 * What every index reaches and no index owns: every cached {@link Byte} - a single posting's impact is one of
 	 * them - and every {@link FieldKind} constant, which a field key points at.
 	 */
@@ -148,27 +160,43 @@ class FulltextIndexHeapSizeTest {
 
 	/**
 	 * Fills an index with two fields: enough terms for several dictionary leaves, single postings and postings shared
-	 * by several entities, a sparse length block in the title and a dense one in the body.
+	 * by several entities, a sparse length block in the title and a dense one in the body. Every entity holds one
+	 * value per field, written through the verbatim analysis: a term of its own, and the synthetic terms spread over
+	 * the entities of their field.
 	 *
 	 * @param index     the index
-	 * @param termCount how many terms to add
+	 * @param termCount how many synthetic terms to add
 	 * @param stem      the stem every field name and term starts with - its encoding decides how they are stored
 	 */
 	private static void fill(@Nonnull FulltextIndex index, int termCount, @Nonnull String stem) {
-		final int title = registerField(index, attribute(stem + "title"));
-		final int body = registerField(index, attribute(stem + "body"), 300.0);
+		final FulltextFieldKey title = attribute(stem + "title");
+		final FulltextFieldKey body = attribute(stem + "body");
+		registerExactField(index, title, 25.0);
+		registerExactField(index, body, 300.0);
+		final Map<Integer, StringBuilder> titles = new TreeMap<>();
+		for (int i = 0; i < TITLE_ENTITIES; i++) {
+			titles.put(AUTOBOX_CACHE_CEILING + i, new StringBuilder(64).append(stem).append('t').append(i).append(' '));
+		}
+		final Map<Integer, StringBuilder> bodies = new TreeMap<>();
+		for (int i = 0; i < BODY_ENTITIES; i++) {
+			bodies.put(70_000 + i, new StringBuilder(32).append(stem).append('b').append(i).append(' '));
+		}
 		for (int i = 0; i < termCount; i++) {
 			final String term = stem + String.format("%05d", i);
+			// one to four entities each, never the same one twice
 			for (int j = 0; j <= i % 4; j++) {
-				index.addPosting(i % 3 == 0 ? body : title, term, AUTOBOX_CACHE_CEILING + j * 70_000 + i, 1 + i % 255);
+				if (i % 3 == 0) {
+					bodies.get(70_000 + (i + j * 6_007) % BODY_ENTITIES).append(term).append(' ');
+				} else {
+					titles.get(AUTOBOX_CACHE_CEILING + (i + j * 75) % TITLE_ENTITIES).append(term).append(' ');
+				}
 			}
 		}
-		for (int primaryKey = AUTOBOX_CACHE_CEILING; primaryKey < AUTOBOX_CACHE_CEILING + 300; primaryKey++) {
-			index.getFieldLengths(title).put(primaryKey, 1 + primaryKey % 40);
+		for (final Map.Entry<Integer, StringBuilder> value : titles.entrySet()) {
+			addWords(index, title, value.getKey(), value.getValue().toString());
 		}
-		// past a third of a block, which the table stores densely
-		for (int primaryKey = 70_000; primaryKey < 70_000 + 25_000; primaryKey++) {
-			index.getFieldLengths(body).put(primaryKey, 1 + primaryKey % 200);
+		for (final Map.Entry<Integer, StringBuilder> value : bodies.entrySet()) {
+			addWords(index, body, value.getKey(), value.getValue().toString());
 		}
 	}
 
@@ -181,9 +209,7 @@ class FulltextIndexHeapSizeTest {
 	 */
 	private static void addSmallFields(@Nonnull FulltextIndex index, int count) {
 		for (int i = 0; i < count; i++) {
-			final int fieldId = registerField(index, attribute("žpole" + i));
-			index.addPosting(fieldId, "žslovo", AUTOBOX_CACHE_CEILING + i, 7);
-			index.getFieldLengths(fieldId).put(AUTOBOX_CACHE_CEILING + i, 3);
+			addWords(index, attribute("žpole" + i), AUTOBOX_CACHE_CEILING + i, "žslovo", "žslovo", "žslovo");
 		}
 	}
 
@@ -222,10 +248,7 @@ class FulltextIndexHeapSizeTest {
 		void shouldPriceAFilledIndexExactly() {
 			final FulltextIndex index = newIndex();
 			fill(index, 2_000, "ž");
-			assertTrue(
-				index.getFieldLengths(index.getFieldId(attribute("žbody"))).isDenseBlock(70_000),
-				"A dense block is priced."
-			);
+			assertTrue(BODY_ENTITIES > FieldLengthTable.DENSE_PROMOTION_SIZE, "A dense block is priced.");
 			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, SHARED_ROOTS, exclusionsOf(index));
 		}
 
@@ -238,8 +261,8 @@ class FulltextIndexHeapSizeTest {
 			addSmallFields(index, 5);
 			index.retireField(attribute(stem + "title"));
 			// a new key instance, as the write path makes one per write - one the retired field does not hold
-			final int successor = registerField(index, attribute(stem + "title"));
-			index.addPosting(successor, "žnovinka", AUTOBOX_CACHE_CEILING, 100);
+			addWords(index, attribute(stem + "title"), AUTOBOX_CACHE_CEILING, "žnovinka");
+			final int successor = index.getFieldId(attribute(stem + "title"));
 			assertTrue(index.isFieldRetired(0));
 			assertEquals(7, successor);
 			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, SHARED_ROOTS, exclusionsOf(index));
@@ -291,11 +314,10 @@ class FulltextIndexHeapSizeTest {
 			addSmallFields(index, 5);
 			assertStateAfterCommit(
 				index,
-				original -> {
-					final int perex = registerField(original, attribute("žperex"));
-					original.addPosting(perex, "žnovinka", AUTOBOX_CACHE_CEILING, 100);
-					original.getFieldLengths(perex).put(AUTOBOX_CACHE_CEILING, 5);
-				},
+				original -> addWords(
+					original, attribute("žperex"), AUTOBOX_CACHE_CEILING,
+					"žnovinka", "žnovinka", "žnovinka", "žnovinka", "žnovinka"
+				),
 				(original, committed) -> {
 					assertEquals(8, committed.getFieldCount());
 					assertMatchesMeasuredHeap(

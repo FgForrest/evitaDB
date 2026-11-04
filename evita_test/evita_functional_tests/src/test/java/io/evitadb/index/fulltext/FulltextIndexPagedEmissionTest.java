@@ -26,6 +26,8 @@ package io.evitadb.index.fulltext;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.analysis.AnalysisStepRegistry;
+import io.evitadb.index.fulltext.FieldLengthTable.LengthBlock;
+import io.evitadb.index.fulltext.FieldLengthTable.LengthBlockEmission;
 import io.evitadb.index.fulltext.FulltextIndex.DictionaryPage;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.invertedIndex.ValueToRecord;
@@ -48,6 +50,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 import static io.evitadb.index.fulltext.FulltextFieldKey.attribute;
 import static io.evitadb.index.fulltext.FulltextIndexTestSupport.*;
@@ -69,10 +72,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@link FulltextIndex#collectChangedPages()} emits and frees, and the page bookkeeping across warm-up flushes, warm-up
  * savepoint rollbacks and commits.
  *
- * Every flush is applied to a {@link SimulatedDisk}: changed pages are written, freed pages removed. After each flush
- * the disk must hold exactly the live page list, and its pages read in that order must reproduce the dictionary —
- * keys, postings and the impacts aligned with them. A page the flush failed to free stays on that disk and breaks
- * both checks; it is the overlapping-leaf-page corruption a cold load would hit.
+ * Every flush is applied to a {@link SimulatedDisk}: changed pages are written, freed pages removed, and the field
+ * length blocks the flush emits are written and removed beside them. After each flush the disk must hold exactly the
+ * live page list, and its pages read in that order must reproduce the dictionary — keys, postings and the impacts
+ * aligned with them. A page the flush failed to free stays on that disk and breaks both checks; it is the
+ * overlapping-leaf-page corruption a cold load would hit.
+ *
+ * Postings are written the way production writes them, as entity values: an entity holds one value per field, so
+ * adding or removing one posting rewrites the entity's whole value.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -92,6 +99,11 @@ class FulltextIndexPagedEmissionTest {
 	private static final int PK_BOUND = 50;
 
 	/**
+	 * The two fields of {@link #newIndex()}, at the index of their field ids.
+	 */
+	private static final FulltextFieldKey[] FIELDS = {attribute("title"), attribute("body")};
+
+	/**
 	 * Registry providing the real Czech index-slot analyzer.
 	 */
 	private static FulltextAnalyzerRegistry registry;
@@ -107,15 +119,17 @@ class FulltextIndexPagedEmissionTest {
 	}
 
 	/**
-	 * Creates an empty index with two registered fields, ids 0 and 1. The registrations leave it dirty.
+	 * Creates an empty index with the two {@link #FIELDS} registered, ids 0 and 1, for the verbatim analysis the
+	 * synthetic terms are written with. The registrations leave it dirty.
 	 *
 	 * @return the index
 	 */
 	@Nonnull
 	private static FulltextIndex newIndex() {
 		final FulltextIndex index = new FulltextIndex();
-		registerField(index, attribute("title"));
-		registerField(index, attribute("body"));
+		for (final FulltextFieldKey field : FIELDS) {
+			registerExactField(index, field, 25.0);
+		}
 		return index;
 	}
 
@@ -131,36 +145,121 @@ class FulltextIndexPagedEmissionTest {
 	}
 
 	/**
-	 * Adds random postings, each with a random impact.
+	 * Adds random postings: draws `count` (field, term, entity) triples and writes each touched entity's value anew,
+	 * with the terms it held and the ones drawn for it. Each term occurs once in a value, so the impacts of an entity
+	 * follow from how many terms it holds - and differ between entities.
 	 *
 	 * @param random the source of randomness
 	 * @param index  the index
 	 * @param count  how many postings to add
 	 */
 	private static void addRandom(@Nonnull Random random, @Nonnull FulltextIndex index, int count) {
+		final List<Map<Integer, TreeSet<String>>> held = termsByEntity(index);
+		final List<Map<Integer, TreeSet<String>>> wanted = copyOf(held);
 		for (int i = 0; i < count; i++) {
-			index.addPosting(
-				random.nextInt(2), term(random.nextInt(TERM_COUNT)), random.nextInt(PK_BOUND), 1 + random.nextInt(255)
-			);
+			wanted.get(random.nextInt(FIELDS.length))
+				.computeIfAbsent(random.nextInt(PK_BOUND), pk -> new TreeSet<>())
+				.add(term(random.nextInt(TERM_COUNT)));
 		}
+		rewrite(index, held, wanted);
 	}
 
 	/**
 	 * Removes every posting of a contiguous range of terms in both fields - which empties whole leaves, so their
-	 * neighbours merge.
+	 * neighbours merge - by writing each entity holding one of them anew without them.
 	 *
 	 * @param index the index
 	 * @param from  first term number, inclusive
 	 * @param to    last term number, exclusive
 	 */
 	private static void removeRange(@Nonnull FulltextIndex index, int from, int to) {
-		for (int fieldId = 0; fieldId < 2; fieldId++) {
-			for (int number = from; number < to; number++) {
-				for (int pk = 0; pk < PK_BOUND; pk++) {
-					index.removePosting(fieldId, term(number), pk);
+		final List<Map<Integer, TreeSet<String>>> held = termsByEntity(index);
+		final List<Map<Integer, TreeSet<String>>> wanted = copyOf(held);
+		final String first = term(from);
+		final String last = term(to);
+		for (final Map<Integer, TreeSet<String>> entities : wanted) {
+			for (final TreeSet<String> terms : entities.values()) {
+				terms.subSet(first, last).clear();
+			}
+			entities.values().removeIf(TreeSet::isEmpty);
+		}
+		rewrite(index, held, wanted);
+	}
+
+	/**
+	 * Reads which terms every entity holds in each field, off the index itself - so the fixture stays right across a
+	 * rolled-back savepoint, which restores the index but not a model kept beside it.
+	 *
+	 * @param index the index
+	 * @return per field id, the terms of each entity holding any
+	 */
+	@Nonnull
+	private static List<Map<Integer, TreeSet<String>>> termsByEntity(@Nonnull FulltextIndex index) {
+		final List<Map<Integer, TreeSet<String>>> result = new ArrayList<>(FIELDS.length);
+		for (int fieldId = 0; fieldId < FIELDS.length; fieldId++) {
+			final Map<Integer, TreeSet<String>> entities = new TreeMap<>();
+			index.forEachTerm(fieldId, "", (term, postings, impacts) -> {
+				for (final int primaryKey : postings.getArray()) {
+					entities.computeIfAbsent(primaryKey, pk -> new TreeSet<>()).add(term);
+				}
+				return true;
+			});
+			result.add(entities);
+		}
+		return result;
+	}
+
+	/**
+	 * Deep-copies the terms of the entities, so the copy can be changed into the wanted state.
+	 *
+	 * @param terms per field id, the terms of each entity
+	 * @return an independent copy
+	 */
+	@Nonnull
+	private static List<Map<Integer, TreeSet<String>>> copyOf(@Nonnull List<Map<Integer, TreeSet<String>>> terms) {
+		final List<Map<Integer, TreeSet<String>>> copy = new ArrayList<>(terms.size());
+		for (final Map<Integer, TreeSet<String>> entities : terms) {
+			final Map<Integer, TreeSet<String>> entitiesCopy = new TreeMap<>();
+			for (final Map.Entry<Integer, TreeSet<String>> entity : entities.entrySet()) {
+				entitiesCopy.put(entity.getKey(), new TreeSet<>(entity.getValue()));
+			}
+			copy.add(entitiesCopy);
+		}
+		return copy;
+	}
+
+	/**
+	 * Writes every entity whose terms differ between the two states anew: its old value is removed and the new one
+	 * added. Then checks the index holds exactly the wanted state, so a write the index silently dropped - a removal
+	 * finding no length, say - cannot pass for a flush the disk agrees with.
+	 *
+	 * @param index  the index
+	 * @param held   per field id, the terms each entity holds now
+	 * @param wanted per field id, the terms each entity is to hold
+	 */
+	private static void rewrite(
+		@Nonnull FulltextIndex index,
+		@Nonnull List<Map<Integer, TreeSet<String>>> held,
+		@Nonnull List<Map<Integer, TreeSet<String>>> wanted
+	) {
+		for (int fieldId = 0; fieldId < FIELDS.length; fieldId++) {
+			final Set<Integer> entities = new TreeSet<>(held.get(fieldId).keySet());
+			entities.addAll(wanted.get(fieldId).keySet());
+			for (final int primaryKey : entities) {
+				final TreeSet<String> before = held.get(fieldId).get(primaryKey);
+				final TreeSet<String> after = wanted.get(fieldId).get(primaryKey);
+				if (before != null && before.equals(after)) {
+					continue;
+				}
+				if (before != null) {
+					removeWords(index, FIELDS[fieldId], primaryKey, before.toArray(String[]::new));
+				}
+				if (after != null) {
+					addWords(index, FIELDS[fieldId], primaryKey, after.toArray(String[]::new));
 				}
 			}
 		}
+		assertEquals(wanted, termsByEntity(index), "The index must hold exactly the values written.");
 	}
 
 	/**
@@ -175,7 +274,7 @@ class FulltextIndexPagedEmissionTest {
 			return null;
 		}
 		final PageEmission<DictionaryPage> emission = index.collectChangedPages();
-		disk.apply(emission);
+		disk.apply(emission, index.collectChangedLengthBlocks());
 		index.resetDirty();
 		return emission;
 	}
@@ -213,13 +312,17 @@ class FulltextIndexPagedEmissionTest {
 	}
 
 	/**
-	 * The pages a sequence of flushes left on disk, keyed by page sequence.
+	 * The pages and length blocks a sequence of flushes left on disk.
 	 */
 	private static final class SimulatedDisk {
 		/**
-		 * The pages on disk.
+		 * The pages on disk, keyed by page sequence.
 		 */
 		private final Map<Integer, DictionaryPage> pages = new TreeMap<>();
+		/**
+		 * The length blocks on disk: per field id, the blocks keyed by block key.
+		 */
+		private final Map<Integer, TreeMap<Integer, LengthBlock>> lengthBlocks = new TreeMap<>();
 		/**
 		 * The page list of the last flush, in key order.
 		 */
@@ -234,12 +337,13 @@ class FulltextIndexPagedEmissionTest {
 		private int highWater = -1;
 
 		/**
-		 * Applies one flush: writes the changed pages, removes the freed ones, and checks the disk holds exactly the
-		 * live page list.
+		 * Applies one flush: writes the changed pages and length blocks, removes the freed ones, and checks the disk
+		 * holds exactly the live page list and every field's live block list.
 		 *
-		 * @param emission the flush's emission
+		 * @param emission the flush's emission of the dictionary
+		 * @param lengths  the flush's emission of each field's length table, the i-th belonging to field id `i`
 		 */
-		void apply(@Nonnull PageEmission<DictionaryPage> emission) {
+		void apply(@Nonnull PageEmission<DictionaryPage> emission, @Nonnull LengthBlockEmission[] lengths) {
 			for (final DictionaryPage page : emission.changedPages()) {
 				this.pages.put(page.pageSequence(), page);
 			}
@@ -254,6 +358,38 @@ class FulltextIndexPagedEmissionTest {
 				assertTrue(live.add(sequence), "A page is listed twice: " + sequence);
 			}
 			assertEquals(live, this.pages.keySet(), "The disk must hold exactly the live pages - no stale page left.");
+			for (int fieldId = 0; fieldId < lengths.length; fieldId++) {
+				final TreeMap<Integer, LengthBlock> blocks =
+					this.lengthBlocks.computeIfAbsent(fieldId, id -> new TreeMap<>());
+				for (final LengthBlock block : lengths[fieldId].changedBlocks()) {
+					blocks.put(block.blockKey(), block);
+				}
+				for (final int removed : lengths[fieldId].removedBlockKeys()) {
+					assertNotNull(blocks.remove(removed), "A removed length block must have been on disk: " + removed);
+				}
+				final Set<Integer> liveBlocks = new TreeSet<>();
+				for (final int blockKey : lengths[fieldId].blockKeys()) {
+					liveBlocks.add(blockKey);
+				}
+				assertEquals(liveBlocks, blocks.keySet(), "The disk must hold exactly the live length blocks.");
+			}
+		}
+
+		/**
+		 * Lists the entities the length blocks on disk hold a length for, in one field.
+		 *
+		 * @param fieldId the field
+		 * @return the primary keys, ascending
+		 */
+		@Nonnull
+		Set<Integer> entitiesWithLength(int fieldId) {
+			final Set<Integer> entities = new TreeSet<>();
+			for (final LengthBlock block : this.lengthBlocks.getOrDefault(fieldId, new TreeMap<>()).values()) {
+				for (final char low : block.lows()) {
+					entities.add(block.blockKey() << 16 | low);
+				}
+			}
+			return entities;
 		}
 
 		/**
@@ -296,7 +432,8 @@ class FulltextIndexPagedEmissionTest {
 		}
 
 		/**
-		 * Loads the index back from this disk, with the registry of the passed index.
+		 * Loads the index back from this disk, with the registry of the passed index and every field's lengths from
+		 * the blocks on disk.
 		 *
 		 * @param index the index whose field registry to restore
 		 * @return the reloaded index
@@ -305,23 +442,33 @@ class FulltextIndexPagedEmissionTest {
 		FulltextIndex reload(@Nonnull FulltextIndex index) {
 			final List<FulltextIndex.Field> fields = new ArrayList<>(index.getFieldCount());
 			for (int fieldId = 0; fieldId < index.getFieldCount(); fieldId++) {
+				final LengthBlock[] blocks = this.lengthBlocks.getOrDefault(fieldId, new TreeMap<>()).values()
+					.toArray(LengthBlock[]::new);
 				fields.add(
 					new FulltextIndex.Field(index.getFieldKey(fieldId), index.getAnalyzerName(fieldId),
 						index.getIndexFingerprint(fieldId), index.getWordPhaseId(fieldId),
 						index.getLengthPivot(fieldId), index.getTextExpression(fieldId),
-						index.isFieldRetired(fieldId), index.getFieldLengths(fieldId))
+						index.isFieldRetired(fieldId), FieldLengthTable.fromPersistedBlocks(blocks))
 				);
 			}
 			return FulltextIndex.fromPersistedPages(fields, this.orderedPageSequences, listedPages(), this.highWater);
 		}
 
 		/**
-		 * Asserts the disk reproduces the index.
+		 * Asserts the disk reproduces the index: its dictionary, and a length for exactly the entities the dictionary
+		 * holds a posting of - every indexed value has a token, and every token is a posting.
 		 *
 		 * @param index the index
 		 */
 		void assertHolds(@Nonnull FulltextIndex index) {
 			assertEquals(dictionaryOf(index), read(), "The disk must reproduce the dictionary.");
+			final List<Map<Integer, TreeSet<String>>> terms = termsByEntity(index);
+			for (int fieldId = 0; fieldId < terms.size(); fieldId++) {
+				assertEquals(
+					terms.get(fieldId).keySet(), entitiesWithLength(fieldId),
+					"The disk must hold a length for exactly the entities of field " + fieldId + "."
+				);
+			}
 		}
 
 	}
@@ -348,8 +495,12 @@ class FulltextIndexPagedEmissionTest {
 			assertTrue(index.isDirty());
 			index.resetDirty();
 
-			index.removePosting(0, "nonexistent", 1);
-			assertTrue(index.isDirty(), "A write that changes nothing still dirties - a harmless over-emission.");
+			index.removeValue(attribute("title"), 2, testAnalyzer(), fieldPivot(index, attribute("title")),
+				"horské kolo");
+			assertFalse(index.isDirty(), "Removing a value the entity does not hold writes nothing.");
+			index.removeValue(attribute("title"), 1, testAnalyzer(), fieldPivot(index, attribute("title")),
+				"horské kolo");
+			assertTrue(index.isDirty(), "A removal is a write.");
 		}
 
 		@Test
@@ -361,7 +512,7 @@ class FulltextIndexPagedEmissionTest {
 			assertStateAfterRollback(
 				index,
 				t -> {
-					t.addPosting(0, term(1), 1, 10);
+					addWords(t, FIELDS[0], 1, term(1));
 					assertTrue(t.isDirty(), "The transaction sees its own write.");
 				},
 				(original, committed) -> assertFalse(original.isDirty())
@@ -405,8 +556,9 @@ class FulltextIndexPagedEmissionTest {
 			assertTrue(unchanged.changedPages().isEmpty());
 			assertEquals(0, unchanged.freedPageSequences().length);
 
-			// the smallest key of field 0 lives in the first leaf
-			index.addPosting(0, "a", 7, 99);
+			// the smallest key of field 0 lives in the first leaf; the entity holds no value yet, so nothing else is
+			// written
+			addWords(index, FIELDS[0], PK_BOUND, "a");
 			final PageEmission<DictionaryPage> changed = flush(index, disk);
 			assertNotNull(changed);
 			assertEquals(1, changed.changedPages().size());
@@ -565,14 +717,19 @@ class FulltextIndexPagedEmissionTest {
 		@DisplayName("Every record tier reloads with its impacts - single, array and a bitmap over several containers")
 		void shouldReloadEveryRecordTier() {
 			final FulltextIndex index = newIndex();
-			index.addPosting(0, "single", 5, 17);
+			// each value repeats its terms a different number of times, so the impacts of one term differ
+			final Map<Integer, StringBuilder> values = new TreeMap<>();
+			values.computeIfAbsent(5, pk -> new StringBuilder(16)).append("single ");
 			for (int pk = 0; pk < 40; pk++) {
-				index.addPosting(0, "array", pk * 3, 1 + pk);
+				values.computeIfAbsent(pk * 3, key -> new StringBuilder(64)).append("array ".repeat(1 + pk % 5));
 			}
 			// above the array tier's threshold, and spread over two roaring containers
 			for (int pk = 0; pk < 200; pk++) {
-				index.addPosting(0, "bitmap", pk, 1 + pk % 255);
-				index.addPosting(0, "bitmap", 70_000 + pk, 255 - pk % 200);
+				values.computeIfAbsent(pk, key -> new StringBuilder(64)).append("bitmap ".repeat(1 + pk % 7));
+				values.computeIfAbsent(70_000 + pk, key -> new StringBuilder(64)).append("bitmap ".repeat(1 + pk % 3));
+			}
+			for (final Map.Entry<Integer, StringBuilder> value : values.entrySet()) {
+				addWords(index, FIELDS[0], value.getKey(), value.getValue().toString());
 			}
 			final SimulatedDisk disk = new SimulatedDisk();
 			flush(index, disk);
@@ -580,11 +737,15 @@ class FulltextIndexPagedEmissionTest {
 			final FulltextIndex reloaded = disk.reload(index);
 
 			assertEquals(dictionaryOf(index), dictionaryOf(reloaded));
-			assertArrayEquals(index.getImpacts(0, "bitmap"), reloaded.getImpacts(0, "bitmap"));
-			// the reloaded buckets keep working in every tier
-			reloaded.addPosting(0, "bitmap", 70_500, 99);
-			reloaded.removePosting(0, "array", 0);
-			reloaded.addPosting(0, "single", 6, 33);
+			assertArrayEquals(impactsOf(index, 0, "bitmap"), impactsOf(reloaded, 0, "bitmap"));
+			// the reloaded buckets keep working in every tier, and the reloaded lengths tell what an entity holds
+			addWords(reloaded, FIELDS[0], 70_500, "bitmap");
+			removeWords(reloaded, FIELDS[0], 0, "array", "bitmap");
+			addWords(reloaded, FIELDS[0], 1_000, "single");
+			assertFalse(reloaded.hasIndexedValue(0, 0));
+			assertFalse(postingsOf(reloaded, 0, "array").contains(0));
+			assertFalse(postingsOf(reloaded, 0, "bitmap").contains(0));
+			assertArrayEquals(new int[]{5, 1_000}, postingsOf(reloaded, 0, "single").getArray());
 			flush(reloaded, disk);
 			disk.assertHolds(reloaded);
 		}
@@ -603,7 +764,7 @@ class FulltextIndexPagedEmissionTest {
 
 			final FulltextIndex reloaded = disk.reload(index);
 
-			assertEquals(0, reloaded.getTermCount());
+			assertEquals(0, termCount(reloaded));
 			assertTrue(reloaded.collectChangedPages().changedPages().isEmpty());
 			addRandom(new Random(12), reloaded, 2_000);
 			flush(reloaded, disk);

@@ -307,7 +307,7 @@ class ShortPrefixPrecomputationMeasurementTest {
 			// what a persistence that rewrites whole postings would write for this document (P8's question)
 			long touchedBytes = 0L;
 			for (final String term : terms) {
-				touchedBytes += serializedSize(index.getPostings(fieldId, term));
+				touchedBytes += serializedSize(postingsOf(index, fieldId, term));
 			}
 			baseBytes.add(touchedBytes);
 			for (int a = 0; a < arms.length; a++) {

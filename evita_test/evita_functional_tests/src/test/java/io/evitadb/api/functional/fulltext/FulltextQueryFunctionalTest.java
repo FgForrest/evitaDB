@@ -46,8 +46,6 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.bPlusTree.ImpactView;
-import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Expansion;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
@@ -1469,12 +1467,14 @@ public class FulltextQueryFunctionalTest {
 						continue;
 					}
 					for (String term : tokens.get(i)) {
-						final Bitmap postings = fulltextIndex.getPostings(fieldId, term);
-						if (!postings.isEmpty()) {
-							tokenExpansions.add(
-								new Expansion(postings, ImpactView.of(fulltextIndex.getImpacts(fieldId, term)), 0)
-							);
-						}
+						// looked up the way the query path does: the walk from the term itself, whose first key is
+						// the term when the field holds it
+						fulltextIndex.forEachTerm(fieldId, term, (visited, postings, impacts) -> {
+							if (visited.equals(term) && !postings.isEmpty()) {
+								tokenExpansions.add(new Expansion(postings, impacts, 0));
+							}
+							return false;
+						});
 					}
 				}
 				expansions[i] = tokenExpansions.toArray(Expansion[]::new);

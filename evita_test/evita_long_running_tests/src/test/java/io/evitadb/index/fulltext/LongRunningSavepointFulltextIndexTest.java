@@ -51,7 +51,7 @@ import static io.evitadb.test.TestTags.TRANSACTION;
  * must survive) and a random in-savepoint batch (it must be reverted by a rollback and kept by a commit). Both
  * batches write and remove values, register fields and retire them, so a savepoint can open in the middle of a
  * field's life and close after its retirement or its successor's registration. The index's content is read through
- * {@link FulltextIndexModel#contentOf(FulltextIndex)} - the term walk, a descent per term, the length tables and the
+ * {@link FulltextIndexModel#contentOf(FulltextIndex)} - the term walk, a lookup per term, the indexed entities and the
  * key resolution - which is also the harness's mid-savepoint read.
  *
  * The in-savepoint batch ends with a marker: a value written under a field key the random steps never use, so the

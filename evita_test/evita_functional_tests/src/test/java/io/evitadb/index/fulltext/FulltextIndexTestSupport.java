@@ -28,6 +28,8 @@ import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.index.analysis.AnalysisStepRegistry;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.utils.NamingConvention;
@@ -58,6 +60,16 @@ public final class FulltextIndexTestSupport {
 		return REGISTRY.getCompiledAnalyzer(SCHEMA, "text", Locale.forLanguageTag("cs"));
 	}
 
+	/**
+	 * Returns the fixture's verbatim chains: the built-in `text` analyzer under {@link Locale#ROOT}, which only splits
+	 * with the standard tokenizer and lowercases - no stop words, no stemming. A lower-case word written through it is
+	 * the term it indexes, so a fixture can place exact terms through the write path production takes.
+	 */
+	@Nonnull
+	public static CompiledFulltextAnalyzer exactAnalyzer() {
+		return REGISTRY.getCompiledAnalyzer(SCHEMA, "text", Locale.ROOT);
+	}
+
 	/** Registers a fixture field, preserving an explicitly chosen pivot on subsequent lookups. */
 	public static int registerField(@Nonnull FulltextIndex index, @Nonnull FulltextFieldKey key) {
 		final int id = index.getFieldId(key);
@@ -76,6 +88,79 @@ public final class FulltextIndexTestSupport {
 		final CompiledFulltextAnalyzer analyzer = testAnalyzer();
 		return index.getOrAssignFieldId(key, "text", analyzer.fingerprint().index(),
 			analyzer.fingerprint().wordPhase(), pivot, expression);
+	}
+
+	/** Registers a fixture field with the identity of the verbatim chains of {@link #exactAnalyzer()}. */
+	public static int registerExactField(@Nonnull FulltextIndex index, @Nonnull FulltextFieldKey key, double pivot) {
+		final CompiledFulltextAnalyzer analyzer = exactAnalyzer();
+		return index.getOrAssignFieldId(key, "text", analyzer.fingerprint().index(),
+			analyzer.fingerprint().wordPhase(), pivot, null);
+	}
+
+	/**
+	 * Indexes the words as the entity's one value of the field, through {@link #exactAnalyzer()} and against the
+	 * field's own pivot: every word becomes a posting of the entity, a word repeated `n` times a posting of term
+	 * frequency `n`, and the value is as long as it has words.
+	 */
+	public static void addWords(
+		@Nonnull FulltextIndex index, @Nonnull FulltextFieldKey key, int primaryKey, @Nonnull String... words
+	) {
+		index.addValue(key, primaryKey, exactAnalyzer(), fieldPivot(index, key), null, String.join(" ", words));
+	}
+
+	/**
+	 * Removes the entity's value of the field written by {@link #addWords} - every distinct word it holds has to be
+	 * passed, and passing each once is enough.
+	 */
+	public static void removeWords(
+		@Nonnull FulltextIndex index, @Nonnull FulltextFieldKey key, int primaryKey, @Nonnull String... words
+	) {
+		index.removeValue(key, primaryKey, exactAnalyzer(), fieldPivot(index, key), String.join(" ", words));
+	}
+
+	/**
+	 * Returns the posting list of exactly the passed term, read the way the query path looks a term up: a walk from the
+	 * term itself, whose first key is the term when the field holds it. The answer is a read-only view of the
+	 * dictionary's own storage, valid until the next write; empty when the field does not hold the term.
+	 */
+	@Nonnull
+	public static Bitmap postingsOf(@Nonnull FulltextIndex index, int fieldId, @Nonnull String term) {
+		final Bitmap[] found = {EmptyBitmap.INSTANCE};
+		index.forEachTerm(fieldId, term, (visited, postings, impacts) -> {
+			if (visited.equals(term)) {
+				found[0] = postings;
+			}
+			return false;
+		});
+		return found[0];
+	}
+
+	/**
+	 * Returns the impacts of exactly the passed term, aligned with {@link #postingsOf}, read the way the query path
+	 * reads them; empty when the field does not hold the term.
+	 */
+	@Nonnull
+	public static byte[] impactsOf(@Nonnull FulltextIndex index, int fieldId, @Nonnull String term) {
+		final byte[][] found = {new byte[0]};
+		index.forEachTerm(fieldId, term, (visited, postings, impacts) -> {
+			if (visited.equals(term)) {
+				found[0] = impacts.toArray();
+			}
+			return false;
+		});
+		return found[0];
+	}
+
+	/** Counts the (field, term) keys of the dictionary - the terms of every field, retired ones included. */
+	public static int termCount(@Nonnull FulltextIndex index) {
+		final int[] count = new int[1];
+		for (int fieldId = 0; fieldId < index.getFieldCount(); fieldId++) {
+			index.forEachTerm(fieldId, "", (term, postings, impacts) -> {
+				count[0]++;
+				return true;
+			});
+		}
+		return count[0];
 	}
 
 	/** Returns a registered fixture's chosen pivot, or the schema default for a new field. */

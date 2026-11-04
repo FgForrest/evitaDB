@@ -866,91 +866,6 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * Records a single posting directly, bypassing analysis — the low-level counterpart of
-	 * {@link #addValue} for callers that analyze themselves. Adding a posting that is
-	 * already present replaces its impact.
-	 *
-	 * Only the dictionary is touched: the field's {@link FieldLengthTable} is not, so a caller mixing this with
-	 * {@link #addValue} for the same entity leaves its length and its postings
-	 * disagreeing.
-	 *
-	 * @param fieldId    id of the field, as returned by {@link #getFieldId(FulltextFieldKey)}
-	 * @param term       the analyzed term
-	 * @param primaryKey primary key of the entity
-	 * @param impact     the posting's impact, `1..`{@link #MAX_IMPACT}
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the index never assigned the field id, the field
-	 *                                                        was retired, or the impact is out of range
-	 */
-	public void addPosting(int fieldId, @Nonnull String term, int primaryKey, int impact) {
-		assertFieldWritable(fieldId);
-		Assert.isPremiseValid(
-			impact >= 1 && impact <= MAX_IMPACT,
-			() -> "An impact must be within 1.." + MAX_IMPACT + ", " + impact + " was passed!"
-		);
-		markWritten();
-		this.dictionary.addRecord(FulltextTermKeys.encode(fieldId, term), primaryKey, (byte) impact);
-	}
-
-	/**
-	 * Removes a single posting directly, bypassing analysis. The term leaves the dictionary with its last posting;
-	 * removing a posting that is not present changes nothing. Like {@link #addPosting}, it leaves the field's
-	 * {@link FieldLengthTable} untouched.
-	 *
-	 * @param fieldId    id of the field, as returned by {@link #getFieldId(FulltextFieldKey)}
-	 * @param term       the analyzed term
-	 * @param primaryKey primary key of the entity
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the index never assigned the field id, or the field
-	 *                                                        was retired
-	 */
-	public void removePosting(int fieldId, @Nonnull String term, int primaryKey) {
-		assertFieldWritable(fieldId);
-		markWritten();
-		this.dictionary.removeRecord(FulltextTermKeys.encode(fieldId, term), primaryKey);
-	}
-
-	/**
-	 * Returns the posting list of a term in a field.
-	 *
-	 * @param fieldId id of the field
-	 * @param term    the analyzed term
-	 * @return the primary keys of the entities whose field contains the term — a read-only view of the dictionary's
-	 * own storage, empty when the term is absent
-	 */
-	@Nonnull
-	public Bitmap getPostings(int fieldId, @Nonnull String term) {
-		assertFieldKnown(fieldId);
-		return this.dictionary.getRecordsEqualTo(FulltextTermKeys.encode(fieldId, term));
-	}
-
-	/**
-	 * Returns the impacts of a term in a field, aligned with its posting list. The answer is a copy, paid for with a
-	 * descent of the dictionary; a walk over many terms reads them through {@link #forEachTerm} and its
-	 * {@link TermVisitor} instead, which costs neither.
-	 *
-	 * @param fieldId id of the field
-	 * @param term    the analyzed term
-	 * @return one unsigned byte per posting, `impacts[i]` belonging to the i-th posting of
-	 * {@link #getPostings(int, String)}; empty when the term is absent
-	 */
-	@Nonnull
-	public byte[] getImpacts(int fieldId, @Nonnull String term) {
-		assertFieldKnown(fieldId);
-		return this.dictionary.impactsOf(FulltextTermKeys.encode(fieldId, term));
-	}
-
-	/**
-	 * Returns the length table of a field.
-	 *
-	 * @param fieldId id of the field
-	 * @return the lengths of the field's indexed values
-	 */
-	@Nonnull
-	public FieldLengthTable getFieldLengths(int fieldId) {
-		assertFieldKnown(fieldId);
-		return fieldAt(fieldId).lengths();
-	}
-
-	/**
 	 * Walks, in ascending term order, every term of a field that starts with the passed prefix, until the visitor
 	 * asks to stop. An empty prefix walks every term of the field. Keys of other fields are never reached: the walk
 	 * starts at the encoded lower bound and ends at the first key without the encoded prefix.
@@ -978,15 +893,6 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 				return;
 			}
 		}
-	}
-
-	/**
-	 * Returns the number of distinct (field, term) keys in the dictionary.
-	 *
-	 * @return the dictionary size
-	 */
-	public int getTermCount() {
-		return this.dictionary.size();
 	}
 
 	/**
@@ -1354,21 +1260,6 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		Assert.isPremiseValid(
 			fieldId >= 0 && fieldId < getFieldCount(),
 			() -> "Fulltext field id " + fieldId + " was never assigned by this index!"
-		);
-	}
-
-	/**
-	 * Verifies the field id was assigned by this index and the field still takes writes - a retired field keeps what
-	 * it held until a reindex drops it, and nothing more.
-	 *
-	 * @param fieldId the id to verify
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the id was never assigned, or the field was retired
-	 */
-	private void assertFieldWritable(int fieldId) {
-		Assert.isPremiseValid(
-			!isFieldRetired(fieldId),
-			() -> "Fulltext field " + fieldAt(fieldId).key() + " with id " + fieldId +
-				" was retired and takes no writes!"
 		);
 	}
 

@@ -199,7 +199,7 @@ class CatalogFulltextAnalyzerRegistryTest implements EvitaTestSupport {
 			);
 			final FulltextIndex index = filled[0];
 			final int fieldId = index.getFieldId(attribute("name"));
-			final int termCount = index.getTermCount();
+			final int termCount = termCount(index);
 
 			restart();
 
@@ -210,7 +210,7 @@ class CatalogFulltextAnalyzerRegistryTest implements EvitaTestSupport {
 			assertClosed(registry, "the restart");
 			final FulltextIndex reloaded = globalIndexOf(after).getFulltextIndex(CZECH);
 			assertEquals(index.getAnalyzerName(fieldId), reloaded.getAnalyzerName(fieldId));
-			assertEquals(termCount, reloaded.getTermCount());
+			assertEquals(termCount, termCount(reloaded));
 			assertEquals(fieldId, reloaded.getFieldId(attribute("name")));
 		}
 

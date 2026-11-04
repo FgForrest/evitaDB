@@ -42,7 +42,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.impactsOf;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.postingsOf;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.termCount;
 import static io.evitadb.test.fulltext.FulltextAnalysisTestSupport.collectTerms;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -60,14 +64,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * ## What the oracle derives itself, and what it shares
  *
- * The expected postings, impacts and lengths are computed from the modelled VALUES, never read from an index:
- * every term with the entities whose value produced it, every impact from the term frequency, the value's length
- * and the field's pivot, and every length through the table's encoding. An asymmetry between adding and removing a
- * value, an impact left behind by a split, or a length that outlives its value shows up as a difference.
+ * The expected postings, impacts and indexed entities are computed from the modelled VALUES, never read from an
+ * index: every term with the entities whose value produced it, every impact from the term frequency, the value's
+ * length and the field's pivot, and every entity whose value has a token. An asymmetry between adding and removing a
+ * value, an impact left behind by a split, or a length that outlives its value shows up as a difference. The lengths
+ * themselves are read only by the impacts normalized with them and by a flush, which the model does not drive.
  *
- * The oracle shares three pure functions with the implementation: the analyzer, {@link FulltextIndex#computeImpact}
- * and {@link FieldLengthTable#encode}. A defect inside one of them is invisible here, because both sides would be
- * wrong together. Their own tests (`FulltextAnalyzerTest`, `FulltextIndexTest`, `NumberUtilsTest`) cover them.
+ * The oracle shares two pure functions with the implementation: the analyzer and
+ * {@link FulltextIndex#computeImpact}. A defect inside one of them is invisible here, because both sides would be
+ * wrong together. Their own tests (`FulltextAnalyzerTest`, `FulltextIndexTest`) cover them.
  *
  * ## The steps
  *
@@ -119,7 +124,7 @@ public final class FulltextIndexModel {
 	 */
 	@Nonnull private final FulltextFieldKey[] keys;
 	/**
-	 * The primary keys the steps draw from, ascending - also the keys whose lengths the content dumps read.
+	 * The primary keys the steps draw from, ascending - also the keys the content dumps probe for an indexed value.
 	 */
 	@Nonnull private final int[] primaryKeys;
 	/**
@@ -236,14 +241,14 @@ public final class FulltextIndexModel {
 		for (final ModelField field : this.fields) {
 			content.append(field.key).append('@').append(field.pivot).append(field.retired ? " retired\n" : "\n");
 			final TreeMap<String, TreeMap<Integer, Integer>> postings = new TreeMap<>();
-			final TreeMap<Integer, Integer> lengths = new TreeMap<>();
+			final TreeSet<Integer> indexed = new TreeSet<>();
 			for (final Map.Entry<Integer, ModelValue> entry : field.values.entrySet()) {
 				final ModelValue value = entry.getValue();
 				if (value.length() == 0) {
 					// a value without tokens is indexed as nothing - no posting and no length
 					continue;
 				}
-				lengths.put(entry.getKey(), FieldLengthTable.encode(value.length()));
+				indexed.add(entry.getKey());
 				for (final Map.Entry<String, Integer> term : value.termFrequencies().entrySet()) {
 					postings.computeIfAbsent(term.getKey(), t -> new TreeMap<>()).put(
 						entry.getKey(), FulltextIndex.computeImpact(term.getValue(), value.length(), field.pivot)
@@ -257,9 +262,9 @@ public final class FulltextIndexModel {
 				}
 				content.append('\n');
 			}
-			content.append("lengths ").append(lengths.size()).append(':');
-			for (final Map.Entry<Integer, Integer> length : lengths.entrySet()) {
-				content.append(' ').append(length.getKey()).append('/').append(length.getValue());
+			content.append("indexed:");
+			for (final int primaryKey : indexed) {
+				content.append(' ').append(primaryKey);
 			}
 			content.append('\n');
 			termCount += postings.size();
@@ -284,16 +289,17 @@ public final class FulltextIndexModel {
 
 	/**
 	 * Renders what an index holds, as the caller's transaction sees it: every field with its pivot and retirement,
-	 * every term with its postings and their impacts in posting order, the length of every passed primary key, what
-	 * every passed key resolves to, and the dictionary size.
+	 * every term with its postings and their impacts in posting order, which of the passed primary keys have a value
+	 * indexed, what every passed key resolves to, and the dictionary size.
 	 *
-	 * Each term is read twice, through the walk - which hands out the leaf's own posting list and impacts - and
-	 * through a descent, and the two must agree. That is where an impact that drifted from its posting shows up even
-	 * when both read paths agree with each other about the posting list.
+	 * Each term is read twice, through the walk of its field - which hands out the leaf's own posting list and
+	 * impacts - and through a lookup of the term alone, a walk the query path starts with a descent to the term, and
+	 * the two must agree. That is where an impact that drifted from its posting shows up even when both read paths
+	 * agree with each other about the posting list.
 	 *
 	 * @param index       the index to read
 	 * @param keys        the keys whose resolution to render
-	 * @param primaryKeys the primary keys whose lengths to render, ascending
+	 * @param primaryKeys the primary keys to probe for an indexed value, ascending
 	 * @return the content, comparable with `equals`
 	 */
 	@Nonnull
@@ -311,10 +317,10 @@ public final class FulltextIndexModel {
 				final int[] walked = postings.getArray();
 				final byte[] walkedImpacts = impacts.toArray();
 				assertArrayEquals(
-					index.getPostings(theFieldId, term).getArray(), walked, "walked postings of `" + term + "`"
+					postingsOf(index, theFieldId, term).getArray(), walked, "walked postings of `" + term + "`"
 				);
 				assertArrayEquals(
-					index.getImpacts(theFieldId, term), walkedImpacts, "walked impacts of `" + term + "`"
+					impactsOf(index, theFieldId, term), walkedImpacts, "walked impacts of `" + term + "`"
 				);
 				assertEquals(walked.length, walkedImpacts.length, "impacts misaligned with the postings of " + term);
 				content.append(term).append(':');
@@ -324,12 +330,10 @@ public final class FulltextIndexModel {
 				content.append('\n');
 				return true;
 			});
-			final FieldLengthTable lengths = index.getFieldLengths(fieldId);
-			content.append("lengths ").append(lengths.size()).append(':');
+			content.append("indexed:");
 			for (final int primaryKey : primaryKeys) {
-				final int encoded = lengths.getEncoded(primaryKey);
-				if (encoded != 0) {
-					content.append(' ').append(primaryKey).append('/').append(encoded);
+				if (index.hasIndexedValue(fieldId, primaryKey)) {
+					content.append(' ').append(primaryKey);
 				}
 			}
 			content.append('\n');
@@ -337,7 +341,7 @@ public final class FulltextIndexModel {
 		for (final FulltextFieldKey key : keys) {
 			content.append(key).append(" -> ").append(index.getFieldId(key)).append('\n');
 		}
-		return content.append("terms ").append(index.getTermCount()).toString();
+		return content.append("terms ").append(termCount(index)).toString();
 	}
 
 	/**

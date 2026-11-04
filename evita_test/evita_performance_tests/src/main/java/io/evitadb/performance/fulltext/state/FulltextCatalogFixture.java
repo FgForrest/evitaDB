@@ -47,6 +47,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.fulltext.FulltextFieldDefinition;
 import io.evitadb.index.fulltext.FulltextFieldKey;
 import io.evitadb.index.fulltext.FulltextIndex;
@@ -882,7 +883,7 @@ public final class FulltextCatalogFixture {
 			for (final Map.Entry<CompiledFulltextAnalyzer, String[]> group : token.alternatives().entrySet()) {
 				for (final int fieldId : this.groups.get(group.getKey())) {
 					for (final String term : group.getValue()) {
-						final Bitmap postings = this.fulltextIndex.getPostings(fieldId, term);
+						final Bitmap postings = postingsOf(fieldId, term);
 						summedPostings[0] += postings.size();
 						documents.add(postings.getArray());
 					}
@@ -900,12 +901,33 @@ public final class FulltextCatalogFixture {
 		private boolean isKnownToIndex(@Nonnull Set<String> terms) {
 			for (int fieldId = 0; fieldId < this.fulltextIndex.getFieldCount(); fieldId++) {
 				for (final String term : terms) {
-					if (!this.fulltextIndex.getPostings(fieldId, term).isEmpty()) {
+					if (!postingsOf(fieldId, term).isEmpty()) {
 						return true;
 					}
 				}
 			}
 			return false;
+		}
+
+		/**
+		 * Looks up the posting list of one exact term the way `TextMatchesTranslator` does: the walk from the term
+		 * itself, whose first key is the term when the field holds it.
+		 *
+		 * @param fieldId id of the field
+		 * @param term    the analyzed term
+		 * @return the term's postings, a read-only view of the dictionary's own storage; empty when the field does not
+		 * hold the term
+		 */
+		@Nonnull
+		private Bitmap postingsOf(int fieldId, @Nonnull String term) {
+			final Bitmap[] found = {EmptyBitmap.INSTANCE};
+			this.fulltextIndex.forEachTerm(fieldId, term, (visited, postings, impacts) -> {
+				if (visited.equals(term)) {
+					found[0] = postings;
+				}
+				return false;
+			});
+			return found[0];
 		}
 
 		/**

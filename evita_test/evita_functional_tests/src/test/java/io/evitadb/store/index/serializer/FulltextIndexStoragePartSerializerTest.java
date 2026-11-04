@@ -70,6 +70,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static io.evitadb.index.fulltext.FulltextFieldKey.associatedData;
 import static io.evitadb.index.fulltext.FulltextFieldKey.attribute;
@@ -580,24 +581,41 @@ class FulltextIndexStoragePartSerializerTest {
 			final FulltextIndex index = new FulltextIndex();
 			final int title = registerField(index, attribute("title"));
 			final int body = registerField(index, attribute("body"), 300.0);
-			// enough terms for several leaves, postings across roaring containers, impacts spanning the byte range
+			// lengths: a body block past a third of its slots, which takes the slot encoding, and sparse title blocks
+			final Map<Integer, StringBuilder> titles = new TreeMap<>();
+			titles.put(5, new StringBuilder(256).append("Rychlá hnědá liška "));
+			for (int primaryKey = 140_000; primaryKey < 140_050; primaryKey++) {
+				titles.put(primaryKey, new StringBuilder(256).append("krátký titulek ").append(primaryKey).append(' '));
+			}
+			final Map<Integer, StringBuilder> bodies = new TreeMap<>();
+			for (int primaryKey = 1; primaryKey <= 22_000; primaryKey++) {
+				bodies.put(
+					primaryKey, new StringBuilder(256).append("slovo ").append("dlouhé ".repeat(primaryKey % 40))
+				);
+			}
+			// enough terms for several leaves, postings across roaring containers, and impacts spread wide - every
+			// entity holds one value per field, so the terms join the values of the entities of their field, each
+			// repeated a varying number of times
+			final Integer[] titleKeys = titles.keySet().toArray(Integer[]::new);
 			for (int i = 0; i < 1_000; i++) {
 				final String term = String.format("t%04d", i);
+				// one to five entities each, never the same one twice
 				for (int j = 0; j <= i % 5; j++) {
-					final int primaryKey = j * 70_000 + i;
-					index.addPosting(i % 3 == 0 ? body : title, term, primaryKey, 1 + (i * 7 + j * 31) % 255);
+					final String occurrences = (term + ' ').repeat(1 + (i * 7 + j * 31) % 5);
+					if (i % 3 == 0) {
+						bodies.get(1 + (i * 7 + j * 4_001) % 22_000).append(occurrences);
+					} else {
+						titles.get(titleKeys[(i + j * 10) % titleKeys.length]).append(occurrences);
+					}
 				}
 			}
-			index.addValue(attribute("title"), 5, testAnalyzer(), fieldPivot(index, attribute("title")), null,
-				"Rychlá hnědá liška");
-			// lengths: a body block past a third of its slots, which takes the slot encoding, and sparse title blocks
-			for (int primaryKey = 1; primaryKey <= 22_000; primaryKey++) {
-				index.addValue(attribute("body"), primaryKey, testAnalyzer(), fieldPivot(index, attribute("body")),
-					null, "slovo " + "dlouhé ".repeat(primaryKey % 40));
+			for (final Map.Entry<Integer, StringBuilder> value : titles.entrySet()) {
+				index.addValue(attribute("title"), value.getKey(), testAnalyzer(), fieldPivot(index,
+					attribute("title")), null, value.getValue().toString());
 			}
-			for (int primaryKey = 140_000; primaryKey < 140_050; primaryKey++) {
-				index.addValue(attribute("title"), primaryKey, testAnalyzer(), fieldPivot(index,
-					attribute("title")), null, "krátký titulek " + primaryKey);
+			for (final Map.Entry<Integer, StringBuilder> value : bodies.entrySet()) {
+				index.addValue(attribute("body"), value.getKey(), testAnalyzer(), fieldPivot(index,
+					attribute("body")), null, value.getValue().toString());
 			}
 
 			final PageEmission<DictionaryPage> emission = index.collectChangedPages();
@@ -645,6 +663,7 @@ class FulltextIndexStoragePartSerializerTest {
 				pages[i] = new DictionaryPage(part.getPageSequence(), part.getBuckets(), part.getImpacts());
 			}
 			final List<FulltextIndex.Field> fields = new ArrayList<>(2);
+			final List<LengthBlock[]> decodedBlocks = new ArrayList<>(2);
 			for (int fieldId = 0; fieldId < root.getFields().length; fieldId++) {
 				final FieldEntry entry = root.getFields()[fieldId];
 				final LengthBlock[] blocks = new LengthBlock[entry.lengthBlocks().length];
@@ -657,6 +676,7 @@ class FulltextIndexStoragePartSerializerTest {
 					assertEquals(fieldId, part.getFieldId());
 					blocks[i] = part.getBlock();
 				}
+				decodedBlocks.add(blocks);
 				fields.add(
 					new FulltextIndex.Field(entry.key(), entry.analyzerName(), entry.indexFingerprint(),
 						entry.wordPhaseId(), entry.lengthPivot(), entry.textExpression(),
@@ -665,7 +685,7 @@ class FulltextIndexStoragePartSerializerTest {
 			}
 			final FulltextIndex reloaded = FulltextIndex.fromPersistedPages(fields, pageSequences, pages, root.getDictionaryHighWaterPageSequence());
 
-			assertEquals(index.getTermCount(), reloaded.getTermCount());
+			assertEquals(termCount(index), termCount(reloaded));
 			assertEquals(300.0, reloaded.getLengthPivot(reloaded.getFieldId(attribute("body"))));
 			for (final int fieldId : new int[]{title, body}) {
 				assertEquals(terms(index, fieldId), terms(reloaded, fieldId), "Field " + fieldId + " must survive.");
@@ -673,12 +693,16 @@ class FulltextIndexStoragePartSerializerTest {
 			assertArrayEquals(new int[]{0, 2}, root.getFields()[title].lengthBlocks());
 			assertArrayEquals(new int[]{0}, root.getFields()[body].lengthBlocks());
 			for (final int fieldId : new int[]{title, body}) {
-				final FieldLengthTable expected = index.getFieldLengths(fieldId);
-				final FieldLengthTable actual = reloaded.getFieldLengths(fieldId);
-				assertEquals(expected.size(), actual.size(), "Field " + fieldId + " must keep every length.");
+				// the blocks read back are the ones the flush wrote, every entity with its encoded length
+				assertEquals(
+					lengthsOf(lengthEmissions[fieldId].changedBlocks().toArray(LengthBlock[]::new)),
+					lengthsOf(decodedBlocks.get(fieldId)),
+					"Field " + fieldId + " must keep every length."
+				);
 				for (int primaryKey = 0; primaryKey < 140_100; primaryKey++) {
 					assertEquals(
-						expected.getEncoded(primaryKey), actual.getEncoded(primaryKey), "Length of " + primaryKey
+						index.hasIndexedValue(fieldId, primaryKey), reloaded.hasIndexedValue(fieldId, primaryKey),
+						"Length of " + primaryKey
 					);
 				}
 			}
@@ -703,6 +727,27 @@ class FulltextIndexStoragePartSerializerTest {
 				return true;
 			});
 			assertFalse(lines.isEmpty(), "Every field of the fixture has terms.");
+			return lines;
+		}
+
+		/**
+		 * Lists every entity the blocks hold a length for, with its encoded length.
+		 *
+		 * @param blocks the blocks of one field, ascending
+		 * @return one line per block
+		 */
+		@Nonnull
+		private static List<String> lengthsOf(@Nonnull LengthBlock[] blocks) {
+			final List<String> lines = new ArrayList<>(blocks.length);
+			for (final LengthBlock block : blocks) {
+				final StringBuilder line = new StringBuilder(block.lows().length * 8)
+					.append(block.blockKey()).append(':');
+				for (int i = 0; i < block.lows().length; i++) {
+					line.append(' ').append((int) block.lows()[i]).append('/')
+						.append(Byte.toUnsignedInt(block.lengths()[i]));
+				}
+				lines.add(line.toString());
+			}
 			return lines;
 		}
 

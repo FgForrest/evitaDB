@@ -597,8 +597,9 @@ class EntityIndexHeapSizeTest {
 				final GlobalEntityIndex index = newGlobalIndex();
 				for (final Locale locale : List.of(Locale.forLanguageTag("cs"), Locale.ENGLISH)) {
 					final FulltextIndex fulltext = index.getOrCreateFulltextIndex(locale);
-					final int title = registerField(fulltext, FulltextFieldKey.attribute("title"));
-					fulltext.addPosting(title, "žluť", AUTOBOX_CACHE_CEILING, 10);
+					fulltext.addValue(
+						FulltextFieldKey.attribute("title"), AUTOBOX_CACHE_CEILING, testAnalyzer(), 25.0, null, "žluť"
+					);
 				}
 				final FulltextIndex dropped = index.getFulltextIndex(Locale.ENGLISH);
 				assertNotNull(dropped);

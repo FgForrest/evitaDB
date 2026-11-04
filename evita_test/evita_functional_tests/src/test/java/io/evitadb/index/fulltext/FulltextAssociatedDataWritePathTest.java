@@ -407,8 +407,8 @@ class FulltextAssociatedDataWritePathTest implements EvitaTestSupport {
 			);
 			assertNotIndexed(Scope.ARCHIVED, Locale.ENGLISH, associatedData(ARCHIVED_ARTICLE), 1);
 			final FulltextIndex archived = requireFulltextIndex(Scope.ARCHIVED, Locale.ENGLISH);
-			assertEquals(
-				0, archived.getFieldLengths(archived.getFieldId(associatedData(ARCHIVED_ARTICLE))).size(),
+			assertFalse(
+				archived.hasIndexedValue(archived.getFieldId(associatedData(ARCHIVED_ARTICLE)), 1),
 				"The removal left a length behind."
 			);
 		}
