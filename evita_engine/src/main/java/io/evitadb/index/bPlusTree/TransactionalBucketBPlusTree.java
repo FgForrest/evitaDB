@@ -1220,32 +1220,6 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	}
 
 	/**
-	 * Returns whether {@link #enableImpacts()} has switched this tree into impact-carrying mode - which decides the
-	 * insert API it accepts and whether {@link #impactsOf} and {@link BucketCursor#impacts()} can be read.
-	 *
-	 * @return `true` when this tree stores an impact byte beside every record
-	 */
-	public boolean carriesImpacts() {
-		return this.impactCarrying;
-	}
-
-	/**
-	 * Returns the impacts of `value`'s bucket, one byte per record in the order the bucket's records enumerate in
-	 * (unsigned ascending — the order {@link #getRecordsEqualTo(Comparable)} iterates in). The answer is a copy, paid
-	 * for with a descent; a walk over many buckets reads them through {@link BucketCursor#impacts()} instead, which
-	 * costs neither.
-	 *
-	 * @param value the value whose bucket to read
-	 * @return the aligned impacts, or an empty array when the tree holds no bucket for the value
-	 * @throws GenericEvitaInternalError when this tree carries no impacts
-	 */
-	@Nonnull
-	public byte[] impactsOf(@Nonnull K value) {
-		Assert.isPremiseValid(this.impactCarrying, "Impacts are readable only on an impact-carrying tree!");
-		return findLeafNode(value).impactsAlignedWith(value);
-	}
-
-	/**
 	 * Mints and stamps the stable id of a bucket that has just been created, or does nothing when this tree carries no
 	 * value ids. Called on the new-bucket branch only — an insert that joins an existing bucket costs no id and no
 	 * write here, which is the property the whole design rests on (churn on an existing value is free on the
@@ -6547,45 +6521,6 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				layer.impacts = this.impacts.duplicate();
 			}
 			return layer.impacts;
-		}
-
-		/**
-		 * Returns the impacts of `value`'s bucket aligned with the order its records enumerate in, or an empty array
-		 * when this leaf holds no bucket for the value (transaction-aware).
-		 *
-		 * @param value the value to look up
-		 * @return the aligned impacts, never null
-		 */
-		@Nonnull
-		byte[] impactsAlignedWith(@Nonnull M value) {
-			final ValueColumn<M> theKeys;
-			final OverflowColumn theOverflow;
-			final OverflowColumn theImpacts;
-			final int thePeek;
-
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getTransactionalMemoryLayerIfExists(this)
-				: null;
-			if (layer == null) {
-				theKeys = this.keys;
-				theOverflow = this.overflow;
-				theImpacts = this.impacts;
-				thePeek = this.peek;
-			} else {
-				theKeys = layer.keys;
-				theOverflow = layer.overflow;
-				theImpacts = layer.impacts;
-				thePeek = layer.peek;
-			}
-			Assert.isPremiseValid(theImpacts != null, "This leaf carries no impact column!");
-			final InsertionPosition insertionPosition =
-				theKeys.findKeyPosition(value, 0, thePeek + 1, this.comparator);
-			if (!insertionPosition.alreadyPresent()) {
-				return EMPTY_BYTE_ARRAY;
-			}
-			final int index = insertionPosition.position();
-			final Object bucketRecords = theOverflow == null ? null : theOverflow.recordsAt(index);
-			return ImpactRecords.aligned(theImpacts.recordsAt(index), bucketRecords);
 		}
 
 		/**

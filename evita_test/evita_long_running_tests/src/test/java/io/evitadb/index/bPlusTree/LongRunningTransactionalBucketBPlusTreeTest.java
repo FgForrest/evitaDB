@@ -90,6 +90,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 @Tag(DATA_TYPE)
 @Tag(TRANSACTION)
 class LongRunningTransactionalBucketBPlusTreeTest implements TimeBoundedTestSupport {
+
 	/**
 	 * The keys of the impact proofs, zero-padded so their string order is their numeric order.
 	 */
@@ -107,6 +108,17 @@ class LongRunningTransactionalBucketBPlusTreeTest implements TimeBoundedTestSupp
 	 * How many record ids of each container the impact proofs draw from.
 	 */
 	private static final int IMPACT_RECORDS_PER_CONTAINER = 120;
+
+	/**
+	 * Copies a bucket's impacts through the production cursor path, including the current transactional view.
+	 */
+	@Nonnull
+	private static <K extends Comparable<K>> byte[] impactsOf(
+		@Nonnull TransactionalBucketBPlusTree<K> tree, @Nonnull K key
+	) {
+		final BucketCursor<K> cursor = tree.cursor(key);
+		return cursor.next() && cursor.value().equals(key) ? cursor.impacts().toArray() : new byte[0];
+	}
 
 	/**
 	 * Builds the keys of the impact proofs.
@@ -589,7 +601,7 @@ class LongRunningTransactionalBucketBPlusTreeTest implements TimeBoundedTestSupp
 
 	/**
 	 * Verifies the tree holds exactly the reference: bucket count, key order, every bucket's records, and every
-	 * bucket's impacts in record order, read both through the cursor and through a descent. The tree must also report
+	 * bucket's impacts in record order, read through walking and key-positioned cursors. The tree must also report
 	 * a CONSISTENT internal state.
 	 *
 	 * @param tree      the tree to check
@@ -618,7 +630,9 @@ class LongRunningTransactionalBucketBPlusTreeTest implements TimeBoundedTestSupp
 				impacts[index++] = (byte) impact.intValue();
 			}
 			assertArrayEquals(impacts, cursor.impacts().toArray(), "Impacts read by the cursor for " + key + "!");
-			assertArrayEquals(impacts, tree.impactsOf(key), "Impacts read by a descent for " + key + "!");
+			assertArrayEquals(
+				impacts, impactsOf(tree, key), "Impacts read by a key-positioned cursor for " + key + "!"
+			);
 			totalRecords += impacts.length;
 		}
 		assertFalse(cursor.next(), "Tree exposes more buckets than the reference!");
