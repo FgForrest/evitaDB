@@ -196,8 +196,7 @@ public class FulltextAnalyzerRegistry implements Closeable {
 		try {
 			if (this.closed) {
 				if (candidate != null) {
-					releaseCompiledChains(candidate);
-					candidate.splitting().close();
+					releaseUnpublished(candidate);
 				}
 				throw registryClosedException();
 			}
@@ -205,10 +204,8 @@ public class FulltextAnalyzerRegistry implements Closeable {
 			if (result == null) {
 				// An entry read before locking may have been evicted. Its handle remains usable by policy.
 				result = candidate == null ? existing : candidate;
-				final ResolvedFulltextAnalyzer splitting = new ResolvedFulltextAnalyzer(
-					"splitting", List.of(), resolved.splitting(), List.of(), resolved.context()
-				);
-				final FulltextAnalyzer shared = this.splittingChains.putIfAbsent(splitting, result.splitting());
+				final FulltextAnalyzer shared =
+					this.splittingChains.putIfAbsent(splittingOf(resolved), result.splitting());
 				if (shared != null && shared != result.splitting()) {
 					if (candidate != null) {
 						candidate.splitting().close();
@@ -220,8 +217,7 @@ public class FulltextAnalyzerRegistry implements Closeable {
 				}
 				this.compiled.put(resolved, result);
 			} else if (candidate != null) {
-				releaseCompiledChains(candidate);
-				candidate.splitting().close();
+				releaseUnpublished(candidate);
 			}
 			final DefinitionReferences references = new DefinitionReferences(List.copyOf(definitions),
 				schema.getFulltextLanguages().get(locale.getLanguage()), Map.copyOf(schema.getFulltextResources()), result);
@@ -289,18 +285,14 @@ public class FulltextAnalyzerRegistry implements Closeable {
 				resolved.analyzer(), this.compiler.compileWordChain(resolved, stopWords)
 			);
 			try {
-				final ResolvedFulltextAnalyzer splitting = new ResolvedFulltextAnalyzer(
-					"splitting", List.of(), resolved.splitting(), List.of(), resolved.context()
-				);
 				final FulltextAnalyzer privateSplitting = new FulltextAnalyzer(
-					"splitting", this.compiler.compileSplittingChain(splitting));
+					"splitting", this.compiler.compileSplittingChain(splittingOf(resolved)));
 				try {
-					final List<AnalysisStep> queryText =
-						this.compiler.queryText(resolved);
+					final List<AnalysisStep> queryText = this.compiler.queryText(resolved);
 					final FulltextAnalyzer textSplitting = queryText.isEmpty() ? privateSplitting :
 						new FulltextAnalyzer(
-						"query-splitting", this.compiler.compileSplittingChain(new ResolvedFulltextAnalyzer(
-							"query-splitting", queryText, resolved.splitting(), List.of(), resolved.context())));
+							"query-splitting", this.compiler.compileSplittingChain(new ResolvedFulltextAnalyzer(
+								"query-splitting", queryText, resolved.splitting(), List.of(), resolved.context())));
 					final Set<String> foldedStopWords = CollectionUtils.createHashSet(64);
 					for (final StopWordPreparation stop : stopWords) {
 						foldedStopWords.addAll(stop.foldedWords());
@@ -360,6 +352,31 @@ public class FulltextAnalyzerRegistry implements Closeable {
 		if (analyzer.textSplitting() != analyzer.splitting()) {
 			analyzer.textSplitting().close();
 		}
+	}
+
+	/**
+	 * Releases every chain of a compiled entry that was never published, its private raw splitting included - the
+	 * caller built them all and nobody else holds them.
+	 *
+	 * @param candidate the unpublished entry whose chains this caller owns
+	 */
+	private static void releaseUnpublished(@Nonnull CompiledFulltextAnalyzer candidate) {
+		releaseCompiledChains(candidate);
+		candidate.splitting().close();
+	}
+
+	/**
+	 * Returns the definition of the locale's raw word splitting alone - the key the shared splitting chains are
+	 * cached under, and what a private splitting chain is compiled from.
+	 *
+	 * @param resolved the resolved analyzer whose locale splitting is taken
+	 * @return the splitting definition without text and words steps
+	 */
+	@Nonnull
+	private static ResolvedFulltextAnalyzer splittingOf(@Nonnull ResolvedFulltextAnalyzer resolved) {
+		return new ResolvedFulltextAnalyzer(
+			"splitting", List.of(), resolved.splitting(), List.of(), resolved.context()
+		);
 	}
 
 	/**

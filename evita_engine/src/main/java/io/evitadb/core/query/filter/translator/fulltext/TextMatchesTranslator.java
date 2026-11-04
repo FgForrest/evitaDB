@@ -28,6 +28,7 @@ import io.evitadb.api.query.filter.InField;
 import io.evitadb.api.query.filter.TextMatches;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.exception.AttributeNotSearchableException;
@@ -46,13 +47,12 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
-import io.evitadb.index.fulltext.FulltextFieldKey;
 import io.evitadb.index.fulltext.FulltextFieldDefinition;
-import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
-import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.index.fulltext.FulltextFieldKey;
 import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
 import io.evitadb.index.fulltext.analysis.AnalyzedTermConsumer;
+import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.utils.Assert;
@@ -168,7 +168,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 		final String entityType = entitySchema.getName();
 		final CatalogSchemaContract catalogSchema = queryContext.getCatalogSchema();
 		// All field definitions compile before any index containing data is read, including the check-only path.
-		final Map<CompiledFulltextAnalyzer, String[][]> analyzed = CollectionUtils.createHashMap(4);
+		final Set<CompiledFulltextAnalyzer> analyzers = CollectionUtils.createLinkedHashSet(4);
 		final Map<String, CompiledFulltextAnalyzer> resolved = CollectionUtils.createHashMap(4);
 		final Map<Scope, Map<CompiledFulltextAnalyzer, List<FulltextFieldDefinition>>> fieldsByAnalyzer =
 			new EnumMap<>(Scope.class);
@@ -179,14 +179,14 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 				// Keep the resolved handle across analysis and grouping: eviction may change a later lookup's identity.
 				final CompiledFulltextAnalyzer analyzer = resolved.computeIfAbsent(field.analyzer(),
 					name -> analyzerRegistry.getCompiledAnalyzer(catalogSchema, name, locale));
-				analyzed.put(analyzer, null);
+				analyzers.add(analyzer);
 				grouped.computeIfAbsent(analyzer, ignored -> new ArrayList<>(4)).add(field);
 			}
 			fieldsByAnalyzer.put(entry.getKey(), grouped);
 		}
-		final CompiledFulltextAnalyzer first = analyzed.keySet().iterator().next();
+		final CompiledFulltextAnalyzer first = analyzers.iterator().next();
 		boolean commonText = true;
-		for (final CompiledFulltextAnalyzer analyzer : analyzed.keySet()) {
+		for (final CompiledFulltextAnalyzer analyzer : analyzers) {
 			if (!first.queryText().equals(analyzer.queryText())) {
 				commonText = false;
 				break;
@@ -194,7 +194,8 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 		}
 		final QueryToken[] searchTokens = analyze(commonText ? first.textSplitting() : first.splitting(),
 			textMatches.getText());
-		for (final CompiledFulltextAnalyzer analyzer : analyzed.keySet()) {
+		final Map<CompiledFulltextAnalyzer, String[][]> analyzed = CollectionUtils.createHashMap(analyzers.size());
+		for (final CompiledFulltextAnalyzer analyzer : analyzers) {
 			analyzed.put(analyzer, analyzeGroups(analyzer, searchTokens));
 		}
 		final Map<Scope, List<AnalyzedFieldGroup>> groupsByScope = new EnumMap<>(Scope.class);

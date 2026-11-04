@@ -45,7 +45,6 @@ import io.evitadb.index.component.loader.LoadContext;
 import io.evitadb.index.component.loader.LoadedComponentBundle;
 import io.evitadb.index.component.loader.LoadedComponentBundle.VirtualReferencePartitions;
 import io.evitadb.index.component.loader.VirtualReferencePartitionLoader;
-import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;

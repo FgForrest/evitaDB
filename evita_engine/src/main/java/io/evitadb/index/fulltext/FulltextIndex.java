@@ -264,13 +264,14 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * The state of one field. Its key, pivot and text expression never change, and it is retired at most once; its
-	 * length table is replaced by its committed copy at every commit that merges the index.
+	 * The state of one field. What it was registered with - its key, analyzer name and identities, pivot and text
+	 * expression - never changes, and it is retired at most once; its length table is replaced by its committed copy
+	 * at every commit that merges the index.
 	 *
+	 * @param key            the field's identity
 	 * @param analyzerName   the analyzer name recorded at registration
 	 * @param indexFingerprint the persistent index-chain identity
 	 * @param wordPhaseId    the persistent index words-phase identity
-	 * @param key            the field's identity
 	 * @param lengthPivot    the field's length pivot
 	 * @param textExpression the EvitaEL expression the field's text was selected with from the stored values (the
 	 *                       text expression of searchable associated data), `null` when the values are the text
@@ -497,7 +498,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 
 	/**
 	 * Registers a field with its built-with identity. An index-chain or pivot change retires the previous field;
-	 * an identical request preserves its id. Text expressions keep their existing extraction policy.
+	 * an identical request preserves its id. A current field keeps the text expression it was registered with,
+	 * whatever is passed; only a newly registered field records the passed one.
 	 *
 	 * @param fieldKey the searchable field
 	 * @param analyzerName the schema analyzer name recorded for this generation
@@ -506,6 +508,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * @param lengthPivot the positive finite pivot used to compute impacts
 	 * @param textExpression the recorded extraction expression, or null for text values
 	 * @return the current generation's field id
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the pivot is not positive and finite, or the index
+	 *                                                        has no field id left to assign
 	 */
 	public int getOrAssignFieldId(
 		@Nonnull FulltextFieldKey fieldKey, @Nonnull String analyzerName, long indexFingerprint, long wordPhaseId,
@@ -571,8 +575,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * Retires the field of a key: the key stops resolving to it, its postings and lengths stay as they are, and a
-	 * later {@link #getFieldId(FulltextFieldKey)} of the key registers a fresh, empty field - see the class
+	 * Retires the field of a key: the key stops resolving to it, its postings and lengths stay as they are, and the
+	 * next write of the key registers a fresh, empty field ({@link #getOrAssignFieldId}) - see the class
 	 * documentation for why the old postings are kept.
 	 *
 	 * @param fieldKey identity of the searchable field
@@ -643,8 +647,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * Returns the EvitaEL text expression a field was registered with - the way its text is selected from the stored
 	 * values of searchable associated data. A field keeps extracting with this expression even after the schema
 	 * declares another one: removing a value re-extracts its text to find the postings to drop, so extracting
-	 * differently than the add did would leave stale postings behind. Like an index keeping its analyzer, the field
-	 * keeps its expression until it is rebuilt (#409).
+	 * differently than the add did would leave stale postings behind. The field keeps its expression until it is
+	 * rebuilt (#409).
 	 *
 	 * @param fieldId id of the field
 	 * @return the expression text, `null` when the field's values are the text themselves
@@ -713,6 +717,19 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		final Field field = fieldAt(fieldId);
 		return !isFieldRetired(fieldId) && field.indexFingerprint() == fingerprint &&
 			Double.compare(field.lengthPivot(), lengthPivot) == 0;
+	}
+
+	/**
+	 * Checks whether an entity has a value indexed in a field, as the caller's transaction sees it. A value that
+	 * analyzed to no token was indexed as nothing and does not count.
+	 *
+	 * @param fieldId    the registered field id
+	 * @param primaryKey primary key of the entity
+	 * @return true when the field holds a length for the entity
+	 */
+	public boolean hasIndexedValue(int fieldId, int primaryKey) {
+		assertFieldKnown(fieldId);
+		return fieldAt(fieldId).lengths().getEncoded(primaryKey) != 0;
 	}
 
 	/**
@@ -802,11 +819,10 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	private void indexValues(
 		int fieldId, int primaryKey, @Nonnull FulltextAnalyzer analyzer, @Nonnull String... values
 	) {
-		final FulltextFieldKey fieldKey = fieldAt(fieldId).key();
 		final Field field = fieldAt(fieldId);
 		Assert.isPremiseValid(
 			field.lengths().getEncoded(primaryKey) == 0,
-			() -> "Entity " + primaryKey + " already has a value of fulltext field " + fieldKey + " indexed; " +
+			() -> "Entity " + primaryKey + " already has a value of fulltext field " + field.key() + " indexed; " +
 				"remove it before indexing another."
 		);
 		final AnalyzedValue analyzed = analyze(analyzer, values);
@@ -978,11 +994,10 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * name-to-id map, the field array and every field's length table - and the term dictionary with its postings and
 	 * impacts, priced by the dictionary itself.
 	 *
-	 * Not charged: the page bookkeeping, which
-	 * no paged index charges - it is flush state carried by reference through every committed copy. Each field key is
-	 * charged with its {@link Field}, the one holder a retired field's key still has; {@link #fieldIds} maps the very
-	 * same instance. A retired field and its successor registered with one key instance are charged it twice. A running
-	 * transaction's layer belongs to the transaction.
+	 * Not charged: the page bookkeeping, which no paged index charges - it is flush state carried by reference through
+	 * every committed copy. Each field key is charged with its {@link Field}, the one holder a retired field's key
+	 * still has; {@link #fieldIds} maps the very same instance. A retired field and its successor registered with one
+	 * key instance are charged it twice. A running transaction's layer belongs to the transaction.
 	 *
 	 * Walking the dictionary costs `O(terms / block size)`, so this is an index-detail figure, never one a query path
 	 * may ask for.
@@ -1286,8 +1301,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * Analyzes the elements of a value through the index slot into its distinct terms with their frequencies and its
-	 * length, summed over the elements - one element for a single value.
+	 * Analyzes the elements of a value through the field's compiled index chain into its distinct terms with their
+	 * frequencies and its length, summed over the elements - one element for a single value.
 	 *
 	 * The length counts token **positions**: a term arriving at position increment `0` is a variant of the previous
 	 * position, not a further token of the text, and a stop word removed by the chain leaves a gap but is not a token

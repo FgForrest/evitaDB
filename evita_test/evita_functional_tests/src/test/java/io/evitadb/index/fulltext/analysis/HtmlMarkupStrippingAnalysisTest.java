@@ -45,24 +45,23 @@ import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.fulltext.FulltextAnalysisTestSupport.collectTerms;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins what the HTML-stripping character filter in front of every built-in index chain does — the step proposed in
- * the PR #1453 review after measuring a production CMS corpus whose article bodies are HTML carrying a JSON payload in
- * `data-` attributes: 79 % of the distinct terms and half of the dictionary-plus-postings heap were markup. The
- * measurements are recorded in `p5-analyzers.md` §13; this class establishes the behaviour they rest on, at the level
- * of the terms, offsets and positions the engine actually consumes.
+ * Pins what the HTML-stripping character filter in front of the built-in `html-text` index chain does — the step
+ * added after measuring a production CMS corpus whose article bodies are HTML carrying a JSON payload in `data-`
+ * attributes: 79 % of the distinct terms and half of the dictionary-plus-postings heap were markup. This class
+ * establishes the behaviour that measurement rests on, at the level of the terms, offsets and positions the engine
+ * actually consumes.
  *
- * The `html-text` index chain strips markup; `text` preserves it. The strip is a no-op on markup-free text. The search chains do not
+ * The `text` index chain preserves markup, and the strip is a no-op on markup-free text. The query chains do not
  * strip - a query text is what a user typed. Three things are established:
  *
  * 1. **The baseline.** A chain without the character filter indexes tag names, attribute names, attribute values and
- *    entity names as terms — the vocabulary the review found dominating the dictionary (`p`, `class`, `dynamik`,
+ *    entity names as terms — the vocabulary the measurement found dominating the dictionary (`p`, `class`, `dynamik`,
  *    `dat`, `valu`, `fals`, `quot`) is reproduced here on a synthetic body.
  * 2. **What the production index chain does with the `html-strip` text step**: which markup vanishes, how
  *    entities decode, that inline tags join word halves while block tags separate them, and that plain text is left
@@ -74,7 +73,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("HTML markup stripping in front of the full-text index chains")
+@DisplayName("HTML markup stripping in front of the html-text index chain")
 @Tag(ENGINE)
 @Tag(FULLTEXT)
 class HtmlMarkupStrippingAnalysisTest {
@@ -98,7 +97,7 @@ class HtmlMarkupStrippingAnalysisTest {
 	 */
 	private FulltextAnalyzer stripped;
 	/**
-	 * The built-in Czech search chain as the registry hands it out - without the character filter.
+	 * The compiled Czech query chain of the built-in `text` analyzer - without the character filter.
 	 */
 	private FulltextAnalyzer productionSearch;
 
@@ -474,19 +473,19 @@ class HtmlMarkupStrippingAnalysisTest {
 		void shouldStripOnlyInHtmlTextIndexChain() {
 			for (final String language : List.of("cs", "sk", "pl", "ro", "en", "de", "xx")) {
 				final Locale locale = new Locale(language);
-				final FulltextAnalyzer indexAnalyzer =
+				final FulltextAnalyzer htmlTextAnalyzer =
 					HtmlMarkupStrippingAnalysisTest.this.registry.getCompiledAnalyzer(
 						FulltextAnalysisTestSupport.SCHEMA, "html-text", locale).index();
-				final FulltextAnalyzer searchAnalyzer =
+				final FulltextAnalyzer textAnalyzer =
 					HtmlMarkupStrippingAnalysisTest.this.registry.getCompiledAnalyzer(
 						FulltextAnalysisTestSupport.SCHEMA, "text", locale).index();
-				assertNotSame(indexAnalyzer, searchAnalyzer, language);
+				assertNotSame(htmlTextAnalyzer, textAnalyzer, language);
 				assertTrue(
-					terms(indexAnalyzer, "<p class=\"x\">word</p>").stream().noneMatch(it -> it.startsWith("class")),
-					"Index chain of `" + language + "` indexed markup."
+					terms(htmlTextAnalyzer, "<p class=\"x\">word</p>").stream().noneMatch(it -> it.startsWith("class")),
+					"Html-text index chain of `" + language + "` indexed markup."
 				);
 				assertTrue(
-					terms(searchAnalyzer, "<p class=\"x\">word</p>").stream().anyMatch(it -> it.startsWith("class")),
+					terms(textAnalyzer, "<p class=\"x\">word</p>").stream().anyMatch(it -> it.startsWith("class")),
 					"Text index chain of `" + language + "` stripped markup."
 				);
 			}

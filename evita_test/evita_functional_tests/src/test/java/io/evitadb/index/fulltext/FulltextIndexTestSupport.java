@@ -35,8 +35,10 @@ import io.evitadb.utils.NamingConvention;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import java.lang.reflect.Field;
 import java.util.EnumSet;
 import java.util.Locale;
+import java.util.Map;
 
 /** Shared real schema analysis for low-level fulltext index fixtures. */
 public final class FulltextIndexTestSupport {
@@ -46,32 +48,56 @@ public final class FulltextIndexTestSupport {
 		EmptyEntitySchemaAccessor.INSTANCE);
 	/** Keeps the fixture chains reachable for the duration of the test JVM. */
 	private static final FulltextAnalyzerRegistry REGISTRY = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
+
 	/** Prevents construction of this fixture utility. */
 	private FulltextIndexTestSupport() { }
+
 	/** Returns the fixture's Czech text chains. */
 	@Nonnull
 	public static CompiledFulltextAnalyzer testAnalyzer() {
 		return REGISTRY.getCompiledAnalyzer(SCHEMA, "text", Locale.forLanguageTag("cs"));
 	}
+
 	/** Registers a fixture field, preserving an explicitly chosen pivot on subsequent lookups. */
 	public static int registerField(@Nonnull FulltextIndex index, @Nonnull FulltextFieldKey key) {
 		final int id = index.getFieldId(key);
 		return id == FulltextIndex.UNKNOWN_FIELD_ID ? registerField(index, key, 25.0) : id;
 	}
+
 	/** Registers a fixture field with an explicit pivot. */
 	public static int registerField(@Nonnull FulltextIndex index, @Nonnull FulltextFieldKey key, double pivot) {
 		return registerField(index, key, pivot, null);
 	}
+
 	/** Registers a fixture field with its extraction expression and real analyzer identity. */
 	public static int registerField(
 		@Nonnull FulltextIndex index, @Nonnull FulltextFieldKey key, double pivot, @Nullable String expression
 	) {
-		return index.getOrAssignFieldId(key, "text", testAnalyzer().fingerprint().index(),
-			testAnalyzer().fingerprint().wordPhase(), pivot, expression);
+		final CompiledFulltextAnalyzer analyzer = testAnalyzer();
+		return index.getOrAssignFieldId(key, "text", analyzer.fingerprint().index(),
+			analyzer.fingerprint().wordPhase(), pivot, expression);
 	}
+
 	/** Returns a registered fixture's chosen pivot, or the schema default for a new field. */
 	public static double fieldPivot(@Nonnull FulltextIndex index, @Nonnull FulltextFieldKey key) {
 		final int id = index.getFieldId(key);
 		return id == FulltextIndex.UNKNOWN_FIELD_ID ? 25.0 : index.getLengthPivot(id);
+	}
+
+	/**
+	 * Returns how many compiled analyzers a registry retains. Retention is the registry's private bookkeeping and it
+	 * exposes no count, so the tests bounding it read the field by name - here, in one place, failing with the field
+	 * to follow when it is renamed.
+	 */
+	public static int retainedAnalyzerCount(@Nonnull FulltextAnalyzerRegistry registry) {
+		try {
+			final Field compiled = FulltextAnalyzerRegistry.class.getDeclaredField("compiled");
+			compiled.setAccessible(true);
+			return ((Map<?, ?>) compiled.get(registry)).size();
+		} catch (ReflectiveOperationException ex) {
+			throw new AssertionError(
+				"The retained analyzers are read from FulltextAnalyzerRegistry#compiled - follow its rename here.", ex
+			);
+		}
 	}
 }

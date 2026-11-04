@@ -69,6 +69,7 @@ public final class FulltextAnalysisTestSupport {
 				ResolvedFulltextAnalyzer.resolve(SCHEMA, "text", language), FulltextAnalysisSide.QUERY)
 		));
 	}
+
 	/**
 	 * Collects the production streaming API into records for assertions and dictionary oracles.
 	 *

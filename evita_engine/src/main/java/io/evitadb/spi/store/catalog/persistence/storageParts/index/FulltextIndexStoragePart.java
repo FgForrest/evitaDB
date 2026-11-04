@@ -42,17 +42,18 @@ import java.util.Locale;
  * and no lengths itself; it says how to read the pages that do, and with which configuration they were written:
  *
  * - the **field registry** in field-id order - the id of a field is its position, and it is the key prefix of every
- *   term the field owns, so the order is part of the format - with each field's identity, its length pivot, whether
- *   it was retired, and the blocks of its length table that have a page;
+ *   term the field owns, so the order is part of the format - with each field's identity, the analyzer name and the
+ *   identities of the index chain and its words phase it was built with, its length pivot, its text expression,
+ *   whether it was retired, and the blocks of its length table that have a page;
  * - the **dictionary page list** - the sequences of the dictionary's leaf pages in key order, which a load assembles
  *   into the tree leaf by leaf - and the high-water of the dictionary's page-sequence allocator, so a sequence is never
- *   handed out twice across a restart;
+ *   handed out twice across a restart.
  *
  * The pages themselves are {@link FulltextDictionaryLeafPagePart}s, and the length blocks pages of their own; both
  * are keyed by a {@link FulltextLeafStreamKey} of this index.
  *
- * Each field records its analyzer name, persistent index and words-phase identities and pivot. Loading restores
- * these values without compiling a chain; queries skip generations that no longer agree with their schema.
+ * Loading restores the recorded analysis identities without compiling a chain; queries skip generations that no
+ * longer agree with their schema.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -93,10 +94,11 @@ public class FulltextIndexStoragePart implements StoragePart {
 	 * A retired field is persisted with everything it held, because its postings are still in the dictionary pages
 	 * under its id: dropping its entry would shift the ids of every later field off their key prefixes.
 	 *
-	 * @param analyzerName   the analyzer recorded for the field generation
-	 * @param indexFingerprint the identity of its index chain
-	 * @param wordPhaseId    the identity of its index words phase
 	 * @param key            the field's identity
+	 * @param analyzerName   the analyzer recorded for the field generation
+	 * @param indexFingerprint the identity of its index chain, compared with the fingerprint of the chain the schema
+	 *                       declares now to tell whether the field is current
+	 * @param wordPhaseId    the identity of its index words phase
 	 * @param lengthPivot    the field's length pivot, which every impact of the field was computed with
 	 * @param textExpression the EvitaEL expression the field's text was selected with from the stored values, `null`
 	 *                       when the values are the text themselves - kept until the field is rebuilt (#409)

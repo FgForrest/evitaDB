@@ -597,8 +597,7 @@ public class GlobalEntityIndex extends EntityIndex
 	}
 
 	/**
-	 * Returns the fulltext index of the passed locale partition, creating an empty one built with the passed analyzer
-	 * when there is none.
+	 * Returns the fulltext index of the passed locale partition, creating an empty one when there is none.
 	 *
 	 * Each field records its own built-with analysis identities. Creating or loading the locale container needs no
 	 * analyzer; every field write supplies the compiled current schema chain and pivot.

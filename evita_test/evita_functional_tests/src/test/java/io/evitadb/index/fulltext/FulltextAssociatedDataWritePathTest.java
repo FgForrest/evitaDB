@@ -26,6 +26,10 @@ package io.evitadb.index.fulltext;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.expression.ExpressionFactory;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
@@ -258,6 +262,34 @@ class FulltextAssociatedDataWritePathTest implements EvitaTestSupport {
 					.upsertVia(session)
 			);
 			assertIndexed(Scope.LIVE, Locale.ENGLISH, associatedData(ARTICLE), 1, "new block");
+		}
+
+		@Test
+		@DisplayName("writing the same value again indexes it when the current field lacks the entity")
+		void shouldReindexAnIdenticalValueAbsentFromTheCurrentGeneration() {
+			upsertBody(1, "green tea");
+			upsertBody(2, "green tea");
+			final int staleFieldId = requireFulltextIndex(Scope.LIVE, Locale.ENGLISH).getFieldId(associatedData(BODY));
+			alterBody(whichIs -> whichIs.lengthPivot(100));
+			// product 1 retires the field built with the old pivot and starts the current one
+			upsertBody(1, "black coffee");
+			final FulltextIndex index = requireFulltextIndex(Scope.LIVE, Locale.ENGLISH);
+			final int currentFieldId = index.getFieldId(associatedData(BODY));
+			assertNotEquals(staleFieldId, currentFieldId);
+			assertEquals(100.0, index.getLengthPivot(currentFieldId));
+			assertNotIndexed(Scope.LIVE, Locale.ENGLISH, associatedData(BODY), 2);
+
+			// the builder drops a value equal to the stored one, so the identical value is sent as a raw mutation
+			write(
+				session -> session.upsertEntity(
+					new EntityUpsertMutation(
+						PRODUCT, 2, EntityExistence.MUST_EXIST,
+						new UpsertAssociatedDataMutation(new AssociatedDataKey(BODY, Locale.ENGLISH), "green tea")
+					)
+				)
+			);
+
+			assertIndexed(Scope.LIVE, Locale.ENGLISH, associatedData(BODY), 2, "green tea");
 		}
 
 		@Test

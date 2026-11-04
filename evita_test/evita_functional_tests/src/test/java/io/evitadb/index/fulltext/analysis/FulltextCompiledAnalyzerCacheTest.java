@@ -37,6 +37,7 @@ import io.evitadb.spi.analysis.FulltextAnalysisContext;
 import io.evitadb.spi.analysis.FulltextAnalysisSide;
 import io.evitadb.spi.analysis.FulltextWordsAnalysisOperation;
 import io.evitadb.spi.analysis.FulltextWordsAnalysisStepFactory;
+import io.evitadb.test.fulltext.AnalyzedTerm;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -59,6 +60,7 @@ import java.util.function.Consumer;
 
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
 import static io.evitadb.index.fulltext.FulltextIndexTestSupport.SCHEMA;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.retainedAnalyzerCount;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.fulltext.FulltextAnalysisTestSupport.collectTerms;
@@ -70,24 +72,30 @@ import static org.mockito.Mockito.*;
 @Tag(ENGINE)
 @Tag(FULLTEXT)
 class FulltextCompiledAnalyzerCacheTest {
-	/** Text-aware splitting keeps original offsets and surfaces; repeating character removal is idempotent. */
-	@Test
-	void shouldPreserveOriginalSurfaceAndIdempotentTextPhase() {
-		try (final FulltextAnalyzerRegistry cache = new FulltextAnalyzerRegistry(new AnalysisStepRegistry())) {
-			final CatalogSchemaContract schema = schema(b -> b
-				.withFulltextAnalyzer("joined", a -> a.text(removeCharacters("-")).words(lowercase())));
-			final CompiledFulltextAnalyzer compiled = cache.getCompiledAnalyzer(schema, "joined", Locale.ENGLISH);
-			final List<io.evitadb.test.fulltext.AnalyzedTerm> split = collectTerms(compiled.textSplitting(), "USB-C x-y");
-			assertEquals(List.of("USB-C", "x-y"), split.stream().map(t -> t.surfaceForm()).toList(),
-				"Text filters must retain surfaces from the original query");
-			assertEquals(List.of(0, 6), split.stream().map(t -> t.startOffset()).toList());
-			assertEquals(List.of(5, 9), split.stream().map(t -> t.endOffset()).toList());
-			for (final io.evitadb.test.fulltext.AnalyzedTerm term : split) {
-				final List<String> once = collectTerms(compiled.word(), term.surfaceForm()).stream()
-					.map(t -> t.term()).toList();
-				final List<String> twice = collectTerms(compiled.word(), term.term()).stream()
-					.map(t -> t.term()).toList();
-				assertEquals(once, twice, "Reapplying remove-characters to a transformed word must be a no-op");
+	/** The chains compiled for the query side of one analyzer. */
+	@Nested
+	@DisplayName("Query chains")
+	class QueryChains {
+		/** Text-aware splitting keeps original offsets and surfaces; repeating character removal is idempotent. */
+		@Test
+		@DisplayName("should keep original surfaces through the text phase and apply it idempotently per word")
+		void shouldPreserveOriginalSurfaceAndIdempotentTextPhase() {
+			try (final FulltextAnalyzerRegistry cache = new FulltextAnalyzerRegistry(new AnalysisStepRegistry())) {
+				final CatalogSchemaContract schema = schema(b -> b
+					.withFulltextAnalyzer("joined", a -> a.text(removeCharacters("-")).words(lowercase())));
+				final CompiledFulltextAnalyzer compiled = cache.getCompiledAnalyzer(schema, "joined", Locale.ENGLISH);
+				final List<AnalyzedTerm> split = collectTerms(compiled.textSplitting(), "USB-C x-y");
+				assertEquals(List.of("USB-C", "x-y"), split.stream().map(t -> t.surfaceForm()).toList(),
+					"Text filters must retain surfaces from the original query");
+				assertEquals(List.of(0, 6), split.stream().map(t -> t.startOffset()).toList());
+				assertEquals(List.of(5, 9), split.stream().map(t -> t.endOffset()).toList());
+				for (final AnalyzedTerm term : split) {
+					final List<String> once = collectTerms(compiled.word(), term.surfaceForm()).stream()
+						.map(t -> t.term()).toList();
+					final List<String> twice = collectTerms(compiled.word(), term.term()).stream()
+						.map(t -> t.term()).toList();
+					assertEquals(once, twice, "Reapplying remove-characters to a transformed word must be a no-op");
+				}
 			}
 		}
 	}
@@ -193,16 +201,14 @@ class FulltextCompiledAnalyzerCacheTest {
 		/** Hundreds of edits retain only the schema window and its referenced definitions. */
 		@Test
 		@DisplayName("should bound repeated edits without closing evicted analyzers")
-		void shouldBoundEditsWithoutClosingHandles() throws Exception {
+		void shouldBoundEditsWithoutClosingHandles() {
 			try (final FulltextAnalyzerRegistry cache = new FulltextAnalyzerRegistry(new AnalysisStepRegistry())) {
 				final CatalogSchemaContract oldSchema = synonymsSchema("first");
 				final CompiledFulltextAnalyzer held = cache.getCompiledAnalyzer(oldSchema, "names", Locale.ENGLISH);
 				for (int i = 0; i < 200; i++) {
 					cache.getCompiledAnalyzer(synonymsSchema("word" + i), "names", Locale.ENGLISH);
 				}
-				final java.lang.reflect.Field field = FulltextAnalyzerRegistry.class.getDeclaredField("compiled");
-				field.setAccessible(true);
-				assertTrue(((Map<?, ?>) field.get(cache)).size() <= 8);
+				assertTrue(retainedAnalyzerCount(cache) <= 8);
 				assertTrue(collectTerms(held.word(), "bike").stream().anyMatch(term -> term.term().equals("first")));
 				assertTrue(collectTerms(cache.getCompiledAnalyzer(oldSchema, "names", Locale.ENGLISH).word(), "bike")
 					.stream().anyMatch(term -> term.term().equals("first")));
@@ -237,32 +243,6 @@ class FulltextCompiledAnalyzerCacheTest {
 			}
 		}
 
-		/** Two speculative compilers publish a single content identity and discard the losing private chains. */
-		@Test
-		@DisplayName("should share one published result when the same content compiles concurrently")
-		void shouldShareConcurrentCompilation() throws Exception {
-			final CountDownLatch compiling = new CountDownLatch(2);
-			final CountDownLatch finish = new CountDownLatch(1);
-			final List<AnalysisStepFactory> providers = new ArrayList<>(ServiceLoader.load(AnalysisStepFactory.class)
-				.stream().map(ServiceLoader.Provider::get).toList());
-			providers.add(new BlockingWords(compiling, finish));
-			try (final FulltextAnalyzerRegistry cache = new FulltextAnalyzerRegistry(new AnalysisStepRegistry(providers));
-				 final java.util.concurrent.ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-				final CatalogSchemaContract schema = schema(b -> b
-					.withFulltextAnalyzer("blocked", a -> a.words(wordsStep("test-blocking-words"))));
-				final java.util.concurrent.Future<CompiledFulltextAnalyzer> first = executor.submit(() ->
-					cache.getCompiledAnalyzer(schema, "blocked", Locale.ENGLISH));
-				final java.util.concurrent.Future<CompiledFulltextAnalyzer> second = executor.submit(() ->
-					cache.getCompiledAnalyzer(schema, "blocked", Locale.ENGLISH));
-				try {
-					assertTrue(compiling.await(10, TimeUnit.SECONDS));
-				} finally {
-					finish.countDown();
-				}
-				assertSame(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS));
-			}
-		}
-
 		/** A close racing a provider still compiling must reclaim its late publication and fail the lookup. */
 		@Test
 		@DisplayName("should reclaim a compiled analyzer published while closing")
@@ -278,22 +258,16 @@ class FulltextCompiledAnalyzerCacheTest {
 					schema(b -> b.withFulltextAnalyzer("blocked", a -> a.words(wordsStep("test-blocking-words")))),
 					"blocked", Locale.ENGLISH));
 				assertTrue(compiling.await(10, TimeUnit.SECONDS));
-				final java.util.concurrent.Future<?> close = executor.submit(cache::close);
 				try {
-					final java.lang.reflect.Field closed = FulltextAnalyzerRegistry.class.getDeclaredField("closed");
-					closed.setAccessible(true);
-					org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(10))
-						.until(() -> closed.getBoolean(cache));
+					// the compiling lookup holds no lock, so the close completes while the compilation is still running
+					executor.submit(cache::close).get(10, TimeUnit.SECONDS);
 				} finally {
 					finish.countDown();
 				}
 				final ExecutionException error = assertThrows(ExecutionException.class,
 					() -> lookup.get(10, TimeUnit.SECONDS));
 				assertInstanceOf(EvitaInvalidUsageException.class, error.getCause());
-				close.get(10, TimeUnit.SECONDS);
-				final java.lang.reflect.Field compiled = FulltextAnalyzerRegistry.class.getDeclaredField("compiled");
-				compiled.setAccessible(true);
-				assertTrue(((Map<?, ?>) compiled.get(cache)).isEmpty());
+				assertEquals(0, retainedAnalyzerCount(cache));
 			} finally {
 				finish.countDown();
 				cache.close();

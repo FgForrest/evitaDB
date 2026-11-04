@@ -38,12 +38,13 @@ import javax.annotation.Nonnull;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
@@ -161,12 +162,12 @@ class FulltextAnalyzerRegistryTest {
 		void shouldNotLeakAnalyzerBuiltWhileClosing() throws Exception {
 			final CountDownLatch built = new CountDownLatch(1);
 			final CountDownLatch finish = new CountDownLatch(1);
-			final AtomicReference<Analyzer> observed = new AtomicReference<>();
+			final List<Analyzer> observed = new CopyOnWriteArrayList<>();
 			try (
 				final FulltextAnalyzerRegistry registry = observedRegistry(observed, built, finish);
-				final java.util.concurrent.ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()
+				final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()
 			) {
-				final java.util.concurrent.Future<?> lookup = executor.submit(() -> lookup(registry, "cs"));
+				final Future<?> lookup = executor.submit(() -> lookup(registry, "cs"));
 				try {
 					assertTrue(built.await(30, TimeUnit.SECONDS));
 					registry.close();
@@ -176,7 +177,7 @@ class FulltextAnalyzerRegistryTest {
 				final ExecutionException failure = assertThrows(ExecutionException.class,
 					() -> lookup.get(30, TimeUnit.SECONDS));
 				assertInstanceOf(EvitaInvalidUsageException.class, failure.getCause());
-				verify(observed.get(), times(1)).close();
+				verify(observed.getFirst(), times(1)).close();
 			}
 		}
 
@@ -184,28 +185,68 @@ class FulltextAnalyzerRegistryTest {
 		@Test
 		@DisplayName("should release a published analyzer exactly once")
 		void shouldReleaseAnAnalyzerPublishedBeforeCloseOnce() throws Exception {
-			final AtomicReference<Analyzer> observed = new AtomicReference<>();
+			final List<Analyzer> observed = new CopyOnWriteArrayList<>();
 			try (final FulltextAnalyzerRegistry registry = observedRegistry(
 				observed, new CountDownLatch(0), new CountDownLatch(0))) {
 				lookup(registry, "cs");
 				registry.close();
 				registry.close();
-				verify(observed.get(), times(1)).close();
+				verify(observed.getFirst(), times(1)).close();
+			}
+		}
+
+		/** Two lookups compiling the same content publish one result; the loser closes the chains it built. */
+		@Test
+		@DisplayName("should publish one of two concurrent compilations and close the other's chains once")
+		void shouldCloseTheLosingChainsOfAConcurrentCompilation() throws Exception {
+			final CountDownLatch built = new CountDownLatch(2);
+			final CountDownLatch finish = new CountDownLatch(1);
+			final List<Analyzer> observed = new CopyOnWriteArrayList<>();
+			try (
+				final FulltextAnalyzerRegistry registry = observedRegistry(observed, built, finish);
+				final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()
+			) {
+				final Future<CompiledFulltextAnalyzer> first = executor.submit(() -> lookup(registry, "cs"));
+				final Future<CompiledFulltextAnalyzer> second = executor.submit(() -> lookup(registry, "cs"));
+				try {
+					// both lookups have built their own index chain before either publishes
+					assertTrue(built.await(30, TimeUnit.SECONDS));
+				} finally {
+					finish.countDown();
+				}
+				final CompiledFulltextAnalyzer published = first.get(30, TimeUnit.SECONDS);
+				assertSame(published, second.get(30, TimeUnit.SECONDS));
+				assertEquals(2, observed.size());
+				assertEquals(1, closeCount(observed.get(0)) + closeCount(observed.get(1)),
+					"Exactly the losing index chain is closed at publication");
+				assertFalse(collectTerms(published.index(), "boty").isEmpty(), "The published chain stays usable");
+
+				registry.close();
+				for (final Analyzer analyzer : observed) {
+					verify(analyzer, times(1)).close();
+				}
 			}
 		}
 	}
 
-	/** Observes a real compiler's index chain and optionally pauses its return before cache publication. */
+	/** Counts the closes a spied analyzer has seen. */
+	private static long closeCount(@Nonnull Analyzer analyzer) {
+		return mockingDetails(analyzer).getInvocations().stream()
+			.filter(invocation -> invocation.getMethod().getName().equals("close"))
+			.count();
+	}
+
+	/** Observes every index chain a real compiler builds and optionally pauses its return before cache publication. */
 	@Nonnull
 	private static FulltextAnalyzerRegistry observedRegistry(
-		@Nonnull AtomicReference<Analyzer> observed, @Nonnull CountDownLatch built, @Nonnull CountDownLatch finish
+		@Nonnull List<Analyzer> observed, @Nonnull CountDownLatch built, @Nonnull CountDownLatch finish
 	) throws Exception {
 		final AnalysisStepRegistry steps = new AnalysisStepRegistry();
 		final FulltextAnalyzerRegistry registry = new FulltextAnalyzerRegistry(steps);
 		final FulltextChainCompiler compiler = spy(new FulltextChainCompiler(steps));
 		doAnswer(invocation -> {
 			final Analyzer analyzer = spy((Analyzer) invocation.callRealMethod());
-			observed.set(analyzer);
+			observed.add(analyzer);
 			built.countDown();
 			assertTrue(finish.await(30, TimeUnit.SECONDS));
 			return analyzer;

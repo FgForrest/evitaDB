@@ -27,7 +27,6 @@ import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
-import io.evitadb.test.fulltext.FulltextAnalysisTestSupport;
 
 import javax.annotation.Nonnull;
 

@@ -669,7 +669,8 @@ public final class FulltextCatalogFixture {
 		 */
 		@Nonnull private final FulltextAnalyzer splitting;
 		/**
-		 * The searched fields that the index knows.
+		 * The searched fields the index holds a current generation of - registered with the chain and pivot their
+		 * schema declares now.
 		 */
 		@Nonnull private final FulltextFieldKey[] fieldKeys;
 		/**
@@ -732,7 +733,7 @@ public final class FulltextCatalogFixture {
 		}
 
 		/**
-		 * Returns the searched fields that the index knows.
+		 * Returns the searched fields the index holds a current generation of.
 		 *
 		 * @return the field keys
 		 */

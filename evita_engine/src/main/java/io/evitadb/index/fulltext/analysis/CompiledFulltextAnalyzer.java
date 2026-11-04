@@ -42,7 +42,8 @@ import java.util.Set;
  * @param index the chain used to build postings
  * @param word the query chain applied separately to each shared term
  * @param splitting the locale's shared word splitting
- * @param queryText the resolved query-side text steps, compared by content when choosing shared splitting
+ * @param queryText the resolved query-side text steps; a query compares them by content across its field groups to
+ *                  decide whether the shared split may apply them first
  * @param textSplitting the splitting chain preceded by queryText, with offsets corrected to the original input
  * @param fingerprint the persistent index and word-phase identities
  * @param foldedStopWords prepared built-in index stop words, lower-cased and ASCII-folded

@@ -262,8 +262,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	@Nonnull private final SchemaCapabilityUsageRegistry catalogUsageRegistry;
 	/**
-	 * The catalog's analyzer registry, which supplies the analyzer a fulltext index of a locale is created with when a
-	 * searchable value is written into a locale that has none yet.
+	 * The catalog's analyzer registry, which supplies the compiled analysis of every fulltext field this mutation
+	 * writes - the chain its values are indexed and removed with, and the fingerprint its field is checked against.
 	 */
 	@Nonnull private final FulltextAnalyzerRegistry fulltextAnalyzerRegistry;
 	/** Supplies the current catalog schema, including changes made earlier in this session. */
@@ -795,7 +795,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Returns the catalog's analyzer registry, which supplies the analyzer of a fulltext index this mutation creates.
+	 * Returns the catalog's analyzer registry, which supplies the compiled analysis of each fulltext field this
+	 * mutation writes.
 	 *
 	 * @return the analyzer registry
 	 */

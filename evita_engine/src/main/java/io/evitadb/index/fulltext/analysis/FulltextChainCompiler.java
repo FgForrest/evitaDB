@@ -343,17 +343,7 @@ public final class FulltextChainCompiler {
 				final FulltextWordsAnalysisOperation operation = factory.create(step.parameters(), preparedContext);
 				if (stopWords != null && factory instanceof StopWordsAnalysisStepFactory) {
 					if (side == FulltextAnalysisSide.INDEX) {
-						if (!(step.parameters().get(AnalysisSteps.WORDS) instanceof String[] resources)) {
-							throw new EvitaInvalidUsageException(
-								"Analysis step `" + step.name() + "` requires a String[] of word resource names.");
-						}
-						final Set<String> folded = CollectionUtils.createHashSet(64);
-						for (final String name : resources) {
-							for (final String word : preparedContext.getPreparedWords(name)) {
-								folded.add(CompiledFulltextAnalyzer.foldStopWord(word));
-							}
-						}
-						stopWords.add(new StopWordPreparation(folded, preparation));
+						stopWords.add(new StopWordPreparation(foldStopWords(step, preparedContext), preparation));
 					} else {
 						// Built-in stop steps act on both sides; pair each with exactly its own index stop set.
 						final StopWordPreparation indexed = stopWords.get(stopWordIndex);
@@ -375,6 +365,32 @@ public final class FulltextChainCompiler {
 			wordOperations.toArray(FulltextWordsAnalysisOperation[]::new),
 			side
 		);
+	}
+
+	/**
+	 * Folds the words a stop step removes on the index side, as its preparation leaves them, so that a query word can
+	 * be recognized as one of them by {@link CompiledFulltextAnalyzer#isFoldedStopWord(String)}.
+	 *
+	 * @param step            the stop step, naming its word resources
+	 * @param preparedContext the step's context, preparing its resource words by the preceding index steps
+	 * @return the prepared stop words, lower-cased and ASCII-folded
+	 * @throws EvitaInvalidUsageException when the step does not name its word resources as a `String[]`
+	 */
+	@Nonnull
+	private static Set<String> foldStopWords(
+		@Nonnull AnalysisStep step, @Nonnull FulltextAnalysisContext preparedContext
+	) {
+		if (!(step.parameters().get(AnalysisSteps.WORDS) instanceof String[] resources)) {
+			throw new EvitaInvalidUsageException(
+				"Analysis step `" + step.name() + "` requires a String[] of word resource names.");
+		}
+		final Set<String> folded = CollectionUtils.createHashSet(64);
+		for (final String name : resources) {
+			for (final String word : preparedContext.getPreparedWords(name)) {
+				folded.add(CompiledFulltextAnalyzer.foldStopWord(word));
+			}
+		}
+		return folded;
 	}
 
 	/**
@@ -471,11 +487,13 @@ public final class FulltextChainCompiler {
 	/**
 	 * Prepares a word of a resource for a words step: normalizes it to NFC, as {@link FulltextAnalyzer} normalizes the
 	 * text, and runs it as one token through the words steps before that step on the side. The text phase and the word
-	 * splitting are left out for resources: the word is compared as it reaches the step, not with a text.
-	 * For a query surface, the caller also supplies the query text operations preceding the stop step. The
+	 * splitting are left out for resources: the word is compared as it reaches the step, not with a text. The
 	 * synonyms a preceding step adds (Lucene's `SYNONYM` token type) are left out too: they are other words, not forms
 	 * of this one. So is a term a preceding step leaves empty. Whether the word reaches the step whole is the
 	 * tokenizer's call alone, asked over the same NFC form.
+	 *
+	 * The same preparation serves a query surface compared with a stop step's words; for it, the caller also supplies
+	 * the query text operations preceding the stop step.
 	 */
 	private static final class PrecedingStepsPreparation implements FulltextWordPreparation {
 		/**

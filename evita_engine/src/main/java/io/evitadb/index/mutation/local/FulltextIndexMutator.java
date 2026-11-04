@@ -50,12 +50,12 @@ import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexType;
+import io.evitadb.index.fulltext.FulltextFieldDefinition;
 import io.evitadb.index.fulltext.FulltextFieldKey;
 import io.evitadb.index.fulltext.FulltextIndex;
-import io.evitadb.index.fulltext.FulltextFieldDefinition;
-import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
 import io.evitadb.index.fulltext.SearchableTextExtractor;
 import io.evitadb.index.fulltext.SearchableTextExtractor.ExtractionMode;
+import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor.Target;
 import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.utils.CollectionUtils;
@@ -112,8 +112,8 @@ import java.util.Set;
  * **A field keeps the text expression it was built with.** Removing an associated data value re-extracts its text to
  * find the postings to drop, so it must extract exactly as the add did. The field records the expression it was
  * registered with ({@link FulltextIndex#getTextExpression(int)}), and every add and remove extracts with that one, even
- * after the schema declares another - the counterpart of an index keeping its analyzer. A changed expression applies
- * to a field built anew: after a withdrawal retired it, or once #409 rebuilds it.
+ * after the schema declares another. A changed expression applies to a field built anew: after a withdrawal retired
+ * it, or once #409 rebuilds it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -215,7 +215,10 @@ public interface FulltextIndexMutator {
 		final Serializable upserted = mutation instanceof UpsertAssociatedDataMutation upsertMutation ?
 			upsertMutation.getAssociatedDataValue() : null;
 		if (existing != null && Objects.deepEquals(existing, upserted) &&
-			isCurrentField(executor, globalIndex, locale, fieldKey)) {
+			isIndexedInCurrentField(
+				executor, globalIndex, locale, fieldKey,
+				executor.getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING)
+			)) {
 			// the very value is written again - its text is indexed already
 			return;
 		}
@@ -599,14 +602,12 @@ public interface FulltextIndexMutator {
 		@Nonnull Set<String> before,
 		@Nonnull Set<String> after
 	) {
-		if (before.equals(after) && isCurrentField(executor, globalIndex, locale, fieldKey)) {
+		final int existingPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
+		if (before.equals(after) &&
+			isIndexedInCurrentField(executor, globalIndex, locale, fieldKey, existingPrimaryKey)) {
 			return;
 		}
-		removeValue(
-			executor, globalIndex, locale, fieldKey, executor.getPrimaryKeyToIndex(IndexType.ENTITY_INDEX,
-				Target.EXISTING),
-			before
-		);
+		removeValue(executor, globalIndex, locale, fieldKey, existingPrimaryKey, before);
 		addValue(
 			executor, globalIndex, locale, fieldKey, executor.getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.NEW),
 			after
@@ -614,31 +615,53 @@ public interface FulltextIndexMutator {
 	}
 
 	/**
-	 * Checks the current generation before treating an identical value as already indexed.
+	 * Checks that the entity's value is in the current generation before treating an identical value as already
+	 * indexed. The field being current is not enough: after an analyzer or pivot change, the first entity written
+	 * registers a fresh field, and every other entity is absent from it until its own write indexes it.
 	 *
 	 * @param executor the mutation executor supplying current schemas
 	 * @param globalIndex the scope index
 	 * @param locale the value locale
 	 * @param fieldKey the field being written
-	 * @return true when the field is registered with the current chain and pivot
+	 * @param primaryKey the primary key the entity's existing value is indexed under
+	 * @return true when the field is registered with the current chain and pivot and holds a value of the entity
 	 */
-	private static boolean isCurrentField(
+	private static boolean isIndexedInCurrentField(
 		@Nonnull EntityIndexLocalMutationExecutor executor, @Nonnull GlobalEntityIndex globalIndex,
-		@Nonnull Locale locale, @Nonnull FulltextFieldKey fieldKey
+		@Nonnull Locale locale, @Nonnull FulltextFieldKey fieldKey, int primaryKey
 	) {
 		final FulltextFieldDefinition definition = FulltextFieldDefinition.resolve(executor.getEntitySchema(),
 			fieldKey);
-		final CompiledFulltextAnalyzer analyzer = executor.getFulltextAnalyzerRegistry()
-			.getCompiledAnalyzer(executor.getCatalogSchema(), definition.analyzer(), locale);
+		final CompiledFulltextAnalyzer analyzer = compiledAnalyzerOf(executor, definition, locale);
 		final FulltextIndex index = globalIndex.getFulltextIndex(locale);
 		final int fieldId = index == null ? FulltextIndex.UNKNOWN_FIELD_ID : index.getFieldId(fieldKey);
 		return fieldId != FulltextIndex.UNKNOWN_FIELD_ID &&
-			index.isFieldCurrent(fieldId, analyzer.fingerprint().index(), definition.lengthPivot());
+			index.isFieldCurrent(fieldId, analyzer.fingerprint().index(), definition.lengthPivot()) &&
+			index.hasIndexedValue(fieldId, primaryKey);
+	}
+
+	/**
+	 * Returns the compiled analysis a field's values are indexed and removed with: the analyzer its schema declares,
+	 * compiled for the locale against the catalog schema current at this write.
+	 *
+	 * @param executor   the executor of the entity mutation, supplying the registry and the current catalog schema
+	 * @param definition the field's current schema analysis
+	 * @param locale     the locale of the values
+	 * @return the shared compiled analyzer
+	 */
+	@Nonnull
+	private static CompiledFulltextAnalyzer compiledAnalyzerOf(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull FulltextFieldDefinition definition,
+		@Nonnull Locale locale
+	) {
+		return executor.getFulltextAnalyzerRegistry()
+			.getCompiledAnalyzer(executor.getCatalogSchema(), definition.analyzer(), locale);
 	}
 
 	/**
 	 * Indexes the values of an entity's field, creating the fulltext index of the locale when there is none yet.
-	 * Empty text sets still reconcile a field generation with its current schema.
+	 * Nothing is indexed - and no index or field created - for no values.
 	 *
 	 * @param executor    the executor of the entity mutation
 	 * @param globalIndex the global index of the scope being written
@@ -685,8 +708,7 @@ public interface FulltextIndexMutator {
 		}
 		final FulltextFieldDefinition definition = FulltextFieldDefinition.resolve(executor.getEntitySchema(),
 			fieldKey);
-		final CompiledFulltextAnalyzer analyzer = executor.getFulltextAnalyzerRegistry()
-			.getCompiledAnalyzer(executor.getCatalogSchema(), definition.analyzer(), locale);
+		final CompiledFulltextAnalyzer analyzer = compiledAnalyzerOf(executor, definition, locale);
 		final FulltextIndex fulltextIndex = globalIndex.getOrCreateFulltextIndex(locale);
 		fulltextIndex.addValue(fieldKey, primaryKey, analyzer, definition.lengthPivot(), textExpression,
 			values.toArray(String[]::new));
@@ -738,7 +760,8 @@ public interface FulltextIndexMutator {
 
 	/**
 	 * Removes the values of an entity's field from the fulltext index of the locale. Without an index for the locale
-	 * there is nothing to remove, and none is created for it.
+	 * there is nothing to remove, and none is created for it. A field built with an index chain or a pivot the schema
+	 * no longer declares is retired instead - see {@link FulltextIndex#removeValue}.
 	 *
 	 * @param executor supplies the current catalog and field schemas
 	 * @param globalIndex the global index of the scope being written
@@ -764,8 +787,7 @@ public interface FulltextIndexMutator {
 		}
 		final FulltextFieldDefinition definition = FulltextFieldDefinition.resolve(executor.getEntitySchema(),
 			fieldKey);
-		final CompiledFulltextAnalyzer analyzer = executor.getFulltextAnalyzerRegistry()
-			.getCompiledAnalyzer(executor.getCatalogSchema(), definition.analyzer(), locale);
+		final CompiledFulltextAnalyzer analyzer = compiledAnalyzerOf(executor, definition, locale);
 		fulltextIndex.removeValue(fieldKey, primaryKey, analyzer, definition.lengthPivot(),
 			values.toArray(String[]::new));
 	}

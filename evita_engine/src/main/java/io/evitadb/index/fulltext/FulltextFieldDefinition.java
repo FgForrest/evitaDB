@@ -27,7 +27,6 @@ package io.evitadb.index.fulltext;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;

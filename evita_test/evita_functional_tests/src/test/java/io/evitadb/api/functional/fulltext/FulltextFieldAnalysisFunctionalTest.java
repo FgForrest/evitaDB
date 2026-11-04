@@ -59,12 +59,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Locale;
-import java.util.Map;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.retainedAnalyzerCount;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.QUERY;
@@ -100,142 +100,168 @@ class FulltextFieldAnalysisFunctionalTest implements EvitaTestSupport {
 		cleanupTestPaths(this.paths);
 	}
 
-	/** Undeclared locales cannot own postings and must not compile or retain chains. */
-	@Test
-	void shouldIgnoreUndeclaredLocalesWithoutCompiling() throws Exception {
-		defineFields("text", "text");
-		put(1, Locale.ENGLISH, "red", "blue");
-		final Catalog catalog = (Catalog) this.evita.getCatalogInstanceOrThrowException(TEST_CATALOG);
-		final FulltextAnalyzerRegistry registry = catalog.getFulltextAnalyzerRegistry();
-		final java.lang.reflect.Field entries = FulltextAnalyzerRegistry.class.getDeclaredField("compiled");
-		entries.setAccessible(true);
-		final int before = ((Map<?, ?>) entries.get(registry)).size();
-		for (int i = 0; i < 100; i++) {
-			assertMatches(this.evita, Locale.forLanguageTag("en-x-" + i), "red", null);
-		}
-		assertEquals(before, ((Map<?, ?>) entries.get(registry)).size(),
-			"Undeclared query locales must not populate the analyzer registry");
-		assertThrows(AttributeNotFoundException.class,
-			() -> assertMatches(this.evita, Locale.FRENCH, "red", "missing"),
-			"Field validation must precede the undeclared-locale shortcut");
-	}
-
-	/** Equal resolved text phases from different definitions remove boundaries before the shared split. */
-	@Test
-	void shouldRemoveBoundariesBeforeSharedSplit() {
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.getCatalogSchema().openForWrite()
-			.withFulltextAnalyzer("joined", a -> a.text(removeCharacters("-")).words(lowercase()))
-			.withFulltextAnalyzer("joinedOther", a -> a.text(removeCharacters("-")).words(lowercase(), asciiFolding()))
-			.updateVia(session);
-		});
-		defineFields("joined", "joinedOther");
-		put(1, Locale.ENGLISH, "USB-C", "USB-C");
-		for (final String text : new String[]{"USB-C", "usb-c", "USBC"}) {
-			assertMatches(this.evita, Locale.ENGLISH, text, null, 1);
-		}
-	}
-
-	/** Different text phases keep the raw boundaries, regardless of which field is visited first. */
-	@Test
-	void shouldKeepRawBoundariesForHeterogeneousTextPhases() {
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.getCatalogSchema().openForWrite()
-			.withFulltextAnalyzer("joined", a -> a.text(removeCharacters("-")).words(lowercase()))
-			.withFulltextAnalyzer("plain", a -> a.words(lowercase())).updateVia(session);
-		});
-		defineFields("joined", "plain");
-		put(1, Locale.ENGLISH, "USB-C", "red");
-		put(2, Locale.ENGLISH, "red", "USB-C");
-		assertMatches(this.evita, Locale.ENGLISH, "USB-C", null, 2);
-		assertMatches(this.evita, Locale.ENGLISH, "USBC", null, 1);
-		// Reverse analyzer encounter order with two inField constraints.
-		this.evita.queryCatalog(TEST_CATALOG, session -> {
-			for (final boolean reversed : new boolean[]{false, true}) {
-				assertEquals(1, session.query(query(collection(PRODUCT), filterBy(entityLocaleEquals(Locale.ENGLISH),
-					textMatches("USB-C", inField(reversed ? "body" : "title"),
-						inField(reversed ? "title" : "body")))), EntityReference.class).getTotalRecordCount());
+	/** How a query reaches the catalog's analyzer registry. */
+	@Nested
+	@DisplayName("Analyzer lookups")
+	class AnalyzerLookups {
+		/** Undeclared locales cannot own postings and must not compile or retain chains. */
+		@Test
+		@DisplayName("should answer an undeclared query locale without compiling an analyzer")
+		void shouldIgnoreUndeclaredLocalesWithoutCompiling() {
+			defineFields("text", "text");
+			put(1, Locale.ENGLISH, "red", "blue");
+			final Catalog catalog = (Catalog) FulltextFieldAnalysisFunctionalTest.this.evita
+				.getCatalogInstanceOrThrowException(TEST_CATALOG);
+			final FulltextAnalyzerRegistry registry = catalog.getFulltextAnalyzerRegistry();
+			final int before = retainedAnalyzerCount(registry);
+			for (int i = 0; i < 100; i++) {
+				assertMatches(
+					FulltextFieldAnalysisFunctionalTest.this.evita, Locale.forLanguageTag("en-x-" + i), "red", null
+				);
 			}
-			return null;
-		});
+			assertEquals(before, retainedAnalyzerCount(registry),
+				"Undeclared query locales must not populate the analyzer registry");
+			assertThrows(AttributeNotFoundException.class,
+				() -> assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, Locale.FRENCH, "red", "missing"),
+				"Field validation must precede the undeclared-locale shortcut");
+		}
+
+		/**
+		 * Eviction after resolution must not force a second identity lookup during grouping. The catalog's registry is
+		 * replaced by reflection because the counting registry is the only observer of how often a translation looks
+		 * an analyzer up, and a catalog offers no way to install another registry.
+		 */
+		@Test
+		@DisplayName("should keep a resolved analyzer usable across its eviction and look it up once")
+		void shouldHoldResolvedAnalyzerAcrossEviction() throws Exception {
+			defineFields("text", "text");
+			put(1, Locale.ENGLISH, "red", "blue");
+			final Catalog catalog = (Catalog) FulltextFieldAnalysisFunctionalTest.this.evita
+				.getCatalogInstanceOrThrowException(TEST_CATALOG);
+			final FulltextAnalyzerRegistry original = catalog.getFulltextAnalyzerRegistry();
+			final EvictingRegistry registry = new EvictingRegistry();
+			final java.lang.reflect.Field field = Catalog.class.getDeclaredField("fulltextAnalyzerRegistry");
+			field.setAccessible(true);
+			field.set(catalog, registry);
+			try {
+				// the evicted analyzer handle must remain usable throughout the translation
+				assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, Locale.ENGLISH, "red", "title", 1);
+				assertEquals(1, registry.lookups, "Resolve each searched field only once per translation");
+			} finally {
+				field.set(catalog, original);
+				registry.close();
+			}
+		}
 	}
 
-	/** A heterogeneous phase in another processed scope also forces the shared raw split. */
-	@Test
-	void shouldChooseSharedSplitAcrossAllProcessedScopes() {
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.getCatalogSchema().openForWrite()
+	/** Which split the query words come from, and how each group prepares them. */
+	@Nested
+	@DisplayName("Query text phases")
+	class QueryTextPhases {
+		/** Equal resolved text phases from different definitions remove boundaries before the shared split. */
+		@Test
+		@DisplayName("should remove boundaries before the shared split when every group has the same text phase")
+		void shouldRemoveBoundariesBeforeSharedSplit() {
+			FulltextFieldAnalysisFunctionalTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
+				session.getCatalogSchema().openForWrite()
+				.withFulltextAnalyzer("joined", a -> a.text(removeCharacters("-")).words(lowercase()))
+				.withFulltextAnalyzer("joinedOther",
+					a -> a.text(removeCharacters("-")).words(lowercase(), asciiFolding()))
+				.updateVia(session);
+			});
+			defineFields("joined", "joinedOther");
+			put(1, Locale.ENGLISH, "USB-C", "USB-C");
+			for (final String text : new String[]{"USB-C", "usb-c", "USBC"}) {
+				assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, Locale.ENGLISH, text, null, 1);
+			}
+		}
+
+		/** Different text phases keep the raw boundaries, regardless of which field is visited first. */
+		@Test
+		@DisplayName("should keep the raw boundaries when the groups' text phases differ")
+		void shouldKeepRawBoundariesForHeterogeneousTextPhases() {
+			FulltextFieldAnalysisFunctionalTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
+				session.getCatalogSchema().openForWrite()
 				.withFulltextAnalyzer("joined", a -> a.text(removeCharacters("-")).words(lowercase()))
 				.withFulltextAnalyzer("plain", a -> a.words(lowercase())).updateVia(session);
-			session.defineEntitySchema(PRODUCT).withoutGeneratedPrimaryKey().withLocale(Locale.ENGLISH)
-				.withAttribute("title", String.class,
-					a -> a.localized().nullable().searchableInScope(Scope.LIVE).analyzer("joined"))
-				.withAttribute("body", String.class,
-					a -> a.localized().nullable().searchableInScope(Scope.ARCHIVED).analyzer("plain"))
+			});
+			defineFields("joined", "plain");
+			put(1, Locale.ENGLISH, "USB-C", "red");
+			put(2, Locale.ENGLISH, "red", "USB-C");
+			assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, Locale.ENGLISH, "USB-C", null, 2);
+			assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, Locale.ENGLISH, "USBC", null, 1);
+			// Reverse analyzer encounter order with two inField constraints.
+			FulltextFieldAnalysisFunctionalTest.this.evita.queryCatalog(TEST_CATALOG, session -> {
+				for (final boolean reversed : new boolean[]{false, true}) {
+					assertEquals(1, session.query(query(collection(PRODUCT),
+						filterBy(entityLocaleEquals(Locale.ENGLISH), textMatches("USB-C",
+							inField(reversed ? "body" : "title"), inField(reversed ? "title" : "body")))),
+						EntityReference.class).getTotalRecordCount());
+				}
+				return null;
+			});
+		}
+
+		/** A heterogeneous phase in another processed scope also forces the shared raw split. */
+		@Test
+		@DisplayName("should take the raw split when a group of another processed scope has another text phase")
+		void shouldChooseSharedSplitAcrossAllProcessedScopes() {
+			FulltextFieldAnalysisFunctionalTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
+				session.getCatalogSchema().openForWrite()
+					.withFulltextAnalyzer("joined", a -> a.text(removeCharacters("-")).words(lowercase()))
+					.withFulltextAnalyzer("plain", a -> a.words(lowercase())).updateVia(session);
+				session.defineEntitySchema(PRODUCT).withoutGeneratedPrimaryKey().withLocale(Locale.ENGLISH)
+					.withAttribute("title", String.class,
+						a -> a.localized().nullable().searchableInScope(Scope.LIVE).analyzer("joined"))
+					.withAttribute("body", String.class,
+						a -> a.localized().nullable().searchableInScope(Scope.ARCHIVED).analyzer("plain"))
+					.updateVia(session);
+				session.upsertEntity(session.createNewEntity(PRODUCT, 1)
+					.setAttribute("title", Locale.ENGLISH, "USB-C"));
+				session.upsertEntity(session.createNewEntity(PRODUCT, 2).setScope(Scope.ARCHIVED)
+					.setAttribute("body", Locale.ENGLISH, "USB-C"));
+			});
+			assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, Locale.ENGLISH, "USB-C", null, 1);
+			FulltextFieldAnalysisFunctionalTest.this.evita.queryCatalog(TEST_CATALOG, session -> {
+				final int[] actual = session.query(query(collection(PRODUCT),
+					filterBy(entityLocaleEquals(Locale.ENGLISH), scope(Scope.LIVE, Scope.ARCHIVED),
+						textMatches("USB-C"))),
+					EntityReference.class).getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).toArray();
+				assertArrayEquals(new int[]{2}, actual,
+					"All processed scopes must agree before applying a common text phase");
+				return null;
+			});
+		}
+
+		/** An erased word is dropped even when another text phase forces the raw shared split. */
+		@Test
+		@DisplayName("should drop a word a group's text phase erases under the raw split")
+		void shouldDropEmptyWordAlternatives() {
+			FulltextFieldAnalysisFunctionalTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
+				session.getCatalogSchema().openForWrite()
+				.withFulltextResource("stop", wordList("x"))
+				.withFulltextAnalyzer("erase", a -> a.text(removeCharacters("x")).words(lowercase()))
+				.withFulltextAnalyzer("stopX", a -> a.words(lowercase(), stopWords(resource("stop"))))
 				.updateVia(session);
-			session.upsertEntity(session.createNewEntity(PRODUCT, 1)
-				.setAttribute("title", Locale.ENGLISH, "USB-C"));
-			session.upsertEntity(session.createNewEntity(PRODUCT, 2).setScope(Scope.ARCHIVED)
-				.setAttribute("body", Locale.ENGLISH, "USB-C"));
-		});
-		assertMatches(this.evita, Locale.ENGLISH, "USB-C", null, 1);
-		this.evita.queryCatalog(TEST_CATALOG, session -> {
-			final int[] actual = session.query(query(collection(PRODUCT),
-				filterBy(entityLocaleEquals(Locale.ENGLISH), scope(Scope.LIVE, Scope.ARCHIVED), textMatches("USB-C"))),
-				EntityReference.class).getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).toArray();
-			assertArrayEquals(new int[]{2}, actual,
-				"All processed scopes must agree before applying a common text phase");
-			return null;
-		});
-	}
+			});
+			defineFields("erase", "stopX");
+			put(1, Locale.ENGLISH, "x red", "red");
+			assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, Locale.ENGLISH, "x red", null, 1);
+		}
 
-	/** An erased word is dropped even when another text phase forces the raw shared split. */
-	@Test
-	void shouldDropEmptyWordAlternatives() {
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.getCatalogSchema().openForWrite()
-			.withFulltextResource("stop", wordList("x"))
-			.withFulltextAnalyzer("erase", a -> a.text(removeCharacters("x")).words(lowercase()))
-			.withFulltextAnalyzer("stopX", a -> a.words(lowercase(), stopWords(resource("stop"))))
-			.updateVia(session);
-		});
-		defineFields("erase", "stopX");
-		put(1, Locale.ENGLISH, "x red", "red");
-		assertMatches(this.evita, Locale.ENGLISH, "x red", null, 1);
-	}
-
-	/** Folded stop recognition prepares the surface through English possessive removal. */
-	@Test
-	void shouldPreparePossessiveSurfaceForFoldedStops() {
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.getCatalogSchema().openForWrite()
-			.withFulltextResource("stop", wordList("café"))
-			.withFulltextAnalyzer("possessive", a -> a.words(englishPossessive(), lowercase(),
-				stopWords(resource("stop")))).updateVia(session);
-		});
-		defineFields("possessive", "possessive");
-		put(1, Locale.ENGLISH, "café's red", "red");
-		assertMatches(this.evita, Locale.ENGLISH, "cafe's red", null, 1);
-	}
-
-	/** Eviction after resolution must not force a second identity lookup during grouping. */
-	@Test
-	void shouldHoldResolvedAnalyzerAcrossEviction() throws Exception {
-		defineFields("text", "text");
-		put(1, Locale.ENGLISH, "red", "blue");
-		final Catalog catalog = (Catalog) this.evita.getCatalogInstanceOrThrowException(TEST_CATALOG);
-		final FulltextAnalyzerRegistry original = catalog.getFulltextAnalyzerRegistry();
-		final EvictingRegistry registry = new EvictingRegistry();
-		final java.lang.reflect.Field field = Catalog.class.getDeclaredField("fulltextAnalyzerRegistry");
-		field.setAccessible(true);
-		field.set(catalog, registry);
-		try {
-			assertDoesNotThrow(() -> assertMatches(this.evita, Locale.ENGLISH, "red", "title", 1),
-				"An evicted analyzer handle must remain usable throughout translation");
-			assertEquals(1, registry.lookups, "Resolve each searched field only once per translation");
-		} finally {
-			field.set(catalog, original);
-			registry.close();
+		/** Folded stop recognition prepares the surface through English possessive removal. */
+		@Test
+		@DisplayName("should prepare a possessive surface before recognizing a folded stop word")
+		void shouldPreparePossessiveSurfaceForFoldedStops() {
+			FulltextFieldAnalysisFunctionalTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
+				session.getCatalogSchema().openForWrite()
+				.withFulltextResource("stop", wordList("café"))
+				.withFulltextAnalyzer("possessive", a -> a.words(englishPossessive(), lowercase(),
+					stopWords(resource("stop")))).updateVia(session);
+			});
+			defineFields("possessive", "possessive");
+			put(1, Locale.ENGLISH, "café's red", "red");
+			assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, Locale.ENGLISH, "cafe's red", null, 1);
 		}
 	}
 

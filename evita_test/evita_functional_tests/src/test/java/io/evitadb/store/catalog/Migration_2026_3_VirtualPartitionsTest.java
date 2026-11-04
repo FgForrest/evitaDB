@@ -54,7 +54,6 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.UniqueIndex;
-import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.mutation.local.VirtualReferencePartitionWriter;
 import io.evitadb.index.virtual.CatalogDescriber;
 import io.evitadb.index.virtual.CatalogReloadTestSupport;

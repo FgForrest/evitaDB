@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.analysis.FulltextResourceContent;
 import io.evitadb.api.requestResponse.schema.analysis.WordList;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.core.query.filter.translator.fulltext.TextMatchesTranslator;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.spi.analysis.AnalysisStepFactory;
@@ -67,8 +68,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Serializable;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -88,11 +91,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Verifies the step-list chains {@link FulltextChainCompiler} builds: the built-in `text` analyzer must produce in
- * each built-in language exactly the terms of today's chains of the language (markup stripping aside, which `text`
- * does not do and `html-text` does), and the compiler must refuse what cannot form a chain.
+ * each built-in language exactly the terms the removed per-language chains produced, pinned by the golden TSV files
+ * (markup stripping aside, which `text` does not do and `html-text` does), and the compiler must refuse what cannot
+ * form a chain.
  */
 @DisplayName("Fulltext chain compiler")
 @Tag(ENGINE)
@@ -132,61 +137,6 @@ class FulltextChainCompilerTest {
 	private final AnalysisStepRegistry stepRegistry = new AnalysisStepRegistry();
 	/** The compiler under test. */
 	private final FulltextChainCompiler compiler = new FulltextChainCompiler(this.stepRegistry);
-	/** Every recorded query stream also pins production splitting followed by per-word alternatives. */
-	@Test
-	void shouldProduceGoldenAlternativesThroughProductionRoute() throws Exception {
-		final java.lang.reflect.Method split =
-			io.evitadb.core.query.filter.translator.fulltext.TextMatchesTranslator.class
-				.getDeclaredMethod("analyze", FulltextAnalyzer.class, String.class);
-		split.setAccessible(true);
-		final java.lang.reflect.Method groups =
-			io.evitadb.core.query.filter.translator.fulltext.TextMatchesTranslator.class
-				.getDeclaredMethod("analyzeGroups", CompiledFulltextAnalyzer.class, split.getReturnType());
-		groups.setAccessible(true);
-		try (final FulltextAnalyzerRegistry cache = new FulltextAnalyzerRegistry(this.stepRegistry)) {
-			for (final String language : List.of("cs", "sk", "pl", "ro", "en", "de", "fr")) {
-				final CompiledFulltextAnalyzer compiled =
-					cache.getCompiledAnalyzer(EMPTY_CATALOG, "text", Locale.forLanguageTag(language));
-				final String resource = "/analysis/fulltext-text-query-" + language + ".tsv";
-				try (final InputStream stream = getClass().getResourceAsStream(resource);
-					 final BufferedReader reader = new BufferedReader(new InputStreamReader(
-						 assertGoldenExists(stream, resource), StandardCharsets.UTF_8))) {
-					assertEquals("# version=1", reader.readLine(), resource);
-					for (final String row : reader.lines().toList()) {
-						if (row.startsWith("#")) {
-							continue;
-						}
-						final String[] cells = row.split("\t", -1);
-						final String input = decodeGolden(cells[0]);
-						final List<List<String>> expected = new ArrayList<>();
-						for (final String term : decodeGolden(cells[1]).split("\n")) {
-							if (term.isEmpty()) {
-								continue;
-							}
-							final int at = term.lastIndexOf('@');
-							final int increment = Integer.parseInt(term.substring(term.lastIndexOf('+') + 1));
-							if (increment > 0 || expected.isEmpty()) {
-								expected.add(new ArrayList<>());
-							}
-							final String value = term.substring(0, at);
-							if (!expected.getLast().contains(value)) {
-								expected.getLast().add(value);
-							}
-						}
-						final Object words = split.invoke(null, compiled.splitting(), input);
-						final String[][] analyzed = (String[][]) groups.invoke(null, compiled, words);
-						final List<List<String>> actual = new ArrayList<>();
-						for (final String[] alternatives : analyzed) {
-							if (alternatives.length > 0) {
-								actual.add(java.util.Arrays.asList(alternatives));
-							}
-						}
-						assertEquals(expected, actual, "Production query alternatives " + resource + ": " + input);
-					}
-				}
-			}
-		}
-	}
 
 	/** Pins the compiled built-ins to the output recorded from the retired language chains. */
 	@Nested
@@ -212,6 +162,82 @@ class FulltextChainCompilerTest {
 		void shouldProduceTodaysIndexTermsOnMarkup() throws IOException {
 			verifyGolden("html-text", FulltextAnalysisSide.INDEX);
 		}
+
+		/** Every recorded query stream also pins production splitting followed by per-word alternatives. */
+		@Test
+		@DisplayName("should preserve recorded query alternatives through the production split and word route")
+		void shouldProduceGoldenAlternativesThroughProductionRoute() throws Exception {
+			final Method split = translatorMethod("analyze", FulltextAnalyzer.class, String.class);
+			final Method groups = translatorMethod(
+				"analyzeGroups", CompiledFulltextAnalyzer.class, split.getReturnType()
+			);
+			try (final FulltextAnalyzerRegistry cache =
+					 new FulltextAnalyzerRegistry(FulltextChainCompilerTest.this.stepRegistry)) {
+				for (final String language : List.of("cs", "sk", "pl", "ro", "en", "de", "fr")) {
+					final CompiledFulltextAnalyzer compiled =
+						cache.getCompiledAnalyzer(EMPTY_CATALOG, "text", Locale.forLanguageTag(language));
+					final String resource = "/analysis/fulltext-text-query-" + language + ".tsv";
+					try (final InputStream stream = getClass().getResourceAsStream(resource);
+						 final BufferedReader reader = new BufferedReader(new InputStreamReader(
+							 assertGoldenExists(stream, resource), StandardCharsets.UTF_8))) {
+						assertEquals("# version=1", reader.readLine(), resource);
+						int rows = 0;
+						for (final String row : reader.lines().toList()) {
+							if (row.startsWith("#")) {
+								continue;
+							}
+							rows++;
+							final String[] cells = row.split("\t", -1);
+							final String input = decodeGolden(cells[0]);
+							final List<List<String>> expected = new ArrayList<>();
+							for (final String term : decodeGolden(cells[1]).split("\n")) {
+								if (term.isEmpty()) {
+									continue;
+								}
+								final int at = term.lastIndexOf('@');
+								final int increment = Integer.parseInt(term.substring(term.lastIndexOf('+') + 1));
+								if (increment > 0 || expected.isEmpty()) {
+									expected.add(new ArrayList<>());
+								}
+								final String value = term.substring(0, at);
+								if (!expected.getLast().contains(value)) {
+									expected.getLast().add(value);
+								}
+							}
+							final Object words = split.invoke(null, compiled.textSplitting(), input);
+							final String[][] analyzed = (String[][]) groups.invoke(null, compiled, words);
+							final List<List<String>> actual = new ArrayList<>();
+							for (final String[] alternatives : analyzed) {
+								if (alternatives.length > 0) {
+									actual.add(Arrays.asList(alternatives));
+								}
+							}
+							assertEquals(expected, actual, "Production query alternatives " + resource + ": " + input);
+						}
+						assertGoldenRecorded(rows, resource);
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Returns a method of {@link TextMatchesTranslator}, made accessible. The golden route runs the translator's own
+	 * split and per-word analysis, which are not public, so it reaches them by name - and a rename or a signature
+	 * change fails here, naming the member to follow, rather than with a bare `NoSuchMethodException`.
+	 */
+	@Nonnull
+	private static Method translatorMethod(@Nonnull String name, @Nonnull Class<?>... parameterTypes) {
+		try {
+			final Method method = TextMatchesTranslator.class.getDeclaredMethod(name, parameterTypes);
+			method.setAccessible(true);
+			return method;
+		} catch (NoSuchMethodException ex) {
+			return fail(
+				"The golden route calls TextMatchesTranslator#" + name + " by name - follow its rename or signature " +
+					"change here.", ex
+			);
+		}
 	}
 
 	/** Reads versioned UTF-8 TSV with Base64 UTF-8 cells, preserving every Unicode and control character. */
@@ -226,8 +252,10 @@ class FulltextChainCompilerTest {
 					assertGoldenExists(stream, resource), StandardCharsets.UTF_8))
 			) {
 				assertEquals("# version=1", reader.readLine(), resource);
+				int rows = 0;
 				for (final String row : reader.lines().toList()) {
 					if (!row.startsWith("#")) {
+						rows++;
 						final String[] cells = row.split("\t", -1);
 						final String input = decodeGolden(cells[0]);
 						assertEquals(decodeGolden(cells[1]), String.join("\n", terms(compiled, input)),
@@ -235,8 +263,14 @@ class FulltextChainCompilerTest {
 								"re-record deliberately, or revert. " + resource + ": " + input);
 					}
 				}
+				assertGoldenRecorded(rows, resource);
 			}
 		}
+	}
+
+	/** Fails a golden file that holds no recorded row, which would otherwise pass without a single assertion. */
+	private static void assertGoldenRecorded(int rows, @Nonnull String resource) {
+		assertTrue(rows > 0, "Golden file " + resource + " holds no recorded row - record it deliberately.");
 	}
 
 	/** Fails with the resource name when a golden file is missing, instead of a bare null dereference. */
