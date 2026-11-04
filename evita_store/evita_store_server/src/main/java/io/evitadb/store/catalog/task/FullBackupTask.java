@@ -199,8 +199,13 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 					);
 			} catch (Exception exception) {
 				// remove the files
-				ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
-					.ifPresent(it -> exportFileService.deleteFile(it.fileId()));
+				// A failed write leaves the handle open: ZipOutputStream.close skips out.close() if finish() throws.
+				// Neither the future nor deleteFile sees that file. Discard first; getNow on a cancelled future
+				// would mask the primary failure.
+				if (!exportFileHandle.discard()) {
+					ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
+						.ifPresent(it -> exportFileService.deleteFile(it.fileId()));
+				}
 
 				if (exception instanceof RuntimeException re) {
 					throw re;

@@ -41,6 +41,7 @@ import io.minio.messages.NotificationRecords;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
@@ -64,6 +65,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
@@ -126,6 +128,7 @@ class ExportS3ServiceTest {
 	 * S3 export options configured to use the mock S3 server.
 	 */
 	private S3ExportOptions exportOptions;
+	private Path workDirectory;
 
 	/**
 	 * Builds a {@link NotificationRecords} instance by deserializing a JSON string
@@ -255,6 +258,54 @@ class ExportS3ServiceTest {
 			// Ignore cleanup errors
 		}
 		this.s3Client.close();
+	}
+
+	/**
+	 * Discard closes local resources without initiating an S3 upload.
+	 */
+	@Nested
+	@DisplayName("Discarding an S3 export")
+	class Discard {
+		@Test
+		@DisplayName("should remove the temporary file and cancel the exposed future without uploading")
+		void shouldDiscardOpenHandleWithoutUploading() throws IOException {
+			final ExportFileHandle handle = exportService.storeFile("discard.zip", null, "application/zip", null);
+			final Path temporaryFile = workDirectory.resolve(handle.fileId().toString());
+			handle.outputStream().write(new byte[]{1, 2, 3});
+			assertTrue(Files.exists(temporaryFile));
+
+			assertTrue(handle.discard());
+			assertTrue(handle.fileForFetchFuture().isCancelled(), "the exposed future must be cancelled");
+			assertFalse(Files.exists(temporaryFile), "discard must remove the temporary file");
+			assertEquals(0, exportService.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount());
+			assertTrue(exportService.getFile(handle.fileId()).isEmpty());
+			assertFalse(handle.discard(), "a second discard must be a no-op");
+			handle.close();
+			assertFalse(Files.exists(temporaryFile));
+			assertEquals(0, exportService.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount());
+			assertTrue(s3Client.listObjects(builder -> builder.bucket(BUCKET_NAME)).contents().isEmpty(),
+				"neither discard nor later close may upload an object");
+			assertThrows(IOException.class, () -> handle.outputStream().write(4));
+			assertThrows(IOException.class, () -> handle.outputStream().write(new byte[]{4}));
+			assertThrows(IOException.class, () -> handle.outputStream().write(new byte[]{4}, 0, 1));
+		}
+
+		@Test
+		@DisplayName("should retain a closed export for fetching")
+		void shouldRetainPublishedFileWhenDiscardingClosedHandle() throws Exception {
+			final ExportFileHandle handle = exportService.storeFile("retain.zip", null, "application/zip", null);
+			handle.outputStream().write(new byte[]{1, 2, 3});
+			handle.close();
+			handle.fileForFetchFuture().get(30, TimeUnit.SECONDS);
+
+			assertFalse(handle.discard());
+			assertFalse(handle.fileForFetchFuture().isCancelled());
+			assertEquals(1, exportService.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount());
+			try (final InputStream input = exportService.fetchFile(handle.fileId())) {
+				assertArrayEquals(new byte[]{1, 2, 3}, input.readAllBytes());
+			}
+			assertEquals(1, s3Client.listObjects(builder -> builder.bucket(BUCKET_NAME)).contents().size());
+		}
 	}
 
 	@Test
@@ -941,14 +992,13 @@ class ExportS3ServiceTest {
 
 	@Nonnull
 	private ExportS3Service createExportService() {
+		this.workDirectory = Path.of(System.getProperty("java.io.tmpdir"), "evita/work", UUID.randomUUID().toString());
 		return new ExportS3Service(
 			this.exportOptions,
 			new Scheduler(new ImmediateScheduledThreadPoolExecutor()),
 			new FileManagementService(
 				StorageOptions.builder(StorageOptions.temporary())
-					.workDirectory(
-						Path.of(System.getProperty("java.io.tmpdir"), "evita/work", UUID.randomUUID().toString())
-					)
+					.workDirectory(this.workDirectory)
 					.build()
 			)
 		);

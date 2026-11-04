@@ -48,7 +48,6 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.OpenOption;
@@ -475,8 +474,13 @@ public class ExportFileService implements ExportService {
 		@Nonnull UUID fileId,
 		@Nonnull CompletableFuture<FileForFetch> fileForFetchFuture,
 		@Nonnull Path filePath,
-		@Nonnull OutputStream outputStream
+		@Nonnull WriteMetadataOnCloseOutputStream outputStream
 	) implements ExportFileHandle {
+
+		@Override
+		public boolean discard() {
+			return this.outputStream.discard();
+		}
 
 		@Override
 		public long size() {
@@ -501,6 +505,7 @@ public class ExportFileService implements ExportService {
 	private final static class WriteMetadataOnCloseOutputStream extends FileOutputStream implements Closeable {
 		private final CompletableFuture<FileForFetch> fileForFetchFuture;
 		private final Supplier<FileForFetch> onClose;
+		private final Path path;
 		private boolean closed;
 
 		public WriteMetadataOnCloseOutputStream(
@@ -511,6 +516,31 @@ public class ExportFileService implements ExportService {
 			super(finalFilePath.toFile());
 			this.fileForFetchFuture = fileForFetchFuture;
 			this.onClose = onClose;
+			this.path = finalFilePath;
+		}
+
+		/**
+		 * Closes the file without publishing metadata, removes its bytes and cancels its future.
+		 *
+		 * @return whether this call abandoned an open stream
+		 */
+		public boolean discard() {
+			if (this.closed) {
+				return false;
+			}
+			this.closed = true;
+			try {
+				super.close();
+			} catch (Exception e) {
+				log.error("Failed to close discarded export: {}", this.path, e);
+			}
+			try {
+				Files.deleteIfExists(this.path);
+			} catch (Exception e) {
+				log.error("Failed to delete discarded export: {}", this.path, e);
+			}
+			this.fileForFetchFuture.cancel(false);
+			return true;
 		}
 
 		@Override

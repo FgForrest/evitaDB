@@ -98,6 +98,18 @@ public interface ExportFileHandle extends AutoCloseable {
 	void close() throws IOException;
 
 	/**
+	 * Abandons an export that has not been closed yet.
+	 *
+	 * Closes the stream, removes its bytes without publishing the file, and cancels the future exposed by
+	 * {@link #fileForFetchFuture()}, so `isCancelled()` returns `true`. A later {@link #close()} does nothing.
+	 * Once closed or discarded, this method is a no-op returning `false`; a published file is retained.
+	 * This method never throws: cleanup failures are logged so the original failure remains visible.
+	 *
+	 * @return `true` if the open export was discarded, `false` if it was already closed or discarded
+	 */
+	boolean discard();
+
+	/**
 	 * Output stream for writing the contents of the exported file.
 	 *
 	 * The returned stream is managed by this handle and remains valid until {@link #close()} is

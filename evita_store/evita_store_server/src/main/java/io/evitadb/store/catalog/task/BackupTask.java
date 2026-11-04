@@ -302,8 +302,13 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				// the file for fetch, so users are offered a backup missing most of its entries.
 				// Covered by BackupTaskCancellationTest#shouldDeleteRegisteredExportFileWhenBackupInterrupted, which
 				// only fails against a freshly woven module - a stale jar reports it green
-				ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
-					.ifPresent(it -> exportService.deleteFile(it.fileId()));
+				// A failed write leaves the handle open: ZipOutputStream.close skips out.close() if finish() throws.
+				// Neither the future nor deleteFile sees that file. Discard first; getNow on a cancelled future
+				// would mask the primary failure.
+				if (!exportFileHandle.discard()) {
+					ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
+						.ifPresent(it -> exportService.deleteFile(it.fileId()));
+				}
 
 				if (exception instanceof RuntimeException re) {
 					throw re;

@@ -232,6 +232,12 @@ class TrafficRecorderTaskExportCleanupTest {
 		}
 
 		@Override
+		public boolean discard() {
+			// This fixture models a descriptor that is already published; retain the delete-file assertions.
+			return false;
+		}
+
+		@Override
 		public void close() {
 			// no-op
 		}

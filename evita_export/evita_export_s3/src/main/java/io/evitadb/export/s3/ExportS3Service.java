@@ -908,6 +908,17 @@ public class ExportS3Service implements ExportService {
 	) implements ExportFileHandle {
 
 		@Override
+		public boolean discard() {
+			if (!this.outputStream.discard()) {
+				return false;
+			}
+			// Cancel the exposed dependent before its source can complete it exceptionally.
+			this.fileForFetchFuture.cancel(false);
+			this.outputStream.fileForFetchFuture.cancel(false);
+			return true;
+		}
+
+		@Override
 		public long size() {
 			return this.outputStream.size();
 		}
@@ -1003,22 +1014,60 @@ public class ExportS3Service implements ExportService {
 
 		@Override
 		public void write(int b) throws IOException {
+			assertOpen();
 			this.delegate.write(b);
 		}
 
 		@Override
 		public void write(@Nonnull byte[] b) throws IOException {
+			assertOpen();
 			this.delegate.write(b);
 		}
 
 		@Override
 		public void write(@Nonnull byte[] b, int off, int len) throws IOException {
+			assertOpen();
 			this.delegate.write(b, off, len);
 		}
 
 		@Override
 		public void flush() throws IOException {
 			this.delegate.flush();
+		}
+
+		/**
+		 * Refuses a write after the stream was closed or discarded. The delegate cannot be relied on for this: it is
+		 * buffered, so a late write would quietly land in its buffer.
+		 *
+		 * @throws IOException if the stream is no longer open
+		 */
+		private void assertOpen() throws IOException {
+			if (this.closed) {
+				throw new IOException("Export stream is closed.");
+			}
+		}
+
+		/**
+		 * Closes the delegate and removes the temporary file without starting an upload.
+		 *
+		 * @return whether this call abandoned an open stream
+		 */
+		public boolean discard() {
+			if (this.closed) {
+				return false;
+			}
+			this.closed = true;
+			try {
+				this.delegate.close();
+			} catch (Exception e) {
+				log.error("Failed to close discarded S3 export: {}", this.path, e);
+			}
+			try {
+				FileUtils.deleteFileIfExists(this.path);
+			} catch (Exception e) {
+				log.error("Failed to delete discarded S3 export: {}", this.path, e);
+			}
+			return true;
 		}
 
 		@Override

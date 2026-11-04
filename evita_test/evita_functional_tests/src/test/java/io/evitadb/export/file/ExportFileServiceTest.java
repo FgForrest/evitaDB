@@ -27,6 +27,7 @@ import com.google.common.collect.Lists;
 import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
+import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
@@ -36,6 +37,7 @@ import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -80,6 +82,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		.directory(getPathInTargetDirectory(SUBDIR_NAME))
 		.build();
 	private ExportFileService exportService;
+	private Scheduler scheduler;
 
 	/**
 	 * Method returns number files in target directory.
@@ -99,12 +102,61 @@ class ExportFileServiceTest implements EvitaTestSupport {
 	@BeforeEach
 	void setUp() throws IOException {
 		cleanTestSubDirectory(SUBDIR_NAME);
-		this.exportService = new ExportFileService(this.exportOptions, Mockito.mock(Scheduler.class));
+		final ImmediateScheduledThreadPoolExecutor executor = new ImmediateScheduledThreadPoolExecutor();
+		executor.setThreadFactory(Thread.ofPlatform().daemon(true).factory());
+		this.scheduler = new Scheduler(executor);
+		this.exportService = new ExportFileService(this.exportOptions, this.scheduler);
 	}
 
 	@AfterEach
 	void tearDown() {
 		this.exportService.close();
+		this.scheduler.shutdownNow();
+	}
+
+	/**
+	 * Contracts for abandoning an unpublished export and retaining an already published one.
+	 */
+	@Nested
+	@DisplayName("Discarding an export")
+	class Discard {
+		@Test
+		@DisplayName("should remove an open file without publishing metadata")
+		void shouldDiscardOpenHandleWithoutPublishing() throws IOException {
+			final ExportFileHandle handle = exportService.storeFile("discard.zip", null, "application/zip", null);
+			final Path file = exportOptions.getDirectory().resolve(handle.fileId() + ".zip");
+			final Path sidecar = exportOptions.getDirectory().resolve(handle.fileId() + FileForFetch.METADATA_EXTENSION);
+			handle.outputStream().write(new byte[]{1, 2, 3});
+			assertTrue(Files.exists(file));
+
+			assertTrue(handle.discard());
+			assertTrue(handle.fileForFetchFuture().isCancelled(), "the exposed future must be cancelled");
+			assertFalse(Files.exists(file), "discard must remove the open file");
+			assertFalse(Files.exists(sidecar), "discard must never publish a sidecar");
+			assertEquals(0, exportService.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount());
+			assertTrue(exportService.getFile(handle.fileId()).isEmpty());
+			assertFalse(handle.discard(), "a second discard must be a no-op");
+			handle.close();
+			assertEquals(1, numberOfFiles(exportOptions.getDirectory()), "later close must leave only the folder lock");
+			assertEquals(0, exportService.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount());
+			assertThrows(IOException.class, () -> handle.outputStream().write(4));
+		}
+
+		@Test
+		@DisplayName("should retain a closed file for fetching")
+		void shouldRetainPublishedFileWhenDiscardingClosedHandle() throws IOException {
+			final ExportFileHandle handle = exportService.storeFile("retain.zip", null, "application/zip", null);
+			handle.outputStream().write(new byte[]{1, 2, 3});
+			handle.close();
+
+			assertFalse(handle.discard());
+			assertFalse(handle.fileForFetchFuture().isCancelled());
+			assertEquals(1, exportService.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount());
+			try (final InputStream input = exportService.fetchFile(handle.fileId())) {
+				assertArrayEquals(new byte[]{1, 2, 3}, input.readAllBytes());
+			}
+			assertEquals(3, numberOfFiles(exportOptions.getDirectory()));
+		}
 	}
 
 	@Test
