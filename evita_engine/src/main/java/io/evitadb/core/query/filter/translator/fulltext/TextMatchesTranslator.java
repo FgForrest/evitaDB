@@ -87,8 +87,9 @@ import java.util.function.Supplier;
  * The locale splits NFC text once, before any group analyzes words. When all processed groups have equal resolved
  * query text steps, those steps precede the shared split. Otherwise splitting uses the raw text: a boundary a group's
  * text step would remove remains a boundary for that group, which can cost recall. Fields sharing compiled analyzer
- * content form one group. Each group applies its query text and words phases around a keyword tokenizer to each
- * shared term, preserving alignment. A field whose recorded index fingerprint
+ * content form one group. Each group applies its words phase around a keyword tokenizer to each shared term,
+ * preserving alignment - after the raw split preceded by its own query text phase, after the text-aware split
+ * without it, so that no text step runs twice on one term. A field whose recorded index fingerprint
  * or pivot differs from its current schema contributes nothing until a write starts a fresh generation (#409).
  *
  * ## Where the fulltext lives
@@ -196,7 +197,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			textMatches.getText());
 		final Map<CompiledFulltextAnalyzer, String[][]> analyzed = CollectionUtils.createHashMap(analyzers.size());
 		for (final CompiledFulltextAnalyzer analyzer : analyzers) {
-			analyzed.put(analyzer, analyzeGroups(analyzer, searchTokens));
+			analyzed.put(analyzer, analyzeGroups(analyzer, searchTokens, commonText));
 		}
 		final Map<Scope, List<AnalyzedFieldGroup>> groupsByScope = new EnumMap<>(Scope.class);
 		for (final Map.Entry<Scope, Map<CompiledFulltextAnalyzer, List<FulltextFieldDefinition>>> entry :
@@ -364,20 +365,25 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	/**
 	 * Runs a group's word chain over every term of each shared word. Position increments emitted inside the word
 	 * chain never create a new query word; every nonempty emitted term is an alternative of that shared input word.
-	 * The text phase is reapplied after text-aware shared splitting. The only built-in query text step,
-	 * `remove-characters`, is idempotent, so applying it to an already transformed word does nothing.
+	 * After the raw split the chain applies the group's query text phase to each word first; after the text-aware
+	 * split the words have been through that phase already, and the chain without it keeps a text step that is not
+	 * idempotent from changing them a second time.
 	 *
 	 * @param analyzer the group's compiled chains
 	 * @param words the locale's shared words
+	 * @param textSplit whether the words come from the text-aware split, which applied the common query text phase
 	 * @return alternatives aligned with the shared words
 	 */
 	@Nonnull
-	private static String[][] analyzeGroups(@Nonnull CompiledFulltextAnalyzer analyzer, @Nonnull QueryToken[] words) {
+	private static String[][] analyzeGroups(
+		@Nonnull CompiledFulltextAnalyzer analyzer, @Nonnull QueryToken[] words, boolean textSplit
+	) {
+		final FulltextAnalyzer wordChain = textSplit ? analyzer.textSplitWord() : analyzer.word();
 		final String[][] alternatives = new String[words.length][];
 		for (int i = 0; i < words.length; i++) {
 			final Set<String> terms = CollectionUtils.createLinkedHashSet(4);
 			for (final String term : words[i].terms()) {
-				analyzer.word().analyze(term, (value, surface, start, end, increment) -> {
+				wordChain.analyze(term, (value, surface, start, end, increment) -> {
 					if (!value.isEmpty()) {
 						terms.add(value);
 					}

@@ -213,7 +213,8 @@ public class FulltextAnalyzerRegistry implements Closeable {
 					result = new CompiledFulltextAnalyzer(result.index(), result.word(), shared,
 						result.queryText(),
 						result.textSplitting() == result.splitting() ? shared : result.textSplitting(),
-						result.fingerprint(), result.foldedStopWords(), result.stopWordPreparations());
+						result.textSplitWord(), result.fingerprint(), result.foldedStopWords(),
+						result.stopWordPreparations());
 				}
 				this.compiled.put(resolved, result);
 			} else if (candidate != null) {
@@ -293,12 +294,22 @@ public class FulltextAnalyzerRegistry implements Closeable {
 						new FulltextAnalyzer(
 							"query-splitting", this.compiler.compileSplittingChain(new ResolvedFulltextAnalyzer(
 								"query-splitting", queryText, resolved.splitting(), List.of(), resolved.context())));
-					final Set<String> foldedStopWords = CollectionUtils.createHashSet(64);
-					for (final StopWordPreparation stop : stopWords) {
-						foldedStopWords.addAll(stop.foldedWords());
+					try {
+						// without query text steps both splits yield the same terms, so one word chain serves both
+						final FulltextAnalyzer textSplitWord = queryText.isEmpty() ? word : new FulltextAnalyzer(
+							resolved.analyzer(), this.compiler.compileTextSplitWordChain(resolved));
+						final Set<String> foldedStopWords = CollectionUtils.createHashSet(64);
+						for (final StopWordPreparation stop : stopWords) {
+							foldedStopWords.addAll(stop.foldedWords());
+						}
+						return new CompiledFulltextAnalyzer(index, word, privateSplitting, queryText,
+							textSplitting, textSplitWord, fingerprint, foldedStopWords, stopWords);
+					} catch (RuntimeException ex) {
+						if (textSplitting != privateSplitting) {
+							textSplitting.close();
+						}
+						throw ex;
 					}
-					return new CompiledFulltextAnalyzer(index, word, privateSplitting, queryText,
-						textSplitting, fingerprint, foldedStopWords, stopWords);
 				} catch (RuntimeException ex) {
 					privateSplitting.close();
 					throw ex;
@@ -341,14 +352,18 @@ public class FulltextAnalyzerRegistry implements Closeable {
 	}
 
 	/**
-	 * Releases the index, word and optional text-aware splitting chains owned by a removed compiled entry.
-	 * Raw splitting has its own cache entry and is drained once separately, even when many analyzer groups share it.
+	 * Releases the index and word chains and the optional text-aware splitting and word chains owned by a removed
+	 * compiled entry. Raw splitting has its own cache entry and is drained once separately, even when many analyzer
+	 * groups share it.
 	 *
-	 * @param analyzer the removed entry whose index, word and optional text-aware splitting chains this caller owns
+	 * @param analyzer the removed entry whose index, word and optional text-aware chains this caller owns
 	 */
 	private static void releaseCompiledChains(@Nonnull CompiledFulltextAnalyzer analyzer) {
 		analyzer.index().close();
 		analyzer.word().close();
+		if (analyzer.textSplitWord() != analyzer.word()) {
+			analyzer.textSplitWord().close();
+		}
 		if (analyzer.textSplitting() != analyzer.splitting()) {
 			analyzer.textSplitting().close();
 		}

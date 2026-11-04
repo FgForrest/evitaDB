@@ -670,6 +670,11 @@ public final class FulltextCatalogFixture {
 		 */
 		@Nonnull private final FulltextAnalyzer splitting;
 		/**
+		 * Whether the splitting applies the query text phase the searched fields share, so that the words are analyzed
+		 * by each group's chain without it.
+		 */
+		private final boolean textSplit;
+		/**
 		 * The searched fields the index holds a current generation of - registered with the chain and pivot their
 		 * schema declares now.
 		 */
@@ -729,6 +734,7 @@ public final class FulltextCatalogFixture {
 			this.splitting = first == null ?
 				analyzerRegistry.getCompiledAnalyzer(catalogSchema, "text", locale).splitting() :
 				commonText ? first.textSplitting() : first.splitting();
+			this.textSplit = first != null && commonText;
 			this.fieldKeys = knownFields.toArray(FulltextFieldKey[]::new);
 			this.fulltextIndex = fulltextIndex;
 		}
@@ -773,9 +779,10 @@ public final class FulltextCatalogFixture {
 				final Map<CompiledFulltextAnalyzer, String[]> alternatives = CollectionUtils.createLinkedHashMap(4);
 				for (final Map.Entry<CompiledFulltextAnalyzer, List<Integer>> group : this.groups.entrySet()) {
 					final Set<String> terms = CollectionUtils.createLinkedHashSet(4);
+					final FulltextAnalyzer wordChain =
+						this.textSplit ? group.getKey().textSplitWord() : group.getKey().word();
 					for (final String term : word.terms()) {
-						group.getKey().word().analyze(term,
-							(value, surface, start, end, increment) -> terms.add(value));
+						wordChain.analyze(term, (value, surface, start, end, increment) -> terms.add(value));
 					}
 					if (!terms.isEmpty() && !(group.getKey().foldedStopWords().contains(
 						CompiledFulltextAnalyzer.foldStopWord(word.surfaceForm())) && !isKnownToIndex(terms))) {

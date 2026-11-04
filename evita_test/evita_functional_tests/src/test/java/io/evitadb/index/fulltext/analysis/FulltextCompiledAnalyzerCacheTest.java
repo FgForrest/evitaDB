@@ -76,10 +76,13 @@ class FulltextCompiledAnalyzerCacheTest {
 	@Nested
 	@DisplayName("Query chains")
 	class QueryChains {
-		/** Text-aware splitting keeps original offsets and surfaces; repeating character removal is idempotent. */
+		/**
+		 * Text-aware splitting keeps original offsets and surfaces, and the word chain for its terms does not run the
+		 * text phase again: a split term gets the alternatives its original surface gets through the full word chain.
+		 */
 		@Test
-		@DisplayName("should keep original surfaces through the text phase and apply it idempotently per word")
-		void shouldPreserveOriginalSurfaceAndIdempotentTextPhase() {
+		@DisplayName("should keep original surfaces through the text phase and run it once per word")
+		void shouldPreserveOriginalSurfaceAndRunTextPhaseOnce() {
 			try (final FulltextAnalyzerRegistry cache = new FulltextAnalyzerRegistry(new AnalysisStepRegistry())) {
 				final CatalogSchemaContract schema = schema(b -> b
 					.withFulltextAnalyzer("joined", a -> a.text(removeCharacters("-")).words(lowercase())));
@@ -89,12 +92,13 @@ class FulltextCompiledAnalyzerCacheTest {
 					"Text filters must retain surfaces from the original query");
 				assertEquals(List.of(0, 6), split.stream().map(t -> t.startOffset()).toList());
 				assertEquals(List.of(5, 9), split.stream().map(t -> t.endOffset()).toList());
+				assertNotSame(compiled.word(), compiled.textSplitWord(), "A query text phase needs a chain without it");
 				for (final AnalyzedTerm term : split) {
-					final List<String> once = collectTerms(compiled.word(), term.surfaceForm()).stream()
+					final List<String> fromSurface = collectTerms(compiled.word(), term.surfaceForm()).stream()
 						.map(t -> t.term()).toList();
-					final List<String> twice = collectTerms(compiled.word(), term.term()).stream()
+					final List<String> fromSplit = collectTerms(compiled.textSplitWord(), term.term()).stream()
 						.map(t -> t.term()).toList();
-					assertEquals(once, twice, "Reapplying remove-characters to a transformed word must be a no-op");
+					assertEquals(fromSurface, fromSplit, "A split term must pass the text phase exactly once");
 				}
 			}
 		}
@@ -274,12 +278,15 @@ class FulltextCompiledAnalyzerCacheTest {
 			}
 		}
 
-		/** Catalog close releases all still-retained chains and refuses further lookup. */
+		/** Catalog close releases all still-retained chains, the text-aware ones included, and refuses lookup. */
 		@Test
 		@DisplayName("should close retained chains and refuse lookups")
 		void shouldCloseRetainedChains() {
 			final FulltextAnalyzerRegistry cache = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 			final CompiledFulltextAnalyzer held = cache.getCompiledAnalyzer(SCHEMA, "text", Locale.ENGLISH);
+			final CompiledFulltextAnalyzer joined = cache.getCompiledAnalyzer(schema(b -> b
+				.withFulltextAnalyzer("joined", a -> a.text(removeCharacters("-")).words(lowercase()))),
+				"joined", Locale.ENGLISH);
 			cache.close();
 			cache.close();
 			assertThrows(EvitaInvalidUsageException.class, () -> cache.getCompiledAnalyzer(SCHEMA, "text",
@@ -287,6 +294,8 @@ class FulltextCompiledAnalyzerCacheTest {
 			assertThrows(EvitaInvalidUsageException.class, () -> collectTerms(held.index(), "bike"));
 			assertThrows(EvitaInvalidUsageException.class, () -> collectTerms(held.word(), "bike"));
 			assertThrows(EvitaInvalidUsageException.class, () -> collectTerms(held.splitting(), "bike"));
+			assertThrows(EvitaInvalidUsageException.class, () -> collectTerms(joined.textSplitting(), "e-bike"));
+			assertThrows(EvitaInvalidUsageException.class, () -> collectTerms(joined.textSplitWord(), "ebike"));
 		}
 	}
 

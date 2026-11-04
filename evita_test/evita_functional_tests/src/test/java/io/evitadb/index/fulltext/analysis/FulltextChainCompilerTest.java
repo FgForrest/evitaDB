@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.analysis.FulltextResourceContent;
 import io.evitadb.api.requestResponse.schema.analysis.WordList;
+import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.core.query.filter.translator.fulltext.TextMatchesTranslator;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -87,8 +88,11 @@ import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.fulltext.FulltextAnalysisTestSupport.collectTerms;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -169,7 +173,7 @@ class FulltextChainCompilerTest {
 		void shouldProduceGoldenAlternativesThroughProductionRoute() throws Exception {
 			final Method split = translatorMethod("analyze", FulltextAnalyzer.class, String.class);
 			final Method groups = translatorMethod(
-				"analyzeGroups", CompiledFulltextAnalyzer.class, split.getReturnType()
+				"analyzeGroups", CompiledFulltextAnalyzer.class, split.getReturnType(), boolean.class
 			);
 			try (final FulltextAnalyzerRegistry cache =
 					 new FulltextAnalyzerRegistry(FulltextChainCompilerTest.this.stepRegistry)) {
@@ -205,7 +209,7 @@ class FulltextChainCompilerTest {
 								}
 							}
 							final Object words = split.invoke(null, compiled.textSplitting(), input);
-							final String[][] analyzed = (String[][]) groups.invoke(null, compiled, words);
+							final String[][] analyzed = (String[][]) groups.invoke(null, compiled, words, true);
 							final List<List<String>> actual = new ArrayList<>();
 							for (final String[] alternatives : analyzed) {
 								if (alternatives.length > 0) {
@@ -453,6 +457,44 @@ class FulltextChainCompilerTest {
 			) {
 				assertEquals(List.of("foo", "bar"), termTexts(spaceFirst, "foo_bar"));
 				assertEquals(List.of("fooxbar"), termTexts(xFirst, "foo_bar"));
+			}
+		}
+
+		/**
+		 * A query text step that is not idempotent changes each query word exactly once, through the translator's own
+		 * split and per-word route: before the text-aware split and not again per word, or per word after the raw
+		 * split. Applied twice, `Cat` would become `caaaat` and miss the indexed `caat`.
+		 */
+		@Test
+		@DisplayName("should run the query text phase once per word after either split")
+		void shouldRunQueryTextPhaseOncePerWord() throws Exception {
+			final ReplaceCharacter aToAa = new ReplaceCharacter(
+				"test-a-to-aa", "a", "aa", EnumSet.allOf(FulltextAnalysisSide.class)
+			);
+			final Method split = translatorMethod("analyze", FulltextAnalyzer.class, String.class);
+			final Method groups = translatorMethod(
+				"analyzeGroups", CompiledFulltextAnalyzer.class, split.getReturnType(), boolean.class
+			);
+			final InternalCatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(EMPTY_CATALOG);
+			builder.withFulltextAnalyzer("doubling", a -> a.text(textStep(aToAa.getName())).words(lowercase()));
+			try (final FulltextAnalyzerRegistry cache = new FulltextAnalyzerRegistry(registryWith(aToAa))) {
+				final CompiledFulltextAnalyzer compiled =
+					cache.getCompiledAnalyzer(builder.toInstance(), "doubling", Locale.ENGLISH);
+				assertEquals(List.of("caat"), termTexts(compiled.index(), "Cat"));
+				assertNotSame(compiled.word(), compiled.textSplitWord(), "A query text phase needs a chain without it");
+				for (final boolean textSplit : new boolean[]{true, false}) {
+					final Object words = split.invoke(
+						null, textSplit ? compiled.textSplitting() : compiled.splitting(), "Cat"
+					);
+					final String[][] analyzed = (String[][]) groups.invoke(null, compiled, words, textSplit);
+					assertArrayEquals(new String[][]{{"caat"}}, analyzed, "text-aware split: " + textSplit);
+				}
+				// no query-side text step (html-strip acts on the index side only): one word chain serves both splits
+				for (final String analyzer : List.of("text", "html-text")) {
+					final CompiledFulltextAnalyzer plain =
+						cache.getCompiledAnalyzer(EMPTY_CATALOG, analyzer, Locale.ENGLISH);
+					assertSame(plain.word(), plain.textSplitWord(), analyzer);
+				}
 			}
 		}
 	}

@@ -129,6 +129,21 @@ public final class FulltextChainCompiler {
 	}
 
 	/**
+	 * Compiles query analysis of one term the text-aware splitting produced: the words steps around a keyword
+	 * tokenizer, without the text steps the term has already been through. Running them again would change the term
+	 * a second time unless every text step happened to be idempotent. Stop-word preparations stay those of
+	 * {@link #compileWordChain}, which prepare the original surface.
+	 *
+	 * @param analyzer the resolved analyzer of the group
+	 * @return the query word chain owned by the caller
+	 */
+	@Nonnull
+	public Analyzer compileTextSplitWordChain(@Nonnull ResolvedFulltextAnalyzer analyzer) {
+		return compile(List.of(), analyzer.splitting(), analyzer.words(), FulltextAnalysisSide.QUERY,
+			analyzer.context(), true, null);
+	}
+
+	/**
 	 * Selects resolved text steps that act on query input, preserving their declared content and order.
 	 *
 	 * @param analyzer the definition resolved for this locale

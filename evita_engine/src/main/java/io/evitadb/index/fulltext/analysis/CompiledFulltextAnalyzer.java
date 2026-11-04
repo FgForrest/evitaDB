@@ -45,6 +45,8 @@ import java.util.Set;
  * @param queryText the resolved query-side text steps; a query compares them by content across its field groups to
  *                  decide whether the shared split may apply them first
  * @param textSplitting the splitting chain preceded by queryText, with offsets corrected to the original input
+ * @param textSplitWord the query chain applied to each term textSplitting produced: `word` without queryText, which
+ *                      such a term has already been through; the very instance of `word` when queryText is empty
  * @param fingerprint the persistent index and word-phase identities
  * @param foldedStopWords prepared built-in index stop words, lower-cased and ASCII-folded
  * @param stopWordPreparations per-stop-step query surface preparation paired with its prepared index stop words
@@ -55,6 +57,7 @@ public record CompiledFulltextAnalyzer(
 	@Nonnull FulltextAnalyzer splitting,
 	@Nonnull List<AnalysisStep> queryText,
 	@Nonnull FulltextAnalyzer textSplitting,
+	@Nonnull FulltextAnalyzer textSplitWord,
 	@Nonnull FulltextAnalyzerFingerprint fingerprint,
 	@Nonnull Set<String> foldedStopWords,
 	@Nonnull List<StopWordPreparation> stopWordPreparations
@@ -67,6 +70,7 @@ public record CompiledFulltextAnalyzer(
 	 * @param splitting the shared splitting chain
 	 * @param queryText the query-side text steps
 	 * @param textSplitting the text-aware splitting chain
+	 * @param textSplitWord the query word chain for the terms of the text-aware splitting
 	 * @param fingerprint the persistent identities
 	 * @param foldedStopWords the prepared folded index stop words
 	 * @param stopWordPreparations query preparation corresponding to each built-in index stop step
