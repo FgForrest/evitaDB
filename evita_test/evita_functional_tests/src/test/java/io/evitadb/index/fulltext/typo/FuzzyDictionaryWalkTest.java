@@ -23,292 +23,391 @@
 
 package io.evitadb.index.fulltext.typo;
 
-import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
-import io.evitadb.test.fulltext.CzechLexicon;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.fulltext.FulltextFieldKey;
+import io.evitadb.index.fulltext.FulltextIndex;
+import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.test.fulltext.EditDistances;
-import io.evitadb.test.fulltext.LevenshteinDictionaryWalker;
-import io.evitadb.test.fulltext.LevenshteinDictionaryWalker.Hit;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
-import javax.annotation.Nonnull;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
+import java.util.Random;
 
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * Proof of concept: a Levenshtein automaton from {@code lucene-core} drives a guided walk over evitaDB's own
- * {@link TransactionalBucketBPlusTree} holding a real Czech vocabulary (the hunspell {@code cs_CZ.dic} test fixture,
- * lowercased and diacritics-folded to mirror the index-side analyzer chain of this branch).
- *
- * The walk is checked three ways: it must return exactly what a linear scan with the same acceptor returns; every hit
- * must carry the distance the reference DP computes; and it must read only a small fraction of the dictionary, which
- * is the property that makes the approach viable at all.
- *
- * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
- */
-@DisplayName("Fuzzy term lookup by a Levenshtein automaton walking an evitaDB B+ tree")
+/** Engine walk checked against independent linear scans over real analyzed fields. */
 @Tag(ENGINE)
 @Tag(FULLTEXT)
+@DisplayName("Fuzzy dictionary walks over fulltext fields")
 class FuzzyDictionaryWalkTest {
-	// odd on purpose: the tree derives its minimum block size as half of this and requires it to be strictly less
-	private static final int LEAF_BLOCK_SIZE = 63;
-	private static TransactionalBucketBPlusTree<String> dictionary;
-	private static int dictionarySize;
+	private static FulltextIndex index;
+	private static final int[] FIELDS = new int[3];
 
+	/** Builds several leaves through the real write path, with overlapping and field-specific terms. */
 	@BeforeAll
-	static void loadDictionary() {
-		// lowercased and diacritics-folded, mirroring the index-side analyzer chain of this branch
-		final Set<String> words = CzechLexicon.load(true);
-		dictionary = new TransactionalBucketBPlusTree<>(LEAF_BLOCK_SIZE, String.class);
-		int pk = 1;
-		for (final String word : words) {
-			// the walker assumes natural String order equals code point order, which holds inside the BMP
-			assertTrue(word.codePointCount(0, word.length()) == word.length(), "BMP only: " + word);
-			dictionary.addRecord(word, pk++);
-		}
-		dictionarySize = words.size();
-		assertTrue(dictionarySize > 200_000, "expected a real-sized vocabulary, got " + dictionarySize);
-	}
-
-	@Nested
-	@DisplayName("Correctness against the linear scan")
-	class Correctness {
-
-		@ParameterizedTest(name = "`{0}` maxEdits={1} frozenPrefix={2}")
-		@CsvSource({
-			"cerny, 1, 1",
-			"cerny, 2, 1",
-			"cerny, 2, 0",
-			"bunda, 1, 1",
-			"bunda, 2, 1",
-			"kalhoty, 2, 1",
-			"mikina, 1, 0",
-			"pansky, 2, 1",
-			"stul, 1, 1",
-			"zidle, 2, 1",
-			"dum, 1, 1",
-			"kabat, 2, 0",
-			// a mistyped query: transposition inside the word
-			"bnuda, 1, 1",
-			// a query that is not a dictionary word at all
-			"xqzv, 2, 0"
-		})
-		@DisplayName("The guided walk returns exactly the set the acceptor accepts on a full scan")
-		void shouldReturnExactlyTheScannedSet(String query, int maxEdits, int frozenPrefix) {
-			final LevenshteinDictionaryWalker walker = new LevenshteinDictionaryWalker(query, maxEdits, frozenPrefix);
-			final List<String> expected = walker.scan(dictionary);
-			final List<String> actual = walker.walk(dictionary).stream().map(Hit::term).toList();
-			assertEquals(expected, actual);
-		}
-
-		@ParameterizedTest(name = "`{0}` maxEdits={1}")
-		@CsvSource({"cerny, 2", "kalhoty, 2", "pansky, 2", "bnuda, 2"})
-		@DisplayName("Every hit carries the distance the reference DP computes")
-		void shouldClassifyEveryHitCorrectly(String query, int maxEdits) {
-			final LevenshteinDictionaryWalker walker = new LevenshteinDictionaryWalker(query, maxEdits, 1);
-			final List<Hit> hits = walker.walk(dictionary);
-			assertTrue(hits.size() > 1, "expected several neighbours for `" + query + "`");
-			for (final Hit hit : hits) {
-				assertEquals(
-					EditDistances.osaDistance(query, hit.term()),
-					hit.distance(),
-					"distance of `" + hit.term() + "` from `" + query + "`"
-				);
+	static void createIndex() {
+		index = new FulltextIndex();
+		final Random random = new Random(42);
+		final int[] alphabet = "abcdeěšč𐐨ａ".codePoints().toArray();
+		for (int field = 0; field < FIELDS.length; field++) {
+			final FulltextFieldKey key = FulltextFieldKey.attribute("field" + field);
+			FIELDS[field] = registerExactField(index, key, 25.0);
+			addWords(index, key, 1, "cerna", "cerne", "cern", "cernaa", "cenra", "cxrnx", "xerna",
+				"bunda", "bnuda", "kalhoty", "kalhot", "kalht", "blackberry", "black", "blakc",
+				"mikina", "pansky", "stul", "zidle", "dum", "kabat", "a", "aa", "ab", "ba",
+				"𐐨", "ａ", "𐐨b", "𐐨a", "𐐩a", "a𐐨", "aａ");
+			addWords(index, key, 2, "cerna", "cerna", "bunda");
+			addWords(index, key, 100 + field, "isolated");
+			for (int i = 0; i < 600; i++) {
+				addWords(index, key, 1000 + i, randomWord(random, alphabet, 8));
 			}
-		}
-
-		@ParameterizedTest(name = "`{0}` maxEdits={1} frozenPrefix={2}")
-		@CsvSource({"cerny, 2, 1", "kalhoty, 2, 0", "bnuda, 1, 1", "xqzv, 2, 0", "a, 2, 0"})
-		@DisplayName("Sequential read-ahead changes the cost profile, never the result")
-		void shouldReturnSameSetWithReadAhead(String query, int maxEdits, int frozenPrefix) {
-			final List<Hit> plain = new LevenshteinDictionaryWalker(query, maxEdits, frozenPrefix).walk(dictionary);
-			for (final int readAhead : new int[]{1, 8, LEAF_BLOCK_SIZE, 4 * LEAF_BLOCK_SIZE}) {
-				final List<Hit> withReadAhead =
-					new LevenshteinDictionaryWalker(query, maxEdits, frozenPrefix, readAhead).walk(dictionary);
-				assertEquals(plain, withReadAhead, "readAhead=" + readAhead);
-			}
-		}
-
-		@Test
-		@DisplayName("A mistyped word finds its intended dictionary word at distance one")
-		void shouldFindIntendedWordForTransposition() {
-			final List<Hit> hits = new LevenshteinDictionaryWalker("bnuda", 1, 1).walk(dictionary);
-			assertTrue(
-				hits.stream().anyMatch(hit -> hit.term().equals("bunda") && hit.distance() == 1),
-				"expected `bunda` at distance 1 among " + hits
-			);
 		}
 	}
 
+	/** Produces a seeded word of one to `maxLength` code points drawn from the alphabet. */
+	private static String randomWord(Random random, int[] alphabet, int maxLength) {
+		final StringBuilder word = new StringBuilder(2 * maxLength);
+		for (int i = random.nextInt(maxLength) + 1; i > 0; i--) {
+			word.appendCodePoint(alphabet[random.nextInt(alphabet.length)]);
+		}
+		return word.toString();
+	}
+
+	/** Returns the independent minimum distance over code-point prefixes, with or without one-edit swaps. */
+	private static int distance(String query, String term, boolean transpositions, boolean openEnd) {
+		int best = EditDistances.distance(query, term, transpositions);
+		if (openEnd) {
+			for (int end = 0; end < term.length();) {
+				best = Math.min(best, EditDistances.distance(query, term.substring(0, end), transpositions));
+				end += Character.charCount(term.codePointAt(end));
+			}
+		}
+		return best;
+	}
+
+	/** Collects every term of the field the linear scan accepts, in dictionary order, with its oracle distance. */
+	private static List<String> linearScan(
+		FulltextIndex fulltextIndex, int field, String query, int maxEdits, int frozen,
+		boolean transpositions, boolean openEnd
+	) {
+		final String prefix = query.substring(0, query.offsetByCodePoints(0,
+			Math.min(frozen, query.codePointCount(0, query.length()))));
+		final List<String> accepted = new ArrayList<>();
+		fulltextIndex.forEachTerm(field, "", (term, postings, impacts) -> {
+			final int edits = distance(query, term, transpositions, openEnd);
+			if (term.startsWith(prefix) && edits <= maxEdits) {
+				accepted.add(term + "@" + edits);
+			}
+			return true;
+		});
+		return accepted;
+	}
+
+	/** Collects hits of the shared fixture without exposing the index's private dictionary. */
+	private static List<String> walk(FulltextDictionaryWalker walker, int field) {
+		return walk(index, walker, field);
+	}
+
+	/** Collects hits without exposing the index's private dictionary. */
+	private static List<String> walk(FulltextIndex fulltextIndex, FulltextDictionaryWalker walker, int field) {
+		final List<String> hits = new ArrayList<>();
+		fulltextIndex.forEachTerm(field, walker, (term, postings, impacts, edits, frequency) -> {
+			assertEquals(postings.size(), frequency);
+			assertEquals(frequency, impacts.size());
+			hits.add(term + "@" + edits);
+			return true;
+		});
+		return hits;
+	}
+
+	/** Finite and open-ended equivalence. */
 	@Nested
-	@DisplayName("Open-ended walk for a mistyped, unfinished word")
-	class OpenEnded {
-
-		@ParameterizedTest(name = "`{0}` maxEdits={1} frozenPrefix={2}")
-		@CsvSource({
-			"kalht, 1, 1",
-			"kalho, 1, 1",
-			"bnud, 1, 1",
-			"cern, 2, 1",
-			"mikna, 1, 0",
-			"xqzv, 1, 1"
-		})
-		@DisplayName("The open-ended walk returns exactly the set the open-ended acceptor accepts on a full scan")
-		void shouldReturnExactlyTheScannedSetWhenOpenEnded(String query, int maxEdits, int frozenPrefix) {
-			final LevenshteinDictionaryWalker walker =
-				new LevenshteinDictionaryWalker(query, maxEdits, frozenPrefix, 0, true);
-			final List<String> expected = walker.scan(dictionary);
-			final List<String> actual = walker.walk(dictionary).stream().map(Hit::term).toList();
-			assertEquals(expected, actual);
-		}
-
-		@Test
-		@DisplayName("A transposed, unfinished word reaches its intended word through the open end")
-		void shouldFindUnfinishedWordWithTypo() {
-			// `kalht` is `kalhot…` with the `o` left out: one edit from the prefix `kalhot` of `kalhoty`
-			final List<Hit> hits = new LevenshteinDictionaryWalker("kalht", 1, 1, 0, true).walk(dictionary);
-			assertTrue(
-				hits.stream().anyMatch(hit -> hit.term().equals("kalhoty") && hit.distance() == 1),
-				"expected `kalhoty` at distance 1 among the first hits " + hits.subList(0, Math.min(20, hits.size()))
-			);
-			// the finite walk does not find it: the whole word is three edits away
-			final List<Hit> finite = new LevenshteinDictionaryWalker("kalht", 1, 1).walk(dictionary);
-			assertTrue(finite.stream().noneMatch(hit -> hit.term().equals("kalhoty")));
-		}
-
-		@Test
-		@DisplayName("The distance of an open-ended hit is the smallest distance of any of its prefixes")
-		void shouldReportSmallestPrefixDistance() {
-			for (final Hit hit : new LevenshteinDictionaryWalker("kalhot", 2, 1, 0, true).walk(dictionary)) {
-				int smallest = Integer.MAX_VALUE;
-				for (int end = 0; end <= hit.term().length(); end++) {
-					smallest = Math.min(smallest, EditDistances.osaDistance("kalhot", hit.term().substring(0, end)));
+	@DisplayName("Finite and open-ended equivalence")
+	class Equivalence {
+		/** Reused automata return the linear scan's terms, distances and dictionary order in every field. */
+		@ParameterizedTest
+		@CsvSource({"cerny,2,1", "cerny,2,0", "bnuda,1,1", "kalht,2,1", "blakc,1,1",
+			"mikina,1,0", "pansky,2,1", "stul,1,1", "zidle,2,1", "dum,1,1", "kabat,2,0",
+			"xqzv,2,0", "a,2,0", "a,0,9", "𐐨a,1,1", "𐐨a,2,9", "ａ,1,0", "'',2,0"})
+		@DisplayName("Reused automata return the linear scan's terms, distances and order with either swap policy")
+		void shouldEqualLinearScan(String query, int maxEdits, int frozen) {
+			for (final boolean transpositions : new boolean[]{true, false}) {
+				for (final boolean openEnd : new boolean[]{false, true}) {
+					final FulltextDictionaryWalker walker =
+						new FulltextDictionaryWalker(query, maxEdits, frozen, transpositions, openEnd);
+					for (final int field : FIELDS) {
+						assertEquals(
+							linearScan(index, field, query, maxEdits, frozen, transpositions, openEnd),
+							walk(walker, field),
+							query + " transpositions=" + transpositions + " open=" + openEnd + " field=" + field
+						);
+					}
 				}
-				assertEquals(smallest, hit.distance(), "distance of `" + hit.term() + "`");
+			}
+		}
+
+		/** Open-ended distance can improve after the first accepting prefix. */
+		@Test
+		@DisplayName("Open-ended distance can improve after the first accepting prefix")
+		void shouldKeepSmallestPrefixDistance() {
+			assertTrue(walk(new FulltextDictionaryWalker("black", 2, 1, true, true), FIELDS[0])
+				.contains("blackberry@0"));
+		}
+
+		/** The empty word at distance zero accepts every continuation only when open-ended. */
+		@Test
+		@DisplayName("The empty word at distance zero accepts every continuation only when open-ended")
+		void shouldHandleEmptyLanguageRoot() {
+			assertTrue(walk(new FulltextDictionaryWalker("", 0, 1, true, false), FIELDS[0]).isEmpty());
+			final List<String> all = new ArrayList<>();
+			index.forEachTerm(FIELDS[0], "", (term, postings, impacts) -> { all.add(term + "@0"); return true; });
+			assertEquals(all, walk(new FulltextDictionaryWalker("", 0, 1, true, true), FIELDS[0]));
+		}
+	}
+
+	/** Field boundaries and visitor contract. */
+	@Nested
+	@DisplayName("Field boundaries and visitor contract")
+	class Boundaries {
+		/** The same term in adjacent fields never leaks its other postings. */
+		@Test
+		@DisplayName("The same term in adjacent fields never leaks its other postings")
+		void shouldStayInOneField() {
+			final FulltextDictionaryWalker walker = new FulltextDictionaryWalker("isolated", 2, 0, true, false);
+			for (int i = 0; i < FIELDS.length; i++) {
+				final int primaryKey = 100 + i;
+				final List<String> hits = new ArrayList<>();
+				index.forEachTerm(FIELDS[i], walker, (term, postings, impacts, edits, frequency) -> {
+					assertArrayEquals(new int[]{primaryKey}, postings.getArray());
+					assertEquals(1, frequency);
+					hits.add(term);
+					return true;
+				});
+				assertEquals(List.of("isolated"), hits);
+			}
+		}
+
+		/** Every hit carries the postings and impacts an exact read of the same term returns. */
+		@Test
+		@DisplayName("Visitors receive the postings and impacts an exact read of the term returns")
+		void shouldSupplyTheSamePostingsAndImpactsAsAnExactRead() {
+			final List<String> hits = new ArrayList<>();
+
+			index.forEachTerm(FIELDS[0], new FulltextDictionaryWalker("cerna", 2, 1, true, false),
+				(term, postings, impacts, edits, frequency) -> {
+					assertArrayEquals(postingsOf(index, FIELDS[0], term).getArray(), postings.getArray());
+					assertArrayEquals(impactsOf(index, FIELDS[0], term), impacts.toArray());
+					hits.add(term);
+					return true;
+				});
+
+			assertTrue(hits.size() > 1, "The query must reach several terms.");
+		}
+
+		/** A visitor returning false ends the walk at its first hit. */
+		@Test
+		@DisplayName("A visitor returning false ends the walk at the first hit")
+		void shouldStopWhenVisitorReturnsFalse() {
+			final List<String> hits = new ArrayList<>();
+
+			index.forEachTerm(FIELDS[0], new FulltextDictionaryWalker("cerna", 2, 1, true, false),
+				(term, postings, impacts, edits, frequency) -> {
+					hits.add(term + "@" + edits);
+					return false;
+				});
+
+			final List<String> all = walk(new FulltextDictionaryWalker("cerna", 2, 1, true, false), FIELDS[0]);
+			assertTrue(all.size() > 1, "The query must reach several terms.");
+			assertEquals(all.subList(0, 1), hits);
+		}
+
+		/** A walker stopped by its visitor carries no seek state into its next walk. */
+		@Test
+		@DisplayName("A walker stopped by its visitor walks the whole field on the next call")
+		void shouldBeReusableAfterVisitorStops() {
+			final FulltextDictionaryWalker walker = new FulltextDictionaryWalker("cerna", 2, 1, true, false);
+			index.forEachTerm(FIELDS[0], walker, (term, postings, impacts, edits, frequency) -> false);
+
+			final List<String> reused = walk(walker, FIELDS[0]);
+
+			assertEquals(walk(new FulltextDictionaryWalker("cerna", 2, 1, true, false), FIELDS[0]), reused);
+		}
+
+		/** A field id the index never assigned is a caller error, reported before any term is visited. */
+		@Test
+		@DisplayName("An unassigned field id is rejected")
+		void shouldRejectUnknownFieldId() {
+			final FulltextDictionaryWalker walker = new FulltextDictionaryWalker("a", 1, 0, true, false);
+
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class, () -> index.forEachTerm(999, walker, (t, p, i, d, f) -> true)
+			);
+
+			assertTrue(error.getMessage().contains("999"), error.getMessage());
+		}
+	}
+
+	/** Constructor validation. */
+	@Nested
+	@DisplayName("Construction")
+	class Construction {
+		/** Rejects an edit budget outside zero to two and a negative frozen prefix, naming the broken limit. */
+		@ParameterizedTest
+		@CsvSource({"-1,0,between zero and two", "3,0,between zero and two", "1,-1,must not be negative"})
+		@DisplayName("Rejects an edit budget outside zero to two and a negative frozen prefix")
+		void shouldRejectInvalidEditBudgetAndNegativePrefix(int maxEdits, int frozen, String reason) {
+			final IllegalArgumentException error = assertThrows(
+				IllegalArgumentException.class, () -> new FulltextDictionaryWalker("a", maxEdits, frozen, true, false)
+			);
+
+			assertTrue(error.getMessage().contains(reason), error.getMessage());
+		}
+	}
+
+	/** Automaton properties. */
+	@Nested
+	@DisplayName("Automaton properties")
+	class Properties {
+		/** Accepts all single edit kinds, freezes whole code points and supports disabling swaps. */
+		@Test
+		@DisplayName("Accepts all single edit kinds, freezes whole code points and supports disabling swaps")
+		void shouldAcceptSingleEdits() {
+			final List<String> hits = walk(new FulltextDictionaryWalker("cerna", 1, 1, true, false), FIELDS[0]);
+			assertTrue(hits.containsAll(List.of("cerna@0", "cerne@1", "cern@1", "cernaa@1", "cenra@1")));
+			assertFalse(hits.contains("xerna@1"));
+			assertFalse(hits.contains("cxrnx@2"));
+			assertFalse(walk(new FulltextDictionaryWalker("cerna", 1, 1, false, false), FIELDS[0])
+				.contains("cenra@1"));
+			final List<String> supplementary = walk(new FulltextDictionaryWalker("𐐨a", 1, 1, true, false), FIELDS[0]);
+			assertTrue(supplementary.contains("𐐨b@1"));
+			assertFalse(supplementary.contains("𐐩a@1"));
+		}
+	}
+
+	/** Preserved malformed UTF-16 and the scalar-successor boundary. */
+	@Nested
+	@DisplayName("Dictionary terms containing unpaired surrogates")
+	class SurrogateTerms {
+		/** Finds a well-formed exact term after a rejected lone high surrogate in both walk modes. */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("A rejected lone high surrogate never hides the later exact supplementary term")
+		void shouldFindExactTermAfterLoneHighSurrogate(boolean openEnd) {
+			final String target = "a\uD801\uDC28";
+			assertKeywordWalk(target, 0, openEnd, List.of(target), "a\uD800", target);
+		}
+
+		/** The bounded visitor catches the old backward seek even if a timeout would never fire. */
+		@Test
+		@DisplayName("A lone low surrogate after the exact supplementary term never repeats the hit")
+		void shouldTerminateAfterLoneLowSurrogate() {
+			final String target = "a\uDBFF\uDC01";
+			assertKeywordWalk(target, 0, false, List.of(target), target, "a\uDC00");
+		}
+
+		/** A malformed term remains eligible when linear advancement reaches its bucket. */
+		@Test
+		@DisplayName("An accepted lone-surrogate term is visited when reached linearly")
+		void shouldVisitAcceptedLoneSurrogate() {
+			assertKeywordWalk("a", 1, false, List.of("a\uD800"), "a\uD800");
+		}
+
+		/** A malformed query must not send a scalar successor into a forced surrogate transition. */
+		@Test
+		@DisplayName("A query containing a lone surrogate still reaches well-formed accepted terms")
+		void shouldScanWhenQueryContainsLoneSurrogate() {
+			assertKeywordWalk("abc\uD800d", 1, false, List.of("abcad"), "a\u0000x", "abcad");
+		}
+
+		/** Indexes whole Java strings through keyword analysis and bounds every visitor independently of time. */
+		private void assertKeywordWalk(
+			String query, int maxEdits, boolean openEnd, List<String> expected, String... terms
+		) {
+			final FulltextIndex localIndex = new FulltextIndex();
+			final FulltextFieldKey key = FulltextFieldKey.attribute("keywordTerms");
+			final CompiledFulltextAnalyzer analyzer = keywordAnalyzer();
+			try (final FulltextAnalyzer chain = analyzer.index()) {
+				for (int i = 0; i < terms.length; i++) {
+					localIndex.addValue(key, i + 1, analyzer, 25.0, null, terms[i]);
+				}
+				final int field = localIndex.getFieldId(key);
+				for (final String term : terms) {
+					assertEquals(
+						1, postingsOf(localIndex, field, term).size(), "Keyword analysis must preserve the term."
+					);
+				}
+				final List<String> actual = new ArrayList<>();
+				final FulltextDictionaryWalker walker = new FulltextDictionaryWalker(query, maxEdits, 1, true, openEnd);
+				assertDoesNotThrow(() -> localIndex.forEachTerm(field, walker, (term, postings, impacts, edits, df) -> {
+					actual.add(term);
+					return actual.size() <= terms.length;
+				}));
+				assertTrue(actual.size() <= terms.length, "A dictionary bucket must never be visited twice.");
+				assertEquals(expected, actual);
 			}
 		}
 	}
 
+	/** Successor seeks across the seams between the scalar intervals of UTF-16 order. */
 	@Nested
-	@DisplayName("Cost of the walk")
-	class Cost {
-
+	@DisplayName("Successor seeks at the seams of UTF-16 order")
+	class Utf16OrderSeams {
+		/**
+		 * Words over the code points on both sides of every seam - `U+D7FF` and `U+E000` around the surrogates,
+		 * `U+FFFF` before `U+10000`, and `U+10FFFF` before `U+E000` - make successors cross each seam, and `U+FFFF`,
+		 * the last scalar in UTF-16 order, forces the backtrack past a position that cannot be incremented.
+		 */
 		@Test
-		@DisplayName("With a frozen first letter and one edit the walk reads well under one percent of the keys")
-		void shouldReadSmallFractionAtDistanceOne() {
-			final LevenshteinDictionaryWalker walker = new LevenshteinDictionaryWalker("kalhoty", 1, 1);
-			final long start = System.nanoTime();
-			final List<Hit> hits = walker.walk(dictionary);
-			final long nanos = System.nanoTime() - start;
-			report("kalhoty", 1, 1, walker, hits, nanos);
-			assertTrue(
-				walker.getReads() * 100 < dictionarySize,
-				"reads " + walker.getReads() + " of " + dictionarySize
-			);
-		}
+		@DisplayName("Words over the interval edges return the linear scan's terms and distances in every walk mode")
+		void shouldEqualLinearScanAtIntervalEdges() {
+			final int[] alphabet = {'a', 'b', 0xD7FF, 0xE000, 0xFFFF, 0x10000, 0x10FFFF};
+			final Random random = new Random(7);
+			final FulltextIndex localIndex = new FulltextIndex();
+			final FulltextFieldKey key = FulltextFieldKey.attribute("edgeTerms");
+			final CompiledFulltextAnalyzer analyzer = keywordAnalyzer();
+			try (final FulltextAnalyzer chain = analyzer.index()) {
+				final List<String> words = new ArrayList<>(400);
+				for (int i = 0; i < 400; i++) {
+					words.add(randomWord(random, alphabet, 6));
+					localIndex.addValue(key, i + 1, analyzer, 25.0, null, words.get(i));
+				}
+				final int field = localIndex.getFieldId(key);
+				for (final String word : words) {
+					assertTrue(
+						postingsOf(localIndex, field, word).size() > 0, "Keyword analysis must preserve the word."
+					);
+				}
+				int walksWithHits = 0;
 
-		@Test
-		@DisplayName("With two edits the walk still reads only a few percent of the keys")
-		void shouldReadSmallFractionAtDistanceTwo() {
-			final LevenshteinDictionaryWalker walker = new LevenshteinDictionaryWalker("kalhoty", 2, 1);
-			final long start = System.nanoTime();
-			final List<Hit> hits = walker.walk(dictionary);
-			final long nanos = System.nanoTime() - start;
-			report("kalhoty", 2, 1, walker, hits, nanos);
-			assertTrue(
-				walker.getReads() * 20 < dictionarySize,
-				"reads " + walker.getReads() + " of " + dictionarySize
-			);
-		}
+				for (int round = 0; round < 60; round++) {
+					final String query = randomWord(random, alphabet, 4);
+					final int maxEdits = random.nextInt(3);
+					final int frozen = random.nextInt(2);
+					final boolean transpositions = random.nextBoolean();
+					for (final boolean openEnd : new boolean[]{false, true}) {
+						final List<String> expected =
+							linearScan(localIndex, field, query, maxEdits, frozen, transpositions, openEnd);
+						final FulltextDictionaryWalker walker =
+							new FulltextDictionaryWalker(query, maxEdits, frozen, transpositions, openEnd);
+						assertEquals(
+							expected, walk(localIndex, walker, field),
+							query.codePoints().mapToObj(Integer::toHexString).toList() + " edits=" + maxEdits
+								+ " frozen=" + frozen + " transpositions=" + transpositions + " open=" + openEnd
+						);
+						walksWithHits += expected.isEmpty() ? 0 : 1;
+					}
+				}
 
-		@Test
-		@DisplayName("Without a frozen prefix the walk is still guided, not a scan")
-		void shouldStayGuidedWithoutFrozenPrefix() {
-			final LevenshteinDictionaryWalker walker = new LevenshteinDictionaryWalker("kalhoty", 2, 0);
-			final long start = System.nanoTime();
-			final List<Hit> hits = walker.walk(dictionary);
-			final long nanos = System.nanoTime() - start;
-			report("kalhoty", 2, 0, walker, hits, nanos);
-			assertTrue(
-				walker.getReads() * 4 < dictionarySize,
-				"reads " + walker.getReads() + " of " + dictionarySize
-			);
-		}
-
-		@ParameterizedTest(name = "`{0}` maxEdits={1} frozenPrefix={2}")
-		@CsvSource({"kalhoty, 1, 1", "kalhoty, 2, 1", "kalhoty, 2, 0", "cerny, 2, 1", "bnuda, 2, 0"})
-		@DisplayName("Read-ahead sized to the leaf block resolves most rejections without a root descent")
-		void shouldTradeSeeksForSequentialReads(String query, int maxEdits, int frozenPrefix) {
-			final LevenshteinDictionaryWalker plain = new LevenshteinDictionaryWalker(query, maxEdits, frozenPrefix);
-			final LevenshteinDictionaryWalker ahead =
-				new LevenshteinDictionaryWalker(query, maxEdits, frozenPrefix, LEAF_BLOCK_SIZE);
-			// warm both paths once so the comparison is not dominated by class loading and JIT
-			plain.walk(dictionary);
-			ahead.walk(dictionary);
-			final long plainStart = System.nanoTime();
-			final List<Hit> plainHits = plain.walk(dictionary);
-			final long plainNanos = System.nanoTime() - plainStart;
-			final long aheadStart = System.nanoTime();
-			final List<Hit> aheadHits = ahead.walk(dictionary);
-			final long aheadNanos = System.nanoTime() - aheadStart;
-			assertEquals(plainHits, aheadHits);
-			System.out.printf(
-				Locale.ROOT,
-				"fuzzy `%s` maxEdits=%d frozenPrefix=%d: plain %d reads / %d seeks / %.2f ms; " +
-					"read-ahead(%d) %d reads / %d seeks / %d resolved by read-ahead / %.2f ms%n",
-				query, maxEdits, frozenPrefix,
-				plain.getReads(), plain.getSeeks(), plainNanos / 1_000_000.0,
-				LEAF_BLOCK_SIZE, ahead.getReads(), ahead.getSeeks(), ahead.getReadAheadHits(), aheadNanos / 1_000_000.0
-			);
-			assertTrue(
-				ahead.getSeeks() * 2 < plain.getSeeks(),
-				"expected read-ahead to remove most seeks: " + ahead.getSeeks() + " vs " + plain.getSeeks()
-			);
-		}
-
-		@Test
-		@DisplayName("The linear scan is the baseline the walk is measured against")
-		void shouldMeasureScanBaseline() {
-			final LevenshteinDictionaryWalker walker = new LevenshteinDictionaryWalker("kalhoty", 2, 1);
-			// warm up
-			walker.scan(dictionary);
-			walker.walk(dictionary);
-			final long scanStart = System.nanoTime();
-			final List<String> scanned = walker.scan(dictionary);
-			final long scanNanos = System.nanoTime() - scanStart;
-			final long walkStart = System.nanoTime();
-			final List<Hit> walked = walker.walk(dictionary);
-			final long walkNanos = System.nanoTime() - walkStart;
-			assertEquals(scanned, walked.stream().map(Hit::term).toList());
-			System.out.printf(
-				Locale.ROOT,
-				"fuzzy `kalhoty` maxEdits=2 frozenPrefix=1: scan of %d keys %.2f ms; walk %d reads %.2f ms%n",
-				dictionarySize, scanNanos / 1_000_000.0, walker.getReads(), walkNanos / 1_000_000.0
-			);
-		}
-
-		private void report(
-			@Nonnull String query, int maxEdits, int frozenPrefix,
-			@Nonnull LevenshteinDictionaryWalker walker, @Nonnull List<Hit> hits, long nanos
-		) {
-			System.out.printf(
-				Locale.ROOT,
-				"fuzzy `%s` maxEdits=%d frozenPrefix=%d: %d hits, %d reads (%.2f %% of %d keys), %d seeks, %.2f ms%n",
-				query, maxEdits, frozenPrefix, hits.size(), walker.getReads(),
-				walker.getReads() * 100.0 / dictionarySize, dictionarySize, walker.getSeeks(), nanos / 1_000_000.0
-			);
-			System.out.println("  hits: " + hits.stream().map(h -> h.term() + "@" + h.distance()).toList());
+				assertTrue(walksWithHits > 0, "The queries must reach accepted terms.");
+			}
 		}
 	}
 }

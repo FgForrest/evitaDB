@@ -31,7 +31,10 @@ import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerFingerprint;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
@@ -39,8 +42,10 @@ import javax.annotation.Nullable;
 
 import java.lang.reflect.Field;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /** Shared real schema analysis for low-level fulltext index fixtures. */
 public final class FulltextIndexTestSupport {
@@ -68,6 +73,18 @@ public final class FulltextIndexTestSupport {
 	@Nonnull
 	public static CompiledFulltextAnalyzer exactAnalyzer() {
 		return REGISTRY.getCompiledAnalyzer(SCHEMA, "text", Locale.ROOT);
+	}
+
+	/**
+	 * Builds a real keyword chain that keeps unpaired surrogates in its whole-value term. The wrapper still applies
+	 * Unicode NFC. The caller owns and closes `index()`; every chain refers to that same analyzer instance.
+	 */
+	@Nonnull
+	public static CompiledFulltextAnalyzer keywordAnalyzer() {
+		final FulltextAnalyzer chain = new FulltextAnalyzer("keyword", new KeywordAnalyzer());
+		return new CompiledFulltextAnalyzer(
+			chain, chain, chain, List.of(), chain, chain, new FulltextAnalyzerFingerprint(0L, 0L), Set.of(), List.of()
+		);
 	}
 
 	/** Registers a fixture field, preserving an explicitly chosen pivot on subsequent lookups. */

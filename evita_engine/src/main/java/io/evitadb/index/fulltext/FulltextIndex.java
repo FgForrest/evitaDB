@@ -41,6 +41,8 @@ import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.fulltext.FieldLengthTable.LengthBlockEmission;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
+import io.evitadb.index.fulltext.typo.FulltextDictionaryWalker;
+import io.evitadb.index.fulltext.typo.FulltextDictionaryWalker.MatchVisitor;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordPrimitive;
@@ -893,6 +895,23 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 				return;
 			}
 		}
+	}
+
+	/**
+	 * Visits the accepted terms reached by a reusable typo walker in one field, in ascending dictionary order.
+	 * Every well-formed accepted term is visited. For terms containing an unpaired surrogate, the rules in
+	 * {@link FulltextDictionaryWalker} apply. The walker was built for the bare term and may be reused for other
+	 * fields; it never includes the field prefix in edit distance. The visitor must not write to this index during
+	 * the walk.
+	 *
+	 * @param fieldId id of the field to search
+	 * @param walker finite or open-ended walker built once for the query term
+	 * @param visitor receives accepted terms, posting and impact views, distances and bucket cardinalities
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the index never assigned the field id
+	 */
+	public void forEachTerm(int fieldId, @Nonnull FulltextDictionaryWalker walker, @Nonnull MatchVisitor visitor) {
+		assertFieldKnown(fieldId);
+		walker.walk(this.dictionary, fieldId, visitor);
 	}
 
 	/**

@@ -91,6 +91,7 @@ module evita.engine {
 	exports io.evitadb.index.facet;
 	exports io.evitadb.index.fulltext;
 	exports io.evitadb.index.fulltext.analysis;
+	exports io.evitadb.index.fulltext.typo;
 	exports io.evitadb.index.mutation;
 	// the store's protocol migration reuses the shared row demotion and isWrittenVirtually of
 	// VirtualReferencePartitionWriter
