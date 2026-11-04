@@ -104,8 +104,10 @@ public class TransactionTrunkFinalizer implements TransactionHandler {
 	public Catalog commitCatalogChanges(long catalogVersion, @Nonnull TransactionMutation lastProcessedTransaction) {
 		Assert.isPremiseValid(this.committedCatalog == null, "Catalog was already committed!");
 		Assert.isPremiseValid(lastProcessedTransaction != null, "Information about last processed transaction must be provided!");
-		// now let's flush the catalog on the disk
-		this.catalogToUpdate.flush(catalogVersion, lastProcessedTransaction);
+		// now let's flush the data of the catalog and its collections to the disk - but publish nothing yet: the merge
+		// below still copies the files of renamed collections, retires those of dropped ones and rewrites the collection
+		// headers, and a record published before it would claim the round while naming the state from before it
+		final Catalog.FlushOutcome flushOutcome = this.catalogToUpdate.flushCollections(catalogVersion);
 		// init new catalog with the same collections as the previous one
 		final Catalog newCatalog;
 		try {
@@ -126,6 +128,8 @@ public class TransactionTrunkFinalizer implements TransactionHandler {
 		);
 		// verify everything was processed
 		this.lastTransactionLayer.verifyLayerWasFullySwept();
+		// the merge has left its final state behind, so the header and the bootstrap record can name it
+		newCatalog.publishHeader(catalogVersion, lastProcessedTransaction, flushOutcome);
 		// assign committed catalog
 		this.committedCatalog = newCatalog;
 		// and return created catalog

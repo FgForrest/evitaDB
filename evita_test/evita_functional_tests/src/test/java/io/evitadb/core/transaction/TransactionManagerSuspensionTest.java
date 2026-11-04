@@ -190,7 +190,7 @@ class TransactionManagerSuspensionTest {
 			throw new UnexpectedIOException(
 				"no space left on device", "The catalog could not be written to disk."
 			);
-		}).when(this.catalog).flush(anyLong(), any());
+		}).when(this.catalog).flushCollections(anyLong());
 		return flushAttempts;
 	}
 
