@@ -23,7 +23,11 @@
 
 package io.evitadb.core.query.extraResult.translator.reference.producer;
 
+import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
+import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.QueryPlanningContext;
@@ -69,21 +73,21 @@ public class FilteringFormulaPredicate implements IntPredicate {
 
 	public FilteringFormulaPredicate(
 		@Nonnull QueryPlanningContext queryContext,
-		@Nonnull Set<Scope> requestedScopes,
+		@Nonnull Set<Scope> searchedScopes,
 		@Nonnull FilterBy filterBy,
 		@Nonnull String entityType,
 		@Nonnull Supplier<String> stepDescriptionSupplier
 	) {
 		this.filterBy = filterBy;
 		final QueryPlanningContext targetQueryContext = createTargetQueryContext(
-			queryContext, requestedScopes, filterBy, entityType
+			queryContext, searchedScopes, filterBy, entityType
 		);
 		// create a deferred formula that will log the execution time to query telemetry
 		this.filteringFormula = new DeferredFormula(
 			new FormulaWrapper(
 				createFormulaForTheFilter(
 					targetQueryContext,
-					requestedScopes,
+					searchedScopes,
 					filterBy,
 					entityType,
 					stepDescriptionSupplier
@@ -117,16 +121,19 @@ public class FilteringFormulaPredicate implements IntPredicate {
 	 * filter targets the queried entity type itself, when the type has no collection, or when there is no session to
 	 * derive a context in.
 	 *
-	 * @param queryContext    the planning context of the enclosing query
-	 * @param requestedScopes the scopes the filter is planned in
-	 * @param filterBy        the filter
-	 * @param entityType      the entity type the filter selects
+	 * A `scope(...)` of the filter selects nothing here, the searched scopes are those of the enclosing query, but it
+	 * decides which scopes an `inScope` of the filter may name.
+	 *
+	 * @param queryContext   the planning context of the enclosing query
+	 * @param searchedScopes the scopes the filter is planned in
+	 * @param filterBy       the filter
+	 * @param entityType     the entity type the filter selects
 	 * @return the planning context of the filter
 	 */
 	@Nonnull
 	private static QueryPlanningContext createTargetQueryContext(
 		@Nonnull QueryPlanningContext queryContext,
-		@Nonnull Set<Scope> requestedScopes,
+		@Nonnull Set<Scope> searchedScopes,
 		@Nonnull FilterBy filterBy,
 		@Nonnull String entityType
 	) {
@@ -134,11 +141,19 @@ public class FilteringFormulaPredicate implements IntPredicate {
 		if (session == null || entityType.equals(queryContext.getEntityType())) {
 			return queryContext;
 		}
+		final EvitaRequest enclosingRequest = queryContext.getEvitaRequest();
+		final EntityScope ownScope = QueryUtils.findConstraint(
+			filterBy, EntityScope.class, SeparateEntityScopeContainer.class
+		);
 		return queryContext.getEntityCollection(entityType)
 			.map(
 				collection -> collection.createQueryContext(
 					queryContext,
-					queryContext.getEvitaRequest().deriveCopyWith(entityType, filterBy, null, null, requestedScopes),
+					ownScope == null ?
+						enclosingRequest.deriveCopyWith(entityType, filterBy, null, null, searchedScopes) :
+						enclosingRequest.deriveCopyWith(
+							entityType, filterBy, null, null, searchedScopes, ownScope.getScope()
+						),
 					session
 				)
 			)

@@ -1288,12 +1288,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 	/**
 	 * Gathers and returns the set of scopes that are to be examined based on the provided filter and initial scopes.
-	 * If the filter contains a local `EntityScope` constraint, its scopes are added to the provided scopes.
-	 *
-	 * In other words it combines "current" scopes with the scopes that are explicitly requested in the filter or
-	 * nearest `entityHaving` constraint. Currently it doesn't support more complex scenarios with multiple
-	 * `EntityScope` constraints - in that case the constraint finder throws `MoreThanSingleResultException` (but it
-	 * could be handled if some time is invested).
+	 * The scopes of every `EntityScope` constraint of the filter, at any depth, are added to the provided scopes: the
+	 * root of the filter, `entityHaving` and `groupHaving` may each name their own, and a reference may reach an entity
+	 * of any of them.
 	 *
 	 * @param filterBy the filter criteria that may contain constraints influencing the scopes to search
 	 * @param scopes   the initial set of scopes to be considered for examination
@@ -1304,13 +1301,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		if (filterBy == null) {
 			return scopes;
 		}
-		final EntityScope localScope = QueryUtils.findConstraint(filterBy, EntityScope.class);
-		final Set<Scope> examinedScopes;
-		if (localScope == null) {
-			examinedScopes = scopes;
-		} else {
-			examinedScopes = EnumSet.noneOf(Scope.class);
-			examinedScopes.addAll(scopes);
+		final List<EntityScope> localScopes = QueryUtils.findConstraints(filterBy, EntityScope.class);
+		if (localScopes.isEmpty()) {
+			return scopes;
+		}
+		final Set<Scope> examinedScopes = EnumSet.noneOf(Scope.class);
+		examinedScopes.addAll(scopes);
+		for (final EntityScope localScope : localScopes) {
 			examinedScopes.addAll(localScope.getScope());
 		}
 		return examinedScopes;

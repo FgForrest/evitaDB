@@ -57,7 +57,13 @@ and with the same scope the inner container would be redundant - so the query is
 Place the containers side by side instead. This includes the body of `referenceHaving`, whose reference attributes
 belong to the queried entities. A container that filters another entity - `entityHaving`, `groupHaving`,
 `hierarchyWithin`, or `hierarchyWithinRoot` - may contain its own `inScope` anywhere among its children, which then
-restricts the scope of that other entity.
+restricts the scope of that other entity. Such an `inScope` must name a scope requested by the query or, when an
+`entityHaving` or `groupHaving` names its own `scope`, that scope. In a query over both scopes it behaves as it does at
+the top level: it restricts only the entities of its scope and lets the entities of the other scope through.
+
+A `scope` constraint has an effect only at the root of a filter and in `entityHaving` or `groupHaving`. Anywhere else -
+in `hierarchyWithin`, `hierarchyWithinRoot`, `facetIncludingChildren`, or as a direct child of `referenceHaving` or
+`facetHaving` - it would do nothing, so the query is rejected with an error.
 
 </Note>
 

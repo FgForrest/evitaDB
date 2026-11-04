@@ -67,7 +67,9 @@ import io.evitadb.api.query.FilterConstraint;
  * boundaries. Scope constraints found inside these containers apply to the **nested entity context**, not the outer
  * query. `EvitaRequest` implements this with {@link io.evitadb.api.query.QueryUtils#findFilter} and
  * `SeparateEntityScopeContainer.class` as the termination condition, and the nested query of an `entityHaving` /
- * `groupHaving` looks its own `entityScope` up the same way.
+ * `groupHaving` looks its own `entityScope` up the same way. Only those two read it: a scope whose nearest enclosing
+ * container is any other would have no effect and is refused - see
+ * {@link io.evitadb.api.query.QueryUtils#assertFilterScopesApplicable(FilterBy, java.util.Set)}.
  *
  * **Scope Isolation for {@link EntityPrimaryKeyInSet}**: Similarly, when `EvitaRequest` extracts the primary keys of
  * the queried entities, it stops at `SeparateEntityScopeContainer` boundaries to avoid misinterpreting primary key

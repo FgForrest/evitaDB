@@ -154,7 +154,9 @@ public class QueryPlanner {
 	public static QueryPlan planQuery(@Nonnull QueryPlanningContext context) {
 		// structural rules the constraints cannot check themselves - they are verified on the final tree here, so
 		// that a stored query of the refused shape stays readable and a copied container cannot slip past them
-		QueryUtils.assertNoNestedScopeContainers(context.getEvitaRequest().getQuery());
+		final EvitaRequest evitaRequest = context.getEvitaRequest();
+		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
+		QueryUtils.assertFilterScopesApplicable(evitaRequest.getQuery(), evitaRequest.getRequestedScopes());
 		context.pushStep(QueryPhase.PLANNING);
 		try {
 			// the facet relation settings are checked before anything else - a default relation that cannot take
