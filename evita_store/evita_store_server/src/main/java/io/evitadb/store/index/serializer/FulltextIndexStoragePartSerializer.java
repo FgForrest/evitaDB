@@ -34,16 +34,19 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart.FieldEntry;
 import io.evitadb.store.index.serializer.PagedStreamMetadataSerializer.PagedStreamMetadata;
-import lombok.RequiredArgsConstructor;
+import io.evitadb.utils.CollectionUtils;
 
-import java.util.Locale;
 import javax.annotation.Nonnull;
+import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link FulltextIndexStoragePart} - the root record of a
- * fulltext index - from/to binary format: its identity, the field registry with its analysis identities and pivots in
- * field-id order and the dictionary's page-stream metadata. The dictionary is always paged, so the metadata is
- * written without the paged flag.
+ * fulltext index - from/to binary format, read back positionally in this order: its identity, the field registry with
+ * its analysis identities and pivots in field-id order, the dictionary's page-stream metadata, the word-phase table -
+ * its size, then each fingerprint with its short id in ascending fingerprint order - and the surface dictionary's
+ * page-stream metadata. Both dictionaries are always paged, so their metadata is written without the paged flag.
  *
  * A field is written as its kind by name - as the stream kind of a {@link FulltextLeafStreamKeySerializer} key is -
  * the reference name (`null` for every kind but a reference attribute), the name, analyzer name, index fingerprint,
@@ -52,13 +55,21 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@RequiredArgsConstructor
 public class FulltextIndexStoragePartSerializer extends Serializer<FulltextIndexStoragePart> {
 
 	/**
 	 * The compressor the root's locale key is registered in, to compute the primary key on write.
 	 */
 	private final KeyCompressor keyCompressor;
+
+	/**
+	 * Creates the serializer for the root and its compressed locale key.
+	 *
+	 * @param keyCompressor compressor assigning the persisted locale and stream identities
+	 */
+	public FulltextIndexStoragePartSerializer(@Nonnull KeyCompressor keyCompressor) {
+		this.keyCompressor = keyCompressor;
+	}
 
 	@Override
 	public void write(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull FulltextIndexStoragePart part) {
@@ -89,6 +100,14 @@ public class FulltextIndexStoragePartSerializer extends Serializer<FulltextIndex
 		PagedStreamMetadataSerializer.writeBody(
 			output, part.getDictionaryHighWaterPageSequence(), part.getDictionaryPageSequences()
 		);
+		final Map<Long, Integer> phases = new TreeMap<>(part.getWordPhaseIds());
+		output.writeVarInt(phases.size(), true);
+		for (final Map.Entry<Long, Integer> phase : phases.entrySet()) {
+			output.writeLong(phase.getKey());
+			output.writeVarInt(phase.getValue(), true);
+		}
+		PagedStreamMetadataSerializer.writeBody(output,
+			part.getSurfaceFormHighWaterPageSequence(), part.getSurfaceFormPageSequences());
 	}
 
 	@Nonnull
@@ -120,9 +139,16 @@ public class FulltextIndexStoragePartSerializer extends Serializer<FulltextIndex
 		}
 
 		final PagedStreamMetadata dictionary = PagedStreamMetadataSerializer.readBody(input);
+		final int phaseCount = input.readVarInt(true);
+		final Map<Long, Integer> phases = CollectionUtils.createHashMap(phaseCount);
+		for (int i = 0; i < phaseCount; i++) {
+			phases.put(input.readLong(), input.readVarInt(true));
+		}
+		final PagedStreamMetadata surface = PagedStreamMetadataSerializer.readBody(input);
 		return new FulltextIndexStoragePart(
 			entityIndexPrimaryKey, locale, fields,
-			dictionary.highWaterPageSequence(), dictionary.leafPageSequences(), storagePartPK
+			dictionary.highWaterPageSequence(), dictionary.leafPageSequences(), phases,
+			surface.highWaterPageSequence(), surface.leafPageSequences(), storagePartPK
 		);
 	}
 

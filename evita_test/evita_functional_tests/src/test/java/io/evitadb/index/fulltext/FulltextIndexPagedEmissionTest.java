@@ -274,7 +274,7 @@ class FulltextIndexPagedEmissionTest {
 			return null;
 		}
 		final PageEmission<DictionaryPage> emission = index.collectChangedPages();
-		disk.apply(emission, index.collectChangedLengthBlocks());
+		disk.apply(emission, index.collectChangedLengthBlocks(), index.collectChangedSurfaceFormPages());
 		index.resetDirty();
 		return emission;
 	}
@@ -319,6 +319,10 @@ class FulltextIndexPagedEmissionTest {
 		 * The pages on disk, keyed by page sequence.
 		 */
 		private final Map<Integer, DictionaryPage> pages = new TreeMap<>();
+		/** Surface leaves and allocator state carried by the same simulated disk. */
+		private final Map<Integer, FulltextIndex.SurfaceFormPage> surfacePages = new TreeMap<>();
+		private int[] surfaceSequences = new int[0];
+		private int surfaceHighWater = -1;
 		/**
 		 * The length blocks on disk: per field id, the blocks keyed by block key.
 		 */
@@ -343,7 +347,17 @@ class FulltextIndexPagedEmissionTest {
 		 * @param emission the flush's emission of the dictionary
 		 * @param lengths  the flush's emission of each field's length table, the i-th belonging to field id `i`
 		 */
-		void apply(@Nonnull PageEmission<DictionaryPage> emission, @Nonnull LengthBlockEmission[] lengths) {
+		void apply(@Nonnull PageEmission<DictionaryPage> emission, @Nonnull LengthBlockEmission[] lengths,
+			@Nonnull PageEmission<FulltextIndex.SurfaceFormPage> surfaces) {
+			for (final FulltextIndex.SurfaceFormPage page : surfaces.changedPages()) {
+				this.surfacePages.put(page.pageSequence(), page);
+			}
+			for (final int freed : surfaces.freedPageSequences()) {
+				assertNotNull(this.surfacePages.remove(freed), "A freed surface page must be on disk.");
+			}
+			this.surfaceSequences = surfaces.orderedPageSequences();
+			this.surfaceHighWater = surfaces.highWaterPageSequence();
+			assertEquals(this.surfaceSequences.length, this.surfacePages.size());
 			for (final DictionaryPage page : emission.changedPages()) {
 				this.pages.put(page.pageSequence(), page);
 			}
@@ -451,7 +465,13 @@ class FulltextIndexPagedEmissionTest {
 						index.isFieldRetired(fieldId), FieldLengthTable.fromPersistedBlocks(blocks))
 				);
 			}
-			return FulltextIndex.fromPersistedPages(fields, this.orderedPageSequences, listedPages(), this.highWater);
+			final FulltextIndex.SurfaceFormPage[] surfaces =
+				new FulltextIndex.SurfaceFormPage[this.surfaceSequences.length];
+			for (int i = 0; i < surfaces.length; i++) {
+				surfaces[i] = this.surfacePages.get(this.surfaceSequences[i]);
+			}
+			return FulltextIndex.fromPersistedPages(fields, this.orderedPageSequences, listedPages(), this.highWater,
+				index.getWordPhaseIds(), this.surfaceSequences, surfaces, this.surfaceHighWater);
 		}
 
 		/**

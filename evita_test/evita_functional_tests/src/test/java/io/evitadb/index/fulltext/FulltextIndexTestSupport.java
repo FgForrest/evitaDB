@@ -29,18 +29,34 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
+import io.evitadb.spi.analysis.AnalysisStepFactory;
+import io.evitadb.spi.analysis.AnalysisStepParameterDescriptor;
+import io.evitadb.spi.analysis.FulltextAnalysisContext;
+import io.evitadb.spi.analysis.FulltextTokenizerAnalysisOperation;
+import io.evitadb.spi.analysis.FulltextTokenizerAnalysisStepFactory;
 import io.evitadb.utils.NamingConvention;
+import org.apache.lucene.analysis.core.KeywordTokenizer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import java.io.Serializable;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.ServiceLoader;
+import java.util.Set;
+import java.util.TreeMap;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Shared real schema analysis for low-level fulltext index fixtures. */
 public final class FulltextIndexTestSupport {
@@ -185,4 +201,77 @@ public final class FulltextIndexTestSupport {
 			);
 		}
 	}
+
+	/**
+	 * Returns the reference count of every (folded, stem) pair of a word phase, keyed `folded NUL stem`. A pair holds
+	 * one record whatever display spellings its values had - the first one seen stays - so the value is the pair's
+	 * count. The production cursor exposes no counter, so the counts are read from the surface dictionary by name.
+	 */
+	@Nonnull
+	@SuppressWarnings("unchecked")
+	public static Map<String, Long> surfaceReferenceCounts(@Nonnull FulltextIndex index, long wordPhase) {
+		final Map<String, Long> result = new TreeMap<>();
+		final Integer phase = index.getWordPhaseIds().get(wordPhase);
+		if (phase == null) {
+			return result;
+		}
+		try {
+			final Field field = FulltextIndex.class.getDeclaredField("surfaceForms");
+			field.setAccessible(true);
+			final TransactionalBucketBPlusTree<String> tree = (TransactionalBucketBPlusTree<String>) field.get(index);
+			final String prefix = FulltextTermKeys.fieldPrefix(phase) + '\0';
+			final BucketCursor<String> cursor = tree.cursor(prefix);
+			final FulltextIndex.SurfaceFormCursor decoded = index.surfaceFormCursor(wordPhase, "");
+			while (cursor.next() && cursor.value().startsWith(prefix)) {
+				assertTrue(decoded.next());
+				result.put(decoded.folded() + '\0' + decoded.stem(), cursor.longRecordId());
+			}
+			return result;
+		} catch (ReflectiveOperationException ex) {
+			throw new AssertionError("Follow FulltextIndex#surfaceForms when renaming it.", ex);
+		}
+	}
+
+	/**
+	 * Returns an analyzer registry over the service-loaded built-in steps and the passed test steps; the caller closes
+	 * it.
+	 */
+	@Nonnull
+	static FulltextAnalyzerRegistry analyzerRegistryWith(@Nonnull AnalysisStepFactory... testSteps) {
+		final List<AnalysisStepFactory> factories = new ArrayList<>();
+		ServiceLoader.load(AnalysisStepFactory.class).forEach(factories::add);
+		factories.addAll(List.of(testSteps));
+		return new FulltextAnalyzerRegistry(new AnalysisStepRegistry(factories));
+	}
+
+	/**
+	 * A real keyword tokenizer step: the whole value is one token, so a fixture can index characters - NUL and SOH
+	 * included - that the standard tokenizer would split on or drop.
+	 */
+	static final class KeywordFactory implements FulltextTokenizerAnalysisStepFactory {
+		/** The step name a fixture language refers to. */
+		static final String NAME = "test-keyword";
+
+		@Nonnull
+		@Override
+		public String getName() { return NAME; }
+		@Nonnull
+		@Override
+		public List<AnalysisStepParameterDescriptor> getParameters() { return List.of(); }
+		@Override
+		public void validate(@Nonnull Map<String, Serializable> parameters) { }
+		@Nonnull
+		@Override
+		public Set<String> getIndexSideParameters() { return Set.of(); }
+		@Override
+		public int getBehaviourVersion() { return 1; }
+		@Nonnull
+		@Override
+		public FulltextTokenizerAnalysisOperation create(
+			@Nonnull Map<String, Serializable> parameters, @Nonnull FulltextAnalysisContext context
+		) {
+			return KeywordTokenizer::new;
+		}
+	}
+
 }

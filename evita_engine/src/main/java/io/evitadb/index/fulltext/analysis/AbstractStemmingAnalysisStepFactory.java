@@ -83,6 +83,10 @@ abstract sealed class AbstractStemmingAnalysisStepFactory implements FulltextWor
 	private static final Set<FulltextAnalysisTrait> FOLDING_TRAITS =
 		EnumSet.of(FulltextAnalysisTrait.STEMS, FulltextAnalysisTrait.FOLDS_DIACRITICS);
 
+	/** Creates the stateless common stemming provider. */
+	AbstractStemmingAnalysisStepFactory() {
+	}
+
 	/**
 	 * Builds the stemming of a language that carries its whole diacritics fold, as Czech, Slovak, Polish and Romanian
 	 * do. The stemmer of these languages decides by the accented characters, so the two sides differ:
@@ -91,6 +95,9 @@ abstract sealed class AbstractStemmingAnalysisStepFactory implements FulltextWor
 	 * - query side: `ASCIIFoldingFilter` folds the word, then {@link VariantStemFilter} emits every stem the folded
 	 *   word may have come from, at one position - a user typing without accents cannot be stemmed exactly, because the
 	 *   fold erased what the stemmer decides by.
+	 *
+	 * `ASCIIFoldingFilter` alone is the stemming's surface lookup normalization
+	 * ({@link FulltextWordsAnalysisOperation#wrapQuerySurface(TokenStream)}), the same on both sides.
 	 *
 	 * @param stepName       the name of the step as the analyzer names it, for the refusals
 	 * @param indexStemmer   wraps the accented words with the stemmer of the index side
@@ -104,7 +111,7 @@ abstract sealed class AbstractStemmingAnalysisStepFactory implements FulltextWor
 		@Nonnull Supplier<VariantStemmer> variantStemmer
 	) {
 		return new StemmingOperation(
-			stepName, FOLDING_TRAITS,
+			stepName, FOLDING_TRAITS, ASCIIFoldingFilter::new,
 			(words, side) -> side == FulltextAnalysisSide.INDEX ?
 				new ASCIIFoldingFilter(indexStemmer.apply(words)) :
 				new VariantStemFilter(new ASCIIFoldingFilter(words), variantStemmer.get())
@@ -124,7 +131,25 @@ abstract sealed class AbstractStemmingAnalysisStepFactory implements FulltextWor
 		@Nonnull String stepName,
 		@Nonnull UnaryOperator<TokenStream> stemmer
 	) {
-		return new StemmingOperation(stepName, PLAIN_TRAITS, (words, side) -> stemmer.apply(words));
+		return normalizedStemming(stepName, stemmer, UnaryOperator.identity());
+	}
+
+	/**
+	 * Builds a stemming that works the same on both sides and whose embedded normalization is also exposed on its own,
+	 * through {@link FulltextWordsAnalysisOperation#wrapQuerySurface(TokenStream)}: the query surface preparation and
+	 * the index pre-stem capture both run it to derive surface lookup keys.
+	 *
+	 * @param stepName the name of the step as the analyzer names it, for the refusals
+	 * @param stemmer  wraps the words with the complete stemming, normalization included
+	 * @param surface  wraps the words with the normalization the stemming embeds, without stemming them
+	 * @return the operation stemming the marked words
+	 */
+	@Nonnull
+	static FulltextWordsAnalysisOperation normalizedStemming(
+		@Nonnull String stepName, @Nonnull UnaryOperator<TokenStream> stemmer,
+		@Nonnull UnaryOperator<TokenStream> surface
+	) {
+		return new StemmingOperation(stepName, PLAIN_TRAITS, surface, (words, side) -> stemmer.apply(words));
 	}
 
 	@Nonnull
@@ -210,19 +235,28 @@ abstract sealed class AbstractStemmingAnalysisStepFactory implements FulltextWor
 		@Nonnull private final FulltextWordsAnalysisOperation stemming;
 
 		/**
+		 * The normalization the stemming embeds, run alone: the query surface preparation and the index pre-stem
+		 * capture both derive surface lookup keys through it.
+		 */
+		@Nonnull private final UnaryOperator<TokenStream> surface;
+
+		/**
 		 * Creates the operation.
 		 *
 		 * @param stepName the name of the step as the analyzer names it, for the refusals
 		 * @param traits   the traits of the stemming, the same on both sides
+		 * @param surface  wraps the words with the normalization the stemming embeds, without stemming them
 		 * @param stemming wraps the marked words with the stemmer
 		 */
 		StemmingOperation(
 			@Nonnull String stepName,
 			@Nonnull Set<FulltextAnalysisTrait> traits,
+			@Nonnull UnaryOperator<TokenStream> surface,
 			@Nonnull FulltextWordsAnalysisOperation stemming
 		) {
 			this.stepName = stepName;
 			this.traits = traits;
+			this.surface = surface;
 			this.stemming = stemming;
 		}
 
@@ -230,6 +264,12 @@ abstract sealed class AbstractStemmingAnalysisStepFactory implements FulltextWor
 		@Override
 		public TokenStream wrap(@Nonnull TokenStream words, @Nonnull FulltextAnalysisSide side) {
 			return this.stemming.wrap(words, side);
+		}
+
+		@Nonnull
+		@Override
+		public TokenStream wrapQuerySurface(@Nonnull TokenStream words) {
+			return this.surface.apply(words);
 		}
 
 		@Nonnull
@@ -297,6 +337,12 @@ abstract sealed class AbstractStemmingAnalysisStepFactory implements FulltextWor
 		@Override
 		public TokenStream wrap(@Nonnull TokenStream words, @Nonnull FulltextAnalysisSide side) {
 			return this.stemming.wrap(new SetKeywordMarkerFilter(words, this.protectedWords), side);
+		}
+
+		@Nonnull
+		@Override
+		public TokenStream wrapQuerySurface(@Nonnull TokenStream words) {
+			return this.stemming.wrapQuerySurface(words);
 		}
 
 		@Nonnull

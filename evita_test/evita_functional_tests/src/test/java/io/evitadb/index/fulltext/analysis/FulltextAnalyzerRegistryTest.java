@@ -153,6 +153,8 @@ class FulltextAnalyzerRegistryTest {
 			assertThrows(EvitaInvalidUsageException.class, () -> lookup(registry, "cs"));
 			assertThrows(EvitaInvalidUsageException.class, () -> collectTerms(compiled.index(), "boty"));
 			assertThrows(EvitaInvalidUsageException.class, () -> collectTerms(compiled.word(), "boty"));
+			assertThrows(EvitaInvalidUsageException.class, () -> collectTerms(compiled.surface(), "boty"));
+			assertThrows(EvitaInvalidUsageException.class, () -> collectTerms(compiled.indexSurface(), "boty"));
 			assertThrows(EvitaInvalidUsageException.class, () -> collectTerms(compiled.splitting(), "boty"));
 		}
 

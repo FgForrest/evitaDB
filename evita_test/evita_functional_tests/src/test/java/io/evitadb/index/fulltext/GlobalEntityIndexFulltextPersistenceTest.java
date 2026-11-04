@@ -49,6 +49,8 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.KeyCompr
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextDictionaryLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextSurfaceFormLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextSurfaceFormLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextDictionaryLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextFieldLengthBlockPart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextFieldLengthBlockRemoval;
@@ -317,6 +319,8 @@ class GlobalEntityIndexFulltextPersistenceTest {
 				partLocale = root.getLocale();
 			} else if (part instanceof FulltextDictionaryLeafPagePart page) {
 				partLocale = page.getLocale();
+			} else if (part instanceof FulltextSurfaceFormLeafPagePart page) {
+				partLocale = (Locale) io.evitadb.index.IndexHeapSizeAssertions.readField(page, "locale");
 			} else if (part instanceof FulltextFieldLengthBlockPart block) {
 				partLocale = block.getLocale();
 			} else {
@@ -357,6 +361,14 @@ class GlobalEntityIndexFulltextPersistenceTest {
 				}
 			}
 		}
+		lines.add("phases " + new TreeMap<>(index.getWordPhaseIds()));
+		for (final long phase : new TreeMap<>(index.getWordPhaseIds()).keySet()) {
+			lines.add("references " + surfaceReferenceCounts(index, phase));
+			final FulltextIndex.SurfaceFormCursor cursor = index.surfaceFormCursor(phase, "");
+			while (cursor.next()) {
+				lines.add(cursor.folded() + "/" + cursor.stem() + "/" + cursor.accented());
+			}
+		}
 		return lines;
 	}
 
@@ -380,6 +392,28 @@ class GlobalEntityIndexFulltextPersistenceTest {
 	@DisplayName("Reload")
 	class Reload {
 
+		/** Distinct word-phase ids survive reload and an emptied retired phase releases its short id. */
+		@Test
+		@DisplayName("should reload multiple surface word phases and free an unused phase")
+		void shouldReloadSurfacePhases() {
+			final GlobalEntityIndex index = newGlobalIndex();
+			final FulltextIndex fulltext = index.getOrCreateFulltextIndex(CZECH);
+			fulltext.addValue(attribute("description"), 1, testAnalyzer(), 25, null, "černé");
+			fulltext.addValue(attribute("brand"), 1, exactAnalyzer(), 25, null, "Cern café");
+			try (final Disk disk = new Disk()) {
+				disk.write(flush(index));
+				final GlobalEntityIndex loaded = disk.reload(registry);
+				assertSameFulltext(index, loaded);
+				final FulltextIndex restored = loaded.getFulltextIndex(CZECH);
+				assertEquals(2, restored.getWordPhaseIds().size());
+				restored.removeValue(attribute("brand"), 1, exactAnalyzer(), 25, "Cern café");
+				restored.retireField(attribute("brand"));
+				assertEquals(Map.of(testAnalyzer().fingerprint().wordPhase(), 0), restored.getWordPhaseIds());
+				disk.write(flush(loaded));
+				assertSameFulltext(loaded, disk.reload(registry));
+			}
+		}
+
 		@Test
 		@DisplayName("every locale is listed in the manifest and reloads through the global reload plan")
 		void shouldReloadEveryLocaleThroughTheGlobalReloadPlan() {
@@ -398,6 +432,8 @@ class GlobalEntityIndexFulltextPersistenceTest {
 				partsOf(parts, FulltextDictionaryLeafPagePart.class).size() >= 4,
 				"The Czech dictionary must span several pages."
 			);
+			assertTrue(partsOf(parts, FulltextSurfaceFormLeafPagePart.class).size() >= 4,
+				"The surface dictionary must also span several pages.");
 			assertEquals(
 				6, partsOf(parts, FulltextFieldLengthBlockPart.class).size(),
 				"Two title blocks and one body block in each locale."
@@ -637,6 +673,16 @@ class GlobalEntityIndexFulltextPersistenceTest {
 			);
 		}
 
+		/** A listed surface page is required just as a postings page is. */
+		@Test
+		@DisplayName("a reload missing a listed surface page refuses to load")
+		void shouldRefuseAReloadMissingASurfacePage() {
+			assertReloadRefusedWithout(
+				parts -> partsOf(parts, FulltextSurfaceFormLeafPagePart.class).get(1),
+				page -> "Surface dictionary page " + ((FulltextSurfaceFormLeafPagePart) page).getPageSequence() + " of"
+			);
+		}
+
 		@Test
 		@DisplayName("a reload missing a listed length block refuses to load")
 		void shouldRefuseAReloadMissingALengthBlock() {
@@ -716,6 +762,7 @@ class GlobalEntityIndexFulltextPersistenceTest {
 					englishParts.size(),
 					partsOf(second, FulltextIndexRootRemoval.class).size() +
 						partsOf(second, FulltextDictionaryLeafPageRemoval.class).size() +
+						partsOf(second, FulltextSurfaceFormLeafPageRemoval.class).size() +
 						partsOf(second, FulltextFieldLengthBlockRemoval.class).size(),
 					"Every English part is removed, and nothing else."
 				);

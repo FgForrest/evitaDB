@@ -39,7 +39,9 @@ import java.util.Set;
  * owns their lifecycle; splitting may be shared with other compiled analyzers in the same locale. Equality and
  * hashing use instance identity so grouping and cache bookkeeping never traverse the prepared stop-word set.
  *
- * @param index the chain used to build postings
+ * @param index the index chain without the pre-stem capture: the analyzer name an index records comes from it, and
+ *              its compilation collects the index stop words of `stopWordPreparations`; postings are built through
+ *              `indexSurface`
  * @param word the query chain applied separately to each shared term
  * @param splitting the locale's shared word splitting
  * @param queryText the resolved query-side text steps; a query compares them by content across its field groups to
@@ -47,6 +49,11 @@ import java.util.Set;
  * @param textSplitting the splitting chain preceded by queryText, with offsets corrected to the original input
  * @param textSplitWord the query chain applied to each term textSplitting produced: `word` without queryText, which
  *                      such a term has already been through; the very instance of `word` when queryText is empty
+ * @param indexSurface the full index chain with a passive pre-stem capture: it builds the postings and, from the
+ *                     capture, the surface pairs of the index's surface dictionary
+ * @param surface the query lookup-key preparation: the query chain of one word up to its first stemming operation,
+ *                ending with that operation's embedded normalization - the one that also prepares the folded
+ *                component of the surface keys
  * @param fingerprint the persistent index and word-phase identities
  * @param foldedStopWords prepared built-in index stop words, lower-cased and ASCII-folded
  * @param stopWordPreparations per-stop-step query surface preparation paired with its prepared index stop words
@@ -58,6 +65,8 @@ public record CompiledFulltextAnalyzer(
 	@Nonnull List<AnalysisStep> queryText,
 	@Nonnull FulltextAnalyzer textSplitting,
 	@Nonnull FulltextAnalyzer textSplitWord,
+	@Nonnull FulltextAnalyzer indexSurface,
+	@Nonnull FulltextAnalyzer surface,
 	@Nonnull FulltextAnalyzerFingerprint fingerprint,
 	@Nonnull Set<String> foldedStopWords,
 	@Nonnull List<StopWordPreparation> stopWordPreparations
@@ -71,6 +80,8 @@ public record CompiledFulltextAnalyzer(
 	 * @param queryText the query-side text steps
 	 * @param textSplitting the text-aware splitting chain
 	 * @param textSplitWord the query word chain for the terms of the text-aware splitting
+	 * @param indexSurface the cached capture-equipped full index chain
+	 * @param surface the cached query surface normalization
 	 * @param fingerprint the persistent identities
 	 * @param foldedStopWords the prepared folded index stop words
 	 * @param stopWordPreparations query preparation corresponding to each built-in index stop step
