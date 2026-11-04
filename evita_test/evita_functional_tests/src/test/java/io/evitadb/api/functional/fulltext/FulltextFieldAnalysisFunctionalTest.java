@@ -186,15 +186,16 @@ class FulltextFieldAnalysisFunctionalTest implements EvitaTestSupport {
 				.withFulltextAnalyzer("plain", a -> a.words(lowercase())).updateVia(session);
 			});
 			defineFields("joined", "plain");
-			put(1, Locale.ENGLISH, "USB-C", "red");
-			put(2, Locale.ENGLISH, "red", "USB-C");
-			assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, Locale.ENGLISH, "USB-C", null, 2);
-			assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, Locale.ENGLISH, "USBC", null, 1);
+			// Keep each split part more than two edits from the joined form, so typos cannot hide a boundary.
+			put(1, Locale.ENGLISH, "USB-TYPEC", "red");
+			put(2, Locale.ENGLISH, "red", "USB-TYPEC");
+			assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, Locale.ENGLISH, "USB-TYPEC", null, 2);
+			assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, Locale.ENGLISH, "USBTYPEC", null, 1);
 			// Reverse analyzer encounter order with two inField constraints.
 			FulltextFieldAnalysisFunctionalTest.this.evita.queryCatalog(TEST_CATALOG, session -> {
 				for (final boolean reversed : new boolean[]{false, true}) {
 					assertEquals(1, session.query(query(collection(PRODUCT),
-						filterBy(entityLocaleEquals(Locale.ENGLISH), textMatches("USB-C",
+						filterBy(entityLocaleEquals(Locale.ENGLISH), textMatches("USB-TYPEC",
 							inField(reversed ? "body" : "title"), inField(reversed ? "title" : "body")))),
 						EntityReference.class).getTotalRecordCount());
 				}

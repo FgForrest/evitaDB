@@ -94,6 +94,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.*;
 import io.evitadb.index.analysis.AttributeNormalizationResolver;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -1754,6 +1755,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	@Nonnull
 	public SealedCatalogSchema getCatalogSchema() {
 		return this.catalog.getSchema();
+	}
+
+	/**
+	 * Returns the catalog's installed analysis step providers for query fragment normalization.
+	 * @return the catalog's analysis step registry
+	 */
+	@Nonnull
+	public AnalysisStepRegistry getAnalysisStepRegistry() {
+		return this.catalog.getAnalysisStepRegistry();
 	}
 
 	/**

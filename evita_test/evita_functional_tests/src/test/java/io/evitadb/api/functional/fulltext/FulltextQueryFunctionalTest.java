@@ -23,6 +23,7 @@
 
 package io.evitadb.api.functional.fulltext;
 
+import io.evitadb.index.fulltext.FulltextTermExactness;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.index.EntityIndexType;
@@ -1471,7 +1472,7 @@ public class FulltextQueryFunctionalTest {
 						// the term when the field holds it
 						fulltextIndex.forEachTerm(fieldId, term, (visited, postings, impacts) -> {
 							if (visited.equals(term) && !postings.isEmpty()) {
-								tokenExpansions.add(new Expansion(postings, impacts, 0));
+								tokenExpansions.add(new Expansion(postings, impacts, 0, FulltextTermExactness.EXACT));
 							}
 							return false;
 						});

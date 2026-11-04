@@ -51,15 +51,18 @@ import io.evitadb.index.fulltext.FulltextFieldDefinition;
 import io.evitadb.index.fulltext.FulltextFieldKey;
 import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
+import io.evitadb.index.fulltext.FulltextTermExactness;
 import io.evitadb.index.fulltext.analysis.AnalyzedTermConsumer;
 import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
+import io.evitadb.index.fulltext.typo.FulltextTypoParameters;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
@@ -70,6 +73,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import static io.evitadb.core.query.filter.translator.fulltext.FulltextTermExpansion.lookUpTerm;
+
 /**
  * Translates {@link TextMatches} into a {@link FulltextFormula}: the entities whose searchable fields contain every
  * word of the text, ranked on request by the `relevance()` sorter.
@@ -79,8 +84,10 @@ import java.util.function.Supplier;
  * The text is analyzed into **tokens** - the analyzer emits a term per word, and the extra terms it emits at the same
  * position (`positionIncrement == 0`, the variant stems of the search-side chain) belong to the word before them. Each
  * token then looks its terms up in every searched field of the {@link FulltextIndex} of the query's locale; every
- * (field, term) with postings becomes one {@link ExpandedTerm} of the token. Only exact terms and stem variants are
- * expanded - prefix completion and typo tolerance would only add terms to a token.
+ * (field, term) with postings becomes one {@link ExpandedTerm} of the token. Finished words add typo neighbours;
+ * the unclosed final word also adds prefix completions and open-ended typo neighbours under the submitted policy.
+ * Exact terms are uncapped, while prefix completions and typo neighbours are capped per word and group - see
+ * `FulltextTermExpansion`.
  *
  * ## Which analyzer reads the text
  *
@@ -115,7 +122,8 @@ import java.util.function.Supplier;
  * A text whose analysis yields no token at all - stop words or punctuation only - matches nothing: the strict match
  * set of zero tokens is empty by the same rule that makes a token without terms match nothing, and an empty search box
  * is already handled by the factory, which drops the constraint. A stop word typed without diacritics, which the
- * search chain does not recognize but the index dropped, is not asked for at all - see `createFormula`.
+ * search chain does not recognize but the index dropped, is not asked for at all, unless it is the unfinished final
+ * word and completes to a longer dictionary term - see `createFormula`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -195,9 +203,22 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 		}
 		final QueryToken[] searchTokens = analyze(commonText ? first.textSplitting() : first.splitting(),
 			textMatches.getText());
+		final boolean unfinished = searchTokens.length > 0 && isUnfinished(textMatches.getText()) &&
+			searchTokens[searchTokens.length - 1].endOffset() ==
+				Normalizer.normalize(textMatches.getText(), Normalizer.Form.NFC).length();
+		final Map<CompiledFulltextAnalyzer, String[]> fragments = CollectionUtils.createHashMap(analyzers.size());
 		final Map<CompiledFulltextAnalyzer, String[][]> analyzed = CollectionUtils.createHashMap(analyzers.size());
-		for (final CompiledFulltextAnalyzer analyzer : analyzers) {
+		for (final Map.Entry<String, CompiledFulltextAnalyzer> entry : resolved.entrySet()) {
+			final CompiledFulltextAnalyzer analyzer = entry.getValue();
+			if (analyzed.containsKey(analyzer)) {
+				continue;
+			}
 			analyzed.put(analyzer, analyzeGroups(analyzer, searchTokens, commonText));
+			fragments.put(analyzer, unfinished && searchTokens.length > 0 &&
+				finalWordOffsetsMatch(analyzer, searchTokens[searchTokens.length - 1], commonText)
+				? FulltextQueryFragment.prepare(queryContext.getAnalysisStepRegistry(), catalogSchema,
+					entry.getKey(), locale, searchTokens[searchTokens.length - 1], commonText)
+				: new String[0]);
 		}
 		final Map<Scope, List<AnalyzedFieldGroup>> groupsByScope = new EnumMap<>(Scope.class);
 		for (final Map.Entry<Scope, Map<CompiledFulltextAnalyzer, List<FulltextFieldDefinition>>> entry :
@@ -206,7 +227,8 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			for (final Map.Entry<CompiledFulltextAnalyzer, List<FulltextFieldDefinition>> group :
 				entry.getValue().entrySet()) {
 				groups.add(new AnalyzedFieldGroup(group.getKey(),
-					group.getValue().toArray(FulltextFieldDefinition[]::new), analyzed.get(group.getKey())));
+					group.getValue().toArray(FulltextFieldDefinition[]::new), analyzed.get(group.getKey()),
+					fragments.get(group.getKey())));
 			}
 			groupsByScope.put(entry.getKey(), groups);
 		}
@@ -215,6 +237,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			return EmptyFormula.INSTANCE;
 		}
 
+		final FulltextTermExpansion expansion = new FulltextTermExpansion(FulltextTypoParameters.DEFAULT);
 		final Map<Scope, Formula> formulasByScope = new EnumMap<>(Scope.class);
 		for (final Map.Entry<Scope, FulltextFieldDefinition[]> entry : fieldsByScope.entrySet()) {
 			final Scope scope = entry.getKey();
@@ -229,7 +252,9 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 					scope,
 					queryContext.computeOnlyOnce(
 						List.of((EntityIndex) globalIndex), textMatches,
-						() -> createFormula(fulltextIndex, groupsByScope.get(scope), searchTokens)
+						() -> createFormula(
+							fulltextIndex, groupsByScope.get(scope), searchTokens, unfinished, expansion
+						)
 					)
 				);
 			}
@@ -238,6 +263,48 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 		return filterByVisitor.applyOnIndexes(
 			entityIndex -> resolveFromIndex(entityIndex, formulasByScope)
 		);
+	}
+
+	/**
+	 * Checks the raw query's final code point for the separator that closes its last word.
+	 * @param text raw query text before any profile's text filters
+	 * @return true when the query ends in a letter, digit or combining mark
+	 */
+	private static boolean isUnfinished(@Nonnull String text) {
+		if (text.isEmpty()) {
+			return false;
+		}
+		final int last = text.codePointBefore(text.length());
+		final int type = Character.getType(last);
+		return Character.isLetterOrDigit(last) || type == Character.NON_SPACING_MARK ||
+			type == Character.COMBINING_SPACING_MARK || type == Character.ENCLOSING_MARK;
+	}
+
+	/**
+	 * Checks a heterogeneous group's text phase before enabling offset-based final-word expansion.
+	 * Common text splitting already passed the raw-end check. A raw split needs the same check per group,
+	 * before word filters can erase a stop word. Non-correcting shortening readers therefore degrade equally.
+	 * @param analyzer the group's compiled chains
+	 * @param word final shared word before a heterogeneous text phase
+	 * @param commonText whether shared splitting already applied the common text phase
+	 * @return whether the final word's offsets still address the complete input word
+	 */
+	private static boolean finalWordOffsetsMatch(
+		@Nonnull CompiledFulltextAnalyzer analyzer, @Nonnull QueryToken word, boolean commonText
+	) {
+		if (commonText || analyzer.queryText().isEmpty()) {
+			return true;
+		}
+		final int[] endOffset = new int[1];
+		for (final String term : word.terms()) {
+			endOffset[0] = -1;
+			analyzer.textSplitting().analyze(term, (value, surface, start, end, increment) ->
+				endOffset[0] = Math.max(endOffset[0], end));
+			if (endOffset[0] != Normalizer.normalize(term, Normalizer.Form.NFC).length()) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/**
@@ -356,10 +423,11 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 * @param analyzer the shared compiled content identity
 	 * @param fields the fields searched in this scope
 	 * @param alternatives each word's analyzed alternatives, empty when this group drops the word
+	 * @param fragments normalized raw final word, prepared around stop removal and stemming
 	 */
 	private record AnalyzedFieldGroup(
 		@Nonnull CompiledFulltextAnalyzer analyzer, @Nonnull FulltextFieldDefinition[] fields,
-		@Nonnull String[][] alternatives
+		@Nonnull String[][] alternatives, @Nonnull String[] fragments
 	) { }
 
 	/**
@@ -405,8 +473,9 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 *
 	 * The caller supplies text-aware splitting only when every group's resolved query text phase is equal.
 	 * With heterogeneous phases it supplies raw splitting: a word boundary a group's text step removes is then
-	 * not removed for that group. Either choice is independent of group iteration order. Char filters correct
-	 * offsets to the original NFC input, so the collected surface still addresses what the user typed.
+	 * not removed for that group. Either choice is independent of group iteration order. Length-changing text
+	 * readers must correct offsets to the original NFC input. When final-word offsets do not reach that input
+	 * end, the final word is treated as finished, disabling prefix and open-ended expansion.
 	 *
 	 * @param analyzer the shared splitting chain, optionally preceded by the common query text phase
 	 * @param text     the text of the query
@@ -429,20 +498,25 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	}
 
 	/**
-	 * Looks up each group's alternatives only in its current field generations. A shared word leaves the query only
-	 * when every group with a current field drops it. Groups without current fields do not participate.
-	 * Folded stop recognition is per group and is suppressed by any corpus collision,
-	 * including postings of retired fields. A kept word with no expansion remains a word that matches nothing.
+	 * Expands each group's alternatives only in its current field generations. A shared word leaves the query only
+	 * when every group with a current field drops it. Groups without current fields do not participate. A group drops
+	 * a word its chain removed, and a folded stop word no field holds - folded stop recognition is per group and is
+	 * suppressed by any corpus collision, including postings of retired fields. A dropped unfinished final word still
+	 * stays while its fragment completes to a longer dictionary term, so that a stop word on the way to a longer word
+	 * can be finished; typo neighbours alone never keep it. A kept word with no expansion remains a word that matches
+	 * nothing.
 	 *
 	 * @param fulltextIndex the locale index of this scope
 	 * @param groups the analyzed groups and their schema field identities
 	 * @param tokens the shared words with their original surface forms
+	 * @param unfinished whether the raw text ends with an unclosed word
+	 * @param expansion query-local walkers and submitted-search policy shared across scopes and groups
 	 * @return the fulltext formula, or empty when all words were dropped
 	 */
 	@Nonnull
 	private static Formula createFormula(
 		@Nonnull FulltextIndex fulltextIndex, @Nonnull List<AnalyzedFieldGroup> groups,
-		@Nonnull QueryToken[] tokens
+		@Nonnull QueryToken[] tokens, boolean unfinished, @Nonnull FulltextTermExpansion expansion
 	) {
 		final List<int[]> fieldIds = new ArrayList<>(groups.size());
 		for (final AnalyzedFieldGroup group : groups) {
@@ -467,22 +541,22 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 				}
 				final AnalyzedFieldGroup group = groups.get(g);
 				final String[] alternatives = group.alternatives()[i];
-				if (alternatives.length == 0) {
+				final boolean lastUnfinished = unfinished && i == tokens.length - 1;
+				final boolean hasFragment = expansion.expandsUnfinishedWord(group.fragments(), lastUnfinished);
+				// Stop recognition depends on exact corpus collisions, never on a fuzzy neighbour.
+				final boolean dropped = alternatives.length == 0 ||
+					group.analyzer().isFoldedStopWord(tokens[i].surfaceForm()) &&
+						!isKnownToIndex(fulltextIndex, new QueryToken(tokens[i].surfaceForm(), alternatives));
+				if (dropped && !hasFragment) {
 					continue;
 				}
-				final int before = expansions.size();
-				for (final int fieldId : fieldIds.get(g)) {
-					for (final String term : alternatives) {
-						final ExpandedTerm expanded = lookUpTerm(fulltextIndex, fieldId, term);
-						if (expanded != null) {
-							expansions.add(expanded);
-						}
-					}
-				}
-				if (expansions.size() == before && group.analyzer().isFoldedStopWord(tokens[i].surfaceForm()) &&
-					!isKnownToIndex(fulltextIndex, new QueryToken(tokens[i].surfaceForm(), alternatives))) {
+				final List<ExpandedTerm> expanded = expansion.expand(fulltextIndex, fieldIds.get(g), alternatives,
+					group.fragments(), lastUnfinished);
+				// A dropped word stays only while its unfinished fragment completes to a longer dictionary term.
+				if (dropped && !containsCompletion(expanded)) {
 					continue;
 				}
+				expansions.addAll(expanded);
 				kept = true;
 			}
 			if (kept) {
@@ -491,6 +565,22 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 		}
 		return expandedTokens.isEmpty() ? EmptyFormula.INSTANCE :
 			new FulltextFormula(expandedTokens.toArray(ExpandedTerm[][]::new));
+	}
+
+	/**
+	 * Checks whether a word's expansion completes its unfinished fragment. Typo neighbours alone never count, so a
+	 * dropped word is not turned into a mandatory one by a fuzzy match.
+	 *
+	 * @param expanded the word's expansion within one group
+	 * @return true when some term was reached as a prefix completion
+	 */
+	private static boolean containsCompletion(@Nonnull List<ExpandedTerm> expanded) {
+		for (final ExpandedTerm term : expanded) {
+			if (term.exactness() == FulltextTermExactness.PREFIX) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -510,31 +600,6 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			}
 		}
 		return false;
-	}
-
-	/**
-	 * Looks up one exact term of one field, reading the postings and impacts from the leaf the dictionary cursor stands
-	 * on - one descent, and no copy of the impacts. The walk starts at the term itself, the smallest key carrying it as
-	 * a prefix, so the first key visited is the term when the field holds it.
-	 *
-	 * @param fulltextIndex the fulltext index
-	 * @param fieldId       id of the field
-	 * @param term          the analyzed term
-	 * @return the expanded term, or null when the field does not hold the term
-	 */
-	@Nullable
-	private static ExpandedTerm lookUpTerm(@Nonnull FulltextIndex fulltextIndex, int fieldId, @Nonnull String term) {
-		final ExpandedTerm[] found = new ExpandedTerm[1];
-		fulltextIndex.forEachTerm(
-			fieldId, term,
-			(visitedTerm, postings, impacts) -> {
-				if (visitedTerm.equals(term) && !postings.isEmpty()) {
-					found[0] = new ExpandedTerm(fieldId, visitedTerm, postings, impacts, 0);
-				}
-				return false;
-			}
-		);
-		return found[0];
 	}
 
 	/**
@@ -565,8 +630,17 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 *
 	 * @param surfaceForm the word as written, a slice of the NFC-normalized text - the form a stop-word test reads
 	 * @param terms       the distinct terms the analyzer emitted at the word's position, its variant stems included
+	 * @param endOffset corrected end in the NFC raw query, or -1 for a synthetic lookup-only token
 	 */
-	record QueryToken(@Nonnull String surfaceForm, @Nonnull String[] terms) {
+	record QueryToken(@Nonnull String surfaceForm, @Nonnull String[] terms, int endOffset) {
+		/**
+		 * Creates a lookup-only word without raw query offsets.
+		 * @param surfaceForm surface used for stop recognition
+		 * @param terms analyzed alternatives to look up
+		 */
+		QueryToken(@Nonnull String surfaceForm, @Nonnull String[] terms) {
+			this(surfaceForm, terms, -1);
+		}
 	}
 
 	/**
@@ -585,6 +659,8 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 		 * The surface form of the token being collected, null before its first term.
 		 */
 		@Nullable private String currentSurfaceForm;
+		/** Corrected raw end of the current position, including its alternatives. */
+		private int currentEndOffset = -1;
 
 		@Override
 		public void accept(
@@ -600,6 +676,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			if (this.currentSurfaceForm == null) {
 				this.currentSurfaceForm = surfaceForm.get();
 			}
+			this.currentEndOffset = Math.max(this.currentEndOffset, endOffset);
 			// a variant stem may repeat the term before it - one lookup per distinct term is enough
 			if (!this.currentToken.contains(term)) {
 				this.currentToken.add(term);
@@ -624,12 +701,14 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			if (!this.currentToken.isEmpty()) {
 				this.tokens.add(
 					new QueryToken(
-						Objects.requireNonNull(this.currentSurfaceForm), this.currentToken.toArray(String[]::new)
+						Objects.requireNonNull(this.currentSurfaceForm), this.currentToken.toArray(String[]::new),
+						this.currentEndOffset
 					)
 				);
 				this.currentToken.clear();
 			}
 			this.currentSurfaceForm = null;
+			this.currentEndOffset = -1;
 		}
 
 	}

@@ -36,7 +36,13 @@ import java.io.Reader;
 public interface FulltextTextAnalysisOperation {
 
 	/**
-	 * Wraps the text.
+	 * Wraps the text. A reader changing its length must map offsets back to its input through Lucene's
+	 * {@link org.apache.lucene.analysis.CharFilter#correctOffset(int)} contract. Wrappers must preserve that
+	 * correction chain, including corrections contributed by preceding text steps.
+	 *
+	 * Without corrected offsets, offset-based query features degrade: a final word whose emitted end offset
+	 * does not reach its input end is treated as finished, without prefix or open-ended expansion. The query
+	 * still succeeds using finished-word matching rather than expanding an incorrectly identified fragment.
 	 *
 	 * @param text the text, possibly already wrapped by the preceding text steps
 	 * @param side the side the chain is built for, always one the step declared

@@ -57,6 +57,28 @@ class FulltextTypoParametersTest {
 			assertEquals(0, new FulltextTypoParameters(5, 9, 12, true, true).maxEdits("abcd"));
 		}
 	}
+	/** Submitted input-mode defaults. */
+	@Nested
+	@DisplayName("Submitted input mode")
+	class InputMode {
+		/** Fragment and open-ended start lengths must both be positive. */
+		@ParameterizedTest
+		@CsvSource({"0,4", "-1,4", "4,0", "4,-1"})
+		@DisplayName("Rejects nonpositive fragment and open-ended start lengths")
+		void shouldRejectInvalidInputMode(int fragment, int openEnd) {
+			assertThrows(IllegalArgumentException.class,
+				() -> new FulltextTypoParameters(4, 8, 1, true, true, true, fragment, openEnd));
+		}
+
+		/** Input mode belongs to the immutable policy, independently of configuration. */
+		@Test
+		@DisplayName("Enables prefix and open-ended expansion from four letters")
+		void shouldExposeSubmittedDefaults() {
+			assertTrue(FulltextTypoParameters.DEFAULT.prefixLeg());
+			assertEquals(4, FulltextTypoParameters.DEFAULT.minFragmentLength());
+			assertEquals(4, FulltextTypoParameters.DEFAULT.openEndedStartLength());
+		}
+	}
 	/** Validation. */
 	@Nested
 	@DisplayName("Validation")

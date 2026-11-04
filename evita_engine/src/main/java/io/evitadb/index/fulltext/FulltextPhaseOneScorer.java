@@ -43,18 +43,18 @@ import java.util.Arrays;
  *
  * A query is a sequence of **tokens**; each token expands into one or more **terms** of the dictionary — its stem
  * variants, its prefix completions, its typo neighbours — and each expansion carries its posting list, the impact
- * bytes aligned with it, and the edit distance at which it matched. For every candidate the walk keeps four lanes:
+ * bytes aligned with it, its edit distance and matching class. For every candidate the walk keeps four lanes:
  *
  * | lane | meaning | best is |
  * |---|---|---|
  * | matched tokens | how many query tokens the candidate contains | more |
- * | exactness | whether some token matched without a typo | 1 |
- * | typo distance | the smallest edit distance any token matched at | smaller |
+ * | exactness | whether some token matched an exact variant | 1 |
+ * | typo distance | the smallest edit distance any token matched at, `0` for a prefix completion | smaller |
  * | impact | the largest impact byte any matched expansion carries | larger |
  *
- * and composes them, once, into a 64-bit value whose **unsigned** order is the ranking:
- * `matchedTokens << 56 | exactness << 48 | (0xFE - distance) << 40 | impact << 32`, where `distance` is the smallest
- * edit distance - the typo lane holds `distance + 1` while it accumulates, so `0` can mean "not hit", and the
+ * and composes them, once, into a 64-bit value whose **unsigned** order is the ranking: matched tokens at bit 56,
+ * exactness at bit 48, `0xFE - distance` at bit 40 and impact at bit 32, where `distance` is the smallest edit
+ * distance. The typo lane holds `distance + 1` while it accumulates, so that `0` can mean "not hit", and the
  * composite stores `0xFF` minus that. The matched-token lane fills the top byte, so 128 or more matched tokens set the
  * sign bit: compare composites with `Long.compareUnsigned`, never as signed longs. The low 32 bits are reserved for the
  * contextual lanes of later ranking phases and are left zero here.
@@ -187,12 +187,19 @@ public final class FulltextPhaseOneScorer {
 	 *
 	 * @param postings primary keys of the entities containing the term, ascending
 	 * @param impacts  impact byte of each posting, the i-th belonging to the i-th posting
-	 * @param distance edit distance at which the term matched the token, `0` for an exact match
+	 * @param distance edit distance at which the term matched the token, `0` for exact and prefix matches
+	 * @param exactness matching class used by the binary exactness lane
 	 */
-	public record Expansion(@Nonnull Bitmap postings, @Nonnull ImpactView impacts, int distance) {
+	public record Expansion(
+		@Nonnull Bitmap postings, @Nonnull ImpactView impacts, int distance, @Nonnull FulltextTermExactness exactness
+	) {
 
 		/**
 		 * Validates the expansion.
+		 * @param postings primary keys containing the term
+		 * @param impacts impacts aligned with the postings
+		 * @param distance edit distance
+		 * @param exactness matching class independent of distance
 		 */
 		public Expansion {
 			Assert.isPremiseValid(
@@ -295,12 +302,15 @@ public final class FulltextPhaseOneScorer {
 					final ImpactView.Reader impacts = expansion.impacts().reader();
 					anyHit |= switch (chooseMerge(strategy, candidateCount, postingCount)) {
 						case LINEAR -> linearMerge(
-							candidates, feed.reset(postings), impacts, distance, tokenImpact, tokenTypo
+							candidates, feed.reset(postings), impacts, distance, tokenImpact, tokenTypo,
+							expansion.exactness() == FulltextTermExactness.EXACT, bestExactness
 						);
 						case GALLOPING -> gallopingMerge(
-							candidates, feed.reset(postings), impacts, distance, tokenImpact, tokenTypo
+							candidates, feed.reset(postings), impacts, distance, tokenImpact, tokenTypo,
+							expansion.exactness() == FulltextTermExactness.EXACT, bestExactness
 						);
-						case SKIPPING -> skippingMerge(candidates, postings, impacts, distance, tokenImpact, tokenTypo);
+						case SKIPPING -> skippingMerge(candidates, postings, impacts, distance, tokenImpact, tokenTypo,
+							expansion.exactness() == FulltextTermExactness.EXACT, bestExactness);
 						case ADAPTIVE -> throw new GenericEvitaInternalError("The merge choice never yields ADAPTIVE!");
 					};
 					postingsWalked += postingCount;
@@ -319,9 +329,6 @@ public final class FulltextPhaseOneScorer {
 						// the lane is one-based up to MAX_DISTANCE + 1 = 255, so it compares unsigned
 						if (bestTypo[i] == 0 || Byte.toUnsignedInt(typo) < Byte.toUnsignedInt(bestTypo[i])) {
 							bestTypo[i] = typo;
-						}
-						if (typo == 1) {
-							bestExactness[i] = 1;
 						}
 					}
 					Arrays.fill(tokenImpact, (byte) 0);
@@ -442,6 +449,8 @@ public final class FulltextPhaseOneScorer {
 	 * @param distance    the expansion's one-based edit distance
 	 * @param tokenImpact the per-token impact lane, by candidate
 	 * @param tokenTypo   the per-token typo lane, by candidate
+	 * @param exact whether this expansion is an exact match
+	 * @param bestExactness binary exactness across all query words, by candidate
 	 * @return true when at least one candidate was hit
 	 */
 	private static boolean linearMerge(
@@ -450,7 +459,9 @@ public final class FulltextPhaseOneScorer {
 		@Nonnull ImpactView.Reader impacts,
 		byte distance,
 		@Nonnull byte[] tokenImpact,
-		@Nonnull byte[] tokenTypo
+		@Nonnull byte[] tokenTypo,
+		boolean exact,
+		@Nonnull byte[] bestExactness
 	) {
 		final int candidateCount = candidates.length;
 		final int[] batch = postings.buffer();
@@ -473,7 +484,8 @@ public final class FulltextPhaseOneScorer {
 					batchIndex++;
 				} else {
 					recordHit(
-						candidateIndex, impacts.impactAt(batchStart + batchIndex), distance, tokenImpact, tokenTypo
+						candidateIndex, impacts.impactAt(batchStart + batchIndex), distance, tokenImpact, tokenTypo,
+						exact, bestExactness
 					);
 					hit = true;
 					candidateIndex++;
@@ -494,6 +506,8 @@ public final class FulltextPhaseOneScorer {
 	 * @param distance    the expansion's one-based edit distance
 	 * @param tokenImpact the per-token impact lane, by candidate
 	 * @param tokenTypo   the per-token typo lane, by candidate
+	 * @param exact whether this expansion is an exact match
+	 * @param bestExactness binary exactness across all query words, by candidate
 	 * @return true when at least one candidate was hit
 	 */
 	private static boolean gallopingMerge(
@@ -502,7 +516,9 @@ public final class FulltextPhaseOneScorer {
 		@Nonnull ImpactView.Reader impacts,
 		byte distance,
 		@Nonnull byte[] tokenImpact,
-		@Nonnull byte[] tokenTypo
+		@Nonnull byte[] tokenTypo,
+		boolean exact,
+		@Nonnull byte[] bestExactness
 	) {
 		final int candidateCount = candidates.length;
 		final int[] batch = postings.buffer();
@@ -519,7 +535,8 @@ public final class FulltextPhaseOneScorer {
 				final int posting = batch[batchIndex];
 				from = gallopTo(candidates, from, posting);
 				if (from < candidateCount && candidates[from] == posting) {
-					recordHit(from, impacts.impactAt(batchStart + batchIndex), distance, tokenImpact, tokenTypo);
+					recordHit(from, impacts.impactAt(batchStart + batchIndex), distance, tokenImpact, tokenTypo,
+						exact, bestExactness);
 					hit = true;
 					from++;
 				}
@@ -545,6 +562,8 @@ public final class FulltextPhaseOneScorer {
 	 * @param distance    the expansion's one-based edit distance
 	 * @param tokenImpact the per-token impact lane, by candidate
 	 * @param tokenTypo   the per-token typo lane, by candidate
+	 * @param exact whether this expansion is an exact match
+	 * @param bestExactness binary exactness across all query words, by candidate
 	 * @return true when at least one candidate was hit
 	 */
 	private static boolean skippingMerge(
@@ -553,7 +572,9 @@ public final class FulltextPhaseOneScorer {
 		@Nonnull ImpactView.Reader impacts,
 		byte distance,
 		@Nonnull byte[] tokenImpact,
-		@Nonnull byte[] tokenTypo
+		@Nonnull byte[] tokenTypo,
+		boolean exact,
+		@Nonnull byte[] bestExactness
 	) {
 		final int candidateCount = candidates.length;
 		boolean hit = false;
@@ -570,7 +591,8 @@ public final class FulltextPhaseOneScorer {
 				if (posting == candidate) {
 					// the rank counts from one, the impact offset from zero
 					recordHit(
-						candidateIndex, impacts.impactAt(cursor.peekNextRank() - 1), distance, tokenImpact, tokenTypo
+						candidateIndex, impacts.impactAt(cursor.peekNextRank() - 1), distance, tokenImpact, tokenTypo,
+						exact, bestExactness
 					);
 					hit = true;
 					candidateIndex++;
@@ -582,7 +604,8 @@ public final class FulltextPhaseOneScorer {
 			for (int candidateIndex = 0; candidateIndex < candidateCount; candidateIndex++) {
 				final int position = postings.indexOf(candidates[candidateIndex]);
 				if (position >= 0) {
-					recordHit(candidateIndex, impacts.impactAt(position), distance, tokenImpact, tokenTypo);
+					recordHit(candidateIndex, impacts.impactAt(position), distance, tokenImpact, tokenTypo,
+						exact, bestExactness);
 					hit = true;
 				}
 			}
@@ -636,14 +659,21 @@ public final class FulltextPhaseOneScorer {
 	 * @param distance       the expansion's one-based edit distance
 	 * @param tokenImpact    the per-token impact lane, by candidate
 	 * @param tokenTypo      the per-token typo lane, by candidate
+	 * @param exact whether this expansion is an exact match
+	 * @param bestExactness binary exactness across all query words, by candidate
 	 */
 	private static void recordHit(
 		int candidateIndex,
 		byte impact,
 		byte distance,
 		@Nonnull byte[] tokenImpact,
-		@Nonnull byte[] tokenTypo
+		@Nonnull byte[] tokenTypo,
+		boolean exact,
+		@Nonnull byte[] bestExactness
 	) {
+		if (exact) {
+			bestExactness[candidateIndex] = 1;
+		}
 		if (Byte.toUnsignedInt(impact) > Byte.toUnsignedInt(tokenImpact[candidateIndex])) {
 			tokenImpact[candidateIndex] = impact;
 		}

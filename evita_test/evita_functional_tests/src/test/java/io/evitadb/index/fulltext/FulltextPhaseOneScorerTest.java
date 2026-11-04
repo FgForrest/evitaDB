@@ -62,6 +62,12 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("Fulltext phase-1 scorer")
 class FulltextPhaseOneScorerTest {
 
+	/** Creates a finite expansion whose zero distance denotes an exact match. */
+	private static Expansion finiteExpansion(Bitmap postings, ImpactView impacts, int distance) {
+		return new Expansion(postings, impacts, distance, distance == 0
+			? FulltextTermExactness.EXACT : FulltextTermExactness.FUZZY);
+	}
+
 	/**
 	 * Builds an expansion from postings and their impacts given as ints.
 	 *
@@ -77,7 +83,7 @@ class FulltextPhaseOneScorerTest {
 			postings[i] = pairs[2 * i];
 			impacts[i] = (byte) pairs[2 * i + 1];
 		}
-		return new Expansion(new BaseBitmap(postings), ImpactView.of(impacts), distance);
+		return finiteExpansion(new BaseBitmap(postings), ImpactView.of(impacts), distance);
 	}
 
 	/**
@@ -173,6 +179,34 @@ class FulltextPhaseOneScorerTest {
 	@Nested
 	@DisplayName("Ranking")
 	class Ranking {
+		/** Binary exactness uses the matching class, including when a prefix has zero distance. */
+		@Test
+		@DisplayName("Keeps binary exactness independent of zero prefix distance in every merge")
+		void shouldUseExplicitExactness() {
+			// the roaring-backed and the sorted-array tier take the two different paths of the skipping merge
+			final Bitmap[][] tiers = {
+				{new BaseBitmap(1), new BaseBitmap(2, 3), new BaseBitmap(2)},
+				{new SortedArrayBitmap(1), new SortedArrayBitmap(2, 3), new SortedArrayBitmap(2)}
+			};
+			for (final Bitmap[] postings : tiers) {
+				final Expansion exact = new Expansion(postings[0], ImpactView.of(new byte[]{1}), 0,
+					FulltextTermExactness.EXACT);
+				final Expansion prefix = new Expansion(postings[1], ImpactView.of(new byte[]{100, 100}), 0,
+					FulltextTermExactness.PREFIX);
+				final Expansion fuzzy = new Expansion(postings[2], ImpactView.of(new byte[]{120}), 1,
+					FulltextTermExactness.FUZZY);
+				for (final MergeStrategy strategy : MergeStrategy.values()) {
+					final String scenario = postings[0].getClass().getSimpleName() + " / " + strategy.name();
+					final Result result = FulltextPhaseOneScorer.score(new int[]{1, 2, 3},
+						new Expansion[][]{{prefix, fuzzy, exact}}, 3, strategy);
+					assertArrayEquals(new int[]{1, 2, 3}, result.primaryKeys(), scenario);
+					assertEquals(1, lane(result.composites()[0], 48), scenario);
+					assertEquals(0, lane(result.composites()[1], 48), scenario);
+					assertEquals(0, lane(result.composites()[2], 48), scenario);
+					assertEquals(254, lane(result.composites()[1], 40), scenario);
+				}
+			}
+		}
 
 		@Test
 		@DisplayName("Lanes rank in order: matched tokens, exactness, typo distance, impact")
@@ -266,7 +300,7 @@ class FulltextPhaseOneScorerTest {
 						final Bitmap postings = randomPostings(random, bound);
 						final byte[] impacts = new byte[postings.size()];
 						random.nextBytes(impacts);
-						tokens[t][e] = new Expansion(postings, ImpactView.of(impacts), random.nextInt(3));
+						tokens[t][e] = finiteExpansion(postings, ImpactView.of(impacts), random.nextInt(3));
 					}
 				}
 				final int topN = 1 + random.nextInt(50);
@@ -303,7 +337,7 @@ class FulltextPhaseOneScorerTest {
 					candidates[i] = i * 150;
 				}
 				for (final Bitmap tier : new Bitmap[]{new BaseBitmap(postings), new SortedArrayBitmap(postings)}) {
-					final Expansion[][] tokens = {{new Expansion(tier, ImpactView.of(impacts), 0)}};
+					final Expansion[][] tokens = {{finiteExpansion(tier, ImpactView.of(impacts), 0)}};
 					final Result expected = naiveScore(candidates, tokens, postingCount);
 					for (final MergeStrategy strategy : MergeStrategy.values()) {
 						final Result actual = FulltextPhaseOneScorer.score(candidates, tokens, postingCount, strategy);
@@ -322,7 +356,7 @@ class FulltextPhaseOneScorerTest {
 			// a roaring list orders -1 after 1 (unsigned) and its impacts follow that order; a signed decode would put
 			// -1 first and hand candidate 1 the impact of -1
 			final Expansion[][] tokens = {
-				{new Expansion(new BaseBitmap(1, -1), ImpactView.of(new byte[]{10, (byte) 200}), 0)}
+				{finiteExpansion(new BaseBitmap(1, -1), ImpactView.of(new byte[]{10, (byte) 200}), 0)}
 			};
 			for (final MergeStrategy strategy : MergeStrategy.values()) {
 				final Result result = FulltextPhaseOneScorer.score(new int[]{1}, tokens, 1, strategy);
@@ -341,7 +375,7 @@ class FulltextPhaseOneScorerTest {
 				longPostings[i] = 2 * i;
 			}
 			final Expansion[][] longTokens = {
-				{new Expansion(new BaseBitmap(longPostings), ImpactView.of(new byte[longPostings.length]), 0)}
+				{finiteExpansion(new BaseBitmap(longPostings), ImpactView.of(new byte[longPostings.length]), 0)}
 			};
 			final Expansion[][] shortTokens = {{expansion(0, 5, 50, 7, 70)}};
 			final int[] candidates = {2, 4, 5, 6, 7, 8};
@@ -366,10 +400,10 @@ class FulltextPhaseOneScorerTest {
 			}
 			final Expansion[][] tokens = {
 				{
-					new Expansion(new BaseBitmap(postings), ImpactView.of(new byte[postings.length]), 0),
-					new Expansion(new SingleRecordBitmap(7), ImpactView.of(new byte[1]), 0)
+					finiteExpansion(new BaseBitmap(postings), ImpactView.of(new byte[postings.length]), 0),
+					finiteExpansion(new SingleRecordBitmap(7), ImpactView.of(new byte[1]), 0)
 				},
-				{new Expansion(new SortedArrayBitmap(2, 4, 6), ImpactView.of(new byte[3]), 1)}
+				{finiteExpansion(new SortedArrayBitmap(2, 4, 6), ImpactView.of(new byte[3]), 1)}
 			};
 			for (final MergeStrategy strategy : MergeStrategy.values()) {
 				// the candidates run out at the third posting of the long list: 0 hits it, 4 misses it below 6
@@ -430,14 +464,14 @@ class FulltextPhaseOneScorerTest {
 		@DisplayName("Malformed input is refused")
 		void shouldRefuseMalformedInput() {
 			assertThrows(
-				GenericEvitaInternalError.class, () -> new Expansion(new BaseBitmap(1), ImpactView.of(new byte[0]), 0)
+				GenericEvitaInternalError.class, () -> finiteExpansion(new BaseBitmap(1), ImpactView.of(new byte[0]), 0)
 			);
 			assertThrows(
-				GenericEvitaInternalError.class, () -> new Expansion(new BaseBitmap(), ImpactView.of(new byte[0]), -1)
+				GenericEvitaInternalError.class, () -> finiteExpansion(new BaseBitmap(), ImpactView.of(new byte[0]), -1)
 			);
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> new Expansion(
+				() -> finiteExpansion(
 					new BaseBitmap(), ImpactView.of(new byte[0]), FulltextPhaseOneScorer.MAX_DISTANCE + 1
 				)
 			);

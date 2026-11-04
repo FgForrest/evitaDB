@@ -660,8 +660,10 @@ class FulltextIndexTest {
 			final List<Expansion> fromWalk = new ArrayList<>(3);
 			final List<Expansion> fromCopies = new ArrayList<>(3);
 			index.forEachTerm(body, "the", (term, postings, impacts) -> {
-				fromWalk.add(new Expansion(postings, impacts, 0));
-				fromCopies.add(new Expansion(postings, ImpactView.of(impacts.toArray()), 0));
+				fromWalk.add(new Expansion(postings, impacts, 0, FulltextTermExactness.EXACT));
+				fromCopies.add(new Expansion(
+					postings, ImpactView.of(impacts.toArray()), 0, FulltextTermExactness.EXACT
+				));
 				return true;
 			});
 			assertEquals(3, fromWalk.size());

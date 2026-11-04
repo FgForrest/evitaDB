@@ -32,6 +32,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.fulltext.FulltextIndex;
+import io.evitadb.index.fulltext.FulltextTermExactness;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Expansion;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
@@ -112,18 +113,41 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	 * @param term     the analyzed term, without the field prefix
 	 * @param postings primary keys of the entities whose field contains the term, ascending
 	 * @param impacts  impact byte of each posting, the i-th belonging to the i-th posting
-	 * @param distance edit distance at which the term matched the token, `0` for an exact match
+	 * @param distance edit distance at which the term matched the token, `0` for exact and prefix matches
+	 * @param exactness best matching class across all expansion legs
 	 */
 	public record ExpandedTerm(
 		int fieldId,
 		@Nonnull String term,
 		@Nonnull Bitmap postings,
 		@Nonnull ImpactView impacts,
-		int distance
+		int distance,
+		@Nonnull FulltextTermExactness exactness
 	) {
 
 		/**
+		 * Creates a finite exact or fuzzy term; prefix expansions use the explicit matching class.
+		 * @param fieldId id of the dictionary field
+		 * @param term the bare analyzed term
+		 * @param postings primary keys containing the term
+		 * @param impacts impact bytes aligned with the postings
+		 * @param distance finite edit distance, zero meaning exact
+		 */
+		public ExpandedTerm(
+			int fieldId, @Nonnull String term, @Nonnull Bitmap postings, @Nonnull ImpactView impacts, int distance
+		) {
+			this(fieldId, term, postings, impacts, distance,
+				distance == 0 ? FulltextTermExactness.EXACT : FulltextTermExactness.FUZZY);
+		}
+
+		/**
 		 * Validates the term.
+		 * @param fieldId id of the dictionary field
+		 * @param term the bare analyzed term
+		 * @param postings primary keys containing the term
+		 * @param impacts impact bytes aligned with the postings
+		 * @param distance edit distance, independent of prefix exactness
+		 * @param exactness best matching class across expansion legs
 		 */
 		public ExpandedTerm {
 			Assert.isPremiseValid(
@@ -261,14 +285,16 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		// neither the order of the tokens nor the order of a token's terms changes the match set or the scores, so
-		// both levels are hashed order-independently; the distance is included because it changes the scores
+		// both levels are hashed order-independently; the distance and the matching class are included because both
+		// change the scores
 		final long[] tokenHashes = new long[this.tokens.length];
 		for (int i = 0; i < this.tokens.length; i++) {
 			final ExpandedTerm[] token = this.tokens[i];
 			final long[] termHashes = new long[token.length];
 			for (int j = 0; j < token.length; j++) {
 				termHashes[j] = hashFunction.hashLongs(
-					new long[]{bitmapIdentityToken(token[j].postings(), hashFunction), token[j].distance()}
+					new long[]{bitmapIdentityToken(token[j].postings(), hashFunction), token[j].distance(),
+						token[j].exactness().ordinal()}
 				);
 			}
 			Arrays.sort(termHashes);
@@ -438,7 +464,7 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 			final Expansion[] tokenExpansions = new Expansion[token.length];
 			for (int j = 0; j < token.length; j++) {
 				final ExpandedTerm term = token[j];
-				tokenExpansions[j] = new Expansion(term.postings(), term.impacts(), term.distance());
+				tokenExpansions[j] = new Expansion(term.postings(), term.impacts(), term.distance(), term.exactness());
 			}
 			expansions[i] = tokenExpansions;
 		}

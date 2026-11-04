@@ -47,6 +47,7 @@ import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Expansion;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
+import io.evitadb.index.fulltext.FulltextTermExactness;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
@@ -234,7 +235,8 @@ class FulltextFormulaTest {
 				final ExpandedTerm term = tokens[i][j];
 				// fresh copies of both, so the formula's own hand-over of the dictionary's views is what gets compared
 				result[i][j] = new Expansion(
-					new BaseBitmap(term.postings().getArray()), ImpactView.of(term.impacts().toArray()), term.distance()
+					new BaseBitmap(term.postings().getArray()), ImpactView.of(term.impacts().toArray()),
+					term.distance(), term.exactness()
 				);
 			}
 		}
@@ -664,6 +666,21 @@ class FulltextFormulaTest {
 		}
 
 		@Test
+		@DisplayName("An exact term outranks a zero-distance prefix completion with a larger impact")
+		void shouldRankExactTermsAboveZeroDistancePrefixes() {
+			final ExpandedTerm exact = new ExpandedTerm(
+				0, "stem", new ArrayBitmap(1), ImpactView.of(new byte[]{1}), 0, FulltextTermExactness.EXACT
+			);
+			final ExpandedTerm prefix = new ExpandedTerm(
+				0, "stems", new ArrayBitmap(2), ImpactView.of(new byte[]{100}), 0, FulltextTermExactness.PREFIX
+			);
+			final FulltextFormula formula = query(token(exact, prefix));
+
+			// both match at distance zero, so only the matching class keeps the prefix's larger impact below
+			assertArrayEquals(new int[]{1, 2}, formula.getFulltextScores(new int[]{1, 2}, 2).primaryKeys());
+		}
+
+		@Test
 		@DisplayName("Scores are computed for the candidates passed, not for the formula's own result")
 		void shouldScoreOnlyThePassedCandidates() {
 			final Result result = sampleQuery().getFulltextScores(new int[]{5, 7}, 10);
@@ -720,6 +737,17 @@ class FulltextFormulaTest {
 
 			assertNotEquals(base, query(token(term("a", 0, 1, 1, 3, 1))).getHash());
 			assertNotEquals(base, query(token(term("a", 1, 1, 1, 2, 1))).getHash());
+		}
+
+		@Test
+		@DisplayName("The hash changes with the matching class of a zero-distance term")
+		void shouldHashExactness() {
+			final Bitmap postings = new ArrayBitmap(1, 2);
+			final ImpactView impacts = ImpactView.of(new byte[]{1, 1});
+			final ExpandedTerm exact = new ExpandedTerm(0, "a", postings, impacts, 0, FulltextTermExactness.EXACT);
+			final ExpandedTerm prefix = new ExpandedTerm(0, "a", postings, impacts, 0, FulltextTermExactness.PREFIX);
+
+			assertNotEquals(query(token(exact)).getHash(), query(token(prefix)).getHash());
 		}
 
 		@Test
