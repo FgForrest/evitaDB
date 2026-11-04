@@ -28,6 +28,8 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.requestResponse.progress.Progress;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.core.session.SessionRegistry;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
@@ -51,6 +53,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
@@ -163,6 +166,38 @@ class CatalogSessionRegistryHandoverTest implements EvitaTestSupport {
 		this.evita.waitUntilFullyInitialized();
 	}
 
+	/**
+	 * Builds a progress observer that holds an operation short of its commit until the test has made its move.
+	 *
+	 * A loop that opens sessions against an operation in flight overlaps it only by winning a race: nothing stops
+	 * the operation's asynchronous half finishing before the submitting thread reaches the loop, and on a loaded
+	 * machine it occasionally does. The observer removes the race, because it runs on the thread executing the
+	 * operation and both the replace and the drop report their first non-zero progress ahead of their commit.
+	 *
+	 * Zero is skipped because `ProgressRecord` reports it from the submitting thread, before the operation reaches
+	 * the executor - holding there would hold the test, not the operation. The observer has to be passed at
+	 * submission for the same reason the race exists: a listener added to the returned `Progress` could arrive
+	 * after the event it is waiting for.
+	 *
+	 * @param release released by the test once the operation may carry on
+	 * @return observer to submit the operation with
+	 */
+	@Nonnull
+	private static IntConsumer holdOperationUntil(@Nonnull CountDownLatch release) {
+		return percentCompleted -> {
+			if (percentCompleted > 0) {
+				try {
+					// generous on purpose: this is a positive wait, and the release is what ends it
+					if (!release.await(30, TimeUnit.SECONDS)) {
+						throw new IllegalStateException("The operation was never released!");
+					}
+				} catch (InterruptedException ex) {
+					Thread.currentThread().interrupt();
+				}
+			}
+		};
+	}
+
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration() {
 		return newTestEvitaConfigurationBuilder(this.paths).build();
@@ -191,9 +226,12 @@ class CatalogSessionRegistryHandoverTest implements EvitaTestSupport {
 			// updater at all, which is exactly why the leak was theirs.
 			restartEngine();
 
-			final Progress<Void> progress = CatalogSessionRegistryHandoverTest.this.evita
-				.deleteCatalogIfExistsWithProgress(TARGET_CATALOG)
-				.orElseThrow();
+			// held rather than raced: the drop cannot commit until the first session below has been tried
+			final CountDownLatch firstAttemptMade = new CountDownLatch(1);
+			final Progress<Void> progress = CatalogSessionRegistryHandoverTest.this.evita.applyMutation(
+				new RemoveCatalogSchemaMutation(TARGET_CATALOG),
+				holdOperationUntil(firstAttemptMade)
+			);
 			final CompletableFuture<Void> completion = progress.onCompletion().toCompletableFuture();
 
 			final Function<EvitaSessionContract, Integer> brandCounter =
@@ -209,6 +247,8 @@ class CatalogSessionRegistryHandoverTest implements EvitaTestSupport {
 				} catch (EvitaInvalidUsageException ex) {
 					// the catalog is being destroyed and says so - the outcome this test is here to require
 					refusals++;
+				} finally {
+					firstAttemptMade.countDown();
 				}
 			}
 
@@ -222,8 +262,8 @@ class CatalogSessionRegistryHandoverTest implements EvitaTestSupport {
 			);
 			assertTrue(
 				refusals > 0,
-				"No session request was refused while the catalog was being dropped - either the loop never " +
-					"overlapped the operation, or the catalog was not quiesced at all!"
+				"No session request was refused while the catalog was being dropped - the first one is made with " +
+					"the operation held, so the catalog was not quiesced at all!"
 			);
 
 			assertFalse(
@@ -379,9 +419,13 @@ class CatalogSessionRegistryHandoverTest implements EvitaTestSupport {
 			restartEngine();
 
 			// submitted rather than awaited: the operation quiesces the target before this returns, which is
-			// exactly the window the sessions below are opened into
-			final Progress<CommitVersions> progress = CatalogSessionRegistryHandoverTest.this.evita
-				.replaceCatalogWithProgress(SOURCE_CATALOG, TARGET_CATALOG);
+			// exactly the window the sessions below are opened into - and held rather than raced, because the
+			// replace cannot commit until the first of them has been tried
+			final CountDownLatch firstAttemptMade = new CountDownLatch(1);
+			final Progress<CommitVersions> progress = CatalogSessionRegistryHandoverTest.this.evita.applyMutation(
+				new ModifyCatalogSchemaNameMutation(SOURCE_CATALOG, TARGET_CATALOG, true),
+				holdOperationUntil(firstAttemptMade)
+			);
 			final CompletableFuture<CommitVersions> completion = progress.onCompletion().toCompletableFuture();
 
 			final Function<EvitaSessionContract, Integer> brandCounter =
@@ -397,6 +441,8 @@ class CatalogSessionRegistryHandoverTest implements EvitaTestSupport {
 				} catch (EvitaInvalidUsageException ex) {
 					// the catalog is being destroyed and says so - the outcome this test is here to require
 					refusals++;
+				} finally {
+					firstAttemptMade.countDown();
 				}
 			}
 
@@ -404,7 +450,8 @@ class CatalogSessionRegistryHandoverTest implements EvitaTestSupport {
 			// timeout
 			completion.get(30, TimeUnit.SECONDS);
 
-			// Without this the loop could have run zero times and proved nothing, however broken the operation is.
+			// Certain for as long as the operation reports progress ahead of its commit. Should it ever stop, the hold
+			// stops holding without a word, and this is what says so.
 			assertTrue(attempts > 0, "The loop never ran, so the test exercised nothing!");
 			// The heart of it, and asserted before the corroborating count below so that a regression reports the
 			// leak itself rather than the absence of refusals: a size of BRANDS_IN_TARGET could only have come
@@ -418,8 +465,8 @@ class CatalogSessionRegistryHandoverTest implements EvitaTestSupport {
 			// pass here with an empty `observedSizes` is the ideal outcome, not a vacuous one.
 			assertTrue(
 				refusals > 0,
-				"No session request was refused while the target was being replaced - either the loop never " +
-					"overlapped the operation, or the target was not quiesced at all!"
+				"No session request was refused while the target was being replaced - the first one is made with " +
+					"the operation held, so the target was not quiesced at all!"
 			);
 
 			// and the swap is intact - refusing sessions must not mean the operation was quietly abandoned
