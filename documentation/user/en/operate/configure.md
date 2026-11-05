@@ -778,8 +778,12 @@ Configuration for local file system export backend. This is the default backend 
     <dt>sizeLimitBytes</dt>
     <dd>
         <p>**Default:** `1G`</p>
-        <p>Specifies the maximum total size of all exported files stored by this backend. If the total size
-        exceeds this limit, the oldest files are removed until the total size drops below the limit.</p>
+        <p>Specifies the maximum total size of all exported files stored by this backend, including the metadata
+        file kept beside each of them. If the total size exceeds this limit, the oldest files are removed until the
+        total size drops below the limit.</p>
+        <p>A single backup has to fit into this limit as well. A backup that would exceed it stops as soon as it
+        crosses the limit, keeps nothing, and its task fails with an error naming this setting. To back up a larger
+        catalog, raise the limit and restart the server.</p>
     </dd>
     <dt>historyExpirationSeconds</dt>
     <dd>
@@ -812,6 +816,9 @@ Configuration for S3-compatible storage export backend. Requires the `evita_expo
         <p>**Default:** `1G`</p>
         <p>Specifies the maximum total size of all exported files stored by this backend. If the total size
         exceeds this limit, the oldest files are removed until the total size drops below the limit.</p>
+        <p>A single backup has to fit into this limit as well. A backup that would exceed it stops as soon as it
+        crosses the limit, keeps nothing, and its task fails with an error naming this setting. To back up a larger
+        catalog, raise the limit and restart the server.</p>
     </dd>
     <dt>historyExpirationSeconds</dt>
     <dd>

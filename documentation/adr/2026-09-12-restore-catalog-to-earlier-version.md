@@ -1,7 +1,7 @@
 ---
 title: Restore a live catalog to an earlier version by composing backup, restore, activate and replace
 date: 2026-09-12
-updated: 2026-09-14 11:49
+updated: 2026-11-05 02:30
 status: accepted
 kind: feature
 issues: [1553]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_api/io.evitadb.api, evita_engine/io.evitadb.core.management, evita_external_api/evita_external_api_grpc]
 supersedes: []
 superseded-by: []
-relates: [2026-08-06-catalog-folder-decoupling, 2026-08-06-time-travel-disk-budget, 2026-10-08-cdc-resume-position-carries-catalog-identity]
+relates: [2026-08-06-catalog-folder-decoupling, 2026-08-06-time-travel-disk-budget, 2026-10-08-cdc-resume-position-carries-catalog-identity, 2026-11-05-backup-stops-at-the-export-limit]
 ---
 
 # Restore a live catalog to an earlier version by composing backup, restore, activate and replace
@@ -133,7 +133,8 @@ documentation and here.
   returns; `PublishRestoredCatalogTask#abortIfCancelled` is the checkpoint between phases.
 - **Compensation is asymmetric on purpose.** A successful run deletes the intermediate archive; a
   failed or cancelled one keeps it (it is a complete backup of the requested version, and the
-  operator's cheapest manual retry) and drops the temporary catalog instead.
+  operator's cheapest manual retry) and drops the temporary catalog instead. A backup step refused for
+  size has published no archive, so there is nothing to keep.
 
 ## Verification
 
@@ -336,12 +337,16 @@ straight off the collection size — an off-by-one restore fails rather than loo
   surface the restored data - which is why the direction is spelled out here rather than left to the
   reader to re-derive.
 - **The intermediate archive competes with the export directory's size limit.** `purgeFiles` drops the
-  oldest files whenever the directory exceeds `export.sizeLimitBytes` (1 GiB by default) and holds no
-  reference count, despite the interface javadoc suggesting it spares files a reader needs. A catalog
-  whose archive alone outgrows that limit cannot be restored this way. Not fixed — reference-counting
-  the export directory is its own piece of work — but `PublishRestoredCatalogTask#fetchArchiveInto`
-  turns the resulting `FileForFetchNotFoundException` into a message that names the cause, so the
-  operator raises the limit instead of hunting a phantom.
+  oldest files whenever the directory exceeds `export.<backend>.sizeLimitBytes` (1 GiB by default) and
+  holds no reference count, despite the interface javadoc suggesting it spares files a reader needs. An
+  archive that alone outgrows the limit is refused while it is written, before anything is unpacked,
+  with an error naming the setting to raise: see
+  [2026-11-05-backup-stops-at-the-export-limit](2026-11-05-backup-stops-at-the-export-limit.md). An
+  archive that fitted can still be evicted by newer exports before it is read. Not fixed —
+  reference-counting the export directory is its own piece of work — but
+  `PublishRestoredCatalogTask#fetchArchiveInto` turns the resulting `FileForFetchNotFoundException` into
+  a message that names the cause, so the operator retries or raises the limit instead of hunting a
+  phantom.
 - **The archive fetch and the swap report only their boundaries; unpacking and activation report
   fine-grained progress.** The two that report do so by different mechanisms, because the two
   progress APIs differ in kind. Activation forwards a `Progress`, which can be *subscribed* to via
