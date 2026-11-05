@@ -386,15 +386,19 @@ public class DefaultCatalogPersistenceService
 	/**
 	 * Serialises a trunk round's end-of-round processing against a checkpoint driven from any other thread - the
 	 * ticker, a backup or an integrity check. Both advance the catalog offset index and may write a bootstrap record,
-	 * and a record naming version `V` must not be built from an index that has already absorbed `V+1`.
+	 * and a record naming version `V` must not be built from an index that has already absorbed `V+1`. A relabel takes
+	 * it too, so that none of those checkpoints can land behind its record: see {@link #publishRelabelledHeader}.
 	 *
 	 * Lives here rather than on {@link CheckpointCoordinator} because the state it guards is this service's -
 	 * {@link #deferredCheckpointBootstrap}, {@link #bootstrapUsed} and the catalog offset index. The coordinator is
 	 * handed the same instance so both paths take one lock, and it exists even when there is no coordinator, which
 	 * is what lets {@link #storeHeader} lock unconditionally instead of branching.
 	 *
-	 * This is a leaf lock: {@link #bootstrapWriteLock}, {@link #cpsvLock} and the write-handle locks are all taken
-	 * beneath it, in that same order on every path, and nothing beneath it reaches back here.
+	 * This is the outermost lock of this class, never acquired while another of them is held.
+	 * {@link #bootstrapWriteLock}, {@link #cpsvLock} and the write-handle locks are all taken beneath it, in that same
+	 * order on every path, and so is {@link #historyHorizonLock}, by the statistics read at the end of
+	 * {@link #storeHeader}. The only thing beneath it that takes it again is the coordinator, reentrantly, on the
+	 * thread that already holds it.
 	 */
 	private final ReentrantLock checkpointLock = new ReentrantLock();
 	/**
@@ -490,9 +494,12 @@ public class DefaultCatalogPersistenceService
 	 * rather than best-effort.
 	 *
 	 * Lock order: {@link #bootstrapWriteLock} and {@link #cpsvLock} are taken beneath it, by way of
-	 * {@link #trimBootstrapFile(long)}. It is never taken while any other lock of this class is held - notably not
-	 * from the commit thread's {@link #retireDataFile}, which runs under {@link #cpsvLock} and only ever *schedules*
-	 * the guard rather than driving it. {@link #checkpointLock} and this one are disjoint: no path takes both.
+	 * {@link #trimBootstrapFile(long)}. It is taken beneath only two other locks of this class:
+	 * {@link #checkpointLock}, by the statistics read {@link #computeRetainedHistoryBytes()} at the end of
+	 * {@link #storeHeader}, and {@link #walWriteLock}, when {@link #close()} closes a log that still has rotated-out
+	 * files to report. Neither of those two is ever taken while this one is held, so these edges form no cycle. It is
+	 * notably not taken from the commit thread's {@link #retireDataFile}, which runs under {@link #cpsvLock} and only
+	 * ever *schedules* the guard rather than driving it.
 	 * Moving the floor readers under this lock introduced no new edge - session close already took it a few
 	 * statements later through {@link #retentionStateChanged()}.
 	 */
@@ -2963,7 +2970,7 @@ public class DefaultCatalogPersistenceService
 		// service nor starting the work: it is the folder's stored identity ceasing to agree with engine state.
 		//
 		// The schema part written just above is what first commits that identity to the folder. It is not yet
-		// on disk - `recordBootstrap` below flushes the offset index and forces the pending syncs at its fence
+		// on disk - `publishRelabelledHeader` below flushes the offset index and forces the pending syncs at its fence
 		// - but it does not need to be, because the offset index keeps it as a non-flushed value that the very
 		// next transaction or checkpoint will publish on our behalf. So from the moment that put *returns*,
 		// the relabel is going to reach disk whether this operation finishes or not, and a failure after it
@@ -2986,56 +2993,10 @@ public class DefaultCatalogPersistenceService
 		// Only this layer knows where that line falls, so only this layer can draw it; the engine's part is to
 		// stop compensating when it sees the marker and declare the catalog unusable until a restart.
 		try {
-			storagePartPersistenceService.writeCatalogHeader(
-				STORAGE_PROTOCOL_VERSION,
-				newCatalogVersion,
-				this.catalogStoragePath,
-				catalogHeader.walFileReference(),
-				catalogHeader.collectionFileIndex(),
-				catalogHeader.catalogId(),
-				catalogNameToBeReplaced,
-				catalogHeader.catalogState(),
-				catalogHeader.lastEntityCollectionPrimaryKey()
+			publishRelabelledHeader(
+				storagePartPersistenceService, catalogHeader, newCatalogVersion, catalogNameToBeReplaced,
+				dataStoreMemoryBuffer
 			);
-
-			// the bootstrap keeps being written under the prefix the folder's files already carry - the files are
-			// not renamed, so naming this record after the incoming catalog would address a `<newName>.boot` that
-			// does not exist and leave the real one holding a stale pointer
-			// Built on the newest record there is, written or deferred - a compaction inside a deferred round bumped
-			// the file index in that record while `bootstrapUsed` still names the file from before it, and a record
-			// built on the older one publishes that stale file index next to the new offset index location. It must
-			// not compact either: the relabel moves no data, and a compaction here would copy into a file name that
-			// a round at this very version (or the deferred one) already took.
-			final CatalogBootstrap deferredBootstrap = this.deferredCheckpointBootstrap;
-			writeCatalogBootstrap(
-				newCatalogVersion,
-				this.storagePrefix,
-				prepareBootstrap(
-					newCatalogVersion,
-					this.storagePrefix,
-					(deferredBootstrap == null ? this.bootstrapUsed : deferredBootstrap).catalogFileIndex(),
-					getNowEpochMillis(),
-					dataStoreMemoryBuffer,
-					false
-				)
-			);
-
-			// A checkpoint owed by an earlier round still holds a prepared record addressing the root as it was BEFORE
-			// the header written above, and `close` below publishes whatever is owed. The bootstrap file is read back
-			// by position - `getLastCatalogBootstrapWithAutomaticUpgrade` takes the last record in the file, whatever
-			// version it names - so that older pointer would land after the one just written and the service reopened
-			// at the end of this method would load the catalog under the name it had before the rename. Discarding it
-			// is right on the merits rather than merely expedient: the record written above already did everything the
-			// owed checkpoint would have, since `recordBootstrap` flushes the offset index and forces the pending syncs
-			// at the fence inside `writeCatalogBootstrap` - which is also where the time travel size guard is
-			// scheduled, so the history this record reveals is still accounted for and the discard drops a duplicate
-			// publication rather than the bookkeeping that rides along with it. The field is only ever set together
-			// with the coordinator's own debt, so it is the exact condition, and settling it keeps the cadence gauge
-			// honest - reporting a completion when nothing was owed would fill it with samples no checkpoint produced.
-			if (this.deferredCheckpointBootstrap != null) {
-				this.deferredCheckpointBootstrap = null;
-				Objects.requireNonNull(this.checkpointCoordinator).noteCheckpointCompleted();
-			}
 
 			// The operation is a fixed amount of work now that nothing is copied or moved, so there is no meaningful
 			// intermediate progress to report - but the terminal tick still has to arrive, or a client tracking
@@ -4280,6 +4241,95 @@ public class DefaultCatalogPersistenceService
 	@Nullable
 	public CatalogWriteAheadLog getCatalogWal() {
 		return this.catalogWal;
+	}
+
+	/**
+	 * Publishes a relabel: writes the catalog header carrying the incoming name, appends a bootstrap record pointing at
+	 * it and settles any checkpoint an earlier round still owes.
+	 *
+	 * Runs under {@link #checkpointLock}, because the record written here has to stay the last one in the bootstrap
+	 * file, which is read back by position. The ticker publishes the record it owes from another thread, and without
+	 * the lock a ticker arriving while this thread forces the device flushes at the fence picks that record up, queues
+	 * on {@link #bootstrapWriteLock} and writes it behind this one. Both records name the same version, so the version
+	 * cannot tell them apart, and the service reopened by {@link #replaceWith} finds the former name in the header.
+	 * `CatalogHandoverCheckpointRaceTest` forces that interleaving and fails when the lock is dropped.
+	 *
+	 * The lock ends here rather than around the whole handover because no checkpoint has anything left to publish by
+	 * then: the debt is settled, so a ticker or a backup that waited for the lock finds nothing owed, and so does
+	 * {@link #close()}.
+	 *
+	 * @param storagePartPersistenceService the persistence service of the catalog offset index
+	 * @param catalogHeader                 the header being relabelled
+	 * @param newCatalogVersion             the version the header and the bootstrap record are written at
+	 * @param catalogNameToBeReplaced       the incoming name of the catalog
+	 * @param dataStoreMemoryBuffer         the buffer the catalog offset index is flushed through
+	 */
+	private void publishRelabelledHeader(
+		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService,
+		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
+		long newCatalogVersion,
+		@Nonnull String catalogNameToBeReplaced,
+		@Nonnull DataStoreMemoryBuffer dataStoreMemoryBuffer
+	) {
+		this.checkpointLock.lock();
+		try {
+			storagePartPersistenceService.writeCatalogHeader(
+				STORAGE_PROTOCOL_VERSION,
+				newCatalogVersion,
+				this.catalogStoragePath,
+				catalogHeader.walFileReference(),
+				catalogHeader.collectionFileIndex(),
+				catalogHeader.catalogId(),
+				catalogNameToBeReplaced,
+				catalogHeader.catalogState(),
+				catalogHeader.lastEntityCollectionPrimaryKey()
+			);
+
+			// the bootstrap keeps being written under the prefix the folder's files already carry - the files are
+			// not renamed, so naming this record after the incoming catalog would address a `<newName>.boot` that
+			// does not exist and leave the real one holding a stale pointer
+			// Built on the newest record there is, written or deferred - a compaction inside a deferred round bumped
+			// the file index in that record while `bootstrapUsed` still names the file from before it, and a record
+			// built on the older one publishes that stale file index next to the new offset index location. It must
+			// not compact either: the relabel moves no data, and a compaction here would copy into a file name that
+			// a round at this very version (or the deferred one) already took.
+			final CatalogBootstrap deferredBootstrap = this.deferredCheckpointBootstrap;
+			writeCatalogBootstrap(
+				newCatalogVersion,
+				this.storagePrefix,
+				prepareBootstrap(
+					newCatalogVersion,
+					this.storagePrefix,
+					(deferredBootstrap == null ? this.bootstrapUsed : deferredBootstrap).catalogFileIndex(),
+					getNowEpochMillis(),
+					dataStoreMemoryBuffer,
+					false
+				)
+			);
+
+			// A checkpoint owed by an earlier round still holds a prepared record addressing the root as it was BEFORE
+			// the header written above, and the `close()` in `replaceWith` publishes whatever is owed. The bootstrap
+			// file is read back by position - `getLastCatalogBootstrapWithAutomaticUpgrade` takes the last record in
+			// the file, whatever version it names - so that older pointer would land after the one just written and
+			// the service reopened at the end of `replaceWith` would load the catalog under the name it had before the
+			// rename. Discarding it is right on the merits rather than merely expedient: the record written above
+			// already did what the owed checkpoint was for, since `prepareBootstrap` flushed the offset index and
+			// `writeCatalogBootstrap` forced the pending syncs at its fence - which is also where the time travel size
+			// guard is scheduled, so the history this record reveals is still accounted for and the discard drops a
+			// duplicate publication rather than the bookkeeping that rides along with it. Skipping `walProcessedUntil`
+			// is harmless: the marker only decides which rotated-out log files may be deleted, so at worst they stay on
+			// disk for longer, and the reopened service seeds its own marker from the version of this record. The
+			// field is only ever set together with the coordinator's own debt, so it is the exact condition, and
+			// settling it keeps the cadence gauge honest - reporting a completion when nothing was owed would fill it
+			// with samples no checkpoint produced. Holding `checkpointLock` is what makes the discard sound: no ticker
+			// or backup can have picked the record up between the write above and this line.
+			if (this.deferredCheckpointBootstrap != null) {
+				this.deferredCheckpointBootstrap = null;
+				Objects.requireNonNull(this.checkpointCoordinator).noteCheckpointCompleted();
+			}
+		} finally {
+			this.checkpointLock.unlock();
+		}
 	}
 
 	/**
