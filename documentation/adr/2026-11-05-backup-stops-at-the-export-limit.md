@@ -1,7 +1,7 @@
 ---
 title: An export that cannot fit the export storage stops at the limit and names the setting to raise
 date: 2026-11-05
-updated: 2026-11-05 09:53
+updated: 2026-11-05 11:45
 status: accepted
 kind: fix
 issues: [1881]
@@ -147,8 +147,10 @@ timer.
   `BackupExportCap#forBackup`, which stays in `evita_store` because it measures the catalog folder, only when the cap
   trips, and drops that sentence if measuring fails.
 - **Only a finished body publishes.** Closing a handle publishes it, on S3 by starting the upload, and a failed body
-  still closes its zip. So `close` reaches the handle only after the body's last statement called `markFinished` and no
-  refusal is remembered. Everything else stays open for the failure path's `discard`.
+  still closes its zip. So `close` reaches the handle only after the body's last statement called `markFinished`, no
+  refusal is remembered and no delegate write or flush failed. A finished body alone proves nothing: a zip writes the end
+  of its archive in the buffer's final flush, and `FilterOutputStream#close` closes the stream even when that flush
+  failed. Everything else stays open for the failure path's `discard`.
 - **A tripped cap never closes the handle.** That is also why the tasks call `checkFailure` after the zip closes:
   `fileForFetchFuture().get()` would otherwise wait forever if a layer swallowed the refusal. `TrafficRecorderTask`'s
   sink is such a layer. For the other tasks none exists today, so those call sites are covered by reading, not by a
@@ -218,8 +220,9 @@ written before the fix, and the test watched go red for the stated reason.
   Over the limit the task fails with the exact message and nothing stays behind.
 - `WriteOnlyFileHandleTest` (37), `BootstrapWriteOnlyFileHandleTest` (1): an interrupted `close` throws its real error;
   before, `IllegalMonitorStateException` replaced it.
-- `SizeCappedOutputStreamTest` (12), `BackupExportCapTest` (2), `ExportFileTooLargeExceptionTest` (5),
-  `FileForFetchTest` (21).
+- `SizeCappedOutputStreamTest` (15): a finished body whose final flush fails leaves the handle open; it used to close
+  it, which on S3 could upload an archive missing its end. Read from code for S3, not run against it.
+- `BackupExportCapTest` (2), `ExportFileTooLargeExceptionTest` (5), `FileForFetchTest` (21).
 - `BackupTaskExportCleanupTest` (4), `ExportFileServiceTest$Discard` and `ExportS3ServiceTest$Discard` (2 each): a
   failed write leaves no zip and no sidecar, on both backends, and a failing delete does not replace the failure.
 - `CatalogRestoreToVersionExportLimitTest` (2): a refused restore shows the exact message through the sequence, the
@@ -246,8 +249,9 @@ written before the fix, and the test watched go red for the stated reason.
   `EvitaServer#transformEnvironmentVariable` upper-cases with the default locale, so every override with an `i` is
   ignored. Left as an edge case; the YAML setting and the system property still work.
 - **`stopRecording` does not join a ring buffer callback already in flight.** With ambient recording, `onClose` runs on
-  the task's thread while such a callback may still be writing the zip. The hazard predates this work. Read from code,
-  not run.
+  the task's thread while such a callback may still be writing the zip. If it marks the recording corrupted between the
+  task's two reads, the archive is published and then deleted again, the one other way into `abandon`'s published-file
+  branch. The hazard predates this work. Read from code, not run.
 - **A failed start can strand the recording flag.** `TrafficRecordingEngine#startRecording` sets it before the recorder
   initializes, so an I/O failure there makes later starts report `SingletonTaskAlreadyRunningException`. Read from code,
   not run.

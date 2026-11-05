@@ -27,8 +27,10 @@ import io.evitadb.api.exception.ExportFileTooLargeException;
 import org.junit.jupiter.api.*;
 
 import javax.annotation.Nonnull;
+import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.evitadb.test.TestTags.STORAGE;
@@ -52,6 +54,31 @@ class SizeCappedOutputStreamTest {
 		@Override
 		public void flush() {
 			this.flushes++;
+		}
+
+		@Override
+		public void close() {
+			this.closed = true;
+		}
+	}
+
+	/** Refuses every forwarded byte and flush, as a full disk does, and records whether it was closed anyway. */
+	private static class FailingStream extends OutputStream {
+		private boolean closed;
+
+		@Override
+		public void write(int value) throws IOException {
+			throw new IOException("no space left on device");
+		}
+
+		@Override
+		public void write(@Nonnull byte[] bytes, int offset, int length) throws IOException {
+			throw new IOException("no space left on device");
+		}
+
+		@Override
+		public void flush() throws IOException {
+			throw new IOException("no space left on device");
 		}
 
 		@Override
@@ -130,7 +157,7 @@ class SizeCappedOutputStreamTest {
 		}
 	}
 
-	/** Publication requires both a completed archive body and an allowance that has not been exceeded. */
+	/** Publication requires a completed archive body, an allowance not exceeded and no failed delegate operation. */
 	@Nested
 	@DisplayName("Delegate publication")
 	class DelegatePublication {
@@ -164,6 +191,43 @@ class SizeCappedOutputStreamTest {
 			final RecordingStream sink = new RecordingStream();
 			final SizeCappedOutputStream cap = trippableCap(sink, 0);
 			assertThrows(ExportFileTooLargeException.class, () -> cap.write(1));
+			cap.markFinished();
+			cap.close();
+			assertFalse(sink.closed);
+		}
+
+		/** A zip writes the end of its archive in the final flush, and a failure there still closes the stream. */
+		@Test
+		@DisplayName("should leave the delegate open when the buffer's final flush fails")
+		void shouldLeaveDelegateOpenWhenFinalFlushFails() throws IOException {
+			final FailingStream sink = new FailingStream();
+			final SizeCappedOutputStream cap = trippableCap(sink, 1024);
+			final BufferedOutputStream buffered = new BufferedOutputStream(cap);
+			buffered.write(1);
+			cap.markFinished();
+			assertThrows(IOException.class, buffered::close);
+			assertFalse(sink.closed);
+		}
+
+		/** A single byte lost to the backend truncates the archive just as a lost chunk does. */
+		@Test
+		@DisplayName("should leave the delegate open after a failed single byte write")
+		void shouldLeaveDelegateOpenWhenSingleByteWriteFails() throws IOException {
+			final FailingStream sink = new FailingStream();
+			final SizeCappedOutputStream cap = trippableCap(sink, 2);
+			assertThrows(IOException.class, () -> cap.write(1));
+			cap.markFinished();
+			cap.close();
+			assertFalse(sink.closed);
+		}
+
+		/** A backend that cannot flush may be holding bytes it will never store. */
+		@Test
+		@DisplayName("should leave the delegate open after a failed flush")
+		void shouldLeaveDelegateOpenWhenFlushFails() throws IOException {
+			final FailingStream sink = new FailingStream();
+			final SizeCappedOutputStream cap = trippableCap(sink, 2);
+			assertThrows(IOException.class, cap::flush);
 			cap.markFinished();
 			cap.close();
 			assertFalse(sink.closed);
@@ -227,7 +291,7 @@ class SizeCappedOutputStreamTest {
 
 	/** Builds a cap whose refusal needs no storage measurement, for tests that do not inspect the supplier. */
 	@Nonnull
-	private static SizeCappedOutputStream trippableCap(@Nonnull RecordingStream sink, long allowance) {
+	private static SizeCappedOutputStream trippableCap(@Nonnull OutputStream sink, long allowance) {
 		return new SizeCappedOutputStream(
 			sink, allowance,
 			() -> new ExportFileTooLargeException("test", allowance, "export.fileSystem.sizeLimitBytes", null)

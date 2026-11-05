@@ -38,8 +38,10 @@ import java.util.function.Supplier;
  * Counts archive bytes between the buffer and the export handle, refusing a whole chunk that would exceed its cap.
  * An export is a file the engine produces for a user rather than catalog storage, which is why this stream lives here.
  * After refusal it swallows writes and flushes. Closing an export handle publishes it, on S3 by starting the upload.
- * Only a body that called {@link #markFinished()} without a remembered refusal may close the delegate. An unfinished
- * body leaves the handle open and unpublished for the failure path's discard.
+ * Only a body that called {@link #markFinished()}, with no remembered refusal and no failed delegate operation, may
+ * close the delegate. A finished body alone proves nothing: a zip writes the end of its archive in the buffer's final
+ * flush, and `FilterOutputStream#close` closes this stream even when that flush failed. Anything else leaves the handle
+ * open and unpublished for the failure path's discard.
  *
  * Stream operations throw the refusal only once: throwing the same instance during try-with-resources cleanup
  * would cause `Self-suppression not permitted`. The remembered failure, rather than a caught exception, is the
@@ -51,7 +53,7 @@ import java.util.function.Supplier;
  */
 @NotThreadSafe
 public final class SizeCappedOutputStream extends OutputStream {
-	/** Backend sink, left open for discard if the body is unfinished or the allowance is exceeded. */
+	/** Backend sink, left open for discard if the body is unfinished, the allowance is exceeded or a write failed. */
 	private final OutputStream delegate;
 	/** Payload allowance in bytes, after any backend metadata reserve. */
 	private final long cap;
@@ -66,6 +68,11 @@ public final class SizeCappedOutputStream extends OutputStream {
 	 * traffic recording writes from the ring buffer's thread and its task reads the verdict from its own.
 	 */
 	@Nullable private volatile ExportFileTooLargeException failure;
+	/**
+	 * Whether the delegate refused a write or a flush, so the archive is truncated even if the body went on to finish.
+	 * Volatile for the same reason as the refusal: a traffic recording writes on one thread and closes on another.
+	 */
+	private volatile boolean delegateFailed;
 
 	/** Creates a cap without measuring storage until a write actually crosses it. */
 	SizeCappedOutputStream(
@@ -88,7 +95,7 @@ public final class SizeCappedOutputStream extends OutputStream {
 		);
 	}
 
-	/** Marks the archive body complete, allowing close to publish only if no refusal is remembered. */
+	/** Marks the archive body complete, allowing close to publish only if no refusal or delegate failure happened. */
 	public void markFinished() {
 		this.finished = true;
 	}
@@ -123,7 +130,12 @@ public final class SizeCappedOutputStream extends OutputStream {
 	@Override
 	public void write(int value) throws IOException {
 		if (accept(1)) {
-			this.delegate.write(value);
+			try {
+				this.delegate.write(value);
+			} catch (IOException | RuntimeException exception) {
+				this.delegateFailed = true;
+				throw exception;
+			}
 		}
 	}
 
@@ -136,20 +148,30 @@ public final class SizeCappedOutputStream extends OutputStream {
 	public void write(@Nonnull byte[] bytes, int offset, int length) throws IOException {
 		Objects.checkFromIndexSize(offset, length, bytes.length);
 		if (accept(length)) {
-			this.delegate.write(bytes, offset, length);
+			try {
+				this.delegate.write(bytes, offset, length);
+			} catch (IOException | RuntimeException exception) {
+				this.delegateFailed = true;
+				throw exception;
+			}
 		}
 	}
 
 	@Override
 	public void flush() throws IOException {
 		if (this.failure == null) {
-			this.delegate.flush();
+			try {
+				this.delegate.flush();
+			} catch (IOException | RuntimeException exception) {
+				this.delegateFailed = true;
+				throw exception;
+			}
 		}
 	}
 
 	@Override
 	public void close() throws IOException {
-		if (this.finished && this.failure == null) {
+		if (this.finished && this.failure == null && !this.delegateFailed) {
 			this.delegate.close();
 		}
 	}
