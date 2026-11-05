@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.observability.task;
 
+import io.evitadb.api.exception.ExportFileTooLargeException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.executor.ClientInfiniteCallableTask;
@@ -32,8 +33,10 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry;
 import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry.EvitaEventGroup;
 import io.evitadb.externalApi.observability.task.JfrRecorderTask.RecordingSettings;
+import io.evitadb.spi.export.ExportFileCleanup;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.spi.export.model.SizeCappedOutputStream;
 import io.evitadb.utils.StringUtils;
 import jdk.jfr.EventType;
 import jdk.jfr.FlightRecorder;
@@ -139,36 +142,48 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 				this.recording.stop();
 				this.updateTaskNameAndTraits("JFR recording stopped (compressing output)");
 
-				final String fileName = "jfr_recording_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+				final String fileName = "jfr_recording_" +
+					OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
 				final ExportFileHandle exportFileHandle = this.exportService.storeFile(
 					fileName + ".zip",
-					"JFR recording started at " + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + " with events: " + Arrays.toString(settings.allowedEvents()) + ".",
+					"JFR recording started at " +
+						OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) +
+						" with events: " + Arrays.toString(settings.allowedEvents()) + ".",
 					"application/zip",
 					this.getClass().getSimpleName()
 				);
 
-				try (ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(exportFileHandle.outputStream()))) {
-					zipOutputStream.putNextEntry(new ZipEntry(fileName + ".jfr"));
-					// copy contents of the JFR recording to the zip file
-					Files.copy(this.targetFile, zipOutputStream);
-
+				final SizeCappedOutputStream cap = SizeCappedOutputStream.of(
+					exportFileHandle, limit -> new ExportFileTooLargeException(
+						"The JFR recording", limit.configuredLimitInBytes(), limit.configurationProperty()
+					)
+				);
+				try {
+					try (final ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(cap))) {
+						zipOutputStream.putNextEntry(new ZipEntry(fileName + ".jfr"));
+						Files.copy(this.targetFile, zipOutputStream);
+						cap.markFinished();
+					}
+					cap.checkFailure();
 					log.info("JFR recording export completed.");
-					return exportFileHandle.fileForFetchFuture().getNow(null);
-				} catch (IOException e) {
-					throw new UnexpectedIOException(
-						"Failed to compress and store JFR recording: `" + this.targetFile + "`!",
-						"Failed to compress and store JFR recording!",
-						e
-					);
-				} finally {
 					try {
-						Files.deleteIfExists(this.targetFile);
-					} catch (IOException e) {
-						log.error(
-							"Failed to delete temporary JFR recording file: `" + this.targetFile + "`!",
-							e
+						return exportFileHandle.fileForFetchFuture().get();
+					} catch (Exception e) {
+						throw new GenericEvitaInternalError(
+							"Unexpected error when retrieving the JFR recording file: " + e.getMessage(),
+							"Failed to retrieve the JFR recording file after successful creation!", e
 						);
 					}
+				} catch (Exception exception) {
+					ExportFileCleanup.abandon(exportFileHandle, this.exportService, "a failed JFR recording", exception);
+					cap.rethrowFailure(exception, isCancellationDriven(exception));
+					if (exception instanceof RuntimeException runtimeException) {
+						throw runtimeException;
+					}
+					throw new UnexpectedIOException(
+						"Failed to compress and store JFR recording: `" + this.targetFile + "`!",
+						"Failed to compress and store JFR recording!", exception
+					);
 				}
 			} catch (InterruptedException e) {
 				this.recording.stop();
@@ -178,6 +193,12 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 
 		} catch (IOException e) {
 			throw new GenericEvitaInternalError("JFR recording task finished abnormally (I/O exception).", e);
+		} finally {
+			try {
+				Files.deleteIfExists(this.targetFile);
+			} catch (IOException e) {
+				log.error("Failed to delete temporary JFR recording file: `{}`!", this.targetFile, e);
+			}
 		}
 	}
 
