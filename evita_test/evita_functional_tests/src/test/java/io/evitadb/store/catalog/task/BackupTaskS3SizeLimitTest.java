@@ -140,7 +140,7 @@ class BackupTaskS3SizeLimitTest extends BackupTaskExportFixture {
 	}
 
 	@Nested
-	@DisplayName("Admitted point-in-time backup")
+	@DisplayName("Admitted backups")
 	class Admitted {
 		@Test
 		@DisplayName("should upload and publish a backup that fits")
@@ -160,6 +160,34 @@ class BackupTaskS3SizeLimitTest extends BackupTaskExportFixture {
 			assertEquals(1, client.listObjects(builder -> builder.bucket(BUCKET)).contents().size());
 			try (final InputStream input = s3.fetchFile(file.fileId())) {
 				assertEquals(file.totalSizeInBytes(), input.readAllBytes().length);
+			}
+		}
+
+		/** A full backup must finish only after its asynchronous S3 upload makes the archive available. */
+		@Test
+		@DisplayName("should upload and publish a full backup that fits")
+		void shouldUploadAdmittedFullBackup() throws IOException {
+			s3.close();
+			s3 = new ExportS3Service(
+				S3ExportOptions.builder(options).sizeLimitBytes(10000000).build(), scheduler, fileManagement
+			);
+			final FullBackupTask task = new FullBackupTask(TEST_CATALOG, s3, persistence, null);
+			task.transitionToIssued();
+			task.execute();
+			assertEquals(TaskSimplifiedState.FINISHED, task.getStatus().simplifiedState());
+			final FileForFetch file = task.getFutureResult().join();
+			assertEquals(1, s3.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount());
+			assertEquals(file, s3.listFilesToFetch(1, 10, Set.of()).getData().getFirst());
+			assertEquals(1, client.listObjects(builder -> builder.bucket(BUCKET)).contents().size());
+			assertEquals(file.fileId() + ".zip",
+				client.listObjects(builder -> builder.bucket(BUCKET)).contents().getFirst().key());
+			final byte[] objectBytes = client.getObjectAsBytes(
+				builder -> builder.bucket(BUCKET).key(file.fileId() + ".zip")
+			).asByteArray();
+			assertTrue(objectBytes.length > 0);
+			assertEquals(file.totalSizeInBytes(), objectBytes.length);
+			try (final InputStream input = s3.fetchFile(file.fileId())) {
+				assertArrayEquals(objectBytes, input.readAllBytes());
 			}
 		}
 	}

@@ -198,12 +198,16 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 
 				log.info("Backup of catalog `{}` completed.", this.catalogName);
 
-				return ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
-					.orElseThrow(
-						() -> new GenericEvitaInternalError(
-							"File for fetch should be generated in close method and should be already available by now."
-						)
+				// S3 uploads asynchronously, so wait until the backup file is available.
+				try {
+					return exportFileHandle.fileForFetchFuture().get();
+				} catch (Exception e) {
+					throw new GenericEvitaInternalError(
+						"Unexpected error when retrieving the backup file for catalog `" + this.catalogName + "`: " + e.getMessage(),
+						"Failed to retrieve the backup file for catalog `" + this.catalogName + "` after successful creation!",
+						e
 					);
+				}
 			} catch (Exception exception) {
 				// remove the files
 				// A failed write leaves the handle open: ZipOutputStream.close skips out.close() if finish() throws.
