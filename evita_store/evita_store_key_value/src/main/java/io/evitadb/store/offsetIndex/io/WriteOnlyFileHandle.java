@@ -419,7 +419,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 			throw new UnexpectedIOException(operation + " within timeout!");
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new GenericEvitaInternalError(operation + " due to interrupt!");
+			throw new GenericEvitaInternalError(operation + " due to interrupt!", e);
 		}
 	}
 
@@ -445,7 +445,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 			throw new UnexpectedIOException(operation + " within timeout!");
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new GenericEvitaInternalError(operation + " due to interrupt!");
+			throw new GenericEvitaInternalError(operation + " due to interrupt!", e);
 		}
 	}
 
@@ -471,7 +471,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 			throw new UnexpectedIOException(operation + " within timeout!");
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new GenericEvitaInternalError(operation + " due to interrupt!");
+			throw new GenericEvitaInternalError(operation + " due to interrupt!", e);
 		}
 	}
 
@@ -493,10 +493,12 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	public void close() {
 		try {
 			this.handleLock.lockInterruptibly();
-			this.observableOutputKeeper.close(this.targetFile);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new GenericEvitaInternalError("Failed to close file due to interrupt!");
+			throw new GenericEvitaInternalError("Failed to close file due to interrupt!", e);
+		}
+		try {
+			this.observableOutputKeeper.close(this.targetFile);
 		} finally {
 			this.handleLock.unlock();
 		}

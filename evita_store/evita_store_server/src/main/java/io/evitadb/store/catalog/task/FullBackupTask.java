@@ -30,8 +30,10 @@ import io.evitadb.core.executor.ClientCallableTask;
 import io.evitadb.core.executor.Interruptible;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.spi.export.ExportFileCleanup;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.spi.export.model.SizeCappedOutputStream;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.store.catalog.CatalogDirectoryReadHold;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
@@ -58,7 +60,6 @@ import java.util.zip.ZipOutputStream;
 
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.BOOT_FILE_SUFFIX;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.WAL_FILE_SUFFIX;
-import static java.util.Optional.ofNullable;
 
 /**
  * Task responsible for backing up the catalog data folder with all the data files and WAL files.
@@ -143,13 +144,14 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 	/**
 	 * Method executes the backup logic for this catalog with particular settings.
 	 *
-	 * @return the path to the created backup file
+	 * @return the descriptor of the created backup archive
 	 */
 	@Nonnull
 	private FileForFetch doBackup() {
+		final DefaultCatalogPersistenceService defaultCatalogPersistenceService = this.catalogPersistenceService.get();
 		final ExportService exportFileService = this.exportFileService.get();
 		Assert.isPremiseValid(
-			exportFileService != null,
+			defaultCatalogPersistenceService != null && exportFileService != null,
 			"Backup has already been executed or the task has been interrupted! Resources are cleared!"
 		);
 		try {
@@ -163,15 +165,18 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 				this.getClass().getSimpleName()
 			);
 
+			final Path catalogStoragePath = defaultCatalogPersistenceService.getCatalogStoragePath();
+			final SizeCappedOutputStream cap = BackupExportCap.forBackup(
+				exportFileHandle, this.catalogName, catalogStoragePath
+			);
 			try {
-				final Path catalogStoragePath = this.catalogPersistenceService.get().getCatalogStoragePath();
 				final AtomicInteger backedUpFiles = new AtomicInteger(0);
 				final int totalFiles;
 				try (Stream<Path> files = Files.walk(catalogStoragePath)) {
 					totalFiles = Math.toIntExact(files.count());
 				}
 
-				try (ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(exportFileHandle.outputStream()))) {
+				try (ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(cap))) {
 					zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/"));
 					zipOutputStream.closeEntry();
 
@@ -187,20 +192,34 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 					// finally store all the WAL file with all records written so far
 					backup(catalogStoragePath, zipOutputStream, backedUpFiles, totalFiles, WAL_FILE_SUFFIX, "write-ahead log");
 
+					// Only a finished body may close and publish the export handle.
+					cap.markFinished();
 				}
+
+				// a tripped cap never closes the handle, so it must not be mistaken for a finished file below
+				cap.checkFailure();
 
 				log.info("Backup of catalog `{}` completed.", this.catalogName);
 
-				return ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
-					.orElseThrow(
-						() -> new GenericEvitaInternalError(
-							"File for fetch should be generated in close method and should be already available by now."
-						)
+				// S3 uploads asynchronously, so wait until the backup file is available.
+				try {
+					return exportFileHandle.fileForFetchFuture().get();
+				} catch (Exception e) {
+					throw new GenericEvitaInternalError(
+						"Unexpected error when retrieving the backup file for catalog `" + this.catalogName + "`: " + e.getMessage(),
+						"Failed to retrieve the backup file for catalog `" + this.catalogName + "` after successful creation!",
+						e
 					);
+				}
 			} catch (Exception exception) {
 				// remove the files
-				ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
-					.ifPresent(it -> exportFileService.deleteFile(it.fileId()));
+				ExportFileCleanup.abandon(
+					exportFileHandle, exportFileService,
+					"a failed backup of catalog `" + this.catalogName + "`", exception
+				);
+
+				// the cap knows why the write stopped; the exception caught here may have replaced its refusal
+				cap.rethrowFailure(exception, isCancellationDriven(exception));
 
 				if (exception instanceof RuntimeException re) {
 					throw re;

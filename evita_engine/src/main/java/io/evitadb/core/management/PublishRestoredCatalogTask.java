@@ -258,18 +258,18 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 		try (final InputStream inputStream = this.exportService.fetchFile(archive.fileId())) {
 			IOUtils.copy(inputStream, localArchive);
 		} catch (FileForFetchNotFoundException e) {
-			// The archive was written moments ago by this very operation, so it going missing means something
-			// removed it. Three things can: the export service's retention dropping the oldest files once the
-			// export storage exceeds its size limit, the same retention purging by age past
-			// `historyExpirationSeconds`, and a client calling `EvitaManagementContract#deleteFile` - which reaches
-			// the archive because a failed run deliberately leaves it listed. Only the size limit removes it
-			// without anyone having asked for anything, so it is the one worth naming: it is the difference between
-			// an operator raising a limit and an operator hunting a phantom.
+			// The archive fitted the export limit when written, but can disappear before this read: newer exports
+			// can push storage over the limit and evict it, retention can expire it by age, or a client can delete it.
 			throw new UnexpectedIOException(
-				"The backup archive of catalog `" + getStatus().catalogName() + "` is no longer available from the " +
-					"export service - its storage size limit is most likely smaller than the catalog.",
-				"The backup archive is no longer available from the export service - the export storage's size " +
-					"limit is most likely smaller than the catalog.",
+				"The backup archive of catalog `" + getStatus().catalogName() + "` fitted the export limit when " +
+					"written, but has since been removed. Retention may have dropped it after newer exports pushed " +
+					"storage over its size limit, expired it by age, or a client may have called deleteFile. " +
+					"Retry the restore. If export storage is too small for everything it must hold, raise its " +
+					"size limit.",
+				"The backup archive fitted the export limit when written, but has since been removed. Retention " +
+					"may have dropped it after newer exports pushed storage over its size limit, expired it by age, " +
+					"or a client may have called deleteFile. Retry the restore. If export storage is too small for " +
+					"everything it must hold, raise its size limit.",
 				e
 			);
 		} catch (UnexpectedIOException | IOException e) {

@@ -69,6 +69,38 @@ class FileForFetchTest implements EvitaTestSupport {
 		);
 	}
 
+	/** All descriptor strings must occupy one physical line in positional sidecar metadata. */
+	@Test
+	@DisplayName("Should normalize line breaks in every descriptor string")
+	void shouldNormalizeLineBreaksInEveryDescriptorString() {
+		final FileForFetch file = new FileForFetch(
+			FILE_ID, "first\nsecond\r\nthird\rfourth.zip", "first\nsecond\r\nthird\rfourth",
+			"application/\n\r\n\rzip", SIZE, CREATED, new String[]{"first\n\r\n\rsecond", "third\nfourth"}
+		);
+		assertEquals("first second third fourth", file.description());
+		assertEquals("first_second_third_fourth.zip", file.name());
+		assertEquals("application/ zip", file.contentType());
+		assertArrayEquals(new String[]{"first second", "third fourth"}, file.origin());
+		final FileForFetch restored = FileForFetch.fromLines(file.toLines().stream().flatMap(String::lines).toList());
+		assertEquals(file.toLines(), restored.toLines());
+	}
+
+	/**
+	 * Covers what `Files#readAllLines` splits on. Other Unicode separators stay: they split nothing, and rewriting them
+	 * in a name would disconnect the descriptor from an archive named by the original extension.
+	 */
+	@Test
+	@DisplayName("Should collapse runs of carriage returns and line feeds to a single space")
+	void shouldCollapseRunsOfLineBreaksToSingleSpace() {
+		for (final String lineBreak : List.of("\n", "\r\n", "\r")) {
+			assertEquals("first second", FileForFetch.singleLine("first" + lineBreak + lineBreak + "second"));
+		}
+		assertEquals("first\u2028second", FileForFetch.singleLine("first\u2028second"));
+		assertEquals("unchanged", FileForFetch.singleLine("unchanged"));
+		assertEquals("", FileForFetch.singleLine(""));
+		assertEquals(" first ", FileForFetch.singleLine("\nfirst\r\n"));
+	}
+
 	@Nested
 	@DisplayName("Construction")
 	class ConstructionTest {

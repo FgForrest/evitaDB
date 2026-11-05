@@ -27,6 +27,7 @@ import java.util.zip.Deflater;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.KryoException;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -80,15 +81,42 @@ import static org.junit.jupiter.api.Assertions.*;
 class WriteOnlyFileHandleTest implements EvitaTestSupport {
 	private final Path targetDirectory = getPathInTargetDirectory("WriteOnlyFileHandle");
 	private ObservableOutputKeeper outputKeeper;
+	private Scheduler scheduler;
 
 	@BeforeEach
 	void setUp() {
-		this.outputKeeper = ObservableOutputKeeper._internalBuild(Mockito.mock(Scheduler.class));
+		final ImmediateScheduledThreadPoolExecutor executor = new ImmediateScheduledThreadPoolExecutor();
+		executor.setThreadFactory(Thread.ofPlatform().daemon(true).factory());
+		this.scheduler = new Scheduler(executor);
+		this.outputKeeper = ObservableOutputKeeper._internalBuild(this.scheduler);
 	}
 
 	@AfterEach
 	void tearDown() {
 		this.outputKeeper.close();
+		this.scheduler.shutdownNow();
+	}
+
+	/** Verifies that an interrupted lock acquisition preserves its cause and permits a later close. */
+	@Test
+	@DisplayName("Should preserve interruption when closing and allow a later close")
+	void shouldPreserveInterruptionWhenClosing() throws IOException {
+		final Path file = this.targetDirectory.resolve(UUIDUtil.randomUUID() + ".dat");
+		try (final WriteOnlyFileHandle handle = createWriteHandle(file)) {
+			handle.checkAndExecuteAndSync("write data", () -> {}, output -> output.writeString("data"));
+			try {
+				Thread.currentThread().interrupt();
+				final GenericEvitaInternalError failure = assertThrows(GenericEvitaInternalError.class, handle::close);
+				assertInstanceOf(InterruptedException.class, failure.getCause());
+				assertEquals("Failed to close file due to interrupt!", failure.getMessage());
+				assertTrue(Thread.currentThread().isInterrupted());
+			} finally {
+				Thread.interrupted();
+			}
+			assertDoesNotThrow(handle::close);
+		}
+		Files.delete(file);
+		assertFalse(Files.exists(file));
 	}
 
 	/**

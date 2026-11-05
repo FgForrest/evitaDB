@@ -28,6 +28,7 @@ import com.github.javafaker.Faker;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
+import io.evitadb.api.exception.ExportFileTooLargeException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
@@ -41,7 +42,9 @@ import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Evita;
 import io.evitadb.core.session.EvitaInternalSessionContract;
 import io.evitadb.core.traffic.TrafficRecordingSettings;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
+import io.evitadb.spi.export.model.ExportFileHandle;
 import io.evitadb.store.traffic.InputStreamTrafficRecordReader;
 import io.evitadb.stream.AbstractRandomAccessInputStream;
 import io.evitadb.stream.RandomAccessFileInputStream;
@@ -73,6 +76,8 @@ import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -90,8 +95,10 @@ import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.TRAFFIC_ENGINE;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -268,6 +275,43 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 	void tearDown() {
 		this.evita.close();
 		cleanupTestPaths(this.paths);
+	}
+
+	/** The real recorder must report the remembered refusal even when its sink swallows the write error. */
+	@Test
+	@DisplayName("should refuse an oversized recording and preserve an older export")
+	void shouldRefuseOversizedRecordingAndPreserveOlderExport() throws Exception {
+		this.evita.close();
+		this.evita = new Evita(EvitaConfiguration.builder(getEvitaConfiguration())
+			.export(FileSystemExportOptions.builder().directory(this.paths.export()).sizeLimitBytes(1024).build())
+			.build());
+		this.evita.waitUntilFullyInitialized();
+		final ExportFileHandle older = this.evita.management().exportService()
+			.storeFile("older.zip", null, "application/zip", null);
+		older.outputStream().write(42);
+		older.close();
+		final ServerTask<TrafficRecordingSettings, FileForFetch> recordingTask = this.evita.updateCatalog(
+			TEST_CATALOG, session -> {
+				return ((EvitaInternalSessionContract) session).startRecording(100, true, null, null, 32000L);
+			});
+		generateSomeTraffic();
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
+			return ((EvitaInternalSessionContract) session).stopRecording(recordingTask.getStatus().taskId()).result();
+		});
+		final ExecutionException failure = assertThrows(ExecutionException.class,
+			() -> recordingTask.getFutureResult().get(1, TimeUnit.MINUTES));
+		assertInstanceOf(ExportFileTooLargeException.class, failure.getCause());
+		assertEquals("The traffic recording of catalog `testCatalog` was stopped because it exceeded " +
+			"the export storage limit of 1 KB; the server would delete a larger file. No recording was " +
+			"created. Increase `export.fileSystem.sizeLimitBytes` in the server configuration " +
+			"(or `EVITADB_EXPORT_FILESYSTEM_SIZELIMITBYTES`) and restart the server.",
+			recordingTask.getStatus().publicExceptionMessage());
+		assertEquals(List.of(older.fileForFetchFuture().join()),
+			this.evita.management().listFilesToFetch(1, 10, Set.of()).getData());
+		try (final Stream<Path> files = Files.list(this.paths.export())) {
+			assertEquals(2, files.filter(Files::isRegularFile)
+				.filter(it -> !it.getFileName().toString().equals(".lock")).count());
+		}
 	}
 
 	@Test

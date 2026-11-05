@@ -778,8 +778,12 @@ Configuration for local file system export backend. This is the default backend 
     <dt>sizeLimitBytes</dt>
     <dd>
         <p>**Default:** `1G`</p>
-        <p>Specifies the maximum total size of all exported files stored by this backend. If the total size
-        exceeds this limit, the oldest files are removed until the total size drops below the limit.</p>
+        <p>Specifies the maximum total size of all exported files stored by this backend, including the metadata
+        file kept beside each of them. If the total size exceeds this limit, the oldest files are removed until the
+        total size drops below the limit.</p>
+        <p>A single backup, JFR recording or traffic recording has to fit into this limit as well. One that would
+        exceed it stops as soon as it crosses the limit, keeps nothing, and its task fails with an error naming this
+        setting. To keep a larger file, raise the limit and restart the server.</p>
     </dd>
     <dt>historyExpirationSeconds</dt>
     <dd>
@@ -812,6 +816,9 @@ Configuration for S3-compatible storage export backend. Requires the `evita_expo
         <p>**Default:** `1G`</p>
         <p>Specifies the maximum total size of all exported files stored by this backend. If the total size
         exceeds this limit, the oldest files are removed until the total size drops below the limit.</p>
+        <p>A single backup, JFR recording or traffic recording has to fit into this limit as well. One that would
+        exceed it stops as soon as it crosses the limit, keeps nothing, and its task fails with an error naming this
+        setting. To keep a larger file, raise the limit and restart the server.</p>
     </dd>
     <dt>historyExpirationSeconds</dt>
     <dd>
@@ -849,10 +856,10 @@ Configuration for S3-compatible storage export backend. Requires the `evita_expo
     <dt>requestTimeoutInMillis</dt>
     <dd>
         <p>**Default:** `30s`</p>
-        <p>Specifies the timeout applied to all external S3 operations performed by the export service.
-        The timeout is used when waiting for completion of asynchronous MinIO client calls, such as
-        bucket creation, object upload, download, deletion and metadata reads. Increase this value if
-        your S3 provider or network exhibits higher latencies.</p>
+        <p>Specifies the timeout for establishing connections and individual socket writes and reads.
+        An upload may take longer in total while its connection keeps making progress. The same value
+        bounds waits for bucket operations, downloads, deletions and metadata reads. Increase this value
+        if your S3 provider or network exhibits higher latencies.</p>
     </dd>
 </dl>
 

@@ -78,7 +78,7 @@ import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.export.file.ExportFileService;
-import io.evitadb.export.file.ExportFileService.ExportFileHandleLocal;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
@@ -130,7 +130,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.io.ByteArrayOutputStream;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -143,7 +142,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongFunction;
@@ -1963,31 +1961,18 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		}
 
 		/**
-		 * Builds an export service whose handle writes the archive into memory, so a backup task can be run all the
-		 * way to completion without touching the export storage.
+		 * Builds a real export service over a dedicated directory inside this test's storage.
 		 *
-		 * @return the export service
+		 * @return the export service, which the caller closes
 		 */
 		@Nonnull
-		private ExportFileService inMemoryExportService() {
-			final UUID fileId = UUIDUtil.randomUUID();
-			final ExportFileHandleLocal exportFileHandle = new ExportFileHandleLocal(
-				fileId,
-				CompletableFuture.completedFuture(
-					new FileForFetch(
-						fileId, "backup.zip", null, "application/zip", 0L, OffsetDateTime.now(), null
-					)
-				),
-				getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST).resolve("backup.zip"),
-				new ByteArrayOutputStream()
+		private ExportFileService realExportService() {
+			return new ExportFileService(
+				FileSystemExportOptions.builder()
+					.directory(getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST).resolve("export"))
+					.build(),
+				Mockito.mock(Scheduler.class)
 			);
-			final ExportFileService exportFileService = Mockito.mock(ExportFileService.class);
-			Mockito.when(
-				exportFileService.storeFile(
-					ArgumentMatchers.anyString(), any(), ArgumentMatchers.anyString(), any()
-				)
-			).thenReturn(exportFileHandle);
-			return exportFileService;
 		}
 
 		@Test
@@ -2188,13 +2173,14 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		@DisplayName("should give the retained window back when the scheduler rejects the full backup")
 		void shouldReleaseTheRetainedWindowWhenTheFullBackupIsRejected() {
 			try (
+				final ExportFileService exportService = realExportService();
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
 					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
-					inMemoryExportService()
+					exportService
 				)
 			) {
 				writeSeveralGenerations(ioService);
@@ -2233,13 +2219,14 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		@DisplayName("should give the retained window back once the full backup has finished with it")
 		void shouldReleaseTheRetainedWindowWhenTheFullBackupCompletes() {
 			try (
+				final ExportFileService exportService = realExportService();
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
 					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
-					inMemoryExportService()
+					exportService
 				)
 			) {
 				writeSeveralGenerations(ioService);

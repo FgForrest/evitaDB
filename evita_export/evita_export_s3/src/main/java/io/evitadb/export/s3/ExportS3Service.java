@@ -34,6 +34,7 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.export.s3.configuration.S3ExportOptions;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.spi.export.model.ExportFileSizeLimit;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;
@@ -380,11 +381,11 @@ public class ExportS3Service implements ExportService {
 		// Prepare user metadata
 		final Map<String, String> userMetadata = CollectionUtils.createHashMap(8);
 		userMetadata.put(META_FILE_ID, fileId.toString());
-		userMetadata.put(META_NAME, fileName);
-		userMetadata.put(META_DESCRIPTION, description != null ? description : "");
-		userMetadata.put(META_CONTENT_TYPE, contentType);
+		userMetadata.put(META_NAME, FileForFetch.singleLine(fileName));
+		userMetadata.put(META_DESCRIPTION, description != null ? FileForFetch.singleLine(description) : "");
+		userMetadata.put(META_CONTENT_TYPE, FileForFetch.singleLine(contentType));
 		userMetadata.put(META_CREATED, created.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
-		userMetadata.put(META_ORIGIN, origin != null ? origin : "");
+		userMetadata.put(META_ORIGIN, origin != null ? FileForFetch.singleLine(origin) : "");
 
 		// Parse origin tags
 		final String[] originTags = origin == null ? null : Arrays.stream(origin.split(","))
@@ -407,8 +408,7 @@ public class ExportS3Service implements ExportService {
 			description,
 			created,
 			originTags,
-			fileForFetchFuture,
-			this.s3Options.getRequestTimeoutInMillis()
+			fileForFetchFuture
 		);
 
 		return new ExportFileHandleS3(
@@ -419,6 +419,9 @@ public class ExportS3Service implements ExportService {
 					return fileForFetch;
 				}),
 			objectKey,
+			new ExportFileSizeLimit(
+				this.s3Options.getSizeLimitBytes(), this.s3Options.getSizeLimitBytes(), "export.s3.sizeLimitBytes"
+			),
 			uploadOutputStream
 		);
 	}
@@ -898,14 +901,27 @@ public class ExportS3Service implements ExportService {
 	 * @param fileId             ID of the file
 	 * @param fileForFetchFuture Future that will be completed when the file is uploaded
 	 * @param objectKey          S3 object key
+	 * @param sizeLimit          Whole configured limit; nothing is reserved because metadata lives on the object
 	 * @param outputStream       Output stream the file can be written to
 	 */
 	public record ExportFileHandleS3(
 		@Nonnull UUID fileId,
 		@Nonnull CompletableFuture<FileForFetch> fileForFetchFuture,
 		@Nonnull String objectKey,
+		@Nonnull ExportFileSizeLimit sizeLimit,
 		@Nonnull S3UploadOutputStream outputStream
 	) implements ExportFileHandle {
+
+		@Override
+		public boolean discard() {
+			if (!this.outputStream.discard()) {
+				return false;
+			}
+			// Cancel the exposed dependent before its source can complete it exceptionally.
+			this.fileForFetchFuture.cancel(false);
+			this.outputStream.fileForFetchFuture.cancel(false);
+			return true;
+		}
 
 		@Override
 		public long size() {
@@ -949,7 +965,6 @@ public class ExportS3Service implements ExportService {
 		private final OffsetDateTime created;
 		private final String[] originTags;
 		private final CompletableFuture<FileForFetch> fileForFetchFuture;
-		private final long requestTimeoutInMillis;
 		private boolean closed;
 
 		S3UploadOutputStream(
@@ -965,8 +980,7 @@ public class ExportS3Service implements ExportService {
 			@Nullable String description,
 			@Nonnull OffsetDateTime created,
 			@Nullable String[] originTags,
-			@Nonnull CompletableFuture<FileForFetch> fileForFetchFuture,
-			long requestTimeoutInMillis
+			@Nonnull CompletableFuture<FileForFetch> fileForFetchFuture
 		) {
 			try {
 				final File theFile = tempFilePath.toFile();
@@ -997,28 +1011,65 @@ public class ExportS3Service implements ExportService {
 			this.created = created;
 			this.originTags = originTags;
 			this.fileForFetchFuture = fileForFetchFuture;
-			this.requestTimeoutInMillis = requestTimeoutInMillis;
 			this.closed = false;
 		}
 
 		@Override
 		public void write(int b) throws IOException {
+			assertOpen();
 			this.delegate.write(b);
 		}
 
 		@Override
 		public void write(@Nonnull byte[] b) throws IOException {
+			assertOpen();
 			this.delegate.write(b);
 		}
 
 		@Override
 		public void write(@Nonnull byte[] b, int off, int len) throws IOException {
+			assertOpen();
 			this.delegate.write(b, off, len);
 		}
 
 		@Override
 		public void flush() throws IOException {
 			this.delegate.flush();
+		}
+
+		/**
+		 * Refuses a write after the stream was closed or discarded. The delegate cannot be relied on for this: it is
+		 * buffered, so a late write would quietly land in its buffer.
+		 *
+		 * @throws IOException if the stream is no longer open
+		 */
+		private void assertOpen() throws IOException {
+			if (this.closed) {
+				throw new IOException("Export stream is closed.");
+			}
+		}
+
+		/**
+		 * Closes the delegate and removes the temporary file without starting an upload.
+		 *
+		 * @return whether this call abandoned an open stream
+		 */
+		public boolean discard() {
+			if (this.closed) {
+				return false;
+			}
+			this.closed = true;
+			try {
+				this.delegate.close();
+			} catch (Exception e) {
+				log.error("Failed to close discarded S3 export: {}", this.path, e);
+			}
+			try {
+				FileUtils.deleteFileIfExists(this.path);
+			} catch (Exception e) {
+				log.error("Failed to delete discarded S3 export: {}", this.path, e);
+			}
+			return true;
 		}
 
 		@Override
@@ -1049,7 +1100,6 @@ public class ExportS3Service implements ExportService {
 				// Start async upload, complete the future and clean resources on completion
 				this.minioClient
 					.putObject(putObjectArgsBuilder.build())
-					.orTimeout(this.requestTimeoutInMillis, TimeUnit.MILLISECONDS)
 					.whenComplete((ignored, throwable) -> {
 						try {
 							if (throwable == null) {

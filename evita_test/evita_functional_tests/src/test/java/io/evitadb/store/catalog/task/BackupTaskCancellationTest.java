@@ -23,14 +23,18 @@
 
 package io.evitadb.store.catalog.task;
 
+import io.evitadb.api.exception.ExportFileTooLargeException;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.spi.export.model.ExportFileSizeLimit;
+import io.evitadb.store.catalog.CatalogOffsetIndexStoragePartPersistenceService;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
+import io.evitadb.utils.IOUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -49,6 +53,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -58,9 +63,7 @@ import java.util.concurrent.CompletableFuture;
 import static io.evitadb.test.TestTags.EXPORT;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.TASK;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Pins what {@link BackupTask}'s failure cleanup does with the partially written export file when the backup is
@@ -87,6 +90,8 @@ class BackupTaskCancellationTest {
 	private static final long CATALOG_VERSION = 1L;
 
 	private Path zipFile;
+	/** Owns real sinks even when a tripped cap deliberately skips closing its delegate. */
+	private final List<OutputStream> openedStreams = new ArrayList<>();
 
 	/**
 	 * Throws the given checked exception without declaring it — precisely what the woven interrupt advice does. Type
@@ -115,20 +120,21 @@ class BackupTaskCancellationTest {
 	}
 
 	/**
-	 * Builds a backup task whose first interaction with the persistence service raises the given exception, so the
-	 * failure lands inside the block guarded by the export-file cleanup.
+	 * Builds a backup task that reads its catalog path before the storage-part service lookup raises the given
+	 * exception, placing the failure inside the block guarded by the export-file cleanup.
 	 *
 	 * @param exportService the export service the task registers its file with
 	 * @param failure       the exception the persistence service raises
 	 * @return the task, already moved into the QUEUED state so `call()` runs its body
 	 */
 	@Nonnull
-	private static BackupTask failingBackupTask(
+	private BackupTask failingBackupTask(
 		@Nonnull ExportService exportService,
 		@Nonnull Throwable failure
 	) {
 		final DefaultCatalogPersistenceService persistenceService =
 			Mockito.mock(DefaultCatalogPersistenceService.class);
+		Mockito.when(persistenceService.getCatalogStoragePath()).thenReturn(this.zipFile.resolveSibling("catalog"));
 		Mockito.when(persistenceService.getStoragePartPersistenceService(ArgumentMatchers.anyLong()))
 			.thenAnswer(invocation -> {
 				sneakyThrow(failure);
@@ -150,6 +156,9 @@ class BackupTaskCancellationTest {
 
 	@AfterEach
 	void tearDown() throws IOException {
+		for (final OutputStream stream : this.openedStreams) {
+			IOUtils.closeQuietly(stream::close);
+		}
 		Files.deleteIfExists(this.zipFile);
 	}
 
@@ -166,7 +175,7 @@ class BackupTaskCancellationTest {
 			final FakeExportFileHandle handle = new FakeExportFileHandle(
 				fileId, BackupTaskCancellationTest.this.zipFile
 			);
-			// the file is registered before the backup starts writing entries into it
+			// Exercise cleanup of a handle that has already published its file.
 			handle.fileForFetchFuture().complete(fileForFetch(fileId));
 			final RecordingExportService exportService = new RecordingExportService(handle);
 
@@ -182,6 +191,38 @@ class BackupTaskCancellationTest {
 			assertEquals(
 				List.of(fileId), exportService.deletedFileIds,
 				"an interrupted backup left its partially written file registered as a fetchable backup"
+			);
+		}
+
+		@Test
+		@DisplayName("keeps the interrupt when deleting the published file fails")
+		void shouldKeepInterruptWhenCleanupDeleteFails() {
+			// a purge tick or a client may have removed the file first; that must not replace why the backup stopped
+			final UUID fileId = UUID.randomUUID();
+			final FakeExportFileHandle handle = new FakeExportFileHandle(
+				fileId, BackupTaskCancellationTest.this.zipFile
+			);
+			handle.fileForFetchFuture().complete(fileForFetch(fileId));
+			final RecordingExportService exportService = new RecordingExportService(handle) {
+				@Override
+				public void deleteFile(@Nonnull UUID id) throws FileForFetchNotFoundException {
+					super.deleteFile(id);
+					throw new FileForFetchNotFoundException(id);
+				}
+			};
+
+			final InterruptedException interrupt = new InterruptedException("simulated interrupt");
+			final BackupTask task = failingBackupTask(exportService, interrupt);
+
+			final UnexpectedIOException raised = assertThrows(
+				UnexpectedIOException.class, task::call,
+				"the failed delete must not replace the interrupt that aborted the backup"
+			);
+			assertSame(interrupt, raised.getCause(), "the rewrap lost the interrupt that aborted the backup");
+			assertEquals(List.of(fileId), exportService.deletedFileIds, "the cleanup must have attempted the delete");
+			assertTrue(
+				Arrays.stream(interrupt.getSuppressed()).anyMatch(FileForFetchNotFoundException.class::isInstance),
+				"the failed delete must stay visible on the primary failure"
 			);
 		}
 	}
@@ -210,6 +251,62 @@ class BackupTaskCancellationTest {
 				"a backup that failed at runtime must delete its partially written file"
 			);
 		}
+	}
+
+	/** An interrupt inside the zip can trip the cap while close unwinds, but must retain cancellation semantics. */
+	@Nested
+	@DisplayName("Cancellation while the cap trips in close")
+	class CapDuringCancellation {
+		@Test
+		@DisplayName("should preserve a checked interrupt when finalization exceeds the cap")
+		void shouldPreserveInterruptWhenCapTripsDuringClose() {
+			final InterruptedException interrupt = new InterruptedException("inside zip");
+			final BackupTask task = failingInsideZip(interrupt, false);
+			final UnexpectedIOException raised = assertThrows(UnexpectedIOException.class, task::call);
+			assertSame(interrupt, raised.getCause());
+			assertTrue(Arrays.stream(interrupt.getSuppressed()).anyMatch(
+				ExportFileTooLargeException.class::isInstance), "the cap must actually trip during close");
+		}
+
+		@Test
+		@DisplayName("should keep a cancelled future cancelled when finalization exceeds the cap")
+		void shouldKeepCancelledFutureWhenCapTripsDuringClose() {
+			final RuntimeException failure = new RuntimeException(new InterruptedException("cancelled inside zip"));
+			final BackupTask task = failingInsideZip(failure, true);
+			task.execute();
+			assertTrue(task.getFutureResult().isCancelled());
+			assertFalse(task.getStatus().publicExceptionMessage() != null &&
+				task.getStatus().publicExceptionMessage().contains("exceeded the export storage limit"));
+			assertTrue(Arrays.stream(failure.getSuppressed()).anyMatch(
+				ExportFileTooLargeException.class::isInstance), "the cap must actually trip during close");
+		}
+	}
+
+	/** Places the failure in getCatalogHeader, after the buffered directory entry has been written. */
+	@Nonnull
+	private BackupTask failingInsideZip(@Nonnull Throwable failure, boolean cancel) {
+		final FakeExportFileHandle handle = new FakeExportFileHandle(UUID.randomUUID(), this.zipFile);
+		handle.allowance = 1;
+		final DefaultCatalogPersistenceService persistenceService =
+			Mockito.mock(DefaultCatalogPersistenceService.class);
+		Mockito.when(persistenceService.getCatalogStoragePath()).thenReturn(this.zipFile.resolveSibling("catalog"));
+		final CatalogOffsetIndexStoragePartPersistenceService offsetService =
+			Mockito.mock(CatalogOffsetIndexStoragePartPersistenceService.class);
+		Mockito.when(persistenceService.getStoragePartPersistenceService(ArgumentMatchers.anyLong()))
+			.thenReturn(offsetService);
+		final BackupTask task = new BackupTask(
+			CATALOG_NAME, null, null, false, bootstrapRecord(), new RecordingExportService(handle),
+			persistenceService, null
+		);
+		Mockito.when(offsetService.getCatalogHeader(ArgumentMatchers.anyLong())).thenAnswer(invocation -> {
+			if (cancel) {
+				task.cancel();
+			}
+			sneakyThrow(failure);
+			return null;
+		});
+		task.transitionToIssued();
+		return task;
 	}
 
 	/**
@@ -277,10 +374,12 @@ class BackupTaskCancellationTest {
 	 * {@link ExportFileHandle} backed by a real temporary file, so the backup's zip machinery has a genuine sink, with
 	 * a caller-controllable file-for-fetch future modelling a file that is already registered when the failure lands.
 	 */
-	private static class FakeExportFileHandle implements ExportFileHandle {
+	private class FakeExportFileHandle implements ExportFileHandle {
 		private final UUID fileId;
 		private final Path targetFile;
 		private final CompletableFuture<FileForFetch> future = new CompletableFuture<>();
+		/** Payload allowance in bytes; effectively unlimited unless a cancellation test lowers it. */
+		private long allowance = Long.MAX_VALUE;
 
 		private FakeExportFileHandle(@Nonnull UUID fileId, @Nonnull Path targetFile) {
 			this.fileId = fileId;
@@ -315,13 +414,27 @@ class BackupTaskCancellationTest {
 		@Override
 		public OutputStream outputStream() {
 			try {
-				return Files.newOutputStream(this.targetFile);
+				final OutputStream stream = Files.newOutputStream(this.targetFile);
+				BackupTaskCancellationTest.this.openedStreams.add(stream);
+				return stream;
 			} catch (IOException e) {
 				throw new UnexpectedIOException(
 					"Failed to open the test export file for writing.",
 					"Failed to open the test export file for writing.", e
 				);
 			}
+		}
+
+		@Nonnull
+		@Override
+		public ExportFileSizeLimit sizeLimit() {
+			return new ExportFileSizeLimit(this.allowance, this.allowance, "export.fileSystem.sizeLimitBytes");
+		}
+
+		@Override
+		public boolean discard() {
+			// This fixture models a descriptor that is already published; retain the delete-file assertions.
+			return false;
 		}
 
 		@Override

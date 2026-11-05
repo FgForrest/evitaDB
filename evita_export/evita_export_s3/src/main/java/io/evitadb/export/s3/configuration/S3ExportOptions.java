@@ -88,8 +88,9 @@ public class S3ExportOptions extends ExportOptions {
 	private final String region;
 
 	/**
-	 * Timeout in milliseconds for external S3 operations performed by the export service.
-	 * The timeout is applied to all asynchronous MinIO client calls that wait for completion.
+	 * Timeout in milliseconds for establishing connections and individual socket writes and reads.
+	 * Uploads may take longer in total while the connection keeps making progress. The same timeout
+	 * bounds waits for bucket operations, downloads, deletions and metadata reads.
 	 *
 	 * Default value is {@value #DEFAULT_REQUEST_TIMEOUT_IN_MILLIS}.
 	 */
