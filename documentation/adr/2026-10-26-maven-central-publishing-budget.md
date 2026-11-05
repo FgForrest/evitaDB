@@ -5,7 +5,7 @@ updated: 2026-11-05 12:20
 status: accepted
 kind: infrastructure
 issues: [1805]
-prs: [1806]
+prs: [1806, 1888]
 areas: [pom.xml, evita_bom, recipes, jacoco, evita_external_api/evita_external_api_lab, .github/workflows]
 supersedes: []
 superseded-by: []
