@@ -56,7 +56,6 @@ import io.evitadb.index.fulltext.analysis.AnalyzedTermConsumer;
 import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
-import io.evitadb.index.fulltext.typo.FulltextTypoParameters;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 
@@ -250,7 +249,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			return EmptyFormula.INSTANCE;
 		}
 
-		final FulltextTermExpansion expansion = new FulltextTermExpansion(FulltextTypoParameters.DEFAULT);
+		final FulltextTermExpansion expansion = new FulltextTermExpansion(queryContext.getFulltextTypoParameters());
 		final Map<Scope, Formula> formulasByScope = new EnumMap<>(Scope.class);
 		for (final Map.Entry<Scope, FulltextFieldDefinition[]> entry : fieldsByScope.entrySet()) {
 			final Scope scope = entry.getKey();

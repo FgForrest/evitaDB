@@ -6068,9 +6068,8 @@ class EvitaTest implements EvitaTestSupport {
 
 		final ServerOptions formerServerOptions = formerConfiguration.server();
 		final Evita reinstantiatedEvita = new Evita(
-			new EvitaConfiguration(
-				formerConfiguration.name(),
-				new ServerOptions(
+			EvitaConfiguration.builder(formerConfiguration)
+				.server(new ServerOptions(
 					formerServerOptions.requestThreadPool(),
 					formerServerOptions.transactionThreadPool(),
 					formerServerOptions.serviceThreadPool(),
@@ -6083,12 +6082,8 @@ class EvitaTest implements EvitaTestSupport {
 					formerServerOptions.readOnly(),
 					formerServerOptions.quiet(),
 					formerServerOptions.usageStatisticsTracking()
-				),
-				formerConfiguration.storage(),
-				formerConfiguration.transaction(),
-				formerConfiguration.cache(),
-				formerConfiguration.export()
-			),
+				))
+				.build(),
 			true,
 			null,
 			null,

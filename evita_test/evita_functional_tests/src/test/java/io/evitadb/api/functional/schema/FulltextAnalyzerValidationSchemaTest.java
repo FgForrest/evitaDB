@@ -29,6 +29,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.analysis.FulltextAnalysisPhases;
 import io.evitadb.core.Evita;
@@ -37,12 +38,14 @@ import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Consumer;
 
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
 import static io.evitadb.test.TestTags.ENGINE;
@@ -199,6 +202,89 @@ class FulltextAnalyzerValidationSchemaTest implements EvitaTestSupport {
 		assertEquals(
 			new FulltextAnalysisPhases(null, List.of(lowercase(), czechStemming())), analyzer.getAllLanguages()
 		);
+	}
+
+	/** Removal is validated through actual catalog-schema mutations and transaction completion. */
+	@Nested
+	@DisplayName("Analysis resource removal")
+	class ResourceRemoval {
+		/** The analyzer a searchable field uses cannot disappear; an analyzer nothing uses can. */
+		@Test
+		@DisplayName("Refuses removing the analyzer a field uses and removes an unused one")
+		void shouldRefuseRemovingAnalyzerInUseAndAcceptUnusedOne() {
+			defineResourcesAndGoLive();
+
+			final InvalidSchemaMutationException refusal = assertRefused(
+				builder -> builder.withoutFulltextAnalyzer(ANALYZER_NAMES)
+			);
+			removeFromCatalogSchema(builder -> builder.withoutFulltextAnalyzer("unusedAnalyzer"));
+
+			assertTrue(refusal.getMessage().contains("`" + ANALYZER_NAMES + "`"), refusal.getMessage());
+			assertTrue(catalogSchema().getFulltextAnalyzer("unusedAnalyzer").isEmpty());
+		}
+
+		/** The word list an analyzer reads cannot disappear; a word list nothing reads can. */
+		@Test
+		@DisplayName("Refuses removing the word list an analyzer reads and removes an unused one")
+		void shouldRefuseRemovingResourceInUseAndAcceptUnusedOne() {
+			defineResourcesAndGoLive();
+
+			final InvalidSchemaMutationException refusal = assertRefused(
+				builder -> builder.withoutFulltextResource("usedStops")
+			);
+			removeFromCatalogSchema(builder -> builder.withoutFulltextResource("unusedStops"));
+
+			assertTrue(refusal.getMessage().contains("`usedStops`"), refusal.getMessage());
+			assertTrue(catalogSchema().getFulltextResource("unusedStops").isEmpty());
+		}
+
+		/**
+		 * Declares a used and an unused word list and analyzer, defines the product collection whose field uses the
+		 * `names` analyzer reading the used word list, and switches the catalog to the transactional state.
+		 */
+		private void defineResourcesAndGoLive() {
+			FulltextAnalyzerValidationSchemaTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
+				session.getCatalogSchema().openForWrite()
+					.withFulltextResource("usedStops", wordList("the"))
+					.withFulltextResource("unusedStops", wordList("unused"))
+					.withFulltextAnalyzer(ANALYZER_NAMES, a -> a.words(stopWords(resource("usedStops"))))
+					.withFulltextAnalyzer("unusedAnalyzer", a -> a.words())
+					.updateVia(session);
+				defineProduct(session, Locale.ENGLISH);
+			});
+			goLive();
+		}
+
+		/**
+		 * Asserts that a removal rolls back when its session closes and that both used definitions survive it.
+		 *
+		 * @param removal the removal applied to the catalog schema builder
+		 * @return the refusal that caused the rollback
+		 */
+		@Nonnull
+		private InvalidSchemaMutationException assertRefused(@Nonnull Consumer<CatalogSchemaBuilder> removal) {
+			final RollbackException exception = assertThrows(
+				RollbackException.class, () -> removeFromCatalogSchema(removal)
+			);
+			final InvalidSchemaMutationException refusal =
+				assertInstanceOf(InvalidSchemaMutationException.class, exception.getCause());
+			assertTrue(catalogSchema().getFulltextAnalyzer(ANALYZER_NAMES).isPresent());
+			assertTrue(catalogSchema().getFulltextResource("usedStops").isPresent());
+			return refusal;
+		}
+
+		/**
+		 * Applies a removal to the catalog schema in its own session.
+		 *
+		 * @param removal the removal applied to the catalog schema builder
+		 */
+		private void removeFromCatalogSchema(@Nonnull Consumer<CatalogSchemaBuilder> removal) {
+			FulltextAnalyzerValidationSchemaTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
+				final CatalogSchemaBuilder builder = session.getCatalogSchema().openForWrite();
+				removal.accept(builder);
+				builder.updateVia(session);
+			});
+		}
 	}
 
 	/**
