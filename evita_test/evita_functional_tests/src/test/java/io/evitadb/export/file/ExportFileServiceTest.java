@@ -30,6 +30,7 @@ import io.evitadb.api.file.FileForFetch;
 import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.spi.export.model.ExportFileHandle;
 import io.evitadb.spi.export.model.ExportFileSizeLimit;
@@ -58,6 +59,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -142,6 +144,28 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		final long sidecarBytes = Files.size(restored.metadataPath(this.exportOptions.getDirectory()));
 		final long unused = this.exportOptions.getSizeLimitBytes() - payload.length - sidecarBytes;
 		assertTrue(unused >= 0 && unused <= 64, "sidecar reserve must leave at most 64 bytes unused: " + unused);
+	}
+
+	/** A sidecar write failure must terminate the future and remove all unpublished export files. */
+	@Test
+	@DisplayName("Should discard the archive and complete its future when writing metadata fails")
+	void shouldDiscardArchiveWhenWritingMetadataFails() throws IOException {
+		final ExportFileHandle handle = this.exportService.storeFile("failed.zip", null, "application/zip", null);
+		final Path archive = this.exportOptions.getDirectory().resolve(handle.fileId() + ".zip");
+		final Path sidecar = this.exportOptions.getDirectory()
+			.resolve(handle.fileId() + FileForFetch.METADATA_EXTENSION);
+		handle.outputStream().write(new byte[]{1, 2, 3});
+		Files.createDirectory(sidecar);
+		final UnexpectedIOException failure = assertThrows(UnexpectedIOException.class, handle::close);
+		assertAll(
+			() -> assertTrue(handle.fileForFetchFuture().isCompletedExceptionally(),
+				"the failed sidecar write must complete the future exceptionally"),
+			() -> assertFalse(Files.exists(archive), "the failed sidecar write must remove the archive"),
+			() -> assertFalse(Files.exists(sidecar), "the failed sidecar write must remove its sidecar"),
+			() -> assertEquals(0, this.exportService.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount())
+		);
+		assertSame(failure, assertThrows(CompletionException.class, handle.fileForFetchFuture()::join).getCause());
+		assertInstanceOf(IOException.class, failure.getCause());
 	}
 
 	/** Per-file allowances reserve the bytes used by this export's sidecar. */

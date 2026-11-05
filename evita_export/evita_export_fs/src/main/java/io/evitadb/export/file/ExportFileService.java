@@ -290,6 +290,7 @@ public class ExportFileService implements ExportService {
 				computeSizeLimit(fileId, fileName, description, contentType, origin),
 				new WriteMetadataOnCloseOutputStream(
 					finalFilePath,
+					this.fsOptions.getDirectory().resolve(fileId + FileForFetch.METADATA_EXTENSION),
 					fileForFetchCompletableFuture,
 					() -> {
 						try {
@@ -308,7 +309,8 @@ public class ExportFileService implements ExportService {
 						} catch (IOException e) {
 							throw new UnexpectedIOException(
 								"Failed to write metadata file: " + e.getMessage(),
-								"Failed to write metadata file."
+								"Failed to write metadata file.",
+								e
 							);
 						}
 					}
@@ -546,10 +548,13 @@ public class ExportFileService implements ExportService {
 		private final CompletableFuture<FileForFetch> fileForFetchFuture;
 		private final Supplier<FileForFetch> onClose;
 		private final Path path;
+		private final Path metadataPath;
 		private boolean closed;
 
+		/** Captures both export paths so a failed publication can remove all unpublished bytes. */
 		public WriteMetadataOnCloseOutputStream(
 			@Nonnull Path finalFilePath,
+			@Nonnull Path metadataPath,
 			@Nonnull CompletableFuture<FileForFetch> fileForFetchFuture,
 			@Nonnull Supplier<FileForFetch> onClose
 		) throws FileNotFoundException {
@@ -557,6 +562,7 @@ public class ExportFileService implements ExportService {
 			this.fileForFetchFuture = fileForFetchFuture;
 			this.onClose = onClose;
 			this.path = finalFilePath;
+			this.metadataPath = metadataPath;
 		}
 
 		/**
@@ -591,7 +597,24 @@ public class ExportFileService implements ExportService {
 				try {
 					super.close();
 				} finally {
-					this.fileForFetchFuture.complete(this.onClose.get());
+					try {
+						this.fileForFetchFuture.complete(this.onClose.get());
+					} catch (RuntimeException failure) {
+						removeUnpublishedFiles();
+						this.fileForFetchFuture.completeExceptionally(failure);
+						throw failure;
+					}
+				}
+			}
+		}
+
+		/** Removes the archive and its sidecar; a failure here is only logged, so it never replaces the reason. */
+		private void removeUnpublishedFiles() {
+			for (final Path unpublished : new Path[]{this.path, this.metadataPath}) {
+				try {
+					Files.deleteIfExists(unpublished);
+				} catch (Exception cleanupFailure) {
+					log.error("Failed to delete unpublished export file: {}", unpublished, cleanupFailure);
 				}
 			}
 		}
