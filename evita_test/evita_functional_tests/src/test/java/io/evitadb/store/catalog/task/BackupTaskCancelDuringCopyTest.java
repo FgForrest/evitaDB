@@ -36,14 +36,14 @@ import static io.evitadb.test.TestTags.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Verifies cancellation during the point-in-time backup's record copy with real storage.
+ * Verifies cancellation during point-in-time and full backup copies with real storage.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Tag(STORAGE)
 @Tag(TASK)
 @Tag(EXPORT)
-@DisplayName("Backup cancellation during record copy")
+@DisplayName("Backup cancellation during copy")
 class BackupTaskCancelDuringCopyTest extends BackupTaskExportFixture {
 
 	/**
@@ -68,6 +68,33 @@ class BackupTaskCancelDuringCopyTest extends BackupTaskExportFixture {
 			assertTrue(task.getFutureResult().isCancelled());
 			assertEquals("Task was cancelled.", task.getStatus().publicExceptionMessage());
 			assertEquals(0, this.exports.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount());
+		} finally {
+			Thread.interrupted();
+		}
+	}
+
+	/**
+	 * Cancels at the first archive write. `Files.copy` reads through an uninterruptible channel, so the file in progress
+	 * finishes and the progress checkpoint after it unwinds the backup.
+	 */
+	@Test
+	@DisplayName("Should report cancellation when interrupted during full backup file copy")
+	void shouldReportCancellationWhenInterruptedDuringFullBackupFileCopy() {
+		final AtomicReference<FullBackupTask> reference = new AtomicReference<>();
+		final ExportService cancellingExports = new CancellingExportService(this.exports, () -> {
+			assertTrue(reference.get().cancel());
+			Thread.currentThread().interrupt();
+		});
+		final FullBackupTask task = new FullBackupTask(TEST_CATALOG, cancellingExports, this.persistence, null);
+		reference.set(task);
+		task.transitionToIssued();
+		try {
+			assertDoesNotThrow(task::execute);
+			assertAll(
+				() -> assertTrue(task.getFutureResult().isCancelled()),
+				() -> assertEquals("Task was cancelled.", task.getStatus().publicExceptionMessage()),
+				() -> assertEquals(0, this.exports.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount())
+			);
 		} finally {
 			Thread.interrupted();
 		}
