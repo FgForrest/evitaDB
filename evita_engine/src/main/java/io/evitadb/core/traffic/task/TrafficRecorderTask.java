@@ -23,6 +23,7 @@
 
 package io.evitadb.core.traffic.task;
 
+import io.evitadb.api.exception.ExportFileTooLargeException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
@@ -32,12 +33,15 @@ import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.core.traffic.TrafficRecordingSettings;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.spi.export.ExportFileCleanup;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.spi.export.model.SizeCappedOutputStream;
 import io.evitadb.spi.store.catalog.trafficRecorder.RandomAccessFileSessionSink;
 import io.evitadb.spi.store.catalog.trafficRecorder.model.SessionLocation;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.ExceptionUtils;
 import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -173,100 +177,117 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 	@Nullable
 	private FileForFetch start() {
 		final TrafficRecordingSettings settings = getStatus().settings();
-		final String fileName = "traffic_recording_" + settings.catalogName() + "_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+		final String fileName = "traffic_recording_" + settings.catalogName() + "_" +
+			OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
 		ExportSessionSink exportSessionSink = null;
-		// captured separately from the sink so the handle survives even if the sink constructor fails after
-		// the export file has already been created - otherwise that partial file would leak
+		// Retain the handle even if constructing its sink fails.
 		ExportFileHandle exportFileHandle = null;
+		SizeCappedOutputStream cap = null;
+		FileForFetch result = null;
 		boolean recordingCompleted = false;
+		RuntimeException recordingFailure = null;
 		try {
-			if (settings.exportFile()) {
-				exportFileHandle = this.exportService.storeFile(
-					fileName + ".zip",
-					"Traffic recording started at " + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) +
-						" with sampling rate " + settings.samplingRate() + "%" + getFinishCondition(settings) + ".",
-					"application/zip",
-					this.getClass().getSimpleName()
-				);
-				exportSessionSink = new ExportSessionSink(
-					this.trafficRecordingEngine.getTrafficOptions().trafficDiskBufferSizeInBytes(),
-					settings,
-					this::stopInternal,
-					this::updateProgress,
-					exportFileHandle
-				);
+			try {
+				if (settings.exportFile()) {
+					exportFileHandle = this.exportService.storeFile(
+						fileName + ".zip",
+						"Traffic recording started at " +
+							OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) +
+							" with sampling rate " + settings.samplingRate() + "%" + getFinishCondition(settings) + ".",
+						"application/zip", this.getClass().getSimpleName()
+					);
+					cap = SizeCappedOutputStream.of(exportFileHandle, limit -> new ExportFileTooLargeException(
+						"The traffic recording of catalog `" + settings.catalogName() + "`",
+						limit.configuredLimitInBytes(), limit.configurationProperty()
+					));
+					exportSessionSink = new ExportSessionSink(
+						this.trafficRecordingEngine.getTrafficOptions().trafficDiskBufferSizeInBytes(),
+						settings, this::stopInternal, this::updateProgress, exportFileHandle, cap
+					);
+				}
+
+				this.trafficRecordingEngine.startRecording(settings.samplingRate(), exportSessionSink);
+				this.finalizationLatch.await();
+				// The ring buffer's thread has stopped before the task touches the zip again.
+				this.trafficRecordingEngine.stopRecording();
+				recordingCompleted = true;
+			} catch (InterruptedException e) {
+				this.trafficRecordingEngine.stopRecording();
+				Thread.currentThread().interrupt();
+				recordingFailure = new GenericEvitaInternalError(
+					"Traffic recording task finished abnormally (interrupt).", e);
+				throw recordingFailure;
+			} catch (FileNotFoundException e) {
+				recordingFailure = new GenericEvitaInternalError(
+					"Traffic recording task finished abnormally: " + e.getMessage(),
+					"Traffic recording task finished abnormally.", e);
+				throw recordingFailure;
+			} catch (RuntimeException exception) {
+				recordingFailure = exception;
+				throw exception;
+			} finally {
+				try {
+					if (exportSessionSink != null) {
+						if (recordingCompleted && !exportSessionSink.corrupted.get()) {
+							cap.markFinished();
+						}
+						IOUtils.close(
+							() -> new UnexpectedIOException("Failed to close export session sink."),
+							exportSessionSink::close
+						);
+						if (recordingCompleted && !exportSessionSink.corrupted.get()) {
+							cap.checkFailure();
+							result = awaitFileForFetch(exportFileHandle);
+						}
+					}
+				} catch (RuntimeException closeFailure) {
+					if (recordingFailure == null) {
+						throw closeFailure;
+					}
+					// Preserve an interrupt unwinding the recording if closing its sink also fails.
+					recordingFailure.addSuppressed(closeFailure);
+				} finally {
+					cleanupLeakedExportFile(this.exportService, exportFileHandle, result, recordingCompleted);
+				}
 			}
+			if (cap != null) {
+				// Compression on the ring buffer's thread may have swallowed the original refusal.
+				cap.checkFailure();
+			}
+			return result;
+		} catch (RuntimeException exception) {
+			if (cap != null) {
+				cap.rethrowFailure(exception, isCancellationDriven(exception));
+			}
+			throw exception;
+		}
+	}
 
-			// start recording
-			this.trafficRecordingEngine.startRecording(settings.samplingRate(), exportSessionSink);
-
-			// wait for the recording to be stopped (either manually or by reaching the specified limits)
-			this.finalizationLatch.await();
-
-			// stop recording
-			this.trafficRecordingEngine.stopRecording();
-			recordingCompleted = true;
-
+	/** Waits for asynchronous publication and preserves an upload failure's public message. */
+	@Nonnull
+	private static FileForFetch awaitFileForFetch(@Nonnull ExportFileHandle handle) {
+		try {
+			return handle.fileForFetchFuture().get(1L, TimeUnit.HOURS);
 		} catch (InterruptedException e) {
-			this.trafficRecordingEngine.stopRecording();
 			Thread.currentThread().interrupt();
 			throw new GenericEvitaInternalError("Traffic recording task finished abnormally (interrupt).", e);
-		} catch (FileNotFoundException e) {
-			throw new GenericEvitaInternalError(
-				"Traffic recording task finished abnormally: " + e.getMessage(),
-				"Traffic recording task finished abnormally.",
-				e
-			);
-		} finally {
-			if (exportSessionSink != null) {
-				IOUtils.close(
-					() -> new UnexpectedIOException("Failed to close export session sink."),
-					exportSessionSink::close
-				);
+		} catch (Exception e) {
+			final Throwable failure = ExceptionUtils.unwrapCompletionWrappers(e);
+			if (failure instanceof RuntimeException runtimeException) {
+				throw runtimeException;
 			}
-			// close the sink first (it writes the metadata entry and completes the file-for-fetch future), then
-			// delete the export file if the recording aborted or the export got corrupted - so a partial /
-			// corrupted zip does not leak in the export storage. The file-for-fetch read is done via the
-			// throw-safe helper because it runs inside this finally: a future that completed exceptionally
-			// (e.g. an S3 upload failure surfaced without close() throwing) would otherwise rethrow here, mask
-			// any in-flight exception and skip the very cleanup we are performing.
-			cleanupLeakedExportFile(
-				this.exportService,
-				exportFileHandle,
-				exportSessionSink == null ? null : safeGetFileForFetch(exportSessionSink),
-				recordingCompleted
+			throw new GenericEvitaInternalError(
+				"Unexpected error when retrieving the traffic recording file: " + e.getMessage(),
+				"Failed to retrieve the traffic recording file after successful creation!", e
 			);
 		}
-
-		return exportSessionSink == null ?
-			null : exportSessionSink.getFileForFetch();
 	}
 
 	/**
-	 * Reads the produced file for fetch of the given sink without ever throwing, so it is safe to call from a
-	 * `finally` block. {@link ExportSessionSink#getFileForFetch()} delegates to
-	 * {@link java.util.concurrent.CompletableFuture#getNow(Object)}, which rethrows when the file-for-fetch
-	 * future completed exceptionally (e.g. an asynchronous S3 upload failure). Such a failure means there is no
-	 * healthy exported file, so it is reported as a null result and the partial file is then cleaned up.
-	 *
-	 * @param exportSessionSink the sink to read the produced file from
-	 * @return the produced file for fetch, or null when it is corrupted, not yet available, or finalization failed
-	 */
-	@Nullable
-	private static FileForFetch safeGetFileForFetch(@Nonnull ExportSessionSink exportSessionSink) {
-		try {
-			return exportSessionSink.getFileForFetch();
-		} catch (RuntimeException e) {
-			// the file-for-fetch future completed exceptionally (finalization / upload failed) - no healthy file
-			return null;
-		}
-	}
-
-	/**
-	 * Deletes a partially written / corrupted traffic recording export file when the recording did not finish
-	 * cleanly, so the leftover zip does not leak in the export storage. Mirrors the cleanup performed by
-	 * {@link TrafficRecordingExportTask#doExport()}. A healthy, fully completed export (a non-null result
-	 * produced by a run that finished without throwing) is kept untouched.
+	 * Removes a partially written or corrupted traffic recording export when the recording did not finish cleanly, so
+	 * the leftover zip does not leak in the export storage: an open handle is discarded, a published file is deleted.
+	 * Mirrors the cleanup performed by {@link TrafficRecordingExportTask#doExport()}. A healthy, fully completed export
+	 * (a non-null result produced by a run that finished without throwing) is kept untouched.
 	 *
 	 * @param exportService      service managing the exported files
 	 * @param exportFileHandle   handle of the export file created for this run, or null when no export was requested
@@ -287,30 +308,9 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 			// healthy, completed export - keep the finished file
 			return;
 		}
-		deleteLeakedExportFile(exportService, exportFileHandle);
-	}
-
-	/**
-	 * Deletes the export file backed by the given handle, swallowing (and logging) any deletion failure so the
-	 * cleanup never masks the primary failure that triggered it.
-	 *
-	 * @param exportService    service managing the exported files
-	 * @param exportFileHandle handle of the export file to delete
-	 */
-	private static void deleteLeakedExportFile(
-		@Nonnull ExportService exportService,
-		@Nonnull ExportFileHandle exportFileHandle
-	) {
-		try {
-			// FileForFetchNotFoundException (an unchecked exception) is folded into this catch - a missing file
-			// simply means there is nothing to clean up
-			exportService.deleteFile(exportFileHandle.fileId());
-		} catch (RuntimeException e) {
-			log.warn(
-				"Failed to delete leaked partial traffic recording export file `{}`.",
-				exportFileHandle.fileId(), e
-			);
-		}
+		ExportFileCleanup.abandon(
+			exportFileHandle, exportService, "a failed traffic recording", null
+		);
 	}
 
 	/**
@@ -379,7 +379,8 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 			@Nonnull TrafficRecordingSettings settings,
 			@Nonnull Runnable finalizer,
 			@Nonnull IntConsumer updateProgress,
-			@Nonnull ExportFileHandle exportFileHandle
+			@Nonnull ExportFileHandle exportFileHandle,
+			@Nonnull OutputStream outputStream
 		) throws FileNotFoundException {
 			this.diskBufferSizeInBytes = diskBufferSizeInBytes;
 			// export by 64kB or half of the disk buffer size if it's lower
@@ -392,7 +393,7 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 			this.buffer = new byte[8192];
 			this.updateProgress = updateProgress;
 			this.exportFileHandle = exportFileHandle;
-			this.outputStream = new ZipOutputStream(new BufferedOutputStream(this.exportFileHandle.outputStream()));
+			this.outputStream = new ZipOutputStream(new BufferedOutputStream(outputStream));
 		}
 
 		@Override
@@ -417,20 +418,6 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 		public void onClose(@Nonnull Deque<SessionLocation> sessionLocations, int realSamplingRate) {
 			this.lastSamplingRate = realSamplingRate;
 			exportAllSessionLocations(sessionLocations);
-		}
-
-		/**
-		 * Returns the file for fetch associated with the export file handle.
-		 *
-		 * @return the file for fetch associated with the export file handle
-		 */
-		@Nullable
-		public FileForFetch getFileForFetch() {
-			return this.corrupted.get() ?
-				null :
-				this.exportFileHandle
-					.fileForFetchFuture()
-					.getNow(null);
 		}
 
 		@Override
