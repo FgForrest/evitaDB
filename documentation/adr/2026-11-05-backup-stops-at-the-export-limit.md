@@ -1,11 +1,11 @@
 ---
 title: A backup that cannot fit the export storage stops at the limit and names the setting to raise
 date: 2026-11-05
-updated: 2026-11-05 04:15
+updated: 2026-11-05 07:08
 status: accepted
 kind: fix
 issues: [1881]
-prs: []
+prs: [1885]
 areas: [evita_store/evita_store_server, evita_engine/io.evitadb.spi.export, evita_export, evita_api/exception]
 supersedes: []
 superseded-by: []
