@@ -1,8 +1,8 @@
 ---
 title: The roaring containers get an optional Vector API provider, fused word kernels and a CRoaring-style lazy array union; the all-pairs and gather kernels are measured and rejected
 date: 2026-09-19
-updated: 2026-09-22 10:12
-status: proposed
+updated: 2026-11-05 10:42
+status: accepted
 kind: optimization
 issues: [1539, 1541, 1542, 1543, 1544]
 prs: [1608]
@@ -91,6 +91,8 @@ walked them again to extract an array. Nothing in the module used the Vector API
 | keeping the O(1) tail-only hash (read the last seven entries, return upstream's exact value) | it was shipped first, and it is an algebraic identity — but it is only valid *because* the base is 32, so it preserved all three defects and pinned them behind a test asserting they must stay. Its measured 3.8 % of query CPU came entirely from `Collectors.groupingBy` on a Lombok `@Data` `FacetGroupIndex`, and **the same campaign removed that caller** (row above), so after that change it was optimising a method with no hot caller while locking a broken hash into the fork | a caller makes container hashing hot again — in which case the answer is to stop hashing index objects, not to shorten the hash |
 | word-batched array-to-bitmap scatter (one read-modify-write per distinct word in `ilazyor`/`ior`/`or`/`loadData`) | 1.42× on the value-weighted batch replay, **+7.3 % end to end** on the catalog-wide facet summaries of the same catalog; the median operation scatters 4 values into 4 distinct words, where batching saves no write and adds a data-dependent branch per value (bisected on a quiet box, §Verification) | a per-operation replay on real operands that shows a win — the batch's 5.35× write reduction is real only for the mean-42-value tail |
 | the VBMI2 `compress` extraction for `fillArrayAND`/`ANDNOT`/`XOR` | every caller sits on the ≤ 4096-result branch where it measures 0.87–1.7×; it reaches 3.6–8.7× only at ≥ 12.5 % density, which those sites never see | a dense extraction site |
+| routing wide unions to `FastAggregation.horizontal_or` (key-by-key merge through a priority queue) | a monotonic loss on the catalog-wide facet summary COUNTS line: 19,180 ms with every union on `naive_or` against 23,917 / 24,838 / 26,484 ms when unions of at least 1024 / 256 / 64 inputs are routed (+24.7 / +29.5 / +38.1 %; one class file, the threshold a `-D` flag, two timed passes per arm back to back on an idle box). It is `O(n log n)` where `naive_or` is quadratic-ish and still loses: about two pointer-chasing heap sifts per container of every input, against `naive_or`'s flat scan of a `char[]` key array, and it clones every key held by a single input where `naive_or` shares it | the `PriorityQueue` is replaced by a flat grouping and the single-owner clone by a share — which is the next row |
+| a grouped union: every input's `(key, arrival)` pairs packed into one `long[]` and sorted once, single-owner keys shared, each key's group folded once under `LAZY_ARRAY_UNION_BOUND`, the result array built once | flat at every threshold: 19,835 ms control against 19,847 / 20,208 / 19,669 ms at 1024 / 256 / 64 inputs (+0.1 / +1.9 / −0.8 %, ranges overlapping; same harness and protocol as the row above), correct by a 675-comparison differential. The sort costs four allocations per union and about 21,000 comparisons for a 1,025-input union, which is no cheaper than the key walks it removes | a design that removes the key walks without adding a sort or a heap — e.g. one exploiting operands that share a key layout, which needs a census of key overlap first |
 
 ## Key technical details
 
@@ -235,8 +237,10 @@ busy gate ≤ 20 % before and averaged across every run; ratios are the finding,
   the guard's range (0.23–0.57× on 64 inputs of 4–16 values on the synthetic grid). Moving the guard to 16 costs the
   17–64 stratum its 1.15× for nothing (1.215× weighted). The union fold is 26 % of facet-query CPU on the profile, so
   1.25× there is worth roughly 5 % of query CPU by arithmetic — the end-to-end figures above are the measurement. The
-  real `naive_or` end to end is 1.8× slower than its per-key fold on the 257+ stratum (369 vs 206 µs per union): the
-  `RoaringArray` bookkeeping of a thousand-input fold, the next lever.
+  real `naive_or` end to end is 1.8× slower than its per-key fold on the 257+ stratum (369 vs 206 µs per union), but
+  the gap is not overhead another structure can reclaim: `todayPerKey` receives its containers already grouped by key
+  in the fixture's setup and builds no result bitmap, so it skips work every union has to do. Both restructurings
+  aimed at the gap lost or tied (§Rejected outright: `horizontal_or` routing, the grouped union).
 - **End to end** (`RoaringQueryMixTiming`, 2,600 facet/hierarchy/price/attribute queries replayed from one
   serialized query file so both builds do identical work — 38,842,917 records matched in every pass of both arms;
   2 warm-up + 5 timed passes, medians; final tree vs the `dev` tip, quiet box, 10.6 % busy across the pair):
