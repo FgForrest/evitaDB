@@ -159,6 +159,7 @@ import io.evitadb.index.analysis.BuiltWithAttributeNormalizationResolver;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerValidator;
+import io.evitadb.index.fulltext.typo.FulltextTypoParameters;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
@@ -2621,6 +2622,15 @@ public final class Catalog
 				this.dataStoreBuffer.update(getVersion(), new GlobalAttributeNormalizationStoragePart(rows));
 			}
 		}
+	}
+
+	/**
+	 * Returns the engine-wide submitted-search policy shared by catalog generations.
+	 * @return the policy mapped at engine startup
+	 */
+	@Nonnull
+	public FulltextTypoParameters getFulltextTypoParameters() {
+		return this.evita.getFulltextTypoParameters();
 	}
 
 	/**

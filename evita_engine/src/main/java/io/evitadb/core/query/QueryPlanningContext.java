@@ -101,6 +101,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
+import io.evitadb.index.fulltext.typo.FulltextTypoParameters;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.usage.SchemaCapabilityKey;
 import io.evitadb.index.usage.SchemaCapabilityUsage;
@@ -1764,6 +1765,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	@Nonnull
 	public AnalysisStepRegistry getAnalysisStepRegistry() {
 		return this.catalog.getAnalysisStepRegistry();
+	}
+
+	/**
+	 * Returns the configured submitted-search policy of this query's engine.
+	 * @return the immutable runtime fulltext policy
+	 */
+	@Nonnull
+	public FulltextTypoParameters getFulltextTypoParameters() {
+		return this.catalog.getFulltextTypoParameters();
 	}
 
 	/**

@@ -23,6 +23,9 @@
 
 package io.evitadb.index.fulltext.typo;
 
+import io.evitadb.api.configuration.FulltextOptions;
+import io.evitadb.exception.EvitaInvalidUsageException;
+
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
@@ -51,29 +54,6 @@ public record FulltextTypoParameters(
 	int openEndedStartLength
 ) {
 	/**
-	 * Defaults for a submitted search: no edit below 4 code points, one edit from 4, two from 8; the first code point
-	 * frozen, an adjacent swap counted as one edit, and terms containing a digit matched exactly. An unclosed final
-	 * word of at least 4 code points is also completed by prefix and walked open-ended.
-	 */
-	public static final FulltextTypoParameters DEFAULT = new FulltextTypoParameters(4, 8, 1, true, true);
-
-	/**
-	 * Creates a typo policy with the submitted-search input-mode defaults: the prefix leg on, and unfinished-word
-	 * expansion and open-ended walks from 4 code points. {@link #DEFAULT} is built through it.
-	 *
-	 * @param minLengthOneTypo shortest term permitted one edit
-	 * @param minLengthTwoTypos shortest term permitted two edits
-	 * @param nonFuzzyPrefix number of leading code points that cannot be edited
-	 * @param transpositions whether adjacent swaps count as one edit
-	 * @param digitsExact whether terms containing a digit match exactly
-	 */
-	public FulltextTypoParameters(
-		int minLengthOneTypo, int minLengthTwoTypos, int nonFuzzyPrefix, boolean transpositions, boolean digitsExact
-	) {
-		this(minLengthOneTypo, minLengthTwoTypos, nonFuzzyPrefix, transpositions, digitsExact, true, 4, 4);
-	}
-
-	/**
 	 * Validates the policy. Edit budgets are always bounded by two.
 	 *
 	 * @param minLengthOneTypo shortest term permitted one edit
@@ -84,25 +64,23 @@ public record FulltextTypoParameters(
 	 * @param prefixLeg whether the final unclosed word gets unfinished-word expansion
 	 * @param minFragmentLength shortest fragment permitted unfinished-word expansion
 	 * @param openEndedStartLength shortest fragment permitted open-ended walks
-	 * @throws IllegalArgumentException when `minLengthOneTypo` is below one, `minLengthTwoTypos` is below
+	 * @throws EvitaInvalidUsageException when `minLengthOneTypo` is below one, `minLengthTwoTypos` is below
 	 * `minLengthOneTypo`, `nonFuzzyPrefix` is negative, or an input-mode length is below one
 	 */
 	public FulltextTypoParameters {
-		if (minLengthOneTypo < 1) {
-			throw new IllegalArgumentException("minLengthOneTypo must be positive.");
-		}
-		if (minLengthTwoTypos < minLengthOneTypo) {
-			throw new IllegalArgumentException("minLengthTwoTypos must be at least minLengthOneTypo.");
-		}
-		if (nonFuzzyPrefix < 0) {
-			throw new IllegalArgumentException("nonFuzzyPrefix must not be negative.");
-		}
-		if (minFragmentLength < 1) {
-			throw new IllegalArgumentException("minFragmentLength must be positive.");
-		}
-		if (openEndedStartLength < 1) {
-			throw new IllegalArgumentException("openEndedStartLength must be positive.");
-		}
+		// Keep validation in the API options, including for callers constructing a runtime policy directly.
+		new FulltextOptions(minLengthOneTypo, minLengthTwoTypos, nonFuzzyPrefix, transpositions, digitsExact,
+			prefixLeg, minFragmentLength, openEndedStartLength);
+	}
+
+	/**
+	 * Maps configured API options to the engine policy once at engine startup.
+	 * @param options validated configuration of submitted fulltext searches
+	 */
+	public FulltextTypoParameters(@Nonnull FulltextOptions options) {
+		this(options.minLengthOneTypo(), options.minLengthTwoTypos(), options.nonFuzzyPrefix(),
+			options.transpositions(), options.digitsExact(), options.prefixLeg(), options.minFragmentLength(),
+			options.openEndedStartLength());
 	}
 
 	/**

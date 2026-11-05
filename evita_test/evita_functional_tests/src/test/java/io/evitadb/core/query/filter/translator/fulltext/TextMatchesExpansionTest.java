@@ -23,6 +23,8 @@
 
 package io.evitadb.core.query.filter.translator.fulltext;
 
+import io.evitadb.api.configuration.FulltextOptions;
+
 import io.evitadb.core.query.algebra.fulltext.FulltextFormula.ExpandedTerm;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.fulltext.FulltextFieldKey;
@@ -46,6 +48,10 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(FULLTEXT)
 @DisplayName("Text matches expansion legs")
 class TextMatchesExpansionTest {
+	/** Built-in options mapped to the engine policy. */
+	private static final FulltextTypoParameters DEFAULT_PARAMETERS =
+		new FulltextTypoParameters(new FulltextOptions());
+
 	/** Real dictionary under test, rebuilt for every test. */
 	private final FulltextIndex index = new FulltextIndex();
 	/** The title field, registered as field 0. */
@@ -59,7 +65,7 @@ class TextMatchesExpansionTest {
 
 	/** Expands one word in the title field under the default policy, its fragment passed as the translator does. */
 	private ExpandedTerm[] expand(String fragment, boolean unfinished, String... variants) {
-		return new FulltextTermExpansion(FulltextTypoParameters.DEFAULT)
+		return new FulltextTermExpansion(DEFAULT_PARAMETERS)
 			.expand(this.index, new int[]{0}, variants, new String[]{fragment}, unfinished)
 			.toArray(ExpandedTerm[]::new);
 	}
@@ -205,7 +211,7 @@ class TextMatchesExpansionTest {
 				addWords(TextMatchesExpansionTest.this.index, second, letter + 100, words);
 			}
 			addWords(TextMatchesExpansionTest.this.index, excluded, 1, "stemexcluded");
-			final List<ExpandedTerm> actual = new FulltextTermExpansion(FulltextTypoParameters.DEFAULT)
+			final List<ExpandedTerm> actual = new FulltextTermExpansion(DEFAULT_PARAMETERS)
 				.expand(TextMatchesExpansionTest.this.index, new int[]{0, secondId}, new String[0],
 					new String[]{"stem"}, true);
 			assertEquals(100, actual.size());
@@ -266,7 +272,7 @@ class TextMatchesExpansionTest {
 		@DisplayName("Selects exact top terms from thousands of hits with bounded candidate retention")
 		void shouldBoundCandidateCollection() {
 			addWideDictionary();
-			final FulltextTermExpansion expansion = new FulltextTermExpansion(FulltextTypoParameters.DEFAULT);
+			final FulltextTermExpansion expansion = new FulltextTermExpansion(DEFAULT_PARAMETERS);
 			final List<ExpandedTerm> actual = expansion.expand(TextMatchesExpansionTest.this.index, new int[]{0},
 				new String[]{"zzzz", "aaaa"}, new String[]{"aaaa"}, true);
 			final Map<String, String> expected = new TreeMap<>();
@@ -340,7 +346,7 @@ class TextMatchesExpansionTest {
 				add(pk, "stemsingle");
 			}
 			expected.add("stemsingle");
-			final List<ExpandedTerm> actual = new FulltextTermExpansion(FulltextTypoParameters.DEFAULT).expand(
+			final List<ExpandedTerm> actual = new FulltextTermExpansion(DEFAULT_PARAMETERS).expand(
 				TextMatchesExpansionTest.this.index, new int[]{0, secondId}, new String[0], new String[]{"stem"}, true);
 			final Set<String> actualTerms = new TreeSet<>();
 			for (final ExpandedTerm term : actual) {
@@ -366,7 +372,7 @@ class TextMatchesExpansionTest {
 			for (int pk = 10; pk < 20; pk++) {
 				addWords(TextMatchesExpansionTest.this.index, second, pk, "stemwinner");
 			}
-			final List<ExpandedTerm> actual = new FulltextTermExpansion(FulltextTypoParameters.DEFAULT).expand(
+			final List<ExpandedTerm> actual = new FulltextTermExpansion(DEFAULT_PARAMETERS).expand(
 				TextMatchesExpansionTest.this.index, new int[]{0, secondId}, new String[0], new String[]{"stem"}, true);
 			assertEquals(51, actual.size());
 			int fields = 0;
@@ -468,7 +474,7 @@ class TextMatchesExpansionTest {
 		@Test
 		@DisplayName("Measures the unfinished fragment in code points, by its longest form and only when enabled")
 		void shouldMeasureFragmentInCodePoints() {
-			final FulltextTermExpansion expansion = new FulltextTermExpansion(FulltextTypoParameters.DEFAULT);
+			final FulltextTermExpansion expansion = new FulltextTermExpansion(DEFAULT_PARAMETERS);
 			final String letter = "𝒜";
 			assertFalse(expansion.expandsUnfinishedWord(new String[]{letter.repeat(3)}, true));
 			assertTrue(expansion.expandsUnfinishedWord(new String[]{letter.repeat(4)}, true));

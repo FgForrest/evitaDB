@@ -26,6 +26,7 @@ package io.evitadb.server.configuration;
 import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ExportOptions;
+import io.evitadb.api.configuration.FulltextOptions;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
@@ -43,6 +44,7 @@ import javax.annotation.Nonnull;
  * @param transaction refers to {@link EvitaConfiguration#transaction()}
  * @param cache       refers to {@link EvitaConfiguration#cache()}
  * @param export      refers to {@link EvitaConfiguration#export()}
+ * @param fulltext    refers to {@link EvitaConfiguration#fulltext()}
  * @param api         contains configuration for API endpoints, refers to {@link ApiOptions}
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -53,7 +55,7 @@ public record EvitaServerConfiguration(
 	@Nonnull TransactionOptions transaction,
 	@Nonnull CacheOptions cache,
 	@Nonnull ExportOptions export,
-	@Nonnull ApiOptions api
+	@Nonnull ApiOptions api,
+	@Nonnull FulltextOptions fulltext
 ) {
-
 }
