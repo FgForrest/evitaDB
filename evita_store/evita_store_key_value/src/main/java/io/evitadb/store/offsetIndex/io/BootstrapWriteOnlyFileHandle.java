@@ -239,10 +239,12 @@ public class BootstrapWriteOnlyFileHandle implements WriteOnlyHandle {
 	public void close() {
 		try {
 			this.handleLock.lockInterruptibly();
-			this.observableOutput.close();
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new GenericEvitaInternalError("Failed to close file due to interrupt!");
+			throw new GenericEvitaInternalError("Failed to close file due to interrupt!", e);
+		}
+		try {
+			this.observableOutput.close();
 		} finally {
 			this.handleLock.unlock();
 		}
