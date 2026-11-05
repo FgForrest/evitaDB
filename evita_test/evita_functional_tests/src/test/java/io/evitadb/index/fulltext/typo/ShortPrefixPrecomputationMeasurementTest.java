@@ -162,7 +162,7 @@ class ShortPrefixPrecomputationMeasurementTest {
 	static void setUpAnalyzers() {
 		registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 		indexAnalyzer = registry.getCompiledAnalyzer(
-			FulltextAnalysisTestSupport.SCHEMA, "text", Locale.forLanguageTag("cs")).index();
+			FulltextAnalysisTestSupport.SCHEMA, "text", Locale.forLanguageTag("cs")).indexSurface();
 	}
 
 	/**

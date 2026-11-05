@@ -23,24 +23,11 @@
 
 package io.evitadb.core.query.filter.translator.fulltext;
 
-import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
-import io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps;
-import io.evitadb.index.analysis.AnalysisStepRegistry;
+import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
-import io.evitadb.index.fulltext.analysis.FulltextChainCompiler;
-import io.evitadb.index.fulltext.analysis.ResolvedFulltextAnalyzer;
-import io.evitadb.index.fulltext.analysis.StopWordsAnalysisStepFactory;
-import io.evitadb.index.fulltext.analysis.SynonymsAnalysisStepFactory;
-import io.evitadb.spi.analysis.FulltextAnalysisSide;
-import io.evitadb.spi.analysis.FulltextAnalysisTrait;
-import io.evitadb.spi.analysis.FulltextWordsAnalysisStepFactory;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 
 /** Prepares the raw final word in its profile's normalization space without losing it to a stop filter or stemmer. */
@@ -49,56 +36,29 @@ final class FulltextQueryFragment {
 	private FulltextQueryFragment() { }
 
 	/**
-	 * Applies query normalization to the shared final split word. Stop filters and synonyms do not participate;
-	 * stemming contributes only its declared folding. The ordinary word chain separately produces the variants.
-	 * This short-lived chain owns no catalog resources and is closed before any dictionary expansion starts.
+	 * Applies the profile's cached fragment chain: query surface normalization without the steps whose factory
+	 * declines {@link io.evitadb.spi.analysis.FulltextWordsAnalysisStepFactory#participatesInQueryFragment()} - the
+	 * built-in stop filters and synonyms - so that they neither remove nor lengthen a word still being typed. The
+	 * stemmer contributes its declared surface normalization only. Text-aware split terms use the chain without the
+	 * text phase.
 	 *
-	 * @param registry the catalog's installed step providers
-	 * @param schema the catalog schema used to compile the ordinary word chain
-	 * @param analyzer the profile's declared analyzer name
-	 * @param locale the query's dictionary locale
-	 * @param word the raw final split word, before the group's word phase
-	 * @param textSplit whether the shared split already applied the profile's text phase
-	 * @return distinct normalized fragments; empty when a remaining profile operation drops the word
+	 * @param analyzer cached profile preparations
+	 * @param word the shared final split word
+	 * @param textSplit whether shared splitting already applied query text operations
+	 * @return distinct nonempty normalized fragments; empty when a participating step drops the word
 	 */
 	@Nonnull
 	static String[] prepare(
-		@Nonnull AnalysisStepRegistry registry, @Nonnull CatalogSchemaContract schema, @Nonnull String analyzer,
-		@Nonnull Locale locale, @Nonnull TextMatchesTranslator.QueryToken word, boolean textSplit
+		@Nonnull CompiledFulltextAnalyzer analyzer, @Nonnull TextMatchesTranslator.QueryToken word, boolean textSplit
 	) {
-		final ResolvedFulltextAnalyzer resolved = ResolvedFulltextAnalyzer.resolve(schema, analyzer, locale);
-		final List<AnalysisStep> words = new ArrayList<>(resolved.words().size());
-		for (final AnalysisStep step : resolved.words()) {
-			final FulltextWordsAnalysisStepFactory factory =
-				(FulltextWordsAnalysisStepFactory) registry.resolveFulltext(step);
-			if (!factory.getSides().contains(FulltextAnalysisSide.QUERY) ||
-				factory instanceof StopWordsAnalysisStepFactory || factory instanceof SynonymsAnalysisStepFactory) {
-				continue;
-			}
-			final Set<FulltextAnalysisTrait> traits = factory.create(step.parameters(), resolved.context())
-				.getTraits(FulltextAnalysisSide.QUERY);
-			if (traits.contains(FulltextAnalysisTrait.STEMS)) {
-				if (traits.contains(FulltextAnalysisTrait.FOLDS_DIACRITICS)) {
-					words.add(AnalysisSteps.asciiFolding());
-				}
-			} else {
-				words.add(step);
-			}
-		}
-		final ResolvedFulltextAnalyzer fragment = new ResolvedFulltextAnalyzer(
-			analyzer, textSplit ? List.of() : resolved.text(), resolved.splitting(), words, resolved.context()
-		);
-		final FulltextChainCompiler compiler = new FulltextChainCompiler(registry);
+		final FulltextAnalyzer chain = textSplit ? analyzer.textSplitFragment() : analyzer.fragment();
 		final Set<String> fragments = CollectionUtils.createLinkedHashSet(2);
-		try (final FulltextAnalyzer chain = new FulltextAnalyzer(analyzer,
-			compiler.compileWordChain(fragment, new ArrayList<>(0)))) {
-			for (final String term : word.terms()) {
-				chain.analyze(term, (value, surface, start, end, increment) -> {
-					if (!value.isEmpty()) {
-						fragments.add(value);
-					}
-				});
-			}
+		for (final String term : word.terms()) {
+			chain.analyze(term, (value, surface, start, end, increment) -> {
+				if (!value.isEmpty()) {
+					fragments.add(value);
+				}
+			});
 		}
 		return fragments.toArray(String[]::new);
 	}

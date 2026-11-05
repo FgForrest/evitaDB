@@ -105,10 +105,10 @@ class HtmlMarkupStrippingAnalysisTest {
 	void setUp() {
 		this.registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 		this.stripped = this.registry.getCompiledAnalyzer(
-			FulltextAnalysisTestSupport.SCHEMA, "html-text", CZECH).index();
+			FulltextAnalysisTestSupport.SCHEMA, "html-text", CZECH).indexSurface();
 		this.productionSearch = FulltextAnalysisTestSupport.queryAnalyzer(CZECH);
 		this.unstripped = this.registry.getCompiledAnalyzer(
-			FulltextAnalysisTestSupport.SCHEMA, "text", CZECH).index();
+			FulltextAnalysisTestSupport.SCHEMA, "text", CZECH).indexSurface();
 	}
 
 	@AfterEach
@@ -475,10 +475,10 @@ class HtmlMarkupStrippingAnalysisTest {
 				final Locale locale = new Locale(language);
 				final FulltextAnalyzer htmlTextAnalyzer =
 					HtmlMarkupStrippingAnalysisTest.this.registry.getCompiledAnalyzer(
-						FulltextAnalysisTestSupport.SCHEMA, "html-text", locale).index();
+						FulltextAnalysisTestSupport.SCHEMA, "html-text", locale).indexSurface();
 				final FulltextAnalyzer textAnalyzer =
 					HtmlMarkupStrippingAnalysisTest.this.registry.getCompiledAnalyzer(
-						FulltextAnalysisTestSupport.SCHEMA, "text", locale).index();
+						FulltextAnalysisTestSupport.SCHEMA, "text", locale).indexSurface();
 				assertNotSame(htmlTextAnalyzer, textAnalyzer, language);
 				assertTrue(
 					terms(htmlTextAnalyzer, "<p class=\"x\">word</p>").stream().noneMatch(it -> it.startsWith("class")),

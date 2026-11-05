@@ -154,12 +154,15 @@ public final class FulltextChainCompiler {
 	 * through capture/restore for a complete lane; absent or cleared capture degrades to an incomplete lane.
 	 *
 	 * @param analyzer the resolved field profile
+	 * @param stopWords receives prepared index stop words for query stop recognition
 	 * @return the capture-equipped index chain, owned and closed by the registry
 	 */
 	@Nonnull
-	public Analyzer compileIndexSurfaceChain(@Nonnull ResolvedFulltextAnalyzer analyzer) {
+	public Analyzer compileIndexSurfaceChain(
+		@Nonnull ResolvedFulltextAnalyzer analyzer, @Nonnull List<StopWordPreparation> stopWords
+	) {
 		return compile(analyzer.text(), analyzer.splitting(), analyzer.words(), FulltextAnalysisSide.INDEX,
-			analyzer.context(), false, null, false, true);
+			analyzer.context(), false, stopWords, false, true, false);
 	}
 
 	/**
@@ -168,12 +171,28 @@ public final class FulltextChainCompiler {
 	 * pre-stem normalization. This query chain never derives persisted lane keys.
 	 *
 	 * @param analyzer the resolved field profile
+	 * @param textSplit whether query text operations already prepared the input
 	 * @return the cached surface chain, owned and closed by the registry
 	 */
 	@Nonnull
-	public Analyzer compileSurfaceChain(@Nonnull ResolvedFulltextAnalyzer analyzer) {
-		return compile(analyzer.text(), analyzer.splitting(), analyzer.words(), FulltextAnalysisSide.QUERY,
-			analyzer.context(), true, null, true, false);
+	public Analyzer compileSurfaceChain(@Nonnull ResolvedFulltextAnalyzer analyzer, boolean textSplit) {
+		return compile(textSplit ? List.of() : analyzer.text(), analyzer.splitting(), analyzer.words(),
+			FulltextAnalysisSide.QUERY,
+			analyzer.context(), true, null, true, false, false);
+	}
+
+	/**
+	 * Compiles a query fragment up to the stemmer's declared surface normalization, omitting stop filters and
+	 * synonyms. A term from text-aware splitting uses the variant without text operations.
+	 *
+	 * @param analyzer the resolved query profile
+	 * @param textSplit whether the input already passed through query text operations
+	 * @return cached fragment chain owned by the registry
+	 */
+	@Nonnull
+	public Analyzer compileFragmentChain(@Nonnull ResolvedFulltextAnalyzer analyzer, boolean textSplit) {
+		return compile(textSplit ? List.of() : analyzer.text(), analyzer.splitting(), analyzer.words(),
+			FulltextAnalysisSide.QUERY, analyzer.context(), true, null, true, false, true);
 	}
 
 	/**
@@ -204,19 +223,6 @@ public final class FulltextChainCompiler {
 	public Analyzer compileSplittingChain(@Nonnull ResolvedFulltextAnalyzer analyzer) {
 		return compile(analyzer.text(), analyzer.splitting(), List.of(), FulltextAnalysisSide.QUERY,
 			analyzer.context());
-	}
-
-	/**
-	 * Compiles the index chain and collects the prepared words of built-in stop steps for folded query recognition.
-	 *
-	 * @param analyzer the resolved analyzer
-	 * @param stopWords receives per-step folded index words, initially paired with their index preparation
-	 * @return the index chain owned by the caller
-	 */
-	@Nonnull
-	Analyzer compile(@Nonnull ResolvedFulltextAnalyzer analyzer, @Nonnull List<StopWordPreparation> stopWords) {
-		return compile(analyzer.text(), analyzer.splitting(), analyzer.words(), FulltextAnalysisSide.INDEX,
-			analyzer.context(), false, stopWords);
 	}
 
 	/**
@@ -348,7 +354,7 @@ public final class FulltextChainCompiler {
 		@Nonnull List<AnalysisStep> words, @Nonnull FulltextAnalysisSide side,
 		@Nonnull FulltextAnalysisContext context, boolean keyword, @Nullable List<StopWordPreparation> stopWords
 	) {
-		return compile(text, splitting, words, side, context, keyword, stopWords, false, false);
+		return compile(text, splitting, words, side, context, keyword, stopWords, false, false, false);
 	}
 
 	/**
@@ -361,8 +367,11 @@ public final class FulltextChainCompiler {
 	 * @param context resources and locale
 	 * @param keyword whether to use one input token
 	 * @param stopWords optional stop-word preparation collector
-	 * @param surfaceOnly whether to stop before query stemming
+	 * @param surfaceOnly whether to stop at the first stemming step, keeping only its declared query surface
+	 *                    normalization
 	 * @param captureIndex whether to carry the actual index pre-stem token through the full chain
+	 * @param fragment whether to omit, before creating its operation, every words step whose factory declines
+	 *                 {@link FulltextWordsAnalysisStepFactory#participatesInQueryFragment()}
 	 * @return the owned compiled chain
 	 */
 	@Nonnull
@@ -370,7 +379,7 @@ public final class FulltextChainCompiler {
 		@Nonnull List<AnalysisStep> text, @Nonnull List<AnalysisStep> splitting,
 		@Nonnull List<AnalysisStep> words, @Nonnull FulltextAnalysisSide side,
 		@Nonnull FulltextAnalysisContext context, boolean keyword,
-		@Nullable List<StopWordPreparation> stopWords, boolean surfaceOnly, boolean captureIndex
+		@Nullable List<StopWordPreparation> stopWords, boolean surfaceOnly, boolean captureIndex, boolean fragment
 	) {
 		final List<FulltextTextAnalysisOperation> textOperations = new ArrayList<>(text.size());
 		for (final AnalysisStep step : text) {
@@ -407,6 +416,9 @@ public final class FulltextChainCompiler {
 			final FulltextWordsAnalysisStepFactory factory = resolve(
 				step, FulltextWordsAnalysisStepFactory.class, "a words step"
 			);
+			if (fragment && !factory.participatesInQueryFragment()) {
+				continue;
+			}
 			if (factory.getSides().contains(side)) {
 				final FulltextWordPreparation preparation = new PrecedingStepsPreparation(
 					new FulltextTextAnalysisOperation[0],

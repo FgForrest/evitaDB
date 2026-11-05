@@ -92,7 +92,7 @@ class PrefixVersusExactExpansionTest {
 		registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 		searchAnalyzer = FulltextAnalysisTestSupport.queryAnalyzer(CZECH);
 		indexAnalyzer = registry.getCompiledAnalyzer(
-			FulltextAnalysisTestSupport.SCHEMA, "text", CZECH).index();
+			FulltextAnalysisTestSupport.SCHEMA, "text", CZECH).indexSurface();
 	}
 
 	@AfterAll

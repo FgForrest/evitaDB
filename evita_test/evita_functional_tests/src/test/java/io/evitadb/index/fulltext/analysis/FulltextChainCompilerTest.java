@@ -482,7 +482,7 @@ class FulltextChainCompilerTest {
 			try (final FulltextAnalyzerRegistry cache = new FulltextAnalyzerRegistry(registryWith(aToAa))) {
 				final CompiledFulltextAnalyzer compiled =
 					cache.getCompiledAnalyzer(builder.toInstance(), "doubling", Locale.ENGLISH);
-				assertEquals(List.of("caat"), termTexts(compiled.index(), "Cat"));
+				assertEquals(List.of("caat"), termTexts(compiled.indexSurface(), "Cat"));
 				assertNotSame(compiled.word(), compiled.textSplitWord(), "A query text phase needs a chain without it");
 				for (final boolean textSplit : new boolean[]{true, false}) {
 					final Object words = split.invoke(

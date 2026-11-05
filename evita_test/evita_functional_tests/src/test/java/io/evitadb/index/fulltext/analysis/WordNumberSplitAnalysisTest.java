@@ -97,12 +97,12 @@ class WordNumberSplitAnalysisTest {
 	void setUp() {
 		this.registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 		this.production = this.registry.getCompiledAnalyzer(
-			FulltextAnalysisTestSupport.SCHEMA, "text", CZECH).index();
+			FulltextAnalysisTestSupport.SCHEMA, "text", CZECH).indexSurface();
 		final CatalogSchemaContract schema =
 			new InternalCatalogSchemaBuilder(
 				FulltextAnalysisTestSupport.SCHEMA)
 				.withFulltextLanguage("cs", language -> language.wordNumberSplit()).toInstance();
-		this.splitInChain = this.registry.getCompiledAnalyzer(schema, "text", CZECH).index();
+		this.splitInChain = this.registry.getCompiledAnalyzer(schema, "text", CZECH).indexSurface();
 	}
 
 	@AfterEach

@@ -39,9 +39,6 @@ import java.util.Set;
  * owns their lifecycle; splitting may be shared with other compiled analyzers in the same locale. Equality and
  * hashing use instance identity so grouping and cache bookkeeping never traverse the prepared stop-word set.
  *
- * @param index the index chain without the pre-stem capture: the analyzer name an index records comes from it, and
- *              its compilation collects the index stop words of `stopWordPreparations`; postings are built through
- *              `indexSurface`
  * @param word the query chain applied separately to each shared term
  * @param splitting the locale's shared word splitting
  * @param queryText the resolved query-side text steps; a query compares them by content across its field groups to
@@ -54,12 +51,19 @@ import java.util.Set;
  * @param surface the query lookup-key preparation: the query chain of one word up to its first stemming operation,
  *                ending with that operation's embedded normalization - the one that also prepares the folded
  *                component of the surface keys
+ * @param textSplitSurface surface preparation without already applied query text operations; identical to
+ *                         `surface` when the query text phase is empty
+ * @param fragment the unfinished-word fragment preparation: the `surface` chain without the words steps whose
+ *                 factory declines
+ *                 {@link io.evitadb.spi.analysis.FulltextWordsAnalysisStepFactory#participatesInQueryFragment()},
+ *                 the built-in stop filters and synonyms among them; it keeps the stemmer's surface normalization
+ * @param textSplitFragment fragment preparation without already applied query text operations; identical to
+ *                          `fragment` when the query text phase is empty
  * @param fingerprint the persistent index and word-phase identities
  * @param foldedStopWords prepared built-in index stop words, lower-cased and ASCII-folded
  * @param stopWordPreparations per-stop-step query surface preparation paired with its prepared index stop words
  */
 public record CompiledFulltextAnalyzer(
-	@Nonnull FulltextAnalyzer index,
 	@Nonnull FulltextAnalyzer word,
 	@Nonnull FulltextAnalyzer splitting,
 	@Nonnull List<AnalysisStep> queryText,
@@ -67,6 +71,9 @@ public record CompiledFulltextAnalyzer(
 	@Nonnull FulltextAnalyzer textSplitWord,
 	@Nonnull FulltextAnalyzer indexSurface,
 	@Nonnull FulltextAnalyzer surface,
+	@Nonnull FulltextAnalyzer textSplitSurface,
+	@Nonnull FulltextAnalyzer fragment,
+	@Nonnull FulltextAnalyzer textSplitFragment,
 	@Nonnull FulltextAnalyzerFingerprint fingerprint,
 	@Nonnull Set<String> foldedStopWords,
 	@Nonnull List<StopWordPreparation> stopWordPreparations
@@ -74,7 +81,6 @@ public record CompiledFulltextAnalyzer(
 	/**
 	 * Freezes the prepared stop words.
 	 *
-	 * @param index the index chain
 	 * @param word the query word chain
 	 * @param splitting the shared splitting chain
 	 * @param queryText the query-side text steps
@@ -82,6 +88,9 @@ public record CompiledFulltextAnalyzer(
 	 * @param textSplitWord the query word chain for the terms of the text-aware splitting
 	 * @param indexSurface the cached capture-equipped full index chain
 	 * @param surface the cached query surface normalization
+	 * @param textSplitSurface surface preparation for text-aware split terms
+	 * @param fragment cached fragment preparation
+	 * @param textSplitFragment fragment chain for text-aware split terms
 	 * @param fingerprint the persistent identities
 	 * @param foldedStopWords the prepared folded index stop words
 	 * @param stopWordPreparations query preparation corresponding to each built-in index stop step

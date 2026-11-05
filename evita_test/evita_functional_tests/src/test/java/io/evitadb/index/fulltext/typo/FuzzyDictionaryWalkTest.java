@@ -334,7 +334,7 @@ class FuzzyDictionaryWalkTest {
 			final FulltextIndex localIndex = new FulltextIndex();
 			final FulltextFieldKey key = FulltextFieldKey.attribute("keywordTerms");
 			final CompiledFulltextAnalyzer analyzer = keywordAnalyzer();
-			try (final FulltextAnalyzer chain = analyzer.index()) {
+			try (final FulltextAnalyzer chain = analyzer.indexSurface()) {
 				for (int i = 0; i < terms.length; i++) {
 					localIndex.addValue(key, i + 1, analyzer, 25.0, null, terms[i]);
 				}
@@ -373,7 +373,7 @@ class FuzzyDictionaryWalkTest {
 			final FulltextIndex localIndex = new FulltextIndex();
 			final FulltextFieldKey key = FulltextFieldKey.attribute("edgeTerms");
 			final CompiledFulltextAnalyzer analyzer = keywordAnalyzer();
-			try (final FulltextAnalyzer chain = analyzer.index()) {
+			try (final FulltextAnalyzer chain = analyzer.indexSurface()) {
 				final List<String> words = new ArrayList<>(400);
 				for (int i = 0; i < 400; i++) {
 					words.add(randomWord(random, alphabet, 6));

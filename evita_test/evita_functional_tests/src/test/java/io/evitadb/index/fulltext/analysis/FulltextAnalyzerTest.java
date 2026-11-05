@@ -104,7 +104,7 @@ class FulltextAnalyzerTest {
 	@Nonnull
 	private List<AnalyzedTerm> analyze(@Nonnull Locale locale, @Nonnull String text) {
 		return collectTerms(this.registry.getCompiledAnalyzer(
-			FulltextAnalysisTestSupport.SCHEMA, "text", locale).index(), text);
+			FulltextAnalysisTestSupport.SCHEMA, "text", locale).indexSurface(), text);
 	}
 
 	/**
@@ -272,7 +272,7 @@ class FulltextAnalyzerTest {
 		@Nonnull
 		private FulltextAnalyzer czechAnalyzer() {
 			return FulltextAnalyzerTest.this.registry.getCompiledAnalyzer(
-				FulltextAnalysisTestSupport.SCHEMA, "text", CZECH).index();
+				FulltextAnalysisTestSupport.SCHEMA, "text", CZECH).indexSurface();
 		}
 
 	}
@@ -666,7 +666,7 @@ class FulltextAnalyzerTest {
 		void shouldReportClosedAnalyzerAsUsageError() {
 			final FulltextAnalyzerRegistry ownRegistry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 			final FulltextAnalyzer analyzer = ownRegistry.getCompiledAnalyzer(
-				FulltextAnalysisTestSupport.SCHEMA, "text", CZECH).index();
+				FulltextAnalysisTestSupport.SCHEMA, "text", CZECH).indexSurface();
 			assertFalse(collectTerms(analyzer, "Česká Republika").isEmpty());
 
 			ownRegistry.close();
@@ -695,7 +695,7 @@ class FulltextAnalyzerTest {
 			assertEquals(
 				ResolvedFulltextAnalyzer.resolve(FulltextAnalysisTestSupport.SCHEMA, "text", finnish).analyzer(),
 				FulltextAnalyzerTest.this.registry.getCompiledAnalyzer(
-					FulltextAnalysisTestSupport.SCHEMA, "text", finnish).index().getAnalyzerName()
+					FulltextAnalysisTestSupport.SCHEMA, "text", finnish).indexSurface().getAnalyzerName()
 			);
 			// no stemming - the two forms stay apart - and no folding either
 			assertIterableEquals(List.of("kirjat", "kirja"), terms(finnish, "Kirjat kirja"));

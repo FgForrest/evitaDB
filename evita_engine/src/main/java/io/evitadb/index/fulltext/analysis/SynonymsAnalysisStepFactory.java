@@ -110,6 +110,11 @@ public final class SynonymsAnalysisStepFactory implements FulltextWordsAnalysisS
 	}
 
 	@Override
+	public boolean participatesInQueryFragment() {
+		return false;
+	}
+
+	@Override
 	public int getBehaviourVersion() {
 		return 1;
 	}

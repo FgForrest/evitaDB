@@ -159,7 +159,7 @@ public final class LanguageStemDictionary {
 		final long[] counts = new long[3];
 		try (final FulltextAnalyzerRegistry registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry())) {
 			final FulltextAnalyzer indexAnalyzer = registry.getCompiledAnalyzer(
-				FulltextAnalysisTestSupport.SCHEMA, ANALYZER, locale).index();
+				FulltextAnalysisTestSupport.SCHEMA, ANALYZER, locale).indexSurface();
 			forms.forEachForm(form -> {
 				counts[0]++;
 				final List<AnalyzedTerm> terms = collectTerms(indexAnalyzer, form);

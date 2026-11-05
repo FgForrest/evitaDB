@@ -119,7 +119,7 @@ class TypoToleranceBehaviourTest {
 		final Locale czech = Locale.forLanguageTag("cs");
 		searchAnalyzer = FulltextAnalysisTestSupport.queryAnalyzer(czech);
 		final FulltextAnalyzer indexAnalyzer = registry.getCompiledAnalyzer(
-			FulltextAnalysisTestSupport.SCHEMA, "text", czech).index();
+			FulltextAnalysisTestSupport.SCHEMA, "text", czech).indexSurface();
 		documents = new ArrayList<>(CATALOG.length);
 		final Set<String> allTerms = new TreeSet<>();
 		for (final String title : CATALOG) {

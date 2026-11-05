@@ -91,7 +91,7 @@ public final class FulltextIndexTestSupport {
 
 	/**
 	 * Builds a real keyword chain that keeps unpaired surrogates in its whole-value term. The wrapper still applies
-	 * Unicode NFC. The caller owns and closes `index()`; every chain refers to that same analyzer instance, the
+	 * Unicode NFC. The caller owns and closes `indexSurface()`; every chain refers to that same analyzer instance, the
 	 * surface chains included - a keyword chain has no stemmer, so its terms carry no pre-stem capture and the
 	 * surface-form lane records nothing for them.
 	 */
@@ -99,7 +99,8 @@ public final class FulltextIndexTestSupport {
 	public static CompiledFulltextAnalyzer keywordAnalyzer() {
 		final FulltextAnalyzer chain = new FulltextAnalyzer("keyword", new KeywordAnalyzer());
 		return new CompiledFulltextAnalyzer(
-			chain, chain, chain, List.of(), chain, chain, chain, chain, new FulltextAnalyzerFingerprint(0L, 0L), Set.of(),
+			chain, chain, List.of(), chain, chain, chain, chain, chain, chain, chain,
+			new FulltextAnalyzerFingerprint(0L, 0L), Set.of(),
 			List.of()
 		);
 	}

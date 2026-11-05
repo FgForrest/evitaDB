@@ -85,8 +85,10 @@ import static io.evitadb.core.query.filter.translator.fulltext.FulltextTermExpan
  * as `abc123` splits at its word-number boundary into `abc` and `123`. Each word looks its terms up in every searched
  * field of the {@link FulltextIndex} of the query's locale; every (field, term) with postings becomes one
  * {@link ExpandedTerm} of the word. Finished words add typo neighbours; the unclosed final word also adds prefix
- * completions and open-ended typo neighbours under the submitted policy. Exact terms are uncapped, while prefix
- * completions and typo neighbours are capped per word and group - see `FulltextTermExpansion`.
+ * completions and open-ended typo neighbours under the submitted policy. The typed word, normalized by the group's
+ * query surface chain, is looked up the same ways in the index's surface-form lane, and each lane hit contributes
+ * the stems indexed under that surface form. Exact terms are uncapped, while prefix completions and typo neighbours
+ * are capped per word and group, stem and lane hits together - see `FulltextTermExpansion`.
  *
  * A split word stays one mandatory word, satisfied by its original or by any of its parts. Ranking counts the parts
  * a document covers, an original hit covering them all, in the matched-words lane - see {@link FulltextFormula}.
@@ -212,6 +214,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			searchTokens[searchTokens.length - 1].endOffset() ==
 				Normalizer.normalize(textMatches.getText(), Normalizer.Form.NFC).length();
 		final Map<CompiledFulltextAnalyzer, String[][]> fragments = CollectionUtils.createHashMap(analyzers.size());
+		final Map<CompiledFulltextAnalyzer, String[][][]> surfaces = CollectionUtils.createHashMap(analyzers.size());
 		final Map<CompiledFulltextAnalyzer, String[][][]> analyzed = CollectionUtils.createHashMap(analyzers.size());
 		for (final Map.Entry<String, CompiledFulltextAnalyzer> entry : resolved.entrySet()) {
 			final CompiledFulltextAnalyzer analyzer = entry.getValue();
@@ -219,6 +222,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 				continue;
 			}
 			analyzed.put(analyzer, analyzeGroups(analyzer, searchTokens, commonText));
+			surfaces.put(analyzer, analyzeSurfaces(analyzer, searchTokens, commonText));
 			final QueryToken last = searchTokens.length == 0 ? null : searchTokens[searchTokens.length - 1];
 			final String[][] wordFragments = new String[last == null ? 1 : last.wordCount()][];
 			for (int part = 0; part < wordFragments.length; part++) {
@@ -227,8 +231,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 				final QueryToken word = last == null ? null : last.wordAt(part);
 				wordFragments[part] = unfinished && policyApplies && word != null &&
 					finalWordOffsetsMatch(analyzer, word, commonText)
-					? FulltextQueryFragment.prepare(queryContext.getAnalysisStepRegistry(), catalogSchema,
-						entry.getKey(), locale, word, commonText) : new String[0];
+					? FulltextQueryFragment.prepare(analyzer, word, commonText) : new String[0];
 			}
 			fragments.put(analyzer, wordFragments);
 		}
@@ -240,7 +243,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 				entry.getValue().entrySet()) {
 				groups.add(new AnalyzedFieldGroup(group.getKey(),
 					group.getValue().toArray(FulltextFieldDefinition[]::new), analyzed.get(group.getKey()),
-					fragments.get(group.getKey())));
+					surfaces.get(group.getKey()), fragments.get(group.getKey())));
 			}
 			groupsByScope.put(entry.getKey(), groups);
 		}
@@ -436,13 +439,15 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 * @param fields the fields searched in this scope
 	 * @param alternatives per word, index 0 the original and then each part, each with its analyzed alternatives;
 	 *                     empty where the chain dropped it
+	 * @param surfaces per word, aligned with `alternatives`, the typed terms normalized by the query surface chain for
+	 *                 the surface-form lane; empty where that chain dropped them
 	 * @param fragments the final word's unfinished fragments, index 0 the original and then each part, normalized
 	 *                  around stop removal and stemming; empty wherever the unfinished-word policy does not apply,
 	 *                  which includes every part but the last
 	 */
 	private record AnalyzedFieldGroup(
 		@Nonnull CompiledFulltextAnalyzer analyzer, @Nonnull FulltextFieldDefinition[] fields,
-		@Nonnull String[][][] alternatives, @Nonnull String[][] fragments
+		@Nonnull String[][][] alternatives, @Nonnull String[][][] surfaces, @Nonnull String[][] fragments
 	) { }
 
 	/**
@@ -480,6 +485,37 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			}
 		}
 		return alternatives;
+	}
+
+	/**
+	 * Prepares lane lookup words from shared split terms. The text-aware variant keeps splitting transformations
+	 * while applying the profile's query text phase exactly once.
+	 * @param analyzer profile's cached query surface preparation
+	 * @param words shared split words and their parts
+	 * @param textSplit whether shared splitting already applied the query text phase
+	 * @return normalized lane words aligned with the analyzed stem alternatives
+	 */
+	@Nonnull
+	private static String[][][] analyzeSurfaces(
+		@Nonnull CompiledFulltextAnalyzer analyzer, @Nonnull QueryToken[] words, boolean textSplit
+	) {
+		final FulltextAnalyzer chain = textSplit ? analyzer.textSplitSurface() : analyzer.surface();
+		final String[][][] surfaces = new String[words.length][][];
+		for (int i = 0; i < words.length; i++) {
+			surfaces[i] = new String[words[i].wordCount()][];
+			for (int part = 0; part < surfaces[i].length; part++) {
+				final Set<String> terms = CollectionUtils.createLinkedHashSet(2);
+				for (final String term : words[i].wordAt(part).terms()) {
+					chain.analyze(term, (value, surface, start, end, increment) -> {
+						if (!value.isEmpty()) {
+							terms.add(value);
+						}
+					});
+				}
+				surfaces[i][part] = terms.toArray(String[]::new);
+			}
+		}
+		return surfaces;
 	}
 
 	/**
@@ -590,7 +626,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 						continue;
 					}
 					final List<ExpandedTerm> expanded = expansion.expand(fulltextIndex, fieldIds.get(g), alternatives,
-						fragments, lastUnfinished);
+						group.surfaces()[i][part], fragments, lastUnfinished);
 					if (dropped && !containsCompletion(expanded)) {
 						continue;
 					}

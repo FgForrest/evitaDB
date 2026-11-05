@@ -114,6 +114,37 @@ final class FulltextTermHeap {
 	}
 
 	/**
+	 * Tests a borrowed lane term before freezing characters or acquiring posting/impact views. A term already
+	 * retained needs no second offer: within one field its postings and impacts do not depend on the variant or
+	 * surface form that reached it.
+	 * @param term decoded borrowed stem
+	 * @param distance accepted edit band
+	 * @param frequency current field's document frequency
+	 * @return true only when a subsequent offer with these values would retain a new or replacement entry
+	 * @throws GenericEvitaInternalError when a retained duplicate carries a different distance
+	 */
+	boolean canOffer(@Nonnull CharSequence term, int distance, int frequency) {
+		for (int i = 0; i < this.size; i++) {
+			final Entry existing = this.heap[i];
+			if (CharSequence.compare(term, existing.term) == 0) {
+				if (distance != existing.distance) {
+					throw new GenericEvitaInternalError(
+						"A retained lane stem was offered in different distance bands.");
+				}
+				return false;
+			}
+		}
+		if (this.size < this.heap.length) {
+			return true;
+		}
+		final Entry worst = this.heap[0];
+		final int byDistance = Integer.compare(distance, worst.distance);
+		final int byFrequency = Integer.compare(worst.frequency, frequency);
+		return byDistance < 0 || byDistance == 0 && (byFrequency < 0 ||
+			byFrequency == 0 && CharSequence.compare(term, worst.term) < 0);
+	}
+
+	/**
 	 * Compares a hit without allocating an entry for it.
 	 * @param leftDistance first distance
 	 * @param leftFrequency first frequency

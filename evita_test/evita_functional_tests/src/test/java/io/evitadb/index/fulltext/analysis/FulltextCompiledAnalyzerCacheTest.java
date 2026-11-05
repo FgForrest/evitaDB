@@ -99,6 +99,10 @@ class FulltextCompiledAnalyzerCacheTest {
 					final List<String> fromSplit = collectTerms(compiled.textSplitWord(), term.term()).stream()
 						.map(t -> t.term()).toList();
 					assertEquals(fromSurface, fromSplit, "A split term must pass the text phase exactly once");
+					assertEquals(collectTerms(compiled.surface(), term.surfaceForm()).stream().map(t -> t.term()).toList(),
+						collectTerms(compiled.textSplitSurface(), term.term()).stream().map(t -> t.term()).toList());
+					assertEquals(collectTerms(compiled.fragment(), term.surfaceForm()).stream().map(t -> t.term()).toList(),
+						collectTerms(compiled.textSplitFragment(), term.term()).stream().map(t -> t.term()).toList());
 				}
 			}
 		}
@@ -193,7 +197,7 @@ class FulltextCompiledAnalyzerCacheTest {
 					"names", Locale.forLanguageTag("cs"));
 				assertNotEquals(first.fingerprint(), second.fingerprint());
 				assertTrue(first.foldedStopWords().contains("neni"));
-				assertTrue(collectTerms(first.index(), "není").isEmpty());
+				assertTrue(collectTerms(first.indexSurface(), "není").isEmpty());
 			}
 		}
 	}
@@ -291,7 +295,7 @@ class FulltextCompiledAnalyzerCacheTest {
 			cache.close();
 			assertThrows(EvitaInvalidUsageException.class, () -> cache.getCompiledAnalyzer(SCHEMA, "text",
 				Locale.ENGLISH));
-			assertThrows(EvitaInvalidUsageException.class, () -> collectTerms(held.index(), "bike"));
+			assertThrows(EvitaInvalidUsageException.class, () -> collectTerms(held.indexSurface(), "bike"));
 			assertThrows(EvitaInvalidUsageException.class, () -> collectTerms(held.word(), "bike"));
 			assertThrows(EvitaInvalidUsageException.class, () -> collectTerms(held.splitting(), "bike"));
 			assertThrows(EvitaInvalidUsageException.class, () -> collectTerms(joined.textSplitting(), "e-bike"));

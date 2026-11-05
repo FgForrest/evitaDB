@@ -35,6 +35,8 @@ import io.evitadb.test.fulltext.TypoThresholds;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import static io.evitadb.core.query.filter.translator.fulltext.FulltextSurfaceTestSupport.*;
 
 import java.util.*;
 
@@ -66,7 +68,7 @@ class TextMatchesExpansionTest {
 	/** Expands one word in the title field under the default policy, its fragment passed as the translator does. */
 	private ExpandedTerm[] expand(String fragment, boolean unfinished, String... variants) {
 		return new FulltextTermExpansion(DEFAULT_PARAMETERS)
-			.expand(this.index, new int[]{0}, variants, new String[]{fragment}, unfinished)
+			.expand(this.index, new int[]{0}, variants, new String[0], new String[]{fragment}, unfinished)
 			.toArray(ExpandedTerm[]::new);
 	}
 
@@ -213,7 +215,7 @@ class TextMatchesExpansionTest {
 			addWords(TextMatchesExpansionTest.this.index, excluded, 1, "stemexcluded");
 			final List<ExpandedTerm> actual = new FulltextTermExpansion(DEFAULT_PARAMETERS)
 				.expand(TextMatchesExpansionTest.this.index, new int[]{0, secondId}, new String[0],
-					new String[]{"stem"}, true);
+					new String[0], new String[]{"stem"}, true);
 			assertEquals(100, actual.size());
 			final Set<String> terms = new TreeSet<>();
 			for (final ExpandedTerm term : actual) {
@@ -274,7 +276,7 @@ class TextMatchesExpansionTest {
 			addWideDictionary();
 			final FulltextTermExpansion expansion = new FulltextTermExpansion(DEFAULT_PARAMETERS);
 			final List<ExpandedTerm> actual = expansion.expand(TextMatchesExpansionTest.this.index, new int[]{0},
-				new String[]{"zzzz", "aaaa"}, new String[]{"aaaa"}, true);
+				new String[]{"zzzz", "aaaa"}, new String[0], new String[]{"aaaa"}, true);
 			final Map<String, String> expected = new TreeMap<>();
 			for (int i = 0; i < 49; i++) {
 				expected.put("zzzz" + String.format("%05d", i), "PREFIX:0");
@@ -347,7 +349,8 @@ class TextMatchesExpansionTest {
 			}
 			expected.add("stemsingle");
 			final List<ExpandedTerm> actual = new FulltextTermExpansion(DEFAULT_PARAMETERS).expand(
-				TextMatchesExpansionTest.this.index, new int[]{0, secondId}, new String[0], new String[]{"stem"}, true);
+				TextMatchesExpansionTest.this.index, new int[]{0, secondId}, new String[0], new String[0],
+					new String[]{"stem"}, true);
 			final Set<String> actualTerms = new TreeSet<>();
 			for (final ExpandedTerm term : actual) {
 				actualTerms.add(term.term());
@@ -373,7 +376,8 @@ class TextMatchesExpansionTest {
 				addWords(TextMatchesExpansionTest.this.index, second, pk, "stemwinner");
 			}
 			final List<ExpandedTerm> actual = new FulltextTermExpansion(DEFAULT_PARAMETERS).expand(
-				TextMatchesExpansionTest.this.index, new int[]{0, secondId}, new String[0], new String[]{"stem"}, true);
+				TextMatchesExpansionTest.this.index, new int[]{0, secondId}, new String[0], new String[0],
+					new String[]{"stem"}, true);
 			assertEquals(51, actual.size());
 			int fields = 0;
 			for (final ExpandedTerm term : actual) {
@@ -467,7 +471,7 @@ class TextMatchesExpansionTest {
 		private List<?> configured(String word, boolean prefix, int minimum, int openEnd, boolean swaps) {
 			return new FulltextTermExpansion(new FulltextTypoParameters(4, 8, 1, swaps, true,
 				prefix, minimum, openEnd)).expand(TextMatchesExpansionTest.this.index, new int[]{0},
-					new String[]{word}, new String[]{word}, true);
+					new String[]{word}, new String[0], new String[]{word}, true);
 		}
 
 		/** A supplementary character is one letter of the fragment, and the longest fragment decides. */
@@ -531,4 +535,31 @@ class TextMatchesExpansionTest {
 			}
 		}
 	}
+	/** Extension declarations determine whether an unfinished word may open the completion guard. */
+	@Nested
+	@DisplayName("Extension completion policy")
+	class ExtensionCompletion {
+		/** A stopped query word survives as an unfinished fragment when its provider declares omission. */
+		@ParameterizedTest
+		@ValueSource(booleans = {true, false})
+		@DisplayName("Completes a custom stop word only when the fragment bypasses its filter")
+		void shouldCompleteDeclaredStopWord(boolean omitted) {
+			final TransformingWords provider = omitted
+				? new OmittedFragmentWords("stop") : new TransformingWords("stop");
+			withAnalyzer(provider, analyzer -> assertEquals(omitted ? 1 : 0,
+				FulltextSurfaceTestSupport.expand(analyzer, "that", "thatch", fragments(analyzer, "that")).size()));
+		}
+
+		/** A query synonym must not lengthen a short fragment past the completion guard. */
+		@ParameterizedTest
+		@ValueSource(booleans = {true, false})
+		@DisplayName("Keeps a three-letter synonym source below the completion guard")
+		void shouldKeepSynonymSourceBelowGuard(boolean omitted) {
+			final TransformingWords provider = omitted
+				? new OmittedFragmentWords("synonym") : new TransformingWords("synonym");
+			withAnalyzer(provider, analyzer -> assertEquals(omitted ? 0 : 1,
+				FulltextSurfaceTestSupport.expand(analyzer, "car", "automobileshop", fragments(analyzer, "car")).size()));
+		}
+	}
+
 }

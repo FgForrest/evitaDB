@@ -67,7 +67,7 @@ final class FulltextEditDistance {
 	 * @param openEnd whether any suffix of the key is free
 	 * @return exact distance to the whole key, or minimum distance to one of its prefixes
 	 */
-	int distance(@Nonnull String key, boolean transpositions, boolean openEnd) {
+	int distance(@Nonnull CharSequence key, boolean transpositions, boolean openEnd) {
 		final int[] query = this.query;
 		final int queryLength = query.length;
 		int best = queryLength;
@@ -83,7 +83,7 @@ final class FulltextEditDistance {
 		int previousCodePoint = -1;
 		int keyLength = 0;
 		for (int offset = 0; offset < key.length();) {
-			final int codePoint = key.codePointAt(offset);
+			final int codePoint = Character.codePointAt(key, offset);
 			current[0] = ++keyLength;
 			for (int i = 1; i <= queryLength; i++) {
 				final int substitution = previous[i - 1] + (query[i - 1] == codePoint ? 0 : 1);

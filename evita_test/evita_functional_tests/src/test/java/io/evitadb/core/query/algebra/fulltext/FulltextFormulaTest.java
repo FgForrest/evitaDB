@@ -129,7 +129,7 @@ class FulltextFormulaTest {
 	static void setUpAnalyzer() {
 		registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 		analyzer = registry.getCompiledAnalyzer(
-			FulltextAnalysisTestSupport.SCHEMA, "text", Locale.forLanguageTag("cs")).index();
+			FulltextAnalysisTestSupport.SCHEMA, "text", Locale.forLanguageTag("cs")).indexSurface();
 	}
 
 	@AfterAll

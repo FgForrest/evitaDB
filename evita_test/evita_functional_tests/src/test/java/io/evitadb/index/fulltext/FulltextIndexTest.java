@@ -126,7 +126,7 @@ class FulltextIndexTest {
 	@BeforeAll
 	static void setUpAnalyzer() {
 		registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
-		analyzer = testAnalyzer().index();
+		analyzer = testAnalyzer().indexSurface();
 	}
 
 	@AfterAll

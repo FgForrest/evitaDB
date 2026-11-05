@@ -218,7 +218,7 @@ public final class FulltextIndexModel {
 		for (int fieldId = 0; fieldId < this.fields.size(); fieldId++) {
 			final ModelField field = this.fields.get(fieldId);
 			assertEquals(fieldId, index.getOrAssignFieldId(field.key,
-				this.analyzer.index().getAnalyzerName(), this.analyzer.fingerprint().index(),
+				this.analyzer.indexSurface().getAnalyzerName(), this.analyzer.fingerprint().index(),
 				this.analyzer.fingerprint().wordPhase(), field.pivot, null), "replayed field id");
 			for (final Map.Entry<Integer, ModelValue> entry : field.values.entrySet()) {
 				addValue(index, field.key, entry.getKey(), entry.getValue().elements());
@@ -389,7 +389,7 @@ public final class FulltextIndexModel {
 		}
 		if (field == null) {
 			final double pivot = PIVOTS[random.nextInt(PIVOTS.length)];
-			assertEquals(this.fields.size(), index.getOrAssignFieldId(key, this.analyzer.index().getAnalyzerName(),
+			assertEquals(this.fields.size(), index.getOrAssignFieldId(key, this.analyzer.indexSurface().getAnalyzerName(),
 				this.analyzer.fingerprint().index(), this.analyzer.fingerprint().wordPhase(), pivot, null),
 				"the id assigned to " + key);
 			field = new ModelField(key, pivot);

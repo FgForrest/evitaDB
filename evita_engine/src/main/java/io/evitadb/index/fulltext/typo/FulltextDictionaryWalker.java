@@ -30,6 +30,8 @@ import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
 import io.evitadb.index.bPlusTree.Wtf8;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.fulltext.FulltextTermKeys;
+import io.evitadb.index.fulltext.FulltextIndex;
+import io.evitadb.index.fulltext.FulltextIndex.SurfaceFormCursor;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
@@ -196,6 +198,68 @@ public final class FulltextDictionaryWalker {
 		}
 	}
 
+	/** Visitor of an accepted lane pair; its cursor views are borrowed until the next advance. */
+	@FunctionalInterface
+	public interface SurfaceMatchVisitor {
+		/**
+		 * Visits a pair matched solely by its decoded folded component.
+		 * @param cursor positioned phase-bounded surface cursor
+		 * @param distance distance to the folded word, minimized over its prefixes for an open-ended walk
+		 * @return true to continue, false to stop
+		 */
+		boolean visit(@Nonnull SurfaceFormCursor cursor, int distance);
+	}
+
+	/**
+	 * Walks a surface phase using the same automaton, DP rows and successors as a stem walk. Cursor bounds encode
+	 * literal components, so neither suffix stems nor displays take part in acceptance or successor construction.
+	 * Accepted-key reads borrow cursor storage. Rejected-key successor seeks still materialize keys and bounds.
+	 *
+	 * @param index dictionary owning the phase-bounded cursor
+	 * @param wordPhase persistent index word-phase fingerprint
+	 * @param visitor receives accepted surface pairs and their folded distance
+	 */
+	public void walkSurface(
+		@Nonnull FulltextIndex index, long wordPhase, @Nonnull SurfaceMatchVisitor visitor
+	) {
+		final SurfaceFormCursor cursor = index.surfaceFormCursor(wordPhase, this.frozenPrefix);
+		while (cursor.next()) {
+			final CharSequence folded = cursor.foldedCharacters();
+			if (accepts(folded, 0)) {
+				final int distance = this.editDistance.distance(folded, this.transpositions, this.openEnd);
+				if (!visitor.visit(cursor, distance)) {
+					return;
+				}
+			} else if (this.scalarQuery && isScalar(folded)) {
+				setSeek(folded, 0);
+				if (!nextString()) {
+					return;
+				}
+				final String target = new String(this.seek, 0, this.seekLength);
+				cursor.seek(target);
+			}
+		}
+	}
+
+	/**
+	 * Checks the borrowed folded characters before scalar successor construction.
+	 * @param text decoded folded component
+	 * @return true when every surrogate belongs to a complete pair
+	 */
+	private static boolean isScalar(@Nonnull CharSequence text) {
+		for (int i = 0; i < text.length(); i++) {
+			final char character = text.charAt(i);
+			if (Character.isHighSurrogate(character)) {
+				if (++i == text.length() || !Character.isLowSurrogate(text.charAt(i))) {
+					return false;
+				}
+			} else if (Character.isLowSurrogate(character)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	/**
 	 * Positions a cursor at a lower bound. The first call opens a cursor at the target; every later reposition moves
 	 * the existing cursor forward with {@link BucketCursor#seek(Comparable)}, which searches the current leaf and
@@ -226,13 +290,13 @@ public final class FulltextDictionaryWalker {
 	 * @param offset UTF-16 offset of the bare term
 	 * @return whether the finite or open-ended language accepts the term
 	 */
-	private boolean accepts(@Nonnull String key, int offset) {
+	private boolean accepts(@Nonnull CharSequence key, int offset) {
 		int state = 0;
 		if (this.openEnd && this.acceptor.isAccept(state)) {
 			return true;
 		}
 		for (int i = offset; i < key.length();) {
-			final int codePoint = key.codePointAt(i);
+			final int codePoint = Character.codePointAt(key, i);
 			state = this.acceptor.step(state, codePoint);
 			if (state < 0) {
 				return false;
@@ -251,11 +315,11 @@ public final class FulltextDictionaryWalker {
 	 * @param key rejected encoded dictionary key
 	 * @param offset UTF-16 offset of the bare term
 	 */
-	private void setSeek(@Nonnull String key, int offset) {
+	private void setSeek(@Nonnull CharSequence key, int offset) {
 		ensureCapacity(key.length() - offset + 1);
 		this.seekLength = 0;
 		for (int i = offset; i < key.length();) {
-			final int codePoint = key.codePointAt(i);
+			final int codePoint = Character.codePointAt(key, i);
 			this.seek[this.seekLength++] = codePoint;
 			i += Character.charCount(codePoint);
 		}

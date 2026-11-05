@@ -2415,6 +2415,129 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	}
 
 	/**
+	 * Creates reusable exact lookup state for naturally ordered string keys. The probe may be mutable borrowed
+	 * characters; no framed key, cursor path or decoded candidate string is allocated by a lookup. Read bucket
+	 * cardinality first, then acquire posting and impact views only for a retained candidate. Writes invalidate the
+	 * positioned lookup just as they invalidate a bucket cursor.
+	 *
+	 * @return query-owned, non-reentrant exact lookup state
+	 * @throws GenericEvitaInternalError when this tree is not a natural-order string tree with int postings
+	 */
+	@Nonnull
+	public StringBucketLookup stringLookup() {
+		Assert.isPremiseValid(this.keyType == String.class && ValueColumnFactory.isNaturalOrder(this.comparator) &&
+			!this.longPayload, "String lookup requires naturally ordered string keys with int postings!");
+		return new StringBucketLookup();
+	}
+
+	/**
+	 * Query-owned exact string probe, borrowing tree columns until the next lookup or tree write. Each
+	 * {@link #find(CharSequence)} resolves the root, and the transactional layer of the leaf it reaches, anew; the
+	 * accessors read the key of the last successful find and throw after a failed one.
+	 */
+	public final class StringBucketLookup {
+		/** Reused decoding space for leaf-key comparisons. */
+		@Nonnull private final StringBuilder candidate = new StringBuilder(64);
+		/** Positioned posting column, null before a successful lookup. */
+		@Nullable private RecordColumn records;
+		/** Optional overflow posting storage of the positioned leaf. */
+		@Nullable private OverflowColumn overflow;
+		/** Optional aligned impacts of the positioned leaf. */
+		@Nullable private OverflowColumn impacts;
+		/** Current leaf slot, negative for an absent key. */
+		private int slot = -1;
+		/** Current leaf identity for borrowed posting views. */
+		private long leafId;
+
+		/** Creates state owned by one caller of {@link #stringLookup()}. */
+		private StringBucketLookup() { }
+
+		/**
+		 * Positions at exactly the supplied character sequence, without retaining it.
+		 * @param key complete natural-order dictionary key, possibly backed by mutable caller storage
+		 * @return true when the exact key exists, false when absent
+		 */
+		public boolean find(@Nonnull CharSequence key) {
+			BPlusTreeNode<K, ?> node = TransactionalBucketBPlusTree.this.getRoot();
+			while (node instanceof BPlusInternalTreeNode<?> internalNode) {
+				@SuppressWarnings("unchecked")
+				final BPlusInternalTreeNode<K> internal = (BPlusInternalTreeNode<K>) internalNode;
+				final K[] keys = internal.getKeys();
+				int low = 0;
+				int high = internal.getPeek();
+				while (low < high) {
+					final int middle = (low + high) >>> 1;
+					if (CharSequence.compare((CharSequence) keys[middle], key) <= 0) {
+						low = middle + 1;
+					} else {
+						high = middle;
+					}
+				}
+				node = internal.getChildren()[low];
+			}
+			final BPlusLeafTreeNode<K> leaf = (BPlusLeafTreeNode<K>) node;
+			final BPlusLeafTreeNode<K> layer = leaf.transactionalLayer
+				? Transaction.getTransactionalMemoryLayerIfExists(leaf) : null;
+			final BPlusLeafTreeNode<K> source = layer == null ? leaf : layer;
+			int low = 0;
+			int high = source.peek;
+			this.slot = -1;
+			this.records = null;
+			while (low <= high) {
+				final int middle = (low + high) >>> 1;
+				this.candidate.setLength(0);
+				source.keys.appendKey(this.candidate, middle);
+				final int comparison = CharSequence.compare(this.candidate, key);
+				if (comparison < 0) {
+					low = middle + 1;
+				} else if (comparison > 0) {
+					high = middle - 1;
+				} else {
+					this.slot = middle;
+					this.records = source.records;
+					this.overflow = source.overflow;
+					this.impacts = source.impacts;
+					this.leafId = leaf.getId();
+					return true;
+				}
+			}
+			return false;
+		}
+
+		/**
+		 * Reads the positioned posting cardinality without allocating a bitmap view.
+		 * @return document frequency of the successfully found key
+		 */
+		public int size() {
+			Assert.isPremiseValid(this.slot >= 0, "Position the string lookup before reading it!");
+			final Object bucket = this.overflow == null ? null : this.overflow.recordsAt(this.slot);
+			return bucket == null ? 1 : OverflowRecords.cardinality(bucket);
+		}
+
+		/**
+		 * Acquires a borrowed posting view only after the caller retains this hit.
+		 * @return current posting view, invalidated by tree writes
+		 */
+		@Nonnull
+		public Bitmap records() {
+			Assert.isPremiseValid(this.records != null, "Position the string lookup before reading it!");
+			final Object bucket = this.overflow == null ? null : this.overflow.recordsAt(this.slot);
+			return bucket == null ? new SingleRecordBitmap(this.records.intAt(this.slot))
+				: OverflowRecords.asBitmapView(bucket, this.leafId);
+		}
+
+		/**
+		 * Acquires impacts aligned with the current borrowed posting view.
+		 * @return aligned impacts of the successfully found key
+		 */
+		@Nonnull
+		public ImpactView impacts() {
+			Assert.isPremiseValid(this.slot >= 0, "Position the string lookup before reading it!");
+			return impactViewAt(this.impacts, this.overflow, this.slot);
+		}
+	}
+
+	/**
 	 * Returns a reverse NEUTRAL cursor over the buckets, ordered descending by value.
 	 *
 	 * Any subsequent write to this tree in the same transaction invalidates the cursor; see {@link BucketCursor}.
@@ -4366,6 +4489,15 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		@Nonnull
 		K value();
+
+		/**
+		 * Appends the current key to caller-owned reusable character storage. Forward cursors decode string columns
+		 * directly, without materializing their key as a String; other cursors retain their ordinary value behavior.
+		 * @param target destination whose existing prefix is retained
+		 */
+		default void appendValue(@Nonnull StringBuilder target) {
+			target.append(value());
+		}
 
 		/**
 		 * Returns whether the current bucket holds exactly one record (single representation).
@@ -8486,6 +8618,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					? this.lastLeafKey : this.leafKeys.keyAt(this.currentIndex);
 			}
 			return this.currentKey;
+		}
+
+		@Override
+		public void appendValue(@Nonnull StringBuilder target) {
+			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
+			this.leafKeys.appendKey(target, this.currentIndex);
 		}
 
 		@Override

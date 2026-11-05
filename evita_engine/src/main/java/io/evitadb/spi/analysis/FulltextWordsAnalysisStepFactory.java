@@ -45,6 +45,23 @@ public non-sealed interface FulltextWordsAnalysisStepFactory extends FulltextAna
 	Set<FulltextAnalysisSide> getSides();
 
 	/**
+	 * Declares whether this step participates in preparation of an unfinished query fragment. The fragment is the
+	 * typed last word, normalized up to the stemmer's declared surface normalization, before the completion-length
+	 * guard and prefix lookup. Stop filters must not remove that fragment while the user is still typing a longer
+	 * word (fulltext typo algorithm §6.3), and synonym expansion must not lengthen it and open the guard for a shorter
+	 * typed word. Providers implementing those semantics return false. Other normalization steps participate.
+	 *
+	 * The compiler consults this declaration before {@link #create(Map, FulltextAnalysisContext)}, so an omitted
+	 * operation and its resource preparations are never constructed for a fragment. Ordinary index, word and surface
+	 * chains remain governed by {@link #getSides()}. The default preserves existing extension-provider behavior.
+	 *
+	 * @return true to include the step in fragment preparation, false to omit it before creating its operation
+	 */
+	default boolean participatesInQueryFragment() {
+		return true;
+	}
+
+	/**
 	 * Creates the operation for validated parameters.
 	 *
 	 * @param parameters the step's parameters, already validated by {@link #validate(Map)}

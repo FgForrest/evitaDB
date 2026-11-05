@@ -101,6 +101,11 @@ public final class StopWordsAnalysisStepFactory implements FulltextWordsAnalysis
 	}
 
 	@Override
+	public boolean participatesInQueryFragment() {
+		return false;
+	}
+
+	@Override
 	public int getBehaviourVersion() {
 		return 1;
 	}

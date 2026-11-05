@@ -836,7 +836,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		if (values.length == 0) {
 			return;
 		}
-		final int fieldId = getOrAssignFieldId(fieldKey, analyzer.index().getAnalyzerName(),
+		final int fieldId = getOrAssignFieldId(fieldKey, analyzer.indexSurface().getAnalyzerName(),
 			analyzer.fingerprint().index(), analyzer.fingerprint().wordPhase(), lengthPivot, textExpression);
 		indexValues(fieldId, primaryKey, analyzer, values);
 	}
@@ -956,6 +956,88 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			if (!visitor.visit(FulltextTermKeys.termOf(key), cursor.records(), cursor.impacts())) {
 				return;
 			}
+		}
+	}
+
+	/**
+	 * Creates exact stem lookup state for one searched field. Its framed probe and tree lookup are reused across
+	 * lane hits; posting and impact views are acquired only after a candidate survives the leg's heap cut.
+	 * The lookup belongs to this index instance and the transaction in which it is created. No write may occur
+	 * between a successful find and its accessors. Obtain a new lookup after any write or index replacement; a
+	 * further find on the old lookup does not renew its borrowing lifetime.
+	 * @param fieldId current field generation whose posting terms are searched
+	 * @return query-owned exact lookup state
+	 */
+	@Nonnull
+	public TermLookup termLookup(int fieldId) {
+		assertFieldKnown(fieldId);
+		return new TermLookup(fieldId);
+	}
+
+	/**
+	 * Reusable exact stem probe; neither borrowed input characters nor unretained field views escape. The lookup is
+	 * valid only on its creating index instance and within its creating transaction. No write may occur between a
+	 * successful find and its accessors. After any write or index replacement, obtain a new lookup from the current
+	 * index; calling find again on the old lookup does not refresh its lifetime. These are caller obligations, with
+	 * no generation or transaction check.
+	 */
+	public final class TermLookup {
+		/** Encoded field prefix, prepared once. */
+		@Nonnull private final String fieldPrefix;
+		/** Reused complete dictionary probe. */
+		@Nonnull private final StringBuilder probe = new StringBuilder(64);
+		/** Tree-owned-column lookup state belonging to this query. */
+		@Nonnull private final TransactionalBucketBPlusTree<String>.StringBucketLookup lookup;
+
+		/**
+		 * Prepares one field's framing and exact tree reader.
+		 * @param fieldId searched field generation
+		 */
+		private TermLookup(int fieldId) {
+			this.fieldPrefix = FulltextTermKeys.fieldPrefix(fieldId);
+			this.lookup = FulltextIndex.this.dictionary.stringLookup();
+		}
+
+		/**
+		 * Positions on an exact stem without freezing its borrowed characters. Use only in this lookup's creating
+		 * transaction and before any write; after a write or index replacement, obtain a new lookup instead.
+		 * @param stem decoded posting term from a lane cursor
+		 * @return true when this field holds the stem
+		 */
+		public boolean find(@Nonnull CharSequence stem) {
+			this.probe.setLength(0);
+			this.probe.append(this.fieldPrefix).append(stem);
+			return this.lookup.find(this.probe);
+		}
+
+		/**
+		 * Reads document frequency before constructing any posting views. Requires a successful find with no
+		 * intervening write, on the same index instance and within the creating transaction.
+		 * @return current exact stem's document frequency
+		 */
+		public int size() {
+			return this.lookup.size();
+		}
+
+		/**
+		 * Borrows postings for a retained exact stem. Requires a successful find with no intervening write, on the
+		 * same index instance and within the creating transaction; obtain a new lookup after any write or replacement.
+		 * @return current exact stem's posting view
+		 */
+		@Nonnull
+		public Bitmap postings() {
+			return this.lookup.records();
+		}
+
+		/**
+		 * Borrows impacts aligned with a retained stem's postings. Requires a successful find with no intervening
+		 * write, on the same index instance and within the creating transaction; obtain a new lookup after any write
+		 * or index replacement.
+		 * @return current exact stem's impact view
+		 */
+		@Nonnull
+		public ImpactView impacts() {
+			return this.lookup.impacts();
 		}
 	}
 
@@ -1653,22 +1735,40 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * @param key the framed surface key
 	 * @return the index of the NUL closing the folded component, or -1 when the key has none
 	 */
-	private static int surfaceFoldedEnd(@Nonnull String key) {
-		return key.indexOf('\0', FulltextTermKeys.FIELD_PREFIX_WIDTH + 1);
+	private static int surfaceFoldedEnd(@Nonnull CharSequence key) {
+		for (int i = FulltextTermKeys.FIELD_PREFIX_WIDTH + 1; i < key.length(); i++) {
+			if (key.charAt(i) == '\0') {
+				return i;
+			}
+		}
+		return -1;
 	}
 
 	/**
 	 * Returns where the stem component of a framed surface key ends.
 	 *
 	 * @param key       the framed surface key
-	 * @param foldedEnd the end of its folded component, see {@link #surfaceFoldedEnd(String)}
+	 * @param foldedEnd the end of its folded component, see {@link #surfaceFoldedEnd(CharSequence)}
 	 * @return the index of the NUL closing the stem component, or -1 when the key has none
 	 */
-	private static int surfaceStemEnd(@Nonnull String key, int foldedEnd) {
-		return key.indexOf('\0', foldedEnd + 1);
+	private static int surfaceStemEnd(@Nonnull CharSequence key, int foldedEnd) {
+		for (int i = foldedEnd + 1; i < key.length(); i++) {
+			if (key.charAt(i) == '\0') {
+				return i;
+			}
+		}
+		return -1;
 	}
 
-	/** A forward cursor over one word phase's surface keys, bounded by the requested folded prefix. */
+	/**
+	 * A forward cursor over one word phase's surface keys, bounded by the requested folded prefix.
+	 *
+	 * {@link #seek(String)} only positions: it hides the current key, and the following {@link #next()} exposes the
+	 * first key at or above the bound, or returns false when the range holds none. Several seeks may precede that
+	 * next(), the last one deciding, as long as each bound lies past the last yielded key. Once next() has returned
+	 * false, the cursor stays exhausted and seeks are ignored. The decoded component views are cursor-owned buffers;
+	 * for an identity stem {@link #stemCharacters()} returns the {@link #foldedCharacters()} buffer itself.
+	 */
 	public final class SurfaceFormCursor {
 		/** Encoded word-phase prefix, or null for a phase absent from the index. */
 		@Nullable private final String phasePrefix;
@@ -1676,8 +1776,24 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		@Nonnull private final String keyPrefix;
 		/** Current underlying leaf cursor. */
 		@Nullable private BucketCursor<String> delegate;
-		/** Current encoded key, null before advancing or after exhaustion. */
-		@Nullable private String key;
+		/** Reused decoded folded component; borrowed by the query walker until the cursor advances. */
+		@Nonnull private final StringBuilder foldedCharacters = new StringBuilder(32);
+		/** Reused decoded nonidentity stem. */
+		@Nonnull private final StringBuilder stemCharacters = new StringBuilder(32);
+		/** Encoded current key, retained while a sought ceiling is pending. */
+		@Nonnull private final StringBuilder key = new StringBuilder(64);
+		/** Scratch encoded ceiling for repeated seeks before next(). */
+		@Nonnull private final StringBuilder seekCharacters = new StringBuilder(64);
+		/** Whether the public cursor currently exposes a key. */
+		private boolean positioned;
+		/** Whether the delegate has advanced at least once. */
+		private boolean delegatePositioned;
+		/** Whether next() must expose the already-positioned seek ceiling. */
+		private boolean pendingPosition;
+		/** Whether a key has been yielded, for forward-bound validation through pending seeks. */
+		private boolean yielded;
+		/** Last seek bound, used to preserve pre-next repositioning within a pending range. */
+		@Nullable private String pendingLowerBound;
 
 		/**
 		 * Opens a range without exposing the mutable tree.
@@ -1699,12 +1815,25 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		 * @return true when another surface pair is available
 		 */
 		public boolean next() {
-			if (this.delegate != null && this.delegate.next() && this.delegate.value().startsWith(this.keyPrefix)) {
-				this.key = this.delegate.value();
-				return true;
+			this.pendingLowerBound = null;
+			if (this.delegate != null && (this.pendingPosition || this.delegate.next())) {
+				this.delegatePositioned = true;
+				this.pendingPosition = false;
+				this.key.setLength(0);
+				this.delegate.appendValue(this.key);
+				boolean inRange = this.key.length() >= this.keyPrefix.length();
+				for (int i = 0; inRange && i < this.keyPrefix.length(); i++) {
+					inRange = this.key.charAt(i) == this.keyPrefix.charAt(i);
+				}
+				if (inRange) {
+					this.positioned = true;
+					this.yielded = true;
+					return true;
+				}
 			}
 			this.delegate = null;
-			this.key = null;
+			this.positioned = false;
+			this.pendingPosition = false;
 			return false;
 		}
 
@@ -1712,21 +1841,95 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		 * Seeks forward to a literal folded lower bound within this cursor's range, with NUL always treated as text.
 		 * The next next() visits the ceiling key. Before the first result, bounds below the range start are clamped
 		 * to that start, including the framing of an exact-word cursor.
-		 * Uses the tree's existing cursor factory; a later tree cursor improvement can make this seek leaf-local.
+		 * Positioned delegates use their leaf-local seek. A pending ceiling is exposed by the next next() call;
+		 * before initial positioning, or when revising a pending bound backwards, a fresh lower-bound cursor is used.
+		 * A seek that found no key in the range can still be revised by another seek until next() reports the end.
 		 *
 		 * @param foldedLowerBound the normalized surface lower bound
-		 * @throws io.evitadb.exception.GenericEvitaInternalError when the bound is not past the current key
+		 * @throws io.evitadb.exception.GenericEvitaInternalError when a key was yielded and the bound is not past it
 		 */
 		public void seek(@Nonnull String foldedLowerBound) {
-			if (this.phasePrefix == null || this.delegate == null) {
+			if (this.phasePrefix == null || this.delegate == null && this.pendingLowerBound == null) {
 				return;
 			}
 			final String lowerBound = this.phasePrefix + encodeSurfaceComponent(foldedLowerBound);
 			final String target = lowerBound.compareTo(this.keyPrefix) < 0 ? this.keyPrefix : lowerBound;
-			Assert.isPremiseValid(this.key == null || target.compareTo(this.key) > 0,
+			Assert.isPremiseValid(!this.yielded || CharSequence.compare(target, this.key) > 0,
 				"A surface cursor only seeks forward!");
-			this.delegate = FulltextIndex.this.surfaceForms.cursor(target);
-			this.key = null;
+			if (this.delegate == null || !this.delegatePositioned ||
+				this.pendingPosition && this.pendingLowerBound != null &&
+				target.compareTo(this.pendingLowerBound) < 0) {
+				this.delegate = FulltextIndex.this.surfaceForms.cursor(target);
+				this.delegatePositioned = false;
+				this.pendingPosition = false;
+			} else {
+				this.seekCharacters.setLength(0);
+				this.delegate.appendValue(this.seekCharacters);
+				if (CharSequence.compare(target, this.seekCharacters) > 0 && !this.delegate.seek(target)) {
+					this.delegate = null;
+				}
+				this.pendingPosition = this.delegate != null;
+			}
+			this.pendingLowerBound = target;
+			this.positioned = false;
+		}
+
+		/**
+		 * Decodes the folded component into reusable cursor storage. Guided successor seeks may still materialize
+		 * rejected keys and seek bounds; sequential component reads reuse this buffer.
+		 * The returned characters are borrowed until the next call or cursor advance.
+		 *
+		 * @return decoded folded component without phase or suffix components
+		 */
+		@Nonnull
+		public CharSequence foldedCharacters() {
+			decodeComponent(currentKey(), FulltextTermKeys.FIELD_PREFIX_WIDTH + 1,
+				surfaceFoldedEnd(this.key), this.foldedCharacters);
+			return this.foldedCharacters;
+		}
+
+		/**
+		 * Returns borrowed decoded stem characters, including folded identity and explicit empty stems. The view
+		 * remains valid until the next cursor advance or component read; freeze it only for a retained entry.
+		 * @return mutable cursor-owned characters of the current posting stem
+		 */
+		@Nonnull
+		public CharSequence stemCharacters() {
+			final CharSequence current = currentKey();
+			final int start = surfaceFoldedEnd(current) + 1;
+			final int end = surfaceStemEnd(current, start - 1);
+			if (start == end) {
+				return foldedCharacters();
+			}
+			decodeComponent(current, start, end, this.stemCharacters);
+			return this.stemCharacters;
+		}
+
+		/**
+		 * Decodes one persisted component into reusable storage, with no temporary substring.
+		 * @param source encoded key
+		 * @param start inclusive component start
+		 * @param end exclusive component end
+		 * @param target decoded character destination, cleared first
+		 */
+		private static void decodeComponent(
+			@Nonnull CharSequence source, int start, int end, @Nonnull StringBuilder target
+		) {
+			target.setLength(0);
+			if (end - start == 2 && source.charAt(start) == '\1' && source.charAt(start + 1) == '\3') {
+				return;
+			}
+			for (int i = start; i < end; i++) {
+				final char character = source.charAt(i);
+				if (character == '\1') {
+					Assert.isPremiseValid(++i < end, "A surface escape must have a code!");
+					final char code = source.charAt(i);
+					Assert.isPremiseValid(code == '\1' || code == '\2', "Invalid surface escape code!");
+					target.append((char) (code - 1));
+				} else {
+					target.append(character);
+				}
+			}
 		}
 
 		/**
@@ -1736,9 +1939,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		 */
 		@Nonnull
 		public String folded() {
-			final String current = currentKey();
-			return decodeSurfaceComponent(
-				current.substring(FulltextTermKeys.FIELD_PREFIX_WIDTH + 1, surfaceFoldedEnd(current)));
+			return foldedCharacters().toString();
 		}
 
 		/**
@@ -1748,10 +1949,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		 */
 		@Nonnull
 		public String stem() {
-			final String current = currentKey();
-			final int foldedEnd = surfaceFoldedEnd(current);
-			final String encoded = current.substring(foldedEnd + 1, surfaceStemEnd(current, foldedEnd));
-			return encoded.isEmpty() ? folded() : decodeSurfaceComponent(encoded);
+			return stemCharacters().toString();
 		}
 
 		/**
@@ -1762,9 +1960,10 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		 */
 		@Nonnull
 		public String accented() {
-			final String current = currentKey();
+			final CharSequence current = currentKey();
 			final int start = surfaceStemEnd(current, surfaceFoldedEnd(current)) + 1;
-			return start == current.length() ? folded() : decodeSurfaceComponent(current.substring(start));
+			return start == current.length() ? folded()
+				: decodeSurfaceComponent(current.subSequence(start, current.length()).toString());
 		}
 
 		/**
@@ -1773,8 +1972,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		 * @return the current encoded key
 		 */
 		@Nonnull
-		private String currentKey() {
-			Assert.isPremiseValid(this.key != null, "Advance the surface cursor before reading it!");
+		private CharSequence currentKey() {
+			Assert.isPremiseValid(this.positioned, "Advance the surface cursor before reading it!");
 			return this.key;
 		}
 	}

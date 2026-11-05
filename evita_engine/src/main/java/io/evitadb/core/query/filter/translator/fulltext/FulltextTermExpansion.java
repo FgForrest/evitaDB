@@ -28,6 +28,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.ImpactView;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.fulltext.FulltextIndex;
+import io.evitadb.index.fulltext.FulltextIndex.SurfaceFormCursor;
 import io.evitadb.index.fulltext.FulltextTermExactness;
 import io.evitadb.index.fulltext.typo.FulltextDictionaryWalker;
 import io.evitadb.index.fulltext.typo.FulltextTypoParameters;
@@ -44,10 +45,13 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Expands a word within a profile group. Exact terms are uncapped. Each other leg keeps at most fifty hits per
- * field, unions those survivors and selects fifty stems by distance, maximum field frequency and term. A global
- * winner must survive in a field attaining its maximum frequency: every term ahead of it in that field is also
- * ahead globally. Missing field views are fetched only for global winners.
+ * Expands a word within a profile group. The typed surface words are also looked up in the surface-form lane of each
+ * distinct word phase, and every lane hit yields its stem: an exact surface hit counts as an exact term, while lane
+ * typo and prefix hits feed the same per-field heaps as the stem legs, so each cap counts both dictionaries
+ * together. Exact terms are uncapped. Each other leg keeps at most fifty hits per field, unions those survivors and
+ * selects fifty stems by distance, maximum field frequency and term. A global winner must survive in a field
+ * attaining its maximum frequency: every term ahead of it in that field is also ahead globally. Missing field views
+ * are fetched only for global winners.
  *
  * An instance belongs to one query, which reuses its walkers across fields, groups and scopes.
  */
@@ -78,6 +82,7 @@ final class FulltextTermExpansion {
 	 * @param index the scope's locale dictionary
 	 * @param fieldIds current fields belonging to this profile
 	 * @param variants the word's analyzed alternatives
+	 * @param surfaces query-prepared typed words in the lane normalization space
 	 * @param fragments normalized raw fragments prepared around stop removal
 	 * @param unfinished whether the actual final raw word remains unclosed
 	 * @return field-specific expansions with their best distance and exactness
@@ -85,7 +90,7 @@ final class FulltextTermExpansion {
 	@Nonnull
 	List<ExpandedTerm> expand(
 		@Nonnull FulltextIndex index, @Nonnull int[] fieldIds, @Nonnull String[] variants,
-		@Nonnull String[] fragments, boolean unfinished
+		@Nonnull String[] surfaces, @Nonnull String[] fragments, boolean unfinished
 	) {
 		final Map<String, Candidate> exact = CollectionUtils.createLinkedHashMap(variants.length);
 		for (final String variant : variants) {
@@ -97,11 +102,23 @@ final class FulltextTermExpansion {
 				}
 			}
 		}
+		final long[] phases = wordPhases(index, fieldIds);
+		final SurfaceTermCollector lane = new SurfaceTermCollector(index, fieldIds, exact);
+		for (final long phase : phases) {
+			for (final String surface : surfaces) {
+				final SurfaceFormCursor cursor = index.exactSurfaceFormCursor(phase, surface);
+				while (cursor.next()) {
+					lane.collectUnlessExact(cursor.stemCharacters(), null);
+				}
+			}
+		}
 		final boolean prefixAllowed = expandsUnfinishedWord(fragments, unfinished);
 		final boolean openEnd = prefixAllowed && fragmentLength(fragments) >= this.parameters.openEndedStartLength();
 		final Map<String, Candidate> prefix = prefixAllowed
-			? collectPrefixes(index, fieldIds, variants, fragments, exact) : CollectionUtils.createHashMap(0);
-		final Map<String, Candidate> typo = collectTypos(index, fieldIds, variants, exact, prefix, openEnd);
+			? collectPrefixes(index, fieldIds, phases, variants, fragments, exact, lane)
+			: CollectionUtils.createHashMap(0);
+		final Map<String, Candidate> typo = collectTypos(
+			index, fieldIds, phases, variants, surfaces, exact, prefix, openEnd, lane);
 		final List<ExpandedTerm> result = new ArrayList<>(viewCount(exact) + viewCount(prefix) + viewCount(typo));
 		append(result, exact);
 		append(result, prefix);
@@ -113,15 +130,18 @@ final class FulltextTermExpansion {
 	 * Collects prefix hits with bounded per-field heaps before selecting global survivors.
 	 * @param index locale dictionary
 	 * @param fieldIds profile fields
+	 * @param phases distinct index word phases of the group
 	 * @param variants analyzed alternatives whose prefixes also participate
 	 * @param fragments normalized raw fragments
 	 * @param exact uncapped exact matches excluded from this leg
+	 * @param lane reusable exact field lookup shared by lane hits
 	 * @return at most fifty stems, including their views in every searched field holding them
 	 */
 	@Nonnull
 	private Map<String, Candidate> collectPrefixes(
-		@Nonnull FulltextIndex index, @Nonnull int[] fieldIds, @Nonnull String[] variants,
-		@Nonnull String[] fragments, @Nonnull Map<String, Candidate> exact
+		@Nonnull FulltextIndex index, @Nonnull int[] fieldIds, @Nonnull long[] phases,
+		@Nonnull String[] variants, @Nonnull String[] fragments, @Nonnull Map<String, Candidate> exact,
+		@Nonnull SurfaceTermCollector lane
 	) {
 		final Set<String> prefixes = CollectionUtils.createHashSet(fragments.length + variants.length);
 		for (final String fragment : fragments) {
@@ -146,6 +166,16 @@ final class FulltextTermExpansion {
 				});
 			}
 		}
+		for (final long phase : phases) {
+			for (final String fragment : fragments) {
+				if (!fragment.isEmpty()) {
+					final SurfaceFormCursor cursor = index.surfaceFormCursor(phase, fragment);
+					while (cursor.next()) {
+						lane.collectUnlessExact(cursor.stemCharacters(), fields);
+					}
+				}
+			}
+		}
 		return select(index, fieldIds, fields, FulltextTermExactness.PREFIX);
 	}
 
@@ -154,25 +184,23 @@ final class FulltextTermExpansion {
 	 * selected prefix leg already holds it, or when an earlier band collected it.
 	 * @param index locale dictionary
 	 * @param fieldIds profile fields
+	 * @param phases distinct index word phases of the group
 	 * @param variants analyzed alternatives, each with its own edit budget
+	 * @param surfaces typed words, each budgeted by its folded length
 	 * @param exact uncapped exact matches
 	 * @param prefix selected prefix matches; discarded prefixes may compete through a positive-distance path
 	 * @param openEnd whether a matching prefix accepts the remaining suffix
+	 * @param lane reusable exact field lookup shared by lane hits
 	 * @return at most fifty fuzzy stems with all their field views
 	 */
 	@Nonnull
 	private Map<String, Candidate> collectTypos(
-		@Nonnull FulltextIndex index, @Nonnull int[] fieldIds, @Nonnull String[] variants,
-		@Nonnull Map<String, Candidate> exact, @Nonnull Map<String, Candidate> prefix, boolean openEnd
+		@Nonnull FulltextIndex index, @Nonnull int[] fieldIds, @Nonnull long[] phases,
+		@Nonnull String[] variants, @Nonnull String[] surfaces, @Nonnull Map<String, Candidate> exact,
+		@Nonnull Map<String, Candidate> prefix, boolean openEnd,
+		@Nonnull SurfaceTermCollector lane
 	) {
-		boolean hasTypos = false;
-		for (final String variant : variants) {
-			if (this.parameters.maxEdits(variant) > 0) {
-				hasTypos = true;
-				break;
-			}
-		}
-		if (!hasTypos) {
+		if (!anyAllowsEdits(variants) && !anyAllowsEdits(surfaces)) {
 			return CollectionUtils.createHashMap(0);
 		}
 		final FulltextTermHeap[] fields = newHeaps(fieldIds.length);
@@ -196,12 +224,69 @@ final class FulltextTermExpansion {
 					});
 				}
 			}
+			for (final String surface : surfaces) {
+				if (this.parameters.maxEdits(surface) < edits) {
+					continue;
+				}
+				final boolean surfaceOpenEnd = openEnd && surface.codePointCount(0, surface.length()) >=
+					this.parameters.openEndedStartLength();
+				final FulltextDictionaryWalker walker = walker(surface, edits, surfaceOpenEnd);
+				for (final long phase : phases) {
+					walker.walkSurface(index, phase, (cursor, distance) -> {
+						if (distance == band) {
+							lane.prepare(cursor.stemCharacters());
+							if (!previousBands.contains(lane.probe) && !exact.containsKey(lane.probe) &&
+								!prefix.containsKey(lane.probe)) {
+								lane.collect(distance, fields);
+							}
+						}
+						return true;
+					});
+				}
+			}
 			earlierTerms = collectedTerms(fields);
 			if (earlierTerms.size() == TERMS_PER_LEG) {
 				break;
 			}
 		}
 		return select(index, fieldIds, fields, FulltextTermExactness.FUZZY);
+	}
+
+	/**
+	 * Tells whether the submitted policy grants an edit to at least one of the words.
+	 * @param words analyzed variants or typed surface words of one query word
+	 * @return true when any word is long enough for a typo walk
+	 */
+	private boolean anyAllowsEdits(@Nonnull String[] words) {
+		for (final String word : words) {
+			if (this.parameters.maxEdits(word) > 0) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Collects phase identities without boxing, once per group expansion rather than once per field walk.
+	 * @param index locale index owning the field metadata
+	 * @param fieldIds current fields of this profile
+	 * @return distinct index word-phase fingerprints in field order
+	 */
+	@Nonnull
+	private static long[] wordPhases(@Nonnull FulltextIndex index, @Nonnull int[] fieldIds) {
+		final long[] phases = new long[fieldIds.length];
+		int count = 0;
+		for (final int fieldId : fieldIds) {
+			final long phase = index.getWordPhaseId(fieldId);
+			boolean found = false;
+			for (int i = 0; i < count; i++) {
+				found |= phases[i] == phase;
+			}
+			if (!found) {
+				phases[count++] = phase;
+			}
+		}
+		return Arrays.copyOf(phases, count);
 	}
 
 	/**
@@ -402,6 +487,113 @@ final class FulltextTermExpansion {
 				result.add(new ExpandedTerm(field.fieldId(), candidate.term, field.postings(), field.impacts(),
 					candidate.distance, candidate.exactness));
 			}
+		}
+	}
+
+	/** Reuses exact field probes and a map search key across every lane hit, freezing only retained terms. */
+	private static final class SurfaceTermCollector {
+		/** Fields of this profile group. */
+		@Nonnull private final int[] fieldIds;
+		/** One reusable dictionary lookup per searched field. */
+		@Nonnull private final FulltextIndex.TermLookup[] lookups;
+		/** Uncapped exact entries. */
+		@Nonnull private final Map<String, Candidate> exact;
+		/** Query-only borrowed-character search object, never inserted into a map or set. */
+		@Nonnull private final BorrowedTerm probe = new BorrowedTerm();
+
+		/**
+		 * Prepares all field framing once for this expansion.
+		 * @param index locale dictionary
+		 * @param fieldIds current searched field generations
+		 * @param exact uncapped exact matches
+		 */
+		private SurfaceTermCollector(
+			@Nonnull FulltextIndex index, @Nonnull int[] fieldIds, @Nonnull Map<String, Candidate> exact
+		) {
+			this.fieldIds = fieldIds;
+			this.exact = exact;
+			this.lookups = new FulltextIndex.TermLookup[fieldIds.length];
+			for (int i = 0; i < fieldIds.length; i++) {
+				this.lookups[i] = index.termLookup(fieldIds[i]);
+			}
+		}
+
+		/**
+		 * Rebinds the query-only exclusion probe to the current cursor's decoded stem.
+		 * @param stem borrowed cursor characters, unchanged until collection finishes
+		 */
+		private void prepare(@Nonnull CharSequence stem) {
+			this.probe.characters = stem;
+			int hash = 0;
+			for (int i = 0; i < stem.length(); i++) {
+				hash = 31 * hash + stem.charAt(i);
+			}
+			this.probe.hash = hash;
+		}
+
+		/**
+		 * Collects a distance-zero lane hit unless the exact entries already hold its stem, including a stem the
+		 * exact lane leg itself collected through an earlier surface or phase.
+		 * @param stem borrowed cursor characters, unchanged until collection finishes
+		 * @param heaps common prefix collectors, or null for the uncapped exact leg
+		 */
+		private void collectUnlessExact(@Nonnull CharSequence stem, @Nullable FulltextTermHeap[] heaps) {
+			prepare(stem);
+			if (!this.exact.containsKey(this.probe)) {
+				collect(0, heaps);
+			}
+		}
+
+		/**
+		 * Finds field frequencies, tests competitiveness, then freezes and acquires views for retained hits only.
+		 * @param distance accepted folded distance
+		 * @param heaps common prefix/typo collectors, or null for the uncapped exact leg
+		 */
+		private void collect(int distance, @Nullable FulltextTermHeap[] heaps) {
+			String retained = null;
+			for (int i = 0; i < this.lookups.length; i++) {
+				final FulltextIndex.TermLookup lookup = this.lookups[i];
+				if (!lookup.find(this.probe.characters)) {
+					continue;
+				}
+				final int frequency = lookup.size();
+				if (heaps == null || heaps[i].canOffer(this.probe.characters, distance, frequency)) {
+					if (retained == null) {
+						retained = this.probe.characters.toString();
+					}
+					if (heaps == null) {
+						offer(this.exact, this.fieldIds[i], retained, lookup.postings(), lookup.impacts(), 0,
+							FulltextTermExactness.EXACT, frequency);
+					} else {
+						heaps[i].offer(retained, lookup.postings(), lookup.impacts(), distance, frequency);
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * HashMap/HashSet query probe over borrowed characters. Its hash and comparison match stored String keys. This
+	 * deliberately asymmetric search object is never stored: hash collections compare the query to the stored key,
+	 * so the stored immutable String's equality and hash semantics remain unchanged.
+	 */
+	private static final class BorrowedTerm {
+		/** Cursor-owned characters of the current hit. */
+		@Nonnull private CharSequence characters = "";
+		/** String-compatible hash recomputed when the probe is rebound. */
+		private int hash;
+
+		/** Creates the one mutable map search probe owned by a lane collector. */
+		private BorrowedTerm() { }
+
+		@Override
+		public int hashCode() {
+			return this.hash;
+		}
+
+		@Override
+		public boolean equals(@Nullable Object other) {
+			return this == other || other instanceof String term && CharSequence.compare(this.characters, term) == 0;
 		}
 	}
 

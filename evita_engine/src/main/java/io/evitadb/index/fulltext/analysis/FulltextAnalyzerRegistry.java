@@ -210,10 +210,11 @@ public class FulltextAnalyzerRegistry implements Closeable {
 					if (candidate != null) {
 						candidate.splitting().close();
 					}
-					result = new CompiledFulltextAnalyzer(result.index(), result.word(), shared,
+					result = new CompiledFulltextAnalyzer(result.word(), shared,
 						result.queryText(),
 						result.textSplitting() == result.splitting() ? shared : result.textSplitting(),
-						result.textSplitWord(), result.indexSurface(), result.surface(), result.fingerprint(),
+						result.textSplitWord(), result.indexSurface(), result.surface(), result.textSplitSurface(),
+						result.fragment(), result.textSplitFragment(), result.fingerprint(),
 						result.foldedStopWords(), result.stopWordPreparations());
 				}
 				this.compiled.put(resolved, result);
@@ -278,66 +279,59 @@ public class FulltextAnalyzerRegistry implements Closeable {
 	private CompiledFulltextAnalyzer compile(@Nonnull ResolvedFulltextAnalyzer resolved) {
 		final List<StopWordPreparation> stopWords = new ArrayList<>(2);
 		final FulltextAnalyzerFingerprint fingerprint = this.compiler.fingerprint(resolved);
-		final FulltextAnalyzer indexSurface = new FulltextAnalyzer(
-			resolved.analyzer(), this.compiler.compileIndexSurfaceChain(resolved));
-		final FulltextAnalyzer surface;
+		final List<FulltextAnalyzer> owned = new ArrayList<>(9);
 		try {
-			surface = new FulltextAnalyzer(resolved.analyzer(), this.compiler.compileSurfaceChain(resolved));
-		} catch (RuntimeException ex) {
-			indexSurface.close();
-			throw ex;
-		}
-		final FulltextAnalyzer index;
-		try {
-			index = new FulltextAnalyzer(
-				resolved.analyzer(), this.compiler.compile(resolved, stopWords));
-		} catch (RuntimeException ex) {
-			surface.close();
-			indexSurface.close();
-			throw ex;
-		}
-		try {
-			final FulltextAnalyzer word = new FulltextAnalyzer(
-				resolved.analyzer(), this.compiler.compileWordChain(resolved, stopWords)
-			);
-			try {
-				final FulltextAnalyzer privateSplitting = new FulltextAnalyzer(
-					"splitting", this.compiler.compileSplittingChain(splittingOf(resolved)));
-				try {
-					final List<AnalysisStep> queryText = this.compiler.queryText(resolved);
-					final FulltextAnalyzer textSplitting = queryText.isEmpty() ? privateSplitting :
-						new FulltextAnalyzer(
-							"query-splitting", this.compiler.compileSplittingChain(new ResolvedFulltextAnalyzer(
-								"query-splitting", queryText, resolved.splitting(), List.of(), resolved.context())));
-					try {
-						// without query text steps both splits yield the same terms, so one word chain serves both
-						final FulltextAnalyzer textSplitWord = queryText.isEmpty() ? word : new FulltextAnalyzer(
-							resolved.analyzer(), this.compiler.compileTextSplitWordChain(resolved));
-						final Set<String> foldedStopWords = CollectionUtils.createHashSet(64);
-						for (final StopWordPreparation stop : stopWords) {
-							foldedStopWords.addAll(stop.foldedWords());
-						}
-						return new CompiledFulltextAnalyzer(index, word, privateSplitting, queryText,
-							textSplitting, textSplitWord, indexSurface, surface, fingerprint,
-							foldedStopWords, stopWords);
-					} catch (RuntimeException ex) {
-						if (textSplitting != privateSplitting) {
-							textSplitting.close();
-						}
-						throw ex;
-					}
-				} catch (RuntimeException ex) {
-					privateSplitting.close();
-					throw ex;
-				}
-			} catch (RuntimeException ex) {
-				word.close();
-				throw ex;
+			final FulltextAnalyzer indexSurface = new FulltextAnalyzer(resolved.analyzer(),
+				this.compiler.compileIndexSurfaceChain(resolved, stopWords));
+			owned.add(indexSurface);
+			final FulltextAnalyzer surface = new FulltextAnalyzer(resolved.analyzer(),
+				this.compiler.compileSurfaceChain(resolved, false));
+			owned.add(surface);
+			final FulltextAnalyzer fragment = new FulltextAnalyzer(resolved.analyzer(),
+				this.compiler.compileFragmentChain(resolved, false));
+			owned.add(fragment);
+			final FulltextAnalyzer word = new FulltextAnalyzer(resolved.analyzer(),
+				this.compiler.compileWordChain(resolved, stopWords));
+			owned.add(word);
+			final FulltextAnalyzer privateSplitting = new FulltextAnalyzer("splitting",
+				this.compiler.compileSplittingChain(splittingOf(resolved)));
+			owned.add(privateSplitting);
+			final List<AnalysisStep> queryText = this.compiler.queryText(resolved);
+			final FulltextAnalyzer textSplitting;
+			final FulltextAnalyzer textSplitWord;
+			final FulltextAnalyzer textSplitFragment;
+			final FulltextAnalyzer textSplitSurface;
+			if (queryText.isEmpty()) {
+				textSplitting = privateSplitting;
+				textSplitWord = word;
+				textSplitFragment = fragment;
+				textSplitSurface = surface;
+			} else {
+				textSplitting = new FulltextAnalyzer("query-splitting",
+					this.compiler.compileSplittingChain(new ResolvedFulltextAnalyzer(
+						"query-splitting", queryText, resolved.splitting(), List.of(), resolved.context())));
+				owned.add(textSplitting);
+				textSplitWord = new FulltextAnalyzer(resolved.analyzer(),
+					this.compiler.compileTextSplitWordChain(resolved));
+				owned.add(textSplitWord);
+				textSplitFragment = new FulltextAnalyzer(resolved.analyzer(),
+					this.compiler.compileFragmentChain(resolved, true));
+				owned.add(textSplitFragment);
+				textSplitSurface = new FulltextAnalyzer(resolved.analyzer(),
+					this.compiler.compileSurfaceChain(resolved, true));
+				owned.add(textSplitSurface);
 			}
+			final Set<String> foldedStopWords = CollectionUtils.createHashSet(64);
+			for (final StopWordPreparation stop : stopWords) {
+				foldedStopWords.addAll(stop.foldedWords());
+			}
+			return new CompiledFulltextAnalyzer(word, privateSplitting, queryText, textSplitting, textSplitWord,
+				indexSurface, surface, textSplitSurface, fragment, textSplitFragment, fingerprint,
+				foldedStopWords, stopWords);
 		} catch (RuntimeException ex) {
-			index.close();
-			surface.close();
-			indexSurface.close();
+			for (int i = owned.size() - 1; i >= 0; i--) {
+				owned.get(i).close();
+			}
 			throw ex;
 		}
 	}
@@ -370,15 +364,21 @@ public class FulltextAnalyzerRegistry implements Closeable {
 	}
 
 	/**
-	 * Releases the index, word and surface preparation chains and the optional text-aware chains owned by a removed
+	 * Releases the posting, word, fragment and surface preparation chains and optional text-aware chains of a removed
 	 * compiled entry. Raw splitting has its own cache entry and is drained once separately, even when many analyzer
 	 * groups share it.
 	 *
 	 * @param analyzer the removed entry whose chains, except shared raw splitting, this caller owns
 	 */
 	private static void releaseCompiledChains(@Nonnull CompiledFulltextAnalyzer analyzer) {
-		analyzer.index().close();
+		analyzer.fragment().close();
+		if (analyzer.textSplitFragment() != analyzer.fragment()) {
+			analyzer.textSplitFragment().close();
+		}
 		analyzer.surface().close();
+		if (analyzer.textSplitSurface() != analyzer.surface()) {
+			analyzer.textSplitSurface().close();
+		}
 		analyzer.indexSurface().close();
 		analyzer.word().close();
 		if (analyzer.textSplitWord() != analyzer.word()) {

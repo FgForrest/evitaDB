@@ -159,7 +159,7 @@ class CatalogFulltextAnalyzerRegistryTest implements EvitaTestSupport {
 		void shouldCloseTheRegistryWhenTheEngineCloses() {
 			final FulltextAnalyzerRegistry registry = catalogOf(CATALOG).getFulltextAnalyzerRegistry();
 			registry.getCompiledAnalyzer(
-				catalogOf(CATALOG).getSchema(), "text", CZECH).index();
+				catalogOf(CATALOG).getSchema(), "text", CZECH).indexSurface();
 
 			CatalogFulltextAnalyzerRegistryTest.this.evita.close();
 
@@ -171,7 +171,7 @@ class CatalogFulltextAnalyzerRegistryTest implements EvitaTestSupport {
 		void shouldCloseTheRegistryWhenTheCatalogIsDeleted() {
 			final FulltextAnalyzerRegistry registry = catalogOf(CATALOG).getFulltextAnalyzerRegistry();
 			registry.getCompiledAnalyzer(
-				catalogOf(CATALOG).getSchema(), "text", CZECH).index();
+				catalogOf(CATALOG).getSchema(), "text", CZECH).indexSurface();
 
 			CatalogFulltextAnalyzerRegistryTest.this.evita.deleteCatalogIfExists(CATALOG);
 
@@ -241,7 +241,7 @@ class CatalogFulltextAnalyzerRegistryTest implements EvitaTestSupport {
 		// still open: the superseded instance must not have released what the rebuilt one goes on using
 		assertFalse(collectTerms(
 			registry.getCompiledAnalyzer(after.getSchema(),
-			"text", CZECH).index(), "boty").isEmpty());
+			"text", CZECH).indexSurface(), "boty").isEmpty());
 	}
 
 	/**
@@ -254,7 +254,7 @@ class CatalogFulltextAnalyzerRegistryTest implements EvitaTestSupport {
 		final EvitaInvalidUsageException error = assertThrows(
 			EvitaInvalidUsageException.class,
 			() -> registry.getCompiledAnalyzer(
-				FulltextAnalysisTestSupport.SCHEMA, "text", CZECH).index(),
+				FulltextAnalysisTestSupport.SCHEMA, "text", CZECH).indexSurface(),
 			"`" + site + "` left the catalog's analyzer registry open, so its analyzers keep their per-thread " +
 				"stream components reachable for the lifetime of the process"
 		);

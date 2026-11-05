@@ -109,7 +109,7 @@ class LanguageAnalyzerPairRecallTest {
 		@Nonnull UnaryOperator<String> bareTyper
 	) {
 		final FulltextAnalyzer index = this.registry.getCompiledAnalyzer(
-			FulltextAnalysisTestSupport.SCHEMA, "text", locale).index();
+			FulltextAnalysisTestSupport.SCHEMA, "text", locale).indexSurface();
 		final FulltextAnalyzer search = FulltextAnalysisTestSupport.queryAnalyzer(locale);
 		return new Recall(
 			AnalysisApproachMeasurer.measure(

@@ -297,4 +297,56 @@ class FulltextTypoQueryFunctionalTest implements EvitaTestSupport {
 			matches("Café", "brand", 1);
 		}
 	}
+	/** Lane readers must retain the field group's profile and typed normalization. */
+	@Nested
+	@DisplayName("Surface lane query integration")
+	class SurfaceLane {
+		/** A stem from the Czech lane is never looked up in the independent brand group. */
+		@Test
+		@DisplayName("Keeps Czech surface stems out of an unstemmed brand field")
+		void shouldIsolateSurfaceProfiles() {
+			FulltextTypoQueryFunctionalTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
+				session.getCatalogSchema().openForWrite()
+					.withFulltextAnalyzer("czech-lane", a -> a.words(lowercase(), czechStemming()))
+					.withFulltextAnalyzer("brand-lane", a -> a.words(lowercase())).updateVia(session);
+				session.getEntitySchemaOrThrowException("product").openForWrite()
+					.withAttribute("title", String.class, a -> a.analyzer("czech-lane"))
+					.withAttribute("brand", String.class, a -> a.analyzer("brand-lane")).updateVia(session);
+			});
+			put(1, "černé", "unrelated");
+			put(2, "unrelated", "Cern");
+			matches("černé ", null, 1);
+			matches("černé ", "brand");
+		}
+
+		/** Real query preparation must carry typed surface forms even for finished words. */
+		@Test
+		@DisplayName("Recovers a stemmer-distorted typo and a mid-ending fragment through the translator")
+		void shouldRecoverThroughTranslator() {
+			FulltextTypoQueryFunctionalTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
+				session.getEntitySchemaOrThrowException("product").openForWrite()
+					.withAttribute("title", String.class, a -> a.analyzer("text")).updateVia(session);
+			});
+			put(1, "running", "unrelated");
+			matches("runnign ", "title", 1);
+			matches("runni", "title", 1);
+			matches("runni ", "title");
+		}
+
+		/** German surface normalization lengthens sharp s before the four-code-point fragment guard. */
+		@Test
+		@DisplayName("Starts German completion when süß normalizes across the four-character boundary")
+		void shouldNormalizeGermanFragmentBeforeGuard() {
+			FulltextTypoQueryFunctionalTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
+				session.getCatalogSchema().openForWrite()
+					.withFulltextAnalyzer("german-lane", a -> a.words(lowercase(), germanStemming())).updateVia(session);
+				session.getEntitySchemaOrThrowException("product").openForWrite()
+					.withAttribute("title", String.class, a -> a.analyzer("german-lane")).updateVia(session);
+			});
+			put(1, "Süßigkeiten", "unrelated");
+			matches("süß", "title", 1);
+			matches("süß ", "title");
+		}
+	}
+
 }

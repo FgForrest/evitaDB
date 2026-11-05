@@ -149,7 +149,7 @@ class CorpusTypoMeasurementTest {
 		registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 		searchAnalyzer = FulltextAnalysisTestSupport.queryAnalyzer(CZECH);
 		corpus = Corpus.load(Path.of(file), registry.getCompiledAnalyzer(
-			FulltextAnalysisTestSupport.SCHEMA, "text", CZECH).index());
+			FulltextAnalysisTestSupport.SCHEMA, "text", CZECH).indexSurface());
 	}
 
 	@AfterAll

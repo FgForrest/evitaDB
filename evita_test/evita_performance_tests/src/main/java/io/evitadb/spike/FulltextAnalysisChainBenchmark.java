@@ -168,7 +168,7 @@ public class FulltextAnalysisChainBenchmark {
 			this.registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 			final Locale locale = new Locale(this.language);
 			this.index = this.registry.getCompiledAnalyzer(
-				FulltextAnalysisTestSupport.SCHEMA, "html-text", locale).index();
+				FulltextAnalysisTestSupport.SCHEMA, "html-text", locale).indexSurface();
 			this.search = FulltextAnalysisTestSupport.queryAnalyzer(locale);
 			this.text = switch (this.textKind) {
 				case "QUERY" -> QUERY_TEXT.get(this.language);
@@ -231,7 +231,7 @@ public class FulltextAnalysisChainBenchmark {
 			final Locale locale = new Locale(language);
 			try (final FulltextAnalyzerRegistry registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry())) {
 				final FulltextAnalyzer index = registry.getCompiledAnalyzer(
-					FulltextAnalysisTestSupport.SCHEMA, "html-text", locale).index();
+					FulltextAnalysisTestSupport.SCHEMA, "html-text", locale).indexSurface();
 				final FulltextAnalyzer search = FulltextAnalysisTestSupport.queryAnalyzer(locale);
 				// measure BEFORE the first analyze call: once a chain is used, Lucene's CloseableThreadLocal
 				// maps the components under the Thread itself, and a graph walk from either analyzer then

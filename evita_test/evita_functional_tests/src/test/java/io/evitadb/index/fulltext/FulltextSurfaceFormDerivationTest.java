@@ -157,7 +157,7 @@ class FulltextSurfaceFormDerivationTest {
 				final CompiledFulltextAnalyzer analyzer = registry.getCompiledAnalyzer(schema.toInstance(),
 					"expanded", Locale.ROOT);
 				final List<String> postingTerms = new ArrayList<>();
-				analyzer.index().analyze("Straße", (term, surface, start, end, increment) -> postingTerms.add(term));
+				analyzer.indexSurface().analyze("Straße", (term, surface, start, end, increment) -> postingTerms.add(term));
 				assertEquals(List.of("strasse"), postingTerms);
 				final FulltextIndex index = new FulltextIndex();
 
@@ -226,8 +226,11 @@ class FulltextSurfaceFormDerivationTest {
 					capturedPostings.add(new AnalyzedTerm(term, display.get(), start, end, increment));
 					capturedInputs.add(new AnalyzedTerm(folded.toString(), display.get(), start, end, increment));
 				});
-				assertEquals(collectTerms(analyzer.index(), text), capturedPostings);
 				final ResolvedFulltextAnalyzer resolved = ResolvedFulltextAnalyzer.resolve(SCHEMA, "text", locale);
+				try (final FulltextAnalyzer uncaptured = new FulltextAnalyzer("uncaptured",
+					new FulltextChainCompiler(steps).compile(resolved, FulltextAnalysisSide.INDEX))) {
+					assertEquals(collectTerms(uncaptured, text), capturedPostings);
+				}
 				int stemAt = resolved.words().size();
 				for (int i = 0; i < resolved.words().size(); i++) {
 					if (resolved.words().get(i).name().contains("stemming")) {
@@ -332,7 +335,7 @@ class FulltextSurfaceFormDerivationTest {
 				final CompiledFulltextAnalyzer prefix = registry.getCompiledAnalyzer(
 					new InternalCatalogSchemaBuilder(SCHEMA).withFulltextAnalyzer("prefix",
 						profile -> profile.words(lowercase())).toInstance(), "prefix", Locale.ENGLISH);
-				final List<String> inputs = collectTerms(prefix.index(), "cards dogs").stream()
+				final List<String> inputs = collectTerms(prefix.indexSurface(), "cards dogs").stream()
 					.map(AnalyzedTerm::term).toList();
 				assertEquals(List.of("cards", "dogs"), inputs);
 				final List<String> captured = new ArrayList<>();
@@ -402,9 +405,12 @@ class FulltextSurfaceFormDerivationTest {
 
 	/** Checks the unchanged standard posting attributes and symmetric removal when no capture survives. */
 	private static void assertDegraded(String plugin, String value) {
-		try (final FulltextAnalyzerRegistry registry = pluginRegistry()) {
+		try (final FulltextAnalyzerRegistry registry = pluginRegistry();
+			final FulltextAnalyzer uncaptured = new FulltextAnalyzer("uncaptured",
+				new FulltextChainCompiler(pluginSteps()).compile(ResolvedFulltextAnalyzer.resolve(
+					pluginSchema(plugin), "plugin", Locale.ENGLISH), FulltextAnalysisSide.INDEX))) {
 			final CompiledFulltextAnalyzer analyzer = pluginAnalyzer(registry, plugin);
-			final List<AnalyzedTerm> expected = collectTerms(analyzer.index(), value);
+			final List<AnalyzedTerm> expected = collectTerms(uncaptured, value);
 			assertFalse(expected.isEmpty());
 			assertEquals(expected, collectTerms(analyzer.indexSurface(), value));
 			final FulltextIndex index = new FulltextIndex();
@@ -423,15 +429,29 @@ class FulltextSurfaceFormDerivationTest {
 
 	/** Uses real extension providers and the normal shared analyzer registry, with every propagation plugin. */
 	private static FulltextAnalyzerRegistry pluginRegistry() {
-		return analyzerRegistryWith(
-			new PluginWordsFactory("concat"), new PluginWordsFactory("cjk"), new PluginWordsFactory("buffer"));
+		return new FulltextAnalyzerRegistry(pluginSteps());
 	}
 
 	/** Adds a downstream index-only filter after real English stemming. */
 	private static CompiledFulltextAnalyzer pluginAnalyzer(FulltextAnalyzerRegistry registry, String plugin) {
-		return registry.getCompiledAnalyzer(new InternalCatalogSchemaBuilder(SCHEMA)
+		return registry.getCompiledAnalyzer(pluginSchema(plugin), "plugin", Locale.ENGLISH);
+	}
+
+	/** Supplies independent operation instances to both captured and uncaptured compilers. */
+	private static AnalysisStepRegistry pluginSteps() {
+		final List<AnalysisStepFactory> factories = new ArrayList<>(java.util.ServiceLoader.load(AnalysisStepFactory.class)
+			.stream().map(java.util.ServiceLoader.Provider::get).toList());
+		factories.add(new PluginWordsFactory("concat"));
+		factories.add(new PluginWordsFactory("cjk"));
+		factories.add(new PluginWordsFactory("buffer"));
+		return new AnalysisStepRegistry(factories);
+	}
+
+	/** Uses the same resolved profile content for the independently compiled posting oracle. */
+	private static io.evitadb.api.requestResponse.schema.CatalogSchemaContract pluginSchema(String plugin) {
+		return new InternalCatalogSchemaBuilder(SCHEMA)
 			.withFulltextAnalyzer("plugin", profile -> profile.words(lowercase(), englishStemming(),
-				wordsStep(PluginWordsFactory.PREFIX + plugin))).toInstance(), "plugin", Locale.ENGLISH);
+				wordsStep(PluginWordsFactory.PREFIX + plugin))).toInstance();
 	}
 
 	/** Restores actual emitted pages after surface leaves pass through their registered Kryo serializer. */

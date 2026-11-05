@@ -997,7 +997,7 @@ class FulltextWritePathTest implements EvitaTestSupport {
 			catalog().getCollectionForEntityInternal(PRODUCT).orElseThrow().getSchema(), fieldKey);
 		for (final String value : values) {
 			for (final AnalyzedTerm term : collectTerms(registry.getCompiledAnalyzer(
-				catalog().getSchema(), definition.analyzer(), locale).index(), value)) {
+				catalog().getSchema(), definition.analyzer(), locale).indexSurface(), value)) {
 				expected.add(term.term());
 			}
 		}
