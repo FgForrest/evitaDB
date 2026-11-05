@@ -1,7 +1,7 @@
 ---
 title: The engine-level go-live drains its catalog's sessions itself, and publishes the ALIVE bootstrap only behind that drain
 date: 2026-09-06
-updated: 2026-09-08 13:10
+updated: 2026-11-05 23:02
 status: accepted
 kind: fix
 issues: [1495]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_engine/src/main/java/io/evitadb/core/session, evita_engine/src/main/java/io/evitadb/core/catalog, evita_engine/src/main/java/io/evitadb/core/transaction/engine/operators]
 supersedes: []
 superseded-by: []
-relates: [2026-09-03-content-sized-value-tree-columns, 2026-09-08-warm-up-invalid-schema-refuses-to-publish]
+relates: [2026-09-03-content-sized-value-tree-columns, 2026-09-08-warm-up-invalid-schema-refuses-to-publish, 2026-11-05-catalog-handover-waits-for-commit-pipeline]
 ---
 
 # The go-live operator owns the catalog's quiescence, and `Catalog#goLive()` is the boundary it must beat
@@ -174,6 +174,9 @@ write reached storage rather than merely the running catalog.
   during adversarial review of that work; it was deliberately not folded in, being lifecycle rather than index work.
 - **#1497** — the same missing-undo shape in `SetCatalogStateMutationOperator` and
   `RemoveCatalogSchemaMutationOperator`, found by asking which other operators quiesce without an undo.
+- `2026-11-05-catalog-handover-waits-for-commit-pipeline` — gives rename and replace the same synchronous-half wait and
+  5 s budget, and deletes `Evita#discardSuspension`, named under *Previous state* above: a landing trunk round was still
+  calling it and lifting other operations' suspensions.
 
 ## Timeline
 

@@ -1360,6 +1360,26 @@ public final class Catalog
 			});
 	}
 
+	/**
+	 * Waits for commits in progress to finish live-view notification before a catalog handover. The contract is that
+	 * of {@link TransactionManager#waitUntilPipelineDrained()}.
+	 *
+	 * @throws io.evitadb.api.exception.TransactionTimedOutException when the commits outlast the bounded wait
+	 * @throws TransactionException when the pipeline is suspended with commits still behind it
+	 */
+	public void waitUntilPipelineDrained() {
+		this.transactionManager.waitUntilPipelineDrained();
+	}
+
+	/**
+	 * Relabels this catalog and replaces the optional target. The caller must first drain its commit pipeline:
+	 * this method acts on `this`, so it must be the newest instance and no round may still have data to publish. A
+	 * round in its schema notification may still be running, since that writes nothing to storage.
+	 *
+	 * @param updatedSchema schema carrying the resulting name
+	 * @param catalogToBeReplaced optional catalog whose contents are discarded
+	 * @return progress of the handover
+	 */
 	@Nonnull
 	@Override
 	public ProgressingFuture<CatalogContract> replace(

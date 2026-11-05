@@ -29,6 +29,7 @@ import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.TransactionException;
+import io.evitadb.api.exception.TransactionTimedOutException;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
@@ -428,6 +429,11 @@ public interface EvitaContract extends AutoCloseable {
 	 * At the end of this method the catalog is already renamed and the new name should be used for any further
 	 * operations with the catalog.
 	 *
+	 * The operation waits briefly for sessions and commits in progress and is refused with an exception when they
+	 * outlast that wait, typically {@link TransactionTimedOutException}, although the type depends on which wait gave
+	 * up and on the client in use. A refused operation leaves the catalog with its name and data, but its open sessions
+	 * may already have been closed, and it can be retried once those commits have finished.
+	 *
 	 * @param catalogName    name of the catalog that will be renamed
 	 * @param newCatalogName new name of the catalog
 	 * @throws CatalogAlreadyPresentException when another catalog with `newCatalogName` already exists
@@ -447,6 +453,11 @@ public interface EvitaContract extends AutoCloseable {
 	 *
 	 * In case exception occurs the original catalog (`catalogName`) is guaranteed to be untouched,
 	 * and the `newCatalogName` will not be present.
+	 *
+	 * The operation waits briefly for sessions and commits in progress and is refused with an exception when they
+	 * outlast that wait, typically {@link TransactionTimedOutException}, although the type depends on which wait gave
+	 * up and on the client in use. A refused operation leaves the catalog with its name and data, but its open sessions
+	 * may already have been closed, and it can be retried once those commits have finished.
 	 *
 	 * @param catalogName    name of the catalog that will be renamed
 	 * @param newCatalogName new name of the catalog
@@ -482,6 +493,11 @@ public interface EvitaContract extends AutoCloseable {
 	 * At the end of this method the catalog is already replaced and the new name should be used for any further
 	 * operations with the catalog.
 	 *
+	 * The operation waits briefly for sessions and commits in progress and is refused with an exception when they
+	 * outlast that wait, typically {@link TransactionTimedOutException}, although the type depends on which wait gave
+	 * up and on the client in use. A refused operation leaves both catalogs with their names and data, but their open
+	 * sessions may already have been closed, and it can be retried once those commits have finished.
+	 *
 	 * @param catalogNameToBeReplacedWith name of the catalog that will become the successor of the original catalog (old name)
 	 * @param catalogNameToBeReplaced     name of the catalog that will be replaced and dropped (new name)
 	 */
@@ -513,6 +529,11 @@ public interface EvitaContract extends AutoCloseable {
 	 * because that is the catalog whose data is being discarded; on `catalogNameToBeReplacedWith` it is merely
 	 * postponed for the duration of the commit. A client that opens a session per query sees no failure it would
 	 * not see from the catalog simply having been renamed.
+	 *
+	 * The operation waits briefly for sessions and commits in progress and is refused with an exception when they
+	 * outlast that wait, typically {@link TransactionTimedOutException}, although the type depends on which wait gave
+	 * up and on the client in use. A refused operation leaves both catalogs with their names and data, but their open
+	 * sessions may already have been closed, and it can be retried once those commits have finished.
 	 *
 	 * @param catalogNameToBeReplacedWith name of the catalog that will become the successor of the original catalog (old name)
 	 * @param catalogNameToBeReplaced     name of the catalog that will be replaced and dropped (new name)
@@ -583,7 +604,7 @@ public interface EvitaContract extends AutoCloseable {
 	 * Executes querying logic in the newly created Evita session. Session is safely closed at the end of this method
 	 * and result is returned.
 	 *
-	 * Query logic is intended to be read-only. For read-write logic use {@link #updateCatalog(String, Function, SessionFlags[]))} or
+	 * Query logic is intended to be read-only. For read-write logic use {@link #updateCatalog(String, Function, SessionFlags[])} or
 	 * open a transaction manually in the logic itself.
 	 */
 	<T> T queryCatalog(
@@ -596,7 +617,7 @@ public interface EvitaContract extends AutoCloseable {
 	 * Executes querying logic in the newly created Evita session. Session is safely closed at the end of this method
 	 * and result is returned.
 	 *
-	 * Query logic is intended to be read-only. For read-write logic use {@link #updateCatalog(String, Consumer, SessionFlags[]))} or
+	 * Query logic is intended to be read-only. For read-write logic use {@link #updateCatalog(String, Consumer, SessionFlags[])} or
 	 * open a transaction manually in the logic itself.
 	 */
 	void queryCatalog(
@@ -609,7 +630,7 @@ public interface EvitaContract extends AutoCloseable {
 	 * Executes querying logic in the newly created Evita session. Session is safely closed at the end of this method
 	 * and result is returned.
 	 *
-	 * Query logic is intended to be read-only. For read-write logic use {@link #updateCatalog(String, Function, SessionFlags[]))} or
+	 * Query logic is intended to be read-only. For read-write logic use {@link #updateCatalog(String, Function, SessionFlags[])} or
 	 * open a transaction manually in the logic itself.
 	 *
 	 * This is asynchronous variant of {@link #queryCatalog(String, Function, SessionFlags...)} that immediately returns

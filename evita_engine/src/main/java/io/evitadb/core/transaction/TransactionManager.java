@@ -114,6 +114,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Optional.empty;
@@ -142,6 +143,11 @@ public class TransactionManager implements Closeable {
 	 * window of {@link #SPIN_ATTEMPTS_BEFORE_PARK} attempts is exhausted.
 	 */
 	private static final long PARK_INTERVAL_NANOS = 100_000L;
+	/**
+	 * Equals `SessionRegistry#DRAIN_GIVE_UP_TIMEOUT_MILLIS`: draining the pipeline runs under `engineStateLock`
+	 * and must keep the same five-second budget as draining sessions to bound engine-wide exclusion.
+	 */
+	private static final long PIPELINE_DRAIN_TIMEOUT_MILLIS = 5_000L;
 	/**
 	 * Reference to the evitaDB instance this transaction manager belongs to.
 	 */
@@ -227,6 +233,12 @@ public class TransactionManager implements Closeable {
 	 */
 	private final AtomicLong lastFinalizedCatalogVersion;
 	/**
+	 * Newest version whose {@link #notifyCatalogPresentInLiveView(Catalog)} has ended, whether its change observer
+	 * finished or failed, so it does not prove that observers ran. The living catalog advances earlier, before its
+	 * name, the finalized catalog reference and the change observer are updated.
+	 */
+	private final AtomicLong lastVisibleCatalogVersion;
+	/**
 	 * Delta in catalog schema version that was incorporated into the last finalized catalog and could be deduced from
 	 * {@link #accumulatedCatalogSchemaVersionDelta} when this version of catalog becomes visible.
 	 */
@@ -274,6 +286,8 @@ public class TransactionManager implements Closeable {
 	private final ReentrantLock trunkIncorporationLock = new ReentrantLock(true);
 	/**
 	 * Lock used for propagating new catalog versions to live view.
+	 * Never acquire it while holding `engineStateLock`: propagation holds this lock while applying queued schema
+	 * mutations, which need `engineStateLock`.
 	 */
 	private final ReentrantLock catalogPropagationLock = new ReentrantLock(true);
 	/**
@@ -464,6 +478,7 @@ public class TransactionManager implements Closeable {
 		// this is the catalog version really used (propagated in indexes) - WAL replay will advance
 		// this to match lastWritten before any new transactions can be accepted
 		this.lastFinalizedCatalogVersion = new AtomicLong(catalog.getVersion());
+		this.lastVisibleCatalogVersion = new AtomicLong(catalog.getVersion());
 		this.lastFinalizedCatalogVersionSchemaDelta = new ConcurrentSkipListSet<>();
 
 		Assert.isPremiseValid(
@@ -1029,7 +1044,11 @@ public class TransactionManager implements Closeable {
 			this.lastFinalizedCatalog.set(livingCatalog);
 		}
 
-		this.changeObserver.notifyCatalogPresentInLiveView(livingCatalog);
+		try {
+			this.changeObserver.notifyCatalogPresentInLiveView(livingCatalog);
+		} finally {
+			this.lastVisibleCatalogVersion.accumulateAndGet(catalogVersion, Math::max);
+		}
 	}
 
 	/**
@@ -1685,6 +1704,9 @@ public class TransactionManager implements Closeable {
 	 * @param newCatalogVersion the new catalog version to propagate
 	 */
 	public void propagateCatalogSnapshot(@Nonnull Catalog newCatalogVersion) {
+		// read before publishing: a rename goes ahead once the live view has caught up, and it rewrites the name on
+		// this very instance, so a later read could mistake this round's own notifications for stale ones
+		final String publishedCatalogName = newCatalogVersion.getName();
 		try {
 			if (this.catalogPropagationLock.tryLock(0, TimeUnit.MILLISECONDS)) {
 				this.newCatalogVersionConsumer.accept(newCatalogVersion);
@@ -1696,6 +1718,20 @@ public class TransactionManager implements Closeable {
 					final ModifyCatalogSchemaMutationWithCatalogVersion mcsmwcv = Objects.requireNonNull(
 						this.engineMutationsQueue.poll()
 					);
+					// A refused notification ends its round and leaves the rest of the round queued. If the refusal
+					// came from a rename, those entries carry a name that is gone or belongs to someone else: they
+					// cannot be applied any more, and failing here would tell this round's commit that it failed for
+					// something it had no part in. They lose their engine WAL and system CDC record, as the refused
+					// one did.
+					final String notifiedCatalogName = mcsmwcv.engineMutation().getCatalogName();
+					if (!publishedCatalogName.equals(notifiedCatalogName)) {
+						log.warn(
+							"Dropping the schema notification of catalog version {} that names catalog `{}`: " +
+								"the catalog is now called `{}`.",
+							mcsmwcv.catalogVersion(), notifiedCatalogName, publishedCatalogName
+						);
+						continue;
+					}
 					this.evita.applyMutation(
 						new ServerModifyCatalogSchemaMutation(
 							mcsmwcv.catalogVersion(),
@@ -1739,6 +1775,80 @@ public class TransactionManager implements Closeable {
 	}
 
 	/**
+	 * Waits briefly until all assigned commits have finished their live-view notification, then verifies that the
+	 * living catalog is the newest assigned version. Both versions are re-read because a failed WAL append can
+	 * release its assigned version.
+	 *
+	 * Runs on the caller's thread while holding `engineStateLock`. The commit pipeline needs the transaction pool,
+	 * so waiting in the asynchronous half could starve it. REST's `UpdateCatalogHandler` and GraphQL's
+	 * `AsyncDataFetcher` already call from that pool: with no free worker, the round cannot run and the caller is
+	 * cleanly refused at the bound.
+	 *
+	 * Deliberately does not acquire {@link #catalogPropagationLock}: a round holds it while waiting for
+	 * `engineStateLock` to apply queued schema mutations. A round may still be in that schema tail on return.
+	 * Its notification is then refused, by the operation's conflict keys or by the old name being gone, and its
+	 * `onChangesVisible` fails with its data visible, as with any engine mutation racing a schema-changing round on
+	 * that catalog. Notifications queued behind the refused one stay queued, and the next round drops them if the
+	 * operation has retired their name: see {@link #propagateCatalogSnapshot(Catalog)}.
+	 *
+	 * The caller has already closed the open sessions by the time this refuses, so a refusal leaves the catalogs with
+	 * their names and data, not with their sessions.
+	 *
+	 * @throws TransactionTimedOutException when the commits in progress outlast the budget; the operation may be
+	 *                                     retried once they have finished
+	 * @throws TransactionException         when the pipeline is suspended with commits still behind it, which waiting
+	 *                                     cannot change: only a reload can
+	 * @throws InstanceTerminatedException  when this manager is closed, which ends the wait early
+	 * @throws GenericEvitaInternalError    when the living catalog is not the newest assigned version after the wait
+	 */
+	public void waitUntilPipelineDrained() {
+		waitUntilVersionReaches(
+			() -> {
+				// a closed manager never publishes again, so the wait ends with the closure rather than at its deadline
+				requireLivingCatalog();
+				return this.lastVisibleCatalogVersion.get();
+			},
+			this::getLastAssignedCatalogVersionUnlessStalled,
+			PIPELINE_DRAIN_TIMEOUT_MILLIS,
+			() -> "Commits in progress on catalog `" + getCatalogName() + "` did not finish within " +
+				PIPELINE_DRAIN_TIMEOUT_MILLIS + " ms (visible version " + this.lastVisibleCatalogVersion.get() +
+				", assigned version " + getLastAssignedCatalogVersion() + "). The operation was refused: the " +
+				"catalogs keep their names and data, although their open sessions may already have been closed, " +
+				"and it can be retried once the commits have finished."
+		);
+		Assert.isPremiseValid(
+			getLastAssignedCatalogVersion() == requireLivingCatalog().getVersion(),
+			"A drained pipeline must serve its last assigned catalog version!"
+		);
+	}
+
+	/**
+	 * Returns the last assigned catalog version, refusing when a suspended pipeline is what keeps it from becoming
+	 * visible, since spending the budget on that would only hold `engineStateLock` for nothing. A caught-up catalog is
+	 * not refused for being suspended: `Catalog#assertPublishable` decides that when the handover begins.
+	 *
+	 * @return the last assigned catalog version
+	 * @throws TransactionException when the pipeline is suspended with commits still behind it
+	 */
+	private long getLastAssignedCatalogVersionUnlessStalled() {
+		final long assignedVersion = getLastAssignedCatalogVersion();
+		if (this.lastVisibleCatalogVersion.get() < assignedVersion) {
+			final CatalogSuspension theSuspension = this.suspension.get();
+			if (theSuspension != null) {
+				throw new TransactionException(
+					"Catalog `" + getCatalogName() + "` is suspended after a failed transaction incorporation at " +
+						"version " + theSuspension.failedCatalogVersion() + ", so its assigned version " +
+						assignedVersion + " will not become visible until it is reloaded. The operation was refused: " +
+						"the catalogs keep their names and data, although their open sessions may already have " +
+						"been closed.",
+					theSuspension.cause()
+				);
+			}
+		}
+		return assignedVersion;
+	}
+
+	/**
 	 * Bounded wait for a monotonically increasing version to reach the expected value. Busy-spins for
 	 * {@link #SPIN_ATTEMPTS_BEFORE_PARK} attempts (propagation normally lands within microseconds) and
 	 * then parks in {@link #PARK_INTERVAL_NANOS} intervals so a genuine stall does not burn a core.
@@ -1756,17 +1866,37 @@ public class TransactionManager implements Closeable {
 		long deadlineMs,
 		@Nonnull String catalogName
 	) {
+		waitUntilVersionReaches(
+			liveVersion,
+			() -> catalogVersion,
+			deadlineMs,
+			() -> "Live view of catalog `" + catalogName + "` did not reach version " + catalogVersion +
+				" within " + deadlineMs + " ms (stuck at version " + liveVersion.getAsLong() +
+				"); refusing to wait indefinitely."
+		);
+	}
+
+	/**
+	 * Spin-then-park wait that re-reads the target version on every pass, so that a dropped reservation can lower it.
+	 *
+	 * @param liveVersion    supplier of the currently visible version
+	 * @param targetVersion  supplier of the version that must be reached
+	 * @param deadlineMs     maximum time to wait in milliseconds
+	 * @param timeoutMessage supplier of the message to refuse with at the deadline
+	 * @throws TransactionTimedOutException when the visible version remains behind at the deadline
+	 */
+	private static void waitUntilVersionReaches(
+		@Nonnull LongSupplier liveVersion,
+		@Nonnull LongSupplier targetVersion,
+		long deadlineMs,
+		@Nonnull Supplier<String> timeoutMessage
+	) {
 		final long deadlineNanos = System.nanoTime() + deadlineMs * 1_000_000L;
 		int spins = 0;
-		long currentVersion;
-		while ((currentVersion = liveVersion.getAsLong()) < catalogVersion) {
+		while (liveVersion.getAsLong() < targetVersion.getAsLong()) {
 			// overflow-safe monotonic comparison mandated by the System.nanoTime() contract
 			if (System.nanoTime() - deadlineNanos >= 0) {
-				throw new TransactionTimedOutException(
-					"Live view of catalog `" + catalogName + "` did not reach version " + catalogVersion +
-						" within " + deadlineMs + " ms (stuck at version " + currentVersion +
-						"); refusing to wait indefinitely."
-				);
+				throw new TransactionTimedOutException(timeoutMessage.get());
 			}
 			if (spins < SPIN_ATTEMPTS_BEFORE_PARK) {
 				Thread.onSpinWait();

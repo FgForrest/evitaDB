@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-09-12 07:10
+updated: 2026-11-05 23:02
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_engine/src/main/java/io/evitadb/core/engine, evita_engine/src/main/java/io/evitadb/core/session, evita_engine/src/main/java/io/evitadb/spi/store/engine, evita_engine/src/main/java/io/evitadb/core/transaction/engine/operators, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_store/evita_store_server/src/main/java/io/evitadb/store/engine]
 supersedes: []
 superseded-by: []
-relates: [2026-09-12-restore-catalog-to-earlier-version, 2026-10-08-cdc-resume-position-carries-catalog-identity]
+relates: [2026-09-12-restore-catalog-to-earlier-version, 2026-10-08-cdc-resume-position-carries-catalog-identity, 2026-11-05-catalog-handover-waits-for-commit-pipeline]
 ---
 
 # Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
@@ -128,7 +128,7 @@ ergonomics the absolute path used to provide.
 | File names inside a folder are **discovered** from the single `*.boot`, never constructed from the catalog name | This is what lets the files stay put during a rename, and it cost no storage-format migration | `DefaultCatalogPersistenceService#discoverStoragePrefix` |
 | `verifyCatalogNameMatches` became `reconcileStoredCatalogIdentity` and adapts unconditionally | Once the name comes from the engine state rather than the folder, a header naming a different catalog is the ordinary trace of a rename whose header rewrite did not land — refusing would report a loadable catalog as corrupted | `DefaultCatalogPersistenceService` |
 | A rename **consumes no catalog version** — `replaceWith` keeps an ALIVE catalog's version instead of bumping it | `verifyIntegrity` asserts that the WAL's last written version equals the bootstrap's, i.e. that every version in the line was produced by a transaction. A rename moves no data and appends nothing to the WAL, so consuming a version for it is the only thing violating that invariant. Writing header, schema part and bootstrap record at an already-flushed version is what the load path has always done | `DefaultCatalogPersistenceService#replaceWith`, `TransactionManager#notifyCatalogPresentInLiveView` |
-| `replaceWith` discards any owed checkpoint before it closes the service it is handing over | The bootstrap file is read back **by position** — the last record wins, whatever version it names — so a checkpoint owed by an earlier round publishes a pointer to the pre-rename root *after* the rename's own, and the service reopened at the end of the method loads the catalog under its previous name. Discarding is right on the merits: the rename's `recordBootstrap` flushes the index and forces the pending syncs, which is all the checkpoint owed | `DefaultCatalogPersistenceService#replaceWith` |
+| `replaceWith` discards any owed checkpoint before it closes the service it is handing over | The bootstrap file is read back **by position** — the last record wins, whatever version it names — so a checkpoint owed by an earlier round publishes a pointer to the pre-rename root *after* the rename's own, and the service reopened at the end of the method loads the catalog under its previous name. Discarding is right on the merits: the rename's `recordBootstrap` flushes the index and forces the pending syncs, which is all the checkpoint owed. The discard alone did not close the race: a ticker can still pick the record up while the rename forces its syncs, and a trunk round in flight can land after it, so `2026-11-05-catalog-handover-waits-for-commit-pipeline` holds `checkpointLock` here and makes the operator wait for the pipeline | `DefaultCatalogPersistenceService#replaceWith` |
 | A fresh `catalogId` is minted whenever a catalog is materialised from copied bytes | A duplicate is a new lineage; carrying the source's id leaves the two indistinguishable by the field clients use to decide whether a cached view still holds | same method, driven by `.restored` |
 | `getCatalogStoragePath()` is **removed** from the public API rather than left returning a blank, and `getCause()`'s `BiFunction<String, Path, …>` changes with it — an accepted breaking change, labelled and shipped in one release | Under a token binding the engine cannot honestly populate a path, and a permanently-blank field is documentation-backed misinformation — worse than an absent one, because clients keep reading it. Zero callers were found outside the API files and one test, so the break is nominal; splitting it across releases would make clients absorb two | `CatalogContract`, `EvitaContract`, `UnusableCatalogDescriptor` |
 | Backups emit the canonical suffix-free, prefix-free shape | A backup zip is how a catalog travels between instances, so it must not carry one instance's folder generation into another | `BackupTask`, `FullBackupTask` |
