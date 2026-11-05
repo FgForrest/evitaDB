@@ -1,7 +1,7 @@
 ---
 title: A backup that cannot fit the export storage stops at the limit and names the setting to raise
 date: 2026-11-05
-updated: 2026-11-05 01:40
+updated: 2026-11-05 04:15
 status: accepted
 kind: fix
 issues: [1881]
@@ -15,9 +15,9 @@ relates: [2026-09-12-restore-catalog-to-earlier-version]
 # A backup that cannot fit the export storage stops at the limit and names the setting to raise
 
 Every backup, restore to an earlier version included, now writes through a cap taken from the export handle. Crossing it
-stops the backup, publishes nothing, leaves older exports in place, and fails the task with
-`ExportFileTooLargeException`, whose public message names the limit, the property, its environment variable and the
-catalog's size on disk. Migrations, JFR recordings and traffic recordings stay uncapped.
+stops the backup, publishes nothing, and fails the task with `ExportFileTooLargeException`, whose public message names
+the limit, the property, its environment variable and the catalog's size on disk. Migrations, JFR recordings and traffic
+recordings stay uncapped.
 
 ## Why
 
@@ -43,16 +43,17 @@ counting against the limit until it expired (seven days by default) and evicted 
 `SizeCappedOutputStream` sits between the zip's buffer and the handle's stream. `ExportFileHandle#sizeLimit` reports
 what this export may occupy, `ExportFileHandle#discard` abandons an unpublished file.
 
-- **Pros:** stops as soon as the outcome is known, protects older exports, needs no estimate. Other exports are
-  untouched because only the two backup tasks wrap their stream.
+- **Pros:** stops as soon as the outcome is known, so the file never grows past the limit and a purge cannot wipe every
+  older export to make room for it. Needs no estimate. Other exports are untouched because only the two backup tasks
+  wrap their stream.
 - **Cons:** the backup still pays for the bytes written up to the limit.
 
 ### Option B - check the final size after writing, as the issue suggested (declined)
 
 - **Pros:** the smallest change.
 - **Cons:** the whole archive is written first, holding the version pin and the folder hold throughout.
-- **Rejected because:** an unfinished file counts on the file system, so older exports can already be gone by the time
-  the check runs.
+- **Rejected because:** the file keeps growing past the limit while it still counts on the file system, so a purge
+  during the write wipes every older export before the check runs.
 
 ### Option C - refuse up front on an estimate (declined)
 
@@ -164,9 +165,10 @@ watched go red for the stated reason.
 
 ## Consequences & open follow-ups
 
-- **"Admitted implies kept" holds in isolation only.** Two concurrent exports that each fit can still evict older
-  exports or each other, and an unfinished file counts on the file system. Reference-counting the export directory is
-  its own piece of work.
+- **"Admitted implies kept" and "older exports survive a refusal" hold in isolation only.** An unfinished file counts on
+  the file system, so a purge tick during a long write can evict older exports before the backup is refused, and two
+  concurrent exports that each fit can evict older exports or each other. The refusal itself removes nothing else.
+  Reference-counting the export directory is its own piece of work.
 - **S3 upload race on a failed backup.** After any failure in the backup body, an interrupt among them, the zip closes
   normally and the upload starts, the future is still pending, nothing is deleted, and a truncated archive may be listed
   later. A tripped cap cannot reach this, because it never closes the handle. Read from code, not run.
