@@ -408,8 +408,7 @@ public class ExportS3Service implements ExportService {
 			description,
 			created,
 			originTags,
-			fileForFetchFuture,
-			this.s3Options.getRequestTimeoutInMillis()
+			fileForFetchFuture
 		);
 
 		return new ExportFileHandleS3(
@@ -966,7 +965,6 @@ public class ExportS3Service implements ExportService {
 		private final OffsetDateTime created;
 		private final String[] originTags;
 		private final CompletableFuture<FileForFetch> fileForFetchFuture;
-		private final long requestTimeoutInMillis;
 		private boolean closed;
 
 		S3UploadOutputStream(
@@ -982,8 +980,7 @@ public class ExportS3Service implements ExportService {
 			@Nullable String description,
 			@Nonnull OffsetDateTime created,
 			@Nullable String[] originTags,
-			@Nonnull CompletableFuture<FileForFetch> fileForFetchFuture,
-			long requestTimeoutInMillis
+			@Nonnull CompletableFuture<FileForFetch> fileForFetchFuture
 		) {
 			try {
 				final File theFile = tempFilePath.toFile();
@@ -1014,7 +1011,6 @@ public class ExportS3Service implements ExportService {
 			this.created = created;
 			this.originTags = originTags;
 			this.fileForFetchFuture = fileForFetchFuture;
-			this.requestTimeoutInMillis = requestTimeoutInMillis;
 			this.closed = false;
 		}
 
@@ -1104,7 +1100,6 @@ public class ExportS3Service implements ExportService {
 				// Start async upload, complete the future and clean resources on completion
 				this.minioClient
 					.putObject(putObjectArgsBuilder.build())
-					.orTimeout(this.requestTimeoutInMillis, TimeUnit.MILLISECONDS)
 					.whenComplete((ignored, throwable) -> {
 						try {
 							if (throwable == null) {

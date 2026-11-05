@@ -58,11 +58,17 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -73,6 +79,7 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
 
@@ -129,6 +136,7 @@ class ExportS3ServiceTest {
 	 */
 	private S3ExportOptions exportOptions;
 	private Path workDirectory;
+	private final List<Scheduler> schedulers = new ArrayList<>();
 
 	/**
 	 * Builds a {@link NotificationRecords} instance by deserializing a JSON string
@@ -247,7 +255,11 @@ class ExportS3ServiceTest {
 
 	@AfterEach
 	void tearDown() throws IOException {
-		this.exportService.close();
+		try {
+			this.exportService.close();
+		} finally {
+			this.schedulers.forEach(Scheduler::shutdownNow);
+		}
 		// Delete all objects in bucket and then the bucket itself
 		try {
 			this.s3Client.listObjects(builder -> builder.bucket(BUCKET_NAME))
@@ -273,6 +285,135 @@ class ExportS3ServiceTest {
 		final FileForFetch file = handle.fileForFetchFuture().get(30, TimeUnit.SECONDS);
 		assertEquals("first second", file.description());
 		assertEquals(1, this.exportService.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount());
+	}
+
+	/** A progressing upload response can take longer than a single socket operation's timeout. */
+	@Test
+	@DisplayName("Should upload through a progressing connection beyond the request timeout")
+	void shouldUploadBeyondRequestTimeoutWhileConnectionProgresses() throws Exception {
+		this.exportService.close();
+		try (final SlowResponseRelay relay = new SlowResponseRelay()) {
+			this.exportOptions = S3ExportOptions.builder(this.exportOptions)
+				.endpoint("http://localhost:" + relay.port())
+				.requestTimeoutInMillis(3000)
+				.sizeLimitBytes(2 * 1024 * 1024)
+				.build();
+			this.exportService = createExportService();
+			this.exportService.awaitInitialization();
+			final ExportFileHandle handle = this.exportService.storeFile(
+				"slow.zip", "A progressing upload", "application/zip", "backup"
+			);
+			final byte[] payload = new byte[1024 * 1024];
+			new Random(42).nextBytes(payload);
+			handle.outputStream().write(payload);
+			final long started = System.nanoTime();
+			handle.close();
+			final FileForFetch file = handle.fileForFetchFuture().get(30, TimeUnit.SECONDS);
+			assertTrue(System.nanoTime() - started >= TimeUnit.SECONDS.toNanos(3),
+				"the upload must take longer than its three-second request timeout");
+			assertEquals(payload.length, file.totalSizeInBytes());
+			assertEquals(1, this.exportService.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount());
+			assertEquals(payload.length, this.s3Client.listObjects(builder -> builder.bucket(BUCKET_NAME))
+				.contents().getFirst().size());
+			assertNull(relay.failure.get(), "the relay must keep forwarding successfully");
+		}
+	}
+
+	/**
+	 * Relays one HTTP connection at a time to S3Mock, closing each upstream connection after its response.
+	 * PUT response bytes arrive every 100 ms, exercising read progress without a whole-upload deadline.
+	 * Pacing responses avoids turning request buffering in the local TCP stack into a read stall.
+	 */
+	private static final class SlowResponseRelay implements AutoCloseable {
+		private final ServerSocket listener;
+		private final Thread worker;
+		private final AtomicReference<Exception> failure = new AtomicReference<>();
+
+		/** Starts the single daemon relay worker on an ephemeral local port. */
+		private SlowResponseRelay() throws IOException {
+			this.listener = new ServerSocket(0, 1, InetAddress.getLoopbackAddress());
+			this.worker = Thread.ofPlatform().daemon(true).name("s3-response-relay").start(this::forward);
+		}
+
+		/** Returns the local port used by the service endpoint. */
+		private int port() {
+			return this.listener.getLocalPort();
+		}
+
+		/** Forwards complete requests, then streams their responses until the upstream closes. */
+		private void forward() {
+			try {
+				while (!this.listener.isClosed()) {
+					try (
+						final Socket client = this.listener.accept();
+						final Socket upstream = new Socket(S3_MOCK.getHost(), S3_MOCK.getMappedPort(9090))
+					) {
+						client.setSoTimeout(5000);
+						upstream.setSoTimeout(5000);
+						final InputStream request = new BufferedInputStream(client.getInputStream());
+						final String headers = readHeaders(request);
+						final String forwarded = headers.replaceAll("(?im)^Connection:[^\r\n]*\r\n", "");
+						final OutputStream destination = upstream.getOutputStream();
+						destination.write((forwarded.substring(0, forwarded.length() - 2)
+							+ "Connection: close\r\n\r\n").getBytes(StandardCharsets.ISO_8859_1));
+						int contentLength = 0;
+						for (final String line : headers.split("\r\n")) {
+							if (line.regionMatches(true, 0, "Content-Length:", 0, 15)) {
+								contentLength = Integer.parseInt(line.substring(15).trim());
+							}
+						}
+						final byte[] body = request.readNBytes(contentLength);
+						if (body.length != contentLength) {
+							throw new EOFException("Incomplete relay request body");
+						}
+						destination.write(body);
+						destination.flush();
+						final InputStream response = upstream.getInputStream();
+						final OutputStream source = client.getOutputStream();
+						final boolean paced = headers.startsWith("PUT ");
+						final byte[] chunk = new byte[paced ? 8 : 8192];
+						int length;
+						while ((length = response.read(chunk)) != -1) {
+							if (paced) {
+								// This models network latency, with progress far more often than the socket timeout.
+								Thread.sleep(100);
+							}
+							source.write(chunk, 0, length);
+							source.flush();
+						}
+					}
+				}
+			} catch (IOException | InterruptedException e) {
+				if (!this.listener.isClosed()) {
+					this.failure.set(e);
+				}
+			}
+		}
+
+		/** Reads exactly one HTTP header block without consuming any request-body bytes. */
+		@Nonnull
+		private static String readHeaders(@Nonnull InputStream input) throws IOException {
+			final ByteArrayOutputStream bytes = new ByteArrayOutputStream(1024);
+			int matched = 0;
+			while (matched < 4) {
+				final int value = input.read();
+				if (value == -1) {
+					throw new EOFException("Incomplete relay request headers");
+				}
+				bytes.write(value);
+				matched = value == "\r\n\r\n".charAt(matched) ? matched + 1 : value == '\r' ? 1 : 0;
+			}
+			return bytes.toString(StandardCharsets.ISO_8859_1);
+		}
+
+		/** Stops accepting connections and joins the daemon after closing its active sockets. */
+		@Override
+		public void close() throws IOException, InterruptedException {
+			this.listener.close();
+			this.worker.interrupt();
+			this.worker.join(10_000);
+			assertFalse(this.worker.isAlive(), "the relay worker must stop");
+		}
 	}
 
 	/**
@@ -1008,9 +1149,13 @@ class ExportS3ServiceTest {
 	@Nonnull
 	private ExportS3Service createExportService() {
 		this.workDirectory = Path.of(System.getProperty("java.io.tmpdir"), "evita/work", UUID.randomUUID().toString());
+		final ImmediateScheduledThreadPoolExecutor executor = new ImmediateScheduledThreadPoolExecutor();
+		executor.setThreadFactory(Thread.ofPlatform().daemon(true).factory());
+		final Scheduler scheduler = new Scheduler(executor);
+		this.schedulers.add(scheduler);
 		return new ExportS3Service(
 			this.exportOptions,
-			new Scheduler(new ImmediateScheduledThreadPoolExecutor()),
+			scheduler,
 			new FileManagementService(
 				StorageOptions.builder(StorageOptions.temporary())
 					.workDirectory(this.workDirectory)

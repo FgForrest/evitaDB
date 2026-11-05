@@ -856,10 +856,10 @@ Configuration for S3-compatible storage export backend. Requires the `evita_expo
     <dt>requestTimeoutInMillis</dt>
     <dd>
         <p>**Default:** `30s`</p>
-        <p>Specifies the timeout applied to all external S3 operations performed by the export service.
-        The timeout is used when waiting for completion of asynchronous MinIO client calls, such as
-        bucket creation, object upload, download, deletion and metadata reads. Increase this value if
-        your S3 provider or network exhibits higher latencies.</p>
+        <p>Specifies the timeout for establishing connections and individual socket writes and reads.
+        An upload may take longer in total while its connection keeps making progress. The same value
+        bounds waits for bucket operations, downloads, deletions and metadata reads. Increase this value
+        if your S3 provider or network exhibits higher latencies.</p>
     </dd>
 </dl>
 
