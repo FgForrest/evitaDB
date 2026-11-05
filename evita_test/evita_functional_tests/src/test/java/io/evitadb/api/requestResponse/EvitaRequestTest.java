@@ -1963,9 +1963,186 @@ class EvitaRequestTest {
 		}
 	}
 
+	/** Requested filter scopes survive narrowed searches and reset with an explicit new filter scope. */
+	@Nested
+	@DisplayName("Scopes admitted by derived filters")
+	class RequestedScopesTest {
+		/** A root request admits precisely the scopes it searches. */
+		@Test
+		@DisplayName("Root request admits its searched scopes")
+		void shouldUseSearchedScopesWhenRequestIsRoot() {
+			final EvitaRequest request = createRequest(query(collection("a"), filterBy(scope(Scope.values()))));
+			assertSame(request.getScopes(), request.getRequestedScopes());
+		}
+
+		/** Five-argument derivation widens admission without widening the search. */
+		@Test
+		@DisplayName("Derivation unites inherited and searched scopes")
+		void shouldUniteRequestedScopesWhenDerivedSearchWidens() {
+			final EvitaRequest request = createRequest(query(collection("a")));
+			final EvitaRequest copy = request.deriveCopyWith("b", null, null, null, EnumSet.of(Scope.ARCHIVED));
+			assertEquals(EnumSet.of(Scope.ARCHIVED), copy.getScopes());
+			assertEquals(EnumSet.allOf(Scope.class), copy.getRequestedScopes());
+			final EvitaRequest narrowed = copy.deriveCopyWith("c", null, null, null, EnumSet.of(Scope.LIVE));
+			assertSame(copy.getRequestedScopes(), narrowed.getRequestedScopes());
+		}
+
+		/** The explicit overload accepts the caller's admission set independently of its search. */
+		@Test
+		@DisplayName("Explicit derivation uses exactly the supplied admission set")
+		void shouldUseSuppliedRequestedScopesWhenExplicitlyDerived() {
+			final EvitaRequest request = createRequest(query(collection("a"), filterBy(scope(Scope.values()))));
+			final Set<Scope> requested = EnumSet.of(Scope.LIVE);
+			final EvitaRequest copy = request.deriveCopyWith(
+				"b", null, null, null, EnumSet.of(Scope.ARCHIVED), requested
+			);
+			assertEquals(EnumSet.of(Scope.ARCHIVED), copy.getScopes());
+			assertSame(requested, copy.getRequestedScopes());
+		}
+
+		/** A chain must retain the widest inherited admission set, including plain locale and requirement copies. */
+		@Test
+		@DisplayName("Chained searches, locale and requirement copies retain the widest admission set")
+		void shouldKeepWidestRequestedScopesWhenCopiesAreChained() {
+			final EvitaRequest root = createRequest(query(collection("a")));
+			final EvitaRequest wide = root.deriveCopyWith("b", null, null, null, EnumSet.of(Scope.ARCHIVED));
+			final EvitaRequest narrow = wide.deriveCopyWith("c", null, null, null, EnumSet.of(Scope.LIVE));
+			final EvitaRequest localeCopy = new EvitaRequest(narrow, Locale.ENGLISH);
+			final EvitaRequest requirementCopy = localeCopy.deriveCopyWith("d", entityFetch());
+			assertEquals(EnumSet.allOf(Scope.class), requirementCopy.getRequestedScopes());
+			assertEquals(EnumSet.of(Scope.LIVE), requirementCopy.getScopes());
+			final EvitaRequest inherited = requirementCopy.deriveCopyWith(
+				"e", filterBy(attributeEquals("x", 1)), null, entityFetch()
+			);
+			assertEquals(EnumSet.allOf(Scope.class), inherited.getRequestedScopes());
+			assertEquals(EnumSet.of(Scope.LIVE), inherited.getScopes());
+		}
+
+		/** The own scope of the filter does not narrow admission: a caller honouring it passes it explicitly. */
+		@Test
+		@DisplayName("Derivation admits inherited and searched scopes although the filter names a narrower scope")
+		void shouldUniteRequestedScopesWhenDerivedFilterNamesNarrowerScope() {
+			final EvitaRequest root = createRequest(query(collection("a")));
+
+			final EvitaRequest copy = root.deriveCopyWith(
+				"b", filterBy(scope(Scope.LIVE), attributeEquals("x", 1)), null, null, EnumSet.of(Scope.ARCHIVED)
+			);
+
+			assertEquals(EnumSet.allOf(Scope.class), copy.getRequestedScopes());
+			assertEquals(EnumSet.of(Scope.ARCHIVED), copy.getScopes());
+		}
+
+		/** The own scope of the filter does not widen admission either. */
+		@Test
+		@DisplayName("Derivation does not admit a scope only the filter names")
+		void shouldNotAdmitScopeWhenOnlyDerivedFilterNamesIt() {
+			final EvitaRequest root = createRequest(query(collection("a")));
+
+			final EvitaRequest copy = root.deriveCopyWith(
+				"b", filterBy(scope(Scope.ARCHIVED), attributeEquals("x", 1)), null, null, EnumSet.of(Scope.LIVE)
+			);
+
+			assertEquals(EnumSet.of(Scope.LIVE), copy.getRequestedScopes());
+		}
+
+		/** A new scope at the filter's own level replaces inherited admission in the four-argument overload. */
+		@Test
+		@DisplayName("An explicit filter scope replaces inherited admission")
+		void shouldResetRequestedScopesWhenDerivedFilterNamesScope() {
+			final EvitaRequest root = createRequest(query(collection("a"), filterBy(scope(Scope.values()))));
+			final EvitaRequest narrow = root.deriveCopyWith("b", null, null, null, EnumSet.of(Scope.ARCHIVED));
+			final EvitaRequest copy = narrow.deriveCopyWith(
+				"c", filterBy(scope(Scope.LIVE)), null, entityFetch()
+			);
+			assertEquals(EnumSet.of(Scope.LIVE), copy.getScopes());
+			assertSame(copy.getScopes(), copy.getRequestedScopes());
+		}
+	}
+
 	@Nested
 	@DisplayName("Copy derivation with scope enforcement")
 	class DeriveCopyWithScopeTest {
+
+		/** The sole foreign container stays beside the new root scope. */
+		@Test
+		@DisplayName("Enforce one archived scope when a foreign container is the sole child")
+		void shouldPreserveFilterWhenSoleForeignChildIsCopied() {
+			final EvitaRequest request = createRequest(query(collection("a"), filterBy(scope(Scope.values()))));
+			final EvitaRequest copy = request.deriveCopyWith(
+				"b", filterBy(inScope(Scope.LIVE, attributeEquals("x", 1))),
+				null, null, EnumSet.of(Scope.ARCHIVED)
+			);
+			assertEquals(filterBy(scope(Scope.ARCHIVED), inScope(Scope.LIVE, attributeEquals("x", 1))),
+				copy.getQuery().getFilterBy());
+		}
+
+		/** A primary-key sibling and a foreign container both survive scope enforcement. */
+		@Test
+		@DisplayName("Enforce one archived scope when a foreign container is beside a primary key")
+		void shouldPreserveFilterWhenForeignChildBesidePrimaryKeyIsCopied() {
+			final EvitaRequest request = createRequest(query(collection("a"), filterBy(scope(Scope.values()))));
+			final EvitaRequest copy = request.deriveCopyWith(
+				"b", filterBy(entityPrimaryKeyInSet(1), inScope(Scope.LIVE, attributeEquals("x", 1))),
+				null, null, EnumSet.of(Scope.ARCHIVED)
+			);
+			assertEquals(filterBy(scope(Scope.ARCHIVED), entityPrimaryKeyInSet(1),
+				inScope(Scope.LIVE, attributeEquals("x", 1))),
+				copy.getQuery().getFilterBy());
+		}
+
+		/** A conjunction retains both its foreign container and its attribute sibling. */
+		@Test
+		@DisplayName("Enforce one archived scope when a foreign container is inside a conjunction")
+		void shouldPreserveFilterWhenForeignChildInsideAndIsCopied() {
+			final EvitaRequest request = createRequest(query(collection("a"), filterBy(scope(Scope.values()))));
+			final EvitaRequest copy = request.deriveCopyWith(
+				"b", filterBy(and(inScope(Scope.LIVE, attributeEquals("x", 1)), attributeEquals("y", 1))),
+				null, null, EnumSet.of(Scope.ARCHIVED)
+			);
+			assertEquals(filterBy(scope(Scope.ARCHIVED),
+				and(inScope(Scope.LIVE, attributeEquals("x", 1)), attributeEquals("y", 1))),
+				copy.getQuery().getFilterBy());
+		}
+
+		/** The filter's existing scope is replaced exactly once. */
+		@Test
+		@DisplayName("Enforce one archived scope when the filter names its own scope")
+		void shouldPreserveFilterWhenExistingScopeIsCopied() {
+			final EvitaRequest request = createRequest(query(collection("a"), filterBy(scope(Scope.values()))));
+			final EvitaRequest copy = request.deriveCopyWith(
+				"b", filterBy(scope(Scope.LIVE), attributeEquals("x", 1)),
+				null, null, EnumSet.of(Scope.ARCHIVED)
+			);
+			assertEquals(filterBy(scope(Scope.ARCHIVED), attributeEquals("x", 1)),
+				copy.getQuery().getFilterBy());
+		}
+
+		/** An entity level's own scope remains below the enforced root scope. */
+		@Test
+		@DisplayName("Enforce one archived scope when a nested entity names a scope")
+		void shouldPreserveFilterWhenNestedScopeIsCopied() {
+			final EvitaRequest request = createRequest(query(collection("a"), filterBy(scope(Scope.values()))));
+			final EvitaRequest copy = request.deriveCopyWith(
+				"b", filterBy(entityHaving(and(scope(Scope.LIVE), inScope(Scope.LIVE, attributeEquals("x", 1))))),
+				null, null, EnumSet.of(Scope.ARCHIVED)
+			);
+			assertEquals(filterBy(scope(Scope.ARCHIVED),
+				entityHaving(and(scope(Scope.LIVE), inScope(Scope.LIVE, attributeEquals("x", 1))))),
+				copy.getQuery().getFilterBy());
+		}
+
+		/** An inherited foreign container survives below a separate entity level. */
+		@Test
+		@DisplayName("Enforce one archived scope when a nested entity inherits requested scopes")
+		void shouldPreserveFilterWhenNestedForeignContainerIsCopied() {
+			final EvitaRequest request = createRequest(query(collection("a"), filterBy(scope(Scope.values()))));
+			final EvitaRequest copy = request.deriveCopyWith(
+				"b", filterBy(entityHaving(inScope(Scope.LIVE, attributeEquals("x", 1)))),
+				null, null, EnumSet.of(Scope.ARCHIVED)
+			);
+			assertEquals(filterBy(scope(Scope.ARCHIVED), entityHaving(inScope(Scope.LIVE, attributeEquals("x", 1)))),
+				copy.getQuery().getFilterBy());
+		}
 
 		/**
 		 * Verifies scope added to request without filter.

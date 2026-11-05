@@ -425,7 +425,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 	}
 
 	/**
-	 * Decides whether a candidate built for `candidateScopes` covers fewer scopes than the query requests - which is
+	 * Decides whether a candidate built for `candidateScopes` covers fewer scopes than the query searches - which is
 	 * the case for every candidate built inside an `inScope(...)` container of a query over more scopes than the one
 	 * the container names.
 	 *
@@ -433,13 +433,13 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 	 * no entity of the other queried scopes, so a plan built on it would answer every constraint outside the container
 	 * from the narrowed scope alone. See {@link EligibilityObstacle#PARTIAL_SCOPE_COVERAGE}.
 	 *
-	 * In a valid query the processing scopes are a subset of the query scopes, so inequality is the same as being
-	 * a proper subset. An `inScope` naming a scope the query does not request is refused later by its translator;
-	 * until then the inequality keeps such a candidate out of the plan as well.
+	 * A nested query searching one scope may legitimately retain an `inScope` of another requested scope. Inequality
+	 * keeps that foreign candidate out of its plan too: its indexes cannot answer the scope this pass searches.
+	 * The translator separately refuses containers naming scopes outside the requested set.
 	 *
 	 * @param candidateScopes the processing scopes the candidate is built for
-	 * @param filterByVisitor the visitor providing the scopes requested by the query
-	 * @return `true` when the candidate does not cover every scope the query requests
+	 * @param filterByVisitor the visitor providing the scopes the query searches
+	 * @return `true` when the candidate does not cover every scope the query searches
 	 */
 	private static boolean coversFewerScopesThanQuery(
 		@Nonnull Set<Scope> candidateScopes,

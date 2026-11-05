@@ -26,6 +26,7 @@ package io.evitadb.api.functional.reference;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -34,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
@@ -62,10 +64,12 @@ import static io.evitadb.test.TestTags.FILTER;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins a `scope(...)` nested inside a container that switches to another entity - `entityHaving`, `groupHaving`,
- * `hierarchyWithin` - to the entities that container reaches.
+ * Pins a `scope(...)` nested inside a container that switches to another entity: `entityHaving` and `groupHaving` apply
+ * it to the entities they reach, and `hierarchyWithin`, which cannot apply it, refuses it.
  *
  * The queried entities keep their own scope: the one `scope(...)` outside every such container, or `LIVE` when there
  * is none. A nested `scope(...)` must neither become the query's scope nor collide with it, and inside `entityHaving`
@@ -280,44 +284,34 @@ public class NestedEntityScopeFunctionalTest {
 	}
 
 	/**
-	 * `hierarchyWithin` accepts a nested `scope(...)` in its parent filter and in its `having` specification, but
-	 * resolves the parent among the hierarchy nodes of the scope being queried and does not apply the nested scope -
-	 * a hierarchy is traversed within one scope. These rows pin that as it stands, so that a change to it is a
-	 * deliberate one: the nested scope neither collides with the outer one nor leaks into the query.
+	 * `hierarchyWithin` resolves its parent among the hierarchy nodes of the scope being queried - a hierarchy is
+	 * traversed within one scope - so it cannot apply a nested `scope(...)`. A scope in its parent filter or in its
+	 * `having` specification would silently do nothing, so it is refused, whatever the outer scope and on either plan.
 	 */
 	@DisplayName("hierarchyWithin")
 	@Nested
 	class HierarchyWithinScope {
 
-		@DisplayName("Should resolve the parent in the queried scope whatever the nested scope says")
+		@DisplayName("Should refuse a scope in the parent filter and in a specification")
 		@UseDataSet(NESTED_SCOPE)
 		@Test
-		void shouldResolveTheParentInTheQueriedScopeWhateverTheNestedScopeSays(
-			Evita evita,
-			List<SealedEntity> originalOwners,
-			List<SealedEntity> originalTargets
-		) {
-			final Set<Integer> liveParents = preferredTargets(originalTargets, new Scope[]{Scope.LIVE});
-			final Set<Integer> expected = liveOwnersPicking(
-				originalOwners, liveParents, ReferenceContract::getReferencedPrimaryKey
-			);
+		void shouldRefuseScopeWhenPlacedInHierarchyWithin(Evita evita) {
+			final EntityScope bothScopes = scope(ARCHIVED_FIRST);
+			final EntityScope archived = scope(Scope.ARCHIVED);
 			evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
-					assertOwners(
+					assertRefused(
 						session, Scope.LIVE,
-						hierarchyWithin(REF_PICKS, and(scope(ARCHIVED_FIRST), attributeEquals(CODE, "t"))),
-						expected
+						hierarchyWithin(REF_PICKS, and(bothScopes, attributeEquals(CODE, "t"))), bothScopes
 					);
-					assertOwners(
+					assertRefused(
 						session, null,
-						hierarchyWithin(REF_PICKS, and(scope(Scope.ARCHIVED), attributeEquals(CODE, "t"))),
-						expected
+						hierarchyWithin(REF_PICKS, and(archived, attributeEquals(CODE, "t"))), archived
 					);
-					assertOwners(
+					assertRefused(
 						session, Scope.LIVE,
-						hierarchyWithin(REF_PICKS, attributeEquals(CODE, "t"), having(scope(Scope.ARCHIVED))),
-						expected
+						hierarchyWithin(REF_PICKS, attributeEquals(CODE, "t"), having(archived)), archived
 					);
 					return null;
 				}
@@ -341,27 +335,10 @@ public class NestedEntityScopeFunctionalTest {
 		@Nonnull Set<Integer> expected
 	) {
 		assertFalse(expected.isEmpty(), "Fixture guard: the oracle for `" + filter + "` must not be empty!");
-		final int[] candidates = session.queryList(
-				Query.query(
-					collection(ENTITY_OWNER),
-					filterBy(scope(Scope.LIVE, Scope.ARCHIVED)),
-					require(page(1, Integer.MAX_VALUE))
-				),
-				EntityReference.class
-			).stream()
-			.mapToInt(EntityReference::getPrimaryKey)
-			.toArray();
+		final int[] candidates = everyOwnerPrimaryKey(session);
 		for (PlanPreference plan : PlanPreference.values()) {
 			final EvitaResponse<EntityReference> response = session.query(
-				Query.query(
-					collection(ENTITY_OWNER),
-					filterBy(
-						outerScope == null ?
-							plan.filter(candidates, filter) : plan.filter(candidates, scope(outerScope), filter)
-					),
-					require(plan.debug(), page(1, Integer.MAX_VALUE), queryTelemetry())
-				),
-				EntityReference.class
+				ownersOnPlan(plan, candidates, outerScope, filter), EntityReference.class
 			);
 			final Set<Integer> actual = response.getRecordData().stream()
 				.map(EntityReference::getPrimaryKey)
@@ -372,6 +349,79 @@ public class NestedEntityScopeFunctionalTest {
 			);
 			plan.assertTaken(response);
 		}
+	}
+
+	/**
+	 * Runs the query on both plans of {@link PlanPreference} and asserts that each refuses the nested scope by naming
+	 * it and the `hierarchyWithin` that cannot apply it.
+	 *
+	 * @param session    session to query through
+	 * @param outerScope the scope of the query itself, or NULL to leave the default
+	 * @param filter     the filter besides the outer scope
+	 * @param inertScope the nested scope the query is refused for
+	 */
+	private static void assertRefused(
+		@Nonnull EvitaSessionContract session,
+		@Nullable Scope outerScope,
+		@Nonnull FilterConstraint filter,
+		@Nonnull EntityScope inertScope
+	) {
+		final int[] candidates = everyOwnerPrimaryKey(session);
+		for (PlanPreference plan : PlanPreference.values()) {
+			final EvitaInvalidUsageException error = assertThrowsExactly(
+				EvitaInvalidUsageException.class,
+				() -> session.query(ownersOnPlan(plan, candidates, outerScope, filter), EntityReference.class),
+				() -> "Expected a refusal of `" + filter + "` under outer scope " + outerScope + " (" + plan + ")"
+			);
+			final String expectedPrefix = "Constraint `" + inertScope + "` has no effect in `hierarchyWithin`";
+			assertTrue(error.getMessage().startsWith(expectedPrefix), error.getMessage());
+		}
+	}
+
+	/**
+	 * Returns the primary keys of every owner of both scopes, which narrow the prefetch plan neutrally to the answer.
+	 *
+	 * @param session session to query through
+	 * @return the owner primary keys
+	 */
+	@Nonnull
+	private static int[] everyOwnerPrimaryKey(@Nonnull EvitaSessionContract session) {
+		return session.queryList(
+				Query.query(
+					collection(ENTITY_OWNER),
+					filterBy(scope(Scope.LIVE, Scope.ARCHIVED)),
+					require(page(1, Integer.MAX_VALUE))
+				),
+				EntityReference.class
+			).stream()
+			.mapToInt(EntityReference::getPrimaryKey)
+			.toArray();
+	}
+
+	/**
+	 * Creates the query for the owners matching the filter, steered onto the plan.
+	 *
+	 * @param plan       the plan to steer the query onto
+	 * @param candidates the primary keys of every owner
+	 * @param outerScope the scope of the query itself, or NULL to leave the default
+	 * @param filter     the filter besides the outer scope
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query ownersOnPlan(
+		@Nonnull PlanPreference plan,
+		@Nonnull int[] candidates,
+		@Nullable Scope outerScope,
+		@Nonnull FilterConstraint filter
+	) {
+		return Query.query(
+			collection(ENTITY_OWNER),
+			filterBy(
+				outerScope == null ?
+					plan.filter(candidates, filter) : plan.filter(candidates, scope(outerScope), filter)
+			),
+			require(plan.debug(), page(1, Integer.MAX_VALUE), queryTelemetry())
+		);
 	}
 
 	/**

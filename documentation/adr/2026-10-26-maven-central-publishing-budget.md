@@ -1,11 +1,11 @@
 ---
 title: Fit every release into Maven Central's limits; the shaded driver becomes a recipe, a BOM aligns versions
 date: 2026-10-26
-updated: 2026-10-26 14:05
+updated: 2026-11-05 12:20
 status: accepted
 kind: infrastructure
 issues: [1805]
-prs: []
+prs: [1806, 1888]
 areas: [pom.xml, evita_bom, recipes, jacoco, evita_external_api/evita_external_api_lab, .github/workflows]
 supersedes: []
 superseded-by: []
@@ -120,9 +120,28 @@ makes the remaining many-module layout easier to consume.
 
 ## Key technical details
 
-- **Deploy skip takes two properties.** `maven.deploy.skip` **and** `skipNexusStagingDeployMojo` are both
-  needed, because the root POM runs `nexus-staging-maven-plugin` as a build extension. `jacoco/pom.xml` now
-  carries both, like the test modules.
+- **Deploy skip is a pair, and `skipNexusStagingDeployMojo` is the half that acts.** The root POM runs
+  `nexus-staging-maven-plugin` as a build extension, which replaces every `maven-deploy-plugin` execution with
+  its own, so `maven.deploy.skip` takes effect only if that replacement ever stops. `jacoco/pom.xml` carries
+  both, like the test modules.
+- **A deploy reactor must end in a published module.** Only the last project in the reactor uploads.
+  `DeployMojo` gathers each module's artifacts, then calls `DeployStrategy#finalizeDeploy` if the current project
+  is the last one with the plugin. That check reads the POM model and ignores the skip flag, and a project that
+  skips returns before reaching it. So a last project that skips uploads nothing, and Maven still reports
+  `BUILD SUCCESS`. Snapshots and releases share this path and differ only in the strategy. Both deploy commands
+  therefore leave the test modules out with `-pl`, which makes `evita_test_support` the last project, and neither
+  runs `-P full`. `-T 1C` does not change this: the last project waits for all the others before it uploads.
+- **The deploy log enforces that rule.** Both workflows look for the line the plugin prints when the upload
+  starts: `Bulk deploying locally gathered snapshot artifacts` for a snapshot, `Uploading locally staged artifacts
+  to profile` for a release. A missing line fails the run. The line separates our failures from the repository's:
+  anything before it is our build, anything after it is the repository. So the snapshot deploy stays best effort:
+  `continue-on-error` stays on `ci-dev.yml`, a Sonatype outage leaves the build green, and the next push fills the
+  gap. A release still fails on any deploy error.
+- **Reading Sonatype's `maven-metadata.xml` was declined as that check.**
+  **Rejected because:** it goes red whenever Sonatype is down, which nobody here can fix, and that would end the
+  best-effort contract. **Revisit if:** someone needs proof of what consumers can resolve. Then compare
+  `snapshot/timestamp` (the deploying Maven's session start) with `>=`, never `lastUpdated`: Sonatype rewrote that
+  on 19 artifacts on 2026-10-27 with no deploy.
 - **The lab sources exclusion is plugin-level configuration.** The release invokes `source:jar` as a
   command-line goal, which ignores execution-level configuration. See
   `evita_external_api/evita_external_api_lab/pom.xml`.
@@ -146,7 +165,8 @@ makes the remaining many-module layout easier to consume.
   `versions:set` and the Central metadata working.
 - **The BOM lists exactly the deployed `io.evitadb` artifacts** (24, `evita_db` as `<type>pom</type>`). An
   entry for an undeployed module resolves in our own builds and fails for consumers. The comment in
-  `evita_bom/pom.xml` says so.
+  `evita_bom/pom.xml` says so. The deploy also publishes `evita_bom` itself and the parent POMs consumers need to
+  resolve those artifacts (`evita_root`, `evita_store`, `evita_external_api`), which makes 28, as the budget counts.
 
 ## Verification
 
@@ -165,7 +185,26 @@ makes the remaining many-module layout easier to consume.
 - **Lab sources jar:** 18,634 bytes (9 Java files, 1 service file, no GUI entries). The main jar keeps all 45
   GUI entries.
 - **Reactor:** `mvn -T 1C -Dmaven.test.skip=true install -pl '!:evita_long_running_tests'` succeeded, 30
-  modules.
+  modules. Being `install`, it could not show the no-op deploy found later: only `deploy` reaches the upload.
+- **Deploy, on CI (2026-11-05):** a throwaway workflow extracted the deploy step and the log check from
+  `ci-dev.yml` and ran them on a GitHub runner against a local `file://` repository, with no credentials.
+
+  | Scenario | Maven | Uploaded | Check |
+  |---|---|---|---|
+  | Previous command, `jacoco` last | exit 0 | 0 files | red |
+  | Current command, `evita_test_support` last | exit 0 | 28 artifacts | green |
+  | Current command, repository refusing connections | exit 1, `Connection refused` after the line | nothing | green |
+  | Our own failure: `evita_long_running_tests` back in the reactor | exit 1 | 0 files | red |
+
+  The 28 are the 24 BOM entries plus `evita_bom`, `evita_root`, `evita_store` and `evita_external_api`. Every jar
+  module has its sources and javadoc jars, and nothing unpublished was uploaded. The uploaded `evita_bom` POM has no
+  parent and 24 managed entries, all `io.evitadb`.
+- **The log lines, on real runs:** the snapshot line appears once in the last good run (40318397756) and not at all
+  in the first broken run (40331090245) or a later one (42002130974). The release line was read from a real release
+  of the 2026.2 line (39733427399).
+- **Release path:** it cannot run without staging, so it was checked in parts. After `versions:set`, the release
+  command's reactor ends in `evita_test_support`. `DeployMojo` reaches the staging strategy's `finalizeDeploy` through
+  the same last-project check as the snapshot path.
 
 ## Consequences & open follow-ups
 
@@ -180,6 +219,15 @@ makes the remaining many-module layout easier to consume.
   `evita_root` avoids it. This predates the change. The BOM deliberately does not pin third-party versions.
 - **Javadoc jars stay empty placeholders on purpose.** Generating real javadoc would add megabytes to every
   release.
+- **An unpublished module added after `evita_test_support` belongs in both `-pl` lists.** Forgetting it turns
+  `ci-dev.yml` red on the next push. The two deploy commands build the same modules, so that also protects the
+  release, long before one runs. A red check stops that run's `driver-jdk17` job and canary image, on purpose,
+  because the cause is ours.
+- **The log check proves only that the upload started.** A published module that starts skipping by mistake drops
+  out unnoticed, and a Sonatype failure partway leaves some artifacts older until the next push. A plugin bump that
+  rewords the line turns the run red rather than letting a no-op through.
+- **`jacoco` and `evita_java_driver_all_in_one` stay in the snapshots repository** at
+  `2026.3-20261026.120834` and no longer update, so anyone still using those coordinates keeps getting those jars.
 
 ## Related work
 
@@ -189,3 +237,5 @@ makes the remaining many-module layout easier to consume.
 ## Timeline
 
 - **2026-10-26**: Usage Center limit warning; audit; decision; Sonatype contacted; #1805 implemented.
+- **2026-11-05**: found that `dev` had published no SNAPSHOT since #1806, because `jacoco` had become a skipping last
+  project; both deploy reactors fixed, and the log check added.
