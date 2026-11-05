@@ -1,7 +1,7 @@
 ---
 title: An export that cannot fit the export storage stops at the limit and names the setting to raise
 date: 2026-11-05
-updated: 2026-11-05 12:20
+updated: 2026-11-05 12:22
 status: accepted
 kind: fix
 issues: [1881]
@@ -217,7 +217,7 @@ written before the fix, and the test watched go red for the stated reason.
   while an older export survives; before, both finished and published. A failed zip close leaves no file. A result
   arriving after the sink closed is returned and kept; before, it was null and the cleanup tried to delete it. A failed
   upload reports its own message.
-- `JfrRecorderTaskTest` (4): after `stop` the result is the published file, also on real S3; before, it was always null.
+- `JfrRecorderTaskTest` (4): after `stop` the result is the published file, also on S3; before, it was always null.
   Over the limit the task fails with the exact message and nothing stays behind.
 - `WriteOnlyFileHandleTest` (37), `BootstrapWriteOnlyFileHandleTest` (1): an interrupted `close` throws its real error;
   before, `IllegalMonitorStateException` replaced it.
