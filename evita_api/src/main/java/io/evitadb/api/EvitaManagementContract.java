@@ -236,6 +236,11 @@ public interface EvitaManagementContract {
 	 * queries, and only the final swap - a pointer swap, near-instant regardless of catalog size - makes the
 	 * restored data the answer clients get.
 	 *
+	 * The intermediate backup is bound by the export storage's size limit. An archive that does not fit fails the
+	 * returned task with {@link io.evitadb.api.exception.ExportFileTooLargeException} before anything is unpacked.
+	 * The catalog under `targetCatalogName` keeps serving untouched, and nothing is left behind. Raise the export
+	 * storage size limit and restart the server to retry.
+	 *
 	 * **Selecting the state.** `catalogVersion` names the version to go back to and is what the mutation history
 	 * reports; `pastMoment` names a moment and lets the engine resolve the version. When both are given
 	 * `catalogVersion` wins, exactly as in {@link #backupCatalog}. Passing neither restores the current state, which
@@ -270,8 +275,9 @@ public interface EvitaManagementContract {
 	 * on {@link Task#getFutureResult()}. Cancelling it is observed at the next phase boundary rather than
 	 * immediately, so it leaves the catalog under `targetCatalogName` untouched only up to the final swap - once
 	 * that swap has started, it commits regardless and cancellation no longer undoes it. A run that ends before the
-	 * swap keeps the intermediate backup archive among {@link #listFilesToFetch}, so the restore can be retried
-	 * from it by hand. A run that reaches the swap gives the archive up, on a best-effort basis: a removal that
+	 * swap keeps any completed intermediate backup archive among {@link #listFilesToFetch}, subject to export
+	 * retention and client deletion, so the restore can be retried from it by hand. A backup refused by the size
+	 * limit leaves no archive. A run that reaches the swap gives the archive up, on a best-effort basis: a removal that
 	 * fails is logged rather than failing the task, so the archive can outlive a successful run.
 	 *
 	 * **A failure inside the swap discards the restored data rather than publishing it.** The swap has a point of
