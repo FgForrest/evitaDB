@@ -47,8 +47,9 @@ public final class ExportFileCleanup {
 	 * Removes a failed export without ever replacing the reason it failed.
 	 *
 	 * A failed write leaves the handle open: `ZipOutputStream#close` skips `out.close()` if `finish()` throws. Neither
-	 * the future nor `deleteFile` sees that file, so it has to be discarded. What is left is a file already published.
-	 * Its future is read by state, because an upload that failed completes it exceptionally and `getNow` would then
+	 * the future nor `deleteFile` sees that file, so it has to be discarded. The published-file branch is reached only
+	 * when a handle's own close failed after publishing, or an upload finished while a cancel landed in the task's
+	 * wait. Its future is read by state, because an upload that failed completes it exceptionally and `getNow` would then
 	 * replace the primary failure. A delete that fails is logged and attached to the primary failure when one is
 	 * available, because a purge or a client may simply have removed the file first.
 	 *

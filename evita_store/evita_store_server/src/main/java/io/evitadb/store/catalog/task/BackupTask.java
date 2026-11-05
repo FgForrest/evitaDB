@@ -277,6 +277,8 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 							catalogVersion, catalogHeader.storageProtocolVersion(), zipOutputStream,
 							catalogDataFileDescriptor, defaultCatalogPersistenceService
 						);
+						// Only a finished body may close and publish the export handle.
+						cap.markFinished();
 					} catch (IOException e) {
 						throw new UnexpectedIOException(
 							"Failed to backup catalog `" + this.catalogName + "`!",
@@ -306,12 +308,10 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				// signatures below declares a checked exception. They are reading the source; the exception is not in
 				// the source. The `@Interruptible` checkpoints woven into these helpers raise the *checked*
 				// InterruptedException straight from bytecode, long after javac has stopped looking, so narrowing this
-				// to RuntimeException lets an interrupted backup slip past the cleanup. What it leaves behind is not
-				// merely a stray temp file - closing the stream still writes a valid central directory and registers
-				// the file for fetch, so users are offered a backup missing most of its entries.
+				// to RuntimeException lets the interrupt slip past cleanup. The partial file stays unpublished and
+				// counts against the export limit until it expires.
 				// Covered by BackupTaskCancellationTest#shouldDeleteRegisteredExportFileWhenBackupInterrupted, which
 				// only fails against a freshly woven module - a stale jar reports it green
-
 				ExportFileCleanup.abandon(
 					exportFileHandle, exportService, "a failed backup of catalog `" + this.catalogName + "`", exception
 				);

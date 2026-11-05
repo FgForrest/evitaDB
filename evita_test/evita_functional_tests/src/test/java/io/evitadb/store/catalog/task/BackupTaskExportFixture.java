@@ -30,6 +30,8 @@ import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.export.file.ExportFileService;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
+import io.evitadb.spi.export.ExportService;
+import io.evitadb.spi.export.model.ExportFileHandle;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
@@ -37,13 +39,18 @@ import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
+import lombok.experimental.Delegate;
 import org.junit.jupiter.api.*;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.FilterOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Base64;
+import java.util.Objects;
 import java.util.Random;
 import java.util.stream.Stream;
 
@@ -129,4 +136,65 @@ abstract class BackupTaskExportFixture implements EvitaTestSupport {
 		}
 	}
 
+	/** Allocates a real export handle and wraps only its write stream. */
+	protected static class CancellingExportService implements ExportService {
+		@Delegate private final ExportService delegate;
+		private final Runnable cancellation;
+		@Nullable private CancellingHandle lastHandle;
+
+		/** Creates a service with a deterministic cancellation hook. */
+		protected CancellingExportService(@Nonnull ExportService delegate, @Nonnull Runnable cancellation) {
+			this.delegate = delegate;
+			this.cancellation = cancellation;
+		}
+
+		/** {@inheritDoc} */
+		@Nonnull
+		@Override
+		public ExportFileHandle storeFile(
+			@Nonnull String fileName, @Nullable String description, @Nonnull String contentType, @Nullable String origin
+		) {
+			this.lastHandle = new CancellingHandle(
+				this.delegate.storeFile(fileName, description, contentType, origin), this.cancellation
+			);
+			return this.lastHandle;
+		}
+
+		/** Returns the last real handle wrapped by this service, after an export has started. */
+		@Nonnull
+		protected CancellingHandle lastHandle() {
+			return Objects.requireNonNull(this.lastHandle);
+		}
+	}
+
+	/** Preserves the real handle lifecycle and cancels on its first stream write. */
+	protected static class CancellingHandle implements ExportFileHandle {
+		@Delegate private final ExportFileHandle delegate;
+		private final Runnable cancellation;
+
+		/** Wraps the real handle with a cancellation hook. */
+		private CancellingHandle(@Nonnull ExportFileHandle delegate, @Nonnull Runnable cancellation) {
+			this.delegate = delegate;
+			this.cancellation = cancellation;
+		}
+
+		/** {@inheritDoc} */
+		@Nonnull
+		@Override
+		public OutputStream outputStream() {
+			return new FilterOutputStream(this.delegate.outputStream()) {
+				private boolean cancelled;
+
+				/** {@inheritDoc} */
+				@Override
+				public void write(@Nonnull byte[] bytes, int offset, int length) throws IOException {
+					if (!this.cancelled) {
+						this.cancelled = true;
+						CancellingHandle.this.cancellation.run();
+					}
+					this.out.write(bytes, offset, length);
+				}
+			};
+		}
+	}
 }

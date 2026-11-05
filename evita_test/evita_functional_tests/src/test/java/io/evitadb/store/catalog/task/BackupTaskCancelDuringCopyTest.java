@@ -24,17 +24,11 @@
 package io.evitadb.store.catalog.task;
 
 import io.evitadb.spi.export.ExportService;
-import io.evitadb.spi.export.model.ExportFileHandle;
-import lombok.experimental.Delegate;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.io.FilterOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -79,57 +73,4 @@ class BackupTaskCancelDuringCopyTest extends BackupTaskExportFixture {
 		}
 	}
 
-	/** Allocates a real export handle and wraps only its write stream. */
-	private static class CancellingExportService implements ExportService {
-		@Delegate private final ExportService delegate;
-		private final Runnable cancellation;
-
-		/** Creates a service with a deterministic cancellation hook. */
-		private CancellingExportService(@Nonnull ExportService delegate, @Nonnull Runnable cancellation) {
-			this.delegate = delegate;
-			this.cancellation = cancellation;
-		}
-
-		/** {@inheritDoc} */
-		@Nonnull
-		@Override
-		public ExportFileHandle storeFile(
-			@Nonnull String fileName, @Nullable String description, @Nonnull String contentType, @Nullable String origin
-		) {
-			return new CancellingHandle(
-				this.delegate.storeFile(fileName, description, contentType, origin), this.cancellation
-			);
-		}
-	}
-
-	/** Preserves the real handle lifecycle and cancels on its first stream write. */
-	private static class CancellingHandle implements ExportFileHandle {
-		@Delegate private final ExportFileHandle delegate;
-		private final Runnable cancellation;
-
-		/** Wraps the real handle with a cancellation hook. */
-		private CancellingHandle(@Nonnull ExportFileHandle delegate, @Nonnull Runnable cancellation) {
-			this.delegate = delegate;
-			this.cancellation = cancellation;
-		}
-
-		/** {@inheritDoc} */
-		@Nonnull
-		@Override
-		public OutputStream outputStream() {
-			return new FilterOutputStream(this.delegate.outputStream()) {
-				private boolean cancelled;
-
-				/** {@inheritDoc} */
-				@Override
-				public void write(@Nonnull byte[] bytes, int offset, int length) throws IOException {
-					if (!this.cancelled) {
-						this.cancelled = true;
-						CancellingHandle.this.cancellation.run();
-					}
-					this.out.write(bytes, offset, length);
-				}
-			};
-		}
-	}
 }

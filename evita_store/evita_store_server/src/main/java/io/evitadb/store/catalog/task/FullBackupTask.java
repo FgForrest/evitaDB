@@ -192,6 +192,8 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 					// finally store all the WAL file with all records written so far
 					backup(catalogStoragePath, zipOutputStream, backedUpFiles, totalFiles, WAL_FILE_SUFFIX, "write-ahead log");
 
+					// Only a finished body may close and publish the export handle.
+					cap.markFinished();
 				}
 
 				// a tripped cap never closes the handle, so it must not be mistaken for a finished file below

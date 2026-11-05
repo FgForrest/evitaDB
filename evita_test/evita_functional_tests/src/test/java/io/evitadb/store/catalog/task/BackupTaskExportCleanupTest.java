@@ -131,9 +131,10 @@ class BackupTaskExportCleanupTest extends BackupTaskExportFixture {
 			}
 		}
 
+		/** An interrupted body stays unpublished, so cleanup must discard even if published-file deletion would fail. */
 		@Test
-		@DisplayName("should stay cancelled when deleting the archive the unwinding zip published fails")
-		void shouldStayCancelledWhenCleanupDeleteFails() {
+		@DisplayName("should stay cancelled while discarding without deleting a published file")
+		void shouldStayCancelledWhenDiscardingWithoutPublishedFile() {
 			final AtomicReference<FullBackupTask> taskReference = new AtomicReference<>();
 			final AtomicInteger deleteAttempts = new AtomicInteger();
 			final CancellingExportService undeletableExports = new CancellingExportService(
@@ -158,9 +159,9 @@ class BackupTaskExportCleanupTest extends BackupTaskExportFixture {
 				assertTrue(task.getFutureResult().isCancelled());
 				assertEquals(
 					"Task was cancelled.", task.getStatus().publicExceptionMessage(),
-					"the failed delete must not turn the cancellation into a failure"
+					"discarding must not turn the cancellation into a failure"
 				);
-				assertEquals(1, deleteAttempts.get(), "the zip's close must publish, leaving the delete to clean up");
+				assertEquals(0, deleteAttempts.get(), "an unfinished body must discard without publishing or deleting");
 			} finally {
 				// the interrupt must not leak into the next test, and neither may the handle if an assertion failed
 				Thread.interrupted();

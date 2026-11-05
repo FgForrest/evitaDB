@@ -75,6 +75,7 @@ class SizeCappedOutputStreamTest {
 			cap.write(new byte[]{2, 3});
 			cap.write(new byte[]{0, 4, 5, 0}, 1, 2);
 			cap.flush();
+			cap.markFinished();
 			cap.close();
 			assertArrayEquals(new byte[]{1, 2, 3, 4, 5}, sink.toByteArray());
 			assertEquals(1, sink.flushes);
@@ -104,6 +105,7 @@ class SizeCappedOutputStreamTest {
 			});
 			emptyCap.write(new byte[0]);
 			emptyCap.flush();
+			emptyCap.markFinished();
 			emptyCap.close();
 			assertEquals(1, emptySink.flushes);
 			assertTrue(emptySink.closed);
@@ -125,6 +127,46 @@ class SizeCappedOutputStreamTest {
 			cap.write(new byte[]{1, 2});
 			assertArrayEquals(new byte[]{1, 2}, sink.toByteArray());
 			assertDoesNotThrow(cap::checkFailure);
+		}
+	}
+
+	/** Publication requires both a completed archive body and an allowance that has not been exceeded. */
+	@Nested
+	@DisplayName("Delegate publication")
+	class DelegatePublication {
+		/** An unfinished body must leave the handle open for the failure path's discard. */
+		@Test
+		@DisplayName("should leave the delegate open when the body is unfinished")
+		void shouldLeaveDelegateOpenWhenBodyIsUnfinished() throws IOException {
+			final RecordingStream sink = new RecordingStream();
+			final SizeCappedOutputStream cap = trippableCap(sink, 2);
+			cap.write(1);
+			cap.close();
+			assertFalse(sink.closed);
+		}
+
+		/** A completed body may publish an archive that fits the allowance. */
+		@Test
+		@DisplayName("should close the delegate after the body finishes")
+		void shouldCloseDelegateWhenBodyIsFinished() throws IOException {
+			final RecordingStream sink = new RecordingStream();
+			final SizeCappedOutputStream cap = trippableCap(sink, 2);
+			cap.write(1);
+			cap.markFinished();
+			cap.close();
+			assertTrue(sink.closed);
+		}
+
+		/** Finishing the body cannot override a remembered refusal. */
+		@Test
+		@DisplayName("should leave the delegate open after a refusal even when the body finishes")
+		void shouldLeaveDelegateOpenWhenFinishedAfterRefusal() throws IOException {
+			final RecordingStream sink = new RecordingStream();
+			final SizeCappedOutputStream cap = trippableCap(sink, 0);
+			assertThrows(ExportFileTooLargeException.class, () -> cap.write(1));
+			cap.markFinished();
+			cap.close();
+			assertFalse(sink.closed);
 		}
 	}
 

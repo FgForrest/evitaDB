@@ -175,7 +175,7 @@ class BackupTaskCancellationTest {
 			final FakeExportFileHandle handle = new FakeExportFileHandle(
 				fileId, BackupTaskCancellationTest.this.zipFile
 			);
-			// the file is registered before the backup starts writing entries into it
+			// Exercise cleanup of a handle that has already published its file.
 			handle.fileForFetchFuture().complete(fileForFetch(fileId));
 			final RecordingExportService exportService = new RecordingExportService(handle);
 

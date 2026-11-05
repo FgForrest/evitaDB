@@ -53,7 +53,10 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static io.evitadb.test.TestTags.*;
@@ -190,6 +193,81 @@ class BackupTaskS3SizeLimitTest extends BackupTaskExportFixture {
 				assertArrayEquals(objectBytes, input.readAllBytes());
 			}
 		}
+	}
+
+	/** Unfinished backup bodies must discard the real S3 handle without starting an upload. */
+	@Nested
+	@DisplayName("Cancellation during archive writes")
+	class CancellationDuringWrite {
+		/** Cancels and interrupts the point-in-time backup on its first write to the real handle. */
+		@Test
+		@DisplayName("should discard a point-in-time backup interrupted during its first write")
+		void shouldDiscardPointInTimeBackupWhenInterruptedDuringWrite() throws IOException {
+			reopenWithRoomForTheBackup();
+			final AtomicReference<ServerTask<?, FileForFetch>> reference = new AtomicReference<>();
+			final CancellingExportService cancellingExports = cancellingExports(reference);
+			final BackupTask task = new BackupTask(
+				TEST_CATALOG, null, null, false, bootstrap(), cancellingExports,
+				BackupTaskS3SizeLimitTest.this.persistence, null
+			);
+			reference.set(task);
+			assertCancelledWithoutUpload(task, cancellingExports);
+		}
+
+		/** Cancels and interrupts the full backup on its first write to the real handle. */
+		@Test
+		@DisplayName("should discard a full backup interrupted during its first write")
+		void shouldDiscardFullBackupWhenInterruptedDuringWrite() throws IOException {
+			reopenWithRoomForTheBackup();
+			final AtomicReference<ServerTask<?, FileForFetch>> reference = new AtomicReference<>();
+			final CancellingExportService cancellingExports = cancellingExports(reference);
+			final FullBackupTask task = new FullBackupTask(
+				TEST_CATALOG, cancellingExports, BackupTaskS3SizeLimitTest.this.persistence, null
+			);
+			reference.set(task);
+			assertCancelledWithoutUpload(task, cancellingExports);
+		}
+	}
+
+	/** Shares the same deterministic cancellation hook with both task types. */
+	@Nonnull
+	private CancellingExportService cancellingExports(
+		@Nonnull AtomicReference<ServerTask<?, FileForFetch>> reference
+	) {
+		return new CancellingExportService(this.s3, () -> {
+			assertTrue(reference.get().cancel());
+			// A real cancellation interrupts the worker after cancelling its future.
+			Thread.currentThread().interrupt();
+		});
+	}
+
+	/** Waits for the handle verdict before inspecting the bucket, staging directory and export listing. */
+	private void assertCancelledWithoutUpload(
+		@Nonnull ServerTask<?, FileForFetch> task, @Nonnull CancellingExportService cancellingExports
+	) {
+		task.transitionToIssued();
+		try {
+			assertDoesNotThrow(task::execute);
+		} finally {
+			Thread.interrupted();
+		}
+		final ExportFileHandle handle = cancellingExports.lastHandle();
+		assertAll(
+			() -> assertThrows(CancellationException.class, () -> handle.fileForFetchFuture().get(30, TimeUnit.SECONDS),
+				"the unfinished handle future must be cancelled"),
+			() -> assertTrue(handle.fileForFetchFuture().isCancelled(), "the handle future must remain cancelled"),
+			() -> assertEquals(0, this.client.listObjects(builder -> builder.bucket(BUCKET)).contents().size(),
+				"cancellation must leave no object in the bucket"),
+			() -> {
+				try (final Stream<Path> files = Files.walk(this.tempDirectory)) {
+					assertEquals(0, files.filter(Files::isRegularFile)
+						.filter(it -> !it.getFileName().toString().equals(".lock")).count(),
+						"cancellation must remove every temp file");
+				}
+			},
+			() -> assertEquals(0, this.s3.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount(),
+				"cancellation must leave no listed export")
+		);
 	}
 
 	/** An upload that really fails must reach the client as a reported failure, not as an unknown one. */

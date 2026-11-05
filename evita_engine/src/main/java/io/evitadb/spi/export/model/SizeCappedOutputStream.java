@@ -37,7 +37,9 @@ import java.util.function.Supplier;
 /**
  * Counts archive bytes between the buffer and the export handle, refusing a whole chunk that would exceed its cap.
  * An export is a file the engine produces for a user rather than catalog storage, which is why this stream lives here.
- * After refusal it swallows writes and flushes and never closes the handle, leaving it unpublished for discard.
+ * After refusal it swallows writes and flushes. Closing an export handle publishes it, on S3 by starting the upload.
+ * Only a body that called {@link #markFinished()} without a remembered refusal may close the delegate. An unfinished
+ * body leaves the handle open and unpublished for the failure path's discard.
  *
  * Stream operations throw the refusal only once: throwing the same instance during try-with-resources cleanup
  * would cause `Self-suppression not permitted`. The remembered failure, rather than a caught exception, is the
@@ -49,7 +51,7 @@ import java.util.function.Supplier;
  */
 @NotThreadSafe
 public final class SizeCappedOutputStream extends OutputStream {
-	/** Backend sink, left open for discard once the allowance is exceeded. */
+	/** Backend sink, left open for discard if the body is unfinished or the allowance is exceeded. */
 	private final OutputStream delegate;
 	/** Payload allowance in bytes, after any backend metadata reserve. */
 	private final long cap;
@@ -57,6 +59,8 @@ public final class SizeCappedOutputStream extends OutputStream {
 	private final Supplier<ExportFileTooLargeException> failureSupplier;
 	/** Accepted bytes, subtracted from the allowance to check crossings without overflow. */
 	private long written;
+	/** Whether the archive body completed, allowing close to publish an admitted export. */
+	private boolean finished;
 	/**
 	 * Original refusal retained for task cleanup after subsequent stream operations stop throwing. Volatile because a
 	 * traffic recording writes from the ring buffer's thread and its task reads the verdict from its own.
@@ -84,9 +88,14 @@ public final class SizeCappedOutputStream extends OutputStream {
 		);
 	}
 
+	/** Marks the archive body complete, allowing close to publish only if no refusal is remembered. */
+	public void markFinished() {
+		this.finished = true;
+	}
+
 	/**
 	 * Rethrows the remembered refusal, if any, so that swallowing the first one can never turn the archive into a
-	 * successful backup.
+	 * successful export.
 	 */
 	public void checkFailure() {
 		if (this.failure != null) {
@@ -97,7 +106,7 @@ public final class SizeCappedOutputStream extends OutputStream {
 	/**
 	 * Restores the refusal after cleanup and retains the exception that replaced it, unless that exception is the
 	 * cancellation unwinding the task: replacing it would turn a cancelled task into a failed one. A cancel that merely
-	 * arrived after the cap tripped does not count, because the backup did fail for this reason.
+	 * arrived after the cap tripped does not count, because the export did fail for this reason.
 	 *
 	 * @param caught             the exception the task's failure path caught
 	 * @param cancellationDriven whether `caught` is, or wraps, the cancellation itself
@@ -140,7 +149,7 @@ public final class SizeCappedOutputStream extends OutputStream {
 
 	@Override
 	public void close() throws IOException {
-		if (this.failure == null) {
+		if (this.finished && this.failure == null) {
 			this.delegate.close();
 		}
 	}
