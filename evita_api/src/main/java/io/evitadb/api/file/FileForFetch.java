@@ -69,15 +69,15 @@ public record FileForFetch(
 	}
 
 	/**
-	 * Replaces each run of line breaks with a space. A line break would shift the fields of a positional sidecar, and
-	 * S3 refuses an upload whose user metadata holds one.
+	 * Replaces each run of carriage returns and line feeds with a space. Either would shift the fields of a positional
+	 * sidecar, which is read back with `Files#readAllLines`, and S3 refuses an upload whose user metadata holds one.
 	 *
 	 * @param value text to normalize
 	 * @return text that occupies a single metadata line
 	 */
 	@Nonnull
 	public static String singleLine(@Nonnull String value) {
-		return value.replaceAll("\\R+", " ");
+		return value.replaceAll("[\\r\\n]+", " ");
 	}
 
 	/**

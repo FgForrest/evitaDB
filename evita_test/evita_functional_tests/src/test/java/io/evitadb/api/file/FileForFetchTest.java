@@ -75,7 +75,7 @@ class FileForFetchTest implements EvitaTestSupport {
 	void shouldNormalizeLineBreaksInEveryDescriptorString() {
 		final FileForFetch file = new FileForFetch(
 			FILE_ID, "first\nsecond\r\nthird\rfourth.zip", "first\nsecond\r\nthird\rfourth",
-			"application/\n\r\n\rzip", SIZE, CREATED, new String[]{"first\n\r\n\rsecond", "third\u2028fourth"}
+			"application/\n\r\n\rzip", SIZE, CREATED, new String[]{"first\n\r\n\rsecond", "third\nfourth"}
 		);
 		assertEquals("first second third fourth", file.description());
 		assertEquals("first_second_third_fourth.zip", file.name());
@@ -85,15 +85,17 @@ class FileForFetchTest implements EvitaTestSupport {
 		assertEquals(file.toLines(), restored.toLines());
 	}
 
-	/** Covers every Unicode line-break form accepted by the positional metadata normalizer. */
+	/**
+	 * Covers what `Files#readAllLines` splits on. Other Unicode separators stay: they split nothing, and rewriting them
+	 * in a name would disconnect the descriptor from an archive named by the original extension.
+	 */
 	@Test
-	@DisplayName("Should collapse runs of line breaks to a single space")
+	@DisplayName("Should collapse runs of carriage returns and line feeds to a single space")
 	void shouldCollapseRunsOfLineBreaksToSingleSpace() {
-		for (final String lineBreak : List.of(
-			"\n", "\r\n", "\r", "\u0085", "\u2028", "\u2029", String.valueOf((char) 11), "\f"
-		)) {
+		for (final String lineBreak : List.of("\n", "\r\n", "\r")) {
 			assertEquals("first second", FileForFetch.singleLine("first" + lineBreak + lineBreak + "second"));
 		}
+		assertEquals("first\u2028second", FileForFetch.singleLine("first\u2028second"));
 		assertEquals("unchanged", FileForFetch.singleLine("unchanged"));
 		assertEquals("", FileForFetch.singleLine(""));
 		assertEquals(" first ", FileForFetch.singleLine("\nfirst\r\n"));
