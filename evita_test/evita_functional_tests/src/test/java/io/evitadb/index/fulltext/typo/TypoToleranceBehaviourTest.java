@@ -63,7 +63,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * concrete queries over a small product catalog with the expected matches, the expected order and the expected
  * non-matches, so that thresholds, opt-outs and the stemming answer are checked against something.
  *
- * The engine has no fulltext query yet, so the examples run against a **reference** of the proposal: the catalog
+ * These examples run against a **reference** of the proposal; `TypoToleranceEngineBehaviourTest` runs the same
+ * data and expectations through real evitaQL queries: the catalog
  * is indexed through the compiled Czech `text` index side, the query through its query side, every
  * query word is expanded by {@link TypoExpansion} with the thresholds of §7.1 and, for a word still being typed,
  * the unfinished-word rules of §7.8 ({@link UnfinishedWordRules#PROPOSAL}), and the result is ranked by the
@@ -80,7 +81,7 @@ class TypoToleranceBehaviourTest {
 	/**
 	 * The catalog: product titles by primary key.
 	 */
-	private static final String[] CATALOG = {
+	static final String[] CATALOG = {
 		null,
 		"Černé pánské kalhoty",          // 1
 		"Modré dámské kalhoty",          // 2

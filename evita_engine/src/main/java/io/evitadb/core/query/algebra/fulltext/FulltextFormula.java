@@ -56,7 +56,8 @@ import java.util.Arrays;
  * contains, for every token, at least one of that token's terms - the intersection over tokens of the union over each
  * token's posting lists. A token that expanded into no term therefore matches nothing, and neither does the query;
  * loosening that is the opt-in relaxation the query design reserves for a later child of the constraint, never a
- * silent default, because facets, histograms and totals all stand on the match set.
+ * silent default, because facets, histograms and totals all stand on the match set. The terms of a split word - its
+ * original and every part - all belong to its one token, so any of them satisfies the word.
  *
  * ## What it ranks
  *
@@ -64,7 +65,8 @@ import java.util.Arrays;
  * aligned with their postings, for whatever candidates the caller passes - typically the final result of the whole
  * filter. Scoring is not bound to the strict match set: a candidate containing only some of the tokens is selected
  * too, below the candidates containing more, and only one containing none is left out. A token counts once however
- * many of its terms hit a candidate, whichever field they came from.
+ * many of its terms hit a candidate, whichever field they came from. A split word instead counts its covered
+ * parts, with original hits covering every part; quality penalties still count once for the whole word.
  *
  * ## Why it is never cached
  *
@@ -100,6 +102,12 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	 * The query tokens, each as the terms it expanded into.
 	 */
 	@Nonnull private final ExpandedTerm[][] tokens;
+	/**
+	 * Exclusive expansion ends of each split word's original and then each of its parts, one row per token: `null`
+	 * when no word is split, and an empty row for an ordinary word beside a split one. Validated by
+	 * {@link FulltextPhaseOneScorer#validatePartEnds}.
+	 */
+	@Nullable private final int[][] partEnds;
 	/**
 	 * The tokens in the shape the scorer reads, built on the first scoring request. Not synchronised, like the memos
 	 * of {@link AbstractFormula}: a formula is evaluated by the one thread running its query.
@@ -175,17 +183,35 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	 * @param tokens the query tokens in query order, each as the terms it expanded into; a token may carry no term,
 	 *               in which case nothing matches. The arrays are adopted, not copied, and must not be written after
 	 *               the call.
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when there is no token, or more tokens than the scorer's
-	 *                                                        matched-token lane can count
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when there is no token, or more tokens than
+	 *                                                        {@link FulltextPhaseOneScorer#MAX_QUERY_TOKENS}
 	 */
 	public FulltextFormula(@Nonnull ExpandedTerm[][] tokens) {
+		this(tokens, null);
+	}
+
+	/**
+	 * Creates a formula with split-word coverage. Every word still contributes one OR to strict membership.
+	 *
+	 * @param tokens   expansions grouped by mandatory word across every profile group; a split word lays out the
+	 *                 original's expansions first, then each part's. The arrays are adopted, not copied.
+	 * @param partEnds `null` for an unsplit query; otherwise one non-null row per word of exclusive original/part
+	 *                 ends, empty for an ordinary word - the contract is
+	 *                 {@link FulltextPhaseOneScorer#validatePartEnds}'s
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when there is no token, more tokens than
+	 *                                                        {@link FulltextPhaseOneScorer#MAX_QUERY_TOKENS}, or a
+	 *                                                        row is null or its ends are malformed
+	 */
+	public FulltextFormula(@Nonnull ExpandedTerm[][] tokens, @Nullable int[][] partEnds) {
 		Assert.isPremiseValid(tokens.length > 0, "A fulltext formula needs at least one query token!");
 		Assert.isPremiseValid(
 			tokens.length <= FulltextPhaseOneScorer.MAX_QUERY_TOKENS,
 			() -> "A query may carry at most " + FulltextPhaseOneScorer.MAX_QUERY_TOKENS + " tokens, " +
 				tokens.length + " were passed!"
 		);
+		FulltextPhaseOneScorer.validatePartEnds(tokens, partEnds);
 		this.tokens = tokens;
+		this.partEnds = partEnds;
 		this.initFields();
 	}
 
@@ -210,7 +236,7 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 		if (this.memoizedExpansions == null) {
 			this.memoizedExpansions = toExpansions(this.tokens);
 		}
-		return FulltextPhaseOneScorer.score(candidates, this.memoizedExpansions, topN);
+		return FulltextPhaseOneScorer.score(candidates, this.memoizedExpansions, topN, this.partEnds);
 	}
 
 	@Nonnull
@@ -284,21 +310,40 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		// neither the order of the tokens nor the order of a token's terms changes the match set or the scores, so
-		// both levels are hashed order-independently; the distance and the matching class are included because both
-		// change the scores
+		// neither the order of the tokens nor the order of the terms within one range changes the match set or the
+		// scores, so both are hashed order-independently; which range a term falls into does change the scores, so
+		// the range structure is hashed too. Field and term distinguish buckets sharing posting contents.
+		// The immutable impact view is a conservative query-local version token: distinct views remain distinct
+		// even when their bytes happen to agree. This avoids reading impacts or allocating an identity wrapper.
 		final long[] tokenHashes = new long[this.tokens.length];
 		for (int i = 0; i < this.tokens.length; i++) {
 			final ExpandedTerm[] token = this.tokens[i];
 			final long[] termHashes = new long[token.length];
 			for (int j = 0; j < token.length; j++) {
 				termHashes[j] = hashFunction.hashLongs(
-					new long[]{bitmapIdentityToken(token[j].postings(), hashFunction), token[j].distance(),
-						token[j].exactness().ordinal()}
+					new long[]{bitmapIdentityToken(token[j].postings(), hashFunction), token[j].fieldId(),
+						hashFunction.hashChars(token[j].term()), token[j].distance(), token[j].exactness().ordinal(),
+						Integer.toUnsignedLong(System.identityHashCode(token[j].impacts()))}
 				);
 			}
+			final int[] ends = this.partEnds == null ? new int[0] : this.partEnds[i];
+			final long[] groupingHashes = new long[ends.length + 1];
+			int start = 0;
+			for (int part = 0; part < ends.length; part++) {
+				final long[] partHashes = Arrays.copyOfRange(termHashes, start, ends[part]);
+				Arrays.sort(partHashes);
+				groupingHashes[part + 1] = hashFunction.hashLongs(partHashes);
+				start = ends[part];
+			}
 			Arrays.sort(termHashes);
-			tokenHashes[i] = hashFunction.hashLongs(termHashes);
+			groupingHashes[0] = hashFunction.hashLongs(termHashes);
+			// slot 0 is the whole word's membership, slot 1 the original's range and the slots from 2 the ranges of
+			// the parts, sorted because coverage counts parts whatever their order; the original's range keeps its
+			// slot, as its hit covers every part
+			if (ends.length > 1) {
+				Arrays.sort(groupingHashes, 2, groupingHashes.length);
+			}
+			tokenHashes[i] = hashFunction.hashLongs(groupingHashes);
 		}
 		Arrays.sort(tokenHashes);
 		return hashFunction.hashLongs(tokenHashes);

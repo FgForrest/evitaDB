@@ -81,13 +81,16 @@ import static io.evitadb.core.query.filter.translator.fulltext.FulltextTermExpan
  *
  * ## From text to formula
  *
- * The text is analyzed into **tokens** - the analyzer emits a term per word, and the extra terms it emits at the same
- * position (`positionIncrement == 0`, the variant stems of the search-side chain) belong to the word before them. Each
- * token then looks its terms up in every searched field of the {@link FulltextIndex} of the query's locale; every
- * (field, term) with postings becomes one {@link ExpandedTerm} of the token. Finished words add typo neighbours;
- * the unclosed final word also adds prefix completions and open-ended typo neighbours under the submitted policy.
- * Exact terms are uncapped, while prefix completions and typo neighbours are capped per word and group - see
- * `FulltextTermExpansion`.
+ * The text is analyzed into **words** grouped by corrected offset containment: the extra terms emitted at the same
+ * span are alternatives of one word, and the spans contained in it are the parts of a split word - a typed code such
+ * as `abc123` splits at its word-number boundary into `abc` and `123`. Each word looks its terms up in every searched
+ * field of the {@link FulltextIndex} of the query's locale; every (field, term) with postings becomes one
+ * {@link ExpandedTerm} of the word. Finished words add typo neighbours; the unclosed final word also adds prefix
+ * completions and open-ended typo neighbours under the submitted policy. Exact terms are uncapped, while prefix
+ * completions and typo neighbours are capped per word and group - see `FulltextTermExpansion`.
+ *
+ * A split word stays one mandatory word, satisfied by its original or by any of its parts. Ranking counts the parts
+ * a document covers, an original hit covering them all, in the matched-words lane - see {@link FulltextFormula}.
  *
  * ## Which analyzer reads the text
  *
@@ -128,6 +131,9 @@ import static io.evitadb.core.query.filter.translator.fulltext.FulltextTermExpan
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public class TextMatchesTranslator implements FilteringConstraintTranslator<TextMatches>, SelfTraversingTranslator {
+
+	/** Creates a stateless translator; expansion state belongs to each query. */
+	public TextMatchesTranslator() { }
 
 	@Nonnull
 	@Override
@@ -206,19 +212,26 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 		final boolean unfinished = searchTokens.length > 0 && isUnfinished(textMatches.getText()) &&
 			searchTokens[searchTokens.length - 1].endOffset() ==
 				Normalizer.normalize(textMatches.getText(), Normalizer.Form.NFC).length();
-		final Map<CompiledFulltextAnalyzer, String[]> fragments = CollectionUtils.createHashMap(analyzers.size());
-		final Map<CompiledFulltextAnalyzer, String[][]> analyzed = CollectionUtils.createHashMap(analyzers.size());
+		final Map<CompiledFulltextAnalyzer, String[][]> fragments = CollectionUtils.createHashMap(analyzers.size());
+		final Map<CompiledFulltextAnalyzer, String[][][]> analyzed = CollectionUtils.createHashMap(analyzers.size());
 		for (final Map.Entry<String, CompiledFulltextAnalyzer> entry : resolved.entrySet()) {
 			final CompiledFulltextAnalyzer analyzer = entry.getValue();
 			if (analyzed.containsKey(analyzer)) {
 				continue;
 			}
 			analyzed.put(analyzer, analyzeGroups(analyzer, searchTokens, commonText));
-			fragments.put(analyzer, unfinished && searchTokens.length > 0 &&
-				finalWordOffsetsMatch(analyzer, searchTokens[searchTokens.length - 1], commonText)
-				? FulltextQueryFragment.prepare(queryContext.getAnalysisStepRegistry(), catalogSchema,
-					entry.getKey(), locale, searchTokens[searchTokens.length - 1], commonText)
-				: new String[0]);
+			final QueryToken last = searchTokens.length == 0 ? null : searchTokens[searchTokens.length - 1];
+			final String[][] wordFragments = new String[last == null ? 1 : last.wordCount()][];
+			for (int part = 0; part < wordFragments.length; part++) {
+				// only the original and the last part take the unfinished-word policy, so only they need a fragment
+				final boolean policyApplies = part == 0 || part == wordFragments.length - 1;
+				final QueryToken word = last == null ? null : last.wordAt(part);
+				wordFragments[part] = unfinished && policyApplies && word != null &&
+					finalWordOffsetsMatch(analyzer, word, commonText)
+					? FulltextQueryFragment.prepare(queryContext.getAnalysisStepRegistry(), catalogSchema,
+						entry.getKey(), locale, word, commonText) : new String[0];
+			}
+			fragments.put(analyzer, wordFragments);
 		}
 		final Map<Scope, List<AnalyzedFieldGroup>> groupsByScope = new EnumMap<>(Scope.class);
 		for (final Map.Entry<Scope, Map<CompiledFulltextAnalyzer, List<FulltextFieldDefinition>>> entry :
@@ -422,17 +435,21 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 *
 	 * @param analyzer the shared compiled content identity
 	 * @param fields the fields searched in this scope
-	 * @param alternatives each word's analyzed alternatives, empty when this group drops the word
-	 * @param fragments normalized raw final word, prepared around stop removal and stemming
+	 * @param alternatives per word, index 0 the original and then each part, each with its analyzed alternatives;
+	 *                     empty where the chain dropped it
+	 * @param fragments the final word's unfinished fragments, index 0 the original and then each part, normalized
+	 *                  around stop removal and stemming; empty wherever the unfinished-word policy does not apply,
+	 *                  which includes every part but the last
 	 */
 	private record AnalyzedFieldGroup(
 		@Nonnull CompiledFulltextAnalyzer analyzer, @Nonnull FulltextFieldDefinition[] fields,
-		@Nonnull String[][] alternatives, @Nonnull String[] fragments
+		@Nonnull String[][][] alternatives, @Nonnull String[][] fragments
 	) { }
 
 	/**
-	 * Runs a group's word chain over every term of each shared word. Position increments emitted inside the word
-	 * chain never create a new query word; every nonempty emitted term is an alternative of that shared input word.
+	 * Runs a group's word chain over every term of each shared word, separately for the original and each of its
+	 * parts. Position increments emitted inside the word chain never create a new query word; every nonempty emitted
+	 * term is an alternative of the original or part it was analyzed from.
 	 * After the raw split the chain applies the group's query text phase to each word first; after the text-aware
 	 * split the words have been through that phase already, and the chain without it keeps a text step that is not
 	 * idempotent from changing them a second time.
@@ -440,36 +457,42 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 * @param analyzer the group's compiled chains
 	 * @param words the locale's shared words
 	 * @param textSplit whether the words come from the text-aware split, which applied the common query text phase
-	 * @return alternatives aligned with the shared words
+	 * @return alternatives aligned with shared words, each containing the original then its offset-distinct parts
 	 */
 	@Nonnull
-	private static String[][] analyzeGroups(
+	private static String[][][] analyzeGroups(
 		@Nonnull CompiledFulltextAnalyzer analyzer, @Nonnull QueryToken[] words, boolean textSplit
 	) {
 		final FulltextAnalyzer wordChain = textSplit ? analyzer.textSplitWord() : analyzer.word();
-		final String[][] alternatives = new String[words.length][];
+		final String[][][] alternatives = new String[words.length][][];
 		for (int i = 0; i < words.length; i++) {
-			final Set<String> terms = CollectionUtils.createLinkedHashSet(4);
-			for (final String term : words[i].terms()) {
-				wordChain.analyze(term, (value, surface, start, end, increment) -> {
-					if (!value.isEmpty()) {
-						terms.add(value);
-					}
-				});
+			alternatives[i] = new String[words[i].wordCount()][];
+			for (int part = 0; part < alternatives[i].length; part++) {
+				final QueryToken word = words[i].wordAt(part);
+				final Set<String> terms = CollectionUtils.createLinkedHashSet(4);
+				for (final String term : word.terms()) {
+					wordChain.analyze(term, (value, surface, start, end, increment) -> {
+						if (!value.isEmpty()) {
+							terms.add(value);
+						}
+					});
+				}
+				alternatives[i][part] = terms.toArray(String[]::new);
 			}
-			alternatives[i] = terms.toArray(String[]::new);
 		}
 		return alternatives;
 	}
 
 	/**
-	 * Analyzes the text into tokens: each term with a positive position increment starts a new token, and each term
-	 * at the same position (`positionIncrement == 0`) joins the token before it as an alternative. A word-number split
-	 * therefore yields separate words: a typed `UHD7800` needs `uhd7800` or `uhd`, and `7800`, which over an index
-	 * split the same way finds what Lucene's `uhd7800 OR (uhd AND 7800)` finds. Regrouping the parts with their
-	 * original by offset containment - the original or any part, ranked by how much of the group matched
-	 * (`p5-word-number-split-comparison.md` §6) - waits for a ranking lane that puts a whole-word match above a part
-	 * match: without it, the matches of a bare part would come with nothing to rank them down.
+	 * Analyzes text into mandatory query words, regrouping split originals and their parts by offset containment.
+	 * Position increments do not define groups: a flattened word-number graph gives the second part increment one.
+	 * The original or any part satisfies the word. Ranking counts covered parts, with an original hit covering all
+	 * parts, so complete coverage precedes partial matches before the matched-word byte saturates. Ordinary words
+	 * still count once.
+	 *
+	 * A term spanning exactly the current word's corrected offsets is an alternative of it. A term whose span lies
+	 * strictly inside is a part, terms of one span sharing that part. A term starting before the word, ending after it
+	 * or starting at its end begins the next word.
 	 *
 	 * The caller supplies text-aware splitting only when every group's resolved query text phase is equal.
 	 * With heterogeneous phases it supplies raw splitting: a word boundary a group's text step removes is then
@@ -479,8 +502,9 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 *
 	 * @param analyzer the shared splitting chain, optionally preceded by the common query text phase
 	 * @param text     the text of the query
-	 * @return the tokens in text order; empty when the analysis produced no term
-	 * @throws EvitaInvalidUsageException when the text has more tokens than the scorer can count
+	 * @return the words in text order, each carrying its offset-distinct parts; empty when the analysis produced no
+	 *         term
+	 * @throws EvitaInvalidUsageException when the text has more words than the scorer can count
 	 */
 	@Nonnull
 	static QueryToken[] analyze(@Nonnull FulltextAnalyzer analyzer, @Nonnull String text) {
@@ -499,16 +523,22 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 
 	/**
 	 * Expands each group's alternatives only in its current field generations. A shared word leaves the query only
-	 * when every group with a current field drops it. Groups without current fields do not participate. A group drops
+	 * when every group with a current field drops its original and all of its parts. Groups without current fields do
+	 * not participate. A group drops
 	 * a word its chain removed, and a folded stop word no field holds - folded stop recognition is per group and is
 	 * suppressed by any corpus collision, including postings of retired fields. A dropped unfinished final word still
 	 * stays while its fragment completes to a longer dictionary term, so that a stop word on the way to a longer word
 	 * can be finished; typo neighbours alone never keep it. A kept word with no expansion remains a word that matches
 	 * nothing.
 	 *
+	 * The unfinished-word policy applies to the final word's original and its last part only. A split word lays its
+	 * expansions out as the original's, then each part's, and its row of part ends marks where each range ends; the
+	 * formula receives the rows only when some word is split. The original's range keeps no inexact term a part
+	 * matched exactly in the same field, so a part reached by the original's typo leg is credited as that part only.
+	 *
 	 * @param fulltextIndex the locale index of this scope
 	 * @param groups the analyzed groups and their schema field identities
-	 * @param tokens the shared words with their original surface forms
+	 * @param tokens the shared words with their original surface forms and their split parts
 	 * @param unfinished whether the raw text ends with an unclosed word
 	 * @param expansion query-local walkers and submitted-search policy shared across scopes and groups
 	 * @return the fulltext formula, or empty when all words were dropped
@@ -532,39 +562,107 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			fieldIds.add(Arrays.copyOf(ids, count));
 		}
 		final List<ExpandedTerm[]> expandedTokens = new ArrayList<>(tokens.length);
+		final List<int[]> coverage = new ArrayList<>(tokens.length);
+		boolean splitWord = false;
 		for (int i = 0; i < tokens.length; i++) {
 			final List<ExpandedTerm> expansions = new ArrayList<>(8);
+			final List<List<ExpandedTerm>> parts = new ArrayList<>(tokens[i].wordCount());
+			for (int part = 0; part < tokens[i].wordCount(); part++) {
+				parts.add(new ArrayList<>(8));
+			}
 			boolean kept = false;
 			for (int g = 0; g < groups.size(); g++) {
 				if (fieldIds.get(g).length == 0) {
 					continue;
 				}
 				final AnalyzedFieldGroup group = groups.get(g);
-				final String[] alternatives = group.alternatives()[i];
-				final boolean lastUnfinished = unfinished && i == tokens.length - 1;
-				final boolean hasFragment = expansion.expandsUnfinishedWord(group.fragments(), lastUnfinished);
-				// Stop recognition depends on exact corpus collisions, never on a fuzzy neighbour.
-				final boolean dropped = alternatives.length == 0 ||
-					group.analyzer().isFoldedStopWord(tokens[i].surfaceForm()) &&
-						!isKnownToIndex(fulltextIndex, new QueryToken(tokens[i].surfaceForm(), alternatives));
-				if (dropped && !hasFragment) {
-					continue;
+				for (int part = 0; part < parts.size(); part++) {
+					final QueryToken word = tokens[i].wordAt(part);
+					final String[] alternatives = group.alternatives()[i][part];
+					final boolean lastUnfinished = unfinished && i == tokens.length - 1 &&
+						(part == 0 || part == parts.size() - 1);
+					final String[] fragments = lastUnfinished ? group.fragments()[part] : new String[0];
+					final boolean hasFragment = expansion.expandsUnfinishedWord(fragments, lastUnfinished);
+					// Stop recognition depends on exact corpus collisions, never on a fuzzy neighbour.
+					final boolean dropped = alternatives.length == 0 ||
+						group.analyzer().isFoldedStopWord(word.surfaceForm()) &&
+							!isKnownToIndex(fulltextIndex, new QueryToken(word.surfaceForm(), alternatives));
+					if (dropped && !hasFragment) {
+						continue;
+					}
+					final List<ExpandedTerm> expanded = expansion.expand(fulltextIndex, fieldIds.get(g), alternatives,
+						fragments, lastUnfinished);
+					if (dropped && !containsCompletion(expanded)) {
+						continue;
+					}
+					parts.get(part).addAll(expanded);
+					kept = true;
 				}
-				final List<ExpandedTerm> expanded = expansion.expand(fulltextIndex, fieldIds.get(g), alternatives,
-					group.fragments(), lastUnfinished);
-				// A dropped word stays only while its unfinished fragment completes to a longer dictionary term.
-				if (dropped && !containsCompletion(expanded)) {
-					continue;
-				}
-				expansions.addAll(expanded);
-				kept = true;
 			}
 			if (kept) {
+				if (parts.size() > 1) {
+					dropTermsPartsMatchExactly(parts);
+				}
+				final int[] partEnds = new int[parts.size() == 1 ? 0 : parts.size()];
+				for (int part = 0; part < parts.size(); part++) {
+					expansions.addAll(parts.get(part));
+					if (partEnds.length > 0) {
+						partEnds[part] = expansions.size();
+					}
+				}
 				expandedTokens.add(expansions.toArray(ExpandedTerm[]::new));
+				coverage.add(partEnds);
+				splitWord |= partEnds.length > 0;
 			}
 		}
-		return expandedTokens.isEmpty() ? EmptyFormula.INSTANCE :
-			new FulltextFormula(expandedTokens.toArray(ExpandedTerm[][]::new));
+		if (expandedTokens.isEmpty()) {
+			return EmptyFormula.INSTANCE;
+		}
+		final ExpandedTerm[][] words = expandedTokens.toArray(ExpandedTerm[][]::new);
+		return splitWord ? new FulltextFormula(words, coverage.toArray(int[][]::new)) : new FulltextFormula(words);
+	}
+
+	/**
+	 * Removes from the original's expansions every inexact term that one of its parts matched exactly in the same
+	 * field. The original's typo leg can reach a part's own term - `abcdefgh_x` reaches `abcdefgh` two deletions away -
+	 * and a hit in the original's range covers every part, so a document holding that one part would tie with one
+	 * holding the whole word. The term stays in the part's range with the same postings and impacts, so the word's
+	 * match set, best distance, exactness and impact do not change; only the coverage credit does. The original's own
+	 * exact terms stay even where a part's typo leg reaches them, because the original's range is scored first and
+	 * its hit already covers every part.
+	 *
+	 * @param parts the word's expansions per range, the original first and then each part; the original's list is
+	 *              shortened in place
+	 */
+	private static void dropTermsPartsMatchExactly(@Nonnull List<List<ExpandedTerm>> parts) {
+		final List<ExpandedTerm> original = parts.get(0);
+		int retained = 0;
+		for (int i = 0; i < original.size(); i++) {
+			final ExpandedTerm term = original.get(i);
+			if (term.exactness() == FulltextTermExactness.EXACT || !isMatchedExactlyByPart(term, parts)) {
+				original.set(retained++, term);
+			}
+		}
+		original.subList(retained, original.size()).clear();
+	}
+
+	/**
+	 * Checks whether some part of a split word matched the term exactly in the same field.
+	 *
+	 * @param term  an expansion of the original
+	 * @param parts the word's expansions per range, the original first
+	 * @return true when a part's range holds an exact expansion of the same field and term
+	 */
+	private static boolean isMatchedExactlyByPart(@Nonnull ExpandedTerm term, @Nonnull List<List<ExpandedTerm>> parts) {
+		for (int part = 1; part < parts.size(); part++) {
+			for (final ExpandedTerm candidate : parts.get(part)) {
+				if (candidate.exactness() == FulltextTermExactness.EXACT && candidate.fieldId() == term.fieldId() &&
+					candidate.term().equals(term.term())) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -629,10 +727,22 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 * One word of the query text as the analyzer produced it.
 	 *
 	 * @param surfaceForm the word as written, a slice of the NFC-normalized text - the form a stop-word test reads
-	 * @param terms       the distinct terms the analyzer emitted at the word's position, its variant stems included
+	 * @param terms       the distinct terms the analyzer emitted at the word's span, its variant stems included
 	 * @param endOffset corrected end in the NFC raw query, or -1 for a synthetic lookup-only token
+	 * @param parts offset-distinct contained split parts, empty for an ordinary word
 	 */
-	record QueryToken(@Nonnull String surfaceForm, @Nonnull String[] terms, int endOffset) {
+	record QueryToken(
+		@Nonnull String surfaceForm, @Nonnull String[] terms, int endOffset, @Nonnull QueryToken[] parts
+	) {
+		/**
+		 * Creates an unsplit word with corrected raw offsets.
+		 * @param surfaceForm original surface for stop recognition
+		 * @param terms distinct analyzed alternatives
+		 * @param endOffset corrected raw end of this word
+		 */
+		QueryToken(@Nonnull String surfaceForm, @Nonnull String[] terms, int endOffset) {
+			this(surfaceForm, terms, endOffset, new QueryToken[0]);
+		}
 		/**
 		 * Creates a lookup-only word without raw query offsets.
 		 * @param surfaceForm surface used for stop recognition
@@ -640,6 +750,26 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 		 */
 		QueryToken(@Nonnull String surfaceForm, @Nonnull String[] terms) {
 			this(surfaceForm, terms, -1);
+		}
+
+		/**
+		 * Returns how many words the expansions of this word are grouped by: the original, then each of its parts.
+		 *
+		 * @return one for an ordinary word, one more than the number of parts for a split one
+		 */
+		int wordCount() {
+			return this.parts.length + 1;
+		}
+
+		/**
+		 * Returns the original or one of its parts, by the index {@link #wordCount()} counts with.
+		 *
+		 * @param part zero for the original, `i` for the `i`-th part
+		 * @return this word for zero, otherwise the part
+		 */
+		@Nonnull
+		QueryToken wordAt(int part) {
+			return part == 0 ? this : this.parts[part - 1];
 		}
 	}
 
@@ -661,6 +791,13 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 		@Nullable private String currentSurfaceForm;
 		/** Corrected raw end of the current position, including its alternatives. */
 		private int currentEndOffset = -1;
+		/** Corrected raw start of the original word. */
+		private int currentStartOffset = -1;
+		/** Collectors for offset-distinct parts of the current original. */
+		private final List<TokenCollector> parts = new ArrayList<>(2);
+
+		/** Creates a collector for one original word stream or one of its contained parts. */
+		private TokenCollector() { }
 
 		@Override
 		public void accept(
@@ -670,17 +807,50 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			int endOffset,
 			int positionIncrement
 		) {
-			if (positionIncrement > 0) {
+			// a span outside the current word begins the next one; a wider span at the same start never follows a
+			// narrower one, because the word-number split emits each original before the parts nested in it
+			if (this.currentSurfaceForm != null &&
+				(startOffset < this.currentStartOffset || endOffset > this.currentEndOffset ||
+					startOffset >= this.currentEndOffset)) {
 				flush();
+			}
+			// a span strictly inside the current word is one of its parts, collected apart from its alternatives
+			if (this.currentSurfaceForm != null &&
+				(startOffset > this.currentStartOffset || endOffset < this.currentEndOffset)) {
+				TokenCollector target = findPart(startOffset, endOffset);
+				if (target == null) {
+					target = new TokenCollector();
+					this.parts.add(target);
+				}
+				target.accept(term, surfaceForm, startOffset, endOffset, positionIncrement);
+				return;
 			}
 			if (this.currentSurfaceForm == null) {
 				this.currentSurfaceForm = surfaceForm.get();
+				this.currentStartOffset = startOffset;
 			}
 			this.currentEndOffset = Math.max(this.currentEndOffset, endOffset);
 			// a variant stem may repeat the term before it - one lookup per distinct term is enough
 			if (!this.currentToken.contains(term)) {
 				this.currentToken.add(term);
 			}
+		}
+
+		/**
+		 * Finds the collector of the part of the current word spanning exactly the given offsets.
+		 *
+		 * @param startOffset corrected raw start of the part
+		 * @param endOffset   corrected raw end of the part
+		 * @return the part's collector, or null when no part of the current word has this span yet
+		 */
+		@Nullable
+		private TokenCollector findPart(int startOffset, int endOffset) {
+			for (final TokenCollector part : this.parts) {
+				if (part.currentStartOffset == startOffset && part.currentEndOffset == endOffset) {
+					return part;
+				}
+			}
+			return null;
 		}
 
 		/**
@@ -699,16 +869,23 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 		 */
 		private void flush() {
 			if (!this.currentToken.isEmpty()) {
+				final QueryToken[] splitParts = new QueryToken[this.parts.size()];
+				for (int i = 0; i < splitParts.length; i++) {
+					// a part collector holds exactly one word: it receives only terms of its own span
+					splitParts[i] = this.parts.get(i).getTokens()[0];
+				}
 				this.tokens.add(
 					new QueryToken(
 						Objects.requireNonNull(this.currentSurfaceForm), this.currentToken.toArray(String[]::new),
-						this.currentEndOffset
+						this.currentEndOffset, splitParts
 					)
 				);
 				this.currentToken.clear();
 			}
 			this.currentSurfaceForm = null;
 			this.currentEndOffset = -1;
+			this.currentStartOffset = -1;
+			this.parts.clear();
 		}
 
 	}

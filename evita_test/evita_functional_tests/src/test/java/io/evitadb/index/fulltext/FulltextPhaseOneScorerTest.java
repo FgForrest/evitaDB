@@ -114,8 +114,8 @@ class FulltextPhaseOneScorerTest {
 				assertArrayEquals(new int[]{7, 11}, result.primaryKeys(), strategy.name());
 				final long seven = result.composites()[0];
 				assertEquals(1, lane(seven, 56), "matched tokens of 7");
-				assertEquals(1, lane(seven, 48), "7 matched exactly through one expansion");
-				assertEquals(0xFF - 1, lane(seven, 40), "best typo of 7 is distance 0, stored one-based");
+				assertEquals(255, lane(seven, 48), "7 matched at distance zero");
+				assertEquals(255, lane(seven, 40), "7 matched the exact class");
 				assertEquals(200, lane(seven, 32), "impact of 7 is the maximum across expansions");
 				assertEquals(1, lane(result.composites()[1], 56), "matched tokens of 11");
 				assertEquals(2, result.matchedDocuments());
@@ -150,16 +150,16 @@ class FulltextPhaseOneScorerTest {
 					);
 					final long composite = result.composites()[0];
 					final String message = strategy.name() + ", distance " + expansions[0].distance() + " first";
-					assertEquals(1, lane(composite, 48), message);
-					assertEquals(0xFF - 1, lane(composite, 40), message);
-					assertEquals(1L << 56 | 1L << 48 | 0xFEL << 40 | 10L << 32, composite, message);
+					assertEquals(255, lane(composite, 48), message);
+					assertEquals(255, lane(composite, 40), message);
+					assertEquals(1L << 56 | 255L << 48 | 255L << 40 | 10L << 32, composite, message);
 				}
 			}
 		}
 
 		@Test
-		@DisplayName("A token at a distance of 127 or more never overrides a closer token's typo lane")
-		void shouldKeepTheBestTypoLaneAcrossTokens() {
+		@DisplayName("A distant matched word contributes its unsigned distance to the sum")
+		void shouldSumUnsignedDistancesAcrossTokens() {
 			final Expansion[] exact = {expansion(0, 1, 10)};
 			final Expansion[] distant = {expansion(200, 1, 10)};
 			for (MergeStrategy strategy : MergeStrategy.values()) {
@@ -168,8 +168,8 @@ class FulltextPhaseOneScorerTest {
 					final long composite = result.composites()[0];
 					final String message = strategy.name() + ", distance " + tokens[0][0].distance() + " first";
 					assertEquals(2, lane(composite, 56), message);
-					assertEquals(1, lane(composite, 48), message);
-					assertEquals(0xFF - 1, lane(composite, 40), message);
+					assertEquals(55, lane(composite, 48), message);
+					assertEquals(254, lane(composite, 40), message);
 				}
 			}
 		}
@@ -179,9 +179,9 @@ class FulltextPhaseOneScorerTest {
 	@Nested
 	@DisplayName("Ranking")
 	class Ranking {
-		/** Binary exactness uses the matching class, including when a prefix has zero distance. */
+		/** Additive exactness uses the matching class, including when a prefix has zero distance. */
 		@Test
-		@DisplayName("Keeps binary exactness independent of zero prefix distance in every merge")
+		@DisplayName("Keeps exactness independent of zero prefix distance in every merge")
 		void shouldUseExplicitExactness() {
 			// the roaring-backed and the sorted-array tier take the two different paths of the skipping merge
 			final Bitmap[][] tiers = {
@@ -200,16 +200,16 @@ class FulltextPhaseOneScorerTest {
 					final Result result = FulltextPhaseOneScorer.score(new int[]{1, 2, 3},
 						new Expansion[][]{{prefix, fuzzy, exact}}, 3, strategy);
 					assertArrayEquals(new int[]{1, 2, 3}, result.primaryKeys(), scenario);
-					assertEquals(1, lane(result.composites()[0], 48), scenario);
-					assertEquals(0, lane(result.composites()[1], 48), scenario);
-					assertEquals(0, lane(result.composites()[2], 48), scenario);
+					assertEquals(255, lane(result.composites()[0], 48), scenario);
 					assertEquals(254, lane(result.composites()[1], 40), scenario);
+					assertEquals(254, lane(result.composites()[2], 40), scenario);
+					assertEquals(255, lane(result.composites()[1], 48), scenario);
 				}
 			}
 		}
 
 		@Test
-		@DisplayName("Lanes rank in order: matched tokens, exactness, typo distance, impact")
+		@DisplayName("Lanes rank in order: matched words, total typo distance, total exactness, impact")
 		void shouldRankByLanesInOrder() {
 			// expected order, computed by hand:
 			// 1 - both tokens, exact                      -> first
@@ -224,7 +224,7 @@ class FulltextPhaseOneScorerTest {
 					{expansion(0, 1, 10, 3, 5), expansion(1, 2, 250, 4, 250), expansion(2, 5, 250)},
 					{expansion(0, 1, 10), expansion(1, 2, 250)}
 				},
-				10
+				10, (int[][]) null
 			);
 			assertArrayEquals(new int[]{1, 2, 3, 4, 5}, result.primaryKeys());
 			assertEquals(5, result.matchedDocuments());
@@ -259,7 +259,7 @@ class FulltextPhaseOneScorerTest {
 			final Result result = FulltextPhaseOneScorer.score(
 				new int[]{4, 8, 15, 16, 23, 42},
 				new Expansion[][]{{expansion(0, 4, 9, 8, 9, 15, 9, 16, 9, 23, 9, 42, 9)}},
-				3
+				3, (int[][]) null
 			);
 			assertArrayEquals(new int[]{4, 8, 15}, result.primaryKeys());
 			assertEquals(6, result.matchedDocuments());
@@ -269,10 +269,12 @@ class FulltextPhaseOneScorerTest {
 		@DisplayName("Fewer matches than requested returns only the matches; no candidates returns nothing")
 		void shouldReturnOnlyMatches() {
 			final Result some = FulltextPhaseOneScorer.score(
-				new int[]{1, 2, 3}, new Expansion[][]{{expansion(0, 2, 7)}, {}}, 10
+				new int[]{1, 2, 3}, new Expansion[][]{{expansion(0, 2, 7)}, {}}, 10, (int[][]) null
 			);
 			assertArrayEquals(new int[]{2}, some.primaryKeys());
-			final Result none = FulltextPhaseOneScorer.score(new int[0], new Expansion[][]{{expansion(0, 2, 7)}}, 10);
+			final Result none = FulltextPhaseOneScorer.score(
+				new int[0], new Expansion[][]{{expansion(0, 2, 7)}}, 10, (int[][]) null
+			);
 			assertEquals(0, none.primaryKeys().length);
 			assertEquals(0, none.matchedDocuments());
 		}
@@ -457,8 +459,249 @@ class FulltextPhaseOneScorerTest {
 	}
 
 	@Nested
+	@DisplayName("Additive quality lanes")
+	class AdditiveQuality {
+		/** Equal total edit cost is resolved by the number of non-exact words, independently of impact. */
+		@Test
+		@DisplayName("Sums best distances per word and resolves ties with exactness")
+		void shouldSumDistancesAndClasses() {
+			for (final MergeStrategy strategy : MergeStrategy.values()) {
+				final Result result = FulltextPhaseOneScorer.score(new int[]{1, 2}, new Expansion[][]{
+					{expansion(1, 1, 250), expansion(2, 2, 1)},
+					{expansion(1, 1, 250), expansion(0, 2, 1)}
+				}, 2, strategy);
+				assertArrayEquals(new int[]{2, 1}, result.primaryKeys());
+				assertEquals(253, lane(result.composites()[0], 48));
+				assertEquals(253, lane(result.composites()[1], 48));
+				assertEquals(254, lane(result.composites()[0], 40));
+				assertEquals(253, lane(result.composites()[1], 40));
+			}
+		}
+
+		/** A common exact word must not make exactness binary for the rest of the query. */
+		@Test
+		@DisplayName("Ranks every exact word above a prefix despite a shared exact word and higher impact")
+		void shouldRankExactWordsAbovePrefixesDespiteImpact() {
+			final Expansion prefix = new Expansion(new BaseBitmap(2), ImpactView.of(new byte[]{(byte) 255}), 0,
+				FulltextTermExactness.PREFIX);
+			for (final MergeStrategy strategy : MergeStrategy.values()) {
+				final Result result = FulltextPhaseOneScorer.score(new int[]{1, 2}, new Expansion[][]{
+					{expansion(0, 1, 1, 2, 255)}, {expansion(0, 1, 1), prefix}
+				}, 2, strategy);
+				assertArrayEquals(new int[]{1, 2}, result.primaryKeys());
+			}
+		}
+
+		/** Total typo cost wins before exactness and impact. */
+		@Test
+		@DisplayName("Ranks a one-edit query above a two-edit query even when their minimum distances tie")
+		void shouldRankByTotalDistanceBeforeImpact() {
+			final Expansion prefix = new Expansion(new BaseBitmap(1), ImpactView.of(new byte[]{1}), 0,
+				FulltextTermExactness.PREFIX);
+			for (final MergeStrategy strategy : MergeStrategy.values()) {
+				final Result result = FulltextPhaseOneScorer.score(new int[]{1, 2}, new Expansion[][]{
+					{prefix, expansion(0, 2, 255)}, {expansion(1, 1, 1), expansion(2, 2, 255)}
+				}, 2, strategy);
+				assertArrayEquals(new int[]{1, 2}, result.primaryKeys());
+			}
+		}
+
+		/** TYPO saturates while EXACTNESS retains the bounded non-exact word count. */
+		@Test
+		@DisplayName("Saturates TYPO while retaining the non-exact word count")
+		void shouldSaturateQualityLanes() {
+			final Expansion[][] tokens = new Expansion[200][];
+			Arrays.fill(tokens, new Expansion[]{expansion(2, 1, 9)});
+			final long composite = FulltextPhaseOneScorer.score(new int[]{1}, tokens, 1, (int[][]) null)
+				.composites()[0];
+			assertEquals(200, lane(composite, 56));
+			assertEquals(0, lane(composite, 48));
+			assertEquals(55, lane(composite, 40));
+			assertEquals(0, composite & 0xFFFFFFFFL);
+		}
+
+		/** Bitmap bands OR all profile groups before subtracting better classes. */
+		@Test
+		@DisplayName("Agrees with bitmap distance and class bands across overlapping profile groups")
+		void shouldAgreeWithBitmapBands() {
+			final Random random = new Random(96311003L);
+			final int[] candidates = java.util.stream.IntStream.rangeClosed(1, 80).toArray();
+			for (int round = 0; round < 40; round++) {
+				final Expansion[] expansions = new Expansion[24];
+				final PersistentRoaringBitmap[] distanceBands = new PersistentRoaringBitmap[3];
+				final PersistentRoaringBitmap[] classBands = new PersistentRoaringBitmap[4];
+				Arrays.setAll(distanceBands, i -> new PersistentRoaringBitmap());
+				Arrays.setAll(classBands, i -> new PersistentRoaringBitmap());
+				for (int group = 0; group < 3; group++) {
+					for (int leg = 0; leg < 8; leg++) {
+						final int rank = random.nextInt(4);
+						final int distance = Math.max(0, rank - 1);
+						final PersistentRoaringBitmap postings = new PersistentRoaringBitmap();
+						for (final int candidate : candidates) {
+							if (random.nextInt(5) == 0) {
+								postings.add(candidate);
+							}
+						}
+						final byte[] impacts = new byte[postings.getCardinality()];
+						random.nextBytes(impacts);
+						expansions[group * 8 + leg] = new Expansion(new BaseBitmap(postings), ImpactView.of(impacts),
+							distance, rank == 0 ? FulltextTermExactness.EXACT : rank == 1
+								? FulltextTermExactness.PREFIX : FulltextTermExactness.FUZZY);
+						distanceBands[distance].or(postings);
+						classBands[rank].or(postings);
+					}
+				}
+				for (int band = distanceBands.length - 1; band > 0; band--) {
+					for (int better = 0; better < band; better++) {
+						distanceBands[band].andNot(distanceBands[better]);
+					}
+				}
+				for (int band = classBands.length - 1; band > 0; band--) {
+					for (int better = 0; better < band; better++) {
+						classBands[band].andNot(classBands[better]);
+					}
+				}
+				final int expectedMatches = PersistentRoaringBitmap.or(distanceBands).getCardinality();
+				for (final MergeStrategy strategy : MergeStrategy.values()) {
+					final Result result = FulltextPhaseOneScorer.score(
+						candidates, new Expansion[][]{expansions}, 80, strategy
+					);
+					assertEquals(expectedMatches, result.matchedDocuments());
+					for (int hit = 0; hit < result.primaryKeys().length; hit++) {
+						final int pk = result.primaryKeys()[hit];
+						for (int band = 0; band < distanceBands.length; band++) {
+							assertEquals(
+								distanceBands[band].contains(pk), lane(result.composites()[hit], 48) == 255 - band
+							);
+						}
+						int nonExact = 0;
+						for (int band = 1; band < classBands.length; band++) {
+							if (classBands[band].contains(pk)) {
+								nonExact++;
+							}
+						}
+						assertEquals(255 - nonExact, lane(result.composites()[hit], 40));
+					}
+				}
+			}
+		}
+	}
+
+	@Nested
+	@DisplayName("Quality boundaries")
+	class QualityBoundaries {
+		/** A long query must retain the final exact/prefix distinction at equal total typo cost. */
+		@Test
+		@DisplayName("Preserves exact-before-prefix after 85 fuzzy two-edit words")
+		void shouldPreserveExactnessAtLargeTypoTie() {
+			final Expansion[][] words = new Expansion[86][];
+			Arrays.fill(words, new Expansion[]{expansion(2, 1, 1, 2, 255)});
+			words[85] = new Expansion[]{expansion(0, 1, 1), new Expansion(
+				new BaseBitmap(2), ImpactView.of(new byte[]{(byte) 255}), 0, FulltextTermExactness.PREFIX)};
+			for (final MergeStrategy strategy : MergeStrategy.values()) {
+				final Result result = FulltextPhaseOneScorer.score(new int[]{1, 2}, words, 2, strategy);
+				assertArrayEquals(new int[]{1, 2}, result.primaryKeys());
+				assertEquals(85, lane(result.composites()[0], 48));
+				assertEquals(170, lane(result.composites()[0], 40));
+				assertEquals(169, lane(result.composites()[1], 40));
+			}
+		}
+
+		/** The largest accepted distance still contributes just one non-exact word. */
+		@Test
+		@DisplayName("Keeps exactness independent of the maximum accepted edit distance")
+		void shouldCountMaximumDistanceAsOneNonExactWord() {
+			final long composite = FulltextPhaseOneScorer.score(new int[]{1},
+				new Expansion[][]{{expansion(254, 1, 1)}}, 1, (int[][]) null).composites()[0];
+			assertEquals(1, lane(composite, 48));
+			assertEquals(254, lane(composite, 40));
+		}
+
+		/** The non-exact count reaches zero exactly at the query-word limit. */
+		@Test
+		@DisplayName("Counts all 255 non-exact words without wrapping")
+		void shouldCountAllNonExactWordsAtLimit() {
+			final Expansion[][] words = new Expansion[255][];
+			Arrays.fill(words, new Expansion[]{expansion(2, 1, 1)});
+			final long composite = FulltextPhaseOneScorer.score(new int[]{1}, words, 1, (int[][]) null).composites()[0];
+			assertEquals(255, lane(composite, 56));
+			assertEquals(0, lane(composite, 48));
+			assertEquals(0, lane(composite, 40));
+		}
+	}
+
+	@Nested
+	@DisplayName("Split-word coverage")
+	class SplitWordCoverage {
+
+		/**
+		 * Coverage is counted while the postings merge, so every merge has to count it alike. Filler that neither an
+		 * expansion nor the candidates share sizes the lists until the adaptive choice takes the merge under test for
+		 * every expansion of the word.
+		 */
+		@ParameterizedTest(name = "{0} candidate fillers, {1} posting fillers -> {2}")
+		@CsvSource({"1000, 1000, LINEAR", "8000, 0, GALLOPING", "0, 10000, SKIPPING"})
+		@DisplayName("Counts covered parts alike whichever merge the adaptive choice takes")
+		void shouldCountCoverageAlikeWhicheverMergeRuns(
+			int candidateFillers, int postingFillers, MergeStrategy expected
+		) {
+			// 10 holds the whole word, 20 and 30 one part each, 40 both parts; both expansions of part one hit 20
+			final int[][] hits = {{10}, {10, 20, 40}, {20}, {10, 30, 40}};
+			final int[] candidates = withFillers(new int[]{10, 20, 30, 40}, candidateFillers, 1_000);
+			final Expansion[] word = new Expansion[hits.length];
+			for (int e = 0; e < hits.length; e++) {
+				final int[] postings = withFillers(hits[e], postingFillers, 1_000_000);
+				word[e] = finiteExpansion(new BaseBitmap(postings), ImpactView.of(new byte[postings.length]), 0);
+				assertEquals(expected, FulltextPhaseOneScorer.chooseMerge(
+					MergeStrategy.ADAPTIVE, candidates.length, postings.length), "expansion " + e);
+			}
+
+			final Result result = FulltextPhaseOneScorer.score(
+				candidates, new Expansion[][]{word}, 10, new int[][]{{1, 3, 4}}
+			);
+
+			assertArrayEquals(new int[]{10, 40, 20, 30}, result.primaryKeys());
+			final int[] coveredParts = {2, 2, 1, 1};
+			for (int i = 0; i < coveredParts.length; i++) {
+				assertEquals(coveredParts[i], lane(result.composites()[i], 56), "covered parts of " +
+					result.primaryKeys()[i]);
+			}
+			assertEquals(4, result.matchedDocuments());
+		}
+
+		/** A row holding only the original's end describes a word without parts, which counts once like any other. */
+		@Test
+		@DisplayName("Scores a word whose row holds only the original's end like an ordinary word")
+		void shouldScoreOriginalOnlyRowAsOrdinaryWord() {
+			final Expansion[][] words = {{expansion(0, 1, 10, 2, 20)}, {expansion(1, 2, 30)}};
+
+			final Result originalOnly = FulltextPhaseOneScorer.score(new int[]{1, 2}, words, 2, new int[][]{{1}, {}});
+			final Result ordinary = FulltextPhaseOneScorer.score(new int[]{1, 2}, words, 2, (int[][]) null);
+
+			assertArrayEquals(new int[]{2, 1}, originalOnly.primaryKeys());
+			assertEquals(1, lane(originalOnly.composites()[1], 56));
+			assertArrayEquals(ordinary.composites(), originalOnly.composites());
+		}
+
+	}
+
+	@Nested
 	@DisplayName("Validation")
 	class Validation {
+
+		/** Direct callers must receive a domain assertion before malformed ranges reach the posting merge. */
+		@Test
+		@DisplayName("Rejects null, negative, decreasing, excessive and incomplete split boundaries")
+		void shouldRejectMalformedPartEnds() {
+			final Expansion[][] words = {{expansion(0, 1, 1)}};
+			final int[][][] invalid = {
+				new int[0][], {null}, {{-1, 1}}, {{1, 0, 1}}, {{0, 2}}, {{0, 0}}, {{0, 1, 0}}
+			};
+			for (final int[][] ends : invalid) {
+				assertThrows(GenericEvitaInternalError.class,
+					() -> FulltextPhaseOneScorer.score(new int[]{1}, words, 1, ends), Arrays.deepToString(ends));
+			}
+		}
 
 		@Test
 		@DisplayName("Malformed input is refused")
@@ -477,12 +720,14 @@ class FulltextPhaseOneScorerTest {
 			);
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> FulltextPhaseOneScorer.score(new int[]{1}, new Expansion[][]{{expansion(0, 1, 1)}}, 0)
+				() -> FulltextPhaseOneScorer.score(
+					new int[]{1}, new Expansion[][]{{expansion(0, 1, 1)}}, 0, (int[][]) null
+				)
 			);
 			assertThrows(
 				GenericEvitaInternalError.class,
 				() -> FulltextPhaseOneScorer.score(
-					new int[]{1}, new Expansion[FulltextPhaseOneScorer.MAX_QUERY_TOKENS + 1][0], 1
+					new int[]{1}, new Expansion[FulltextPhaseOneScorer.MAX_QUERY_TOKENS + 1][0], 1, (int[][]) null
 				)
 			);
 		}
@@ -515,15 +760,17 @@ class FulltextPhaseOneScorerTest {
 		for (int c = 0; c < candidates.length; c++) {
 			int matched = 0;
 			int exactness = 0;
-			int bestTypo = 0;
+			int typoPenalty = 0;
 			int maxImpact = 0;
 			for (int t = 0; t < tokens.length; t++) {
 				int tokenTypo = 0;
 				int tokenImpact = 0;
+				boolean exact = false;
 				for (int e = 0; e < tokens[t].length; e++) {
 					final int position = Arrays.binarySearch(postings[t][e], candidates[c]);
 					if (position >= 0) {
 						final int typo = tokens[t][e].distance() + 1;
+						exact |= tokens[t][e].exactness() == FulltextTermExactness.EXACT;
 						tokenTypo = tokenTypo == 0 ? typo : Math.min(tokenTypo, typo);
 						tokenImpact = Math.max(tokenImpact, Byte.toUnsignedInt(impacts[t][e][position]));
 					}
@@ -531,15 +778,14 @@ class FulltextPhaseOneScorerTest {
 				if (tokenTypo != 0) {
 					matched++;
 					maxImpact = Math.max(maxImpact, tokenImpact);
-					bestTypo = bestTypo == 0 ? tokenTypo : Math.min(bestTypo, tokenTypo);
-					if (tokenTypo == 1) {
-						exactness = 1;
-					}
+					typoPenalty = Math.min(255, typoPenalty + tokenTypo - 1);
+					exactness += exact ? 0 : 1;
 				}
 			}
 			if (matched > 0) {
 				matchedDocuments++;
-				composites[c] = ((long) matched << 56) | ((long) exactness << 48) | ((long) (0xFF - bestTypo) << 40)
+				composites[c] = ((long) matched << 56) | ((long) (255 - typoPenalty) << 48)
+					| ((long) (255 - exactness) << 40)
 					| ((long) maxImpact << 32);
 			}
 		}
@@ -608,6 +854,24 @@ class FulltextPhaseOneScorerTest {
 				yield new BaseBitmap(runs);
 			}
 		};
+	}
+
+	/**
+	 * Appends consecutive filler values to ascending keys, so that a list reaches the length a merge choice needs
+	 * without adding a hit.
+	 *
+	 * @param keys        the values that matter, ascending and below `fillerStart`
+	 * @param fillerCount how many filler values to append
+	 * @param fillerStart the first filler value
+	 * @return the keys followed by the fillers, ascending
+	 */
+	@Nonnull
+	private static int[] withFillers(@Nonnull int[] keys, int fillerCount, int fillerStart) {
+		final int[] values = Arrays.copyOf(keys, keys.length + fillerCount);
+		for (int i = 0; i < fillerCount; i++) {
+			values[keys.length + i] = fillerStart + i;
+		}
+		return values;
 	}
 
 	/**

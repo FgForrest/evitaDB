@@ -209,9 +209,11 @@ class FulltextChainCompilerTest {
 								}
 							}
 							final Object words = split.invoke(null, compiled.textSplitting(), input);
-							final String[][] analyzed = (String[][]) groups.invoke(null, compiled, words, true);
+							final String[][][] analyzed = (String[][][]) groups.invoke(null, compiled, words, true);
 							final List<List<String>> actual = new ArrayList<>();
-							for (final String[] alternatives : analyzed) {
+							for (final String[][] word : analyzed) {
+								assertEquals(1, word.length, "These golden profiles do not split word-number parts");
+								final String[] alternatives = word[0];
 								if (alternatives.length > 0) {
 									actual.add(Arrays.asList(alternatives));
 								}
@@ -486,8 +488,10 @@ class FulltextChainCompilerTest {
 					final Object words = split.invoke(
 						null, textSplit ? compiled.textSplitting() : compiled.splitting(), "Cat"
 					);
-					final String[][] analyzed = (String[][]) groups.invoke(null, compiled, words, textSplit);
-					assertArrayEquals(new String[][]{{"caat"}}, analyzed, "text-aware split: " + textSplit);
+					final String[][][] analyzed = (String[][][]) groups.invoke(null, compiled, words, textSplit);
+					assertEquals(1, analyzed.length);
+					assertEquals(1, analyzed[0].length);
+					assertArrayEquals(new String[]{"caat"}, analyzed[0][0], "text-aware split: " + textSplit);
 				}
 				// no query-side text step (html-strip acts on the index side only): one word chain serves both splits
 				for (final String analyzer : List.of("text", "html-text")) {

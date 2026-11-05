@@ -59,6 +59,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -192,15 +194,19 @@ class FulltextFormulaTest {
 	}
 
 	/**
-	 * A posting list that counts how often the formula reads its roaring bitmap - the one access through which both
-	 * matching routes reach a term's postings, so the counts tell which route a token took. Its own operations use
-	 * the bitmap field directly and are not counted.
+	 * Counts roaring access separately from array decoding and other record-content access. Cached hash requests
+	 * are metadata reads; a cold content hash's getArray call is counted. This observes both roaring-union and
+	 * direct-array materialization routes without a production hook.
 	 */
 	private static final class ReadCountingBitmap extends BaseBitmap {
 		/**
 		 * How many times the roaring bitmap was read.
 		 */
-		private int reads;
+		private int roaringReads;
+		/** Full record-array decodes, including BaseBitmap.addAll's direct-array route. */
+		private int arrayReads;
+		/** Other operations reading record ids rather than cardinality metadata. */
+		private int contentReads;
 
 		/**
 		 * Creates the posting list of the passed primary keys.
@@ -211,10 +217,98 @@ class FulltextFormulaTest {
 			super(primaryKeys);
 		}
 
+		/** Resets observation after intentional operand-content hash priming. */
+		private void resetReads() {
+			this.roaringReads = 0;
+			this.arrayReads = 0;
+			this.contentReads = 0;
+		}
+
+		/** Counts direct record-array decoding, even when roaring access is bypassed. */
+		@Nonnull
+		@Override
+		public int[] getArray() {
+			this.arrayReads++;
+			return super.getArray();
+		}
+
+		/** Counts partial array decoding. */
+		@Nonnull
+		@Override
+		public int[] getRange(int start, int end) {
+			this.contentReads++;
+			return super.getRange(start, end);
+		}
+
+		/** Counts positional record reads. */
+		@Override
+		public int get(int index) {
+			this.contentReads++;
+			return super.get(index);
+		}
+
+		/** Counts first-record reads. */
+		@Override
+		public int getFirst() {
+			this.contentReads++;
+			return super.getFirst();
+		}
+
+		/** Counts last-record reads. */
+		@Override
+		public int getLast() {
+			this.contentReads++;
+			return super.getLast();
+		}
+
+		/** Counts membership reads. */
+		@Override
+		public boolean contains(int recordId) {
+			this.contentReads++;
+			return super.contains(recordId);
+		}
+
+		/** Counts record-position searches. */
+		@Override
+		public int indexOf(int recordId) {
+			this.contentReads++;
+			return super.indexOf(recordId);
+		}
+
+		/** Counts iterator acquisition; stream traversal also reaches this accessor. */
+		@Nonnull
+		@Override
+		public java.util.PrimitiveIterator.OfInt iterator() {
+			this.contentReads++;
+			return super.iterator();
+		}
+
+		/** Counts content-based object hashing. */
+		@Override
+		public int hashCode() {
+			this.contentReads++;
+			return super.hashCode();
+		}
+
+		/** Counts content equality checks. */
+		@Override
+		public boolean equals(Object other) {
+			this.contentReads++;
+			return super.equals(other);
+		}
+
+		/** Counts rendering of record contents. */
+		@Nonnull
+		@Override
+		public String toString() {
+			this.contentReads++;
+			return super.toString();
+		}
+
 		@Nonnull
 		@Override
 		public PersistentRoaringBitmap getRoaringBitmap() {
-			this.reads++;
+			this.roaringReads++;
 			return super.getRoaringBitmap();
 		}
 	}
@@ -461,8 +555,8 @@ class FulltextFormulaTest {
 			);
 
 			assertArrayEquals(matching, formula.compute().getArray());
-			assertEquals(1, first.reads, "the first term");
-			assertEquals(0, second.reads, "the second term");
+			assertEquals(1, first.roaringReads, "the first term");
+			assertEquals(0, second.roaringReads, "the second term");
 		}
 
 		@Test
@@ -484,8 +578,8 @@ class FulltextFormulaTest {
 			);
 
 			assertArrayEquals(matching, formula.compute().getArray());
-			assertEquals(1, first.reads, "the first term");
-			assertEquals(1, second.reads, "the second term");
+			assertEquals(1, first.roaringReads, "the first term");
+			assertEquals(1, second.roaringReads, "the second term");
 		}
 
 		@Test
@@ -503,9 +597,9 @@ class FulltextFormulaTest {
 			);
 
 			assertArrayEquals(new int[]{1, 2, 3}, formula.compute().getArray());
-			assertEquals(1, first.reads, "the first term");
-			assertEquals(0, second.reads, "the second term");
-			assertEquals(0, third.reads, "the third term");
+			assertEquals(1, first.roaringReads, "the first term");
+			assertEquals(0, second.roaringReads, "the second term");
+			assertEquals(0, third.roaringReads, "the third term");
 		}
 
 		@Test
@@ -522,8 +616,8 @@ class FulltextFormulaTest {
 			);
 
 			assertArrayEquals(new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, formula.compute().getArray());
-			assertEquals(1, first.reads, "the first term");
-			assertEquals(1, second.reads, "the second term");
+			assertEquals(1, first.roaringReads, "the first term");
+			assertEquals(1, second.roaringReads, "the second term");
 		}
 
 		@Test
@@ -541,8 +635,8 @@ class FulltextFormulaTest {
 			);
 
 			assertArrayEquals(new int[]{1, 2}, formula.compute().getArray());
-			assertEquals(1, first.reads, "the first term");
-			assertEquals(0, second.reads, "the second term");
+			assertEquals(1, first.roaringReads, "the first term");
+			assertEquals(0, second.roaringReads, "the second term");
 		}
 
 		@Test
@@ -642,7 +736,7 @@ class FulltextFormulaTest {
 			final int[] candidates = {1, 2, 3, 5, 7, 9};
 
 			assertSameScores(
-				FulltextPhaseOneScorer.score(candidates, expansionsOf(formula), 4),
+				FulltextPhaseOneScorer.score(candidates, expansionsOf(formula), 4, (int[][]) null),
 				formula.getFulltextScores(candidates, 4)
 			);
 		}
@@ -708,6 +802,125 @@ class FulltextFormulaTest {
 	}
 
 	@Nested
+	@DisplayName("Split-group coverage")
+	class SplitCoverage {
+		/** Structural identity must reuse operand hashes without visiting their coverage union. */
+		@Test
+		@DisplayName("Constructs and hashes split coverage without materializing its postings")
+		void shouldHashSplitGroupingWithoutReadingCoverage() {
+			final ReadCountingBitmap original = new ReadCountingBitmap(1);
+			final ReadCountingBitmap letters = new ReadCountingBitmap(2);
+			final ReadCountingBitmap common = new ReadCountingBitmap(
+				java.util.stream.IntStream.rangeClosed(1, 10000).toArray());
+			final ExpandedTerm a = countedTerm("uhd7800", original);
+			final ExpandedTerm b = countedTerm("uhd", letters);
+			final ExpandedTerm c = countedTerm("7800", common);
+			final ExpandedTerm[][] words = {{a, b, c}};
+			// Prime only the existing operand hashes. No split coverage is involved in this ordinary formula.
+			new FulltextFormula(words).getHash();
+			original.resetReads();
+			letters.resetReads();
+			common.resetReads();
+			final FulltextFormula first = new FulltextFormula(words, new int[][]{{1, 2, 3}});
+			final FulltextFormula reordered = new FulltextFormula(
+				new ExpandedTerm[][]{{a, c, b}}, new int[][]{{1, 2, 3}});
+			assertEquals(first.getHash(), reordered.getHash());
+			assertNotEquals(first.getHash(), new FulltextFormula(words, new int[][]{{0, 2, 3}}).getHash());
+			final int roaring = original.roaringReads + letters.roaringReads + common.roaringReads;
+			final int arrays = original.arrayReads + letters.arrayReads + common.arrayReads;
+			final int other = original.contentReads + letters.contentReads + common.contentReads;
+			assertEquals(0, roaring + arrays + other,
+				"Coverage posting reads: roaring=" + roaring + ", arrays=" + arrays + ", other=" + other);
+			assertArrayEquals(new int[]{1, 2, 3}, first.getFulltextScores(new int[]{1, 2, 3}, 3).primaryKeys());
+			final int[] candidates = java.util.stream.IntStream.rangeClosed(1, 10000).toArray();
+			final Result ranked = first.getFulltextScores(candidates, 3);
+			assertArrayEquals(new int[]{1, 2, 3}, ranked.primaryKeys());
+			assertEquals(2, (ranked.composites()[0] >>> 56) & 255);
+			assertEquals(2, (ranked.composites()[1] >>> 56) & 255);
+			assertEquals(1, (ranked.composites()[2] >>> 56) & 255);
+			assertSameScores(ranked, first.getFulltextScores(candidates, 3));
+			final FulltextFormula repeated = new FulltextFormula(
+				new ExpandedTerm[][]{{a, b, c}, {a, b, c}}, new int[][]{{1, 2, 3}, {1, 2, 3}});
+			final Result repeatedScores = repeated.getFulltextScores(new int[]{1, 2, 3}, 3);
+			assertArrayEquals(new int[]{1, 2, 3}, repeatedScores.primaryKeys());
+			assertEquals(4, repeatedScores.composites()[0] >>> 56);
+			assertEquals(4, repeatedScores.composites()[1] >>> 56);
+			assertEquals(2, repeatedScores.composites()[2] >>> 56);
+		}
+
+		/** Empty part ranges remain significant because an original covers them even without part postings. */
+		@Test
+		@DisplayName("Counts original-only hits across empty parts and deduplicates overlapping part expansions")
+		void shouldCoverEmptyPartsAndDeduplicateHits() {
+			final FulltextFormula original = new FulltextFormula(
+				new ExpandedTerm[][]{{term("code", 0, 1, 1)}}, new int[][]{{1, 1, 1}});
+			assertEquals(2, original.getFulltextScores(new int[]{1}, 1).composites()[0] >>> 56);
+			final FulltextFormula parts = new FulltextFormula(new ExpandedTerm[][]{{
+				term("letter", 0, 1, 1, 2, 1), term("variant", 1, 1, 1), term("number", 0, 1, 1)
+			}}, new int[][]{{0, 2, 3}});
+			final Result scores = parts.getFulltextScores(new int[]{1, 2}, 2);
+			assertEquals(2, scores.composites()[0] >>> 56);
+			assertEquals(1, scores.composites()[1] >>> 56);
+			final FulltextFormula fuzzy = new FulltextFormula(new ExpandedTerm[][]{{
+				term("code", 1, 1, 1), term("part", 1, 1, 1), term("other", 1, 1, 1)
+			}}, new int[][]{{1, 2, 3}});
+			final long fuzzyScore = fuzzy.getFulltextScores(new int[]{1}, 1).composites()[0];
+			assertEquals(2, fuzzyScore >>> 56);
+			assertEquals(254, (fuzzyScore >>> 48) & 255);
+			assertEquals(254, (fuzzyScore >>> 40) & 255, "A split group contributes one non-exact word");
+		}
+	}
+
+	@Nested
+	@DisplayName("Expansion identity")
+	class ExpansionIdentity {
+		/** Each score-source component independently distinguishes equal posting contents. */
+		@ParameterizedTest
+		@ValueSource(ints = {0, 1, 2})
+		@DisplayName("Includes field, term and impact-source identity beside posting contents")
+		void shouldIncludeEachScoreSourceComponent(int component) {
+			final Bitmap postings = new BaseBitmap(1, 2);
+			final ImpactView impacts = ImpactView.of(new byte[]{1, (byte) 255});
+			final ExpandedTerm original = new ExpandedTerm(0, "a", postings, impacts, 0);
+			final ExpandedTerm changed = switch (component) {
+				case 0 -> new ExpandedTerm(1, "a", postings, impacts, 0);
+				case 1 -> new ExpandedTerm(0, "b", postings, impacts, 0);
+				case 2 -> new ExpandedTerm(0, "a", postings, ImpactView.of(new byte[]{(byte) 255, 1}), 0);
+				default -> throw new IllegalArgumentException("Unknown score-source component");
+			};
+			assertNotEquals(query(token(original)).getHash(), query(token(changed)).getHash());
+		}
+
+		/** Equal records cannot make opposite impact distributions interchangeable, including original-only groups. */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Distinguishes equal-posting score sources with opposite impacts and split ranges")
+		void shouldDistinguishOppositeImpactSources(boolean split) {
+			final ExpandedTerm[][] a = {{new ExpandedTerm(0, "a", new BaseBitmap(1, 2),
+				ImpactView.of(new byte[]{1, (byte) 255}), 0)}};
+			final ExpandedTerm[][] b = {{new ExpandedTerm(0, "b", new BaseBitmap(1, 2),
+				ImpactView.of(new byte[]{(byte) 255, 1}), 0)}};
+			final FulltextFormula first = new FulltextFormula(a, split ? new int[][]{{1, 1, 1}} : null);
+			final FulltextFormula second = new FulltextFormula(b, split ? new int[][]{{1, 1, 1}} : null);
+			assertArrayEquals(new int[]{2, 1}, first.getFulltextScores(new int[]{1, 2}, 2).primaryKeys());
+			assertArrayEquals(new int[]{1, 2}, second.getFulltextScores(new int[]{1, 2}, 2).primaryKeys());
+			assertNotEquals(first.getHash(), second.getHash());
+		}
+	}
+
+	@Nested
+	@DisplayName("Split boundary validation")
+	class RangeValidation {
+		/** Non-null rows are required even for ordinary words, which use an empty row. */
+		@Test
+		@DisplayName("Rejects a null part row with a domain assertion")
+		void shouldRejectNullPartRows() {
+			assertThrows(GenericEvitaInternalError.class, () -> new FulltextFormula(
+				new ExpandedTerm[][]{{term("a", 0, 1, 1)}}, new int[][]{null}));
+		}
+	}
+
+	@Nested
 	@DisplayName("Formula contract")
 	class Contract {
 
@@ -733,10 +946,11 @@ class FulltextFormulaTest {
 		@Test
 		@DisplayName("The hash changes with the postings and with the edit distance")
 		void shouldHashPostingsAndDistance() {
-			final long base = query(token(term("a", 0, 1, 1, 2, 1))).getHash();
-
-			assertNotEquals(base, query(token(term("a", 0, 1, 1, 3, 1))).getHash());
-			assertNotEquals(base, query(token(term("a", 1, 1, 1, 2, 1))).getHash());
+			final Bitmap postings = new ArrayBitmap(1, 2);
+			final ImpactView impacts = ImpactView.of(new byte[]{1, 1});
+			final long base = query(token(new ExpandedTerm(0, "a", postings, impacts, 0))).getHash();
+			assertNotEquals(base, query(token(new ExpandedTerm(0, "a", new ArrayBitmap(1, 3), impacts, 0))).getHash());
+			assertNotEquals(base, query(token(new ExpandedTerm(0, "a", postings, impacts, 1))).getHash());
 		}
 
 		@Test
@@ -879,7 +1093,7 @@ class FulltextFormulaTest {
 						matchingMultiWordRounds++;
 					}
 					assertSameScores(
-						FulltextPhaseOneScorer.score(actual, expansionsOf(formula), actual.length),
+						FulltextPhaseOneScorer.score(actual, expansionsOf(formula), actual.length, (int[][]) null),
 						formula.getFulltextScores(actual, actual.length)
 					);
 				}
@@ -940,7 +1154,7 @@ class FulltextFormulaTest {
 			assertArrayEquals(expected.stream().mapToInt(Integer::intValue).toArray(), actual);
 			assertTrue(actual.length > kola.size(), "Both tiers must contribute to the match.");
 			assertSameScores(
-				FulltextPhaseOneScorer.score(actual, expansionsOf(formula), actual.length),
+				FulltextPhaseOneScorer.score(actual, expansionsOf(formula), actual.length, (int[][]) null),
 				formula.getFulltextScores(actual, actual.length)
 			);
 			// the formula reads the dictionary's own posting bitmaps and impacts, it must never write them

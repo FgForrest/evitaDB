@@ -424,9 +424,9 @@ class FulltextFieldAnalysisFunctionalTest implements EvitaTestSupport {
 					"the ".repeat(256), null));
 			assertThrows(EvitaInvalidUsageException.class,
 				() -> assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, Locale.ENGLISH,
-					"UHD7800 ".repeat(128), null));
+					"UHD7800 ".repeat(256), null));
 			assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, Locale.ENGLISH, "the ".repeat(255), null);
-			assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, Locale.ENGLISH, "UHD7800 ".repeat(127), null);
+			assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, Locale.ENGLISH, "UHD7800 ".repeat(255), null);
 		}
 	}
 

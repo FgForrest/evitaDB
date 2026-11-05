@@ -1480,7 +1480,9 @@ public class FulltextQueryFunctionalTest {
 				}
 				expansions[i] = tokenExpansions.toArray(Expansion[]::new);
 			}
-			final Result result = FulltextPhaseOneScorer.score(candidates, expansions, candidates.length);
+			final Result result = FulltextPhaseOneScorer.score(
+				candidates, expansions, candidates.length, (int[][]) null
+			);
 			for (int i = 0; i < result.primaryKeys().length; i++) {
 				best.merge(result.primaryKeys()[i], result.composites()[i], FulltextQueryFunctionalTest::better);
 			}
