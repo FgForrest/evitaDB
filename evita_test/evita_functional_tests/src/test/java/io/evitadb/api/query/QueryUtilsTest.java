@@ -24,11 +24,13 @@
 package io.evitadb.api.query;
 
 import io.evitadb.api.query.filter.AttributeEquals;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterInScope;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.Page;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -44,6 +46,7 @@ import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
@@ -64,6 +67,197 @@ import static io.evitadb.test.TestTags.QUERY;
 @Tag(CONTRACT)
 @Tag(QUERY)
 class QueryUtilsTest {
+	/** An `inScope` of the live scope, which a query requesting the archived scope alone refuses. */
+	private static final FilterConstraint LIVE_X = inScope(Scope.LIVE, attributeEquals("x", 1));
+
+	/** Admission follows the scope of each entity level, independently of reference data. */
+	@Nested
+	@DisplayName("Requested filter scopes")
+	class RequestedFilterScopes {
+		/** Both inherited scopes remain admissible at nested levels without their own scope. */
+		@Test
+		@DisplayName("Accept requested scopes throughout inherited levels")
+		void shouldAcceptScopesWhenInheritedByNestedLevels() {
+			assertDoesNotThrow(() -> QueryUtils.assertFilterScopesApplicable(
+				filterBy(inScope(Scope.LIVE, attributeEquals("x", 1)), referenceHaving("values",
+					entityHaving(inScope(Scope.ARCHIVED, attributeEquals("status", "ACTIVE"))))),
+				Set.of(Scope.values())
+			));
+		}
+
+		/** Own admission replaces inherited admission even when only the own scope permits the container. */
+		@Test
+		@DisplayName("Accept a container permitted by its own scope but not by inherited scopes")
+		void shouldAcceptScopeWhenSeparateLevelRequestsIt() {
+			assertDoesNotThrow(() -> QueryUtils.assertFilterScopesApplicable(
+				filterBy(referenceHaving("values", entityHaving(and(
+					scope(Scope.LIVE), inScope(Scope.LIVE, attributeEquals("x", 1))
+				)))), Set.of(Scope.ARCHIVED)
+			));
+		}
+
+		/** Inherited admission cannot authorize a container excluded by an entity level's own scope. */
+		@Test
+		@DisplayName("Refuse a container excluded by its own scope even if inherited scopes permit it")
+		void shouldRefuseScopeWhenSeparateLevelDoesNotRequestIt() {
+			assertUnrequested(filterBy(entityHaving(and(
+				scope(Scope.ARCHIVED), inScope(Scope.LIVE, attributeEquals("x", 1))
+			))), Set.of(Scope.LIVE));
+		}
+
+		/** A sibling resumes inherited admission after an independently scoped entity level. */
+		@Test
+		@DisplayName("Refuse an unrequested sibling after an independent entity level")
+		void shouldRefuseScopeWhenSiblingDoesNotRequestIt() {
+			assertUnrequested(filterBy(
+				entityHaving(and(scope(Scope.LIVE), inScope(Scope.LIVE, attributeEquals("x", 1)))),
+				inScope(Scope.LIVE, attributeEquals("x", 1))
+			), Set.of(Scope.ARCHIVED));
+		}
+
+		/** The root inherits admission directly. */
+		@Test
+		@DisplayName("Refuse an unrequested scope at the root")
+		void shouldRefuseScopeWhenRootDoesNotRequestIt() {
+			assertUnrequested(filterBy(inScope(Scope.LIVE, attributeEquals("x", 1))), Set.of(Scope.ARCHIVED));
+		}
+
+		/** Boolean containers preserve inherited admission. */
+		@Test
+		@DisplayName("Refuse an unrequested scope inside a conjunction")
+		void shouldRefuseScopeWhenConjunctionDoesNotRequestIt() {
+			assertUnrequested(filterBy(and(
+				entityPrimaryKeyInSet(1), inScope(Scope.LIVE, attributeEquals("x", 1))
+			)), Set.of(Scope.ARCHIVED));
+		}
+
+		/** Several separate levels without own scopes still inherit the same admission. */
+		@Test
+		@DisplayName("Refuse an unrequested scope below nested entity filters")
+		void shouldRefuseScopeWhenNestedEntityDoesNotRequestIt() {
+			assertUnrequested(filterBy(entityHaving(referenceHaving("tags", entityHaving(
+				inScope(Scope.LIVE, attributeEquals("y", 1))
+			)))), Set.of(Scope.ARCHIVED));
+		}
+
+		/** A group level replaces inherited admission by its own scope as an entity level does. */
+		@Test
+		@DisplayName("Judge a group level by its own scope")
+		void shouldJudgeGroupLevelByOwnScope() {
+			assertDoesNotThrow(() -> QueryUtils.assertFilterScopesApplicable(
+				filterBy(groupHaving(and(scope(Scope.LIVE), inScope(Scope.LIVE, attributeEquals("x", 1))))),
+				Set.of(Scope.ARCHIVED)
+			));
+			assertUnrequested(
+				filterBy(groupHaving(and(scope(Scope.ARCHIVED), inScope(Scope.LIVE, attributeEquals("x", 1))))),
+				Set.of(Scope.LIVE)
+			);
+		}
+
+		/** Disjunction and negation inherit admission as a conjunction does. */
+		@Test
+		@DisplayName("Refuse an unrequested scope inside a disjunction and a negation")
+		void shouldRefuseScopeWhenDisjunctionOrNegationDoesNotRequestIt() {
+			assertUnrequested(
+				filterBy(or(attributeEquals("y", 1), inScope(Scope.LIVE, attributeEquals("x", 1)))),
+				Set.of(Scope.ARCHIVED)
+			);
+			assertUnrequested(filterBy(not(inScope(Scope.LIVE, attributeEquals("x", 1)))), Set.of(Scope.ARCHIVED));
+		}
+
+		/** The scope of a level says nothing about a deeper level naming a scope of its own. */
+		@Test
+		@DisplayName("Judge a deeper entity level by its own scope")
+		void shouldAcceptScopeWhenDeeperEntityLevelRequestsIt() {
+			assertDoesNotThrow(() -> QueryUtils.assertFilterScopesApplicable(
+				filterBy(entityHaving(and(
+					scope(Scope.LIVE),
+					referenceHaving("r", entityHaving(and(
+						scope(Scope.ARCHIVED), inScope(Scope.ARCHIVED, attributeEquals("x", 1))
+					)))
+				))),
+				Set.of(Scope.LIVE)
+			));
+		}
+
+		/** A container that reads no scope of its own inherits admission like a boolean container. */
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("io.evitadb.api.query.QueryUtilsTest#scopeRefusingContainers")
+		@DisplayName("Judge an inScope below a container reading no own scope by inherited scopes")
+		void shouldInheritRequestedScopesWhenContainerReadsNoOwnScope(
+			@Nonnull String container, @Nonnull Function<FilterConstraint, FilterConstraint> level
+		) {
+			final FilterConstraint inScope = inScope(Scope.LIVE, attributeEquals("x", 1));
+
+			assertUnrequested(filterBy(level.apply(inScope)), Set.of(Scope.ARCHIVED));
+			assertDoesNotThrow(
+				() -> QueryUtils.assertFilterScopesApplicable(filterBy(level.apply(inScope)), Set.of(Scope.LIVE))
+			);
+		}
+
+		/** A scope a container would silently ignore is refused, whatever the scopes the query requests. */
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("io.evitadb.api.query.QueryUtilsTest#scopeRefusingContainers")
+		@DisplayName("Refuse a scope in a container that does not apply it")
+		void shouldRefuseScopeWhenContainerDoesNotApplyIt(
+			@Nonnull String container, @Nonnull Function<FilterConstraint, FilterConstraint> level
+		) {
+			assertInertScope(filterBy(level.apply(scope(Scope.LIVE))), scope(Scope.LIVE), container);
+		}
+
+		/** Two such scopes get the same clear refusal, even when the walk reaches them through a nested level. */
+		@Test
+		@DisplayName("Refuse two scopes of one hierarchy with the same diagnostic")
+		void shouldRefuseScopesWhenNestedHierarchyHoldsTwoOfThem() {
+			assertInertScope(
+				filterBy(referenceHaving("r", entityHaving(hierarchyWithinSelf(
+					and(scope(Scope.LIVE), attributeEquals("code", "t")),
+					having(scope(Scope.ARCHIVED))
+				)))),
+				scope(Scope.LIVE), "hierarchyWithinSelf"
+			);
+		}
+
+		/** The levels that apply a scope stay valid, the root and boolean containers below it included. */
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("io.evitadb.api.query.QueryUtilsTest#scopeApplyingLevels")
+		@DisplayName("Accept a scope at a level that applies it")
+		void shouldAcceptScopeWhenLevelAppliesIt(
+			@Nonnull String levelName, @Nonnull Function<FilterConstraint, FilterConstraint> level
+		) {
+			assertDoesNotThrow(() -> QueryUtils.assertFilterScopesApplicable(
+				filterBy(level.apply(scope(Scope.ARCHIVED))), Set.of(Scope.LIVE)
+			));
+		}
+
+		/** Pins the public exception and the diagnostic naming the constraint and the container ignoring it. */
+		private void assertInertScope(
+			@Nonnull FilterBy filter, @Nonnull EntityScope inertScope, @Nonnull String containerName
+		) {
+			final EvitaInvalidUsageException error = assertThrowsExactly(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertFilterScopesApplicable(filter, Set.of(Scope.values()))
+			);
+			assertEquals(
+				"Constraint `" + inertScope + "` has no effect in `" + containerName + "` - it selects scopes only " +
+					"in the root of a filter and in `entityHaving` or `groupHaving`, so it must be placed there or " +
+					"removed.",
+				error.getMessage()
+			);
+		}
+
+		/** Pins the public exception and exact scope diagnostic. */
+		private void assertUnrequested(@Nonnull FilterBy filter, @Nonnull Set<Scope> requestedScopes) {
+			final EvitaInvalidUsageException error = assertThrowsExactly(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertFilterScopesApplicable(filter, requestedScopes)
+			);
+			assertEquals(
+				"Scope `LIVE` used in `inScope` filter container was not requested by `scope` constraint!",
+				error.getMessage()
+			);
+		}
+	}
 
 	/**
 	 * Supplies every container whose children filter a different entity, each wrapping the passed filter as its
@@ -82,6 +276,300 @@ class QueryUtilsTest {
 			Arguments.of(
 				"hierarchyWithinRoot",
 				(Function<FilterConstraint, FilterConstraint>) it -> hierarchyWithinRoot("category", having(it))
+			)
+		);
+	}
+
+	/** The check of a whole query judges the filter section and the filter of every fetched reference. */
+	@Nested
+	@DisplayName("Scopes of a whole query")
+	class QueryFilterScopes {
+		/** An `inScope` of the filter section is judged directly by the requested scopes. */
+		@Test
+		@DisplayName("Refuse an unrequested scope in the filter section")
+		void shouldRefuseScopeWhenFilterSectionDoesNotRequestIt() {
+			assertUnrequested(query(collection("a"), filterBy(LIVE_X)));
+		}
+
+		/** A filter of fetched references is judged even though no row may ever reach it. */
+		@Test
+		@DisplayName("Refuse an unrequested scope in a filter of fetched references")
+		void shouldRefuseScopeWhenFetchedReferenceFilterDoesNotRequestIt() {
+			assertUnrequested(query(
+				collection("a"),
+				require(entityFetch(referenceContent("r", filterBy(entityHaving(LIVE_X)))))
+			));
+		}
+
+		/** A requirement confined to one scope still belongs to the query. */
+		@Test
+		@DisplayName("Refuse an unrequested scope in a filter of references fetched in one scope")
+		void shouldRefuseScopeWhenFetchedReferenceFilterInRequireInScopeDoesNotRequestIt() {
+			assertUnrequested(query(
+				collection("a"),
+				require(inScope(Scope.ARCHIVED, entityFetch(referenceContent("r", filterBy(entityHaving(LIVE_X))))))
+			));
+		}
+
+		/** A `referenceContent` of a fetched body is judged as one of the query. */
+		@Test
+		@DisplayName("Refuse an unrequested scope in a filter of references of a fetched body")
+		void shouldRefuseScopeWhenNestedFetchedReferenceFilterDoesNotRequestIt() {
+			assertUnrequested(query(
+				collection("a"),
+				require(entityFetch(referenceContent(
+					"r", entityFetch(referenceContent("s", filterBy(entityHaving(LIVE_X))))
+				)))
+			));
+		}
+
+		/** The root of the filter of fetched references widens the scopes the references are looked up in. */
+		@Test
+		@DisplayName("Accept a scope the root of a filter of fetched references names")
+		void shouldAcceptScopeWhenRootOfFetchedReferenceFilterNamesIt() {
+			assertDoesNotThrow(() -> QueryUtils.assertFilterScopesApplicable(
+				query(
+					collection("a"),
+					require(entityFetch(referenceContent("r", filterBy(scope(Scope.LIVE), entityHaving(LIVE_X)))))
+				),
+				Set.of(Scope.ARCHIVED)
+			));
+		}
+
+		/** The root scope of one filter says nothing about the filter of a `referenceContent` of its bodies. */
+		@Test
+		@DisplayName("Refuse a scope only the filter of the enclosing fetched references names")
+		void shouldRefuseScopeWhenOnlyEnclosingFetchedReferenceFilterNamesIt() {
+			assertUnrequested(query(
+				collection("a"),
+				require(entityFetch(referenceContent(
+					"r", filterBy(scope(Scope.LIVE)),
+					entityFetch(referenceContent("s", filterBy(entityHaving(LIVE_X))))
+				)))
+			));
+		}
+
+		/** A scope of a sibling entity level belongs to that level and admits nothing beside it. */
+		@Test
+		@DisplayName("Refuse a scope only a sibling entity level names")
+		void shouldRefuseScopeWhenOnlySiblingEntityLevelNamesIt() {
+			assertUnrequested(query(
+				collection("a"),
+				require(entityFetch(referenceContent("r", filterBy(
+					entityHaving(and(scope(Scope.LIVE), attributeEquals("y", 1))),
+					groupHaving(LIVE_X)
+				))))
+			));
+		}
+
+		/** A scope the engine would ignore is refused in a filter of fetched references too. */
+		@Test
+		@DisplayName("Refuse an inert scope in a filter of fetched references")
+		void shouldRefuseInertScopeWhenFetchedReferenceFilterHoldsIt() {
+			final EvitaInvalidUsageException error = assertThrowsExactly(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertFilterScopesApplicable(
+					query(
+						collection("a"),
+						require(entityFetch(referenceContent(
+							"r", filterBy(entityHaving(hierarchyWithinSelf(scope(Scope.LIVE))))
+						)))
+					),
+					Set.of(Scope.LIVE)
+				)
+			);
+
+			assertTrue(
+				error.getMessage().startsWith("Constraint `scope(LIVE)` has no effect in `hierarchyWithinSelf`"),
+				error.getMessage()
+			);
+		}
+
+		/** The bound of a fetched hierarchy is filtered when the parents are fetched, which follows any write. */
+		@Test
+		@DisplayName("Refuse an unrequested scope in a filter of a fetched hierarchy bound")
+		void shouldRefuseScopeWhenHierarchyBoundFilterDoesNotRequestIt() {
+			assertUnrequested(query(
+				collection("a"),
+				require(entityFetch(hierarchyContent(stopAt(node(filterBy(LIVE_X))))))
+			));
+		}
+
+		/** A facet summary filter stands aside of the children of its requirement, as every require filter does. */
+		@Test
+		@DisplayName("Refuse an unrequested scope in a filter of a facet summary")
+		void shouldRefuseScopeWhenFacetSummaryFilterDoesNotRequestIt() {
+			assertUnrequested(query(
+				collection("a"),
+				require(facetSummaryOfReference("r", FacetStatisticsDepth.COUNTS, filterBy(entityHaving(LIVE_X))))
+			));
+		}
+
+		/** The filter of the facet groups is a filter container of its own type. */
+		@Test
+		@DisplayName("Refuse an unrequested scope in a group filter of a facet summary")
+		void shouldRefuseScopeWhenFacetSummaryGroupFilterDoesNotRequestIt() {
+			assertUnrequested(query(
+				collection("a"),
+				require(facetSummaryOfReference(
+					"r", FacetStatisticsDepth.COUNTS, filterBy(attributeEquals("y", 1)), filterGroupBy(entityHaving(LIVE_X))
+				))
+			));
+		}
+
+		/** The promise of the documentation holds for a require filter as for any other. */
+		@Test
+		@DisplayName("Refuse an inert scope in a filter of a facet summary")
+		void shouldRefuseInertScopeWhenFacetSummaryFilterHoldsIt() {
+			final EvitaInvalidUsageException error = assertThrowsExactly(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertFilterScopesApplicable(
+					query(
+						collection("a"),
+						require(facetSummaryOfReference(
+							"r", FacetStatisticsDepth.COUNTS, filterBy(referenceHaving("s", scope(Scope.LIVE)))
+						))
+					),
+					Set.of(Scope.LIVE)
+				)
+			);
+
+			assertTrue(
+				error.getMessage().startsWith("Constraint `scope(LIVE)` has no effect in `referenceHaving`"),
+				error.getMessage()
+			);
+		}
+
+		/** The narrower reading of a scope in the root of a facet summary filter is left to its translator. */
+		@Test
+		@DisplayName("Accept an unrequested scope the root of a facet summary filter names")
+		void shouldAcceptScopeWhenRootOfFacetSummaryFilterNamesIt() {
+			assertDoesNotThrow(() -> QueryUtils.assertFilterScopesApplicable(
+				query(
+					collection("a"),
+					require(facetSummaryOfReference(
+						"r", FacetStatisticsDepth.COUNTS, filterBy(scope(Scope.LIVE), entityHaving(LIVE_X))
+					))
+				),
+				Set.of(Scope.ARCHIVED)
+			));
+		}
+
+		/** A query naming no filter has nothing to judge. */
+		@Test
+		@DisplayName("Accept a query without filter and requirements")
+		void shouldAcceptQueryWhenItHasNoFilterAndNoRequirements() {
+			assertDoesNotThrow(
+				() -> QueryUtils.assertFilterScopesApplicable(query(collection("a")), Set.of(Scope.LIVE))
+			);
+		}
+
+		/** Pins the public exception and the scope diagnostic of a query requesting the archived scope alone. */
+		private void assertUnrequested(@Nonnull Query query) {
+			final EvitaInvalidUsageException error = assertThrowsExactly(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertFilterScopesApplicable(query, Set.of(Scope.ARCHIVED))
+			);
+			assertEquals(
+				"Scope `LIVE` used in `inScope` filter container was not requested by `scope` constraint!",
+				error.getMessage()
+			);
+		}
+	}
+
+	/**
+	 * Supplies every container that separates an entity level without reading a `scope(...)` of its own, each wrapping
+	 * the passed constraint as its child.
+	 *
+	 * @return the name the container reports and the function wrapping a constraint into it
+	 */
+	@Nonnull
+	static Stream<Arguments> scopeRefusingContainers() {
+		return Stream.of(
+			Arguments.of(
+				"hierarchyWithin", (Function<FilterConstraint, FilterConstraint>) it -> hierarchyWithin("r", it)
+			),
+			Arguments.of(
+				"hierarchyWithinSelf", (Function<FilterConstraint, FilterConstraint>) it -> hierarchyWithinSelf(it)
+			),
+			Arguments.of(
+				"hierarchyWithin",
+				(Function<FilterConstraint, FilterConstraint>) it ->
+					hierarchyWithin("r", entityPrimaryKeyInSet(1), having(it))
+			),
+			Arguments.of(
+				"hierarchyWithin",
+				(Function<FilterConstraint, FilterConstraint>) it ->
+					hierarchyWithin("r", entityPrimaryKeyInSet(1), excluding(it))
+			),
+			Arguments.of(
+				"hierarchyWithinRoot",
+				(Function<FilterConstraint, FilterConstraint>) it -> hierarchyWithinRoot("r", having(it))
+			),
+			Arguments.of(
+				"hierarchyWithinRoot",
+				(Function<FilterConstraint, FilterConstraint>) it -> hierarchyWithinRoot("r", excluding(it))
+			),
+			Arguments.of(
+				"hierarchyWithinRootSelf",
+				(Function<FilterConstraint, FilterConstraint>) it -> hierarchyWithinRootSelf(having(it))
+			),
+			Arguments.of(
+				"referenceHaving", (Function<FilterConstraint, FilterConstraint>) it -> referenceHaving("r", it)
+			),
+			Arguments.of(
+				"referenceHaving",
+				(Function<FilterConstraint, FilterConstraint>) it ->
+					referenceHaving("r", and(attributeEquals("y", 1), it))
+			),
+			Arguments.of("facetHaving", (Function<FilterConstraint, FilterConstraint>) it -> facetHaving("r", it)),
+			Arguments.of(
+				"includingChildrenHaving",
+				(Function<FilterConstraint, FilterConstraint>) it -> facetHaving("r", includingChildrenHaving(it))
+			),
+			Arguments.of(
+				"includingChildrenExcept",
+				(Function<FilterConstraint, FilterConstraint>) it -> facetHaving("r", includingChildrenExcept(it))
+			)
+		);
+	}
+
+	/**
+	 * Supplies every level a `scope(...)` applies at, each wrapping the passed constraint.
+	 *
+	 * @return the description of the level and the function wrapping a constraint into it
+	 */
+	@Nonnull
+	static Stream<Arguments> scopeApplyingLevels() {
+		return Stream.of(
+			Arguments.of("root", (Function<FilterConstraint, FilterConstraint>) it -> it),
+			Arguments.of(
+				"and below the root",
+				(Function<FilterConstraint, FilterConstraint>) it -> and(it, attributeEquals("y", 1))
+			),
+			Arguments.of(
+				"or below the root",
+				(Function<FilterConstraint, FilterConstraint>) it -> or(it, attributeEquals("y", 1))
+			),
+			Arguments.of("not below the root", (Function<FilterConstraint, FilterConstraint>) it -> not(it)),
+			Arguments.of("entityHaving", (Function<FilterConstraint, FilterConstraint>) it -> entityHaving(it)),
+			Arguments.of("groupHaving", (Function<FilterConstraint, FilterConstraint>) it -> groupHaving(it)),
+			Arguments.of(
+				"and in entityHaving",
+				(Function<FilterConstraint, FilterConstraint>) it -> entityHaving(and(it, attributeEquals("y", 1)))
+			),
+			Arguments.of(
+				"entityHaving in referenceHaving",
+				(Function<FilterConstraint, FilterConstraint>) it -> referenceHaving("r", entityHaving(it))
+			),
+			Arguments.of(
+				"groupHaving in facetHaving",
+				(Function<FilterConstraint, FilterConstraint>) it -> facetHaving("r", groupHaving(it))
+			),
+			Arguments.of(
+				"entityHaving below a hierarchy",
+				(Function<FilterConstraint, FilterConstraint>) it ->
+					hierarchyWithin("r", referenceHaving("s", entityHaving(it)))
 			)
 		);
 	}

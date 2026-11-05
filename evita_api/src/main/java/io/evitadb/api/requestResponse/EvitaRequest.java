@@ -144,8 +144,31 @@ public class EvitaRequest {
 	@Nullable private Boolean queryTelemetryPlanRequested;
 	@Nullable private Boolean priceHistogramRequested;
 	@Nullable private EnumSet<DebugMode> debugModes;
+	/**
+	 * The {@link #scopes} in the order the query requested them, which a unique lookup prefers them by.
+	 * NULL until {@link #getScopes()} resolves them.
+	 */
 	@Nullable private Scope[] scopesAsArray;
+	/**
+	 * Scopes this request searches: they select the indexes a pass reads and start its processing scope. The set
+	 * answers membership only, {@link #scopesAsArray} holds the order. NULL until {@link #getScopes()} resolves it from
+	 * the `scope(...)` the filter names for the queried entities, or to {@link Scope#DEFAULT_SCOPES} without one.
+	 *
+	 * A request derived for a nested pass may search only a part of what it admits: an `entityHaving` in a query over
+	 * both scopes plans one nested query per scope, each searching that scope alone. These scopes are therefore kept
+	 * apart from {@link #requestedScopes}, and neither can stand in for the other:
+	 *
+	 * - searching the requested scopes makes a pass narrowed by an enclosing `inScope(LIVE, ...)` read archived targets
+	 *   too, so a live owner matches by a target the container excludes, with no error
+	 * - admitting only the searched scopes refuses an `inScope` of a scope the query requests, because the pass over
+	 *   the other scope has to accept it too
+	 */
 	@Nullable private Set<Scope> scopes;
+	/**
+	 * Scopes an `inScope` in this request's filter may name, independently of the scopes searched by the request.
+	 * NULL means the same scopes as {@link #getScopes()}.
+	 */
+	@Nullable private Set<Scope> requestedScopes;
 	@Nullable private Map<String, RequirementContext> entityFetchRequirements;
 	@Nullable private Map<ReferenceContentKey, RequirementContext> namedEntityFetchRequirements;
 	@Nullable private RequirementContext defaultReferenceRequirement;
@@ -307,6 +330,7 @@ public class EvitaRequest {
 		this.entityRequirement = evitaRequest.entityRequirement;
 		this.expectedType = evitaRequest.expectedType;
 		this.debugModes = evitaRequest.debugModes;
+		this.requestedScopes = evitaRequest.requestedScopes;
 		this.scopes = evitaRequest.scopes;
 		this.scopesAsArray = evitaRequest.scopesAsArray;
 	}
@@ -505,9 +529,12 @@ public class EvitaRequest {
 			this.query, EntityScope.class, SeparateEntityScopeContainer.class
 		);
 		if (overriddenScopes == null) {
+			this.requestedScopes = evitaRequest.requestedScopes;
 			this.scopes = evitaRequest.scopes;
 			this.scopesAsArray = evitaRequest.scopesAsArray;
 		} else {
+			// only a filter of this copy can name a new scope, the filter of the source keeps what the source admits
+			this.requestedScopes = filterBy == null ? evitaRequest.requestedScopes : null;
 			this.scopes = overriddenScopes.getScope();
 			this.scopesAsArray = overriddenScopes.getScopesInRequestedOrder();
 		}
@@ -1947,6 +1974,12 @@ public class EvitaRequest {
 	 * The iteration order of `scopes` becomes the requested order of the copy, which a unique lookup
 	 * prefers the earlier scopes by - pass an ordered set when the order matters. An explicit locale wins;
 	 * otherwise the nested filter's own opinion takes precedence over the enclosing request's locale.
+	 *
+	 * The filter of the copy holds `scope(scopes)` at its own level and retains every `inScope` and every scope of a
+	 * separate entity level. Translators decide how each retained container applies in the searched scopes.
+	 * Requested scopes are the inherited ones united with the searched scopes - a `scope(...)` of the filter plays no
+	 * part in them, a caller honouring it passes it to
+	 * {@link #deriveCopyWith(String, FilterBy, OrderBy, Locale, Set, Set)}.
 	 */
 	@Nonnull
 	public EvitaRequest deriveCopyWith(
@@ -1956,11 +1989,40 @@ public class EvitaRequest {
 		@Nullable Locale locale,
 		@Nonnull Set<Scope> scopes
 	) {
+		final Set<Scope> inheritedRequestedScopes = getRequestedScopes();
+		return deriveCopyWith(
+			entityType, filterConstraint, orderConstraint, locale, scopes,
+			inheritedRequestedScopes.containsAll(scopes) ?
+				inheritedRequestedScopes : CollectionUtils.combine(inheritedRequestedScopes, scopes)
+		);
+	}
+
+	/**
+	 * Derives a request searching the passed scopes while admitting `inScope` containers from the requested scopes.
+	 * Scope enforcement replaces only scopes of this entity level and retains all other filter constraints.
+	 *
+	 * @param entityType the entity type of the copy
+	 * @param filterConstraint the filter to copy, NULL for an otherwise unrestricted filter
+	 * @param orderConstraint the ordering of the copy
+	 * @param locale the explicit locale override, NULL to inherit the resolved locale
+	 * @param scopes the searched scopes, in the order preferred by unique lookups
+	 * @param requestedScopes the scopes an `inScope` of the filter may name
+	 * @return the derived request
+	 */
+	@Nonnull
+	public EvitaRequest deriveCopyWith(
+		@Nonnull String entityType,
+		@Nullable FilterBy filterConstraint,
+		@Nullable OrderBy orderConstraint,
+		@Nullable Locale locale,
+		@Nonnull Set<Scope> scopes,
+		@Nonnull Set<Scope> requestedScopes
+	) {
 		final EntityScope enforcedScope = scope(scopes.toArray(Scope[]::new));
 		final FilterBy filterBy = filterConstraint == null ?
 			filterBy(enforcedScope) :
 			(FilterBy) ConstraintCloneVisitor.clone(filterConstraint, new ScopeEnforcer(enforcedScope));
-		return new EvitaRequest(
+		final EvitaRequest copy = new EvitaRequest(
 			this,
 			entityType,
 			filterBy,
@@ -1968,6 +2030,8 @@ public class EvitaRequest {
 			locale,
 			scopes
 		);
+		copy.requestedScopes = requestedScopes;
+		return copy;
 	}
 
 	/**
@@ -1993,6 +2057,17 @@ public class EvitaRequest {
 			this.scopes = theScopes;
 		}
 		return this.scopes;
+	}
+
+	/**
+	 * Returns the scopes an `inScope` of this request's filter may name. Unlike {@link #getScopes()}, which selects
+	 * the scopes searched in this pass, these scopes retain the enclosing query's admission of other scopes.
+	 *
+	 * @return the requested filter scopes, or the searched scopes when no separate set was supplied
+	 */
+	@Nonnull
+	public Set<Scope> getRequestedScopes() {
+		return this.requestedScopes == null ? getScopes() : this.requestedScopes;
 	}
 
 	/**
@@ -2234,33 +2309,47 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * ScopeEnforcer is a private static class that enforces a specific {@link EntityScope}
-	 * and ensures it is added to filterBy constraint.
+	 * Copies a filter for a request of the enforced scopes. The root of the copy is always a {@link FilterBy} holding
+	 * the enforced scope exactly once, in place of the `scope(...)` of the filter when it names one.
+	 *
+	 * Every `inScope` is retained for translation in the searched scopes. A `scope(...)` below a separate entity
+	 * container belongs to the entity that container reaches and is retained at any depth.
 	 */
 	@RequiredArgsConstructor
 	private static class ScopeEnforcer implements
 		BiFunction<ConstraintCloneVisitor, Constraint<?>, Constraint<?>> {
+		/**
+		 * The scope the copy of the filter holds.
+		 */
 		private final EntityScope enforcedScope;
+		/**
+		 * Whether the copied filter names a `scope(...)` at its own level, which the enforced scope replaced.
+		 */
 		private boolean scopeFound;
 
 		@Nullable
 		@Override
 		public Constraint<?> apply(
-			ConstraintCloneVisitor constraintCloneVisitor,
-			Constraint<?> constraint
+			@Nonnull ConstraintCloneVisitor visitor,
+			@Nonnull Constraint<?> constraint
 		) {
 			if (constraint instanceof EntityScope) {
+				// a scope below a separate container targets the entity it reaches, never this request's entity
+				if (visitor.isWithin(SeparateEntityScopeContainer.class)) {
+					return constraint;
+				}
 				this.scopeFound = true;
 				return this.enforcedScope;
-			} else if (constraint instanceof FilterBy && !this.scopeFound) {
-				constraintCloneVisitor.addOnCurrentLevel(this.enforcedScope);
-				return constraint;
-			} else if (constraint instanceof FilterInScope fis) {
-				// when the `inScope` doesn't match the enforced scope, exclude the container with its contents
-				return this.enforcedScope.getScope().contains(fis.getScope()) ? fis : null;
-			} else {
-				return constraint;
+			} else if (constraint instanceof FilterBy filterBy) {
+				// the children first, only they tell whether the filter names a scope - and the scope cannot be added
+				// on the current level of the visitor, because at the root it has none and would take it for the result
+				final List<Constraint<?>> children = visitor.analyseChildren(filterBy);
+				if (!this.scopeFound) {
+					children.add(0, this.enforcedScope);
+				}
+				return new FilterBy(children.toArray(FilterConstraint[]::new));
 			}
+			return constraint;
 		}
 	}
 

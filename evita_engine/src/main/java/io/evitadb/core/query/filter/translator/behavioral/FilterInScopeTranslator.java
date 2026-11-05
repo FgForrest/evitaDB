@@ -60,7 +60,7 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull FilterInScope inScope, @Nonnull FilterByVisitor filterByVisitor) {
-		final Set<Scope> requestedScopes = filterByVisitor.getScopes();
+		final Set<Scope> requestedScopes = filterByVisitor.getRequestedScopes();
 		final Scope scopeToUse = inScope.getScope();
 		Assert.isTrue(
 			requestedScopes.contains(scopeToUse),
@@ -73,7 +73,7 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 			return translateForVirtualPartitionRows(inScope, virtualPartitionRows, filterByVisitor);
 		}
 
-		// a nested evaluation may process fewer scopes than the query requested - the parent filter of a hierarchy
+		// a nested evaluation may process fewer scopes than the query searches - the parent filter of a hierarchy
 		// constraint is resolved in the tree of one scope at a time - and the container must restrict only those
 		final Set<Scope> processingScopes = filterByVisitor.getProcessingScope().getScopes();
 		filterByVisitor.registerFormulaPostProcessorBefore(

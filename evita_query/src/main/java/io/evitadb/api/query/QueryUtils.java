@@ -26,8 +26,11 @@ package io.evitadb.api.query;
 import io.evitadb.api.query.filter.DifferentEntityFilterContainer;
 import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.FilterGroupBy;
+import io.evitadb.api.query.filter.FilterInScope;
 import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
@@ -41,6 +44,7 @@ import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.query.visitor.FinderVisitor.PredicateWithDescription;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -51,6 +55,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -465,6 +470,197 @@ public class QueryUtils {
 		}
 		//noinspection unchecked
 		return FinderVisitor.findConstraints(require, new ConstraintTypeMatcher(constraintType), stopContainerType::isInstance);
+	}
+
+	/**
+	 * Refuses a query using a scope in a way the engine cannot honour, before anything of the query is evaluated. The
+	 * engine runs this check at every entry point of a client request - `QueryPlanner#planQuery` and the direct calls
+	 * of `EntityCollection` - so that the verdict depends neither on the data nor on whether a reference row reaches
+	 * the constraint, and so that a call which writes before it fetches leaves the entity untouched when it is refused.
+	 *
+	 * The filter section is judged by {@link #assertFilterScopesApplicable(FilterBy, Set)} against the passed scopes,
+	 * and every filter of the require section - of a `referenceContent`, a hierarchy `node`, a facet summary - at any
+	 * depth, against the scopes {@link #getRequireFilterRequestedScopes} derives from them. A scope a `referenceContent`
+	 * names for its bodies is not handed to a nested `referenceContent`: this check keeps to what the query as a whole
+	 * requests.
+	 *
+	 * The check runs on every execution, so it looks no `scope(...)` up unless a filter holds an `inScope`.
+	 *
+	 * @param query the query to check
+	 * @param requestedScopes the scopes the query requests
+	 * @throws EvitaInvalidUsageException when an `inScope` names an unrequested scope or a `scope(...)` has no effect
+	 */
+	public static void assertFilterScopesApplicable(@Nonnull Query query, @Nonnull Set<Scope> requestedScopes) {
+		final FilterBy filterBy = query.getFilterBy();
+		if (filterBy != null) {
+			assertFilterScopesApplicable(filterBy, requestedScopes);
+		}
+		final Require require = query.getRequire();
+		if (require != null) {
+			assertRequireFilterScopesApplicable(require, requestedScopes);
+		}
+	}
+
+	/**
+	 * Refuses a filter using a scope in a way the engine cannot honour, whatever the data:
+	 *
+	 * - an `inScope` naming a scope that was not requested. {@link EntityHaving} and {@link GroupHaving}, which plan a
+	 *   nested query, are judged by a `scope(...)` of their own level when they name one; every other level inherits.
+	 * - a `scope(...)` the engine would not apply. It is read only in the root of a filter, boolean containers
+	 *   included, and at the level of {@link EntityHaving} and {@link GroupHaving}. Below any other
+	 *   {@link SeparateEntityScopeContainer} nothing reads it, so the query would silently mean something else than
+	 *   it says.
+	 *
+	 * The walk allocates nothing unless the filter holds an `inScope`, or fails.
+	 *
+	 * @param filterBy the original filter, before scope enforcement
+	 * @param requestedScopes the scopes that permit `inScope`, independently of the scopes processed in this pass
+	 * @throws EvitaInvalidUsageException when an `inScope` names an unrequested scope or a `scope(...)` has no effect
+	 */
+	public static void assertFilterScopesApplicable(
+		@Nonnull FilterBy filterBy, @Nonnull Set<Scope> requestedScopes
+	) {
+		assertFilterScopesApplicable(filterBy, requestedScopes, null);
+	}
+
+	/**
+	 * Walks the require section looking for its filters - see {@link #assertFilterScopesApplicable(Query, Set)}. A filter
+	 * is an additional child of the requirement holding it, and a nested requirement is a child of its container.
+	 *
+	 * @param constraint the require constraint to examine
+	 * @param requestedScopes the scopes the query requests
+	 */
+	private static void assertRequireFilterScopesApplicable(
+		@Nonnull Constraint<?> constraint, @Nonnull Set<Scope> requestedScopes
+	) {
+		if (constraint instanceof FilterBy || constraint instanceof FilterGroupBy) {
+			final FilterConstraint filter = (FilterConstraint) constraint;
+			assertFilterScopesApplicable(filter, getRequireFilterRequestedScopes(filter, requestedScopes), null);
+		} else if (constraint instanceof ConstraintContainer<?> container) {
+			for (final Constraint<?> child : container.getChildren()) {
+				assertRequireFilterScopesApplicable(child, requestedScopes);
+			}
+			for (final Constraint<?> additionalChild : container.getAdditionalChildren()) {
+				assertRequireFilterScopesApplicable(additionalChild, requestedScopes);
+			}
+		}
+	}
+
+	/**
+	 * Returns the scopes an `inScope` of a filter of the require section may name: the inherited ones united with the
+	 * `scope(...)` in the root of that filter, which widens the scopes a `referenceContent` looks its references up in.
+	 * A scope below a separate container belongs to the entity level it stands in, and admits nothing beside that level.
+	 * A facet summary reads the root scope more narrowly when it plans its filter, and refuses what that leaves out.
+	 *
+	 * The inherited set itself is returned when no `inScope` can tell the difference, which spares the lookup.
+	 *
+	 * @param filter the filter of the require section
+	 * @param inheritedScopes the scopes the enclosing request admits
+	 * @return the scopes an `inScope` of the filter may name
+	 */
+	@Nonnull
+	public static Set<Scope> getRequireFilterRequestedScopes(
+		@Nonnull FilterConstraint filter, @Nonnull Set<Scope> inheritedScopes
+	) {
+		if (!holdsFilterInScope(filter)) {
+			return inheritedScopes;
+		}
+		final EntityScope rootScope = findConstraint(filter, EntityScope.class, SeparateEntityScopeContainer.class);
+		return rootScope == null || inheritedScopes.containsAll(rootScope.getScope()) ?
+			inheritedScopes : CollectionUtils.combine(inheritedScopes, rootScope.getScope());
+	}
+
+	/**
+	 * Walks one constraint of a filter - see {@link #assertFilterScopesApplicable(FilterBy, Set)}.
+	 *
+	 * @param constraint the original constraint to examine
+	 * @param requestedScopes the scopes an `inScope` at this entity level may name
+	 * @param enclosingContainer the nearest separate container enclosing the constraint, NULL when there is none
+	 */
+	private static void assertFilterScopesApplicable(
+		@Nonnull Constraint<?> constraint,
+		@Nonnull Set<Scope> requestedScopes,
+		@Nullable SeparateEntityScopeContainer enclosingContainer
+	) {
+		if (constraint instanceof EntityScope entityScope) {
+			if (enclosingContainer != null && !appliesOwnScope(enclosingContainer)) {
+				throw new EvitaInvalidUsageException(
+					"Constraint `" + entityScope + "` has no effect in `" + enclosingContainer.getName() +
+						"` - it selects scopes only in the root of a filter and in `entityHaving` or `groupHaving`, " +
+						"so it must be placed there or removed."
+				);
+			}
+			return;
+		}
+		if (constraint instanceof FilterInScope inScope && !requestedScopes.contains(inScope.getScope())) {
+			throw new EvitaInvalidUsageException(
+				"Scope `" + inScope.getScope() +
+					"` used in `inScope` filter container was not requested by `scope` constraint!"
+			);
+		}
+		if (constraint instanceof ConstraintContainer<?> container) {
+			final SeparateEntityScopeContainer separate = constraint instanceof SeparateEntityScopeContainer it ?
+				it : null;
+			final Set<Scope> nestedRequestedScopes = separate == null ?
+				requestedScopes : getEntityLevelRequestedScopes(separate, requestedScopes);
+			final SeparateEntityScopeContainer nestedEnclosingContainer = separate == null ?
+				enclosingContainer : separate;
+			// no filter container holds additional children
+			for (final Constraint<?> child : container.getChildren()) {
+				assertFilterScopesApplicable(child, nestedRequestedScopes, nestedEnclosingContainer);
+			}
+		}
+	}
+
+	/**
+	 * Returns the scopes an `inScope` below the separate container may name.
+	 *
+	 * @param container the separate container
+	 * @param inheritedScopes the scopes the container inherits
+	 * @return the scopes of the `scope(...)` of the container when it applies one, otherwise the inherited ones
+	 */
+	@Nonnull
+	private static Set<Scope> getEntityLevelRequestedScopes(
+		@Nonnull SeparateEntityScopeContainer container, @Nonnull Set<Scope> inheritedScopes
+	) {
+		// the lookup allocates and the walk runs on every execution, while only an `inScope` can tell the difference
+		if (!appliesOwnScope(container) || !holdsFilterInScope(container)) {
+			return inheritedScopes;
+		}
+		final EntityScope ownScope = findConstraint(container, EntityScope.class, SeparateEntityScopeContainer.class);
+		return ownScope == null ? inheritedScopes : ownScope.getScope();
+	}
+
+	/**
+	 * Returns true when the engine reads a `scope(...)` at the level of the container, which is the nested query of
+	 * {@link EntityHaving} and {@link GroupHaving}. A hierarchy is traversed in the scope being queried, and the direct
+	 * children of the reference and facet containers filter the owner's references.
+	 *
+	 * @param container the separate container
+	 * @return true when a `scope(...)` at the level of the container has an effect
+	 */
+	private static boolean appliesOwnScope(@Nonnull SeparateEntityScopeContainer container) {
+		return container instanceof EntityHaving || container instanceof GroupHaving;
+	}
+
+	/**
+	 * Returns true when the constraint is a filter `inScope` or holds one at any depth.
+	 *
+	 * @param constraint the filter constraint to examine
+	 * @return true when an `inScope` was found
+	 */
+	private static boolean holdsFilterInScope(@Nonnull Constraint<?> constraint) {
+		if (constraint instanceof FilterInScope) {
+			return true;
+		}
+		if (constraint instanceof ConstraintContainer<?> container) {
+			for (final Constraint<?> child : container.getChildren()) {
+				if (holdsFilterInScope(child)) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	/**

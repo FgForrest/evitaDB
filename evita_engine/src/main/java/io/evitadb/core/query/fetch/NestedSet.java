@@ -88,6 +88,10 @@ final class NestedSet {
 	 */
 	@Nonnull private final Set<Scope> scopes;
 	/**
+	 * The scopes an `inScope` of the nested filter may name, independently of the scopes the query is planned in.
+	 */
+	@Nonnull private final Set<Scope> requestedScopes;
+	/**
 	 * Supplier of the primary keys the nested query is restricted to, NULL when it is not restricted.
 	 */
 	@Nullable private final Supplier<int[]> restriction;
@@ -111,6 +115,7 @@ final class NestedSet {
 	 * @param targetEntityType        the entity type the nested filter selects entities of
 	 * @param filter                  the nested filter, unwrapped from its container
 	 * @param scopes                  the scopes the nested query is planned in
+	 * @param requestedScopes         the scopes an `inScope` of the nested filter may name
 	 * @param enclosingLocale         the resolved reference-level locale the nested level inherits without its own
 	 * opinion
 	 * @param restriction             supplier of the primary keys the nested query is restricted to, NULL for none
@@ -121,6 +126,7 @@ final class NestedSet {
 		@Nonnull String targetEntityType,
 		@Nonnull FilterConstraint filter,
 		@Nonnull Set<Scope> scopes,
+		@Nonnull Set<Scope> requestedScopes,
 		@Nullable Locale enclosingLocale,
 		@Nullable Supplier<int[]> restriction,
 		@Nonnull Supplier<String> taskDescriptionSupplier
@@ -129,6 +135,7 @@ final class NestedSet {
 		this.targetEntityType = targetEntityType;
 		this.filter = filter;
 		this.scopes = scopes;
+		this.requestedScopes = requestedScopes;
 		this.enclosingLocale = enclosingLocale;
 		this.restriction = restriction;
 		this.taskDescriptionSupplier = taskDescriptionSupplier;
@@ -169,7 +176,7 @@ final class NestedSet {
 			}
 			nestedFilter = new FilterBy(entityPrimaryKeyInSet(keys), this.filter);
 		}
-		final FilterByVisitor nestedVisitor = createLocaleVisitor();
+		final FilterByVisitor nestedVisitor = createNestedVisitor();
 		final Bitmap matchingKeys = nestedVisitor.getMatchingEntityPrimaryKeys(
 			this.targetEntityType, nestedFilter, this.scopes, this.taskDescriptionSupplier
 		);
@@ -187,20 +194,34 @@ final class NestedSet {
 	 * still resolves its own opinion first. A predicate such as `attributeIsNull` may select a target with no data
 	 * in the inherited locale, so adding `entityLocaleEquals` would change the filter's meaning.
 	 *
-	 * @return a visitor inheriting the reference locale, or the original visitor when its context already agrees
+	 * The reference level's requested scopes come the same way: a root `scope(...)` of the filter of the fetched
+	 * references admits an `inScope` the owner request knows nothing about, and an enclosing `inScope` of the row
+	 * filter narrows the scopes the query is planned in, so neither of the two can tell it to the nested query.
+	 *
+	 * @return a visitor inheriting the reference locale and requested scopes, or the original visitor when its context
+	 * already agrees
 	 */
 	@Nonnull
-	private FilterByVisitor createLocaleVisitor() {
+	private FilterByVisitor createNestedVisitor() {
 		final QueryPlanningContext ownerContext = this.filterByVisitor.getQueryContext();
-		final QueryPlanningContext localeContext = ownerContext.getContextInLocale(
-			this.targetEntityType, null, this.enclosingLocale, this.scopes, "inherit reference filter locale"
-		);
-		if (localeContext == ownerContext) {
+		if (
+			(this.enclosingLocale == null || this.enclosingLocale.equals(ownerContext.getLocale())) &&
+				ownerContext.getRequestedScopes().containsAll(this.requestedScopes)
+		) {
 			return this.filterByVisitor;
 		}
+		final QueryPlanningContext nestedContext = ownerContext
+			.getEntityCollectionOrThrowException(this.targetEntityType, "inherit reference filter locale and scopes")
+			.createQueryContext(
+				ownerContext,
+				ownerContext.getEvitaRequest().deriveCopyWith(
+					this.targetEntityType, null, null, this.enclosingLocale, this.scopes, this.requestedScopes
+				),
+				ownerContext.getEvitaSession()
+			);
 		return this.filterByVisitor.isConstraintCheckOnly() ?
-			FilterByVisitor.createConstraintCheckVisitor(localeContext) :
-			new FilterByVisitor(localeContext, Collections.emptyList(), TargetIndexes.EMPTY);
+			FilterByVisitor.createConstraintCheckVisitor(nestedContext) :
+			new FilterByVisitor(nestedContext, Collections.emptyList(), TargetIndexes.EMPTY);
 	}
 
 }

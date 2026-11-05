@@ -619,11 +619,21 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	/**
 	 * Shortcut for {@link EvitaRequest#getScopes()}.
 	 *
-	 * @return set of requested scopes in the query
+	 * @return set of scopes searched by the query
 	 */
 	@Nonnull
 	public Set<Scope> getScopes() {
 		return this.evitaRequest.getScopes();
+	}
+
+	/**
+	 * Shortcut for {@link EvitaRequest#getRequestedScopes()}.
+	 *
+	 * @return scopes an `inScope` of the filter may name
+	 */
+	@Nonnull
+	public Set<Scope> getRequestedScopes() {
+		return this.evitaRequest.getRequestedScopes();
 	}
 
 	/**

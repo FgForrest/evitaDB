@@ -710,7 +710,7 @@ public final class EntityCollection implements
 	public Optional<SealedEntity> getEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		// a fetch is not planned, so the structural rules `QueryPlanner#planQuery` checks for a query are checked here
 		// - the reference content filters of the requirements are evaluated directly by the reference fetcher
-		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
+		assertScopeUsageValid(evitaRequest);
 		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 
 		// record query information
@@ -725,7 +725,7 @@ public final class EntityCollection implements
 	@Nonnull
 	public ServerEntityDecorator enrichEntity(@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		// see `getEntity` - an enrichment is not planned either
-		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
+		assertScopeUsageValid(evitaRequest);
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
 		// enrichment adds and never subtracts, so the named sets this entity already carries have to survive a
 		// request that does not mention them. They are fetched again rather than carried over: this read may land on
@@ -830,7 +830,7 @@ public final class EntityCollection implements
 		@Nonnull EvitaRequest evitaRequest
 	) {
 		// refused before the mutation - the reference fetcher evaluating the requirements runs only after it
-		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
+		assertScopeUsageValid(evitaRequest);
 		final ServerEntityDecorator internalEntity =
 			wrapToDecorator(
 				evitaRequest,
@@ -869,7 +869,7 @@ public final class EntityCollection implements
 	@Nonnull
 	public <T extends Serializable> Optional<T> deleteEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest) {
 		// see `upsertAndFetchEntity` - refused before the entity is removed
-		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
+		assertScopeUsageValid(evitaRequest);
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
@@ -917,7 +917,7 @@ public final class EntityCollection implements
 	@Override
 	public <T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		// see `upsertAndFetchEntity` - refused before any entity of the hierarchy is removed
-		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
+		assertScopeUsageValid(evitaRequest);
 		final EntityIndex globalIndex = getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
 		if (globalIndex != null) {
 			final int[] primaryKeys = evitaRequest.getPrimaryKeys();
@@ -995,7 +995,7 @@ public final class EntityCollection implements
 	@Override
 	public <T extends Serializable> Optional<T> archiveEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest) {
 		// see `upsertAndFetchEntity` - refused before the entity changes its scope
-		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
+		assertScopeUsageValid(evitaRequest);
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
@@ -1029,7 +1029,7 @@ public final class EntityCollection implements
 	@Override
 	public <T extends Serializable> Optional<T> restoreEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest) {
 		// see `upsertAndFetchEntity` - refused before the entity changes its scope
-		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
+		assertScopeUsageValid(evitaRequest);
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalArchiveIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
@@ -2319,6 +2319,19 @@ public final class EntityCollection implements
 		} finally {
 			this.entityIndexCreator.setSession(null);
 		}
+	}
+
+	/**
+	 * Refuses a request using scopes in a way the engine cannot honour, before the request looks for an entity or
+	 * changes it - see {@link QueryUtils#assertNoNestedScopeContainers} and
+	 * {@link QueryUtils#assertFilterScopesApplicable}.
+	 *
+	 * @param evitaRequest the request of the client
+	 */
+	private static void assertScopeUsageValid(@Nonnull EvitaRequest evitaRequest) {
+		final Query query = evitaRequest.getQuery();
+		QueryUtils.assertNoNestedScopeContainers(query);
+		QueryUtils.assertFilterScopesApplicable(query, evitaRequest.getRequestedScopes());
 	}
 
 	/**

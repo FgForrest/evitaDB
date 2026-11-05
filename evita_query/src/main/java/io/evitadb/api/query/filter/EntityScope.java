@@ -161,6 +161,14 @@ import java.util.Set;
  * **Scope Isolation**: Each scope maintains independent indexes, so queries that operate on a single scope never "see" entities from other scopes
  * unless explicitly requested via multi-scope queries.
  *
+ * ## Where the Constraint Applies
+ *
+ * The constraint selects the scopes in the root of a filter, boolean containers included, and in {@link EntityHaving}
+ * and {@link GroupHaving}, for the entities they reach. Below any other {@link SeparateEntityScopeContainer} - a
+ * hierarchy constraint, a direct child of {@link ReferenceHaving} or {@link FacetHaving} - nothing would read it, so a
+ * query placing it there is refused. The filter of a `referenceContent` takes it in its root only as a direct child of
+ * its `filterBy`.
+ *
  * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/behavioral#scope)
  *
  * @see Scope

@@ -73,7 +73,10 @@ import static java.util.Optional.ofNullable;
  * a leaf is refused depends on the schemas alone, in both. A nested `entityHaving` / `groupHaving` filter is validated
  * whatever the data only by a check, which resolves the nested set while compiling; a fetch resolves it when the first
  * row reaches it (see {@link NestedSet}), so on a path planned without a check (`getEntity`, an enrichment) a bad
- * nested filter fails only when some row reaches its node.
+ * nested filter fails only when some row reaches its node. The scope an `inScope` of a nested filter names is the
+ * exception, judged whatever the rows: {@link QueryUtils#assertFilterScopesApplicable(io.evitadb.api.query.Query, Set)}
+ * judges a client request before anything of it runs, and {@link #compile} judges the requests derived later, because
+ * no row need ever reach that node.
  *
  * ## What the filter may contain
  *
@@ -145,6 +148,10 @@ final class ReferenceRowFilterCompiler {
 	 * The referenced keys the root `entityPrimaryKeyInSet` constraints admit, NULL when the root names none.
 	 */
 	@Nullable private final Bitmap rootTargetBound;
+	/**
+	 * The scopes an `inScope` of a nested filter may name, handed to the nested queries.
+	 */
+	@Nonnull private final Set<Scope> requestedScopes;
 
 	/**
 	 * The inputs of one compilation of the filter of the fetched references.
@@ -196,21 +203,32 @@ final class ReferenceRowFilterCompiler {
 	 * @param context  the inputs of the compilation
 	 * @return the compiled filter
 	 * @throws EvitaInvalidUsageException when the filter contains a constraint without a meaning on a row, or a leaf
-	 *                                    that cannot be evaluated whatever the data
+	 *                                    that cannot be evaluated whatever the data, or an `inScope` of a scope that is
+	 *                                    not requested at its entity level, or a `scope(...)` without an effect
 	 */
 	@Nonnull
 	static ReferenceRowFilter compile(@Nullable FilterBy filterBy, @Nonnull CompileContext context) {
 		if (filterBy == null) {
 			return ReferenceRowFilter.ACCEPT_ALL;
 		}
+		final Set<Scope> enclosingScopes = context.filterByVisitor().getRequestedScopes();
+		// a scope of a deeper entity level widens the lookup in the examined scopes below, but it admits nothing here
+		final Set<Scope> requestedScopes = QueryUtils.getRequireFilterRequestedScopes(
+			filterBy, enclosingScopes.containsAll(context.requestScopes()) ?
+				enclosingScopes : CollectionUtils.combine(enclosingScopes, context.requestScopes())
+		);
 		final ReferenceRowFilterCompiler compiler = new ReferenceRowFilterCompiler(
 			context,
 			ofNullable(QueryUtils.resolveLocale(filterBy)).orElse(context.ownerLocale()),
-			getRootTargetBound(filterBy)
+			getRootTargetBound(filterBy),
+			requestedScopes
 		);
 		final Set<Scope> examinedScopes = ReferencedEntityFetcher.gatherSearchedScopes(
 			filterBy, context.requestScopes()
 		);
+		// a fetch without a planning check may hold no target in the examined scopes and so never plan the nested query
+		// that would refuse this - and whether a query is refused must not depend on the data
+		QueryUtils.assertFilterScopesApplicable(filterBy, requestedScopes);
 		final Set<Scope> ownerScopes = context.ownerScopes();
 		final RowPredicate root = compiler.compileRoot(
 			filterBy,
@@ -298,15 +316,18 @@ final class ReferenceRowFilterCompiler {
 	 * @param context         the inputs of the compilation
 	 * @param leafLocale      the locale the localized attribute leaves read, NULL when none is known
 	 * @param rootTargetBound the referenced keys the root admits, NULL when it names none
+	 * @param requestedScopes the scopes an `inScope` of a nested filter may name
 	 */
 	private ReferenceRowFilterCompiler(
 		@Nonnull CompileContext context,
 		@Nullable Locale leafLocale,
-		@Nullable Bitmap rootTargetBound
+		@Nullable Bitmap rootTargetBound,
+		@Nonnull Set<Scope> requestedScopes
 	) {
 		this.context = context;
 		this.leafLocale = leafLocale;
 		this.rootTargetBound = rootTargetBound;
+		this.requestedScopes = requestedScopes;
 	}
 
 	/**
@@ -491,7 +512,7 @@ final class ReferenceRowFilterCompiler {
 		}
 		return new RowPredicate.TargetInNested(
 			new NestedSet(
-				this.context.filterByVisitor(), referencedEntityType, nestedFilter, scopes,
+				this.context.filterByVisitor(), referencedEntityType, nestedFilter, scopes, this.requestedScopes,
 				this.leafLocale, restriction,
 				() -> "filtering reference `" + referenceSchema.getName() + "` by entity `" + referencedEntityType +
 					"` having: " + nestedFilter
@@ -526,7 +547,8 @@ final class ReferenceRowFilterCompiler {
 		final Supplier<Bitmap> rowGroups = this.context.rowGroups();
 		return new RowPredicate.GroupInNested(
 			new NestedSet(
-				this.context.filterByVisitor(), referencedGroupType, nestedFilter, scopes, this.leafLocale,
+				this.context.filterByVisitor(), referencedGroupType, nestedFilter, scopes, this.requestedScopes,
+				this.leafLocale,
 				rowGroups == null ? null : () -> rowGroups.get().getArray(),
 				() -> "filtering reference `" + referenceSchema.getName() + "` by group entity `" +
 					referencedGroupType + "` having: " + nestedFilter
