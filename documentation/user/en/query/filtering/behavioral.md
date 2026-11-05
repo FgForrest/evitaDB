@@ -67,7 +67,6 @@ restricts only the entities of its scope and lets the entities of the other scop
 A [`scope`](constant.md#scope) constraint has an effect only at the root of a filter and in
 [`entityHaving`](references.md#entity-having) or [`groupHaving`](references.md#group-having). Anywhere else - in
 [`hierarchyWithin`](hierarchy.md#hierarchy-within), [`hierarchyWithinRoot`](hierarchy.md#hierarchy-within-root),
-[`includingChildren`](references.md#including-children),
 [`includingChildrenHaving`](references.md#including-children-having),
 [`includingChildrenExcept`](references.md#including-children-except), or as a direct child of
 [`referenceHaving`](references.md#reference-having) or [`facetHaving`](references.md#facet-having) - it would do
