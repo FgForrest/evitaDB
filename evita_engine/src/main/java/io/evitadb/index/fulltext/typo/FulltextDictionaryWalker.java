@@ -197,12 +197,13 @@ public final class FulltextDictionaryWalker {
 	}
 
 	/**
-	 * Positions a cursor at a lower bound. Every reposition of the walk goes through this method, so that a cursor
-	 * able to seek within its current leaf can replace the descent from the root here alone; such a seek leaves its
-	 * successful result positioned just like `next()` does.
+	 * Positions a cursor at a lower bound. The first call opens a cursor at the target; every later reposition moves
+	 * the existing cursor forward with {@link BucketCursor#seek(Comparable)}, which searches the current leaf and
+	 * descends from the root only when the target lies beyond it. Either way the cursor is left positioned at the
+	 * first bucket at or above the target, just as `next()` leaves it.
 	 *
 	 * @param tree dictionary owning the cursor
-	 * @param cursor previous cursor, or null for the first seek; not read yet, every call descends from the root
+	 * @param cursor positioned cursor of the walk whose current key is below the target, or null for the first seek
 	 * @param target encoded lower bound of the next read
 	 * @return cursor positioned at the first bucket at or above the target, or null when exhausted
 	 */
@@ -211,6 +212,9 @@ public final class FulltextDictionaryWalker {
 		@Nonnull TransactionalBucketBPlusTree<String> tree,
 		@Nullable BucketCursor<String> cursor, @Nonnull String target
 	) {
+		if (cursor != null) {
+			return cursor.seek(target) ? cursor : null;
+		}
 		final BucketCursor<String> positioned = tree.cursor(target);
 		return positioned.next() ? positioned : null;
 	}
