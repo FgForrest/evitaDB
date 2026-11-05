@@ -32,9 +32,9 @@ import java.io.Serial;
 import java.util.Locale;
 
 /**
- * Refuses a backup whose archive cannot fit in the export storage. The storage drops its oldest files whenever it
- * exceeds its configured size limit, so a larger archive would first evict every other export and then be deleted
- * itself. The backup therefore stops as soon as it crosses the limit and nothing is published.
+ * Refuses a backup or recording whose archive cannot fit in the export storage. The storage drops its oldest files
+ * whenever it exceeds its configured size limit, so a larger archive would first evict every other export and then
+ * be deleted itself. The export therefore stops as soon as it crosses the limit and nothing is published.
  *
  * The message names the setting to raise, because that is the only remedy: the limit is read at server start, so the
  * operator raises it and restarts the server.
@@ -58,21 +58,37 @@ public class ExportFileTooLargeException extends EvitaInvalidUsageException {
 		@Nonnull String configurationProperty,
 		@Nullable Long onDiskSizeInBytes
 	) {
-		super(message(catalogName, configuredLimitInBytes, configurationProperty, onDiskSizeInBytes));
+		super(message(
+			"The backup of catalog `" + catalogName + "`", "backup", configuredLimitInBytes,
+			configurationProperty, onDiskSizeInBytes
+		));
+	}
+
+	/**
+	 * Creates a recording refusal with the backend setting to raise before restarting the server.
+	 *
+	 * @param recordingSubject recording being stopped, including its catalog when applicable
+	 * @param configuredLimitInBytes configured storage limit, before reserving backend metadata
+	 * @param configurationProperty property controlling this backend's limit
+	 */
+	public ExportFileTooLargeException(
+		@Nonnull String recordingSubject, long configuredLimitInBytes, @Nonnull String configurationProperty
+	) {
+		super(message(recordingSubject, "recording", configuredLimitInBytes, configurationProperty, null));
 	}
 
 	/** Builds the message; the environment variable follows `EvitaServer#transformEnvironmentVariable`. */
 	@Nonnull
 	private static String message(
-		@Nonnull String catalogName, long configuredLimitInBytes,
+		@Nonnull String subject, @Nonnull String exportKind, long configuredLimitInBytes,
 		@Nonnull String configurationProperty, @Nullable Long onDiskSizeInBytes
 	) {
 		final String environmentVariable =
 			"EVITADB_" + configurationProperty.replace('.', '_').toUpperCase(Locale.ROOT);
-		final String refusal = "The backup of catalog `" + catalogName + "` was stopped because it exceeded the " +
-			"export storage limit of " + StringUtils.formatByteSize(configuredLimitInBytes) +
-			"; the server would delete a larger file. No backup was created. Increase `" + configurationProperty +
-			"` in the server configuration (or `" + environmentVariable + "`) and restart the server.";
+		final String refusal = subject + " was stopped because it exceeded the export storage limit of " +
+			StringUtils.formatByteSize(configuredLimitInBytes) + "; the server would delete a larger file. No " +
+			exportKind + " was created. Increase `" + configurationProperty + "` in the server configuration (or `" +
+			environmentVariable + "`) and restart the server.";
 		return onDiskSizeInBytes == null ?
 			refusal :
 			refusal + " The catalog currently occupies " + StringUtils.formatByteSize(onDiskSizeInBytes) + " on disk.";

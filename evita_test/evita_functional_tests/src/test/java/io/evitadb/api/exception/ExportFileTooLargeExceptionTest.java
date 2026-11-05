@@ -24,6 +24,10 @@
 package io.evitadb.api.exception;
 
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+
+import javax.annotation.Nonnull;
 
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.EXPORT;
@@ -41,6 +45,23 @@ class ExportFileTooLargeExceptionTest {
 	@Nested
 	@DisplayName("Operator message")
 	class OperatorMessage {
+		/** Recording subjects share the same operator guidance without the backup's catalog-size sentence. */
+		@ParameterizedTest
+		@ValueSource(strings = {
+			"The JFR recording", "The traffic recording of catalog `X`", "The traffic recording export of catalog `X`"
+		})
+		@DisplayName("should name each recording subject and backend configuration")
+		void shouldNameRecordingSubjectAndConfiguration(@Nonnull String subject) {
+			final ExportFileTooLargeException exception = new ExportFileTooLargeException(
+				subject, 1073741824L, "export.fileSystem.sizeLimitBytes");
+			assertEquals(subject + " was stopped because it exceeded the export storage limit of " +
+				"1.00 GB; the server would delete a larger file. No recording was created. Increase " +
+				"`export.fileSystem.sizeLimitBytes` in the server configuration " +
+				"(or `EVITADB_EXPORT_FILESYSTEM_SIZELIMITBYTES`) and restart the server.",
+				exception.getPublicMessage());
+			assertEquals(exception.getMessage(), exception.getPublicMessage());
+		}
+
 		@Test
 		@DisplayName("should include the file system configuration and catalog size")
 		void shouldIncludeFileSystemConfigurationAndSize() {

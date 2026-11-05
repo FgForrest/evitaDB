@@ -23,18 +23,32 @@
 
 package io.evitadb.core.traffic.task;
 
+import io.evitadb.api.CatalogState;
+import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TrafficRecordingOptions;
+import io.evitadb.api.exception.ExportFileTooLargeException;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
+import io.evitadb.api.observability.trace.TracingContextProvider;
 import io.evitadb.api.traffic.TrafficRecordingExporter.ExportProgressListener;
 import io.evitadb.api.traffic.TrafficRecordingExporter.ExportSummary;
 import io.evitadb.api.traffic.TrafficRecordingExporter.ExportedSessionConsumer;
+import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
+import io.evitadb.core.executor.Scheduler;
+import io.evitadb.core.management.FileManagementService;
 import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.export.file.ExportFileService;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
 import io.evitadb.spi.export.model.ExportFileSizeLimit;
+import io.evitadb.test.EvitaTestSupport;
+import lombok.experimental.Delegate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -45,6 +59,7 @@ import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -55,16 +70,20 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.EXPORT;
 import static io.evitadb.test.TestTags.TRAFFIC_ENGINE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -86,7 +105,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(TRAFFIC_ENGINE)
 @Tag(EXPORT)
 @DisplayName("TrafficRecordingExportTask")
-class TrafficRecordingExportTaskTest {
+class TrafficRecordingExportTaskTest implements EvitaTestSupport {
 	private static final String CATALOG_NAME = "testCatalog";
 	private static final long CHUNK_SIZE = 1_048_576L;
 
@@ -155,8 +174,6 @@ class TrafficRecordingExportTaskTest {
 	void shouldDeletePartialFileWhenExportFails() throws IOException {
 		final UUID fileId = UUID.randomUUID();
 		final FakeExportFileHandle handle = new FakeExportFileHandle(fileId, this.zipFile);
-		// the file was already registered (future completed) before the engine failed mid-export
-		handle.fileForFetchFuture().complete(fileForFetch(fileId));
 		final RecordingExportService exportService = new RecordingExportService(handle);
 
 		final TrafficRecordingEngine engine = Mockito.mock(TrafficRecordingEngine.class);
@@ -169,25 +186,19 @@ class TrafficRecordingExportTaskTest {
 
 		// move the task out of WAITING_FOR_PRECONDITION into QUEUED so execute() actually runs the callable
 		task.transitionToIssued();
-		assertThrows(
-			UnexpectedIOException.class, task::call,
-			"An engine I/O failure during export must surface as an UnexpectedIOException."
-		);
-		assertEquals(
-			List.of(fileId), exportService.deletedFileIds,
-			"A failed export must delete the partially written file so it does not leak in export storage."
-		);
+		final UnexpectedIOException failure = assertThrows(UnexpectedIOException.class, task::call);
+		assertEquals("Failed to export traffic recording.", failure.getPublicMessage());
+		assertFalse(Files.exists(this.zipFile), "the open handle must be discarded");
+		assertTrue(exportService.deletedFileIds.isEmpty(), "an unpublished file cannot be deleted by descriptor");
 	}
 
 	@Test
-	@DisplayName("A finalization failure deletes the partial file and surfaces the specific error, not a masked CompletionException")
+	@DisplayName("A finalization failure leaves no file and surfaces its specific error")
 	void shouldDeletePartialFileAndSurfaceErrorWhenFinalizationFails() throws Exception {
 		final UUID fileId = UUID.randomUUID();
 		final FakeExportFileHandle handle = new FakeExportFileHandle(fileId, this.zipFile);
-		// the export streams fine, but the file-for-fetch future completes EXCEPTIONALLY (e.g. an S3 upload
-		// failure surfaced asynchronously). getNow(null) on such a future rethrows a CompletionException; the
-		// cleanup must not use it (that would mask the real error and skip the delete).
-		handle.fileForFetchFuture().completeExceptionally(new IOException("simulated finalization failure"));
+		// A failed upload completes its future only after close and removes its own staging file.
+		handle.finalizationFailure = new IOException("simulated finalization failure");
 		final RecordingExportService exportService = new RecordingExportService(handle);
 
 		final TrafficRecordingEngine engine = Mockito.mock(TrafficRecordingEngine.class);
@@ -204,17 +215,158 @@ class TrafficRecordingExportTaskTest {
 
 		// move the task out of WAITING_FOR_PRECONDITION into QUEUED so execute() actually runs the callable
 		task.transitionToIssued();
-		// the specific GenericEvitaInternalError (from fileForFetchFuture().get()) must surface - NOT a
-		// CompletionException masking it from the cleanup's former getNow(null)
-		assertThrows(
-			GenericEvitaInternalError.class, task::call,
-			"A finalization failure must surface as the specific GenericEvitaInternalError, not a " +
-				"CompletionException from the cleanup reading an exceptionally-completed future."
-		);
-		assertEquals(
-			List.of(fileId), exportService.deletedFileIds,
-			"Cleanup must still delete the partial file when the file-for-fetch future completed exceptionally."
-		);
+		final GenericEvitaInternalError failure = assertThrows(GenericEvitaInternalError.class, task::call);
+		assertEquals("Failed to retrieve the traffic recording export file after successful creation!",
+			failure.getPublicMessage());
+		assertFalse(Files.exists(this.zipFile), "a failed upload must remove its staging file");
+		assertTrue(exportService.deletedFileIds.isEmpty(), "a failed upload has no published descriptor to delete");
+	}
+
+	/** A refusal must remove only its own unpublished archive and sidecar. */
+	@Test
+	@DisplayName("should refuse an oversized export and preserve an older file")
+	void shouldRefuseOversizedExportAndPreserveOlderFile() throws Exception {
+		final TestPaths paths = createTestPaths("traffic-export-limit");
+		final ImmediateScheduledThreadPoolExecutor executor = new ImmediateScheduledThreadPoolExecutor();
+		executor.setThreadFactory(Thread.ofPlatform().daemon(true).factory());
+		final Scheduler scheduler = new Scheduler(executor);
+		try (
+			final FileManagementService management = new FileManagementService(
+				StorageOptions.builder().workDirectory(paths.work()).build());
+			final ExportFileService service = new ExportFileService(
+				FileSystemExportOptions.builder().directory(paths.export()).sizeLimitBytes(1024).build(), scheduler)
+		) {
+			final ExportFileHandle older = service.storeFile("older.zip", null, "application/zip", null);
+			older.outputStream().write(42);
+			older.close();
+			final TrafficRecordingExportTask task = new TrafficRecordingExportTask(
+				CATALOG_NAME, CHUNK_SIZE, engine(management, scheduler, 16384), service);
+			task.transitionToIssued();
+			final ExportFileTooLargeException failure = assertThrows(ExportFileTooLargeException.class, task::call);
+			assertEquals("The traffic recording export of catalog `testCatalog` was stopped because it exceeded " +
+				"the export storage limit of 1 KB; the server would delete a larger file. No recording was " +
+				"created. Increase `export.fileSystem.sizeLimitBytes` in the server configuration " +
+				"(or `EVITADB_EXPORT_FILESYSTEM_SIZELIMITBYTES`) and restart the server.", failure.getPublicMessage());
+			assertEquals(List.of(older.fileForFetchFuture().join()),
+				service.listFilesToFetch(1, 10, Set.of()).getData());
+			try (final Stream<Path> files = Files.list(paths.export())) {
+				assertEquals(2, files.filter(Files::isRegularFile)
+					.filter(it -> !it.getFileName().toString().equals(".lock")).count());
+			}
+		} finally {
+			scheduler.shutdownNow();
+			cleanupTestPaths(paths);
+		}
+	}
+
+	/** A close-time write failure leaves an open real handle that deleteFile cannot find. */
+	@Test
+	@DisplayName("should discard the unpublished file when the zip close fails")
+	void shouldDiscardFileWhenZipCloseFails() throws Exception {
+		final TestPaths paths = createTestPaths("traffic-export-close");
+		final ImmediateScheduledThreadPoolExecutor executor = new ImmediateScheduledThreadPoolExecutor();
+		executor.setThreadFactory(Thread.ofPlatform().daemon(true).factory());
+		final Scheduler scheduler = new Scheduler(executor);
+		try (
+			final FileManagementService management = new FileManagementService(
+				StorageOptions.builder().workDirectory(paths.work()).build());
+			final ExportFileService service = new ExportFileService(
+				FileSystemExportOptions.builder().directory(paths.export()).build(), scheduler)
+		) {
+			final TrafficRecordingExportTask task = new TrafficRecordingExportTask(
+				CATALOG_NAME, 1, engine(management, scheduler, 1, 200), new FailingWriteService(service));
+			task.transitionToIssued();
+			assertThrows(UnexpectedIOException.class, task::call);
+			try (final Stream<Path> files = Files.list(paths.export())) {
+				assertEquals(0, files.filter(Files::isRegularFile)
+					.filter(it -> !it.getFileName().toString().equals(".lock")).count());
+			}
+		} finally {
+			scheduler.shutdownNow();
+			cleanupTestPaths(paths);
+		}
+	}
+
+	/** Supplies deterministic incompressible bytes through the real zip machinery. */
+	@Nonnull
+	private static TrafficRecordingEngine engine(
+		@Nonnull FileManagementService management, @Nonnull Scheduler scheduler, int payloadSize
+	) {
+		return engine(management, scheduler, payloadSize, 1);
+	}
+
+	/** Produces enough independent zip entries to reach the backend while writing the central directory. */
+	@Nonnull
+	private static TrafficRecordingEngine engine(
+		@Nonnull FileManagementService management, @Nonnull Scheduler scheduler, int payloadSize, int sessionCount
+	) {
+		final EvitaConfiguration configuration = EvitaConfiguration.builder()
+			.server(ServerOptions.builder().trafficRecording(TrafficRecordingOptions.builder().enabled(false).build())
+				.build()).build();
+		return new TrafficRecordingEngine(CATALOG_NAME, CatalogState.ALIVE, TracingContextProvider.getContext(),
+			configuration, management, scheduler) {
+			/** {@inheritDoc} */
+			@Override
+			@Nonnull
+			public ExportSummary exportTrafficRecording(
+				@Nonnull ExportedSessionConsumer consumer, @Nonnull ExportProgressListener listener
+			) throws IOException {
+				final byte[] payload = new byte[payloadSize];
+				new Random(42).nextBytes(payload);
+				for (int i = 0; i < sessionCount; i++) {
+					consumer.accept(i + 1L, output -> output.write(payload));
+				}
+				return new ExportSummary(sessionCount, (long) payloadSize * sessionCount, 0, sessionCount);
+			}
+		};
+	}
+
+	/** Retains the real export lifecycle while failing a central-directory write at close. */
+	private static class FailingWriteService implements ExportService {
+		@Delegate private final ExportService delegate;
+
+		/** Wraps the storage service without replacing its cleanup. */
+		private FailingWriteService(@Nonnull ExportService delegate) {
+			this.delegate = delegate;
+		}
+
+		/** {@inheritDoc} */
+		@Override
+		@Nonnull
+		public ExportFileHandle storeFile(
+			@Nonnull String name, @Nullable String description, @Nonnull String type, @Nullable String origin
+		) {
+			return new FailingWriteHandle(this.delegate.storeFile(name, description, type, origin));
+		}
+	}
+
+	/** Fails writes without closing the handle, just as a failing zip finish does. */
+	private static class FailingWriteHandle implements ExportFileHandle {
+		@Delegate private final ExportFileHandle delegate;
+
+		/** Keeps discard delegated to the real handle. */
+		private FailingWriteHandle(@Nonnull ExportFileHandle delegate) {
+			this.delegate = delegate;
+		}
+
+		/** {@inheritDoc} */
+		@Override
+		@Nonnull
+		public OutputStream outputStream() {
+			return new FilterOutputStream(this.delegate.outputStream()) {
+				/** {@inheritDoc} */
+				@Override
+				public void write(@Nonnull byte[] bytes, int offset, int length) throws IOException {
+					final boolean finishing = StackWalker.getInstance().walk(frames -> frames.anyMatch(frame ->
+						frame.getClassName().equals(ZipOutputStream.class.getName()) &&
+							frame.getMethodName().equals("finish")));
+					if (finishing) {
+						throw new IOException("zip close write failed");
+					}
+					this.out.write(bytes, offset, length);
+				}
+			};
+		}
 	}
 
 	@Nonnull
@@ -306,13 +458,15 @@ class TrafficRecordingExportTaskTest {
 
 	/**
 	 * {@link ExportFileHandle} backed by a real temporary file so the task's zip machinery has a genuine
-	 * sink to write into, with a caller-controllable file-for-fetch future used to model both the finished
-	 * and the already-registered-but-failed states.
+	 * sink to write into. Closing publishes or fails the future, while discard removes an open unpublished file.
 	 */
 	private static class FakeExportFileHandle implements ExportFileHandle {
 		private final UUID fileId;
 		private final Path targetFile;
 		private final CompletableFuture<FileForFetch> future = new CompletableFuture<>();
+		@Nullable private IOException finalizationFailure;
+		@Nullable private OutputStream rawOutput;
+		private boolean closed;
 
 		private FakeExportFileHandle(@Nonnull UUID fileId, @Nonnull Path targetFile) {
 			this.fileId = fileId;
@@ -347,7 +501,23 @@ class TrafficRecordingExportTaskTest {
 		@Override
 		public OutputStream outputStream() {
 			try {
-				return Files.newOutputStream(this.targetFile);
+				this.rawOutput = Files.newOutputStream(this.targetFile);
+				return new FilterOutputStream(this.rawOutput) {
+					@Override
+					public void close() throws IOException {
+						if (!FakeExportFileHandle.this.closed) {
+							FakeExportFileHandle.this.closed = true;
+							super.close();
+							if (FakeExportFileHandle.this.finalizationFailure == null) {
+								FakeExportFileHandle.this.future.complete(fileForFetch(FakeExportFileHandle.this.fileId));
+							} else {
+								Files.deleteIfExists(FakeExportFileHandle.this.targetFile);
+								FakeExportFileHandle.this.future.completeExceptionally(
+									FakeExportFileHandle.this.finalizationFailure);
+							}
+						}
+					}
+				};
 			} catch (IOException e) {
 				throw new UnexpectedIOException(
 					"Failed to open the test export file for writing.",
@@ -364,8 +534,21 @@ class TrafficRecordingExportTaskTest {
 
 		@Override
 		public boolean discard() {
-			// This fixture models a descriptor that is already published; retain the delete-file assertions.
-			return false;
+			if (this.closed) {
+				return false;
+			}
+			this.closed = true;
+			try {
+				if (this.rawOutput != null) {
+					this.rawOutput.close();
+				}
+				Files.deleteIfExists(this.targetFile);
+				this.future.cancel(false);
+				return true;
+			} catch (IOException exception) {
+				throw new UnexpectedIOException(
+					"Failed to discard test export.", "Failed to discard test export.", exception);
+			}
 		}
 
 		@Override

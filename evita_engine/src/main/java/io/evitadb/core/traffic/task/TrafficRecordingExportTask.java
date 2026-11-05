@@ -23,6 +23,7 @@
 
 package io.evitadb.core.traffic.task;
 
+import io.evitadb.api.exception.ExportFileTooLargeException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.api.traffic.TrafficRecordingExporter;
@@ -33,8 +34,10 @@ import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.core.traffic.TrafficRecordingExportSettings;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.spi.export.ExportFileCleanup;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.spi.export.model.SizeCappedOutputStream;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 
@@ -101,13 +104,21 @@ public class TrafficRecordingExportTask extends ClientCallableTask<TrafficRecord
 			this.getClass().getSimpleName()
 		);
 
+		final SizeCappedOutputStream cap = SizeCappedOutputStream.of(
+			exportFileHandle, limit -> new ExportFileTooLargeException(
+				"The traffic recording export of catalog `" + settings.catalogName() + "`",
+				limit.configuredLimitInBytes(), limit.configurationProperty()
+			)
+		);
+
 		try {
-			try (ExportSink sink = new ExportSink(exportFileHandle, settings.chunkFileSizeInBytes())) {
+			try (ExportSink sink = new ExportSink(cap, settings.chunkFileSizeInBytes())) {
 				final ExportSummary summary = this.trafficRecordingEngine.exportTrafficRecording(
 					sink::exportSession,
 					(processed, total) -> this.updateProgress(total == 0 ? 100 : (processed * 100) / total)
 				);
 				sink.finish(summary);
+				cap.markFinished();
 			} catch (IOException e) {
 				throw new UnexpectedIOException(
 					"Failed to export traffic recording for catalog `" + settings.catalogName() + "`: " + e.getMessage(),
@@ -116,6 +127,7 @@ public class TrafficRecordingExportTask extends ClientCallableTask<TrafficRecord
 				);
 			}
 
+			cap.checkFailure();
 			try {
 				// bound the wait so a stalled async publish (e.g. a hung upload) cannot pin this task thread
 				// indefinitely; on timeout the outer catch deletes the partial file and rethrows
@@ -129,18 +141,11 @@ public class TrafficRecordingExportTask extends ClientCallableTask<TrafficRecord
 				);
 			}
 		} catch (RuntimeException exception) {
-			// delete the partial export file so it does not leak in the export storage. Use fileId() directly
-			// (always available) rather than getNow(null) on the file-for-fetch future: if finalization
-			// completed exceptionally, getNow rethrows a CompletionException that would both mask `exception`
-			// and skip this cleanup. Deletion failures are swallowed so they never mask the primary failure.
-			try {
-				this.exportService.deleteFile(exportFileHandle.fileId());
-			} catch (RuntimeException cleanupFailure) {
-				log.warn(
-					"Failed to delete partial traffic recording export file `{}`.",
-					exportFileHandle.fileId(), cleanupFailure
-				);
-			}
+			ExportFileCleanup.abandon(
+				exportFileHandle, this.exportService,
+				"a failed traffic recording export of catalog `" + settings.catalogName() + "`", exception
+			);
+			cap.rethrowFailure(exception, isCancellationDriven(exception));
 			throw exception;
 		}
 	}
@@ -156,9 +161,9 @@ public class TrafficRecordingExportTask extends ClientCallableTask<TrafficRecord
 		private final OffsetDateTime startTime = OffsetDateTime.now();
 		private long currentChunkSize = -1L;
 
-		ExportSink(@Nonnull ExportFileHandle exportFileHandle, long chunkFileSizeInBytes) {
+		ExportSink(@Nonnull OutputStream outputStream, long chunkFileSizeInBytes) {
 			this.chunkFileSizeInBytes = chunkFileSizeInBytes;
-			this.outputStream = new ZipOutputStream(new BufferedOutputStream(exportFileHandle.outputStream()));
+			this.outputStream = new ZipOutputStream(new BufferedOutputStream(outputStream));
 		}
 
 		/**
