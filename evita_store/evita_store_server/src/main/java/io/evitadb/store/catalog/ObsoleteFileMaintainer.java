@@ -233,6 +233,11 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 				}
 			);
 			this.maintainedFiles.add(fileToMaintain);
+			// Retirements are handed over when the record superseding the file is published, which can be long after
+			// the last reader of the version left - and the readers' departure is the only other event that runs a
+			// purge. Without a pass of its own, a file whose readers are all gone would wait for an unrelated session
+			// to end.
+			this.purgeTask.trySchedule();
 		}
 	}
 
