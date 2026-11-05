@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.catalog.task;
+package io.evitadb.spi.export.model;
 
 import io.evitadb.api.exception.ExportFileTooLargeException;
 import org.junit.jupiter.api.*;

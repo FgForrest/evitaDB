@@ -21,25 +21,22 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.catalog.task;
+package io.evitadb.spi.export.model;
 
 import io.evitadb.api.exception.ExportFileTooLargeException;
-import io.evitadb.spi.export.model.ExportFileHandle;
-import io.evitadb.spi.export.model.ExportFileSizeLimit;
-import io.evitadb.utils.FileUtils;
-import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.file.Path;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
  * Counts archive bytes between the buffer and the export handle, refusing a whole chunk that would exceed its cap.
+ * An export is a file the engine produces for a user rather than catalog storage, which is why this stream lives here.
  * After refusal it swallows writes and flushes and never closes the handle, leaving it unpublished for discard.
  *
  * Stream operations throw the refusal only once: throwing the same instance during try-with-resources cleanup
@@ -50,9 +47,8 @@ import java.util.function.Supplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@Slf4j
 @NotThreadSafe
-final class SizeCappedOutputStream extends OutputStream {
+public final class SizeCappedOutputStream extends OutputStream {
 	/** Backend sink, left open for discard once the allowance is exceeded. */
 	private final OutputStream delegate;
 	/** Payload allowance in bytes, after any backend metadata reserve. */
@@ -61,8 +57,11 @@ final class SizeCappedOutputStream extends OutputStream {
 	private final Supplier<ExportFileTooLargeException> failureSupplier;
 	/** Accepted bytes, subtracted from the allowance to check crossings without overflow. */
 	private long written;
-	/** Original refusal retained for task cleanup after subsequent stream operations stop throwing. */
-	@Nullable private ExportFileTooLargeException failure;
+	/**
+	 * Original refusal retained for task cleanup after subsequent stream operations stop throwing. Volatile because a
+	 * traffic recording writes from the ring buffer's thread and its task reads the verdict from its own.
+	 */
+	@Nullable private volatile ExportFileTooLargeException failure;
 
 	/** Creates a cap without measuring storage until a write actually crosses it. */
 	SizeCappedOutputStream(
@@ -73,30 +72,23 @@ final class SizeCappedOutputStream extends OutputStream {
 		this.failureSupplier = failureSupplier;
 	}
 
-	/** Creates the shared backup cap with a lazy, best-effort catalog size for the operator's message. */
+	/** Creates an export cap, building the refusal only when a write crosses the handle's allowance. */
 	@Nonnull
-	static SizeCappedOutputStream forBackup(
-		@Nonnull ExportFileHandle handle, @Nonnull String catalogName, @Nonnull Path catalogStoragePath
+	public static SizeCappedOutputStream of(
+		@Nonnull ExportFileHandle handle,
+		@Nonnull Function<ExportFileSizeLimit, ExportFileTooLargeException> refusal
 	) {
 		final ExportFileSizeLimit limit = handle.sizeLimit();
-		return new SizeCappedOutputStream(handle.outputStream(), limit.maxFileSizeInBytes(), () -> {
-			Long onDiskSize = null;
-			try {
-				onDiskSize = FileUtils.getDirectorySize(catalogStoragePath);
-			} catch (Exception exception) {
-				log.warn("Failed to measure catalog storage for refused backup of `{}`.", catalogName, exception);
-			}
-			return new ExportFileTooLargeException(
-				catalogName, limit.configuredLimitInBytes(), limit.configurationProperty(), onDiskSize
-			);
-		});
+		return new SizeCappedOutputStream(
+			handle.outputStream(), limit.maxFileSizeInBytes(), () -> refusal.apply(limit)
+		);
 	}
 
 	/**
 	 * Rethrows the remembered refusal, if any, so that swallowing the first one can never turn the archive into a
 	 * successful backup.
 	 */
-	void checkFailure() {
+	public void checkFailure() {
 		if (this.failure != null) {
 			throw this.failure;
 		}
@@ -110,7 +102,7 @@ final class SizeCappedOutputStream extends OutputStream {
 	 * @param caught             the exception the task's failure path caught
 	 * @param cancellationDriven whether `caught` is, or wraps, the cancellation itself
 	 */
-	void rethrowFailure(@Nonnull Exception caught, boolean cancellationDriven) {
+	public void rethrowFailure(@Nonnull Exception caught, boolean cancellationDriven) {
 		if (this.failure != null && !cancellationDriven) {
 			if (caught != this.failure) {
 				this.failure.addSuppressed(caught);

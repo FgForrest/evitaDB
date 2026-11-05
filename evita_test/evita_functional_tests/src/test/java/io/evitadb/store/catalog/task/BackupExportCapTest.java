@@ -27,6 +27,7 @@ import io.evitadb.api.exception.ExportFileTooLargeException;
 import io.evitadb.export.file.ExportFileService;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.spi.export.model.SizeCappedOutputStream;
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;
@@ -48,7 +49,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(STORAGE)
 @Tag(EXPORT)
 @DisplayName("Backup size cap factory")
-class SizeCappedOutputStreamFactoryTest extends BackupTaskExportFixture {
+class BackupExportCapTest extends BackupTaskExportFixture {
 	/** Gives the real handle a small payload allowance without changing its lifecycle. */
 	@BeforeEach
 	void configureAllowance() {
@@ -69,7 +70,7 @@ class SizeCappedOutputStreamFactoryTest extends BackupTaskExportFixture {
 			final Path directory = Files.createDirectory(paths.work().resolve("measured-catalog"));
 			final Path payload = Files.write(directory.resolve("payload"), new byte[17]);
 			final ExportFileHandle handle = exports.storeFile("lazy.zip", null, "application/zip", null);
-			try (final SizeCappedOutputStream cap = SizeCappedOutputStream.forBackup(handle, TEST_CATALOG, directory)) {
+			try (final SizeCappedOutputStream cap = BackupExportCap.forBackup(handle, TEST_CATALOG, directory)) {
 				Files.write(payload, new byte[37]);
 
 				final ExportFileTooLargeException failure = assertThrows(
@@ -94,7 +95,7 @@ class SizeCappedOutputStreamFactoryTest extends BackupTaskExportFixture {
 				inaccessibleDirectory = fileSystem.getPath("/");
 			}
 			final ExportFileHandle handle = exports.storeFile("unavailable.zip", null, "application/zip", null);
-			try (final SizeCappedOutputStream cap = SizeCappedOutputStream.forBackup(
+			try (final SizeCappedOutputStream cap = BackupExportCap.forBackup(
 				handle, TEST_CATALOG, inaccessibleDirectory
 			)) {
 				final ExportFileTooLargeException failure = assertThrows(

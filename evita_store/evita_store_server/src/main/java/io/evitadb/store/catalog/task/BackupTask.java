@@ -32,8 +32,10 @@ import io.evitadb.core.executor.Interruptible;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.spi.export.ExportFileCleanup;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.spi.export.model.SizeCappedOutputStream;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
@@ -220,7 +222,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 			);
 
 			final Path catalogStoragePath = defaultCatalogPersistenceService.getCatalogStoragePath();
-			final SizeCappedOutputStream cap = SizeCappedOutputStream.forBackup(
+			final SizeCappedOutputStream cap = BackupExportCap.forBackup(
 				exportFileHandle, this.catalogName, catalogStoragePath
 			);
 			try {
@@ -310,7 +312,9 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				// Covered by BackupTaskCancellationTest#shouldDeleteRegisteredExportFileWhenBackupInterrupted, which
 				// only fails against a freshly woven module - a stale jar reports it green
 
-				BackupExportCleanup.abandon(exportFileHandle, exportService, this.catalogName, exception);
+				ExportFileCleanup.abandon(
+					exportFileHandle, exportService, "a failed backup of catalog `" + this.catalogName + "`", exception
+				);
 
 				// the cap knows why the write stopped; the exception caught here may have replaced its refusal
 				cap.rethrowFailure(exception, isCancellationDriven(exception));

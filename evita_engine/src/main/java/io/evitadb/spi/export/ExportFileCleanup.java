@@ -21,47 +21,47 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.catalog.task;
+package io.evitadb.spi.export;
 
 import io.evitadb.api.file.FileForFetch;
-import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 
 /**
- * The part of the failure path both backup tasks share: removing what a failed backup left in the export storage.
+ * Removes what a failed export left in the export storage without replacing its original failure.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-final class BackupExportCleanup {
+public final class ExportFileCleanup {
 
 	/**
-	 * Removes the export of a failed backup, without ever replacing the reason the backup failed.
+	 * Removes a failed export without ever replacing the reason it failed.
 	 *
 	 * A failed write leaves the handle open: `ZipOutputStream#close` skips `out.close()` if `finish()` throws. Neither
 	 * the future nor `deleteFile` sees that file, so it has to be discarded. What is left is a file already published.
 	 * Its future is read by state, because an upload that failed completes it exceptionally and `getNow` would then
-	 * replace the primary failure. A delete that fails is only attached to the primary failure, because a purge or a
-	 * client may simply have removed the file first.
+	 * replace the primary failure. A delete that fails is logged and attached to the primary failure when one is
+	 * available, because a purge or a client may simply have removed the file first.
 	 *
-	 * @param handle        the export the backup was writing
+	 * @param handle        the export being written
 	 * @param exportService the service holding the export
-	 * @param catalogName   the catalog being backed up
-	 * @param failure       the reason the backup failed
+	 * @param description   what failed, for the cleanup log message
+	 * @param failure       the reason the export failed, or null when no exception is available
 	 */
-	static void abandon(
+	public static void abandon(
 		@Nonnull ExportFileHandle handle,
 		@Nonnull ExportService exportService,
-		@Nonnull String catalogName,
-		@Nonnull Exception failure
+		@Nonnull String description,
+		@Nullable Exception failure
 	) {
 		if (!handle.discard()) {
 			final CompletableFuture<FileForFetch> published = handle.fileForFetchFuture();
@@ -71,10 +71,12 @@ final class BackupExportCleanup {
 					exportService.deleteFile(publishedFile.fileId());
 				} catch (RuntimeException cleanupFailure) {
 					log.warn(
-						"Failed to delete the published file `{}` of a failed backup of catalog `{}`.",
-						publishedFile.fileId(), catalogName, cleanupFailure
+						"Failed to delete the published file `{}` of {}.",
+						publishedFile.fileId(), description, cleanupFailure
 					);
-					failure.addSuppressed(cleanupFailure);
+					if (failure != null) {
+						failure.addSuppressed(cleanupFailure);
+					}
 				}
 			}
 		}

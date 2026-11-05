@@ -30,8 +30,10 @@ import io.evitadb.core.executor.ClientCallableTask;
 import io.evitadb.core.executor.Interruptible;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.spi.export.ExportFileCleanup;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.spi.export.model.SizeCappedOutputStream;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.store.catalog.CatalogDirectoryReadHold;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
@@ -164,7 +166,7 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 			);
 
 			final Path catalogStoragePath = defaultCatalogPersistenceService.getCatalogStoragePath();
-			final SizeCappedOutputStream cap = SizeCappedOutputStream.forBackup(
+			final SizeCappedOutputStream cap = BackupExportCap.forBackup(
 				exportFileHandle, this.catalogName, catalogStoragePath
 			);
 			try {
@@ -209,7 +211,9 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 				}
 			} catch (Exception exception) {
 				// remove the files
-				BackupExportCleanup.abandon(exportFileHandle, exportFileService, this.catalogName, exception);
+				ExportFileCleanup.abandon(
+					exportFileHandle, exportFileService, "a failed backup of catalog `" + this.catalogName + "`", exception
+				);
 
 				// the cap knows why the write stopped; the exception caught here may have replaced its refusal
 				cap.rethrowFailure(exception, isCancellationDriven(exception));
