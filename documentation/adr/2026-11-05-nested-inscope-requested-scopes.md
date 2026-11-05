@@ -1,7 +1,7 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
-date: 2026-11-04
-updated: 2026-11-04 23:55
+date: 2026-11-05
+updated: 2026-11-05 10:11
 status: accepted
 kind: fix
 issues: [1880]
@@ -268,3 +268,4 @@ scope, and the composer of the query has to leave the container out.
 - **2026-11-04** — #1880 analysed; the first implementation (Option C) replaced by Option A after review; the pre-flight
   and the refusal of an inert `scope` added after a second review, every filter of the require section after a third;
   #1883 split off; PR #1884 opened.
+- **2026-11-05** — PR #1884 merged.

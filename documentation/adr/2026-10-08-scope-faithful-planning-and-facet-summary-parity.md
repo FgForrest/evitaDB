@@ -9,7 +9,7 @@ prs: [1720]
 areas: [evita_engine/core/query, evita_engine/core/query/indexSelection, evita_engine/core/query/filter, evita_engine/core/query/filter/translator/behavioral, evita_engine/core/query/filter/translator/facet, evita_engine/core/query/filter/translator/hierarchy, evita_engine/core/query/filter/translator/reference, evita_engine/core/query/algebra/facet, evita_engine/core/query/extraResult/translator/reference, evita_engine/core/query/extraResult/translator/hierarchyStatistics, evita_engine/core/query/sort, evita_engine/core/query/fetch, evita_engine/core/collection, evita_engine/index/facet, evita_engine/index/hierarchy/predicate, evita_engine/index/usage, evita_query/api/query, evita_query/api/query/require, evita_api/api/requestResponse/extraResult, evita_external_api/evita_external_api_core, evita_external_api/evita_external_api_grpc, documentation/user/en/query]
 supersedes: []
 superseded-by: []
-relates: [2026-11-04-nested-inscope-requested-scopes, 2026-10-20-reference-content-filter-row-by-row, 2026-08-19-per-schema-capability-usage-statistics, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-25-attribute-is-null-in-reference-having]
+relates: [2026-11-05-nested-inscope-requested-scopes, 2026-10-20-reference-content-filter-row-by-row, 2026-08-19-per-schema-capability-usage-statistics, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-25-attribute-is-null-in-reference-having]
 ---
 
 # Every requested scope is planned, checked and counted as if it were queried alone, and the facet summary predicts exactly what `facetHaving` selects
@@ -471,7 +471,7 @@ The remaining time is not yet attributed; see *Consequences*.
 
 ## Related work
 
-- `2026-11-04-nested-inscope-requested-scopes`: corrects how "as if it were queried alone" is to be read. It holds for what a pass searches, and not for
+- `2026-11-05-nested-inscope-requested-scopes`: corrects how "as if it were queried alone" is to be read. It holds for what a pass searches, and not for
   what the query requests: the residual check of this record narrowed both, which refused a requested scope.
 - `2026-08-19-per-schema-capability-usage-statistics`: defines the counting unit this record enforces across
   nested, check and fetch-time plans. Its attribution rule for another collection's elements and its empty-plan
