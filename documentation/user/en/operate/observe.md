@@ -476,7 +476,11 @@ And you'll get similar response as when checking if the recording is running:
 ```
 
 The main difference is that the result of a JFR recording task includes a file that you can download from the server or 
-find directly in the server's export folder. The file is automatically removed after a configured period of time.
+find directly in the server's export folder. The file is automatically removed after a configured period of time. The 
+file has to fit into the export storage, whose total size is limited by the `sizeLimitBytes` setting of the 
+[file system](configure.md#file-system-export-configuration) or [S3](configure.md#s3-export-configuration) export 
+configuration. A recording that would exceed the limit stops as soon as it crosses it: it keeps nothing, and the task 
+fails with an error that names the setting to raise.
 
 <Note type="info">
 
@@ -636,7 +640,11 @@ in production. In production you'll probably want to set a sampling rate using `
 Besides having access to the `Active Traffic Recording` tab in evitaLab, where you can list through all sessions, 
 queries, mutations and entity fetches, you can also issue a traffic reporting task that will save the traffic data in 
 a ZIP file and make it available for download. This file can be used for further analysis or to replay the traffic on 
-different evitaDB instances.
+different evitaDB instances. The file has to fit into the export storage, whose total size is limited by the 
+`sizeLimitBytes` setting of the [file system](configure.md#file-system-export-configuration) or 
+[S3](configure.md#s3-export-configuration) export configuration. A recording that would exceed the limit stops as soon as
+it crosses it: it keeps nothing, and the task fails with an error that names the setting to raise. The same applies to 
+the on-demand export described below.
 
 The recorded traffic can be browsed and filtered in evitaLab and any query can be easily executed in the corresponding 
 query console on the current dataset. Records can also be filtered by custom [labels](../query/header/label.md#label), 
