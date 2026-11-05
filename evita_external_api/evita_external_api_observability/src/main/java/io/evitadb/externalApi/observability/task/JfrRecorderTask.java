@@ -175,7 +175,9 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 						);
 					}
 				} catch (Exception exception) {
-					ExportFileCleanup.abandon(exportFileHandle, this.exportService, "a failed JFR recording", exception);
+					ExportFileCleanup.abandon(
+						exportFileHandle, this.exportService, "a failed JFR recording", exception
+					);
 					cap.rethrowFailure(exception, isCancellationDriven(exception));
 					if (exception instanceof RuntimeException runtimeException) {
 						throw runtimeException;

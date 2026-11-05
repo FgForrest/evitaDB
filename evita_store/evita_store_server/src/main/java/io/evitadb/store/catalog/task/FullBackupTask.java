@@ -214,7 +214,8 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 			} catch (Exception exception) {
 				// remove the files
 				ExportFileCleanup.abandon(
-					exportFileHandle, exportFileService, "a failed backup of catalog `" + this.catalogName + "`", exception
+					exportFileHandle, exportFileService,
+					"a failed backup of catalog `" + this.catalogName + "`", exception
 				);
 
 				// the cap knows why the write stopped; the exception caught here may have replaced its refusal

@@ -50,7 +50,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.BufferedOutputStream;
 import java.io.Closeable;
-import java.io.FileNotFoundException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -217,11 +216,6 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 				recordingFailure = new GenericEvitaInternalError(
 					"Traffic recording task finished abnormally (interrupt).", e);
 				throw recordingFailure;
-			} catch (FileNotFoundException e) {
-				recordingFailure = new GenericEvitaInternalError(
-					"Traffic recording task finished abnormally: " + e.getMessage(),
-					"Traffic recording task finished abnormally.", e);
-				throw recordingFailure;
 			} catch (RuntimeException exception) {
 				recordingFailure = exception;
 				throw exception;
@@ -381,7 +375,7 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 			@Nonnull IntConsumer updateProgress,
 			@Nonnull ExportFileHandle exportFileHandle,
 			@Nonnull OutputStream outputStream
-		) throws FileNotFoundException {
+		) {
 			this.diskBufferSizeInBytes = diskBufferSizeInBytes;
 			// export by 64kB or half of the disk buffer size if it's lower
 			this.nonExportedSizeLimit = Math.min(65_536L, diskBufferSizeInBytes / 2);

@@ -36,6 +36,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * Record that represents single file stored in the server export file available for download.
@@ -59,6 +60,8 @@ public record FileForFetch(
 	@Nullable String[] origin
 ) implements Serializable {
 	public static final String METADATA_EXTENSION = ".metadata";
+	/** Compiled once because every descriptor field of every instance passes through {@link #singleLine(String)}. */
+	private static final Pattern LINE_BREAKS = Pattern.compile("[\\r\\n]+");
 
 	/** Normalizes descriptor strings to preserve the positional, one-field-per-line sidecar format. */
 	public FileForFetch {
@@ -77,7 +80,7 @@ public record FileForFetch(
 	 */
 	@Nonnull
 	public static String singleLine(@Nonnull String value) {
-		return value.replaceAll("[\\r\\n]+", " ");
+		return LINE_BREAKS.matcher(value).replaceAll(" ");
 	}
 
 	/**
