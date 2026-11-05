@@ -100,7 +100,7 @@ class BackupTaskExportCleanupTest extends BackupTaskExportFixture {
 		@DisplayName("should leave nothing behind when the full backup is cancelled right after allocation")
 		void shouldLeaveNothingBehindWhenFullBackupCancelledDuringAllocation() throws IOException {
 			final AtomicReference<FullBackupTask> taskReference = new AtomicReference<>();
-			final CancellingExportService cancellingExports = new CancellingExportService(
+			final CancelOnAllocationExportService cancellingExports = new CancelOnAllocationExportService(
 				exports, () -> {
 					assertTrue(taskReference.get().cancel());
 					// in production the cancel interrupts the worker through its execution handle
@@ -131,13 +131,13 @@ class BackupTaskExportCleanupTest extends BackupTaskExportFixture {
 			}
 		}
 
-		/** An interrupted body stays unpublished, so cleanup must discard even if published-file deletion would fail. */
+		/** An interrupted body stays unpublished, so cleanup must discard even if deleting a published file fails. */
 		@Test
 		@DisplayName("should stay cancelled while discarding without deleting a published file")
 		void shouldStayCancelledWhenDiscardingWithoutPublishedFile() {
 			final AtomicReference<FullBackupTask> taskReference = new AtomicReference<>();
 			final AtomicInteger deleteAttempts = new AtomicInteger();
-			final CancellingExportService undeletableExports = new CancellingExportService(
+			final CancelOnAllocationExportService undeletableExports = new CancelOnAllocationExportService(
 				exports, () -> {
 					assertTrue(taskReference.get().cancel());
 					// in production the cancel interrupts the worker through its execution handle
@@ -173,7 +173,7 @@ class BackupTaskExportCleanupTest extends BackupTaskExportFixture {
 	}
 
 	/** Allocates a real local handle and cancels the task before returning it. */
-	private static class CancellingExportService implements ExportService {
+	private static class CancelOnAllocationExportService implements ExportService {
 		@Delegate private final ExportService delegate;
 		private final Runnable cancellation;
 		private ExportFileHandle handle;
@@ -182,7 +182,7 @@ class BackupTaskExportCleanupTest extends BackupTaskExportFixture {
 		 * @param delegate real local storage
 		 * @param cancellation deterministic post-allocation cancellation
 		 */
-		private CancellingExportService(@Nonnull ExportService delegate, @Nonnull Runnable cancellation) {
+		private CancelOnAllocationExportService(@Nonnull ExportService delegate, @Nonnull Runnable cancellation) {
 			this.delegate = delegate;
 			this.cancellation = cancellation;
 		}

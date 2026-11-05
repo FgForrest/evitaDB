@@ -70,8 +70,6 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.EXPORT;
 import static io.evitadb.test.TestTags.TRAFFIC_ENGINE;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pins the export-file cleanup decision of the live traffic-recording task

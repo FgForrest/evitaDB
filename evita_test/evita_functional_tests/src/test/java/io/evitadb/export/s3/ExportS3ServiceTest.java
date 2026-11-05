@@ -79,6 +79,7 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
@@ -309,6 +310,9 @@ class ExportS3ServiceTest {
 			final long started = System.nanoTime();
 			handle.close();
 			final FileForFetch file = handle.fileForFetchFuture().get(30, TimeUnit.SECONDS);
+			assertTrue(relay.pacedReads.get() * 100L >= 3000,
+				"the PUT response must be long enough for its pacing to outlast the request timeout: " +
+					relay.pacedReads.get() + " paced reads");
 			assertTrue(System.nanoTime() - started >= TimeUnit.SECONDS.toNanos(3),
 				"the upload must take longer than its three-second request timeout");
 			assertEquals(payload.length, file.totalSizeInBytes());
@@ -328,6 +332,8 @@ class ExportS3ServiceTest {
 		private final ServerSocket listener;
 		private final Thread worker;
 		private final AtomicReference<Exception> failure = new AtomicReference<>();
+		/** PUT response reads so far, each delayed by 100 ms: a read may return fewer bytes than its chunk holds. */
+		private final AtomicInteger pacedReads = new AtomicInteger();
 
 		/** Starts the single daemon relay worker on an ephemeral local port. */
 		private SlowResponseRelay() throws IOException {
@@ -377,6 +383,7 @@ class ExportS3ServiceTest {
 							if (paced) {
 								// This models network latency, with progress far more often than the socket timeout.
 								Thread.sleep(100);
+								this.pacedReads.incrementAndGet();
 							}
 							source.write(chunk, 0, length);
 							source.flush();

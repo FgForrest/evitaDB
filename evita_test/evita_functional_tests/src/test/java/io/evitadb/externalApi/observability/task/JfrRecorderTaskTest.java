@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -111,7 +112,7 @@ class JfrRecorderTaskTest implements EvitaTestSupport {
 				task.stop();
 				final FileForFetch result = task.getFutureResult().get(1, TimeUnit.MINUTES);
 				assertNotNull(result, "a stopped JFR task must return its published file");
-				assertEquals(java.util.List.of(result), service.listFilesToFetch(1, 10, Set.of()).getData());
+				assertEquals(List.of(result), service.listFilesToFetch(1, 10, Set.of()).getData());
 				assertNoTemporaryRecording();
 			} finally {
 				worker.join(60000);
@@ -165,7 +166,7 @@ class JfrRecorderTaskTest implements EvitaTestSupport {
 				task.stop();
 				final FileForFetch result = task.getFutureResult().get(1, TimeUnit.MINUTES);
 				assertNotNull(result, "a JFR task must wait for S3 publication");
-				assertEquals(java.util.List.of(result), service.listFilesToFetch(1, 10, Set.of()).getData());
+				assertEquals(List.of(result), service.listFilesToFetch(1, 10, Set.of()).getData());
 				service.deleteFile(result.fileId());
 				assertNoTemporaryRecording();
 			} finally {
