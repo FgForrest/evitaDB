@@ -1,7 +1,7 @@
 ---
 title: An export that cannot fit the export storage stops at the limit and names the setting to raise
 date: 2026-11-05
-updated: 2026-11-05 11:45
+updated: 2026-11-05 12:20
 status: accepted
 kind: fix
 issues: [1881]
@@ -175,9 +175,10 @@ timer.
   finished while a cancel landed in the task's wait.
 - **A handle belongs to the thread writing it.** `close` and `discard` deliberately do not guard against racing each
   other; `cancel()` never touches the handle. `TrafficRecorderTask` is the one caller with two threads: the ring
-  buffer's thread writes and the task's thread reads the refusal, which is why that field is volatile. Its wait on the
-  latch is the one place where the interrupt itself unwinds the task, so a cancel in the instant after the cap tripped
-  and before the latch released reads as a cancel, not as the refusal. The client asked for that, and nothing is kept.
+  buffer's thread writes and the task's thread reads the verdict, which is why the refusal and the delegate failure are
+  volatile. Its wait on the latch is the one place where the interrupt itself unwinds the task, so a cancel in the
+  instant after the cap tripped and before the latch released reads as a cancel, not as the refusal. The client asked
+  for that, and nothing is kept.
 - **`TrafficRecorderTask` waits for its file.** `getNow` was null while S3 uploaded, and the cleanup then took a healthy
   export for a leaked one. The wait has the same one-hour bound as `TrafficRecordingExportTask`.
 - **A failed sidecar write removes both files** and fails the future, so nothing waits forever and nothing counts
