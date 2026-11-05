@@ -131,8 +131,9 @@ the limit is crossed, and the task is the only place that knows the catalog and 
   limit is therefore refused although it would have survived. That is deliberate: the timestamp's fractional digits are
   not known until the file closes, and admitting a file the purge then deletes is the worse error. S3 has no sidecars
   and allows the whole limit.
-- **The failure path reads the future by state,** not with `getNow`: an upload that failed completes it exceptionally,
-  and `getNow` would replace the primary failure with a `CompletionException` the client sees as "unknown reasons".
+- **`BackupExportCleanup#abandon` reads the future by state,** not with `getNow`: an upload that failed completes it
+  exceptionally, and `getNow` would replace the primary failure with a `CompletionException` the client sees as "unknown
+  reasons".
 - **A handle belongs to the thread writing it.** `close` and `discard` deliberately do not guard against racing each
   other; `cancel()` never touches the handle.
 - The environment variable in the message is derived the way `EvitaServer#transformEnvironmentVariable` derives it.
@@ -149,14 +150,14 @@ watched go red for the stated reason.
 - `BackupTaskS3SizeLimitTest` (7): both tasks refused with the S3 property, no object, no temp file; both upload when
   admitted. Without the wait, the admitted full backup fails with `File for fetch should be generated in close method`.
   An upload the storage really refuses, on a bucket removed under the service, is reported rather than masked.
-- `BackupTaskCancellationTest` (4): an interrupt, and a cancelled future whose exception wraps it, stay what they were
+- `BackupTaskCancellationTest` (5): an interrupt, and a cancelled future whose exception wraps it, stay what they were
   while the cap trips during `close`. Without the guard the status reads as a too-large failure.
 - `ExportFileServiceTest$SizeLimit` (3): a file of exactly the allowance survives a purge, also with multi-byte
   metadata. A fixed 4 KiB reserve leaves 883 B unused and fails; counting characters instead of bytes loses the file to
   the purge.
-- `SizeCappedOutputStreamTest` (3), `SizeCappedOutputStreamFactoryTest` (2), `ExportFileTooLargeExceptionTest` (2).
-- `BackupTaskExportCleanupTest` (3), `ExportFileServiceTest$Discard` and `ExportS3ServiceTest$Discard` (2 each): a
-  failed write leaves no zip and no sidecar, on both backends.
+- `SizeCappedOutputStreamTest` (9), `SizeCappedOutputStreamFactoryTest` (2), `ExportFileTooLargeExceptionTest` (2).
+- `BackupTaskExportCleanupTest` (4), `ExportFileServiceTest$Discard` and `ExportS3ServiceTest$Discard` (2 each): a
+  failed write leaves no zip and no sidecar, on both backends, and a failing delete does not replace the failure.
 - `CatalogRestoreToVersionExportLimitTest` (2): a refused restore shows the exact message through the sequence, the
   target serves all its brands and accepts a write, no scratch catalog, no archive, the retention floor released; after
   raising the limit and restarting, the same restore succeeds.
@@ -166,8 +167,16 @@ watched go red for the stated reason.
 - **"Admitted implies kept" holds in isolation only.** Two concurrent exports that each fit can still evict older
   exports or each other, and an unfinished file counts on the file system. Reference-counting the export directory is
   its own piece of work.
-- **S3 cancelled-backup upload race.** After an interrupt the zip closes normally and the upload starts, `getNow(null)`
-  is null, nothing is deleted, and a truncated archive may appear later. Read from code, not run.
+- **S3 upload race on a failed backup.** After any failure in the backup body, an interrupt among them, the zip closes
+  normally and the upload starts, the future is still pending, nothing is deleted, and a truncated archive may be listed
+  later. A tripped cap cannot reach this, because it never closes the handle. Read from code, not run.
+- **A cancel during a point-in-time backup's record copy reads as a failure.** `WriteOnlyFileHandle#checkAndExecute`
+  catches the woven `InterruptedException` and rethrows `GenericEvitaInternalError` without a cause, also at two sibling
+  sites, so `isCancellationDriven` answers `false`: the future is cancelled, while the status reads as a failure and
+  logs at ERROR. Passing the cause would fix it. Read from code, not run.
+- **The S3 upload timeout covers the whole upload.** `S3UploadOutputStream#close` applies `.orTimeout` with
+  `requestTimeoutInMillis`, 30 s by default, so on the default 1 GiB limit an admitted backup needs about 36 MB/s or it
+  fails. Full backups meet this now that they wait for the upload. Read from code, not run.
 - **Embedded newlines break sidecar round-tripping** (`FileForFetch#fromLines`). The reserve counts those bytes
   correctly; the parsing defect predates this work.
 - **Traffic tasks' orphan on a failed write.** `TrafficRecordingExportTask` and `TrafficRecorderTask` have the same hole

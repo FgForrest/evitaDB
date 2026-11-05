@@ -49,8 +49,6 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongFunction;
@@ -211,16 +209,7 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 				}
 			} catch (Exception exception) {
 				// remove the files
-				// A failed write leaves the handle open: ZipOutputStream.close skips out.close() if finish() throws.
-				// Neither the future nor deleteFile sees that file, so it has to be discarded. What is left is a file
-				// already published. Its future is read by state, because an upload that failed completes it
-				// exceptionally and getNow would then replace the primary failure.
-				if (!exportFileHandle.discard()) {
-					final CompletableFuture<FileForFetch> published = exportFileHandle.fileForFetchFuture();
-					if (published.state() == Future.State.SUCCESS) {
-						exportFileService.deleteFile(published.resultNow().fileId());
-					}
-				}
+				BackupExportCleanup.abandon(exportFileHandle, exportFileService, this.catalogName, exception);
 
 				// the cap knows why the write stopped; the exception caught here may have replaced its refusal
 				cap.rethrowFailure(exception, isCancellationDriven(exception));

@@ -26,6 +26,7 @@ package io.evitadb.store.catalog.task;
 import io.evitadb.api.exception.ExportFileTooLargeException;
 import org.junit.jupiter.api.*;
 
+import javax.annotation.Nonnull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -92,6 +93,103 @@ class SizeCappedOutputStreamTest {
 		void shouldRejectCrossingSingleByte() throws IOException {
 			assertRefusal(true);
 		}
+
+		@Test
+		@DisplayName("should let an empty file through a zero cap and refuse its first byte")
+		void shouldAdmitOnlyEmptyFileWhenCapIsZero() throws IOException {
+			final RecordingStream emptySink = new RecordingStream();
+			final SizeCappedOutputStream emptyCap = new SizeCappedOutputStream(emptySink, 0, () -> {
+				fail("an empty file does not cross a zero cap");
+				return null;
+			});
+			emptyCap.write(new byte[0]);
+			emptyCap.flush();
+			emptyCap.close();
+			assertEquals(1, emptySink.flushes);
+			assertTrue(emptySink.closed);
+			assertDoesNotThrow(emptyCap::checkFailure);
+
+			final RecordingStream refusingSink = new RecordingStream();
+			final SizeCappedOutputStream refusingCap = trippableCap(refusingSink, 0);
+			assertThrows(ExportFileTooLargeException.class, () -> refusingCap.write(1));
+			assertEquals(0, refusingSink.size());
+		}
+
+		@Test
+		@DisplayName("should reject an out-of-range slice without counting it against the cap")
+		void shouldStayUsableWhenSliceIsOutOfRange() throws IOException {
+			final RecordingStream sink = new RecordingStream();
+			final SizeCappedOutputStream cap = trippableCap(sink, 2);
+			assertThrows(IndexOutOfBoundsException.class, () -> cap.write(new byte[]{1, 2}, 1, 2));
+			assertEquals(0, sink.size());
+			cap.write(new byte[]{1, 2});
+			assertArrayEquals(new byte[]{1, 2}, sink.toByteArray());
+			assertDoesNotThrow(cap::checkFailure);
+		}
+	}
+
+	@Nested
+	@DisplayName("Failure rethrow")
+	class FailureRethrow {
+		@Test
+		@DisplayName("should do nothing when the cap never tripped")
+		void shouldReturnWhenCapDidNotTrip() {
+			final SizeCappedOutputStream cap = trippableCap(new RecordingStream(), 2);
+			final RuntimeException caught = new RuntimeException("unrelated failure");
+			assertDoesNotThrow(() -> cap.rethrowFailure(caught, false));
+			assertDoesNotThrow(() -> cap.rethrowFailure(caught, true));
+			assertEquals(0, caught.getSuppressed().length);
+		}
+
+		@Test
+		@DisplayName("should leave the cancellation in charge when it is what unwound the task")
+		void shouldReturnWhenCancellationDriven() {
+			final SizeCappedOutputStream cap = trippableCap(new RecordingStream(), 0);
+			final ExportFileTooLargeException refusal = trip(cap);
+			final RuntimeException cancellation = new RuntimeException(new InterruptedException("cancelled"));
+			assertDoesNotThrow(() -> cap.rethrowFailure(cancellation, true));
+			assertEquals(0, refusal.getSuppressed().length);
+		}
+
+		@Test
+		@DisplayName("should restore the refusal and retain the exception that replaced it")
+		void shouldRethrowRefusalWithReplacementSuppressed() {
+			final SizeCappedOutputStream cap = trippableCap(new RecordingStream(), 0);
+			final ExportFileTooLargeException refusal = trip(cap);
+			final RuntimeException replacement = new RuntimeException("flush lost the cause");
+			assertSame(
+				refusal,
+				assertThrows(ExportFileTooLargeException.class, () -> cap.rethrowFailure(replacement, false))
+			);
+			assertArrayEquals(new Throwable[]{replacement}, refusal.getSuppressed());
+		}
+
+		@Test
+		@DisplayName("should not suppress the refusal in itself when it reached the task unchanged")
+		void shouldRethrowRefusalWithoutSelfSuppression() {
+			final SizeCappedOutputStream cap = trippableCap(new RecordingStream(), 0);
+			final ExportFileTooLargeException refusal = trip(cap);
+			assertSame(
+				refusal,
+				assertThrows(ExportFileTooLargeException.class, () -> cap.rethrowFailure(refusal, false))
+			);
+			assertEquals(0, refusal.getSuppressed().length);
+		}
+
+		/** Trips the cap with a write no cap below 16 bytes admits, and returns the remembered refusal. */
+		@Nonnull
+		private static ExportFileTooLargeException trip(@Nonnull SizeCappedOutputStream cap) {
+			return assertThrows(ExportFileTooLargeException.class, () -> cap.write(new byte[16]));
+		}
+	}
+
+	/** Builds a cap whose refusal needs no storage measurement, for tests that do not inspect the supplier. */
+	@Nonnull
+	private static SizeCappedOutputStream trippableCap(@Nonnull RecordingStream sink, long allowance) {
+		return new SizeCappedOutputStream(
+			sink, allowance,
+			() -> new ExportFileTooLargeException("test", allowance, "export.fileSystem.sizeLimitBytes", null)
+		);
 	}
 
 	/** Checks every call after the first refusal, including the explicit post-close safety check. */

@@ -902,7 +902,7 @@ public class ExportS3Service implements ExportService {
 	 * @param fileId             ID of the file
 	 * @param fileForFetchFuture Future that will be completed when the file is uploaded
 	 * @param objectKey          S3 object key
-	 * @param sizeLimit          Payload allowance without a sidecar reserve
+	 * @param sizeLimit          Whole configured limit; nothing is reserved because metadata lives on the object
 	 * @param outputStream       Output stream the file can be written to
 	 */
 	public record ExportFileHandleS3(

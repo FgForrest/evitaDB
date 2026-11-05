@@ -68,7 +68,8 @@ public interface ExportFileHandle extends AutoCloseable {
 	 *
 	 * The future completes with a {@link FileForFetch} descriptor that can be used by higher
 	 * layers to make the file available for clients (e.g. HTTP download). If finalization fails,
-	 * the future completes exceptionally.
+	 * the future completes exceptionally. If the export is abandoned through {@link #discard()},
+	 * the future is cancelled.
 	 *
 	 * @return a future providing the {@link FileForFetch} once the file is ready
 	 */

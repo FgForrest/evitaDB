@@ -193,6 +193,38 @@ class BackupTaskCancellationTest {
 				"an interrupted backup left its partially written file registered as a fetchable backup"
 			);
 		}
+
+		@Test
+		@DisplayName("keeps the interrupt when deleting the published file fails")
+		void shouldKeepInterruptWhenCleanupDeleteFails() {
+			// a purge tick or a client may have removed the file first; that must not replace why the backup stopped
+			final UUID fileId = UUID.randomUUID();
+			final FakeExportFileHandle handle = new FakeExportFileHandle(
+				fileId, BackupTaskCancellationTest.this.zipFile
+			);
+			handle.fileForFetchFuture().complete(fileForFetch(fileId));
+			final RecordingExportService exportService = new RecordingExportService(handle) {
+				@Override
+				public void deleteFile(@Nonnull UUID id) throws FileForFetchNotFoundException {
+					super.deleteFile(id);
+					throw new FileForFetchNotFoundException(id);
+				}
+			};
+
+			final InterruptedException interrupt = new InterruptedException("simulated interrupt");
+			final BackupTask task = failingBackupTask(exportService, interrupt);
+
+			final UnexpectedIOException raised = assertThrows(
+				UnexpectedIOException.class, task::call,
+				"the failed delete must not replace the interrupt that aborted the backup"
+			);
+			assertSame(interrupt, raised.getCause(), "the rewrap lost the interrupt that aborted the backup");
+			assertEquals(List.of(fileId), exportService.deletedFileIds, "the cleanup must have attempted the delete");
+			assertTrue(
+				Arrays.stream(interrupt.getSuppressed()).anyMatch(FileForFetchNotFoundException.class::isInstance),
+				"the failed delete must stay visible on the primary failure"
+			);
+		}
 	}
 
 	@Nested

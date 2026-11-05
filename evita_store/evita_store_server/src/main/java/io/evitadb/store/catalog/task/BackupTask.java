@@ -70,8 +70,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.LongFunction;
@@ -311,16 +309,8 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				// the file for fetch, so users are offered a backup missing most of its entries.
 				// Covered by BackupTaskCancellationTest#shouldDeleteRegisteredExportFileWhenBackupInterrupted, which
 				// only fails against a freshly woven module - a stale jar reports it green
-				// A failed write leaves the handle open: ZipOutputStream.close skips out.close() if finish() throws.
-				// Neither the future nor deleteFile sees that file, so it has to be discarded. What is left is a file
-				// already published. Its future is read by state, because an upload that failed completes it
-				// exceptionally and getNow would then replace the primary failure.
-				if (!exportFileHandle.discard()) {
-					final CompletableFuture<FileForFetch> published = exportFileHandle.fileForFetchFuture();
-					if (published.state() == Future.State.SUCCESS) {
-						exportService.deleteFile(published.resultNow().fileId());
-					}
-				}
+
+				BackupExportCleanup.abandon(exportFileHandle, exportService, this.catalogName, exception);
 
 				// the cap knows why the write stopped; the exception caught here may have replaced its refusal
 				cap.rethrowFailure(exception, isCancellationDriven(exception));

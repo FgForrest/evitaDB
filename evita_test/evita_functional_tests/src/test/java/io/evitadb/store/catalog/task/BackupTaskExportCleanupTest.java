@@ -23,6 +23,7 @@
 
 package io.evitadb.store.catalog.task;
 
+import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
@@ -38,7 +39,9 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
@@ -94,8 +97,8 @@ class BackupTaskExportCleanupTest extends BackupTaskExportFixture {
 	@DisplayName("Cancellation during export allocation")
 	class CancellationDuringAllocation {
 		@Test
-		@DisplayName("should discard the full backup allocated just before cancellation")
-		void shouldDiscardFullBackupWhenCancelledDuringAllocation() throws IOException {
+		@DisplayName("should leave nothing behind when the full backup is cancelled right after allocation")
+		void shouldLeaveNothingBehindWhenFullBackupCancelledDuringAllocation() throws IOException {
 			final AtomicReference<FullBackupTask> taskReference = new AtomicReference<>();
 			final CancellingExportService cancellingExports = new CancellingExportService(
 				exports, () -> {
@@ -124,6 +127,45 @@ class BackupTaskExportCleanupTest extends BackupTaskExportFixture {
 				Thread.interrupted();
 				if (cancellingExports.handle != null) {
 					cancellingExports.handle.discard();
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("should stay cancelled when deleting the archive the unwinding zip published fails")
+		void shouldStayCancelledWhenCleanupDeleteFails() {
+			final AtomicReference<FullBackupTask> taskReference = new AtomicReference<>();
+			final AtomicInteger deleteAttempts = new AtomicInteger();
+			final CancellingExportService undeletableExports = new CancellingExportService(
+				exports, () -> {
+					assertTrue(taskReference.get().cancel());
+					// in production the cancel interrupts the worker through its execution handle
+					Thread.currentThread().interrupt();
+				}
+			) {
+				@Override
+				public void deleteFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException {
+					deleteAttempts.incrementAndGet();
+					throw new FileForFetchNotFoundException(fileId);
+				}
+			};
+			final FullBackupTask task = new FullBackupTask(TEST_CATALOG, undeletableExports, persistence, null);
+			taskReference.set(task);
+			task.transitionToIssued();
+			try {
+				task.execute();
+
+				assertTrue(task.getFutureResult().isCancelled());
+				assertEquals(
+					"Task was cancelled.", task.getStatus().publicExceptionMessage(),
+					"the failed delete must not turn the cancellation into a failure"
+				);
+				assertEquals(1, deleteAttempts.get(), "the zip's close must publish, leaving the delete to clean up");
+			} finally {
+				// the interrupt must not leak into the next test, and neither may the handle if an assertion failed
+				Thread.interrupted();
+				if (undeletableExports.handle != null) {
+					undeletableExports.handle.discard();
 				}
 			}
 		}

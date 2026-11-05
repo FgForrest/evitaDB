@@ -31,6 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Path;
@@ -50,6 +51,7 @@ import java.util.function.Supplier;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Slf4j
+@NotThreadSafe
 final class SizeCappedOutputStream extends OutputStream {
 	/** Backend sink, left open for discard once the allowance is exceeded. */
 	private final OutputStream delegate;
@@ -90,7 +92,10 @@ final class SizeCappedOutputStream extends OutputStream {
 		});
 	}
 
-	/** Ensures that swallowing the first refusal can never turn the archive into a successful backup. */
+	/**
+	 * Rethrows the remembered refusal, if any, so that swallowing the first one can never turn the archive into a
+	 * successful backup.
+	 */
 	void checkFailure() {
 		if (this.failure != null) {
 			throw this.failure;
