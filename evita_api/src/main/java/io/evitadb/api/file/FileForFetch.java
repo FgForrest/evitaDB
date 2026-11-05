@@ -60,22 +60,24 @@ public record FileForFetch(
 ) implements Serializable {
 	public static final String METADATA_EXTENSION = ".metadata";
 
-	public FileForFetch(
-		@Nonnull UUID fileId,
-		@Nonnull String name,
-		@Nullable String description,
-		@Nonnull String contentType,
-		long totalSizeInBytes,
-		@Nonnull OffsetDateTime created,
-		@Nullable String[] origin
-	) {
-		this.fileId = fileId;
-		this.name = FileUtils.convertToSupportedName(name);
-		this.description = description;
-		this.contentType = contentType;
-		this.totalSizeInBytes = totalSizeInBytes;
-		this.created = created;
-		this.origin = origin;
+	/** Normalizes descriptor strings to preserve the positional, one-field-per-line sidecar format. */
+	public FileForFetch {
+		name = FileUtils.convertToSupportedName(singleLine(name));
+		description = description == null ? null : singleLine(description);
+		contentType = singleLine(contentType);
+		origin = origin == null ? null : Arrays.stream(origin).map(FileForFetch::singleLine).toArray(String[]::new);
+	}
+
+	/**
+	 * Replaces each run of line breaks with a space. A line break would shift the fields of a positional sidecar, and
+	 * S3 refuses an upload whose user metadata holds one.
+	 *
+	 * @param value text to normalize
+	 * @return text that occupies a single metadata line
+	 */
+	@Nonnull
+	public static String singleLine(@Nonnull String value) {
+		return value.replaceAll("\\R+", " ");
 	}
 
 	/**

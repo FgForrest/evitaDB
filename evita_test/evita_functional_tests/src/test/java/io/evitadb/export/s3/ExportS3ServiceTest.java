@@ -260,6 +260,21 @@ class ExportS3ServiceTest {
 		this.s3Client.close();
 	}
 
+	/** Exercises user metadata containing a line break through the real S3 client. */
+	@Test
+	@DisplayName("Should upload a description containing a line break")
+	void shouldUploadDescriptionContainingLineBreak() throws Exception {
+		final ExportFileHandle handle = this.exportService.storeFile(
+			"line-break.zip", "first\nsecond", "application/zip", "backup"
+		);
+		try (final OutputStream output = handle.outputStream()) {
+			output.write(new byte[]{1, 2, 3});
+		}
+		final FileForFetch file = handle.fileForFetchFuture().get(30, TimeUnit.SECONDS);
+		assertEquals("first second", file.description());
+		assertEquals(1, this.exportService.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount());
+	}
+
 	/**
 	 * Discard closes local resources without initiating an S3 upload.
 	 */

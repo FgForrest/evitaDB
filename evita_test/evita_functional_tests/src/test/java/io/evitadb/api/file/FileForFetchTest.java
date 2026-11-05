@@ -69,6 +69,36 @@ class FileForFetchTest implements EvitaTestSupport {
 		);
 	}
 
+	/** All descriptor strings must occupy one physical line in positional sidecar metadata. */
+	@Test
+	@DisplayName("Should normalize line breaks in every descriptor string")
+	void shouldNormalizeLineBreaksInEveryDescriptorString() {
+		final FileForFetch file = new FileForFetch(
+			FILE_ID, "first\nsecond\r\nthird\rfourth.zip", "first\nsecond\r\nthird\rfourth",
+			"application/\n\r\n\rzip", SIZE, CREATED, new String[]{"first\n\r\n\rsecond", "third\u2028fourth"}
+		);
+		assertEquals("first second third fourth", file.description());
+		assertEquals("first_second_third_fourth.zip", file.name());
+		assertEquals("application/ zip", file.contentType());
+		assertArrayEquals(new String[]{"first second", "third fourth"}, file.origin());
+		final FileForFetch restored = FileForFetch.fromLines(file.toLines().stream().flatMap(String::lines).toList());
+		assertEquals(file.toLines(), restored.toLines());
+	}
+
+	/** Covers every Unicode line-break form accepted by the positional metadata normalizer. */
+	@Test
+	@DisplayName("Should collapse runs of line breaks to a single space")
+	void shouldCollapseRunsOfLineBreaksToSingleSpace() {
+		for (final String lineBreak : List.of(
+			"\n", "\r\n", "\r", "\u0085", "\u2028", "\u2029", String.valueOf((char) 11), "\f"
+		)) {
+			assertEquals("first second", FileForFetch.singleLine("first" + lineBreak + lineBreak + "second"));
+		}
+		assertEquals("unchanged", FileForFetch.singleLine("unchanged"));
+		assertEquals("", FileForFetch.singleLine(""));
+		assertEquals(" first ", FileForFetch.singleLine("\nfirst\r\n"));
+	}
+
 	@Nested
 	@DisplayName("Construction")
 	class ConstructionTest {

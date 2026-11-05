@@ -381,11 +381,11 @@ public class ExportS3Service implements ExportService {
 		// Prepare user metadata
 		final Map<String, String> userMetadata = CollectionUtils.createHashMap(8);
 		userMetadata.put(META_FILE_ID, fileId.toString());
-		userMetadata.put(META_NAME, fileName);
-		userMetadata.put(META_DESCRIPTION, description != null ? description : "");
-		userMetadata.put(META_CONTENT_TYPE, contentType);
+		userMetadata.put(META_NAME, FileForFetch.singleLine(fileName));
+		userMetadata.put(META_DESCRIPTION, description != null ? FileForFetch.singleLine(description) : "");
+		userMetadata.put(META_CONTENT_TYPE, FileForFetch.singleLine(contentType));
 		userMetadata.put(META_CREATED, created.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
-		userMetadata.put(META_ORIGIN, origin != null ? origin : "");
+		userMetadata.put(META_ORIGIN, origin != null ? FileForFetch.singleLine(origin) : "");
 
 		// Parse origin tags
 		final String[] originTags = origin == null ? null : Arrays.stream(origin.split(","))

@@ -115,6 +115,35 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		this.scheduler.shutdownNow();
 	}
 
+	/** A restarted service must read line-break metadata and retain a payload of exactly its allowance. */
+	@Test
+	@DisplayName("Should retain an export with line breaks after reopening and purging")
+	void shouldRetainExportWithLineBreaksAfterReopeningAndPurging() throws IOException {
+		final ExportFileHandle handle = this.exportService.storeFile(
+			"first\nsecond\r\nthird\rfourth.zip", "first\nsecond\r\nthird\rfourth", "application/zip", "backup"
+		);
+		final byte[] payload = new byte[Math.toIntExact(handle.sizeLimit().maxFileSizeInBytes())];
+		try (final OutputStream output = handle.outputStream()) {
+			output.write(payload);
+		}
+		this.exportService.close();
+		this.exportService = new ExportFileService(this.exportOptions, this.scheduler);
+		assertEquals(1, this.exportService.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount(),
+			"the export must still be listed after reopening");
+		final FileForFetch restored = this.exportService.getFile(handle.fileId()).orElseThrow();
+		assertEquals("first second third fourth", restored.description());
+		assertEquals("first_second_third_fourth.zip", restored.name());
+		this.exportService.purgeFiles();
+		assertTrue(this.exportService.getFile(handle.fileId()).isPresent(),
+			"a file of exactly the allowance must survive purge");
+		try (final InputStream input = this.exportService.fetchFile(handle.fileId())) {
+			assertArrayEquals(payload, input.readAllBytes());
+		}
+		final long sidecarBytes = Files.size(restored.metadataPath(this.exportOptions.getDirectory()));
+		final long unused = this.exportOptions.getSizeLimitBytes() - payload.length - sidecarBytes;
+		assertTrue(unused >= 0 && unused <= 64, "sidecar reserve must leave at most 64 bytes unused: " + unused);
+	}
+
 	/** Per-file allowances reserve the bytes used by this export's sidecar. */
 	@Nested
 	@DisplayName("Per-file size limit")
