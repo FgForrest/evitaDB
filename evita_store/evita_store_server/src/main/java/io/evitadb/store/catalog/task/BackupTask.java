@@ -187,7 +187,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 	/**
 	 * Method executes the backup logic for this catalog with particular settings.
 	 *
-	 * @return the path to the created backup file
+	 * @return the descriptor of the created backup archive
 	 */
 	@Nonnull
 	private FileForFetch doBackup() {
@@ -219,13 +219,17 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				this.getClass().getSimpleName()
 			);
 
+			final Path catalogStoragePath = defaultCatalogPersistenceService.getCatalogStoragePath();
+			final SizeCappedOutputStream cap = SizeCappedOutputStream.forBackup(
+				exportFileHandle, this.catalogName, catalogStoragePath
+			);
 			try {
 				try (final Closeables closeables = new Closeables()) {
 					final CatalogOffsetIndexStoragePartPersistenceService catalogOffsetIndexPersistenceService = thePastMoment == null && theHistoricalCatalogVersion == null ?
 						defaultCatalogPersistenceService.getStoragePartPersistenceService(catalogVersion) :
 						closeables.add(defaultCatalogPersistenceService.createCatalogOffsetIndexStoragePartService(this.bootstrapRecord));
 
-					try (ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(exportFileHandle.outputStream()))) {
+					try (ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(cap))) {
 						zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/"));
 						zipOutputStream.closeEntry();
 
@@ -280,6 +284,9 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 					}
 				}
 
+				// a tripped cap never closes the handle, so the wait below would never end if the refusal got lost
+				cap.checkFailure();
+
 				log.info("Backup of catalog `{}` at version {} completed.", this.catalogName, catalogVersion);
 
 				try {
@@ -309,6 +316,9 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 					ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
 						.ifPresent(it -> exportService.deleteFile(it.fileId()));
 				}
+
+				// the cap knows why the write stopped; the exception caught here may have replaced its refusal
+				cap.rethrowFailure(exception, getFutureResult().isCancelled());
 
 				if (exception instanceof RuntimeException re) {
 					throw re;

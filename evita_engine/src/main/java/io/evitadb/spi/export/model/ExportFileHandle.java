@@ -110,6 +110,14 @@ public interface ExportFileHandle extends AutoCloseable {
 	boolean discard();
 
 	/**
+	 * Returns this export's payload allowance, accounting for any backend metadata, and the configured storage limit.
+	 *
+	 * @return the largest file that can survive export storage purging, with its controlling configuration property
+	 */
+	@Nonnull
+	ExportFileSizeLimit sizeLimit();
+
+	/**
 	 * Output stream for writing the contents of the exported file.
 	 *
 	 * The returned stream is managed by this handle and remains valid until {@link #close()} is

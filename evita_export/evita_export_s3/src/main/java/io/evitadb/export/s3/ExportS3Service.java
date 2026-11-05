@@ -34,6 +34,7 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.export.s3.configuration.S3ExportOptions;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.spi.export.model.ExportFileSizeLimit;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;
@@ -419,6 +420,9 @@ public class ExportS3Service implements ExportService {
 					return fileForFetch;
 				}),
 			objectKey,
+			new ExportFileSizeLimit(
+				this.s3Options.getSizeLimitBytes(), this.s3Options.getSizeLimitBytes(), "export.s3.sizeLimitBytes"
+			),
 			uploadOutputStream
 		);
 	}
@@ -898,12 +902,14 @@ public class ExportS3Service implements ExportService {
 	 * @param fileId             ID of the file
 	 * @param fileForFetchFuture Future that will be completed when the file is uploaded
 	 * @param objectKey          S3 object key
+	 * @param sizeLimit          Payload allowance without a sidecar reserve
 	 * @param outputStream       Output stream the file can be written to
 	 */
 	public record ExportFileHandleS3(
 		@Nonnull UUID fileId,
 		@Nonnull CompletableFuture<FileForFetch> fileForFetchFuture,
 		@Nonnull String objectKey,
+		@Nonnull ExportFileSizeLimit sizeLimit,
 		@Nonnull S3UploadOutputStream outputStream
 	) implements ExportFileHandle {
 

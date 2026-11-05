@@ -1496,7 +1496,10 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	) throws TemporalDataNotAvailableException;
 
 	/**
-	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 * Creates a backup task whose result describes the generated zip file.
+	 *
+	 * A backup task or its future fails with {@link io.evitadb.api.exception.ExportFileTooLargeException} when the
+	 * archive would not fit in export storage. Raise the export storage size limit and restart the server to retry.
 	 *
 	 * @param pastMoment     leave null for creating backup for actual dataset, or specify past moment to create backup for
 	 *                       the dataset as it was at that moment
@@ -1504,7 +1507,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 *                       when set not null, the pastMoment parameter is ignored
 	 * @param includingWAL   if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
 	 *                       restored, it'll replay the WAL contents locally to bring the catalog to the current state
-	 * @return jobId of the backup process
+	 * @return the backup task whose result is the generated file descriptor
 	 * @throws TemporalDataNotAvailableException when the past data is not available
 	 */
 	@Nonnull
@@ -1515,12 +1518,15 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	) throws TemporalDataNotAvailableException;
 
 	/**
-	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 * Creates a full backup task whose result describes the generated zip file.
 	 * Full backup includes all data files, WAL files, and the catalog header file from the catalog storage.
 	 * After restoring catalog from the full backup, the catalog will contain all the data - so you should be able to
 	 * create even point-in-time backups from it.
 	 *
-	 * @return jobId of the backup process
+	 * A backup task or its future fails with {@link io.evitadb.api.exception.ExportFileTooLargeException} when the
+	 * archive would not fit in export storage. Raise the export storage size limit and restart the server to retry.
+	 *
+	 * @return the backup task whose result is the generated file descriptor
 	 */
 	@Nonnull
 	Task<?, FileForFetch> fullBackupCatalog();

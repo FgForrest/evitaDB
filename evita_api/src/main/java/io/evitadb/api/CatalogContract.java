@@ -370,7 +370,10 @@ public interface CatalogContract {
 	Stream<CatalogBoundMutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion);
 
 	/**
-	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 * Creates a backup task whose result describes the generated zip file.
+	 *
+	 * A backup task or its future fails with {@link io.evitadb.api.exception.ExportFileTooLargeException} when the
+	 * archive would not fit in export storage. Raise the export storage size limit and restart the server to retry.
 	 *
 	 * @param pastMoment     leave null for creating backup for actual dataset, or specify past moment to create backup for
 	 *                       the dataset as it was at that moment
@@ -380,7 +383,7 @@ public interface CatalogContract {
 	 *                       restored, it'll replay the WAL contents locally to bring the catalog to the current state
 	 * @param onStart        holds the version being copied against reclamation; the lease it returns is closed by
 	 *                       the task's tear-down, whether the backup finished, failed or was never queued
-	 * @return jobId of the backup process
+	 * @return the backup task whose result is the generated file descriptor
 	 * @throws TemporalDataNotAvailableException when the past data is not available
 	 */
 	@Nonnull
@@ -419,14 +422,17 @@ public interface CatalogContract {
 	) throws TemporalDataNotAvailableException;
 
 	/**
-	 * Creates a full backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 * Creates a full backup task whose result describes the generated zip file.
 	 * Full backup includes all data files, WAL files, and the catalog header file from the catalog storage.
 	 * After restoring catalog from the full backup, the catalog will contain all the data - so you should be able to
 	 * create even point-in-time backups from it.
 	 *
+	 * A backup task or its future fails with {@link io.evitadb.api.exception.ExportFileTooLargeException} when the
+	 * archive would not fit in export storage. Raise the export storage size limit and restart the server to retry.
+	 *
 	 * @param onStart        holds the version being copied against reclamation; the lease it returns is closed by
 	 *                       the task's tear-down, whether the backup finished, failed or was never queued
-	 * @return jobId of the backup process
+	 * @return the backup task whose result is the generated file descriptor
 	 */
 	@Nonnull
 	ServerTask<?, FileForFetch> fullBackup(

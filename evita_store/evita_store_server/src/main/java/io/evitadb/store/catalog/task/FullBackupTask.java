@@ -143,13 +143,14 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 	/**
 	 * Method executes the backup logic for this catalog with particular settings.
 	 *
-	 * @return the path to the created backup file
+	 * @return the descriptor of the created backup archive
 	 */
 	@Nonnull
 	private FileForFetch doBackup() {
+		final DefaultCatalogPersistenceService defaultCatalogPersistenceService = this.catalogPersistenceService.get();
 		final ExportService exportFileService = this.exportFileService.get();
 		Assert.isPremiseValid(
-			exportFileService != null,
+			defaultCatalogPersistenceService != null && exportFileService != null,
 			"Backup has already been executed or the task has been interrupted! Resources are cleared!"
 		);
 		try {
@@ -163,15 +164,18 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 				this.getClass().getSimpleName()
 			);
 
+			final Path catalogStoragePath = defaultCatalogPersistenceService.getCatalogStoragePath();
+			final SizeCappedOutputStream cap = SizeCappedOutputStream.forBackup(
+				exportFileHandle, this.catalogName, catalogStoragePath
+			);
 			try {
-				final Path catalogStoragePath = this.catalogPersistenceService.get().getCatalogStoragePath();
 				final AtomicInteger backedUpFiles = new AtomicInteger(0);
 				final int totalFiles;
 				try (Stream<Path> files = Files.walk(catalogStoragePath)) {
 					totalFiles = Math.toIntExact(files.count());
 				}
 
-				try (ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(exportFileHandle.outputStream()))) {
+				try (ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(cap))) {
 					zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/"));
 					zipOutputStream.closeEntry();
 
@@ -188,6 +192,9 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 					backup(catalogStoragePath, zipOutputStream, backedUpFiles, totalFiles, WAL_FILE_SUFFIX, "write-ahead log");
 
 				}
+
+				// a tripped cap never closes the handle, so it must not be mistaken for a finished file below
+				cap.checkFailure();
 
 				log.info("Backup of catalog `{}` completed.", this.catalogName);
 
@@ -206,6 +213,9 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 					ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
 						.ifPresent(it -> exportFileService.deleteFile(it.fileId()));
 				}
+
+				// the cap knows why the write stopped; the exception caught here may have replaced its refusal
+				cap.rethrowFailure(exception, getFutureResult().isCancelled());
 
 				if (exception instanceof RuntimeException re) {
 					throw re;

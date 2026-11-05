@@ -132,6 +132,9 @@ public interface EvitaManagementContract {
 	 * Historical backups are only possible while temporal data (WAL entries, version snapshots) remains available.
 	 * Data purging policies may limit how far back you can create point-in-time backups.
 	 *
+	 * A backup task or its future fails with {@link io.evitadb.api.exception.ExportFileTooLargeException} when the
+	 * archive would not fit in export storage. Raise the export storage size limit and restart the server to retry.
+	 *
 	 * @param catalogName    name of the catalog to backup
 	 * @param pastMoment     timestamp for point-in-time backup, or null for current state
 	 * @param catalogVersion specific catalog version to backup, or null for latest; when specified, `pastMoment` is ignored
@@ -178,6 +181,9 @@ public interface EvitaManagementContract {
 	 *
 	 * Full backups are significantly larger and slower than point-in-time backups. They capture the entire on-disk
 	 * footprint of the catalog, which may include extensive temporal history.
+	 *
+	 * A backup task or its future fails with {@link io.evitadb.api.exception.ExportFileTooLargeException} when the
+	 * archive would not fit in export storage. Raise the export storage size limit and restart the server to retry.
 	 *
 	 * @param catalogName name of the catalog to backup
 	 * @return future that completes with {@link FileForFetch} descriptor when full backup is ready for download

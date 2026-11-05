@@ -23,25 +23,11 @@
 
 package io.evitadb.store.catalog.task;
 
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
-import io.evitadb.core.Evita;
-import io.evitadb.core.catalog.Catalog;
-import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
-import io.evitadb.core.executor.Scheduler;
-import io.evitadb.export.file.ExportFileService;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
-import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
-import io.evitadb.spi.store.catalog.persistence.PersistenceService;
-import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
-import io.evitadb.store.catalog.model.CatalogBootstrap;
-import io.evitadb.store.settings.StorageSettings;
-import io.evitadb.test.Entities;
-import io.evitadb.test.EvitaTestSupport;
 import lombok.experimental.Delegate;
 import org.junit.jupiter.api.*;
 
@@ -51,10 +37,9 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Base64;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static io.evitadb.test.TestTags.EXPORT;
@@ -72,55 +57,13 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(STORAGE)
 @Tag(TASK)
 @Tag(EXPORT)
-class BackupTaskExportCleanupTest implements EvitaTestSupport {
-	private TestPaths paths;
-	private Evita evita;
-	private Scheduler scheduler;
-	private ExportFileService exports;
-	private DefaultCatalogPersistenceService persistence;
+class BackupTaskExportCleanupTest extends BackupTaskExportFixture {
 	private FailingExportService failingExports;
 
-	/**
-	 * Creates a live catalog with incompressible content large enough to overflow the zip's output buffer.
-	 */
+	/** Adds the failing stream to the shared real export service. */
 	@BeforeEach
-	void setUp() {
-		this.paths = createTestPaths(BackupTaskExportCleanupTest.class.getSimpleName());
-		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
-		this.evita.defineCatalog(TEST_CATALOG);
-		final byte[] payload = new byte[64 * 1024];
-		new Random(42).nextBytes(payload);
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.defineEntitySchema(Entities.BRAND).withAttribute("payload", String.class).updateVia(session);
-			session.upsertEntity(
-				session.createNewEntity(Entities.BRAND, 1)
-					.setAttribute("payload", Base64.getEncoder().encodeToString(payload))
-			);
-		});
-		this.evita.updateCatalog(TEST_CATALOG, EvitaSessionContract::goLiveAndClose);
-		final CatalogPersistenceService<?, ?, ?> service =
-			((Catalog) this.evita.getCatalogInstanceOrThrowException(TEST_CATALOG)).getPersistenceService();
-		this.persistence = (DefaultCatalogPersistenceService) service;
-		this.persistence.checkpoint();
-		final ImmediateScheduledThreadPoolExecutor executor = new ImmediateScheduledThreadPoolExecutor();
-		executor.setThreadFactory(Thread.ofPlatform().daemon(true).factory());
-		this.scheduler = new Scheduler(executor);
-		this.exports = new ExportFileService(
-			FileSystemExportOptions.builder().directory(this.paths.work().resolve("failed-exports")).build(),
-			this.scheduler
-		);
+	void setUpFailure() {
 		this.failingExports = new FailingExportService(this.exports);
-	}
-
-	/**
-	 * Releases the real services and deletes only this test's directories.
-	 */
-	@AfterEach
-	void tearDown() {
-		this.exports.close();
-		this.scheduler.shutdownNow();
-		this.evita.close();
-		cleanupTestPaths(this.paths);
 	}
 
 	/**
@@ -143,6 +86,72 @@ class BackupTaskExportCleanupTest implements EvitaTestSupport {
 		void shouldDiscardUnfinishedFullBackupWhenWriteFails() throws IOException {
 			final FullBackupTask task = new FullBackupTask(TEST_CATALOG, failingExports, persistence, null);
 			assertFailedAndClean(task);
+		}
+	}
+
+	/** A cancellation arriving right after allocation must leave nothing behind, however the backup then unwinds. */
+	@Nested
+	@DisplayName("Cancellation during export allocation")
+	class CancellationDuringAllocation {
+		@Test
+		@DisplayName("should discard the full backup allocated just before cancellation")
+		void shouldDiscardFullBackupWhenCancelledDuringAllocation() throws IOException {
+			final AtomicReference<FullBackupTask> taskReference = new AtomicReference<>();
+			final CancellingExportService cancellingExports = new CancellingExportService(
+				exports, () -> {
+					assertTrue(taskReference.get().cancel());
+					// in production the cancel interrupts the worker through its execution handle
+					Thread.currentThread().interrupt();
+				}
+			);
+			final FullBackupTask task = new FullBackupTask(TEST_CATALOG, cancellingExports, persistence, null);
+			taskReference.set(task);
+			task.transitionToIssued();
+			try {
+				task.execute();
+
+				assertTrue(task.getFutureResult().isCancelled());
+				assertNotNull(cancellingExports.handle, "cancellation must follow real handle allocation");
+				try (final Stream<Path> files = Files.list(paths.work().resolve("failed-exports"))) {
+					assertEquals(0L, files.filter(it -> it.toString().endsWith(".zip") ||
+						it.toString().endsWith(FileForFetch.METADATA_EXTENSION)).count(),
+						"cancelled backup must leave no archive or sidecar");
+				}
+				assertEquals(0, exports.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount());
+				assertTrue(exports.getFile(cancellingExports.handle.fileId()).isEmpty());
+			} finally {
+				// the interrupt must not leak into the next test, and neither may the handle if an assertion failed
+				Thread.interrupted();
+				if (cancellingExports.handle != null) {
+					cancellingExports.handle.discard();
+				}
+			}
+		}
+	}
+
+	/** Allocates a real local handle and cancels the task before returning it. */
+	private static class CancellingExportService implements ExportService {
+		@Delegate private final ExportService delegate;
+		private final Runnable cancellation;
+		private ExportFileHandle handle;
+
+		/**
+		 * @param delegate real local storage
+		 * @param cancellation deterministic post-allocation cancellation
+		 */
+		private CancellingExportService(@Nonnull ExportService delegate, @Nonnull Runnable cancellation) {
+			this.delegate = delegate;
+			this.cancellation = cancellation;
+		}
+
+		@Nonnull
+		@Override
+		public ExportFileHandle storeFile(
+			@Nonnull String fileName, @Nullable String description, @Nonnull String contentType, @Nullable String origin
+		) {
+			this.handle = this.delegate.storeFile(fileName, description, contentType, origin);
+			this.cancellation.run();
+			return this.handle;
 		}
 	}
 
@@ -169,29 +178,6 @@ class BackupTaskExportCleanupTest implements EvitaTestSupport {
 		assertEquals(0, this.exports.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount());
 		assertTrue(this.exports.getFile(this.failingExports.handle.fileId()).isEmpty());
 		assertTrue(this.failingExports.handle.fileForFetchFuture().isCancelled());
-	}
-
-	/**
-	 * Reads the last published bootstrap through the storage API, without private-field access.
-	 *
-	 * @return the catalog version to archive
-	 */
-	@Nonnull
-	private CatalogBootstrap bootstrap() throws IOException {
-		final Path directory = this.persistence.getCatalogStoragePath();
-		final String prefix;
-		try (final Stream<Path> files = Files.list(directory)) {
-			prefix = files.map(it -> it.getFileName().toString())
-				.filter(it -> it.endsWith(PersistenceService.BOOT_FILE_SUFFIX))
-				.findFirst().orElseThrow().replace(PersistenceService.BOOT_FILE_SUFFIX, "");
-		}
-		try (final Stream<CatalogBootstrap> records = DefaultCatalogPersistenceService.getCatalogBootstrapRecordStream(
-			prefix, directory,
-			new StorageSettings(this.evita.getConfiguration().storage(), this.evita.getConfiguration().transaction())
-				.modifyForBootstrapFile()
-		)) {
-			return records.toList().getLast();
-		}
 	}
 
 	/**

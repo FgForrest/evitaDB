@@ -34,6 +34,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.spi.export.model.ExportFileSizeLimit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -353,6 +354,12 @@ class TrafficRecordingExportTaskTest {
 					"Failed to open the test export file for writing.", e
 				);
 			}
+		}
+
+		@Nonnull
+		@Override
+		public ExportFileSizeLimit sizeLimit() {
+			return new ExportFileSizeLimit(Long.MAX_VALUE, Long.MAX_VALUE, "export.fileSystem.sizeLimitBytes");
 		}
 
 		@Override

@@ -28,6 +28,7 @@ import io.evitadb.api.file.FileForFetch;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.spi.export.model.ExportFileSizeLimit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -229,6 +230,12 @@ class TrafficRecorderTaskExportCleanupTest {
 		@Override
 		public long size() {
 			throw new UnsupportedOperationException();
+		}
+
+		@Nonnull
+		@Override
+		public ExportFileSizeLimit sizeLimit() {
+			return new ExportFileSizeLimit(Long.MAX_VALUE, Long.MAX_VALUE, "export.fileSystem.sizeLimitBytes");
 		}
 
 		@Override

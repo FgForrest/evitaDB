@@ -32,6 +32,7 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.spi.export.model.ExportFileSizeLimit;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.AfterEach;
@@ -112,6 +113,59 @@ class ExportFileServiceTest implements EvitaTestSupport {
 	void tearDown() {
 		this.exportService.close();
 		this.scheduler.shutdownNow();
+	}
+
+	/** Per-file allowances reserve the bytes used by this export's sidecar. */
+	@Nested
+	@DisplayName("Per-file size limit")
+	class SizeLimit {
+		@Test
+		@DisplayName("should retain a maximum-sized payload together with its sidecar")
+		void shouldRetainMaximumPayloadWithSidecar() throws IOException {
+			assertMaximumPayload("maximum.zip", "description", "backup");
+		}
+
+		@Test
+		@DisplayName("should reserve UTF-8 bytes for multibyte metadata")
+		void shouldReserveUtf8BytesForMultibyteMetadata() throws IOException {
+			// Make the byte/character difference exceed the conservative size and timestamp padding.
+			assertMaximumPayload(
+				"žluťoučký🦊.zip", "説明".repeat(32) + " příliš žluťoučký 🦊", "záloha, 起源🦊"
+			);
+		}
+
+		@Test
+		@DisplayName("should floor the allowance at zero when metadata exceeds the limit")
+		void shouldFloorAllowanceAtZero() {
+			final ExportFileHandle handle = exportService.storeFile(
+				"large.zip", "x".repeat(1100), "application/zip", null
+			);
+			assertEquals(0, handle.sizeLimit().maxFileSizeInBytes());
+			assertTrue(handle.discard());
+		}
+
+		/** Writes the reported allowance and checks retention and reserve tightness. */
+		private void assertMaximumPayload(
+			@Nonnull String name, @Nonnull String description, @Nonnull String origin
+		) throws IOException {
+			final ExportFileHandle handle = exportService.storeFile(name, description, "application/zip", origin);
+			final ExportFileSizeLimit limit = handle.sizeLimit();
+			assertEquals(1000, limit.configuredLimitInBytes());
+			assertEquals("export.fileSystem.sizeLimitBytes", limit.configurationProperty());
+			final byte[] payload = new byte[Math.toIntExact(limit.maxFileSizeInBytes())];
+			handle.outputStream().write(payload);
+			handle.close();
+			exportService.purgeFiles();
+			assertTrue(exportService.getFile(handle.fileId()).isPresent(),
+				"the maximum admitted payload and sidecar must survive purge");
+			try (final InputStream input = exportService.fetchFile(handle.fileId())) {
+				assertArrayEquals(payload, input.readAllBytes());
+			}
+			final long sidecarBytes = Files.size(exportOptions.getDirectory()
+				.resolve(handle.fileId() + FileForFetch.METADATA_EXTENSION));
+			final long unused = limit.configuredLimitInBytes() - payload.length - sidecarBytes;
+			assertTrue(unused >= 0 && unused <= 64, "sidecar reserve must leave at most 64 bytes unused: " + unused);
+		}
 	}
 
 	/**
