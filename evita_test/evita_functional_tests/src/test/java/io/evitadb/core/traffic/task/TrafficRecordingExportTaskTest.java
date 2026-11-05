@@ -54,6 +54,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
@@ -74,6 +75,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -105,6 +107,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(TRAFFIC_ENGINE)
 @Tag(EXPORT)
 @DisplayName("TrafficRecordingExportTask")
+// a task waits an hour for its file, so an export that never publishes must fail here instead of hanging the build
+@Timeout(value = 1, unit = TimeUnit.MINUTES)
 class TrafficRecordingExportTaskTest implements EvitaTestSupport {
 	private static final String CATALOG_NAME = "testCatalog";
 	private static final long CHUNK_SIZE = 1_048_576L;
@@ -125,9 +129,8 @@ class TrafficRecordingExportTaskTest implements EvitaTestSupport {
 	@DisplayName("A successful export writes chunked .bin entries plus metadata and returns the finished file")
 	void shouldExportSessionsAndReturnFinishedFile() throws Exception {
 		final UUID fileId = UUID.randomUUID();
-		final FileForFetch finishedFile = fileForFetch(fileId);
+		// the file is published only when the sink closes the handle, which only a finished body may do
 		final FakeExportFileHandle handle = new FakeExportFileHandle(fileId, this.zipFile);
-		handle.fileForFetchFuture().complete(finishedFile);
 		final RecordingExportService exportService = new RecordingExportService(handle);
 
 		final TrafficRecordingEngine engine = Mockito.mock(TrafficRecordingEngine.class);
@@ -153,7 +156,7 @@ class TrafficRecordingExportTaskTest implements EvitaTestSupport {
 		task.transitionToIssued();
 		final FileForFetch result = task.call();
 
-		assertSame(finishedFile, result, "A successful export must return the finished file-for-fetch.");
+		assertEquals(fileId, result.fileId(), "A successful export must return the finished file-for-fetch.");
 		assertTrue(
 			exportService.deletedFileIds.isEmpty(),
 			"A successful export must not delete its own finished file."
