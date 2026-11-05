@@ -371,8 +371,8 @@ public class ObservabilityManager {
 	/**
 	 * Stops currently running JFR recording and stores recorded content to a file.
 	 *
-	 * The task stores the file after this call returns, so the returned status does not yet say whether it fit in
-	 * export storage: see {@link #start(String[], Long, Long)}.
+	 * The task stores the file asynchronously, so the returned status may not yet say whether it fit in export
+	 * storage: see {@link #start(String[], Long, Long)}.
 	 */
 	@Nonnull
 	public TaskStatus<?, ?> stop() throws JfRException {
