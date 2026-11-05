@@ -277,6 +277,11 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract, Traf
 	/**
 	 * Initiates a recording session for traffic data with the specified parameters.
 	 *
+	 * With `exportFile` set, the returned task or its future fails with
+	 * {@link io.evitadb.api.exception.ExportFileTooLargeException} when the archive would not fit in export storage,
+	 * and nothing is published. Raise the export storage size limit and restart the server to retry. That limit is not
+	 * `recordingSizeLimitInBytes`: reaching that one ends the recording cleanly and keeps the file.
+	 *
 	 * @param samplingRate              Defines the rate at which traffic samples are recorded. The value
 	 *                                  is provided as a percentage (e.g., 1 to 100), where 100 represents
 	 *                                  all traffic being recorded and lower values represent partial sampling.
@@ -323,6 +328,10 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract, Traf
 	 * any singleton-task guard - multiple exports (and an ongoing {@link #startRecording} task) may run
 	 * concurrently, mirroring the always-available access {@link #getRecordings}/{@link #getRecordingsReversed}
 	 * already provide.
+	 *
+	 * The returned task or its future fails with {@link io.evitadb.api.exception.ExportFileTooLargeException} when the
+	 * archive would not fit in export storage, and nothing is published. Raise the export storage size limit and
+	 * restart the server to retry.
 	 *
 	 * @param chunkFileSizeInBytes size of each chunk file used to store the exported data within the resulting
 	 *                             zip archive

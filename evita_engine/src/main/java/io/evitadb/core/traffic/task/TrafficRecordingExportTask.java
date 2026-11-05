@@ -130,7 +130,8 @@ public class TrafficRecordingExportTask extends ClientCallableTask<TrafficRecord
 			cap.checkFailure();
 			try {
 				// bound the wait so a stalled async publish (e.g. a hung upload) cannot pin this task thread
-				// indefinitely; on timeout the outer catch deletes the partial file and rethrows
+				// indefinitely; on timeout the task fails while the upload stays running, because the outer catch
+				// removes only what is already published, so a late finish is listed like any other export
 				return exportFileHandle.fileForFetchFuture().get(1L, TimeUnit.HOURS);
 			} catch (Exception e) {
 				throw new GenericEvitaInternalError(

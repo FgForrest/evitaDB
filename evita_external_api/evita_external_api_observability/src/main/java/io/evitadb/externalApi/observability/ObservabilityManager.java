@@ -337,6 +337,10 @@ public class ObservabilityManager {
 
 	/**
 	 * Starts JFR recording that logs all specified events.
+	 *
+	 * The recording is compressed and stored once it stops. The returned task or its future then fails with
+	 * {@link io.evitadb.api.exception.ExportFileTooLargeException} when the archive would not fit in export storage,
+	 * and nothing is kept. Raise the export storage size limit and restart the server to retry.
 	 */
 	@Nonnull
 	public ServerTask<RecordingSettings, FileForFetch> start(
@@ -366,6 +370,9 @@ public class ObservabilityManager {
 
 	/**
 	 * Stops currently running JFR recording and stores recorded content to a file.
+	 *
+	 * The task stores the file after this call returns, so the returned status does not yet say whether it fit in
+	 * export storage: see {@link #start(String[], Long, Long)}.
 	 */
 	@Nonnull
 	public TaskStatus<?, ?> stop() throws JfRException {

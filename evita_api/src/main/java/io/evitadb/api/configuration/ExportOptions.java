@@ -71,9 +71,10 @@ public abstract class ExportOptions {
 	 * Maximum overall size of the export storage in bytes.
 	 * When this threshold is exceeded, the oldest files will automatically be removed
 	 * until the size drops below the limit.
-	 * A single backup is also bound by this limit. Its task or future fails with
+	 * A single backup, JFR recording or traffic recording is also bound by this limit. Its task or future fails with
 	 * {@link io.evitadb.api.exception.ExportFileTooLargeException} if its archive would not fit.
 	 * Raise the limit and restart the server to retry.
+	 * The backups a catalog migration takes are exempt, so that the limit can never abort an upgrade.
 	 */
 	@Getter
 	private final long sizeLimitBytes;
