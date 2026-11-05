@@ -144,7 +144,25 @@ public class EvitaRequest {
 	@Nullable private Boolean queryTelemetryPlanRequested;
 	@Nullable private Boolean priceHistogramRequested;
 	@Nullable private EnumSet<DebugMode> debugModes;
+	/**
+	 * The {@link #scopes} in the order the query requested them, which a unique lookup prefers them by.
+	 * NULL until {@link #getScopes()} resolves them.
+	 */
 	@Nullable private Scope[] scopesAsArray;
+	/**
+	 * Scopes this request searches: they select the indexes a pass reads and start its processing scope. The set
+	 * answers membership only, {@link #scopesAsArray} holds the order. NULL until {@link #getScopes()} resolves it from
+	 * the `scope(...)` the filter names for the queried entities, or to {@link Scope#DEFAULT_SCOPES} without one.
+	 *
+	 * A request derived for a nested pass may search only a part of what it admits: an `entityHaving` in a query over
+	 * both scopes plans one nested query per scope, each searching that scope alone. These scopes are therefore kept
+	 * apart from {@link #requestedScopes}, and neither can stand in for the other:
+	 *
+	 * - searching the requested scopes makes a pass narrowed by an enclosing `inScope(LIVE, ...)` read archived targets
+	 *   too, so a live owner matches by a target the container excludes, with no error
+	 * - admitting only the searched scopes refuses an `inScope` of a scope the query requests, because the pass over
+	 *   the other scope has to accept it too
+	 */
 	@Nullable private Set<Scope> scopes;
 	/**
 	 * Scopes an `inScope` in this request's filter may name, independently of the scopes searched by the request.
