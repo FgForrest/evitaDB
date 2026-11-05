@@ -54,16 +54,24 @@ scope, but the query is executed in the `ARCHIVED` scope, the engine will return
 An `inScope` container cannot be nested in another `inScope` container that filters the same entities. With
 a different scope the inner constraints would apply only to entities that are in both scopes at once, which none are,
 and with the same scope the inner container would be redundant - so the query is rejected with an error in both cases.
-Place the containers side by side instead. This includes the body of `referenceHaving`, whose reference attributes
-belong to the queried entities. A container that filters another entity - `entityHaving`, `groupHaving`,
-`hierarchyWithin`, or `hierarchyWithinRoot` - may contain its own `inScope` anywhere among its children, which then
-restricts the scope of that other entity. Such an `inScope` must name a scope requested by the query or, when an
-`entityHaving` or `groupHaving` names its own `scope`, that scope. In a query over both scopes it behaves as it does at
-the top level: it restricts only the entities of its scope and lets the entities of the other scope through.
+Place the containers side by side instead. This includes the body of
+[`referenceHaving`](references.md#reference-having), whose reference attributes belong to the queried entities.
+A container that filters another entity - [`entityHaving`](references.md#entity-having),
+[`groupHaving`](references.md#group-having), [`hierarchyWithin`](hierarchy.md#hierarchy-within), or
+[`hierarchyWithinRoot`](hierarchy.md#hierarchy-within-root) - may contain its own `inScope` anywhere among its children,
+which then restricts the scope of that other entity. Such an `inScope` must name a scope requested by the query or,
+when an [`entityHaving`](references.md#entity-having) or [`groupHaving`](references.md#group-having) names its own
+[`scope`](constant.md#scope), that scope. In a query over both scopes it behaves as it does at the top level: it
+restricts only the entities of its scope and lets the entities of the other scope through.
 
-A `scope` constraint has an effect only at the root of a filter and in `entityHaving` or `groupHaving`. Anywhere else -
-in `hierarchyWithin`, `hierarchyWithinRoot`, `facetIncludingChildren`, or as a direct child of `referenceHaving` or
-`facetHaving` - it would do nothing, so the query is rejected with an error.
+A [`scope`](constant.md#scope) constraint has an effect only at the root of a filter and in
+[`entityHaving`](references.md#entity-having) or [`groupHaving`](references.md#group-having). Anywhere else - in
+[`hierarchyWithin`](hierarchy.md#hierarchy-within), [`hierarchyWithinRoot`](hierarchy.md#hierarchy-within-root),
+[`includingChildren`](references.md#including-children),
+[`includingChildrenHaving`](references.md#including-children-having),
+[`includingChildrenExcept`](references.md#including-children-except), or as a direct child of
+[`referenceHaving`](references.md#reference-having) or [`facetHaving`](references.md#facet-having) - it would do
+nothing, so the query is rejected with an error.
 
 </Note>
 
