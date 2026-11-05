@@ -173,8 +173,9 @@ timer.
   finished while a cancel landed in the task's wait.
 - **A handle belongs to the thread writing it.** `close` and `discard` deliberately do not guard against racing each
   other; `cancel()` never touches the handle. `TrafficRecorderTask` is the one caller with two threads: the ring
-  buffer's thread writes and the task's thread reads the refusal, which is why that field is volatile. The task touches
-  the zip only after `stopRecording`.
+  buffer's thread writes and the task's thread reads the refusal, which is why that field is volatile. Its wait on the
+  latch is the one place where the interrupt itself unwinds the task, so a cancel in the instant after the cap tripped
+  and before the latch released reads as a cancel, not as the refusal. The client asked for that, and nothing is kept.
 - **`TrafficRecorderTask` waits for its file.** `getNow` was null while S3 uploaded, and the cleanup then took a healthy
   export for a leaked one. The wait has the same one-hour bound as `TrafficRecordingExportTask`.
 - **A failed sidecar write removes both files** and fails the future, so nothing waits forever and nothing counts
@@ -244,6 +245,12 @@ written before the fix, and the test watched go red for the stated reason.
 - **The environment variable in the message cannot work under a Turkish or Azeri default locale.**
   `EvitaServer#transformEnvironmentVariable` upper-cases with the default locale, so every override with an `i` is
   ignored. Left as an edge case; the YAML setting and the system property still work.
+- **`stopRecording` does not join a ring buffer callback already in flight.** With ambient recording, `onClose` runs on
+  the task's thread while such a callback may still be writing the zip. The hazard predates this work. Read from code,
+  not run.
+- **A failed start can strand the recording flag.** `TrafficRecordingEngine#startRecording` sets it before the recorder
+  initializes, so an I/O failure there makes later starts report `SingletonTaskAlreadyRunningException`. Read from code,
+  not run.
 - **Migration safety backups can be purged silently at startup.** A WARN naming the file and the limit would be cheap.
 
 ## Related work

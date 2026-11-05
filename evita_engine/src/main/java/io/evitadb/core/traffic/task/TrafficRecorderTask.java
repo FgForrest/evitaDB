@@ -208,7 +208,7 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 
 				this.trafficRecordingEngine.startRecording(settings.samplingRate(), exportSessionSink);
 				this.finalizationLatch.await();
-				// The ring buffer's thread has stopped before the task touches the zip again.
+				// Detaches the sink; a ring buffer callback already in flight is not joined, as it never was.
 				this.trafficRecordingEngine.stopRecording();
 				recordingCompleted = true;
 			} catch (InterruptedException e) {
