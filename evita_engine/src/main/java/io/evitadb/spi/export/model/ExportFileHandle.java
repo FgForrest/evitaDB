@@ -104,6 +104,7 @@ public interface ExportFileHandle extends AutoCloseable {
 	 * {@link #fileForFetchFuture()}, so `isCancelled()` returns `true`. A later {@link #close()} does nothing.
 	 * Once closed or discarded, this method is a no-op returning `false`; a published file is retained.
 	 * This method never throws: cleanup failures are logged so the original failure remains visible.
+	 * A handle belongs to the thread writing it, so this method and {@link #close()} are not meant to race.
 	 *
 	 * @return `true` if the open export was discarded, `false` if it was already closed or discarded
 	 */

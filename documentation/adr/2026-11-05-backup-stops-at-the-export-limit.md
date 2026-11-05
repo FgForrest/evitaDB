@@ -121,11 +121,20 @@ the limit is crossed, and the task is the only place that knows the catalog and 
   the refusal. No such layer exists today, so those two call sites are covered by reading, not by a test.
 - **Order in the failure path:** `discard` first, because `getNow` on a cancelled future throws and would mask the
   primary. `discard` returns `false` once the handle is closed, which then falls back to deleting the published file.
-- **A cancelled backup stays cancelled:** `rethrowFailure` steps aside for `InterruptedException` and for an already
-  cancelled future, because `AbstractServerTask#isCancellationDriven` walks only the cause chain.
+- **A cancellation against a refusal:** a cancellation that unwinds the backup is reported as cancellation:
+  `rethrowFailure` steps aside when the caught exception is cancellation-driven, by the same
+  `AbstractServerTask#isCancellationDriven` that decides it afterwards, which walks only the cause chain. A cap that had
+  already tripped is reported as the refusal even if a cancel lands before the rethrow, because the backup did fail for
+  that reason. The future is cancelled either way.
 - **File-system allowance:** `limit - metadataBytes`, computed from this export's own descriptor with the longest size
-  and timestamp a sidecar can hold, encoded the way `writeFileMetadata` writes it. It leaves at most a few dozen bytes
-  of the limit unused. S3 has no sidecars and allows the whole limit.
+  and timestamp a sidecar can hold, encoded the way `writeFileMetadata` writes it. An archive within about 40 B of the
+  limit is therefore refused although it would have survived. That is deliberate: the timestamp's fractional digits are
+  not known until the file closes, and admitting a file the purge then deletes is the worse error. S3 has no sidecars
+  and allows the whole limit.
+- **The failure path reads the future by state,** not with `getNow`: an upload that failed completes it exceptionally,
+  and `getNow` would replace the primary failure with a `CompletionException` the client sees as "unknown reasons".
+- **A handle belongs to the thread writing it.** `close` and `discard` deliberately do not guard against racing each
+  other; `cancel()` never touches the handle.
 - The environment variable in the message is derived the way `EvitaServer#transformEnvironmentVariable` derives it.
 
 ## Verification
@@ -133,13 +142,15 @@ the limit is crossed, and the task is the only place that knows the catalog and 
 Real catalogs and real export services, with S3 over `adobe/s3mock`. Each guard named below was removed and its test
 watched go red for the stated reason.
 
-- `BackupTaskSizeLimitTest` (8) drives both tasks: crossing inside the record copy, inside a data file copy and inside
+- `BackupTaskSizeLimitTest` (9) drives both tasks: crossing inside the record copy, inside a data file copy and inside
   `ZipOutputStream#close`, a close fit surviving a purge with at most 64 B of the limit unused, and an older export
-  surviving a refusal. Without the rethrow, a crossing inside the record copy reads `Task failed for unknown reasons.`
-- `BackupTaskS3SizeLimitTest` (5): both tasks refused with the S3 property, no object, no temp file; both upload when
+  surviving a refusal. Without the rethrow, a crossing inside the record copy reads `Task failed for unknown reasons.` A
+  cancel landing after the cap tripped still reports the refusal.
+- `BackupTaskS3SizeLimitTest` (7): both tasks refused with the S3 property, no object, no temp file; both upload when
   admitted. Without the wait, the admitted full backup fails with `File for fetch should be generated in close method`.
-- `BackupTaskCancellationTest` (4): an interrupt, and a cancelled future, each stay what they were while the cap trips
-  during `close`. Without either guard the status reads as a too-large failure.
+  An upload the storage really refuses, on a bucket removed under the service, is reported rather than masked.
+- `BackupTaskCancellationTest` (4): an interrupt, and a cancelled future whose exception wraps it, stay what they were
+  while the cap trips during `close`. Without the guard the status reads as a too-large failure.
 - `ExportFileServiceTest$SizeLimit` (3): a file of exactly the allowance survives a purge, also with multi-byte
   metadata. A fixed 4 KiB reserve leaves 883 B unused and fails; counting characters instead of bytes loses the file to
   the purge.
@@ -157,6 +168,8 @@ watched go red for the stated reason.
   its own piece of work.
 - **S3 cancelled-backup upload race.** After an interrupt the zip closes normally and the upload starts, `getNow(null)`
   is null, nothing is deleted, and a truncated archive may appear later. Read from code, not run.
+- **Embedded newlines break sidecar round-tripping** (`FileForFetch#fromLines`). The reserve counts those bytes
+  correctly; the parsing defect predates this work.
 - **Traffic tasks' orphan on a failed write.** `TrafficRecordingExportTask` and `TrafficRecorderTask` have the same hole
   `discard` closes for backups. A one-line fix each, left out because this work was scoped to backups.
 - **A closed handle whose metadata write failed** never completes its future and is not cleaned up

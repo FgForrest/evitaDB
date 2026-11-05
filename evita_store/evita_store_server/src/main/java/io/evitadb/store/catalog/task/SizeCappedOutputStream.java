@@ -44,8 +44,8 @@ import java.util.function.Supplier;
  * Stream operations throw the refusal only once: throwing the same instance during try-with-resources cleanup
  * would cause `Self-suppression not permitted`. The remembered failure, rather than a caught exception, is the
  * authority: `ObservableOutput#flush` can replace it with a `KryoException` without retaining its cause. Tasks
- * therefore check again after closing the zip and prefer the remembered refusal during cleanup, except when
- * cancellation wins.
+ * therefore check again after closing the zip and prefer the remembered refusal during cleanup, except when the
+ * cancellation is what unwound them.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -97,9 +97,16 @@ final class SizeCappedOutputStream extends OutputStream {
 		}
 	}
 
-	/** Preserves cancellation; otherwise restores the refusal after cleanup and retains any wrapping failure. */
-	void rethrowFailure(@Nonnull Exception caught, boolean cancelled) {
-		if (this.failure != null && !(caught instanceof InterruptedException) && !cancelled) {
+	/**
+	 * Restores the refusal after cleanup and retains the exception that replaced it, unless that exception is the
+	 * cancellation unwinding the task: replacing it would turn a cancelled task into a failed one. A cancel that merely
+	 * arrived after the cap tripped does not count, because the backup did fail for this reason.
+	 *
+	 * @param caught             the exception the task's failure path caught
+	 * @param cancellationDriven whether `caught` is, or wraps, the cancellation itself
+	 */
+	void rethrowFailure(@Nonnull Exception caught, boolean cancellationDriven) {
+		if (this.failure != null && !cancellationDriven) {
 			if (caught != this.failure) {
 				this.failure.addSuppressed(caught);
 			}

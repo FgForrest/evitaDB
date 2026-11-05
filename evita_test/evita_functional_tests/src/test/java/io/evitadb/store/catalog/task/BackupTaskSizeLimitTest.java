@@ -29,9 +29,11 @@ import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.export.file.ExportFileService;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
+import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.StringUtils;
+import lombok.experimental.Delegate;
 import org.junit.jupiter.api.*;
 
 import javax.annotation.Nonnull;
@@ -45,6 +47,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Set;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static io.evitadb.test.TestTags.*;
@@ -76,6 +79,30 @@ class BackupTaskSizeLimitTest extends BackupTaskExportFixture {
 			assertTrue(Stream.of(failure.getSuppressed()).anyMatch(
 				it -> it.getClass().getSimpleName().equals("KryoException")
 			), "the cap must trip in record copying where Kryo replaces the refusal");
+		}
+
+		/**
+		 * The cap trips inside the record copy, where Kryo replaces its refusal, and the cancel lands before the task's
+		 * failure path gets to rethrow it. The task did fail for this reason and the operator still has to read it.
+		 */
+		@Test
+		@DisplayName("should still report the refusal when a cancel lands after the cap tripped")
+		void shouldReportRefusalWhenCancelLandsAfterCapTripped() throws IOException {
+			configureLimit(66000);
+			final long onDisk = FileUtils.getDirectorySize(persistence.getCatalogStoragePath());
+			final AtomicReference<BackupTask> taskReference = new AtomicReference<>();
+			final BackupTask task = new BackupTask(
+				TEST_CATALOG, null, null, false, bootstrap(),
+				new CancellingOnDiscardExportService(exports, () -> assertTrue(taskReference.get().cancel())),
+				persistence, null
+			);
+			taskReference.set(task);
+			task.transitionToIssued();
+			task.execute();
+
+			assertTrue(task.getFutureResult().isCancelled());
+			assertEquals(expectedMessage(66000, onDisk), task.getStatus().publicExceptionMessage());
+			assertEquals(0, exports.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount());
 		}
 
 		@Test
@@ -126,6 +153,52 @@ class BackupTaskSizeLimitTest extends BackupTaskExportFixture {
 		@DisplayName("should retain an older export after refusing a backup and purging")
 		void shouldKeepOlderExportAfterRefusal() throws IOException {
 			assertOlderExportSurvives(true);
+		}
+	}
+
+	/** Delegates to the real export service, handing out handles that cancel the task just before discarding. */
+	private static class CancellingOnDiscardExportService implements ExportService {
+		@Delegate private final ExportService delegate;
+		private final Runnable cancellation;
+
+		/**
+		 * @param delegate real local storage
+		 * @param cancellation the cancel to run at the start of the failure path
+		 */
+		private CancellingOnDiscardExportService(@Nonnull ExportService delegate, @Nonnull Runnable cancellation) {
+			this.delegate = delegate;
+			this.cancellation = cancellation;
+		}
+
+		@Nonnull
+		@Override
+		public ExportFileHandle storeFile(
+			@Nonnull String fileName, @Nullable String description, @Nonnull String contentType, @Nullable String origin
+		) {
+			return new CancellingOnDiscardHandle(
+				this.delegate.storeFile(fileName, description, contentType, origin), this.cancellation
+			);
+		}
+	}
+
+	/** The failure path discards before it rethrows, which makes `discard` the seam for this interleaving. */
+	private static class CancellingOnDiscardHandle implements ExportFileHandle {
+		@Delegate private final ExportFileHandle delegate;
+		private final Runnable cancellation;
+
+		/**
+		 * @param delegate real export handle
+		 * @param cancellation the cancel to run before discarding
+		 */
+		private CancellingOnDiscardHandle(@Nonnull ExportFileHandle delegate, @Nonnull Runnable cancellation) {
+			this.delegate = delegate;
+			this.cancellation = cancellation;
+		}
+
+		@Override
+		public boolean discard() {
+			this.cancellation.run();
+			return this.delegate.discard();
 		}
 	}
 

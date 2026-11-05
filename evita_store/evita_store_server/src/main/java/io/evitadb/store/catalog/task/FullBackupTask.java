@@ -49,6 +49,8 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongFunction;
@@ -58,7 +60,6 @@ import java.util.zip.ZipOutputStream;
 
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.BOOT_FILE_SUFFIX;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.WAL_FILE_SUFFIX;
-import static java.util.Optional.ofNullable;
 
 /**
  * Task responsible for backing up the catalog data folder with all the data files and WAL files.
@@ -211,15 +212,18 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 			} catch (Exception exception) {
 				// remove the files
 				// A failed write leaves the handle open: ZipOutputStream.close skips out.close() if finish() throws.
-				// Neither the future nor deleteFile sees that file. Discard first; getNow on a cancelled future
-				// would mask the primary failure.
+				// Neither the future nor deleteFile sees that file, so it has to be discarded. What is left is a file
+				// already published. Its future is read by state, because an upload that failed completes it
+				// exceptionally and getNow would then replace the primary failure.
 				if (!exportFileHandle.discard()) {
-					ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
-						.ifPresent(it -> exportFileService.deleteFile(it.fileId()));
+					final CompletableFuture<FileForFetch> published = exportFileHandle.fileForFetchFuture();
+					if (published.state() == Future.State.SUCCESS) {
+						exportFileService.deleteFile(published.resultNow().fileId());
+					}
 				}
 
 				// the cap knows why the write stopped; the exception caught here may have replaced its refusal
-				cap.rethrowFailure(exception, getFutureResult().isCancelled());
+				cap.rethrowFailure(exception, isCancellationDriven(exception));
 
 				if (exception instanceof RuntimeException re) {
 					throw re;

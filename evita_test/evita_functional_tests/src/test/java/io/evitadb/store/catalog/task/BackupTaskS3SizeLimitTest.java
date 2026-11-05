@@ -192,6 +192,53 @@ class BackupTaskS3SizeLimitTest extends BackupTaskExportFixture {
 		}
 	}
 
+	/** An upload that really fails must reach the client as a reported failure, not as an unknown one. */
+	@Nested
+	@DisplayName("Failed uploads")
+	class FailedUploads {
+		@Test
+		@DisplayName("should report a point-in-time backup whose upload failed")
+		void shouldReportFailedUploadOfPointInTimeBackup() throws IOException {
+			reopenWithRoomForTheBackup();
+			assertUploadFailureReported(new BackupTask(
+				TEST_CATALOG, null, null, false, bootstrap(), s3, persistence, null
+			));
+		}
+
+		@Test
+		@DisplayName("should report a full backup whose upload failed")
+		void shouldReportFailedUploadOfFullBackup() throws IOException {
+			reopenWithRoomForTheBackup();
+			assertUploadFailureReported(new FullBackupTask(TEST_CATALOG, s3, persistence, null));
+		}
+	}
+
+	/** Replaces the service with one whose limit admits the backup, so that only its upload can fail. */
+	private void reopenWithRoomForTheBackup() throws IOException {
+		this.s3.close();
+		this.s3 = new ExportS3Service(
+			S3ExportOptions.builder(this.options).sizeLimitBytes(10000000).build(), this.scheduler, this.fileManagement
+		);
+	}
+
+	/** Removes the bucket under the real service, so that the upload is genuinely refused by the storage. */
+	private void assertUploadFailureReported(@Nonnull ServerTask<?, FileForFetch> task) {
+		this.client.deleteBucket(builder -> builder.bucket(BUCKET));
+		try {
+			task.transitionToIssued();
+			assertThrows(RuntimeException.class, task::execute);
+			assertEquals(TaskSimplifiedState.FAILED, task.getStatus().simplifiedState());
+			assertEquals(
+				"Failed to retrieve the backup file for catalog `" + TEST_CATALOG + "` after successful creation!",
+				task.getStatus().publicExceptionMessage()
+			);
+			assertEquals(0, this.s3.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount());
+		} finally {
+			// the tear-down expects the bucket it empties and removes
+			this.client.createBucket(builder -> builder.bucket(BUCKET));
+		}
+	}
+
 	/** Checks S3-specific operator wording, task state, bucket contents and the local staging directory. */
 	private void assertRefused(@Nonnull ServerTask<?, FileForFetch> task) throws IOException {
 		final long onDisk = FileUtils.getDirectorySize(this.persistence.getCatalogStoragePath());
