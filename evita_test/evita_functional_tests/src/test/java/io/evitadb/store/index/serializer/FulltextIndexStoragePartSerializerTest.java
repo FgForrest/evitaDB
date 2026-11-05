@@ -32,7 +32,10 @@ import io.evitadb.index.fulltext.FieldLengthTable.LengthBlock;
 import io.evitadb.index.fulltext.FieldLengthTable.LengthBlockEmission;
 import io.evitadb.index.fulltext.FieldLengthTable;
 import io.evitadb.index.fulltext.FulltextIndex.DictionaryPage;
+import io.evitadb.index.fulltext.FulltextIndex.SurfaceFormPage;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextSurfaceFormLeafPagePart;
 import io.evitadb.index.fulltext.FulltextIndex;
+import io.evitadb.index.fulltext.FulltextTermKeys;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
@@ -463,7 +466,8 @@ class FulltextIndexStoragePartSerializerTest {
 						false, new int[]{3}),
 					new FieldEntry(attribute("title"), "text", testAnalyzer().fingerprint().index(),
 						testAnalyzer().fingerprint().wordPhase(), 25.0, null, false, new int[0])
-				}, 17, new int[]{3, 17, 0, 9}, null);
+				}, 17, new int[]{3, 17, 0, 9}, Map.of(testAnalyzer().fingerprint().wordPhase(), 2,
+					-9876543210L, 7), 8, new int[]{8, 3}, null);
 		}
 
 		@Test
@@ -474,6 +478,9 @@ class FulltextIndexStoragePartSerializerTest {
 				FulltextIndexStoragePartSerializerTest.this.indexKryo, root, FulltextIndexStoragePart.class
 			);
 			assertEquals(12, read.getEntityIndexPrimaryKey());
+			assertEquals(root.getWordPhaseIds(), read.getWordPhaseIds());
+			assertArrayEquals(root.getSurfaceFormPageSequences(), read.getSurfaceFormPageSequences());
+			assertEquals(root.getSurfaceFormHighWaterPageSequence(), read.getSurfaceFormHighWaterPageSequence());
 			assertEquals(CZECH, read.getLocale());
 			assertEquals("text", read.getFields()[0].analyzerName());
 			assertEquals(testAnalyzer().fingerprint().index(), read.getFields()[0].indexFingerprint());
@@ -510,7 +517,8 @@ class FulltextIndexStoragePartSerializerTest {
 		void shouldRefuseMalformedRoots() {
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> new FulltextIndexStoragePart(1, CZECH, new FieldEntry[0], 0, new int[0], null)
+				() -> new FulltextIndexStoragePart(1, CZECH, new FieldEntry[0], 0, new int[0],
+					Map.of(), 0, new int[]{0}, null)
 			);
 			assertThrows(
 				GenericEvitaInternalError.class,
@@ -640,6 +648,24 @@ class FulltextIndexStoragePartSerializerTest {
 					lengthDisk.put(part.getPageSequence(), StoragePartSerializerTestSupport.encodeCurrent(kryo, part));
 				}
 			}
+			final PageEmission<SurfaceFormPage> surfaces = index.collectChangedSurfaceFormPages();
+			boolean identityStem = false;
+			for (final SurfaceFormPage page : surfaces.changedPages()) {
+				for (final String key : page.keys()) {
+					final int foldedEnd = key.indexOf('\0', FulltextTermKeys.FIELD_PREFIX_WIDTH + 1);
+					if (key.charAt(foldedEnd + 1) == '\0') {
+						identityStem = true;
+					}
+				}
+			}
+			assertTrue(identityStem, "Identity stems must use the empty persisted component.");
+			final Map<Integer, byte[]> surfaceDisk = CollectionUtils.createHashMap(surfaces.changedPages().size());
+			for (final SurfaceFormPage page : surfaces.changedPages()) {
+				final FulltextSurfaceFormLeafPagePart part = new FulltextSurfaceFormLeafPagePart(3, CZECH, page);
+				part.computeUniquePartIdAndSet(FulltextIndexStoragePartSerializerTest.this.keyCompressor);
+				surfaceDisk.put(page.pageSequence(), StoragePartSerializerTestSupport.encodeCurrent(kryo, part));
+			}
+
 			final FulltextIndexStoragePart root = roundTrip(
 				kryo,
 				new FulltextIndexStoragePart(3, CZECH, new FieldEntry[]{
@@ -649,7 +675,8 @@ class FulltextIndexStoragePartSerializerTest {
 						new FieldEntry(attribute("body"), "text", testAnalyzer().fingerprint().index(),
 							testAnalyzer().fingerprint().wordPhase(), index.getLengthPivot(body), null, false,
 							lengthEmissions[body].blockKeys())
-					}, emission.highWaterPageSequence(), emission.orderedPageSequences(), null),
+					}, emission.highWaterPageSequence(), emission.orderedPageSequences(), index.getWordPhaseIds(),
+					surfaces.highWaterPageSequence(), surfaces.orderedPageSequences(), null),
 				FulltextIndexStoragePart.class
 			);
 
@@ -683,7 +710,30 @@ class FulltextIndexStoragePartSerializerTest {
 						entry.retired(), FieldLengthTable.fromPersistedBlocks(blocks))
 				);
 			}
-			final FulltextIndex reloaded = FulltextIndex.fromPersistedPages(fields, pageSequences, pages, root.getDictionaryHighWaterPageSequence());
+			final SurfaceFormPage[] surfacePages = new SurfaceFormPage[root.getSurfaceFormPageSequences().length];
+			for (int i = 0; i < surfacePages.length; i++) {
+				surfacePages[i] = StoragePartSerializerTestSupport.decode(kryo,
+					surfaceDisk.get(root.getSurfaceFormPageSequences()[i]),
+					FulltextSurfaceFormLeafPagePart.class).getPage();
+			}
+			final FulltextIndex reloaded = FulltextIndex.fromPersistedPages(fields, pageSequences, pages,
+				root.getDictionaryHighWaterPageSequence(), root.getWordPhaseIds(), root.getSurfaceFormPageSequences(),
+				surfacePages, root.getSurfaceFormHighWaterPageSequence());
+			assertEquals(index.getWordPhaseIds(), reloaded.getWordPhaseIds());
+			assertEquals(surfaceReferenceCounts(index, testAnalyzer().fingerprint().wordPhase()),
+				surfaceReferenceCounts(reloaded, testAnalyzer().fingerprint().wordPhase()));
+			final FulltextIndex.SurfaceFormCursor before =
+				index.surfaceFormCursor(testAnalyzer().fingerprint().wordPhase(), "");
+			final FulltextIndex.SurfaceFormCursor after =
+				reloaded.surfaceFormCursor(testAnalyzer().fingerprint().wordPhase(), "");
+			while (before.next()) {
+				assertTrue(after.next());
+				assertEquals(before.folded(), after.folded());
+				assertEquals(before.stem(), after.stem());
+				assertEquals(before.accented(), after.accented());
+			}
+			assertFalse(after.next());
+			assertTrue(reloaded.collectChangedSurfaceFormPages().changedPages().isEmpty());
 
 			assertEquals(termCount(index), termCount(reloaded));
 			assertEquals(300.0, reloaded.getLengthPivot(reloaded.getFieldId(attribute("body"))));

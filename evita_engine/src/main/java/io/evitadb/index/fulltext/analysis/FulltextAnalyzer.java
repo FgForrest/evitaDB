@@ -34,9 +34,11 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.store.AlreadyClosedException;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.io.IOException;
 import java.text.Normalizer;
+import java.util.function.Supplier;
 
 /**
  * A built Lucene analysis chain, owned and driven correctly: it turns a text into the terms an index would
@@ -128,8 +130,28 @@ public class FulltextAnalyzer implements Closeable {
 	 *                                    when the caller kept the handle past its owner's lifetime
 	 */
 	public void analyze(@Nonnull String text, @Nonnull AnalyzedTermConsumer consumer) {
-		// NFC on the boundary - see the method javadoc; removing this silently disables stemming of every
-		// word with a diacritic
+		analyzeIndexed(text, (term, preStem, surface, start, end, increment) ->
+			consumer.accept(term, surface, start, end, increment));
+	}
+
+	/**
+	 * Emits final index tokens with normalized lookup characters captured before index stemming. The capture travels
+	 * with Lucene token states, so multiple stems at one position retain the correct input, including split tokens
+	 * sharing positions and offsets. A missing attribute makes the lane unavailable for this value; a cleared capture
+	 * makes it unavailable for that token. Both still emit unchanged postings and yield null capture deterministically.
+	 * Only index-fingerprinted operations influence persisted identities.
+	 *
+	 * This is the driver {@link #analyze(String, AnalyzedTermConsumer)} runs too: the same NFC boundary and Lucene
+	 * protocol, so everything that method says about normalization holds here. The capture handed over is borrowed
+	 * and the surface form computed on demand - see {@link IndexedTermConsumer}.
+	 *
+	 * @param text the entire field value element
+	 * @param consumer callback receiving the paired tokens and unchanged posting attributes
+	 * @throws EvitaInvalidUsageException when the registry that owns this analyzer has already been closed
+	 */
+	public void analyzeIndexed(@Nonnull String text, @Nonnull IndexedTermConsumer consumer) {
+		// NFC on the boundary - see the javadoc of analyze(String, AnalyzedTermConsumer); removing this silently
+		// disables stemming of every word with a diacritic
 		final String normalizedText = Normalizer.normalize(text, Normalizer.Form.NFC);
 		// the Lucene stream protocol below has to be followed exactly - a missing reset() or end() yields
 		// empty or truncated output instead of an error
@@ -138,13 +160,18 @@ public class FulltextAnalyzer implements Closeable {
 			final OffsetAttribute offsetAttribute = tokenStream.addAttribute(OffsetAttribute.class);
 			final PositionIncrementAttribute positionAttribute =
 				tokenStream.addAttribute(PositionIncrementAttribute.class);
+			final FulltextPreStemAttribute captured = tokenStream.hasAttribute(FulltextPreStemAttribute.class)
+				? tokenStream.getAttribute(FulltextPreStemAttribute.class) : null;
 			tokenStream.reset();
 			while (tokenStream.incrementToken()) {
 				final int startOffset = offsetAttribute.startOffset();
 				final int endOffset = offsetAttribute.endOffset();
+				final String term = termAttribute.toString();
+				final CharSequence preStem = captureOf(captured, term);
 				consumer.accept(
-					termAttribute.toString(),
-					() -> normalizedText.substring(startOffset, endOffset),
+					term,
+					preStem,
+					surfaceOf(normalizedText, startOffset, endOffset, preStem),
 					startOffset,
 					endOffset,
 					positionAttribute.getPositionIncrement()
@@ -166,6 +193,47 @@ public class FulltextAnalyzer implements Closeable {
 				e
 			);
 		}
+	}
+
+	/**
+	 * Returns the lookup characters captured for the current token, or null when the token has none.
+	 *
+	 * @param captured the chain's capture attribute, null when the chain carries no capture
+	 * @param term     the final term of the current token, which a tail capture reuses
+	 * @return the borrowed capture, the final term for a tail capture, or null when the chain carries no capture or
+	 *         the capture was cleared
+	 */
+	@Nullable
+	private static CharSequence captureOf(@Nullable FulltextPreStemAttribute captured, @Nonnull String term) {
+		if (captured == null) {
+			return null;
+		}
+		if (captured.isFinalTerm()) {
+			return term.isEmpty() ? null : term;
+		}
+		return captured.length() == 0 ? null : captured;
+	}
+
+	/**
+	 * Returns the lazy display slice of a token. A text step that changes the length of the text without correcting
+	 * offsets can leave them outside it; a token carrying a capture then falls back to the captured lookup characters,
+	 * so the write still records its pair - deterministically, which keeps the removal of the value symmetric. A token
+	 * without a capture - every token of a query chain - keeps the plain slice.
+	 *
+	 * @param text    the NFC-normalized text the offsets are meant to address
+	 * @param start   the token's start offset
+	 * @param end     the token's end offset, exclusive
+	 * @param preStem the token's capture, borrowed for the duration of the callback; null when it has none
+	 * @return the supplier of the display spelling
+	 */
+	@Nonnull
+	private static Supplier<String> surfaceOf(
+		@Nonnull String text, int start, int end, @Nullable CharSequence preStem
+	) {
+		if (preStem != null && (start < 0 || start > end || end > text.length())) {
+			return preStem::toString;
+		}
+		return () -> text.substring(start, end);
 	}
 
 	/**

@@ -213,8 +213,8 @@ public class FulltextAnalyzerRegistry implements Closeable {
 					result = new CompiledFulltextAnalyzer(result.index(), result.word(), shared,
 						result.queryText(),
 						result.textSplitting() == result.splitting() ? shared : result.textSplitting(),
-						result.textSplitWord(), result.fingerprint(), result.foldedStopWords(),
-						result.stopWordPreparations());
+						result.textSplitWord(), result.indexSurface(), result.surface(), result.fingerprint(),
+						result.foldedStopWords(), result.stopWordPreparations());
 				}
 				this.compiled.put(resolved, result);
 			} else if (candidate != null) {
@@ -278,9 +278,24 @@ public class FulltextAnalyzerRegistry implements Closeable {
 	private CompiledFulltextAnalyzer compile(@Nonnull ResolvedFulltextAnalyzer resolved) {
 		final List<StopWordPreparation> stopWords = new ArrayList<>(2);
 		final FulltextAnalyzerFingerprint fingerprint = this.compiler.fingerprint(resolved);
-		final FulltextAnalyzer index = new FulltextAnalyzer(
-			resolved.analyzer(), this.compiler.compile(resolved, stopWords)
-		);
+		final FulltextAnalyzer indexSurface = new FulltextAnalyzer(
+			resolved.analyzer(), this.compiler.compileIndexSurfaceChain(resolved));
+		final FulltextAnalyzer surface;
+		try {
+			surface = new FulltextAnalyzer(resolved.analyzer(), this.compiler.compileSurfaceChain(resolved));
+		} catch (RuntimeException ex) {
+			indexSurface.close();
+			throw ex;
+		}
+		final FulltextAnalyzer index;
+		try {
+			index = new FulltextAnalyzer(
+				resolved.analyzer(), this.compiler.compile(resolved, stopWords));
+		} catch (RuntimeException ex) {
+			surface.close();
+			indexSurface.close();
+			throw ex;
+		}
 		try {
 			final FulltextAnalyzer word = new FulltextAnalyzer(
 				resolved.analyzer(), this.compiler.compileWordChain(resolved, stopWords)
@@ -303,7 +318,8 @@ public class FulltextAnalyzerRegistry implements Closeable {
 							foldedStopWords.addAll(stop.foldedWords());
 						}
 						return new CompiledFulltextAnalyzer(index, word, privateSplitting, queryText,
-							textSplitting, textSplitWord, fingerprint, foldedStopWords, stopWords);
+							textSplitting, textSplitWord, indexSurface, surface, fingerprint,
+							foldedStopWords, stopWords);
 					} catch (RuntimeException ex) {
 						if (textSplitting != privateSplitting) {
 							textSplitting.close();
@@ -320,6 +336,8 @@ public class FulltextAnalyzerRegistry implements Closeable {
 			}
 		} catch (RuntimeException ex) {
 			index.close();
+			surface.close();
+			indexSurface.close();
 			throw ex;
 		}
 	}
@@ -352,14 +370,16 @@ public class FulltextAnalyzerRegistry implements Closeable {
 	}
 
 	/**
-	 * Releases the index and word chains and the optional text-aware splitting and word chains owned by a removed
+	 * Releases the index, word and surface preparation chains and the optional text-aware chains owned by a removed
 	 * compiled entry. Raw splitting has its own cache entry and is drained once separately, even when many analyzer
 	 * groups share it.
 	 *
-	 * @param analyzer the removed entry whose index, word and optional text-aware chains this caller owns
+	 * @param analyzer the removed entry whose chains, except shared raw splitting, this caller owns
 	 */
 	private static void releaseCompiledChains(@Nonnull CompiledFulltextAnalyzer analyzer) {
 		analyzer.index().close();
+		analyzer.surface().close();
+		analyzer.indexSurface().close();
 		analyzer.word().close();
 		if (analyzer.textSplitWord() != analyzer.word()) {
 			analyzer.textSplitWord().close();

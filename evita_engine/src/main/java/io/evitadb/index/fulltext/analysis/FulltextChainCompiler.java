@@ -34,6 +34,7 @@ import io.evitadb.spi.analysis.AnalysisStepParameterDescriptor;
 import io.evitadb.spi.analysis.FulltextAnalysisContext;
 import io.evitadb.spi.analysis.FulltextAnalysisSide;
 import io.evitadb.spi.analysis.FulltextAnalysisStepFactory;
+import io.evitadb.spi.analysis.FulltextAnalysisTrait;
 import io.evitadb.spi.analysis.FulltextSplittingAnalysisOperation;
 import io.evitadb.spi.analysis.FulltextSplittingAnalysisStepFactory;
 import io.evitadb.spi.analysis.FulltextTextAnalysisOperation;
@@ -47,6 +48,7 @@ import io.evitadb.spi.analysis.FulltextWordsPlacement;
 import io.evitadb.spi.analysis.FulltextWordsPlacement.PlacedStep;
 import io.evitadb.utils.CollectionUtils;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
@@ -57,6 +59,7 @@ import org.apache.lucene.util.IOUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Serializable;
@@ -141,6 +144,36 @@ public final class FulltextChainCompiler {
 	public Analyzer compileTextSplitWordChain(@Nonnull ResolvedFulltextAnalyzer analyzer) {
 		return compile(List.of(), analyzer.splitting(), analyzer.words(), FulltextAnalysisSide.QUERY,
 			analyzer.context(), true, null);
+	}
+
+	/**
+	 * Compiles the unchanged full index chain with a passive token capture immediately before its first stemming
+	 * operation. The stemming operation's shared normalization hook prepares only the captured lookup characters;
+	 * original terms and all posting attributes remain untouched. Without stemming, a tail marker reuses the final
+	 * term. Query-only operations never derive keys. Downstream words operations must retain custom token attributes
+	 * through capture/restore for a complete lane; absent or cleared capture degrades to an incomplete lane.
+	 *
+	 * @param analyzer the resolved field profile
+	 * @return the capture-equipped index chain, owned and closed by the registry
+	 */
+	@Nonnull
+	public Analyzer compileIndexSurfaceChain(@Nonnull ResolvedFulltextAnalyzer analyzer) {
+		return compile(analyzer.text(), analyzer.splitting(), analyzer.words(), FulltextAnalysisSide.INDEX,
+			analyzer.context(), false, null, false, true);
+	}
+
+	/**
+	 * Compiles surface normalization through the query words phase up to its stemmer, retaining any normalization
+	 * the stemmer itself performs. For operations running on both sides, this normalization must equal index-side
+	 * pre-stem normalization. This query chain never derives persisted lane keys.
+	 *
+	 * @param analyzer the resolved field profile
+	 * @return the cached surface chain, owned and closed by the registry
+	 */
+	@Nonnull
+	public Analyzer compileSurfaceChain(@Nonnull ResolvedFulltextAnalyzer analyzer) {
+		return compile(analyzer.text(), analyzer.splitting(), analyzer.words(), FulltextAnalysisSide.QUERY,
+			analyzer.context(), true, null, true, false);
 	}
 
 	/**
@@ -315,6 +348,30 @@ public final class FulltextChainCompiler {
 		@Nonnull List<AnalysisStep> words, @Nonnull FulltextAnalysisSide side,
 		@Nonnull FulltextAnalysisContext context, boolean keyword, @Nullable List<StopWordPreparation> stopWords
 	) {
+		return compile(text, splitting, words, side, context, keyword, stopWords, false, false);
+	}
+
+	/**
+	 * Builds a complete chain or the query surface prefix using the same resolved operations.
+	 *
+	 * @param text text operations
+	 * @param splitting language splitting
+	 * @param words words operations
+	 * @param side compilation side
+	 * @param context resources and locale
+	 * @param keyword whether to use one input token
+	 * @param stopWords optional stop-word preparation collector
+	 * @param surfaceOnly whether to stop before query stemming
+	 * @param captureIndex whether to carry the actual index pre-stem token through the full chain
+	 * @return the owned compiled chain
+	 */
+	@Nonnull
+	private Analyzer compile(
+		@Nonnull List<AnalysisStep> text, @Nonnull List<AnalysisStep> splitting,
+		@Nonnull List<AnalysisStep> words, @Nonnull FulltextAnalysisSide side,
+		@Nonnull FulltextAnalysisContext context, boolean keyword,
+		@Nullable List<StopWordPreparation> stopWords, boolean surfaceOnly, boolean captureIndex
+	) {
 		final List<FulltextTextAnalysisOperation> textOperations = new ArrayList<>(text.size());
 		for (final AnalysisStep step : text) {
 			final FulltextTextAnalysisStepFactory factory = resolve(
@@ -344,6 +401,8 @@ public final class FulltextChainCompiler {
 		final List<FulltextWordsAnalysisOperation> wordOperations = new ArrayList<>(words.size());
 		final List<PlacedStep> placedSteps = new ArrayList<>(words.size());
 		int stopWordIndex = 0;
+		int captureAt = -1;
+		FulltextWordsAnalysisOperation captureNormalization = null;
 		for (final AnalysisStep step : words) {
 			final FulltextWordsAnalysisStepFactory factory = resolve(
 				step, FulltextWordsAnalysisStepFactory.class, "a words step"
@@ -356,6 +415,15 @@ public final class FulltextChainCompiler {
 				final FulltextAnalysisContext preparedContext =
 					stepContext(step, factory, context).withPreparation(preparation);
 				final FulltextWordsAnalysisOperation operation = factory.create(step.parameters(), preparedContext);
+				if (captureIndex && captureAt < 0 && operation.getTraits(side).contains(FulltextAnalysisTrait.STEMS)) {
+					captureAt = wordOperations.size();
+					captureNormalization = operation;
+				}
+				if (surfaceOnly && operation.getTraits(side).contains(FulltextAnalysisTrait.STEMS)) {
+					wordOperations.add((stream, ignoredSide) -> operation.wrapQuerySurface(stream));
+					break;
+				}
+
 				if (stopWords != null && factory instanceof StopWordsAnalysisStepFactory) {
 					if (side == FulltextAnalysisSide.INDEX) {
 						stopWords.add(new StopWordPreparation(foldStopWords(step, preparedContext), preparation));
@@ -371,14 +439,16 @@ public final class FulltextChainCompiler {
 				placedSteps.add(new PlacedStep(step.name(), operation.getTraits(side)));
 			}
 		}
-		verifyPlacements(wordOperations, List.copyOf(placedSteps), side);
+		if (!surfaceOnly) {
+			verifyPlacements(wordOperations, List.copyOf(placedSteps), side);
+		}
 		return new CompiledChain(
 			textOperations.toArray(FulltextTextAnalysisOperation[]::new),
 			keyword ? KeywordTokenizer::new : tokenizer,
 			keyword ? new FulltextSplittingAnalysisOperation[0] :
 				splittingOperations.toArray(FulltextSplittingAnalysisOperation[]::new),
 			wordOperations.toArray(FulltextWordsAnalysisOperation[]::new),
-			side
+			side, captureIndex && captureAt < 0 ? wordOperations.size() : captureAt, captureNormalization
 		);
 	}
 
@@ -638,6 +708,10 @@ public final class FulltextChainCompiler {
 		 * The side the chain is built for.
 		 */
 		@Nonnull private final FulltextAnalysisSide side;
+		/** Words-operation boundary at which to capture, or minus one for an ordinary chain. */
+		private final int captureAt;
+		/** Shared stemming normalization for captured lookup text, null for tail or ordinary chains. */
+		@Nullable private final FulltextWordsAnalysisOperation captureNormalization;
 
 		/**
 		 * Creates the chain over checked operations.
@@ -647,14 +721,19 @@ public final class FulltextChainCompiler {
 		 * @param splitting the further splitting steps
 		 * @param words     the operations of the words phase acting on `side`
 		 * @param side      the side the chain is built for
+		 * @param captureAt capture boundary, or minus one to disable capture
+		 * @param captureNormalization normalization embedded in the first stemming operation, or null
 		 */
 		CompiledChain(
 			@Nonnull FulltextTextAnalysisOperation[] text,
 			@Nonnull FulltextTokenizerAnalysisOperation tokenizer,
 			@Nonnull FulltextSplittingAnalysisOperation[] splitting,
 			@Nonnull FulltextWordsAnalysisOperation[] words,
-			@Nonnull FulltextAnalysisSide side
+			@Nonnull FulltextAnalysisSide side, int captureAt,
+			@Nullable FulltextWordsAnalysisOperation captureNormalization
 		) {
+			this.captureAt = captureAt;
+			this.captureNormalization = captureNormalization;
 			this.text = text;
 			this.tokenizer = tokenizer;
 			this.splitting = splitting;
@@ -678,10 +757,140 @@ public final class FulltextChainCompiler {
 			for (final FulltextSplittingAnalysisOperation operation : this.splitting) {
 				stream = operation.wrap(stream);
 			}
-			for (final FulltextWordsAnalysisOperation operation : this.words) {
-				stream = operation.wrap(stream, this.side);
+			for (int i = 0; i <= this.words.length; i++) {
+				if (i == this.captureAt) {
+					stream = new PreStemCaptureFilter(stream, this.captureNormalization);
+				}
+				if (i < this.words.length) {
+					stream = this.words[i].wrap(stream, this.side);
+				}
 			}
 			return new TokenStreamComponents(source, stream);
 		}
 	}
+
+	/** Captures token identity without modifying terms, positions, offsets or token order. */
+	private static final class PreStemCaptureFilter extends TokenFilter {
+		/** Shared current term attribute. */
+		@Nonnull private final CharTermAttribute term = addAttribute(CharTermAttribute.class);
+		/** Shared captured pre-stem term. */
+		@Nonnull private final FulltextPreStemAttribute captured;
+		/** Per-component normalization stream; null marks reuse of the final term. */
+		@Nullable private final SurfaceNormalizer normalization;
+
+		/**
+		 * Installs the implementation explicitly so JPMS need not expose this internal attribute to Lucene reflection.
+		 * @param input the unchanged index stream entering stemming
+		 * @param operation stemming operation supplying shared lookup normalization, null for a tail capture
+		 */
+		private PreStemCaptureFilter(@Nonnull TokenStream input, @Nullable FulltextWordsAnalysisOperation operation) {
+			super(input);
+			addAttributeImpl(new FulltextPreStemAttributeImpl());
+			this.captured = getAttribute(FulltextPreStemAttribute.class);
+			this.normalization = operation == null ? null : new SurfaceNormalizer(operation);
+		}
+
+		@Override
+		public boolean incrementToken() throws IOException {
+			if (!this.input.incrementToken()) {
+				return false;
+			}
+			if (this.normalization == null) {
+				this.captured.useFinalTerm();
+			} else {
+				this.normalization.capture(this.term.buffer(), this.term.length(), this.captured);
+			}
+			return true;
+		}
+
+		@Override
+		public void close() throws IOException {
+			IOUtils.close(this.input, this.normalization);
+		}
+	}
+
+	/** Runs the same embedded normalization as query preparation on an independent reusable token buffer. */
+	private static final class SurfaceNormalizer implements Closeable {
+		/** Single borrowed word input, independent of the posting stream's attributes. */
+		@Nonnull private final SurfaceNormalizationInput input = new SurfaceNormalizationInput();
+		/** Normalization hook, built once with the cached analyzer's thread-local components. */
+		@Nonnull private final TokenStream output;
+		/** Current normalized characters. */
+		@Nonnull private final CharTermAttribute term;
+
+		/**
+		 * Creates only the normalization owned by this index-fingerprinted stemming operation.
+		 * @param operation the first index stemming operation
+		 */
+		private SurfaceNormalizer(@Nonnull FulltextWordsAnalysisOperation operation) {
+			this.output = operation.wrapQuerySurface(this.input);
+			this.term = this.output.addAttribute(CharTermAttribute.class);
+		}
+
+		/**
+		 * Captures one normalized lookup word. A hook dropping or expanding a word leaves capture unavailable,
+		 * preserving postings and avoiding an invented association.
+		 * @param source original pre-stem characters
+		 * @param length valid source characters
+		 * @param target reusable capture attribute
+		 * @throws IOException when a normalization filter fails
+		 */
+		private void capture(@Nonnull char[] source, int length, @Nonnull FulltextPreStemAttribute target)
+			throws IOException {
+			if (this.output == this.input) {
+				target.copyBuffer(source, 0, length);
+				return;
+			}
+			this.output.reset();
+			this.input.setToken(source, length);
+			int count = 0;
+			while (this.output.incrementToken()) {
+				if (++count == 1) {
+					target.copyBuffer(this.term.buffer(), 0, this.term.length());
+				}
+			}
+			this.output.end();
+			if (count != 1) {
+				target.copyBuffer(source, 0, 0);
+			}
+		}
+
+		@Override
+		public void close() throws IOException {
+			this.output.close();
+		}
+	}
+
+	/** Feeds a single pre-stem word into the cached embedded normalization without strings or a tokenizer. */
+	private static final class SurfaceNormalizationInput extends TokenStream {
+		/** Mutable source characters reused for every capture. */
+		@Nonnull private final CharTermAttribute term = addAttribute(CharTermAttribute.class);
+		/** Whether the current word has yet to be emitted. */
+		private boolean pending;
+
+		/** Creates an empty normalization input. */
+		private SurfaceNormalizationInput() {
+		}
+
+		/**
+		 * Prepares one word after the normalization stream has been reset.
+		 * @param source pre-stem input characters
+		 * @param length valid source characters
+		 */
+		private void setToken(@Nonnull char[] source, int length) {
+			clearAttributes();
+			this.term.copyBuffer(source, 0, length);
+			this.pending = true;
+		}
+
+		@Override
+		public boolean incrementToken() {
+			if (!this.pending) {
+				return false;
+			}
+			this.pending = false;
+			return true;
+		}
+	}
+
 }

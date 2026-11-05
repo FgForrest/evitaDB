@@ -28,6 +28,7 @@ import io.evitadb.index.fulltext.FieldLengthTable.LengthBlock;
 import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.FulltextIndex.DictionaryPage;
 import io.evitadb.index.fulltext.FulltextIndex.Field;
+import io.evitadb.index.fulltext.FulltextIndex.SurfaceFormPage;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AbstractLeafPagePart;
@@ -38,6 +39,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndex
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart.FieldEntry;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextLeafStreamKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextLeafStreamKey.StreamKind;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextSurfaceFormLeafPagePart;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
@@ -51,14 +53,18 @@ import static io.evitadb.utils.Assert.isPremiseValid;
 
 /**
  * Reloads the per-locale fulltext indexes carried by `GlobalEntityIndex`: for every {@link FulltextIndexKey} the
- * manifest lists, the {@link FulltextIndexStoragePart} root, the dictionary pages it lists and the length blocks of
- * every field, assembled by {@link FulltextIndex#fromPersistedPages} and
+ * manifest lists, the {@link FulltextIndexStoragePart} root, the dictionary and surface dictionary pages it lists and
+ * the length blocks of every field, assembled by {@link FulltextIndex#fromPersistedPages} and
  * {@link FieldLengthTable#fromPersistedBlocks}.
  *
  * Loading requires no analyzer. Every field restores its built-with identities; writes and queries compare them
  * with the current schema through the catalog's compiled analyzer cache.
  */
 public final class FulltextIndexMapLoader implements ComponentLoader {
+
+	/** Creates the loader for persisted per-locale fulltext indexes. */
+	public FulltextIndexMapLoader() {
+	}
 
 	@Override
 	@Nonnull
@@ -107,7 +113,9 @@ public final class FulltextIndexMapLoader implements ComponentLoader {
 			fields,
 			pageSequences,
 			pages,
-			root.getDictionaryHighWaterPageSequence()
+			root.getDictionaryHighWaterPageSequence(), root.getWordPhaseIds(), root.getSurfaceFormPageSequences(),
+			loadSurfacePages(context, service, keyCompressor, root.getSurfaceFormPageSequences(), locale),
+			root.getSurfaceFormHighWaterPageSequence()
 		);
 	}
 
@@ -148,6 +156,39 @@ public final class FulltextIndexMapLoader implements ComponentLoader {
 					"` and locale `" + locale + "` was not found in persistent storage!"
 			);
 			pages[i] = new DictionaryPage(page.getPageSequence(), page.getBuckets(), page.getImpacts());
+		}
+		return pages;
+	}
+
+	/**
+	 * Loads every surface leaf listed by the index root.
+	 *
+	 * @param context reload context
+	 * @param service storage part reader
+	 * @param keyCompressor registered stream identities
+	 * @param sequences leaf sequences in key order
+	 * @param locale index partition locale
+	 * @return aligned surface pages
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when a listed page is not found in persistent storage
+	 */
+	@Nonnull
+	private static SurfaceFormPage[] loadSurfacePages(
+		@Nonnull LoadContext context, @Nonnull StoragePartPersistenceService<?> service,
+		@Nonnull KeyCompressor keyCompressor, @Nonnull int[] sequences, @Nonnull Locale locale
+	) {
+		final int stream = keyCompressor.getId(new FulltextLeafStreamKey(
+			context.entityIndexId(), locale, StreamKind.SURFACE_FORMS));
+		final SurfaceFormPage[] pages = new SurfaceFormPage[sequences.length];
+		for (int i = 0; i < sequences.length; i++) {
+			final int sequence = sequences[i];
+			final FulltextSurfaceFormLeafPagePart part = service.getStoragePart(context.catalogVersion(),
+				AbstractLeafPagePart.computeUniquePartId(stream, sequence), FulltextSurfaceFormLeafPagePart.class);
+			isPremiseValid(
+				part != null,
+				() -> "Surface dictionary page " + sequence + " of the fulltext index of entity index `" +
+					context.entityIndexId() + "` and locale `" + locale + "` was not found in persistent storage!"
+			);
+			pages[i] = part.getPage();
 		}
 		return pages;
 	}

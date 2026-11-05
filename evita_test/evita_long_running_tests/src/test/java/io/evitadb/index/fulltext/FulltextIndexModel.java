@@ -28,7 +28,6 @@ import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
-import io.evitadb.test.fulltext.AnalyzedTerm;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 
@@ -39,6 +38,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.Random;
 import java.util.TreeMap;
@@ -47,7 +47,7 @@ import java.util.TreeSet;
 import static io.evitadb.index.fulltext.FulltextIndexTestSupport.impactsOf;
 import static io.evitadb.index.fulltext.FulltextIndexTestSupport.postingsOf;
 import static io.evitadb.index.fulltext.FulltextIndexTestSupport.termCount;
-import static io.evitadb.test.fulltext.FulltextAnalysisTestSupport.collectTerms;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.surfaceReferenceCounts;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -238,6 +238,7 @@ public final class FulltextIndexModel {
 	public String expectedContent() {
 		final StringBuilder content = new StringBuilder(8_192);
 		int termCount = 0;
+		final Map<String, Long> surfaceCounts = new TreeMap<>();
 		for (final ModelField field : this.fields) {
 			content.append(field.key).append('@').append(field.pivot).append(field.retired ? " retired\n" : "\n");
 			final TreeMap<String, TreeMap<Integer, Integer>> postings = new TreeMap<>();
@@ -249,6 +250,9 @@ public final class FulltextIndexModel {
 					continue;
 				}
 				indexed.add(entry.getKey());
+				for (final String pair : value.surfacePairs()) {
+					surfaceCounts.merge(pair, 1L, Long::sum);
+				}
 				for (final Map.Entry<String, Integer> term : value.termFrequencies().entrySet()) {
 					postings.computeIfAbsent(term.getKey(), t -> new TreeMap<>()).put(
 						entry.getKey(), FulltextIndex.computeImpact(term.getValue(), value.length(), field.pivot)
@@ -272,7 +276,7 @@ public final class FulltextIndexModel {
 		for (final FulltextFieldKey key : this.keys) {
 			content.append(key).append(" -> ").append(activeFieldId(key)).append('\n');
 		}
-		return content.append("terms ").append(termCount).toString();
+		return content.append("surface ").append(surfaceCounts).append("\nterms ").append(termCount).toString();
 	}
 
 	/**
@@ -341,7 +345,9 @@ public final class FulltextIndexModel {
 		for (final FulltextFieldKey key : keys) {
 			content.append(key).append(" -> ").append(index.getFieldId(key)).append('\n');
 		}
-		return content.append("terms ").append(termCount(index)).toString();
+		final Map<String, Long> surfaces = index.getFieldCount() == 0 ? Map.of()
+			: surfaceReferenceCounts(index, index.getWordPhaseId(0));
+		return content.append("surface ").append(surfaces).append("\nterms ").append(termCount(index)).toString();
 	}
 
 	/**
@@ -481,16 +487,20 @@ public final class FulltextIndexModel {
 	@Nonnull
 	private ModelValue analyze(@Nonnull String[] elements) {
 		final Map<String, Integer> termFrequencies = CollectionUtils.createHashMap(16);
-		int length = 0;
+		final Set<String> surfacePairs = CollectionUtils.createHashSet(16);
+		final int[] length = new int[1];
 		for (final String element : elements) {
-			for (final AnalyzedTerm term : collectTerms(this.analyzer.index(), element)) {
-				termFrequencies.merge(term.term(), 1, Integer::sum);
-				if (term.positionIncrement() > 0) {
-					length++;
+			this.analyzer.indexSurface().analyzeIndexed(element, (term, folded, display, start, end, increment) -> {
+				termFrequencies.merge(term, 1, Integer::sum);
+				if (folded != null) {
+					surfacePairs.add(folded.toString() + '\0' + term);
 				}
-			}
+				if (increment > 0) {
+					length[0]++;
+				}
+			});
 		}
-		return new ModelValue(elements, termFrequencies, length);
+		return new ModelValue(elements, termFrequencies, surfacePairs, length[0]);
 	}
 
 	/**
@@ -629,11 +639,13 @@ public final class FulltextIndexModel {
 	 *
 	 * @param elements        the elements of the value
 	 * @param termFrequencies every distinct term with its frequency over all elements
+	 * @param surfacePairs distinct folded surface and stem pairs in the value
 	 * @param length          the number of positions over all elements, the length the index records
 	 */
 	private record ModelValue(
 		@Nonnull String[] elements,
 		@Nonnull Map<String, Integer> termFrequencies,
+		@Nonnull Set<String> surfacePairs,
 		int length
 	) {}
 

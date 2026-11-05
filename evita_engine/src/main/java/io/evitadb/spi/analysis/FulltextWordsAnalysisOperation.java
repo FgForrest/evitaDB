@@ -38,6 +38,12 @@ import java.util.Set;
  * other steps of the phase. The compiler calls {@link #verifyPlacement(FulltextWordsPlacement)} of every step of a
  * side once all of them are created, so a step refuses a neighbour it cannot work with before any text is analysed -
  * the Czech stemmer refuses a fold before it, because it decides by the diacritics.
+ *
+ * Operations after the first index stemming boundary must retain custom token attributes through Lucene
+ * `captureState` / `restoreState` for the surface lane - the fulltext index's dictionary pairing each word as it
+ * entered stemming with the stems it produced - to be complete. An independent attribute source
+ * makes the lane unavailable for that value; clearing capture makes it unavailable for that token. Postings still
+ * follow this operation unchanged: the lane degrades to incomplete instead of rejecting writes or inventing pairs.
  */
 @FunctionalInterface
 public interface FulltextWordsAnalysisOperation {
@@ -52,6 +58,24 @@ public interface FulltextWordsAnalysisOperation {
 	 */
 	@Nonnull
 	TokenStream wrap(@Nonnull TokenStream words, @Nonnull FulltextAnalysisSide side);
+
+	/**
+	 * Wraps words with the lookup-key normalization embedded in a stemming operation, without the stemming. The
+	 * compiler runs it on both sides of the surface lane - on the index words captured before stemming and on the query
+	 * words it prepares for surface lookup - so equal spellings must yield byte-identical lookup keys.
+	 * A custom composite stemmer overrides it with its normalization only, depending exclusively on index-fingerprinted
+	 * parameters and resources. The hook must preserve one token per input; otherwise the index lane omits that token.
+	 * Changing this normalization changes persisted lane keys and requires a bump of the factory's
+	 * {@link FulltextAnalysisStepFactory#getBehaviourVersion() behaviour version} even when posting terms stay
+	 * unchanged. The default is identity; ordinary non-stemming operations use `wrap`.
+	 *
+	 * @param words the surface words before this operation
+	 * @return the normalized, unstemmed stream
+	 */
+	@Nonnull
+	default TokenStream wrapQuerySurface(@Nonnull TokenStream words) {
+		return words;
+	}
 
 	/**
 	 * Returns what the step does to the words on the side, for the other steps of the phase to check against.

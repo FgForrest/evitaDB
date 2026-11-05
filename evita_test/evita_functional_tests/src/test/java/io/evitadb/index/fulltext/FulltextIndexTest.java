@@ -471,7 +471,10 @@ class FulltextIndexTest {
 						testAnalyzer().fingerprint().wordPhase(), 25.0, null, true, new FieldLengthTable()),
 					new Field(attribute("name"), "text", testAnalyzer().fingerprint().index(),
 						testAnalyzer().fingerprint().wordPhase(), 50.0, null, false, new FieldLengthTable())
-				), new int[]{0}, emptyDictionary, 0);
+				), new int[]{0}, emptyDictionary, 0,
+					Map.of(testAnalyzer().fingerprint().wordPhase(), 0), new int[]{0},
+					new FulltextIndex.SurfaceFormPage[]{
+						new FulltextIndex.SurfaceFormPage(0, new String[0], new long[0])}, 0);
 			assertEquals(2, restored.getFieldId(attribute("name")));
 			assertEquals(FulltextIndex.UNKNOWN_FIELD_ID, restored.getFieldId(attribute("description")));
 			assertTrue(restored.isFieldRetired(0));
@@ -485,7 +488,10 @@ class FulltextIndexTest {
 							testAnalyzer().fingerprint().wordPhase(), 25.0, null, false, new FieldLengthTable()),
 						new Field(attribute("name"), "text", testAnalyzer().fingerprint().index(),
 							testAnalyzer().fingerprint().wordPhase(), 25.0, null, false, new FieldLengthTable())
-					), new int[]{0}, emptyDictionary, 0)
+					), new int[]{0}, emptyDictionary, 0,
+					Map.of(testAnalyzer().fingerprint().wordPhase(), 0), new int[]{0},
+					new FulltextIndex.SurfaceFormPage[]{
+						new FulltextIndex.SurfaceFormPage(0, new String[0], new long[0])}, 0)
 			);
 		}
 

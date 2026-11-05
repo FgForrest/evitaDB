@@ -36,6 +36,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * The root record of one fulltext index - the index of one locale partition of an entity index. It carries no terms
@@ -47,10 +48,12 @@ import java.util.Locale;
  *   whether it was retired, and the blocks of its length table that have a page;
  * - the **dictionary page list** - the sequences of the dictionary's leaf pages in key order, which a load assembles
  *   into the tree leaf by leaf - and the high-water of the dictionary's page-sequence allocator, so a sequence is never
- *   handed out twice across a restart.
+ *   handed out twice across a restart;
+ * - the **surface dictionary page list**, its allocator high-water and the fingerprint-to-short-id table that
+ *   gives every surface key its word-phase prefix. Surface pages hold reference counts, without postings.
  *
- * The pages themselves are {@link FulltextDictionaryLeafPagePart}s, and the length blocks pages of their own; both
- * are keyed by a {@link FulltextLeafStreamKey} of this index.
+ * The pages are {@link FulltextDictionaryLeafPagePart}s and {@link FulltextSurfaceFormLeafPagePart}s, and the length
+ * blocks have pages of their own; all are keyed by a {@link FulltextLeafStreamKey} of this index.
  *
  * Loading restores the recorded analysis identities without compiling a chain; queries skip generations that no
  * longer agree with their schema.
@@ -59,7 +62,8 @@ import java.util.Locale;
  */
 @ToString(of = {"entityIndexPrimaryKey", "locale"})
 public class FulltextIndexStoragePart implements StoragePart {
-	@Serial private static final long serialVersionUID = -8709870492189630143L;
+	/** Identity of this storage-part format. */
+	@Serial private static final long serialVersionUID = -8709870492189630142L;
 
 	/**
 	 * Primary key of the owning entity index.
@@ -83,6 +87,15 @@ public class FulltextIndexStoragePart implements StoragePart {
 	 * empty page of its root leaf.
 	 */
 	@Getter @Nonnull private final int[] dictionaryPageSequences;
+	/**
+	 * Word-phase fingerprints and the short ids that prefix their surface dictionary keys - every phase a field not
+	 * retired or a surface key still uses, so a retired field's phase stays while its keys do.
+	 */
+	@Getter @Nonnull private final Map<Long, Integer> wordPhaseIds;
+	/** High-water of the surface page sequence allocator. */
+	@Getter private final int surfaceFormHighWaterPageSequence;
+	/** Surface leaves in ascending key order. */
+	@Getter @Nonnull private final int[] surfaceFormPageSequences;
 	/**
 	 * The storage-part primary key `pack(entityIndexPrimaryKey, id of the FulltextIndexKey)`; `null` until assigned.
 	 */
@@ -149,12 +162,15 @@ public class FulltextIndexStoragePart implements StoragePart {
 	/**
 	 * Creates the root record.
 	 *
-	 * @param entityIndexPrimaryKey           primary key of the owning entity index
-	 * @param locale                          the locale of the partition the index serves
-	 * @param fields                          the registered fields in field-id order
-	 * @param dictionaryHighWaterPageSequence the highest page sequence the dictionary ever allocated
-	 * @param dictionaryPageSequences         the dictionary's page sequences in key order, at least one
-	 * @param storagePartPK                   the precomputed primary key, or `null` to have it computed
+	 * @param entityIndexPrimaryKey            primary key of the owning entity index
+	 * @param locale                           the locale of the partition the index serves
+	 * @param fields                           the registered fields in field-id order
+	 * @param dictionaryHighWaterPageSequence  the highest page sequence the dictionary ever allocated
+	 * @param dictionaryPageSequences          the dictionary's page sequences in key order, at least one
+	 * @param wordPhaseIds                     the word-phase fingerprint to short surface-key prefix table
+	 * @param surfaceFormHighWaterPageSequence the highest page sequence the surface dictionary ever allocated
+	 * @param surfaceFormPageSequences         the surface dictionary's page sequences in key order, at least one
+	 * @param storagePartPK                    the precomputed primary key, or `null` to have it computed
 	 */
 	public FulltextIndexStoragePart(
 		int entityIndexPrimaryKey,
@@ -162,6 +178,9 @@ public class FulltextIndexStoragePart implements StoragePart {
 		@Nonnull FieldEntry[] fields,
 		int dictionaryHighWaterPageSequence,
 		@Nonnull int[] dictionaryPageSequences,
+		@Nonnull Map<Long, Integer> wordPhaseIds,
+		int surfaceFormHighWaterPageSequence,
+		@Nonnull int[] surfaceFormPageSequences,
 		@Nullable Long storagePartPK
 	) {
 		Assert.isPremiseValid(
@@ -173,6 +192,10 @@ public class FulltextIndexStoragePart implements StoragePart {
 		this.fields = fields;
 		this.dictionaryHighWaterPageSequence = dictionaryHighWaterPageSequence;
 		this.dictionaryPageSequences = dictionaryPageSequences;
+		Assert.isPremiseValid(surfaceFormPageSequences.length > 0, "A surface dictionary has at least one page!");
+		this.wordPhaseIds = Map.copyOf(wordPhaseIds);
+		this.surfaceFormHighWaterPageSequence = surfaceFormHighWaterPageSequence;
+		this.surfaceFormPageSequences = surfaceFormPageSequences;
 		this.storagePartPK = storagePartPK;
 	}
 

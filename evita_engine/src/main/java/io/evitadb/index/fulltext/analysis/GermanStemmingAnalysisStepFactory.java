@@ -63,6 +63,7 @@ public final class GermanStemmingAnalysisStepFactory extends AbstractStemmingAna
 		@Nonnull String stepName,
 		@Nonnull FulltextAnalysisContext context
 	) {
-		return plainStemming(stepName, words -> new GermanLightStemFilter(new GermanNormalizationFilter(words)));
+		return normalizedStemming(stepName,
+			words -> new GermanLightStemFilter(new GermanNormalizationFilter(words)), GermanNormalizationFilter::new);
 	}
 }

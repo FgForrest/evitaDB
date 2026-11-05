@@ -99,7 +99,8 @@ class FulltextIndexHeapSizeTest {
 	 * paged index charges, and the dictionary's column factories - lambdas the tree does not own and JOL cannot walk.
 	 */
 	private static final String[] INDEX_EXCLUSIONS = {
-		"pageStreamRegistry", "dictionary.valueColumnFactory", "dictionary.recordColumnFactory"
+		"pageStreamRegistry", "dictionary.valueColumnFactory", "dictionary.recordColumnFactory",
+		"surfaceForms.valueColumnFactory", "surfaceForms.recordColumnFactory"
 	};
 
 	/**
@@ -286,7 +287,12 @@ class FulltextIndexHeapSizeTest {
 						FieldLengthTable.fromPersistedBlocks(lengths[fieldId].changedBlocks().toArray(LengthBlock[]::new)))
 				);
 			}
-			final FulltextIndex reloaded = FulltextIndex.fromPersistedPages(fields, pages.orderedPageSequences(), pages.changedPages().toArray(DictionaryPage[]::new), pages.highWaterPageSequence());
+			final PageEmission<FulltextIndex.SurfaceFormPage> surfaces = source.collectChangedSurfaceFormPages();
+			final FulltextIndex reloaded = FulltextIndex.fromPersistedPages(fields, pages.orderedPageSequences(),
+				pages.changedPages().toArray(DictionaryPage[]::new), pages.highWaterPageSequence(),
+				source.getWordPhaseIds(),
+				surfaces.orderedPageSequences(), surfaces.changedPages().toArray(FulltextIndex.SurfaceFormPage[]::new),
+				surfaces.highWaterPageSequence());
 			// trap 1 of the heap-size guide: a boxed field id below 128 is the JVM's cached Integer, and the restored page
 			// registry - excluded, as no paged index charges it - holds the same cached instances as its live page
 			// sequences. The walk subtracts them with the registry; the arithmetic charges each to the map holding it,
