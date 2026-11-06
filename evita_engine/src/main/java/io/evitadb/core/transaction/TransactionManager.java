@@ -1782,7 +1782,7 @@ public class TransactionManager implements Closeable {
 	 * Runs on the caller's thread while holding `engineStateLock`. The commit pipeline needs the transaction pool,
 	 * so waiting in the asynchronous half could starve it. REST's `UpdateCatalogHandler` and GraphQL's
 	 * `AsyncDataFetcher` already call from that pool: with no free worker, the round cannot run and the caller is
-	 * cleanly refused at the bound.
+	 * refused at the bound.
 	 *
 	 * Deliberately does not acquire {@link #catalogPropagationLock}: a round holds it while waiting for
 	 * `engineStateLock` to apply queued schema mutations. A round may still be in that schema tail on return.
