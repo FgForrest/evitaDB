@@ -1,11 +1,11 @@
 ---
 title: A catalog rename or replace waits for the commit pipeline on the caller's thread, then acts on the instance that wait found
 date: 2026-11-05
-updated: 2026-11-05 23:02
+updated: 2026-11-06 06:09
 status: accepted
 kind: fix
 issues: [1889]
-prs: []
+prs: [1890]
 areas: [evita_engine/src/main/java/io/evitadb/core/transaction, evita_engine/src/main/java/io/evitadb/core/transaction/engine/operators, evita_engine/src/main/java/io/evitadb/core/engine, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog]
 supersedes: []
 superseded-by: []
