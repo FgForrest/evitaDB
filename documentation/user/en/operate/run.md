@@ -247,7 +247,9 @@ You can take advantage of all the following variables:
             <Td>**`EVITA_JAVA_OPTS`**</Td>
             <Td>Java commandline arguments
             (list of basic arguments [can be found here](https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html#overview-of-java-options)),
-            default: none (empty string)</Td>
+            default: none (empty string). The `--add-opens` flags evitaDB needs are already part of the image
+            entrypoint. If you start `evita-server.jar` on your own, pass the same flags as `docker/entrypoint.sh`,
+            otherwise upserts of references with a schema expression fail on JDK 21.</Td>
         </Tr>
         <Tr>
             <Td>**`EVITA_ARGS`**</Td>

@@ -60,10 +60,17 @@ if [ "$1" = "" ]; then
     echo
 
     # start evitaDB
+    # the --add-opens set matches evita_server/run-server.sh: on JDK 21 the Byte Buddy inside evita-server.jar
+    # injects classes reflectively, so without java.lang every entity proxy of a schema expression fails
     set -x
     exec java \
         -javaagent:${EVITA_BIN_DIR}${EVITA_JAR_NAME} \
         --add-modules jdk.incubator.vector \
+        --add-opens java.base/jdk.internal.misc=ALL-UNNAMED \
+        --add-opens java.base/java.lang=ALL-UNNAMED \
+        --add-opens java.base/java.lang.invoke=ALL-UNNAMED \
+        --add-opens java.base/java.math=ALL-UNNAMED \
+        --add-opens java.base/java.util=ALL-UNNAMED \
         $EVITA_JAVA_OPTS \
         -jar "${EVITA_BIN_DIR}${EVITA_JAR_NAME}" \
         "strictConfigFileCheck=$EVITA_STRICT_CONFIG_FILE_CHECK" \
