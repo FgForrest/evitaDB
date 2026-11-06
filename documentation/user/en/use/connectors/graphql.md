@@ -305,6 +305,20 @@ We explore other places where we could generate reusable interface types based o
 We don't want to overcomplicate the API schema just for the sake of it. 
 
 </Note>
+
+#### Stability of hashed type names
+
+Some shared reference types carry a hash in their name (for example `WithImage<hash>Reference`). The hash is derived
+from the *template* - the first reference with the given definition, found by walking the collections in the order
+of their creation and, within a collection, the references in the order of their names. These names:
+
+- are stable across restarts, schema changes and catalog replaces,
+- change only when a different reference becomes the first occurrence of the definition - the first one is removed,
+  renamed or its definition diverges from the others, or a reference with a lower name and the same definition is
+  added to the same collection,
+- are the same in two catalogs with the same schema only if their collections were created in the same order.
+
+Prefer the names without a hash (`ProductImageReference`, `ImageReference`, `Reference`) in client code.
   
 ### Structure of catalog schema APIs
 
