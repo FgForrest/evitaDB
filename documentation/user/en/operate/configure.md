@@ -1156,6 +1156,8 @@ the server with the new configuration to apply it.
 Lengths are Unicode code points after the field analyzer normalizes the query. Each stem variant uses its own
 length. The typo budget is zero below `minLengthOneTypo`, one below `minLengthTwoTypos`, and two from that threshold
 onwards. A typo means an inserted, deleted or replaced character; `transpositions` controls adjacent swaps.
+A deterministic predicted-time budget limits the query's total expanded postings: exact matches always remain, while
+prefix and typo expansions stop at the first overflow, which can leave a required word empty and return no matches.
 
 ```yaml
 fulltext:

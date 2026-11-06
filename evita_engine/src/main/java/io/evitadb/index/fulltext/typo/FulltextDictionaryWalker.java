@@ -56,7 +56,11 @@ import java.util.Arrays;
  * Every walk terminates, and no well-formed accepted term is missed. A term containing an unpaired surrogate is
  * visited when reached linearly, but may be passed over if it sorts between a well-formed rejected key and that
  * key's scalar successor. Rejected terms containing unpaired surrogates are advanced linearly, never used as seek
- * origins. Queries containing unpaired surrogates use linear advancement for every rejection.
+ * origins. Reachability of malformed terms depends on the edit budget: a wider walk can reach one by linear
+ * advancement after accepting a predecessor that a narrower walk rejected and sought past. Queries containing
+ * unpaired surrogates use linear advancement for every rejection. Recovered malformed hits are correctly
+ * classified. When callers cap results, containment of narrower-walk candidates is considered before selection:
+ * a recovered hit can displace a former winner, and does not justify overflowing the cap.
  *
  * A walker owns mutable seek buffers and DP rows and must be used sequentially; it is reusable after a visitor stops.
  */

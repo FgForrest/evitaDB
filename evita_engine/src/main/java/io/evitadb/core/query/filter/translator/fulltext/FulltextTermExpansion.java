@@ -48,26 +48,39 @@ import java.util.Set;
  * Expands a word within a profile group. The typed surface words are also looked up in the surface-form lane of each
  * distinct word phase, and every lane hit yields its stem: an exact surface hit counts as an exact term, while lane
  * typo and prefix hits feed the same per-field heaps as the stem legs, so each cap counts both dictionaries
- * together. Exact terms are uncapped. Each other leg keeps at most fifty hits per field, unions those survivors and
- * selects fifty stems by distance, maximum field frequency and term. A global winner must survive in a field
- * attaining its maximum frequency: every term ahead of it in that field is also ahead globally. Missing field views
- * are fetched only for global winners.
+ * together. Exact terms are uncapped. Each other leg keeps at most `TERMS_PER_LEG` hits per field, unions those
+ * survivors and selects that many stems by distance, maximum field frequency and term. A global winner survives in
+ * a field attaining its maximum frequency: every term ahead of it in that field is also ahead globally. Missing
+ * field views are fetched only for global winners.
  *
  * An instance belongs to one query, which reuses its walkers across fields, groups and scopes.
  */
 @NotThreadSafe
 final class FulltextTermExpansion {
-	/** Interim per-word, per-group term limit; exact lookups never consume it. */
-	//TODO JNO change it at the end of #258
-	private static final int TERMS_PER_LEG = 50;
+	/**
+	 * Per-word, per-profile-group limit of the prefix and typo legs; exact lookups never consume it. The internal
+	 * tuning knob `evita.fulltext.termsPerLeg` is read once per JVM at class initialization for measurement and
+	 * emergencies. It defaults to 100 and is clamped to [1, 10,000] to bound the per-field heaps and union maps.
+	 */
+	private static final int TERMS_PER_LEG = resolveTermsPerLeg(Integer.getInteger("evita.fulltext.termsPerLeg"));
 	/** Distance ascending, maximum field frequency descending, then term ascending. */
 	private static final Comparator<Candidate> LEG_ORDER = (left, right) -> FulltextTermHeap.compare(
 		left.distance, left.frequency, left.term, right.distance, right.frequency, right.term
 	);
 	/** Submitted-search policy fixed for this query. */
 	@Nonnull private final FulltextTypoParameters parameters;
-	/** Automata built once per variant, edit band and end mode. */
+	/** Automata built once per variant, maximum edit budget and end mode. */
 	@Nonnull private final Map<WalkKey, FulltextDictionaryWalker> walkers = CollectionUtils.createHashMap(8);
+
+	/**
+	 * Resolves the internal term limit after the JVM integer-property parser has read it. An unset or unparseable
+	 * property supplies null and uses the measured default; configured values cannot allocate unbounded collectors.
+	 * @param configured parsed property value, or null when absent or unparseable
+	 * @return per-leg term limit in [1, 10,000], default 100
+	 */
+	static int resolveTermsPerLeg(@Nullable Integer configured) {
+		return configured == null ? 100 : Math.clamp(configured, 1, 10_000);
+	}
 
 	/**
 	 * Creates query-local expansion state.
@@ -135,7 +148,7 @@ final class FulltextTermExpansion {
 	 * @param fragments normalized raw fragments
 	 * @param exact uncapped exact matches excluded from this leg
 	 * @param lane reusable exact field lookup shared by lane hits
-	 * @return at most fifty stems, including their views in every searched field holding them
+	 * @return at most `TERMS_PER_LEG` stems, including their views in every searched field holding them
 	 */
 	@Nonnull
 	private Map<String, Candidate> collectPrefixes(
@@ -180,8 +193,12 @@ final class FulltextTermExpansion {
 	}
 
 	/**
-	 * Walks complete distance bands across all variants and fields. A term is skipped when the exact leg or the
-	 * selected prefix leg already holds it, or when an earlier band collected it.
+	 * Walks each variant and typed surface once with its own maximum edit budget. The heaps merge repeated stems
+	 * at their smallest classified distance; exact and selected prefix stems are excluded before any offer.
+	 *
+	 * With malformed dictionary keys (unpaired surrogates), this walk may recover correctly classified hits that a
+	 * narrower walk would skip after a successor seek. Such a hit competes with every other candidate before
+	 * selection: it may displace another winner, but the selected leg never exceeds its cap.
 	 * @param index locale dictionary
 	 * @param fieldIds profile fields
 	 * @param phases distinct index word phases of the group
@@ -191,7 +208,7 @@ final class FulltextTermExpansion {
 	 * @param prefix selected prefix matches; discarded prefixes may compete through a positive-distance path
 	 * @param openEnd whether a matching prefix accepts the remaining suffix
 	 * @param lane reusable exact field lookup shared by lane hits
-	 * @return at most fifty fuzzy stems with all their field views
+	 * @return at most `TERMS_PER_LEG` fuzzy stems with all their field views
 	 */
 	@Nonnull
 	private Map<String, Candidate> collectTypos(
@@ -204,49 +221,40 @@ final class FulltextTermExpansion {
 			return CollectionUtils.createHashMap(0);
 		}
 		final FulltextTermHeap[] fields = newHeaps(fieldIds.length);
-		Set<String> earlierTerms = CollectionUtils.createHashSet(0);
-		for (int edits = 1; edits <= 2; edits++) {
-			final int band = edits;
-			final Set<String> previousBands = earlierTerms;
-			for (final String variant : variants) {
-				if (this.parameters.maxEdits(variant) < edits) {
-					continue;
-				}
-				final FulltextDictionaryWalker walker = walker(variant, edits, openEnd);
-				for (int f = 0; f < fieldIds.length; f++) {
-					final FulltextTermHeap heap = fields[f];
-					index.forEachTerm(fieldIds[f], walker, (term, postings, impacts, distance, frequency) -> {
-						if (distance == band && !previousBands.contains(term) &&
-							!exact.containsKey(term) && !prefix.containsKey(term)) {
-							heap.offer(term, postings, impacts, distance, frequency);
-						}
-						return true;
-					});
-				}
+		for (final String variant : variants) {
+			final int edits = this.parameters.maxEdits(variant);
+			if (edits == 0) {
+				continue;
 			}
-			for (final String surface : surfaces) {
-				if (this.parameters.maxEdits(surface) < edits) {
-					continue;
-				}
-				final boolean surfaceOpenEnd = openEnd && surface.codePointCount(0, surface.length()) >=
-					this.parameters.openEndedStartLength();
-				final FulltextDictionaryWalker walker = walker(surface, edits, surfaceOpenEnd);
-				for (final long phase : phases) {
-					walker.walkSurface(index, phase, (cursor, distance) -> {
-						if (distance == band) {
-							lane.prepare(cursor.stemCharacters());
-							if (!previousBands.contains(lane.probe) && !exact.containsKey(lane.probe) &&
-								!prefix.containsKey(lane.probe)) {
-								lane.collect(distance, fields);
-							}
-						}
-						return true;
-					});
-				}
+			final FulltextDictionaryWalker walker = walker(variant, edits, openEnd);
+			for (int f = 0; f < fieldIds.length; f++) {
+				final FulltextTermHeap heap = fields[f];
+				index.forEachTerm(fieldIds[f], walker, (term, postings, impacts, distance, frequency) -> {
+					if (distance > 0 && !exact.containsKey(term) && !prefix.containsKey(term)) {
+						heap.offer(term, postings, impacts, distance, frequency);
+					}
+					return true;
+				});
 			}
-			earlierTerms = collectedTerms(fields);
-			if (earlierTerms.size() == TERMS_PER_LEG) {
-				break;
+		}
+		for (final String surface : surfaces) {
+			final int edits = this.parameters.maxEdits(surface);
+			if (edits == 0) {
+				continue;
+			}
+			final boolean surfaceOpenEnd = openEnd && surface.codePointCount(0, surface.length()) >=
+				this.parameters.openEndedStartLength();
+			final FulltextDictionaryWalker walker = walker(surface, edits, surfaceOpenEnd);
+			for (final long phase : phases) {
+				walker.walkSurface(index, phase, (cursor, distance) -> {
+					if (distance > 0) {
+						lane.prepare(cursor.stemCharacters());
+						if (!exact.containsKey(lane.probe) && !prefix.containsKey(lane.probe)) {
+							lane.collect(distance, fields);
+						}
+					}
+					return true;
+				});
 			}
 		}
 		return select(index, fieldIds, fields, FulltextTermExactness.FUZZY);
@@ -292,7 +300,7 @@ final class FulltextTermExpansion {
 	/**
 	 * Retrieves or builds the variant's automaton once for this query.
 	 * @param variant analyzed alternative
-	 * @param edits current edit band
+	 * @param edits maximum edit budget of this word
 	 * @param openEnd acceptance of arbitrary suffixes
 	 * @return reusable, non-reentrant walker
 	 */
@@ -321,25 +329,6 @@ final class FulltextTermExpansion {
 			fields[i] = new FulltextTermHeap(TERMS_PER_LEG);
 		}
 		return fields;
-	}
-
-	/**
-	 * Collects earlier-band terms to skip them in wider walks; reaching the cap ends the cascade.
-	 * @param fields bounded field collectors
-	 * @return distinct earlier-band stems, stopping once the global cap is reached
-	 */
-	@Nonnull
-	private static Set<String> collectedTerms(@Nonnull FulltextTermHeap[] fields) {
-		final Set<String> terms = CollectionUtils.createHashSet(TERMS_PER_LEG);
-		for (final FulltextTermHeap field : fields) {
-			for (int i = 0; i < field.size(); i++) {
-				terms.add(field.get(i).term());
-				if (terms.size() == TERMS_PER_LEG) {
-					return terms;
-				}
-			}
-		}
-		return terms;
 	}
 
 	/**
@@ -600,7 +589,7 @@ final class FulltextTermExpansion {
 	/**
 	 * Query-local automaton identity; prefix and transposition policy are fixed on the enclosing instance.
 	 * @param term analyzed alternative
-	 * @param edits accepted distance band
+	 * @param edits maximum accepted distance
 	 * @param openEnd whether a matching prefix accepts its remaining suffix
 	 */
 	private record WalkKey(@Nonnull String term, int edits, boolean openEnd) { }

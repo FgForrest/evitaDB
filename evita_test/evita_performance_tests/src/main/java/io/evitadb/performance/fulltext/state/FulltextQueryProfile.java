@@ -27,7 +27,8 @@ import javax.annotation.Nonnull;
 
 /**
  * What one benchmarked query costs according to the P1 phase-1 cost model, computed from the index before anything is
- * measured.
+ * measured. This profile describes the exact-match core only. Prefix and typo expansion may add postings and
+ * documents; this model does not estimate that extra cost. Census query-file mode does not construct profiles.
  *
  * The model is the one the fulltext ADR records for the phase-1 budget:
  *
@@ -37,8 +38,8 @@ import javax.annotation.Nonnull;
  *
  * **Candidates mean something else on this path than they did in P1.** P1 scored a whole locale partition, so its
  * candidates were every document of the corpus. Through the planner, `FulltextFormula#getFulltextScores` scores the
- * final result of the filter, and for a bare `textMatches` query that is the strict match set itself - candidates
- * equal matched documents. The model therefore prices only the scoring; computing the match set (a union per token
+ * final result of the filter. Before expansion, a bare `textMatches` query's strict match set supplies both the
+ * candidates and matched documents. The model prices only scoring; computing the match set (a union per token
  * and an intersection across tokens over the same posting lists) is a cost P1 never measured, and it is in the
  * measured time of both benchmark methods.
  *
@@ -46,9 +47,8 @@ import javax.annotation.Nonnull;
  * @param frequencyClass   the class every word of the text was drawn from
  * @param tokenCount       how many tokens the text analyzes into
  * @param summedPostings   the length of every posting list the query's terms hold, summed over its tokens, their
- *                         variant stems and every searched field - the postings the scorer walks
- * @param matchedDocuments how many documents contain every token - the strict match set, which on this path is also
- *                         the candidate set the scorer receives
+ *                         variant stems and every searched field, excluding prefix and typo expansion
+ * @param matchedDocuments how many documents contain every exact token - the core that expansion must preserve
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public record FulltextQueryProfile(
@@ -74,9 +74,9 @@ public record FulltextQueryProfile(
 	private static final double NANOS_PER_MATCHED_DOCUMENT = 21.0;
 
 	/**
-	 * Returns the scoring cost the P1 model predicts for this query, with the match set as the candidate set.
+	 * Returns the P1 scoring baseline for the exact core, using that core as the candidate set.
 	 *
-	 * @return the predicted cost in nanoseconds
+	 * @return the exact-core baseline in nanoseconds, excluding expansion
 	 */
 	public double getModelNanos() {
 		return NANOS_PER_CANDIDATE * this.matchedDocuments

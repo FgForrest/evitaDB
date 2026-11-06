@@ -55,6 +55,7 @@ import static io.evitadb.test.TestTags.TEST_HARNESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies that {@link CatalogCopySupport} copies an entity into a catalog rebuilt from its source's schema - verbatim
@@ -161,6 +162,49 @@ class CatalogCopySupportTest implements EvitaTestSupport {
 			assertNull(copy.getAssociatedData(BODY, Locale.ENGLISH));
 		}
 
+		/** Analyzer selections reach both schema editor kinds; an unqualified entry keeps the default. */
+		@Test
+		@DisplayName("Assigns analyzers to searchable attributes and associated data")
+		void shouldAssignSearchableAnalyzers() {
+			final EntitySchemaContract source;
+			final CatalogSchemaContract catalog;
+			try (final EvitaSessionContract session = this.evita.createReadOnlySession(SOURCE_CATALOG)) {
+				source = session.getEntitySchemaOrThrowException(ARTICLE);
+				catalog = session.getCatalogSchema();
+			}
+			this.evita.defineCatalog(TARGET_CATALOG).updateViaNewSession(this.evita);
+			this.evita.updateCatalog(TARGET_CATALOG, session -> {
+				CatalogCopySupport.replicateSchema(
+					session, catalog, List.of(source), Map.of(ARTICLE + ".@" + BODY, CZECH),
+					CatalogCopySupport.parseSearchableFields(
+						"article.title:html-text;article.@body:html-text;article.@perex"));
+				final EntitySchemaContract target = session.getEntitySchemaOrThrowException(ARTICLE);
+				assertEquals("html-text", target.getAttribute(TITLE).orElseThrow().getAnalyzer());
+				assertTrue(target.getAttribute(TITLE).orElseThrow().isSearchableInAnyScope());
+				assertEquals("html-text", target.getAssociatedData(BODY).orElseThrow().getAnalyzer());
+				assertTrue(target.getAssociatedData(BODY).orElseThrow().isSearchableInAnyScope());
+				assertEquals(source.getAssociatedData(PEREX).orElseThrow().getAnalyzer(),
+					target.getAssociatedData(PEREX).orElseThrow().getAnalyzer());
+				assertTrue(target.getAssociatedData(PEREX).orElseThrow().isSearchableInAnyScope());
+			});
+		}
+
+		/** Unknown names must fail before the copied schema can be used. */
+		@Test
+		@DisplayName("Refuses an unknown analyzer with its name in the error")
+		void shouldRefuseUnknownAnalyzer() {
+			this.evita.defineCatalog(TARGET_CATALOG).updateViaNewSession(this.evita);
+			try (final EvitaSessionContract source = this.evita.createReadOnlySession(SOURCE_CATALOG)) {
+				final RuntimeException failure = assertThrows(RuntimeException.class,
+					() -> this.evita.updateCatalog(TARGET_CATALOG, session -> {
+						CatalogCopySupport.replicateSchema(session, source.getCatalogSchema(),
+							List.of(source.getEntitySchemaOrThrowException(ARTICLE)), Map.of(),
+							CatalogCopySupport.parseSearchableFields("article.title:unknown-census-analyzer"));
+					}));
+				assertTrue(failure.getMessage().contains("unknown-census-analyzer"));
+			}
+		}
+
 		/**
 		 * Rebuilds the source schema in a new target catalog, copies the article into it and reads the copy back.
 		 */
@@ -200,6 +244,31 @@ class CatalogCopySupportTest implements EvitaTestSupport {
 			}
 		}
 
+	}
+
+	@Nested
+	@DisplayName("Parsing searchable fields")
+	class ParsingSearchableFields {
+		/** Analyzer selection precedes the expression, whose own punctuation stays untouched. */
+		@Test
+		@DisplayName("Keeps expressions and unqualified entries intact")
+		void shouldParseAnalyzerBeforeExpression() {
+			final Map<String, CatalogCopySupport.SearchableField> fields = CatalogCopySupport.parseSearchableFields(
+				"article.title:html-text;article.@body:html-text=$value.blocks.*[$.text];article.@perex");
+			assertEquals("html-text", fields.get("article.title").analyzer());
+			assertEquals("html-text", fields.get("article.@body").analyzer());
+			assertEquals("$value.blocks.*[$.text]", fields.get("article.@body").textExpression());
+			assertNull(fields.get("article.@perex").analyzer());
+			assertNull(fields.get("article.@perex").textExpression());
+		}
+
+		/** An explicit empty name cannot silently select the default. */
+		@Test
+		@DisplayName("Refuses an empty analyzer assignment")
+		void shouldRefuseEmptyAnalyzer() {
+			assertThrows(GenericEvitaInternalError.class,
+				() -> CatalogCopySupport.parseSearchableFields("article.title:"));
+		}
 	}
 
 	@Nested

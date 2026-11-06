@@ -54,6 +54,7 @@ import java.util.*;
 
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
 import static io.evitadb.core.query.filter.translator.fulltext.FulltextSurfaceTestSupport.*;
+import static io.evitadb.core.query.filter.translator.fulltext.FulltextExpansionTestSupport.*;
 import static io.evitadb.test.TestTags.*;
 import static io.evitadb.test.fulltext.FulltextAnalysisTestSupport.collectTerms;
 import static org.junit.jupiter.api.Assertions.*;
@@ -64,6 +65,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 @Tag(FULLTEXT)
 @DisplayName("Surface lane expansion")
 class FulltextSurfaceExpansionTest {
+	/** Effective production cap shared by both dictionaries. */
+	private static final int CAP = effectiveTermsPerLeg();
 	/** Lane recall and matching class through real index analysis. */
 	@Nested
 	@DisplayName("English stemming recall")
@@ -160,13 +163,11 @@ class FulltextSurfaceExpansionTest {
 		void shouldCapMergedPrefixLeg() {
 			withCapFixture((index, id, analyzer) -> {
 				final List<String> expected = new ArrayList<>();
-				for (char a = 'a'; a <= 'c'; a++) {
-					for (char b = 'a'; b <= 'z'; b++) {
-						final String suffix = "" + a + b;
-						index.addValue(FulltextFieldKey.attribute("title"), expected.size() + 1, analyzer, 25,
-							null, "stem" + suffix, "surf" + suffix);
-						expected.add("stem" + suffix);
-					}
+				for (int i = 0; i <= CAP; i++) {
+					final String suffix = alphabeticSuffix(i);
+					index.addValue(FulltextFieldKey.attribute("title"), i + 1, analyzer, 25,
+						null, "stem" + suffix, "surf" + suffix);
+					expected.add("stem" + suffix);
 				}
 				index.addValue(FulltextFieldKey.attribute("title"), 1000, analyzer, 25, null, "surfzz");
 				index.addValue(FulltextFieldKey.attribute("title"), 1001, analyzer, 25, null, "surfzz");
@@ -177,32 +178,38 @@ class FulltextSurfaceExpansionTest {
 					.map(ExpandedTerm::term).toList();
 				final List<String> winners = new ArrayList<>();
 				winners.add("wzz");
-				winners.addAll(expected.subList(0, 49));
+				winners.addAll(expected.subList(0, CAP - 1));
 				assertEquals(winners, prefixes);
 			});
 		}
 
-		/** Both sources complete the same edit band before its common cap can terminate the cascade. */
+		/** Both sources compete at their minimum distance before the common cap is applied. */
 		@Test
 		@DisplayName("Cuts lane and stem typo candidates together after merging distances")
 		void shouldCapMergedTypoLeg() {
 			withCapFixture((index, id, analyzer) -> {
 				final SortedSet<String> stems = new TreeSet<>();
+				final int suffixLength = Math.max(2, 1 + CAP / 25);
+				final String querySuffix = "a".repeat(suffixLength);
+				final String popularSuffix = "a".repeat(suffixLength - 1) + "z";
 				int pk = 1;
 				for (char letter = 'b'; letter <= 'z'; letter++) {
-					for (final String suffix : List.of("a" + letter, letter + "a")) {
+					for (int position = 0; position < suffixLength; position++) {
+						final char[] letters = querySuffix.toCharArray();
+						letters[position] = letter;
+						final String suffix = new String(letters);
 						index.addValue(FulltextFieldKey.attribute("title"), pk++, analyzer, 25, null,
 							"stem" + suffix, "surf" + suffix);
 						stems.add("stem" + suffix);
 					}
 				}
-				index.addValue(FulltextFieldKey.attribute("title"), 1000, analyzer, 25, null, "surfaz");
+				index.addValue(FulltextFieldKey.attribute("title"), 1000, analyzer, 25, null, "surf" + popularSuffix);
 				final List<ExpandedTerm> actual = new FulltextTermExpansion(new FulltextTypoParameters(new FulltextOptions()))
-					.expand(index, new int[]{id}, new String[]{"stemaa"}, new String[]{"surfaa"},
-						new String[0], false);
+					.expand(index, new int[]{id}, new String[]{"stem" + querySuffix},
+						new String[]{"surf" + querySuffix}, new String[0], false);
 				final List<String> winners = new ArrayList<>();
-				winners.add("waz");
-				winners.addAll(new ArrayList<>(stems).subList(0, 49));
+				winners.add("w" + popularSuffix);
+				winners.addAll(new ArrayList<>(stems).subList(0, CAP - 1));
 				assertEquals(winners, actual.stream().map(ExpandedTerm::term).toList());
 				assertTrue(actual.stream().allMatch(t -> t.distance() == 1 &&
 					t.exactness() == FulltextTermExactness.FUZZY));
@@ -225,11 +232,11 @@ class FulltextSurfaceExpansionTest {
 			assumeTrue(threads.isThreadAllocatedMemorySupported());
 			assumeTrue(threads.isThreadAllocatedMemoryEnabled());
 			withAnalyzer(new TransformingWords(exactExcluded ? "collapse" : "namespace"), analyzer -> {
-				final FulltextIndex small = fanout(analyzer, 1000 + (exactExcluded ? 0 : 50));
-				final FulltextIndex large = fanout(analyzer, 10000 + (exactExcluded ? 0 : 50));
+				final FulltextIndex small = fanout(analyzer, 1000 + (exactExcluded ? 0 : CAP));
+				final FulltextIndex large = fanout(analyzer, 10000 + (exactExcluded ? 0 : CAP));
 				if (guided) {
-					assertAcceptedHits(small, analyzer, 1000 + (exactExcluded ? 0 : 50));
-					assertAcceptedHits(large, analyzer, 10000 + (exactExcluded ? 0 : 50));
+					assertAcceptedHits(small, analyzer, 1000 + (exactExcluded ? 0 : CAP));
+					assertAcceptedHits(large, analyzer, 10000 + (exactExcluded ? 0 : CAP));
 				}
 				for (int i = 0; i < 15; i++) {
 					expandFanout(small, exactExcluded, guided);
@@ -358,12 +365,12 @@ class FulltextSurfaceExpansionTest {
 		return minimum;
 	}
 
-	/** Checks the uncapped exact survivor or the fifty completion survivors while comparing allocation growth. */
+	/** Checks the uncapped exact survivor or the capped completion survivors while comparing allocation growth. */
 	private static void expandFanout(FulltextIndex index, boolean exactExcluded, boolean guided) {
 		final List<ExpandedTerm> result = new FulltextTermExpansion(new FulltextTypoParameters(new FulltextOptions()))
 			.expand(index, new int[]{0}, exactExcluded ? new String[]{"root"} : new String[0],
 				guided ? new String[]{"sury"} : new String[0], new String[]{guided ? "sury" : "surf"}, true);
-		assertEquals(exactExcluded ? 1 : 50, result.size());
+		assertEquals(exactExcluded ? 1 : CAP, result.size());
 		if (exactExcluded) {
 			assertEquals("root", result.getFirst().term());
 		} else {

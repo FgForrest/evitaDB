@@ -41,6 +41,8 @@ import static io.evitadb.core.query.filter.translator.fulltext.FulltextSurfaceTe
 import java.util.*;
 
 import static io.evitadb.index.fulltext.FulltextIndexTestSupport.*;
+import static io.evitadb.index.fulltext.FulltextTermExactness.FUZZY;
+import static io.evitadb.core.query.filter.translator.fulltext.FulltextExpansionTestSupport.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static org.junit.jupiter.api.Assertions.*;
@@ -50,6 +52,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(FULLTEXT)
 @DisplayName("Text matches expansion legs")
 class TextMatchesExpansionTest {
+	/** Effective production cap, read without widening production visibility. */
+	private static final int CAP = effectiveTermsPerLeg();
 	/** Built-in options mapped to the engine policy. */
 	private static final FulltextTypoParameters DEFAULT_PARAMETERS =
 		new FulltextTypoParameters(new FulltextOptions());
@@ -170,33 +174,31 @@ class TextMatchesExpansionTest {
 	@Nested
 	@DisplayName("Leg caps")
 	class Caps {
-		/** Exact variant lookups survive even when there are more than fifty of them. */
+		/** Exact variant lookups survive even when their count exceeds the effective cap. */
 		@Test
 		@DisplayName("Keeps every exact variant outside the cap")
 		void shouldKeepAllExactVariants() {
-			final List<String> variants = new ArrayList<>();
-			for (char letter = 'a'; letter <= 'z'; letter++) {
-				for (char suffix = 'a'; suffix <= 'c'; suffix++) {
-					variants.add("term" + letter + suffix);
-				}
+			final String[] variants = new String[CAP + 1];
+			for (int i = 0; i < variants.length; i++) {
+				variants[i] = "term" + alphabeticSuffix(i);
 			}
-			add(1, variants.toArray(String[]::new));
-			assertEquals(78, expand("term", false, variants.toArray(String[]::new)).length);
+			add(1, variants);
+			assertEquals(CAP + 1, expand("term", false, variants).length);
 		}
 
 		/** A late lexicographical high-frequency candidate must survive, ties cut by term. */
 		@Test
-		@DisplayName("Caps prefix terms at fifty by frequency then term")
+		@DisplayName("Caps prefix terms at the effective cap by frequency then term")
 		void shouldCapPrefix() {
-			for (char suffix = 'a'; suffix <= 'z'; suffix++) {
-				add(suffix, "stem" + suffix + "a", "stem" + suffix + "b", "stem" + suffix + "c");
+			for (int i = 0; i <= CAP; i++) {
+				add(i + 1, "stem" + alphabeticSuffix(i));
 			}
-			add(1000, "stemzc");
+			final String popular = "stem" + alphabeticSuffix(CAP);
+			add(CAP + 2, popular);
 			final Map<String, String> actual = describe(expand("stem", true));
-			assertEquals(50, actual.size());
-			assertTrue(actual.containsKey("stemzc"));
-			assertTrue(actual.containsKey("stemqa"));
-			assertFalse(actual.containsKey("stemqb"));
+			assertEquals(CAP, actual.size());
+			assertTrue(actual.containsKey(popular));
+			assertFalse(actual.containsKey("stem" + alphabeticSuffix(CAP - 1)));
 		}
 
 		/** A stem appearing in several fields consumes one slot, while unsearched fields contribute nothing. */
@@ -207,66 +209,64 @@ class TextMatchesExpansionTest {
 			final FulltextFieldKey excluded = FulltextFieldKey.attribute("excluded");
 			final int secondId = registerExactField(TextMatchesExpansionTest.this.index, second, 25.0);
 			registerExactField(TextMatchesExpansionTest.this.index, excluded, 25.0);
-			for (char letter = 'a'; letter <= 't'; letter++) {
-				final String[] words = {"stem" + letter + "a", "stem" + letter + "b", "stem" + letter + "c"};
-				add(letter, words);
-				addWords(TextMatchesExpansionTest.this.index, second, letter + 100, words);
+			for (int i = 0; i <= CAP; i++) {
+				final String word = "stem" + alphabeticSuffix(i);
+				add(i + 1, word);
+				addWords(TextMatchesExpansionTest.this.index, second, i + CAP + 2, word);
 			}
 			addWords(TextMatchesExpansionTest.this.index, excluded, 1, "stemexcluded");
 			final List<ExpandedTerm> actual = new FulltextTermExpansion(DEFAULT_PARAMETERS)
 				.expand(TextMatchesExpansionTest.this.index, new int[]{0, secondId}, new String[0],
 					new String[0], new String[]{"stem"}, true);
-			assertEquals(100, actual.size());
+			assertEquals(2 * CAP, actual.size());
 			final Set<String> terms = new TreeSet<>();
 			for (final ExpandedTerm term : actual) {
 				assertTrue(term.fieldId() == 0 || term.fieldId() == secondId);
 				assertNotEquals("stemexcluded", term.term());
 				terms.add(term.term());
 			}
-			assertEquals(50, terms.size());
+			assertEquals(CAP, terms.size());
 		}
 
 		/** Prefix hits reached fuzzily must not spend both caps after their best class has been merged. */
 		@Test
 		@DisplayName("Does not let high-frequency prefix hits consume the typo cap")
 		void shouldCapAfterMergingExactness() {
-			final List<String> prefixes = new ArrayList<>();
-			for (char letter = 'a'; letter <= 'z'; letter++) {
-				for (char suffix = 'a'; suffix <= 'c'; suffix++) {
-					prefixes.add("stem" + letter + suffix);
-				}
-			}
-			for (int pk = 1; pk <= 10; pk++) {
-				add(pk, prefixes.toArray(String[]::new));
-			}
-			int pk = 100;
-			for (int position = 1; position < 4; position++) {
-				for (char letter = 'a'; letter <= 'z'; letter++) {
-					final char[] term = "stam".toCharArray();
-					if (term[position] == letter) {
-						continue;
-					}
-					term[position] = letter;
-					final String candidate = new String(term);
-					if (!candidate.startsWith("stem")) {
-						add(pk++, candidate);
-					}
-				}
+			for (int i = 0; i <= CAP; i++) {
+				final String suffix = alphabeticSuffix(i);
+				add(i + 1, "stem" + suffix);
+				add(i + CAP + 2, "stem" + suffix, "sbam" + suffix);
 			}
 			final Map<String, String> actual = describe(expand("stem", true, "stam"));
-			assertEquals(100, actual.size());
-			int prefixCount = 0;
-			int fuzzyCount = 0;
-			for (final String match : actual.values()) {
-				if (match.equals("PREFIX:0")) {
-					prefixCount++;
-				}
-				if (match.equals("FUZZY:1")) {
-					fuzzyCount++;
+			assertEquals(2 * CAP, actual.size());
+			assertEquals(CAP, actual.values().stream().filter("PREFIX:0"::equals).count());
+			assertEquals(CAP, actual.values().stream().filter("FUZZY:1"::equals).count());
+		}
+
+		/** Equal-distance and frequency ties must choose the same ordered stems at the actual cap boundary. */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Cuts equal-distance ties at the cap in stable term order across field and variant orders")
+		void shouldCutEqualDistanceTiesDeterministically(boolean reverse) {
+			final FulltextFieldKey second = FulltextFieldKey.attribute("body");
+			final int secondId = registerExactField(TextMatchesExpansionTest.this.index, second, 25.0);
+			final List<String> expected = new ArrayList<>();
+			for (int i = 0; i <= CAP; i++) {
+				final String suffix = alphabeticSuffix(i);
+				add(i + 1, "sbam" + suffix);
+				addWords(TextMatchesExpansionTest.this.index, second, i + CAP + 2, "sbam" + suffix);
+				if (i < CAP) {
+					expected.add("sbam" + suffix);
 				}
 			}
-			assertEquals(50, prefixCount);
-			assertEquals(50, fuzzyCount);
+			final List<ExpandedTerm> actual = new FulltextTermExpansion(DEFAULT_PARAMETERS).expand(
+				TextMatchesExpansionTest.this.index, reverse ? new int[]{secondId, 0} : new int[]{0, secondId},
+				reverse ? new String[]{"sbem", "stam"} : new String[]{"stam", "sbem"},
+				new String[0], new String[]{"stam"}, true);
+			assertEquals(2 * CAP, actual.size());
+			assertEquals(expected, actual.stream().map(ExpandedTerm::term).distinct().toList());
+			assertTrue(actual.stream().allMatch(term -> term.distance() == 1 &&
+				term.exactness() == FUZZY));
 		}
 
 		/** Thousands of hits in both legs must retain only a bounded working set. */
@@ -278,7 +278,7 @@ class TextMatchesExpansionTest {
 			final List<ExpandedTerm> actual = expansion.expand(TextMatchesExpansionTest.this.index, new int[]{0},
 				new String[]{"zzzz", "aaaa"}, new String[0], new String[]{"aaaa"}, true);
 			final Map<String, String> expected = new TreeMap<>();
-			for (int i = 0; i < 49; i++) {
+			for (int i = 0; i < CAP - 1; i++) {
 				expected.put("zzzz" + String.format("%05d", i), "PREFIX:0");
 				expected.put("zzzx" + String.format("%05d", i), "FUZZY:1");
 			}
@@ -331,10 +331,10 @@ class TextMatchesExpansionTest {
 		void shouldUseMaximumFieldFrequency() {
 			final FulltextFieldKey second = FulltextFieldKey.attribute("body");
 			final int secondId = registerExactField(TextMatchesExpansionTest.this.index, second, 25.0);
-			final String[] frequent = new String[49];
+			final String[] frequent = new String[CAP - 1];
 			final Set<String> expected = new TreeSet<>();
 			for (int i = 0; i < frequent.length; i++) {
-				frequent[i] = "stemfrequent" + String.format("%02d", i);
+				frequent[i] = "stemfrequent" + alphabeticSuffix(i);
 				expected.add(frequent[i]);
 			}
 			for (int pk = 1; pk <= 20; pk++) {
@@ -364,9 +364,9 @@ class TextMatchesExpansionTest {
 		void shouldReacquireEvictedFieldView() {
 			final FulltextFieldKey second = FulltextFieldKey.attribute("body");
 			final int secondId = registerExactField(TextMatchesExpansionTest.this.index, second, 25.0);
-			final String[] competitors = new String[50];
+			final String[] competitors = new String[CAP];
 			for (int i = 0; i < competitors.length; i++) {
-				competitors[i] = "stemrank" + String.format("%02d", i);
+				competitors[i] = "stemrank" + alphabeticSuffix(i);
 			}
 			for (int pk = 1; pk <= 3; pk++) {
 				add(pk, competitors);
@@ -378,10 +378,10 @@ class TextMatchesExpansionTest {
 			final List<ExpandedTerm> actual = new FulltextTermExpansion(DEFAULT_PARAMETERS).expand(
 				TextMatchesExpansionTest.this.index, new int[]{0, secondId}, new String[0], new String[0],
 					new String[]{"stem"}, true);
-			assertEquals(51, actual.size());
+			assertEquals(CAP + 1, actual.size());
 			int fields = 0;
 			for (final ExpandedTerm term : actual) {
-				assertNotEquals("stemrank49", term.term());
+				assertNotEquals("stemrank" + alphabeticSuffix(CAP - 1), term.term());
 				if (term.term().equals("stemwinner")) {
 					fields++;
 					assertEquals(term.fieldId() == 0 ? 1 : 10, term.postings().size());
@@ -394,15 +394,15 @@ class TextMatchesExpansionTest {
 		@Test
 		@DisplayName("Lets a discarded prefix compete as a typo while retaining prefix survivor exactness")
 		void shouldAdmitDiscardedPrefixAsTypo() {
-			final String[] frequent = new String[50];
+			final String[] frequent = new String[CAP];
 			for (int i = 0; i < frequent.length; i++) {
-				frequent[i] = "happi" + String.format("%02d", i);
+				frequent[i] = "happi" + alphabeticSuffix(i);
 			}
 			add(1, frequent);
 			add(2, frequent);
 			add(3, "happyzz");
 			final Map<String, String> actual = describe(expand("happy", true, "happi"));
-			assertEquals(51, actual.size());
+			assertEquals(CAP + 1, actual.size());
 			assertEquals("FUZZY:1", actual.get("happyzz"));
 			for (final String term : frequent) {
 				assertEquals("PREFIX:0", actual.get(term));
@@ -411,7 +411,7 @@ class TextMatchesExpansionTest {
 				add(pk, "happykept");
 			}
 			final Map<String, String> inverse = describe(expand("happy", true, "happi"));
-			assertEquals(51, inverse.size());
+			assertEquals(CAP + 1, inverse.size());
 			assertEquals("PREFIX:0", inverse.get("happykept"));
 			assertEquals("FUZZY:1", inverse.get("happyzz"));
 		}
@@ -419,31 +419,30 @@ class TextMatchesExpansionTest {
 		/** One-edit terms take priority over more popular two-edit terms, exact hits are uncapped. */
 		@Test
 		@DisplayName("Caps the merged typo leg by distance before frequency and keeps exact terms")
-		void shouldCapTypoCascade() {
+		void shouldCapMergedTypoLeg() {
+			final String query = "a".repeat(Math.max(8, 2 + CAP / 25));
 			final List<String> expected = new ArrayList<>();
-			for (char suffix = 'a'; suffix <= 'z'; suffix++) {
-				for (int position = 1; position <= 3; position++) {
-					final char[] word = "abcdefgh".toCharArray();
-					if (word[position] == suffix) {
-						continue;
-					}
+			for (int position = 1; position < query.length() && expected.size() <= CAP; position++) {
+				for (char suffix = 'b'; suffix <= 'z' && expected.size() <= CAP; suffix++) {
+					final char[] word = query.toCharArray();
 					word[position] = suffix;
 					final String term = new String(word);
 					expected.add(term);
 					add(expected.size(), term);
 				}
 			}
-			for (int pk = 200; pk < 210; pk++) {
-				add(pk, "abxxefgh");
+			final String twoEdits = "abb" + query.substring(3);
+			for (int pk = CAP + 2; pk < CAP + 12; pk++) {
+				add(pk, twoEdits);
 			}
-			add(300, "abcdefgh");
+			add(CAP + 12, query);
 			expected.sort(String::compareTo);
 			final String popular = expected.getLast();
-			add(500, popular);
-			final Map<String, String> actual = describe(expand("abcdefgh", false, "abcdefgh", "abcdefgh"));
-			assertEquals(51, actual.size());
-			assertEquals("EXACT:0", actual.remove("abcdefgh"));
-			final Set<String> kept = new TreeSet<>(expected.subList(0, 49));
+			add(CAP + 13, popular);
+			final Map<String, String> actual = describe(expand(query, false, query, query));
+			assertEquals(CAP + 1, actual.size());
+			assertEquals("EXACT:0", actual.remove(query));
+			final Set<String> kept = new TreeSet<>(expected.subList(0, CAP - 1));
 			kept.add(popular);
 			assertEquals(kept, actual.keySet());
 		}

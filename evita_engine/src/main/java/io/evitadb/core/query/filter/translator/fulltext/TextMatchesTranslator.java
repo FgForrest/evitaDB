@@ -268,7 +268,8 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 					queryContext.computeOnlyOnce(
 						List.of((EntityIndex) globalIndex), textMatches,
 						() -> createFormula(
-							fulltextIndex, groupsByScope.get(scope), searchTokens, unfinished, expansion
+							fulltextIndex, groupsByScope.get(scope), searchTokens, unfinished, expansion,
+							globalIndex.getRecordsWithLanguageFormula(locale).getEstimatedCardinality()
 						)
 					)
 				);
@@ -570,18 +571,23 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 * expansions out as the original's, then each part's, and its row of part ends marks where each range ends; the
 	 * formula receives the rows only when some word is split. The original's range keeps no inexact term a part
 	 * matched exactly in the same field, so a part reached by the original's typo leg is credited as that part only.
+	 * Before flattening, the postings budget visits the collected group/part batches in their production order.
+	 * A word emptied by that cut remains mandatory, making the query match nothing. The completion gate applies again
+	 * after the cut: a batch whose last completion was cut leaves, and a final word left with no batch leaves the query
+	 * as if it had been closed, with the remaining words priced again for their own count.
 	 *
 	 * @param fulltextIndex the locale index of this scope
 	 * @param groups the analyzed groups and their schema field identities
 	 * @param tokens the shared words with their original surface forms and their split parts
 	 * @param unfinished whether the raw text ends with an unclosed word
 	 * @param expansion query-local walkers and submitted-search policy shared across scopes and groups
+	 * @param documentCount cardinality of the scope global index's locale bitmap, known before query execution
 	 * @return the fulltext formula, or empty when all words were dropped
 	 */
 	@Nonnull
 	private static Formula createFormula(
 		@Nonnull FulltextIndex fulltextIndex, @Nonnull List<AnalyzedFieldGroup> groups,
-		@Nonnull QueryToken[] tokens, boolean unfinished, @Nonnull FulltextTermExpansion expansion
+		@Nonnull QueryToken[] tokens, boolean unfinished, @Nonnull FulltextTermExpansion expansion, int documentCount
 	) {
 		final List<int[]> fieldIds = new ArrayList<>(groups.size());
 		for (final AnalyzedFieldGroup group : groups) {
@@ -596,14 +602,16 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			}
 			fieldIds.add(Arrays.copyOf(ids, count));
 		}
-		final List<ExpandedTerm[]> expandedTokens = new ArrayList<>(tokens.length);
-		final List<int[]> coverage = new ArrayList<>(tokens.length);
-		boolean splitWord = false;
+		final List<ExpandedTerm[][]> expandedTokens = new ArrayList<>(tokens.length);
+		final int[] partCounts = new int[tokens.length];
+		// Batches of the final word admitted only for their completion, null when there are none.
+		boolean[] completionOnly = null;
+		boolean finalWordOrdinary = false;
 		for (int i = 0; i < tokens.length; i++) {
-			final List<ExpandedTerm> expansions = new ArrayList<>(8);
-			final List<List<ExpandedTerm>> parts = new ArrayList<>(tokens[i].wordCount());
-			for (int part = 0; part < tokens[i].wordCount(); part++) {
-				parts.add(new ArrayList<>(8));
+			final int partCount = tokens[i].wordCount();
+			final List<List<ExpandedTerm>> batches = new ArrayList<>(groups.size() * partCount);
+			for (int b = 0; b < groups.size() * partCount; b++) {
+				batches.add(List.of());
 			}
 			boolean kept = false;
 			for (int g = 0; g < groups.size(); g++) {
@@ -611,11 +619,11 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 					continue;
 				}
 				final AnalyzedFieldGroup group = groups.get(g);
-				for (int part = 0; part < parts.size(); part++) {
+				for (int part = 0; part < partCount; part++) {
 					final QueryToken word = tokens[i].wordAt(part);
 					final String[] alternatives = group.alternatives()[i][part];
 					final boolean lastUnfinished = unfinished && i == tokens.length - 1 &&
-						(part == 0 || part == parts.size() - 1);
+						(part == 0 || part == partCount - 1);
 					final String[] fragments = lastUnfinished ? group.fragments()[part] : new String[0];
 					final boolean hasFragment = expansion.expandsUnfinishedWord(fragments, lastUnfinished);
 					// Stop recognition depends on exact corpus collisions, never on a fuzzy neighbour.
@@ -630,31 +638,67 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 					if (dropped && !containsCompletion(expanded)) {
 						continue;
 					}
-					parts.get(part).addAll(expanded);
+					batches.set(g * partCount + part, expanded);
 					kept = true;
+					if (dropped) {
+						// Only the final word takes the unfinished policy, so only its batches get here.
+						if (completionOnly == null) {
+							completionOnly = new boolean[batches.size()];
+						}
+						completionOnly[g * partCount + part] = true;
+					} else if (i == tokens.length - 1) {
+						finalWordOrdinary = true;
+					}
 				}
 			}
 			if (kept) {
-				if (parts.size() > 1) {
-					dropTermsPartsMatchExactly(parts);
-				}
-				final int[] partEnds = new int[parts.size() == 1 ? 0 : parts.size()];
-				for (int part = 0; part < parts.size(); part++) {
-					expansions.addAll(parts.get(part));
-					if (partEnds.length > 0) {
-						partEnds[part] = expansions.size();
+				if (partCount > 1) {
+					// A field belongs to one analyzer group, so exact part collisions stay within that group.
+					for (int g = 0; g < groups.size(); g++) {
+						dropTermsPartsMatchExactly(batches.subList(g * partCount, (g + 1) * partCount));
 					}
 				}
-				expandedTokens.add(expansions.toArray(ExpandedTerm[]::new));
-				coverage.add(partEnds);
-				splitWord |= partEnds.length > 0;
+				final ExpandedTerm[][] collected = new ExpandedTerm[batches.size()][];
+				for (int b = 0; b < batches.size(); b++) {
+					collected[b] = batches.get(b).toArray(ExpandedTerm[]::new);
+				}
+				partCounts[expandedTokens.size()] = partCount;
+				expandedTokens.add(collected);
 			}
 		}
 		if (expandedTokens.isEmpty()) {
 			return EmptyFormula.INSTANCE;
 		}
-		final ExpandedTerm[][] words = expandedTokens.toArray(ExpandedTerm[][]::new);
-		return splitWord ? new FulltextFormula(words, coverage.toArray(int[][]::new)) : new FulltextFormula(words);
+		ExpandedTerm[][][] words = expandedTokens.toArray(ExpandedTerm[][][]::new);
+		ExpandedTerm[][][] retained = FulltextPostingsBudget.retain(
+			words, FulltextPostingsBudget.limit(words.length, documentCount));
+		if (completionOnly != null) {
+			// The completion gate applies again to the batches whose last completion the cut removed.
+			final int last = words.length - 1;
+			final ExpandedTerm[][] finalWord = retained[last].clone();
+			boolean admitted = finalWordOrdinary;
+			for (int b = 0; b < completionOnly.length; b++) {
+				if (completionOnly[b]) {
+					if (containsCompletion(Arrays.asList(finalWord[b])) ||
+						!containsCompletion(Arrays.asList(words[last][b]))) {
+						admitted = true;
+					} else {
+						finalWord[b] = new ExpandedTerm[0];
+					}
+				}
+			}
+			if (!admitted) {
+				if (last == 0) {
+					return EmptyFormula.INSTANCE;
+				}
+				// The word leaves as if it had been closed, so the remaining words are priced for their own count.
+				words = Arrays.copyOf(words, last);
+				retained = FulltextPostingsBudget.retain(words, FulltextPostingsBudget.limit(last, documentCount));
+			} else {
+				retained[last] = finalWord;
+			}
+		}
+		return FulltextPostingsBudget.toFormula(retained, Arrays.copyOf(partCounts, words.length));
 	}
 
 	/**
@@ -666,8 +710,9 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 * exact terms stay even where a part's typo leg reaches them, because the original's range is scored first and
 	 * its hit already covers every part.
 	 *
-	 * @param parts the word's expansions per range, the original first and then each part; the original's list is
-	 *              shortened in place
+	 * @param parts one analyzer group's expansions of the word per range, the original first and then each part; the
+	 *              original's list is shortened in place only when a term is dropped, because an original the
+	 *              group never expanded is an immutable empty placeholder
 	 */
 	private static void dropTermsPartsMatchExactly(@Nonnull List<List<ExpandedTerm>> parts) {
 		final List<ExpandedTerm> original = parts.get(0);
@@ -678,7 +723,9 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 				original.set(retained++, term);
 			}
 		}
-		original.subList(retained, original.size()).clear();
+		if (retained < original.size()) {
+			original.subList(retained, original.size()).clear();
+		}
 	}
 
 	/**

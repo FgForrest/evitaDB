@@ -32,7 +32,8 @@ import javax.annotation.Nullable;
  * up to 1,000, high-frequency above that), so a cell of the end-to-end benchmark can be read next to the scorer cell
  * of the same class. One difference is deliberate: P1 classified one dictionary term of one field, while a word here
  * is classified by the documents it matches as a query token - the union over its variant stems and every searched
- * field - because that is the set a query through the planner actually computes.
+ * field. With query-side expansion enabled this class still describes the exact-match core; it does not classify
+ * the expanded result. Census query-file mode ignores this axis.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

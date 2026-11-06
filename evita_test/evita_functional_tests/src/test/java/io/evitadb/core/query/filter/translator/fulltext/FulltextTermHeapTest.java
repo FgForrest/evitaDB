@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static io.evitadb.core.query.filter.translator.fulltext.FulltextExpansionTestSupport.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static org.junit.jupiter.api.Assertions.*;
@@ -52,26 +53,30 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 @Tag(FULLTEXT)
 @DisplayName("Bounded fulltext term collector")
 class FulltextTermHeapTest {
+	/** Same capacity as the production collectors. */
+	private static final int CAP = effectiveTermsPerLeg();
 	/** Bounded selection independent of traversal order. */
 	@Nested
 	@DisplayName("Top term selection")
 	class Selection {
-		/** Adversarial ordering, distances, frequency ties and lexical ties have the same exact top fifty. */
+		/**
+		 * Adversarial ordering, distances, frequency ties and lexical ties have the same exact top terms up to the cap.
+		 */
 		@ParameterizedTest
 		@ValueSource(booleans = {false, true})
-		@DisplayName("Keeps exactly the independent top fifty after thousands of offers in either order")
+		@DisplayName("Keeps exactly the independent top terms up to the cap after thousands of offers in either order")
 		void shouldKeepExactSurvivors(boolean reverse) {
-			final FulltextTermHeap heap = new FulltextTermHeap(50);
+			final FulltextTermHeap heap = new FulltextTermHeap(CAP);
 			final Bitmap postings = new ArrayBitmap(1, 2);
 			final ImpactView impacts = ImpactView.of(new byte[]{11, 17});
 			final List<Expected> expected = new ArrayList<>();
-			for (int n = 0; n < 4000; n++) {
-				final int i = reverse ? 3999 - n : n;
+			for (int n = 0; n < Math.max(4000, CAP * 2); n++) {
+				final int i = reverse ? Math.max(4000, CAP * 2) - 1 - n : n;
 				final String term = String.format(Locale.ROOT, "term%05d", i);
 				final int distance = i % 3;
 				final int frequency = i % 17;
 				heap.offer(term, postings, impacts, distance, frequency);
-				assertTrue(heap.size() <= 50);
+				assertTrue(heap.size() <= CAP);
 				expected.add(new Expected(term, distance, frequency));
 			}
 			expected.sort(Comparator.comparingInt(Expected::distance)
@@ -82,14 +87,14 @@ class FulltextTermHeapTest {
 				terms.add(entry.term());
 				assertSame(postings, entry.postings());
 				assertSame(impacts, entry.impacts());
-				assertTrue(expected.subList(0, 50).contains(
+				assertTrue(expected.subList(0, CAP).contains(
 					new Expected(entry.term(), entry.distance(), entry.frequency())));
 			}
 			final TreeSet<String> winners = new TreeSet<>();
-			for (int i = 0; i < 50; i++) {
+			for (int i = 0; i < CAP; i++) {
 				winners.add(expected.get(i).term());
 			}
-			assertEquals(50, heap.size());
+			assertEquals(CAP, heap.size());
 			assertEquals(winners, terms);
 		}
 
@@ -138,21 +143,34 @@ class FulltextTermHeapTest {
 		}
 	}
 
-	/** Invariant checks for callers, which complete each distance band before starting the next. */
+	/** Overlapping variants and lane words may improve a retained stem's distance. */
 	@Nested
-	@DisplayName("Duplicate distance invariant")
+	@DisplayName("Minimum duplicate distance")
 	class Invariants {
-		/** Different distances for an already retained term are never silently ignored or improved. */
+		/** Both directions preserve the minimum and keep the original borrowed payload. */
 		@ParameterizedTest
-		@ValueSource(ints = {0, 2})
-		@DisplayName("Throws when a duplicate term carries another distance")
-		void shouldRejectDifferentDistance(int distance) {
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Keeps the smallest offered distance and repairs the heap before replacement")
+		void shouldKeepSmallestDuplicateDistance(boolean reverse) {
 			final FulltextTermHeap heap = new FulltextTermHeap(2);
 			final Bitmap postings = new ArrayBitmap(1);
 			final ImpactView impacts = ImpactView.of(new byte[]{7});
-			heap.offer("term", postings, impacts, 1, 1);
-			assertThrows(GenericEvitaInternalError.class, () -> heap.offer("term", postings, impacts, distance, 1));
-			assertEquals(1, heap.get(0).distance());
+			heap.offer("improved", postings, impacts, reverse ? 1 : 2, 1);
+			heap.offer("other", new ArrayBitmap(2), ImpactView.of(new byte[]{8}), 2, 2);
+			assertEquals(!reverse, heap.canOffer(new StringBuilder("improved"), reverse ? 2 : 1, 1));
+			heap.offer("improved", new ArrayBitmap(99), ImpactView.of(new byte[]{99}), reverse ? 2 : 1, 999);
+			assertFalse(heap.canOffer("improved", 1, 1));
+			heap.offer("winner", new ArrayBitmap(3), ImpactView.of(new byte[]{9}), 1, 2);
+			assertEquals(2, heap.size());
+			for (int i = 0; i < heap.size(); i++) {
+				final FulltextTermHeap.Entry entry = heap.get(i);
+				assertEquals(1, entry.distance());
+				assertNotEquals("other", entry.term());
+				if (entry.term().equals("improved")) {
+					assertSame(postings, entry.postings());
+					assertSame(impacts, entry.impacts());
+				}
+			}
 		}
 	}
 
@@ -213,7 +231,7 @@ class FulltextTermHeapTest {
 				terms[i] = String.format(Locale.ROOT, "term%05d", i);
 				terms[i].hashCode();
 			}
-			final FulltextTermHeap heap = new FulltextTermHeap(50);
+			final FulltextTermHeap heap = new FulltextTermHeap(CAP);
 			final Bitmap postings = new ArrayBitmap(1, 2);
 			final ImpactView impacts = ImpactView.of(new byte[]{3, 11});
 			for (int i = 0; i < 2000; i++) {
@@ -225,7 +243,7 @@ class FulltextTermHeapTest {
 				heap.offer(terms[i], postings, impacts, 1, i + 1);
 			}
 			final long allocated = threads.getThreadAllocatedBytes(thread) - before;
-			assertEquals(50, heap.size());
+			assertEquals(CAP, heap.size());
 			assertTrue(allocated < 8192, "Replacement allocation bytes: " + allocated);
 		}
 	}

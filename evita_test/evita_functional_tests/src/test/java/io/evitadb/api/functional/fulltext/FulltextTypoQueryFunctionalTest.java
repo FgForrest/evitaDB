@@ -37,6 +37,7 @@ import java.util.Locale;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
+import static io.evitadb.core.query.filter.translator.fulltext.FulltextExpansionTestSupport.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.QUERY;
@@ -92,7 +93,8 @@ class FulltextTypoQueryFunctionalTest implements EvitaTestSupport {
 		final int[] actual = this.evita.queryCatalog(TEST_CATALOG, session -> {
 			return session.query(
 			query(collection("product"), filterBy(entityLocaleEquals(Locale.ENGLISH),
-				field == null ? textMatches(text) : textMatches(text, inField(field))), require(page(1, 100))),
+				field == null ? textMatches(text) : textMatches(text, inField(field))),
+				require(page(1, expected.length + 1))),
 			EntityReference.class).getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray();
 		});
 		assertArrayEquals(expected, actual, text + " / " + field);
@@ -269,18 +271,17 @@ class FulltextTypoQueryFunctionalTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("Caps prefix expansions independently in several profile groups")
 		void shouldCapEachGroup() {
-			int pk = 0;
-			for (char suffix = 'a'; suffix <= 'z'; suffix++) {
-				for (char ending = 'a'; ending <= 'c'; ending++) {
-					put(++pk, "stem" + suffix + ending, "unused");
-				}
+			final int cap = effectiveTermsPerLeg();
+			for (int i = 0; i <= cap; i++) {
+				put(i + 1, "stem" + alphabeticSuffix(i), "unused");
 			}
-			put(200, "unused", "stemzz");
-			final int[] expected = new int[51];
-			for (int i = 0; i < 50; i++) {
+			final int otherGroup = cap + 2;
+			put(otherGroup, "unused", "stemzzzz");
+			final int[] expected = new int[cap + 1];
+			for (int i = 0; i < cap; i++) {
 				expected[i] = i + 1;
 			}
-			expected[50] = 200;
+			expected[cap] = otherGroup;
 			matches("stem", null, expected);
 		}
 

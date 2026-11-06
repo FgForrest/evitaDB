@@ -27,6 +27,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ExportOptions;
+import io.evitadb.api.configuration.FulltextOptions;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.query.Query;
@@ -125,11 +126,13 @@ import static io.evitadb.api.query.QueryConstraints.textMatches;
  *
  * The fixture splits query text once and applies each current field group's query word chain, skipping stale
  * fields and recognizing folded stop words as `TextMatchesTranslator` does. It walks the same posting lists to
- * compute the strict match set and the postings the scorer reads. Its match set must equal the documents the real
- * query returns, and its count the ranked query's `totalRecordCount`, or the fixture refuses to hand itself over: a
- * mismatch means this replica of the translator has drifted, and the posting counts printed next to the measurements
- * would be fiction. One drift stays invisible to the check - a field searched by one side only whose matches all
- * come from the other fields anyway - because the check sees only the documents the engine returns.
+ * compute the exact-match core and its posting counts. Expansion may add documents: the complete exact core must
+ * be a subset of the engine's plain result, and plain and ranked totals must agree. These counts describe only the
+ * exact core, not expanded postings or the expanded scoring cost. This check cannot detect extra expanded matches
+ * or a field whose exact matches are already covered by another field.
+ *
+ * In query-file mode this fixture only opens the catalog; it neither samples nor constructs an exact oracle.
+ * `TextMatchesQueryState` runs each selected query once and records the expanded result identity instead.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -319,13 +322,17 @@ public final class FulltextCatalogFixture {
 			final String entityType;
 			final Locale locale;
 			if (key.isSynthetic()) {
-				evita = new Evita(createConfiguration(temporaryDirectory.resolve("data"), temporaryDirectory, false));
+				evita = new Evita(createConfiguration(
+					temporaryDirectory.resolve("data"), temporaryDirectory, false, key.minLengthTwoTypos()
+				));
 				new SyntheticFulltextCorpus().populate(evita);
 				catalogName = SyntheticFulltextCorpus.CATALOG_NAME;
 				entityType = SyntheticFulltextCorpus.ENTITY_TYPE;
 				locale = SyntheticFulltextCorpus.LOCALE;
 			} else {
-				evita = new Evita(createConfiguration(Path.of(key.storageDirectory()), temporaryDirectory, true));
+				evita = new Evita(createConfiguration(
+					Path.of(key.storageDirectory()), temporaryDirectory, true, key.minLengthTwoTypos()
+				));
 				catalogName = key.catalogName();
 				entityType = key.entityType();
 				locale = Locale.forLanguageTag(key.locale());
@@ -344,6 +351,13 @@ public final class FulltextCatalogFixture {
 						+ locale + "`. Its fields are not searchable, or were declared searchable over stored data, "
 						+ "which indexes nothing (#409) - rebuild the catalog with the fields searchable.",
 					"The benchmarked collection keeps no fulltext index for the locale!"
+				);
+			}
+			if (key.queryFileMode()) {
+				System.out.println("[fulltext-fixture] " + key + ": opened in " + (openedAt - startedAt)
+					+ " ms; query-file mode, no exact oracle");
+				return new FulltextCatalogFixture(
+					key, temporaryDirectory, evita, catalogName, entityType, locale, Map.of()
 				);
 			}
 			final QueryReplica replica = new QueryReplica(
@@ -418,21 +432,16 @@ public final class FulltextCatalogFixture {
 	}
 
 	/**
-	 * Sends every sampled query through the real planner, plain and ranked, and refuses the fixture when the
-	 * documents the replica matched differ from the ones the engine returns - compared by identity for the plain
-	 * query and by count for the ranked one.
+	 * Checks the complete exact core against the engine's complete expanded plain result. A first-page prefix would
+	 * be insufficient: expansion can insert smaller primary keys ahead of the core. Ranked and plain totals must
+	 * agree, and the ranked query must return a record for these nonempty sampled cores.
 	 *
-	 * Equal match sets do not prove equal posting counts: a field the replica searched and the translator did not
-	 * would add postings without adding a match whenever its matches are a subset of the other fields' ones. Other
-	 * drifts - another analyzer, another variant set, a field that adds or loses a document - change the set unless
-	 * they happen to cancel out over every sampled query.
-	 *
-	 * @param session    the session the queries run in
-	 * @param replica    the replica that computed the profiles
-	 * @param pools      the sampled queries
+	 * @param session the session the queries run in
+	 * @param replica the replica that computed the exact-core profiles
+	 * @param pools the sampled queries
 	 * @param entityType name of the queried entity collection
-	 * @param locale     the locale every query searches in
-	 * @throws GenericEvitaInternalError when a match set or count differs, or a ranked query returns no entity
+	 * @param locale the locale every query searches in
+	 * @throws GenericEvitaInternalError when a core document is missing or the engine's plain/ranked counts differ
 	 */
 	private static void verifyAgainstRealQueries(
 		@Nonnull EvitaSessionContract session,
@@ -443,40 +452,57 @@ public final class FulltextCatalogFixture {
 	) {
 		for (final List<FulltextQueryProfile> pool : pools.values()) {
 			for (final FulltextQueryProfile profile : pool) {
+				final EvitaResponse<EntityReference> firstPage = session.query(
+					createQuery(entityType, locale, profile.text(), false, 1), EntityReference.class
+				);
 				final EvitaResponse<EntityReference> plain = session.query(
-					createQuery(entityType, locale, profile.text(), false, Math.max(1, profile.matchedDocuments())),
+					createQuery(
+						entityType, locale, profile.text(), false, Math.max(1, firstPage.getTotalRecordCount())),
 					EntityReference.class
 				);
 				final EvitaResponse<EntityReference> ranked = session.query(
-					createQuery(entityType, locale, profile.text(), true, 1),
-					EntityReference.class
+					createQuery(entityType, locale, profile.text(), true, 1), EntityReference.class
 				);
-				if (plain.getTotalRecordCount() != profile.matchedDocuments()
-					|| ranked.getTotalRecordCount() != profile.matchedDocuments()
-					|| ranked.getRecordData().isEmpty()) {
-					throw new GenericEvitaInternalError(
-						"The fixture's replica of the translator computed " + profile.matchedDocuments()
-							+ " matches for \"" + profile.text() + "\", the engine returned "
-							+ plain.getTotalRecordCount() + " (ranked " + ranked.getTotalRecordCount() + ", "
-							+ ranked.getRecordData().size() + " on the first page) - the replica has drifted from "
-							+ "`TextMatchesTranslator` and its posting counts cannot be trusted!",
-						"The fixture's replica of the translator has drifted!"
-					);
-				}
+				verifyExpandedResultCounts(firstPage.getTotalRecordCount(), plain.getTotalRecordCount(),
+					plain.getRecordData().size(), ranked.getTotalRecordCount(), ranked.getRecordData().size());
 				final RoaringBitmap engineMatches = new RoaringBitmap();
 				for (final EntityReference reference : plain.getRecordData()) {
 					engineMatches.add(reference.getPrimaryKey());
 				}
-				if (!engineMatches.equals(replica.matchDocuments(profile.text()))) {
-					throw new GenericEvitaInternalError(
-						"The fixture's replica of the translator matched " + profile.matchedDocuments()
-							+ " documents for \"" + profile.text() + "\", and so did the engine, but not the same "
-							+ "ones - the replica has drifted from `TextMatchesTranslator` and its posting counts "
-							+ "cannot be trusted!",
-						"The fixture's replica of the translator has drifted!"
-					);
-				}
+				verifyExactCore(replica.matchDocuments(profile.text()), engineMatches);
 			}
+		}
+	}
+
+	/**
+	 * Verifies complete plain materialization and agreement with the probe and ranked response.
+	 *
+	 * @param probeTotal total reported by the one-record probe
+	 * @param plainTotal total reported by the complete plain fetch
+	 * @param plainPageSize records materialized by the complete plain fetch
+	 * @param rankedTotal total reported by the ranked fetch
+	 * @param rankedPageSize records materialized by the ranked fetch
+	 */
+	static void verifyExpandedResultCounts(
+		int probeTotal, int plainTotal, int plainPageSize, int rankedTotal, int rankedPageSize
+	) {
+		if (plainTotal != probeTotal || plainPageSize != plainTotal || rankedTotal != plainTotal ||
+			rankedPageSize == 0) {
+			throw new GenericEvitaInternalError("Expanded plain/ranked results disagree or are incomplete: probeTotal="
+				+ probeTotal + ", plainTotal=" + plainTotal + ", plainPageSize=" + plainPageSize
+				+ ", rankedTotal=" + rankedTotal + ", rankedPageSize=" + rankedPageSize + "!");
+		}
+	}
+
+	/**
+	 * Refuses any loss of an exact-core document, while allowing expansion to add matches.
+	 *
+	 * @param exactMatches the replica's exact-match core
+	 * @param engineMatches the complete expanded result returned by the engine
+	 */
+	static void verifyExactCore(@Nonnull RoaringBitmap exactMatches, @Nonnull RoaringBitmap engineMatches) {
+		if (!RoaringBitmap.andNot(exactMatches, engineMatches).isEmpty()) {
+			throw new GenericEvitaInternalError("The engine's expanded result lost an exact-core document!");
 		}
 	}
 
@@ -486,15 +512,18 @@ public final class FulltextCatalogFixture {
 	 * @param storageDirectory   the directory holding the catalog
 	 * @param temporaryDirectory the folder for the work and export directories
 	 * @param readOnly           whether the instance refuses every write - true for a stored catalog
+	 * @param minLengthTwoTypos  shortest analyzed query term allowed two typos
 	 * @return the configuration
 	 */
 	@Nonnull
-	private static EvitaConfiguration createConfiguration(
+	static EvitaConfiguration createConfiguration(
 		@Nonnull Path storageDirectory,
 		@Nonnull Path temporaryDirectory,
-		boolean readOnly
+		boolean readOnly,
+		int minLengthTwoTypos
 	) {
 		return EvitaConfiguration.builder()
+			.fulltext(FulltextOptions.builder().minLengthTwoTypos(minLengthTwoTypos).build())
 			.server(
 				ServerOptions.builder()
 					.queryTimeoutInMilliseconds(600_000)
@@ -591,16 +620,27 @@ public final class FulltextCatalogFixture {
 	 * @param catalogName      name of the stored catalog; ignored for the synthetic one
 	 * @param entityType       name of the queried collection of the stored catalog; ignored for the synthetic one
 	 * @param locale           language tag of the searched locale of the stored catalog; ignored for the synthetic one
+	 * @param minLengthTwoTypos shortest analyzed query term allowed two typos
+	 * @param queryFileMode    whether sampling and exact-core verification are bypassed
 	 */
 	public record FixtureKey(
 		@Nonnull String storageDirectory,
 		@Nonnull String catalogName,
 		@Nonnull String entityType,
-		@Nonnull String locale
+		@Nonnull String locale,
+		int minLengthTwoTypos,
+		boolean queryFileMode
 	) {
 
 		/**
 		 * Validates that a stored catalog is fully named.
+		 *
+		 * @param storageDirectory the stored catalog's parent directory, empty for synthetic mode
+		 * @param catalogName stored catalog name
+		 * @param entityType queried collection
+		 * @param locale searched locale's language tag
+		 * @param minLengthTwoTypos shortest analyzed query term allowed two typos
+		 * @param queryFileMode whether the fixture bypasses exact-core sampling
 		 */
 		public FixtureKey {
 			if (!storageDirectory.isBlank() && (catalogName.isBlank() || entityType.isBlank() || locale.isBlank())) {
@@ -622,9 +662,9 @@ public final class FulltextCatalogFixture {
 		@Nonnull
 		@Override
 		public String toString() {
-			return isSynthetic() ?
-				"synthetic" :
-				this.storageDirectory + "/" + this.catalogName + "/" + this.entityType + "/" + this.locale;
+			return (isSynthetic() ? "synthetic" :
+				this.storageDirectory + "/" + this.catalogName + "/" + this.entityType + "/" + this.locale)
+				+ ":minLengthTwoTypos=" + this.minLengthTwoTypos + ":queryFileMode=" + this.queryFileMode;
 		}
 
 	}

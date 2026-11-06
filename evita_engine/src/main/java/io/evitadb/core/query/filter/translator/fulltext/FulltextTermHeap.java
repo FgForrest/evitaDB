@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.filter.translator.fulltext;
 
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.ImpactView;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
@@ -35,7 +34,7 @@ import java.util.Objects;
 /**
  * A field's bounded, worst-first term collector. Entries and their borrowed views may change on the next offer;
  * callers enumerate the heap only between scans. Distance, descending frequency and term define the order.
- * Repeated offers of a retained stem must carry the same distance; wider bands exclude earlier-band stems.
+ * Repeated offers of a retained stem keep its smallest distance and preserve its field views and frequency.
  */
 @NotThreadSafe
 final class FulltextTermHeap {
@@ -72,24 +71,24 @@ final class FulltextTermHeap {
 	}
 
 	/**
-	 * Keeps a competitive hit, reusing the worst slot on replacement.
+	 * Keeps a competitive hit, reusing the worst slot on replacement. A repeated offer of a retained stem only
+	 * lowers its distance, in place, and restores the order; its field views and frequency stay.
 	 * @param term dictionary stem
 	 * @param postings borrowed posting view
 	 * @param impacts aligned borrowed impacts
-	 * @param distance accepted distance band
+	 * @param distance classified edit distance
 	 * @param frequency document frequency in this field
-	 * @throws GenericEvitaInternalError when a retained stem is offered again at another distance
 	 */
 	void offer(@Nonnull String term, @Nonnull Bitmap postings, @Nonnull ImpactView impacts,
 		int distance, int frequency) {
 		final int hash = term.hashCode();
-		// At most fifty retained slots: cached hashes avoid equals for almost every nonduplicate.
+		// Only retained slots are scanned: cached hashes avoid equals for almost every nonduplicate.
 		for (int i = 0; i < this.size; i++) {
 			final Entry existing = this.heap[i];
 			if (existing.termHash == hash && existing.term.equals(term)) {
-				if (distance != existing.distance) {
-					throw new GenericEvitaInternalError("Fulltext term `" + term +
-						"` was offered in different distance bands: " + existing.distance + " and " + distance + ".");
+				if (distance < existing.distance) {
+					existing.distance = distance;
+					siftDown(i);
 				}
 				return;
 			}
@@ -114,24 +113,19 @@ final class FulltextTermHeap {
 	}
 
 	/**
-	 * Tests a borrowed lane term before freezing characters or acquiring posting/impact views. A term already
-	 * retained needs no second offer: within one field its postings and impacts do not depend on the variant or
-	 * surface form that reached it.
+	 * Tests a borrowed lane term before freezing characters or acquiring posting/impact views. A retained term
+	 * needs another offer only when its distance improves: its field views and frequency do not depend on the
+	 * variant or surface form that reached it.
 	 * @param term decoded borrowed stem
-	 * @param distance accepted edit band
+	 * @param distance classified edit distance
 	 * @param frequency current field's document frequency
-	 * @return true only when a subsequent offer with these values would retain a new or replacement entry
-	 * @throws GenericEvitaInternalError when a retained duplicate carries a different distance
+	 * @return true when a subsequent offer would retain a new entry, replace the worst, or improve a distance
 	 */
 	boolean canOffer(@Nonnull CharSequence term, int distance, int frequency) {
 		for (int i = 0; i < this.size; i++) {
 			final Entry existing = this.heap[i];
 			if (CharSequence.compare(term, existing.term) == 0) {
-				if (distance != existing.distance) {
-					throw new GenericEvitaInternalError(
-						"A retained lane stem was offered in different distance bands.");
-				}
-				return false;
+				return distance < existing.distance;
 			}
 		}
 		if (this.size < this.heap.length) {
@@ -181,7 +175,7 @@ final class FulltextTermHeap {
 	}
 
 	/**
-	 * Restores worst-first order after replacing the root.
+	 * Restores worst-first order after improving a retained distance or replacing the root.
 	 * @param start changed slot
 	 */
 	private void siftDown(int start) {
@@ -228,7 +222,7 @@ final class FulltextTermHeap {
 		@Nonnull private Bitmap postings;
 		/** Its aligned impacts. */
 		@Nonnull private ImpactView impacts;
-		/** Its accepted distance. */
+		/** Its smallest classified edit distance. */
 		private int distance;
 		/** Its field document frequency. */
 		private int frequency;
@@ -240,7 +234,7 @@ final class FulltextTermHeap {
 		 * @param term dictionary stem
 		 * @param postings borrowed postings
 		 * @param impacts aligned impacts
-		 * @param distance accepted band
+		 * @param distance classified edit distance
 		 * @param frequency field frequency
 		 */
 		private Entry(@Nonnull String term, @Nonnull Bitmap postings, @Nonnull ImpactView impacts,
@@ -281,8 +275,8 @@ final class FulltextTermHeap {
 		}
 
 		/**
-		 * Returns the accepted distance of the current stem.
-		 * @return accepted distance of the current stem
+		 * Returns the smallest classified edit distance of the current stem.
+		 * @return smallest classified edit distance of the current stem
 		 */
 		int distance() {
 			return this.distance;
