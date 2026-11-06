@@ -12,9 +12,6 @@
     },
     {
       "primaryKey" : 66559
-    },
-    {
-      "primaryKey" : 66561
     }
   ]
 }
