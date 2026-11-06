@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-11-06 | [A catalog rename or replace waits for the commit pipeline on the caller's thread, then acts on the instance that wait found](2026-11-06-catalog-handover-waits-for-commit-pipeline.md) | fix | accepted | #1889, PR #1890 |
 | 2026-11-05 | [An export that cannot fit the export storage stops at the limit and names the setting to raise](2026-11-05-backup-stops-at-the-export-limit.md) | fix | accepted | #1881, PR #1885 |
 | 2026-11-05 | [A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front](2026-11-05-nested-inscope-requested-scopes.md) | fix | accepted | #1880, PR #1884 |
 | 2026-11-03 | [Upgrade released catalogs from surviving parts, refusing collisions and warning about loss](2026-11-03-release-catalog-upgrade-from-surviving-index-parts.md) | fix | accepted | #1696, #1699, PR #1832 |
