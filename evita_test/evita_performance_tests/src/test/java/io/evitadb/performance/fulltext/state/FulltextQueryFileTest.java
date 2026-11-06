@@ -133,7 +133,10 @@ class FulltextQueryFileTest {
 		@DisplayName("Rejects a pool size below one")
 		void shouldThrowExceptionWhenPoolSizeNotPositive(@TempDir Path directory) throws IOException {
 			final Path file = writeQueries(directory, row("a", "wide", "clean", "private phrase"));
-			assertThrows(IllegalArgumentException.class, () -> FulltextQueryFile.read(file, "wide", 0));
+			final IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+				() -> FulltextQueryFile.read(file, "wide", 0));
+			assertTrue(error.getMessage().contains("poolSize"));
+			assertNull(error.getCause());
 		}
 
 		/** Only the exact census header identifies a readable file shape. */
@@ -141,8 +144,11 @@ class FulltextQueryFileTest {
 		@DisplayName("Rejects an unknown header")
 		void shouldThrowExceptionWhenHeaderInvalid(@TempDir Path directory) throws IOException {
 			final Path file = directory.resolve("queries.tsv");
-			Files.writeString(file, "bad header\n");
-			assertThrows(IllegalArgumentException.class, () -> FulltextQueryFile.read(file, "wide", 64));
+			Files.writeString(file, "bad header\n" + row("a", "wide", "clean", "private phrase") + "\n");
+			final IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+				() -> FulltextQueryFile.read(file, "wide", 64));
+			assertTrue(error.getMessage().contains("header"));
+			assertNull(error.getCause());
 		}
 	}
 

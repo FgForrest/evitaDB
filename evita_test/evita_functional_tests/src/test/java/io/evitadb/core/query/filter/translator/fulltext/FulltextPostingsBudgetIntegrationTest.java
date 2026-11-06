@@ -238,7 +238,6 @@ class FulltextPostingsBudgetIntegrationTest implements EvitaTestSupport {
 	}
 
 	/** Uses the census runner's real schema grouping, including its generation checks. */
-	@SuppressWarnings("unchecked")
 	private List<FulltextExpansionCensusSupport.Word> census(String text) throws Exception {
 		return FulltextExpansionCensusMeasurementTest.expand(new FulltextExpansionCensusSupport.Query(
 			FulltextExpansionCensusSupport.hash(text), "test", "clean", text, text, 1), groups(),

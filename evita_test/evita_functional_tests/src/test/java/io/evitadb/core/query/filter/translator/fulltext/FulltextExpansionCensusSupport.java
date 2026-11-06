@@ -144,7 +144,14 @@ final class FulltextExpansionCensusSupport {
 		return result;
 	}
 
-	/** Reserves all exact postings, then visits words, groups and prefix/typo legs in production order. */
+	/**
+	 * Reserves all exact postings, then visits words, groups and prefix/typo legs in production order.
+	 *
+	 * The translator also applies the completion gate again after the cut: it empties a batch of an unfinished stop
+	 * word whose last completion the cut removed, and when no batch of that final word stays admitted, it drops the
+	 * word and prices the remaining words again for their own count. This simulation does not; such a word keeps
+	 * whatever hits survive the cut.
+	 */
 	static List<Word> net(List<Word> words, long limit, boolean stopAtLimit) {
 		long sum = 0;
 		for (final Word word : words) {
