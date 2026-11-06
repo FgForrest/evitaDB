@@ -1,7 +1,7 @@
 ---
 title: A catalog rename or replace waits for the commit pipeline on the caller's thread, then acts on the instance that wait found
-date: 2026-11-05
-updated: 2026-11-06 06:09
+date: 2026-11-06
+updated: 2026-11-06 06:51
 status: accepted
 kind: fix
 issues: [1889]
@@ -249,3 +249,4 @@ refusals turn out to matter, Option E if rounds over 5 s turn out to be common.
 - **2026-11-05** — the round route reproduced from a code review's suspicion, measured and folded into the same issue
 - **2026-11-05** — design revised twice after external review, then consulted independently; marker design approved
 - **2026-11-05** — implemented, stress-tested, reviewed
+- **2026-11-06** — merged as #1890
