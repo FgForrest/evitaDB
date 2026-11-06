@@ -43,6 +43,8 @@ import io.evitadb.exception.GenericEvitaInternalError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -101,6 +103,74 @@ public class AttributeSchemaAccessor {
 	@Nullable private final QueryPlanningContext queryContext;
 
 	/**
+	 * Returns the requested scopes in which the attribute lacks the index the trait requires, so that the refusal can
+	 * name the scope the client has to leave out - the attribute is often filterable in one scope and not in another.
+	 *
+	 * @param requestedScopes the scopes requested in the input query
+	 * @param attributeSchema the attribute schema to inspect
+	 * @param uniqueRequired  true when the attribute has to be unique, false when filterable or unique is enough
+	 * @return the scopes lacking the index, in the order of the {@link Scope} enumeration
+	 */
+	@Nonnull
+	private static List<Scope> getScopesLackingIndex(
+		@Nonnull Set<Scope> requestedScopes,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		boolean uniqueRequired
+	) {
+		final List<Scope> result = new ArrayList<>(requestedScopes.size());
+		for (final Scope scope : Scope.values()) {
+			if (requestedScopes.contains(scope)) {
+				final boolean indexed = attributeSchema.isUniqueInScope(scope) ||
+					(!uniqueRequired && attributeSchema.isFilterableInScope(scope));
+				if (!indexed) {
+					result.add(scope);
+				}
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Creates the refusal of an attribute that has no filter index in some of the requested scopes. The message names
+	 * the scopes lacking the index when there are any.
+	 *
+	 * @param attributeName      the name of the attribute
+	 * @param scopesLackingIndex the requested scopes in which the attribute has no index
+	 * @param catalogSchema      the catalog schema, used when no entity schema is known
+	 * @param entitySchema       the optional entity schema owning the attribute
+	 * @param referenceSchema    the optional reference schema owning the attribute
+	 * @return the exception to throw
+	 */
+	@Nonnull
+	private static AttributeNotFilterableException createNotFilterableException(
+		@Nonnull String attributeName,
+		@Nonnull List<Scope> scopesLackingIndex,
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nullable EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema
+	) {
+		final StringBuilder what = new StringBuilder("\"filterable\" or \"unique\"");
+		if (!scopesLackingIndex.isEmpty()) {
+			what.append(scopesLackingIndex.size() == 1 ? " in scope " : " in scopes ");
+			for (int i = 0; i < scopesLackingIndex.size(); i++) {
+				if (i > 0) {
+					what.append(", ");
+				}
+				what.append('`').append(scopesLackingIndex.get(i).name()).append('`');
+			}
+		}
+		if (referenceSchema != null) {
+			return new AttributeNotFilterableException(
+				attributeName, what.toString(), referenceSchema, Objects.requireNonNull(entitySchema)
+			);
+		} else if (entitySchema != null) {
+			return new AttributeNotFilterableException(attributeName, what.toString(), entitySchema);
+		} else {
+			return new AttributeNotFilterableException(attributeName, what.toString(), catalogSchema);
+		}
+	}
+
+	/**
 	 * Verifies that the provided attribute schema meets the required traits and returns it.
 	 * Throws specific exceptions if the criteria are not met.
 	 *
@@ -146,23 +216,17 @@ public class AttributeSchemaAccessor {
 				case UNIQUE ->
 					exception = requestedScopes.stream().allMatch(attributeSchema::isUniqueInScope) ?
 						null :
-						ofNullable(referenceSchema)
-							.map(it -> new AttributeNotFilterableException(attributeName, it, Objects.requireNonNull(entitySchema)))
-							.orElseGet(
-								() -> ofNullable(entitySchema)
-									.map(it -> new AttributeNotFilterableException(attributeName, it))
-									.orElseGet(() -> new AttributeNotFilterableException(attributeName, catalogSchema))
-							);
+						createNotFilterableException(
+							attributeName, getScopesLackingIndex(requestedScopes, attributeSchema, true),
+							catalogSchema, entitySchema, referenceSchema
+						);
 				case FILTERABLE ->
 					exception = requestedScopes.stream().allMatch(attributeSchema::isFilterableInScope) || requestedScopes.stream().allMatch(attributeSchema::isUniqueInScope) ?
 						null :
-						ofNullable(referenceSchema)
-							.map(it -> new AttributeNotFilterableException(attributeName, it, Objects.requireNonNull(entitySchema)))
-							.orElseGet(
-								() -> ofNullable(entitySchema)
-									.map(it -> new AttributeNotFilterableException(attributeName, it))
-									.orElseGet(() -> new AttributeNotFilterableException(attributeName, catalogSchema))
-							);
+						createNotFilterableException(
+							attributeName, getScopesLackingIndex(requestedScopes, attributeSchema, false),
+							catalogSchema, entitySchema, referenceSchema
+						);
 				case SORTABLE ->
 					exception = requestedScopes.stream().allMatch(attributeSchema::isSortableInScope) ?
 						null :

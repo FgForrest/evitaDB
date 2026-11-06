@@ -654,7 +654,7 @@ public class NestedInScopeFilterFunctionalTest {
 				() -> owners(evita, target, entityHaving(attributeEquals("x", 1)), BOTH));
 			assertEquals("Attribute with name `x` in entity `" + target.value +
 				"` is not marked as \"filterable\" or " +
-				"\"unique\" and cannot be filtered by. Filtering by without having an index would be slow.",
+				"\"unique\" in scope `ARCHIVED` and cannot be filtered by. Filtering by without having an index would be slow.",
 				error.getMessage());
 		}
 
@@ -670,7 +670,7 @@ public class NestedInScopeFilterFunctionalTest {
 				() -> owners(evita, target, entityHaving(inScope(Scope.ARCHIVED, attributeEquals("x", 1))), BOTH));
 			assertEquals("Attribute with name `x` in entity `" + target.value +
 				"` is not marked as \"filterable\" or " +
-				"\"unique\" and cannot be filtered by. Filtering by without having an index would be slow.",
+				"\"unique\" in scope `ARCHIVED` and cannot be filtered by. Filtering by without having an index would be slow.",
 				error.getMessage());
 		}
 

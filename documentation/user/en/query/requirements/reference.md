@@ -894,6 +894,13 @@ facetGroupsConjunction(
         a filter on a group type not managed by evitaDB that targets anything other than the group primary keys
         (the `entityPrimaryKey*` constraints, also inside `and`, `or` and `not`), or a filter on a group attribute
         that is not filterable.
+
+        The groups are searched in the scopes of the query. A [`scope`](../filtering/constant.md#scope) constraint at
+        the root of the filter narrows them, as it does in [`groupHaving`](../filtering/references.md#group-having):
+        `filterBy(scope(LIVE), attributeEquals("op", "AND"))` selects only live groups, and the attribute needs
+        to be filterable in the live scope alone. An [`inScope`](../filtering/behavioral.md#in-scope) container
+        restricts only the groups of its scope and lets the groups of the other scope through, so inside this filter
+        it selects every group of the other scope.
     </dd>
 </dl>
 
