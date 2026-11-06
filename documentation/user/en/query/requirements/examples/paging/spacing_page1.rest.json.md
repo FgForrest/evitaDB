@@ -16,10 +16,6 @@
     {
       "primaryKey" : 66559,
       "type" : "Product"
-    },
-    {
-      "primaryKey" : 66561,
-      "type" : "Product"
     }
   ],
   "type" : "PAGE",
@@ -30,10 +26,10 @@
   "hasNext" : true,
   "singlePage" : false,
   "empty" : false,
-  "pageSize" : 5,
+  "pageSize" : 4,
   "pageNumber" : 1,
-  "lastPageNumber" : 833,
+  "lastPageNumber" : 834,
   "firstPageItemNumber" : 0,
-  "lastPageItemNumber" : 4
+  "lastPageItemNumber" : 3
 }
 ```

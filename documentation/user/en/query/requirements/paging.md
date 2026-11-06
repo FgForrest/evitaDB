@@ -395,8 +395,8 @@ a blog post on the 1st and 4th page. To accomplish this, you would use the follo
 ##### The result of requested page with inserted spacing example
 </NoteTitle>
 
-The first page contains 9 records (one slot left for the blog post), the second page contains 9 records (one slot left 
-for the advertisement, because the page number is even), and the fourth page contains only 8 records (one slot left for 
+The first page contains 4 records (one slot left for the blog post), the second page contains 4 records (one slot left 
+for the advertisement, because the page number is even), and the fourth page contains only 3 records (one slot left for 
 the blog post and one slot left for the advertisement, because the page number is even), the last page number is 
 recalculated because a total of 7 records were left on the front pages.
 
