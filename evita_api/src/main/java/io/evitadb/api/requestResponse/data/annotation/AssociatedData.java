@@ -25,6 +25,8 @@ package io.evitadb.api.requestResponse.data.annotation;
 
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -77,6 +79,35 @@ public @interface AssociatedData {
 	 * Propagates to {@link AssociatedDataSchemaContract#isLocalized()}.
 	 */
 	boolean localized() default false;
+
+	/**
+	 * Makes the text of the associated data searchable in the {@link io.evitadb.dataType.Scope#LIVE} scope. Only
+	 * localized associated data of type `String`, `String[]` or a POJO (stored as a complex data object, which then
+	 * needs {@link #textExpression()}) may be searchable.
+	 * Propagates to {@link AssociatedDataSchemaContract#isSearchable()}.
+	 */
+	boolean searchable() default false;
+
+	/**
+	 * EvitaEL expression selecting the text of a searchable POJO value, with the stored value bound to `$value` - for
+	 * example `$value.title` or `$value.blocks.*[$.text]`. Leave empty for `String` and `String[]` associated data.
+	 * Propagates to {@link AssociatedDataSchemaContract#getTextExpression()}.
+	 */
+	String textExpression() default "";
+
+	/**
+	 * The fulltext analyzer that turns the text of the associated data into terms while it is {@link #searchable()} -
+	 * a built-in one or one declared in the catalog schema.
+	 * Propagates to {@link AssociatedDataSchemaContract#getAnalyzer()}.
+	 */
+	String analyzer() default FulltextAnalyzerSchemaContract.TEXT;
+
+	/**
+	 * The number of words a value of normal length has; a word found in a shorter text weighs more, in a longer one
+	 * less. A long body of text usually wants a pivot well above the default.
+	 * Propagates to {@link AssociatedDataSchemaContract#getLengthPivot()}.
+	 */
+	int lengthPivot() default AttributeSchemaContract.DEFAULT_LENGTH_PIVOT;
 
 	/**
 	 * Per-item conflict resolution granularity override for this associated data. {@link ConflictResolutionOverride#INHERITED}

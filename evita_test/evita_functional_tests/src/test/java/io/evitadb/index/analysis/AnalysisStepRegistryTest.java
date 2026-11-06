@@ -28,6 +28,9 @@ import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.spi.analysis.AnalysisStepFactory;
 import io.evitadb.spi.analysis.AnalysisStepParameterDescriptor;
+import io.evitadb.spi.analysis.FulltextAnalysisStepFactory;
+import io.evitadb.spi.analysis.FulltextTokenizerAnalysisStepFactory;
+import io.evitadb.spi.analysis.FulltextWordsAnalysisStepFactory;
 import io.evitadb.spi.analysis.NormalizingAnalysisStepFactory;
 import io.evitadb.spi.analysis.StringNormalizationStep;
 import org.junit.jupiter.api.DisplayName;
@@ -61,11 +64,35 @@ class AnalysisStepRegistryTest {
 		for (final AnalysisStep step : List.of(lowercase(), asciiFolding(), trim(), removeCharacters("-"))) {
 			assertEquals(step.name(), registry.resolve(step).getName());
 		}
-		final AnalysisStepParameterDescriptor descriptor = registry.resolve(removeCharacters("-")).getParameters().get(0);
+		final AnalysisStepParameterDescriptor descriptor =
+			registry.resolve(removeCharacters("-")).getParameters().get(0);
 		assertEquals("characters", descriptor.name());
 		assertSame(String.class, descriptor.type());
 		assertTrue(descriptor.required());
 		assertFalse(descriptor.description().isBlank());
+	}
+
+	/** The production discovery path must find the fulltext built-ins, each as a provider of its step's phase. */
+	@Test
+	@DisplayName("should discover the built-in fulltext providers")
+	void shouldDiscoverBuiltInFulltextProviders() {
+		final AnalysisStepRegistry registry = new AnalysisStepRegistry();
+
+		final FulltextAnalysisStepFactory tokenizer = registry.resolveFulltext(standardTokenizer());
+
+		assertEquals(STANDARD_TOKENIZER, tokenizer.getName());
+		assertInstanceOf(FulltextTokenizerAnalysisStepFactory.class, tokenizer);
+		for (final AnalysisStep step : List.of(
+			lowercase(), asciiFolding(), stopWords(czechStopWords()), czechStemming()
+		)) {
+			final FulltextAnalysisStepFactory factory = registry.resolveFulltext(step);
+			assertEquals(step.name(), factory.getName());
+			assertInstanceOf(FulltextWordsAnalysisStepFactory.class, factory, step.name());
+		}
+		assertSame(
+			registry.resolve(lowercase()), registry.resolveFulltext(lowercase()),
+			"one provider serves both the normalization and the fulltext analyzers"
+		);
 	}
 
 	/** Provider conflicts, missing capabilities and invalid descriptions fail before compilation. */
@@ -93,7 +120,8 @@ class AnalysisStepRegistryTest {
 		@DisplayName("should identify an unknown step")
 		void shouldRejectUnknownStep() {
 			assertTrue(assertThrows(EvitaInvalidUsageException.class,
-				() -> new AnalysisStepRegistry().resolve(step("absent"))).getMessage().contains("Unknown analysis step `absent`"));
+				() -> new AnalysisStepRegistry().resolve(normalizingStep("absent")))
+				.getMessage().contains("Unknown analysis step `absent`"));
 		}
 
 		/** Fulltext-only factories may be installed but cannot serve a normalization declaration. */
@@ -114,7 +142,8 @@ class AnalysisStepRegistryTest {
 				public void validate(@Nonnull Map<String, Serializable> parameters) { }
 			}));
 			assertTrue(assertThrows(EvitaInvalidUsageException.class,
-				() -> registry.resolve(step("tokenize"))).getMessage().contains("not usable as a normalizer"));
+				() -> registry.resolve(normalizingStep("tokenize"))).getMessage().contains("not usable as a normalizer")
+			);
 		}
 
 		/** Required, typed, nonempty and unknown parameters must all fail with the offending step named. */
@@ -123,16 +152,120 @@ class AnalysisStepRegistryTest {
 		void shouldRejectInvalidParameters() {
 			final AnalysisStepRegistry registry = new AnalysisStepRegistry();
 			for (final AnalysisStep description : List.of(
-				step("remove-characters"), step("remove-characters", parameter("characters", 1)),
-				step("remove-characters", parameter("characters", "")),
-				step("remove-characters", parameter("characters", "-"), parameter("extra", true)),
-				step("lowercase", parameter("locale", "tr")), step("trim", parameter("extra", true)),
-				step("ascii-folding", parameter("extra", true))
+				normalizingStep("remove-characters"), normalizingStep("remove-characters", parameter("characters", 1)),
+				normalizingStep("remove-characters", parameter("characters", "")),
+				normalizingStep("remove-characters", parameter("characters", "-"), parameter("extra", true)),
+				normalizingStep("lowercase", parameter("locale", "tr")),
+				normalizingStep("trim", parameter("extra", true)),
+				normalizingStep("ascii-folding", parameter("extra", true))
 			)) {
 				final String message = assertThrows(EvitaInvalidUsageException.class,
 					() -> registry.resolve(description)).getMessage();
 				assertTrue(message.contains("Invalid parameters"));
 				assertTrue(message.contains(description.name()));
+			}
+		}
+	}
+
+	/** Normalizers share the registry's array-element validation with fulltext steps. */
+	@Test
+	@DisplayName("should reject null array elements in normalization parameters")
+	void shouldRejectNullNormalizationArrayElements() {
+		final NormalizingAnalysisStepFactory provider = new NormalizingAnalysisStepFactory() {
+			@Nonnull
+			@Override
+			public String getName() { return "test-null-array-normalizer"; }
+
+			@Nonnull
+			@Override
+			public List<AnalysisStepParameterDescriptor> getParameters() {
+				return List.of(new AnalysisStepParameterDescriptor("values", String[].class, true, "Values"));
+			}
+
+			@Override
+			public void validate(@Nonnull Map<String, Serializable> parameters) {
+				fail("Null elements must be refused before provider validation.");
+			}
+
+			@Nonnull
+			@Override
+			public StringNormalizationStep create(
+				@Nonnull Map<String, Serializable> parameters, @Nullable Locale foldLocale
+			) {
+				return input -> input;
+			}
+		};
+		final AnalysisStepRegistry registry = new AnalysisStepRegistry(List.of(provider));
+		final EvitaInvalidUsageException error = assertThrows(EvitaInvalidUsageException.class,
+			() -> registry.compile(List.of(normalizingStep(provider.getName(),
+				parameter("values", new String[]{"valid", null}))), Locale.ROOT));
+		assertTrue(error.getMessage().contains(provider.getName()));
+		assertTrue(error.getMessage().contains("values"));
+		assertTrue(error.getMessage().contains("null array elements"));
+	}
+
+	/** Fulltext declarations are refused with the same distinctions as normalization ones. */
+	@Nested
+	@DisplayName("Fulltext resolution")
+	class FulltextResolution {
+		/** The registry used by every test of this group. */
+		private final AnalysisStepRegistry registry = new AnalysisStepRegistry();
+
+		/** An unavailable name has its own diagnostic. */
+		@Test
+		@DisplayName("should identify an unknown step")
+		void shouldIdentifyUnknownStep() {
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class, () -> this.registry.resolveFulltext(wordsStep("absent"))
+			);
+
+			assertTrue(exception.getMessage().contains("Unknown analysis step `absent`"), exception.getMessage());
+		}
+
+		/** A normalizing-only step is installed but cannot serve a fulltext analyzer. */
+		@Test
+		@DisplayName("should refuse a normalizing-only step")
+		void shouldRefuseNormalizingOnlyStep() {
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class, () -> this.registry.resolveFulltext(trim())
+			);
+
+			assertTrue(
+				exception.getMessage().contains("`trim` is not usable in a fulltext analyzer"), exception.getMessage()
+			);
+		}
+
+		/** A stop-words step naming no word list is refused by the registry's parameter check. */
+		@Test
+		@DisplayName("should refuse stop words without a list")
+		void shouldRefuseStopWordsWithoutList() {
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class, () -> this.registry.resolveFulltext(wordsStep(STOP_WORDS))
+			);
+
+			assertTrue(exception.getMessage().contains("Missing required parameter `words`"), exception.getMessage());
+		}
+
+		/** Mistyped, empty and unknown parameters must all fail with the offending step named. */
+		@Test
+		@DisplayName("should reject invalid parameter names types and values")
+		void shouldRejectInvalidFulltextParameters() {
+			for (final AnalysisStep description : List.of(
+				wordsStep(STOP_WORDS, parameter(WORDS, 1)),
+				wordsStep(STOP_WORDS, parameter(WORDS, new String[0])),
+				wordsStep(STOP_WORDS, parameter(WORDS, new String[]{CZECH_STOP_WORDS}), parameter("extra", true)),
+				tokenizerStep(STANDARD_TOKENIZER, parameter("extra", true)),
+				wordsStep(CZECH_STEMMING, parameter(PROTECTED_WORDS, "brands")),
+				wordsStep(CZECH_STEMMING, parameter(PROTECTED_WORDS, new String[0])),
+				wordsStep(CZECH_STEMMING, parameter("extra", true)),
+				wordsStep(LOWERCASE, parameter("extra", true))
+			)) {
+				final String message = assertThrows(
+					EvitaInvalidUsageException.class, () -> this.registry.resolveFulltext(description)
+				).getMessage();
+
+				assertTrue(message.contains("Invalid parameters"), message);
+				assertTrue(message.contains(description.name()), message);
 			}
 		}
 	}
@@ -155,7 +288,7 @@ class AnalysisStepRegistryTest {
 	@DisplayName("should remove code points rather than UTF-16 units")
 	void shouldRemoveCodePoints() {
 		final StringNormalizationStep operation = new RemoveCharactersAnalysisStepFactory().create(
-			Map.of("characters", "😀😀"), null);
+			Map.of("characters", "😀😀"), (Locale) null);
 		assertEquals("😁", operation.apply("😀😁😀"));
 		final String unchanged = new String("😁");
 		assertSame(unchanged, operation.apply(unchanged));

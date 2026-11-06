@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.model.evolution;
 
+import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
@@ -75,8 +76,22 @@ public interface GetterBasedEntitySearchableEvolutionV1 {
 	)
 	String getScopedText();
 
+	@AssociatedData(localized = true, searchable = true)
+	String getBody();
+
+	@AssociatedData(localized = true, searchable = true, textExpression = "$value.title")
+	Article getArticle();
+
 	@Reference(managed = false)
 	Brand getMarketingBrand();
+
+	/**
+	 * A structured associated data value, stored as a complex data object.
+	 *
+	 * @param title the title of the article
+	 */
+	record Article(String title) implements Serializable {
+	}
 
 	interface Brand extends Serializable {
 

@@ -73,7 +73,7 @@ class AnalysisStepConverterTest {
 		return Stream.of(
 			List.of(),
 			List.of(lowercase(), asciiFolding(), removeCharacters("- "), trim()),
-			List.of(new AnalysisStep("custom", Map.of(
+			List.of(AnalysisStep.of("custom", Map.of(
 				"words", new String[]{"one", "two"}, "count", 2, "amount", new BigDecimal("1.20"),
 				"enabled", true
 			)))

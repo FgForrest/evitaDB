@@ -29,12 +29,14 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContex
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -158,6 +160,8 @@ class ModifyEntitySchemaMutationTest {
 			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchema.class);
 			final EntityAttributeSchema attribute = Mockito.mock(EntityAttributeSchema.class);
 			Mockito.doReturn(Integer.class).when(attribute).getType();
+			Mockito.doReturn(FulltextAnalyzerSchemaContract.TEXT).when(attribute).getAnalyzer();
+			Mockito.doReturn(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT).when(attribute).getLengthPivot();
 			Mockito.doReturn(
 				AttributeSchema.toUniquenessEnumMap(
 					new ScopedAttributeUniquenessType[]{
@@ -221,6 +225,8 @@ class ModifyEntitySchemaMutationTest {
 			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchema.class);
 			final EntityAttributeSchema attribute = Mockito.mock(EntityAttributeSchema.class);
 			Mockito.doReturn(Integer.class).when(attribute).getType();
+			Mockito.doReturn(FulltextAnalyzerSchemaContract.TEXT).when(attribute).getAnalyzer();
+			Mockito.doReturn(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT).when(attribute).getLengthPivot();
 			Mockito.doReturn(
 				AttributeSchema.toUniquenessEnumMap(
 					new ScopedAttributeUniquenessType[]{

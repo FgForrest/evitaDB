@@ -1,7 +1,7 @@
 ---
 title: Virtual threads and ScopedValue stay out of the JDK 21 server; the executor defects the analysis exposed are fixed on their own terms
 date: 2026-09-10
-updated: 2026-09-17 07:45
+updated: 2026-11-02 06:53
 status: accepted
 kind: infrastructure
 issues: [1518, 1532, 1533, 1534, 1535, 1536, 1537, 1538]
@@ -56,7 +56,7 @@ thread kind.
 | Virtual-thread-per-request | The parks that would unmount are a handful of bounded waits (gRPC gated streaming, readiness probes, 500 ms suspension waits); everything else is CPU or compensated I/O; the pool metrics, the `INPUT_QUEUES_OVERLOADED` signal and `threadPriority` lose meaning | The read path gains genuinely unmounting I/O (network-backed storage), or the baseline reaches JDK 24+ with per-executor schedulers — and only with an admission limit designed first |
 | Armeria `@Blocking` / `useBlockingTaskExecutor` | Routes gRPC bodies through a sequential per-call executor on the service pool; evitaDB already owns its handoff | — |
 | Pushing the Armeria `RequestContext` onto workers | Must be popped on the same thread, allocates Netty's `InternalThreadLocalMap` per thread, and buys `duration_ms` nothing because `isRequestComplete()` stays false during processing | Other Armeria-dependent features are wanted on workers (#1538 takes the MDC route instead) |
-| Redesigning the per-thread caches (`FrontCodedStringColumn` scratch, `Crc32CWrapper` scratch, `CollationKeyCache` stripes) | They only multiply under virtual-thread-per-request, which is not recommended; the collator stripe was chosen over a `ThreadLocal` after profiling | The request executor ever moves to virtual threads |
+| Redesigning the per-thread caches (`FrontCodedStringColumn` scratch, `Crc32CWrapper` scratch, `CollationKeyCache` stripes; since 2026-11-02 also the fulltext scorer's decode buffer, `FulltextPhaseOneScorer#POSTING_FEED`, see [`2026-08-24-fulltext-search-lucene-vs-inhouse`](../2026-08-24-fulltext-search-lucene-vs-inhouse/README.md)) | They only multiply under virtual-thread-per-request, which is not recommended; the collator stripe was chosen over a `ThreadLocal` after profiling | The request executor ever moves to virtual threads |
 
 ## Key technical details
 

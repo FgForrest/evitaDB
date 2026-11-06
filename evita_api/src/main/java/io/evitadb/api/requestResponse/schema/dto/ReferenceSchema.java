@@ -1335,7 +1335,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 
 		referenceErrors = Stream.concat(
 			referenceErrors,
-			validateAttributes(this.getAttributes())
+			validateAttributes(catalogSchema, this.getAttributes())
 		);
 
 		final List<String> errors = referenceErrors.map(it -> "\t" + it).toList();
@@ -1533,11 +1533,15 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	/**
 	 * Collects errors for reference attributes.
 	 *
-	 * @param attributes a map of attribute schemas
+	 * @param catalogSchema the catalog schema the attributes' fulltext analyzers are declared in
+	 * @param attributes    a map of attribute schemas
 	 * @return returns errors for reference attribute schemas as a stream
 	 */
 	@Nonnull
-	protected Stream<String> validateAttributes(@Nonnull Map<String, AttributeSchemaContract> attributes) {
+	protected Stream<String> validateAttributes(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull Map<String, AttributeSchemaContract> attributes
+	) {
 		Stream<String> attributeErrors = Stream.empty();
 		for (Scope scope : Scope.values()) {
 			if (!this.isIndexedInScope(scope)) {
@@ -1573,6 +1577,13 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		for (AttributeSchemaContract attribute : attributes.values()) {
 			if (shouldValidate(attribute)) {
 				attributeErrors = Stream.concat(attributeErrors, attribute.validate());
+				attributeErrors = Stream.concat(
+					attributeErrors,
+					FulltextSchemaValidator.validateAnalyzerReference(
+						"Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "`",
+						attribute.getAnalyzer(), catalogSchema.getFulltextAnalyzers()
+					)
+				);
 			}
 		}
 		if (this.cardinality.allowsDuplicates()) {

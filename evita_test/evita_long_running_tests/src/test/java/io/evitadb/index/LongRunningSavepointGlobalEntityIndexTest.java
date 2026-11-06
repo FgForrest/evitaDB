@@ -32,8 +32,9 @@ import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.LongRunningGlobalEntityIndexTest.GlobalSnapshot;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.fulltext.FulltextIndexModel;
-import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
+import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -41,6 +42,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 
 import javax.annotation.Nonnull;
+
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -95,11 +97,11 @@ class LongRunningSavepointGlobalEntityIndexTest extends AbstractSavepointFuzzTes
 	/**
 	 * The index-slot analyzer of every fulltext locale.
 	 */
-	private static Map<Locale, FulltextAnalyzer> analyzers;
+	private static Map<Locale, CompiledFulltextAnalyzer> analyzers;
 
 	@BeforeAll
 	static void setUpAnalyzers() {
-		registry = new FulltextAnalyzerRegistry();
+		registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 		analyzers = LongRunningGlobalEntityIndexTest.indexAnalyzersOf(registry);
 	}
 

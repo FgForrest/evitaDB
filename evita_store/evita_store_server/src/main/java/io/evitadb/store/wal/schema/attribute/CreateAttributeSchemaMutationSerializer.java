@@ -41,7 +41,9 @@ import java.io.Serializable;
 import java.util.Arrays;
 
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readAnalysisSteps;
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readNullableLengthPivot;
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeAnalysisSteps;
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeFulltextFieldSettings;
 
 /**
  * Serializer for {@link CreateAttributeSchemaMutation}.
@@ -102,9 +104,10 @@ public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAt
 		kryo.writeObjectOrNull(output, mutation.getDefaultValue(), mutation.getType());
 		output.writeVarInt(mutation.getIndexedDecimalPlaces(), true);
 		kryo.writeObject(output, mutation.getConflictResolutionOverride());
-		// three sections appended last, in this fixed order - the accelerators, the searchable scopes, then the
-		// nullable normalization; the release-2026.2 reader (CreateAttributeSchemaMutationSerializer_2026_2) stops
-		// before all three and never looks for the accelerators' presence flag
+		// four sections appended last, in this fixed order - the accelerators, the searchable scopes, the nullable
+		// normalization, then the fulltext field settings; the release-2026.2 reader
+		// (CreateAttributeSchemaMutationSerializer_2026_2) stops before all four and never looks for the accelerators'
+		// presence flag
 		writeScopedAcceleratorsArray(kryo, output, mutation.getAcceleratorsInScopes());
 		writeScopeArray(kryo, output, mutation.getSearchableInScopes());
 		final AnalysisStep[] normalization = mutation.getNormalization();
@@ -112,6 +115,7 @@ public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAt
 		if (normalization != null) {
 			writeAnalysisSteps(kryo, output, Arrays.asList(normalization));
 		}
+		writeFulltextFieldSettings(output, mutation.getAnalyzer(), mutation.getLengthPivot());
 	}
 
 	@Override
@@ -139,6 +143,8 @@ public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAt
 		final Scope[] searchableInScopes = readScopeArray(kryo, input);
 		final AnalysisStep[] normalization =
 			input.readBoolean() ? readAnalysisSteps(kryo, input).toArray(AnalysisStep[]::new) : null;
+		final String analyzer = input.readString();
+		final Integer lengthPivot = readNullableLengthPivot(input);
 		return new CreateAttributeSchemaMutation(
 			name,
 			description,
@@ -155,7 +161,9 @@ public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAt
 			defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			analyzer,
+			lengthPivot
 		);
 	}
 

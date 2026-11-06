@@ -30,10 +30,17 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaEditor;
+import io.evitadb.api.requestResponse.schema.FulltextLanguageSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextLanguageSchemaEditor;
+import io.evitadb.api.requestResponse.schema.FulltextResourceSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
+import io.evitadb.api.requestResponse.schema.analysis.FulltextResourceContent;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
@@ -41,10 +48,19 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateFulltextAnalyzerSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateFulltextLanguageSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateFulltextResourceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaConflictResolutionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyFulltextAnalyzerSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyFulltextLanguageSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyFulltextResourceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.MutationEntitySchemaAccessor;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveFulltextAnalyzerSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveFulltextLanguageSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveFulltextResourceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -57,6 +73,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -161,6 +178,92 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 				new ModifyCatalogSchemaConflictResolutionMutation(null)
 			)
 		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public CatalogSchemaBuilder withFulltextLanguage(
+		@Nonnull String language,
+		@Nonnull Consumer<FulltextLanguageSchemaEditor> whichIs
+	) {
+		Assert.notNull(whichIs, "Language definition must not be null.");
+		final FulltextLanguageSchemaBuilder languageBuilder = new FulltextLanguageSchemaBuilder();
+		whichIs.accept(languageBuilder);
+		final AnalysisStep[] wordSplitting = languageBuilder.toWordSplitting();
+		final FulltextLanguageSchemaContract existing = getFulltextLanguages().get(language);
+		if (existing == null) {
+			addFulltextMutation(new CreateFulltextLanguageSchemaMutation(language, wordSplitting));
+		} else if (!existing.getWordSplitting().equals(Arrays.asList(wordSplitting))) {
+			addFulltextMutation(new ModifyFulltextLanguageSchemaMutation(language, wordSplitting));
+		}
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public CatalogSchemaBuilder withoutFulltextLanguage(@Nonnull String language) {
+		addFulltextMutation(new RemoveFulltextLanguageSchemaMutation(language));
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public CatalogSchemaBuilder withFulltextResource(@Nonnull String name, @Nonnull FulltextResourceContent content) {
+		final FulltextResourceSchemaContract existing = getFulltextResources().get(name);
+		if (existing == null) {
+			addFulltextMutation(new CreateFulltextResourceSchemaMutation(name, content));
+		} else if (!existing.getContent().equals(content)) {
+			addFulltextMutation(new ModifyFulltextResourceSchemaMutation(name, content));
+		}
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public CatalogSchemaBuilder withoutFulltextResource(@Nonnull String name) {
+		addFulltextMutation(new RemoveFulltextResourceSchemaMutation(name));
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public CatalogSchemaBuilder withFulltextAnalyzer(
+		@Nonnull String name,
+		@Nonnull Consumer<FulltextAnalyzerSchemaEditor> whichIs
+	) {
+		Assert.notNull(whichIs, "Analyzer definition must not be null.");
+		final FulltextAnalyzerSchemaBuilder analyzerBuilder = new FulltextAnalyzerSchemaBuilder();
+		whichIs.accept(analyzerBuilder);
+		// building the schema validates the definition on the spot, where the caller sees the error
+		final FulltextAnalyzerSchemaContract analyzer = analyzerBuilder.toSchema(name);
+		final FulltextAnalyzerSchemaContract existing = getFulltextAnalyzers().get(name);
+		if (existing == null) {
+			addFulltextMutation(
+				new CreateFulltextAnalyzerSchemaMutation(
+					name,
+					analyzerBuilder.getBasedOn(),
+					analyzerBuilder.getAllLanguages(),
+					analyzerBuilder.getLanguages()
+				)
+			);
+		} else if (!existing.equals(analyzer)) {
+			addFulltextMutation(
+				new ModifyFulltextAnalyzerSchemaMutation(
+					name,
+					analyzerBuilder.getBasedOn(),
+					analyzerBuilder.getAllLanguages(),
+					analyzerBuilder.getLanguages()
+				)
+			);
+		}
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public CatalogSchemaBuilder withoutFulltextAnalyzer(@Nonnull String name) {
+		addFulltextMutation(new RemoveFulltextAnalyzerSchemaMutation(name));
 		return this;
 	}
 
@@ -334,6 +437,18 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 	@Override
 	public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
 		return this.updatedEntitySchemaAccessor.getEntitySchema(entityType);
+	}
+
+	/**
+	 * Adds a fulltext schema mutation to the pipeline and records its impact on the cached schema.
+	 *
+	 * @param mutation the mutation to add
+	 */
+	private void addFulltextMutation(@Nonnull LocalCatalogSchemaMutation mutation) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(this.baseSchema, this.mutations, mutation)
+		);
 	}
 
 	@Nonnull

@@ -5436,4 +5436,149 @@ class TransactionalBucketBPlusTreeTest {
 			}
 		}
 	}
+
+	/**
+	 * The exact probe lane lookups run over the fulltext dictionary: it routes borrowed characters through the internal
+	 * nodes and decodes leaf keys into reused storage, so every answer is checked against what a bucket cursor reads
+	 * from the same tree.
+	 */
+	@Nested
+	@DisplayName("Exact lookup of naturally ordered string keys")
+	class StringLookupTest {
+		/**
+		 * Leaf block size: small enough for sixty keys to need internal nodes.
+		 */
+		private static final int BLOCK = 8;
+		/**
+		 * Internal node block size, which the tree requires to be odd.
+		 */
+		private static final int INTERNAL_BLOCK = 7;
+		/**
+		 * Minimum occupancy accepted for both block sizes.
+		 */
+		private static final int MIN_BLOCK = 3;
+
+		@Test
+		@DisplayName("reports the cardinality, postings and impacts a cursor reports, overflow buckets included")
+		void shouldAgreeWithCursorForEveryKey() {
+			final TransactionalBucketBPlusTree<String> tree = naturalStringTree();
+			for (int i = 0; i < 60; i++) {
+				for (int pk = 0; pk <= i % 4; pk++) {
+					tree.addRecord(key(i), 100 * i + pk, (byte) (pk + 1));
+				}
+			}
+			final TransactionalBucketBPlusTree<String>.StringBucketLookup lookup = tree.stringLookup();
+			final StringBuilder probe = new StringBuilder(16);
+			final BucketCursor<String> cursor = tree.cursor();
+			int overflowBuckets = 0;
+			while (cursor.next()) {
+				probe.setLength(0);
+				probe.append(cursor.value());
+
+				assertTrue(lookup.find(probe), cursor.value());
+
+				assertEquals(cursor.size(), lookup.size(), cursor.value());
+				assertArrayEquals(cursor.records().getArray(), lookup.records().getArray(), cursor.value());
+				assertArrayEquals(cursor.impacts().toArray(), lookup.impacts().toArray(), cursor.value());
+				overflowBuckets += cursor.size() > 1 ? 1 : 0;
+			}
+			assertTrue(overflowBuckets > 0, "the fixture must hold overflow buckets");
+			assertInstanceOf(BPlusInternalTreeNode.class, tree.getRoot(), "the fixture must span several leaves");
+		}
+
+		@Test
+		@DisplayName("misses keys before, between and after the stored ones and refuses to read a missed key")
+		void shouldMissAbsentKeys() {
+			assertFalse(naturalStringTree().stringLookup().find("key00"), "an empty tree holds no key");
+			final TransactionalBucketBPlusTree<String> tree = naturalStringTree();
+			for (int i = 0; i < 60; i++) {
+				tree.addRecord(key(i * 2), i, (byte) 1);
+			}
+			final TransactionalBucketBPlusTree<String>.StringBucketLookup lookup = tree.stringLookup();
+			assertTrue(lookup.find(key(2)));
+
+			for (final String absent : new String[]{"", "a", "key", "key0000", key(1), key(59), "zzz"}) {
+				assertFalse(lookup.find(absent), absent);
+				assertThrows(GenericEvitaInternalError.class, lookup::size, absent);
+				assertThrows(GenericEvitaInternalError.class, lookup::records, absent);
+				assertThrows(GenericEvitaInternalError.class, lookup::impacts, absent);
+			}
+		}
+
+		@Test
+		@DisplayName("sees keys the open transaction added and misses keys it removed")
+		void shouldReadTheTransactionalLayer() {
+			final TransactionalBucketBPlusTree<String> tree = naturalStringTree();
+			for (int i = 0; i < 60; i++) {
+				tree.addRecord(key(i * 2), i, (byte) 1);
+			}
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					tested.addRecord(key(1), 500, (byte) 2);
+					tested.addRecord(key(1), 501, (byte) 3);
+					tested.removeRecord(key(4), 2);
+					final TransactionalBucketBPlusTree<String>.StringBucketLookup lookup = tested.stringLookup();
+
+					assertTrue(lookup.find(key(1)));
+					assertEquals(2, lookup.size());
+					assertArrayEquals(new int[]{500, 501}, lookup.records().getArray());
+					assertArrayEquals(new byte[]{2, 3}, lookup.impacts().toArray());
+					assertFalse(lookup.find(key(4)));
+				},
+				(original, committed) -> {
+					assertFalse(original.stringLookup().find(key(1)), "the original snapshot must not see the add");
+					assertTrue(original.stringLookup().find(key(4)), "the original snapshot must keep the removed key");
+					assertTrue(committed.stringLookup().find(key(1)));
+					assertFalse(committed.stringLookup().find(key(4)));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("refuses trees whose key type, order or payload it cannot read")
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		void shouldRefuseUnsupportedTrees() {
+			final ValueColumnFactory factory = ValueColumnFactory.forKey(String.class, null);
+			final TransactionalBucketBPlusTree<Integer> integers =
+				new TransactionalBucketBPlusTree<>(BLOCK, Integer.class);
+			final TransactionalBucketBPlusTree<String> reversed =
+				new TransactionalBucketBPlusTree<>(String.class, Comparator.reverseOrder());
+			final TransactionalBucketBPlusTree<String> longPayload = TransactionalBucketBPlusTree.withLongPayload(
+				BLOCK, MIN_BLOCK, INTERNAL_BLOCK, MIN_BLOCK, String.class, null, factory
+			);
+
+			assertThrows(GenericEvitaInternalError.class, integers::stringLookup);
+			assertThrows(GenericEvitaInternalError.class, reversed::stringLookup);
+			assertThrows(GenericEvitaInternalError.class, longPayload::stringLookup);
+		}
+
+		/**
+		 * Builds an empty impact-carrying tree in natural String order, wired to the column the production factory
+		 * selects - the shape of the fulltext dictionary.
+		 *
+		 * @return a new empty tree
+		 */
+		@Nonnull
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		private static TransactionalBucketBPlusTree<String> naturalStringTree() {
+			final ValueColumnFactory factory = ValueColumnFactory.forKey(String.class, null);
+			final TransactionalBucketBPlusTree<String> tree = new TransactionalBucketBPlusTree<>(
+				BLOCK, MIN_BLOCK, INTERNAL_BLOCK, MIN_BLOCK, String.class, null, factory
+			);
+			tree.enableImpacts();
+			return tree;
+		}
+
+		/**
+		 * Formats a fixture key so that natural order follows the ordinal.
+		 *
+		 * @param ordinal the key's ordinal
+		 * @return the key
+		 */
+		@Nonnull
+		private static String key(int ordinal) {
+			return String.format(Locale.ROOT, "key%03d", ordinal);
+		}
+	}
 }

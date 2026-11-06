@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.model.evolution;
 
+import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
@@ -64,6 +65,12 @@ public interface GetterBasedEntitySearchableEvolutionV2NarrowAll {
 		}
 	)
 	String getScopedText();
+
+	@AssociatedData(localized = true)
+	String getBody();
+
+	@AssociatedData(localized = true)
+	GetterBasedEntitySearchableEvolutionV1.Article getArticle();
 
 	@Reference(managed = false)
 	Brand getMarketingBrand();

@@ -29,6 +29,8 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.*;
@@ -139,15 +141,20 @@ class EntitySchemaConverterTest {
 					null,
 					0,
 					ConflictResolutionOverride.ENTITY,
-					List.of(lowercase(), asciiFolding(), removeCharacters("- "), trim())
+					List.of(lowercase(), asciiFolding(), removeCharacters("- "), trim()),
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 				)
 			),
 			Map.of(
 				"test1", AssociatedDataSchema._internalBuild(
 					"test1", "Lorem ipsum", "Alert", Integer.class, false, true,
-					ConflictResolutionOverride.GRANULAR
+					null,
+					null,
+					ConflictResolutionOverride.GRANULAR,
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 				),
-				"test2", AssociatedDataSchema._internalBuild("test2", "Lorem ipsum", "Alert", String[].class, true, true, ConflictResolutionOverride.INHERITED)
+				"test2", AssociatedDataSchema._internalBuild("test2", "Lorem ipsum", "Alert", String[].class, true, true, null, null, ConflictResolutionOverride.INHERITED,
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT)
 			),
 			Map.of(
 				"test1", ReferenceSchema._internalBuild(
@@ -208,7 +215,8 @@ class EntitySchemaConverterTest {
 							null,
 							0,
 							ConflictResolutionOverride.INHERITED,
-							List.of(removeCharacters("- "), trim(), lowercase(), asciiFolding())
+							List.of(removeCharacters("- "), trim(), lowercase(), asciiFolding()),
+							FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 						),
 						"priority", EntityAttributeSchema._internalBuild(
 							"code",
@@ -406,7 +414,8 @@ class EntitySchemaConverterTest {
 					false, false, false,
 					String.class, null, 0,
 					ConflictResolutionOverride.INHERITED,
-					null
+					null,
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 				)
 			),
 			Map.of(),

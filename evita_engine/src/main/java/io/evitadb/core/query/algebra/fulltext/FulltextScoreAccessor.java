@@ -37,11 +37,11 @@ import javax.annotation.Nonnull;
  * Marks a formula that can rank entities by fulltext relevance — the formula a fulltext condition translated into,
  * and every wrapper that can sit above one.
  *
- * It follows the two-phase pattern of {@link FilteredPriceRecordAccessor}: the planner is to find the accessors in
- * the filter tree through {@link FormulaFinder#find} in {@link LookUp#SHALLOW} mode, and the sorter to pull the
- * scores out only when it orders the final result. Neither consumer exists yet — the query side of fulltext is still
- * to come — so this is the contract they will be written against. The score is keyed by primary key, not read from
- * the entity body, so the same accessor serves the index path and the prefetch path alike.
+ * It follows the two-phase pattern of {@link FilteredPriceRecordAccessor}: the planner finds the accessors in the
+ * filter tree through {@link FormulaFinder#find} in {@link LookUp#SHALLOW} mode, and the sorter pulls the scores out
+ * only when it orders the final result - the `relevance()` sorter is that consumer. The score is keyed
+ * by primary key, not read from the entity body, so the same accessor serves the index path and the prefetch path
+ * alike.
  *
  * **Every wrapper that can sit above a fulltext formula must implement this interface too.** A `SHALLOW` lookup
  * does not descend into a node it has matched, and with prefetch on the planner wraps translated formulas in
@@ -50,6 +50,11 @@ import javax.annotation.Nonnull;
  * that did not delegate this interface inwards would hide the fulltext formula, and relevance would silently degrade
  * to no ordering exactly when the planner chose prefetch. A wrapper implements it unconditionally and answers
  * {@link #providesFulltextScores()} by what it actually wraps.
+ *
+ * **A formula translating primary keys from one collection's space to another's implements it too, and answers
+ * `false`.** The lookup stops at it, so a fulltext formula of a referenced collection below it is never read as
+ * scores of the queried entities. Such scores reach the sorter already translated, as
+ * {@link ReferenceOwnerFulltextScoreAccessor}s the filter visitor collects.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

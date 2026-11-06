@@ -27,6 +27,8 @@ import com.google.protobuf.StringValue;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.*;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
@@ -678,7 +680,8 @@ public class EntitySchemaConverter {
 		// absent on the wire for an older server - proto3 renders that as an empty list, which converts to `null`
 		final ScopedAttributeFilterAccelerators[] acceleratorsInScopes =
 			toScopedAttributeFilterAccelerators(attributeSchema.getAcceleratedList());
-		// searchability has no gRPC mirror, so a schema converted from the wire reports no attribute as searchable
+		// searchability and the fulltext field settings have no gRPC mirror, so a schema converted from the wire
+		// reports no attribute as searchable and the default analyzer and length pivot
 		final Scope[] searchableInScopes = null;
 		final Scope[] sortableInScopes = toBooleanScopes(attributeSchema.getSortableInScopesList(), attributeSchema.getSortable());
 
@@ -703,7 +706,8 @@ public class EntitySchemaConverter {
 					attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
 					attributeSchema.getIndexedDecimalPlaces(),
 					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
-					toAnalysisSteps(attributeSchema.getNormalizedList())
+					toAnalysisSteps(attributeSchema.getNormalizedList()),
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 				);
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
@@ -728,7 +732,8 @@ public class EntitySchemaConverter {
 					attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
 					attributeSchema.getIndexedDecimalPlaces(),
 					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
-					toAnalysisSteps(attributeSchema.getNormalizedList())
+					toAnalysisSteps(attributeSchema.getNormalizedList()),
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 				);
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
@@ -753,7 +758,8 @@ public class EntitySchemaConverter {
 					attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
 					attributeSchema.getIndexedDecimalPlaces(),
 					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
-					toAnalysisSteps(attributeSchema.getNormalizedList())
+					toAnalysisSteps(attributeSchema.getNormalizedList()),
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 				);
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
@@ -775,7 +781,11 @@ public class EntitySchemaConverter {
 			javaType,
 			associatedDataSchema.getLocalized(),
 			associatedDataSchema.getNullable(),
-			EvitaEnumConverter.toConflictResolutionOverride(associatedDataSchema.getConflictResolutionOverride())
+			//TODO JNO change it at the end of #258
+			null,
+			null,
+			EvitaEnumConverter.toConflictResolutionOverride(associatedDataSchema.getConflictResolutionOverride()),
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 		);
 	}
 

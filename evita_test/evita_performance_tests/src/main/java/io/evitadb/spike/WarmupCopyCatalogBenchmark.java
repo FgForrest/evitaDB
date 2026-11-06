@@ -400,6 +400,9 @@ public class WarmupCopyCatalogBenchmark {
 		final CollectionCopyPlan copyPlan = buildCopyPlan(schema);
 		final EntityFetch contentRequirement = copyPlan.contentRequirement();
 		final String[] referencesToStrip = copyPlan.referencesToStrip();
+		// the target may declare associated data localized that the source keeps without a locale - see
+		// `CatalogCopySupport#createCopyBuilder`
+		final EntitySchemaContract targetSchema = targetSession.getEntitySchemaOrThrowException(entityType);
 		int[] primaryKeys = fetchAllPrimaryKeys(client, sourceCatalog, entityType);
 		if (maxPerCollection > 0 && primaryKeys.length > maxPerCollection) {
 			final int[] capped = new int[maxPerCollection];
@@ -428,7 +431,7 @@ public class WarmupCopyCatalogBenchmark {
 				)
 			);
 			for (int i = 0; i < entities.size(); i++) {
-				final EntityBuilder entityBuilder = new CopyExistingEntityBuilder(entities.get(i));
+				final EntityBuilder entityBuilder = CatalogCopySupport.createCopyBuilder(entities.get(i), targetSchema);
 				// drop the read-only projections that had to be fetched to keep `getReferences()` legal
 				for (int j = 0; j < referencesToStrip.length; j++) {
 					entityBuilder.removeReferences(referencesToStrip[j]);

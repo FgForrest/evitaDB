@@ -23,10 +23,15 @@
 
 package io.evitadb.index.fulltext;
 
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.ImpactView;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.roaringbitmap.PeekableIntRankIterator;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.util.Arrays;
 
@@ -38,43 +43,69 @@ import java.util.Arrays;
  *
  * A query is a sequence of **tokens**; each token expands into one or more **terms** of the dictionary — its stem
  * variants, its prefix completions, its typo neighbours — and each expansion carries its posting list, the impact
- * bytes aligned with it, and the edit distance at which it matched. For every candidate the walk keeps four lanes:
+ * bytes aligned with it, its edit distance and matching class. For every candidate the walk keeps four lanes:
  *
  * | lane | meaning | best is |
  * |---|---|---|
- * | matched tokens | how many query tokens the candidate contains | more |
- * | exactness | whether some token matched without a typo | 1 |
- * | typo distance | the smallest edit distance any token matched at | smaller |
+ * | matched words | matched query words, or covered parts of a split word | more |
+ * | TYPO | `255 - sum(best distance per matched word)`, saturated at zero | larger |
+ * | EXACTNESS | `255 - count(matched words whose best class is not EXACT)` | larger |
  * | impact | the largest impact byte any matched expansion carries | larger |
  *
- * and composes them, once, into a 64-bit value whose **unsigned** order is the ranking:
- * `matchedTokens << 56 | exactness << 48 | (0xFE - distance) << 40 | impact << 32`, where `distance` is the smallest
- * edit distance - the typo lane holds `distance + 1` while it accumulates, so `0` can mean "not hit", and the
- * composite stores `0xFF` minus that. The matched-token lane fills the top byte, so 128 or more matched tokens set the
- * sign bit: compare composites with `Long.compareUnsigned`, never as signed longs. The low 32 bits are reserved for the
- * contextual lanes of later ranking phases and are left zero here.
+ * EXACTNESS counts non-exact query words (split groups count once), independently of their distances. At equal
+ * total typo cost this orders exactly like summed class ranks: EXACT has rank 0, PREFIX rank 1, FUZZY(d) rank
+ * `d + 1`, so the class sum equals the distance sum plus the non-exact count. Counting the non-exact words keeps
+ * exact-before-prefix at equal TYPO without carrying the class sum itself, which could outgrow a byte. The count
+ * cannot overflow: at most 255 query words contribute. Only TYPO saturates at zero; EXACTNESS reaches zero at exactly
+ * 255 non-exact words and is independent of the accepted maximum distance. Each word takes its smallest distance
+ * and whether any exact expansion hit across every profile group, expansion leg and dictionary.
+ *
+ * The unsigned 64-bit composite orders matched words at bit 56, TYPO at bit 48, EXACTNESS at bit 40 and impact
+ * at bit 32. TYPO sums the raw best distances, which is the typo-tolerance specification's default typo-lane
+ * weighting `w = (0, 1, 2)`; the specification leaves the weights open until judged queries can tune them, and no
+ * other weighting exists. The low 32 bits reserve context and stay zero. Compare with `Long.compareUnsigned`: 128
+ * or more matched words set the sign bit.
  *
  * ## The counting rule
  *
- * **A query token counts once however many of its expansions hit a candidate**, and the lanes it contributes are the
- * best across those expansions. Counting expansions instead would rank a document higher for containing two stem
- * variants of one word than for containing two different words of the query. The rule is implemented by merging each
- * token's expansions into per-token lanes before they reach the accumulators.
+ * A query word counts once however many expansions hit. A split word instead contributes its number of covered
+ * parts, with an original hit covering every part; its quality penalties still contribute only once. The optional
+ * part ends ({@link #validatePartEnds}) lay a split word's expansions out as the original's, then each part's,
+ * across all profile groups. Only a query with split words allocates a last-part marker per candidate: consecutive
+ * expansions of one part count once, and an original hit covers every part and suppresses the later part hits. A
+ * split word raises the matched-word lane during the merge, at the first hit of each part (`PartCoverage`); an
+ * ordinary word raises it by one when its lanes are folded, and allocates no coverage state. The matched-word count
+ * saturates at 255. Each word's expansions merge into reusable primitive per-word lanes; no hit allocates or boxes
+ * an object.
  *
- * ## The merge, and why the impact offset stays free
+ * ## The merge, and where the impact offset comes from
  *
- * Each expansion's postings are merged against the sorted candidate array by whichever of two strategies is cheaper
- * for its length: a linear two-cursor walk costing `candidates + postings`, or a galloping search that moves only
- * the candidate cursor and costs about `postings × log2(candidates / postings)`. Both visit the postings **in order,
- * one by one, never going back** - each stops early only once the candidates run out - so the posting index is always
- * the offset of its impact byte — no rank computation is ever needed, and the impact reader only ever moves forward,
- * crossing each chunk boundary of a chunked bucket at most once. The
- * galloping strategy is what lets a short posting list against a large candidate set stay within the phase-1 budget:
- * it lifted the cells meeting the budget from 25 to 32 of 36 in the index-core measurements of the fulltext decision
- * record, up to 45× faster on the widest.
+ * Each expansion's postings are merged against the sorted candidate array by whichever of three strategies is
+ * cheapest for the two lengths:
  *
- * The accumulators are allocated per call, beside the candidate array; the scorer holds no state between calls and
- * is safe to use from any number of threads.
+ * | strategy | walks | skips | costs about | wins when |
+ * |---|---|---|---|---|
+ * | linear | both, step by step | nothing | `candidates + postings` | the lengths are comparable |
+ * | galloping | every posting | candidates | `postings × log2(candidates / postings)` | postings ≪ candidates |
+ * | skipping | every candidate | postings | `candidates × log2(postings / candidates)` | candidates ≪ postings |
+ *
+ * The linear and the galloping merge read a posting list **in order**: a roaring list is decoded whole, once, by its
+ * own bulk extraction into a decode buffer the thread reuses, and the small tiers of a bucket are read through one
+ * small reusable buffer, so the position of a posting in its list - the offset of its impact byte - is simply
+ * counted. The skipping merge reads the list where it is stored: it jumps over postings, so it takes the position
+ * from the rank the posting list's own iterator keeps while it skips. Either way positions only grow, so the impact
+ * reader only ever moves forward, crossing each chunk boundary of a chunked bucket at most once.
+ *
+ * The galloping merge is what lets a short posting list against a large candidate set stay within the phase-1
+ * budget: it lifted the cells meeting the budget from 25 to 32 of 36 in the index-core measurements of the fulltext
+ * decision record, up to 45× faster on the widest. The skipping merge is its mirror for a common word against a
+ * candidate set that the other query words, or the other constraints of the query, have already narrowed: without
+ * it, a merge would walk every posting of the word to score a few hundred candidates.
+ *
+ * The accumulators are allocated per call, beside the candidate array. The only state kept between calls is each
+ * thread's posting feed - its decode buffer, which the next call on the same thread decodes into again - so the
+ * scorer is safe to use from any number of threads, as long as a scoring call is never re-entered on one thread (see
+ * {@link #POSTING_FEED}).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -82,7 +113,9 @@ import java.util.Arrays;
 public final class FulltextPhaseOneScorer {
 
 	/**
-	 * Most query tokens a single query may carry: the matched-token lane is one byte wide.
+	 * Most query words a single query may carry: the EXACTNESS lane counts non-exact words in one byte, and this bound
+	 * keeps that count from wrapping. The matched-word lane saturates instead, because a split word adds one count per
+	 * covered part.
 	 */
 	public static final int MAX_QUERY_TOKENS = 255;
 
@@ -92,25 +125,66 @@ public final class FulltextPhaseOneScorer {
 	public static final int MAX_DISTANCE = 254;
 
 	/**
+	 * How many postings of a small tier - a single record, a sorted array of a few records - the posting feed reads
+	 * into its reusable buffer at once. Small enough for the buffer to stay in the L1 cache; it holds a whole
+	 * array-tier bucket.
+	 */
+	private static final int POSTING_BATCH_SIZE = 256;
+	/**
+	 * Cost of one step of a galloping search over the candidates, in steps of the linear merge. A galloping step is a
+	 * dependent load and a hard-to-predict branch, where a linear step's branches follow the data, so it is priced at
+	 * two: galloping then pays off from about eight candidates per posting.
+	 */
+	private static final long GALLOP_STEP_COST = 2L;
+	/**
+	 * Cost of one step of the skipping merge, in steps of the linear merge. Skipping goes through the posting list's
+	 * iterator, which dispatches on the container kind and, inside a bitmap container, counts the bits of every word
+	 * it passes for the rank, so it is priced at four: skipping then pays off from about twenty-five postings per
+	 * candidate.
+	 */
+	private static final long SKIP_STEP_COST = 4L;
+	/**
+	 * The posting feed of the scoring calls on this thread. Its decode buffer outlives the call, so a roaring list is
+	 * decoded into memory the thread has decoded into before rather than into a fresh array per expansion: on ranked
+	 * queries of a production CMS catalog that removed 18-50 % of a query's allocation at no measurable cost in time.
+	 *
+	 * The buffer grows to the longest list the thread has decoded and stays that long - 4 bytes per posting, so at
+	 * most 4 bytes per entity of the largest collection, held once per thread that has scored. Requests served
+	 * through the server's APIs run on its request executor, a bounded pool of platform threads, which bounds the
+	 * total; an embedded application queries on its own threads, so there the bound is however many threads it
+	 * queries from. Under a thread per request the buffer would simply be allocated per request again.
+	 *
+	 * One feed per thread is safe only because a scoring call is never re-entered on its thread: the expansions are
+	 * resolved before the call and the merges call nothing that could query again. A change that lets the scorer
+	 * call back into a query must give the inner call a feed of its own.
+	 */
+	private static final ThreadLocal<PostingFeed> POSTING_FEED = ThreadLocal.withInitial(PostingFeed::new);
+
+	/**
 	 * Selects how each expansion is merged against the candidates.
 	 */
 	enum MergeStrategy {
 
 		/**
-		 * Take the cheaper of the linear and the galloping merge per expansion — the production setting.
+		 * Take the cheapest of the three merges per expansion — the production setting.
 		 */
 		ADAPTIVE,
 		/**
-		 * Always merge linearly. For tests asserting both strategies agree.
+		 * Always merge linearly. For tests asserting the strategies agree.
 		 */
 		LINEAR,
 		/**
-		 * Always gallop. For tests asserting both strategies agree.
+		 * Always walk the postings and gallop the candidates. For tests asserting the strategies agree.
 		 */
-		GALLOPING
+		GALLOPING,
+		/**
+		 * Always walk the candidates and skip through the postings. For tests asserting the strategies agree.
+		 */
+		SKIPPING
 
 	}
 
+	/** Prevents instantiation of this stateless scoring utility. */
 	private FulltextPhaseOneScorer() {
 		// utility class
 	}
@@ -118,39 +192,39 @@ public final class FulltextPhaseOneScorer {
 	/**
 	 * One term a query token expanded into, with its posting list and the impact bytes aligned to it.
 	 *
-	 * The impacts are an {@link ImpactView}, so they can come straight from the dictionary cursor
-	 * ({@link io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor#impacts()}) without a copy. The
-	 * postings are adopted without a copy too, so neither may be written while the expansion is in use.
+	 * Both come straight from the dictionary cursor
+	 * ({@link io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor#records()} and
+	 * {@link io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor#impacts()}). The impacts are read in
+	 * place; the postings are read in place too, except that a linear or galloping merge first decodes a roaring
+	 * posting list into a buffer its scoring thread reuses. Neither may be written while the expansion is in use. The
+	 * impacts follow the posting list's own record order, which is unsigned; entity primary keys are never negative, so
+	 * it is their ascending order too.
 	 *
 	 * @param postings primary keys of the entities containing the term, ascending
-	 * @param impacts  impact byte of each posting, the i-th belonging to `postings[i]`
-	 * @param distance edit distance at which the term matched the token, `0` for an exact match
+	 * @param impacts  impact byte of each posting, the i-th belonging to the i-th posting
+	 * @param distance edit distance at which the term matched the token, `0` for exact and prefix matches
+	 * @param exactness matching class, EXACT when this word contributes no EXACTNESS penalty
 	 */
-	public record Expansion(@Nonnull int[] postings, @Nonnull ImpactView impacts, int distance) {
+	public record Expansion(
+		@Nonnull Bitmap postings, @Nonnull ImpactView impacts, int distance, @Nonnull FulltextTermExactness exactness
+	) {
 
 		/**
 		 * Validates the expansion.
+		 * @param postings primary keys containing the term
+		 * @param impacts impacts aligned with the postings
+		 * @param distance edit distance
+		 * @param exactness matching class independent of distance
 		 */
 		public Expansion {
 			Assert.isPremiseValid(
-				postings.length == impacts.size(),
-				() -> "An expansion carries " + postings.length + " postings but " + impacts.size() + " impacts!"
+				postings.size() == impacts.size(),
+				() -> "An expansion carries " + postings.size() + " postings but " + impacts.size() + " impacts!"
 			);
 			Assert.isPremiseValid(
 				distance >= 0 && distance <= MAX_DISTANCE,
 				() -> "Edit distance " + distance + " is outside 0.." + MAX_DISTANCE + "!"
 			);
-		}
-
-		/**
-		 * Creates an expansion from impacts already held as one array, which is adopted, not copied.
-		 *
-		 * @param postings primary keys of the entities containing the term, ascending
-		 * @param impacts  impact byte of each posting, `impacts[i]` belonging to `postings[i]`
-		 * @param distance edit distance at which the term matched the token, `0` for an exact match
-		 */
-		public Expansion(@Nonnull int[] postings, @Nonnull byte[] impacts, int distance) {
-			this(postings, ImpactView.of(impacts), distance);
 		}
 
 	}
@@ -163,7 +237,8 @@ public final class FulltextPhaseOneScorer {
 	 *                         class documentation)
 	 * @param matchedDocuments how many candidates matched at least one token
 	 * @param postingsWalked   the total length of every expansion's posting list - the cost model's dominant term,
-	 *                         counted whether or not a merge stopped early because the candidates ran out
+	 *                         counted whichever merge ran, and whether or not it stopped early because the
+	 *                         candidates ran out
 	 */
 	public record Result(
 		@Nonnull int[] primaryKeys,
@@ -174,22 +249,30 @@ public final class FulltextPhaseOneScorer {
 	}
 
 	/**
-	 * Scores the candidates against the query and returns the top N.
+	 * Scores the candidates against the query words and returns the top N; a split word counts its covered parts,
+	 * while every word's quality penalties count once.
 	 *
-	 * The candidates and every expansion's postings must ascend in the same, signed `int` order, which is what the
-	 * merges walk them in. The expansions are only read, never copied or written, for the duration of the call.
+	 * The candidates ascend in signed `int` order and every posting list is read in its own record order, which is
+	 * unsigned; the two agree because entity primary keys are never negative. The expansions are only read, never
+	 * written, for the duration of the call.
 	 *
 	 * @param candidates primary keys of the candidate entities, ascending and distinct
-	 * @param tokens     the query tokens, each as the expansions it produced; a token without expansions matches
-	 *                   nothing but still counts toward the token limit
+	 * @param tokens     the query words, each as the expansions it produced across every profile group; a word
+	 *                   without expansions matches nothing but still counts toward the word limit
 	 * @param topN       how many entities to return, at least one
+	 * @param partEnds   `null` for a query without split words; otherwise one row per word - empty for an ordinary
+	 *                   word, and the exclusive expansion ends `[original, part 1, ...]` for a split one, whose row
+	 *                   holding the original's end alone scores as an ordinary word (see {@link #validatePartEnds})
 	 * @return the selected entities in descending rank order; ties are broken by ascending primary key
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when `topN` is not positive, or the query carries more
-	 *                                                        than {@link #MAX_QUERY_TOKENS} tokens
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when `topN` is not positive, the query carries more
+	 *                                                        than {@link #MAX_QUERY_TOKENS} words, or `partEnds`
+	 *                                                        is malformed
 	 */
 	@Nonnull
-	public static Result score(@Nonnull int[] candidates, @Nonnull Expansion[][] tokens, int topN) {
-		return score(candidates, tokens, topN, MergeStrategy.ADAPTIVE);
+	public static Result score(
+		@Nonnull int[] candidates, @Nonnull Expansion[][] tokens, int topN, @Nullable int[][] partEnds
+	) {
+		return score(candidates, tokens, topN, MergeStrategy.ADAPTIVE, partEnds);
 	}
 
 	/**
@@ -210,58 +293,146 @@ public final class FulltextPhaseOneScorer {
 		int topN,
 		@Nonnull MergeStrategy strategy
 	) {
+		return score(candidates, tokens, topN, strategy, null);
+	}
+
+	/**
+	 * Validates shared split metadata using only expansion-array lengths, without reading posting contents.
+	 * A null outer array denotes an unsplit query. Otherwise every word has a non-null row, empty for an ordinary
+	 * word. Nonempty rows contain monotonic exclusive ends for the original followed by its parts; empty ranges
+	 * are valid, and the final end must equal the word's expansion count. Cost is linear in words and range ends.
+	 *
+	 * @param expansions expansions grouped by mandatory query word
+	 * @param partEnds optional exclusive range ends aligned with the words
+	 * @param <T> expansion representation used by the formula or scorer; only array lengths are inspected
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when rows are null, misaligned or malformed
+	 */
+	public static <T> void validatePartEnds(@Nonnull T[][] expansions, @Nullable int[][] partEnds) {
+		if (partEnds == null) {
+			return;
+		}
+		Assert.isPremiseValid(partEnds.length == expansions.length, "Split coverage must align with query words!");
+		for (int word = 0; word < expansions.length; word++) {
+			final int[] ends = partEnds[word];
+			Assert.isPremiseValid(ends != null, "Split coverage requires non-null rows; use an empty row for a word!");
+			int previous = 0;
+			for (final int end : ends) {
+				Assert.isPremiseValid(end >= previous && end <= expansions[word].length,
+					"Split-part expansion boundaries must be nonnegative, monotonic and within their word!");
+				previous = end;
+			}
+			Assert.isPremiseValid(ends.length == 0 || previous == expansions[word].length,
+				"Split-part expansion boundaries must cover their word!");
+		}
+	}
+
+	/**
+	 * Merges each word's postings, then folds its best quality and covered-part count into the candidate lanes.
+	 *
+	 * @param candidates sorted distinct candidate primary keys
+	 * @param tokens expansions grouped by query word
+	 * @param topN positive result limit
+	 * @param strategy posting merge strategy
+	 * @param partEnds optional original/part expansion ends aligned with words; null when the query has no split word
+	 * @return selected candidates in unsigned composite order
+	 */
+	@Nonnull
+	private static Result score(
+		@Nonnull int[] candidates, @Nonnull Expansion[][] tokens, int topN, @Nonnull MergeStrategy strategy,
+		@Nullable int[][] partEnds
+	) {
 		Assert.isPremiseValid(topN > 0, () -> "The number of results must be positive, " + topN + " was requested!");
 		Assert.isPremiseValid(
 			tokens.length <= MAX_QUERY_TOKENS,
 			() -> "A query may carry at most " + MAX_QUERY_TOKENS + " tokens, " + tokens.length + " were passed!"
 		);
+		validatePartEnds(tokens, partEnds);
 		final int candidateCount = candidates.length;
 		final byte[] matchedTokens = new byte[candidateCount];
-		final byte[] bestExactness = new byte[candidateCount];
-		final byte[] bestTypo = new byte[candidateCount];
+		final byte[] exactnessPenalty = new byte[candidateCount];
+		final byte[] typoPenalty = new byte[candidateCount];
 		final byte[] maxImpact = new byte[candidateCount];
-		// the per-token lanes: every expansion of one token writes here, and only the merged result reaches the
-		// accumulators above - the cheapest implementation of the counting rule
+		// the per-word impact, typo and exactness lanes: every expansion of one word writes here, and only the merged
+		// result reaches the accumulators above - the cheapest implementation of the counting rule
 		final byte[] tokenImpact = new byte[candidateCount];
 		final byte[] tokenTypo = new byte[candidateCount];
+		final byte[] tokenExactness = new byte[candidateCount];
+		final PartCoverage coverage = partEnds == null ? null : new PartCoverage(candidateCount, matchedTokens);
+		final PostingFeed feed = POSTING_FEED.get();
 		long postingsWalked = 0L;
 
-		for (final Expansion[] expansions : tokens) {
-			boolean anyHit = false;
-			for (final Expansion expansion : expansions) {
-				final int[] postings = expansion.postings();
-				// stored one-based, so `0` in the typo lane means "this token did not hit the candidate"
-				final byte distance = (byte) (expansion.distance() + 1);
-				final ImpactView.Reader impacts = expansion.impacts().reader();
-				if (useGallopingMerge(strategy, candidateCount, postings.length)) {
-					anyHit |= gallopingMerge(candidates, postings, impacts, distance, tokenImpact, tokenTypo);
-				} else {
-					anyHit |= linearMerge(candidates, postings, impacts, distance, tokenImpact, tokenTypo);
+		try {
+			for (int token = 0; token < tokens.length; token++) {
+				final Expansion[] expansions = tokens[token];
+				final int[] ends = partEnds == null ? null : partEnds[token];
+				final int partCount = partEnds == null ? 0 : Math.max(0, ends.length - 1);
+				final PartCoverage wordCoverage = partCount == 0 ? null : coverage;
+				if (wordCoverage != null) {
+					wordCoverage.partCount = partCount;
 				}
-				postingsWalked += postings.length;
-			}
-			if (anyHit) {
-				// ONE increment per query token, however many of its expansions hit
-				for (int i = 0; i < candidateCount; i++) {
-					final byte typo = tokenTypo[i];
-					if (typo == 0) {
+				int part = 0;
+				boolean anyHit = false;
+				for (int e = 0; e < expansions.length; e++) {
+					final Expansion expansion = expansions[e];
+					if (wordCoverage != null) {
+						while (e >= ends[part]) {
+							part++;
+						}
+						wordCoverage.part = part;
+					}
+					final Bitmap postings = expansion.postings();
+					final int postingCount = postings.size();
+					if (postingCount == 0) {
 						continue;
 					}
-					matchedTokens[i]++;
-					if (Byte.toUnsignedInt(tokenImpact[i]) > Byte.toUnsignedInt(maxImpact[i])) {
-						maxImpact[i] = tokenImpact[i];
+					// stored one-based, so `0` in the typo lane means "this token did not hit the candidate"
+					final byte distance = (byte) (expansion.distance() + 1);
+					final ImpactView.Reader impacts = expansion.impacts().reader();
+					anyHit |= switch (chooseMerge(strategy, candidateCount, postingCount)) {
+						case LINEAR -> linearMerge(
+							candidates, feed.reset(postings), impacts, distance, tokenImpact, tokenTypo,
+							expansion.exactness() == FulltextTermExactness.EXACT, tokenExactness, wordCoverage
+						);
+						case GALLOPING -> gallopingMerge(
+							candidates, feed.reset(postings), impacts, distance, tokenImpact, tokenTypo,
+							expansion.exactness() == FulltextTermExactness.EXACT, tokenExactness, wordCoverage
+						);
+						case SKIPPING -> skippingMerge(candidates, postings, impacts, distance, tokenImpact, tokenTypo,
+							expansion.exactness() == FulltextTermExactness.EXACT, tokenExactness, wordCoverage);
+						case ADAPTIVE -> throw new GenericEvitaInternalError("The merge choice never yields ADAPTIVE!");
+					};
+					postingsWalked += postingCount;
+				}
+				if (anyHit) {
+					// Fold quality once per word; split words additionally contribute their covered-part count.
+					for (int i = 0; i < candidateCount; i++) {
+						final byte typo = tokenTypo[i];
+						if (typo == 0) {
+							continue;
+						}
+						if (wordCoverage == null) {
+							matchedTokens[i] = (byte) Math.min(255, Byte.toUnsignedInt(matchedTokens[i]) + 1);
+						}
+						if (Byte.toUnsignedInt(tokenImpact[i]) > Byte.toUnsignedInt(maxImpact[i])) {
+							maxImpact[i] = tokenImpact[i];
+						}
+						typoPenalty[i] = (byte) Math.min(255,
+							Byte.toUnsignedInt(typoPenalty[i]) + Byte.toUnsignedInt(typo) - 1);
+						if (tokenExactness[i] == 0) {
+							exactnessPenalty[i]++;
+						}
 					}
-					// the lane is one-based up to MAX_DISTANCE + 1 = 255, so it compares unsigned
-					if (bestTypo[i] == 0 || Byte.toUnsignedInt(typo) < Byte.toUnsignedInt(bestTypo[i])) {
-						bestTypo[i] = typo;
-					}
-					if (typo == 1) {
-						bestExactness[i] = 1;
+					Arrays.fill(tokenImpact, (byte) 0);
+					Arrays.fill(tokenTypo, (byte) 0);
+					Arrays.fill(tokenExactness, (byte) 0);
+					if (wordCoverage != null) {
+						wordCoverage.reset();
 					}
 				}
-				Arrays.fill(tokenImpact, (byte) 0);
-				Arrays.fill(tokenTypo, (byte) 0);
 			}
+		} finally {
+			// the feed stays with the thread, so it must not keep the last posting list alive until the next call
+			feed.release();
 		}
 
 		// compose once, at the end, so a later ranking phase can enter between the accumulation and the composite
@@ -273,154 +444,343 @@ public final class FulltextPhaseOneScorer {
 			}
 			matchedDocuments++;
 			composites[i] = ((long) Byte.toUnsignedInt(matchedTokens[i]) << 56)
-				| ((long) Byte.toUnsignedInt(bestExactness[i]) << 48)
-				| ((long) (0xFF - Byte.toUnsignedInt(bestTypo[i])) << 40)
+				| ((long) (255 - Byte.toUnsignedInt(typoPenalty[i])) << 48)
+				| ((long) (255 - Byte.toUnsignedInt(exactnessPenalty[i])) << 40)
 				| ((long) Byte.toUnsignedInt(maxImpact[i]) << 32);
 		}
 		return selectTopN(candidates, composites, Math.min(topN, matchedDocuments), matchedDocuments, postingsWalked);
 	}
 
 	/**
-	 * Decides the merge strategy for one expansion. A galloping merge costs one gallop per posting over the average
-	 * gap between hits; a linear merge costs every candidate plus every posting.
+	 * Selects the top N of candidates scored elsewhere, in the order {@link #score} selects its own: composite
+	 * compared unsigned, best first, ties by ascending primary key. It lets a score source that derives composites
+	 * rather than computing them - the owners of scored referenced entities - rank exactly as the scorer does.
 	 *
-	 * @param strategy       the requested strategy
-	 * @param candidateCount number of candidates
-	 * @param postingCount   number of postings of the expansion
-	 * @return true to gallop
+	 * @param candidates     primary keys of the candidates, distinct
+	 * @param composites     the composite of each candidate, parallel to `candidates`; `0` for a candidate not scored
+	 * @param topN           how many entities to return, at least one
+	 * @param postingsWalked the postings the composites were computed from, reported in the result
+	 * @return the selected entities in descending rank order
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when `topN` is not positive or the arrays differ in length
 	 */
-	private static boolean useGallopingMerge(@Nonnull MergeStrategy strategy, int candidateCount, int postingCount) {
-		return switch (strategy) {
-			case LINEAR -> false;
-			case GALLOPING -> true;
-			case ADAPTIVE -> {
-				if (postingCount == 0) {
-					yield false;
-				}
-				final int gap = candidateCount / postingCount;
-				// bits needed to gallop across the average gap: 32 - numberOfLeadingZeros(gap - 1) is ceil(log2(gap))
-				final int gapBits = Math.max(1, 32 - Integer.numberOfLeadingZeros(Math.max(gap, 2) - 1));
-				final long gallopCost = (long) postingCount * (1 + gapBits);
-				yield gallopCost < (long) candidateCount + postingCount;
+	@Nonnull
+	public static Result selectTopN(
+		@Nonnull int[] candidates,
+		@Nonnull long[] composites,
+		int topN,
+		long postingsWalked
+	) {
+		Assert.isPremiseValid(topN > 0, () -> "The number of results must be positive, " + topN + " was requested!");
+		Assert.isPremiseValid(
+			candidates.length == composites.length,
+			() -> candidates.length + " candidates carry " + composites.length + " composites!"
+		);
+		int matchedDocuments = 0;
+		for (long composite : composites) {
+			if (composite != 0L) {
+				matchedDocuments++;
 			}
-		};
+		}
+		return selectTopN(candidates, composites, Math.min(topN, matchedDocuments), matchedDocuments, postingsWalked);
 	}
 
 	/**
-	 * Merges one expansion by walking both sorted arrays with two cursors.
+	 * Decides how one expansion is merged. Each merge is priced in steps of the linear merge: the linear merge takes
+	 * one step per candidate and per posting, the galloping merge one search over the average gap between postings per
+	 * posting, the skipping merge one skip over the average gap between candidates per candidate. A search or a skip
+	 * over a gap of `g` takes `1 + ceil(log2(g))` probes, each priced at {@link #GALLOP_STEP_COST} or
+	 * {@link #SKIP_STEP_COST} linear steps.
 	 *
-	 * @param candidates  the candidates, ascending
-	 * @param postings    the expansion's postings, ascending
-	 * @param impacts     reader of the impact bytes aligned to the postings
-	 * @param distance    the expansion's one-based edit distance
-	 * @param tokenImpact the per-token impact lane, by candidate
-	 * @param tokenTypo   the per-token typo lane, by candidate
+	 * Galloping is weighed only for fewer postings than candidates and skipping only for more; either runs only when
+	 * priced strictly below the linear merge, which takes every tie and equal lengths. A strategy other than
+	 * {@link MergeStrategy#ADAPTIVE} is returned as it is.
+	 *
+	 * @param strategy       the requested strategy
+	 * @param candidateCount number of candidates
+	 * @param postingCount   number of postings of the expansion, positive
+	 * @return the merge to run, never {@link MergeStrategy#ADAPTIVE}
+	 */
+	@Nonnull
+	static MergeStrategy chooseMerge(@Nonnull MergeStrategy strategy, int candidateCount, int postingCount) {
+		if (strategy != MergeStrategy.ADAPTIVE) {
+			return strategy;
+		}
+		final long linearCost = (long) candidateCount + postingCount;
+		if (postingCount < candidateCount) {
+			final long gallopCost = GALLOP_STEP_COST * postingCount * probesPerGap(candidateCount, postingCount);
+			return gallopCost < linearCost ? MergeStrategy.GALLOPING : MergeStrategy.LINEAR;
+		} else if (candidateCount < postingCount) {
+			final long skipCost = SKIP_STEP_COST * candidateCount * probesPerGap(postingCount, candidateCount);
+			return skipCost < linearCost ? MergeStrategy.SKIPPING : MergeStrategy.LINEAR;
+		} else {
+			return MergeStrategy.LINEAR;
+		}
+	}
+
+	/**
+	 * Returns how many probes an exponential search takes to cross the average gap between the elements of the shorter
+	 * sequence spread over the longer one: `1 + ceil(log2(ceil(longer / shorter)))`. The gap is rounded up, so a gap
+	 * just above one already costs two probes - rounding it down would price a search over a gap of 1.9 like a linear
+	 * step and choose it where the linear merge is cheaper.
+	 *
+	 * @param longer  length of the longer sequence
+	 * @param shorter length of the shorter sequence; an empty one is priced like one of a single element, which keeps
+	 *                its merge free all the same, because the probes are multiplied by its length
+	 * @return the probes per element of the shorter sequence, at least one
+	 */
+	private static long probesPerGap(int longer, int shorter) {
+		final int divisor = Math.max(shorter, 1);
+		final int gap = (int) (((long) longer + divisor - 1) / divisor);
+		// 32 - numberOfLeadingZeros(gap - 1) is ceil(log2(gap)) for every gap of at least one
+		return 1L + (32 - Integer.numberOfLeadingZeros(gap - 1));
+	}
+
+	/**
+	 * Merges one expansion by walking the candidates and the postings with two cursors.
+	 *
+	 * @param candidates     the candidates, ascending
+	 * @param postings       the expansion's postings, fed in batches
+	 * @param impacts        reader of the impact bytes aligned to the postings
+	 * @param distance       the expansion's one-based edit distance
+	 * @param tokenImpact    the per-token impact lane, by candidate
+	 * @param tokenTypo      the per-token typo lane, by candidate
+	 * @param exact          whether this expansion is EXACT
+	 * @param tokenExactness whether any exact expansion of this word hit, by candidate
+	 * @param coverage       the split-word coverage to forward each hit to, `null` for an ordinary word
 	 * @return true when at least one candidate was hit
 	 */
 	private static boolean linearMerge(
 		@Nonnull int[] candidates,
-		@Nonnull int[] postings,
+		@Nonnull PostingFeed postings,
 		@Nonnull ImpactView.Reader impacts,
 		byte distance,
 		@Nonnull byte[] tokenImpact,
-		@Nonnull byte[] tokenTypo
+		@Nonnull byte[] tokenTypo,
+		boolean exact,
+		@Nonnull byte[] tokenExactness,
+		@Nullable PartCoverage coverage
 	) {
+		final int candidateCount = candidates.length;
+		final int[] batch = postings.buffer();
 		boolean hit = false;
 		int candidateIndex = 0;
-		int postingIndex = 0;
-		while (candidateIndex < candidates.length && postingIndex < postings.length) {
-			final int candidate = candidates[candidateIndex];
-			final int posting = postings[postingIndex];
-			if (candidate < posting) {
-				candidateIndex++;
-			} else if (candidate > posting) {
-				postingIndex++;
-			} else {
-				// the posting cursor IS the impact offset
-				recordHit(candidateIndex, impacts.impactAt(postingIndex), distance, tokenImpact, tokenTypo);
-				hit = true;
-				candidateIndex++;
-				postingIndex++;
+		// position of the batch's first posting in the posting list - the offset of its impact byte
+		int batchStart = 0;
+		while (candidateIndex < candidateCount) {
+			final int batchLength = postings.next();
+			if (batchLength == 0) {
+				break;
 			}
+			int batchIndex = 0;
+			while (batchIndex < batchLength && candidateIndex < candidateCount) {
+				final int candidate = candidates[candidateIndex];
+				final int posting = batch[batchIndex];
+				if (candidate < posting) {
+					candidateIndex++;
+				} else if (candidate > posting) {
+					batchIndex++;
+				} else {
+					recordHit(
+						candidateIndex, impacts.impactAt(batchStart + batchIndex), distance, tokenImpact, tokenTypo,
+						exact, tokenExactness, coverage
+					);
+					hit = true;
+					candidateIndex++;
+					batchIndex++;
+				}
+			}
+			batchStart += batchLength;
 		}
 		return hit;
 	}
 
 	/**
-	 * Merges one expansion by visiting every posting in order and galloping the candidate cursor to it — exponential
-	 * steps from the current position, then a binary search inside the last step.
+	 * Merges one expansion by visiting every posting in order and galloping the candidate cursor to it.
 	 *
-	 * @param candidates  the candidates, ascending
-	 * @param postings    the expansion's postings, ascending
-	 * @param impacts     reader of the impact bytes aligned to the postings
-	 * @param distance    the expansion's one-based edit distance
-	 * @param tokenImpact the per-token impact lane, by candidate
-	 * @param tokenTypo   the per-token typo lane, by candidate
+	 * @param candidates     the candidates, ascending
+	 * @param postings       the expansion's postings, fed in batches
+	 * @param impacts        reader of the impact bytes aligned to the postings
+	 * @param distance       the expansion's one-based edit distance
+	 * @param tokenImpact    the per-token impact lane, by candidate
+	 * @param tokenTypo      the per-token typo lane, by candidate
+	 * @param exact          whether this expansion is EXACT
+	 * @param tokenExactness whether any exact expansion of this word hit, by candidate
+	 * @param coverage       the split-word coverage to forward each hit to, `null` for an ordinary word
 	 * @return true when at least one candidate was hit
 	 */
 	private static boolean gallopingMerge(
 		@Nonnull int[] candidates,
-		@Nonnull int[] postings,
+		@Nonnull PostingFeed postings,
 		@Nonnull ImpactView.Reader impacts,
 		byte distance,
 		@Nonnull byte[] tokenImpact,
-		@Nonnull byte[] tokenTypo
+		@Nonnull byte[] tokenTypo,
+		boolean exact,
+		@Nonnull byte[] tokenExactness,
+		@Nullable PartCoverage coverage
+	) {
+		final int candidateCount = candidates.length;
+		final int[] batch = postings.buffer();
+		boolean hit = false;
+		int from = 0;
+		// position of the batch's first posting in the posting list - the offset of its impact byte
+		int batchStart = 0;
+		while (from < candidateCount) {
+			final int batchLength = postings.next();
+			if (batchLength == 0) {
+				break;
+			}
+			for (int batchIndex = 0; batchIndex < batchLength && from < candidateCount; batchIndex++) {
+				final int posting = batch[batchIndex];
+				from = gallopTo(candidates, from, posting);
+				if (from < candidateCount && candidates[from] == posting) {
+					recordHit(from, impacts.impactAt(batchStart + batchIndex), distance, tokenImpact, tokenTypo,
+						exact, tokenExactness, coverage);
+					hit = true;
+					from++;
+				}
+			}
+			batchStart += batchLength;
+		}
+		return hit;
+	}
+
+	/**
+	 * Merges one expansion by visiting every candidate in order and skipping the posting list to it. The skip is the
+	 * posting list's own: a roaring list skips whole containers and searches inside one, and its rank iterator keeps
+	 * the position of the posting it stands on, which is the offset of the posting's impact byte. When the posting
+	 * found lies beyond the candidate, nothing in between is in the list, so the candidate cursor gallops to the
+	 * posting instead of probing every candidate it passes.
+	 *
+	 * The small tiers of a bucket - a single record, or a sorted array of a few records - have no iterator to skip
+	 * with; they are searched per candidate, which answers the position as well.
+	 *
+	 * @param candidates     the candidates, ascending
+	 * @param postings       the expansion's postings
+	 * @param impacts        reader of the impact bytes aligned to the postings
+	 * @param distance       the expansion's one-based edit distance
+	 * @param tokenImpact    the per-token impact lane, by candidate
+	 * @param tokenTypo      the per-token typo lane, by candidate
+	 * @param exact          whether this expansion is EXACT
+	 * @param tokenExactness whether any exact expansion of this word hit, by candidate
+	 * @param coverage       the split-word coverage to forward each hit to, `null` for an ordinary word
+	 * @return true when at least one candidate was hit
+	 */
+	private static boolean skippingMerge(
+		@Nonnull int[] candidates,
+		@Nonnull Bitmap postings,
+		@Nonnull ImpactView.Reader impacts,
+		byte distance,
+		@Nonnull byte[] tokenImpact,
+		@Nonnull byte[] tokenTypo,
+		boolean exact,
+		@Nonnull byte[] tokenExactness,
+		@Nullable PartCoverage coverage
 	) {
 		final int candidateCount = candidates.length;
 		boolean hit = false;
-		int from = 0;
-		for (int postingIndex = 0; postingIndex < postings.length && from < candidateCount; postingIndex++) {
-			final int posting = postings[postingIndex];
-			int low = from;
-			if (candidates[low] < posting) {
-				// gallop: the answer is usually just ahead of the cursor, so search outward from it rather than
-				// over the whole remaining range
-				int step = 1;
-				int high = low + 1;
-				while (high < candidateCount && candidates[high] < posting) {
-					low = high;
-					step <<= 1;
-					high = low + step;
+		if (postings instanceof final RoaringBitmapBackedBitmap roaringBacked) {
+			final PeekableIntRankIterator cursor = roaringBacked.getRoaringBitmap().getIntRankIterator();
+			int candidateIndex = 0;
+			while (candidateIndex < candidateCount) {
+				final int candidate = candidates[candidateIndex];
+				cursor.advanceIfNeeded(candidate);
+				if (!cursor.hasNext()) {
+					break;
 				}
-				if (high > candidateCount) {
-					high = candidateCount;
-				}
-				low++;
-				while (low < high) {
-					final int mid = (low + high) >>> 1;
-					if (candidates[mid] < posting) {
-						low = mid + 1;
-					} else {
-						high = mid;
-					}
+				final int posting = cursor.peekNext();
+				if (posting == candidate) {
+					// the rank counts from one, the impact offset from zero
+					recordHit(
+						candidateIndex, impacts.impactAt(cursor.peekNextRank() - 1), distance, tokenImpact, tokenTypo,
+						exact, tokenExactness, coverage
+					);
+					hit = true;
+					candidateIndex++;
+				} else if (++candidateIndex < candidateCount) {
+					candidateIndex = gallopTo(candidates, candidateIndex, posting);
 				}
 			}
-			from = low;
-			if (from < candidateCount && candidates[from] == posting) {
-				recordHit(from, impacts.impactAt(postingIndex), distance, tokenImpact, tokenTypo);
-				hit = true;
-				from++;
+		} else {
+			for (int candidateIndex = 0; candidateIndex < candidateCount; candidateIndex++) {
+				final int position = postings.indexOf(candidates[candidateIndex]);
+				if (position >= 0) {
+					recordHit(candidateIndex, impacts.impactAt(position), distance, tokenImpact, tokenTypo,
+						exact, tokenExactness, coverage);
+					hit = true;
+				}
 			}
 		}
 		return hit;
 	}
 
 	/**
-	 * Records one hit of the current token on a candidate, keeping the best lanes across the token's expansions.
+	 * Finds the first candidate at or above the target, searching outward from the cursor - the answer is usually just
+	 * ahead of it - in exponential steps, then binary inside the last step.
+	 *
+	 * @param candidates the candidates, ascending
+	 * @param from       index to search from, below the candidate count
+	 * @param target     the value to find
+	 * @return index of the first candidate at or above `target` from `from` on, or the candidate count when there is
+	 * none
+	 */
+	private static int gallopTo(@Nonnull int[] candidates, int from, int target) {
+		final int candidateCount = candidates.length;
+		int low = from;
+		if (candidates[low] >= target) {
+			return low;
+		}
+		int step = 1;
+		int high = low + 1;
+		while (high < candidateCount && candidates[high] < target) {
+			low = high;
+			step <<= 1;
+			high = low + step;
+		}
+		if (high > candidateCount) {
+			high = candidateCount;
+		}
+		low++;
+		while (low < high) {
+			final int mid = (low + high) >>> 1;
+			if (candidates[mid] < target) {
+				low = mid + 1;
+			} else {
+				high = mid;
+			}
+		}
+		return low;
+	}
+
+	/**
+	 * Records one hit of the current word on a candidate, keeping the best lanes across the word's expansions, and
+	 * forwards it to the split-word coverage, if any, which counts the part it covers.
 	 *
 	 * @param candidateIndex index of the candidate hit
 	 * @param impact         the impact byte of the posting
 	 * @param distance       the expansion's one-based edit distance
 	 * @param tokenImpact    the per-token impact lane, by candidate
 	 * @param tokenTypo      the per-token typo lane, by candidate
+	 * @param exact          whether this expansion is EXACT
+	 * @param tokenExactness whether any exact expansion of this word hit, by candidate
+	 * @param coverage       the split-word coverage to forward the hit to, `null` for an ordinary word
 	 */
 	private static void recordHit(
 		int candidateIndex,
 		byte impact,
 		byte distance,
 		@Nonnull byte[] tokenImpact,
-		@Nonnull byte[] tokenTypo
+		@Nonnull byte[] tokenTypo,
+		boolean exact,
+		@Nonnull byte[] tokenExactness,
+		@Nullable PartCoverage coverage
 	) {
+		if (exact) {
+			tokenExactness[candidateIndex] = 1;
+		}
+		if (coverage != null) {
+			coverage.recordHit(candidateIndex);
+		}
 		if (Byte.toUnsignedInt(impact) > Byte.toUnsignedInt(tokenImpact[candidateIndex])) {
 			tokenImpact[candidateIndex] = impact;
 		}
@@ -429,6 +789,55 @@ public final class FulltextPhaseOneScorer {
 				|| Byte.toUnsignedInt(distance) < Byte.toUnsignedInt(tokenTypo[candidateIndex])
 		) {
 			tokenTypo[candidateIndex] = distance;
+		}
+	}
+
+	/**
+	 * Counts coverage using one last-part marker per candidate and the existing matched-word accumulator.
+	 * Expansions are contiguous by part, with the original first, so a marker suffices to deduplicate hits without
+	 * per-part candidate arrays. An original hit marks every part covered and suppresses all later part hits.
+	 *
+	 * The scoring loop drives it: it sets {@link #partCount} for each split word and {@link #part} before each of the
+	 * word's expansions, and calls {@link #reset()} after each word that hit.
+	 */
+	private static final class PartCoverage {
+		/** Last positive part id counted, zero before a hit, or -1 when the original covered all parts. */
+		private final int[] lastPart;
+		/** Existing query-wide matched-word lane, incremented directly on the first hit of each part. */
+		private final byte[] matchedWords;
+		/** Part whose consecutive expansions are being merged, set before each expansion; zero is the original. */
+		private int part;
+		/** Number of parts of the current split word, set for each split word. */
+		private int partCount;
+
+		/**
+		 * Allocates candidate-sized markers only when a scoring query contains split words.
+		 * @param candidateCount number of candidates actually being ranked
+		 * @param matchedWords existing matched-word accumulator receiving the coverage contribution
+		 */
+		private PartCoverage(int candidateCount, @Nonnull byte[] matchedWords) {
+			this.lastPart = new int[candidateCount];
+			this.matchedWords = matchedWords;
+		}
+
+		/**
+		 * Counts this part once; the original comes first and covers every part at once.
+		 * @param candidateIndex candidate hit by an expansion of the current part
+		 */
+		private void recordHit(int candidateIndex) {
+			final int last = this.lastPart[candidateIndex];
+			if (last != -1 && (this.part == 0 || last != this.part)) {
+				final int increment = this.part == 0 ? this.partCount : 1;
+				this.matchedWords[candidateIndex] = (byte) Math.min(
+					255, Byte.toUnsignedInt(this.matchedWords[candidateIndex]) + increment
+				);
+				this.lastPart[candidateIndex] = this.part == 0 ? -1 : this.part;
+			}
+		}
+
+		/** Clears the markers after a word that hit, before the next query word, keeping the candidate-sized array. */
+		private void reset() {
+			Arrays.fill(this.lastPart, 0);
 		}
 	}
 
@@ -534,6 +943,134 @@ public final class FulltextPhaseOneScorer {
 			heap[worse] = swap;
 			parent = worse;
 		}
+	}
+
+	/**
+	 * Hands an expansion's postings to the posting-driven merges batch by batch, in the posting list's record order -
+	 * the order the impacts are aligned with. A roaring list is decoded whole, once, by its own bulk extraction -
+	 * container by container, in its unsigned record order (never {@link Bitmap#getArray()}, which moves negative ids
+	 * first and would misalign the impacts) - into one decode buffer that grows to the longest list decoded and is
+	 * reused for every shorter one, and handed out as a single batch; the small tiers of a bucket (a single record, a
+	 * sorted array of a few records) are read by position through one reusable buffer.
+	 *
+	 * The copy is measured, not assumed: feeding a roaring list through its batch iterator instead - no copy, one
+	 * small buffer - was 5-7 % slower on posting-dense queries of a production CMS catalog and faster on none. The
+	 * decode buffer outlives the call for the same reason it is reused within one: a buffer of each call's own still
+	 * allocated the call's longest list once per query, most of what a fresh array per list costs.
+	 *
+	 * One feed per thread ({@link #POSTING_FEED}) serves every expansion of every scoring call on that thread,
+	 * re-targeted by {@link #reset(Bitmap)} and let go of the last list by {@link #release()}.
+	 */
+	private static final class PostingFeed {
+		/**
+		 * The buffer the batches of a small tier are written to.
+		 */
+		private final int[] buffer = new int[POSTING_BATCH_SIZE];
+		/**
+		 * The array the batches of the current posting list sit in: {@link #buffer}, or {@link #decoded}.
+		 */
+		private int[] batches = this.buffer;
+		/**
+		 * The buffer roaring lists are decoded into, as long as the longest one decoded so far; the current list
+		 * occupies its prefix of {@link #decodedLength} postings, and what lies past it is left over from longer lists.
+		 */
+		private int[] decoded = new int[0];
+		/**
+		 * How many postings of {@link #decoded} the current roaring list fills, `-1` when the current list is a small
+		 * tier or the feed points at no list.
+		 */
+		private int decodedLength = -1;
+		/**
+		 * Whether the decoded current list has been handed out as its single batch already.
+		 */
+		private boolean decodedServed;
+		/**
+		 * The current posting list when it is a small tier, read by position; `null` for a roaring list.
+		 */
+		@Nullable private Bitmap positionalPostings;
+		/**
+		 * Position of the next posting to read from {@link #positionalPostings}.
+		 */
+		private int nextPosition;
+
+		/** Creates a reusable posting feed for one scoring thread. */
+		private PostingFeed() { }
+
+		/**
+		 * Points the feed at the start of a posting list.
+		 *
+		 * @param postings the posting list to feed, not empty
+		 * @return this feed
+		 */
+		@Nonnull
+		PostingFeed reset(@Nonnull Bitmap postings) {
+			if (postings instanceof final RoaringBitmapBackedBitmap roaringBacked) {
+				final int postingCount = postings.size();
+				if (this.decoded.length < postingCount) {
+					this.decoded = new int[postingCount];
+				}
+				this.decodedLength = roaringBacked.getRoaringBitmap().decodeInto(this.decoded);
+				this.batches = this.decoded;
+				this.decodedServed = false;
+				this.positionalPostings = null;
+			} else {
+				this.decodedLength = -1;
+				this.batches = this.buffer;
+				this.positionalPostings = postings;
+				this.nextPosition = 0;
+			}
+			return this;
+		}
+
+		/**
+		 * Lets go of the current posting list at the end of a scoring call, so a feed kept for the thread holds no
+		 * index structure alive between calls; the decode buffer stays for the next call. Until the next
+		 * {@link #reset(Bitmap)} the feed points at no list.
+		 */
+		void release() {
+			this.positionalPostings = null;
+			this.decodedLength = -1;
+			this.batches = this.buffer;
+		}
+
+		/**
+		 * Returns the array {@link #next()} hands each batch out in; the batch occupies its prefix. It changes with
+		 * {@link #reset(Bitmap)}, so it is read after the feed is pointed at a posting list.
+		 *
+		 * @return the batch array
+		 */
+		@Nonnull
+		int[] buffer() {
+			return this.batches;
+		}
+
+		/**
+		 * Hands out the next batch of postings in {@link #buffer()}.
+		 *
+		 * @return how many postings the batch holds, `0` once the posting list is exhausted
+		 */
+		int next() {
+			final int decodedLength = this.decodedLength;
+			if (decodedLength >= 0) {
+				if (this.decodedServed) {
+					return 0;
+				}
+				this.decodedServed = true;
+				return decodedLength;
+			}
+			final Bitmap postings = this.positionalPostings;
+			if (postings == null) {
+				throw new GenericEvitaInternalError("The posting feed was read before it was reset!");
+			}
+			final int end = Math.min(postings.size(), this.nextPosition + this.buffer.length);
+			final int batchLength = end - this.nextPosition;
+			for (int i = 0; i < batchLength; i++) {
+				this.buffer[i] = postings.get(this.nextPosition + i);
+			}
+			this.nextPosition = end;
+			return batchLength;
+		}
+
 	}
 
 }

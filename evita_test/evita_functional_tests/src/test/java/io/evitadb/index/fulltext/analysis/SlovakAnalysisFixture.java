@@ -23,12 +23,10 @@
 
 package io.evitadb.index.fulltext.analysis;
 
-
-import javax.annotation.Nonnull;
 import java.util.List;
 
 /**
- * The Slovak vocabulary {@link LanguageAnalyzerPairRecallTest} measures the `slovak`/`slovak-search`
+ * The Slovak vocabulary {@link LanguageAnalyzerPairRecallTest} measures the `text` index/query
  * analyzer pair against — the Slovak sibling of {@link CzechAnalysisFixture}, built to the same protocol. Unlike the Romanian and Polish fixtures this one validates a **from-scratch stemmer's tables**
  * ({@link SlovakStemmer}) as much as the mechanisms, so its classes map one to one onto the table entries; the
  * plan expects the tables and this fixture to co-evolve over multiple runs.

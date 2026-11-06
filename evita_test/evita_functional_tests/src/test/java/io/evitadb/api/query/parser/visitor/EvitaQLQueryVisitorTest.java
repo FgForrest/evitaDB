@@ -30,9 +30,11 @@ import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.util.Locale;
 import java.util.Map;
 import org.junit.jupiter.api.Tag;
 
@@ -270,6 +272,28 @@ class EvitaQLQueryVisitorTest {
                         """
                 )
         );
+    }
+
+    @Test
+    @DisplayName("Should parse fulltext query and re-parse its string form")
+    void shouldParseFulltextQueryAndReparseItsStringForm() {
+        final Query expected = query(
+            collection("Product"),
+            filterBy(
+                entityLocaleEquals(Locale.forLanguageTag("cs")),
+                textMatches("černá kožená bunda", inField("name"), inField("description"))
+            ),
+            orderBy(relevance())
+        );
+
+        final Query parsed = parseQueryUnsafe(
+            "query(collection('Product'),filterBy(entityLocaleEquals('cs'),"
+                + "textMatches('černá kožená bunda',inField('name'),inField('description'))),orderBy(relevance()))"
+        );
+        assertEquals(expected, parsed);
+
+        // the Java driver sends the string form of the query over gRPC, so it must parse back to the same query
+        assertEquals(expected, parseQueryUnsafe(expected.toString()));
     }
 
     @Test

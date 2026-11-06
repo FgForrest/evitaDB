@@ -23,7 +23,9 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.engine;
 
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
@@ -59,6 +61,8 @@ public class ModifyCatalogSchemaMutationTest {
 		Mockito.when(catalogSchema.version()).thenReturn(1);
 		final GlobalAttributeSchema globalAttribute = Mockito.mock(GlobalAttributeSchema.class);
 		Mockito.doReturn(Integer.class).when(globalAttribute).getType();
+		Mockito.doReturn(FulltextAnalyzerSchemaContract.TEXT).when(globalAttribute).getAnalyzer();
+		Mockito.doReturn(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT).when(globalAttribute).getLengthPivot();
 		Mockito.when(catalogSchema.getAttribute("someAttribute")).thenReturn(of(globalAttribute));
 		Mockito.when(catalogSchema.getEntitySchema("product")).thenReturn(of(Mockito.mock(EntitySchema.class)));
 		final CatalogSchemaWithImpactOnEntitySchemas result = mutation.mutate(catalogSchema);

@@ -23,18 +23,20 @@
 
 package io.evitadb.index.fulltext.typo;
 
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.test.fulltext.CzechLexicon;
 import io.evitadb.test.fulltext.CzechStemDictionary;
-import io.evitadb.test.fulltext.SyntheticTypos;
+import io.evitadb.test.fulltext.FulltextAnalysisTestSupport;
 import io.evitadb.test.fulltext.SyntheticTypos.TypoKind;
-import io.evitadb.test.fulltext.TypoExpansion;
+import io.evitadb.test.fulltext.SyntheticTypos;
 import io.evitadb.test.fulltext.TypoExpansion.ExpandedTerm;
 import io.evitadb.test.fulltext.TypoExpansion.LengthBase;
 import io.evitadb.test.fulltext.TypoExpansion.QueryWord;
 import io.evitadb.test.fulltext.TypoExpansion.UnfinishedWordMode;
+import io.evitadb.test.fulltext.TypoExpansion;
 import io.evitadb.test.fulltext.TypoThresholds;
 import org.apache.lucene.analysis.cz.CzechStemmer;
 import org.junit.jupiter.api.AfterAll;
@@ -44,6 +46,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -95,8 +98,8 @@ class PrefixTypoMeasurementTest {
 
 	@BeforeAll
 	static void setUpAnalyzers() {
-		registry = new FulltextAnalyzerRegistry();
-		searchAnalyzer = registry.getSearchAnalyzer("PRODUCT", Locale.forLanguageTag("cs"));
+		registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
+		searchAnalyzer = FulltextAnalysisTestSupport.queryAnalyzer(Locale.forLanguageTag("cs"));
 	}
 
 	@AfterAll

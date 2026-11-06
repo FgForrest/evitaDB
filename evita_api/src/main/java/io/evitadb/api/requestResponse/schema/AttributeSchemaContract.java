@@ -73,6 +73,11 @@ import java.util.stream.Stream;
 public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContract, ConflictResolutionOverrideAwareSchemaContract {
 
 	/**
+	 * The {@link #getLengthPivot() length pivot} of an attribute or associated data that declares none.
+	 */
+	int DEFAULT_LENGTH_PIVOT = 25;
+
+	/**
 	 * Ordered normalization steps for `String` and `String[]` attributes, shared by all scopes.
 	 * An empty list means no custom normalization: the engine applies only Unicode NFD.
 	 *
@@ -391,6 +396,28 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	Set<Scope> getSearchableInScopes();
 
 	/**
+	 * Returns the name of the fulltext analyzer that turns the attribute's values into words while it is
+	 * {@link #isSearchable() searchable}: a built-in one ({@link FulltextAnalyzerSchemaContract#TEXT},
+	 * {@link FulltextAnalyzerSchemaContract#HTML_TEXT}) or one declared in the catalog schema
+	 * ({@link CatalogSchemaContract#getFulltextAnalyzers()}). The analyzer must exist in the catalog; the reference is
+	 * checked on the schema an update produces as a whole, so one update may declare an analyzer and point the
+	 * attribute to it, or point the attribute elsewhere and remove the analyzer.
+	 *
+	 * @return the name of the analyzer, {@link FulltextAnalyzerSchemaContract#TEXT} unless declared otherwise
+	 */
+	@Nonnull
+	String getAnalyzer();
+
+	/**
+	 * Returns the length pivot of the attribute's fulltext field: the number of words a value of normal length has.
+	 * A word found in a value shorter than the pivot weighs more, in a longer one less, so that short values such as
+	 * titles are not outranked by long texts that merely mention the word.
+	 *
+	 * @return the length pivot, {@link #DEFAULT_LENGTH_PIVOT} unless declared otherwise
+	 */
+	int getLengthPivot();
+
+	/**
 	 * Collects the schema-consistency errors of this attribute, one message per problem, **without throwing**.
 	 *
 	 * The accumulating shape mirrors
@@ -450,6 +477,20 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 				);
 			}
 		}
+		if (getAnalyzer().isBlank()) {
+			errors = Stream.concat(
+				errors, Stream.of("Attribute `" + getName() + "` names a blank fulltext analyzer.")
+			);
+		}
+		if (getLengthPivot() <= 0) {
+			errors = Stream.concat(
+				errors,
+				Stream.of(
+					"Attribute `" + getName() + "` declares the length pivot " + getLengthPivot() +
+						"! The length pivot must be positive."
+				)
+			);
+		}
 		if (!getNormalization().isEmpty() && !String.class.equals(getPlainType())) {
 			errors = Stream.concat(
 				errors,
@@ -459,8 +500,8 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 				)
 			);
 		}
-		// Records validate individual descriptions at construction; keep the assembled contract responsible
-		// for structure too, including alternate contract implementations and deserialized schemas.
+		// a description validates itself when created; the assembled contract checks the steps again, because an
+		// alternate contract implementation or a deserialized schema may hold any list
 		for (final AnalysisStep step : getNormalization()) {
 			if (step == null) {
 				errors = Stream.concat(
@@ -468,7 +509,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 				);
 			} else {
 				try {
-					new AnalysisStep(step.name(), step.parameters());
+					AnalysisStep.of(step.name(), step.parameters());
 				} catch (final IllegalArgumentException ex) {
 					errors = Stream.concat(
 						errors, Stream.of(

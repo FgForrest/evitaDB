@@ -31,10 +31,12 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -307,7 +309,8 @@ class SetReferenceSchemaIndexedMutationTest {
 							false, false, false,
 							Integer.class, null, 0,
 							ConflictResolutionOverride.INHERITED,
-							null
+							null,
+							FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 						)
 					),
 					Collections.emptyMap(),
@@ -384,7 +387,8 @@ class SetReferenceSchemaIndexedMutationTest {
 							false, false, false,
 							Integer.class, null, 0,
 							ConflictResolutionOverride.INHERITED,
-							null
+							null,
+							FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 						)
 					),
 					Collections.emptyMap(),
@@ -459,7 +463,8 @@ class SetReferenceSchemaIndexedMutationTest {
 							false, false, false,
 							Integer.class, null, 0,
 							ConflictResolutionOverride.INHERITED,
-							null
+							null,
+							FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 						)
 					),
 					Collections.emptyMap(),

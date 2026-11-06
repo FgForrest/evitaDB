@@ -158,6 +158,8 @@ import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.analysis.BuiltWithAttributeNormalizationResolver;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerValidator;
+import io.evitadb.index.fulltext.typo.FulltextTypoParameters;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
@@ -668,7 +670,6 @@ public final class Catalog
 										globalIndex = entityCollectionPersistenceService.readEntityIndex(
 											catalogVersion, globalIndexPk, indexSchema,
 											initBulk.catalog().isUsageStatisticsTracked(),
-											initBulk.catalog().getFulltextAnalyzerRegistry(),
 											entityCollection.getAttributeNormalizationResolver()
 										);
 										initBulk.addGlobalIndex(entityCollection.getEntityType(), globalIndex);
@@ -696,7 +697,6 @@ public final class Catalog
 														.readEntityIndex(
 															catalogVersion, eid, indexSchema,
 															initBulk.catalog().isUsageStatisticsTracked(),
-															initBulk.catalog().getFulltextAnalyzerRegistry(),
 															entityCollection.getAttributeNormalizationResolver()
 														);
 													if (loadedIndex.getIndexKey().type() == EntityIndexType.GLOBAL) {
@@ -747,6 +747,11 @@ public final class Catalog
 				}
 				// after all schemas are resolved, build the expression trigger registry
 				catalog.buildInitialExpressionTriggerRegistry();
+				// the published schema compiled when the session publishing it closed; it may not any more when an
+				// analysis step it uses is no longer installed or now refuses its parameters - checked like the
+				// normalization steps above, and only now, because the analyzers are checked in the locales of the
+				// entities using them
+				FulltextAnalyzerValidator.validate(catalog.getAnalysisStepRegistry(), catalog.getSchema());
 				// derived state that is not persisted and has to come back with the collection: the reverse
 				// lookup the cross-entity facet trigger uses instead of walking every reduced index. Built
 				// here because it is the one moment that has every index in place, every schema resolved, and
@@ -827,8 +832,8 @@ public final class Catalog
 		this.transactionalExecutor = evita.getTransactionExecutor();
 
 		final CatalogSchema internalCatalogSchema = CatalogSchema._internalBuild(
-			catalogName, catalogSchema.getNameVariants(), null, catalogSchema.getCatalogEvolutionMode(),
-			getEntitySchemaAccessor()
+			catalogName, catalogSchema.getNameVariants(), catalogSchema.getConflictResolution().orElse(null),
+			catalogSchema.getCatalogEvolutionMode(), getEntitySchemaAccessor()
 		);
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(internalCatalogSchema));
 		//noinspection unchecked
@@ -877,7 +882,7 @@ public final class Catalog
 		// nothing today; it is here so that a future constructor accepting a populated schema cannot skip it
 		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 		this.usageRegistry.alignWith(internalCatalogSchema);
-		this.fulltextAnalyzerRegistry = new FulltextAnalyzerRegistry();
+		this.fulltextAnalyzerRegistry = new FulltextAnalyzerRegistry(this.analysisStepRegistry);
 		this.proxyFactory = proxyFactory;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = internalCatalogSchema.version();
@@ -975,7 +980,7 @@ public final class Catalog
 		// has its row before the first query arrives rather than from whenever one first names it
 		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 		this.usageRegistry.alignWith(catalogSchema);
-		this.fulltextAnalyzerRegistry = new FulltextAnalyzerRegistry();
+		this.fulltextAnalyzerRegistry = new FulltextAnalyzerRegistry(this.analysisStepRegistry);
 		this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
 			.filter(it -> !it.isEmpty())
 			.ifPresent(this.archiveCatalogIndex::set);
@@ -2620,6 +2625,15 @@ public final class Catalog
 	}
 
 	/**
+	 * Returns the engine-wide submitted-search policy shared by catalog generations.
+	 * @return the policy mapped at engine startup
+	 */
+	@Nonnull
+	public FulltextTypoParameters getFulltextTypoParameters() {
+		return this.evita.getFulltextTypoParameters();
+	}
+
+	/**
 	 * Whether this catalog counts how often its indexes and schema capabilities are queried against how often they are
 	 * maintained - the server-wide `server.usageStatisticsTracking` switch, answered here so that the index-creation
 	 * sites and the query and write paths all read the one value rather than each reaching for the configuration.
@@ -3131,17 +3145,18 @@ public final class Catalog
 	 * operation flushes mid-session, so the state that comes back is the newest one that reached the disk rather
 	 * than the newest closed session.
 	 *
-	 * The parameter is the whole {@link EvitaInvalidUsageException} family rather than
-	 * {@link SchemaAlteringException} alone, because `validate()` refuses in both vocabularies: a rule it evaluates
-	 * throws the schema-altering kind, while a getter it reaches on a half-built schema simply refuses to answer.
-	 * Both mean the same thing here - the schema as it stands is not acceptable and cannot be un-applied.
+	 * The parameter is any {@link Throwable} rather than {@link SchemaAlteringException} alone. `validate()` refuses in
+	 * two vocabularies: a rule it evaluates throws the schema-altering kind, while a getter it reaches on a half-built
+	 * schema simply refuses to answer. And an exception outside both - an engine defect the walk uncovers - leaves the
+	 * schema unvalidated. All of them mean the same thing here - the schema as it stands cannot be vouched for and
+	 * cannot be un-applied.
 	 *
-	 * @param cause the validation failure that refused the schema change
+	 * @param cause the validation failure that refused the schema change, or the exception the validation failed with
 	 */
-	public void markUnpublishableDueToInvalidSchema(@Nonnull EvitaInvalidUsageException cause) {
+	public void markUnpublishableDueToInvalidSchema(@Nonnull Throwable cause) {
 		if (recordUnpublishableCause(cause)) {
 			log.error(
-				"Catalog `{}` holds a schema that failed validation and cannot be un-applied in the warm-up " +
+				"Catalog `{}` holds a schema that did not pass validation and cannot be un-applied in the warm-up " +
 					"phase, so it will be deactivated. Its stored data is intact at the last version it published; " +
 					"activating the catalog again loads exactly that state, and everything written since then has " +
 					"to be replayed once the schema change is corrected.",
@@ -3179,8 +3194,26 @@ public final class Catalog
 	}
 
 	/**
-	 * Tells whether the catalog schema as it currently stands would survive
-	 * {@link CatalogSchemaContract#validate()}.
+	 * Validates the catalog schema as it currently stands: first the checks {@link CatalogSchemaContract#validate()}
+	 * makes without a server, then those of {@link FulltextAnalyzerValidator}, which compile every fulltext analyzer
+	 * through the installed analysis steps. Every route that refuses to publish an invalid schema - the session close,
+	 * the go-live and the mid-session flush ({@link #isSchemaValid()}) - asks this one method, so that none of them
+	 * publishes a schema another would refuse, or a load would.
+	 *
+	 * The analyzers are checked second because the first check settles what they refer to: the analyzers they are
+	 * based on and the resources the built-in steps read.
+	 *
+	 * @throws SchemaAlteringException   when a rule of the schema is broken
+	 * @throws EvitaInvalidUsageException when a half-built schema cannot even be walked - see {@link #isSchemaValid()}
+	 */
+	public void validateSchema() throws SchemaAlteringException {
+		final SealedCatalogSchema catalogSchema = getSchema();
+		catalogSchema.validate();
+		FulltextAnalyzerValidator.validate(this.analysisStepRegistry, catalogSchema);
+	}
+
+	/**
+	 * Tells whether the catalog schema as it currently stands would survive {@link #validateSchema()}.
 	 *
 	 * Exists for the publications that happen while a warm-up session is **still open**, which the barrier cannot
 	 * help with: the barrier is raised when a session closes and validation refuses it, so anything publishing
@@ -3192,7 +3225,7 @@ public final class Catalog
 	 * publication and leaves the decision to the session close, which is the point at which the state is final.
 	 *
 	 * **The catch is {@link EvitaInvalidUsageException}, not {@link SchemaAlteringException}, and the difference is
-	 * load-bearing.** `validate()` does not report every refusal in the schema-altering vocabulary: walking a
+	 * load-bearing.** `validateSchema()` does not report every refusal in the schema-altering vocabulary: walking a
 	 * half-built schema reaches getters that refuse to answer at all, and `ReflectedReferenceSchema#isIndexedInScope`
 	 * throwing "the reflected reference is not available" for a reflected reference whose target is not wired yet is
 	 * exactly the intermediate state this method exists to tolerate. Catching only the narrower type turned that
@@ -3203,7 +3236,7 @@ public final class Catalog
 	 */
 	private boolean isSchemaValid() {
 		try {
-			getSchema().validate();
+			validateSchema();
 			return true;
 		} catch (EvitaInvalidUsageException ex) {
 			return false;

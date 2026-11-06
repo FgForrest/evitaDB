@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
+import io.evitadb.api.requestResponse.schema.analysis.NormalizingAnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDefaultValueMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDeprecationNoticeMutation;
@@ -112,7 +113,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	 */
 	@Nonnull
 	@Override
-	public T normalized(@Nonnull AnalysisStep... steps) {
+	public T normalized(@Nonnull NormalizingAnalysisStep... steps) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
@@ -227,6 +228,62 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 					Arrays.stream(Scope.values())
 						.filter(it -> isSearchableInScope(it) && !excludedScopes.contains(it))
 						.toArray(Scope[]::new)
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	/**
+	 * Returns the fulltext analyzer currently assembled from the accumulated mutations.
+	 *
+	 * @return the name of the fulltext analyzer
+	 */
+	@Nonnull
+	@Override
+	public String getAnalyzer() {
+		return assembleInstance().getAnalyzer();
+	}
+
+	/**
+	 * Returns the length pivot currently assembled from the accumulated mutations.
+	 *
+	 * @return the length pivot
+	 */
+	@Override
+	public int getLengthPivot() {
+		return assembleInstance().getLengthPivot();
+	}
+
+	@Nonnull
+	@Override
+	public T analyzer(@Nonnull String analyzerName) {
+		Assert.notNull(analyzerName, "Analyzer name must not be null.");
+		return setFulltextField(analyzerName, null);
+	}
+
+	@Nonnull
+	@Override
+	public T lengthPivot(int lengthPivot) {
+		return setFulltextField(null, lengthPivot);
+	}
+
+	/**
+	 * Records the analyzer or the length pivot of the attribute's fulltext field. The searchability mutation carries
+	 * both, so it restates the scopes currently declared and leaves them as they are.
+	 *
+	 * @param analyzerName the analyzer to set, or `null` to keep the current one
+	 * @param lengthPivot  the length pivot to set, or `null` to keep the current one
+	 * @return this builder
+	 */
+	@Nonnull
+	private T setFulltextField(@Nullable String analyzerName, @Nullable Integer lengthPivot) {
+		final Scope[] searchableInScopes = assembleInstance().getSearchableInScopes().toArray(Scope[]::new);
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaSearchableMutation(
+					this.baseSchema.getName(), searchableInScopes, analyzerName, lengthPivot
 				)
 			)
 		);

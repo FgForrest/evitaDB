@@ -156,8 +156,8 @@ class UserFilterTest {
 			// Baseline regression guard: the forbidden-children list was churned while wiring
 			// `histogramHaving` in as the range carrier, so this test re-asserts the full
 			// existing blacklist (locale, all three price-binding constraints, both hierarchy
-			// constraints, and self-nesting) as a single failure-loud safety net. If any entry
-			// is accidentally dropped from `FORBIDDEN_CHILDREN`, this test fails even when
+			// constraints, the fulltext search, and self-nesting) as a single failure-loud safety net. If
+			// any entry is accidentally dropped from `FORBIDDEN_CHILDREN`, this test fails even when
 			// every sibling micro-test above still passes. `PriceBetween` is intentionally
 			// absent — it is the textbook user-controlled constraint and remains allowed.
 			assertThrows(
@@ -188,9 +188,31 @@ class UserFilterTest {
 			);
 			assertThrows(
 				EvitaInvalidUsageException.class,
+				() -> new UserFilter(textMatches("jacket"))
+			);
+			assertThrows(
+				EvitaInvalidUsageException.class,
 				() -> new UserFilter(
 					new UserFilter(attributeEquals("abc", "def"))
 				)
+			);
+		}
+
+		@Test
+		@DisplayName("should reject TextMatches inside userFilter")
+		void shouldRejectTextMatchesInsideUserFilter() {
+			// a fulltext search has no relaxation semantics facet or histogram computations could peel off,
+			// so it belongs to the mandatory part of the filter
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> new UserFilter(
+					attributeEquals("code", "A"),
+					textMatches("black leather jacket", inField("name"))
+				)
+			);
+			assertTrue(
+				exception.getMessage().contains("textMatches"),
+				"Exception message should name the forbidden constraint, was: " + exception.getMessage()
 			);
 		}
 

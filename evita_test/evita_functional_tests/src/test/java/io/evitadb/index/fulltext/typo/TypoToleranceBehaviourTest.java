@@ -23,15 +23,17 @@
 
 package io.evitadb.index.fulltext.typo;
 
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
-import io.evitadb.test.fulltext.TypoExpansion;
+import io.evitadb.test.fulltext.FulltextAnalysisTestSupport;
 import io.evitadb.test.fulltext.TypoExpansion.ExpandedTerm;
 import io.evitadb.test.fulltext.TypoExpansion.LengthBase;
 import io.evitadb.test.fulltext.TypoExpansion.QueryWord;
 import io.evitadb.test.fulltext.TypoExpansion.UnfinishedWordMode;
 import io.evitadb.test.fulltext.TypoExpansion.UnfinishedWordRules;
+import io.evitadb.test.fulltext.TypoExpansion;
 import io.evitadb.test.fulltext.TypoThresholds;
 import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.AfterAll;
@@ -42,6 +44,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -60,8 +63,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * concrete queries over a small product catalog with the expected matches, the expected order and the expected
  * non-matches, so that thresholds, opt-outs and the stemming answer are checked against something.
  *
- * The engine has no fulltext query yet, so the examples run against a **reference** of the proposal: the catalog
- * is indexed through the production `czech` chain, the query through the production `czech-search` chain, every
+ * These examples run against a **reference** of the proposal; `TypoToleranceEngineBehaviourTest` runs the same
+ * data and expectations through real evitaQL queries: the catalog
+ * is indexed through the compiled Czech `text` index side, the query through its query side, every
  * query word is expanded by {@link TypoExpansion} with the thresholds of §7.1 and, for a word still being typed,
  * the unfinished-word rules of §7.8 ({@link UnfinishedWordRules#PROPOSAL}), and the result is ranked by the
  * proposed lanes of §8.2 — every query word must match, then fewer typos, then better exactness (exact before
@@ -77,7 +81,7 @@ class TypoToleranceBehaviourTest {
 	/**
 	 * The catalog: product titles by primary key.
 	 */
-	private static final String[] CATALOG = {
+	static final String[] CATALOG = {
 		null,
 		"Černé pánské kalhoty",          // 1
 		"Modré dámské kalhoty",          // 2
@@ -111,10 +115,11 @@ class TypoToleranceBehaviourTest {
 
 	@BeforeAll
 	static void indexCatalog() {
-		registry = new FulltextAnalyzerRegistry();
+		registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 		final Locale czech = Locale.forLanguageTag("cs");
-		searchAnalyzer = registry.getSearchAnalyzer("PRODUCT", czech);
-		final FulltextAnalyzer indexAnalyzer = registry.getIndexAnalyzer("PRODUCT", czech);
+		searchAnalyzer = FulltextAnalysisTestSupport.queryAnalyzer(czech);
+		final FulltextAnalyzer indexAnalyzer = registry.getCompiledAnalyzer(
+			FulltextAnalysisTestSupport.SCHEMA, "text", czech).indexSurface();
 		documents = new ArrayList<>(CATALOG.length);
 		final Set<String> allTerms = new TreeSet<>();
 		for (final String title : CATALOG) {

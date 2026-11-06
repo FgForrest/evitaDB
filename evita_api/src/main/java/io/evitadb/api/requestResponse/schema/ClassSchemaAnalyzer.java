@@ -38,15 +38,16 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSche
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
-import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStepParameter;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps;
+import io.evitadb.api.requestResponse.schema.analysis.NormalizingAnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
@@ -381,16 +382,23 @@ public class ClassSchemaAnalyzer {
 			}
 
 			applyAttributeScopedProperties(editor, attributeAnnotation);
-			final AnalysisStep[] normalization = Arrays.stream(attributeAnnotation.normalized())
-				.map(definition -> AnalysisSteps.step(
+			final NormalizingAnalysisStep[] normalization = Arrays.stream(attributeAnnotation.normalized())
+				.map(definition -> AnalysisSteps.normalizingStep(
 					definition.step(),
 					Arrays.stream(definition.parameters())
 						.map(parameter -> AnalysisSteps.parameter(parameter.name(), parameter.value()))
 						.toArray(AnalysisStepParameter[]::new)
 				))
-				.toArray(AnalysisStep[]::new);
+				.toArray(NormalizingAnalysisStep[]::new);
 			if (!editor.getNormalization().equals(Arrays.asList(normalization))) {
 				editor.normalized(normalization);
+			}
+			// fulltext field settings - reconcile with annotation
+			if (!attributeAnnotation.analyzer().equals(editor.getAnalyzer())) {
+				editor.analyzer(attributeAnnotation.analyzer());
+			}
+			if (attributeAnnotation.lengthPivot() != editor.getLengthPivot()) {
+				editor.lengthPivot(attributeAnnotation.lengthPivot());
 			}
 
 			// representative - reconcile with annotation
@@ -1697,6 +1705,27 @@ public class ClassSchemaAnalyzer {
 				} else if (!associatedDataAnnotation.localized() && whichIs.isLocalized()) {
 					whichIs.localized(() -> false);
 				}
+				// searchable and its text expression - reconcile DEFAULT_SCOPE and the expression with annotation
+				final Expression textExpression = parseTextExpression(associatedDataName, associatedDataAnnotation);
+				if (associatedDataAnnotation.searchable()) {
+					if (!whichIs.isSearchableInScope(Scope.DEFAULT_SCOPE) ||
+						!Objects.equals(textExpression, whichIs.getTextExpression())) {
+						if (textExpression == null) {
+							whichIs.searchable();
+						} else {
+							whichIs.searchable(textExpression);
+						}
+					}
+				} else if (whichIs.isSearchableInScope(Scope.DEFAULT_SCOPE)) {
+					whichIs.nonSearchableInScope(Scope.DEFAULT_SCOPE);
+				}
+				// fulltext field settings - reconcile with annotation
+				if (!associatedDataAnnotation.analyzer().equals(whichIs.getAnalyzer())) {
+					whichIs.analyzer(associatedDataAnnotation.analyzer());
+				}
+				if (associatedDataAnnotation.lengthPivot() != whichIs.getLengthPivot()) {
+					whichIs.lengthPivot(associatedDataAnnotation.lengthPivot());
+				}
 				// conflict resolution granularity override - reconcile with annotation. A defaulted (INHERITED)
 				// annotation carries no opinion and must never overwrite an explicit override set through the
 				// fluent builder, otherwise an idempotent re-derivation would silently reset it to INHERITED.
@@ -1706,6 +1735,33 @@ public class ClassSchemaAnalyzer {
 				}
 			}
 		);
+	}
+
+	/**
+	 * Parses the text expression of a searchable associated data annotation.
+	 *
+	 * @param associatedDataName       the name of the associated data, for the error message
+	 * @param associatedDataAnnotation the annotation
+	 * @return the parsed expression, or `null` when the annotation declares none
+	 * @throws InvalidSchemaMutationException when the expression cannot be parsed
+	 */
+	@Nullable
+	private static Expression parseTextExpression(
+		@Nonnull String associatedDataName,
+		@Nonnull AssociatedData associatedDataAnnotation
+	) {
+		final String textExpression = associatedDataAnnotation.textExpression();
+		if (textExpression.isBlank()) {
+			return null;
+		}
+		try {
+			return ExpressionFactory.parse(textExpression);
+		} catch (RuntimeException e) {
+			throw new InvalidSchemaMutationException(
+				"The text expression `" + textExpression + "` of associated data `" + associatedDataName +
+					"` cannot be parsed: " + e.getMessage()
+			);
+		}
 	}
 
 	/**

@@ -70,7 +70,6 @@ import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.component.loader.IndexReloadPlan;
 import io.evitadb.index.component.loader.LoadContext;
-import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.spi.store.catalog.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.persistence.CollectionStorageFootprint;
@@ -979,7 +978,6 @@ public class DefaultEntityCollectionPersistenceService
 		int entityIndexId,
 		@Nonnull EntitySchema entitySchema,
 		boolean usageStatisticsTracking,
-		@Nonnull FulltextAnalyzerRegistry fulltextAnalyzerRegistry,
 		@Nonnull AttributeNormalizationResolver normalizationResolver
 	) {
 		final EntityIndexStoragePart manifest = this.storagePartPersistenceService.getStoragePart(
@@ -1031,7 +1029,7 @@ public class DefaultEntityCollectionPersistenceService
 		final LoadContext context = new LoadContext(
 			catalogVersion, entityIndexId, entitySchema, entityIndexKey, manifest,
 			effectiveVersion, entityIds, entityIdsByLanguage,
-			this.storagePartPersistenceService, referenceKey, usageStatisticsTracking, fulltextAnalyzerRegistry,
+			this.storagePartPersistenceService, referenceKey, usageStatisticsTracking,
 			normalizationResolver
 		);
 

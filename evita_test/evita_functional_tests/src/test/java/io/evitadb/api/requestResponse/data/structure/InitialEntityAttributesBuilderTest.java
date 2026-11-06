@@ -33,6 +33,8 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -123,7 +125,8 @@ class InitialEntityAttributesBuilderTest
 					false, false, false,
 					Integer.class, null,
 					0, ConflictResolutionOverride.INHERITED,
-					null
+					null,
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 				),
 				attributes.getAttributeSchema("abc")
 					.orElse(null)
@@ -135,7 +138,8 @@ class InitialEntityAttributesBuilderTest
 					false, false, false,
 					IntegerNumberRange.class, null,
 					0, ConflictResolutionOverride.INHERITED,
-					null
+					null,
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 				),
 				attributes.getAttributeSchema("def")
 					.orElse(null)
@@ -147,7 +151,8 @@ class InitialEntityAttributesBuilderTest
 					false, false, false,
 					BigDecimal.class, null,
 					0, ConflictResolutionOverride.INHERITED,
-					null
+					null,
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 				),
 				attributes.getAttributeSchema("dd")
 					.orElse(null)
@@ -159,7 +164,8 @@ class InitialEntityAttributesBuilderTest
 					true, false, false,
 					String.class, null,
 					0, ConflictResolutionOverride.INHERITED,
-					null
+					null,
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 				),
 				attributes
 					.getAttributeSchema("greetings")

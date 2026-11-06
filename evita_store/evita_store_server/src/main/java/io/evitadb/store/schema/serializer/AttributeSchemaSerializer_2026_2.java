@@ -30,6 +30,8 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.CollectionUtils;
@@ -49,6 +51,9 @@ import java.util.Map;
  * The substitution for both absent sections is `null`, which {@link AttributeSchema} normalizes into an empty map
  * and an empty scope set: an attribute stored before accelerators and searchability existed is plainly filterable,
  * asks the filter index for no acceleration and is searchable nowhere, which is exactly what the empty values mean.
+ *
+ * The format carries no fulltext field settings either: the analyzer and the length pivot take their defaults,
+ * {@link FulltextAnalyzerSchemaContract#TEXT} and {@link AttributeSchemaContract#DEFAULT_LENGTH_PIVOT}.
  *
  * This serializer only reads - writes always go through the current {@link AttributeSchemaSerializer}.
  *
@@ -103,7 +108,8 @@ public class AttributeSchemaSerializer_2026_2 extends Serializer<AttributeSchema
 			name, nameVariants, description, deprecationNotice,
 			unique, filterable, null, null, sortable, localized, nullable, representative,
 			type, (Serializable) defaultValue, indexedDecimalPlaces, conflictResolutionOverride,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 		);
 	}
 

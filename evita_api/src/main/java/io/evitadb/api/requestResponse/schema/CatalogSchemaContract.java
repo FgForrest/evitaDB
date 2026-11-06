@@ -33,6 +33,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -79,6 +80,66 @@ public interface CatalogSchemaContract
 	 */
 	@Nonnull
 	Optional<ConflictResolution> getConflictResolution();
+
+	/**
+	 * Returns the word splitting declared per language for fulltext. A language missing here is split by
+	 * {@link io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps#standardTokenizer()} alone.
+	 *
+	 * @return the declared languages keyed by their ISO 639 code
+	 */
+	@Nonnull
+	Map<String, FulltextLanguageSchemaContract> getFulltextLanguages();
+
+	/**
+	 * Returns the word splitting declared for one language.
+	 *
+	 * @param language the ISO 639 language code, as {@link java.util.Locale#getLanguage()} returns it
+	 * @return the declaration, or empty when the catalog declares none for the language
+	 */
+	@Nonnull
+	default Optional<FulltextLanguageSchemaContract> getFulltextLanguage(@Nonnull String language) {
+		return Optional.ofNullable(getFulltextLanguages().get(language));
+	}
+
+	/**
+	 * Returns the fulltext resources declared in the catalog - the lists analysis steps read by name. The built-in
+	 * stop lists are not part of the result.
+	 *
+	 * @return the declared resources keyed by name
+	 */
+	@Nonnull
+	Map<String, FulltextResourceSchemaContract> getFulltextResources();
+
+	/**
+	 * Returns one declared fulltext resource.
+	 *
+	 * @param name the name of the resource
+	 * @return the resource, or empty when the catalog declares none of the name
+	 */
+	@Nonnull
+	default Optional<FulltextResourceSchemaContract> getFulltextResource(@Nonnull String name) {
+		return Optional.ofNullable(getFulltextResources().get(name));
+	}
+
+	/**
+	 * Returns the fulltext analyzers declared in the catalog. The built-in analyzers
+	 * ({@link FulltextAnalyzerSchemaContract#BUILT_IN_ANALYZERS}) are not part of the result.
+	 *
+	 * @return the declared analyzers keyed by name
+	 */
+	@Nonnull
+	Map<String, FulltextAnalyzerSchemaContract> getFulltextAnalyzers();
+
+	/**
+	 * Returns one declared fulltext analyzer.
+	 *
+	 * @param name the name of the analyzer
+	 * @return the analyzer, or empty when the catalog declares none of the name (also for a built-in name)
+	 */
+	@Nonnull
+	default Optional<FulltextAnalyzerSchemaContract> getFulltextAnalyzer(@Nonnull String name) {
+		return Optional.ofNullable(getFulltextAnalyzers().get(name));
+	}
 
 	/**
 	 * Returns a collection of all entity schemas in catalog.

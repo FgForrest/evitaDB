@@ -41,6 +41,7 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexMaintainer;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
@@ -51,6 +52,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -165,26 +167,11 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 
 	{
 		final AtomicInteger sequencer = new AtomicInteger(1);
-		this.testExecutor = new EntityIndexLocalMutationExecutor(
-			this.testContainerAccessor,
-			ENTITY_PK,
-			this.testEntityIndexMaintainer,
-			new MockEntityIndexCreator<>(this.catalogIndex),
-			() -> this.productSchema,
-			sequencer::getAndIncrement,
-			() -> {
+		this.testExecutor = new EntityIndexLocalMutationExecutor(this.testContainerAccessor, ENTITY_PK,
+			this.testEntityIndexMaintainer, new MockEntityIndexCreator<>(this.catalogIndex),
+			() -> this.productSchema, sequencer::getAndIncrement, () -> {
 				throw new UnsupportedOperationException("Not supported in the test.");
-			},
-			null,
-			null,
-			null,
-			this.classifierResolver,
-			this.usageRegistry,
-			this.catalogUsageRegistry,
-			new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
-			true,
-			new PartitionReservations()
-		);
+			}, null, null, null, this.classifierResolver, this.usageRegistry, this.catalogUsageRegistry, new FulltextAnalyzerRegistry(new AnalysisStepRegistry()), () -> io.evitadb.index.fulltext.FulltextIndexTestSupport.SCHEMA, AttributeNormalizationResolver.LEGACY_NFD, true, new PartitionReservations());
 	}
 
 	@Override

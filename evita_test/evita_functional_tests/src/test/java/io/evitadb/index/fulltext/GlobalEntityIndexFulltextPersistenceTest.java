@@ -34,9 +34,11 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.component.loader.LoadContext;
+import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
@@ -47,6 +49,8 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.KeyCompr
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextDictionaryLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextSurfaceFormLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextSurfaceFormLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextDictionaryLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextFieldLengthBlockPart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextFieldLengthBlockRemoval;
@@ -60,8 +64,8 @@ import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
-import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
+import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.OffsetIndexSerializationService.FileLocationAndWrittenBytes;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
@@ -83,6 +87,7 @@ import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -95,6 +100,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -102,6 +108,7 @@ import java.util.function.IntConsumer;
 import java.util.stream.Stream;
 
 import static io.evitadb.index.fulltext.FulltextFieldKey.attribute;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.*;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.SERIALIZATION;
@@ -137,7 +144,7 @@ class GlobalEntityIndexFulltextPersistenceTest {
 	private static final EntityIndexKey ENTITY_INDEX_KEY = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE);
 	private static final Locale CZECH = Locale.forLanguageTag("cs");
 	private static final Locale ENGLISH = Locale.ENGLISH;
-	/** Primary keys below this bound are probed for their lengths; the fixtures stay below it. */
+	/** Primary keys below this bound are probed for an indexed value; the fixtures stay below it. */
 	private static final int LENGTH_PROBE_BOUND = 150_000;
 	private static final Consumer<NonFlushedBlock> NO_OP_NON_FLUSHED_BLOCK_CALLBACK = Functions.noOpConsumer();
 	private static final Consumer<Optional<OffsetDateTime>> NO_OP_OLDEST_RECORD_CALLBACK = Functions.noOpConsumer();
@@ -156,7 +163,7 @@ class GlobalEntityIndexFulltextPersistenceTest {
 
 	@BeforeAll
 	static void setUpRegistry() {
-		registry = new FulltextAnalyzerRegistry();
+		registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 	}
 
 	@AfterAll
@@ -188,29 +195,48 @@ class GlobalEntityIndexFulltextPersistenceTest {
 
 	/**
 	 * Fills a fulltext index with enough terms for several dictionary pages and with lengths in two blocks of the title
-	 * table and one of the body table.
+	 * table and one of the body table. Every entity holds one value per field: its own text, and the synthetic terms
+	 * spread over the entities of their field, each repeated a varying number of times so the impacts differ.
 	 *
 	 * @param index     the index
 	 * @param seed      tells the terms and impacts of two fixtures apart
-	 * @param termCount how many terms to add
+	 * @param termCount how many synthetic terms to add
 	 */
 	private static void fill(@Nonnull FulltextIndex index, int seed, int termCount) {
-		final int title = index.getOrAssignFieldId(attribute("title"));
-		final int body = index.getOrAssignFieldId(attribute("body"), 300.0);
-		for (int i = 0; i < termCount; i++) {
-			final String term = String.format("t%d_%04d", seed, i);
-			for (int j = 0; j <= i % 4; j++) {
-				index.addPosting(i % 3 == 0 ? body : title, term, j * 70_000 + i, 1 + (i * 7 + j * 31 + seed) % 255);
-			}
-		}
+		registerField(index, attribute("title"));
+		registerField(index, attribute("body"), 300.0);
+		final Map<Integer, StringBuilder> titles = new TreeMap<>();
 		for (int primaryKey = 1; primaryKey <= 300; primaryKey++) {
-			index.addValue(attribute("title"), primaryKey, "krátký titulek " + primaryKey);
+			titles.put(primaryKey, new StringBuilder(64).append("krátký titulek ").append(primaryKey).append(' '));
 		}
 		for (int primaryKey = 70_001; primaryKey <= 70_050; primaryKey++) {
-			index.addValue(attribute("title"), primaryKey, "jiný titulek " + primaryKey);
+			titles.put(primaryKey, new StringBuilder(64).append("jiný titulek ").append(primaryKey).append(' '));
 		}
+		final Map<Integer, StringBuilder> bodies = new TreeMap<>();
 		for (int primaryKey = 1; primaryKey <= 100; primaryKey++) {
-			index.addValue(attribute("body"), primaryKey, "slovo " + "dlouhé ".repeat(primaryKey % 30));
+			bodies.put(primaryKey, new StringBuilder(256).append("slovo ").append("dlouhé ".repeat(primaryKey % 30)));
+		}
+		final Integer[] titleKeys = titles.keySet().toArray(Integer[]::new);
+		final Integer[] bodyKeys = bodies.keySet().toArray(Integer[]::new);
+		for (int i = 0; i < termCount; i++) {
+			final String term = String.format("t%d_%04d", seed, i);
+			// one to four entities each, never the same one twice
+			for (int j = 0; j <= i % 4; j++) {
+				final String occurrences = (term + ' ').repeat(1 + (i * 7 + j * 31 + seed) % 5);
+				if (i % 3 == 0) {
+					bodies.get(bodyKeys[(i + j * 25) % bodyKeys.length]).append(occurrences);
+				} else {
+					titles.get(titleKeys[(i + j * 87) % titleKeys.length]).append(occurrences);
+				}
+			}
+		}
+		for (final Map.Entry<Integer, StringBuilder> value : titles.entrySet()) {
+			index.addValue(attribute("title"), value.getKey(), testAnalyzer(), fieldPivot(index, attribute("title")),
+				null, value.getValue().toString());
+		}
+		for (final Map.Entry<Integer, StringBuilder> value : bodies.entrySet()) {
+			index.addValue(attribute("body"), value.getKey(), testAnalyzer(), fieldPivot(index, attribute("body")),
+				null, value.getValue().toString());
 		}
 	}
 
@@ -293,6 +319,8 @@ class GlobalEntityIndexFulltextPersistenceTest {
 				partLocale = root.getLocale();
 			} else if (part instanceof FulltextDictionaryLeafPagePart page) {
 				partLocale = page.getLocale();
+			} else if (part instanceof FulltextSurfaceFormLeafPagePart page) {
+				partLocale = (Locale) io.evitadb.index.IndexHeapSizeAssertions.readField(page, "locale");
 			} else if (part instanceof FulltextFieldLengthBlockPart block) {
 				partLocale = block.getLocale();
 			} else {
@@ -306,8 +334,8 @@ class GlobalEntityIndexFulltextPersistenceTest {
 	}
 
 	/**
-	 * Describes a fulltext index the way it reads: its analyzer and pivot, every field with every term, postings and
-	 * impacts, and every length below {@link #LENGTH_PROBE_BOUND}.
+	 * Describes a fulltext index the way it reads: each field's analysis identities and pivot, every term, postings and
+	 * impacts, and every entity below {@link #LENGTH_PROBE_BOUND} with a value indexed.
 	 *
 	 * @param index the index
 	 * @return one line per fact
@@ -315,23 +343,30 @@ class GlobalEntityIndexFulltextPersistenceTest {
 	@Nonnull
 	private static List<String> describe(@Nonnull FulltextIndex index) {
 		final List<String> lines = new ArrayList<>(4_096);
-		lines.add("analyzer " + index.getAnalyzerName() + " pivot " + index.getDefaultLengthPivot());
+
 		for (int fieldId = 0; fieldId < index.getFieldCount(); fieldId++) {
 			lines.add(
 				"field " + fieldId + " " + index.getFieldKey(fieldId) + " " + index.getLengthPivot(fieldId) +
+					" " + index.getAnalyzerName(fieldId) + " " + index.getIndexFingerprint(fieldId) +
+					" " + index.getWordPhaseId(fieldId) +
 					(index.isFieldRetired(fieldId) ? " retired" : "")
 			);
 			index.forEachTerm(fieldId, "", (term, postings, impacts) -> {
 				lines.add(term + " " + Arrays.toString(postings.getArray()) + " " + Arrays.toString(impacts.toArray()));
 				return true;
 			});
-			final FieldLengthTable lengths = index.getFieldLengths(fieldId);
-			lines.add("lengths " + lengths.size());
 			for (int primaryKey = 0; primaryKey < LENGTH_PROBE_BOUND; primaryKey++) {
-				final int encoded = lengths.getEncoded(primaryKey);
-				if (encoded != 0) {
-					lines.add(primaryKey + "=" + encoded);
+				if (index.hasIndexedValue(fieldId, primaryKey)) {
+					lines.add(primaryKey + " indexed");
 				}
+			}
+		}
+		lines.add("phases " + new TreeMap<>(index.getWordPhaseIds()));
+		for (final long phase : new TreeMap<>(index.getWordPhaseIds()).keySet()) {
+			lines.add("references " + surfaceReferenceCounts(index, phase));
+			final FulltextIndex.SurfaceFormCursor cursor = index.surfaceFormCursor(phase, "");
+			while (cursor.next()) {
+				lines.add(cursor.folded() + "/" + cursor.stem() + "/" + cursor.accented());
 			}
 		}
 		return lines;
@@ -357,12 +392,34 @@ class GlobalEntityIndexFulltextPersistenceTest {
 	@DisplayName("Reload")
 	class Reload {
 
+		/** Distinct word-phase ids survive reload and an emptied retired phase releases its short id. */
+		@Test
+		@DisplayName("should reload multiple surface word phases and free an unused phase")
+		void shouldReloadSurfacePhases() {
+			final GlobalEntityIndex index = newGlobalIndex();
+			final FulltextIndex fulltext = index.getOrCreateFulltextIndex(CZECH);
+			fulltext.addValue(attribute("description"), 1, testAnalyzer(), 25, null, "černé");
+			fulltext.addValue(attribute("brand"), 1, exactAnalyzer(), 25, null, "Cern café");
+			try (final Disk disk = new Disk()) {
+				disk.write(flush(index));
+				final GlobalEntityIndex loaded = disk.reload(registry);
+				assertSameFulltext(index, loaded);
+				final FulltextIndex restored = loaded.getFulltextIndex(CZECH);
+				assertEquals(2, restored.getWordPhaseIds().size());
+				restored.removeValue(attribute("brand"), 1, exactAnalyzer(), 25, "Cern café");
+				restored.retireField(attribute("brand"));
+				assertEquals(Map.of(testAnalyzer().fingerprint().wordPhase(), 0), restored.getWordPhaseIds());
+				disk.write(flush(loaded));
+				assertSameFulltext(loaded, disk.reload(registry));
+			}
+		}
+
 		@Test
 		@DisplayName("every locale is listed in the manifest and reloads through the global reload plan")
 		void shouldReloadEveryLocaleThroughTheGlobalReloadPlan() {
 			final GlobalEntityIndex index = newGlobalIndex();
-			fill(index.getOrCreateFulltextIndex(CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)), 1, 1_000);
-			fill(index.getOrCreateFulltextIndex(ENGLISH, registry.getIndexAnalyzer(ENTITY_TYPE, ENGLISH)), 2, 200);
+			fill(index.getOrCreateFulltextIndex(CZECH), 1, 1_000);
+			fill(index.getOrCreateFulltextIndex(ENGLISH), 2, 200);
 
 			final List<StoragePart> parts = flush(index);
 			assertEquals(
@@ -375,6 +432,8 @@ class GlobalEntityIndexFulltextPersistenceTest {
 				partsOf(parts, FulltextDictionaryLeafPagePart.class).size() >= 4,
 				"The Czech dictionary must span several pages."
 			);
+			assertTrue(partsOf(parts, FulltextSurfaceFormLeafPagePart.class).size() >= 4,
+				"The surface dictionary must also span several pages.");
 			assertEquals(
 				6, partsOf(parts, FulltextFieldLengthBlockPart.class).size(),
 				"Two title blocks and one body block in each locale."
@@ -392,15 +451,15 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		@DisplayName("a flush leaves the indexes clean: the next flush writes nothing until the next write")
 		void shouldWriteNothingOnTheNextFlushWithoutAWrite() {
 			final GlobalEntityIndex index = newGlobalIndex();
-			final FulltextIndex czech = index.getOrCreateFulltextIndex(
-				CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)
-			);
+			final FulltextIndex czech = index.getOrCreateFulltextIndex(CZECH);
 			fill(czech, 1, 600);
 
 			assertFalse(flush(index).isEmpty());
 			assertTrue(flush(index).isEmpty(), "Nothing was written since the last flush.");
 
-			czech.addPosting(czech.getFieldId(attribute("title")), "novinka", 5, 100);
+			// an entity without a title value yet
+			czech.addValue(attribute("title"), 500, testAnalyzer(), fieldPivot(czech, attribute("title")), null,
+				"novinka");
 			final List<StoragePart> parts = flush(index);
 			assertEquals(1, partsOf(parts, FulltextIndexStoragePart.class).size(), "The written index rewrites its root.");
 			assertTrue(
@@ -414,9 +473,7 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		@DisplayName("a retirement alone rewrites only the root; the retired field reloads retired, postings and all")
 		void shouldReloadARetiredField() {
 			final GlobalEntityIndex index = newGlobalIndex();
-			final FulltextIndex czech = index.getOrCreateFulltextIndex(
-				CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)
-			);
+			final FulltextIndex czech = index.getOrCreateFulltextIndex(CZECH);
 			fill(czech, 1, 600);
 
 			try (final Disk disk = new Disk()) {
@@ -430,7 +487,8 @@ class GlobalEntityIndexFulltextPersistenceTest {
 				assertEquals(1, retirement.size(), "No posting and no length moved.");
 				disk.write(retirement);
 
-				czech.addValue(attribute("title"), 7, "nový titulek");
+				czech.addValue(attribute("title"), 7, testAnalyzer(), fieldPivot(czech, attribute("title")), null,
+					"nový titulek");
 				disk.write(flush(index));
 				final GlobalEntityIndex reloaded = disk.reload(registry);
 				assertSameFulltext(index, reloaded);
@@ -442,17 +500,27 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		}
 
 		@Test
-		@DisplayName("the reload uses the analyzer the index was built with, not the one the locale resolves to now")
-		void shouldReadBackWithThePersistedAnalyzer() {
+		@DisplayName("the reload preserves the identity of the chain each field was built with")
+		void shouldReadBackWithThePersistedFieldAnalysis() {
 			final GlobalEntityIndex index = newGlobalIndex();
-			// an index of the Czech partition built with the English chain - not what the registry resolves for `cs`
-			fill(index.getOrCreateFulltextIndex(CZECH, registry.getIndexAnalyzerByName("english")), 1, 50);
-
+			final FulltextIndex czech = index.getOrCreateFulltextIndex(CZECH);
+			// Deliberately build one field in the Czech partition with an English chain. Loading must only restore
+			// the recorded identity; the locale's current definition cannot rewrite it.
+			final CompiledFulltextAnalyzer english =
+				registry.getCompiledAnalyzer(SCHEMA, "text", ENGLISH);
+			final CompiledFulltextAnalyzer html =
+				registry.getCompiledAnalyzer(SCHEMA, "html-text", CZECH);
+			czech.addValue(attribute("title"), 1, english, 50.0, null, "black tea");
+			czech.addValue(attribute("body"), 1, html, 300.0, null, "<b>čaj</b>");
 			try (final Disk disk = new Disk()) {
 				disk.write(flush(index));
 				final GlobalEntityIndex reloaded = disk.reload(registry);
-				assertEquals("czech", registry.getIndexAnalyzer(ENTITY_TYPE, CZECH).getAnalyzerName());
-				assertEquals("english", reloaded.getFulltextIndex(CZECH).getAnalyzerName());
+				final FulltextIndex restored = reloaded.getFulltextIndex(CZECH);
+				assertEquals("text", restored.getAnalyzerName(0));
+				assertEquals("html-text", restored.getAnalyzerName(1));
+				assertEquals(english.fingerprint().index(), restored.getIndexFingerprint(0));
+				assertEquals(html.fingerprint().wordPhase(), restored.getWordPhaseId(1));
+				assertNotEquals(testAnalyzer().fingerprint().index(), restored.getIndexFingerprint(0));
 				assertSameFulltext(index, reloaded);
 			}
 		}
@@ -461,8 +529,8 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		@DisplayName("an index nothing was written to is neither persisted nor listed")
 		void shouldNotPersistAnIndexNothingWasWrittenTo() {
 			final GlobalEntityIndex index = newGlobalIndex();
-			fill(index.getOrCreateFulltextIndex(CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)), 1, 50);
-			index.getOrCreateFulltextIndex(ENGLISH, registry.getIndexAnalyzer(ENTITY_TYPE, ENGLISH));
+			fill(index.getOrCreateFulltextIndex(CZECH), 1, 50);
+			index.getOrCreateFulltextIndex(ENGLISH);
 
 			final List<StoragePart> parts = flush(index);
 			assertEquals(Set.of(new FulltextIndexKey(CZECH)), manifestOf(parts).getFulltextIndexes());
@@ -478,12 +546,12 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		@DisplayName("a baseline captured before a new index's first flush leaves that flush to list the index")
 		void shouldListANewIndexWhenTheBaselineWasCapturedBeforeItsFirstFlush() {
 			final GlobalEntityIndex index = newGlobalIndex();
-			fill(index.getOrCreateFulltextIndex(CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)), 1, 50);
+			fill(index.getOrCreateFulltextIndex(CZECH), 1, 50);
 
 			try (final Disk disk = new Disk()) {
 				disk.write(flush(index));
-				index.getOrCreateFulltextIndex(ENGLISH, registry.getIndexAnalyzer(ENTITY_TYPE, ENGLISH))
-					.addValue(attribute("title"), 1, "a brand new title");
+				index.getOrCreateFulltextIndex(ENGLISH)
+					.addValue(attribute("title"), 1, testAnalyzer(), 25.0, null, "a brand new title");
 				// captured while the new index is dirty with nothing on disk, as building an entity index over it
 				// does - were the capture to announce it, the flush would find the manifest unchanged and the
 				// written root would stay unlisted
@@ -500,34 +568,34 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		}
 
 		@Test
-		@DisplayName("an existing index obtained with another analyzer keeps analyzing with its own")
-		void shouldKeepTheOwnAnalyzerOfAnExistingIndex() {
+		@DisplayName("writes to one locale index use the analyzer supplied for each field")
+		void shouldAnalyzeEachWriteWithThePassedChain() {
 			final GlobalEntityIndex index = newGlobalIndex();
-			final FulltextIndex czech = index.getOrCreateFulltextIndex(
-				CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)
-			);
+			final FulltextIndex czech = index.getOrCreateFulltextIndex(CZECH);
 
 			// the locale resolves to another analyzer now, yet the existing index is returned, with its own analyzer
-			final FulltextIndex obtained = index.getOrCreateFulltextIndex(
-				CZECH, registry.getIndexAnalyzerByName("english")
-			);
+			final FulltextIndex obtained = index.getOrCreateFulltextIndex(CZECH);
 			assertSame(czech, obtained);
-			assertEquals("czech", obtained.getAnalyzerName());
+
 
 			// a value written through it gets the terms of a Czech-built index, not those of an English-built one ...
 			final String value = "černé čaje";
-			obtained.addValue(attribute("title"), 1, value);
-			final FulltextIndex czechReference = new FulltextIndex(registry.getIndexAnalyzerByName("czech"));
-			czechReference.addValue(attribute("title"), 1, value);
-			final FulltextIndex englishReference = new FulltextIndex(registry.getIndexAnalyzerByName("english"));
-			englishReference.addValue(attribute("title"), 1, value);
+			obtained.addValue(attribute("title"), 1, testAnalyzer(), fieldPivot(obtained, attribute("title")),
+				null, value);
+			final FulltextIndex czechReference = new FulltextIndex();
+			czechReference.addValue(attribute("title"), 1, testAnalyzer(), fieldPivot(czechReference,
+				attribute("title")), null, value);
+			final FulltextIndex englishReference = new FulltextIndex();
+			englishReference.addValue(attribute("title"), 1, registry.getCompiledAnalyzer(SCHEMA, "text", ENGLISH),
+				fieldPivot(englishReference, attribute("title")), null, value);
 			assertNotEquals(
 				titleTermsOf(czechReference), titleTermsOf(englishReference), "the value must tell the analyzers apart"
 			);
 			assertEquals(titleTermsOf(czechReference), titleTermsOf(obtained));
 
 			// ... and removing it finds every posting the write produced
-			obtained.removeValue(attribute("title"), 1, value);
+			obtained.removeValue(attribute("title"), 1, testAnalyzer(), fieldPivot(obtained, attribute("title")),
+				value);
 			assertTrue(titleTermsOf(obtained).isEmpty());
 		}
 
@@ -545,19 +613,19 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		@DisplayName("a field without lengths ahead of one with lengths reloads, each with its own table")
 		void shouldReloadAFieldWithoutLengthsBesideAFieldWithLengths() {
 			final GlobalEntityIndex index = newGlobalIndex();
-			final FulltextIndex czech = index.getOrCreateFulltextIndex(
-				CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)
-			);
-			// field 0 holds postings only, so the length stream is first named by field 1
-			final int code = czech.getOrAssignFieldId(attribute("code"));
-			czech.addPosting(code, "abc123", 1, 10);
-			czech.addPosting(code, "xyz789", 2, 20);
-			czech.addValue(attribute("title"), 1, "zelený čaj");
-			czech.addValue(attribute("title"), 70_001, "černý čaj");
+			final FulltextIndex czech = index.getOrCreateFulltextIndex(CZECH);
+			// field 0 is registered without a value, so the length stream is first named by field 1
+			registerField(czech, attribute("code"));
+			czech.addValue(attribute("title"), 1, testAnalyzer(), fieldPivot(czech, attribute("title")), null,
+				"zelený čaj");
+			czech.addValue(attribute("title"), 70_001, testAnalyzer(), fieldPivot(czech, attribute("title")), null,
+				"černý čaj");
 
 			final List<StoragePart> parts = flush(index);
 			final FulltextIndexStoragePart root = partsOf(parts, FulltextIndexStoragePart.class).get(0);
-			assertEquals(0, root.getFields()[0].lengthBlocks().length, "The postings-only field has no length block.");
+			assertEquals(
+				0, root.getFields()[0].lengthBlocks().length, "The field without a value has no length block."
+			);
 			assertEquals(2, root.getFields()[1].lengthBlocks().length);
 
 			try (final Disk disk = new Disk()) {
@@ -570,11 +638,10 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		@DisplayName("an index whose fields have no lengths at all reloads without a length stream")
 		void shouldReloadAnIndexWithoutAnyLengths() {
 			final GlobalEntityIndex index = newGlobalIndex();
-			final FulltextIndex czech = index.getOrCreateFulltextIndex(
-				CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)
-			);
-			final int code = czech.getOrAssignFieldId(attribute("code"));
-			czech.addPosting(code, "abc123", 1, 10);
+			final FulltextIndex czech = index.getOrCreateFulltextIndex(CZECH);
+			registerField(czech, attribute("code"));
+			// a value without a token is indexed as nothing - no posting, and no length
+			czech.addValue(attribute("code"), 1, testAnalyzer(), fieldPivot(czech, attribute("code")), null, "!!!");
 
 			final List<StoragePart> parts = flush(index);
 			assertTrue(
@@ -603,6 +670,16 @@ class GlobalEntityIndexFulltextPersistenceTest {
 			assertReloadRefusedWithout(
 				parts -> partsOf(parts, FulltextDictionaryLeafPagePart.class).get(1),
 				page -> "Dictionary page " + ((FulltextDictionaryLeafPagePart) page).getPageSequence() + " of"
+			);
+		}
+
+		/** A listed surface page is required just as a postings page is. */
+		@Test
+		@DisplayName("a reload missing a listed surface page refuses to load")
+		void shouldRefuseAReloadMissingASurfacePage() {
+			assertReloadRefusedWithout(
+				parts -> partsOf(parts, FulltextSurfaceFormLeafPagePart.class).get(1),
+				page -> "Surface dictionary page " + ((FulltextSurfaceFormLeafPagePart) page).getPageSequence() + " of"
 			);
 		}
 
@@ -635,7 +712,7 @@ class GlobalEntityIndexFulltextPersistenceTest {
 			@Nonnull Function<StoragePart, String> expectedMessage
 		) {
 			final GlobalEntityIndex index = newGlobalIndex();
-			fill(index.getOrCreateFulltextIndex(CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)), 1, 1_000);
+			fill(index.getOrCreateFulltextIndex(CZECH), 1, 1_000);
 			final List<StoragePart> parts = flush(index);
 			final StoragePart omittedPart = omitted.apply(parts);
 			final List<StoragePart> written = new ArrayList<>(parts.size());
@@ -668,8 +745,8 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		@DisplayName("a dropped locale removes its root, every dictionary page and every length block")
 		void shouldReclaimADroppedLocale() {
 			final GlobalEntityIndex index = newGlobalIndex();
-			fill(index.getOrCreateFulltextIndex(CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)), 1, 600);
-			fill(index.getOrCreateFulltextIndex(ENGLISH, registry.getIndexAnalyzer(ENTITY_TYPE, ENGLISH)), 2, 600);
+			fill(index.getOrCreateFulltextIndex(CZECH), 1, 600);
+			fill(index.getOrCreateFulltextIndex(ENGLISH), 2, 600);
 
 			try (final Disk disk = new Disk()) {
 				final List<StoragePart> first = flush(index);
@@ -685,6 +762,7 @@ class GlobalEntityIndexFulltextPersistenceTest {
 					englishParts.size(),
 					partsOf(second, FulltextIndexRootRemoval.class).size() +
 						partsOf(second, FulltextDictionaryLeafPageRemoval.class).size() +
+						partsOf(second, FulltextSurfaceFormLeafPageRemoval.class).size() +
 						partsOf(second, FulltextFieldLengthBlockRemoval.class).size(),
 					"Every English part is removed, and nothing else."
 				);
@@ -705,8 +783,8 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		@DisplayName("a dropped entity index removes every fulltext part of every locale")
 		void shouldReclaimEverythingWhenTheEntityIndexIsDropped() {
 			final GlobalEntityIndex index = newGlobalIndex();
-			fill(index.getOrCreateFulltextIndex(CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)), 1, 600);
-			fill(index.getOrCreateFulltextIndex(ENGLISH, registry.getIndexAnalyzer(ENTITY_TYPE, ENGLISH)), 2, 100);
+			fill(index.getOrCreateFulltextIndex(CZECH), 1, 600);
+			fill(index.getOrCreateFulltextIndex(ENGLISH), 2, 100);
 
 			try (final Disk disk = new Disk()) {
 				final List<StoragePart> first = flush(index);
@@ -731,7 +809,7 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		@DisplayName("a replaced index loses only the pages and blocks its replacement does not overwrite")
 		void shouldReclaimOnlyWhatAReplacementDoesNotOverwrite() {
 			final GlobalEntityIndex index = newGlobalIndex();
-			fill(index.getOrCreateFulltextIndex(CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)), 1, 1_000);
+			fill(index.getOrCreateFulltextIndex(CZECH), 1, 1_000);
 
 			try (final Disk disk = new Disk()) {
 				final List<StoragePart> first = flush(index);
@@ -739,11 +817,10 @@ class GlobalEntityIndexFulltextPersistenceTest {
 				final List<PersistedPart> old = fulltextPartsOf(first, CZECH);
 
 				index.removeFulltextIndex(CZECH);
-				final FulltextIndex replacement = index.getOrCreateFulltextIndex(
-					CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)
-				);
+				final FulltextIndex replacement = index.getOrCreateFulltextIndex(CZECH);
 				for (int primaryKey = 1; primaryKey <= 5; primaryKey++) {
-					replacement.addValue(attribute("title"), primaryKey, "nový titulek " + primaryKey);
+					replacement.addValue(attribute("title"), primaryKey, testAnalyzer(), fieldPivot(replacement,
+						attribute("title")), null, "nový titulek " + primaryKey);
 				}
 				final List<StoragePart> second = flush(index);
 				assertTrue(partsOf(second, FulltextIndexRootRemoval.class).isEmpty(), "The root is overwritten.");
@@ -776,7 +853,7 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		@DisplayName("a committed transaction persists its changes and new locale, and the committed copy starts clean")
 		void shouldPersistACommittedTransaction() {
 			final GlobalEntityIndex index = newGlobalIndex();
-			fill(index.getOrCreateFulltextIndex(CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)), 1, 1_000);
+			fill(index.getOrCreateFulltextIndex(CZECH), 1, 1_000);
 
 			try (final Disk disk = new Disk()) {
 				disk.write(flush(index));
@@ -787,9 +864,11 @@ class GlobalEntityIndexFulltextPersistenceTest {
 					loaded,
 					original -> {
 						final FulltextIndex czech = original.getFulltextIndex(CZECH);
-						czech.addPosting(czech.getFieldId(attribute("title")), "novinka", 5, 100);
-						original.getOrCreateFulltextIndex(ENGLISH, registry.getIndexAnalyzer(ENTITY_TYPE, ENGLISH))
-							.addValue(attribute("title"), 1, "a brand new title");
+						// an entity without a title value yet
+						czech.addValue(attribute("title"), 500, testAnalyzer(), fieldPivot(czech, attribute("title")),
+							null, "novinka");
+						original.getOrCreateFulltextIndex(ENGLISH)
+							.addValue(attribute("title"), 1, testAnalyzer(), 25.0, null, "a brand new title");
 						// the flush of a transaction runs before its commit merge
 						flushed.addAll(flush(original));
 					},
@@ -821,8 +900,8 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		void shouldCarryAnUnflushedIndexForwardToTheNextFlush() {
 			final GlobalEntityIndex index = newGlobalIndex();
 			// written outside a transaction, as warm-up writes, and not flushed
-			index.getOrCreateFulltextIndex(CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH))
-				.addValue(attribute("title"), 1, "rozepsaný titulek");
+			index.getOrCreateFulltextIndex(CZECH)
+				.addValue(attribute("title"), 1, testAnalyzer(), 25.0, null, "rozepsaný titulek");
 
 			try (final Disk disk = new Disk()) {
 				// the transaction writes the global index elsewhere, so the commit merge builds a copy carrying the
@@ -833,8 +912,8 @@ class GlobalEntityIndexFulltextPersistenceTest {
 					(original, committed) -> {
 						assertNotNull(committed);
 						assertEquals(
-							index.getFulltextIndex(CZECH).getTermCount(),
-							committed.getFulltextIndex(CZECH).getTermCount(),
+							termCount(index.getFulltextIndex(CZECH)),
+							termCount(committed.getFulltextIndex(CZECH)),
 							"The unflushed index is carried forward."
 						);
 
@@ -933,21 +1012,11 @@ class GlobalEntityIndexFulltextPersistenceTest {
 			final EntityIdsStoragePart entityIds = service.getStoragePart(
 				this.version, ENTITY_INDEX_PK, EntityIdsStoragePart.class
 			);
-			final LoadContext context = new LoadContext(
-				this.version,
-				ENTITY_INDEX_PK,
-				EntitySchema._internalBuild(ENTITY_TYPE),
-				manifest.getEntityIndexKey(),
-				manifest,
-				manifest.getVersion(),
-				entityIds == null ? EmptyBitmap.INSTANCE : entityIds.getEntityIds(),
-				entityIds == null ? Map.of() : entityIds.getEntityIdsByLanguage(),
-				service,
-				null,
-				true,
-				analyzerRegistry,
-				AttributeNormalizationResolver.LEGACY_NFD
-			);
+			final LoadContext context = new LoadContext(this.version, ENTITY_INDEX_PK,
+				EntitySchema._internalBuild(ENTITY_TYPE), manifest.getEntityIndexKey(), manifest,
+				manifest.getVersion(), entityIds == null ? EmptyBitmap.INSTANCE : entityIds.getEntityIds(),
+				entityIds == null ? Map.of() : entityIds.getEntityIdsByLanguage(), service, null, true,
+				AttributeNormalizationResolver.LEGACY_NFD);
 			return (GlobalEntityIndex) GlobalEntityIndex.reloadPlan().run(context);
 		}
 

@@ -52,7 +52,6 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.component.loader.LoadedComponentBundle.AttributeIndexes;
-import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueIdAllocator;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
@@ -163,11 +162,6 @@ class AttributeIndexLoaderTest {
 		assertTrue(error.getMessage().contains("index corruption"));
 	}
 
-	/**
-	 * The analyzer registry every load context carries. These manifests list no fulltext index, so it is never asked
-	 * for an analyzer and holds nothing that would need closing.
-	 */
-	private static final FulltextAnalyzerRegistry ANALYZER_REGISTRY = new FulltextAnalyzerRegistry();
 	private static final String ENTITY_TYPE = "Product";
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_PRIORITY = "priority";
@@ -389,21 +383,9 @@ class AttributeIndexLoaderTest {
 			assertNotNull(key);
 		}
 		final EntityIndexStoragePart manifest = storage.buildManifest();
-		final LoadContext context = new LoadContext(
-			CATALOG_VERSION,
-			INDEX_PK,
-			buildSchema(manifest),
-			ENTITY_INDEX_KEY,
-			manifest,
-			manifest.getVersion(),
-			EmptyBitmap.INSTANCE,
-			Map.of(),
-			storage,
-			null,
-			true,
-			ANALYZER_REGISTRY,
-			AttributeNormalizationResolver.LEGACY_NFD
-		);
+		final LoadContext context = new LoadContext(CATALOG_VERSION, INDEX_PK, buildSchema(manifest),
+			ENTITY_INDEX_KEY, manifest, manifest.getVersion(), EmptyBitmap.INSTANCE, Map.of(), storage, null, true,
+			AttributeNormalizationResolver.LEGACY_NFD);
 		final LoadedComponentBundle bundle = new AttributeIndexLoader().load(context);
 		return assertInstanceOf(AttributeIndexes.class, bundle, "Loader must return an AttributeIndexes bundle");
 	}
@@ -1008,7 +990,7 @@ class AttributeIndexLoaderTest {
 				REFERENCED_TYPE_INDEX_KEY, manifest, manifest.getVersion(), EmptyBitmap.INSTANCE, Map.of(), storage,
 				// REFERENCED_ENTITY_TYPE indexes carry a String discriminator and a `null` referenceKey, exactly as the
 				// engine's DefaultEntityCollectionPersistenceService builds the context
-				null, true, ANALYZER_REGISTRY, AttributeNormalizationResolver.LEGACY_NFD);
+				null, true, AttributeNormalizationResolver.LEGACY_NFD);
 			final LoadedComponentBundle bundle = new AttributeIndexLoader().load(context);
 			return assertInstanceOf(AttributeIndexes.class, bundle, "Loader must return an AttributeIndexes bundle");
 		}

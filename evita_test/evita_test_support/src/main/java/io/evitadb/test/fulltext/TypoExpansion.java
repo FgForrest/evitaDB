@@ -23,13 +23,14 @@
 
 package io.evitadb.test.fulltext;
 
-import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.test.fulltext.LevenshteinDictionaryWalker.Hit;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -165,7 +166,7 @@ public final class TypoExpansion {
 	/**
 	 * Runs a query through the search-side analyzer and groups the emitted terms by position into query words.
 	 *
-	 * @param searchAnalyzer the search-slot analyzer (`czech-search` for Czech)
+	 * @param searchAnalyzer the full query chain of the locale, emitting the variant stems of a word at its position
 	 * @param query          the query text
 	 * @return the query words in order
 	 */

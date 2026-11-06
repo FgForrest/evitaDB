@@ -47,6 +47,7 @@ import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeM
 import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslator;
 import io.evitadb.core.query.sort.attribute.translator.AttributeSetExactTranslator;
 import io.evitadb.core.query.sort.attribute.translator.AttributeSetInFilterTranslator;
+import io.evitadb.core.query.sort.fulltext.translator.RelevanceTranslator;
 import io.evitadb.core.query.sort.price.translator.PriceDiscountTranslator;
 import io.evitadb.core.query.sort.price.translator.PriceNaturalTranslator;
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyExactTranslator;
@@ -113,6 +114,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		TRANSLATORS.put(AttributeSetExact.class, new AttributeSetExactTranslator());
 		TRANSLATORS.put(Segments.class, new SegmentsTranslator());
 		TRANSLATORS.put(OrderInScope.class, new OrderInScopeTranslator());
+		TRANSLATORS.put(Relevance.class, new RelevanceTranslator());
 	}
 
 	/**
@@ -572,6 +574,17 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		// compose sorters one after another
 		final Deque<Sorter> sortersQueue = getProcessingScope().sorters();
 		currentSorters.forEach(sortersQueue::add);
+	}
+
+	/**
+	 * Returns whether this visitor orders the entities of the main query, whose filtering formula and filter visitor
+	 * are available through {@link #getFilteringFormula()} and {@link #getFilterByVisitor()}. A visitor created for a
+	 * nested ordering of other entities has neither, and those methods throw there.
+	 *
+	 * @return true for the visitor of the main query
+	 */
+	public boolean isMainQueryContext() {
+		return this.filteringFormula != null;
 	}
 
 	/**

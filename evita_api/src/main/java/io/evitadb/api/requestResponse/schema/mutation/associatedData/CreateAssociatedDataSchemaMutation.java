@@ -27,8 +27,10 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
 import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
@@ -43,7 +45,10 @@ import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
+import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import lombok.EqualsAndHashCode;
@@ -55,11 +60,15 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static io.evitadb.dataType.Scope.NO_SCOPE;
 
 /**
  * Mutation is responsible for setting up a new {@link AssociatedDataSchemaContract} in the {@link EntitySchemaContract}.
@@ -75,13 +84,33 @@ import java.util.stream.Stream;
 public class CreateAssociatedDataSchemaMutation
 	extends AbstractAssociatedDataSchemaMutation
 	implements CombinableLocalEntitySchemaMutation, CreateMutation {
-	@Serial private static final long serialVersionUID = -7368528015832499967L;
+	@Serial private static final long serialVersionUID = -7368528015832499966L;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nonnull private final Class<? extends Serializable> type;
 	@Getter private final boolean localized;
 	@Getter private final boolean nullable;
+	/**
+	 * The scopes in which the newly created associated data is searchable. Never `null` after construction - the field
+	 * is optional on the wire, and an older client that never sends it lands on the empty array, i.e. not searchable.
+	 */
+	@Getter @Nonnull private final Scope[] searchableInScopes;
+	/**
+	 * The expression selecting the text of a complex data object value, see
+	 * {@link AssociatedDataSchemaContract#getTextExpression()}; `null` when none is set.
+	 */
+	@Getter @Nullable private final Expression textExpression;
 	@Getter @Nonnull private final ConflictResolutionOverride conflictResolutionOverride;
+	/**
+	 * The name of the fulltext analyzer of the created associated data, see
+	 * {@link AssociatedDataSchemaContract#getAnalyzer()}, or `null` for {@link FulltextAnalyzerSchemaContract#TEXT}.
+	 */
+	@Getter @Nullable private final String analyzer;
+	/**
+	 * The length pivot of the created associated data, see {@link AssociatedDataSchemaContract#getLengthPivot()}, or
+	 * `null` for {@link AttributeSchemaContract#DEFAULT_LENGTH_PIVOT}.
+	 */
+	@Getter @Nullable private final Integer lengthPivot;
 
 	/**
 	 * Creates a mutation that will set up a new associated data schema with the given properties. The conflict
@@ -105,7 +134,10 @@ public class CreateAssociatedDataSchemaMutation
 		boolean localized,
 		boolean nullable
 	) {
-		this(name, description, deprecationNotice, type, localized, nullable, ConflictResolutionOverride.INHERITED);
+		this(
+			name, description, deprecationNotice, type, localized, nullable, null, null,
+			ConflictResolutionOverride.INHERITED, null, null
+		);
 	}
 
 	/**
@@ -125,7 +157,6 @@ public class CreateAssociatedDataSchemaMutation
 	 *                                   resolution)
 	 * @throws InvalidSchemaMutationException if the type is not allowed in associated data
 	 */
-	@SerializableCreator
 	public CreateAssociatedDataSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -134,6 +165,49 @@ public class CreateAssociatedDataSchemaMutation
 		boolean localized,
 		boolean nullable,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+	) {
+		this(
+			name, description, deprecationNotice, type, localized, nullable, null, null, conflictResolutionOverride,
+			null, null
+		);
+	}
+
+	/**
+	 * Creates a mutation that will set up a new associated data schema with the given properties, searchability
+	 * included.
+	 *
+	 * @param name                       unique name of the associated data
+	 * @param description                optional human-readable description of the associated data
+	 * @param deprecationNotice          optional deprecation notice if the associated data is deprecated
+	 * @param type                       the data type stored in this associated data (must be a supported evitaDB type
+	 *                                   or {@link ComplexDataObject}; {@link Predecessor} and
+	 *                                   {@link ReferencedEntityPredecessor} are not allowed)
+	 * @param localized                  whether the associated data values are locale-specific
+	 * @param nullable                   whether the associated data value can be null
+	 * @param searchableInScopes         the scopes in which the associated data is searchable (may be `null`, which
+	 *                                   means searchable nowhere)
+	 * @param textExpression             the expression selecting the text of a complex data object value, or `null`
+	 * @param conflictResolutionOverride the per-item override of the conflict resolution granularity applied to this
+	 *                                   associated data (never `null`; use
+	 *                                   {@link ConflictResolutionOverride#INHERITED} to follow the resolved conflict
+	 *                                   resolution)
+	 * @param analyzer                   the name of the fulltext analyzer, or `null` for the default one
+	 * @param lengthPivot                the length pivot, or `null` for the default one
+	 * @throws InvalidSchemaMutationException if the type is not allowed in associated data
+	 */
+	@SerializableCreator
+	public CreateAssociatedDataSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nonnull Class<? extends Serializable> type,
+		boolean localized,
+		boolean nullable,
+		@Nullable Scope[] searchableInScopes,
+		@Nullable Expression textExpression,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable String analyzer,
+		@Nullable Integer lengthPivot
 	) {
 		super(name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ASSOCIATED_DATA, name);
@@ -147,7 +221,20 @@ public class CreateAssociatedDataSchemaMutation
 		this.type = type;
 		this.localized = localized;
 		this.nullable = nullable;
+		this.searchableInScopes = searchableInScopes == null ? NO_SCOPE : searchableInScopes;
+		this.textExpression = textExpression;
 		this.conflictResolutionOverride = conflictResolutionOverride;
+		this.analyzer = analyzer;
+		this.lengthPivot = lengthPivot;
+	}
+
+	/**
+	 * Whether the created associated data is searchable in at least one scope.
+	 *
+	 * @return true when at least one scope is named in {@link #getSearchableInScopes()}
+	 */
+	public boolean isSearchable() {
+		return !ArrayUtils.isEmptyOrItsValuesNull(this.searchableInScopes);
 	}
 
 	@Nullable
@@ -201,6 +288,16 @@ public class CreateAssociatedDataSchemaMutation
 						makeMutationIfDifferent(
 							AssociatedDataSchemaContract.class,
 							createdVersion, existingVersion,
+							CreateAssociatedDataSchemaMutation::searchabilityOf,
+							newValue -> new SetAssociatedDataSchemaSearchableMutation(
+								this.name, createdVersion.getSearchableInScopes().toArray(Scope[]::new),
+								createdVersion.getTextExpression(), createdVersion.getAnalyzer(),
+								createdVersion.getLengthPivot()
+							)
+						),
+						makeMutationIfDifferent(
+							AssociatedDataSchemaContract.class,
+							createdVersion, existingVersion,
 							AssociatedDataSchemaContract::getConflictResolutionOverride,
 							newValue -> new SetAssociatedDataSchemaConflictResolutionOverrideMutation(this.name, newValue)
 						)
@@ -218,7 +315,9 @@ public class CreateAssociatedDataSchemaMutation
 	public AssociatedDataSchemaContract mutate(@Nullable AssociatedDataSchemaContract associatedDataSchema) {
 		return AssociatedDataSchema._internalBuild(
 			this.name, this.description, this.deprecationNotice, this.type, this.localized, this.nullable,
-			this.conflictResolutionOverride
+			this.searchableInScopes, this.textExpression, this.conflictResolutionOverride,
+			this.analyzer == null ? FulltextAnalyzerSchemaContract.TEXT : this.analyzer,
+			this.lengthPivot == null ? AttributeSchemaContract.DEFAULT_LENGTH_PIVOT : this.lengthPivot
 		);
 	}
 
@@ -288,6 +387,27 @@ public class CreateAssociatedDataSchemaMutation
 			", type=" + this.type +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +
+			", searchable=" +
+			(isSearchable() ? "(in scopes: " + Arrays.toString(this.searchableInScopes) + ")" : "no") +
+			(this.textExpression == null ? "" : ", textExpression=" + this.textExpression.toExpressionString()) +
+			(this.analyzer == null ? "" : ", analyzer=" + this.analyzer) +
+			(this.lengthPivot == null ? "" : ", lengthPivot=" + this.lengthPivot) +
 			", conflictResolutionOverride=" + this.conflictResolutionOverride;
+	}
+
+	/**
+	 * Returns the searchability of an associated data schema as one comparable value - the searchable scopes, the text
+	 * expression, the analyzer and the length pivot travel in one mutation, so they are compared together.
+	 *
+	 * @param schema the associated data schema
+	 * @return the scopes, the expression text (`null` when no expression is set), the analyzer and the pivot
+	 */
+	@Nonnull
+	private static List<Object> searchabilityOf(@Nonnull AssociatedDataSchemaContract schema) {
+		final Expression textExpression = schema.getTextExpression();
+		return Arrays.asList(
+			schema.getSearchableInScopes(), textExpression == null ? null : textExpression.toExpressionString(),
+			schema.getAnalyzer(), schema.getLengthPivot()
+		);
 	}
 }

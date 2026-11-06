@@ -483,6 +483,20 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitEntityScopeConstraint(EvitaQLParser.EntityScopeConstraintContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code textMatchesConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTextMatchesConstraint(EvitaQLParser.TextMatchesConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code inFieldConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitInFieldConstraint(EvitaQLParser.InFieldConstraintContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code orderByConstraint}
 	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
 	 * @param ctx the parse tree
@@ -629,6 +643,13 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitOrderInScopeConstraint(EvitaQLParser.OrderInScopeConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code relevanceConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitRelevanceConstraint(EvitaQLParser.RelevanceConstraintContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code requireContainerConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
@@ -1944,6 +1965,12 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitInScopeFilterArgs(EvitaQLParser.InScopeFilterArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#textMatchesArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTextMatchesArgs(EvitaQLParser.TextMatchesArgsContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#inScopeOrderArgs}.
 	 * @param ctx the parse tree

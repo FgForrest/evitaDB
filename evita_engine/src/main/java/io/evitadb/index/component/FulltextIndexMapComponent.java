@@ -29,6 +29,7 @@ import io.evitadb.index.fulltext.FieldLengthTable.LengthBlock;
 import io.evitadb.index.fulltext.FieldLengthTable.LengthBlockEmission;
 import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.FulltextIndex.DictionaryPage;
+import io.evitadb.index.fulltext.FulltextIndex.SurfaceFormPage;
 import io.evitadb.index.map.MapHeapSize;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.page.PageEmission;
@@ -40,6 +41,8 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextField
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart.FieldEntry;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextSurfaceFormLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextSurfaceFormLeafPageRemoval;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.VMLayout;
 
@@ -56,10 +59,11 @@ import java.util.Objects;
  *
  * ## Flush
  *
- * A dirty index writes its changed dictionary pages and their removals, then its changed length blocks and their
- * removals, then its {@link FulltextIndexStoragePart} root - pages before the root that lists them - and is reset
- * clean. The reset happens here, inside the collect, because nothing on the flush path resets it afterwards, and the
- * next collect must find the index clean, or it would stage its pages again.
+ * A dirty index writes its changed dictionary pages and their removals, then its changed surface dictionary pages and
+ * their removals, then its changed length blocks and their removals, then its {@link FulltextIndexStoragePart} root -
+ * pages before the root that lists them - and is reset clean. The reset happens here, inside the collect, because
+ * nothing on the flush path resets it afterwards, and the next collect must find the index clean, or it would stage
+ * its pages again.
  *
  * Every index that has dictionary pages on disk once the flush in progress is durable is announced into the
  * {@link EntityIndexManifest}, which is how the reload finds it and how {@link io.evitadb.index.EntityIndex} reclaims
@@ -78,7 +82,8 @@ import java.util.Objects;
  * ## Reclaim
  *
  * The root of a vanished index is reclaimed by the manifest diff in {@link io.evitadb.index.EntityIndex}, but its
- * dictionary pages and length blocks are this component's: the dropped index's own flush never runs again. So, as
+ * dictionary pages, surface dictionary pages and length blocks are this component's: the dropped index's own flush
+ * never runs again. So, as
  * {@link HistogramIndexMapComponent} does for its histograms, the component keeps a snapshot of what each index has
  * on disk, refreshed at every collect, and removes the footprint of every index that left the map. An index replaced
  * by a new one under the same locale - told apart by its {@link PageStreamRegistry}, which every merged copy of one
@@ -105,16 +110,20 @@ public final class FulltextIndexMapComponent implements IndexComponent {
 	 *
 	 * @param pageStreamRegistry the index's page bookkeeping, the identity of the logical index across merged copies
 	 * @param dictionaryPages    sequences of its dictionary pages, ascending
+	 * @param surfacePages       sequences of its surface dictionary pages, ascending
 	 * @param lengthBlocks       keys of the length blocks of each field on disk, ascending, the i-th for field id `i`
 	 */
 	private record PersistedFootprint(
 		@Nonnull PageStreamRegistry pageStreamRegistry,
 		@Nonnull int[] dictionaryPages,
+		@Nonnull int[] surfacePages,
 		@Nonnull int[][] lengthBlocks
 	) {
 	}
 
 	/**
+	 * Wraps the locale indexes and snapshots their existing persisted page footprint.
+	 *
 	 * @param fulltextIndexes the wrapped per-locale map; an index in it may hold changes no flush has collected yet -
 	 *                        see "Construction over an unflushed index" in the class documentation
 	 */
@@ -142,12 +151,17 @@ public final class FulltextIndexMapComponent implements IndexComponent {
 				if (dictionaryPages.length > 0) {
 					// the pending set comes out of a hash set, the reclaim looks pages up by binary search
 					Arrays.sort(dictionaryPages);
+					// a flushed index lists at least one page of each dictionary, so the dictionary pages alone tell
+					// whether it was flushed
+					final int[] surfacePages = index.getPersistedSurfaceFormPages();
+					Arrays.sort(surfacePages);
 					final int[][] lengthBlocks = new int[index.getFieldCount()][];
 					for (int fieldId = 0; fieldId < lengthBlocks.length; fieldId++) {
 						lengthBlocks[fieldId] = index.getPersistedLengthBlocks(fieldId);
 					}
 					snapshot.put(
-						locale, new PersistedFootprint(index.getPageStreamRegistry(), dictionaryPages, lengthBlocks)
+						locale, new PersistedFootprint(
+							index.getPageStreamRegistry(), dictionaryPages, surfacePages, lengthBlocks)
 					);
 				}
 			}
@@ -186,6 +200,12 @@ public final class FulltextIndexMapComponent implements IndexComponent {
 					);
 				}
 			}
+			for (final int sequence : previous.surfacePages()) {
+				if (replacement == null || Arrays.binarySearch(replacement.surfacePages(), sequence) < 0) {
+					trappedChanges.addChangeToStore(
+						new FulltextSurfaceFormLeafPageRemoval(entityIndexPrimaryKey, locale, sequence));
+				}
+			}
 			for (int fieldId = 0; fieldId < previous.lengthBlocks().length; fieldId++) {
 				final int[] replacementBlocks = replacement == null || fieldId >= replacement.lengthBlocks().length
 					? null : replacement.lengthBlocks()[fieldId];
@@ -201,8 +221,8 @@ public final class FulltextIndexMapComponent implements IndexComponent {
 	}
 
 	/**
-	 * Writes what a dirty index changed: its dictionary pages and their removals, its length blocks and their removals,
-	 * and its root, in that order.
+	 * Writes what a dirty index changed: its dictionary pages and their removals, its surface dictionary pages and
+	 * their removals, its length blocks and their removals, and its root, in that order.
 	 *
 	 * @param entityIndexPrimaryKey the owning entity index's primary key
 	 * @param locale                the locale of the index
@@ -228,6 +248,14 @@ public final class FulltextIndexMapComponent implements IndexComponent {
 				new FulltextDictionaryLeafPageRemoval(entityIndexPrimaryKey, locale, freedPageSequence)
 			);
 		}
+		final PageEmission<SurfaceFormPage> surfaces = index.collectChangedSurfaceFormPages();
+		for (final SurfaceFormPage page : surfaces.changedPages()) {
+			trappedChanges.addChangeToStore(new FulltextSurfaceFormLeafPagePart(entityIndexPrimaryKey, locale, page));
+		}
+		for (final int sequence : surfaces.freedPageSequences()) {
+			trappedChanges.addChangeToStore(
+				new FulltextSurfaceFormLeafPageRemoval(entityIndexPrimaryKey, locale, sequence));
+		}
 		final LengthBlockEmission[] lengths = index.collectChangedLengthBlocks();
 		final FieldEntry[] fields = new FieldEntry[lengths.length];
 		for (int fieldId = 0; fieldId < lengths.length; fieldId++) {
@@ -244,15 +272,18 @@ public final class FulltextIndexMapComponent implements IndexComponent {
 			}
 			fields[fieldId] = new FieldEntry(
 				Objects.requireNonNull(index.getFieldKey(fieldId)),
+				index.getAnalyzerName(fieldId), index.getIndexFingerprint(fieldId), index.getWordPhaseId(fieldId),
 				index.getLengthPivot(fieldId),
+				index.getTextExpression(fieldId),
 				index.isFieldRetired(fieldId),
 				emission.blockKeys()
 			);
 		}
 		trappedChanges.addChangeToStore(
 			new FulltextIndexStoragePart(
-				entityIndexPrimaryKey, locale, index.getAnalyzerName(), index.getDefaultLengthPivot(), fields,
-				pages.highWaterPageSequence(), pages.orderedPageSequences(), null
+				entityIndexPrimaryKey, locale, fields,
+				pages.highWaterPageSequence(), pages.orderedPageSequences(), index.getWordPhaseIds(),
+				surfaces.highWaterPageSequence(), surfaces.orderedPageSequences(), null
 			)
 		);
 	}
@@ -335,8 +366,9 @@ public final class FulltextIndexMapComponent implements IndexComponent {
 		return shell + MapHeapSize.sizeOf(
 			this.persistedFootprints,
 			locale -> 0L,
-			footprint -> layout.sizeOfObject(3L * layout.referenceSize())
+			footprint -> layout.sizeOfObject(4L * layout.referenceSize())
 				+ layout.sizeOfArray(footprint.dictionaryPages().length, Integer.BYTES)
+				+ layout.sizeOfArray(footprint.surfacePages().length, Integer.BYTES)
 				+ layout.sizeOfArray(footprint.lengthBlocks().length, layout.referenceSize())
 		);
 	}

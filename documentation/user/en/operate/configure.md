@@ -98,6 +98,16 @@ cache:                                            # [see Cache configuration](#c
   minimalUsageThreshold: 2
   cacheSizeInBytes: null
 
+fulltext:                                         # [see Fulltext configuration](#fulltext-configuration)
+  minLengthOneTypo: 4
+  minLengthTwoTypos: 8
+  nonFuzzyPrefix: 1
+  transpositions: true
+  digitsExact: true
+  prefixLeg: true
+  minFragmentLength: 4
+  openEndedStartLength: 4
+
 api:                                              # [see API configuration](#api-configuration)
   workerGroupThreads: 4
   idleTimeoutInMillis: 60K
@@ -1132,6 +1142,89 @@ is resolved.
         </Note>
     </dd>
 </dl>
+
+## Fulltext configuration
+
+These options control how `textMatches` queries tolerate typos and complete the unfinished final word. They apply
+across all catalogs. An earlier word, or a final word followed by a separator such as a space, is treated as finished.
+
+Each item is set on its own: in the `fulltext` section of the server YAML, or through `FulltextOptions` on
+`EvitaConfiguration` when evitaDB runs embedded. Items you do not set keep their built-in defaults. There is no
+per-query override or schema setting. **Every option is query-side only and can change without a reindex.** Restart
+the server with the new configuration to apply it.
+
+Lengths are Unicode code points after the field analyzer normalizes the query. Each stem variant uses its own
+length. The typo budget is zero below `minLengthOneTypo`, one below `minLengthTwoTypos`, and two from that threshold
+onwards. A typo means an inserted, deleted or replaced character; `transpositions` controls adjacent swaps.
+A deterministic predicted-time budget limits the query's total expanded postings: exact matches always remain, while
+prefix and typo expansions stop at the first overflow, which can leave a required word empty and return no matches.
+
+```yaml
+fulltext:
+  minLengthOneTypo: 4
+  minLengthTwoTypos: 8
+  nonFuzzyPrefix: 1
+  transpositions: true
+  digitsExact: true
+  prefixLeg: true
+  minFragmentLength: 4
+  openEndedStartLength: 4
+```
+
+<dl>
+    <dt>minLengthOneTypo</dt>
+    <dd>
+        <p>**Default:** `4`; **Unit:** code points; **Allowed range:** `1`–`2147483647`, no greater than `minLengthTwoTypos`.</p>
+        <p>The shortest query term that may match with one typo. Shorter terms must match exactly.</p>
+    </dd>
+    <dt>minLengthTwoTypos</dt>
+    <dd>
+        <p>**Default:** `8`; **Unit:** code points; **Allowed range:** `minLengthOneTypo`–`2147483647`.</p>
+        <p>The shortest query term that may match with two typos. Equal thresholds enable two typos from the first threshold.</p>
+    </dd>
+    <dt>nonFuzzyPrefix</dt>
+    <dd>
+        <p>**Default:** `1`; **Unit:** code points; **Allowed range:** `0`–`2147483647`.</p>
+        <p>The number of leading characters that must match exactly even when typos are allowed. `0` allows a typo
+        in the first character. A value longer than the query term protects every character of the term;
+        characters appended after it are still allowed as typos.</p>
+    </dd>
+    <dt>transpositions</dt>
+    <dd>
+        <p>**Default:** `true`; **Unit:** boolean; **Allowed values:** `true`, `false`.</p>
+        <p>When `true`, swapping two adjacent characters counts as one typo. When `false`, a swap requires two ordinary edits.</p>
+    </dd>
+    <dt>digitsExact</dt>
+    <dd>
+        <p>**Default:** `true`; **Unit:** boolean; **Allowed values:** `true`, `false`.</p>
+        <p>When `true`, a query term containing any Unicode digit gets no typo allowance. When `false`, it gets the
+        same length-based allowance as other terms. Completion of the unfinished final word is controlled separately.</p>
+    </dd>
+    <dt>prefixLeg</dt>
+    <dd>
+        <p>**Default:** `true`; **Unit:** boolean; **Allowed values:** `true`, `false`.</p>
+        <p>When `true`, the unfinished final word may match longer words beginning with it, and may also complete
+        with typos once the length thresholds permit. When `false`, the final word uses ordinary whole-word matching
+        with its configured typo allowance.</p>
+    </dd>
+    <dt>minFragmentLength</dt>
+    <dd>
+        <p>**Default:** `4`; **Unit:** code points; **Allowed range:** `1`–`2147483647`.</p>
+        <p>The shortest unfinished final fragment that may complete to a longer word when `prefixLeg` is enabled.
+        Shorter fragments use ordinary whole-word matching.</p>
+    </dd>
+    <dt>openEndedStartLength</dt>
+    <dd>
+        <p>**Default:** `4`; **Unit:** code points; **Allowed range:** `1`–`2147483647`.</p>
+        <p>The shortest unfinished final fragment that may complete to a longer word with typos. It must also meet
+        `minFragmentLength`, and `prefixLeg` must be enabled. Below this threshold, completion still works without
+        typos and ordinary whole-word typo matching remains available.</p>
+    </dd>
+</dl>
+
+The server supports the same overrides as other sections. For example, use the application argument
+`fulltext.prefixLeg=false`, the JVM property `-Dfulltext.prefixLeg=false`, or the environment variable
+`EVITADB_FULLTEXT_PREFIXLEG=false`. These replace only `prefixLeg`.
 
 ## API configuration
 

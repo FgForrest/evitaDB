@@ -30,6 +30,8 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttr
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -95,7 +97,8 @@ class GlobalAttributeSchemaTest {
 				false, false, false,
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertTrue(schema.isUniqueGloballyInScope(Scope.LIVE));
@@ -119,7 +122,8 @@ class GlobalAttributeSchemaTest {
 				false, false, false,
 				String.class, null, 0,
 				ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertEquals(
@@ -148,7 +152,8 @@ class GlobalAttributeSchemaTest {
 				false, false, false,
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertTrue(schema.isUniqueGloballyInScope(Scope.LIVE));
@@ -174,7 +179,8 @@ class GlobalAttributeSchemaTest {
 				true, false, false,
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertTrue(schema.isUniqueGloballyWithinLocaleInScope(Scope.LIVE));
@@ -229,7 +235,8 @@ class GlobalAttributeSchemaTest {
 				false, false, false,
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			// isUnique() checks DEFAULT_SCOPE (=LIVE) for both local and global
@@ -251,7 +258,8 @@ class GlobalAttributeSchemaTest {
 				true, false, false,
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertTrue(schema.isUniqueWithinLocale());
@@ -275,7 +283,8 @@ class GlobalAttributeSchemaTest {
 				false, false, false,
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertEquals(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION, schema.getUniquenessType(Scope.LIVE));
@@ -381,7 +390,8 @@ class GlobalAttributeSchemaTest {
 				false, false, false,
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			final String result = schema.toString();

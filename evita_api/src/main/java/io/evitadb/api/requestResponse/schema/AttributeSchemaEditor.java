@@ -24,7 +24,7 @@
 package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.requestResponse.data.Versioned;
-import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
+import io.evitadb.api.requestResponse.schema.analysis.NormalizingAnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
@@ -61,18 +61,18 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * @return this editor
 	 */
 	@Nonnull
-	T normalized(@Nonnull AnalysisStep... steps);
+	T normalized(@Nonnull NormalizingAnalysisStep... steps);
 
 	/**
-	 * Conditional counterpart of {@link #normalized(AnalysisStep...)}. A false decision removes normalization.
-	 * The same String-only, scope-independent, single-pass and reindexing rules apply.
+	 * Conditional counterpart of {@link #normalized(NormalizingAnalysisStep...)}. A false decision removes
+	 * normalization. The same String-only, scope-independent, single-pass and reindexing rules apply.
 	 *
 	 * @param decider determines whether to apply the steps or remove normalization
 	 * @param steps ordered normalization descriptions
 	 * @return this editor
 	 */
 	@Nonnull
-	default T normalized(@Nonnull BooleanSupplier decider, @Nonnull AnalysisStep... steps) {
+	default T normalized(@Nonnull BooleanSupplier decider, @Nonnull NormalizingAnalysisStep... steps) {
 		return decider.getAsBoolean() ? normalized(steps) : normalized();
 	}
 
@@ -328,6 +328,28 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 */
 	@Nonnull
 	T nonSearchableInScope(@Nonnull Scope... inScope);
+
+	/**
+	 * Sets the fulltext analyzer that turns the attribute's values into words while it is searchable - see
+	 * {@link AttributeSchemaContract#getAnalyzer()}. It leaves the scopes the attribute is searchable in as they are,
+	 * so it may precede or follow {@link #searchable()}.
+	 *
+	 * @param analyzerName the name of a built-in analyzer or of one declared in the catalog schema
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T analyzer(@Nonnull String analyzerName);
+
+	/**
+	 * Sets the length pivot of the attribute's fulltext field - see {@link AttributeSchemaContract#getLengthPivot()}.
+	 * It leaves the scopes the attribute is searchable in as they are, so it may precede or follow
+	 * {@link #searchable()}.
+	 *
+	 * @param lengthPivot the number of words a value of normal length has, positive
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T lengthPivot(int lengthPivot);
 
 	/**
 	 * When attribute value is unique it is automatically filterable, and it is ensured there is exactly one single entity

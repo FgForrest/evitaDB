@@ -36,6 +36,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Map;
 import org.junit.jupiter.api.Tag;
 
+import static io.evitadb.utils.ListBuilder.array;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -162,6 +163,8 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 					.e(CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(), String.class.getSimpleName())
 					.e(CreateAssociatedDataSchemaMutationDescriptor.LOCALIZED.name(), true)
 					.e(CreateAssociatedDataSchemaMutationDescriptor.NULLABLE.name(), true)
+					// no descriptor yet - the property is emitted by reflection over the mutation's creator (F1c)
+					.e("searchableInScopes", array())
 					.e(CreateAssociatedDataSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.INHERITED.name())
 					.build()
 			);

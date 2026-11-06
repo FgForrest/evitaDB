@@ -85,6 +85,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(TRANSACTION)
 @DisplayName("Impact column of the bucket B+ tree")
 class BucketImpactColumnTest {
+
 	/**
 	 * How many distinct keys the random sequences draw from.
 	 */
@@ -98,6 +99,17 @@ class BucketImpactColumnTest {
 	 * A heavy key whose ids are dense, so its records share one roaring container.
 	 */
 	private static final int HEAVY_DENSE_KEY = 18;
+
+	/**
+	 * Copies a bucket's impacts through the production cursor path, including the current transactional view.
+	 */
+	@Nonnull
+	private static <K extends Comparable<K>> byte[] impactsOf(
+		@Nonnull TransactionalBucketBPlusTree<K> tree, @Nonnull K key
+	) {
+		final BucketCursor<K> cursor = tree.cursor(key);
+		return cursor.next() && cursor.value().equals(key) ? cursor.impacts().toArray() : new byte[0];
+	}
 
 	/**
 	 * @param blockSize the leaf block size
@@ -237,7 +249,7 @@ class BucketImpactColumnTest {
 			final int key = entry.getKey();
 			final Map<Integer, Byte> expected = entry.getValue();
 			final Bitmap records = tree.getRecordsEqualTo(key);
-			final byte[] impacts = tree.impactsOf(key);
+			final byte[] impacts = impactsOf(tree, key);
 			assertEquals(expected.size(), records.size(), "record count differs at key " + key);
 			assertEquals(records.size(), impacts.length, "impact count differs at key " + key);
 			final OfInt it = records.iterator();
@@ -269,7 +281,7 @@ class BucketImpactColumnTest {
 
 	/**
 	 * Asserts that every kind of bucket cursor - forward, reverse and the leaf-scoped one of the page handles - hands
-	 * out, for every bucket it visits, the impacts {@link TransactionalBucketBPlusTree#impactsOf} reads with a descent,
+	 * out, for every bucket it visits, the impacts a fresh key-positioned cursor reads,
 	 * and that between them they visit every bucket.
 	 *
 	 * @param tree the tree to check
@@ -301,9 +313,9 @@ class BucketImpactColumnTest {
 	}
 
 	/**
-	 * Asserts that the impacts a cursor hands out for its current bucket equal the ones read with a descent: as a
-	 * copy, through one reader ascending - the access of a merge - and through the same reader descending, which makes
-	 * a chunked view seek backwards across its chunk boundaries.
+	 * Asserts that a cursor's impacts equal those read with a key-positioned cursor: as a copy, through one reader
+	 * ascending - the access of a merge - and through the same reader descending, which makes a chunked view seek
+	 * backwards across its chunk boundaries.
 	 *
 	 * @param cursor the cursor, positioned at a bucket
 	 * @param tree   the tree the cursor walks
@@ -313,7 +325,7 @@ class BucketImpactColumnTest {
 		@Nonnull TransactionalBucketBPlusTree<Integer> tree
 	) {
 		final Integer key = cursor.value();
-		final byte[] expected = tree.impactsOf(key);
+		final byte[] expected = impactsOf(tree, key);
 		final ImpactView view = cursor.impacts();
 		assertEquals(cursor.size(), view.size(), "view size at key " + key);
 		assertArrayEquals(expected, view.toArray(), "impacts at key " + key);
@@ -535,7 +547,7 @@ class BucketImpactColumnTest {
 			final byte[] array = assertInstanceOf(byte[].class, impactSlot(tree, 1));
 			// -3 is the larger id under unsigned order, so it sits second - exactly where the record array puts it
 			assertArrayEquals(new byte[]{7, 9}, array);
-			assertArrayEquals(new byte[]{7, 9}, tree.impactsOf(1));
+			assertArrayEquals(new byte[]{7, 9}, impactsOf(tree, 1));
 		}
 
 		@Test
@@ -559,10 +571,10 @@ class BucketImpactColumnTest {
 				held,
 				t -> {
 					t.addRecord(3, 20, (byte) 13);
-					assertArrayEquals(new byte[]{13, 11}, t.impactsOf(3));
+					assertArrayEquals(new byte[]{13, 11}, impactsOf(t, 3));
 				},
 				(original, committed) -> {
-					assertArrayEquals(new byte[]{13, 11}, committed.impactsOf(3));
+					assertArrayEquals(new byte[]{13, 11}, impactsOf(committed, 3));
 					assertEquals(
 						Byte.valueOf((byte) 11), impactSlot(original, 3), "the pre-commit instance is untouched"
 					);
@@ -584,7 +596,7 @@ class BucketImpactColumnTest {
 			assertEquals(2, chunks.length);
 			assertEquals(64, chunks[0].length);
 			assertEquals(threshold + 1 - 64, chunks[1].length);
-			final byte[] aligned = tree.impactsOf(1);
+			final byte[] aligned = impactsOf(tree, 1);
 			for (int i = 0; i <= threshold; i++) {
 				assertEquals((byte) i, aligned[i], "impact of ordinal " + i);
 			}
@@ -615,7 +627,7 @@ class BucketImpactColumnTest {
 				(original, committed) -> {
 					final byte[] demoted = assertInstanceOf(byte[].class, impactSlot(committed, 1));
 					assertEquals(demotion, demoted.length);
-					final byte[] aligned = committed.impactsOf(1);
+					final byte[] aligned = impactsOf(committed, 1);
 					for (int i = 1; i <= demotion; i++) {
 						assertEquals(i == 3 ? (byte) 77 : (byte) i, aligned[i - 1], "impact of record " + i * 1_000);
 					}
@@ -645,7 +657,7 @@ class BucketImpactColumnTest {
 					assertNull(
 						leaf.getOverflow() == null ? null : leaf.getOverflow().recordsAt(leaf.getValueIndex(1))
 					);
-					assertArrayEquals(new byte[]{1}, committed.impactsOf(1));
+					assertArrayEquals(new byte[]{1}, impactsOf(committed, 1));
 				}
 			);
 		}
@@ -670,7 +682,7 @@ class BucketImpactColumnTest {
 			tree.removeRecord(1, java.util.Arrays.copyOf(middle, n));
 			final byte[][] chunks = assertInstanceOf(byte[][].class, impactSlot(tree, 1));
 			assertEquals(2, chunks.length, "the emptied middle container must leave the spine");
-			final byte[] aligned = tree.impactsOf(1);
+			final byte[] aligned = impactsOf(tree, 1);
 			final OfInt it = tree.getRecordsEqualTo(1).iterator();
 			int ordinal = 0;
 			while (it.hasNext()) {
@@ -880,7 +892,7 @@ class BucketImpactColumnTest {
 	@Nonnull
 	private static List<Long> contentOf(@Nonnull TransactionalBucketBPlusTree<Integer> tree, int key) {
 		final Bitmap records = tree.getRecordsEqualTo(key);
-		final byte[] impacts = tree.impactsOf(key);
+		final byte[] impacts = impactsOf(tree, key);
 		assertEquals(records.size(), impacts.length, "impact count differs at key " + key);
 		final List<Long> bucket = new ArrayList<>(records.size());
 		final OfInt it = records.iterator();
@@ -922,7 +934,9 @@ class BucketImpactColumnTest {
 			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(5, Integer.class);
 			tree.addRecord(1, 10);
 			assertThrows(GenericEvitaInternalError.class, tree::enableImpacts);
-			assertFalse(tree.carriesImpacts());
+			// the refused switch leaves the tree plain: it keeps the plain insert API and refuses an impact
+			tree.addRecord(2, 20);
+			assertThrows(GenericEvitaInternalError.class, () -> tree.addRecord(3, 30, (byte) 3));
 		}
 
 		@Test
@@ -945,7 +959,6 @@ class BucketImpactColumnTest {
 			final TransactionalBucketBPlusTree<Integer> plainTree =
 				new TransactionalBucketBPlusTree<>(5, Integer.class);
 			assertThrows(GenericEvitaInternalError.class, () -> plainTree.addRecord(1, 10, (byte) 3));
-			assertThrows(GenericEvitaInternalError.class, () -> plainTree.impactsOf(1));
 		}
 
 		@Test
@@ -953,12 +966,12 @@ class BucketImpactColumnTest {
 		void shouldReplaceImpactOfExistingRecord() {
 			final TransactionalBucketBPlusTree<Integer> tree = emptyImpactTree(5);
 			tree.addRecord(1, 10, (byte) 3);
-			assertArrayEquals(new byte[]{3}, tree.impactsOf(1));
+			assertArrayEquals(new byte[]{3}, impactsOf(tree, 1));
 			tree.addRecord(1, 10, (byte) 200);
-			assertArrayEquals(new byte[]{(byte) 200}, tree.impactsOf(1));
+			assertArrayEquals(new byte[]{(byte) 200}, impactsOf(tree, 1));
 			tree.addRecord(1, 11, (byte) 4);
 			tree.addRecord(1, 10, (byte) 5);
-			assertArrayEquals(new byte[]{5, 4}, tree.impactsOf(1));
+			assertArrayEquals(new byte[]{5, 4}, impactsOf(tree, 1));
 			assertEquals(2, tree.getRecordsEqualTo(1).size());
 		}
 
@@ -1011,12 +1024,11 @@ class BucketImpactColumnTest {
 		void shouldTolerateEnablingImpactsTwice() {
 			final TransactionalBucketBPlusTree<Integer> tree = emptyImpactTree(5);
 			tree.enableImpacts();
-			assertTrue(tree.carriesImpacts());
 			tree.addRecord(1, 10, (byte) 3);
 			tree.addRecord(1, 11, (byte) 4);
 			// a populated tree accepts the repeated switch-on too, since it is already on
 			tree.enableImpacts();
-			assertArrayEquals(new byte[]{3, 4}, tree.impactsOf(1));
+			assertArrayEquals(new byte[]{3, 4}, impactsOf(tree, 1));
 		}
 
 		@Test
@@ -1033,16 +1045,24 @@ class BucketImpactColumnTest {
 			final BucketCursor<Integer> cursor = tree.cursor();
 			assertTrue(cursor.next());
 			final ImpactView view = cursor.impacts();
-			assertEquals(Arrays.toString(tree.impactsOf(1)), view.toString());
+			assertEquals(Arrays.toString(impactsOf(tree, 1)), view.toString());
 		}
 
 		@Test
-		@DisplayName("an absent value reads as no impacts at all")
-		void shouldReadNothingForAnAbsentValue() {
+		@DisplayName("a cursor skips an absent value to the next bucket and exhausts beyond the last value")
+		void shouldPositionCursorForAnAbsentValue() {
 			final TransactionalBucketBPlusTree<Integer> tree = emptyImpactTree(5);
 			tree.addRecord(1, 10, (byte) 3);
-			assertEquals(0, tree.impactsOf(2).length);
-			assertTrue(tree.carriesImpacts());
+			tree.addRecord(3, 30, (byte) 7);
+			final BucketCursor<Integer> cursor = tree.cursor(2);
+			assertTrue(cursor.next());
+			assertEquals(3, cursor.value());
+			assertArrayEquals(new int[]{30}, cursor.records().getArray());
+			assertArrayEquals(new byte[]{7}, cursor.impacts().toArray());
+			assertFalse(cursor.next());
+			assertFalse(tree.cursor(4).next());
+			assertEquals(0, impactsOf(tree, 2).length);
+			assertEquals(0, impactsOf(tree, 4).length);
 		}
 	}
 }

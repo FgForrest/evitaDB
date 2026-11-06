@@ -70,6 +70,10 @@ import java.util.Set;
  * histogram slot and is the only constraint legitimately used as a "narrow histogram" child of
  * `userFilter`.
  *
+ * {@link TextMatches} is **not** accepted inside `userFilter` either. A fulltext search has no relaxation semantics
+ * a facet or histogram computation could peel off — without it there is no result to talk about — and the facet
+ * counts are expected to describe the search result, so the search belongs to the mandatory part of the filter.
+ *
  * ## Impact on Extra Result Computations
  *
  * During facet summary and histogram calculations, the query engine treats `userFilter` content specially:
@@ -160,6 +164,7 @@ public class UserFilter extends AbstractFilterConstraintContainer implements Gen
 		HierarchyWithin.class,
 		HierarchyWithinRoot.class,
 		ReferenceHaving.class,
+		TextMatches.class,
 		UserFilter.class
 	);
 
@@ -174,6 +179,7 @@ public class UserFilter extends AbstractFilterConstraintContainer implements Gen
 							  HierarchyWithin.class,
 							  HierarchyWithinRoot.class,
 							  ReferenceHaving.class,
+							  TextMatches.class,
 							  UserFilter.class
 						  }
                       )

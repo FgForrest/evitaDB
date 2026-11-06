@@ -28,6 +28,8 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
@@ -39,7 +41,9 @@ import java.util.Map;
 /**
  * This {@link Serializer} implementation reads {@link AssociatedDataSchema} from the pre-2026.2
  * binary format that predates the granular conflict-resolution field. It is retained to keep
- * released 2026.1 data readable after an in-place upgrade; writing is unsupported.
+ * released 2026.1 data readable after an in-place upgrade; writing is unsupported. Associated data read through it is
+ * searchable nowhere, and its analyzer and length pivot take their defaults,
+ * {@link FulltextAnalyzerSchemaContract#TEXT} and {@link AttributeSchemaContract#DEFAULT_LENGTH_PIVOT}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  * @deprecated the current version stores the associated data conflict-resolution override
@@ -71,8 +75,9 @@ public class AssociatedDataSchemaSerializer_2026_1 extends Serializer<Associated
 		final String description = input.readBoolean() ? input.readString() : null;
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
 		return AssociatedDataSchema._internalBuild(
-			name, nameVariants, description, deprecationNotice, type, localized, nullable,
-			ConflictResolutionOverride.INHERITED
+			name, nameVariants, description, deprecationNotice, type, localized, nullable, null, null,
+			ConflictResolutionOverride.INHERITED,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 		);
 	}
 

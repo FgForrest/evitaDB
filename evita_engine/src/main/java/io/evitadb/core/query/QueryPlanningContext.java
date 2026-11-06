@@ -94,11 +94,14 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.*;
 import io.evitadb.index.analysis.AttributeNormalizationResolver;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.facet.FacetIndex;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
+import io.evitadb.index.fulltext.typo.FulltextTypoParameters;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.usage.SchemaCapabilityKey;
 import io.evitadb.index.usage.SchemaCapabilityUsage;
@@ -1753,6 +1756,35 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	@Nonnull
 	public SealedCatalogSchema getCatalogSchema() {
 		return this.catalog.getSchema();
+	}
+
+	/**
+	 * Returns the catalog's installed analysis step providers for query fragment normalization.
+	 * @return the catalog's analysis step registry
+	 */
+	@Nonnull
+	public AnalysisStepRegistry getAnalysisStepRegistry() {
+		return this.catalog.getAnalysisStepRegistry();
+	}
+
+	/**
+	 * Returns the configured submitted-search policy of this query's engine.
+	 * @return the immutable runtime fulltext policy
+	 */
+	@Nonnull
+	public FulltextTypoParameters getFulltextTypoParameters() {
+		return this.catalog.getFulltextTypoParameters();
+	}
+
+	/**
+	 * Returns the analyzer registry of the catalog targeted by this query - the one the fulltext indexes of its
+	 * collections were built with, through which the text of a fulltext query is analyzed.
+	 *
+	 * @return the catalog's analyzer registry
+	 */
+	@Nonnull
+	public FulltextAnalyzerRegistry getFulltextAnalyzerRegistry() {
+		return this.catalog.getFulltextAnalyzerRegistry();
 	}
 
 	/**

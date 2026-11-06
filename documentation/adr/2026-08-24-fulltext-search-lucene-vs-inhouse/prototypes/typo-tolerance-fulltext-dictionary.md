@@ -18,6 +18,9 @@
 > algorithm alone, without the reasoning, is in
 > [`typo-tolerance-fulltext-dictionary-algorithm.md`](typo-tolerance-fulltext-dictionary-algorithm.md).
 > Everything else is proposal or measurement.
+> **Amended 2026-10-30 (§13):** per-field analyzer profiles, which F1 builds before typo tolerance, give the
+> surface-form lane a word-phase prefix and the profile's own fold; the cap of 50 counts per profile group and a
+> summed-postings safety net bounds the whole query; `EXACTNESS` ranks above impact.
 > The Damerau metric for fuzzy `contains` is decided in the sibling document
 > [`typo-tolerance-fuzzy-contains.md`](typo-tolerance-fuzzy-contains.md).
 >
@@ -253,7 +256,8 @@ owns the decision.
   counts once however many expansions hit, and its typo lane carries the *best* distance among the hits.
 - **Q5 — ranking** (planned, P1 §5.3, query-design §6; lane order owned by P7). Lanes packed into one
   `long`: matched words → typos → impact → exactness → context. `TYPO` = "255 − weighted sum of typos";
-  `EXACTNESS` orders exact > prefix > fuzzy. Lane order is a rank-profile choice, hot-swappable.
+  `EXACTNESS` orders exact > prefix > fuzzy. Lane order is a rank-profile choice, hot-swappable. *Amended
+  2026-10-30 (§13.4): the default order puts exactness above impact.*
 - **Q6 — suggester** (planned, P3). Term leg: prefix + typo expansion over the dictionary only, scored by a
   cascade; entity leg: OR of the top-M terms ∧ filter. Same expansion as Q3 but latency-capped per keystroke,
   and candidate terms must be displayable (surface form).
@@ -350,7 +354,8 @@ dictionary).
   consumer (`AnalyzedTermConsumer#accept`, the `surfaceForm` supplier); `FulltextIndex#analyze` currently ignores
   it. The consumer additionally lowercases and folds the surface form with the same folding the search chain applies
   (`ASCIIFoldingFilter`), giving the pair `cerne → cern`. Stop words never reach the consumer, so they never reach
-  the lane.
+  the lane. *Amended 2026-10-30 (§13.2): the fold is the one of the field's analyzer profile, not a fixed
+  `ASCIIFoldingFilter`.*
 - **I2 — a second tree beside the term dictionary.** Today `FulltextIndex` holds one
   `TransactionalBucketBPlusTree` per (collection, locale, scope), keyed by field prefix + stem, whose bucket holds
   the postings and the impact column. The lane is a second tree in the same index:
@@ -362,7 +367,8 @@ dictionary).
     string column of the tree compresses.
   - **No field prefix.** The analyzer is chosen per (entity type, locale), so a surface form stems the same way in
     every field; one entry serves `title`, `perex` and `body`. A per-attribute analyzer seam (P1 measurements part 5)
-    would break this and would need the field prefix back.
+    would break this and would need the field prefix back. *Superseded 2026-10-30 (§13.1): per-field analyzer
+    profiles arrive in F1, and the key gains a word-phase prefix rather than a field prefix.*
   - **Value: a reference counter** — the number of (entity, field) values containing the pair. `addValue` increments
     the counter of every pair of the value, `removeValue` re-analyses the old value (it already does, to find the
     postings to remove) and decrements; at zero the key is removed. Without the counter the lane cannot tell when
@@ -418,7 +424,8 @@ typo cases — one structure, not two.
   change;
 - the counter's exact unit (per (entity, field) value as proposed, or per entity), which decides how `removeValue`
   updates it;
-- whether the lane needs a field prefix after all, if per-attribute analyzers arrive.
+- whether the lane needs a field prefix after all, if per-attribute analyzers arrive. *Answered 2026-10-30: a
+  word-phase prefix, not a field prefix (§13.1).*
 
 ---
 
@@ -2651,3 +2658,153 @@ the add does not include.
   reindexing the documents. What remains unmeasured is the transactional maintenance of precomputed bitmaps
   (P2), the persistence format, and the same measurement on P1's real catalog, whose skew this synthetic catalog
   only imitates.
+
+---
+
+## 13. Amendments of 2026-10-30: per-field analyzer profiles and the phase-1 budget
+
+> Decided on 2026-10-30, when the implementation specification was reviewed against the F1 plan of the fulltext
+> query side. Two things the extraction of 2026-10-21 could not take into account: **per-field analyzer profiles**,
+> which F1 builds before typo tolerance, and the **measured phase-1 cost** of the real query path. The algorithm
+> document carries the rules; this section carries the reasons and the options that lost.
+
+**The profiles, in short.** Every searchable field references a named analyzer profile defined at catalog level
+(`searchable().analyzer("html-text")`, default `text`). Only word splitting - the tokenizer - stays shared per
+catalog and language, because `textMatches` requires word *i* to mean the same in every searched field. Everything
+that keeps word positions may differ per field: character filters such as HTML stripping (the *text phase*), and
+the word steps - stop lists, protected words, the stemmer, folding (the *word phase*). A query is analysed once per
+distinct profile among the searched fields, a **profile group** (typically one to three), and each group expands
+its words against its own fields only.
+
+### 13.1 The surface-form lane gains a word-phase prefix
+
+§3.4 keys the lane without a field because "the analyzer is chosen per (entity type, locale), so a surface form
+stems the same way in every field". With profiles that premise is gone, and a lane hit leaks a stem into fields
+whose analyzer never produced it. Example: `description` uses the default Czech profile, which stems; `brand` uses
+a profile without stemming. "černé" in a description puts `cerne␀cern␀černé` into the lane, and some brand is
+literally "Cern". The query "černé boty" hits the lane at distance 0, the hit yields `cern`, `cern` is looked up in
+`brand` as well, and the "Cern" brand matches - ranked as an exact hit. `brand`'s own query side produces `cerne`
+and would have found nothing.
+
+**Decided:** the key is `wordPhase␀folded␀stem␀accented`. `wordPhase` is a short fixed-width id of the **index side
+of a profile's word phase** - its steps, their parameters and the contents of the resources they read; the text
+phase is not part of it, so `text` and `html-text`, which differ only in HTML stripping, share entries. Each id
+names one such definition in a small table persisted with the index. A walk runs once per distinct id among the
+searched fields and stays inside that id's key range - the fixed-width-prefix technique the stem dictionary already
+uses for fields. When all searchable fields of a collection share one word phase, the common case, the lane holds
+exactly the keys §3.4 measured, plus the prefix. A field retired because its index side changed keeps its lane
+entries under the old id, read by no group, for as long as its postings stay (until #409 rebuilds it).
+
+Options that lost:
+
+- **A field prefix**, `field␀folded␀stem␀accented` - the fix §3.4 itself named. Rejected because it multiplies the
+  walks by the searched fields (three on the CMS corpus, where the 1.5 ms term-leg budget of §11 was measured with
+  one lane walk per word) and stores a surface form once for every field holding it - unmeasured, and largest for
+  the long-text fields that hold most forms. Revisit if real schemas give nearly every field its own word phase, at
+  which point the word-phase prefix degenerates into a field prefix anyway.
+- **No prefix, the value holding a counter per word phase.** One walk in total and the least memory, but the walk
+  cannot skip another group's entries, every hit needs a filter, and the counter becomes a small map. Rejected
+  because the lane is walked under the keystroke budget, where skipping a key range beats filtering inside it, and
+  the memory it saves exists only when profiles differ - the uncommon case.
+- **Forbidding differences that change the word-to-term mapping** (every searchable field of one collection and
+  locale shares stemmer, protected words and folding). Keeps §3.4 as written, but reverses the per-field analyzer
+  design agreed for F1 on 2026-10-09 and 2026-10-15, which lets everything that keeps word positions differ per
+  field.
+
+### 13.2 The lane folds the way the field's profile folds
+
+§3.4 I1 folds the surface form with the `ASCIIFoldingFilter` of the Czech search chain. That is a Czech assumption
+even without profiles: the built-in English chain folds nothing, and German folds its umlauts and `ß` in
+`GermanNormalizationFilter` but keeps `é`. A fixed fold makes the lane accent-insensitive where the analyzer is not:
+in an English index the typed `cafe` would hit `cafe␀café␀café` at distance 0 and match "café" as an exact hit, which
+the English chain itself never does. With profiles, folding is a step of the profile (`asciiFolding()`, or the fold
+inside cs/sk/pl/ro stemming).
+
+**Decided:** the `folded` part of the key is the surface form as the profile's **query side** hands it to its
+stemmer - lowercased, and folded exactly when the profile folds. The typed word the lane walk searches is normalized
+by the same steps, so both sides of the comparison agree by construction. The `accented` part is unchanged. The
+name `folded` is kept for continuity; for a profile that does not fold it is merely lowercased.
+
+### 13.3 The cap counts per profile group, and a postings safety net bounds the query
+
+**Scope of the cap.** §7.1 caps each leg at 50 terms per query word, counted across the word's variants and both
+dictionaries. With profile groups, the stems one group produces are looked up only in that group's fields, so a
+union across groups mixes stems that never meet, and a shared cap would let the group with the largest dictionary
+(a body text) crowd out a small one (a title). **Decided:** 50 per leg per (query word, profile group). A catalog
+without per-field profiles has one group, and nothing changes for it.
+
+**Postings safety net.** P1 measured that a cap must hold summed postings, never only a term count
+([`p1-index-core-measurements.md`](p1-index-core-measurements.md) §3.4): expansion widths are so skewed - median 146
+postings, p99 1,046,822 in one cell - that a term cap admits one term carrying a million postings, and §7.1's
+document-frequency order keeps exactly the largest posting lists first. With two edits and the term cap, 1 % of
+submitted queries already exceed the 25 ms budget (§9 item 5, p99 24.9 ms). **Decided:** both caps. The term cap of §7.1 applies first, unchanged; then
+the summed postings of the whole query - exact expansions included - are held under the limit the phase-1 cost
+model gives for the budget of the query type. P1's prototype coefficients (`2.4 ns × candidates + 32 ns × postings +
+21 ns × matched`) do not describe the real query path: they overpredict common-word queries 4-52× and have no fixed
+cost per query. The model was therefore refitted on 2026-10-30.
+
+**The refit.** `TextMatchesQueryBenchmark` (`evita_performance_tests`) ran `textMatches` through the query planner,
+plain and with `orderBy(relevance())`, on the CMS corpus (972,611 articles) and the e-commerce corpus (133,879
+products): query length 1-3 words × three frequency classes, 32 sampled queries per cell, 3 forks, each query's
+median taken across forks (288 queries per method and corpus). The fit is on the CMS corpus, the check on the
+e-commerce one (median predicted/measured ratio 0.90; that run had a busier machine).
+
+| model | fixed | per extra word | per posting | per matched document |
+|---|---|---|---|---|
+| ranked, sparse posting lists, both corpora - **used for the cap** | 12.1 µs | 4.5 µs | 7.0 ns | 13.5 ns |
+| the same, conservative | 12.1 µs | 4.5 µs | 12.5 ns | 13.5 ns |
+| ranked, all CMS queries | 13.1 µs | 3.8 µs | 4.0 ns | 13.1 ns |
+| plain (filter only), all CMS queries | 12.0 µs | 3.8 µs | 0.3 ns | 0 |
+
+Median error 22 % ranked, 38 % plain. The cost per posting follows the **density** of the posting lists, not the
+corpus size: sparse lists cost 6-8 ns per posting, dense ones 0.3-4 ns (RoaringBitmap array containers run scalar
+code, bitmap containers vectorized code); P1's L2-cache effect did not reproduce. Typo and prefix expansions add
+mostly sparse lists, so the cap uses the sparse rate. With the budget at 25 ns × N (N documents in the searched
+collection and locale) and the matched-document term bounded before execution by the smallest word's postings:
+
+| N | postings cap, 1 / 2 / 3 words | conservative (12.5 ns per posting) |
+|---|---|---|
+| 1,000,000 | 1.64 M / 1.82 M / 2.18 M | 0.96 M / 1.30 M / 1.47 M |
+| 133,879 | 0.22 M / 0.24 M / 0.29 M | 0.13 M / 0.17 M / 0.20 M |
+
+Limits of the refit: the sparse fit covers queries of at most 177,000 summed postings (CMS) and 25,000 (e-commerce),
+about 10× short of the caps; it does not include the cost of unioning the ~150 posting lists a 50-term expansion
+brings per word; pricing each word by its own list density (known before execution) would tighten it. The cap trims
+expansions and never rejects a query. Both the coefficients and the caps are to be measured again once typo
+tolerance is built.
+
+**Still open:** which expansions the net drops when it bites. Exact expansions are never dropped. Two candidate
+rules for the typo and prefix expansions, both deterministic:
+
+- *skip and continue* - visit the expansions in their leg order and skip any whose postings would push the sum past
+  the limit; smaller ones behind it still fit, so the giants go first;
+- *stop at the limit* - keep expansions in leg order until the limit is reached, drop the rest; the most frequent
+  survive, which suits completions on the as-you-type path.
+
+### 13.4 `EXACTNESS` ranks above impact
+
+§3.2 Q5 and §3.3 order the composite matched words → typos → impact → exactness → context. §7.8 states that "a
+prefix hit never outranks an exact hit with the same number of typos", and behaviour example U7 ("while typing,
+exact ranks above prefix", §10.4) checks it - but `TypoToleranceBehaviourTest` leaves the impact lane out (one field,
+no weights), and with impact above exactness the statement does not hold. Example: a submitted search for `kabel`.
+"Kabel USB-C" matches exactly; "Kabelka kožená" matches through the prefix leg of the last word (stem `kabelk`). Both
+have zero typos, so with impact above exactness the handbag outranks the cable whenever its impact is higher - a
+shorter name is enough.
+
+F1 also turns the impact lane into accumulated evidence - a weighted, saturating sum over every field and every
+referenced entity that matches - under the rule that the quality lanes (matched words, typos, exactness) rank
+lexicographically above evidence, so that no amount of evidence can outbid quality. **Decided:** the default order
+is matched words → typos → exactness → impact → context. The `TYPO` lane as a sum over query words and the four
+`EXACTNESS` classes (exact > prefix > fuzzy(1) > fuzzy(2)) stay as specified, and lane order stays a rank-profile
+choice.
+
+Rejected: **impact above exactness** - the order of §3.2, and where Meilisearch puts its `exactness` rule (last).
+Rejected because it contradicts §7.8's own rule as soon as impact is present, and because accumulated evidence would
+let many weak partial matches outbid an exact one.
+
+### 13.5 What did not change
+
+The thresholds (§7.1), the frozen first letter, transpositions, the cap value of 50 and its order, the prefix and
+open-ended-walk rules of the last word (§7.8, §11), the two query types and their consistency invariant (§11.6), the
+configuration layers (§7.7), and the lane's purpose and accepted cost (§3.4) - except that the cost now applies per
+distinct word phase.

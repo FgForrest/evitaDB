@@ -626,7 +626,8 @@ class SchemaMutationCombinationAcrossRenameTest {
 			}
 		};
 		return CatalogSchema._internalBuild(1, "test", NamingConvention.generate("test"), null, null,
-			EnumSet.allOf(CatalogEvolutionMode.class), attributes, provider);
+			EnumSet.allOf(CatalogEvolutionMode.class), attributes, Map.of(), Map.of(), Map.of(), provider
+		);
 	}
 
 	/**

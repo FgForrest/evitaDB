@@ -106,6 +106,7 @@ import io.evitadb.core.transaction.engine.EngineTransactionManager;
 import io.evitadb.core.transaction.engine.operators.DefaultUpgradeExecutor;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
+import io.evitadb.index.fulltext.typo.FulltextTypoParameters;
 import io.evitadb.roaringbitmap.RoaringKernels;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.wal.VersionSource;
@@ -220,6 +221,8 @@ public final class Evita implements EvitaContract {
 	 * Field contains the global - shared configuration for the entire Evita instance.
 	 */
 	@Getter private final EvitaConfiguration configuration;
+	/** Query-side fulltext policy mapped once from the API configuration. */
+	@Getter private final FulltextTypoParameters fulltextTypoParameters;
 	/**
 	 * Resolves the on-disk directory holding a catalog's data. This is the single sanctioned way to answer
 	 * "which folder is catalog `X`?" — see {@link CatalogFolderResolver} for why the catalog
@@ -511,6 +514,7 @@ public final class Evita implements EvitaContract {
 		}
 
 		this.configuration = configuration;
+		this.fulltextTypoParameters = new FulltextTypoParameters(configuration.fulltext());
 		this.onSessionCreationCallback = onSessionCreationCallback == null ?
 			Functions.noOpConsumer() : onSessionCreationCallback;
 		this.onSessionTerminationCallback = onSessionTerminationCallback == null ?

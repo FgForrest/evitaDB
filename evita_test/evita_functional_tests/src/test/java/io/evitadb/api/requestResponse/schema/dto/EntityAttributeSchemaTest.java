@@ -29,6 +29,8 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeU
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -92,7 +94,8 @@ class EntityAttributeSchemaTest {
 				Integer.class, 10,
 				0,
 				ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertEquals("priority", schema.getName());
@@ -117,7 +120,8 @@ class EntityAttributeSchemaTest {
 				false, false, false,
 				String.class, null, 0,
 				ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertEquals(
@@ -194,7 +198,8 @@ class EntityAttributeSchemaTest {
 				false, false, false,
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			final String result = schema.toString();

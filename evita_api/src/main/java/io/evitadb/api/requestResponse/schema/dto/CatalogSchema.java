@@ -34,6 +34,9 @@ import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextLanguageSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextResourceSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
@@ -57,6 +60,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -74,7 +78,7 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 @EqualsAndHashCode(of = {"version", "name"})
 public final class CatalogSchema implements CatalogSchemaContract {
-	@Serial private static final long serialVersionUID = -1582409928666780011L;
+	@Serial private static final long serialVersionUID = -1582409928666780010L;
 
 	private final int version;
 	@Getter @Nonnull private final String name;
@@ -94,6 +98,18 @@ public final class CatalogSchema implements CatalogSchemaContract {
 	 * where reference to {@link AttributeSchemaContract} is placed on index of naming convention that matches the key.
 	 */
 	private final Map<String, GlobalAttributeSchema[]> attributeNameIndex;
+	/**
+	 * Word splitting declared per language for fulltext, keyed by ISO 639 language code.
+	 */
+	@Nonnull private final Map<String, FulltextLanguageSchemaContract> fulltextLanguages;
+	/**
+	 * Named fulltext resources (lists analysis steps read by name), keyed by name.
+	 */
+	@Nonnull private final Map<String, FulltextResourceSchemaContract> fulltextResources;
+	/**
+	 * Named fulltext analyzers declared in the catalog, keyed by name.
+	 */
+	@Nonnull private final Map<String, FulltextAnalyzerSchemaContract> fulltextAnalyzers;
 	/**
 	 * Function allows accessing actual entity schemas of catalog entity collections.
 	 */
@@ -117,6 +133,9 @@ public final class CatalogSchema implements CatalogSchemaContract {
 		return new CatalogSchema(
 			1, name, nameVariants, null, conflictResolution, evolutionMode,
 			Collections.emptyMap(),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
 			entitySchemaAccessor
 		);
 	}
@@ -135,11 +154,17 @@ public final class CatalogSchema implements CatalogSchemaContract {
 		@Nullable ConflictResolution conflictResolution,
 		@Nonnull Set<CatalogEvolutionMode> evolutionMode,
 		@Nonnull Map<String, GlobalAttributeSchemaContract> attributes,
+		@Nonnull Map<String, FulltextLanguageSchemaContract> fulltextLanguages,
+		@Nonnull Map<String, FulltextResourceSchemaContract> fulltextResources,
+		@Nonnull Map<String, FulltextAnalyzerSchemaContract> fulltextAnalyzers,
 		@Nonnull EntitySchemaProvider entitySchemaAccessor
 	) {
 		return new CatalogSchema(
 			version, name, nameVariants, description, conflictResolution, evolutionMode,
 			attributes,
+			fulltextLanguages,
+			fulltextResources,
+			fulltextAnalyzers,
 			entitySchemaAccessor
 		);
 	}
@@ -164,6 +189,9 @@ public final class CatalogSchema implements CatalogSchemaContract {
 				baseSchema.getConflictResolution().orElse(null),
 				baseSchema.getCatalogEvolutionMode(),
 				baseSchema.getAttributes(),
+				baseSchema.getFulltextLanguages(),
+				baseSchema.getFulltextResources(),
+				baseSchema.getFulltextAnalyzers(),
 				new EntitySchemaProvider() {
 					@Nonnull
 					@Override
@@ -200,6 +228,9 @@ public final class CatalogSchema implements CatalogSchemaContract {
 				baseSchema.getConflictResolution().orElse(null),
 				baseSchema.getCatalogEvolutionMode(),
 				baseSchema.getAttributes(),
+				baseSchema.getFulltextLanguages(),
+				baseSchema.getFulltextResources(),
+				baseSchema.getFulltextAnalyzers(),
 				entitySchemaAccessor
 			);
 	}
@@ -223,6 +254,46 @@ public final class CatalogSchema implements CatalogSchemaContract {
 			baseSchema.getConflictResolution().orElse(null),
 			baseSchema.getCatalogEvolutionMode(),
 			baseSchema.getAttributes(),
+			baseSchema.getFulltextLanguages(),
+			baseSchema.getFulltextResources(),
+			baseSchema.getFulltextAnalyzers(),
+			entitySchemaAccessor
+		);
+	}
+
+	/**
+	 * This method is for internal purposes only. It builds the next version of the catalog schema that differs from
+	 * the base schema only in its fulltext languages, resources and analyzers - what the fulltext schema mutations
+	 * change.
+	 *
+	 * Do not use this method from in the client code!
+	 *
+	 * @param baseSchema           the schema to derive the next version from
+	 * @param fulltextLanguages    the word splitting per language of the new version, keyed by ISO 639 code
+	 * @param fulltextResources    the fulltext resources of the new version, keyed by name
+	 * @param fulltextAnalyzers    the fulltext analyzers of the new version, keyed by name
+	 * @param entitySchemaAccessor the accessor of the entity schemas
+	 * @return the next version of the schema
+	 */
+	@Nonnull
+	public static CatalogSchema _internalBuildWithFulltext(
+		@Nonnull CatalogSchemaContract baseSchema,
+		@Nonnull Map<String, FulltextLanguageSchemaContract> fulltextLanguages,
+		@Nonnull Map<String, FulltextResourceSchemaContract> fulltextResources,
+		@Nonnull Map<String, FulltextAnalyzerSchemaContract> fulltextAnalyzers,
+		@Nonnull EntitySchemaProvider entitySchemaAccessor
+	) {
+		return new CatalogSchema(
+			baseSchema.version() + 1,
+			baseSchema.getName(),
+			baseSchema.getNameVariants(),
+			baseSchema.getDescription(),
+			baseSchema.getConflictResolution().orElse(null),
+			baseSchema.getCatalogEvolutionMode(),
+			baseSchema.getAttributes(),
+			fulltextLanguages,
+			fulltextResources,
+			fulltextAnalyzers,
 			entitySchemaAccessor
 		);
 	}
@@ -348,7 +419,8 @@ public final class CatalogSchema implements CatalogSchemaContract {
 				attributeSchemaContract.getDefaultValue(),
 				attributeSchemaContract.getIndexedDecimalPlaces(),
 				attributeSchemaContract.getConflictResolutionOverride(),
-				attributeSchemaContract.getNormalization()
+				attributeSchemaContract.getNormalization(),
+				attributeSchemaContract.getAnalyzer(), attributeSchemaContract.getLengthPivot()
 			);
 	}
 
@@ -360,6 +432,9 @@ public final class CatalogSchema implements CatalogSchemaContract {
 		@Nullable ConflictResolution conflictResolution,
 		@Nonnull Set<CatalogEvolutionMode> catalogEvolutionMode,
 		@Nonnull Map<String, GlobalAttributeSchemaContract> attributes,
+		@Nonnull Map<String, FulltextLanguageSchemaContract> fulltextLanguages,
+		@Nonnull Map<String, FulltextResourceSchemaContract> fulltextResources,
+		@Nonnull Map<String, FulltextAnalyzerSchemaContract> fulltextAnalyzers,
 		@Nonnull EntitySchemaProvider entitySchemaAccessor
 	) {
 		this.version = version;
@@ -378,6 +453,10 @@ public final class CatalogSchema implements CatalogSchemaContract {
 			);
 
 		this.attributeNameIndex = _internalGenerateNameVariantIndex(this.attributes.values(), GlobalAttributeSchema::getNameVariants);
+		// sorted copies keep the iteration order - and so the serialized form - independent of the mutation order
+		this.fulltextLanguages = Collections.unmodifiableMap(new TreeMap<>(fulltextLanguages));
+		this.fulltextResources = Collections.unmodifiableMap(new TreeMap<>(fulltextResources));
+		this.fulltextAnalyzers = Collections.unmodifiableMap(new TreeMap<>(fulltextAnalyzers));
 		this.entitySchemaAccessor = entitySchemaAccessor;
 	}
 
@@ -434,6 +513,24 @@ public final class CatalogSchema implements CatalogSchemaContract {
 			.map(it -> it[namingConvention.ordinal()]);
 	}
 
+	@Nonnull
+	@Override
+	public Map<String, FulltextLanguageSchemaContract> getFulltextLanguages() {
+		return this.fulltextLanguages;
+	}
+
+	@Nonnull
+	@Override
+	public Map<String, FulltextResourceSchemaContract> getFulltextResources() {
+		return this.fulltextResources;
+	}
+
+	@Nonnull
+	@Override
+	public Map<String, FulltextAnalyzerSchemaContract> getFulltextAnalyzers() {
+		return this.fulltextAnalyzers;
+	}
+
 	@Override
 	public boolean differsFrom(CatalogSchemaContract otherObject) {
 		if (this == otherObject) return false;
@@ -443,7 +540,10 @@ public final class CatalogSchema implements CatalogSchemaContract {
 				this.attributes.equals(otherObject.getAttributes()) &&
 				// a change to the catalog-level conflict resolution (e.g. via
 				// ModifyCatalogSchemaConflictResolutionMutation alone) is a real schema difference
-				Objects.equals(this.conflictResolution, otherObject.getConflictResolution().orElse(null))
+				Objects.equals(this.conflictResolution, otherObject.getConflictResolution().orElse(null)) &&
+				this.fulltextLanguages.equals(otherObject.getFulltextLanguages()) &&
+				this.fulltextResources.equals(otherObject.getFulltextResources()) &&
+				this.fulltextAnalyzers.equals(otherObject.getFulltextAnalyzers())
 		);
 	}
 
@@ -452,9 +552,22 @@ public final class CatalogSchema implements CatalogSchemaContract {
 		// the catalog's own global attributes are validated here rather than by the collections that adopt them - a
 		// global attribute exists even while no collection uses it, and a collection-side check would report the same
 		// problem once per adopting collection
-		final List<String> errors = this.attributes.values()
-			.stream()
-			.flatMap(GlobalAttributeSchemaContract::validate)
+		final List<String> errors = Stream.concat(
+				this.attributes.values()
+					.stream()
+					.flatMap(
+						attribute -> Stream.concat(
+							attribute.validate(),
+							FulltextSchemaValidator.validateAnalyzerReference(
+								"Global attribute `" + attribute.getName() + "`", attribute.getAnalyzer(),
+								this.fulltextAnalyzers
+							)
+						)
+					),
+				// analyzers refer to each other and to resources by name: the references are checked on the schema
+				// an update produces as a whole, so one update may re-point them and remove the target together
+				FulltextSchemaValidator.validate(this.fulltextResources, this.fulltextAnalyzers)
+			)
 			.map(it -> "\t" + it)
 			.toList();
 		if (!errors.isEmpty()) {

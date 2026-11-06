@@ -25,6 +25,7 @@ package io.evitadb.index.attribute;
 
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.executor.Scheduler;
@@ -32,7 +33,7 @@ import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.function.Functions;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.ChainIndex.ChainDescriptor;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -40,18 +41,18 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.component.loader.AttributeIndexLoader;
 import io.evitadb.index.component.loader.LoadContext;
-import io.evitadb.index.component.loader.LoadedComponentBundle;
 import io.evitadb.index.component.loader.LoadedComponentBundle.AttributeIndexes;
+import io.evitadb.index.component.loader.LoadedComponentBundle;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
-import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
-import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.KeyCompressorSnapshot;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.KeyCompressorSnapshot;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
@@ -62,8 +63,8 @@ import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
-import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
+import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.OffsetIndexSerializationService.FileLocationAndWrittenBytes;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
@@ -83,6 +84,7 @@ import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -92,8 +94,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -136,7 +138,7 @@ class ChainIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 	 * The analyzer registry every load context carries. These manifests list no fulltext index, so it is never asked
 	 * for an analyzer and holds nothing that would need closing.
 	 */
-	private static final FulltextAnalyzerRegistry ANALYZER_REGISTRY = new FulltextAnalyzerRegistry();
+	private static final FulltextAnalyzerRegistry ANALYZER_REGISTRY = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 	private static final String ENTITY_TYPE = "product";
 	private static final int ENTITY_INDEX_PK = 7;
 	private static final AttributeIndexKey CHAIN_KEY = new AttributeIndexKey(null, "order", null);
@@ -267,21 +269,9 @@ class ChainIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 			new BaseBitmap(), new HashMap<Locale, TransactionalBitmap>(0),
 			manifestKeys, Set.of(), false, Set.of(), Set.of(), Set.of()
 		);
-		return new LoadContext(
-			PERSISTED_VERSION,
-			ENTITY_INDEX_PK,
-			EntitySchema._internalBuild(ENTITY_TYPE),
-			ENTITY_INDEX_KEY,
-			manifest,
-			manifest.getVersion(),
-			EmptyBitmap.INSTANCE,
-			Map.of(),
-			service,
-			null,
-			true,
-			ANALYZER_REGISTRY,
-			AttributeNormalizationResolver.LEGACY_NFD
-		);
+		return new LoadContext(PERSISTED_VERSION, ENTITY_INDEX_PK, EntitySchema._internalBuild(ENTITY_TYPE),
+			ENTITY_INDEX_KEY, manifest, manifest.getVersion(), EmptyBitmap.INSTANCE, Map.of(), service, null, true,
+			AttributeNormalizationResolver.LEGACY_NFD);
 	}
 
 	@Nonnull

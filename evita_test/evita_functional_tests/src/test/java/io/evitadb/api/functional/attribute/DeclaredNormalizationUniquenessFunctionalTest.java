@@ -32,7 +32,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
-import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
+import io.evitadb.api.requestResponse.schema.analysis.NormalizingAnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
@@ -123,15 +123,15 @@ class DeclaredNormalizationUniquenessFunctionalTest implements EvitaTestSupport 
 				for (final boolean control : List.of(false, true)) {
 					final String suffix = control ? "Control" : "";
 					schema = schema.withAttribute("owner" + suffix, String.class,
-						a -> a.unique().nullable().normalized(control ? new AnalysisStep[0] :
-							new AnalysisStep[]{lowercase()}))
+						a -> a.unique().nullable().normalized(control ? new NormalizingAnalysisStep[0] :
+							new NormalizingAnalysisStep[]{lowercase()}))
 						.withAttribute("within" + suffix, String.class,
 							a -> a.localized().uniqueWithinLocale().nullable()
-							.normalized(control ? new AnalysisStep[0] :
-								new AnalysisStep[]{lowercase()}))
+							.normalized(control ? new NormalizingAnalysisStep[0] :
+								new NormalizingAnalysisStep[]{lowercase()}))
 						.withAttribute("across" + suffix, String.class, a -> a.localized().unique().nullable()
-							.normalized(control ? new AnalysisStep[0] :
-								new AnalysisStep[]{lowercase()}));
+							.normalized(control ? new NormalizingAnalysisStep[0] :
+								new NormalizingAnalysisStep[]{lowercase()}));
 				}
 				schema.updateVia(session);
 			}

@@ -23,13 +23,15 @@
 
 package io.evitadb.index.fulltext.typo;
 
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.test.fulltext.CzechLexicon;
 import io.evitadb.test.fulltext.CzechStemDictionary;
-import io.evitadb.test.fulltext.TypoExpansion;
+import io.evitadb.test.fulltext.FulltextAnalysisTestSupport;
 import io.evitadb.test.fulltext.TypoExpansion.QueryWord;
+import io.evitadb.test.fulltext.TypoExpansion;
 import io.evitadb.utils.CollectionUtils;
 import org.apache.lucene.analysis.cz.CzechStemmer;
 import org.junit.jupiter.api.AfterAll;
@@ -40,6 +42,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -86,9 +89,10 @@ class PrefixVersusExactExpansionTest {
 
 	@BeforeAll
 	static void setUpAnalyzers() {
-		registry = new FulltextAnalyzerRegistry();
-		searchAnalyzer = registry.getSearchAnalyzer(ENTITY_TYPE, CZECH);
-		indexAnalyzer = registry.getIndexAnalyzer(ENTITY_TYPE, CZECH);
+		registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
+		searchAnalyzer = FulltextAnalysisTestSupport.queryAnalyzer(CZECH);
+		indexAnalyzer = registry.getCompiledAnalyzer(
+			FulltextAnalysisTestSupport.SCHEMA, "text", CZECH).indexSurface();
 	}
 
 	@AfterAll

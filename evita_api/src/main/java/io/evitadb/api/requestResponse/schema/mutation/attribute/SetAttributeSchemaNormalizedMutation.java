@@ -79,7 +79,9 @@ public class SetAttributeSchemaNormalizedMutation
 		@Nonnull String name, @Nullable AnalysisStep... normalization
 	) {
 		super(name);
-		this.normalization = normalization == null ? new AnalysisStep[0] : normalization.clone();
+		// copied into an `AnalysisStep[]`: the typed array an editor passes would refuse an untyped step stored into it
+		this.normalization = normalization == null ?
+			new AnalysisStep[0] : Arrays.copyOf(normalization, normalization.length, AnalysisStep[].class);
 	}
 
 	/**
@@ -155,7 +157,8 @@ public class SetAttributeSchemaNormalizedMutation
 					globalAttributeSchema.getDefaultValue(),
 					globalAttributeSchema.getIndexedDecimalPlaces(),
 					globalAttributeSchema.getConflictResolutionOverride(),
-					steps
+					steps,
+					globalAttributeSchema.getAnalyzer(), globalAttributeSchema.getLengthPivot()
 				);
 			}
 		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
@@ -180,7 +183,8 @@ public class SetAttributeSchemaNormalizedMutation
 					entityAttributeSchema.getDefaultValue(),
 					entityAttributeSchema.getIndexedDecimalPlaces(),
 					entityAttributeSchema.getConflictResolutionOverride(),
-					steps
+					steps,
+					entityAttributeSchema.getAnalyzer(), entityAttributeSchema.getLengthPivot()
 				);
 			}
 		} else {
@@ -205,7 +209,8 @@ public class SetAttributeSchemaNormalizedMutation
 					attributeSchema.getDefaultValue(),
 					attributeSchema.getIndexedDecimalPlaces(),
 					attributeSchema.getConflictResolutionOverride(),
-					steps
+					steps,
+					attributeSchema.getAnalyzer(), attributeSchema.getLengthPivot()
 				);
 			}
 		}

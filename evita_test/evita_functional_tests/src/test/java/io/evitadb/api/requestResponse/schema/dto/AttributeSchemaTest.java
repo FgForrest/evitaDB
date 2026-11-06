@@ -36,6 +36,7 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -108,7 +109,8 @@ class AttributeSchemaTest {
 				Integer.class, 0,
 				0,
 				ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertEquals("priority", schema.getName());
@@ -147,7 +149,8 @@ class AttributeSchemaTest {
 				false, false, false,
 				String.class, null, 0,
 				ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertEquals(
@@ -207,7 +210,8 @@ class AttributeSchemaTest {
 				false, false, false,
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertTrue(schema.isUniqueInScope(Scope.LIVE));
@@ -230,7 +234,8 @@ class AttributeSchemaTest {
 				true, false, false,
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertTrue(schema.isUniqueInScope(Scope.LIVE));
@@ -250,7 +255,8 @@ class AttributeSchemaTest {
 				false, false, false,
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertEquals(AttributeUniquenessType.NOT_UNIQUE, schema.getUniquenessType(Scope.ARCHIVED));
@@ -275,7 +281,8 @@ class AttributeSchemaTest {
 				false, false, false,
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertTrue(schema.isFilterableInScope(Scope.LIVE));
@@ -293,7 +300,8 @@ class AttributeSchemaTest {
 				false, false, false,
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			assertTrue(schema.isSortableInScope(Scope.LIVE));
@@ -417,7 +425,8 @@ class AttributeSchemaTest {
 					false, false, false,
 					Integer.class, null, 0,
 					ConflictResolutionOverride.INHERITED,
-					null
+					null,
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 				)
 			);
 			assertSame(InvalidSchemaMutationException.class, exception.getClass());
@@ -460,7 +469,8 @@ class AttributeSchemaTest {
 				false, false, false,
 				String.class, null, 0,
 				ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 		}
 	}
@@ -694,7 +704,8 @@ class AttributeSchemaTest {
 				false, false, false,
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 
 			final String result = schema.toString();

@@ -27,6 +27,7 @@ import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import io.evitadb.api.exception.ReferencePartitionReindexRequiredException;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
@@ -83,6 +84,7 @@ import io.evitadb.function.TriConsumer;
 import io.evitadb.index.*;
 import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor;
 import io.evitadb.index.mutation.EntityIndexMutation;
 import io.evitadb.index.mutation.IndexImplicitMutations;
@@ -105,6 +107,7 @@ import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleScope;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleWithScope;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
@@ -259,10 +262,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	@Nonnull private final SchemaCapabilityUsageRegistry catalogUsageRegistry;
 	/**
-	 * The catalog's analyzer registry, which supplies the analyzer a fulltext index of a locale is created with when a
-	 * searchable value is written into a locale that has none yet.
+	 * The catalog's analyzer registry, which supplies the compiled analysis of every fulltext field this mutation
+	 * writes - the chain its values are indexed and removed with, and the fingerprint its field is checked against.
 	 */
 	@Nonnull private final FulltextAnalyzerRegistry fulltextAnalyzerRegistry;
+	/** Supplies the current catalog schema, including changes made earlier in this session. */
+	@Nonnull private final Supplier<CatalogSchemaContract> catalogSchemaSupplier;
 	/**
 	 * Whether this mutation counts the index-maintenance effort it costs - the server-wide
 	 * `server.usageStatisticsTracking` switch, resolved once when the executor is built.
@@ -496,8 +501,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @param entityTypeClassifierResolver resolves an entity type name to its compact primary key and back
 	 * @param usageRegistry                the usage counters of the collection written into
 	 * @param catalogUsageRegistry         the usage counters of the catalog written into
-	 * @param fulltextAnalyzerRegistry     the catalog-owned analyzer registry, which supplies the analyzer when the
-	 *                                     fulltext index of a locale is first created
+	 * @param fulltextAnalyzerRegistry     the catalog-owned cache supplying each field's current compiled analysis
+	 * @param catalogSchemaSupplier        supplies the current catalog schema
 	 * @param normalizationResolver        the collection's resolver for new attribute index structures
 	 * @param usageStatisticsTracking      whether the mutation counts the index-maintenance effort it costs
 	 * @param partitionReservations        the reservations of the root mutation the executor belongs to, shared by all
@@ -518,6 +523,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull SchemaCapabilityUsageRegistry usageRegistry,
 		@Nonnull SchemaCapabilityUsageRegistry catalogUsageRegistry,
 		@Nonnull FulltextAnalyzerRegistry fulltextAnalyzerRegistry,
+		@Nonnull Supplier<CatalogSchemaContract> catalogSchemaSupplier,
 		@Nonnull AttributeNormalizationResolver normalizationResolver,
 		boolean usageStatisticsTracking,
 		@Nonnull PartitionReservations partitionReservations
@@ -526,7 +532,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			containerAccessor, entityPrimaryKey, entityIndexCreatingAccessor, catalogIndexCreatingAccessor,
 			schemaAccessor, priceInternalIdSupplier, fullEntitySupplier, triggerRegistrySupplier,
 			localFacetTriggerSupplier, crossEntitySchemaResolver, entityTypeClassifierResolver, usageRegistry,
-			catalogUsageRegistry, fulltextAnalyzerRegistry, normalizationResolver, usageStatisticsTracking, true,
+			catalogUsageRegistry, fulltextAnalyzerRegistry, catalogSchemaSupplier, normalizationResolver,
+			usageStatisticsTracking, true,
 			partitionReservations
 		);
 	}
@@ -534,11 +541,29 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Creates the index executor of one entity's local mutations.
 	 *
-	 * @param partitionRegistryWritten TRUE when the executor writes the registry of single-owner partitions, FALSE
-	 *                                 only for an executor writing as another owner of a partition - see
-	 *                                 {@link #partitionRegistryWritten}
-	 * @param partitionReservations    the reservations of the root mutation the executor belongs to, shared by all its
-	 *                                 executors - see {@link PartitionReservations}
+	 * @param containerAccessor            accessor of the current and previous storage containers of the entity
+	 * @param entityPrimaryKey             primary key of the mutated entity
+	 * @param entityIndexCreatingAccessor  accessor that creates or removes the entity indexes of the collection
+	 * @param catalogIndexCreatingAccessor accessor that creates or removes the catalog indexes
+	 * @param schemaAccessor               supplies the current entity schema
+	 * @param priceInternalIdSupplier      sequence assigning new price internal ids
+	 * @param fullEntitySupplier           supplies the full entity body, needed when the entity changes its scope
+	 * @param triggerRegistrySupplier      supplies the catalog registry of cross-entity expression triggers, or
+	 *                                     `null` when cross-entity triggers are not evaluated
+	 * @param localFacetTriggerSupplier    supplies the local facet expression trigger of a reference and scope, or
+	 *                                     `null` when no local expression is evaluated
+	 * @param crossEntitySchemaResolver    resolves an entity type to its schema across the catalog, or `null` to
+	 *                                     resolve only this executor's own entity schema
+	 * @param entityTypeClassifierResolver resolves an entity type name to its compact primary key and back
+	 * @param usageRegistry                the usage counters of the collection written into
+	 * @param catalogUsageRegistry         the usage counters of the catalog written into
+	 * @param fulltextAnalyzerRegistry     the catalog-owned cache supplying each field's current compiled analysis
+	 * @param catalogSchemaSupplier        supplies the current catalog schema
+	 * @param normalizationResolver        the collection's resolver for new attribute index structures
+	 * @param usageStatisticsTracking      whether the mutation counts the index-maintenance effort it costs
+	 * @param partitionRegistryWritten     whether this executor maintains the single-owner partition registry
+	 * @param partitionReservations        the reservations of the root mutation the executor belongs to, shared by all
+	 *                                     its executors - see {@link PartitionReservations}
 	 */
 	private EntityIndexLocalMutationExecutor(
 		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
@@ -555,6 +580,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull SchemaCapabilityUsageRegistry usageRegistry,
 		@Nonnull SchemaCapabilityUsageRegistry catalogUsageRegistry,
 		@Nonnull FulltextAnalyzerRegistry fulltextAnalyzerRegistry,
+		@Nonnull Supplier<CatalogSchemaContract> catalogSchemaSupplier,
 		@Nonnull AttributeNormalizationResolver normalizationResolver,
 		boolean usageStatisticsTracking,
 		boolean partitionRegistryWritten,
@@ -576,6 +602,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		this.usageRegistry = usageRegistry;
 		this.catalogUsageRegistry = catalogUsageRegistry;
 		this.fulltextAnalyzerRegistry = fulltextAnalyzerRegistry;
+		this.catalogSchemaSupplier = catalogSchemaSupplier;
 		this.normalizationResolver = normalizationResolver;
 		this.usageStatisticsTracking = usageStatisticsTracking;
 		this.partitionRegistryWritten = partitionRegistryWritten;
@@ -700,6 +727,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			this.usageRegistry,
 			this.catalogUsageRegistry,
 			this.fulltextAnalyzerRegistry,
+			this.catalogSchemaSupplier,
 			this.normalizationResolver,
 			false,
 			false,
@@ -767,13 +795,24 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Returns the catalog's analyzer registry, which supplies the analyzer of a fulltext index this mutation creates.
+	 * Returns the catalog's analyzer registry, which supplies the compiled analysis of each fulltext field this
+	 * mutation writes.
 	 *
 	 * @return the analyzer registry
 	 */
 	@Nonnull
 	public FulltextAnalyzerRegistry getFulltextAnalyzerRegistry() {
 		return this.fulltextAnalyzerRegistry;
+	}
+
+	/**
+	 * Returns the catalog schema current at this write, rather than the schema captured at executor construction.
+	 *
+	 * @return the current schema with fulltext definitions and resources
+	 */
+	@Nonnull
+	public CatalogSchemaContract getCatalogSchema() {
+		return this.catalogSchemaSupplier.get();
 	}
 
 	/**
@@ -1704,6 +1743,21 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	) {
 		removeEntireSuiteOfSortableAttributeCompounds(
 			locale, entitySchema, target, referenceKey, existingDataSupplierFactory
+		);
+	}
+
+	/**
+	 * Retrieves the storage part holding the associated data value of the passed key, as it stands before the local
+	 * mutation being applied - the index executor runs before the storage one. The part is cached by the container
+	 * accessor, so the storage executor applying the same mutation right after reuses it rather than reading it again.
+	 *
+	 * @param associatedDataKey the key of the associated data value
+	 * @return the storage part, never `null` - an empty one when the entity holds no such value
+	 */
+	@Nonnull
+	public AssociatedDataStoragePart getAssociatedDataStoragePart(@Nonnull AssociatedDataKey associatedDataKey) {
+		return this.containerAccessor.getAssociatedDataStoragePart(
+			this.entityType, getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING), associatedDataKey
 		);
 	}
 

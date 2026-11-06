@@ -264,7 +264,8 @@ class CreateGlobalAttributeSchemaMutationTest {
 			final CreateGlobalAttributeSchemaMutation mutation = new CreateGlobalAttributeSchemaMutation(
 				ATTRIBUTE_NAME, null, null, null, null, null, null, null, null,
 				false, false, false, Integer.class, null, 0, ConflictResolutionOverride.INHERITED,
-				new AnalysisStep[]{lowercase()}
+				new AnalysisStep[]{lowercase()},
+				null, null
 			);
 			assertTrue(mutation.mutate(null, null, GlobalAttributeSchemaContract.class)
 				.validate().anyMatch(error -> error.contains("normalization")));
@@ -280,7 +281,7 @@ class CreateGlobalAttributeSchemaMutationTest {
 		private CreateGlobalAttributeSchemaMutation createWithNormalization(@Nullable AnalysisStep[] steps) {
 			return new CreateGlobalAttributeSchemaMutation(
 				ATTRIBUTE_NAME, null, null, null, null, null, null, null, null,
-				false, false, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, steps
+				false, false, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, steps, null, null
 			);
 		}
 	}

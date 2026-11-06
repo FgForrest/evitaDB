@@ -64,7 +64,8 @@ public class SchemaKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			CatalogSchema.class,
 			new SerialVersionBasedSerializer<>(new CatalogSchemaSerializer(), CatalogSchema.class)
-				.addBackwardCompatibleSerializer(-1582409928666780012L, new CatalogSchemaSerializer_2026_1()),
+				.addBackwardCompatibleSerializer(-1582409928666780012L, new CatalogSchemaSerializer_2026_1())
+				.addBackwardCompatibleSerializer(-1582409928666780011L, new CatalogSchemaSerializer_2026_2()),
 			index++
 		);
 		kryo.register(CatalogSchemaStoragePart.class, new SerialVersionBasedSerializer<>(new CatalogSchemaStoragePartSerializer(), CatalogSchemaStoragePart.class), index++);
@@ -105,7 +106,8 @@ public class SchemaKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			AssociatedDataSchema.class,
 			new SerialVersionBasedSerializer<>(new AssociatedDataSchemaSerializer(), AssociatedDataSchema.class)
-				.addBackwardCompatibleSerializer(-995599294301442064L, new AssociatedDataSchemaSerializer_2026_1()),
+				.addBackwardCompatibleSerializer(-995599294301442064L, new AssociatedDataSchemaSerializer_2026_1())
+				.addBackwardCompatibleSerializer(-995599294301442063L, new AssociatedDataSchemaSerializer_2026_2()),
 			index++
 		);
 		kryo.register(

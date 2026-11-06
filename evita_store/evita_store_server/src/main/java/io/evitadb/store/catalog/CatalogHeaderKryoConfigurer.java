@@ -65,6 +65,7 @@ import io.evitadb.store.index.serializer.VirtualReferencePartitionLeafStreamKeyS
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
 import io.evitadb.store.schema.serializer.CatalogSchemaSerializer;
 import io.evitadb.store.schema.serializer.CatalogSchemaSerializer_2026_1;
+import io.evitadb.store.schema.serializer.CatalogSchemaSerializer_2026_2;
 import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -95,7 +96,8 @@ public class CatalogHeaderKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			CatalogSchema.class,
 			new SerialVersionBasedSerializer<>(new CatalogSchemaSerializer(), CatalogSchema.class)
-				.addBackwardCompatibleSerializer(-1582409928666780012L, new CatalogSchemaSerializer_2026_1()),
+				.addBackwardCompatibleSerializer(-1582409928666780012L, new CatalogSchemaSerializer_2026_1())
+				.addBackwardCompatibleSerializer(-1582409928666780011L, new CatalogSchemaSerializer_2026_2()),
 			index++
 		);
 		kryo.register(CatalogState.class, new EnumNameSerializer<>(), index++);

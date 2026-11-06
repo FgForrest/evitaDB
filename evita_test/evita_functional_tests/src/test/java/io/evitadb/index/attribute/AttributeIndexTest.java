@@ -64,6 +64,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexSt
 import io.evitadb.test.duration.TimeBoundedTestSupport;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -1262,7 +1263,8 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 				BigDecimal.class, null,
 				indexedDecimalPlaces,
 				ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 			);
 		}
 

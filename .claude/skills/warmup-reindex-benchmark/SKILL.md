@@ -82,6 +82,12 @@ Key system properties (full list in the class JavaDoc):
 | `evita.warmup.collections` | comma-separated subset, for isolating one collection |
 | `evita.warmup.perEntityCsv` | one CSV row per upsert |
 | `evita.warmup.holdOpenSeconds` | keeps the JVM alive after the report so a profiler can dump |
+| `evita.warmup.searchable` | fields made searchable on the target, `;`-separated - notation in `CatalogCopySupport` |
+| `evita.warmup.localize` | associated data given a locale on the target (`article.@body=cs`), so it can be searchable |
+
+`evita.warmup.searchable` reaches the `embedded` target only: the gRPC converters do not carry the searchable
+mutations yet. `evita.warmup.localize` works in both modes. Pass them through `JAVA_TOOL_OPTIONS` - the run scripts
+forward no extra `-D` options.
 
 ## 3. Running
 
@@ -199,6 +205,10 @@ each, so ±9 %:
 | v2026.2.20 | 1,514.8 s | 10,696 µs |
 | dev @ `aa3e7b281b` | 1,321.2 s | 9,260 µs |
 | `a2eec9c8fb` | 1,246.1 s | 8,689 µs |
+
+**Every figure in this section copied live entities only.** The loader queried without a scope, which reads the
+live scope alone; it now copies every scope. In a later snapshot of the same export 38,439 of 172,318 products are
+archived, so a current run loads more entities and is not comparable with the tables above.
 
 ## 7. Two ways a run silently lies
 

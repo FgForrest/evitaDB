@@ -26,15 +26,17 @@ package io.evitadb.index;
 import com.github.javafaker.Faker;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.Evita;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.component.EntityIndexManifest;
 import io.evitadb.index.component.IndexComponent;
 import io.evitadb.index.fulltext.FulltextFieldKey;
@@ -54,6 +56,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
@@ -63,6 +66,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.*;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -108,7 +112,8 @@ class EntityIndexBaselineCaptureTest implements EvitaTestSupport {
 			false, false, false,
 			type, null,
 			0, ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 		);
 	}
 
@@ -235,16 +240,14 @@ class EntityIndexBaselineCaptureTest implements EvitaTestSupport {
 			final GlobalEntityIndex index = new GlobalEntityIndex(
 				INDEX_PK, ENTITY_TYPE, new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE)
 			);
-			final FulltextAnalyzerRegistry registry = new FulltextAnalyzerRegistry();
-			final FulltextIndex czech = index.getOrCreateFulltextIndex(
-				Locale.forLanguageTag("cs"), registry.getIndexAnalyzer(ENTITY_TYPE, Locale.forLanguageTag("cs"))
-			);
-			czech.addValue(FulltextFieldKey.attribute("title"), 10, "první titulek");
+			final FulltextAnalyzerRegistry registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
+			final FulltextIndex czech = index.getOrCreateFulltextIndex(Locale.forLanguageTag("cs"));
+			czech.addValue(FulltextFieldKey.attribute("title"), 10, testAnalyzer(), 25.0, null, "první titulek");
 			index.getModifiedStorageParts(new TrappedChanges());
 			index.notifyFlushed();
 			// dirty again, with its pages on disk - a fulltext index never flushed is announced only by the collect
 			// that writes it, see `GlobalEntityIndexFulltextPersistenceTest`
-			czech.addValue(FulltextFieldKey.attribute("title"), 11, "druhý titulek");
+			czech.addValue(FulltextFieldKey.attribute("title"), 11, testAnalyzer(), 25.0, null, "druhý titulek");
 
 			final EntityIndexManifest announced = announcedManifest(index);
 			final TrappedChanges sink = new TrappedChanges();

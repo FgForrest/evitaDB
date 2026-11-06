@@ -25,8 +25,15 @@ package io.evitadb.api.requestResponse.schema.dto;
 
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -37,7 +44,9 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.EnumSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Internal implementation of {@link AssociatedDataSchemaContract}.
@@ -46,7 +55,7 @@ import java.util.Map;
 @ThreadSafe
 @EqualsAndHashCode
 public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaContract {
-	@Serial private static final long serialVersionUID = -995599294301442063L;
+	@Serial private static final long serialVersionUID = -995599294301442062L;
 
 	@Getter @Nonnull private final String name;
 	@Getter @Nonnull private final Map<NamingConvention, String> nameVariants;
@@ -56,7 +65,27 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 	@Getter @Nonnull private final Class<? extends Serializable> plainType;
 	@Getter private final boolean localized;
 	@Getter private final boolean nullable;
+	/**
+	 * Set of scopes where the associated data is searchable - the text of its values is analyzed into words and
+	 * indexed in the fulltext index of that scope. See {@link AssociatedDataSchemaContract#isSearchable()}.
+	 */
+	@Getter @Nonnull private final Set<Scope> searchableInScopes;
+	/**
+	 * The EvitaEL expression selecting the text of a complex data object value, see
+	 * {@link AssociatedDataSchemaContract#getTextExpression()}.
+	 */
+	@Getter @Nullable private final Expression textExpression;
 	@Getter @Nonnull private final ConflictResolutionOverride conflictResolutionOverride;
+	/**
+	 * The name of the fulltext analyzer that turns the text into words while the associated data is searchable. See
+	 * {@link AssociatedDataSchemaContract#getAnalyzer()}.
+	 */
+	@Getter @Nonnull private final String analyzer;
+	/**
+	 * The length pivot of the associated data's fulltext field. See
+	 * {@link AssociatedDataSchemaContract#getLengthPivot()}.
+	 */
+	@Getter private final int lengthPivot;
 
 	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of AssociatedDataSchema from
@@ -71,10 +100,16 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		@Nonnull Class<? extends Serializable> type,
 		boolean localized,
 		boolean nullable,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nullable Scope[] searchableInScopes,
+		@Nullable Expression textExpression,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nonnull String analyzer,
+		int lengthPivot
 	) {
 		return new AssociatedDataSchema(
-			name, description, deprecationNotice, type, localized, nullable, conflictResolutionOverride
+			name, NamingConvention.generate(name), description, deprecationNotice, type, localized, nullable,
+			ArrayUtils.toEnumSet(Scope.class, searchableInScopes), textExpression, conflictResolutionOverride,
+			analyzer, lengthPivot
 		);
 	}
 
@@ -92,11 +127,16 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		@Nonnull Class<? extends Serializable> type,
 		boolean localized,
 		boolean nullable,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nullable Set<Scope> searchableInScopes,
+		@Nullable Expression textExpression,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nonnull String analyzer,
+		int lengthPivot
 	) {
 		return new AssociatedDataSchema(
 			name, nameVariants,
-			description, deprecationNotice, type, localized, nullable, conflictResolutionOverride
+			description, deprecationNotice, type, localized, nullable, searchableInScopes, textExpression,
+			conflictResolutionOverride, analyzer, lengthPivot
 		);
 	}
 
@@ -112,21 +152,9 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
 		return new AssociatedDataSchema(
-			name, null, null, type, false, false, conflictResolutionOverride
-		);
-	}
-
-	private AssociatedDataSchema(
-		@Nonnull String name,
-		@Nullable String description,
-		@Nullable String deprecationNotice,
-		@Nonnull Class<? extends Serializable> type,
-		boolean localized,
-		boolean nullable,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride) {
-		this(
-			name, NamingConvention.generate(name),
-			description, deprecationNotice, type, localized, nullable, conflictResolutionOverride
+			name, NamingConvention.generate(name), null, null, type, false, false, null, null,
+			conflictResolutionOverride,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
 		);
 	}
 
@@ -138,8 +166,13 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		@Nonnull Class<? extends Serializable> type,
 		boolean localized,
 		boolean nullable,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nullable Set<Scope> searchableInScopes,
+		@Nullable Expression textExpression,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nonnull String analyzer,
+		int lengthPivot
 	) {
+		Assert.notNull(analyzer, "The fulltext analyzer of associated data `" + name + "` must not be null!");
 		this.name = name;
 		this.nameVariants = nameVariants;
 		this.description = description;
@@ -151,13 +184,25 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		this.plainType = (Class<? extends Serializable>) (this.type.isArray() ? this.type.getComponentType() : this.type);
 		this.localized = localized;
 		this.nullable = nullable;
+		this.searchableInScopes = CollectionUtils.toUnmodifiableSet(
+			searchableInScopes == null || searchableInScopes.isEmpty() ?
+				EnumSet.noneOf(Scope.class) : EnumSet.copyOf(searchableInScopes)
+		);
+		this.textExpression = textExpression;
 		this.conflictResolutionOverride = conflictResolutionOverride;
+		this.analyzer = analyzer;
+		this.lengthPivot = lengthPivot;
 	}
 
 	@Override
 	@Nonnull
 	public String getNameVariant(@Nonnull NamingConvention namingConvention) {
 		return this.nameVariants.get(namingConvention);
+	}
+
+	@Override
+	public boolean isSearchableInScope(@Nonnull Scope scope) {
+		return this.searchableInScopes.contains(scope);
 	}
 
 }

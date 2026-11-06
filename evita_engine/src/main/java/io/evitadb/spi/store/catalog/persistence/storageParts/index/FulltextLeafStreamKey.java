@@ -66,7 +66,9 @@ public record FulltextLeafStreamKey(
 		 * The field length tables' blocks, numbered by the field id and the high 16 bits of the primary keys the
 		 * block covers.
 		 */
-		FIELD_LENGTHS
+		FIELD_LENGTHS,
+		/** Surface dictionary leaves containing reference counts. */
+		SURFACE_FORMS
 
 	}
 

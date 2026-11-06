@@ -39,11 +39,14 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.fulltext.FieldLengthTable.LengthBlockEmission;
-import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
+import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
+import io.evitadb.index.fulltext.typo.FulltextDictionaryWalker;
+import io.evitadb.index.fulltext.typo.FulltextDictionaryWalker.MatchVisitor;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordPrimitive;
 import io.evitadb.index.map.MapHeapSize;
+import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.page.PageStreamRegistry;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextFieldLengthBlockPart;
@@ -59,6 +62,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -71,6 +75,11 @@ import java.util.Map;
  *   prefix followed by the analyzed term — whose bucket is the term's **posting list**: the primary keys of the
  *   entities whose field contains the term. The keys live in the front-coded string column, which is what the
  *   bucket tree selects for `String` keys, so neighbouring terms of one field share their stored prefix.
+ * - **The surface dictionary**, a second bucket tree holding `(word phase, folded surface, stem, display)` keys
+ *   and a primitive reference count per pair, with no postings. Profiles share entries by their words-phase
+ *   fingerprint, mapped to a short fixed-width prefix in a persisted transactional table. The folded component is
+ *   the index input after embedded lookup normalization, or the final token without stemming. NUL frames
+ *   the components; NUL and SOH within tokens are escaped. Empty stem and display components mean folded identity.
  * - **The impacts**, one unsigned byte beside every posting, stored by the dictionary itself in its impact column
  *   so that the n-th impact of a term always belongs to its n-th posting — by construction, through every insert,
  *   split, merge and commit, rather than by bookkeeping kept in step from outside.
@@ -93,8 +102,8 @@ import java.util.Map;
  * quantized to `1..255` (see {@link #computeImpact(int, int, double)}). The pivot is a fixed parameter of the field,
  * not the corpus' average length: an average moves with every write, which would make every stored impact stale the
  * moment the next document arrives and make two replicas of one catalog disagree about a score. With a fixed pivot
- * the impact is a function of the query term and the document alone. Until the schema can declare a pivot, it is
- * passed to the constructor (and per field through {@link #getOrAssignFieldId(FulltextFieldKey, double)}).
+ * the impact is a function of the query term and the document alone. The pivot is
+ * supplied by the field schema at each write and recorded with its field generation.
  *
  * ## Why the key order matters
  *
@@ -117,8 +126,9 @@ import java.util.Map;
  *
  * ## Transactional behaviour
  *
- * Each part versions itself: the dictionary through the bucket tree's node layers (the impacts ride along in the
- * leaves), every length table through its own layer, and the field registry through this index's
+ * Each part versions itself: both dictionaries through their bucket trees' node layers (the impacts ride along in the
+ * term dictionary's leaves, the reference counts in the surface dictionary's), the word-phase table as a
+ * {@link TransactionalMap}, every length table through its own layer, and the field registry through this index's
  * {@link FulltextIndexChanges}, which holds the fields a transaction registered and retired. Every write also creates
  * that layer, so it doubles as the "written in this transaction" mark: an index no transaction wrote to is carried
  * forward as the same instance - keeping its identity, which is what a consumer keys a cache on - and none of its
@@ -131,9 +141,10 @@ import java.util.Map;
  *
  * ## Persistence
  *
- * The dictionary is written in pages, one per leaf, the way the inverted index writes its buckets: a separate dirty
- * flag - "written since the last flush", on both paths - gates the flush, {@link #collectChangedPages()} emits the
- * leaves that changed and the pages that left, and a {@link PageStreamRegistry} keeps the page sequences and the
+ * Both dictionaries are written in pages, one per leaf, the way the inverted index writes its buckets: a separate dirty
+ * flag - "written since the last flush", on both paths - gates the flush, {@link #collectChangedPages()} and
+ * {@link #collectChangedSurfaceFormPages()} emit changed leaves and removed pages. A {@link PageStreamRegistry}
+ * keeps the page sequences and the
  * baseline the next flush diffs against, carried by reference through every merge. The field length tables are
  * written in pages of their own, one per 65,536-key block - see {@link #collectChangedLengthBlocks()}.
  *
@@ -157,12 +168,6 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	public static final int MAX_FIELD_ID = Math.min(
 		FulltextTermKeys.MAX_FIELD_ID, FulltextFieldLengthBlockPart.MAX_FIELD_ID
 	);
-
-	/**
-	 * The length pivot used when the caller supplies none: a field of this many tokens is "of normal length", and
-	 * its term frequencies are neither boosted nor damped by length.
-	 */
-	public static final double DEFAULT_LENGTH_PIVOT = 25.0;
 
 	/**
 	 * BM25's term-frequency saturation, `k1`. The customary value; it has not been tuned for evitaDB.
@@ -196,11 +201,13 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	private static final int MIN_INTERNAL_NODE_BLOCK_SIZE = (int) (Math.ceil(MIN_VALUE_BLOCK_SIZE / 2.0) - 1);
 
 	/**
-	 * Local key of the dictionary's page stream in {@link #pageStreamRegistry} - the index's only paged structure so
-	 * far. It is not the stream id the storage resolves for the pages; that one is assigned by the catalog's key
-	 * compressor when the pages are written.
+	 * Local key of the postings dictionary's page stream in {@link #pageStreamRegistry}. The storage stream id is
+	 * assigned by the catalog's key compressor when pages are written.
 	 */
 	private static final int DICTIONARY_PAGE_STREAM = 0;
+
+	/** Local page stream of the surface dictionary, separate from the postings dictionary. */
+	private static final int SURFACE_FORM_PAGE_STREAM = 1;
 
 	/**
 	 * The field registry of an index without a field, shared by every such index.
@@ -211,16 +218,6 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * Identity of this instance in the transactional memory.
 	 */
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
-
-	/**
-	 * Analyzer of the index slot of this partition's locale; every indexed value goes through it.
-	 */
-	@Nonnull private final FulltextAnalyzer indexAnalyzer;
-
-	/**
-	 * The pivot a field gets when it is registered without one.
-	 */
-	private final double defaultLengthPivot;
 
 	/**
 	 * Field key to its id, for the fields committed with this instance (and, outside a transaction, registered since)
@@ -243,6 +240,12 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 */
 	@Nonnull private final TransactionalBucketBPlusTree<String> dictionary;
 
+	/** Surface keys carry one primitive reference count and no postings. */
+	@Nonnull private final TransactionalBucketBPlusTree<String> surfaceForms;
+
+	/** Persistent word-phase fingerprints mapped to short, reusable lane prefixes. */
+	@Nonnull private final TransactionalMap<Long, WordPhaseId> wordPhaseIds;
+
 	/**
 	 * Whether anything was written to the index since its last flush collected it - the gate of the flush. Set by
 	 * every write, inside a transaction and outside one alike, and cleared by {@link #resetDirty()} once the flush has
@@ -251,7 +254,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	@Nonnull private final TransactionalBoolean dirty;
 
 	/**
-	 * The page bookkeeping of the dictionary: the page sequence allocator, its high-water and the set of pages on disk
+	 * The page bookkeeping of both dictionaries: the page sequence allocator, high-water and pages on disk
 	 * the next flush diffs against. Owner-resident and not transactional - single-writer flush bookkeeping, carried by
 	 * reference into the committed copy at every merge, exactly as {@link io.evitadb.index.invertedIndex.InvertedIndex}
 	 * carries its own.
@@ -279,20 +282,47 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * The state of one field. Its key and pivot never change, and it is retired at most once; its length table is
-	 * replaced by its committed copy at every commit that merges the index.
+	 * The state of one field. What it was registered with - its key, analyzer name and identities, pivot and text
+	 * expression - never changes, and it is retired at most once; its length table is replaced by its committed copy
+	 * at every commit that merges the index.
 	 *
-	 * @param key         the field's identity
-	 * @param lengthPivot the field's length pivot
-	 * @param retired     whether the field was retired - its key no longer resolves to it, and it takes no writes
-	 * @param lengths     the lengths of the field's indexed values
+	 * @param key            the field's identity
+	 * @param analyzerName   the analyzer name recorded at registration
+	 * @param indexFingerprint the persistent index-chain identity
+	 * @param wordPhaseId    the persistent index words-phase identity
+	 * @param lengthPivot    the field's length pivot
+	 * @param textExpression the EvitaEL expression the field's text was selected with from the stored values (the
+	 *                       text expression of searchable associated data), `null` when the values are the text
+	 *                       themselves; see {@link #getTextExpression(int)}
+	 * @param retired        whether the field was retired - its key no longer resolves to it, and it takes no writes
+	 * @param lengths        the lengths of the field's indexed values
 	 */
 	public record Field(
 		@Nonnull FulltextFieldKey key,
+		@Nonnull String analyzerName,
+		long indexFingerprint,
+		long wordPhaseId,
 		double lengthPivot,
+		@Nullable String textExpression,
 		boolean retired,
 		@Nonnull FieldLengthTable lengths
 	) {
+
+		/**
+		 * Keeps an owned analyzer name so field heap accounting does not depend on cache or string interning.
+		 *
+		 * @param key the field identity
+		 * @param analyzerName the recorded schema analyzer name
+		 * @param indexFingerprint the index-chain identity
+		 * @param wordPhaseId the index words-phase identity
+		 * @param lengthPivot the impact normalization pivot
+		 * @param textExpression the extraction expression, or null for text values
+		 * @param retired whether this generation has stopped accepting writes
+		 * @param lengths the field's value lengths
+		 */
+		public Field {
+			analyzerName = new String(analyzerName.toCharArray());
+		}
 
 		/**
 		 * Returns this field retired, with the very same length table.
@@ -301,34 +331,21 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		 */
 		@Nonnull
 		Field retire() {
-			return new Field(this.key, this.lengthPivot, true, this.lengths);
+			return new Field(this.key, this.analyzerName, this.indexFingerprint, this.wordPhaseId,
+				this.lengthPivot, this.textExpression, true, this.lengths);
 		}
 
 	}
 
 	/**
-	 * Creates an empty index with {@link #DEFAULT_LENGTH_PIVOT} as the fields' default pivot.
-	 *
-	 * @param indexAnalyzer analyzer of the index slot of the partition's locale
+	 * Creates an empty locale index. Every write supplies the field's current analysis and pivot.
 	 */
-	public FulltextIndex(@Nonnull FulltextAnalyzer indexAnalyzer) {
-		this(indexAnalyzer, DEFAULT_LENGTH_PIVOT);
-	}
-
-	/**
-	 * Creates an empty index.
-	 *
-	 * @param indexAnalyzer      analyzer of the index slot of the partition's locale
-	 * @param defaultLengthPivot length pivot a field gets when registered without one; must be positive and finite
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the pivot is not positive and finite
-	 */
-	public FulltextIndex(@Nonnull FulltextAnalyzer indexAnalyzer, double defaultLengthPivot) {
-		assertPivotValid(defaultLengthPivot);
-		this.indexAnalyzer = indexAnalyzer;
-		this.defaultLengthPivot = defaultLengthPivot;
+	public FulltextIndex() {
 		this.fieldIds = CollectionUtils.createHashMap(8);
 		this.fields = NO_FIELDS;
 		this.dictionary = createDictionary();
+		this.surfaceForms = createSurfaceForms();
+		this.wordPhaseIds = new TransactionalMap<>(CollectionUtils.createHashMap(8));
 		this.dirty = new TransactionalBoolean(false);
 		this.pageStreamRegistry = new PageStreamRegistry();
 	}
@@ -336,63 +353,73 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	/**
 	 * Adopts already-merged parts - the constructor the commit merge builds the next version with.
 	 *
-	 * @param indexAnalyzer      analyzer of the index slot of the partition's locale
-	 * @param defaultLengthPivot length pivot a field gets when registered without one
 	 * @param fieldIds           key to id of every field not retired
 	 * @param fields             per-field state by id
 	 * @param dictionary         the term dictionary
+	 * @param surfaceForms the surface dictionary with reference counts
+	 * @param wordPhaseIds the persistent short word-phase identities
 	 * @param pageStreamRegistry the page bookkeeping, carried by reference from the version being merged
 	 */
 	private FulltextIndex(
-		@Nonnull FulltextAnalyzer indexAnalyzer,
-		double defaultLengthPivot,
 		@Nonnull Map<FulltextFieldKey, Integer> fieldIds,
 		@Nonnull Field[] fields,
 		@Nonnull TransactionalBucketBPlusTree<String> dictionary,
+		@Nonnull TransactionalBucketBPlusTree<String> surfaceForms,
+		@Nonnull Map<Long, WordPhaseId> wordPhaseIds,
 		@Nonnull PageStreamRegistry pageStreamRegistry
 	) {
-		this.indexAnalyzer = indexAnalyzer;
-		this.defaultLengthPivot = defaultLengthPivot;
 		this.fieldIds = fieldIds;
 		this.fields = fields;
 		this.dictionary = dictionary;
+		this.surfaceForms = surfaceForms;
+		final Map<Long, WordPhaseId> ownedIds = CollectionUtils.createHashMap(Math.max(8, wordPhaseIds.size()));
+		wordPhaseIds.forEach(ownedIds::put);
+		this.wordPhaseIds = new TransactionalMap<>(ownedIds);
 		// the merge runs after the flush collected this version's changes, so the committed copy starts clean
 		this.dirty = new TransactionalBoolean(false);
 		this.pageStreamRegistry = pageStreamRegistry;
 	}
 
 	/**
-	 * Restores an index from its persisted parts: the field registry with every field's lengths, and the dictionary's
-	 * leaf pages in key order. Each page becomes one leaf, so the restored dictionary has the leaf boundaries it was
-	 * written with, and the page bookkeeping is restored with it - every leaf keeps its page sequence and none is
-	 * dirty, so the first flush after the load writes nothing for an unchanged dictionary.
+	 * Restores an index from its persisted parts: the field registry with every field's lengths, the term
+	 * dictionary's leaf pages in key order, and the surface dictionary's leaf pages in key order with the word-phase
+	 * table its keys are prefixed by. Each page of either dictionary becomes one leaf, so the restored dictionaries
+	 * have the leaf boundaries they were written with, and the page bookkeeping is restored with them - every leaf
+	 * keeps its page sequence and none is dirty, so the first flush after the load writes nothing for an unchanged
+	 * dictionary.
 	 *
-	 * An empty dictionary is persisted as the single empty page of its root leaf, and restored as such.
+	 * An empty dictionary of either kind is persisted as the single empty page of its root leaf, and restored as such.
 	 *
-	 * @param indexAnalyzer         analyzer of the index slot of the partition's locale
-	 * @param defaultLengthPivot    length pivot a field registered later without one gets
 	 * @param fields                the registered fields in id order, retired ones included, each with its length
 	 *                              table
-	 * @param orderedPageSequences  the dictionary's page sequences in key order, as the last flush listed them
+	 * @param orderedPageSequences  the term dictionary's page sequences in key order, as the last flush listed them
 	 * @param pages                 the pages, positionally aligned with `orderedPageSequences`
-	 * @param highWaterPageSequence the highest page sequence the dictionary ever allocated
+	 * @param highWaterPageSequence the highest page sequence the term dictionary ever allocated
+	 * @param wordPhaseIds          the word-phase fingerprint to short surface-key prefix table
+	 * @param surfacePageSequences  the surface dictionary's page sequences in key order, as the last flush listed them
+	 * @param surfacePages          the surface pages, positionally aligned with `surfacePageSequences`
+	 * @param surfaceHighWater      the highest page sequence the surface dictionary ever allocated
 	 * @return the restored index, clean
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the pages do not match their list, overlap, or an
-	 *                                                        empty page is not the dictionary's only one; when the
-	 *                                                        default or any field's pivot is not positive and
-	 *                                                        finite; or when two fields of one key are persisted as
-	 *                                                        not retired
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the pages of either dictionary do not match their
+	 *                                                        list, overlap, or an empty page is not its dictionary's
+	 *                                                        only one; when a field has a non-positive or non-finite
+	 *                                                        pivot; when two fields of one key are persisted as not
+	 *                                                        retired; when two word phases share an id or an id cannot
+	 *                                                        be encoded; when a surface key names no persisted word
+	 *                                                        phase or is malformed or not canonically encoded; or when
+	 *                                                        a field not retired names no persisted word phase
 	 */
 	@Nonnull
 	public static FulltextIndex fromPersistedPages(
-		@Nonnull FulltextAnalyzer indexAnalyzer,
-		double defaultLengthPivot,
 		@Nonnull List<Field> fields,
 		@Nonnull int[] orderedPageSequences,
 		@Nonnull DictionaryPage[] pages,
-		int highWaterPageSequence
+		int highWaterPageSequence,
+		@Nonnull Map<Long, Integer> wordPhaseIds,
+		@Nonnull int[] surfacePageSequences,
+		@Nonnull SurfaceFormPage[] surfacePages,
+		int surfaceHighWater
 	) {
-		assertPivotValid(defaultLengthPivot);
 		Assert.isPremiseValid(
 			orderedPageSequences.length == pages.length,
 			() -> "The dictionary lists " + orderedPageSequences.length + " pages but " + pages.length +
@@ -416,11 +443,27 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		final PageStreamRegistry pageStreamRegistry = PageStreamRegistry.restoredFrom(
 			DICTIONARY_PAGE_STREAM, highWaterPageSequence, dictionary.leafPageHandles()
 		);
+		final Map<Long, WordPhaseId> restoredIds = restoreWordPhaseIds(wordPhaseIds);
+		for (final SurfaceFormPage page : surfacePages) {
+			for (final String key : page.keys()) {
+				final int phaseId = FulltextTermKeys.fieldIdOf(key);
+				Assert.isPremiseValid(restoredIds.containsValue(new WordPhaseId(phaseId)),
+					"A surface key must name a persisted word phase!");
+				final int foldedEnd = surfaceFoldedEnd(key);
+				Assert.isPremiseValid(key.length() > FulltextTermKeys.FIELD_PREFIX_WIDTH
+					&& key.charAt(FulltextTermKeys.FIELD_PREFIX_WIDTH) == '\0'
+					&& foldedEnd >= 0 && surfaceStemEnd(key, foldedEnd) >= 0,
+					"A surface key must delimit its phase, folded form and stem!");
+				validateSurfaceKey(key, foldedEnd);
+			}
+		}
 		final Map<FulltextFieldKey, Integer> fieldIds = CollectionUtils.createHashMap(fields.size());
 		for (int fieldId = 0; fieldId < fields.size(); fieldId++) {
 			final Field field = fields.get(fieldId);
 			assertPivotValid(field.lengthPivot());
 			if (!field.retired()) {
+				Assert.isPremiseValid(restoredIds.containsKey(field.wordPhaseId()),
+					"A current field must name a persisted word phase!");
 				final Integer previous = fieldIds.put(field.key(), fieldId);
 				Assert.isPremiseValid(
 					previous == null, () -> "Fulltext field " + field.key() + " is persisted twice as not retired!"
@@ -428,7 +471,9 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			}
 		}
 		return new FulltextIndex(
-			indexAnalyzer, defaultLengthPivot, fieldIds, fields.toArray(NO_FIELDS), dictionary, pageStreamRegistry
+			fieldIds, fields.toArray(NO_FIELDS), dictionary,
+			restoreSurfaceForms(surfacePageSequences, surfacePages, surfaceHighWater, pageStreamRegistry),
+			restoredIds, pageStreamRegistry
 		);
 	}
 
@@ -512,43 +557,31 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * Returns the id of a field, registering it with the default pivot when it is new. An existing field is returned
-	 * whatever pivot it was registered with.
+	 * Registers a field with its built-with identity. An index-chain or pivot change retires the previous field;
+	 * an identical request preserves its id. A current field keeps the text expression it was registered with,
+	 * whatever is passed; only a newly registered field records the passed one.
 	 *
-	 * @param fieldKey identity of the searchable field
-	 * @return the field's id
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the field is new and the index already holds
-	 *                                                        {@link #MAX_FIELD_ID} + 1 fields
+	 * @param fieldKey the searchable field
+	 * @param analyzerName the schema analyzer name recorded for this generation
+	 * @param indexFingerprint the identity of the chain building its postings
+	 * @param wordPhaseId the identity of the index words phase
+	 * @param lengthPivot the positive finite pivot used to compute impacts
+	 * @param textExpression the recorded extraction expression, or null for text values
+	 * @return the current generation's field id
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the pivot is not positive and finite, or the index
+	 *                                                        has no field id left to assign
 	 */
-	public int getOrAssignFieldId(@Nonnull FulltextFieldKey fieldKey) {
-		final int existing = getFieldId(fieldKey);
-		// the default pivot applies to a registration only - a field registered with its own keeps it
-		return existing == UNKNOWN_FIELD_ID ? getOrAssignFieldId(fieldKey, this.defaultLengthPivot) : existing;
-	}
-
-	/**
-	 * Returns the id of a field, registering it with the passed pivot when it is new. A field's pivot cannot change
-	 * once impacts were computed against it — that would take a reindex — so asking for an existing field with a
-	 * different pivot is refused. A key whose field was retired is new again, and gets a fresh id.
-	 *
-	 * @param fieldKey    identity of the searchable field
-	 * @param lengthPivot the field's length pivot; must be positive and finite
-	 * @return the field's id
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the pivot is not positive and finite, differs from
-	 *                                                        the registered one, or the field is new and the index
-	 *                                                        already holds {@link #MAX_FIELD_ID} + 1 fields
-	 */
-	public int getOrAssignFieldId(@Nonnull FulltextFieldKey fieldKey, double lengthPivot) {
+	public int getOrAssignFieldId(
+		@Nonnull FulltextFieldKey fieldKey, @Nonnull String analyzerName, long indexFingerprint, long wordPhaseId,
+		double lengthPivot, @Nullable String textExpression
+	) {
 		assertPivotValid(lengthPivot);
 		final int existing = getFieldId(fieldKey);
 		if (existing != UNKNOWN_FIELD_ID) {
-			final double registered = fieldAt(existing).lengthPivot();
-			Assert.isPremiseValid(
-				Double.compare(registered, lengthPivot) == 0,
-				() -> "Fulltext field " + fieldKey + " is registered with length pivot " + registered +
-					", it cannot change to " + lengthPivot + " without a reindex!"
-			);
-			return existing;
+			if (isFieldCurrent(existing, indexFingerprint, lengthPivot)) {
+				return existing;
+			}
+			retireField(fieldKey);
 		}
 		final FulltextIndexChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		// a new field changes what the index persists even before it holds a value
@@ -558,7 +591,9 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			fieldId <= MAX_FIELD_ID,
 			() -> "The fulltext index cannot address more than " + (MAX_FIELD_ID + 1) + " fields!"
 		);
-		final Field field = new Field(fieldKey, lengthPivot, false, new FieldLengthTable());
+		assignWordPhaseId(wordPhaseId);
+		final Field field = new Field(fieldKey, analyzerName, indexFingerprint, wordPhaseId,
+			lengthPivot, textExpression, false, new FieldLengthTable());
 		if (layer != null) {
 			layer.addField(field);
 		} else {
@@ -601,8 +636,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * Retires the field of a key: the key stops resolving to it, its postings and lengths stay as they are, and a
-	 * later {@link #getOrAssignFieldId(FulltextFieldKey)} of the key registers a fresh, empty field - see the class
+	 * Retires the field of a key: the key stops resolving to it, its postings and lengths stay as they are, and the
+	 * next write of the key registers a fresh, empty field ({@link #getOrAssignFieldId}) - see the class
 	 * documentation for why the old postings are kept.
 	 *
 	 * @param fieldKey identity of the searchable field
@@ -627,6 +662,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			this.fieldIds.remove(fieldKey);
 			replaceField(fieldId, field.retire());
 		}
+		releaseWordPhaseIdIfUnused(fieldAt(fieldId).wordPhaseId());
 		return true;
 	}
 
@@ -670,6 +706,23 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
+	 * Returns the EvitaEL text expression a field was registered with - the way its text is selected from the stored
+	 * values of searchable associated data. A field keeps extracting with this expression even after the schema
+	 * declares another one: removing a value re-extracts its text to find the postings to drop, so extracting
+	 * differently than the add did would leave stale postings behind. The field keeps its expression until it is
+	 * rebuilt (#409).
+	 *
+	 * @param fieldId id of the field
+	 * @return the expression text, `null` when the field's values are the text themselves
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the index never assigned the id
+	 */
+	@Nullable
+	public String getTextExpression(int fieldId) {
+		assertFieldKnown(fieldId);
+		return fieldAt(fieldId).textExpression();
+	}
+
+	/**
 	 * Returns the number of fields the index has assigned an id to.
 	 *
 	 * @return the field count
@@ -680,23 +733,65 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * Returns the name of the analyzer of the index slot every value of this index went through. The persisted index
-	 * records it, so that it is read back with the analyzer it was built with.
+	 * Returns the analyzer name recorded for a field generation.
 	 *
-	 * @return the analyzer name
+	 * @param fieldId the registered field id
+	 * @return its analyzer name
 	 */
 	@Nonnull
-	public String getAnalyzerName() {
-		return this.indexAnalyzer.getAnalyzerName();
+	public String getAnalyzerName(int fieldId) {
+		assertFieldKnown(fieldId);
+		return fieldAt(fieldId).analyzerName();
 	}
 
 	/**
-	 * Returns the pivot a field gets when it is registered without one.
+	 * Returns the index-chain fingerprint recorded for a field generation.
 	 *
-	 * @return the default length pivot
+	 * @param fieldId the registered field id
+	 * @return its persistent index fingerprint
 	 */
-	public double getDefaultLengthPivot() {
-		return this.defaultLengthPivot;
+	public long getIndexFingerprint(int fieldId) {
+		assertFieldKnown(fieldId);
+		return fieldAt(fieldId).indexFingerprint();
+	}
+
+	/**
+	 * Returns the words-phase identity recorded for a field generation.
+	 *
+	 * @param fieldId the registered field id
+	 * @return its persistent words-phase identity
+	 */
+	public long getWordPhaseId(int fieldId) {
+		assertFieldKnown(fieldId);
+		return fieldAt(fieldId).wordPhaseId();
+	}
+
+	/**
+	 * Checks whether a field's stored postings can be used with the current schema analysis and pivot.
+	 *
+	 * @param fieldId the registered field id
+	 * @param fingerprint the current index-chain fingerprint
+	 * @param lengthPivot the current schema pivot
+	 * @return true when the generation is active and both identities match
+	 */
+	public boolean isFieldCurrent(int fieldId, long fingerprint, double lengthPivot) {
+		assertFieldKnown(fieldId);
+		final Field field = fieldAt(fieldId);
+		return !isFieldRetired(fieldId) && field.indexFingerprint() == fingerprint &&
+			Double.compare(field.lengthPivot(), lengthPivot) == 0;
+	}
+
+	/**
+	 * Checks whether an entity has a value indexed in a field, as the caller's transaction sees it. A value that
+	 * analyzed to no token was indexed as nothing and does not count.
+	 *
+	 * @param fieldId    the registered field id
+	 * @param primaryKey primary key of the entity
+	 * @return true when the field holds a length for the entity
+	 */
+	public boolean hasIndexedValue(int fieldId, int primaryKey) {
+		assertFieldKnown(fieldId);
+		return fieldAt(fieldId).lengths().getEncoded(primaryKey) != 0;
 	}
 
 	/**
@@ -724,88 +819,75 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * Indexes the value of an entity's field: analyzes it through the index slot, and records every distinct term
-	 * with its impact and the value's length. The entity must not already have a value indexed for the field — an
-	 * update is a {@link #removeValue(FulltextFieldKey, int, String)} of the old value followed by this.
+	 * Adds all texts of a field value using its current schema analysis, retiring a stale generation first.
+	 * An empty value set does nothing, including no registration or reconciliation.
 	 *
-	 * A value producing no token is indexed as nothing: no posting and no length.
-	 *
-	 * @param fieldKey   identity of the searchable field; registered with the default pivot when new
-	 * @param primaryKey primary key of the entity
-	 * @param value      the stored value
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the entity already has a value for the field
+	 * @param fieldKey the searchable field
+	 * @param primaryKey the entity primary key
+	 * @param analyzer the compiled current schema analyzer
+	 * @param lengthPivot the schema pivot used for impacts
+	 * @param textExpression the extraction expression, or null for text values
+	 * @param values all texts of this entity's field
 	 */
-	public void addValue(@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull String value) {
-		indexValues(fieldKey, primaryKey, value);
+	public void addValue(
+		@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull CompiledFulltextAnalyzer analyzer,
+		double lengthPivot, @Nullable String textExpression, @Nonnull String... values
+	) {
+		if (values.length == 0) {
+			return;
+		}
+		final int fieldId = getOrAssignFieldId(fieldKey, analyzer.indexSurface().getAnalyzerName(),
+			analyzer.fingerprint().index(), analyzer.fingerprint().wordPhase(), lengthPivot, textExpression);
+		indexValues(fieldId, primaryKey, analyzer, values);
 	}
 
 	/**
-	 * Indexes the array value of an entity's field as one text: every element is analyzed through the index slot,
-	 * and the term frequencies and lengths of all of them are summed (see the class documentation). The entity must
-	 * not already have a value indexed for the field — an update is a
-	 * {@link #removeValue(FulltextFieldKey, int, String[])} of the whole old array followed by this.
+	 * Removes an old value only when its field still has the current index identity. A stale generation is retired
+	 * with its postings untouched; removing an entity absent from the fresh generation is a no-op.
+	 * An empty value set does nothing, including no reconciliation.
 	 *
-	 * An array whose elements produce no token is indexed as nothing: no posting and no length.
-	 *
-	 * @param fieldKey   identity of the searchable field; registered with the default pivot when new
-	 * @param primaryKey primary key of the entity
-	 * @param values     the stored array
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the entity already has a value for the field, or
-	 *                                                        an element of the array is null
+	 * @param fieldKey the searchable field
+	 * @param primaryKey the entity primary key
+	 * @param analyzer the compiled current schema analyzer
+	 * @param lengthPivot the current schema pivot
+	 * @param values the texts previously stored for this entity
 	 */
-	public void addValue(@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull String[] values) {
-		indexValues(fieldKey, primaryKey, values);
+	public void removeValue(
+		@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull CompiledFulltextAnalyzer analyzer,
+		double lengthPivot, @Nonnull String... values
+	) {
+		if (values.length == 0) {
+			return;
+		}
+		final int fieldId = getFieldId(fieldKey);
+		if (fieldId == UNKNOWN_FIELD_ID) {
+			return;
+		}
+		if (!isFieldCurrent(fieldId, analyzer.fingerprint().index(), lengthPivot)) {
+			retireField(fieldKey);
+			return;
+		}
+		unindexValues(fieldId, primaryKey, analyzer, values);
 	}
 
 	/**
-	 * Removes the value of an entity's field from the index: analyzes the value again — the index does not keep the
-	 * original — and removes the entity from the posting list of every term it produced, and its length. The value
-	 * must be the one that was indexed, or terms it no longer produces would keep their postings.
+	 * Analyzes and indexes the texts of a current field generation.
 	 *
-	 * Removing from a field the index has never seen or has retired, or a value producing no token, changes nothing.
-	 *
-	 * @param fieldKey   identity of the searchable field
-	 * @param primaryKey primary key of the entity
-	 * @param value      the value that was indexed
-	 */
-	public void removeValue(@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull String value) {
-		unindexValues(fieldKey, primaryKey, value);
-	}
-
-	/**
-	 * Removes the array value of an entity's field from the index — the mirror of
-	 * {@link #addValue(FulltextFieldKey, int, String[])}. The array must hold the elements that were indexed, in any
-	 * order; removing only some of them is not possible, because the entity has one entry for the whole array.
-	 *
-	 * Removing from a field the index has never seen or has retired, or an array producing no token, changes
-	 * nothing.
-	 *
-	 * @param fieldKey   identity of the searchable field
-	 * @param primaryKey primary key of the entity
-	 * @param values     the array that was indexed
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key resolves to a field and an element of the
-	 *                                                        array is null
-	 */
-	public void removeValue(@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull String[] values) {
-		unindexValues(fieldKey, primaryKey, values);
-	}
-
-	/**
-	 * The body of both `addValue` overloads: one value is an array of one element.
-	 *
-	 * @param fieldKey   identity of the searchable field; registered with the default pivot when new
+	 * @param fieldId the registered current field generation
+	 * @param analyzer the compiled index chain that built its postings
 	 * @param primaryKey primary key of the entity
 	 * @param values     the elements of the value
 	 */
-	private void indexValues(@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull String... values) {
-		final int fieldId = getOrAssignFieldId(fieldKey);
+	private void indexValues(
+		int fieldId, int primaryKey, @Nonnull CompiledFulltextAnalyzer analyzer, @Nonnull String... values
+	) {
 		final Field field = fieldAt(fieldId);
 		Assert.isPremiseValid(
 			field.lengths().getEncoded(primaryKey) == 0,
-			() -> "Entity " + primaryKey + " already has a value of fulltext field " + fieldKey + " indexed; " +
+			() -> "Entity " + primaryKey + " already has a value of fulltext field " + field.key() + " indexed; " +
 				"remove it before indexing another."
 		);
-		final AnalyzedValue analyzed = analyze(values);
+		final AnalyzedValue analyzed = analyze(analyzer, values);
 		if (analyzed.length() == 0) {
 			return;
 		}
@@ -815,22 +897,25 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			final int impact = computeImpact(entry.getValue()[0], analyzed.length(), pivot);
 			this.dictionary.addRecord(FulltextTermKeys.encode(fieldId, entry.getKey()), primaryKey, (byte) impact);
 		}
+		updateSurfaceForms(field.wordPhaseId(), analyzed.surfacePairs(), 1);
 		field.lengths().put(primaryKey, analyzed.length());
 	}
 
 	/**
-	 * The body of both `removeValue` overloads: one value is an array of one element.
+	 * Removes the old texts from a current field generation, leaving an absent entity untouched.
 	 *
-	 * @param fieldKey   identity of the searchable field
+	 * @param fieldId the registered current field generation
+	 * @param analyzer the compiled index chain that built its postings
 	 * @param primaryKey primary key of the entity
 	 * @param values     the elements of the value that was indexed
 	 */
-	private void unindexValues(@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull String... values) {
-		final int fieldId = getFieldId(fieldKey);
-		if (fieldId == UNKNOWN_FIELD_ID) {
+	private void unindexValues(
+		int fieldId, int primaryKey, @Nonnull CompiledFulltextAnalyzer analyzer, @Nonnull String... values
+	) {
+		if (fieldAt(fieldId).lengths().getEncoded(primaryKey) == 0) {
 			return;
 		}
-		final AnalyzedValue analyzed = analyze(values);
+		final AnalyzedValue analyzed = analyze(analyzer, values);
 		if (analyzed.length() == 0) {
 			// the mirror of addValue: a value without tokens was indexed as nothing, so there is nothing to remove -
 			// and touching the length table here would erase the length of whatever the entity really has indexed
@@ -840,92 +925,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		for (final String term : analyzed.termFrequencies().keySet()) {
 			this.dictionary.removeRecord(FulltextTermKeys.encode(fieldId, term), primaryKey);
 		}
+		updateSurfaceForms(fieldAt(fieldId).wordPhaseId(), analyzed.surfacePairs(), -1);
 		fieldAt(fieldId).lengths().remove(primaryKey);
-	}
-
-	/**
-	 * Records a single posting directly, bypassing analysis — the low-level counterpart of
-	 * {@link #addValue(FulltextFieldKey, int, String)} for callers that analyze themselves. Adding a posting that is
-	 * already present replaces its impact.
-	 *
-	 * Only the dictionary is touched: the field's {@link FieldLengthTable} is not, so a caller mixing this with
-	 * {@link #addValue(FulltextFieldKey, int, String)} for the same entity leaves its length and its postings
-	 * disagreeing.
-	 *
-	 * @param fieldId    id of the field, as returned by {@link #getOrAssignFieldId(FulltextFieldKey)}
-	 * @param term       the analyzed term
-	 * @param primaryKey primary key of the entity
-	 * @param impact     the posting's impact, `1..`{@link #MAX_IMPACT}
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the index never assigned the field id, the field
-	 *                                                        was retired, or the impact is out of range
-	 */
-	public void addPosting(int fieldId, @Nonnull String term, int primaryKey, int impact) {
-		assertFieldWritable(fieldId);
-		Assert.isPremiseValid(
-			impact >= 1 && impact <= MAX_IMPACT,
-			() -> "An impact must be within 1.." + MAX_IMPACT + ", " + impact + " was passed!"
-		);
-		markWritten();
-		this.dictionary.addRecord(FulltextTermKeys.encode(fieldId, term), primaryKey, (byte) impact);
-	}
-
-	/**
-	 * Removes a single posting directly, bypassing analysis. The term leaves the dictionary with its last posting;
-	 * removing a posting that is not present changes nothing. Like {@link #addPosting}, it leaves the field's
-	 * {@link FieldLengthTable} untouched.
-	 *
-	 * @param fieldId    id of the field, as returned by {@link #getOrAssignFieldId(FulltextFieldKey)}
-	 * @param term       the analyzed term
-	 * @param primaryKey primary key of the entity
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the index never assigned the field id, or the field
-	 *                                                        was retired
-	 */
-	public void removePosting(int fieldId, @Nonnull String term, int primaryKey) {
-		assertFieldWritable(fieldId);
-		markWritten();
-		this.dictionary.removeRecord(FulltextTermKeys.encode(fieldId, term), primaryKey);
-	}
-
-	/**
-	 * Returns the posting list of a term in a field.
-	 *
-	 * @param fieldId id of the field
-	 * @param term    the analyzed term
-	 * @return the primary keys of the entities whose field contains the term — a read-only view of the dictionary's
-	 * own storage, empty when the term is absent
-	 */
-	@Nonnull
-	public Bitmap getPostings(int fieldId, @Nonnull String term) {
-		assertFieldKnown(fieldId);
-		return this.dictionary.getRecordsEqualTo(FulltextTermKeys.encode(fieldId, term));
-	}
-
-	/**
-	 * Returns the impacts of a term in a field, aligned with its posting list. The answer is a copy, paid for with a
-	 * descent of the dictionary; a walk over many terms reads them through {@link #forEachTerm} and its
-	 * {@link TermVisitor} instead, which costs neither.
-	 *
-	 * @param fieldId id of the field
-	 * @param term    the analyzed term
-	 * @return one unsigned byte per posting, `impacts[i]` belonging to the i-th posting of
-	 * {@link #getPostings(int, String)}; empty when the term is absent
-	 */
-	@Nonnull
-	public byte[] getImpacts(int fieldId, @Nonnull String term) {
-		assertFieldKnown(fieldId);
-		return this.dictionary.impactsOf(FulltextTermKeys.encode(fieldId, term));
-	}
-
-	/**
-	 * Returns the length table of a field.
-	 *
-	 * @param fieldId id of the field
-	 * @return the lengths of the field's indexed values
-	 */
-	@Nonnull
-	public FieldLengthTable getFieldLengths(int fieldId) {
-		assertFieldKnown(fieldId);
-		return fieldAt(fieldId).lengths();
 	}
 
 	/**
@@ -959,24 +960,113 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * Returns the number of distinct (field, term) keys in the dictionary.
-	 *
-	 * @return the dictionary size
+	 * Creates exact stem lookup state for one searched field. Its framed probe and tree lookup are reused across
+	 * lane hits; posting and impact views are acquired only after a candidate survives the leg's heap cut.
+	 * The lookup belongs to this index instance and the transaction in which it is created. No write may occur
+	 * between a successful find and its accessors. Obtain a new lookup after any write or index replacement; a
+	 * further find on the old lookup does not renew its borrowing lifetime.
+	 * @param fieldId current field generation whose posting terms are searched
+	 * @return query-owned exact lookup state
 	 */
-	public int getTermCount() {
-		return this.dictionary.size();
+	@Nonnull
+	public TermLookup termLookup(int fieldId) {
+		assertFieldKnown(fieldId);
+		return new TermLookup(fieldId);
+	}
+
+	/**
+	 * Reusable exact stem probe; neither borrowed input characters nor unretained field views escape. The lookup is
+	 * valid only on its creating index instance and within its creating transaction. No write may occur between a
+	 * successful find and its accessors. After any write or index replacement, obtain a new lookup from the current
+	 * index; calling find again on the old lookup does not refresh its lifetime. These are caller obligations, with
+	 * no generation or transaction check.
+	 */
+	public final class TermLookup {
+		/** Encoded field prefix, prepared once. */
+		@Nonnull private final String fieldPrefix;
+		/** Reused complete dictionary probe. */
+		@Nonnull private final StringBuilder probe = new StringBuilder(64);
+		/** Tree-owned-column lookup state belonging to this query. */
+		@Nonnull private final TransactionalBucketBPlusTree<String>.StringBucketLookup lookup;
+
+		/**
+		 * Prepares one field's framing and exact tree reader.
+		 * @param fieldId searched field generation
+		 */
+		private TermLookup(int fieldId) {
+			this.fieldPrefix = FulltextTermKeys.fieldPrefix(fieldId);
+			this.lookup = FulltextIndex.this.dictionary.stringLookup();
+		}
+
+		/**
+		 * Positions on an exact stem without freezing its borrowed characters. Use only in this lookup's creating
+		 * transaction and before any write; after a write or index replacement, obtain a new lookup instead.
+		 * @param stem decoded posting term from a lane cursor
+		 * @return true when this field holds the stem
+		 */
+		public boolean find(@Nonnull CharSequence stem) {
+			this.probe.setLength(0);
+			this.probe.append(this.fieldPrefix).append(stem);
+			return this.lookup.find(this.probe);
+		}
+
+		/**
+		 * Reads document frequency before constructing any posting views. Requires a successful find with no
+		 * intervening write, on the same index instance and within the creating transaction.
+		 * @return current exact stem's document frequency
+		 */
+		public int size() {
+			return this.lookup.size();
+		}
+
+		/**
+		 * Borrows postings for a retained exact stem. Requires a successful find with no intervening write, on the
+		 * same index instance and within the creating transaction; obtain a new lookup after any write or replacement.
+		 * @return current exact stem's posting view
+		 */
+		@Nonnull
+		public Bitmap postings() {
+			return this.lookup.records();
+		}
+
+		/**
+		 * Borrows impacts aligned with a retained stem's postings. Requires a successful find with no intervening
+		 * write, on the same index instance and within the creating transaction; obtain a new lookup after any write
+		 * or index replacement.
+		 * @return current exact stem's impact view
+		 */
+		@Nonnull
+		public ImpactView impacts() {
+			return this.lookup.impacts();
+		}
+	}
+
+	/**
+	 * Visits the accepted terms reached by a reusable typo walker in one field, in ascending dictionary order.
+	 * Every well-formed accepted term is visited. For terms containing an unpaired surrogate, the rules in
+	 * {@link FulltextDictionaryWalker} apply. The walker was built for the bare term and may be reused for other
+	 * fields; it never includes the field prefix in edit distance. The visitor must not write to this index during
+	 * the walk.
+	 *
+	 * @param fieldId id of the field to search
+	 * @param walker finite or open-ended walker built once for the query term
+	 * @param visitor receives accepted terms, posting and impact views, distances and bucket cardinalities
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the index never assigned the field id
+	 */
+	public void forEachTerm(int fieldId, @Nonnull FulltextDictionaryWalker walker, @Nonnull MatchVisitor visitor) {
+		assertFieldKnown(fieldId);
+		walker.walk(this.dictionary, fieldId, visitor);
 	}
 
 	/**
 	 * Returns the heap this index occupies, in bytes: the index object and its dirty flag, the field registry - the
-	 * name-to-id map, the field array and every field's length table - and the term dictionary with its postings and
-	 * impacts, priced by the dictionary itself.
+	 * name-to-id map, the field array and every field's length table - the term dictionary with its postings and
+	 * impacts, and the surface dictionary with its counts and word-phase table.
 	 *
-	 * Not charged: the analyzer, which the registry shares among every index using it, and the page bookkeeping, which
-	 * no paged index charges - it is flush state carried by reference through every committed copy. Each field key is
-	 * charged with its {@link Field}, the one holder a retired field's key still has; {@link #fieldIds} maps the very
-	 * same instance. A retired field and its successor registered with one key instance are charged it twice. A running
-	 * transaction's layer belongs to the transaction.
+	 * Not charged: the page bookkeeping, which no paged index charges - it is flush state carried by reference through
+	 * every committed copy. Each field key is charged with its {@link Field}, the one holder a retired field's key
+	 * still has; {@link #fieldIds} maps the very same instance. A retired field and its successor registered with one
+	 * key instance are charged it twice. A running transaction's layer belongs to the transaction.
 	 *
 	 * Walking the dictionary costs `O(terms / block size)`, so this is an index-detail figure, never one a query path
 	 * may ask for.
@@ -985,20 +1075,27 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// id and defaultLengthPivot, then the indexAnalyzer / fieldIds / fields / dictionary / dirty /
-		// pageStreamRegistry slots
-		long size = layout.sizeOfObject(Long.BYTES + Double.BYTES + 6L * layout.referenceSize())
+		// The id and seven reference slots: fieldIds, fields, dictionary, surfaceForms, wordPhaseIds, dirty,
+		// pageStreamRegistry.
+		long size = layout.sizeOfObject(Long.BYTES + 7L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
 			// the key is charged with its field, the boxed field id to this map, its only holder
 			+ MapHeapSize.sizeOf(this.fieldIds, fieldKey -> 0L, fieldId -> layout.sizeOfObject(Integer.BYTES))
-			+ this.dictionary.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER);
+			+ this.dictionary.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER)
+			+ this.surfaceForms.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER)
+			+ this.wordPhaseIds.getHeapSizeInBytes(
+				fingerprint -> layout.sizeOfObject(Long.BYTES),
+				phaseId -> layout.sizeOfObject(Integer.BYTES));
 		if (this.fields.length > 0) {
 			// the shared empty registry belongs to no index
 			size += layout.sizeOfArray(this.fields.length, layout.referenceSize());
 			for (final Field field : this.fields) {
-				// lengthPivot and retired, then the key / lengths slots
-				size += layout.sizeOfObject(Double.BYTES + 1L + 2L * layout.referenceSize())
+				// The pivot, two identities and retired flag, then key / analyzerName / expression / lengths.
+				final String textExpression = field.textExpression();
+				size += layout.sizeOfObject(Double.BYTES + 2L * Long.BYTES + 1L + 4L * layout.referenceSize())
 					+ getHeapSizeInBytes(field.key(), layout)
+					+ MemoryMeasuringConstants.computeStringSize(field.analyzerName())
+					+ (textExpression == null ? 0L : MemoryMeasuringConstants.computeStringSize(textExpression))
 					+ field.lengths().getHeapSizeInBytes();
 			}
 		}
@@ -1066,18 +1163,19 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 				mergedFieldIds.put(field.key(), fieldId);
 			}
 			mergedFields[fieldId] = new Field(
-				field.key(),
+				field.key(), field.analyzerName(), field.indexFingerprint(), field.wordPhaseId(),
 				field.lengthPivot(),
+				field.textExpression(),
 				retired,
 				transactionalLayer.getStateCopyWithCommittedChanges(field.lengths())
 			);
 		}
 		return new FulltextIndex(
-			this.indexAnalyzer,
-			this.defaultLengthPivot,
 			mergedFieldIds,
 			mergedFields,
 			transactionalLayer.getStateCopyWithCommittedChanges(this.dictionary),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.surfaceForms),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.wordPhaseIds),
 			this.pageStreamRegistry
 		);
 	}
@@ -1094,6 +1192,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			}
 		}
 		this.dictionary.removeLayer(transactionalLayer);
+		this.surfaceForms.removeLayer(transactionalLayer);
+		this.wordPhaseIds.removeLayer(transactionalLayer);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.dirty);
 	}
 
@@ -1123,12 +1223,14 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * last flush, the ordered list of every live page, the high-water of the page sequences, and the pages that left
 	 * the dictionary and must be removed.
 	 *
-	 * A leaf without a page - a fresh one, or either half of a split, both of which are new leaves - is assigned a newly
+	 * A leaf without a page - a fresh one or either new half of a split - is assigned a newly
 	 * allocated page; a leaf is collected when it is new or its transaction-aware dirty flag is set, and the flag is
-	 * cleared on the way. The next set of live pages is staged, and becomes the baseline at the commit merge.
+	 * cleared on the way. The next set of live pages is staged, and becomes the baseline at the next publication: the
+	 * commit merge, or the next collect of either dictionary - which within one flush is
+	 * {@link #collectChangedSurfaceFormPages()}.
 	 *
-	 * Before anything is staged, the set staged by the PREVIOUS flush is published: see {@link #publishPreviousFlush()}
-	 * for why that is necessary. The dictionary is always written in pages, even when it fits one leaf: an index
+	 * Before anything is staged, every set still staged is published: see {@link #publishPreviousFlush()} for why that
+	 * is necessary. The dictionary is always written in pages, even when it fits one leaf: an index
 	 * holding a whole corpus's terms is never small, so an inline shape would only add a collapse path to maintain.
 	 *
 	 * The caller gates on {@link #isDirty()}; a clean index must not be collected. Inside a transaction, the index must
@@ -1191,7 +1293,9 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * Promotes the set of pages staged by the previous flush to the baseline this flush diffs against.
+	 * Promotes every set of pages still staged to the baseline this collect diffs against. The registry publishes all
+	 * its streams at once, so besides what the previous flush staged this takes the set the other dictionary's collect
+	 * staged earlier in the same flush.
 	 *
 	 * The commit merge publishes the staged set, but a warm-up (bulk) flush never reaches a merge, so without this the
 	 * baseline would stay empty for the whole warm-up while the disk moved on, and the freed-page diff of every warm-up
@@ -1203,7 +1307,9 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * Publishing at collect time is safe on every path, for the reason
 	 * {@link io.evitadb.index.invertedIndex.InvertedIndex} records at its own copy of this method: a failed flush is
 	 * never followed by another flush of the same data, so no later flush can diff against a set that did not land.
-	 * On the transactional path the merge has already published, and this is a no-op.
+	 * The same holds for a set staged earlier in the flush in progress. On the transactional path the merge has
+	 * already published what the previous flush staged, so the first collect of a flush finds nothing to publish; the
+	 * second one publishes the set the first one staged.
 	 */
 	private void publishPreviousFlush() {
 		this.pageStreamRegistry.publishStaged();
@@ -1279,33 +1385,55 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * Analyzes the elements of a value through the index slot into its distinct terms with their frequencies and its
-	 * length, summed over the elements - one element for a single value.
+	 * Analyzes the elements of a value through the field's compiled index chain into its distinct terms with their
+	 * frequencies and its length, summed over the elements - one element for a single value.
 	 *
 	 * The length counts token **positions**: a term arriving at position increment `0` is a variant of the previous
 	 * position, not a further token of the text, and a stop word removed by the chain leaves a gap but is not a token
 	 * either. Each element is analyzed on its own, so no token spans two of them.
 	 *
 	 * The term frequencies count every term the chain emits, stacked variants at increment `0` included, so a term's
-	 * frequency may exceed the length.
+	 * frequency may exceed the length. Surface pairs are distinct over the entire value. A passive capture in the
+	 * full index chain pairs each normalized pre-stem input with its outputs, including shared positions. Only index
+	 * operations contribute; query-only synonyms and normalization never determine persisted keys. Display is the
+	 * original NFC offset slice lowercased with `Locale.ROOT`, with NUL dropped and all other characters retained.
 	 *
+	 * @param analyzer the compiled index chain of the field
 	 * @param values the elements to analyze
 	 * @return the analysis
 	 */
 	@Nonnull
-	private AnalyzedValue analyze(@Nonnull String... values) {
+	private AnalyzedValue analyze(@Nonnull CompiledFulltextAnalyzer analyzer, @Nonnull String... values) {
 		final Map<String, int[]> termFrequencies = CollectionUtils.createHashMap(16);
+		final Map<SurfacePair, String> distinctPairs = CollectionUtils.createLinkedHashMap(16);
+		final SurfacePair lookup = new SurfacePair("", "");
 		final int[] length = new int[1];
 		for (final String value : values) {
 			Assert.isPremiseValid(value != null, "A fulltext value must not contain a null element!");
-			this.indexAnalyzer.analyze(value, (term, surfaceForm, startOffset, endOffset, positionIncrement) -> {
-				if (positionIncrement > 0) {
+			analyzer.indexSurface().analyzeIndexed(value, (term, folded, surface, start, end, increment) -> {
+				if (increment > 0) {
 					length[0]++;
 				}
 				termFrequencies.computeIfAbsent(term, t -> new int[1])[0]++;
+				if (folded != null) {
+					// Borrowed capture buffers are compared without strings; stored keys own immutable copies.
+					lookup.reset(folded, term);
+					if (!distinctPairs.containsKey(lookup)) {
+						// Display alone uses source offsets. Drop NUL and retain every other original character.
+						final String accented = surface.get().toLowerCase(Locale.ROOT).replace("\0", "");
+						distinctPairs.put(lookup.freeze(), accented);
+					}
+				}
 			});
 		}
-		return new AnalyzedValue(termFrequencies, length[0]);
+		final Map<String, String> surfacePairs = CollectionUtils.createLinkedHashMap(distinctPairs.size());
+		for (final Map.Entry<SurfacePair, String> entry : distinctPairs.entrySet()) {
+			final SurfacePair pair = entry.getKey();
+			final String folded = pair.folded.toString();
+			final String stem = pair.stem.equals(folded) ? "" : encodeDistinctSurfaceComponent(pair.stem);
+			surfacePairs.put(encodeSurfaceComponent(folded) + '\0' + stem + '\0', entry.getValue());
+		}
+		return new AnalyzedValue(termFrequencies, surfacePairs, length[0]);
 	}
 
 	/**
@@ -1335,18 +1463,614 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * Verifies the field id was assigned by this index and the field still takes writes - a retired field keeps what
-	 * it held until a reindex drops it, and nothing more.
+	 * Creates the surface dictionary using the tree's unique primitive long payload column.
 	 *
-	 * @param fieldId the id to verify
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the id was never assigned, or the field was retired
+	 * @return an empty tree with no posting sets or impacts
 	 */
-	private void assertFieldWritable(int fieldId) {
-		Assert.isPremiseValid(
-			!isFieldRetired(fieldId),
-			() -> "Fulltext field " + fieldAt(fieldId).key() + " with id " + fieldId +
-				" was retired and takes no writes!"
-		);
+	@Nonnull
+	@SuppressWarnings("unchecked")
+	private static TransactionalBucketBPlusTree<String> createSurfaceForms() {
+		return TransactionalBucketBPlusTree.withLongPayload(
+			VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_INTERNAL_NODE_BLOCK_SIZE,
+			String.class, null, (ValueColumnFactory<String>) ValueColumnFactory.forKey(String.class, null));
+	}
+
+	/**
+	 * Returns the short identities written in the root record. The returned table is detached from live state.
+	 *
+	 * @return fingerprint to short prefix id, including retired phases still owning lane keys
+	 */
+	@Nonnull
+	public Map<Long, Integer> getWordPhaseIds() {
+		final Map<Long, Integer> result = CollectionUtils.createHashMap(this.wordPhaseIds.size());
+		this.wordPhaseIds.forEach((fingerprint, phaseId) -> result.put(fingerprint, phaseId.value()));
+		return result;
+	}
+
+	/**
+	 * An owned id cell prevents JVM integer caching from making the table's heap depend on other index counters.
+	 *
+	 * @param value short fixed-width prefix id
+	 */
+	private record WordPhaseId(int value) {
+	}
+
+	/**
+	 * Validates persisted ids and restores owned cells for the transactional table.
+	 *
+	 * @param ids persisted fingerprint to short prefix table
+	 * @return owned cells, with every prefix unique and encodable
+	 */
+	@Nonnull
+	private static Map<Long, WordPhaseId> restoreWordPhaseIds(@Nonnull Map<Long, Integer> ids) {
+		final Map<Long, WordPhaseId> result = CollectionUtils.createHashMap(Math.max(8, ids.size()));
+		for (final Map.Entry<Long, Integer> entry : ids.entrySet()) {
+			final int id = entry.getValue();
+			FulltextTermKeys.fieldPrefix(id);
+			final WordPhaseId cell = new WordPhaseId(id);
+			Assert.isPremiseValid(!result.containsValue(cell), "Persisted word phases must have distinct ids!");
+			result.put(entry.getKey(), cell);
+		}
+		return result;
+	}
+
+	/**
+	 * Assigns the lowest available fixed-width prefix to a new word phase.
+	 *
+	 * @param fingerprint the persisted word-phase fingerprint
+	 */
+	private void assignWordPhaseId(long fingerprint) {
+		if (this.wordPhaseIds.get(fingerprint) != null) {
+			return;
+		}
+		int candidate = 0;
+		while (this.wordPhaseIds.containsValue(new WordPhaseId(candidate))) {
+			candidate++;
+		}
+		Assert.isPremiseValid(candidate <= FulltextTermKeys.MAX_FIELD_ID, "Surface word-phase ids exhausted!");
+		this.wordPhaseIds.put(fingerprint, new WordPhaseId(candidate));
+	}
+
+	/**
+	 * Drops an identity only when neither a current field nor a lane key can still use it.
+	 *
+	 * @param fingerprint the word phase that may have become unused
+	 */
+	private void releaseWordPhaseIdIfUnused(long fingerprint) {
+		final WordPhaseId phaseId = this.wordPhaseIds.get(fingerprint);
+		if (phaseId == null) {
+			return;
+		}
+		for (int fieldId = 0; fieldId < getFieldCount(); fieldId++) {
+			if (!isFieldRetired(fieldId) && fieldAt(fieldId).wordPhaseId() == fingerprint) {
+				return;
+			}
+		}
+		final String prefix = surfacePhasePrefix(phaseId);
+		final BucketCursor<String> cursor = this.surfaceForms.cursor(prefix);
+		if (!cursor.next() || !cursor.value().startsWith(prefix)) {
+			this.wordPhaseIds.remove(fingerprint);
+		}
+	}
+
+	/**
+	 * Updates each pair once per entity field value. The first accented spelling is retained until the pair vanishes;
+	 * tracking every spelling's frequency would require another persisted dictionary just for suggestion display.
+	 *
+	 * @param fingerprint the field's word-phase identity
+	 * @param pairs distinct folded/stem pairs with candidate display spellings
+	 * @param delta one for addition, minus one for removal
+	 */
+	private void updateSurfaceForms(long fingerprint, @Nonnull Map<String, String> pairs, int delta) {
+		final WordPhaseId phaseId = this.wordPhaseIds.get(fingerprint);
+		Assert.isPremiseValid(phaseId != null, "A written field must own a word-phase id!");
+		final String phasePrefix = surfacePhasePrefix(phaseId);
+		for (final Map.Entry<String, String> pair : pairs.entrySet()) {
+			final String prefix = phasePrefix + pair.getKey();
+			final BucketCursor<String> cursor = this.surfaceForms.cursor(prefix);
+			final boolean present = cursor.next() && cursor.value().startsWith(prefix);
+			Assert.isPremiseValid(present || delta > 0, "A removed surface pair must exist!");
+			final String key;
+			final long count;
+			if (present) {
+				key = cursor.value();
+				count = Math.addExact(cursor.longRecordId(), delta);
+				this.surfaceForms.removeLongRecord(key);
+			} else {
+				final String folded = decodeSurfaceComponent(pair.getKey().substring(0, pair.getKey().indexOf('\0')));
+				key = prefix + (folded.equals(pair.getValue()) ? "" : encodeDistinctSurfaceComponent(pair.getValue()));
+				count = 1;
+			}
+			if (count > 0) {
+				this.surfaceForms.addLongRecord(key, count);
+			}
+		}
+	}
+
+	/**
+	 * Escapes framing NUL and the escape character SOH, retaining ordinary tokens verbatim. The escape codes
+	 * preserve character order and prefix bounds: NUL becomes SOH/SOH and SOH becomes SOH/STX.
+	 *
+	 * @param component actual index token or display spelling
+	 * @return delimiter-free component
+	 */
+	@Nonnull
+	private static String encodeSurfaceComponent(@Nonnull String component) {
+		if (component.indexOf('\0') < 0 && component.indexOf('\1') < 0) {
+			return component;
+		}
+		final StringBuilder encoded = new StringBuilder(component.length() + 2);
+		for (int i = 0; i < component.length(); i++) {
+			final char character = component.charAt(i);
+			if (character <= '\1') {
+				encoded.append('\1').append((char) (character + 1));
+			} else {
+				encoded.append(character);
+			}
+		}
+		return encoded.toString();
+	}
+
+	/**
+	 * Encodes a component different from folded; SOH/ETX reserves an explicit empty value, while an empty encoded
+	 * stem or display means identity with folded. Literal SOH is escaped, so the explicit-empty marker is unambiguous.
+	 *
+	 * @param component nonidentity token or display
+	 * @return nonempty encoded component
+	 */
+	@Nonnull
+	private static String encodeDistinctSurfaceComponent(@Nonnull String component) {
+		return component.isEmpty() ? "\1\3" : encodeSurfaceComponent(component);
+	}
+
+	/**
+	 * Decodes an encoded component and rejects malformed escapes in persisted pages.
+	 *
+	 * @param component encoded component
+	 * @return original token or spelling
+	 */
+	@Nonnull
+	private static String decodeSurfaceComponent(@Nonnull String component) {
+		if (component.equals("\1\3")) {
+			return "";
+		}
+		if (component.indexOf('\1') < 0) {
+			Assert.isPremiseValid(component.indexOf('\0') < 0, "An encoded component must not contain NUL!");
+			return component;
+		}
+		final StringBuilder decoded = new StringBuilder(component.length());
+		for (int i = 0; i < component.length(); i++) {
+			final char character = component.charAt(i);
+			if (character == '\1') {
+				Assert.isPremiseValid(++i < component.length(), "A surface escape must have a code!");
+				final char code = component.charAt(i);
+				Assert.isPremiseValid(code == '\1' || code == '\2', "Invalid surface escape code!");
+				decoded.append((char) (code - 1));
+			} else {
+				Assert.isPremiseValid(character != '\0', "An encoded component must not contain NUL!");
+				decoded.append(character);
+			}
+		}
+		return decoded.toString();
+	}
+
+	/**
+	 * Validates canonical component encoding, including omitted identity stems and display spellings.
+	 *
+	 * @param key framed persisted key
+	 * @param foldedEnd end of the folded component
+	 */
+	private static void validateSurfaceKey(@Nonnull String key, int foldedEnd) {
+		final int stemEnd = surfaceStemEnd(key, foldedEnd);
+		final String encodedFolded = key.substring(FulltextTermKeys.FIELD_PREFIX_WIDTH + 1, foldedEnd);
+		final String folded = decodeSurfaceComponent(encodedFolded);
+		Assert.isPremiseValid(encodeSurfaceComponent(folded).equals(encodedFolded), "Noncanonical folded component!");
+		final String encodedStem = key.substring(foldedEnd + 1, stemEnd);
+		if (!encodedStem.isEmpty()) {
+			final String stem = decodeSurfaceComponent(encodedStem);
+			Assert.isPremiseValid(!stem.equals(folded) && encodeDistinctSurfaceComponent(stem).equals(encodedStem),
+				"An identity stem must be omitted!");
+		}
+		final String encodedDisplay = key.substring(stemEnd + 1);
+		if (!encodedDisplay.isEmpty()) {
+			final String display = decodeSurfaceComponent(encodedDisplay);
+			Assert.isPremiseValid(display.indexOf('\0') < 0 && !display.equals(folded)
+				&& encodeDistinctSurfaceComponent(display).equals(encodedDisplay), "Noncanonical surface display!");
+		}
+	}
+
+	/**
+	 * Opens a cursor bounded to one word phase and a literal folded prefix. An empty prefix visits the entire phase.
+	 * NUL is ordinary token text here, including at the end. A cursor must not outlive a write to this index.
+	 *
+	 * @param wordPhase persistent fingerprint of the queried profile
+	 * @param foldedPrefix literal query-prepared prefix
+	 * @return bounded prefix cursor yielding normalized lookup keys, stems and display spellings
+	 */
+	@Nonnull
+	public SurfaceFormCursor surfaceFormCursor(long wordPhase, @Nonnull String foldedPrefix) {
+		return createSurfaceFormCursor(wordPhase, foldedPrefix, false);
+	}
+
+	/**
+	 * Opens a cursor over exactly one literal folded word in one word phase, including words ending in NUL.
+	 * A cursor must not outlive a write to this index.
+	 *
+	 * @param wordPhase persistent fingerprint of the queried profile
+	 * @param foldedWord complete query-prepared lookup word, without any framing delimiter
+	 * @return exact-word cursor yielding every independently counted stem of that word
+	 */
+	@Nonnull
+	public SurfaceFormCursor exactSurfaceFormCursor(long wordPhase, @Nonnull String foldedWord) {
+		return createSurfaceFormCursor(wordPhase, foldedWord, true);
+	}
+
+	/**
+	 * Resolves the short phase prefix for either explicit cursor mode.
+	 * @param wordPhase persistent phase fingerprint
+	 * @param folded literal folded word or prefix
+	 * @param exact whether the complete folded component must match
+	 * @return bounded cursor, empty when this phase has no id
+	 */
+	@Nonnull
+	private SurfaceFormCursor createSurfaceFormCursor(long wordPhase, @Nonnull String folded, boolean exact) {
+		final WordPhaseId phaseId = this.wordPhaseIds.get(wordPhase);
+		return new SurfaceFormCursor(phaseId == null ? null : surfacePhasePrefix(phaseId), folded, exact);
+	}
+
+	/**
+	 * Returns the key prefix of a word phase in the surface dictionary: its short id followed by the frame NUL.
+	 *
+	 * @param phaseId the short id of the word phase
+	 * @return the prefix every surface key of the phase starts with
+	 */
+	@Nonnull
+	private static String surfacePhasePrefix(@Nonnull WordPhaseId phaseId) {
+		return FulltextTermKeys.fieldPrefix(phaseId.value()) + '\0';
+	}
+
+	/**
+	 * Returns where the folded component of a framed surface key ends.
+	 *
+	 * @param key the framed surface key
+	 * @return the index of the NUL closing the folded component, or -1 when the key has none
+	 */
+	private static int surfaceFoldedEnd(@Nonnull CharSequence key) {
+		for (int i = FulltextTermKeys.FIELD_PREFIX_WIDTH + 1; i < key.length(); i++) {
+			if (key.charAt(i) == '\0') {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	/**
+	 * Returns where the stem component of a framed surface key ends.
+	 *
+	 * @param key       the framed surface key
+	 * @param foldedEnd the end of its folded component, see {@link #surfaceFoldedEnd(CharSequence)}
+	 * @return the index of the NUL closing the stem component, or -1 when the key has none
+	 */
+	private static int surfaceStemEnd(@Nonnull CharSequence key, int foldedEnd) {
+		for (int i = foldedEnd + 1; i < key.length(); i++) {
+			if (key.charAt(i) == '\0') {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	/**
+	 * A forward cursor over one word phase's surface keys, bounded by the requested folded prefix.
+	 *
+	 * {@link #seek(String)} only positions: it hides the current key, and the following {@link #next()} exposes the
+	 * first key at or above the bound, or returns false when the range holds none. Several seeks may precede that
+	 * next(), the last one deciding, as long as each bound lies past the last yielded key. Once next() has returned
+	 * false, the cursor stays exhausted and seeks are ignored. The decoded component views are cursor-owned buffers;
+	 * for an identity stem {@link #stemCharacters()} returns the {@link #foldedCharacters()} buffer itself.
+	 */
+	public final class SurfaceFormCursor {
+		/** Encoded word-phase prefix, or null for a phase absent from the index. */
+		@Nullable private final String phasePrefix;
+		/** Encoded lower bound and range prefix. */
+		@Nonnull private final String keyPrefix;
+		/** Current underlying leaf cursor. */
+		@Nullable private BucketCursor<String> delegate;
+		/** Reused decoded folded component; borrowed by the query walker until the cursor advances. */
+		@Nonnull private final StringBuilder foldedCharacters = new StringBuilder(32);
+		/** Reused decoded nonidentity stem. */
+		@Nonnull private final StringBuilder stemCharacters = new StringBuilder(32);
+		/** Encoded current key, retained while a sought ceiling is pending. */
+		@Nonnull private final StringBuilder key = new StringBuilder(64);
+		/** Scratch encoded ceiling for repeated seeks before next(). */
+		@Nonnull private final StringBuilder seekCharacters = new StringBuilder(64);
+		/** Whether the public cursor currently exposes a key. */
+		private boolean positioned;
+		/** Whether the delegate has advanced at least once. */
+		private boolean delegatePositioned;
+		/** Whether next() must expose the already-positioned seek ceiling. */
+		private boolean pendingPosition;
+		/** Whether a key has been yielded, for forward-bound validation through pending seeks. */
+		private boolean yielded;
+		/** Last seek bound, used to preserve pre-next repositioning within a pending range. */
+		@Nullable private String pendingLowerBound;
+
+		/**
+		 * Opens a range without exposing the mutable tree.
+		 *
+		 * @param phasePrefix encoded word-phase prefix, null for an absent phase
+		 * @param foldedPrefix literal surface prefix or complete word
+		 * @param exact whether to frame the complete word for exact matching
+		 */
+		private SurfaceFormCursor(@Nullable String phasePrefix, @Nonnull String foldedPrefix, boolean exact) {
+			this.phasePrefix = phasePrefix;
+			this.keyPrefix = phasePrefix == null ? ""
+				: phasePrefix + encodeSurfaceComponent(foldedPrefix) + (exact ? "\0" : "");
+			this.delegate = phasePrefix == null ? null : FulltextIndex.this.surfaceForms.cursor(this.keyPrefix);
+		}
+
+		/**
+		 * Advances within the bounded range.
+		 *
+		 * @return true when another surface pair is available
+		 */
+		public boolean next() {
+			this.pendingLowerBound = null;
+			if (this.delegate != null && (this.pendingPosition || this.delegate.next())) {
+				this.delegatePositioned = true;
+				this.pendingPosition = false;
+				this.key.setLength(0);
+				this.delegate.appendValue(this.key);
+				boolean inRange = this.key.length() >= this.keyPrefix.length();
+				for (int i = 0; inRange && i < this.keyPrefix.length(); i++) {
+					inRange = this.key.charAt(i) == this.keyPrefix.charAt(i);
+				}
+				if (inRange) {
+					this.positioned = true;
+					this.yielded = true;
+					return true;
+				}
+			}
+			this.delegate = null;
+			this.positioned = false;
+			this.pendingPosition = false;
+			return false;
+		}
+
+		/**
+		 * Seeks forward to a literal folded lower bound within this cursor's range, with NUL always treated as text.
+		 * The next next() visits the ceiling key. Before the first result, bounds below the range start are clamped
+		 * to that start, including the framing of an exact-word cursor.
+		 * Positioned delegates use their leaf-local seek. A pending ceiling is exposed by the next next() call;
+		 * before initial positioning, or when revising a pending bound backwards, a fresh lower-bound cursor is used.
+		 * A seek that found no key in the range can still be revised by another seek until next() reports the end.
+		 *
+		 * @param foldedLowerBound the normalized surface lower bound
+		 * @throws io.evitadb.exception.GenericEvitaInternalError when a key was yielded and the bound is not past it
+		 */
+		public void seek(@Nonnull String foldedLowerBound) {
+			if (this.phasePrefix == null || this.delegate == null && this.pendingLowerBound == null) {
+				return;
+			}
+			final String lowerBound = this.phasePrefix + encodeSurfaceComponent(foldedLowerBound);
+			final String target = lowerBound.compareTo(this.keyPrefix) < 0 ? this.keyPrefix : lowerBound;
+			Assert.isPremiseValid(!this.yielded || CharSequence.compare(target, this.key) > 0,
+				"A surface cursor only seeks forward!");
+			if (this.delegate == null || !this.delegatePositioned ||
+				this.pendingPosition && this.pendingLowerBound != null &&
+				target.compareTo(this.pendingLowerBound) < 0) {
+				this.delegate = FulltextIndex.this.surfaceForms.cursor(target);
+				this.delegatePositioned = false;
+				this.pendingPosition = false;
+			} else {
+				this.seekCharacters.setLength(0);
+				this.delegate.appendValue(this.seekCharacters);
+				if (CharSequence.compare(target, this.seekCharacters) > 0 && !this.delegate.seek(target)) {
+					this.delegate = null;
+				}
+				this.pendingPosition = this.delegate != null;
+			}
+			this.pendingLowerBound = target;
+			this.positioned = false;
+		}
+
+		/**
+		 * Decodes the folded component into reusable cursor storage. Guided successor seeks may still materialize
+		 * rejected keys and seek bounds; sequential component reads reuse this buffer.
+		 * The returned characters are borrowed until the next call or cursor advance.
+		 *
+		 * @return decoded folded component without phase or suffix components
+		 */
+		@Nonnull
+		public CharSequence foldedCharacters() {
+			decodeComponent(currentKey(), FulltextTermKeys.FIELD_PREFIX_WIDTH + 1,
+				surfaceFoldedEnd(this.key), this.foldedCharacters);
+			return this.foldedCharacters;
+		}
+
+		/**
+		 * Returns borrowed decoded stem characters, including folded identity and explicit empty stems. The view
+		 * remains valid until the next cursor advance or component read; freeze it only for a retained entry.
+		 * @return mutable cursor-owned characters of the current posting stem
+		 */
+		@Nonnull
+		public CharSequence stemCharacters() {
+			final CharSequence current = currentKey();
+			final int start = surfaceFoldedEnd(current) + 1;
+			final int end = surfaceStemEnd(current, start - 1);
+			if (start == end) {
+				return foldedCharacters();
+			}
+			decodeComponent(current, start, end, this.stemCharacters);
+			return this.stemCharacters;
+		}
+
+		/**
+		 * Decodes one persisted component into reusable storage, with no temporary substring.
+		 * @param source encoded key
+		 * @param start inclusive component start
+		 * @param end exclusive component end
+		 * @param target decoded character destination, cleared first
+		 */
+		private static void decodeComponent(
+			@Nonnull CharSequence source, int start, int end, @Nonnull StringBuilder target
+		) {
+			target.setLength(0);
+			if (end - start == 2 && source.charAt(start) == '\1' && source.charAt(start + 1) == '\3') {
+				return;
+			}
+			for (int i = start; i < end; i++) {
+				final char character = source.charAt(i);
+				if (character == '\1') {
+					Assert.isPremiseValid(++i < end, "A surface escape must have a code!");
+					final char code = source.charAt(i);
+					Assert.isPremiseValid(code == '\1' || code == '\2', "Invalid surface escape code!");
+					target.append((char) (code - 1));
+				} else {
+					target.append(character);
+				}
+			}
+		}
+
+		/**
+		 * Returns the captured index token after the profile's embedded lookup normalization.
+		 *
+		 * @return folded surface without the word-phase prefix
+		 */
+		@Nonnull
+		public String folded() {
+			return foldedCharacters().toString();
+		}
+
+		/**
+		 * Returns the index stem of the current pair.
+		 *
+		 * @return the term used for postings lookup in the queried profile's fields
+		 */
+		@Nonnull
+		public String stem() {
+			return stemCharacters().toString();
+		}
+
+		/**
+		 * Returns the retained display spelling, falling back to the folded form when the key omits its display
+		 * component because the display equals the folded form.
+		 *
+		 * @return the lower-cased accented word
+		 */
+		@Nonnull
+		public String accented() {
+			final CharSequence current = currentKey();
+			final int start = surfaceStemEnd(current, surfaceFoldedEnd(current)) + 1;
+			return start == current.length() ? folded()
+				: decodeSurfaceComponent(current.subSequence(start, current.length()).toString());
+		}
+
+		/**
+		 * Checks that the cursor currently stands on a key.
+		 *
+		 * @return the current encoded key
+		 */
+		@Nonnull
+		private CharSequence currentKey() {
+			Assert.isPremiseValid(this.positioned, "Advance the surface cursor before reading it!");
+			return this.key;
+		}
+	}
+
+	/**
+	 * Emits changed surface leaves and stages their live sequences, just like {@link #collectChangedPages()} does for
+	 * the term dictionary - including its first step, {@link #publishPreviousFlush()}, which within one flush also
+	 * publishes the set that collect has just staged.
+	 *
+	 * @return dirty pages and the ordered live-page metadata
+	 */
+	@Nonnull
+	public PageEmission<SurfaceFormPage> collectChangedSurfaceFormPages() {
+		publishPreviousFlush();
+		return this.pageStreamRegistry.collectChangedPages(
+			SURFACE_FORM_PAGE_STREAM, this.surfaceForms.leafPageHandles(),
+			(sequence, handle) -> {
+				final String[] keys = new String[VALUE_BLOCK_SIZE];
+				final long[] counts = new long[VALUE_BLOCK_SIZE];
+				int count = 0;
+				final BucketCursor<String> cursor = handle.cursor();
+				while (cursor.next()) {
+					keys[count] = cursor.value();
+					counts[count++] = cursor.longRecordId();
+				}
+				return new SurfaceFormPage(sequence, Arrays.copyOf(keys, count), Arrays.copyOf(counts, count));
+			});
+	}
+
+	/**
+	 * Returns the surface pages a dropped index must reclaim.
+	 *
+	 * @return sequences of surface pages on disk
+	 */
+	@Nonnull
+	public int[] getPersistedSurfaceFormPages() {
+		return this.pageStreamRegistry.pendingLivePageSequences(SURFACE_FORM_PAGE_STREAM);
+	}
+
+	/**
+	 * Restores the surface tree with its original leaf boundaries and clean page identities.
+	 *
+	 * @param sequences listed surface page sequences
+	 * @param pages corresponding page contents
+	 * @param highWater highest allocated surface page sequence
+	 * @param registry dictionary and surface page bookkeeping
+	 * @return the reassembled clean surface tree
+	 */
+	@Nonnull
+	private static TransactionalBucketBPlusTree<String> restoreSurfaceForms(
+		@Nonnull int[] sequences, @Nonnull SurfaceFormPage[] pages, int highWater,
+		@Nonnull PageStreamRegistry registry
+	) {
+		Assert.isPremiseValid(sequences.length > 0 && sequences.length == pages.length,
+			"Surface pages must match their nonempty sequence list!");
+		final TransactionalBucketBPlusTree<String> result;
+		if (pages.length == 1 && pages[0].keys().length == 0) {
+			Assert.isPremiseValid(pages[0].pageSequence() == sequences[0], "Surface page sequence mismatch!");
+			result = createSurfaceForms();
+			result.leafPageHandles().get(0).setPageSequence(sequences[0]);
+		} else {
+			final List<TransactionalBucketBPlusTree<String>> trees = new ArrayList<>(pages.length);
+			for (int i = 0; i < pages.length; i++) {
+				final SurfaceFormPage page = pages[i];
+				Assert.isPremiseValid(page.pageSequence() == sequences[i], "Surface page sequence mismatch!");
+				Assert.isPremiseValid(page.keys().length > 0, "Only the sole surface root page may be empty!");
+				final TransactionalBucketBPlusTree<String> tree = createSurfaceForms();
+				tree.bulkLoadSingleRecordPage(page.keys(), page.referenceCounts(), page.keys().length);
+				trees.add(tree);
+			}
+			result = createSurfaceForms().assembleFromSingleLeafTrees(trees, sequences, "fulltext surface forms");
+		}
+		registry.restore(SURFACE_FORM_PAGE_STREAM, highWater, sequences);
+		return result;
+	}
+
+	/**
+	 * One persisted surface leaf, holding primitive reference counts and no postings.
+	 *
+	 * @param pageSequence stable leaf page sequence
+	 * @param keys encoded keys in ascending order
+	 * @param referenceCounts one positive count per key
+	 */
+	public record SurfaceFormPage(int pageSequence, @Nonnull String[] keys, @Nonnull long[] referenceCounts) {
+		/**
+		 * Validates the count column before accepting a leaf page.
+		 *
+		 * @param pageSequence stable leaf sequence
+		 * @param keys encoded surface keys
+		 * @param referenceCounts positive references aligned with the keys
+		 */
+		public SurfaceFormPage {
+			Assert.isPremiseValid(keys.length == referenceCounts.length, "Surface counts must align with keys!");
+			for (final long count : referenceCounts) {
+				Assert.isPremiseValid(count > 0, "A stored surface pair must have positive references!");
+			}
+		}
 	}
 
 	/**
@@ -1360,13 +2084,73 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
+	 * A pair lookup compares borrowed characters without allocating a capture string. Only the scratch instance is
+	 * reset; keys inserted into the value's map are frozen copies owning strings. No mutable capture escapes analysis.
+	 */
+	private static final class SurfacePair {
+		/** Borrowed characters in the scratch lookup, immutable string in a stored key. */
+		@Nonnull private CharSequence folded;
+		/** Final posting term already materialized by the index analyzer. */
+		@Nonnull private String stem;
+		/** Content hash stable for stored keys, recomputed when the scratch lookup is reset. */
+		private int hash;
+
+		/**
+		 * Creates a scratch or frozen pair over the supplied characters.
+		 * @param folded borrowed or immutable normalized lookup text
+		 * @param stem final index term
+		 */
+		private SurfacePair(@Nonnull CharSequence folded, @Nonnull String stem) {
+			reset(folded, stem);
+		}
+
+		/**
+		 * Updates the scratch lookup without retaining a buffer in a map.
+		 * @param folded borrowed normalized lookup text valid during this callback
+		 * @param stem final index term
+		 */
+		private void reset(@Nonnull CharSequence folded, @Nonnull String stem) {
+			this.folded = folded;
+			this.stem = stem;
+			int foldedHash = 0;
+			for (int i = 0; i < folded.length(); i++) {
+				foldedHash = 31 * foldedHash + folded.charAt(i);
+			}
+			this.hash = 31 * foldedHash + stem.hashCode();
+		}
+
+		/**
+		 * Materializes capture characters only for a previously unseen pair.
+		 * @return stable map key owning immutable text
+		 */
+		@Nonnull
+		private SurfacePair freeze() {
+			return new SurfacePair(this.folded.toString(), this.stem);
+		}
+
+		@Override
+		public int hashCode() {
+			return this.hash;
+		}
+
+		@Override
+		public boolean equals(@Nullable Object other) {
+			return this == other || other instanceof SurfacePair pair
+				&& this.stem.equals(pair.stem) && CharSequence.compare(this.folded, pair.folded) == 0;
+		}
+	}
+
+	/**
 	 * One value after analysis.
 	 *
 	 * @param termFrequencies each distinct term with its frequency in a one-element array, so counting allocates
 	 *                        once per distinct term rather than once per occurrence
+	 * @param surfacePairs distinct folded/stem pair prefixes with their first accented spelling
 	 * @param length          the value's length in token positions, summed over its elements
 	 */
-	private record AnalyzedValue(@Nonnull Map<String, int[]> termFrequencies, int length) {
+	private record AnalyzedValue(
+		@Nonnull Map<String, int[]> termFrequencies, @Nonnull Map<String, String> surfacePairs, int length
+	) {
 	}
 
 }

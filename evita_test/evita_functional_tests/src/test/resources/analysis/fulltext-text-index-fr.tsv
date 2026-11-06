@@ -1,0 +1,10 @@
+# version=1
+# analyzer=text side=INDEX locale=fr
+# index-fingerprint=8057872479271164115
+# chain (step@behaviour-version; parameters as resolved):
+# standard@1
+# lowercase@1
+# Recorded from the old language chain, compared with the compiled built-in before retirement.
+# Columns: input-base64-utf8, output-base64-utf8 (LF-separated term@start-end+positionIncrement)
+Q2hhdXNzdXJlcyBlbiBjdWlyIHBvdXIgaG9tbWVzLCB0YWlsbGUgNDIgLSBzb2xkZXMh	Y2hhdXNzdXJlc0AwLTEwKzEKZW5AMTEtMTMrMQpjdWlyQDE0LTE4KzEKcG91ckAxOS0yMysxCmhvbW1lc0AyNC0zMCsxCnRhaWxsZUAzMi0zOCsxCjQyQDM5LTQxKzEKc29sZGVzQDQ0LTUwKzE=
+TCfDiVTDiSDDoCBQYXJpczsgbGVzIGVuZmFudHMgam91ZW50LCBpUGhvbmUxNSBldCBjw6JibGUgVVNCLUM=	bCfDqXTDqUAwLTUrMQrDoEA2LTcrMQpwYXJpc0A4LTEzKzEKbGVzQDE1LTE4KzEKZW5mYW50c0AxOS0yNisxCmpvdWVudEAyNy0zMysxCmlwaG9uZTE1QDM1LTQzKzEKZXRANDQtNDYrMQpjw6JibGVANDctNTIrMQp1c2JANTMtNTYrMQpjQDU3LTU4KzE=

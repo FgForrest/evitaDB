@@ -27,10 +27,12 @@ import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.NonCacheableFormula;
 import io.evitadb.index.bPlusTree.ImpactView;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.fulltext.FulltextIndex;
+import io.evitadb.index.fulltext.FulltextTermExactness;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Expansion;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
@@ -41,7 +43,6 @@ import net.openhft.hashing.LongHashFunction;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
-import java.util.Comparator;
 
 /**
  * The formula a fulltext condition translates into: it computes the entities matching every token of the query, and
@@ -55,7 +56,8 @@ import java.util.Comparator;
  * contains, for every token, at least one of that token's terms - the intersection over tokens of the union over each
  * token's posting lists. A token that expanded into no term therefore matches nothing, and neither does the query;
  * loosening that is the opt-in relaxation the query design reserves for a later child of the constraint, never a
- * silent default, because facets, histograms and totals all stand on the match set.
+ * silent default, because facets, histograms and totals all stand on the match set. The terms of a split word - its
+ * original and every part - all belong to its one token, so any of them satisfies the word.
  *
  * ## What it ranks
  *
@@ -63,7 +65,8 @@ import java.util.Comparator;
  * aligned with their postings, for whatever candidates the caller passes - typically the final result of the whole
  * filter. Scoring is not bound to the strict match set: a candidate containing only some of the tokens is selected
  * too, below the candidates containing more, and only one containing none is left out. A token counts once however
- * many of its terms hit a candidate, whichever field they came from.
+ * many of its terms hit a candidate, whichever field they came from. A split word instead counts its covered
+ * parts, with original hits covering every part; quality penalties still count once for the whole word.
  *
  * ## Why it is never cached
  *
@@ -85,9 +88,26 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	 */
 	private static final long CLASS_ID = 3355763462417010376L;
 	/**
+	 * The most entities matching the tokens so far that a further token cuts down term by term; past it the token
+	 * always builds its union and intersects once (see {@link #narrowsCheaper(int, long, long)}). Hand-set from an
+	 * end-to-end measurement of whole plain queries on two production corpora - a CMS catalog of 972,611 articles and
+	 * an e-commerce catalog - with the limit swept from 5,000 to 20,000. A plateau ran from 7,000 to 10,000: two common
+	 * words on the CMS corpus took 0.77-0.80 of the time they took without the limit, three common words 0.96, every
+	 * other query shape stayed within a percent. At 5,000 two common words on the e-commerce corpus started to slow
+	 * down (1.03, one query 1.4x); past 10,000 the CMS gain faded (0.82 at 15,000, 0.86 at 20,000, and three common
+	 * words back to 1.00). A retune should stay inside the plateau; the fulltext ADR records the measurement.
+	 */
+	static final long NARROWING_MATCHING_LIMIT = 10_000;
+	/**
 	 * The query tokens, each as the terms it expanded into.
 	 */
 	@Nonnull private final ExpandedTerm[][] tokens;
+	/**
+	 * Exclusive expansion ends of each split word's original and then each of its parts, one row per token: `null`
+	 * when no word is split, and an empty row for an ordinary word beside a split one. Validated by
+	 * {@link FulltextPhaseOneScorer#validatePartEnds}.
+	 */
+	@Nullable private final int[][] partEnds;
 	/**
 	 * The tokens in the shape the scorer reads, built on the first scoring request. Not synchronised, like the memos
 	 * of {@link AbstractFormula}: a formula is evaluated by the one thread running its query.
@@ -101,18 +121,41 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	 * @param term     the analyzed term, without the field prefix
 	 * @param postings primary keys of the entities whose field contains the term, ascending
 	 * @param impacts  impact byte of each posting, the i-th belonging to the i-th posting
-	 * @param distance edit distance at which the term matched the token, `0` for an exact match
+	 * @param distance edit distance at which the term matched the token, `0` for exact and prefix matches
+	 * @param exactness best matching class across all expansion legs
 	 */
 	public record ExpandedTerm(
 		int fieldId,
 		@Nonnull String term,
 		@Nonnull Bitmap postings,
 		@Nonnull ImpactView impacts,
-		int distance
+		int distance,
+		@Nonnull FulltextTermExactness exactness
 	) {
 
 		/**
+		 * Creates a finite exact or fuzzy term; prefix expansions use the explicit matching class.
+		 * @param fieldId id of the dictionary field
+		 * @param term the bare analyzed term
+		 * @param postings primary keys containing the term
+		 * @param impacts impact bytes aligned with the postings
+		 * @param distance finite edit distance, zero meaning exact
+		 */
+		public ExpandedTerm(
+			int fieldId, @Nonnull String term, @Nonnull Bitmap postings, @Nonnull ImpactView impacts, int distance
+		) {
+			this(fieldId, term, postings, impacts, distance,
+				distance == 0 ? FulltextTermExactness.EXACT : FulltextTermExactness.FUZZY);
+		}
+
+		/**
 		 * Validates the term.
+		 * @param fieldId id of the dictionary field
+		 * @param term the bare analyzed term
+		 * @param postings primary keys containing the term
+		 * @param impacts impact bytes aligned with the postings
+		 * @param distance edit distance, independent of prefix exactness
+		 * @param exactness best matching class across expansion legs
 		 */
 		public ExpandedTerm {
 			Assert.isPremiseValid(
@@ -140,17 +183,35 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	 * @param tokens the query tokens in query order, each as the terms it expanded into; a token may carry no term,
 	 *               in which case nothing matches. The arrays are adopted, not copied, and must not be written after
 	 *               the call.
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when there is no token, or more tokens than the scorer's
-	 *                                                        matched-token lane can count
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when there is no token, or more tokens than
+	 *                                                        {@link FulltextPhaseOneScorer#MAX_QUERY_TOKENS}
 	 */
 	public FulltextFormula(@Nonnull ExpandedTerm[][] tokens) {
+		this(tokens, null);
+	}
+
+	/**
+	 * Creates a formula with split-word coverage. Every word still contributes one OR to strict membership.
+	 *
+	 * @param tokens   expansions grouped by mandatory word across every profile group; a split word lays out the
+	 *                 original's expansions first, then each part's. The arrays are adopted, not copied.
+	 * @param partEnds `null` for an unsplit query; otherwise one non-null row per word of exclusive original/part
+	 *                 ends, empty for an ordinary word - the contract is
+	 *                 {@link FulltextPhaseOneScorer#validatePartEnds}'s
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when there is no token, more tokens than
+	 *                                                        {@link FulltextPhaseOneScorer#MAX_QUERY_TOKENS}, or a
+	 *                                                        row is null or its ends are malformed
+	 */
+	public FulltextFormula(@Nonnull ExpandedTerm[][] tokens, @Nullable int[][] partEnds) {
 		Assert.isPremiseValid(tokens.length > 0, "A fulltext formula needs at least one query token!");
 		Assert.isPremiseValid(
 			tokens.length <= FulltextPhaseOneScorer.MAX_QUERY_TOKENS,
 			() -> "A query may carry at most " + FulltextPhaseOneScorer.MAX_QUERY_TOKENS + " tokens, " +
 				tokens.length + " were passed!"
 		);
+		FulltextPhaseOneScorer.validatePartEnds(tokens, partEnds);
 		this.tokens = tokens;
+		this.partEnds = partEnds;
 		this.initFields();
 	}
 
@@ -175,7 +236,7 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 		if (this.memoizedExpansions == null) {
 			this.memoizedExpansions = toExpansions(this.tokens);
 		}
-		return FulltextPhaseOneScorer.score(candidates, this.memoizedExpansions, topN);
+		return FulltextPhaseOneScorer.score(candidates, this.memoizedExpansions, topN, this.partEnds);
 	}
 
 	@Nonnull
@@ -249,19 +310,40 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		// neither the order of the tokens nor the order of a token's terms changes the match set or the scores, so
-		// both levels are hashed order-independently; the distance is included because it changes the scores
+		// neither the order of the tokens nor the order of the terms within one range changes the match set or the
+		// scores, so both are hashed order-independently; which range a term falls into does change the scores, so
+		// the range structure is hashed too. Field and term distinguish buckets sharing posting contents.
+		// The immutable impact view is a conservative query-local version token: distinct views remain distinct
+		// even when their bytes happen to agree. This avoids reading impacts or allocating an identity wrapper.
 		final long[] tokenHashes = new long[this.tokens.length];
 		for (int i = 0; i < this.tokens.length; i++) {
 			final ExpandedTerm[] token = this.tokens[i];
 			final long[] termHashes = new long[token.length];
 			for (int j = 0; j < token.length; j++) {
 				termHashes[j] = hashFunction.hashLongs(
-					new long[]{bitmapIdentityToken(token[j].postings(), hashFunction), token[j].distance()}
+					new long[]{bitmapIdentityToken(token[j].postings(), hashFunction), token[j].fieldId(),
+						hashFunction.hashChars(token[j].term()), token[j].distance(), token[j].exactness().ordinal(),
+						Integer.toUnsignedLong(System.identityHashCode(token[j].impacts()))}
 				);
 			}
+			final int[] ends = this.partEnds == null ? new int[0] : this.partEnds[i];
+			final long[] groupingHashes = new long[ends.length + 1];
+			int start = 0;
+			for (int part = 0; part < ends.length; part++) {
+				final long[] partHashes = Arrays.copyOfRange(termHashes, start, ends[part]);
+				Arrays.sort(partHashes);
+				groupingHashes[part + 1] = hashFunction.hashLongs(partHashes);
+				start = ends[part];
+			}
 			Arrays.sort(termHashes);
-			tokenHashes[i] = hashFunction.hashLongs(termHashes);
+			groupingHashes[0] = hashFunction.hashLongs(termHashes);
+			// slot 0 is the whole word's membership, slot 1 the original's range and the slots from 2 the ranges of
+			// the parts, sorted because coverage counts parts whatever their order; the original's range keeps its
+			// slot, as its hit covers every part
+			if (ends.length > 1) {
+				Arrays.sort(groupingHashes, 2, groupingHashes.length);
+			}
+			tokenHashes[i] = hashFunction.hashLongs(groupingHashes);
 		}
 		Arrays.sort(tokenHashes);
 		return hashFunction.hashLongs(tokenHashes);
@@ -275,31 +357,127 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
-		final PersistentRoaringBitmap[] unions = new PersistentRoaringBitmap[this.tokens.length];
-		for (int i = 0; i < this.tokens.length; i++) {
-			final ExpandedTerm[] token = this.tokens[i];
-			if (token.length == 0) {
+		// the tokens ordered narrowest first by their summed postings - an upper bound of each token's union, known
+		// before any union is built
+		final int tokenCount = this.tokens.length;
+		final int[] order = new int[tokenCount];
+		final long[] widths = new long[tokenCount];
+		for (int i = 0; i < tokenCount; i++) {
+			if (this.tokens[i].length == 0) {
 				// a token that matched no term cannot be satisfied, so neither can the query
 				return EmptyBitmap.INSTANCE;
 			}
-			final PersistentRoaringBitmap union;
-			if (token.length == 1) {
-				union = RoaringBitmapBackedBitmap.getRoaringBitmap(token[0].postings());
-			} else {
-				final PersistentRoaringBitmap[] postings = new PersistentRoaringBitmap[token.length];
-				for (int j = 0; j < token.length; j++) {
-					postings[j] = RoaringBitmapBackedBitmap.getRoaringBitmap(token[j].postings());
-				}
-				union = PersistentRoaringBitmap.or(postings);
+			final long width = postingCount(this.tokens[i]);
+			// insertion sort: a query carries a handful of tokens
+			int position = i;
+			while (position > 0 && widths[position - 1] > width) {
+				widths[position] = widths[position - 1];
+				order[position] = order[position - 1];
+				position--;
 			}
-			if (union.isEmpty()) {
-				return EmptyBitmap.INSTANCE;
-			}
-			unions[i] = union;
+			widths[position] = width;
+			order[position] = i;
 		}
-		// intersect the narrowest unions first
-		Arrays.sort(unions, Comparator.comparingLong(PersistentRoaringBitmap::getLongCardinality));
-		return computeConjunctionResult(unions);
+		// only the narrowest token's union is built up front; every further token cuts it down either term by term -
+		// A AND (B OR C) = (A AND B) OR (A AND C) - or through its own union, whichever is estimated to walk fewer
+		// values, and term by term only while the matching entities are few; a token of a single term is its own
+		// union, so both routes are the same one intersection
+		PersistentRoaringBitmap matching = union(this.tokens[order[0]]);
+		for (int i = 1; i < tokenCount && !matching.isEmpty(); i++) {
+			final ExpandedTerm[] token = this.tokens[order[i]];
+			matching = token.length > 1 && narrowsCheaper(token.length, matching.getLongCardinality(), widths[i])
+				? narrow(matching, token)
+				: PersistentRoaringBitmap.and(matching, union(token));
+		}
+		return matching.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(matching);
+	}
+
+	/**
+	 * Decides how the next token of several terms cuts down the entities matching the tokens so far. Both routes give
+	 * the same entities, at different costs: narrowing intersects every term's posting list with the matching
+	 * entities on its own, so it walks the matching entities up to once per term, while building the token's union
+	 * folds the terms' posting lists into one, one list at a time, and leaves a single intersection to compute.
+	 * Narrowing is priced at that worst case, although it skips the remaining terms once every matching entity is
+	 * covered; the summed posting count stands in for the union's cost - an estimate, as the fold works chunk by chunk
+	 * rather than value by value. Narrowing therefore pays when the matching entities are few and the token's posting
+	 * lists long - the common word after a rare one - and loses when the matching entities are already many and the
+	 * token expanded into many terms, as two common words do: it then walks the wide matching set over and over for
+	 * terms whose postings the union would read once. Both sides of the comparison are known before any intersection
+	 * is computed.
+	 *
+	 * The comparison alone underprices narrowing a wide matching set: every term's intersection with it is a pass of
+	 * its own over many containers, which counting walked values does not weigh, and measured on whole queries the
+	 * union was faster there even where the count favoured narrowing. So a token narrows only while the matching
+	 * entities are at most {@link #NARROWING_MATCHING_LIMIT}.
+	 *
+	 * @param termCount     the number of terms the next token expanded into
+	 * @param matchingCount the number of entities matching the tokens so far
+	 * @param postingCount  the summed posting count of the next token's terms
+	 * @return `true` when the matching entities are within {@link #NARROWING_MATCHING_LIMIT} and narrowing term by
+	 *         term is estimated to walk fewer values than building the token's union
+	 */
+	static boolean narrowsCheaper(int termCount, long matchingCount, long postingCount) {
+		return matchingCount <= NARROWING_MATCHING_LIMIT && termCount * matchingCount < postingCount;
+	}
+
+	/**
+	 * Returns the union of a token's posting lists. A token of a single term returns the dictionary's own posting list,
+	 * which the callers only read.
+	 *
+	 * @param token the terms of one token, at least one
+	 * @return the entities containing at least one of the terms
+	 */
+	@Nonnull
+	private static PersistentRoaringBitmap union(@Nonnull ExpandedTerm[] token) {
+		if (token.length == 1) {
+			return RoaringBitmapBackedBitmap.getRoaringBitmap(token[0].postings());
+		}
+		final PersistentRoaringBitmap[] postings = new PersistentRoaringBitmap[token.length];
+		for (int i = 0; i < token.length; i++) {
+			postings[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(token[i].postings());
+		}
+		return PersistentRoaringBitmap.or(postings);
+	}
+
+	/**
+	 * Narrows the entities matching the tokens so far to those containing at least one term of the next token, the
+	 * route {@link #narrowsCheaper(int, long, long)} picks when the matching entities are few. Each term's posting list
+	 * is intersected with the matching entities on its own, so a common word's wide posting lists are never merged
+	 * into one union just to be cut down to the few entities the narrower tokens left. The intersections are folded,
+	 * one at a time, into an accumulator, so at most one of them is alive beside it however many terms the token
+	 * expanded into; once the accumulator covers every matching entity, the remaining terms cannot add anything and
+	 * are skipped.
+	 *
+	 * @param matching the entities matching the tokens so far, not empty
+	 * @param token    the terms of the next token, at least two - a single term is intersected directly
+	 * @return the entities matching the tokens so far and the next one
+	 */
+	@Nonnull
+	private static PersistentRoaringBitmap narrow(
+		@Nonnull PersistentRoaringBitmap matching,
+		@Nonnull ExpandedTerm[] token
+	) {
+		final long matchingCount = matching.getLongCardinality();
+		PersistentRoaringBitmap narrowed = null;
+		for (final ExpandedTerm term : token) {
+			final PersistentRoaringBitmap part = PersistentRoaringBitmap.and(
+				matching, RoaringBitmapBackedBitmap.getRoaringBitmap(term.postings())
+			);
+			if (part.isEmpty()) {
+				continue;
+			}
+			if (narrowed == null) {
+				// an intersection owns all of its containers, so the first one can serve as the accumulator
+				narrowed = part;
+			} else {
+				narrowed.or(part);
+			}
+			// every intersection is a subset of the matching entities - once all of them are covered, nothing can add
+			if (narrowed.getLongCardinality() == matchingCount) {
+				break;
+			}
+		}
+		return narrowed == null ? new PersistentRoaringBitmap() : narrowed;
 	}
 
 	/**
@@ -317,7 +495,8 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	}
 
 	/**
-	 * Converts the tokens to the shape the scorer reads: each posting list as an ascending array.
+	 * Wraps the tokens' terms as the scorer's expansions. The posting lists and impact views are handed over as they
+	 * are, never copied - the scorer reads them where the dictionary stores them.
 	 *
 	 * @param tokens the tokens
 	 * @return the scorer's expansions, token by token
@@ -330,7 +509,7 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 			final Expansion[] tokenExpansions = new Expansion[token.length];
 			for (int j = 0; j < token.length; j++) {
 				final ExpandedTerm term = token[j];
-				tokenExpansions[j] = new Expansion(term.postings().getArray(), term.impacts(), term.distance());
+				tokenExpansions[j] = new Expansion(term.postings(), term.impacts(), term.distance(), term.exactness());
 			}
 			expansions[i] = tokenExpansions;
 		}

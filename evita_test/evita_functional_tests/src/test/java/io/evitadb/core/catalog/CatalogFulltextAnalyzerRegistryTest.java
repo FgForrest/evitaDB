@@ -33,6 +33,7 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.fulltext.FulltextAnalysisTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -41,16 +42,20 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import static io.evitadb.index.fulltext.FulltextFieldKey.attribute;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.fulltext.FulltextAnalysisTestSupport.collectTerms;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -153,7 +158,8 @@ class CatalogFulltextAnalyzerRegistryTest implements EvitaTestSupport {
 		@DisplayName("Closing the engine closes the registry")
 		void shouldCloseTheRegistryWhenTheEngineCloses() {
 			final FulltextAnalyzerRegistry registry = catalogOf(CATALOG).getFulltextAnalyzerRegistry();
-			registry.getIndexAnalyzer(ENTITY_PRODUCT, CZECH);
+			registry.getCompiledAnalyzer(
+				catalogOf(CATALOG).getSchema(), "text", CZECH).indexSurface();
 
 			CatalogFulltextAnalyzerRegistryTest.this.evita.close();
 
@@ -164,7 +170,8 @@ class CatalogFulltextAnalyzerRegistryTest implements EvitaTestSupport {
 		@DisplayName("Deleting the catalog closes the registry")
 		void shouldCloseTheRegistryWhenTheCatalogIsDeleted() {
 			final FulltextAnalyzerRegistry registry = catalogOf(CATALOG).getFulltextAnalyzerRegistry();
-			registry.getIndexAnalyzer(ENTITY_PRODUCT, CZECH);
+			registry.getCompiledAnalyzer(
+				catalogOf(CATALOG).getSchema(), "text", CZECH).indexSurface();
 
 			CatalogFulltextAnalyzerRegistryTest.this.evita.deleteCatalogIfExists(CATALOG);
 
@@ -186,15 +193,13 @@ class CatalogFulltextAnalyzerRegistryTest implements EvitaTestSupport {
 				CATALOG,
 				session -> {
 					session.upsertEntity(session.createNewEntity(ENTITY_PRODUCT, 1));
-					filled[0] = globalIndexOf(before).getOrCreateFulltextIndex(
-						CZECH, registry.getIndexAnalyzer(ENTITY_PRODUCT, CZECH)
-					);
-					filled[0].addValue(attribute("name"), 1, "zelený čaj");
+					filled[0] = globalIndexOf(before).getOrCreateFulltextIndex(CZECH);
+					filled[0].addValue(attribute("name"), 1, testAnalyzer(), 25.0, null, "zelený čaj");
 				}
 			);
 			final FulltextIndex index = filled[0];
 			final int fieldId = index.getFieldId(attribute("name"));
-			final int termCount = index.getTermCount();
+			final int termCount = termCount(index);
 
 			restart();
 
@@ -204,8 +209,8 @@ class CatalogFulltextAnalyzerRegistryTest implements EvitaTestSupport {
 			);
 			assertClosed(registry, "the restart");
 			final FulltextIndex reloaded = globalIndexOf(after).getFulltextIndex(CZECH);
-			assertEquals(index.getAnalyzerName(), reloaded.getAnalyzerName());
-			assertEquals(termCount, reloaded.getTermCount());
+			assertEquals(index.getAnalyzerName(fieldId), reloaded.getAnalyzerName(fieldId));
+			assertEquals(termCount, termCount(reloaded));
 			assertEquals(fieldId, reloaded.getFieldId(attribute("name")));
 		}
 
@@ -234,7 +239,9 @@ class CatalogFulltextAnalyzerRegistryTest implements EvitaTestSupport {
 		);
 		assertSame(registry, after.getFulltextAnalyzerRegistry(), REGISTRY_LOST + site);
 		// still open: the superseded instance must not have released what the rebuilt one goes on using
-		assertEquals("czech", registry.getIndexAnalyzer(ENTITY_PRODUCT, CZECH).getAnalyzerName());
+		assertFalse(collectTerms(
+			registry.getCompiledAnalyzer(after.getSchema(),
+			"text", CZECH).indexSurface(), "boty").isEmpty());
 	}
 
 	/**
@@ -246,7 +253,8 @@ class CatalogFulltextAnalyzerRegistryTest implements EvitaTestSupport {
 	private static void assertClosed(@Nonnull FulltextAnalyzerRegistry registry, @Nonnull String site) {
 		final EvitaInvalidUsageException error = assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> registry.getIndexAnalyzer(ENTITY_PRODUCT, CZECH),
+			() -> registry.getCompiledAnalyzer(
+				FulltextAnalysisTestSupport.SCHEMA, "text", CZECH).indexSurface(),
 			"`" + site + "` left the catalog's analyzer registry open, so its analyzers keep their per-thread " +
 				"stream components reachable for the lifetime of the process"
 		);

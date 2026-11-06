@@ -1165,7 +1165,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		) {
 			referenceErrors = Stream.concat(
 				referenceErrors,
-				validateAttributes(this.getAttributes())
+				validateAttributes(catalogSchema, this.getAttributes())
 			);
 		}
 

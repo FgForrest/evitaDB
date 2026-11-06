@@ -63,9 +63,10 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
  * {@link ReferenceAttributeSchemaMutation}.
  *
  * The mutation is a **full statement of the searchability axis** - it names every scope the attribute should be
- * searchable in once it is applied, and a scope it does not name ends up not searchable. It touches nothing else:
- * searchability is independent of filterability, so the filterability and the accelerators of the attribute are
- * carried through unchanged.
+ * searchable in once it is applied, and a scope it does not name ends up not searchable. The fulltext analyzer and the
+ * length pivot of the field travel with it but are not part of that statement: `null` keeps the current value, so a
+ * client unaware of them never resets them. It touches nothing else: searchability is independent of filterability,
+ * so the filterability and the accelerators of the attribute are carried through unchanged.
  *
  * The mutation refuses nothing. Whether the attribute can be searchable at all - a localized `String` or `String[]`
  * - is checked by {@link AttributeSchemaContract#validate()} on the assembled schema, so that `searchable()`,
@@ -92,6 +93,15 @@ public class SetAttributeSchemaSearchableMutation
 	 * "searchable nowhere".
 	 */
 	@Getter @Nonnull private final Scope[] searchableInScopes;
+	/**
+	 * The name of the fulltext analyzer to set, see {@link AttributeSchemaContract#getAnalyzer()}, or `null` to keep
+	 * the current one.
+	 */
+	@Getter @Nullable private final String analyzer;
+	/**
+	 * The length pivot to set, see {@link AttributeSchemaContract#getLengthPivot()}, or `null` to keep the current one.
+	 */
+	@Getter @Nullable private final Integer lengthPivot;
 
 	/**
 	 * Creates a mutation making the attribute searchable in the {@link Scope#DEFAULT_SCOPE default scope} only, or
@@ -114,13 +124,34 @@ public class SetAttributeSchemaSearchableMutation
 	 * @param searchableInScopes the scopes the attribute should be searchable in; a scope not named here ends up not
 	 *                           searchable. May be `null`, which means "searchable nowhere"
 	 */
-	@SerializableCreator
 	public SetAttributeSchemaSearchableMutation(
 		@Nonnull String name,
 		@Nullable Scope[] searchableInScopes
 	) {
+		this(name, searchableInScopes, null, null);
+	}
+
+	/**
+	 * Creates a mutation stating the scopes the attribute should be searchable in and setting the fulltext analyzer and
+	 * the length pivot of its field.
+	 *
+	 * @param name               name of the altered attribute
+	 * @param searchableInScopes the scopes the attribute should be searchable in; a scope not named here ends up not
+	 *                           searchable. May be `null`, which means "searchable nowhere"
+	 * @param analyzer           the name of the fulltext analyzer, or `null` to keep the current one
+	 * @param lengthPivot        the length pivot, or `null` to keep the current one
+	 */
+	@SerializableCreator
+	public SetAttributeSchemaSearchableMutation(
+		@Nonnull String name,
+		@Nullable Scope[] searchableInScopes,
+		@Nullable String analyzer,
+		@Nullable Integer lengthPivot
+	) {
 		super(name);
 		this.searchableInScopes = searchableInScopes == null ? NO_SCOPE : searchableInScopes;
+		this.analyzer = analyzer;
+		this.lengthPivot = lengthPivot;
 	}
 
 	/**
@@ -140,7 +171,7 @@ public class SetAttributeSchemaSearchableMutation
 		if (existingMutation instanceof SetAttributeSchemaSearchableMutation theExistingMutation &&
 			this.name.equals(theExistingMutation.getName())
 		) {
-			return new MutationCombinationResult<>(null, this);
+			return new MutationCombinationResult<>(null, mergeWith(theExistingMutation));
 		} else {
 			return null;
 		}
@@ -156,10 +187,33 @@ public class SetAttributeSchemaSearchableMutation
 		if (existingMutation instanceof SetAttributeSchemaSearchableMutation theExistingMutation &&
 			this.name.equals(theExistingMutation.getName())
 		) {
-			return new MutationCombinationResult<>(null, this);
+			return new MutationCombinationResult<>(null, mergeWith(theExistingMutation));
 		} else {
 			return null;
 		}
+	}
+
+	/**
+	 * Merges this mutation over an earlier one of the same attribute: the scopes are a full statement and replace the
+	 * earlier ones, the analyzer and the pivot are kept from the earlier mutation unless this one restates them.
+	 *
+	 * @param existingMutation the earlier mutation of the same attribute
+	 * @return the mutation standing for both
+	 */
+	@Nonnull
+	private SetAttributeSchemaSearchableMutation mergeWith(
+		@Nonnull SetAttributeSchemaSearchableMutation existingMutation
+	) {
+		if ((this.analyzer != null || existingMutation.getAnalyzer() == null) &&
+			(this.lengthPivot != null || existingMutation.getLengthPivot() == null)) {
+			// the earlier mutation carries nothing this one does not restate
+			return this;
+		}
+		return new SetAttributeSchemaSearchableMutation(
+			this.name, this.searchableInScopes,
+			this.analyzer == null ? existingMutation.getAnalyzer() : this.analyzer,
+			this.lengthPivot == null ? existingMutation.getLengthPivot() : this.lengthPivot
+		);
 	}
 
 	@Nonnull
@@ -169,7 +223,13 @@ public class SetAttributeSchemaSearchableMutation
 	) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
 		final EnumSet<Scope> searchable = ArrayUtils.toEnumSet(Scope.class, this.searchableInScopes);
-		if (attributeSchema.getSearchableInScopes().equals(searchable)) {
+		final String theAnalyzer = this.analyzer == null ? attributeSchema.getAnalyzer() : this.analyzer;
+		final int theLengthPivot = this.lengthPivot == null ? attributeSchema.getLengthPivot() : this.lengthPivot;
+		if (
+			attributeSchema.getSearchableInScopes().equals(searchable) &&
+				attributeSchema.getAnalyzer().equals(theAnalyzer) &&
+				attributeSchema.getLengthPivot() == theLengthPivot
+		) {
 			return attributeSchema;
 		} else if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
 			//noinspection unchecked,rawtypes
@@ -191,7 +251,8 @@ public class SetAttributeSchemaSearchableMutation
 				globalAttributeSchema.getDefaultValue(),
 				globalAttributeSchema.getIndexedDecimalPlaces(),
 				globalAttributeSchema.getConflictResolutionOverride(),
-				globalAttributeSchema.getNormalization()
+				globalAttributeSchema.getNormalization(),
+				theAnalyzer, theLengthPivot
 			);
 		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
 			//noinspection unchecked,rawtypes
@@ -212,7 +273,8 @@ public class SetAttributeSchemaSearchableMutation
 				entityAttributeSchema.getDefaultValue(),
 				entityAttributeSchema.getIndexedDecimalPlaces(),
 				entityAttributeSchema.getConflictResolutionOverride(),
-				entityAttributeSchema.getNormalization()
+				entityAttributeSchema.getNormalization(),
+				theAnalyzer, theLengthPivot
 			);
 		} else {
 			//noinspection unchecked,rawtypes
@@ -233,7 +295,8 @@ public class SetAttributeSchemaSearchableMutation
 				attributeSchema.getDefaultValue(),
 				attributeSchema.getIndexedDecimalPlaces(),
 				attributeSchema.getConflictResolutionOverride(),
-				attributeSchema.getNormalization()
+				attributeSchema.getNormalization(),
+				theAnalyzer, theLengthPivot
 			);
 		}
 	}
@@ -255,7 +318,9 @@ public class SetAttributeSchemaSearchableMutation
 	@Override
 	public String toString() {
 		return "Set attribute `" + this.name + "` schema: " +
-			"searchable=" + (isSearchable() ? "(in scopes: " + Arrays.toString(this.searchableInScopes) + ")" : "no");
+			"searchable=" + (isSearchable() ? "(in scopes: " + Arrays.toString(this.searchableInScopes) + ")" : "no") +
+			(this.analyzer == null ? "" : ", analyzer=" + this.analyzer) +
+			(this.lengthPivot == null ? "" : ", lengthPivot=" + this.lengthPivot);
 	}
 
 }

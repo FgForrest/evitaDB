@@ -38,9 +38,10 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.fulltext.analysis.AnalyzedTerm;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.fulltext.AnalyzedTerm;
+import io.evitadb.test.fulltext.FulltextAnalysisTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -50,6 +51,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.io.Serializable;
 import java.util.Locale;
 import java.util.Optional;
@@ -63,6 +65,7 @@ import static io.evitadb.index.fulltext.FulltextFieldKey.referenceAttribute;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.fulltext.FulltextAnalysisTestSupport.collectTerms;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -376,6 +379,50 @@ class FulltextWritePathTest implements EvitaTestSupport {
 			setLabel(1, 12, "sandals");
 			assertNotSame(before, requireFulltextIndex(Scope.LIVE, Locale.ENGLISH));
 			assertIndexed(Scope.LIVE, Locale.ENGLISH, labelField(), 1, "shoes", "boots", "sandals");
+		}
+
+		@Test
+		@DisplayName("a change that leaves the union the same set indexes it when the current field lacks the entity")
+		void shouldReindexAnUnchangedUnionAbsentFromTheCurrentGeneration() {
+			write(
+				session -> {
+					for (final int primaryKey : new int[]{1, 2}) {
+						session.upsertEntity(
+							session.createNewEntity(PRODUCT, primaryKey)
+								.setReference(REFERENCE_CATEGORIES, 10, labelled("shoes"))
+								.setReference(REFERENCE_CATEGORIES, 11, labelled("boots"))
+								.setReference(REFERENCE_CATEGORIES, 12, labelled("shoes"))
+						);
+					}
+				}
+			);
+			final int staleFieldId = requireFulltextIndex(Scope.LIVE, Locale.ENGLISH).getFieldId(labelField());
+			write(
+				session -> session.getEntitySchemaOrThrow(PRODUCT)
+					.openForWrite()
+					.withReferenceTo(
+						REFERENCE_CATEGORIES, CATEGORY, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.withAttribute(
+							ATTRIBUTE_LABEL, String.class,
+							thatIs -> thatIs.localized().nullable().searchable().lengthPivot(100)
+						)
+					)
+					.updateVia(session)
+			);
+			// product 1 retires the field built with the old pivot and starts the current one
+			setLabel(1, 12, "sandals");
+			final FulltextIndex index = requireFulltextIndex(Scope.LIVE, Locale.ENGLISH);
+			final int currentFieldId = index.getFieldId(labelField());
+			assertNotEquals(staleFieldId, currentFieldId);
+			assertEquals(100.0, index.getLengthPivot(currentFieldId));
+			assertIndexed(Scope.LIVE, Locale.ENGLISH, labelField(), 1, "shoes", "boots", "sandals");
+			assertNotIndexed(Scope.LIVE, Locale.ENGLISH, labelField(), 2);
+
+			// `shoes` is still carried by reference 10 and `boots` already by reference 11 - the set is unchanged,
+			// but product 2 has nothing in the current field yet
+			setLabel(2, 12, "boots");
+
+			assertIndexed(Scope.LIVE, Locale.ENGLISH, labelField(), 2, "shoes", "boots");
 		}
 
 		@Test
@@ -946,8 +993,11 @@ class FulltextWritePathTest implements EvitaTestSupport {
 	) {
 		final Set<String> expected = new TreeSet<>();
 		final FulltextAnalyzerRegistry registry = catalog().getFulltextAnalyzerRegistry();
+		final FulltextFieldDefinition definition = FulltextFieldDefinition.resolve(
+			catalog().getCollectionForEntityInternal(PRODUCT).orElseThrow().getSchema(), fieldKey);
 		for (final String value : values) {
-			for (final AnalyzedTerm term : registry.getIndexAnalyzer(PRODUCT, locale).getTerms(value)) {
+			for (final AnalyzedTerm term : collectTerms(registry.getCompiledAnalyzer(
+				catalog().getSchema(), definition.analyzer(), locale).indexSurface(), value)) {
 				expected.add(term.term());
 			}
 		}

@@ -23,11 +23,16 @@
 
 package io.evitadb.api.query.expression.object;
 
+import io.evitadb.api.query.expression.object.accessor.common.DataItemSupport;
+import io.evitadb.dataType.ComplexDataObject;
+import io.evitadb.dataType.data.DataItemArray;
+import io.evitadb.dataType.data.DataItemMap;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.exception.ExpressionEvaluationException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -36,6 +41,7 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -51,12 +57,16 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * When the compact variant is used (`.*![expr]`), null values are filtered out from the resulting
  * collection or map.
  *
+ * The array and map nodes of a {@link ComplexDataObject} spread like a list and a map, with every element unwrapped
+ * first (see {@link DataItemSupport}); a complex data object itself spreads as its root.
+ *
  * For example, in the expression `$items.*[$.price]`, this step iterates over each item in
  * `$items` and evaluates `$.price` for each one, producing a list of prices.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
 @RequiredArgsConstructor
+@EqualsAndHashCode
 public final class SpreadAccessStep implements ObjectOperationStep {
 
 	@Serial private static final long serialVersionUID = 3389942116283673090L;
@@ -82,7 +92,21 @@ public final class SpreadAccessStep implements ObjectOperationStep {
 		}
 
 		final Serializable result;
-		if (operand instanceof Collection<?> collection) {
+		if (operand instanceof ComplexDataObject complexDataObject) {
+			// a complex data object spreads as its root - a map or an array node
+			final Serializable root = DataItemSupport.unwrap(complexDataObject);
+			if (root == null) {
+				throw new ExpressionEvaluationException(
+					"Cannot spread a complex data object without a root.", "Operand is not a collection."
+				);
+			}
+			return compute(context, root);
+		} else if (operand instanceof DataItemArray dataItemArray) {
+			// the elements of an array node are unwrapped in mapItem, so the mapping sees values, not wrappers
+			result = mapCollection(context, Arrays.asList(dataItemArray.children()));
+		} else if (operand instanceof DataItemMap dataItemMap) {
+			result = mapMap(context, dataItemMap.childrenIndex());
+		} else if (operand instanceof Collection<?> collection) {
 			result = mapCollection(context, collection);
 		} else if (operand.getClass().isArray()) {
 			result = mapArray(context, operand);
@@ -207,7 +231,8 @@ public final class SpreadAccessStep implements ObjectOperationStep {
 		@Nonnull ExpressionEvaluationContext context,
 		@Nullable Serializable item
 	) {
-		return this.mappingExpression.compute(context.withThis(item));
+		// a node of a complex data object is presented to the mapping unwrapped - see DataItemSupport
+		return this.mappingExpression.compute(context.withThis(DataItemSupport.unwrap(item)));
 	}
 
 	@Override

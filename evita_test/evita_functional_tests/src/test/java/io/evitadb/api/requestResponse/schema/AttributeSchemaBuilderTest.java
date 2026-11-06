@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaTypeMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaNormalizedMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.BeforeEach;
@@ -912,6 +913,16 @@ class AttributeSchemaBuilderTest {
 					() -> retyped.validate(theCatalogSchema)
 				);
 				assertTrue(exception.getMessage().contains("String"), exception.getMessage());
+			}
+
+			@Test
+			@DisplayName("should refuse a null analyzer instead of keeping the current one")
+			void shouldRefuseNullAnalyzer() {
+				final EntitySchemaBuilder builder = createEntitySchemaBuilder();
+				assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> builder.withAttribute("name", String.class, whichIs -> whichIs.localized().analyzer(null))
+				);
 			}
 		}
 
@@ -2515,10 +2526,10 @@ class AttributeSchemaBuilderTest {
 		@Test
 		@DisplayName("Clients accept structurally valid custom step names")
 		void shouldAcceptCustomStepsWithoutServerKnowledge() {
-			assertEquals(List.of(step("custom", parameter("setting", "value"))), createEntitySchemaBuilder()
+			assertEquals(List.of(normalizingStep("custom", parameter("setting", "value"))), createEntitySchemaBuilder()
 				.withAttribute(
 					"code", String.class, attribute ->
-						attribute.normalized(step("custom", parameter("setting", "value")))
+						attribute.normalized(normalizingStep("custom", parameter("setting", "value")))
 				)
 				.toInstance().getAttribute("code").orElseThrow().getNormalization());
 		}

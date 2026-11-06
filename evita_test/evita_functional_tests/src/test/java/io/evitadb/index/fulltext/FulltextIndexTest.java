@@ -24,16 +24,22 @@
 package io.evitadb.index.fulltext;
 
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
+import io.evitadb.index.bPlusTree.ImpactView;
+import io.evitadb.index.fulltext.FieldLengthTable.LengthBlock;
+import io.evitadb.index.fulltext.FieldLengthTable.LengthBlockEmission;
 import io.evitadb.index.fulltext.FulltextFieldKey.FieldKind;
 import io.evitadb.index.fulltext.FulltextIndex.DictionaryPage;
 import io.evitadb.index.fulltext.FulltextIndex.Field;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Expansion;
+import io.evitadb.index.fulltext.FulltextPhaseOneScorer.MergeStrategy;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
-import io.evitadb.index.fulltext.analysis.AnalyzedTerm;
+import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextFieldLengthBlockPart;
+import io.evitadb.test.fulltext.AnalyzedTerm;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -43,7 +49,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -57,9 +65,11 @@ import java.util.TreeSet;
 import static io.evitadb.index.fulltext.FulltextFieldKey.associatedData;
 import static io.evitadb.index.fulltext.FulltextFieldKey.attribute;
 import static io.evitadb.index.fulltext.FulltextFieldKey.referenceAttribute;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.*;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.TRANSACTION;
+import static io.evitadb.test.fulltext.FulltextAnalysisTestSupport.collectTerms;
 import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
 import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
@@ -115,8 +125,8 @@ class FulltextIndexTest {
 
 	@BeforeAll
 	static void setUpAnalyzer() {
-		registry = new FulltextAnalyzerRegistry();
-		analyzer = registry.getIndexAnalyzer("product", Locale.forLanguageTag("cs"));
+		registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
+		analyzer = testAnalyzer().indexSurface();
 	}
 
 	@AfterAll
@@ -131,7 +141,94 @@ class FulltextIndexTest {
 	 */
 	@Nonnull
 	private static FulltextIndex newIndex() {
-		return new FulltextIndex(analyzer);
+		return new FulltextIndex();
+	}
+
+	/** An empty direct addition does not register a field generation. */
+	@Test
+	void shouldIgnoreDirectEmptyValueSets() {
+		final FulltextIndex index = newIndex();
+		index.addValue(attribute("name"), 1, testAnalyzer(), 25.0, null, new String[0]);
+		assertEquals(0, index.getFieldCount(), "Empty direct addition must not register a field");
+	}
+
+	/** Empty removals and additions leave an existing stale field and its postings intact. */
+	@Test
+	void shouldIgnoreDirectEmptyRemovalFromStaleField() {
+		final FulltextIndex index = newIndex();
+		index.addValue(attribute("name"), 1, testAnalyzer(), 25.0, null, "Praha");
+		final int original = index.getFieldId(attribute("name"));
+		index.removeValue(attribute("name"), 2, testAnalyzer(), 50.0, new String[0]);
+		assertFalse(index.isFieldRetired(original), "Empty direct removal must not retire a stale field");
+		index.addValue(attribute("name"), 2, testAnalyzer(), 50.0, null, new String[0]);
+		assertEquals(original, index.getFieldId(attribute("name")), "Empty add must preserve the stale generation");
+	}
+
+	/** Per-field analysis generations preserve posting ownership across changes. */
+	@Nested
+	@DisplayName("Analysis generations")
+	class AnalysisGenerations {
+		/** A changed chain retires on removal, and the add starts a new generation containing only the new write. */
+		@Test
+		@DisplayName("should retire on a fingerprint change and keep identical resends")
+		void shouldRetireOnFingerprintChange() {
+			final FulltextIndex index = newIndex();
+			final CompiledFulltextAnalyzer first = testAnalyzer();
+			final CompiledFulltextAnalyzer second =
+				registry.getCompiledAnalyzer(SCHEMA, "html-text", Locale.forLanguageTag("cs"));
+			index.addValue(attribute("name"), 1, first, 25.0, null, "Praha");
+			assertEquals(0, index.getFieldId(attribute("name")));
+			index.removeValue(attribute("name"), 1, second, 25.0, "Praha");
+			assertTrue(index.isFieldRetired(0));
+			index.addValue(attribute("name"), 2, second, 25.0, null, "Brno");
+			assertEquals(1, index.getFieldId(attribute("name")));
+			index.removeValue(attribute("name"), 2, second, 25.0, "Brno");
+			index.addValue(attribute("name"), 2, second, 25.0, null, "Brno");
+			assertEquals(2, index.getFieldCount());
+			assertEquals(first.fingerprint().index(), index.getIndexFingerprint(0));
+			assertEquals(second.fingerprint().wordPhase(), index.getWordPhaseId(1));
+		}
+
+		/** An old entity was never indexed in the new generation; removing it must not touch another entity. */
+		@Test
+		@DisplayName("should ignore removal of an entity absent from the fresh field")
+		void shouldIgnoreRemovalFromFreshField() {
+			final FulltextIndex index = newIndex();
+			index.addValue(attribute("name"), 1, testAnalyzer(), 25.0, null, "Praha");
+			index.addValue(attribute("name"), 2, testAnalyzer(), 50.0, null, "Praha");
+			index.removeValue(attribute("name"), 1, testAnalyzer(), 50.0, "Praha");
+			assertArrayEquals(new int[]{2}, postingsOf(index, 1, "prah").getArray());
+			assertFalse(index.hasIndexedValue(1, 1));
+		}
+
+		/** Automatic generation retirement is also journaled during warm-up bulk loading. */
+		@Test
+		@DisplayName("should roll back automatic retirement in a warm-up savepoint")
+		void shouldRollBackAutomaticRetirementInWarmUp() {
+			final FulltextIndex index = newIndex();
+			assertWarmUpSavepointRollbackRestores(index,
+				original -> original.addValue(attribute("name"), 1, testAnalyzer(), 25.0, null, "Praha"),
+				FulltextIndexTest::registryOf,
+				original -> original.addValue(attribute("name"), 2, testAnalyzer(), 50.0, null, "Brno"));
+			assertEquals(0, index.getFieldId(attribute("name")));
+			assertEquals(1, index.getFieldCount());
+			assertFalse(index.isFieldRetired(0));
+		}
+
+		/** Automatic generation retirement participates in the transaction rollback. */
+		@Test
+		@Tag(TRANSACTION)
+		@DisplayName("should roll back automatic retirement in a transaction")
+		void shouldRollBackAutomaticRetirement() {
+			final FulltextIndex index = newIndex();
+			index.addValue(attribute("name"), 1, testAnalyzer(), 25.0, null, "Praha");
+			assertStateAfterRollback(index,
+				original -> original.addValue(attribute("name"), 2, testAnalyzer(), 50.0, null, "Brno"),
+				(original, rolledBack) -> {
+					assertFalse(original.isFieldRetired(0));
+					assertEquals(1, original.getFieldCount());
+				});
+		}
 	}
 
 	@Nested
@@ -143,42 +240,69 @@ class FulltextIndexTest {
 		void shouldAssignStableFieldIds() {
 			final FulltextIndex index = newIndex();
 			assertEquals(FulltextIndex.UNKNOWN_FIELD_ID, index.getFieldId(attribute("name")));
-			assertEquals(0, index.getOrAssignFieldId(attribute("name")));
-			assertEquals(1, index.getOrAssignFieldId(attribute("description"), 120.0));
-			assertEquals(0, index.getOrAssignFieldId(attribute("name")));
+			assertEquals(0, registerField(index, attribute("name")));
+			assertEquals(1, registerField(index, attribute("description"), 120.0));
+			assertEquals(0, registerField(index, attribute("name")));
 			assertEquals(1, index.getFieldId(attribute("description")));
 			assertEquals(attribute("description"), index.getFieldKey(1));
 			assertNull(index.getFieldKey(2));
 			assertNull(index.getFieldKey(-1));
 			assertEquals(2, index.getFieldCount());
-			assertEquals(FulltextIndex.DEFAULT_LENGTH_PIVOT, index.getLengthPivot(0));
+			assertEquals(25.0, index.getLengthPivot(0));
 			assertEquals(120.0, index.getLengthPivot(1));
 		}
 
 		@Test
-		@DisplayName("A field's pivot cannot change, and a pivot must be positive")
-		void shouldRefusePivotChangeAndInvalidPivot() {
+		@DisplayName("A pivot change retires its field, and a pivot must be positive")
+		void shouldRetireOnPivotChangeAndRefuseInvalidPivot() {
 			final FulltextIndex index = newIndex();
-			index.getOrAssignFieldId(attribute("body"), 200.0);
-			assertEquals(0, index.getOrAssignFieldId(attribute("body"), 200.0));
-			assertThrows(GenericEvitaInternalError.class, () -> index.getOrAssignFieldId(attribute("body"), 100.0));
-			assertThrows(GenericEvitaInternalError.class, () -> index.getOrAssignFieldId(attribute("title"), 0.0));
+			registerField(index, attribute("body"), 200.0);
+			assertEquals(0, registerField(index, attribute("body"), 200.0));
+			assertEquals(1, registerField(index, attribute("body"), 100.0));
+			assertTrue(index.isFieldRetired(0));
+			assertThrows(GenericEvitaInternalError.class, () -> registerField(index, attribute("title"), 0.0));
 			assertThrows(
-				GenericEvitaInternalError.class, () -> index.getOrAssignFieldId(attribute("title"), Double.NaN)
+				GenericEvitaInternalError.class, () -> registerField(index, attribute("title"), Double.NaN)
 			);
-			assertThrows(GenericEvitaInternalError.class, () -> new FulltextIndex(analyzer, -1.0));
+			assertThrows(GenericEvitaInternalError.class, () -> registerField(index, attribute("invalid"), -1.0));
+		}
+
+		@Test
+		@DisplayName("A field keeps the text expression it was registered with, retired or not")
+		void shouldKeepTheTextExpressionOfAField() {
+			final FulltextIndex index = newIndex();
+			final int bodyId = registerField(index,
+				associatedData("body"), 25.0, "$value.blocks.*[$.text]"
+			);
+			assertEquals("$value.blocks.*[$.text]", index.getTextExpression(bodyId));
+			// an existing field is returned with the expression it was built with - extraction stays symmetric
+			assertEquals(
+				bodyId,
+				registerField(index, associatedData("body"), 25.0, "$value.title")
+			);
+			assertEquals("$value.blocks.*[$.text]", index.getTextExpression(bodyId));
+			// a field registered without one - an attribute, a String value - has none
+			assertNull(index.getTextExpression(registerField(index, attribute("name"))));
+			// retirement keeps it, a re-declaration registers the new one
+			assertTrue(index.retireField(associatedData("body")));
+			assertEquals("$value.blocks.*[$.text]", index.getTextExpression(bodyId));
+			final int reDeclaredId = registerField(index,
+				associatedData("body"), 25.0, "$value.title"
+			);
+			assertNotEquals(bodyId, reDeclaredId);
+			assertEquals("$value.title", index.getTextExpression(reDeclaredId));
+			assertThrows(GenericEvitaInternalError.class, () -> index.getTextExpression(10));
 		}
 
 		@Test
 		@DisplayName("A field id the index never assigned is refused")
 		void shouldRefuseUnassignedFieldId() {
 			final FulltextIndex index = newIndex();
-			index.getOrAssignFieldId(attribute("name"));
-			assertThrows(GenericEvitaInternalError.class, () -> index.addPosting(1, "term", 1, 10));
-			assertThrows(GenericEvitaInternalError.class, () -> index.removePosting(-1, "term", 1));
-			assertThrows(GenericEvitaInternalError.class, () -> index.getPostings(1, "term"));
-			assertThrows(GenericEvitaInternalError.class, () -> index.getImpacts(1, "term"));
-			assertThrows(GenericEvitaInternalError.class, () -> index.getFieldLengths(1));
+			registerField(index, attribute("name"));
+			assertThrows(GenericEvitaInternalError.class, () -> index.hasIndexedValue(1, 1));
+			assertThrows(GenericEvitaInternalError.class, () -> index.hasIndexedValue(-1, 1));
+			assertThrows(GenericEvitaInternalError.class, () -> index.getPersistedLengthBlocks(1));
+			assertThrows(GenericEvitaInternalError.class, () -> index.getLengthPivot(1));
 			assertThrows(
 				GenericEvitaInternalError.class, () -> index.forEachTerm(1, "", (term, postings, impacts) -> true)
 			);
@@ -193,11 +317,11 @@ class FulltextIndexTest {
 
 			final FulltextIndex index = newIndex();
 			for (int i = 0; i <= FulltextIndex.MAX_FIELD_ID; i++) {
-				index.getOrAssignFieldId(attribute("field" + i));
+				registerField(index, attribute("field" + i));
 			}
 			assertEquals(FulltextIndex.MAX_FIELD_ID + 1, index.getFieldCount());
 			assertDoesNotThrow(() -> FulltextFieldLengthBlockPart.pageSequenceOf(FulltextIndex.MAX_FIELD_ID, 0xFFFF));
-			assertThrows(GenericEvitaInternalError.class, () -> index.getOrAssignFieldId(attribute("oneTooMany")));
+			assertThrows(GenericEvitaInternalError.class, () -> registerField(index, attribute("oneTooMany")));
 			assertEquals(FulltextIndex.MAX_FIELD_ID + 1, index.getFieldCount());
 		}
 
@@ -208,16 +332,16 @@ class FulltextIndexTest {
 			final FulltextIndex index = newIndex();
 			// every id but the last one, outside a transaction
 			for (int i = 0; i < FulltextIndex.MAX_FIELD_ID; i++) {
-				index.getOrAssignFieldId(attribute("field" + i));
+				registerField(index, attribute("field" + i));
 			}
 			assertStateAfterCommit(
 				index,
 				original -> {
 					assertTrue(original.retireField(attribute("field0")));
 					// the retired field keeps id 0, so its successor takes the last id there is
-					assertEquals(FulltextIndex.MAX_FIELD_ID, original.getOrAssignFieldId(attribute("field0")));
+					assertEquals(FulltextIndex.MAX_FIELD_ID, registerField(original, attribute("field0")));
 					assertThrows(
-						GenericEvitaInternalError.class, () -> original.getOrAssignFieldId(attribute("oneTooMany"))
+						GenericEvitaInternalError.class, () -> registerField(original, attribute("oneTooMany"))
 					);
 					assertEquals(FulltextIndex.MAX_FIELD_ID + 1, original.getFieldCount());
 				},
@@ -246,7 +370,7 @@ class FulltextIndexTest {
 			};
 			final String[] values = {"horské kolo", "elektrické kolo", "kolo Praha", "kolem hradu"};
 			for (int i = 0; i < keys.length; i++) {
-				index.addValue(keys[i], i + 1, values[i]);
+				index.addValue(keys[i], i + 1, testAnalyzer(), fieldPivot(index, keys[i]), null, values[i]);
 			}
 			assertEquals(keys.length, index.getFieldCount());
 			final String bike = termFrequencies("kolo").keySet().iterator().next();
@@ -255,7 +379,7 @@ class FulltextIndexTest {
 				assertEquals(keys[fieldId], index.getFieldKey(fieldId));
 				assertArrayEquals(
 					termFrequencies(values[fieldId]).containsKey(bike) ? new int[]{fieldId + 1} : new int[0],
-					index.getPostings(fieldId, bike).getArray(),
+					postingsOf(index, fieldId, bike).getArray(),
 					keys[fieldId] + " holds only its own value"
 				);
 			}
@@ -287,8 +411,10 @@ class FulltextIndexTest {
 		@DisplayName("A retired field keeps its postings out of reach, takes no writes, and its key starts a new field")
 		void shouldRetireFieldAndStartTheReAddedOneEmpty() {
 			final FulltextIndex index = newIndex();
-			index.addValue(attribute("name"), 1, "horské kolo");
-			index.addValue(attribute("description"), 1, "Praha");
+			index.addValue(attribute("name"), 1, testAnalyzer(), fieldPivot(index, attribute("name")), null,
+				"horské kolo");
+			index.addValue(attribute("description"), 1, testAnalyzer(), fieldPivot(index,
+				attribute("description")), null, "Praha");
 			final String bike = termFrequencies("kolo").keySet().iterator().next();
 
 			assertTrue(index.retireField(attribute("name")));
@@ -296,73 +422,76 @@ class FulltextIndexTest {
 			assertTrue(index.isFieldRetired(0));
 			assertFalse(index.isFieldRetired(1));
 			assertEquals(attribute("name"), index.getFieldKey(0));
-			// the postings stay where they are until a reindex drops them
-			assertArrayEquals(new int[]{1}, index.getPostings(0, bike).getArray());
-			assertEquals(1, index.getFieldLengths(0).size());
+			// the postings and the lengths stay where they are until a reindex drops them
+			assertArrayEquals(new int[]{1}, postingsOf(index, 0, bike).getArray());
+			assertTrue(index.hasIndexedValue(0, 1));
 			assertTrue(index.isDirty(), "The field registry changed, so the index must be flushed.");
 
 			assertFalse(index.retireField(attribute("name")), "A key resolving to no field retires nothing.");
 			assertFalse(index.retireField(attribute("unknown")));
 			final String retired = contentOf(index);
-			index.removeValue(attribute("name"), 1, "horské kolo");
+			index.removeValue(attribute("name"), 1, testAnalyzer(), fieldPivot(index, attribute("name")),
+				"horské kolo");
 			assertEquals(retired, contentOf(index), "Removing through the retired key reaches nothing.");
-			assertThrows(GenericEvitaInternalError.class, () -> index.addPosting(0, bike, 2, 10));
-			assertThrows(GenericEvitaInternalError.class, () -> index.removePosting(0, bike, 1));
 
-			index.addValue(attribute("name"), 2, "elektrické kolo");
+			index.addValue(attribute("name"), 2, testAnalyzer(), fieldPivot(index, attribute("name")), null,
+				"elektrické kolo");
 			assertEquals(2, index.getFieldId(attribute("name")));
 			assertEquals(1, index.getFieldId(attribute("description")));
 			assertEquals(3, index.getFieldCount());
-			assertArrayEquals(new int[]{2}, index.getPostings(2, bike).getArray());
-			assertArrayEquals(new int[]{1}, index.getPostings(0, bike).getArray());
+			assertArrayEquals(new int[]{2}, postingsOf(index, 2, bike).getArray());
+			assertArrayEquals(new int[]{1}, postingsOf(index, 0, bike).getArray());
 		}
 
 		@Test
 		@DisplayName("A key retired again after its re-addition leaves two retired fields and resolves to the third")
 		void shouldRetireTheReAddedFieldAgain() {
 			final FulltextIndex index = newIndex();
-			index.getOrAssignFieldId(attribute("name"));
+			registerField(index, attribute("name"));
 			assertTrue(index.retireField(attribute("name")));
-			assertEquals(1, index.getOrAssignFieldId(attribute("name"), 120.0));
+			assertEquals(1, registerField(index, attribute("name"), 120.0));
 			assertTrue(index.retireField(attribute("name")));
-			assertEquals(2, index.getOrAssignFieldId(attribute("name")));
+			assertEquals(2, registerField(index, attribute("name")));
 			assertTrue(index.isFieldRetired(0));
 			assertTrue(index.isFieldRetired(1));
 			assertFalse(index.isFieldRetired(2));
 			assertEquals(120.0, index.getLengthPivot(1));
 			// the pivot belongs to the field, not to the key: the field registered now takes the default again
-			assertEquals(FulltextIndex.DEFAULT_LENGTH_PIVOT, index.getLengthPivot(2));
+			assertEquals(25.0, index.getLengthPivot(2));
 		}
 
 		@Test
 		@DisplayName("A restored registry resolves a key to its field not retired, and refuses two such fields")
 		void shouldRestoreRetiredFields() {
 			final DictionaryPage[] emptyDictionary = {new DictionaryPage(0, new ValueToRecord[0], new byte[0][])};
-			final FulltextIndex restored = FulltextIndex.fromPersistedPages(
-				analyzer, FulltextIndex.DEFAULT_LENGTH_PIVOT,
-				List.of(
-					new Field(attribute("name"), 25.0, true, new FieldLengthTable()),
-					new Field(attribute("description"), 25.0, true, new FieldLengthTable()),
-					new Field(attribute("name"), 50.0, false, new FieldLengthTable())
-				),
-				new int[]{0}, emptyDictionary, 0
-			);
+			final FulltextIndex restored = FulltextIndex.fromPersistedPages(List.of(
+					new Field(attribute("name"), "text", testAnalyzer().fingerprint().index(),
+						testAnalyzer().fingerprint().wordPhase(), 25.0, null, true, new FieldLengthTable()),
+					new Field(attribute("description"), "text", testAnalyzer().fingerprint().index(),
+						testAnalyzer().fingerprint().wordPhase(), 25.0, null, true, new FieldLengthTable()),
+					new Field(attribute("name"), "text", testAnalyzer().fingerprint().index(),
+						testAnalyzer().fingerprint().wordPhase(), 50.0, null, false, new FieldLengthTable())
+				), new int[]{0}, emptyDictionary, 0,
+					Map.of(testAnalyzer().fingerprint().wordPhase(), 0), new int[]{0},
+					new FulltextIndex.SurfaceFormPage[]{
+						new FulltextIndex.SurfaceFormPage(0, new String[0], new long[0])}, 0);
 			assertEquals(2, restored.getFieldId(attribute("name")));
 			assertEquals(FulltextIndex.UNKNOWN_FIELD_ID, restored.getFieldId(attribute("description")));
 			assertTrue(restored.isFieldRetired(0));
 			assertTrue(restored.isFieldRetired(1));
-			assertEquals(3, restored.getOrAssignFieldId(attribute("description")));
+			assertEquals(3, registerField(restored, attribute("description")));
 
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> FulltextIndex.fromPersistedPages(
-					analyzer, FulltextIndex.DEFAULT_LENGTH_PIVOT,
-					List.of(
-						new Field(attribute("name"), 25.0, false, new FieldLengthTable()),
-						new Field(attribute("name"), 25.0, false, new FieldLengthTable())
-					),
-					new int[]{0}, emptyDictionary, 0
-				)
+				() -> FulltextIndex.fromPersistedPages(List.of(
+						new Field(attribute("name"), "text", testAnalyzer().fingerprint().index(),
+							testAnalyzer().fingerprint().wordPhase(), 25.0, null, false, new FieldLengthTable()),
+						new Field(attribute("name"), "text", testAnalyzer().fingerprint().index(),
+							testAnalyzer().fingerprint().wordPhase(), 25.0, null, false, new FieldLengthTable())
+					), new int[]{0}, emptyDictionary, 0,
+					Map.of(testAnalyzer().fingerprint().wordPhase(), 0), new int[]{0},
+					new FulltextIndex.SurfaceFormPage[]{
+						new FulltextIndex.SurfaceFormPage(0, new String[0], new long[0])}, 0)
 			);
 		}
 
@@ -380,58 +509,51 @@ class FulltextIndexTest {
 	class Postings {
 
 		@Test
-		@DisplayName("Postings and their impacts are added, replaced and removed; a term leaves with its last posting")
+		@DisplayName("Postings and their impacts follow the values written; a term leaves with its last posting")
 		void shouldMaintainPostingsAndImpacts() {
 			final FulltextIndex index = newIndex();
-			final int name = index.getOrAssignFieldId(attribute("name"));
-			index.addPosting(name, "praha", 7, 70);
-			index.addPosting(name, "praha", 3, 30);
-			assertArrayEquals(new int[]{3, 7}, index.getPostings(name, "praha").getArray());
-			assertArrayEquals(new byte[]{30, 70}, index.getImpacts(name, "praha"));
-			// re-adding a present posting replaces its impact
-			index.addPosting(name, "praha", 7, 77);
-			assertArrayEquals(new byte[]{30, 77}, index.getImpacts(name, "praha"));
-			assertEquals(1, index.getTermCount());
+			final FulltextFieldKey nameKey = attribute("name");
+			final int name = registerExactField(index, nameKey, 25.0);
+			addWords(index, nameKey, 7, "praha");
+			addWords(index, nameKey, 3, "praha", "praha", "brno");
+			assertArrayEquals(new int[]{3, 7}, postingsOf(index, name, "praha").getArray());
+			assertArrayEquals(new byte[]{impact(2, 3), impact(1, 1)}, impactsOf(index, name, "praha"));
+			// a value written in place of the old one replaces its impact
+			removeWords(index, nameKey, 7, "praha");
+			addWords(index, nameKey, 7, "praha", "praha");
+			assertArrayEquals(new byte[]{impact(2, 3), impact(2, 2)}, impactsOf(index, name, "praha"));
+			assertEquals(2, termCount(index));
 
-			index.removePosting(name, "praha", 3);
-			assertArrayEquals(new int[]{7}, index.getPostings(name, "praha").getArray());
-			assertArrayEquals(new byte[]{77}, index.getImpacts(name, "praha"));
-			// removing a posting that is not there changes nothing
-			index.removePosting(name, "praha", 99);
-			index.removePosting(name, "brno", 7);
-			assertArrayEquals(new int[]{7}, index.getPostings(name, "praha").getArray());
+			removeWords(index, nameKey, 3, "praha", "brno");
+			assertArrayEquals(new int[]{7}, postingsOf(index, name, "praha").getArray());
+			assertArrayEquals(new byte[]{impact(2, 2)}, impactsOf(index, name, "praha"));
+			assertTrue(postingsOf(index, name, "brno").isEmpty(), "A term leaves with its last posting.");
+			// removing a value the entity does not hold changes nothing
+			removeWords(index, nameKey, 99, "praha");
+			assertArrayEquals(new int[]{7}, postingsOf(index, name, "praha").getArray());
 
-			index.removePosting(name, "praha", 7);
-			assertTrue(index.getPostings(name, "praha").isEmpty());
-			assertEquals(0, index.getImpacts(name, "praha").length);
-			assertEquals(0, index.getTermCount());
-		}
-
-		@Test
-		@DisplayName("An impact outside 1..255 is refused")
-		void shouldRefuseImpactOutOfRange() {
-			final FulltextIndex index = newIndex();
-			final int name = index.getOrAssignFieldId(attribute("name"));
-			assertThrows(GenericEvitaInternalError.class, () -> index.addPosting(name, "term", 1, 0));
-			assertThrows(GenericEvitaInternalError.class, () -> index.addPosting(name, "term", 1, 256));
+			removeWords(index, nameKey, 7, "praha");
+			assertTrue(postingsOf(index, name, "praha").isEmpty());
+			assertEquals(0, impactsOf(index, name, "praha").length);
+			assertEquals(0, termCount(index));
 		}
 
 		@Test
 		@DisplayName("The same term in two fields is two independent posting lists")
 		void shouldIsolateFieldsSharingATerm() {
 			final FulltextIndex index = newIndex();
-			final int name = index.getOrAssignFieldId(attribute("name"));
-			final int description = index.getOrAssignFieldId(attribute("description"));
-			index.addPosting(name, "kolo", 1, 11);
-			index.addPosting(description, "kolo", 2, 22);
-			index.addPosting(description, "kolo", 3, 33);
-			assertArrayEquals(new int[]{1}, index.getPostings(name, "kolo").getArray());
-			assertArrayEquals(new byte[]{22, 33}, index.getImpacts(description, "kolo"));
-			assertEquals(2, index.getTermCount());
+			final int name = registerExactField(index, attribute("name"), 25.0);
+			final int description = registerExactField(index, attribute("description"), 25.0);
+			addWords(index, attribute("name"), 1, "kolo");
+			addWords(index, attribute("description"), 2, "kolo");
+			addWords(index, attribute("description"), 3, "kolo", "kolo");
+			assertArrayEquals(new int[]{1}, postingsOf(index, name, "kolo").getArray());
+			assertArrayEquals(new byte[]{impact(1, 1), impact(2, 2)}, impactsOf(index, description, "kolo"));
+			assertEquals(2, termCount(index));
 
-			index.removePosting(name, "kolo", 1);
-			assertTrue(index.getPostings(name, "kolo").isEmpty());
-			assertArrayEquals(new int[]{2, 3}, index.getPostings(description, "kolo").getArray());
+			removeWords(index, attribute("name"), 1, "kolo");
+			assertTrue(postingsOf(index, name, "kolo").isEmpty());
+			assertArrayEquals(new int[]{2, 3}, postingsOf(index, description, "kolo").getArray());
 		}
 
 		@Test
@@ -441,18 +563,28 @@ class FulltextIndexTest {
 			// eleven fields, so ids 9 and 10 straddle the digit/letter boundary of the hexadecimal prefix
 			final int fieldCount = 11;
 			final List<Map<String, TreeSet<Integer>>> expected = new ArrayList<>(fieldCount);
+			final List<Map<Integer, TreeSet<String>>> values = new ArrayList<>(fieldCount);
 			final Random random = new Random(7);
 			for (int i = 0; i < fieldCount; i++) {
-				assertEquals(i, index.getOrAssignFieldId(attribute("field" + i)));
+				assertEquals(i, registerExactField(index, attribute("field" + i), 25.0));
 				expected.add(new TreeMap<>());
+				values.add(new TreeMap<>());
 			}
 			// enough terms that one field spans several 256-bucket leaves
 			for (int i = 0; i < 6_000; i++) {
 				final int fieldId = random.nextInt(fieldCount);
 				final String term = randomTerm(random);
 				final int primaryKey = random.nextInt(50);
-				index.addPosting(fieldId, term, primaryKey, 1 + random.nextInt(255));
 				expected.get(fieldId).computeIfAbsent(term, t -> new TreeSet<>()).add(primaryKey);
+				values.get(fieldId).computeIfAbsent(primaryKey, pk -> new TreeSet<>()).add(term);
+			}
+			// an entity has one value per field, so its terms are written together
+			for (int fieldId = 0; fieldId < fieldCount; fieldId++) {
+				for (Map.Entry<Integer, TreeSet<String>> value : values.get(fieldId).entrySet()) {
+					addWords(
+						index, attribute("field" + fieldId), value.getKey(), value.getValue().toArray(String[]::new)
+					);
+				}
 			}
 
 			for (int fieldId = 0; fieldId < fieldCount; fieldId++) {
@@ -473,10 +605,8 @@ class FulltextIndexTest {
 		@DisplayName("A term walk stops when the visitor asks it to")
 		void shouldStopWalkWhenVisitorDeclines() {
 			final FulltextIndex index = newIndex();
-			final int name = index.getOrAssignFieldId(attribute("name"));
-			for (String term : new String[]{"a", "b", "c", "d"}) {
-				index.addPosting(name, term, 1, 1);
-			}
+			final int name = registerExactField(index, attribute("name"), 25.0);
+			addWords(index, attribute("name"), 1, "a", "b", "c", "d");
 			final List<String> visited = new ArrayList<>(4);
 			index.forEachTerm(name, "", (term, postings, impacts) -> {
 				visited.add(term);
@@ -489,67 +619,81 @@ class FulltextIndexTest {
 		@DisplayName("Postings and impacts stay aligned through every bucket representation")
 		void shouldKeepPostingsAndImpactsThroughBucketPromotion() {
 			final FulltextIndex index = newIndex();
-			final int body = index.getOrAssignFieldId(attribute("body"));
-			final int title = index.getOrAssignFieldId(attribute("title"));
-			// past the sorted-array tier, into a bitmap spanning three roaring containers
+			final int body = registerExactField(index, attribute("body"), 25.0);
+			final int title = registerExactField(index, attribute("title"), 25.0);
+			// past the sorted-array tier, into a bitmap spanning three roaring containers; each value repeats the term
+			// a different number of times, so neighbouring postings carry different impacts
 			final TreeMap<Integer, Integer> expected = new TreeMap<>();
 			for (int primaryKey = 140_000; primaryKey >= 0; primaryKey -= 97) {
-				final int impact = 1 + primaryKey % 255;
-				index.addPosting(body, "the", primaryKey, impact);
-				expected.put(primaryKey, impact);
+				final int frequency = 1 + primaryKey % 7;
+				addWords(index, attribute("body"), primaryKey, "the ".repeat(frequency));
+				expected.put(primaryKey, FulltextIndex.computeImpact(frequency, frequency, 25.0));
 			}
-			index.addPosting(title, "the", 5, 9);
+			addWords(index, attribute("title"), 5, "the");
 			assertPostingsEqual(expected, index, body, "the");
-			assertArrayEquals(new byte[]{9}, index.getImpacts(title, "the"));
+			assertArrayEquals(new byte[]{impact(1, 1)}, impactsOf(index, title, "the"));
 
-			for (int primaryKey = 0; primaryKey <= 140_000; primaryKey += 2 * 97) {
-				index.removePosting(body, "the", primaryKey);
+			// every other posting leaves, so the bitmap shrinks in every container
+			for (int primaryKey = 140_000; primaryKey >= 0; primaryKey -= 2 * 97) {
+				removeWords(index, attribute("body"), primaryKey, "the");
 				expected.remove(primaryKey);
 			}
 			assertPostingsEqual(expected, index, body, "the");
-			assertArrayEquals(new int[]{5}, index.getPostings(title, "the").getArray());
+			assertArrayEquals(new int[]{5}, postingsOf(index, title, "the").getArray());
 		}
 
 		@Test
-		@DisplayName("The scorer ranks on the impacts a walk hands out exactly as on the impacts a descent copies")
+		@DisplayName("The scorer ranks on the impacts a walk hands out exactly as on a flat copy of them")
 		void shouldScoreOnWalkImpactsAsOnCopies() {
 			final FulltextIndex index = newIndex();
-			final int body = index.getOrAssignFieldId(attribute("body"));
+			final int body = registerExactField(index, attribute("body"), 25.0);
 			final Random random = new Random(99);
-			// buckets in every tier: chunked bitmaps over many roaring containers, sorted arrays, singles
+			// buckets in every tier: chunked bitmaps over many roaring containers, sorted arrays, singles - each value
+			// repeating its terms a random number of times, so the impacts vary
+			final Map<Integer, StringBuilder> values = new TreeMap<>();
 			for (int primaryKey = 0; primaryKey < 400_000; primaryKey += 1 + random.nextInt(200)) {
-				index.addPosting(body, "the", primaryKey, 1 + random.nextInt(255));
+				final StringBuilder value = values.computeIfAbsent(primaryKey, pk -> new StringBuilder(64));
+				value.append("the ".repeat(1 + random.nextInt(8)));
 				if (random.nextInt(50) == 0) {
-					index.addPosting(body, "thermal", primaryKey, 1 + random.nextInt(255));
+					value.append("thermal ".repeat(1 + random.nextInt(8)));
 				}
 			}
-			// a single-record bucket, on a primary key both candidate sets below contain
-			index.addPosting(body, "theory", 2_991, 77);
+			// a single-record bucket, on a primary key the stride-3 and stride-997 candidate sets below contain
+			values.computeIfAbsent(2_991, pk -> new StringBuilder(8)).append("theory");
+			for (Map.Entry<Integer, StringBuilder> value : values.entrySet()) {
+				addWords(index, attribute("body"), value.getKey(), value.getValue().toString());
+			}
 			final List<Expansion> fromWalk = new ArrayList<>(3);
 			final List<Expansion> fromCopies = new ArrayList<>(3);
 			index.forEachTerm(body, "the", (term, postings, impacts) -> {
-				final int[] postingArray = postings.getArray();
-				fromWalk.add(new Expansion(postingArray, impacts, 0));
-				fromCopies.add(new Expansion(postingArray, index.getImpacts(body, term), 0));
+				fromWalk.add(new Expansion(postings, impacts, 0, FulltextTermExactness.EXACT));
+				fromCopies.add(new Expansion(
+					postings, ImpactView.of(impacts.toArray()), 0, FulltextTermExactness.EXACT
+				));
 				return true;
 			});
 			assertEquals(3, fromWalk.size());
-			// candidates both sparse and dense against the postings, so both merge strategies run
-			for (final int stride : new int[]{3, 997}) {
+			// candidates dense, comparable and sparse against the postings, and every merge forced on each, so the
+			// counted impact offsets of the posting-driven merges and the ranks of the skipping one all meet the
+			// chunk boundaries of the walked view
+			for (final int stride : new int[]{3, 997, 9_973}) {
 				final int[] candidates = new int[400_000 / stride];
 				for (int i = 0; i < candidates.length; i++) {
 					candidates[i] = i * stride;
 				}
-				final Result walked = FulltextPhaseOneScorer.score(
-					candidates, new Expansion[][]{fromWalk.toArray(Expansion[]::new)}, 50
-				);
 				final Result copied = FulltextPhaseOneScorer.score(
-					candidates, new Expansion[][]{fromCopies.toArray(Expansion[]::new)}, 50
+					candidates, new Expansion[][]{fromCopies.toArray(Expansion[]::new)}, 50, MergeStrategy.LINEAR
 				);
-				assertTrue(walked.matchedDocuments() > 0);
-				assertEquals(copied.matchedDocuments(), walked.matchedDocuments());
-				assertArrayEquals(copied.primaryKeys(), walked.primaryKeys());
-				assertArrayEquals(copied.composites(), walked.composites());
+				assertTrue(copied.matchedDocuments() > 0);
+				for (final MergeStrategy strategy : MergeStrategy.values()) {
+					final Result walked = FulltextPhaseOneScorer.score(
+						candidates, new Expansion[][]{fromWalk.toArray(Expansion[]::new)}, 50, strategy
+					);
+					final String message = "stride " + stride + " " + strategy;
+					assertEquals(copied.matchedDocuments(), walked.matchedDocuments(), message);
+					assertArrayEquals(copied.primaryKeys(), walked.primaryKeys(), message);
+					assertArrayEquals(copied.composites(), walked.composites(), message);
+				}
 			}
 		}
 
@@ -564,21 +708,22 @@ class FulltextIndexTest {
 		void shouldIndexValueWithImpactsAndLength() {
 			final FulltextIndex index = newIndex();
 			final String value = "Praha a Praha a Brno";
-			index.addValue(attribute("name"), 10, value);
+			index.addValue(attribute("name"), 10, testAnalyzer(), fieldPivot(index, attribute("name")), null, value);
 			final int name = index.getFieldId(attribute("name"));
 
 			final Map<String, Integer> frequencies = termFrequencies(value);
 			final int length = positions(value);
 			assertTrue(length > 0);
-			assertEquals(length, index.getFieldLengths(name).getLength(10));
+			assertTrue(index.hasIndexedValue(name, 10));
+			// the length is recorded where it takes effect: every impact is normalized with it
 			for (Map.Entry<String, Integer> entry : frequencies.entrySet()) {
-				assertArrayEquals(new int[]{10}, index.getPostings(name, entry.getKey()).getArray(), entry.getKey());
+				assertArrayEquals(new int[]{10}, postingsOf(index, name, entry.getKey()).getArray(), entry.getKey());
 				final int expectedImpact = FulltextIndex.computeImpact(
-					entry.getValue(), length, FulltextIndex.DEFAULT_LENGTH_PIVOT
+					entry.getValue(), length, 25.0
 				);
-				assertEquals(expectedImpact, Byte.toUnsignedInt(index.getImpacts(name, entry.getKey())[0]));
+				assertEquals(expectedImpact, Byte.toUnsignedInt(impactsOf(index, name, entry.getKey())[0]));
 			}
-			assertEquals(frequencies.size(), index.getTermCount());
+			assertEquals(frequencies.size(), termCount(index));
 		}
 
 		@Test
@@ -586,27 +731,34 @@ class FulltextIndexTest {
 		void shouldAddValueToFieldRegisteredWithCustomPivot() {
 			final FulltextIndex index = newIndex();
 			final double pivot = 7.0;
-			final int body = index.getOrAssignFieldId(attribute("body"), pivot);
-			index.addValue(attribute("body"), 1, "Praha a Praha a Brno");
-			index.addValue(attribute("body"), 2, new String[]{"Praha", "Brno"});
+			final int body = registerField(index, attribute("body"), pivot);
+			index.addValue(attribute("body"), 1, testAnalyzer(), fieldPivot(index, attribute("body")), null,
+				"Praha a Praha a Brno");
+			index.addValue(attribute("body"), 2, testAnalyzer(), fieldPivot(index, attribute("body")), null,
+				new String[]{"Praha", "Brno"});
 			assertEquals(
-				body, index.getOrAssignFieldId(attribute("body")), "a known field is found, whatever its pivot"
+				body, registerField(index, attribute("body")), "a known field is found, whatever its pivot"
 			);
 			assertEquals(pivot, index.getLengthPivot(body));
 			final String praha = termFrequencies("Praha").keySet().iterator().next();
-			assertArrayEquals(new int[]{1, 2}, index.getPostings(body, praha).getArray());
+			assertArrayEquals(new int[]{1, 2}, postingsOf(index, body, praha).getArray());
 			final int expectedImpact = FulltextIndex.computeImpact(
 				termFrequencies("Praha a Praha a Brno").get(praha), positions("Praha a Praha a Brno"), pivot
 			);
-			assertEquals(expectedImpact, Byte.toUnsignedInt(index.getImpacts(body, praha)[0]));
+			assertEquals(expectedImpact, Byte.toUnsignedInt(impactsOf(index, body, praha)[0]));
 
-			index.removeValue(attribute("body"), 1, "Praha a Praha a Brno");
-			index.removeValue(attribute("body"), 2, new String[]{"Praha", "Brno"});
-			assertEquals(0, index.getTermCount());
-			assertEquals(0, index.getFieldLengths(body).size());
+			index.removeValue(attribute("body"), 1, testAnalyzer(), fieldPivot(index, attribute("body")),
+				"Praha a Praha a Brno");
+			index.removeValue(attribute("body"), 2, testAnalyzer(), fieldPivot(index, attribute("body")),
+				new String[]{"Praha", "Brno"});
+			assertEquals(0, termCount(index));
+			assertFalse(index.hasIndexedValue(body, 1));
+			assertFalse(index.hasIndexedValue(body, 2));
 			// a removal never registers a field
-			index.removeValue(attribute("unknown"), 1, "Praha");
-			index.removeValue(attribute("unknown"), 1, new String[]{"Praha"});
+			index.removeValue(attribute("unknown"), 1, testAnalyzer(), fieldPivot(index, attribute("unknown")),
+				"Praha");
+			index.removeValue(attribute("unknown"), 1, testAnalyzer(), fieldPivot(index, attribute("unknown")),
+				new String[]{"Praha"});
 			assertEquals(FulltextIndex.UNKNOWN_FIELD_ID, index.getFieldId(attribute("unknown")));
 			assertEquals(1, index.getFieldCount());
 		}
@@ -638,72 +790,92 @@ class FulltextIndexTest {
 		@DisplayName("Removing a value removes its postings and length and leaves other entities untouched")
 		void shouldRemoveValue() {
 			final FulltextIndex index = newIndex();
-			index.addValue(attribute("name"), 1, "Praha hlavní město");
-			index.addValue(attribute("name"), 2, "Praha a Brno");
+			index.addValue(attribute("name"), 1, testAnalyzer(), fieldPivot(index, attribute("name")), null,
+				"Praha hlavní město");
+			index.addValue(attribute("name"), 2, testAnalyzer(), fieldPivot(index, attribute("name")), null,
+				"Praha a Brno");
 			final int name = index.getFieldId(attribute("name"));
 			final String praha = termFrequencies("Praha").keySet().iterator().next();
-			assertArrayEquals(new int[]{1, 2}, index.getPostings(name, praha).getArray());
+			assertArrayEquals(new int[]{1, 2}, postingsOf(index, name, praha).getArray());
 
-			index.removeValue(attribute("name"), 1, "Praha hlavní město");
-			assertArrayEquals(new int[]{2}, index.getPostings(name, praha).getArray());
-			assertEquals(0, index.getFieldLengths(name).getLength(1));
-			assertTrue(index.getFieldLengths(name).getLength(2) > 0);
+			index.removeValue(attribute("name"), 1, testAnalyzer(), fieldPivot(index, attribute("name")),
+				"Praha hlavní město");
+			assertArrayEquals(new int[]{2}, postingsOf(index, name, praha).getArray());
+			assertFalse(index.hasIndexedValue(name, 1));
+			assertTrue(index.hasIndexedValue(name, 2));
 			for (String term : termFrequencies("hlavní město").keySet()) {
-				assertTrue(index.getPostings(name, term).isEmpty(), term);
+				assertTrue(postingsOf(index, name, term).isEmpty(), term);
 			}
 			// removing from an unknown field, or a value without tokens, changes nothing
-			index.removeValue(attribute("unknown"), 2, "Praha");
-			index.removeValue(attribute("name"), 2, "!!!");
-			assertArrayEquals(new int[]{2}, index.getPostings(name, praha).getArray());
-			assertEquals(positions("Praha a Brno"), index.getFieldLengths(name).getLength(2));
+			index.removeValue(attribute("unknown"), 2, testAnalyzer(), fieldPivot(index, attribute("unknown")),
+				"Praha");
+			index.removeValue(attribute("name"), 2, testAnalyzer(), fieldPivot(index, attribute("name")), "!!!");
+			assertArrayEquals(new int[]{2}, postingsOf(index, name, praha).getArray());
+			assertTrue(index.hasIndexedValue(name, 2), "A removal without tokens must not erase the length.");
 		}
 
 		@Test
 		@DisplayName("A second value for the same entity and field is refused until the first is removed")
 		void shouldRefuseSecondValueUntilRemoved() {
 			final FulltextIndex index = newIndex();
-			index.addValue(attribute("name"), 1, "Praha");
-			assertThrows(GenericEvitaInternalError.class, () -> index.addValue(attribute("name"), 1, "Brno"));
-			index.removeValue(attribute("name"), 1, "Praha");
-			index.addValue(attribute("name"), 1, "Brno");
-			assertEquals(termFrequencies("Brno").size(), index.getTermCount());
+			index.addValue(attribute("name"), 1, testAnalyzer(), fieldPivot(index, attribute("name")), null, "Praha");
+			assertThrows(GenericEvitaInternalError.class, () -> index.addValue(attribute("name"), 1,
+				testAnalyzer(), fieldPivot(index, attribute("name")), null, "Brno"));
+			index.removeValue(attribute("name"), 1, testAnalyzer(), fieldPivot(index, attribute("name")), "Praha");
+			index.addValue(attribute("name"), 1, testAnalyzer(), fieldPivot(index, attribute("name")), null, "Brno");
+			assertEquals(termFrequencies("Brno").size(), termCount(index));
 		}
 
 		@Test
 		@DisplayName("A value without tokens indexes nothing")
 		void shouldIndexNothingForValueWithoutTokens() {
 			final FulltextIndex index = newIndex();
-			index.addValue(attribute("name"), 1, "!!! ...");
-			assertEquals(0, index.getTermCount());
-			assertEquals(0, index.getFieldLengths(index.getFieldId(attribute("name"))).size());
+			index.addValue(attribute("name"), 1, testAnalyzer(), fieldPivot(index, attribute("name")), null, "!!! ...");
+			assertEquals(0, termCount(index));
+			assertFalse(index.hasIndexedValue(index.getFieldId(attribute("name")), 1));
 		}
 
 		@Test
 		@DisplayName("An array value is indexed as the text its elements make one after another")
 		void shouldIndexArrayAsOneText() {
 			final FulltextIndex index = newIndex();
-			index.addValue(attribute("keywords"), 1, new String[]{"horské kolo", "kolo Praha"});
-			index.addValue(attribute("keywords"), 2, "Brno");
+			index.addValue(attribute("keywords"), 1, testAnalyzer(), fieldPivot(index, attribute("keywords")),
+				null, new String[]{"horské kolo", "kolo Praha"});
+			index.addValue(attribute("keywords"), 2, testAnalyzer(), fieldPivot(index, attribute("keywords")),
+				null, "Brno");
 			final FulltextIndex expected = newIndex();
-			expected.addValue(attribute("keywords"), 1, "horské kolo kolo Praha");
-			expected.addValue(attribute("keywords"), 2, "Brno");
+			expected.addValue(attribute("keywords"), 1, testAnalyzer(), fieldPivot(expected,
+				attribute("keywords")), null, "horské kolo kolo Praha");
+			expected.addValue(attribute("keywords"), 2, testAnalyzer(), fieldPivot(expected,
+				attribute("keywords")), null, "Brno");
 			// summed frequencies (`kolo` twice), summed length, and therefore the very same impacts
 			assertEquals(contentOf(expected), contentOf(index));
 			final int keywords = index.getFieldId(attribute("keywords"));
-			assertEquals(
-				positions("horské kolo") + positions("kolo Praha"), index.getFieldLengths(keywords).getLength(1)
+			final String bike = termFrequencies("kolo").keySet().iterator().next();
+			// the impacts are normalized with the summed length
+			assertArrayEquals(
+				new byte[]{(byte) FulltextIndex.computeImpact(
+					termFrequencies("horské kolo kolo Praha").get(bike),
+					positions("horské kolo") + positions("kolo Praha"),
+					fieldPivot(index, attribute("keywords"))
+				)},
+				impactsOf(index, keywords, bike)
 			);
 
 			// one entry per entity: a second value is refused in either form
-			assertThrows(GenericEvitaInternalError.class, () -> index.addValue(attribute("keywords"), 1, "Ostrava"));
+			assertThrows(GenericEvitaInternalError.class, () -> index.addValue(attribute("keywords"), 1,
+				testAnalyzer(), fieldPivot(index, attribute("keywords")), null, "Ostrava"));
 			assertThrows(
-				GenericEvitaInternalError.class, () -> index.addValue(attribute("keywords"), 1, new String[]{"Ostrava"})
+				GenericEvitaInternalError.class, () -> index.addValue(attribute("keywords"), 1, testAnalyzer(),
+					fieldPivot(index, attribute("keywords")), null, new String[]{"Ostrava"})
 			);
 
 			// the whole array goes, in any element order
-			index.removeValue(attribute("keywords"), 1, new String[]{"kolo Praha", "horské kolo"});
+			index.removeValue(attribute("keywords"), 1, testAnalyzer(), fieldPivot(index, attribute("keywords")),
+				new String[]{"kolo Praha", "horské kolo"});
 			final FulltextIndex onlyBrno = newIndex();
-			onlyBrno.addValue(attribute("keywords"), 2, "Brno");
+			onlyBrno.addValue(attribute("keywords"), 2, testAnalyzer(), fieldPivot(onlyBrno,
+				attribute("keywords")), null, "Brno");
 			assertEquals(contentOf(onlyBrno), contentOf(index));
 		}
 
@@ -711,20 +883,27 @@ class FulltextIndexTest {
 		@DisplayName("An array without tokens indexes nothing, and an array with a null element is refused")
 		void shouldIndexNothingForArrayWithoutTokens() {
 			final FulltextIndex index = newIndex();
-			index.addValue(attribute("keywords"), 1, new String[0]);
-			index.addValue(attribute("keywords"), 2, new String[]{"!!!", "..."});
-			assertEquals(0, index.getTermCount());
-			assertEquals(0, index.getFieldLengths(index.getFieldId(attribute("keywords"))).size());
+			index.addValue(attribute("keywords"), 1, testAnalyzer(), fieldPivot(index, attribute("keywords")),
+				null, new String[0]);
+			index.addValue(attribute("keywords"), 2, testAnalyzer(), fieldPivot(index, attribute("keywords")),
+				null, new String[]{"!!!", "..."});
+			assertEquals(0, termCount(index));
+			final int keywords = index.getFieldId(attribute("keywords"));
+			assertFalse(index.hasIndexedValue(keywords, 1));
+			assertFalse(index.hasIndexedValue(keywords, 2));
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> index.addValue(attribute("keywords"), 3, new String[]{"Praha", null})
+				() -> index.addValue(attribute("keywords"), 3, testAnalyzer(), fieldPivot(index,
+					attribute("keywords")), null, new String[]{"Praha", null})
 			);
-			assertEquals(0, index.getTermCount());
+			assertEquals(0, termCount(index));
 
 			// an array whose elements but one produce no token is that one element
-			index.addValue(attribute("keywords"), 4, new String[]{"!!!", "Praha", ""});
+			index.addValue(attribute("keywords"), 4, testAnalyzer(), fieldPivot(index, attribute("keywords")),
+				null, new String[]{"!!!", "Praha", ""});
 			final FulltextIndex expected = newIndex();
-			expected.addValue(attribute("keywords"), 4, "Praha");
+			expected.addValue(attribute("keywords"), 4, testAnalyzer(), fieldPivot(expected,
+				attribute("keywords")), null, "Praha");
 			assertEquals(contentOf(expected), contentOf(index));
 		}
 
@@ -738,12 +917,12 @@ class FulltextIndexTest {
 			final String[] fields = {"name", "description", "keywords"};
 			for (String field : fields) {
 				// registered up front, so the ids do not depend on which field the steps happen to touch first
-				index.getOrAssignFieldId(attribute(field));
+				registerField(index, attribute(field));
 			}
 			applyRandomValueOperations(random, index, live, fields, 4_000);
 
 			final FulltextIndex rebuilt = rebuild(index, live);
-			assertEquals(rebuilt.getTermCount(), index.getTermCount());
+			assertEquals(termCount(rebuilt), termCount(index));
 			for (String field : fields) {
 				final int fieldId = index.getFieldId(attribute(field));
 				assertEquals(rebuilt.getFieldId(attribute(field)), fieldId);
@@ -754,20 +933,16 @@ class FulltextIndexTest {
 				assertEquals(rebuiltTerms, terms, field);
 				for (String term : terms) {
 					assertArrayEquals(
-						rebuilt.getPostings(fieldId, term).getArray(), index.getPostings(fieldId, term).getArray(),
+						postingsOf(rebuilt, fieldId, term).getArray(), postingsOf(index, fieldId, term).getArray(),
 						field + "/" + term
 					);
 					assertArrayEquals(
-						rebuilt.getImpacts(fieldId, term), index.getImpacts(fieldId, term), field + "/" + term
-					);
-				}
-				for (int primaryKey = 0; primaryKey < PK_BOUND; primaryKey++) {
-					assertEquals(
-						rebuilt.getFieldLengths(fieldId).getEncoded(primaryKey),
-						index.getFieldLengths(fieldId).getEncoded(primaryKey)
+						impactsOf(rebuilt, fieldId, term), impactsOf(index, fieldId, term), field + "/" + term
 					);
 				}
 			}
+			// the lengths, exactly as a flush would persist them
+			assertEquals(lengthBlocksOf(rebuilt), lengthBlocksOf(index));
 			assertEquals(contentOf(rebuilt), contentOf(index));
 		}
 
@@ -782,28 +957,33 @@ class FulltextIndexTest {
 		@DisplayName("Writes, a field registration included, are visible in the transaction and published at commit")
 		void shouldPublishWritesAtCommit() {
 			final FulltextIndex index = newIndex();
-			index.addValue(attribute("name"), 1, "horské kolo");
+			index.addValue(attribute("name"), 1, testAnalyzer(), fieldPivot(index, attribute("name")), null,
+				"horské kolo");
 			final String before = contentOf(index);
 			final String bike = termFrequencies("kolo").keySet().iterator().next();
 			assertStateAfterCommit(
 				index,
 				t -> {
-					t.addValue(attribute("name"), 2, "elektrické kolo");
-					t.addValue(attribute("brand"), 1, "Praha");
-					t.removeValue(attribute("name"), 1, "horské kolo");
+					t.addValue(attribute("name"), 2, testAnalyzer(), fieldPivot(t, attribute("name")), null,
+						"elektrické kolo");
+					t.addValue(attribute("brand"), 1, testAnalyzer(), fieldPivot(t, attribute("brand")), null, "Praha");
+					t.removeValue(attribute("name"), 1, testAnalyzer(), fieldPivot(t, attribute("name")),
+						"horské kolo");
 					assertEquals(1, t.getFieldId(attribute("brand")));
 					assertEquals(attribute("brand"), t.getFieldKey(1));
 					assertEquals(2, t.getFieldCount());
-					assertArrayEquals(new int[]{2}, t.getPostings(0, bike).getArray());
-					assertEquals(1, t.getFieldLengths(1).size());
+					assertArrayEquals(new int[]{2}, postingsOf(t, 0, bike).getArray());
+					assertTrue(t.hasIndexedValue(1, 1));
 				},
 				(original, committed) -> {
 					assertEquals(before, contentOf(original));
 					assertEquals(FulltextIndex.UNKNOWN_FIELD_ID, original.getFieldId(attribute("brand")));
 					assertEquals(1, original.getFieldCount());
 					final FulltextIndex expected = newIndex();
-					expected.addValue(attribute("name"), 2, "elektrické kolo");
-					expected.addValue(attribute("brand"), 1, "Praha");
+					expected.addValue(attribute("name"), 2, testAnalyzer(), fieldPivot(expected,
+						attribute("name")), null, "elektrické kolo");
+					expected.addValue(attribute("brand"), 1, testAnalyzer(), fieldPivot(expected,
+						attribute("brand")), null, "Praha");
 					assertEquals(contentOf(expected), contentOf(committed));
 				}
 			);
@@ -813,13 +993,15 @@ class FulltextIndexTest {
 		@DisplayName("A rolled-back transaction leaves the index and its field registry untouched")
 		void shouldDiscardWritesOnRollback() {
 			final FulltextIndex index = newIndex();
-			index.addValue(attribute("name"), 1, "horské kolo");
+			index.addValue(attribute("name"), 1, testAnalyzer(), fieldPivot(index, attribute("name")), null,
+				"horské kolo");
 			final String before = contentOf(index);
 			assertStateAfterRollback(
 				index,
 				t -> {
-					t.addValue(attribute("brand"), 1, "Praha");
-					t.removeValue(attribute("name"), 1, "horské kolo");
+					t.addValue(attribute("brand"), 1, testAnalyzer(), fieldPivot(t, attribute("brand")), null, "Praha");
+					t.removeValue(attribute("name"), 1, testAnalyzer(), fieldPivot(t, attribute("name")),
+						"horské kolo");
 				},
 				(original, committed) -> {
 					assertNull(committed);
@@ -833,11 +1015,12 @@ class FulltextIndexTest {
 		@DisplayName("An index the transaction only read is carried forward as the same instance")
 		void shouldCarryUntouchedIndexForward() {
 			final FulltextIndex index = newIndex();
-			index.addValue(attribute("name"), 1, "horské kolo");
+			index.addValue(attribute("name"), 1, testAnalyzer(), fieldPivot(index, attribute("name")), null,
+				"horské kolo");
 			assertStateAfterCommit(
 				index,
 				t -> {
-					assertEquals(0, t.getOrAssignFieldId(attribute("name")));
+					assertEquals(0, registerField(t, attribute("name")));
 					t.forEachTerm(0, "", (term, postings, impacts) -> true);
 				},
 				Assertions::assertSame
@@ -907,8 +1090,10 @@ class FulltextIndexTest {
 		@DisplayName("A retirement is visible in the transaction and published at commit, the original untouched")
 		void shouldPublishRetirementAtCommit() {
 			final FulltextIndex index = newIndex();
-			index.addValue(attribute("name"), 1, "horské kolo");
-			index.addValue(attribute("description"), 1, "Praha");
+			index.addValue(attribute("name"), 1, testAnalyzer(), fieldPivot(index, attribute("name")), null,
+				"horské kolo");
+			index.addValue(attribute("description"), 1, testAnalyzer(), fieldPivot(index,
+				attribute("description")), null, "Praha");
 			final String before = contentOf(index);
 			final String bike = termFrequencies("kolo").keySet().iterator().next();
 			assertStateAfterCommit(
@@ -918,14 +1103,14 @@ class FulltextIndexTest {
 					assertEquals(FulltextIndex.UNKNOWN_FIELD_ID, t.getFieldId(attribute("name")));
 					assertTrue(t.isFieldRetired(0));
 					assertFalse(t.retireField(attribute("name")));
-					t.addValue(attribute("name"), 2, "elektrické kolo");
+					t.addValue(attribute("name"), 2, testAnalyzer(), fieldPivot(t, attribute("name")), null,
+						"elektrické kolo");
 					assertEquals(2, t.getFieldId(attribute("name")));
 					// a field the transaction registered is retired, and re-added, as well
-					t.addValue(attribute("brand"), 3, "Brno");
+					t.addValue(attribute("brand"), 3, testAnalyzer(), fieldPivot(t, attribute("brand")), null, "Brno");
 					assertTrue(t.retireField(attribute("brand")));
 					assertTrue(t.isFieldRetired(3));
-					assertEquals(4, t.getOrAssignFieldId(attribute("brand")));
-					assertThrows(GenericEvitaInternalError.class, () -> t.addPosting(3, bike, 4, 10));
+					assertEquals(4, registerField(t, attribute("brand")));
 				},
 				(original, committed) -> {
 					assertEquals(before, contentOf(original));
@@ -940,8 +1125,8 @@ class FulltextIndexTest {
 					assertFalse(committed.isFieldRetired(4));
 					assertEquals(2, committed.getFieldId(attribute("name")));
 					assertEquals(4, committed.getFieldId(attribute("brand")));
-					assertArrayEquals(new int[]{1}, committed.getPostings(0, bike).getArray());
-					assertArrayEquals(new int[]{2}, committed.getPostings(2, bike).getArray());
+					assertArrayEquals(new int[]{1}, postingsOf(committed, 0, bike).getArray());
+					assertArrayEquals(new int[]{2}, postingsOf(committed, 2, bike).getArray());
 				}
 			);
 		}
@@ -950,13 +1135,15 @@ class FulltextIndexTest {
 		@DisplayName("A rolled-back retirement leaves the field in service")
 		void shouldDiscardRetirementOnRollback() {
 			final FulltextIndex index = newIndex();
-			index.addValue(attribute("name"), 1, "horské kolo");
+			index.addValue(attribute("name"), 1, testAnalyzer(), fieldPivot(index, attribute("name")), null,
+				"horské kolo");
 			final String before = contentOf(index);
 			assertStateAfterRollback(
 				index,
 				t -> {
 					assertTrue(t.retireField(attribute("name")));
-					t.addValue(attribute("name"), 2, "elektrické kolo");
+					t.addValue(attribute("name"), 2, testAnalyzer(), fieldPivot(t, attribute("name")), null,
+						"elektrické kolo");
 				},
 				(original, committed) -> {
 					assertNull(committed);
@@ -971,20 +1158,23 @@ class FulltextIndexTest {
 		@DisplayName("A savepoint rollback restores the retirements made in it; a savepoint commit keeps them")
 		void shouldRestoreRetirementOnSavepointRollback() {
 			final FulltextIndex index = newIndex();
-			index.addValue(attribute("name"), 1, "horské kolo");
-			index.addValue(attribute("description"), 1, "Praha");
+			index.addValue(attribute("name"), 1, testAnalyzer(), fieldPivot(index, attribute("name")), null,
+				"horské kolo");
+			index.addValue(attribute("description"), 1, testAnalyzer(), fieldPivot(index,
+				attribute("description")), null, "Praha");
 			assertSavepointRollbackRestores(
 				index,
 				t -> {
-					t.addValue(attribute("keywords"), 2, "hrad");
+					t.addValue(attribute("keywords"), 2, testAnalyzer(), fieldPivot(t, attribute("keywords")),
+						null, "hrad");
 					assertTrue(t.retireField(attribute("description")));
 				},
 				FulltextIndexTest::registryOf,
 				t -> {
 					assertTrue(t.retireField(attribute("name")));
-					t.addValue(attribute("name"), 3, "most");
+					t.addValue(attribute("name"), 3, testAnalyzer(), fieldPivot(t, attribute("name")), null, "most");
 					assertTrue(t.retireField(attribute("keywords")));
-					t.addValue(attribute("brand"), 4, "Brno");
+					t.addValue(attribute("brand"), 4, testAnalyzer(), fieldPivot(t, attribute("brand")), null, "Brno");
 					assertTrue(t.retireField(attribute("brand")));
 				}
 			);
@@ -994,7 +1184,7 @@ class FulltextIndexTest {
 				FulltextIndexTest::registryOf,
 				t -> {
 					assertTrue(t.retireField(attribute("name")));
-					t.addValue(attribute("name"), 3, "most");
+					t.addValue(attribute("name"), 3, testAnalyzer(), fieldPivot(t, attribute("name")), null, "most");
 				}
 			);
 		}
@@ -1006,17 +1196,20 @@ class FulltextIndexTest {
 			assertWarmUpSavepointRollbackRestores(
 				index,
 				t -> {
-					t.addValue(attribute("name"), 1, "horské kolo");
-					t.addValue(attribute("description"), 1, "Praha");
+					t.addValue(attribute("name"), 1, testAnalyzer(), fieldPivot(t, attribute("name")), null,
+						"horské kolo");
+					t.addValue(attribute("description"), 1, testAnalyzer(), fieldPivot(t,
+						attribute("description")), null, "Praha");
 					assertTrue(t.retireField(attribute("description")));
 				},
 				FulltextIndexTest::registryOf,
 				t -> {
 					assertTrue(t.retireField(attribute("name")));
-					t.addValue(attribute("name"), 3, "most");
-					t.addValue(attribute("brand"), 4, "Brno");
+					t.addValue(attribute("name"), 3, testAnalyzer(), fieldPivot(t, attribute("name")), null, "most");
+					t.addValue(attribute("brand"), 4, testAnalyzer(), fieldPivot(t, attribute("brand")), null, "Brno");
 					assertTrue(t.retireField(attribute("brand")));
-					t.addValue(attribute("description"), 5, "řeka");
+					t.addValue(attribute("description"), 5, testAnalyzer(), fieldPivot(t,
+						attribute("description")), null, "řeka");
 				}
 			);
 			assertEquals(0, index.getFieldId(attribute("name")));
@@ -1025,7 +1218,7 @@ class FulltextIndexTest {
 			assertEquals(2, index.getFieldCount());
 			// the restored registry keeps working
 			assertTrue(index.retireField(attribute("name")));
-			assertEquals(2, index.getOrAssignFieldId(attribute("name")));
+			assertEquals(2, registerField(index, attribute("name")));
 		}
 
 		@Test
@@ -1042,7 +1235,7 @@ class FulltextIndexTest {
 			);
 			assertEquals(FulltextIndex.UNKNOWN_FIELD_ID, index.getFieldId(attribute("brand")));
 			// the restored index keeps working: the next registration takes the id the rolled-back one had
-			assertEquals(2, index.getOrAssignFieldId(attribute("brand")));
+			assertEquals(2, registerField(index, attribute("brand")));
 		}
 
 	}
@@ -1073,9 +1266,11 @@ class FulltextIndexTest {
 					// an array is removed whole, and in any element order
 					final List<String> elements = new ArrayList<>(List.of(splitElements(current)));
 					Collections.shuffle(elements, random);
-					index.removeValue(attribute(field), primaryKey, elements.toArray(String[]::new));
+					index.removeValue(attribute(field), primaryKey, testAnalyzer(), fieldPivot(index,
+						attribute(field)), elements.toArray(String[]::new));
 				} else {
-					index.removeValue(attribute(field), primaryKey, current);
+					index.removeValue(attribute(field), primaryKey, testAnalyzer(), fieldPivot(index,
+						attribute(field)), current);
 				}
 				values.remove(primaryKey);
 			}
@@ -1094,9 +1289,11 @@ class FulltextIndexTest {
 				}
 				final String modelled = value.toString();
 				if (elements == 1) {
-					index.addValue(attribute(field), primaryKey, modelled);
+					index.addValue(attribute(field), primaryKey, testAnalyzer(), fieldPivot(index,
+						attribute(field)), null, modelled);
 				} else {
-					index.addValue(attribute(field), primaryKey, splitElements(modelled));
+					index.addValue(attribute(field), primaryKey, testAnalyzer(), fieldPivot(index,
+						attribute(field)), null, splitElements(modelled));
 				}
 				values.put(primaryKey, modelled);
 			}
@@ -1120,13 +1317,12 @@ class FulltextIndexTest {
 	) {
 		final FulltextIndex rebuilt = newIndex();
 		for (int fieldId = 0; fieldId < reference.getFieldCount(); fieldId++) {
-			rebuilt.getOrAssignFieldId(reference.getFieldKey(fieldId), reference.getLengthPivot(fieldId));
+			registerField(rebuilt, reference.getFieldKey(fieldId), reference.getLengthPivot(fieldId));
 		}
 		for (Map.Entry<String, Map<Integer, String>> entry : live.entrySet()) {
 			for (Map.Entry<Integer, String> value : entry.getValue().entrySet()) {
-				rebuilt.addValue(
-					attribute(entry.getKey()), value.getKey(), value.getValue().replace(ELEMENT_SEPARATOR, ' ')
-				);
+				rebuilt.addValue(attribute(entry.getKey()), value.getKey(), testAnalyzer(), fieldPivot(rebuilt,
+					attribute(entry.getKey())), null, value.getValue().replace(ELEMENT_SEPARATOR, ' '));
 			}
 		}
 		return rebuilt;
@@ -1160,7 +1356,8 @@ class FulltextIndexTest {
 
 	/**
 	 * Dumps everything an index holds, as the caller's transaction sees it: every field with its pivot, every term with
-	 * its postings and their impacts in posting order, every length, and the dictionary size.
+	 * its postings and their impacts in posting order, every entity with a value indexed, and the dictionary size. The
+	 * lengths themselves show in the impacts normalized with them; {@link #lengthBlocksOf} compares them as persisted.
 	 *
 	 * @param index the index to dump
 	 * @return the dump, comparable with `equals`
@@ -1174,9 +1371,10 @@ class FulltextIndexTest {
 			final int theFieldId = fieldId;
 			index.forEachTerm(fieldId, "", (term, postings, view) -> {
 				content.append(term).append(':');
-				final byte[] impacts = index.getImpacts(theFieldId, term);
-				// the walk reads the impacts off the leaf it stands on; they must be the ones a descent finds
-				assertArrayEquals(impacts, view.toArray(), "walk impacts of " + term);
+				final byte[] impacts = view.toArray();
+				// the walk of the field reads the impacts off the leaf it stands on; they must be the ones a lookup of
+				// the term alone finds
+				assertArrayEquals(impactsOf(index, theFieldId, term), impacts, "walk impacts of " + term);
 				final OfInt it = postings.iterator();
 				int ordinal = 0;
 				while (it.hasNext()) {
@@ -1186,17 +1384,53 @@ class FulltextIndexTest {
 				content.append('\n');
 				return true;
 			});
-			final FieldLengthTable lengths = index.getFieldLengths(fieldId);
-			content.append("lengths ").append(lengths.size()).append(':');
+			content.append("indexed:");
 			for (int primaryKey = 0; primaryKey < PK_BOUND; primaryKey++) {
-				final int encoded = lengths.getEncoded(primaryKey);
-				if (encoded != 0) {
-					content.append(' ').append(primaryKey).append('/').append(encoded);
+				if (index.hasIndexedValue(fieldId, primaryKey)) {
+					content.append(' ').append(primaryKey);
 				}
 			}
 			content.append('\n');
 		}
-		return content.append("terms ").append(index.getTermCount()).toString();
+		return content.append("terms ").append(termCount(index)).toString();
+	}
+
+	/**
+	 * Renders the field lengths of an index exactly as its next flush persists them: the block list of every field and
+	 * every block written, with the encoded length of each entity it holds. Collecting them is what a flush does, so
+	 * an index is rendered once per flush; an index never flushed writes every block it holds.
+	 *
+	 * @param index the index to render
+	 * @return the rendering, comparable with `equals`
+	 */
+	@Nonnull
+	private static String lengthBlocksOf(@Nonnull FulltextIndex index) {
+		final StringBuilder blocks = new StringBuilder(4_096);
+		final LengthBlockEmission[] emissions = index.collectChangedLengthBlocks();
+		for (int fieldId = 0; fieldId < emissions.length; fieldId++) {
+			blocks.append("field ").append(fieldId).append(' ')
+				.append(Arrays.toString(emissions[fieldId].blockKeys())).append('\n');
+			for (final LengthBlock block : emissions[fieldId].changedBlocks()) {
+				blocks.append(block.blockKey()).append(':');
+				for (int i = 0; i < block.lows().length; i++) {
+					blocks.append(' ').append((int) block.lows()[i]).append('/')
+						.append(Byte.toUnsignedInt(block.lengths()[i]));
+				}
+				blocks.append('\n');
+			}
+		}
+		return blocks.toString();
+	}
+
+	/**
+	 * Computes the impact of a posting in a field of the default pivot, as the index stores it.
+	 *
+	 * @param termFrequency how many times the term occurs in the value
+	 * @param length        the value's length in tokens
+	 * @return the impact byte
+	 */
+	private static byte impact(int termFrequency, int length) {
+		return (byte) FulltextIndex.computeImpact(termFrequency, length, 25.0);
 	}
 
 	/**
@@ -1224,7 +1458,7 @@ class FulltextIndexTest {
 	@Nonnull
 	private static Map<String, Integer> termFrequencies(@Nonnull String value) {
 		final Map<String, Integer> frequencies = new HashMap<>();
-		for (AnalyzedTerm term : analyzer.getTerms(value)) {
+		for (AnalyzedTerm term : collectTerms(analyzer, value)) {
 			frequencies.merge(term.term(), 1, Integer::sum);
 		}
 		return frequencies;
@@ -1238,7 +1472,7 @@ class FulltextIndexTest {
 	 */
 	private static int positions(@Nonnull String value) {
 		int positions = 0;
-		for (AnalyzedTerm term : analyzer.getTerms(value)) {
+		for (AnalyzedTerm term : collectTerms(analyzer, value)) {
 			if (term.positionIncrement() > 0) {
 				positions++;
 			}
@@ -1260,8 +1494,8 @@ class FulltextIndexTest {
 		int fieldId,
 		@Nonnull String term
 	) {
-		final int[] postings = index.getPostings(fieldId, term).getArray();
-		final byte[] impacts = index.getImpacts(fieldId, term);
+		final int[] postings = postingsOf(index, fieldId, term).getArray();
+		final byte[] impacts = impactsOf(index, fieldId, term);
 		assertEquals(expected.size(), postings.length);
 		assertEquals(expected.size(), impacts.length);
 		int i = 0;

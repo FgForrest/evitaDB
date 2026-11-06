@@ -1,0 +1,13 @@
+# version=1
+# analyzer=text side=INDEX locale=de
+# index-fingerprint=875488786346163094
+# chain (step@behaviour-version; parameters as resolved):
+# standard@1
+# lowercase@1
+# stop-words(words=[german-stop-words])@1
+# german-stemming@1
+# Recorded from the old language chain, compared with the compiled built-in before retirement.
+# Columns: input-base64-utf8, output-base64-utf8 (LF-separated term@start-end+positionIncrement)
+SGVycmVuc2NodWhlIGF1cyBMZWRlciB1bmQgRGFtZW5zY2h1aGUsIEdyw7bDn2UgNDIgLSBBdXN2ZXJrYXVmIQ==	aGVycmVuc2NodWhAMC0xMisxCmxlZEAxNy0yMisyCmRhbWVuc2NodWhAMjctMzgrMgpncm9zc0A0MC00NSsxCjQyQDQ2LTQ4KzEKYXVzdmVya2F1ZkA1MS02MSsx
+RGllIHNjaMO2bmVuIEjDpHVzZXIgZGVyIFN0YWR0OyBCw7xjaGVyIGbDvHIgS2luZGVyLCBpUGhvbmUxNSBtaXQgVVNCLUMgS2FiZWw=	c2Nob25ANC0xMSsyCmhhdXNAMTItMTgrMQpzdGFkdEAyMy0yOCsyCmJ1Y2hAMzAtMzYrMQpraW5kQDQxLTQ3KzIKaXBob25lMTVANDktNTcrMQp1c2JANjItNjUrMgpjQDY2LTY3KzEKa2FiZWxANjgtNzMrMQ==
+RGllIEtpbmRlciBzcGllbHRlbiBmcsO2aGxpY2ggaW4gZGVuIEfDpHJ0ZW4gaWhyZXIgR3Jvw59lbHRlcm4=	a2luZEA0LTEwKzIKc3BpZWx0QDExLTE5KzEKZnJvaGxpY2hAMjAtMjgrMQpnYXJ0QDM2LTQyKzMKZ3Jvc3NlbHRANDktNTkrMg==
