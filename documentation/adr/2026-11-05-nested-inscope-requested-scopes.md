@@ -1,7 +1,7 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-05 10:11
+updated: 2026-11-06 23:10
 status: accepted
 kind: fix
 issues: [1880]
@@ -180,8 +180,11 @@ scope, and the composer of the query has to leave the container out.
   level admits nothing, it only widens the lookup of the rows: `ReferencedEntityFetcher#gatherSearchedScopes` unites
   the scopes of every level, so `entityHaving` and `groupHaving` may each name their own. The compiler runs the walk
   too, for requests the engine derives after the entry point.
-- `FilteringFormulaPredicate#createTargetQueryContext` searches the scopes of the enclosing query, so the `scope(...)`
-  of a facet summary filter selects nothing there and decides only what an `inScope` of that filter may name.
+- `FilteringFormulaPredicate` searches the scopes named by the `scope(...)` in the root of its filter, and the scopes of
+  the enclosing query when it names none. This corrects the first version of this record, where that `scope(...)`
+  selected nothing in the group filter of a `facetGroups*` requirement and of a facet summary and decided only what an
+  `inScope` of that filter may name, an inert scope the walk of `QueryUtils#assertFilterScopesApplicable` neither
+  applied nor refused.
 - **Invariant:** `IndexSelectionVisitor#coversFewerScopesThanQuery` must keep a candidate built under a foreign
   `inScope` out of a plan. Retaining the containers relies on it.
 - **Looks like a bug and is not:** the check of a nested filter searches fewer scopes than it admits. A retained
@@ -249,7 +252,7 @@ scope, and the composer of the query has to leave the container out.
     order section is not walked, so a `scope(...)` there has no effect and is not refused.
   - A facet summary filter over the queried entity type itself is planned in the enclosing context, so its own
     `scope(...)` does not narrow what an `inScope` of that filter may name
-    (`FilteringFormulaPredicate#createTargetQueryContext`).
+    (`FilteringFormulaPredicate#createTargetQueryContext`). The searched scopes follow the `scope(...)` of the filter.
 - **Backport: none, by the project owner's decision.** The `ClassCastException` stays on `release_2026-2`, where it
   depends on the data. The refusal never shipped, because that branch has no residual check.
 

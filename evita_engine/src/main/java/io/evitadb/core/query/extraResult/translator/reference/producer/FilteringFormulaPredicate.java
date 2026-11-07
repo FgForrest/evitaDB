@@ -79,15 +79,21 @@ public class FilteringFormulaPredicate implements IntPredicate {
 		@Nonnull Supplier<String> stepDescriptionSupplier
 	) {
 		this.filterBy = filterBy;
+		final EntityScope ownScope = QueryUtils.findConstraint(
+			filterBy, EntityScope.class, SeparateEntityScopeContainer.class
+		);
+		// the filter selects entities of another type, so a `scope(...)` in its root names the scopes it searches,
+		// as it does in `entityHaving` and `groupHaving`, whatever the scopes of the enclosing query
+		final Set<Scope> filterScopes = ownScope == null ? searchedScopes : ownScope.getScope();
 		final QueryPlanningContext targetQueryContext = createTargetQueryContext(
-			queryContext, searchedScopes, filterBy, entityType
+			queryContext, filterScopes, filterBy, entityType, ownScope
 		);
 		// create a deferred formula that will log the execution time to query telemetry
 		this.filteringFormula = new DeferredFormula(
 			new FormulaWrapper(
 				createFormulaForTheFilter(
 					targetQueryContext,
-					searchedScopes,
+					filterScopes,
 					filterBy,
 					entityType,
 					stepDescriptionSupplier
@@ -121,13 +127,14 @@ public class FilteringFormulaPredicate implements IntPredicate {
 	 * filter targets the queried entity type itself, when the type has no collection, or when there is no session to
 	 * derive a context in.
 	 *
-	 * A `scope(...)` of the filter selects nothing here, the searched scopes are those of the enclosing query, but it
-	 * decides which scopes an `inScope` of the filter may name.
+	 * A `scope(...)` in the root of the filter is already part of the searched scopes, and it also decides which scopes
+	 * an `inScope` of the filter may name.
 	 *
 	 * @param queryContext   the planning context of the enclosing query
 	 * @param searchedScopes the scopes the filter is planned in
 	 * @param filterBy       the filter
 	 * @param entityType     the entity type the filter selects
+	 * @param ownScope       the `scope(...)` in the root of the filter, NULL when it names none
 	 * @return the planning context of the filter
 	 */
 	@Nonnull
@@ -135,16 +142,14 @@ public class FilteringFormulaPredicate implements IntPredicate {
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull Set<Scope> searchedScopes,
 		@Nonnull FilterBy filterBy,
-		@Nonnull String entityType
+		@Nonnull String entityType,
+		@Nullable EntityScope ownScope
 	) {
 		final EvitaSession session = queryContext.getEvitaSession();
 		if (session == null || entityType.equals(queryContext.getEntityType())) {
 			return queryContext;
 		}
 		final EvitaRequest enclosingRequest = queryContext.getEvitaRequest();
-		final EntityScope ownScope = QueryUtils.findConstraint(
-			filterBy, EntityScope.class, SeparateEntityScopeContainer.class
-		);
 		return queryContext.getEntityCollection(entityType)
 			.map(
 				collection -> collection.createQueryContext(

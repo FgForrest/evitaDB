@@ -65,7 +65,10 @@ when an [`entityHaving`](references.md#entity-having) or [`groupHaving`](referen
 restricts only the entities of its scope and lets the entities of the other scope through.
 
 A [`scope`](constant.md#scope) constraint has an effect only at the root of a filter and in
-[`entityHaving`](references.md#entity-having) or [`groupHaving`](references.md#group-having). Anywhere else - in
+[`entityHaving`](references.md#entity-having) or [`groupHaving`](references.md#group-having). At the root of
+the filter of a [`facetGroups*`](../requirements/reference.md#facet-groups-conjunction) requirement or of the group
+filter of a [reference summary](../requirements/reference.md#reference-summary-of-reference) it names the scopes the groups are
+searched in, whatever the scopes of the query. Anywhere else - in
 [`hierarchyWithin`](hierarchy.md#hierarchy-within), [`hierarchyWithinRoot`](hierarchy.md#hierarchy-within-root),
 [`includingChildrenHaving`](references.md#including-children-having),
 [`includingChildrenExcept`](references.md#including-children-except), or as a direct child of
