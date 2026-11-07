@@ -107,6 +107,7 @@ class ModifyEntitySchemaMutationTest {
 			// the existing mutation was collected first, so its changes stay first and the new ones apply after them
 			final ModifyEntitySchemaMutation entitySchemaMutation = (ModifyEntitySchemaMutation) result.current()[0];
 			assertEquals(2, entitySchemaMutation.getSchemaMutations().length);
+			// the existing mutation was collected first, so its statement stays first
 			assertInstanceOf(
 				SetAttributeSchemaFilterableMutation.class, entitySchemaMutation.getSchemaMutations()[0]
 			);

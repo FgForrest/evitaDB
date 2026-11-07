@@ -32,9 +32,58 @@ import re
 import subprocess
 import sys
 
-REG_RE = re.compile(r"new SerialVersionBasedSerializer<>\(new (\w+)\(\),\s*(\w+)\.class\)")
-BWC_RE = re.compile(r"addBackwardCompatibleSerializer\((-?\d+)L,\s*new (\w+)\(\)")
+# Registrations are parsed from whole-file text with balanced parentheses, so a serializer built with
+# arguments (`new FooSerializer(this.keyCompressor)`) and a registration spread over several lines are read
+# like any other. Comments and string literals are blanked first (see `blank`), so a commented-out
+# registration is not counted and a comment between two chained readers does not end the chain.
+SVBS_RE = re.compile(r"\bnew\s+SerialVersionBasedSerializer\s*<[^<>]*>\s*\(")
+CHAIN_RE = re.compile(r"\s*\.\s*addBackwardCompatibleSerializer\s*\(")
+BWC_CALL_RE = re.compile(r"\.\s*addBackwardCompatibleSerializer\s*\(")
+NEW_ARG_RE = re.compile(r"\s*new\s+([\w.]+)\s*(?:<[^<>]*>)?\s*\(.*\)\s*", re.S)
+CLASS_ARG_RE = re.compile(r"\s*([\w.]+)\.class\s*")
+UID_ARG_RE = re.compile(r"\s*(-?\d+)L\s*")
 UID_RE = re.compile(r"serialVersionUID\s*=\s*(-?\d+)L")
+COMMENT_OR_LITERAL_RE = re.compile(
+    r'//[^\n]*|/\*.*?\*/|"""(?:\\.|[^\\])*?"""|"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])*\'', re.S)
+
+
+def blank(text, literals=False):
+    """Replace every comment (and, with `literals`, every string or char literal) by spaces, keeping each
+    newline, so offsets and line numbers in the result match the original text."""
+    def repl(m):
+        s = m.group()
+        if literals or s.startswith("/"):
+            return re.sub(r"[^\n]", " ", s)
+        return s
+    return COMMENT_OR_LITERAL_RE.sub(repl, text)
+
+
+def code_tokens(text):
+    """The tokens of a Java source without its comments - a JavaDoc or whitespace edit leaves them unchanged."""
+    return re.findall(r"\w+|[^\w\s]", blank(text))
+
+
+def balanced_args(code, open_pos):
+    """Split the argument list opened by the `(` at `open_pos` on its top-level commas. Returns
+    (args, close_pos), or None when the parenthesis never closes. `code` must come from `blank(..., True)`."""
+    depth, start, args = 0, open_pos + 1, []
+    for i in range(open_pos, len(code)):
+        c = code[i]
+        if c in "([{":
+            depth += 1
+        elif c in ")]}":
+            depth -= 1
+            if depth == 0:
+                args.append(code[start:i])
+                return args, i
+        elif c == "," and depth == 1:
+            args.append(code[start:i])
+            start = i + 1
+    return None
+
+
+def line_of(code, pos):
+    return code.count("\n", 0, pos) + 1
 
 
 def sh(args, repo):
@@ -72,7 +121,7 @@ def discover_configurers(repo):
         # only files that actually *register* something (contain the constructor call)
         try:
             with open(os.path.join(repo, f)) as fh:
-                if "new SerialVersionBasedSerializer<>(" in fh.read():
+                if SVBS_RE.search(blank(fh.read(), literals=True)):
                     files.append(f)
         except OSError:
             pass
@@ -153,35 +202,66 @@ def uid_at(path, ref, repo):
 
 
 def serializer_changed(serializer_cls, compare_ref, explicit, wildcards, paths, idx, repo):
-    """True if the current serializer body differs from the fork/prev ref (i.e. this branch
-    changed it). Dated snapshot serializers (_YYYY_M) are never 'current'."""
+    """True if the current serializer code differs from the fork/prev ref (i.e. this branch
+    changed it). Comments and whitespace are ignored, so a JavaDoc edit is not a change.
+    Dated snapshot serializers (_YYYY_M) are never 'current'."""
     if re.search(r"_20\d{2}_\d+$", serializer_cls):
         return False
     path, _ = resolve_path(serializer_cls, explicit, wildcards, paths, idx)
     if path is None:
         return False
-    r = sh(["git", "diff", "--quiet", compare_ref, "--", path], repo)
-    return r.returncode != 0  # non-zero = differs
+    r = sh(["git", "show", f"{compare_ref}:{path}"], repo)
+    if r.returncode != 0:
+        return True  # the serializer did not exist at compare_ref
+    try:
+        with open(os.path.join(repo, path)) as f:
+            current = f.read()
+    except FileNotFoundError:
+        return True
+    return code_tokens(r.stdout) != code_tokens(current)
 
 
 def parse_registrations(configurers, repo):
-    regs = []
+    """Return (registrations, unparsed). Every `new SerialVersionBasedSerializer<>(...)` and every
+    `.addBackwardCompatibleSerializer(...)` in a configurer either becomes part of a registration or lands
+    in `unparsed` as (configurer, line, what) - the audit must never pass over one it did not understand."""
+    regs, unparsed = [], []
     for cf in configurers:
+        name = os.path.basename(cf)
         explicit, wildcards = parse_imports(cf, repo)
         with open(os.path.join(repo, cf)) as f:
-            lines = f.readlines()
-        cur = None
-        for ln in lines:
-            m = REG_RE.search(ln)
-            if m:
-                cur = {"configurer": os.path.basename(cf), "cls": m.group(2),
-                       "serializer": m.group(1), "bwc": [],
-                       "explicit": explicit, "wildcards": wildcards}
-                regs.append(cur)
-            b = BWC_RE.search(ln)
-            if b and cur is not None:
-                cur["bwc"].append(b.group(1))
-    return regs
+            code = blank(f.read(), literals=True)
+        chained = set()  # end offsets of the reader calls consumed as part of a registration
+        for m in SVBS_RE.finditer(code):
+            parsed = balanced_args(code, m.end() - 1)
+            ser = cls = None
+            if parsed and len(parsed[0]) == 2:
+                ser = NEW_ARG_RE.fullmatch(parsed[0][0])
+                cls = CLASS_ARG_RE.fullmatch(parsed[0][1])
+            if not (ser and cls):
+                unparsed.append((name, line_of(code, m.start()),
+                                 "registration not understood - its class is not checked"))
+                continue
+            cur = {"configurer": name, "cls": cls.group(1).split(".")[-1],
+                   "serializer": ser.group(1).split(".")[-1], "bwc": [],
+                   "explicit": explicit, "wildcards": wildcards}
+            regs.append(cur)
+            pos = parsed[1] + 1
+            while b := CHAIN_RE.match(code, pos):
+                reader = balanced_args(code, b.end() - 1)
+                uid = reader and len(reader[0]) == 2 and UID_ARG_RE.fullmatch(reader[0][0])
+                if not (uid and NEW_ARG_RE.fullmatch(reader[0][1])):
+                    break  # left unclaimed, so the sweep below reports it
+                chained.add(b.end())
+                cur["bwc"].append(uid.group(1))
+                pos = reader[1] + 1
+        # a reader attached any other way - through a variable, a helper, a UID constant - is invisible to the
+        # registration it belongs to, so it would read as missing; make that a finding rather than a guess
+        for b in BWC_CALL_RE.finditer(code):
+            if b.end() not in chained:
+                unparsed.append((name, line_of(code, b.start()),
+                                 "backward-compatible reader not chained onto a registration - it is not counted"))
+    return regs, unparsed
 
 
 def main():
@@ -204,8 +284,10 @@ def main():
     paths = all_java_paths(repo)
     idx = build_path_index(repo, paths)
     configurers = discover_configurers(repo)
-    print(f"configurers scanned: {', '.join(os.path.basename(c) for c in configurers)}\n")
-    regs = parse_registrations(configurers, repo)
+    print(f"configurers scanned: {', '.join(os.path.basename(c) for c in configurers)}")
+    regs, unparsed = parse_registrations(configurers, repo)
+    print(f"registrations parsed: {len(regs)}, backward-compatible readers: {sum(len(r['bwc']) for r in regs)}, "
+          f"not understood: {len(unparsed)}\n")
 
     # class -> list of registrations (for the multi-configurer override check)
     by_class = {}
@@ -292,9 +374,12 @@ def main():
                     findings.append(msg)
 
     print("\n\n===== FINDINGS =====")
-    if not findings:
+    if not findings and not unparsed:
         print("none — every registered class that changed since the previous release is bumped "
               "exactly once and carries the required BWC readers in every configurer.")
+    for cf, line, what in sorted(unparsed):
+        print(f"\n{cf}:{line}")
+        print(f"  *** UNPARSED: {what}; verify by hand")
     for cls, cf, verdict, p, fk, c, keys in findings:
         print(f"\n{cls}  [{cf}]")
         print(f"  prev={p} fork={fk} cur={c}")
@@ -305,7 +390,7 @@ def main():
         print("\n----- NOTES (no serialVersionUID found; unchanged — verify not format-versioned) -----")
         for cls, cf, _verdict, _p, _fk, _c, _keys in notes:
             print(f"  {cls}  [{cf}]")
-    return 1 if findings else 0
+    return 1 if findings or unparsed else 0
 
 
 if __name__ == "__main__":
