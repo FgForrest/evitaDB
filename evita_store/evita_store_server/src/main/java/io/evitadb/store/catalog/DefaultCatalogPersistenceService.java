@@ -5333,7 +5333,7 @@ public class DefaultCatalogPersistenceService
 					this.catalogName,
 					NamingConvention.generate(this.catalogName),
 					catalogSchema.getDescription(),
-					null,
+					catalogSchema.getConflictResolution().orElse(null),
 					catalogSchema.getCatalogEvolutionMode(),
 					catalogSchema.getAttributes(),
 					MutationEntitySchemaAccessor.INSTANCE
