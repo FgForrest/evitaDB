@@ -767,7 +767,7 @@ class FulltextExpansionCensusMeasurementTest implements EvitaTestSupport {
 			writer.write("queryHash\tprimaryKeys\n");
 			for (final Query item : queries) {
 				final List<EntityReferenceContract> found = session.queryListOfEntityReferences(query(collection(type),
-					filterBy(entityLocaleEquals(locale), textMatches(item.text())), orderBy(relevance()),
+					filterBy(entityLocaleEquals(locale), textMatches(item.text())), orderBy(relevanceText()),
 					require(page(1, 20))));
 				writer.write(item.id());
 				writer.write('\t');
@@ -831,7 +831,7 @@ class FulltextExpansionCensusMeasurementTest implements EvitaTestSupport {
 			final EvitaResponse<EntityReferenceContract> response = session.query(query(collection(type),
 				filterBy(entityLocaleEquals(locale), textMatches(text),
 					filterAttribute == null ? null : attributeEquals(filterAttribute, filterValue)),
-				orderBy(relevance()), require(page(1, depth))), EntityReferenceContract.class);
+				orderBy(relevanceText()), require(page(1, depth))), EntityReferenceContract.class);
 			final int[] primaryKeys = response.getRecordData().stream()
 				.mapToInt(EntityReferenceContract::getPrimaryKey).toArray();
 			return new Ranked(primaryKeys, response.getTotalRecordCount(), null);

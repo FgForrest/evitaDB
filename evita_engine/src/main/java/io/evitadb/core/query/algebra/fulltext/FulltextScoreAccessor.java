@@ -39,7 +39,7 @@ import javax.annotation.Nonnull;
  *
  * It follows the two-phase pattern of {@link FilteredPriceRecordAccessor}: the planner finds the accessors in the
  * filter tree through {@link FormulaFinder#find} in {@link LookUp#SHALLOW} mode, and the sorter pulls the scores out
- * only when it orders the final result - the `relevance()` sorter is that consumer. The score is keyed
+ * only when it orders the final result - the `relevanceText()` sorter is that consumer. The score is keyed
  * by primary key, not read from the entity body, so the same accessor serves the index path and the prefetch path
  * alike.
  *

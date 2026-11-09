@@ -681,7 +681,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	/**
 	 * Records a fulltext score source of a nested `entityHaving` / `groupHaving` query, answering in the primary-key
 	 * space of the owners this visitor filters. The nested query's formula is never visible in this visitor's filter
-	 * tree, so this is the only way the `relevance()` sorter of the plan learns about it - see
+	 * tree, so this is the only way the `relevanceText()` sorter of the plan learns about it - see
 	 * {@link ReferenceOwnerFulltextScoreAccessor}.
 	 *
 	 * The same nested filter reached through the same reference is recorded once, however many times it is

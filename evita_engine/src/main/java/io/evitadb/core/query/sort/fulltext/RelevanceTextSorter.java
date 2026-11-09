@@ -43,7 +43,7 @@ import java.util.Arrays;
 import java.util.function.IntConsumer;
 
 /**
- * Orders the entities by the fulltext relevance the `textMatches` filter computes - the sorter of `relevance()`.
+ * Orders the entities by the fulltext relevance the `textMatches` filter computes - the sorter of `relevanceText()`.
  *
  * ## Where the scores come from
  *
@@ -80,7 +80,7 @@ import java.util.function.IntConsumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class RelevanceSorter implements Sorter {
+public class RelevanceTextSorter implements Sorter {
 	/**
 	 * The accessors providing fulltext scores, distinct by identity, never empty.
 	 */
@@ -98,7 +98,7 @@ public class RelevanceSorter implements Sorter {
 	 * @param scopeIndexes global indexes of the scopes whose entities are ranked, or null to rank the entities of every
 	 *                     scope
 	 */
-	public RelevanceSorter(@Nonnull FulltextScoreAccessor[] accessors, @Nullable EntityIndex[] scopeIndexes) {
+	public RelevanceTextSorter(@Nonnull FulltextScoreAccessor[] accessors, @Nullable EntityIndex[] scopeIndexes) {
 		Assert.isPremiseValid(accessors.length > 0, "The relevance sorter needs at least one score accessor!");
 		this.accessors = accessors;
 		this.scopeIndexes = scopeIndexes;

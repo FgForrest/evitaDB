@@ -37,22 +37,22 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.api.query.QueryConstraints.random;
-import static io.evitadb.api.query.QueryConstraints.relevance;
+import static io.evitadb.api.query.QueryConstraints.relevanceText;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.ORDER;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for {@link Relevance} verifying construction, applicability and necessity (which keep the childless container
- * alive through query purification), child management, cloning, visitor support, string representation and the
- * equality contract.
+ * Tests for {@link RelevanceText} verifying construction, applicability and necessity (which keep the childless
+ * container alive through query purification), child management, cloning, visitor support, string representation
+ * and the equality contract.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Relevance constraint")
+@DisplayName("RelevanceText constraint")
 @Tag(CONTRACT)
 @Tag(ORDER)
-class RelevanceTest {
+class RelevanceTextTest {
 
 	@Nested
 	@DisplayName("Construction")
@@ -61,7 +61,7 @@ class RelevanceTest {
 		@Test
 		@DisplayName("should create via factory without children")
 		void shouldCreateViaFactoryWithoutChildren() {
-			final Relevance constraint = relevance();
+			final RelevanceText constraint = relevanceText();
 
 			assertEquals(0, constraint.getChildrenCount());
 			assertEquals(0, constraint.getArguments().length);
@@ -75,17 +75,17 @@ class RelevanceTest {
 		@Test
 		@DisplayName("should be applicable and necessary without children")
 		void shouldBeApplicableAndNecessaryWithoutChildren() {
-			assertTrue(relevance().isApplicable());
-			assertTrue(relevance().isNecessary());
+			assertTrue(relevanceText().isApplicable());
+			assertTrue(relevanceText().isNecessary());
 		}
 
 		@Test
 		@DisplayName("should survive query purification")
 		void shouldSurviveQueryPurification() {
-			final OrderConstraint orderBy = orderBy(relevance());
+			final OrderConstraint orderBy = orderBy(relevanceText());
 
 			assertEquals(orderBy, QueryPurifierVisitor.purify(orderBy));
-			assertEquals(relevance(), QueryPurifierVisitor.purify(relevance()));
+			assertEquals(relevanceText(), QueryPurifierVisitor.purify(relevanceText()));
 		}
 	}
 
@@ -96,11 +96,11 @@ class RelevanceTest {
 		@Test
 		@DisplayName("should create copy without children")
 		void shouldCreateCopyWithoutChildren() {
-			final OrderConstraint copy = relevance().getCopyWithNewChildren(
+			final OrderConstraint copy = relevanceText().getCopyWithNewChildren(
 				new OrderConstraint[0], new Constraint<?>[0]
 			);
 
-			assertEquals(relevance(), copy);
+			assertEquals(relevanceText(), copy);
 		}
 
 		@Test
@@ -108,7 +108,7 @@ class RelevanceTest {
 		void shouldThrowWhenChildrenProvided() {
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> relevance().getCopyWithNewChildren(new OrderConstraint[]{random()}, new Constraint<?>[0])
+				() -> relevanceText().getCopyWithNewChildren(new OrderConstraint[]{random()}, new Constraint<?>[0])
 			);
 		}
 	}
@@ -122,7 +122,7 @@ class RelevanceTest {
 		void shouldThrowBecauseConstraintHasNoArguments() {
 			assertThrows(
 				UnsupportedOperationException.class,
-				() -> relevance().cloneWithArguments(new Serializable[0])
+				() -> relevanceText().cloneWithArguments(new Serializable[0])
 			);
 		}
 	}
@@ -134,13 +134,13 @@ class RelevanceTest {
 		@Test
 		@DisplayName("should return OrderConstraint type")
 		void shouldReturnOrderConstraintType() {
-			assertEquals(OrderConstraint.class, relevance().getType());
+			assertEquals(OrderConstraint.class, relevanceText().getType());
 		}
 
 		@Test
 		@DisplayName("should accept visitor")
 		void shouldAcceptVisitor() {
-			final Relevance constraint = relevance();
+			final RelevanceText constraint = relevanceText();
 			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
 
 			constraint.accept(c -> visited.set((Constraint<?>) c));
@@ -156,8 +156,8 @@ class RelevanceTest {
 		@Test
 		@DisplayName("should format without children")
 		void shouldFormatWithoutChildren() {
-			assertEquals("relevance()", relevance().toString());
-			assertEquals("orderBy(relevance())", orderBy(relevance()).toString());
+			assertEquals("relevanceText()", relevanceText().toString());
+			assertEquals("orderBy(relevanceText())", orderBy(relevanceText()).toString());
 		}
 	}
 
@@ -168,14 +168,14 @@ class RelevanceTest {
 		@Test
 		@DisplayName("should equal another instance")
 		void shouldEqualAnotherInstance() {
-			assertEquals(relevance(), relevance());
-			assertEquals(relevance().hashCode(), relevance().hashCode());
+			assertEquals(relevanceText(), relevanceText());
+			assertEquals(relevanceText().hashCode(), relevanceText().hashCode());
 		}
 
 		@Test
 		@DisplayName("should not equal other ordering constraint")
 		void shouldNotEqualOtherOrderingConstraint() {
-			assertNotEquals(relevance(), random());
+			assertNotEquals(relevanceText(), random());
 		}
 	}
 }

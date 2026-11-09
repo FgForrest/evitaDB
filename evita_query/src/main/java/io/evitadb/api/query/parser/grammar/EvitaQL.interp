@@ -80,7 +80,7 @@ null
 'segments'
 'segment'
 'limit'
-'relevance'
+'relevanceText'
 'require'
 'page'
 'strip'

@@ -23,7 +23,7 @@
 
 package io.evitadb.core.query.sort.fulltext.translator;
 
-import io.evitadb.api.query.order.Relevance;
+import io.evitadb.api.query.order.RelevanceText;
 import io.evitadb.core.query.algebra.fulltext.FulltextScoreAccessor;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
@@ -31,7 +31,7 @@ import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.fulltext.RelevanceSorter;
+import io.evitadb.core.query.sort.fulltext.RelevanceTextSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
 import io.evitadb.dataType.Scope;
@@ -49,7 +49,8 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 /**
- * Translates {@link Relevance} into the {@link RelevanceSorter}, following the two-phase pattern of `priceNatural`:
+ * Translates {@link RelevanceText} into the {@link RelevanceTextSorter}, following the two-phase pattern of
+ * `priceNatural`:
  * here the planner finds *where* the scores will be - the {@link FulltextScoreAccessor}s of the filter tree, looked up
  * in {@link LookUp#SHALLOW} mode so that a prefetch wrapper delegating the accessor stops the lookup - and the sorter
  * pulls *what* they are only when it sorts.
@@ -63,10 +64,10 @@ import java.util.stream.Stream;
  *
  * ## Without a fulltext filter
  *
- * `relevance()` without a `textMatches` in the filter is not an error: no sorter is emitted, so every entity passes on
- * to the next sorter, exactly as if `relevance()` were absent. An empty search box drops `textMatches` (its factory
- * returns null for a blank text), and the client must not have to branch its ordering on that. This reverses the
- * planning-time error query-design §5.2 recommended.
+ * `relevanceText()` without a `textMatches` in the filter is not an error: no sorter is emitted, so every entity
+ * passes on to the next sorter, exactly as if `relevanceText()` were absent. An empty search box drops `textMatches`
+ * (its factory returns null for a blank text), and the client must not have to branch its ordering on that. This
+ * reverses the planning-time error query-design §5.2 recommended.
  *
  * ## Where it may stand
  *
@@ -79,19 +80,20 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class RelevanceTranslator
-	implements OrderingConstraintTranslator<Relevance>, ReferenceOrderingConstraintTranslator<Relevance> {
+public class RelevanceTextTranslator
+	implements OrderingConstraintTranslator<RelevanceText>, ReferenceOrderingConstraintTranslator<RelevanceText> {
 
 	/**
-	 * Creates the exception for `relevance()` used outside the main query's ordering.
+	 * Creates the exception for `relevanceText()` used outside the main query's ordering.
 	 *
-	 * @param relevance the misplaced constraint
+	 * @param relevanceText the misplaced constraint
 	 * @return the exception
 	 */
 	@Nonnull
-	private static EvitaInvalidUsageException misplaced(@Nonnull Relevance relevance) {
+	private static EvitaInvalidUsageException misplaced(@Nonnull RelevanceText relevanceText) {
 		return new EvitaInvalidUsageException(
-			"Ordering constraint `" + relevance + "` can only be used in the top-level `orderBy` or inside `segment` " +
+			"Ordering constraint `" + relevanceText +
+				"` can only be used in the top-level `orderBy` or inside `segment` " +
 				"- it orders by the relevance the `textMatches` filter of the query computes, which is not " +
 				"available in a nested ordering of other entities or references!"
 		);
@@ -99,14 +101,14 @@ public class RelevanceTranslator
 
 	@Nonnull
 	@Override
-	public Stream<Sorter> createSorter(@Nonnull Relevance relevance, @Nonnull OrderByVisitor orderByVisitor) {
+	public Stream<Sorter> createSorter(@Nonnull RelevanceText relevanceText, @Nonnull OrderByVisitor orderByVisitor) {
 		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
 		if (
 			!orderByVisitor.isMainQueryContext() ||
 				processingScope.referenceSchema() != null ||
 				processingScope.pickFirstIndexResolver() != null
 		) {
-			throw misplaced(relevance);
+			throw misplaced(relevanceText);
 		}
 
 		final Collection<FulltextScoreAccessor> foundAccessors = FormulaFinder.find(
@@ -129,7 +131,7 @@ public class RelevanceTranslator
 		}
 
 		return Stream.of(
-			new RelevanceSorter(
+			new RelevanceTextSorter(
 				accessors.toArray(FulltextScoreAccessor[]::new),
 				resolveScopeIndexes(orderByVisitor, processingScope)
 			)
@@ -137,8 +139,11 @@ public class RelevanceTranslator
 	}
 
 	@Override
-	public void createComparator(@Nonnull Relevance relevance, @Nonnull ReferenceOrderByVisitor orderByVisitor) {
-		throw misplaced(relevance);
+	public void createComparator(
+		@Nonnull RelevanceText relevanceText,
+		@Nonnull ReferenceOrderByVisitor orderByVisitor
+	) {
+		throw misplaced(relevanceText);
 	}
 
 	/**

@@ -1098,13 +1098,13 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterRelevanceConstraint(EvitaQLParser.RelevanceConstraintContext ctx) { }
+	@Override public void enterRelevanceTextConstraint(EvitaQLParser.RelevanceTextConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void exitRelevanceConstraint(EvitaQLParser.RelevanceConstraintContext ctx) { }
+	@Override public void exitRelevanceTextConstraint(EvitaQLParser.RelevanceTextConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

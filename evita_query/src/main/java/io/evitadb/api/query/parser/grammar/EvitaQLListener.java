@@ -1073,17 +1073,17 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitOrderInScopeConstraint(EvitaQLParser.OrderInScopeConstraintContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code relevanceConstraint}
+	 * Enter a parse tree produced by the {@code relevanceTextConstraint}
 	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void enterRelevanceConstraint(EvitaQLParser.RelevanceConstraintContext ctx);
+	void enterRelevanceTextConstraint(EvitaQLParser.RelevanceTextConstraintContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code relevanceConstraint}
+	 * Exit a parse tree produced by the {@code relevanceTextConstraint}
 	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void exitRelevanceConstraint(EvitaQLParser.RelevanceConstraintContext ctx);
+	void exitRelevanceTextConstraint(EvitaQLParser.RelevanceTextConstraintContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code requireContainerConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.

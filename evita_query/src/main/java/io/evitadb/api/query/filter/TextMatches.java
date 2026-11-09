@@ -68,7 +68,7 @@ import java.io.Serializable;
  *         textMatches("black leather jacket")
  *     ),
  *     orderBy(
- *         relevance()
+ *         relevanceText()
  *     )
  * )
  * ```
@@ -89,11 +89,11 @@ import java.io.Serializable;
  * - only {@link TextMatchesSpecificationFilterConstraint} children (such as `inField`) are accepted
  *
  * The constraint has no `attribute` prefix, because a searchable field is not necessarily an entity attribute.
- * The order of the matched entities is controlled by the {@link io.evitadb.api.query.order.Relevance} ordering
+ * The order of the matched entities is controlled by the {@link io.evitadb.api.query.order.RelevanceText} ordering
  * constraint, which reads the relevance this filter computes.
  *
  * @see InField
- * @see io.evitadb.api.query.order.Relevance
+ * @see io.evitadb.api.query.order.RelevanceText
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @ConstraintDefinition(

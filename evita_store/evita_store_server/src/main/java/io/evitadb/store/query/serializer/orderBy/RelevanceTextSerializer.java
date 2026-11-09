@@ -28,22 +28,22 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.OrderConstraint;
-import io.evitadb.api.query.order.Relevance;
+import io.evitadb.api.query.order.RelevanceText;
 import io.evitadb.utils.Assert;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link Relevance} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link RelevanceText} from/to binary format.
  *
  * The constraint accepts no children yet, but the child count is written anyway, so that the binary format stays the
  * same once the ranking-policy children are added.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class RelevanceSerializer extends Serializer<Relevance> {
+public class RelevanceTextSerializer extends Serializer<RelevanceText> {
 
 	@Override
-	public void write(Kryo kryo, Output output, Relevance relevance) {
-		final OrderConstraint[] children = relevance.getChildren();
+	public void write(Kryo kryo, Output output, RelevanceText relevanceText) {
+		final OrderConstraint[] children = relevanceText.getChildren();
 		output.writeVarInt(children.length, true);
 		for (final OrderConstraint child : children) {
 			kryo.writeClassAndObject(output, child);
@@ -51,13 +51,13 @@ public class RelevanceSerializer extends Serializer<Relevance> {
 	}
 
 	@Override
-	public Relevance read(Kryo kryo, Input input, Class<? extends Relevance> type) {
+	public RelevanceText read(Kryo kryo, Input input, Class<? extends RelevanceText> type) {
 		final int childCount = input.readVarInt(true);
 		Assert.isPremiseValid(
 			childCount == 0,
-			() -> "Constraint `relevance` accepts no children, but " + childCount + " were serialized!"
+			() -> "Constraint `relevanceText` accepts no children, but " + childCount + " were serialized!"
 		);
-		return new Relevance();
+		return new RelevanceText();
 	}
 
 }

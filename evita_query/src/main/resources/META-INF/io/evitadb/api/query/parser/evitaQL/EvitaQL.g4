@@ -122,7 +122,7 @@ orderConstraint
     | 'segment'                             args = segmentArgs                                              # segmentConstraint
     | 'limit'                               args = valueArgs                                                # segmentLimitConstraint
     | 'inScope'                             args = inScopeOrderArgs                                         # orderInScopeConstraint
-    | 'relevance'                           emptyArgs                                                       # relevanceConstraint
+    | 'relevanceText'                       emptyArgs                                                       # relevanceTextConstraint
     ;
 
 requireConstraint

@@ -324,8 +324,8 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 	/**
 	 * Never provides fulltext scores. The inner formula speaks primary keys of another space than this formula's
 	 * result - a fulltext formula of the referenced collection inside it scores referenced entities, not the entities
-	 * this formula yields - so this formula answers the accessor lookup itself and stops a `relevance()` sorter from
-	 * descending into it. The owners' relevance arrives through `ReferenceOwnerFulltextScoreAccessor` instead.
+	 * this formula yields - so this formula answers the accessor lookup itself and stops a `relevanceText()` sorter
+	 * from descending into it. The owners' relevance arrives through `ReferenceOwnerFulltextScoreAccessor` instead.
 	 *
 	 * @return always false
 	 */

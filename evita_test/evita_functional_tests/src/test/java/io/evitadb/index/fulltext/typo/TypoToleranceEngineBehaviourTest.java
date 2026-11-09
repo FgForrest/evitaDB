@@ -175,7 +175,7 @@ class TypoToleranceEngineBehaviourTest implements EvitaTestSupport {
 					return session.query(
 						getInstance().parseQuery(
 							"query(collection(?), filterBy(entityLocaleEquals(?), textMatches(?)), " +
-								"orderBy(relevance()), require(page(?, ?)))",
+								"orderBy(relevanceText()), require(page(?, ?)))",
 							"product", Locale.forLanguageTag("cs"),
 							example.query() + (example.typing() ? "" : " "), 1, 100
 						),

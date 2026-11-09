@@ -92,7 +92,7 @@ import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.api.query.QueryConstraints.page;
-import static io.evitadb.api.query.QueryConstraints.relevance;
+import static io.evitadb.api.query.QueryConstraints.relevanceText;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.textMatches;
 
@@ -264,7 +264,7 @@ public final class FulltextCatalogFixture {
 	 * Builds the query a benchmark invocation sends.
 	 *
 	 * @param text     the query text
-	 * @param ranked   whether the result is ordered by `relevance()`, which is what runs the phase-1 scorer
+	 * @param ranked   whether the result is ordered by `relevanceText()`, which is what runs the phase-1 scorer
 	 * @param pageSize how many entity references the response materializes
 	 * @return the query
 	 */
@@ -280,7 +280,7 @@ public final class FulltextCatalogFixture {
 	 * @param entityType name of the queried entity collection
 	 * @param locale     the locale the query searches in
 	 * @param text       the query text
-	 * @param ranked     whether the result is ordered by `relevance()`, which is what runs the phase-1 scorer
+	 * @param ranked     whether the result is ordered by `relevanceText()`, which is what runs the phase-1 scorer
 	 * @param pageSize   how many entity references the response materializes
 	 * @return the query
 	 */
@@ -296,7 +296,7 @@ public final class FulltextCatalogFixture {
 			query(
 				collection(entityType),
 				filterBy(entityLocaleEquals(locale), textMatches(text)),
-				orderBy(relevance()),
+				orderBy(relevanceText()),
 				require(page(1, pageSize))
 			) :
 			query(

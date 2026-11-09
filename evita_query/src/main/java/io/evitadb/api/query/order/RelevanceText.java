@@ -36,13 +36,13 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * The `relevance` constraint sorts the entities matched by the {@link io.evitadb.api.query.filter.TextMatches}
+ * The `relevanceText` constraint sorts the entities matched by the {@link io.evitadb.api.query.filter.TextMatches}
  * fulltext filter from the most relevant to the least relevant one.
  *
  * **Syntax**
  *
  * ```evitaql
- * relevance()
+ * relevanceText()
  * ```
  *
  * **Example**
@@ -55,7 +55,7 @@ import java.io.Serializable;
  *         textMatches("black leather jacket")
  *     ),
  *     orderBy(
- *         relevance()
+ *         relevanceText()
  *     )
  * )
  * ```
@@ -78,19 +78,19 @@ import java.io.Serializable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @ConstraintDefinition(
-	name = "relevance",
+	name = "relevanceText",
 	shortDescription = "The constraint sorts entities by the fulltext relevance computed by the `textMatches` filter.",
-	userDocsLink = "/documentation/query/ordering/relevance#relevance",
+	userDocsLink = "/documentation/query/ordering/relevance#relevance-text",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class Relevance extends AbstractOrderConstraintContainer implements GenericConstraint<OrderConstraint> {
+public class RelevanceText extends AbstractOrderConstraintContainer implements GenericConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = 2860118207357049441L;
 
 	/**
-	 * Creates the relevance ordering constraint.
+	 * Creates the `relevanceText` ordering constraint.
 	 */
 	@Creator
-	public Relevance() {
+	public RelevanceText() {
 		super();
 	}
 
@@ -118,14 +118,14 @@ public class Relevance extends AbstractOrderConstraintContainer implements Gener
 	) {
 		Assert.isPremiseValid(
 			children.length == 0 && additionalChildren.length == 0,
-			"Constraint `relevance` doesn't accept any children!"
+			"Constraint `relevanceText` doesn't accept any children!"
 		);
-		return new Relevance();
+		return new RelevanceText();
 	}
 
 	@Nonnull
 	@Override
 	public OrderConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		throw new UnsupportedOperationException("Constraint `relevance` doesn't support arguments!");
+		throw new UnsupportedOperationException("Constraint `relevanceText` doesn't support arguments!");
 	}
 }

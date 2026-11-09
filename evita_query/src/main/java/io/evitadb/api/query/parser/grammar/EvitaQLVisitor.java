@@ -644,12 +644,12 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitOrderInScopeConstraint(EvitaQLParser.OrderInScopeConstraintContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code relevanceConstraint}
+	 * Visit a parse tree produced by the {@code relevanceTextConstraint}
 	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitRelevanceConstraint(EvitaQLParser.RelevanceConstraintContext ctx);
+	T visitRelevanceTextConstraint(EvitaQLParser.RelevanceTextConstraintContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code requireContainerConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.

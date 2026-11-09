@@ -92,8 +92,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins the query side of fulltext - the `textMatches` filter and the `relevance()` ordering - end to end through the
- * real planner, against a small catalog of products whose localized texts are searchable.
+ * Pins the query side of fulltext - the `textMatches` filter and the `relevanceText()` ordering - end to end through
+ * the real planner, against a small catalog of products whose localized texts are searchable.
  *
  * ## The fixture
  *
@@ -139,7 +139,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Fulltext query: textMatches and relevance()")
+@DisplayName("Fulltext query: textMatches and relevanceText()")
 @ExtendWith(EvitaParameterResolver.class)
 @Tag(CONTRACT)
 @Tag(QUERY)
@@ -538,7 +538,7 @@ public class FulltextQueryFunctionalTest {
 					final int[] ranked = queryPks(
 						session,
 						new FilterConstraint[]{entityLocaleEquals(Locale.ENGLISH), hierarchy, textMatches("green tea")},
-						relevance(),
+						relevanceText(),
 						debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS)
 					);
 					assertArrayEquals(
@@ -726,9 +726,9 @@ public class FulltextQueryFunctionalTest {
 		}
 	}
 
-	@DisplayName("Relevance ordering")
+	@DisplayName("RelevanceText ordering")
 	@Nested
-	class RelevanceOrdering {
+	class RelevanceTextOrdering {
 
 		@DisplayName("Should rank shorter values with the term first, as the scorer does, on both plans")
 		@UseDataSet(FULLTEXT_DATASET)
@@ -740,7 +740,7 @@ public class FulltextQueryFunctionalTest {
 					final int[] matched = {1, 2, 4, 6, 8, 10};
 					final int[] expected = expectedRanking(evita, Locale.ENGLISH, "tea", matched, Scope.LIVE);
 					for (PlanPreference plan : PlanPreference.values()) {
-						final int[] ranked = queryOnPlan(session, plan, relevance(), textMatches("tea"));
+						final int[] ranked = queryOnPlan(session, plan, relevanceText(), textMatches("tea"));
 						assertArrayEquals(expected, ranked, "Order on the " + plan + " plan");
 					}
 					// BM25 alone: the single-word name ranks first, then the two-word names in primary key order,
@@ -770,7 +770,8 @@ public class FulltextQueryFunctionalTest {
 					);
 					for (PlanPreference plan : PlanPreference.values()) {
 						assertArrayEquals(
-							expected, queryOnPlan(session, plan, relevance(), filter), "Order on the " + plan + " plan"
+							expected, queryOnPlan(session, plan, relevanceText(), filter),
+							"Order on the " + plan + " plan"
 						);
 					}
 					// the unmatched entity is ordered by the next sorter
@@ -779,7 +780,7 @@ public class FulltextQueryFunctionalTest {
 						new FilterConstraint[]{
 							entityLocaleEquals(Locale.ENGLISH), or(textMatches("coffee"), entityPrimaryKeyInSet(1, 2))
 						},
-						orderBy(relevance(), attributeNatural(ATTRIBUTE_CODE, OrderDirection.DESC))
+						orderBy(relevanceText(), attributeNatural(ATTRIBUTE_CODE, OrderDirection.DESC))
 					);
 					assertArrayEquals(
 						IntStream.concat(
@@ -801,10 +802,10 @@ public class FulltextQueryFunctionalTest {
 				TEST_CATALOG,
 				session -> {
 					final FilterConstraint[] filter = {entityLocaleEquals(Locale.ENGLISH), textMatches("tea")};
-					final int[] whole = queryPks(session, filter, relevance());
+					final int[] whole = queryPks(session, filter, relevanceText());
 					final List<Integer> paged = new ArrayList<>(whole.length);
 					for (int pageNumber = 1; pageNumber <= 3; pageNumber++) {
-						for (int pk : queryPks(session, filter, relevance(), page(pageNumber, 2))) {
+						for (int pk : queryPks(session, filter, relevanceText(), page(pageNumber, 2))) {
 							paged.add(pk);
 						}
 					}
@@ -812,11 +813,11 @@ public class FulltextQueryFunctionalTest {
 					// and after another sorter filled part of the page
 					final int[] promoted = queryPks(
 						session, filter,
-						orderBy(entityPrimaryKeyExact(10), relevance()),
+						orderBy(entityPrimaryKeyExact(10), relevanceText()),
 						page(2, 2)
 					);
 					final int[] promotedWhole = queryPks(
-						session, filter, orderBy(entityPrimaryKeyExact(10), relevance())
+						session, filter, orderBy(entityPrimaryKeyExact(10), relevanceText())
 					);
 					assertArrayEquals(Arrays.copyOfRange(promotedWhole, 2, 4), promoted);
 					return null;
@@ -832,11 +833,12 @@ public class FulltextQueryFunctionalTest {
 				TEST_CATALOG,
 				session -> {
 					final FilterConstraint[] filter = {entityLocaleEquals(Locale.ENGLISH)};
-					assertArrayEquals(queryPks(session, filter, null), queryPks(session, filter, relevance()));
+					assertArrayEquals(queryPks(session, filter, null), queryPks(session, filter, relevanceText()));
 					assertArrayEquals(
 						queryPks(session, filter, orderBy(attributeNatural(ATTRIBUTE_CODE, OrderDirection.DESC))),
 						queryPks(
-							session, filter, orderBy(relevance(), attributeNatural(ATTRIBUTE_CODE, OrderDirection.DESC))
+							session, filter,
+							orderBy(relevanceText(), attributeNatural(ATTRIBUTE_CODE, OrderDirection.DESC))
 						)
 					);
 					// the factory drops a blank text, so an empty search box needs no branching in the client
@@ -845,7 +847,7 @@ public class FulltextQueryFunctionalTest {
 						queryPks(
 							session,
 							new FilterConstraint[]{entityLocaleEquals(Locale.ENGLISH), textMatches("  ")},
-							relevance()
+							relevanceText()
 						)
 					);
 					return null;
@@ -866,7 +868,7 @@ public class FulltextQueryFunctionalTest {
 					};
 					assertArrayEquals(
 						expectedRanking(evita, Locale.ENGLISH, "green tea", matched, Scope.LIVE, Scope.ARCHIVED),
-						queryPks(session, filter, relevance())
+						queryPks(session, filter, relevanceText())
 					);
 					// ranking only the live entities leaves the archived one to the default order, after them
 					assertArrayEquals(
@@ -876,7 +878,7 @@ public class FulltextQueryFunctionalTest {
 							),
 							IntStream.of(11)
 						).toArray(),
-						queryPks(session, filter, orderBy(inScope(Scope.LIVE, relevance())))
+						queryPks(session, filter, orderBy(inScope(Scope.LIVE, relevanceText())))
 					);
 					return null;
 				}
@@ -901,7 +903,7 @@ public class FulltextQueryFunctionalTest {
 						IntStream.of(ranked[0], ranked[1]), rest.stream().mapToInt(Integer::intValue)
 					).toArray();
 					final OrderConstraint segmented = segments(
-						segment(orderBy(relevance()), limit(2)),
+						segment(orderBy(relevanceText()), limit(2)),
 						segment(orderBy(attributeNatural(ATTRIBUTE_CODE, OrderDirection.DESC)))
 					);
 					for (PlanPreference plan : PlanPreference.values()) {
@@ -915,18 +917,18 @@ public class FulltextQueryFunctionalTest {
 			);
 		}
 
-		@DisplayName("Should refuse relevance in a nested ordering")
+		@DisplayName("Should refuse relevanceText in a nested ordering")
 		@UseDataSet(FULLTEXT_DATASET)
 		@Test
-		void shouldRefuseRelevanceInNestedOrdering(Evita evita) {
+		void shouldRefuseRelevanceTextInNestedOrdering(Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					final FilterConstraint[] filter = {entityLocaleEquals(Locale.ENGLISH), textMatches("tea")};
 					for (OrderConstraint nested : new OrderConstraint[]{
-						referenceProperty(REFERENCE_CATEGORIES, relevance()),
-						referenceProperty(REFERENCE_CATEGORIES, traverseByEntityProperty(relevance())),
-						referenceProperty(REFERENCE_CATEGORIES, pickFirstByEntityProperty(relevance()))
+						referenceProperty(REFERENCE_CATEGORIES, relevanceText()),
+						referenceProperty(REFERENCE_CATEGORIES, traverseByEntityProperty(relevanceText())),
+						referenceProperty(REFERENCE_CATEGORIES, pickFirstByEntityProperty(relevanceText()))
 					}) {
 						final EvitaInvalidUsageException exception = assertThrows(
 							EvitaInvalidUsageException.class,
@@ -944,7 +946,7 @@ public class FulltextQueryFunctionalTest {
 							query(
 								collection(PRODUCT),
 								filterBy(filter),
-								require(entityFetch(referenceContent(REFERENCE_CATEGORIES, orderBy(relevance()))))
+								require(entityFetch(referenceContent(REFERENCE_CATEGORIES, orderBy(relevanceText()))))
 							),
 							SealedEntity.class
 						)
@@ -1027,7 +1029,7 @@ public class FulltextQueryFunctionalTest {
 						textMatches("neni skladem"), entityPrimaryKeyInSet(13)
 					);
 					final int[] expected = queryPks(
-						session, new FilterConstraint[]{entityLocaleEquals(CZECH), stock}, relevance()
+						session, new FilterConstraint[]{entityLocaleEquals(CZECH), stock}, relevanceText()
 					);
 					assertArrayEquals(
 						orderByScores(
@@ -1039,7 +1041,8 @@ public class FulltextQueryFunctionalTest {
 					assertArrayEquals(
 						expected,
 						queryPks(
-							session, new FilterConstraint[]{entityLocaleEquals(CZECH), stockWithStopWord}, relevance()
+							session, new FilterConstraint[]{entityLocaleEquals(CZECH), stockWithStopWord},
+							relevanceText()
 						)
 					);
 					return null;
@@ -1048,9 +1051,9 @@ public class FulltextQueryFunctionalTest {
 		}
 	}
 
-	@DisplayName("Relevance through entityHaving")
+	@DisplayName("RelevanceText through entityHaving")
 	@Nested
-	class RelevanceThroughEntityHaving {
+	class RelevanceTextThroughEntityHaving {
 
 		@DisplayName("Should match the owners of the matching targets")
 		@UseDataSet(FULLTEXT_DATASET)
@@ -1088,7 +1091,7 @@ public class FulltextQueryFunctionalTest {
 						assertArrayEquals(
 							expected,
 							queryOnPlan(
-								session, plan, relevance(),
+								session, plan, relevanceText(),
 								referenceHaving(REFERENCE_BRANDS, entityHaving(textMatches("green")))
 							),
 							"Order on the " + plan + " plan"
@@ -1117,7 +1120,7 @@ public class FulltextQueryFunctionalTest {
 						assertArrayEquals(
 							expected,
 							queryOnPlan(
-								session, plan, relevance(),
+								session, plan, relevanceText(),
 								or(
 									textMatches("tea"),
 									referenceHaving(REFERENCE_BRANDS, entityHaving(textMatches("green")))
@@ -1153,7 +1156,7 @@ public class FulltextQueryFunctionalTest {
 					final int[] expected = orderByScores(scores, candidates);
 					for (PlanPreference plan : PlanPreference.values()) {
 						assertArrayEquals(
-							expected, queryOnPlan(session, plan, relevance(), sameTextTwice),
+							expected, queryOnPlan(session, plan, relevanceText(), sameTextTwice),
 							"Order on the " + plan + " plan"
 						);
 					}
@@ -1179,7 +1182,7 @@ public class FulltextQueryFunctionalTest {
 								referenceHaving(REFERENCE_BRANDS, entityHaving(textMatches("green"))),
 								scope(Scope.LIVE, Scope.ARCHIVED)
 							},
-							relevance()
+							relevanceText()
 						)
 					);
 					return null;
@@ -1188,9 +1191,9 @@ public class FulltextQueryFunctionalTest {
 		}
 	}
 
-	@DisplayName("Relevance through groupHaving")
+	@DisplayName("RelevanceText through groupHaving")
 	@Nested
-	class RelevanceThroughGroupHaving {
+	class RelevanceTextThroughGroupHaving {
 
 		@DisplayName("Should rank the owners by the best score of the groups they reference, on both plans")
 		@UseDataSet(FULLTEXT_DATASET)
@@ -1208,7 +1211,7 @@ public class FulltextQueryFunctionalTest {
 						assertArrayEquals(
 							expected,
 							queryOnPlan(
-								session, plan, relevance(),
+								session, plan, relevanceText(),
 								referenceHaving(REFERENCE_PLACEMENTS, groupHaving(textMatches("green")))
 							),
 							"Order on the " + plan + " plan"
@@ -1237,7 +1240,7 @@ public class FulltextQueryFunctionalTest {
 						assertArrayEquals(
 							expected,
 							queryOnPlan(
-								session, plan, relevance(),
+								session, plan, relevanceText(),
 								or(
 									textMatches("tea"),
 									referenceHaving(REFERENCE_PLACEMENTS, groupHaving(textMatches("green")))

@@ -131,7 +131,7 @@ class FulltextWordRankingFunctionalTest implements EvitaTestSupport {
 	private int[] search(String type, String text) {
 		return queryPrimaryKeys(getInstance().parseQuery(
 			"query(collection(?), filterBy(entityLocaleEquals(?), textMatches(?)), " +
-				"orderBy(relevance()), require(page(?, ?)))",
+				"orderBy(relevanceText()), require(page(?, ?)))",
 			type, Locale.ENGLISH, text, 1, 100
 		));
 	}
@@ -206,7 +206,7 @@ class FulltextWordRankingFunctionalTest implements EvitaTestSupport {
 			assertArrayEquals(new int[]{1, 2}, search(type, b));
 			final int[] actual = queryPrimaryKeys(getInstance().parseQuery(
 				"query(collection(?), filterBy(entityLocaleEquals(?), or(textMatches(?), textMatches(?))), " +
-					"orderBy(relevance()), require(page(?, ?)))",
+					"orderBy(relevanceText()), require(page(?, ?)))",
 				type, Locale.ENGLISH, reversed ? b : a, reversed ? a : b, 1, 100
 			));
 			assertArrayEquals(new int[]{1, 2}, actual);

@@ -253,7 +253,7 @@ public class TextMatchesQueryState {
 				+ (fileMode ? " cohort=" + this.cohort : "")
 		);
 		if (fileMode) {
-			final boolean ranked = this.benchmarkName.equals("textMatchesByRelevance");
+			final boolean ranked = this.benchmarkName.equals("textMatchesByRelevanceText");
 			for (int i = 0; i < queryCount; i++) {
 				final EvitaResponse<EntityReference> response = executeQuery(i, ranked);
 				final int[] primaryKeys = response.getRecordData().stream()
@@ -291,7 +291,7 @@ public class TextMatchesQueryState {
 	 * identity is allowed into the exception JMH prints; no original cause or suppressed exception is retained.
 	 *
 	 * @param index the pool position
-	 * @param ranked whether the query orders by `relevance()`
+	 * @param ranked whether the query orders by `relevanceText()`
 	 * @return the response materialized by the measured call
 	 */
 	@Nonnull

@@ -184,7 +184,7 @@ public class EvitaQLParser extends Parser {
 			"'referenceProperty'", "'traverseByEntityProperty'", "'pickFirstByEntityProperty'", 
 			"'entityPrimaryKeyNatural'", "'entityPrimaryKeyExact'", "'entityPrimaryKeyInFilter'", 
 			"'entityProperty'", "'entityGroupProperty'", "'segments'", "'segment'", 
-			"'limit'", "'relevance'", "'require'", "'page'", "'strip'", "'entityFetch'", 
+			"'limit'", "'relevanceText'", "'require'", "'page'", "'strip'", "'entityFetch'", 
 			"'entityGroupFetch'", "'attributeContent'", "'attributeContentAll'", 
 			"'priceContent'", "'priceContentAll'", "'priceContentRespectingFilter'", 
 			"'associatedDataContent'", "'associatedDataContentAll'", "'referenceContentAll'", 
@@ -3020,26 +3020,6 @@ public class EvitaQLParser extends Parser {
 		}
 	}
 	@SuppressWarnings("CheckReturnValue")
-	public static class RelevanceConstraintContext extends OrderConstraintContext {
-		public EmptyArgsContext emptyArgs() {
-			return getRuleContext(EmptyArgsContext.class,0);
-		}
-		public RelevanceConstraintContext(OrderConstraintContext ctx) { copyFrom(ctx); }
-		@Override
-		public void enterRule(ParseTreeListener listener) {
-			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).enterRelevanceConstraint(this);
-		}
-		@Override
-		public void exitRule(ParseTreeListener listener) {
-			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).exitRelevanceConstraint(this);
-		}
-		@Override
-		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitRelevanceConstraint(this);
-			else return visitor.visitChildren(this);
-		}
-	}
-	@SuppressWarnings("CheckReturnValue")
 	public static class SegmentsConstraintContext extends OrderConstraintContext {
 		public OrderConstraintListArgsContext args;
 		public OrderConstraintListArgsContext orderConstraintListArgs() {
@@ -3144,6 +3124,26 @@ public class EvitaQLParser extends Parser {
 		@Override
 		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
 			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitEntityPrimaryKeyExactNatural(this);
+			else return visitor.visitChildren(this);
+		}
+	}
+	@SuppressWarnings("CheckReturnValue")
+	public static class RelevanceTextConstraintContext extends OrderConstraintContext {
+		public EmptyArgsContext emptyArgs() {
+			return getRuleContext(EmptyArgsContext.class,0);
+		}
+		public RelevanceTextConstraintContext(OrderConstraintContext ctx) { copyFrom(ctx); }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).enterRelevanceTextConstraint(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).exitRelevanceTextConstraint(this);
+		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitRelevanceTextConstraint(this);
 			else return visitor.visitChildren(this);
 		}
 	}
@@ -3464,7 +3464,7 @@ public class EvitaQLParser extends Parser {
 				}
 				break;
 			case T__80:
-				_localctx = new RelevanceConstraintContext(_localctx);
+				_localctx = new RelevanceTextConstraintContext(_localctx);
 				enterOuterAlt(_localctx, 22);
 				{
 				setState(460);

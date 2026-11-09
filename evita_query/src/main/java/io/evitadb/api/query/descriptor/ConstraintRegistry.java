@@ -129,7 +129,7 @@ class ConstraintRegistry {
 		OrderGroupBy.class,
 		Random.class,
 		OrderInScope.class,
-		// `Relevance` is deliberately not registered yet, for the same reason as `TextMatches` above
+		// `RelevanceText` is deliberately not registered yet, for the same reason as `TextMatches` above
 		//TODO JNO change it at the end of #258
 		// entity
 		EntityPrimaryKeyExact.class,

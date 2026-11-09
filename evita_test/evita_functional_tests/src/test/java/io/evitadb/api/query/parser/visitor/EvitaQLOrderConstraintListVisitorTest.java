@@ -37,7 +37,7 @@ import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.attributeNatural;
 import static io.evitadb.api.query.QueryConstraints.random;
-import static io.evitadb.api.query.QueryConstraints.relevance;
+import static io.evitadb.api.query.QueryConstraints.relevanceText;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -80,9 +80,9 @@ class EvitaQLOrderConstraintListVisitorTest {
             constraintList4
         );
 
-        final List<OrderConstraint> constraintList5 = parseOrderConstraintList("relevance(),random()");
+        final List<OrderConstraint> constraintList5 = parseOrderConstraintList("relevanceText(),random()");
         assertEquals(
-            List.of(relevance(), random()),
+            List.of(relevanceText(), random()),
             constraintList5
         );
     }

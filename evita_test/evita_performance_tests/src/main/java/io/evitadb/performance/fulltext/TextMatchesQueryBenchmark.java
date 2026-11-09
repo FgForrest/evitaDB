@@ -47,8 +47,8 @@ import java.util.concurrent.TimeUnit;
  *
  * - {@link #textMatches} filters only: the planner analyzes the text, expands the tokens, and computes the strict match
  *   set, then pages it in primary-key order. No score is computed.
- * - {@link #textMatchesByRelevance} adds `orderBy(relevance())`, which runs the phase-1 scorer over the match set and
- *   keeps the top of it.
+ * - {@link #textMatchesByRelevanceText} adds `orderBy(relevanceText())`, which runs the phase-1 scorer over the
+ *   match set and keeps the top of it.
  *
  * Their difference is the scorer's share, which is what the P1 model prices; the plain method's time is the part P1
  * never measured. Read `FulltextQueryProfile` before comparing either against the model: on this path the scorer's
@@ -87,7 +87,7 @@ import java.util.concurrent.TimeUnit;
  * ```shell
  * opens="--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED"
  * opens="$opens --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED"
- * java -jar benchmarks.jar 'TextMatchesQueryBenchmark\.textMatches(ByRelevance)?$' \
+ * java -jar benchmarks.jar 'TextMatchesQueryBenchmark\.textMatches(ByRelevanceText)?$' \
  *   -f 3 -jvmArgsAppend "-Xms24g -Xmx24g $opens" \
  *   -p storageDirectory="&lt;storage copy&gt;" -p catalogName="&lt;catalog&gt;" -p entityType=Product -p locale=cs \
  *   -p queryFile="&lt;queries.tsv&gt;" -p cohort=by-token,by-vocabulary,name-phrases,wide,fragments \
@@ -150,14 +150,14 @@ public class TextMatchesQueryBenchmark {
 	}
 
 	/**
-	 * The same filter ordered by `relevance()`, which runs the phase-1 scorer over the match set.
+	 * The same filter ordered by `relevanceText()`, which runs the phase-1 scorer over the match set.
 	 *
 	 * @param state     the cell being measured
 	 * @param blackhole sink preventing the response from being optimised away
 	 */
 	@Benchmark
 	@Threads(1)
-	public void textMatchesByRelevance(@Nonnull TextMatchesQueryState state, @Nonnull Blackhole blackhole) {
+	public void textMatchesByRelevanceText(@Nonnull TextMatchesQueryState state, @Nonnull Blackhole blackhole) {
 		final int index = state.nextQuery();
 		final long start = System.nanoTime();
 		blackhole.consume(state.executeQuery(index, true));

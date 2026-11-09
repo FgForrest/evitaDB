@@ -2232,17 +2232,17 @@ public interface QueryConstraints {
 	 *
 	 * ```evitaql
 	 * orderBy(
-	 *     relevance()
+	 *     relevanceText()
 	 * )
 	 * ```
 	 *
-	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/relevance#relevance)
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/relevance#relevance-text)
 	 *
-	 * @see io.evitadb.api.query.order.Relevance
+	 * @see io.evitadb.api.query.order.RelevanceText
 	 */
 	@Nonnull
-	static Relevance relevance() {
-		return new Relevance();
+	static RelevanceText relevanceText() {
+		return new RelevanceText();
 	}
 
 	/*

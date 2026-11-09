@@ -277,28 +277,28 @@ class EvitaQLOrderConstraintVisitorTest {
     }
 
     @Test
-    @DisplayName("Should parse relevance constraint")
-    void shouldParseRelevanceConstraint() {
-        final OrderConstraint constraint1 = parseOrderConstraint("relevance()");
-        assertEquals(relevance(), constraint1);
+    @DisplayName("Should parse relevanceText constraint")
+    void shouldParseRelevanceTextConstraint() {
+        final OrderConstraint constraint1 = parseOrderConstraint("relevanceText()");
+        assertEquals(relevanceText(), constraint1);
 
-        final OrderConstraint constraint2 = parseOrderConstraint("relevance (  )");
-        assertEquals(relevance(), constraint2);
+        final OrderConstraint constraint2 = parseOrderConstraint("relevanceText (  )");
+        assertEquals(relevanceText(), constraint2);
 
-        final OrderConstraint constraint3 = parseOrderConstraint("orderBy(relevance(), random())");
-        assertEquals(orderBy(relevance(), random()), constraint3);
+        final OrderConstraint constraint3 = parseOrderConstraint("orderBy(relevanceText(), random())");
+        assertEquals(orderBy(relevanceText(), random()), constraint3);
 
-        // relevance is allowed inside a segment, the filtering formula is available there
-        final OrderConstraint constraint4 = parseOrderConstraint("segments(segment(orderBy(relevance())))");
-        assertEquals(segments(segment(orderBy(relevance()))), constraint4);
+        // relevanceText is allowed inside a segment, the filtering formula is available there
+        final OrderConstraint constraint4 = parseOrderConstraint("segments(segment(orderBy(relevanceText())))");
+        assertEquals(segments(segment(orderBy(relevanceText()))), constraint4);
     }
 
     @Test
-    @DisplayName("Should not parse invalid relevance constraint")
-    void shouldNotParseRelevanceConstraint() {
-        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("relevance"));
-        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("relevance('a')"));
-        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("relevance(random())"));
+    @DisplayName("Should not parse invalid relevanceText constraint")
+    void shouldNotParseRelevanceTextConstraint() {
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("relevanceText"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("relevanceText('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("relevanceText(random())"));
     }
 
     @Test

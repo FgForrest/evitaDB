@@ -41,7 +41,7 @@ import java.util.function.IntFunction;
 
 /**
  * Carries the fulltext scores of an `entityHaving` (or `groupHaving`) nested query over to the owners of the matched
- * entities, so that `relevance()` of the owner query orders by them.
+ * entities, so that `relevanceText()` of the owner query orders by them.
  *
  * ## Why it is not a node of the filter tree
  *
@@ -49,9 +49,10 @@ import java.util.function.IntFunction;
  * filter tree: the owner-side path either materializes it into the reduced indexes of the matching targets, or hides
  * it behind a terminal `DeferredFormula`, on purpose - the planned tree of another collection's namespace must not be
  * walked by the dozens of owner-side lookups that match nodes by reference name, facet or accessor type. So the
- * `relevance()` sorter cannot find it with {@link FormulaFinder}, and must not: a target score applied to the owner of
- * the same primary key would be a score of the wrong entity. This accessor is registered on the owner's filter visitor
- * instead (`FilterByVisitor#registerReferencedFulltextScores`), and it answers in the **owner** primary-key space.
+ * `relevanceText()` sorter cannot find it with {@link FormulaFinder}, and must not: a target score applied to the
+ * owner of the same primary key would be a score of the wrong entity. This accessor is registered on the owner's
+ * filter visitor instead (`FilterByVisitor#registerReferencedFulltextScores`), and it answers in the **owner**
+ * primary-key space.
  *
  * ## How it scores
  *

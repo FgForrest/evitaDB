@@ -76,7 +76,7 @@ import static io.evitadb.core.query.filter.translator.fulltext.FulltextTermExpan
 
 /**
  * Translates {@link TextMatches} into a {@link FulltextFormula}: the entities whose searchable fields contain every
- * word of the text, ranked on request by the `relevance()` sorter.
+ * word of the text, ranked on request by the `relevanceText()` sorter.
  *
  * ## From text to formula
  *

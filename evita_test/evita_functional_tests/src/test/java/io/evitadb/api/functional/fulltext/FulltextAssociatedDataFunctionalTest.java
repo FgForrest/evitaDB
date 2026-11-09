@@ -249,7 +249,7 @@ public class FulltextAssociatedDataFunctionalTest {
 				query(
 					collection(PRODUCT),
 					filterBy(plan.filter(candidates, localized)),
-					orderBy(relevance()),
+					orderBy(relevanceText()),
 					require(page(1, 100), plan.debug(), queryTelemetry())
 				),
 				EntityReference.class
