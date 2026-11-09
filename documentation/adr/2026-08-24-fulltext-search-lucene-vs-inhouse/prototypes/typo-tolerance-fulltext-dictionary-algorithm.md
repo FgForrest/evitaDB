@@ -1,5 +1,10 @@
 # Typo tolerance in the fulltext term dictionary — the algorithm to implement
 
+> **Prototype harness retired (2026-11-09).** The prototype harness cited here was removed once the engine
+> implementation replaced it. `abc35da8ac` is the last commit containing it; recover a cited source with
+> `git show abc35da8ac:<path>`. The historical text and measurements below are unchanged; later engine decisions
+> are recorded in [the decision record](../README.md#f1b-typo-tolerance--measured-on-the-query-side-branch).
+
 > Status: implementation specification, extracted on 2026-10-21 from
 > [`typo-tolerance-fulltext-dictionary.md`](typo-tolerance-fulltext-dictionary.md) (the **analysis**). This document
 > states only *what* to build. Why each rule was chosen, the alternatives and the measurements are in the analysis;

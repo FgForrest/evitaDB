@@ -1158,6 +1158,8 @@ length. The typo budget is zero below `minLengthOneTypo`, one below `minLengthTw
 onwards. A typo means an inserted, deleted or replaced character; `transpositions` controls adjacent swaps.
 A deterministic predicted-time budget limits the query's total expanded postings: exact matches always remain, while
 prefix and typo expansions stop at the first overflow, which can leave a required word empty and return no matches.
+The exception is an unfinished final stop word, which is kept only for the longer words it may complete to: when the
+budget removes all of them, the word is dropped from the query instead of left empty.
 
 ```yaml
 fulltext:

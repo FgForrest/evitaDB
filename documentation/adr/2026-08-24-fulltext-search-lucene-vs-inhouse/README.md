@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-11-03 13:35
+updated: 2026-11-09 11:30
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
@@ -117,7 +117,7 @@ database entirely:
 | 2026-10-05 | **`searchable()` is a scope-aware attribute flag of its own** — five `filterable`-style methods, independent of `filterable` in both directions, allowed on entity, global and reference attributes; only a localized `String` / `String[]` may carry it, checked on the *assembled* attribute so declaration order never matters; on a reference attribute the entity is searchable by the **set union** of the values over its references of that type, and a change that neither adds nor removes a member of that set touches no index. Nothing about it is refused for stored data: a withdrawn field is **retired lazily** at the next write, so a re-declaration starts empty | `schema-design.md` §5.4 variant C, step 1 — the profile overload `searchable(String)`, the weight, the external-API mirrors and the annotations come with the query constraint in F1, because until then the flag has no query surface. Four alternatives lost. **Entity attributes only** — *rejected because* the union over references is a plain set union (`∪ String[] → String[]`) and brand or category names are among the first things searched by; it needs no reference index either, since the fulltext structures live only in the global index. **A multiset union** that counts how many references carry a value — *rejected because* every reference-attribute write would then touch the index, where the set form skips every write that leaves the set unchanged; term frequency over references is not a ranking signal anyone asked for. **Dropping the postings eagerly on withdrawal** — *rejected because* it is #409's rebuild machinery and cannot run inside a transaction on a populated structure; the retired field's postings stay as dead weight until #409, and results are only ever incomplete, never phantom. **The analyzer name and the length pivot in the schema** — deferred rather than rejected: the analyzer stays per (collection, locale), the pivot keeps its default of 25, and both are pinned by the F1 analyzer fingerprint | `AttributeSchemaContract#isSearchableInScope` / `#validate`, `SetAttributeSchemaSearchableMutation`, `ReferenceSchema#validateAttributes`; the reference-union behaviour is documented on `AttributeSchemaEditor#searchable()`. Field identity (kind + retired flag), the catalog-owned analyzer registry and the write path follow as separate commits |
 | 2026-10-05 | **A fulltext field is identified by its kind, its reference and its name, and a retired field keeps its id** — `FulltextFieldKey` = (`ATTRIBUTE` / `ASSOCIATED_DATA` / `REFERENCE_ATTRIBUTE`, reference name, name), a global attribute being an `ATTRIBUTE`; the root part persists each field's key and a retired flag beside its pivot and length blocks | Decided while the root-part format is still unreleased, so it costs no backward-compatible reader. Three alternatives lost. **The name alone** — *rejected because* the namespaces it would merge are independent in the schema: an attribute and an associated data item may share a name, and so may a reference attribute and an entity attribute, or two reference attributes of different references; each such pair would become one field. **Reusing `ContainerType`** (`ATTRIBUTE` / `ASSOCIATED_DATA` / `REFERENCE`) — *rejected because* it is the change-capture vocabulary and its `REFERENCE` names the reference itself, not an attribute on it; a fulltext kind borrowed from it would read wrong at every use. **Dropping a retired field from the registry** — *rejected because* a field's id is its position in the registry and the key prefix of every posting it owns; removing the entry would shift every later field onto another field's postings. The retired entry and its postings stay until #409 rebuilds the index | `FulltextFieldKey`, `FulltextIndex#retireField` / `#getFieldId`, `FulltextIndexStoragePart.FieldEntry`; the class javadoc of `FulltextIndex` ("Retired fields") |
 | 2026-10-15 | Typo rules follow the **query type**: an as-you-type query allows at most one typo on every word, a submitted search the full thresholds; both match the last word as a prefix, with one switch, and the submitted search runs its last word as the as-you-type query did (**pattern 1**) | Two edits on the keystroke that finishes a word cost 4.5 ms against 0.26 ms for one, which the 5 ms keystroke budget cannot carry; running the last word the same way in both keeps the results page a superset of the dropdown preview, which no surveyed engine guarantees | [`prototypes/typo-tolerance-fulltext-dictionary.md`](prototypes/typo-tolerance-fulltext-dictionary.md) §11.5–§11.6; [`prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md) §7 |
-| 2026-10-20 | The dictionary walk counts an adjacent swap as one edit and freezes the first letter; expansion is capped at **50 terms per leg** of each query word (all exact terms, the 50 most frequent prefix terms, the 50 nearest-then-most-frequent typo terms) | The same metric as fuzzy `contains`; the frozen first letter is a 3× cost lever; on the real corpus one cap over all legs lets prefix completions crowd out the typo match (−3.3 points of recall), per leg −0.3, and alphabetical order cuts the target 12–44× as often | [`prototypes/typo-tolerance-fulltext-dictionary.md`](prototypes/typo-tolerance-fulltext-dictionary.md) §7.1, §10.7 c; [`prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md) §2.1, §5 |
+| 2026-10-20 | The dictionary walk counts an adjacent swap as one edit and freezes the first letter; expansion is capped at **50 terms per leg** of each query word (all exact terms, the 50 most frequent prefix terms, the 50 nearest-then-most-frequent typo terms). **Cap superseded by 100 on 2026-11-06; see that row** | The same metric as fuzzy `contains`; the frozen first letter is a 3× cost lever; on the real corpus one cap over all legs lets prefix completions crowd out the typo match (−3.3 points of recall), per leg −0.3, and alphabetical order cuts the target 12–44× as often | [`prototypes/typo-tolerance-fulltext-dictionary.md`](prototypes/typo-tolerance-fulltext-dictionary.md) §7.1, §10.7 c; [`prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md) §2.1, §5 |
 | 2026-10-21 | Thresholds **0 / 1 / 2 edits from 1 / 4 / 8 letters** (two edits in a submitted search only), each stem variant budgeted by its own length on the stem dictionary and the typed word by its typed length on a **surface-form lane**, which is built | On the real corpus the stem base with the lane finds 95.5–99.4 % of mistyped words against 83.8–97.5 % for the typed length, at about half the noise; the lane reaches every typo the stemmer pushes out of reach (3.0–5.8 % on real text, up to 19.4 % in Romanian) for +141.5 MB (+19.9 %); 4 letters is the measured knee | [`prototypes/typo-tolerance-fulltext-dictionary.md`](prototypes/typo-tolerance-fulltext-dictionary.md) §3.4, §7.1, §10.7 a, g; [`prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md) §3, §4 |
 | 2026-10-21 | **No prefix leg below four letters**; the open-ended typo walk on the last word starts at **five letters while typing and four in a submitted search** | Three-letter keystrokes stay at 8.6–14.8 ms p99 under every query-time lever, and the only fix that meets the budget — precomputed prefix postings — stays rejected; the submitted search runs once and can afford the earlier start without breaking pattern 1 | [`prototypes/typo-tolerance-fulltext-dictionary.md`](prototypes/typo-tolerance-fulltext-dictionary.md) §9 item 1, §10.7 d, §12; [`prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md) §6 |
 | 2026-10-21 | A fuzzy `attributeContains` uses **swap expansion at both edit levels** — a Levenshtein trigram query plus the swapped variants looked up exactly — and offers **one edit from 6 characters and two from 12**; no gate of its own above those limits; no diacritics handling, no fuzzy `attributeEndsWith` | Full one-edit enumeration would reach 4–5 characters, but it needs the corpus alphabet and thousands of exact lookups per query: on the titles of a production CMS catalog (942,632 distinct values, an alphabet of 239 code points) it cost ~10 ms a query from 5 characters, and one typo on 4 characters matched 9.4 % of all values. Swap expansion keeps its structural one-edit floor of 6 and needs no alphabet. Two edits at 9 characters still took the whole corpus for a third of the patterns and ~0.5 s a query, at 12 characters 68 ms, so the two-edit limit sits above its structural 9. A gate would only compare against a full approximate scan, which every measured row above the limits beats | [`prototypes/typo-tolerance-fuzzy-contains.md`](prototypes/typo-tolerance-fuzzy-contains.md) §1, §6.5, §7; [`prototypes/typo-tolerance-fuzzy-contains-algorithm.md`](prototypes/typo-tolerance-fuzzy-contains-algorithm.md) |
@@ -148,6 +148,16 @@ database entirely:
 | 2026-11-03 | **The fulltext step SPI works on Lucene types** — a text step wraps a `Reader`, a tokenizer is a Lucene `Tokenizer`, splitting and words steps wrap a `TokenStream` — and its JavaDoc says so: it is a server-side contract, weaker than the client API, which never depends on Lucene and describes steps by name and parameters only | Every step acts on Lucene's term buffer anyway, and a `TokenStream` already carries what a step needs beyond one word in, one word out: positions and their gaps, offsets, the keyword flag of a protected word, several terms at one position. **An abstraction of evitaDB's own** would shield providers from Lucene releases — *rejected because* it re-models all of that and converts every token to Lucene and back on the path tuned for latency and allocation. A Lucene release that changes these types may change the SPI; worth revisiting once third-party providers exist and an upgrade breaks them | `io.evitadb.spi.analysis` |
 | 2026-11-03 | **A searchable attribute or associated data carries a default ranking weight in its schema — a fractional number on the scale and of the type of the query's `fieldWeight`** — and the query overrides it item by item. The effective weight, most specific first: `fieldWeight` in the query, a query profile (#12), the schema default, the engine default (1 for the entity's own fields, lower for referenced entities, value open). It is read at ranking time only — never in the postings, the impact byte or the field's fingerprint — so changing it never retires a field; it is not scope-aware. The type is signed, the engine refuses negative weights for now: whether a negative weight may demote is open until learning-to-rank measurements. **Zero is allowed** — a learner produces it (L1 regularization zeroes a weight out), and it means: search the field, do not rank by it | It is the 2026-11-02 rule *schema defaults, query overrides* applied to fields: without a default every client lists `fieldWeight` for every field in every query, or depends on query profiles, which F1 does not have. The reading of 2026-10-09 — weights are passed in the query, profiles are only a shortcut — never rejected a schema default; it only dropped out. Now is the cheap moment: F1 is unreleased, so one more nullable value on the searchable mutations needs no backward-compatible reader. **The four-level `SearchWeight` enumeration** of schema-design §6.3 / S5 — *rejected because* the weights are meant to be learned (2026-10-15) and a learner outputs fractional numbers (*AI-Powered Search*'s linear model: 0.345 / 0.266 / 0.080 on z-normalized per-field BM25); the query's `fieldWeight`, the reference weight and the field-weight rule all multiply numbers, so an enumeration would need a mapping table and still could not hold a learned value. Caveat for the learned path: a linear model cannot express the rule's maximum, so a learner feeding a profile has to optimize the rule itself (`fieldWeight` and *t*) | [`prototypes/schema-design.md`](prototypes/schema-design.md) §6.3 (superseded); [`prototypes/semantic-search-prior-art.md`](prototypes/semantic-search-prior-art.md) part 3 §4 |
 | 2026-11-03 | **A further query token narrows the matching entities term by term only while they are at most 10,000** (`FulltextFormula.NARROWING_MATCHING_LIMIT`); past that the token builds its union and intersects it once. Below the limit the walked-values estimate decides as before — narrow when `termCount × matching < summed postings` | The estimate alone underprices narrowing a wide matching set: each term's intersection is a pass of its own over many containers, which counting walked values does not weigh, so plain queries of two common words on the CMS corpus stayed 1.28× slower in the overnight forked A/B against the build before F1's query-path changes, in which every token took its union. **All unions first, intersected by their true size** (that earlier shape) — *rejected because* it wins only that one cell of the probe (0.81) and is 9–51 % slower in the seven where the matching set stays small. **A cost factor on narrowing** — *rejected because* it moves the boundary for small matching sets too and slowed the medium-frequency queries. The limit is hand-set: the measured plateau runs from 7,000 to 10,000, below it the e-commerce queries slow down, above it the CMS gain fades — a retune stays inside the plateau | Verification: *F1: the phase-one posting feed*, "The narrowing limit" |
+| 2026-11-04 | **F1b implements the submitted-search rules of `textMatches`; the as-you-type mode comes with the suggester in P3.** The surface-form lane is built beside the stem dictionary | A second typing-mode filter was rejected because it would overlap `suggest` and confuse filtering with the preview requirement. The lane recovers typos that stemming puts out of reach and unfinished endings that no stem prefixes; a stem-only path cannot do either | *Verification → F1b*; [`prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md) §3, §7 |
+| 2026-11-05 | **The intra-leaf seek is built and used by the typo walker** (`b6e2fd80c5`, `2a4d3d78a3`): binary-search the current leaf, descend from the root only beyond it | Reopening a cursor per rejected range repeated a root descent even for a target in the current leaf. Sequential read-ahead was rejected because the earlier production-shape measurement made it slower; the seek keeps the walk strictly advancing | *Verification → F1b*; [`prototypes/typo-tolerance-fulltext-dictionary.md`](prototypes/typo-tolerance-fulltext-dictionary.md) §5.4.1; [`prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md) §2.4 |
+| 2026-11-05 | **TYPO precedes EXACTNESS, then impact, in the composite; a split word stays one mandatory OR of its original and parts**, ranked by coverage | Separate mandatory parts were rejected because a document containing only one part must still match. Counting expansions was rejected because duplicate hits inflate coverage. Summed exactness class ranks were rejected because byte saturation could let a high-impact prefix outrank an exact match on a TYPO tie; counting non-exact words preserves that order within the query-word limit | *Verification → F1b*; `FulltextPhaseOneScorer`, `FulltextWordRankingFunctionalTest`; [`prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md) §8 |
+| 2026-11-05 | **Typo policy is server-wide and query-side only**, in `FulltextOptions` / the `fulltext` YAML section, mapped to `FulltextTypoParameters` at startup: restart to change it, no schema setting, per-query override or reindex | The settings change matching, not stored tokens, so schema configuration would couple a free query-side change to index identity. Per-query overrides are deferred to the suggester's design because a typing-mode switch belongs with the preview requirement | *Verification → F1b*; `FulltextOptions`, `EvitaConfiguration`; [`prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md) §9 |
+| 2026-11-06 | **Option C lands: one walk at each variant's edit budget**, rather than the one-edit → two-edit cascade | The cascade was rejected because C returns identical results in the night run, takes 0.85–0.91 of its time in every complete-word cell (every interval below 1), is neutral on fragments and allocates 8–10 % less. The widest walk already classifies each hit's distance | *Verification → F1b*, night comparison; `FulltextSingleWalkEquivalenceTest` |
+| 2026-11-06 | **Option B, the allocation-free character-bound seek, is rejected** | Identical night results and 0.44–0.50 of complete-word allocation do not pay for 1.32–1.48× time on complete words and 1.15–1.20× on fragments, slower in all six rounds. Revisit only with a profile explaining where that time goes; none was run | *Verification → F1b*, night comparison |
+| 2026-11-06 | **Cap 100 terms per prefix and typo leg**, replacing the 50 of the 2026-10-20 row; exacts remain uncapped, the cap counts the union of stem and surface candidates per profile group | Keeping 50 was rejected because the e-commerce replay keeps only 98.45 % of mistyped-fragment recall against 99.86 % at 100; real phrases reach 100 % at 100 and fragment top-20 overlap reaches 99.97 %. The night cost is at most about 0.1 ms per fragment query, with intervals including 1; complete words do not need a separate lower cap. The later CMS evidence exposes the remaining unfinished-word loss | *Verification → F1b*, cap replay, real top-20 and CMS census; [`prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md) §5 |
+| 2026-11-06 | **`minLengthTwoTypos` stays 8** | Raising it to 9 or 10 was rejected because the by-token time gains (0.74–0.75 / 0.58–0.60) remove two-edit matches on 8- / 8- and 9-letter words; at 10 an intended two-typo word goes from 7,257 hits to none. The whole-query gain is at most about 0.4 ms, and the server setting remains available to anyone who wants that trade | *Verification → F1b*, night comparison; `FulltextTypoParameters` |
+| 2026-11-06 | **The postings safety net uses predicted time: `max(25 ms, 25 ns × N)`**, with exact postings reserved first and a global stop at the first overflowing inexact stem | Wall clock was rejected because replicas, paging and load would make the same query answer differently. The proportional budget alone was rejected because it cuts harmless real searches on small catalogs; the fixed floor prevents that. Exacts survive even above the limit. Skip-and-continue was not chosen: the e-commerce drop-rule comparison was moot (under 0.1 % of fragments affected), and the owner chose to stop at the limit | *Verification → F1b*, postings budget; `FulltextPostingsBudget`; [`prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md) §5, §10 |
+| 2026-11-06 | **An unfinished final stop word kept only for completions leaves the query if the budget cuts all of them; the remaining words are priced again for their own count** | Keeping the emptied stop word was rejected because completions are guesses, while the exact words are what the user typed. Keeping the old word count was rejected because the allowance must describe the query that remains | *Verification → F1b*; `FulltextPostingsBudgetIntegrationTest$Planning#shouldDropUnfinishedStopWordWhenBudgetCutsItsCompletions` |
 
 ### Why the in-house core won
 
@@ -263,7 +273,8 @@ dearer than linear costing suggests and the gate should be tighter.
 | **Typo** — typo tolerance as a `TokenFilter` inside `BuiltInAnalyzers` | An analyzer is a normalizer: the same chain runs over the value and over the query and has no access to the dictionary, while typo tolerance needs one query term *and the whole dictionary* and runs at matching time. No such Lucene filter exists, and the filters that look similar (n-gram, phonetic) are index-time expansions with a different trade-off. Confirmed by the proof of concept: the typo component sits between the analyzed query and the term dictionary as a term-expansion step and needs nothing from the analyzer registry | Never; `prototypes/typo-tolerance-fulltext-dictionary.md` §3.1 |
 | **Typo** — a trie walk carrying a Levenshtein DP row (the Typesense shape) | The term dictionary is a paged B+ tree of front-coded whole keys, not a character trie, and the DP walk needs per-character edges — the same reason P3 §3.6 rejected the simultaneous-descent variant T3: the tree exposes no label boundaries | Measurement shows seeks dominant *after* the intra-leaf fast path exists; `prototypes/typo-tolerance-fulltext-dictionary.md` §5.5 |
 | **Typo** — index-time materialization of the typo neighbourhood (SymSpell-style deletion indexes, Meilisearch's materialized prefix databases) | Write amplification for a read-time feature — P8 measured a touched derived key at 30.7× the bytes of an average one — and it locks parameters that the configuration-cost rule says must stay free: anything baked into stored tokens makes a threshold change a reindex | Never for the main index. Re-examined on 2026-10-21 for three- and four-letter prefixes (`prototypes/typo-tolerance-fulltext-dictionary.md` §12, §9 item 1): the dictionary walk is cheap there, but the union of the postings it reaches is not, so Meilisearch's prefix databases buy something a seekable walk cannot. The rejection was kept, and no prefix leg runs below four letters instead |
-| **Typo** — an intra-leaf `seek(K)` on `BucketCursor` to spare the guided walk a root descent per rejection | **No longer rejected or deferred: measured as worth building on 2026-10-21, proposed and not scheduled.** On the real corpus and the production tree shape (leaves of 256 front-coded keys), root-to-leaf descents are 55 % of walk time and 96 % of rejections land in the current leaf; the upper bound on the saving is 54 % of walk time, 63–65 % for two-edit walks. Reading the leaf sequentially makes walks 3.1× slower, so the gain needs a binary search over the leaf's key column, private to `ForwardBucketCursor` — a change to the MVCC tree, not to the walker | Built when the engine change to `TransactionalBucketBPlusTree` is taken up; `prototypes/typo-tolerance-fulltext-dictionary.md` §5.4.1 has the measurement, `prototypes/typo-tolerance-fulltext-dictionary-algorithm.md` §2.4 the algorithm |
+| **Typo** — an intra-leaf `seek(K)` on `BucketCursor` to spare the guided walk a root descent per rejection | **Built, no longer rejected or deferred:** `b6e2fd80c5` adds the cursor seek and `2a4d3d78a3` switches the walker to it (2026-11-04 / 05). The earlier production-shape evidence stands: root descents were 55 % of walk time and 96 % of rejections stayed in the current leaf; sequential leaf reading was rejected because it made walks 3.1× slower | Closed; `BucketBPlusTreeSeekTest`, *Verification → F1b*; [`prototypes/typo-tolerance-fulltext-dictionary.md`](prototypes/typo-tolerance-fulltext-dictionary.md) §5.4.1; [`prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md) §2.4 |
+| **Typo** — option B, allocation-free character-bound seeking for the dictionary walks | The night run returned identical results and cut complete-word allocation to 0.44–0.50, but took 1.32–1.48× time on complete words and 1.15–1.20× on fragments, slower in all six rounds | A profile explains the extra time and identifies a fix; that profile was never run. *Verification → F1b* |
 | **Typo** — a single `u − 4d` pigeonhole threshold as *the* candidate generator of a Damerau fuzzy `contains` | Correct but dominated on every measured row: at the same semantics, swap expansion (a `u − 3d` Levenshtein query plus the `L − 1` swapped variants looked up exactly) yields 2–20× fewer candidates and is never slower end to end, and at one edit full enumeration of the neighbourhood needs no threshold at all, serves 4+ character fragments in ~1 ms where the threshold is a 30 ms scan, and its candidates are essentially the true matches (enumeration itself was then not adopted either, 2026-10-21: swap expansion is the decided generator at both edit levels) | Kept only as the simplest correct baseline the others are asserted against; `prototypes/typo-tolerance-fuzzy-contains.md` §6.2–§6.4 |
 | **Semantic** — the embedder in the server configuration | Catalogs use different embedders and different keys, and the definition changes stored vectors — schema-level cost of change | A deployment-wide default connection is wanted on top of the schema definitions |
 | **Semantic** — the embedder inside an analyzer profile | A change of analysis steps would discard the vectors and a model change the postings: two expensive rebuilds coupled | Never |
@@ -380,6 +391,32 @@ Shallow pointers only — the depth is in the supporting files.
   lives on the common `EntityIndex` ancestor, not on `GlobalEntityIndex`, so reduced indexes have it
   too; the restriction is enforced the way `ReferencedTypeEntityIndex` does it for the sort
   structure — by overriding the method with an empty body and a comment saying why.
+
+### F1b — typo tolerance on the query-side branch
+
+`TextMatchesTranslator` delegates expansion to `FulltextTermExpansion`; `FulltextTypoParameters` supplies the
+submitted-search policy. `FulltextDictionaryWalker` builds the automaton once per variant and walks each field's
+range, seeking strictly forward through `BucketCursor#seek`. The surface-form lane in `FulltextIndex` maps the
+profile's normalized typed spelling to stems; it is maintained and persisted with the index. Stem and surface legs
+merge before each leg's cap, by smallest distance, largest per-field frequency and term order. A discarded prefix
+can still compete in the typo leg. These are query-side branch implementations, not claims about the integration
+branch. The historical algorithm is in
+[the algorithm specification](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md);
+the decisions above record the later cap and single-walk changes.
+
+`FulltextPostingsBudget` reserves exact postings before admitting inexact expansions, even when exacts alone exceed
+the budget. It stops globally at the first overflow: a required word may be left empty and the query then matches
+nothing; dropping such a word would broaden the search. The exception is an unfinished final stop word retained
+only for prefix completions: if none survive, it leaves the query and the budget is recalculated for the remaining
+word count. `N` is the scope's locale-bearing entity count, before other filters. This bounds predicted postings
+work, not dictionary walking or elapsed query time.
+
+`FulltextPhaseOneScorer` packs matched words at bit 56, TYPO at 48, EXACTNESS at 40 and impact at 32 in the 64-bit
+composite; ties use ascending primary key. TYPO is 255 minus summed best per-word edit distance, saturating at zero;
+EXACTNESS is 255 minus the number of non-exact matched words. Both take the best across expansions and profile
+groups. A word-number split is one required OR of original and parts, grouped by corrected offset containment;
+scoring credits the original or all parts above one part, without decoding coverage while building the formula.
+A typo of the original reaching its own part does not earn whole-word coverage.
 
 ### The trigram substring index — shipped
 
@@ -519,9 +556,11 @@ Later prototypes carry their own numbers: P3 suggester p99 ≤ 5 ms per keystrok
 expansion; P4 re-rank of the top 1000 ≤ 10 ms; P6 vector spike recall@10 ≥ 0.95 and < 10 ms / 1M as
 its own mini-gate. The typo leg of the P3 criterion has its first number (2026-09-30): the automaton-guided
 walk over a 241 494-key folded vocabulary costs 12–28 µs per query word at one edit with a frozen first
-letter and 140–630 µs at two, against 1.1–2.3 ms for the linear scan — `LevenshteinDictionaryWalkBenchmark`,
-read in `prototypes/typo-tolerance-fulltext-dictionary.md` §5.3. The whole-query budget was measured on the CMS
-corpus of 972,611 articles on 2026-10-20 (same document, §10.7 d–e): a keystroke meets it from five letters, and a
+letter and 140–630 µs at two, against 1.1–2.3 ms for the linear scan — `LevenshteinDictionaryWalkBenchmark`
+(the prototype harness was removed once the engine implementation replaced it; `abc35da8ac` is the last commit
+containing it, recoverable with `git show abc35da8ac:<path>`), read in
+`prototypes/typo-tolerance-fulltext-dictionary.md` §5.3. The whole-query budget was measured on the CMS corpus of
+972,611 articles on 2026-10-20 (same document, §10.7 d–e): a keystroke meets it from five letters, and a
 submitted search with two edits costs 6.3 ms at p50 and 24.9 ms at p99, inside the 25 ms phase-1 budget.
 
 ### F1: the phase-one posting feed — measured on the query-side branch
@@ -590,6 +629,117 @@ A second run swept the limit over 5,000 / 7,000 / 10,000 / 15,000 / 20,000: CMS 
 1.001 (one query 1.42× at 5,000), every MEDIUM cell within a percent. 10,000 reproduced across the two runs (0.798 and
 0.789 on CMS 2 × HIGH). The best route chosen per decision in hindsight would reach 0.73 there, so some headroom is
 left. `FulltextFormulaTest#shouldReadEveryTermThroughTheUnionPastTheNarrowingLimit` pins the route.
+
+### F1b: typo tolerance — measured on the query-side branch
+
+The engine walker, cursor seek, stem and surface expansion, configuration and ranking landed on
+`258-fulltext-query-side` on 2026-11-04 / 05; the cap, single walk and postings budget followed on 2026-11-06
+(`f32d0b0b84`, test follow-up `abc35da8ac`). The measurements below are aggregates from internal working notes;
+they cover this branch, before its pull request. `textMatches` uses submitted-search rules; the as-you-type mode
+waits for P3's suggester.
+
+**Night comparison, 2026-11-05 / 06.** `TextMatchesQueryBenchmark`, plain and ranked queries on the e-commerce
+catalog (~172,000 products), 64 queries per census cohort, six alternating rounds. By-token, by-vocabulary,
+name-phrase, wide-word and fragment cohorts stay separate. Ratios are median fork totals against the baseline
+(cap 50, `minLengthTwoTypos = 8`), with 90 % bootstrap intervals. The catalog's own benchmark uses 18–31 % of the
+box, so the clean-fork limit was 31 %, not the CMS run's 15 %; it retained 323 of 324 forks. Raising that limit to
+40 % did not change the conclusions. Options B and C had identical total counts and ordered page keys to the
+baseline throughout the run.
+
+| Change | Complete words / wide words: time ratio | Fragments: time ratio | Allocation against baseline | Outcome |
+|---|---|---|---|---|
+| C — one walk at the variant's edit budget | 0.85–0.91; every interval below 1 | 0.97–1.01; intervals include 1 | 8–10 % less | chosen; same measured results |
+| B — character-bound seek | 1.32–1.48 | 1.15–1.20 | complete words 0.44–0.50; fragments 0.65–0.72 | rejected: slower in all six rounds; no profile was run |
+| A — two edits from 9 letters | by-token 0.74–0.75 | neutral; identical work and results | — | rejected: removes two-edit matches of 8-letter words |
+| A — two edits from 10 letters | by-token 0.58–0.60 | neutral; identical work and results | — | rejected: also removes 9-letter two-edit matches; one intended word falls from 7,257 hits to none |
+| Cap 100 against 50 — wide words | plain 1.014 [0.99, 1.04]; ranked 0.994 [0.97, 1.02] | — | 1.01 | no resolvable cost |
+| Cap 100 against 50 — fragments | — | plain 1.130 [0.99, 1.15]; ranked 1.036 [0.99, 1.11] | 1.06 | +0.03–0.1 ms per query; both intervals include 1 |
+
+Threshold changes buy speed by removing matches, not by doing the same work faster. The owner's whole-query
+saving estimate was at most about 0.4 ms, so the two-edit threshold stays 8 and remains a server option. C combined
+with a higher threshold was not measured. The single-walk equivalence applies to well-formed terms; on malformed
+terms the widest walk can recover a validly classified hit that a narrower scalar-successor seek skipped. The
+candidate containment and full-cap behavior are pinned by `FulltextSingleWalkEquivalenceTest`.
+
+**Surface-lane write cost, 2026-11-05.** A production e-commerce WAL slice, 401 transactions covering 14 hours,
+serial commits, 4 MiB buffer, 12 ABBA single-shot JMH forks, a quiet box before every fork. The comparison isolates
+the lane (`2a4d3d78a3` without it, `097666609e` with it): throughput is 0.975 of baseline, a **2.5 % drop**.
+This is text-light traffic; it does not price a bulk description rewrite.
+
+**Cap census, 2026-11-05 and 2026-11-09.** `FulltextExpansionCensusMeasurementTest` calls real expansion with the
+cap lifted to 10,000 and replays smaller caps. The e-commerce census has 62,558 synthetic queries and no leg
+reaches that bound. The CMS corpus (972,611 articles, `html-text` on the body) has 53,718 synthetic queries, the
+same harness and seed; 16 legs reach the bound, so “uncapped” is a censored reference there. No real phrases exist
+for the CMS corpus. Recall means a clean target stem survives per word / split part / profile group; **kept share
+is recall at the cap divided by uncapped recall**, not absolute recall. There is no blended cohort score.
+
+| Replay cohort / kind | E-commerce cap 50: kept share | E-commerce cap 100: kept share | CMS cap 100: kept share |
+|---|---|---|---|
+| Complete words: by-token, by-vocabulary, name phrases | 100 % | 100 % | 100 % in every cohort |
+| Wide words, fragment kind | 99.58 % | 99.86 % | 99.52 % |
+| Clean fragments | 99.43 % | 99.93 % | 93.2 % |
+| Mistyped fragments | 98.45 % | 99.86 % | **87.95 %** |
+
+Replay overstates the loss: a prefix discarded by the smaller cap can return through the typo leg. The real engine
+therefore also ran ranked top-20 comparisons against uncapped; the CMS comparison has the postings budget active
+in both arms. Overlap is the intersection divided by the larger returned list size, up to 20; two empty results agree.
+
+| Real engine cohort | Cap | Top-20 overlap | Identical ordering |
+|---|---|---|---|
+| E-commerce fragments | 50 | 99.83 % | 97.7 % |
+| E-commerce fragments | 100 | 99.97 % | 99.5 % |
+| E-commerce wide words, fragment kind | 100 | 99.62 % | 99.0 % |
+| CMS fragments | 100 | **98.47 %** (clean 98.34 %, mistyped 98.60 %) | 85.8 % |
+| CMS wide cohort | 100 | 99.88 % | 98.3 % |
+
+On the e-commerce corpus, complete-word top-20 overlap is 100 % at caps 50 and 100. In the separate real-phrase
+round on **seven production catalogs (three tenants)**, finished and open phrases, clean and one-typo controls,
+kept share is at least 99.9 % at cap 50 and 100 % at cap 100; top-20 overlap is 1.0000 at both caps and click ranks
+are unchanged in all 32 cells. Those smaller catalogs confirm the quality choice, rather than stressing its cost.
+
+**Postings budget at production limits.** `FulltextPostingsBudget` solves
+`F + W(k-1) + P*S + M*min(S/k, N)` against `max(25 ms, 25 ns × N)`: `S` is summed postings across the scoped
+query and `k` its mandatory word count. Coefficients and the closed-form branches live in that class. For the CMS
+corpus, `N = 972,611` and the 25 ms floor applies; the summed-postings limits are:
+
+| Mandatory words | CMS summed-postings limit | Clean fragment queries cut at cap 100 | Mistyped fragment queries cut at cap 100 |
+|---|---|---|---|
+| 1 | 1,697,056 | 5.3 % | 3.1 % |
+| 2 | 1,818,962 | 4.6 % | 2.8 % |
+| 3 | 2,175,870 | 3.3 % | 1.8 % |
+
+This is census replay using those limits, not the census harness's older, tighter proposal. At cap 100 the budget
+cuts **zero** by-token or by-vocabulary complete-word queries; it cuts 0.4 % of clean and 0.06 % of one-typo name
+phrases, and 0.2 % of wide fragment queries at the one-word limit. On every cut query, the intended word's recall
+is unchanged: the cut removes only expansions that do not carry the target. The e-commerce one-word limit is over
+3 million postings, while its largest whole-query `S` is 229,000 even uncapped; the production budget never bites
+there. The earlier e-commerce comparison of drop rules affected under 0.1 % of fragments, so it could not decide
+between skipping and stopping. The owner chose the global stop, with exacts kept.
+
+**Expansion wall time is indicative, not latency.** Both censuses run in one JVM on a busy box, uncapped, without
+controlled JIT or GC. Complete-word expansion p99 is 15–31 ms per word on the CMS corpus against 10–16 ms on the
+e-commerce catalog. CMS fragments take p50 2.3–3.4 ms, p90 51–75 ms and p99 1.4–2.0 s, against about 7 ms p99 on
+e-commerce fragments. The CMS capped top-20 run takes half the wall time of the uncapped one on the same queries,
+so much of that tail belongs to the 10,000-term setting; **a timed cap-100 measurement was not run**. The postings
+budget does not bound the dictionary walk.
+
+**Behavior pinned in code.** `FuzzyDictionaryWalkTest` and `FulltextEditDistanceTest` compare the engine walk and
+distances with independent scans; `BucketBPlusTreeSeekTest` compares a seek and every subsequent cursor step with a
+fresh cursor. `TextMatchesExpansionTest` covers cap ordering, determinism, uncapped exacts and a discarded prefix
+re-entering the typo leg. `FulltextSurfaceExpansionTest`, `FulltextSurfaceFormIndexTest` and
+`GlobalEntityIndexFulltextPersistenceTest` cover shared stem/lane caps, normalization, maintenance and persistence.
+`FulltextPhaseOneScorerTest`, `FulltextWordRankingFunctionalTest` and `TypoToleranceEngineBehaviourTest` pin the
+ranking lanes, split coverage and the historical behavior examples through real evitaQL. `FulltextOptionsTest`,
+`FulltextConfigurationFunctionalTest` and `EvitaServerTest.FulltextConfiguration` pin defaults, validation and
+configuration loading.
+
+`FulltextPostingsBudgetTest` pins exact reservation above budget, a global stop and an empty required word;
+`FulltextPostingsBudgetIntegrationTest` exercises the translator, scope count, group-before-part ordering and census
+agreement. Its
+`FulltextPostingsBudgetIntegrationTest$Planning#shouldDropUnfinishedStopWordWhenBudgetCutsItsCompletions`
+fails without either the post-cut completion check or re-pricing the remaining words. The census does not model
+that post-cut stop-word check; its recall replay must not be read as proof of that special path. The implementation's
+checks and counterfactual results are recorded in internal working notes.
 
 ### P8 — measured, not planned
 
@@ -1317,22 +1467,25 @@ rather than a tuning one. Both are open items below.
 
 ### Open items — typo tolerance
 
-The `prototypes/typo-tolerance-*.md` documents are **interim results**. For the term dictionary, the algorithm to
-implement is decided and specified without its reasoning in
-[`prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md);
-the analysis it is drawn from, with every measurement, is
-[`prototypes/typo-tolerance-fulltext-dictionary.md`](prototypes/typo-tolerance-fulltext-dictionary.md). The Damerau
-metric for fuzzy `contains` is decided. What is still open:
+The term-dictionary path is built on the query-side branch; its historical analysis and algorithm remain in
+[`prototypes/typo-tolerance-fulltext-dictionary.md`](prototypes/typo-tolerance-fulltext-dictionary.md) and
+[the algorithm specification](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md).
+*Verification → F1b* records the later decisions and the e-commerce and CMS measurements. The Damerau metric for
+fuzzy `contains` is decided. What is still open:
 
-- **The typo-lane weights need real-world queries.** How much one or two typos push a result down cannot be
-  read from a corpus; it needs judged results or click data. Until then raw typo counts `(0, 1, 2)` are the
-  default (algorithm document §10).
-- **The intra-leaf seek is worth building and not scheduled** — an engine change to
-  `TransactionalBucketBPlusTree` (algorithm document §2.4, analysis §5.4.1).
+- **The typo-lane weights still need calibration.** Click data now exists for three tenants, and a first
+  bias-corrected comparison is in internal working notes. It does not yet replace raw typo counts `(0, 1, 2)`;
+  judged results or click evidence must decide how much each edit should demote a result (algorithm document §10).
+- **On the CMS corpus the cap is what bites on unfinished words.** At cap 100, real top-20 overlap is about
+  98.5 %, while mistyped fragments keep only 87.95 % of intended-word recall in the replay. Replay overstates
+  the loss, but the engine comparison still shows a larger cut than on e-commerce. The production postings budget
+  touches only a few percent of fragment queries and costs none of their intended-word recall; raising that
+  budget would not address the cap's loss.
+- **Time an unfinished word's dictionary walk at cap 100 on the large CMS vocabulary, on the owner's go.**
+  The uncapped indicative tail and the capped top-20 run's wall time do not establish its latency. The budget bounds
+  postings, not the walk, so that measurement remains necessary before claiming the unfinished-word cost is bounded.
 - **Opt-outs beyond the digit rule** — per attribute, per word list — are a question of the developer-facing
   API; the algorithm's only hook is 0 edits (algorithm document §9).
-- **The e-commerce corpus** (short names and codes, two locales) was not measured; every real-corpus number is
-  from the CMS corpus, and the as-you-type budget is where the two differ most (analysis §9 item 10).
 - **Fuzzy `contains` owes the real corpus.** The alphabet size drives the enumeration's lookup count
   (`L · |Σ|`, 38 code points on the fixture); the dense per-value counter beat the asymptotically better
   prefix filter by 1–2.5× at 10⁵–2.5·10⁵ values and may not at production scale; the dense counter
@@ -1545,6 +1698,21 @@ metric for fuzzy `contains` is decided. What is still open:
   supported type with a base64 literal, no semantic reference attributes in F2; weights on individual `textMatches`
   recorded as a later advancement and weights on filter constraints rejected. The raw-vector storage conflict was
   analysed with a third review (gpt-6-astra) and handed to the P6 owner
+- **2026-11-03** — on the query-side branch, per-field analyzer chains compiled and fingerprinted, then used by
+  indexing and shared query splitting; query words kept aligned with the fields' own analysis
+- **2026-11-04** — F1b engine walker, stem prefix/typo expansion, surface-form lane and bucket cursor seek built;
+  `textMatches` keeps submitted-search rules, with the as-you-type mode reserved for P3's suggester
+- **2026-11-05** — the walker switches to the intra-leaf seek; TYPO / EXACTNESS ranking and split-word coverage,
+  server-wide query-side configuration and surface-lane expansion land. Lane write cost measured as a 2.5 %
+  throughput drop on the production WAL slice; e-commerce census and real-phrase round complete
+- **2026-11-06** — after the night comparison, the owner chooses C, cap 100 and the two-edit threshold of 8,
+  rejects B for its extra time, and chooses a predicted-time postings budget with a fixed floor and global stop;
+  exacts survive, an unfinished stop word with no surviving completion leaves the query. Implemented in
+  `f32d0b0b84`, followed by the test follow-up `abc35da8ac` (*Verification → F1b*)
+- **2026-11-09** — CMS census and real top-20 cap comparison complete: the cap cuts unfinished-word quality more
+  than the production postings budget does; timed cap-100 dictionary-walk cost remains open. The test-support typo
+  harness is retired in the pre-PR cleanup after engine tests replace it; the historical prototype documents keep
+  their measurements and point to `abc35da8ac` for recovery
 
 ## Supporting material
 
