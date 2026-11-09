@@ -103,7 +103,8 @@ public class ModifyAssociatedDataSchemaDeprecationNoticeMutation
 			associatedDataSchema.getSearchableInScopes(),
 			associatedDataSchema.getTextExpression(),
 			associatedDataSchema.getConflictResolutionOverride(),
-			associatedDataSchema.getAnalyzer(), associatedDataSchema.getLengthPivot()
+			associatedDataSchema.getAnalyzer(), associatedDataSchema.getLengthPivot(),
+			associatedDataSchema.getSearchWeight()
 		);
 	}
 

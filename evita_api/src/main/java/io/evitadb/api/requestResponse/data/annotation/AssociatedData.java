@@ -110,6 +110,13 @@ public @interface AssociatedData {
 	int lengthPivot() default AttributeSchemaContract.DEFAULT_LENGTH_PIVOT;
 
 	/**
+	 * Fulltext ranking weight, shared by all scopes. Zero preserves matches without contributing ranking strength.
+	 *
+	 * @return finite, non-negative ranking weight, defaulting to 1.0
+	 */
+	float searchWeight() default AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT;
+
+	/**
 	 * Per-item conflict resolution granularity override for this associated data. {@link ConflictResolutionOverride#INHERITED}
 	 * (the default) follows the conflict resolution resolved from the entity schema, catalog schema and engine
 	 * configuration; {@link ConflictResolutionOverride#GRANULAR} opts this associated data into its own

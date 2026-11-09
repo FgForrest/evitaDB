@@ -27,8 +27,11 @@ import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
 import io.evitadb.externalApi.api.resolver.mutation.MutationConverter;
 import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.resolver.mutation.Output;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.math.BigDecimal;
 
 /**
  * Ancestor for all mutation resolver resolving {@link SchemaMutation}s
@@ -40,5 +43,23 @@ public abstract class SchemaMutationConverter<M extends SchemaMutation> extends 
 	protected SchemaMutationConverter(@Nonnull MutationObjectMapper objectParser,
 	                               @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
+	}
+
+	/**
+	 * Writes a present ranking weight before reflection reaches it, because {@link Output} cannot serialize a `Float`.
+	 * The weight is output-only so far - it has no descriptor and no input counterpart - so the property is written
+	 * by name. A finite weight is written as a decimal; a non-finite one, which a mutation may carry until schema
+	 * validation refuses it, has no decimal form and is written verbatim (`NaN`, `Infinity`, `-Infinity`).
+	 *
+	 * @param weight the supplied ranking weight, or `null` to omit the property
+	 * @param output the mutation output receiving the value
+	 */
+	protected static void writeSearchWeight(@Nullable Float weight, @Nonnull Output output) {
+		if (weight != null) {
+			output.setProperty(
+				"searchWeight",
+				Float.isFinite(weight) ? new BigDecimal(Float.toString(weight)) : Float.toString(weight)
+			);
+		}
 	}
 }

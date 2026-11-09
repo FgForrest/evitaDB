@@ -136,7 +136,8 @@ public class SetAttributeSchemaGloballyUniqueMutation
 					globalAttributeSchema.getIndexedDecimalPlaces(),
 					globalAttributeSchema.getConflictResolutionOverride(),
 					globalAttributeSchema.getNormalization(),
-					globalAttributeSchema.getAnalyzer(), globalAttributeSchema.getLengthPivot()
+					globalAttributeSchema.getAnalyzer(), globalAttributeSchema.getLengthPivot(),
+					globalAttributeSchema.getSearchWeight()
 				);
 			}
 		} else {

@@ -120,6 +120,7 @@ public class CreateAttributeSchemaMutationConverter
 			readNormalization(input),
 			// the fulltext field settings have no GraphQL/REST mirror yet, so the defaults apply
 			null,
+			null,
 			null
 		);
 	}
@@ -128,6 +129,7 @@ public class CreateAttributeSchemaMutationConverter
 	@Override
 	protected void convertToOutput(@Nonnull CreateAttributeSchemaMutation mutation, @Nonnull Output output) {
 		writeNormalization(mutation.getNormalization(), output);
+		writeSearchWeight(mutation.getSearchWeight(), output);
 		super.convertToOutput(mutation, output);
 	}
 }

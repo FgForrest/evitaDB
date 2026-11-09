@@ -234,21 +234,22 @@ class FulltextCatalogSchemaSerializationTest {
 			),
 			new RemoveFulltextAnalyzerSchemaMutation("names"),
 			// the fields carry the analyzer and the pivot - set, and left to the current value
-			new SetAttributeSchemaSearchableMutation("name", new Scope[]{Scope.LIVE}, "html-title", 8),
+			new SetAttributeSchemaSearchableMutation("name", new Scope[]{Scope.LIVE}, "html-title", 8, null),
 			new SetAttributeSchemaSearchableMutation("name", new Scope[]{Scope.LIVE}),
-			new SetAssociatedDataSchemaSearchableMutation("body", Scope.values(), null, "names", 400),
-			new SetAssociatedDataSchemaSearchableMutation("body", Scope.values(), null, null, 400),
+			new SetAssociatedDataSchemaSearchableMutation("body", Scope.values(), null, "names", 400, null),
+			new SetAssociatedDataSchemaSearchableMutation("body", Scope.values(), null, null, 400, null),
 			new CreateAttributeSchemaMutation(
 				"name", null, null, null, null, null, new Scope[]{Scope.LIVE}, null,
-				true, false, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, null, "html-title", 8
+				true, false, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, null, "html-title", 8,
+				null
 			),
 			new CreateGlobalAttributeSchemaMutation(
 				"title", null, null, null, null, null, null, new Scope[]{Scope.LIVE}, null,
-				true, false, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, null, null, 12
+				true, false, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, null, null, 12, null
 			),
 			new CreateAssociatedDataSchemaMutation(
 				"body", null, null, String.class, true, true, new Scope[]{Scope.LIVE}, null,
-				ConflictResolutionOverride.INHERITED, "names", null
+				ConflictResolutionOverride.INHERITED, "names", null, null
 			)
 		).map(mutation -> Arguments.of(mutation.getClass().getSimpleName(), mutation));
 	}
@@ -321,37 +322,39 @@ class FulltextCatalogSchemaSerializationTest {
 	class Fields {
 
 		@Test
-		@DisplayName("round-trips the analyzer and the length pivot of every kind of field")
+		@DisplayName("round-trips the analyzer, the length pivot and the search weight of every kind of field")
 		void shouldRoundTripTheFieldSettings() {
 			final Kryo kryo = createCatalogKryo();
-			final List<Object> fields = List.of(
-				AttributeSchema._internalBuild(
-					"brandName", null, null, null, null, null, Set.of(Scope.LIVE), null,
-					true, true, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, null,
-					"html-title", 8
-				),
-				EntityAttributeSchema._internalBuild(
-					"name", null, null, null, null, null, Set.of(Scope.LIVE), null,
-					true, true, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, null,
-					"names", 12
-				),
-				GlobalAttributeSchema._internalBuild(
-					"title", (String) null, null, null, null, null, null, new Scope[]{Scope.LIVE}, null,
-					true, true, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, null,
-					FulltextAnalyzerSchemaContract.TEXT, 40
-				),
-				AssociatedDataSchema._internalBuild(
-					"body", null, null, String.class, true, true, new Scope[]{Scope.LIVE}, null,
-					ConflictResolutionOverride.INHERITED, FulltextAnalyzerSchemaContract.HTML_TEXT, 400
-				)
-			);
-			for (final Object field : fields) {
-				final ByteArrayOutputStream baos = new ByteArrayOutputStream(512);
-				try (final Output output = new Output(baos)) {
-					kryo.writeObject(output, field);
-				}
-				try (final Input input = new Input(baos.toByteArray())) {
-					assertEquals(field, kryo.readObject(input, field.getClass()), field.toString());
+			for (final float weight : new float[]{0.0f, 2.5f}) {
+				final List<Object> fields = List.of(
+					AttributeSchema._internalBuild(
+						"brandName", null, null, null, null, null, Set.of(Scope.LIVE), null,
+						true, true, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, null,
+						"html-title", 8, weight
+					),
+					EntityAttributeSchema._internalBuild(
+						"name", null, null, null, null, null, Set.of(Scope.LIVE), null,
+						true, true, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, null,
+						"names", 12, weight
+					),
+					GlobalAttributeSchema._internalBuild(
+						"title", (String) null, null, null, null, null, null, new Scope[]{Scope.LIVE}, null,
+						true, true, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, null,
+						FulltextAnalyzerSchemaContract.TEXT, 40, weight
+					),
+					AssociatedDataSchema._internalBuild(
+						"body", null, null, String.class, true, true, new Scope[]{Scope.LIVE}, null,
+						ConflictResolutionOverride.INHERITED, FulltextAnalyzerSchemaContract.HTML_TEXT, 400, weight
+					)
+				);
+				for (final Object field : fields) {
+					final ByteArrayOutputStream baos = new ByteArrayOutputStream(512);
+					try (final Output output = new Output(baos)) {
+						kryo.writeObject(output, field);
+					}
+					try (final Input input = new Input(baos.toByteArray())) {
+						assertEquals(field, kryo.readObject(input, field.getClass()), field.toString());
+					}
 				}
 			}
 		}

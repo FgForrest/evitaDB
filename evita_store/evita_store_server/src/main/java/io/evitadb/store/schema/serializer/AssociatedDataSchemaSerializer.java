@@ -73,7 +73,7 @@ public class AssociatedDataSchemaSerializer extends Serializer<AssociatedDataSch
 		}
 		kryo.writeObject(output, associatedDataSchema.getConflictResolutionOverride());
 		// the searchability section is appended last - the scopes, the optional text expression, then the fulltext
-		// field settings (analyzer, length pivot)
+		// field settings (analyzer, length pivot, ranking weight)
 		EntitySchemaSerializer.writeScopeSet(kryo, output, associatedDataSchema.getSearchableInScopes());
 		final Expression textExpression = associatedDataSchema.getTextExpression();
 		if (textExpression != null) {
@@ -84,6 +84,7 @@ public class AssociatedDataSchemaSerializer extends Serializer<AssociatedDataSch
 		}
 		output.writeString(associatedDataSchema.getAnalyzer());
 		output.writeVarInt(associatedDataSchema.getLengthPivot(), true);
+		output.writeFloat(associatedDataSchema.getSearchWeight());
 	}
 
 	@Override
@@ -108,9 +109,10 @@ public class AssociatedDataSchemaSerializer extends Serializer<AssociatedDataSch
 		final Expression textExpression = input.readBoolean() ? kryo.readObject(input, Expression.class) : null;
 		final String analyzer = input.readString();
 		final int lengthPivot = input.readVarInt(true);
+		final float searchWeight = input.readFloat();
 		return AssociatedDataSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice, type, localized, nullable, searchableInScopes,
-			textExpression, conflictResolutionOverride, analyzer, lengthPivot
+			textExpression, conflictResolutionOverride, analyzer, lengthPivot, searchWeight
 		);
 	}
 

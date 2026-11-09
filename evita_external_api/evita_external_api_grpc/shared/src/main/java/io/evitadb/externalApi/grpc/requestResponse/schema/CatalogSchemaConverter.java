@@ -271,7 +271,8 @@ public class CatalogSchemaConverter {
 			attributeSchema.getIndexedDecimalPlaces(),
 			EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
 			toAnalysisSteps(attributeSchema.getNormalizedList()),
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 

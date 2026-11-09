@@ -208,13 +208,13 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 	@Override
 	public AssociatedDataSchemaBuilder analyzer(@Nonnull String analyzerName) {
 		Assert.notNull(analyzerName, "Analyzer name must not be null.");
-		return setFulltextField(analyzerName, null);
+		return setFulltextField(analyzerName, null, null);
 	}
 
 	@Nonnull
 	@Override
 	public AssociatedDataSchemaBuilder lengthPivot(int lengthPivot) {
-		return setFulltextField(null, lengthPivot);
+		return setFulltextField(null, lengthPivot, null);
 	}
 
 	@Override
@@ -305,16 +305,26 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 		return this;
 	}
 
+	@Nonnull
+	@Override
+	public AssociatedDataSchemaBuilder searchWeight(float searchWeight) {
+		return setFulltextField(null, null, searchWeight);
+	}
+
 	/**
-	 * Records the analyzer or the length pivot of the associated data's fulltext field. The searchability mutation
-	 * carries both, so it restates the scopes and the text expression currently declared and leaves them as they are.
+	 * Records the analyzer, length pivot or ranking weight of the associated data's fulltext field. The searchability
+	 * mutation carries all three, so it restates the scopes and the text expression currently declared and leaves them
+	 * as they are.
 	 *
 	 * @param analyzerName the analyzer to set, or `null` to keep the current one
 	 * @param lengthPivot  the length pivot to set, or `null` to keep the current one
+	 * @param searchWeight the ranking weight to set, or `null` to keep the current one
 	 * @return this builder
 	 */
 	@Nonnull
-	private AssociatedDataSchemaBuilder setFulltextField(@Nullable String analyzerName, @Nullable Integer lengthPivot) {
+	private AssociatedDataSchemaBuilder setFulltextField(
+		@Nullable String analyzerName, @Nullable Integer lengthPivot, @Nullable Float searchWeight
+	) {
 		final AssociatedDataSchemaContract currentSchema = assembleInstance();
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
@@ -324,7 +334,7 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 					this.baseSchema.getName(),
 					currentSchema.getSearchableInScopes().toArray(Scope[]::new),
 					currentSchema.getTextExpression(),
-					analyzerName, lengthPivot
+					analyzerName, lengthPivot, searchWeight
 				)
 			)
 		);

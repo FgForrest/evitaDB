@@ -42,6 +42,7 @@ import java.util.Arrays;
 
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readAnalysisSteps;
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readNullableLengthPivot;
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readNullableSearchWeight;
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeAnalysisSteps;
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeFulltextFieldSettings;
 
@@ -115,7 +116,9 @@ public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAt
 		if (normalization != null) {
 			writeAnalysisSteps(kryo, output, Arrays.asList(normalization));
 		}
-		writeFulltextFieldSettings(output, mutation.getAnalyzer(), mutation.getLengthPivot());
+		writeFulltextFieldSettings(
+			output, mutation.getAnalyzer(), mutation.getLengthPivot(), mutation.getSearchWeight()
+		);
 	}
 
 	@Override
@@ -145,6 +148,7 @@ public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAt
 			input.readBoolean() ? readAnalysisSteps(kryo, input).toArray(AnalysisStep[]::new) : null;
 		final String analyzer = input.readString();
 		final Integer lengthPivot = readNullableLengthPivot(input);
+		final Float searchWeight = readNullableSearchWeight(input);
 		return new CreateAttributeSchemaMutation(
 			name,
 			description,
@@ -163,7 +167,7 @@ public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAt
 			conflictResolutionOverride,
 			normalization,
 			analyzer,
-			lengthPivot
+			lengthPivot, searchWeight
 		);
 	}
 

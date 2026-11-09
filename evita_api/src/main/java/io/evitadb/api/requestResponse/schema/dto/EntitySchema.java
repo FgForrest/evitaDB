@@ -488,7 +488,8 @@ public final class EntitySchema implements EntitySchemaContract {
 				attributeSchemaContract.getIndexedDecimalPlaces(),
 				attributeSchemaContract.getConflictResolutionOverride(),
 				attributeSchemaContract.getNormalization(),
-				attributeSchemaContract.getAnalyzer(), attributeSchemaContract.getLengthPivot()
+				attributeSchemaContract.getAnalyzer(), attributeSchemaContract.getLengthPivot(),
+				attributeSchemaContract.getSearchWeight()
 			);
 		}
 	}
@@ -530,7 +531,8 @@ public final class EntitySchema implements EntitySchemaContract {
 				attributeSchemaContract.getIndexedDecimalPlaces(),
 				attributeSchemaContract.getConflictResolutionOverride(),
 				attributeSchemaContract.getNormalization(),
-				attributeSchemaContract.getAnalyzer(), attributeSchemaContract.getLengthPivot()
+				attributeSchemaContract.getAnalyzer(), attributeSchemaContract.getLengthPivot(),
+				attributeSchemaContract.getSearchWeight()
 			);
 	}
 
@@ -575,7 +577,8 @@ public final class EntitySchema implements EntitySchemaContract {
 				associatedDataSchemaContract.getSearchableInScopes(),
 				associatedDataSchemaContract.getTextExpression(),
 				associatedDataSchemaContract.getConflictResolutionOverride(),
-				associatedDataSchemaContract.getAnalyzer(), associatedDataSchemaContract.getLengthPivot()
+				associatedDataSchemaContract.getAnalyzer(), associatedDataSchemaContract.getLengthPivot(),
+				associatedDataSchemaContract.getSearchWeight()
 			);
 	}
 

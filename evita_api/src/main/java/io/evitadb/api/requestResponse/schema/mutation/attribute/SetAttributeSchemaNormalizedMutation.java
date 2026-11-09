@@ -158,7 +158,8 @@ public class SetAttributeSchemaNormalizedMutation
 					globalAttributeSchema.getIndexedDecimalPlaces(),
 					globalAttributeSchema.getConflictResolutionOverride(),
 					steps,
-					globalAttributeSchema.getAnalyzer(), globalAttributeSchema.getLengthPivot()
+					globalAttributeSchema.getAnalyzer(), globalAttributeSchema.getLengthPivot(),
+					globalAttributeSchema.getSearchWeight()
 				);
 			}
 		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
@@ -184,7 +185,8 @@ public class SetAttributeSchemaNormalizedMutation
 					entityAttributeSchema.getIndexedDecimalPlaces(),
 					entityAttributeSchema.getConflictResolutionOverride(),
 					steps,
-					entityAttributeSchema.getAnalyzer(), entityAttributeSchema.getLengthPivot()
+					entityAttributeSchema.getAnalyzer(), entityAttributeSchema.getLengthPivot(),
+					entityAttributeSchema.getSearchWeight()
 				);
 			}
 		} else {
@@ -210,7 +212,7 @@ public class SetAttributeSchemaNormalizedMutation
 					attributeSchema.getIndexedDecimalPlaces(),
 					attributeSchema.getConflictResolutionOverride(),
 					steps,
-					attributeSchema.getAnalyzer(), attributeSchema.getLengthPivot()
+					attributeSchema.getAnalyzer(), attributeSchema.getLengthPivot(), attributeSchema.getSearchWeight()
 				);
 			}
 		}

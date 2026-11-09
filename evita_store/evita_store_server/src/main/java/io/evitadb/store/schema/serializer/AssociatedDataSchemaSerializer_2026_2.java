@@ -42,8 +42,8 @@ import java.util.Map;
  * This {@link Serializer} implementation reads {@link AssociatedDataSchema} from the 2026.2 binary format that
  * predates the searchable scopes and the text expression. It is retained to keep released 2026.2 data readable after
  * an in-place upgrade; writing is unsupported. Associated data read through it is searchable nowhere, and its
- * analyzer and length pivot take their defaults, {@link FulltextAnalyzerSchemaContract#TEXT} and
- * {@link AttributeSchemaContract#DEFAULT_LENGTH_PIVOT}.
+ * analyzer, length pivot and ranking weight take their defaults, {@link FulltextAnalyzerSchemaContract#TEXT},
+ * {@link AttributeSchemaContract#DEFAULT_LENGTH_PIVOT} and {@link AttributeSchemaContract#DEFAULT_SEARCH_WEIGHT}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @deprecated the current version stores the searchable scopes and the text expression of associated data
@@ -78,7 +78,8 @@ public class AssociatedDataSchemaSerializer_2026_2 extends Serializer<Associated
 		return AssociatedDataSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice, type, localized, nullable, null, null,
 			conflictResolutionOverride,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 

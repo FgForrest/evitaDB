@@ -52,8 +52,9 @@ import java.util.Map;
  * and an empty scope set: an attribute stored before accelerators and searchability existed is plainly filterable,
  * asks the filter index for no acceleration and is searchable nowhere, which is exactly what the empty values mean.
  *
- * The format carries no fulltext field settings either: the analyzer and the length pivot take their defaults,
- * {@link FulltextAnalyzerSchemaContract#TEXT} and {@link AttributeSchemaContract#DEFAULT_LENGTH_PIVOT}.
+ * The format carries no fulltext field settings either: the analyzer, the length pivot and the ranking weight take
+ * their defaults, {@link FulltextAnalyzerSchemaContract#TEXT}, {@link AttributeSchemaContract#DEFAULT_LENGTH_PIVOT}
+ * and {@link AttributeSchemaContract#DEFAULT_SEARCH_WEIGHT}.
  *
  * This serializer only reads - writes always go through the current {@link AttributeSchemaSerializer}.
  *
@@ -109,7 +110,8 @@ public class AttributeSchemaSerializer_2026_2 extends Serializer<AttributeSchema
 			unique, filterable, null, null, sortable, localized, nullable, representative,
 			type, (Serializable) defaultValue, indexedDecimalPlaces, conflictResolutionOverride,
 			null,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 

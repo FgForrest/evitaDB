@@ -97,7 +97,7 @@ public final class AttributeSchemaBuilder
 				this.baseSchema.getIndexedDecimalPlaces(),
 				ConflictResolutionOverride.INHERITED,
 				null,
-				null, null
+				null, null, null
 			)
 		);
 	}

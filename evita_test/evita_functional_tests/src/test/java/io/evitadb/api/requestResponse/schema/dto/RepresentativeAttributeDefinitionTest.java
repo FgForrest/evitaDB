@@ -73,21 +73,24 @@ class RepresentativeAttributeDefinitionTest {
 			false, false, false, String.class, "G",
 			0, ConflictResolutionOverride.INHERITED,
 			null,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		));
 		attributes.put("beta", AttributeSchema._internalBuild(
 			"beta", null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null,
 			false, false, true, String.class, "B",
 			0, ConflictResolutionOverride.INHERITED,
 			null,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		));
 		attributes.put("alpha", AttributeSchema._internalBuild(
 			"alpha", null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null,
 			false, false, true, String.class, "A",
 			0, ConflictResolutionOverride.INHERITED,
 			null,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		));
 		return attributes;
 	}
@@ -103,7 +106,8 @@ class RepresentativeAttributeDefinitionTest {
 			false, false, true, String.class, "X",
 			0, ConflictResolutionOverride.INHERITED,
 			null,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		));
 		return attributes;
 	}
@@ -119,14 +123,16 @@ class RepresentativeAttributeDefinitionTest {
 			false, false, true, String.class, "B",
 			0, ConflictResolutionOverride.INHERITED,
 			null,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		));
 		attributes.put("alpha", AttributeSchema._internalBuild(
 			"alpha", null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null,
 			false, false, true, String.class, "A",
 			0, ConflictResolutionOverride.INHERITED,
 			null,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		));
 		return attributes;
 	}
@@ -142,14 +148,16 @@ class RepresentativeAttributeDefinitionTest {
 			false, false, false, String.class, "G",
 			0, ConflictResolutionOverride.INHERITED,
 			null,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		));
 		attributes.put("delta", AttributeSchema._internalBuild(
 			"delta", null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null,
 			false, false, false, String.class, "D",
 			0, ConflictResolutionOverride.INHERITED,
 			null,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		));
 		return attributes;
 	}
@@ -165,7 +173,8 @@ class RepresentativeAttributeDefinitionTest {
 			false, false, true, String.class, null,
 			0, ConflictResolutionOverride.INHERITED,
 			null,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		));
 		return attributes;
 	}
@@ -339,7 +348,8 @@ class RepresentativeAttributeDefinitionTest {
 					String.class, "B2",
 				0, ConflictResolutionOverride.INHERITED,
 				null,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			));
 
 			final RepresentativeAttributeDefinition a = new RepresentativeAttributeDefinition(prepareAttributes());
@@ -383,14 +393,16 @@ class RepresentativeAttributeDefinitionTest {
 					String.class, "A",
 				0, ConflictResolutionOverride.INHERITED,
 				null,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			));
 			other.put("y", AttributeSchema._internalBuild(
 				"y", null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null, false, false, true,
 					String.class, "B",
 				0, ConflictResolutionOverride.INHERITED,
 				null,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			));
 
 			final RepresentativeAttributeDefinition a = new RepresentativeAttributeDefinition(prepareAttributes());

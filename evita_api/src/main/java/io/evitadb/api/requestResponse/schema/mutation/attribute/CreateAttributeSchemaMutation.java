@@ -124,6 +124,9 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 	 */
 	@Getter @Nullable private final Integer lengthPivot;
 
+	/** Ranking weight, or `null` to use the default. */
+	@Getter @Nullable private final Float searchWeight;
+
 	/** Creates an attribute using the default scope and Unicode NFD-only normalization. */
 	public CreateAttributeSchemaMutation(
 		@Nonnull String name,
@@ -305,7 +308,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
 			null,
-			null, null
+			null, null, null
 		);
 	}
 
@@ -333,6 +336,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 	 * @param normalization              ordered normalization descriptions
 	 * @param analyzer                   the name of the fulltext analyzer, or `null` for the default one
 	 * @param lengthPivot                the length pivot, or `null` for the default one
+	 * @param searchWeight               finite, non-negative ranking weight, or `null` to use the default
 	 */
 	@SerializableCreator
 	public CreateAttributeSchemaMutation(
@@ -353,12 +357,14 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
 		@Nullable AnalysisStep[] normalization,
 		@Nullable String analyzer,
-		@Nullable Integer lengthPivot
+		@Nullable Integer lengthPivot,
+		@Nullable Float searchWeight
 	) {
 		super(name);
 		this.normalization = normalization == null ? null : normalization.clone();
 		this.analyzer = analyzer;
 		this.lengthPivot = lengthPivot;
+		this.searchWeight = searchWeight == null ? null : AttributeSchemaContract.normalizeSearchWeight(searchWeight);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ATTRIBUTE, name);
 		if (!EvitaDataTypes.isSupportedTypeOrItsArray(type)) {
 			throw new InvalidSchemaMutationException("The type `" + type + "` is not allowed in attributes!");
@@ -502,13 +508,15 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 						makeMutationIfDifferent(
 							AttributeSchemaContract.class,
 							createdVersion, existingSchema,
-							// one mutation carries the scopes, the analyzer and the pivot
+							// one mutation carries the scopes, the analyzer, pivot and ranking weight
 							schema -> List.of(
-								schema.getSearchableInScopes(), schema.getAnalyzer(), schema.getLengthPivot()
+								schema.getSearchableInScopes(), schema.getAnalyzer(), schema.getLengthPivot(),
+								schema.getSearchWeight()
 							),
 							newValue -> new SetAttributeSchemaSearchableMutation(
 								this.name, createdVersion.getSearchableInScopes().toArray(Scope[]::new),
-								createdVersion.getAnalyzer(), createdVersion.getLengthPivot()
+								createdVersion.getAnalyzer(), createdVersion.getLengthPivot(),
+								createdVersion.getSearchWeight()
 							)
 						),
 						makeMutationIfDifferent(
@@ -578,7 +586,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 				this.conflictResolutionOverride,
 				this.normalization == null ? null : Arrays.asList(this.normalization),
 				this.analyzer == null ? FulltextAnalyzerSchemaContract.TEXT : this.analyzer,
-				this.lengthPivot == null ? AttributeSchemaContract.DEFAULT_LENGTH_PIVOT : this.lengthPivot
+				this.lengthPivot == null ? AttributeSchemaContract.DEFAULT_LENGTH_PIVOT : this.lengthPivot,
+				this.searchWeight == null ? AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT : this.searchWeight
 			);
 		} else if (AttributeSchemaContract.class.isAssignableFrom(schemaType)) {
 			//noinspection unchecked,rawtypes
@@ -592,7 +601,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 				this.conflictResolutionOverride,
 				this.normalization == null ? null : Arrays.asList(this.normalization),
 				this.analyzer == null ? FulltextAnalyzerSchemaContract.TEXT : this.analyzer,
-				this.lengthPivot == null ? AttributeSchemaContract.DEFAULT_LENGTH_PIVOT : this.lengthPivot
+				this.lengthPivot == null ? AttributeSchemaContract.DEFAULT_LENGTH_PIVOT : this.lengthPivot,
+				this.searchWeight == null ? AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT : this.searchWeight
 			);
 		} else {
 			throw new InvalidSchemaMutationException("Unsupported schema type: " + schemaType);
@@ -667,7 +677,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 			this.conflictResolutionOverride,
 			this.normalization == null ? null : Arrays.asList(this.normalization),
 			this.analyzer == null ? FulltextAnalyzerSchemaContract.TEXT : this.analyzer,
-			this.lengthPivot == null ? AttributeSchemaContract.DEFAULT_LENGTH_PIVOT : this.lengthPivot
+			this.lengthPivot == null ? AttributeSchemaContract.DEFAULT_LENGTH_PIVOT : this.lengthPivot,
+			this.searchWeight == null ? AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT : this.searchWeight
 		);
 		final Optional<AttributeSchemaContract> existingAttributeSchema = getReferenceAttributeSchema(referenceSchema, this.name);
 		if (existingAttributeSchema.isEmpty()) {
@@ -753,6 +764,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 			", normalization=" + Arrays.toString(this.normalization) +
 			(this.analyzer == null ? "" : ", analyzer=" + this.analyzer) +
 			(this.lengthPivot == null ? "" : ", lengthPivot=" + this.lengthPivot) +
+			(this.searchWeight == null ? "" : ", searchWeight=" + this.searchWeight) +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +
 			", representative=" + this.representative +

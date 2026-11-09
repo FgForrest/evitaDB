@@ -88,10 +88,28 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 	@Getter private final int lengthPivot;
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of AssociatedDataSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
+	 * The fulltext ranking weight of the associated data. Unlike the analyzer and the length pivot it is not part of
+	 * the persisted fulltext field definition, so changing it never rebuilds the field. See
+	 * {@link AssociatedDataSchemaContract#getSearchWeight()}.
+	 */
+	@Getter private final float searchWeight;
+
+	/**
+	 * Reconstructs a schema, including its fulltext ranking settings, for internal use only. Not for client code.
 	 *
-	 * Do not use this method from in the client code!
+	 * @param name schema name
+	 * @param description human-readable description, or `null`
+	 * @param deprecationNotice deprecation notice, or `null`
+	 * @param type stored value type
+	 * @param localized whether values are localized
+	 * @param nullable whether values may be absent
+	 * @param searchableInScopes scopes with fulltext indexing enabled
+	 * @param textExpression complex data text selection expression, or `null`
+	 * @param conflictResolutionOverride per-item conflict resolution override
+	 * @param analyzer fulltext analyzer name
+	 * @param lengthPivot positive fulltext length pivot
+	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @return immutable schema carrying all supplied settings
 	 */
 	public static AssociatedDataSchema _internalBuild(
 		@Nonnull String name,
@@ -104,20 +122,33 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		@Nullable Expression textExpression,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
 		@Nonnull String analyzer,
-		int lengthPivot
+		int lengthPivot,
+		float searchWeight
 	) {
 		return new AssociatedDataSchema(
 			name, NamingConvention.generate(name), description, deprecationNotice, type, localized, nullable,
 			ArrayUtils.toEnumSet(Scope.class, searchableInScopes), textExpression, conflictResolutionOverride,
-			analyzer, lengthPivot
+			analyzer, lengthPivot, searchWeight
 		);
 	}
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of AssociatedDataSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
+	 * Reconstructs a schema, including its fulltext ranking settings, for internal use only. Not for client code.
 	 *
-	 * Do not use this method from in the client code!
+	 * @param name schema name
+	 * @param nameVariants names in supported naming conventions
+	 * @param description human-readable description, or `null`
+	 * @param deprecationNotice deprecation notice, or `null`
+	 * @param type stored value type
+	 * @param localized whether values are localized
+	 * @param nullable whether values may be absent
+	 * @param searchableInScopes scopes with fulltext indexing enabled
+	 * @param textExpression complex data text selection expression, or `null`
+	 * @param conflictResolutionOverride per-item conflict resolution override
+	 * @param analyzer fulltext analyzer name
+	 * @param lengthPivot positive fulltext length pivot
+	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @return immutable schema carrying all supplied settings
 	 */
 	public static AssociatedDataSchema _internalBuild(
 		@Nonnull String name,
@@ -131,12 +162,13 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		@Nullable Expression textExpression,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
 		@Nonnull String analyzer,
-		int lengthPivot
+		int lengthPivot,
+		float searchWeight
 	) {
 		return new AssociatedDataSchema(
 			name, nameVariants,
 			description, deprecationNotice, type, localized, nullable, searchableInScopes, textExpression,
-			conflictResolutionOverride, analyzer, lengthPivot
+			conflictResolutionOverride, analyzer, lengthPivot, searchWeight
 		);
 	}
 
@@ -145,6 +177,11 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
+	 *
+	 * @param name schema name
+	 * @param type stored value type
+	 * @param conflictResolutionOverride per-item conflict resolution override
+	 * @return new schema with the default analyzer, length pivot and ranking weight
 	 */
 	public static AssociatedDataSchemaContract _internalBuild(
 		@Nonnull String name,
@@ -154,10 +191,28 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		return new AssociatedDataSchema(
 			name, NamingConvention.generate(name), null, null, type, false, false, null, null,
 			conflictResolutionOverride,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 
+	/**
+	 * Creates immutable associated data settings, including the fulltext ranking weight.
+	 *
+	 * @param name schema name
+	 * @param nameVariants names in supported naming conventions
+	 * @param description human-readable description, or `null`
+	 * @param deprecationNotice deprecation notice, or `null`
+	 * @param type stored value type
+	 * @param localized whether values are localized
+	 * @param nullable whether values may be absent
+	 * @param searchableInScopes scopes with fulltext indexing enabled
+	 * @param textExpression complex data text selection expression, or `null`
+	 * @param conflictResolutionOverride per-item conflict resolution override
+	 * @param analyzer fulltext analyzer name
+	 * @param lengthPivot positive fulltext length pivot
+	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 */
 	private AssociatedDataSchema(
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
@@ -170,7 +225,8 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		@Nullable Expression textExpression,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
 		@Nonnull String analyzer,
-		int lengthPivot
+		int lengthPivot,
+		float searchWeight
 	) {
 		Assert.notNull(analyzer, "The fulltext analyzer of associated data `" + name + "` must not be null!");
 		this.name = name;
@@ -192,6 +248,7 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		this.conflictResolutionOverride = conflictResolutionOverride;
 		this.analyzer = analyzer;
 		this.lengthPivot = lengthPivot;
+		this.searchWeight = AttributeSchemaContract.normalizeSearchWeight(searchWeight);
 	}
 
 	@Override
@@ -203,6 +260,22 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 	@Override
 	public boolean isSearchableInScope(@Nonnull Scope scope) {
 		return this.searchableInScopes.contains(scope);
+	}
+
+	@Override
+	public String toString() {
+		return "Associated data `" + this.name + "`: " +
+			"description=" + this.description +
+			", deprecationNotice=" + this.deprecationNotice +
+			", type=" + this.type.getName() +
+			", localized=" + this.localized +
+			", nullable=" + this.nullable +
+			", searchableInScopes=" + this.searchableInScopes +
+			", textExpression=" + this.textExpression +
+			", conflictResolutionOverride=" + this.conflictResolutionOverride +
+			", analyzer=" + this.analyzer +
+			", lengthPivot=" + this.lengthPivot +
+			", searchWeight=" + this.searchWeight;
 	}
 
 }

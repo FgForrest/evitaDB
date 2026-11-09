@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
@@ -37,6 +38,7 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
@@ -57,6 +59,7 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -179,9 +182,9 @@ class SetAttributeSchemaSearchableMutationTest {
 		@DisplayName("Should keep the analyzer and the length pivot of the earlier mutation unless restated")
 		void shouldKeepEarlierAnalyzerAndPivotUnlessRestated() {
 			final SetAttributeSchemaSearchableMutation earlier =
-				new SetAttributeSchemaSearchableMutation(ATTRIBUTE_NAME, Scope.NO_SCOPE, "html-text", 180);
+				new SetAttributeSchemaSearchableMutation(ATTRIBUTE_NAME, Scope.NO_SCOPE, "html-text", 180, null);
 			final SetAttributeSchemaSearchableMutation mutation =
-				new SetAttributeSchemaSearchableMutation(ATTRIBUTE_NAME, Scope.values(), null, 40);
+				new SetAttributeSchemaSearchableMutation(ATTRIBUTE_NAME, Scope.values(), null, 40, null);
 
 			final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
 				Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), earlier
@@ -190,7 +193,7 @@ class SetAttributeSchemaSearchableMutationTest {
 			assertNotNull(result);
 			assertNull(result.origin());
 			assertEquals(
-				new SetAttributeSchemaSearchableMutation(ATTRIBUTE_NAME, Scope.values(), "html-text", 40),
+				new SetAttributeSchemaSearchableMutation(ATTRIBUTE_NAME, Scope.values(), "html-text", 40, null),
 				result.current()[0]
 			);
 		}
@@ -314,7 +317,7 @@ class SetAttributeSchemaSearchableMutationTest {
 			assertEquals(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, original.getLengthPivot());
 
 			final AttributeSchemaContract configured = new SetAttributeSchemaSearchableMutation(
-				ATTRIBUTE_NAME, new Scope[]{Scope.LIVE}, "html-text", 180
+				ATTRIBUTE_NAME, new Scope[]{Scope.LIVE}, "html-text", 180, null
 			).mutate(null, original, AttributeSchemaContract.class);
 			assertEquals("html-text", configured.getAnalyzer());
 			assertEquals(180, configured.getLengthPivot());
@@ -327,7 +330,7 @@ class SetAttributeSchemaSearchableMutationTest {
 			assertEquals(180, rescoped.getLengthPivot());
 			assertSame(
 				rescoped,
-				new SetAttributeSchemaSearchableMutation(ATTRIBUTE_NAME, Scope.values(), "html-text", null)
+				new SetAttributeSchemaSearchableMutation(ATTRIBUTE_NAME, Scope.values(), "html-text", null, null)
 					.mutate(null, rescoped, AttributeSchemaContract.class)
 			);
 		}
@@ -445,7 +448,7 @@ class SetAttributeSchemaSearchableMutationTest {
 		@Nonnull String label, @Nonnull AttributeSchemaMutation mutation
 	) {
 		final SetAttributeSchemaSearchableMutation configured =
-			new SetAttributeSchemaSearchableMutation(ATTRIBUTE_NAME, Scope.values(), "html-text", 180);
+			new SetAttributeSchemaSearchableMutation(ATTRIBUTE_NAME, Scope.values(), "html-text", 180, null);
 
 		final AttributeSchemaContract plain = mutation.mutate(
 			null,
@@ -633,4 +636,63 @@ class SetAttributeSchemaSearchableMutationTest {
 		}
 	}
 
+	/** Nullable settings retain earlier weights, while explicitly restated zero and positive weights win. */
+	@Test
+	@DisplayName("should retain and combine search weights in mutation order")
+	void shouldRetainAndCombineSearchWeights() {
+		final CatalogSchema catalog = CatalogSchema._internalBuild(
+			"test", Map.of(), null, Set.of(),
+			EmptyEntitySchemaAccessor.INSTANCE
+		);
+		final AttributeSchemaContract original = filterableAcceleratedLocalizedString();
+		assertEquals(1.0f, original.getSearchWeight());
+		final SetAttributeSchemaSearchableMutation earlier = new SetAttributeSchemaSearchableMutation(ATTRIBUTE_NAME,
+			Scope.DEFAULT_SCOPES, null, null, 3.5f);
+		final AttributeSchemaContract weighted = earlier.mutate(catalog, original, AttributeSchemaContract.class);
+		assertEquals(3.5f, weighted.getSearchWeight());
+		for (final Float weight : new Float[]{null, 0.0f, 2.5f}) {
+			final SetAttributeSchemaSearchableMutation later = new SetAttributeSchemaSearchableMutation(ATTRIBUTE_NAME,
+				Scope.DEFAULT_SCOPES, null, null, weight);
+			final float expected = weight == null ? 3.5f : weight;
+			assertEquals(expected, later.mutate(catalog, weighted, AttributeSchemaContract.class).getSearchWeight());
+			final MutationCombinationResult<LocalEntitySchemaMutation> combined = later.combineWith(
+				catalog, EntitySchema._internalBuild("product"), earlier
+			);
+			assertNotNull(combined);
+			final SetAttributeSchemaSearchableMutation merged =
+				(SetAttributeSchemaSearchableMutation) combined.current()[0];
+			assertEquals(expected, merged.getSearchWeight());
+			assertEquals(expected, merged.mutate(catalog, original, AttributeSchemaContract.class).getSearchWeight());
+		}
+	}
+
+	/** Both signs of zero produce identical statements and preserve an unchanged schema instance. */
+	@Test
+	@DisplayName("should treat both signs of a zero weight as one value and keep an unchanged schema")
+	void shouldCanonicalizeZeroAndKeepUnchangedSchema() {
+		final CatalogSchema catalog = CatalogSchema._internalBuild(
+			"test", Map.of(), null, Set.of(), EmptyEntitySchemaAccessor.INSTANCE
+		);
+		final AttributeSchemaContract original = filterableAcceleratedLocalizedString();
+		final SetAttributeSchemaSearchableMutation positiveZero = new SetAttributeSchemaSearchableMutation(
+			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES, null, null, 0.0f
+		);
+		final SetAttributeSchemaSearchableMutation negativeZero = new SetAttributeSchemaSearchableMutation(
+			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES, null, null, -0.0f
+		);
+		final AttributeSchemaContract zero = positiveZero.mutate(catalog, original, AttributeSchemaContract.class);
+		assertSame(zero, negativeZero.mutate(catalog, zero, AttributeSchemaContract.class));
+		assertEquals(Float.floatToRawIntBits(0.0f), Float.floatToRawIntBits(zero.getSearchWeight()));
+		assertEquals(Float.floatToRawIntBits(0.0f), Float.floatToRawIntBits(negativeZero.getSearchWeight()));
+		assertEquals(positiveZero, negativeZero);
+		assertEquals(positiveZero.hashCode(), negativeZero.hashCode());
+		final SetAttributeSchemaSearchableMutation weighted = new SetAttributeSchemaSearchableMutation(
+			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES, null, null, 2.5f
+		);
+		final AttributeSchemaContract changed = weighted.mutate(catalog, original, AttributeSchemaContract.class);
+		assertSame(changed, weighted.mutate(catalog, changed, AttributeSchemaContract.class));
+		assertNotEquals(positiveZero, weighted);
+		assertNotEquals(positiveZero.hashCode(), weighted.hashCode());
+		assertTrue(weighted.toString().contains("searchWeight=2.5"));
+	}
 }

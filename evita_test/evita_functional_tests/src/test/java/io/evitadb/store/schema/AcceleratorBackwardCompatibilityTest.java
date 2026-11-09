@@ -150,7 +150,8 @@ class AcceleratorBackwardCompatibilityTest {
 			String.class, null, 0,
 			ConflictResolutionOverride.ENTITY,
 			null,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 
 		final AttributeSchema deserialized = readThroughBackwardCompatibleRoute(
@@ -184,7 +185,8 @@ class AcceleratorBackwardCompatibilityTest {
 			String.class, null, 0,
 			ConflictResolutionOverride.GRANULAR,
 			null,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 
 		final GlobalAttributeSchema deserialized = readThroughBackwardCompatibleRoute(
@@ -213,7 +215,8 @@ class AcceleratorBackwardCompatibilityTest {
 			String.class, null, 0,
 			ConflictResolutionOverride.ENTITY,
 			null,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 
 		final EntityAttributeSchema deserialized = readThroughBackwardCompatibleRoute(

@@ -92,7 +92,8 @@ public class EntityAttributeSchemaSerializer_2024_11 extends Serializer<EntityAt
 			type, (Serializable) defaultValue, indexedDecimalPlaces,
 			ConflictResolutionOverride.INHERITED,
 			null,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 

@@ -23,6 +23,9 @@
 
 package io.evitadb.index;
 
+import io.evitadb.index.component.loader.AttributeIndexLoader;
+import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
@@ -234,7 +237,8 @@ class EntityIndexRoundTripTest {
 			type, null,
 			0, ConflictResolutionOverride.INHERITED,
 			null,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 

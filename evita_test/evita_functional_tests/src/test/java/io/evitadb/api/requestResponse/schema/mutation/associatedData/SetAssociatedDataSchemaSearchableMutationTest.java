@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.associatedData;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
@@ -31,8 +32,11 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
+import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.AssociatedDataSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.ComplexDataObject;
@@ -50,13 +54,16 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -91,7 +98,8 @@ class SetAssociatedDataSchemaSearchableMutationTest {
 		return AssociatedDataSchema._internalBuild(
 			ASSOCIATED_DATA_NAME, "description", null, ComplexDataObject.class, true, true,
 			searchableInScopes, textExpression, ConflictResolutionOverride.ENTITY,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 
@@ -189,7 +197,7 @@ class SetAssociatedDataSchemaSearchableMutationTest {
 		@DisplayName("should set the analyzer and the length pivot, and keep each when the mutation leaves it null")
 		void shouldSetAnalyzerAndPivotAndKeepThemWhenNull() {
 			final AssociatedDataSchemaContract configured = new SetAssociatedDataSchemaSearchableMutation(
-				ASSOCIATED_DATA_NAME, new Scope[]{Scope.LIVE}, TITLE, "html-text", 400
+				ASSOCIATED_DATA_NAME, new Scope[]{Scope.LIVE}, TITLE, "html-text", 400, null
 			).mutate(existing(Scope.NO_SCOPE, null));
 			assertEquals("html-text", configured.getAnalyzer());
 			assertEquals(400, configured.getLengthPivot());
@@ -202,7 +210,8 @@ class SetAssociatedDataSchemaSearchableMutationTest {
 			assertEquals(400, rescoped.getLengthPivot());
 			assertSame(
 				rescoped,
-				new SetAssociatedDataSchemaSearchableMutation(ASSOCIATED_DATA_NAME, Scope.values(), TITLE, null, 400)
+				new SetAssociatedDataSchemaSearchableMutation(ASSOCIATED_DATA_NAME, Scope.values(), TITLE, null, 400,
+					null)
 					.mutate(rescoped)
 			);
 		}
@@ -211,11 +220,12 @@ class SetAssociatedDataSchemaSearchableMutationTest {
 		@DisplayName("should keep the analyzer and the length pivot of the earlier mutation unless restated")
 		void shouldKeepEarlierAnalyzerAndPivotUnlessRestated() {
 			final MutationCombinationResult<LocalEntitySchemaMutation> result =
-				new SetAssociatedDataSchemaSearchableMutation(ASSOCIATED_DATA_NAME, Scope.values(), TITLE, null, 40)
+				new SetAssociatedDataSchemaSearchableMutation(ASSOCIATED_DATA_NAME, Scope.values(), TITLE, null, 40,
+					null)
 					.combineWith(
 						Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class),
 						new SetAssociatedDataSchemaSearchableMutation(
-							ASSOCIATED_DATA_NAME, Scope.NO_SCOPE, null, "html-text", 400
+							ASSOCIATED_DATA_NAME, Scope.NO_SCOPE, null, "html-text", 400, null
 						)
 					);
 
@@ -223,7 +233,7 @@ class SetAssociatedDataSchemaSearchableMutationTest {
 			assertNull(result.origin());
 			assertEquals(
 				new SetAssociatedDataSchemaSearchableMutation(
-					ASSOCIATED_DATA_NAME, Scope.values(), TITLE, "html-text", 40
+					ASSOCIATED_DATA_NAME, Scope.values(), TITLE, "html-text", 40, null
 				),
 				result.current()[0]
 			);
@@ -236,7 +246,7 @@ class SetAssociatedDataSchemaSearchableMutationTest {
 			@Nonnull String label, @Nonnull AssociatedDataSchemaMutation mutation
 		) {
 			final AssociatedDataSchemaContract configured = new SetAssociatedDataSchemaSearchableMutation(
-				ASSOCIATED_DATA_NAME, new Scope[]{Scope.LIVE}, TITLE, "html-text", 400
+				ASSOCIATED_DATA_NAME, new Scope[]{Scope.LIVE}, TITLE, "html-text", 400, null
 			).mutate(existing(Scope.NO_SCOPE, null));
 
 			final AssociatedDataSchemaContract mutated = mutation.mutate(configured);
@@ -290,4 +300,88 @@ class SetAssociatedDataSchemaSearchableMutationTest {
 		assertTrue(description.contains("textExpression=$value.title"), description);
 	}
 
+	/** Nullable settings retain earlier weights, while explicitly restated zero and positive weights win. */
+	@Test
+	@DisplayName("should retain and combine search weights in mutation order")
+	void shouldRetainAndCombineSearchWeights() {
+		final CatalogSchema catalog = CatalogSchema._internalBuild(
+			"test", Map.of(), null, Set.of(),
+			EmptyEntitySchemaAccessor.INSTANCE
+		);
+		final AssociatedDataSchemaContract original = existing(Scope.DEFAULT_SCOPES, TITLE);
+		assertEquals(1.0f, original.getSearchWeight());
+		final SetAssociatedDataSchemaSearchableMutation earlier = new SetAssociatedDataSchemaSearchableMutation(
+			ASSOCIATED_DATA_NAME,
+			Scope.DEFAULT_SCOPES, TITLE, null, null, 3.5f);
+		final AssociatedDataSchemaContract weighted = earlier.mutate(original);
+		assertEquals(3.5f, weighted.getSearchWeight());
+		for (final Float weight : new Float[]{null, 0.0f, 2.5f}) {
+			final SetAssociatedDataSchemaSearchableMutation later = new SetAssociatedDataSchemaSearchableMutation(
+				ASSOCIATED_DATA_NAME,
+				Scope.DEFAULT_SCOPES, TITLE, null, null, weight);
+			final float expected = weight == null ? 3.5f : weight;
+			assertEquals(expected, later.mutate(weighted).getSearchWeight());
+			final MutationCombinationResult<LocalEntitySchemaMutation> combined = later.combineWith(
+				catalog, EntitySchema._internalBuild("product"), earlier
+			);
+			assertNotNull(combined);
+			final SetAssociatedDataSchemaSearchableMutation merged =
+				(SetAssociatedDataSchemaSearchableMutation) combined.current()[0];
+			assertEquals(expected, merged.getSearchWeight());
+			assertEquals(expected, merged.mutate(original).getSearchWeight());
+		}
+	}
+
+	/** Editor changes to ranking must restate both scopes and the existing complex-data text expression. */
+	@Test
+	@DisplayName("should preserve scopes and text expression when editing only the weight")
+	void shouldPreserveScopesAndExpressionWhenEditingSearchWeight() {
+		final CatalogSchema catalog = CatalogSchema._internalBuild(
+			"test", Map.of(), null, Set.of(), EmptyEntitySchemaAccessor.INSTANCE
+		);
+		final EntitySchemaContract weighted = new InternalEntitySchemaBuilder(catalog,
+			EntitySchema._internalBuild("product"))
+			.withAssociatedData(ASSOCIATED_DATA_NAME, ComplexDataObject.class,
+				a -> a.localized().searchable(TITLE).searchableInScope(Scope.values())
+					.lengthPivot(70).searchWeight(4.5f))
+			.toInstance();
+
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(catalog, weighted)
+			.withAssociatedData(ASSOCIATED_DATA_NAME, ComplexDataObject.class, a -> a.searchWeight(0.0f))
+			.toInstance();
+
+		final AssociatedDataSchemaContract data = schema.getAssociatedData(ASSOCIATED_DATA_NAME).orElseThrow();
+		assertEquals(EnumSet.allOf(Scope.class), data.getSearchableInScopes());
+		assertEquals(TITLE, data.getTextExpression());
+		assertEquals(70, data.getLengthPivot());
+		assertEquals(FulltextAnalyzerSchemaContract.TEXT, data.getAnalyzer());
+		assertEquals(0.0f, data.getSearchWeight());
+	}
+
+	/** Both signs of zero produce identical statements and preserve an unchanged schema instance. */
+	@Test
+	@DisplayName("should treat both signs of a zero weight as one value and keep an unchanged schema")
+	void shouldCanonicalizeZeroAndKeepUnchangedSchema() {
+		final AssociatedDataSchemaContract original = existing(Scope.DEFAULT_SCOPES, TITLE);
+		final SetAssociatedDataSchemaSearchableMutation positiveZero = new SetAssociatedDataSchemaSearchableMutation(
+			ASSOCIATED_DATA_NAME, Scope.DEFAULT_SCOPES, TITLE, null, null, 0.0f
+		);
+		final SetAssociatedDataSchemaSearchableMutation negativeZero = new SetAssociatedDataSchemaSearchableMutation(
+			ASSOCIATED_DATA_NAME, Scope.DEFAULT_SCOPES, TITLE, null, null, -0.0f
+		);
+		final AssociatedDataSchemaContract zero = positiveZero.mutate(original);
+		assertSame(zero, negativeZero.mutate(zero));
+		assertEquals(Float.floatToRawIntBits(0.0f), Float.floatToRawIntBits(zero.getSearchWeight()));
+		assertEquals(Float.floatToRawIntBits(0.0f), Float.floatToRawIntBits(negativeZero.getSearchWeight()));
+		assertEquals(positiveZero, negativeZero);
+		assertEquals(positiveZero.hashCode(), negativeZero.hashCode());
+		final SetAssociatedDataSchemaSearchableMutation weighted = new SetAssociatedDataSchemaSearchableMutation(
+			ASSOCIATED_DATA_NAME, Scope.DEFAULT_SCOPES, TITLE, null, null, 2.5f
+		);
+		final AssociatedDataSchemaContract changed = weighted.mutate(original);
+		assertSame(changed, weighted.mutate(changed));
+		assertNotEquals(positiveZero, weighted);
+		assertNotEquals(positiveZero.hashCode(), weighted.hashCode());
+		assertTrue(weighted.toString().contains("searchWeight=2.5"));
+	}
 }

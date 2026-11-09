@@ -97,7 +97,8 @@ public class AttributeSchemaSerializer_2026_1 extends Serializer<AttributeSchema
 			type, (Serializable) defaultValue, indexedDecimalPlaces,
 			ConflictResolutionOverride.INHERITED,
 			null,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 

@@ -352,6 +352,16 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	T lengthPivot(int lengthPivot);
 
 	/**
+	 * Sets the fulltext ranking weight in every scope, preserving the current searchability settings.
+	 * Zero preserves matches while contributing no ranking strength. A weight change does not rebuild the field.
+	 *
+	 * @param searchWeight finite, non-negative ranking weight
+	 * @return this editor
+	 */
+	@Nonnull
+	T searchWeight(float searchWeight);
+
+	/**
 	 * When attribute value is unique it is automatically filterable, and it is ensured there is exactly one single entity
 	 * having certain value of this attribute.
 	 *

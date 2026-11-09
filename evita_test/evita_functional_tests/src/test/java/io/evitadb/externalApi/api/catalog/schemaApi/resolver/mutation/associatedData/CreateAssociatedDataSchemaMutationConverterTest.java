@@ -25,6 +25,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associate
 
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
@@ -32,7 +33,11 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedDat
 import io.evitadb.externalApi.api.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
+import javax.annotation.Nullable;
 import java.util.Map;
 import org.junit.jupiter.api.Tag;
 
@@ -186,5 +191,27 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 			this.converter.convertFromInput(this.converter.convertToOutput(inputMutation));
 		assertEquals(ConflictResolutionOverride.ENTITY, roundTripped.getConflictResolutionOverride());
 		assertEquals(inputMutation, roundTripped);
+	}
+
+	/**
+	 * Emits a present finite ranking weight as a decimal value, a non-finite one verbatim, and omits an unspecified
+	 * weight.
+	 */
+	@ParameterizedTest
+	@NullSource
+	@ValueSource(floats = { 0.0f, 2.5f, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY })
+	void shouldSerializeSearchWeightToOutput(@Nullable Float weight) {
+		final CreateAssociatedDataSchemaMutation mutation = new CreateAssociatedDataSchemaMutation(
+			"labels", null, null, String.class, false, true, new Scope[] { Scope.LIVE }, null,
+			ConflictResolutionOverride.INHERITED, null, null, weight
+		);
+		@SuppressWarnings("unchecked")
+		final Map<String, Object> output = (Map<String, Object>) this.converter.convertToOutput(mutation);
+		if (weight == null) {
+			assertThat(output).doesNotContainKey("searchWeight");
+		} else {
+			// a finite weight goes out as a BigDecimal rendered as its plain-decimal string, a non-finite one as is
+			assertThat(output).containsEntry("searchWeight", Float.toString(weight));
+		}
 	}
 }

@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSche
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readNullableLengthPivot;
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readNullableSearchWeight;
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeFulltextFieldSettings;
 
 /**
@@ -46,7 +47,9 @@ public class SetAttributeSchemaSearchableMutationSerializer
 	public void write(Kryo kryo, Output output, SetAttributeSchemaSearchableMutation mutation) {
 		output.writeString(mutation.getName());
 		writeScopeArray(kryo, output, mutation.getSearchableInScopes());
-		writeFulltextFieldSettings(output, mutation.getAnalyzer(), mutation.getLengthPivot());
+		writeFulltextFieldSettings(
+			output, mutation.getAnalyzer(), mutation.getLengthPivot(), mutation.getSearchWeight()
+		);
 	}
 
 	@Override
@@ -57,7 +60,7 @@ public class SetAttributeSchemaSearchableMutationSerializer
 			input.readString(),
 			readScopeArray(kryo, input),
 			input.readString(),
-			readNullableLengthPivot(input)
+			readNullableLengthPivot(input), readNullableSearchWeight(input)
 		);
 	}
 

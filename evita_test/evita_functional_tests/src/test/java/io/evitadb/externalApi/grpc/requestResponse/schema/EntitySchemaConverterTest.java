@@ -142,7 +142,8 @@ class EntitySchemaConverterTest {
 					0,
 					ConflictResolutionOverride.ENTITY,
 					List.of(lowercase(), asciiFolding(), removeCharacters("- "), trim()),
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				)
 			),
 			Map.of(
@@ -151,10 +152,12 @@ class EntitySchemaConverterTest {
 					null,
 					null,
 					ConflictResolutionOverride.GRANULAR,
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				),
 				"test2", AssociatedDataSchema._internalBuild("test2", "Lorem ipsum", "Alert", String[].class, true, true, null, null, ConflictResolutionOverride.INHERITED,
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT)
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT)
 			),
 			Map.of(
 				"test1", ReferenceSchema._internalBuild(
@@ -216,7 +219,8 @@ class EntitySchemaConverterTest {
 							0,
 							ConflictResolutionOverride.INHERITED,
 							List.of(removeCharacters("- "), trim(), lowercase(), asciiFolding()),
-							FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+							FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+							AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 						),
 						"priority", EntityAttributeSchema._internalBuild(
 							"code",
@@ -415,7 +419,8 @@ class EntitySchemaConverterTest {
 					String.class, null, 0,
 					ConflictResolutionOverride.INHERITED,
 					null,
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				)
 			),
 			Map.of(),

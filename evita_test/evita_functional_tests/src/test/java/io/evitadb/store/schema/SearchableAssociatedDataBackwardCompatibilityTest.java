@@ -104,6 +104,7 @@ class SearchableAssociatedDataBackwardCompatibilityTest {
 		assertEquals(ConflictResolutionOverride.GRANULAR, deserialized.getConflictResolutionOverride());
 		assertFalse(deserialized.isSearchableInAnyScope());
 		assertNull(deserialized.getTextExpression());
+		assertEquals(1.0f, deserialized.getSearchWeight());
 	}
 
 	@Test
@@ -120,6 +121,7 @@ class SearchableAssociatedDataBackwardCompatibilityTest {
 			assertEquals(EnumSet.of(Scope.LIVE, Scope.ARCHIVED), deserialized.getSearchableInScopes());
 			assertEquals(TEXT, deserialized.getTextExpression());
 			assertEquals(schema, deserialized);
+			assertEquals(2.5f, deserialized.getSearchWeight());
 		}
 	}
 
@@ -130,7 +132,7 @@ class SearchableAssociatedDataBackwardCompatibilityTest {
 		final CreateAssociatedDataSchemaMutation mutation = new CreateAssociatedDataSchemaMutation(
 			"article", "description", null, ComplexDataObject.class, true, false, BOTH_SCOPES, TEXT,
 			ConflictResolutionOverride.ENTITY,
-			null, null
+			null, null, null
 		);
 		final CreateAssociatedDataSchemaMutation deserialized = readThroughBackwardCompatibleRoute(
 			kryo, CREATE_ASSOCIATED_DATA_MUTATION_2026_2_UID, new CreateAssociatedDataSchemaMutationSerializer(),
@@ -152,7 +154,7 @@ class SearchableAssociatedDataBackwardCompatibilityTest {
 		return AssociatedDataSchema._internalBuild(
 			"article", "description", null, ComplexDataObject.class, true, false, BOTH_SCOPES, TEXT,
 			ConflictResolutionOverride.GRANULAR,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, 2.5f
 		);
 	}
 

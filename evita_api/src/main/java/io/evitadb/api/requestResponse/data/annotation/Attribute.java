@@ -151,6 +151,13 @@ public @interface Attribute {
 	int lengthPivot() default AttributeSchemaContract.DEFAULT_LENGTH_PIVOT;
 
 	/**
+	 * Fulltext ranking weight, shared by all scopes. Zero preserves matches without contributing ranking strength.
+	 *
+	 * @return finite, non-negative ranking weight, defaulting to 1.0
+	 */
+	float searchWeight() default AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT;
+
+	/**
 	 * Sets attribute of this type to be locale sensitive. I.e. to separate values for different locales.
 	 * Propagates to {@link AttributeSchemaContract#isLocalized()}.
 	 */

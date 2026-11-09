@@ -32,7 +32,10 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssociatedDataSchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -41,6 +44,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import java.util.Locale;
@@ -55,14 +60,15 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins the fulltext analyzer and the length pivot of searchable fields end to end on an embedded evitaDB: that every
- * kind of field keeps them across a restart through the catalog storage, that a field naming an analyzer the catalog
- * does not have is refused, and that an analyzer a field still uses cannot be removed - unless the same update points
- * the field elsewhere, because the reference is checked on the schema an update produces as a whole.
+ * Pins the fulltext analyzer, the length pivot and the search weight of searchable fields end to end on an embedded
+ * evitaDB: that every kind of field keeps them across a restart through the catalog storage, that a field naming an
+ * analyzer the catalog does not have is refused, and that an analyzer a field still uses cannot be removed - unless
+ * the same update points the field elsewhere, because the reference is checked on the schema an update produces as a
+ * whole.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Fulltext analyzer and length pivot of searchable fields")
+@DisplayName("Fulltext analyzer, length pivot and search weight of searchable fields")
 @Tag(ENGINE)
 @Tag(SCHEMA)
 @Tag(FULLTEXT)
@@ -95,7 +101,7 @@ class FulltextFieldSettingsSchemaTest implements EvitaTestSupport {
 	}
 
 	@Test
-	@DisplayName("should keep the analyzer and the length pivot of every kind of field across a restart")
+	@DisplayName("should keep the analyzer, the length pivot and the search weight of every kind of field across a restart")
 	void shouldKeepFieldSettingsAcrossRestart() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -107,7 +113,8 @@ class FulltextFieldSettingsSchemaTest implements EvitaTestSupport {
 					)
 					.withAttribute(
 						ATTRIBUTE_TITLE, String.class,
-						whichIs -> whichIs.localized().searchable().analyzer(ANALYZER_TITLES).lengthPivot(8)
+						whichIs ->
+							whichIs.localized().searchable().analyzer(ANALYZER_TITLES).lengthPivot(8).searchWeight(2.5f)
 					)
 					.updateVia(session);
 				session.defineEntitySchema(Entities.PRODUCT)
@@ -117,7 +124,9 @@ class FulltextFieldSettingsSchemaTest implements EvitaTestSupport {
 					// declared before `searchable()` - neither of them resets the other
 					.withAttribute(
 						ATTRIBUTE_NAME, String.class,
-						whichIs -> whichIs.localized().analyzer(ANALYZER_TITLES).lengthPivot(12).searchable()
+						whichIs ->
+							whichIs.localized().analyzer(ANALYZER_TITLES)
+								.lengthPivot(12).searchWeight(3.0f).searchable()
 					)
 					.withAttribute(
 						ATTRIBUTE_DESCRIPTION, String.class, whichIs -> whichIs.localized().nullable().searchable()
@@ -125,14 +134,14 @@ class FulltextFieldSettingsSchemaTest implements EvitaTestSupport {
 					.withAssociatedData(
 						ASSOCIATED_DATA_BODY, String.class,
 						whichIs -> whichIs.localized().nullable().searchable()
-							.analyzer(FulltextAnalyzerSchemaContract.HTML_TEXT).lengthPivot(400)
+							.analyzer(FulltextAnalyzerSchemaContract.HTML_TEXT).lengthPivot(400).searchWeight(0.0f)
 					)
 					.withReferenceTo(
 						REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs.withAttribute(
 							ATTRIBUTE_BRAND_NAME, String.class,
 							thatIs -> thatIs.localized().nullable().searchable()
-								.analyzer(FulltextAnalyzerSchemaContract.HTML_TEXT)
+								.analyzer(FulltextAnalyzerSchemaContract.HTML_TEXT).searchWeight(4.0f)
 						)
 					)
 					.updateVia(session);
@@ -144,21 +153,26 @@ class FulltextFieldSettingsSchemaTest implements EvitaTestSupport {
 		final AttributeSchemaContract title = catalogSchema().getAttribute(ATTRIBUTE_TITLE).orElseThrow();
 		assertEquals(ANALYZER_TITLES, title.getAnalyzer());
 		assertEquals(8, title.getLengthPivot());
+		assertEquals(2.5f, title.getSearchWeight());
 		final EntitySchemaContract schema = productSchema();
 		final AttributeSchemaContract name = schema.getAttribute(ATTRIBUTE_NAME).orElseThrow();
 		assertTrue(name.isSearchable());
 		assertEquals(ANALYZER_TITLES, name.getAnalyzer());
 		assertEquals(12, name.getLengthPivot());
+		assertEquals(3.0f, name.getSearchWeight());
 		final AttributeSchemaContract description = schema.getAttribute(ATTRIBUTE_DESCRIPTION).orElseThrow();
 		assertEquals(FulltextAnalyzerSchemaContract.TEXT, description.getAnalyzer());
 		assertEquals(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, description.getLengthPivot());
+		assertEquals(1.0f, description.getSearchWeight());
 		final AssociatedDataSchemaContract body = schema.getAssociatedData(ASSOCIATED_DATA_BODY).orElseThrow();
 		assertEquals(FulltextAnalyzerSchemaContract.HTML_TEXT, body.getAnalyzer());
 		assertEquals(400, body.getLengthPivot());
+		assertEquals(0.0f, body.getSearchWeight());
 		final AttributeSchemaContract brandName = schema.getReference(REFERENCE_BRAND).orElseThrow()
 			.getAttribute(ATTRIBUTE_BRAND_NAME).orElseThrow();
 		assertEquals(FulltextAnalyzerSchemaContract.HTML_TEXT, brandName.getAnalyzer());
 		assertEquals(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, brandName.getLengthPivot());
+		assertEquals(4.0f, brandName.getSearchWeight());
 	}
 
 	@Test
@@ -323,4 +337,118 @@ class FulltextFieldSettingsSchemaTest implements EvitaTestSupport {
 		}
 	}
 
+	/** Weight validation follows the pivot's assembled-schema validation for searchable and ordinary places. */
+	@ParameterizedTest
+	@ValueSource(floats = {-1.0f, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY})
+	@DisplayName("should refuse invalid ranking weights with the place name and value")
+	void shouldRefuseInvalidSearchWeights(float weight) {
+		defineProductWithoutAttributes();
+		for (final boolean searchable : new boolean[]{false, true}) {
+			for (final String place : new String[]{
+				ATTRIBUTE_NAME, ASSOCIATED_DATA_BODY, ATTRIBUTE_TITLE, ATTRIBUTE_BRAND_NAME
+			}) {
+				final InvalidSchemaMutationException refusal = assertThrows(
+					InvalidSchemaMutationException.class,
+					() -> this.evita.updateCatalog(TEST_CATALOG, session -> {
+						if (ATTRIBUTE_TITLE.equals(place)) {
+							session.getCatalogSchema().openForWrite()
+								.withAttribute(ATTRIBUTE_TITLE, String.class,
+									a -> a.localized().searchable(() -> searchable).searchWeight(weight))
+								.updateVia(session);
+							return;
+						}
+						final EntitySchemaBuilder builder =
+							session.getEntitySchemaOrThrow(Entities.PRODUCT).openForWrite();
+						switch (place) {
+							case ATTRIBUTE_NAME -> builder.withAttribute(ATTRIBUTE_NAME, String.class,
+								a -> a.localized().searchable(() -> searchable).searchWeight(weight));
+							case ASSOCIATED_DATA_BODY -> builder.withAssociatedData(ASSOCIATED_DATA_BODY, String.class,
+								a -> a.localized().searchable(() -> searchable).searchWeight(weight));
+							case ATTRIBUTE_BRAND_NAME -> builder.withReferenceTo(
+								REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
+								r -> r.withAttribute(ATTRIBUTE_BRAND_NAME, String.class,
+									a -> a.localized().searchable(() -> searchable).searchWeight(weight))
+							);
+							default -> throw new IllegalStateException("Unexpected place `" + place + "`.");
+						}
+						builder.updateVia(session);
+					})
+				);
+				assertTrue(refusal.getMessage().contains("`" + place + "`"), refusal.getMessage());
+				assertTrue(refusal.getMessage().contains(Float.toString(weight)), refusal.getMessage());
+			}
+		}
+	}
+
+	/** Unrelated reconstruction mutations must retain ranking settings for all schema owners. */
+	@Test
+	@DisplayName("should retain non-default weights through unrelated schema edits")
+	void shouldRetainSearchWeightsThroughReconstruction() {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
+			session.getCatalogSchema().openForWrite()
+				.withAttribute(ATTRIBUTE_TITLE, String.class, a -> a.searchWeight(2.5f)).updateVia(session);
+			session.defineEntitySchema(Entities.PRODUCT)
+				.withAttribute(ATTRIBUTE_NAME, String.class, a -> a.searchWeight(3.5f))
+				.withAssociatedData(ASSOCIATED_DATA_BODY, String.class, a -> a.searchWeight(4.5f))
+				.withReferenceTo(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
+					r -> r.withAttribute(ATTRIBUTE_BRAND_NAME, String.class, a -> a.searchWeight(5.5f)))
+				.updateVia(session);
+		});
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
+			session.getCatalogSchema().openForWrite()
+				.withAttribute(ATTRIBUTE_TITLE, String.class,
+					a -> a.withDescription("title description").deprecated("old title").nullable())
+				.updateVia(session);
+			session.getEntitySchemaOrThrow(Entities.PRODUCT).openForWrite()
+				.withAttribute(ATTRIBUTE_NAME, String.class,
+					a -> a.withDescription("name description").deprecated("old name").nullable())
+				.withAssociatedData(ASSOCIATED_DATA_BODY, String.class,
+					a -> a.withDescription("body description").deprecated("old body").nullable())
+				.updateVia(session);
+		});
+		assertEquals(2.5f, catalogSchema().getAttribute(ATTRIBUTE_TITLE).orElseThrow().getSearchWeight());
+		assertEquals(3.5f, productSchema().getAttribute(ATTRIBUTE_NAME).orElseThrow().getSearchWeight());
+		assertEquals(4.5f, productSchema().getAssociatedData(ASSOCIATED_DATA_BODY).orElseThrow().getSearchWeight());
+		assertEquals(2.5f, new ModifyAttributeSchemaNameMutation(
+			ATTRIBUTE_TITLE, "renamedTitle").mutate(null, catalogSchema().getAttribute(ATTRIBUTE_TITLE).orElseThrow(),
+				AttributeSchemaContract.class).getSearchWeight());
+		assertEquals(3.5f, new ModifyAttributeSchemaNameMutation(
+			ATTRIBUTE_NAME, "renamedName").mutate(null, productSchema().getAttribute(ATTRIBUTE_NAME).orElseThrow(),
+				AttributeSchemaContract.class).getSearchWeight());
+		assertEquals(5.5f, new ModifyAttributeSchemaNameMutation(
+			ATTRIBUTE_BRAND_NAME, "renamedBrandName").mutate(null,
+				productSchema().getReference(REFERENCE_BRAND).orElseThrow()
+					.getAttribute(ATTRIBUTE_BRAND_NAME).orElseThrow(),
+				AttributeSchemaContract.class).getSearchWeight());
+		assertEquals(4.5f,
+			new ModifyAssociatedDataSchemaNameMutation(
+				ASSOCIATED_DATA_BODY, "renamedBody").mutate(
+					productSchema().getAssociatedData(ASSOCIATED_DATA_BODY).orElseThrow()).getSearchWeight());
+	}
+
+	/** Editors canonicalize signed zero for every attribute owner and associated data. */
+	@Test
+	@DisplayName("should store a negative zero weight as positive zero for every kind of field")
+	void shouldCanonicalizeZeroThroughEditors() {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
+			session.getCatalogSchema().openForWrite()
+				.withAttribute(ATTRIBUTE_TITLE, String.class, a -> a.searchWeight(-0.0f)).updateVia(session);
+			session.defineEntitySchema(Entities.PRODUCT)
+				.withAttribute(ATTRIBUTE_NAME, String.class, a -> a.searchWeight(-0.0f))
+				.withAssociatedData(ASSOCIATED_DATA_BODY, String.class, a -> a.searchWeight(-0.0f))
+				.withReferenceTo(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
+					r -> r.withAttribute(ATTRIBUTE_BRAND_NAME, String.class, a -> a.searchWeight(-0.0f)))
+				.updateVia(session);
+		});
+		final EntitySchemaContract product = productSchema();
+		for (final float weight : new float[] {
+			catalogSchema().getAttribute(ATTRIBUTE_TITLE).orElseThrow().getSearchWeight(),
+			product.getAttribute(ATTRIBUTE_NAME).orElseThrow().getSearchWeight(),
+			product.getAssociatedData(ASSOCIATED_DATA_BODY).orElseThrow().getSearchWeight(),
+			product.getReference(REFERENCE_BRAND).orElseThrow()
+				.getAttribute(ATTRIBUTE_BRAND_NAME).orElseThrow().getSearchWeight()
+		}) {
+			assertEquals(Float.floatToRawIntBits(0.0f), Float.floatToRawIntBits(weight));
+		}
+	}
 }

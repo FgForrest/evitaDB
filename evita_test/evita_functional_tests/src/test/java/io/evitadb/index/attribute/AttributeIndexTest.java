@@ -1264,7 +1264,8 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 				indexedDecimalPlaces,
 				ConflictResolutionOverride.INHERITED,
 				null,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 		}
 
@@ -1509,7 +1510,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 	 * {@link AttributeIndex#getModifiedStorageParts} diffs the pre-drop per-family leaf-page snapshot against the
 	 * surviving keys and emits the matching leaf-page removal for every orphaned page — else those pages leak forever in
 	 * the append-only OffsetIndex. The FILTER range companion shares the identical mechanism (a
-	 * {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPageRemoval} per orphaned range
+	 * {@link RangeIndexLeafPageRemoval} per orphaned range
 	 * leaf), driven by the same {@code persistedFilterRangeLeafPages} snapshot.
 	 */
 	@Nested

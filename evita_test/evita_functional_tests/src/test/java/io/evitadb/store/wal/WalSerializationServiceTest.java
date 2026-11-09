@@ -345,7 +345,7 @@ class WalSerializationServiceTest {
 		final CreateAssociatedDataSchemaMutation create = new CreateAssociatedDataSchemaMutation(
 			"article", "description", null, ComplexDataObject.class, true, false, bothScopes, textExpression,
 			ConflictResolutionOverride.GRANULAR,
-			null, null
+			null, null, null
 		);
 		final CreateAssociatedDataSchemaMutation createRoundTrip = roundTrip(walKryo, create);
 		assertArrayEquals(bothScopes, createRoundTrip.getSearchableInScopes());

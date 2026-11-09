@@ -130,6 +130,14 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	 * The length pivot of the attribute's fulltext field. See {@link AttributeSchemaContract#getLengthPivot()}.
 	 */
 	@Getter protected final int lengthPivot;
+
+	/**
+	 * The fulltext ranking weight of the attribute. Unlike the analyzer and the length pivot it is not part of the
+	 * persisted fulltext field definition, so changing it never rebuilds the field. See
+	 * {@link AttributeSchemaContract#getSearchWeight()}.
+	 */
+	@Getter protected final float searchWeight;
+
 	/**
 	 * Number of fractional places important for indexing numeric values (especially {@link java.math.BigDecimal}).
 	 * Values are scaled by 10^indexedDecimalPlaces and stored as integers, therefore the scaled value must fit into
@@ -291,6 +299,13 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
+	 *
+	 * @param name schema name
+	 * @param type stored value type
+	 * @param localized whether values are localized
+	 * @param conflictResolutionOverride per-item conflict resolution override
+	 * @param normalization ordered normalization steps, or `null` for defaults
+	 * @return new schema with the default analyzer, length pivot and ranking weight
 	 */
 	@Nonnull
 	public static AttributeSchema _internalBuild(
@@ -313,15 +328,34 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			0,
 			conflictResolutionOverride,
 			normalization,
-			FulltextAnalyzerSchemaContract.TEXT, DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, DEFAULT_LENGTH_PIVOT, DEFAULT_SEARCH_WEIGHT
 		);
 	}
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of AttributeSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
+	 * Reconstructs a schema, including its fulltext ranking settings, for internal use only. Not for client code.
 	 *
-	 * Do not use this method from in the client code!
+	 * @param name schema name
+	 * @param description human-readable description, or `null`
+	 * @param deprecationNotice deprecation notice, or `null`
+	 * @param uniqueInScopes scoped uniqueness declarations, or `null` for defaults
+	 * @param filterableInScopes scopes with filtering enabled
+	 * @param acceleratorsInScopes scoped filter accelerators
+	 * @param searchableInScopes scopes with fulltext indexing enabled
+	 * @param sortableInScopes scopes with sorting enabled
+	 * @param localized whether values are localized
+	 * @param nullable whether values may be absent
+	 * @param representative whether the attribute represents the entity
+	 * @param type stored value type
+	 * @param defaultValue value used when absent, or `null`
+	 * @param indexedDecimalPlaces decimal places retained by numeric indexes
+	 * @param conflictResolutionOverride per-item conflict resolution override
+	 * @param normalization ordered normalization steps
+	 * @param analyzer fulltext analyzer name
+	 * @param lengthPivot positive fulltext length pivot
+	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param <T> stored value type
+	 * @return immutable schema carrying all supplied settings
 	 */
 	@Nonnull
 	public static <T extends Serializable> AttributeSchema _internalBuild(
@@ -342,7 +376,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
 		@Nullable List<AnalysisStep> normalization,
 		@Nonnull String analyzer,
-		int lengthPivot
+		int lengthPivot,
+		float searchWeight
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -361,15 +396,34 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
 			normalization,
-			analyzer, lengthPivot
+			analyzer, lengthPivot, searchWeight
 		);
 	}
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of AttributeSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
+	 * Reconstructs a schema, including its fulltext ranking settings, for internal use only. Not for client code.
 	 *
-	 * Do not use this method from in the client code!
+	 * @param name schema name
+	 * @param description human-readable description, or `null`
+	 * @param deprecationNotice deprecation notice, or `null`
+	 * @param uniquenessTypeInScopes scoped uniqueness settings
+	 * @param filterableInScopes scopes with filtering enabled
+	 * @param acceleratorsInScopes scoped filter accelerators
+	 * @param searchableInScopes scopes with fulltext indexing enabled
+	 * @param sortableInScopes scopes with sorting enabled
+	 * @param localized whether values are localized
+	 * @param nullable whether values may be absent
+	 * @param representative whether the attribute represents the entity
+	 * @param type stored value type
+	 * @param defaultValue value used when absent, or `null`
+	 * @param indexedDecimalPlaces decimal places retained by numeric indexes
+	 * @param conflictResolutionOverride per-item conflict resolution override
+	 * @param normalization ordered normalization steps
+	 * @param analyzer fulltext analyzer name
+	 * @param lengthPivot positive fulltext length pivot
+	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param <T> stored value type
+	 * @return immutable schema carrying all supplied settings
 	 */
 	@Nonnull
 	public static <T extends Serializable> AttributeSchema _internalBuild(
@@ -390,7 +444,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
 		@Nullable List<AnalysisStep> normalization,
 		@Nonnull String analyzer,
-		int lengthPivot
+		int lengthPivot,
+		float searchWeight
 	) {
 		return new AttributeSchema(
 			name, NamingConvention.generate(name),
@@ -405,15 +460,35 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
 			normalization,
-			analyzer, lengthPivot
+			analyzer, lengthPivot, searchWeight
 		);
 	}
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of AttributeSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
+	 * Reconstructs a schema, including its fulltext ranking settings, for internal use only. Not for client code.
 	 *
-	 * Do not use this method from in the client code!
+	 * @param name schema name
+	 * @param nameVariants names in supported naming conventions
+	 * @param description human-readable description, or `null`
+	 * @param deprecationNotice deprecation notice, or `null`
+	 * @param uniquenessTypeInScopes scoped uniqueness settings
+	 * @param filterableInScopes scopes with filtering enabled
+	 * @param acceleratorsInScopes scoped filter accelerators
+	 * @param searchableInScopes scopes with fulltext indexing enabled
+	 * @param sortableInScopes scopes with sorting enabled
+	 * @param localized whether values are localized
+	 * @param nullable whether values may be absent
+	 * @param representative whether the attribute represents the entity
+	 * @param type stored value type
+	 * @param defaultValue value used when absent, or `null`
+	 * @param indexedDecimalPlaces decimal places retained by numeric indexes
+	 * @param conflictResolutionOverride per-item conflict resolution override
+	 * @param normalization ordered normalization steps
+	 * @param analyzer fulltext analyzer name
+	 * @param lengthPivot positive fulltext length pivot
+	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param <T> stored value type
+	 * @return immutable schema carrying all supplied settings
 	 */
 	@Nonnull
 	public static <T extends Serializable> AttributeSchema _internalBuild(
@@ -435,7 +510,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
 		@Nullable List<AnalysisStep> normalization,
 		@Nonnull String analyzer,
-		int lengthPivot
+		int lengthPivot,
+		float searchWeight
 	) {
 		return new AttributeSchema(
 			name, nameVariants,
@@ -450,15 +526,35 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
 			normalization,
-			analyzer, lengthPivot
+			analyzer, lengthPivot, searchWeight
 		);
 	}
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of AttributeSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
+	 * Reconstructs a schema, including its fulltext ranking settings, for internal use only. Not for client code.
 	 *
-	 * Do not use this method from in the client code!
+	 * @param name schema name
+	 * @param nameVariants names in supported naming conventions
+	 * @param description human-readable description, or `null`
+	 * @param deprecationNotice deprecation notice, or `null`
+	 * @param uniqueInScopes scoped uniqueness declarations, or `null` for defaults
+	 * @param filterableInScopes scopes with filtering enabled
+	 * @param acceleratorsInScopes scoped filter accelerators
+	 * @param searchableInScopes scopes with fulltext indexing enabled
+	 * @param sortableInScopes scopes with sorting enabled
+	 * @param localized whether values are localized
+	 * @param nullable whether values may be absent
+	 * @param representative whether the attribute represents the entity
+	 * @param type stored value type
+	 * @param defaultValue value used when absent, or `null`
+	 * @param indexedDecimalPlaces decimal places retained by numeric indexes
+	 * @param conflictResolutionOverride per-item conflict resolution override
+	 * @param normalization ordered normalization steps
+	 * @param analyzer fulltext analyzer name
+	 * @param lengthPivot positive fulltext length pivot
+	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param <T> stored value type
+	 * @return immutable schema carrying all supplied settings
 	 */
 	@Nonnull
 	public static <T extends Serializable> AttributeSchema _internalBuild(
@@ -480,7 +576,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
 		@Nullable List<AnalysisStep> normalization,
 		@Nonnull String analyzer,
-		int lengthPivot
+		int lengthPivot,
+		float searchWeight
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -499,11 +596,35 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
 			normalization,
-			analyzer, lengthPivot
+			analyzer, lengthPivot, searchWeight
 		);
 	}
 
-	/** Creates an immutable attribute schema, including its normalization and fulltext field settings. */
+	/**
+	 * Creates an immutable schema including its fulltext ranking settings.
+	 *
+	 * @param name schema name
+	 * @param nameVariants names in supported naming conventions
+	 * @param description human-readable description, or `null`
+	 * @param deprecationNotice deprecation notice, or `null`
+	 * @param uniquenessTypeInScopes scoped uniqueness settings
+	 * @param filterableInScopes scopes with filtering enabled
+	 * @param acceleratorsInScopes scoped filter accelerators
+	 * @param searchableInScopes scopes with fulltext indexing enabled
+	 * @param sortableInScopes scopes with sorting enabled
+	 * @param localized whether values are localized
+	 * @param nullable whether values may be absent
+	 * @param representative whether the attribute represents the entity
+	 * @param type stored value type
+	 * @param defaultValue value used when absent, or `null`
+	 * @param indexedDecimalPlaces decimal places retained by numeric indexes
+	 * @param conflictResolutionOverride per-item conflict resolution override
+	 * @param normalization ordered normalization steps
+	 * @param analyzer fulltext analyzer name
+	 * @param lengthPivot positive fulltext length pivot
+	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param <T> stored value type
+	 */
 	<T extends Serializable> AttributeSchema(
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
@@ -523,13 +644,15 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
 		@Nullable List<AnalysisStep> normalization,
 		@Nonnull String analyzer,
-		int lengthPivot
+		int lengthPivot,
+		float searchWeight
 	) {
 		this.normalization = normalization == null ? List.of() :
 			Collections.unmodifiableList(new ArrayList<>(normalization));
 		Assert.notNull(analyzer, "The fulltext analyzer of attribute `" + name + "` must not be null!");
 		this.analyzer = analyzer;
 		this.lengthPivot = lengthPivot;
+		this.searchWeight = AttributeSchemaContract.normalizeSearchWeight(searchWeight);
 		this.name = name;
 		this.nameVariants = CollectionUtils.toUnmodifiableMap(nameVariants);
 		this.description = description;
@@ -766,7 +889,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 				this.indexedDecimalPlaces,
 				this.conflictResolutionOverride,
 				this.normalization,
-				this.analyzer, this.lengthPivot
+				this.analyzer, this.lengthPivot, this.searchWeight
 			);
 		} else if (ReferencedEntityPredecessor.class.equals(this.plainType)) {
 			return new AttributeSchema(
@@ -787,7 +910,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 				this.indexedDecimalPlaces,
 				this.conflictResolutionOverride,
 				this.normalization,
-				this.analyzer, this.lengthPivot
+				this.analyzer, this.lengthPivot, this.searchWeight
 			);
 		} else {
 			throw new GenericEvitaInternalError(
@@ -812,6 +935,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			", normalization=" + this.normalization +
 			", analyzer=" + this.analyzer +
 			", lengthPivot=" + this.lengthPivot +
+			", searchWeight=" + this.searchWeight +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +
 			", representative=" + this.representative +

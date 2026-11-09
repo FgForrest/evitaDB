@@ -77,6 +77,22 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 */
 	int DEFAULT_LENGTH_PIVOT = 25;
 
+	/** Default fulltext ranking weight; every matching place contributes equally. */
+	float DEFAULT_SEARCH_WEIGHT = 1.0f;
+
+	/**
+	 * Canonicalizes a ranking weight so both signs of zero have the same stored representation.
+	 * Validation of finite, non-negative values remains part of assembled-schema validation.
+	 *
+	 * @param weight the supplied ranking weight
+	 * @return positive zero for either zero, otherwise the supplied weight
+	 */
+	static float normalizeSearchWeight(float weight) {
+		// IEEE 754 addition: -0.0f + 0.0f is +0.0f, while every other value - NaN and the infinities included - is
+		// returned unchanged, so this is not a no-op that can be simplified away
+		return weight + 0.0f;
+	}
+
 	/**
 	 * Ordered normalization steps for `String` and `String[]` attributes, shared by all scopes.
 	 * An empty list means no custom normalization: the engine applies only Unicode NFD.
@@ -418,6 +434,15 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	int getLengthPivot();
 
 	/**
+	 * Returns the fulltext ranking weight of this attribute. The value must be finite and
+	 * non-negative. Zero preserves matches while contributing no ranking strength. This setting applies in every
+	 * scope and changing it does not rebuild the fulltext field.
+	 *
+	 * @return the ranking weight, {@link AttributeSchemaContract#DEFAULT_SEARCH_WEIGHT} unless declared otherwise
+	 */
+	float getSearchWeight();
+
+	/**
 	 * Collects the schema-consistency errors of this attribute, one message per problem, **without throwing**.
 	 *
 	 * The accumulating shape mirrors
@@ -482,6 +507,16 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 				errors, Stream.of("Attribute `" + getName() + "` names a blank fulltext analyzer.")
 			);
 		}
+		if (!Float.isFinite(getSearchWeight()) || getSearchWeight() < 0) {
+			errors = Stream.concat(
+				errors,
+				Stream.of(
+					"Attribute `" + getName() + "` declares the search weight " + getSearchWeight() +
+						"! The search weight must be finite and non-negative."
+				)
+			);
+		}
+
 		if (getLengthPivot() <= 0) {
 			errors = Stream.concat(
 				errors,

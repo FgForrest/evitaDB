@@ -275,7 +275,8 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 					Integer.class, null,
 					0, ConflictResolutionOverride.INHERITED,
 					null,
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				),
 				attributes.getAttributeSchema("int")
 					.orElse(null)
@@ -288,7 +289,8 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 					Short.class, null,
 					0, ConflictResolutionOverride.INHERITED,
 					null,
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				),
 				attributes.getAttributeSchema("short")
 					.orElse(null)
@@ -301,7 +303,8 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 					IntegerNumberRange.class, null,
 					0, ConflictResolutionOverride.INHERITED,
 					null,
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				),
 				attributes.getAttributeSchema("range")
 					.orElse(null)
@@ -314,7 +317,8 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 					BigDecimal.class, null,
 					0, ConflictResolutionOverride.INHERITED,
 					null,
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				),
 				attributes.getAttributeSchema(
 					"bigDecimal"
@@ -328,7 +332,8 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 					String.class, null,
 					0, ConflictResolutionOverride.INHERITED,
 					null,
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				),
 				attributes.getAttributeSchema(
 					"greetings"

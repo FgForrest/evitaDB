@@ -158,7 +158,8 @@ class CreateReferenceSchemaMutationTest {
 					2,
 					ConflictResolutionOverride.INHERITED,
 					null,
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				),
 				REFERENCE_ATTRIBUTE_QUANTITY,
 				AttributeSchema._internalBuild(
@@ -182,7 +183,8 @@ class CreateReferenceSchemaMutationTest {
 					2,
 					ConflictResolutionOverride.INHERITED,
 					null,
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				)
 			),
 			Map.of(

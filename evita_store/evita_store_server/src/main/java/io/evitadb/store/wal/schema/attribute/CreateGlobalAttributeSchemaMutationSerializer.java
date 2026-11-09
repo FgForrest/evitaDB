@@ -43,6 +43,7 @@ import java.util.Arrays;
 
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readAnalysisSteps;
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readNullableLengthPivot;
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readNullableSearchWeight;
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeAnalysisSteps;
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeFulltextFieldSettings;
 import static io.evitadb.store.wal.schema.attribute.CreateAttributeSchemaMutationSerializer.readScopedUniquenessTypesMap;
@@ -118,7 +119,9 @@ public class CreateGlobalAttributeSchemaMutationSerializer extends Serializer<Cr
 		if (normalization != null) {
 			writeAnalysisSteps(kryo, output, Arrays.asList(normalization));
 		}
-		writeFulltextFieldSettings(output, mutation.getAnalyzer(), mutation.getLengthPivot());
+		writeFulltextFieldSettings(
+			output, mutation.getAnalyzer(), mutation.getLengthPivot(), mutation.getSearchWeight()
+		);
 	}
 
 	@Override
@@ -149,6 +152,7 @@ public class CreateGlobalAttributeSchemaMutationSerializer extends Serializer<Cr
 			input.readBoolean() ? readAnalysisSteps(kryo, input).toArray(AnalysisStep[]::new) : null;
 		final String analyzer = input.readString();
 		final Integer lengthPivot = readNullableLengthPivot(input);
+		final Float searchWeight = readNullableSearchWeight(input);
 		return new CreateGlobalAttributeSchemaMutation(
 			name,
 			description,
@@ -167,7 +171,7 @@ public class CreateGlobalAttributeSchemaMutationSerializer extends Serializer<Cr
 			conflictResolutionOverride,
 			normalization,
 			analyzer,
-			lengthPivot
+			lengthPivot, searchWeight
 		);
 	}
 }

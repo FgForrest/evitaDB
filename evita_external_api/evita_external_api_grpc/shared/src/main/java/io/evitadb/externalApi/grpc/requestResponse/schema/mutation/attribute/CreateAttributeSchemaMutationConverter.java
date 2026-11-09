@@ -89,6 +89,7 @@ public class CreateAttributeSchemaMutationConverter implements SchemaMutationCon
 				toAnalysisSteps(mutation.getNormalizationList()).toArray(AnalysisStep[]::new),
 			// the fulltext field settings have no gRPC mirror yet, so the defaults apply
 			null,
+			null,
 			null
 		);
 	}

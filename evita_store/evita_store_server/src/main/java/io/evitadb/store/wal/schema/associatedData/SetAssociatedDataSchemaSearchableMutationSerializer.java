@@ -32,6 +32,7 @@ import io.evitadb.dataType.expression.Expression;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readNullableLengthPivot;
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readNullableSearchWeight;
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeFulltextFieldSettings;
 
 /**
@@ -54,7 +55,9 @@ public class SetAssociatedDataSchemaSearchableMutationSerializer
 		} else {
 			output.writeBoolean(false);
 		}
-		writeFulltextFieldSettings(output, mutation.getAnalyzer(), mutation.getLengthPivot());
+		writeFulltextFieldSettings(
+			output, mutation.getAnalyzer(), mutation.getLengthPivot(), mutation.getSearchWeight()
+		);
 	}
 
 	@Override
@@ -66,7 +69,7 @@ public class SetAssociatedDataSchemaSearchableMutationSerializer
 			readScopeArray(kryo, input),
 			input.readBoolean() ? kryo.readObject(input, Expression.class) : null,
 			input.readString(),
-			readNullableLengthPivot(input)
+			readNullableLengthPivot(input), readNullableSearchWeight(input)
 		);
 	}
 

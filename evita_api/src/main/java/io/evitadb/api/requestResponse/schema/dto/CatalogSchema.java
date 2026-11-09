@@ -420,7 +420,8 @@ public final class CatalogSchema implements CatalogSchemaContract {
 				attributeSchemaContract.getIndexedDecimalPlaces(),
 				attributeSchemaContract.getConflictResolutionOverride(),
 				attributeSchemaContract.getNormalization(),
-				attributeSchemaContract.getAnalyzer(), attributeSchemaContract.getLengthPivot()
+				attributeSchemaContract.getAnalyzer(), attributeSchemaContract.getLengthPivot(),
+				attributeSchemaContract.getSearchWeight()
 			);
 	}
 

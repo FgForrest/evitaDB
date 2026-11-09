@@ -23,6 +23,10 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.associatedData;
 
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
+import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
@@ -47,13 +51,19 @@ import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.Tag;
 
@@ -85,7 +95,8 @@ class CreateAssociatedDataSchemaMutationTest {
 			null,
 			null,
 			ConflictResolutionOverride.INHERITED,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 
@@ -160,7 +171,7 @@ class CreateAssociatedDataSchemaMutationTest {
 				ASSOCIATED_DATA_NAME, null, null, ComplexDataObject.class, true, false,
 				new Scope[]{Scope.LIVE, Scope.ARCHIVED}, ExpressionFactory.parse("$value.title"),
 				ConflictResolutionOverride.INHERITED,
-				null, null
+				null, null, null
 			);
 			assertTrue(mutation.isSearchable());
 			final AssociatedDataSchemaContract schema = mutation.mutate(null);
@@ -238,7 +249,8 @@ class CreateAssociatedDataSchemaMutationTest {
 						AssociatedDataSchema._internalBuild(
 							ASSOCIATED_DATA_NAME, "oldDescription", "oldDeprecationNotice", Integer.class, false, false,
 							new Scope[]{Scope.LIVE}, null, ConflictResolutionOverride.INHERITED,
-								FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+								FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+								AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 						)
 					)
 				);
@@ -396,5 +408,59 @@ class CreateAssociatedDataSchemaMutationTest {
 			);
 			assertNotEquals(mutation1, mutation2);
 		}
+	}
+
+	/** Create null means default; remove/create emits searchability only for an actual weight difference. */
+	@ParameterizedTest
+	@NullSource
+	@ValueSource(floats = {0.0f, -0.0f, 2.5f, 3.5f})
+	@DisplayName("should default create weights and include only real weight differences")
+	void shouldDefaultSearchWeightAndDetectWeightDifferences(@Nullable Float weight) {
+		final CatalogSchema catalog = CatalogSchema._internalBuild(
+			"test", Map.of(), null, Set.of(),
+			EmptyEntitySchemaAccessor.INSTANCE
+		);
+		final EntitySchemaContract owner = new InternalEntitySchemaBuilder(catalog,
+			EntitySchema._internalBuild("product"))
+			.withAssociatedData(ASSOCIATED_DATA_NAME, String.class,
+				a -> a.localized().searchable().searchWeight(3.5f)).toInstance();
+		final CreateAssociatedDataSchemaMutation create = new CreateAssociatedDataSchemaMutation(
+			ASSOCIATED_DATA_NAME, null, null, String.class, true, false, Scope.DEFAULT_SCOPES, null,
+			ConflictResolutionOverride.INHERITED, null, null, weight
+		);
+		final float expected = weight == null ? 1.0f : weight + 0.0f;
+		final float created = create.mutate(null).getSearchWeight();
+		assertEquals(Float.floatToRawIntBits(expected), Float.floatToRawIntBits(created));
+		if (weight != null) {
+			assertEquals(Float.floatToRawIntBits(expected), Float.floatToRawIntBits(create.getSearchWeight()));
+		}
+		final MutationCombinationResult<LocalEntitySchemaMutation> combined = create.combineWith(catalog, owner,
+			new RemoveAssociatedDataSchemaMutation(ASSOCIATED_DATA_NAME));
+		assertNotNull(combined);
+		if (expected == 3.5f) {
+			assertNull(combined.current());
+		} else {
+			assertEquals(1, combined.current().length);
+			assertTrue(combined.current()[0] instanceof SetAssociatedDataSchemaSearchableMutation);
+			assertEquals(expected,
+				((SetAssociatedDataSchemaSearchableMutation) combined.current()[0]).getSearchWeight());
+		}
+	}
+
+	/** A create statement includes its explicit weight in equality, hashing and diagnostic output. */
+	@Test
+	@DisplayName("should include an explicit weight in equality, hash code and toString")
+	void shouldIncludeSearchWeightInValueSemantics() {
+		final CreateAssociatedDataSchemaMutation zero = new CreateAssociatedDataSchemaMutation(
+			ASSOCIATED_DATA_NAME, null, null, String.class, false, false, null, null,
+			ConflictResolutionOverride.INHERITED, null, null, 0.0f
+		);
+		final CreateAssociatedDataSchemaMutation weighted = new CreateAssociatedDataSchemaMutation(
+			ASSOCIATED_DATA_NAME, null, null, String.class, false, false, null, null,
+			ConflictResolutionOverride.INHERITED, null, null, 2.5f
+		);
+		assertNotEquals(zero, weighted);
+		assertNotEquals(zero.hashCode(), weighted.hashCode());
+		assertTrue(weighted.toString().contains("searchWeight=2.5"));
 	}
 }

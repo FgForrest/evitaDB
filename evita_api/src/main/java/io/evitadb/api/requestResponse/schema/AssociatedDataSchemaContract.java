@@ -171,6 +171,15 @@ public interface AssociatedDataSchemaContract extends NamedSchemaWithDeprecation
 	int getLengthPivot();
 
 	/**
+	 * Returns the fulltext ranking weight of this associated data. The value must be finite and
+	 * non-negative. Zero preserves matches while contributing no ranking strength. This setting applies in every
+	 * scope and changing it does not rebuild the fulltext field.
+	 *
+	 * @return the ranking weight, {@link AttributeSchemaContract#DEFAULT_SEARCH_WEIGHT} unless declared otherwise
+	 */
+	float getSearchWeight();
+
+	/**
 	 * Returns the EvitaEL expression selecting the text of a {@link ComplexDataObject} value, with the stored value
 	 * bound to `$value` (see {@link #TEXT_EXPRESSION_VARIABLE}), e.g. `$value.title` or `$value.blocks.*[$.text]`.
 	 * The expression is expected to yield a `String`, an array or list of strings (an array node of the stored value
@@ -204,6 +213,16 @@ public interface AssociatedDataSchemaContract extends NamedSchemaWithDeprecation
 				errors, Stream.of("Associated data `" + getName() + "` names a blank fulltext analyzer.")
 			);
 		}
+		if (!Float.isFinite(getSearchWeight()) || getSearchWeight() < 0) {
+			errors = Stream.concat(
+				errors,
+				Stream.of(
+					"Associated data `" + getName() + "` declares the search weight " + getSearchWeight() +
+						"! The search weight must be finite and non-negative."
+				)
+			);
+		}
+
 		if (getLengthPivot() <= 0) {
 			errors = Stream.concat(
 				errors,

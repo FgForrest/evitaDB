@@ -112,6 +112,9 @@ public class CreateAssociatedDataSchemaMutation
 	 */
 	@Getter @Nullable private final Integer lengthPivot;
 
+	/** Ranking weight, or `null` to use the default. */
+	@Getter @Nullable private final Float searchWeight;
+
 	/**
 	 * Creates a mutation that will set up a new associated data schema with the given properties. The conflict
 	 * resolution override defaults to {@link ConflictResolutionOverride#INHERITED}.
@@ -136,7 +139,7 @@ public class CreateAssociatedDataSchemaMutation
 	) {
 		this(
 			name, description, deprecationNotice, type, localized, nullable, null, null,
-			ConflictResolutionOverride.INHERITED, null, null
+			ConflictResolutionOverride.INHERITED, null, null, null
 		);
 	}
 
@@ -168,7 +171,7 @@ public class CreateAssociatedDataSchemaMutation
 	) {
 		this(
 			name, description, deprecationNotice, type, localized, nullable, null, null, conflictResolutionOverride,
-			null, null
+			null, null, null
 		);
 	}
 
@@ -193,6 +196,7 @@ public class CreateAssociatedDataSchemaMutation
 	 *                                   resolution)
 	 * @param analyzer                   the name of the fulltext analyzer, or `null` for the default one
 	 * @param lengthPivot                the length pivot, or `null` for the default one
+	 * @param searchWeight               finite, non-negative ranking weight, or `null` to use the default
 	 * @throws InvalidSchemaMutationException if the type is not allowed in associated data
 	 */
 	@SerializableCreator
@@ -207,7 +211,8 @@ public class CreateAssociatedDataSchemaMutation
 		@Nullable Expression textExpression,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
 		@Nullable String analyzer,
-		@Nullable Integer lengthPivot
+		@Nullable Integer lengthPivot,
+		@Nullable Float searchWeight
 	) {
 		super(name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ASSOCIATED_DATA, name);
@@ -226,6 +231,7 @@ public class CreateAssociatedDataSchemaMutation
 		this.conflictResolutionOverride = conflictResolutionOverride;
 		this.analyzer = analyzer;
 		this.lengthPivot = lengthPivot;
+		this.searchWeight = searchWeight == null ? null : AttributeSchemaContract.normalizeSearchWeight(searchWeight);
 	}
 
 	/**
@@ -292,7 +298,7 @@ public class CreateAssociatedDataSchemaMutation
 							newValue -> new SetAssociatedDataSchemaSearchableMutation(
 								this.name, createdVersion.getSearchableInScopes().toArray(Scope[]::new),
 								createdVersion.getTextExpression(), createdVersion.getAnalyzer(),
-								createdVersion.getLengthPivot()
+								createdVersion.getLengthPivot(), createdVersion.getSearchWeight()
 							)
 						),
 						makeMutationIfDifferent(
@@ -317,7 +323,8 @@ public class CreateAssociatedDataSchemaMutation
 			this.name, this.description, this.deprecationNotice, this.type, this.localized, this.nullable,
 			this.searchableInScopes, this.textExpression, this.conflictResolutionOverride,
 			this.analyzer == null ? FulltextAnalyzerSchemaContract.TEXT : this.analyzer,
-			this.lengthPivot == null ? AttributeSchemaContract.DEFAULT_LENGTH_PIVOT : this.lengthPivot
+			this.lengthPivot == null ? AttributeSchemaContract.DEFAULT_LENGTH_PIVOT : this.lengthPivot,
+			this.searchWeight == null ? AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT : this.searchWeight
 		);
 	}
 
@@ -392,22 +399,24 @@ public class CreateAssociatedDataSchemaMutation
 			(this.textExpression == null ? "" : ", textExpression=" + this.textExpression.toExpressionString()) +
 			(this.analyzer == null ? "" : ", analyzer=" + this.analyzer) +
 			(this.lengthPivot == null ? "" : ", lengthPivot=" + this.lengthPivot) +
+			(this.searchWeight == null ? "" : ", searchWeight=" + this.searchWeight) +
 			", conflictResolutionOverride=" + this.conflictResolutionOverride;
 	}
 
 	/**
 	 * Returns the searchability of an associated data schema as one comparable value - the searchable scopes, the text
-	 * expression, the analyzer and the length pivot travel in one mutation, so they are compared together.
+	 * expression, the analyzer, length pivot and ranking weight travel in one mutation, so they are compared together.
 	 *
 	 * @param schema the associated data schema
-	 * @return the scopes, the expression text (`null` when no expression is set), the analyzer and the pivot
+	 * @return the scopes, the expression text (`null` when no expression is set), the analyzer, pivot and ranking
+	 * weight
 	 */
 	@Nonnull
 	private static List<Object> searchabilityOf(@Nonnull AssociatedDataSchemaContract schema) {
 		final Expression textExpression = schema.getTextExpression();
 		return Arrays.asList(
 			schema.getSearchableInScopes(), textExpression == null ? null : textExpression.toExpressionString(),
-			schema.getAnalyzer(), schema.getLengthPivot()
+			schema.getAnalyzer(), schema.getLengthPivot(), schema.getSearchWeight()
 		);
 	}
 }

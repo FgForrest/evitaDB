@@ -109,7 +109,7 @@ public final class GlobalAttributeSchemaBuilder
 				this.baseSchema.getIndexedDecimalPlaces(),
 				ConflictResolutionOverride.INHERITED,
 				null,
-				null, null
+				null, null, null
 			)
 		);
 	}

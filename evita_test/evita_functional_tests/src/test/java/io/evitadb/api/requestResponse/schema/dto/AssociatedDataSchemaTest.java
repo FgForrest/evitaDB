@@ -32,6 +32,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.util.Map;
 import org.junit.jupiter.api.Tag;
 
@@ -78,7 +79,8 @@ class AssociatedDataSchemaTest {
 				null,
 				null,
 				ConflictResolutionOverride.INHERITED,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 
 			assertEquals("description", schema.getName());
@@ -99,7 +101,8 @@ class AssociatedDataSchemaTest {
 				null,
 				null,
 				ConflictResolutionOverride.INHERITED,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 
 			assertEquals(
@@ -116,7 +119,8 @@ class AssociatedDataSchemaTest {
 				null,
 				null,
 				ConflictResolutionOverride.INHERITED,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 
 			assertSame(Integer.class, schema.getType());
@@ -130,7 +134,8 @@ class AssociatedDataSchemaTest {
 				null,
 				null,
 				ConflictResolutionOverride.INHERITED,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 
 			assertSame(String[].class, schema.getType());
@@ -145,7 +150,8 @@ class AssociatedDataSchemaTest {
 				null,
 				null,
 				ConflictResolutionOverride.INHERITED,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 
 			assertSame(ComplexDataObject.class, schema.getType());
@@ -164,14 +170,16 @@ class AssociatedDataSchemaTest {
 				null,
 				null,
 				ConflictResolutionOverride.INHERITED,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 			final AssociatedDataSchema b = AssociatedDataSchema._internalBuild(
 				"data", null, null, String.class, false, false,
 				null,
 				null,
 				ConflictResolutionOverride.INHERITED,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 
 			assertEquals(a, b);
@@ -186,14 +194,16 @@ class AssociatedDataSchemaTest {
 				null,
 				null,
 				ConflictResolutionOverride.INHERITED,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 			final AssociatedDataSchema b = AssociatedDataSchema._internalBuild(
 				"data2", null, null, String.class, false, false,
 				null,
 				null,
 				ConflictResolutionOverride.INHERITED,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 
 			assertNotEquals(a, b);
@@ -207,14 +217,16 @@ class AssociatedDataSchemaTest {
 				null,
 				null,
 				ConflictResolutionOverride.INHERITED,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 			final AssociatedDataSchema b = AssociatedDataSchema._internalBuild(
 				"data", null, null, String.class, false, false,
 				null,
 				null,
 				ConflictResolutionOverride.INHERITED,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 
 			assertNotEquals(a, b);
@@ -228,18 +240,44 @@ class AssociatedDataSchemaTest {
 				null,
 				null,
 				ConflictResolutionOverride.INHERITED,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 			final AssociatedDataSchema b = AssociatedDataSchema._internalBuild(
 				"data", null, null, String.class, false, false,
 				null,
 				null,
 				ConflictResolutionOverride.GRANULAR,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 
 			assertNotEquals(a, b);
 			assertNotEquals(a.hashCode(), b.hashCode());
 		}
+	}
+
+	/** Ranking weight participates in the value contract, with a canonical representation for zero. */
+	@Test
+	void shouldIncludeSearchWeightInValueSemantics() {
+		final AssociatedDataSchema zero = schemaWithSearchWeight(0.0f);
+		final AssociatedDataSchema weighted = schemaWithSearchWeight(2.5f);
+		assertNotEquals(zero, weighted);
+		assertNotEquals(zero.hashCode(), weighted.hashCode());
+		assertTrue(weighted.toString().contains("searchWeight=2.5"));
+		final AssociatedDataSchema negativeZero = schemaWithSearchWeight(-0.0f);
+		assertEquals(Float.floatToRawIntBits(0.0f), Float.floatToRawIntBits(negativeZero.getSearchWeight()));
+		assertEquals(zero, negativeZero);
+		assertEquals(zero.hashCode(), negativeZero.hashCode());
+	}
+
+	/** Builds a DTO whose only variable setting is the ranking weight. */
+	@Nonnull
+	private static AssociatedDataSchema schemaWithSearchWeight(float weight) {
+		return AssociatedDataSchema._internalBuild(
+			"labels", null, null, String.class, false, false, null, null,
+			ConflictResolutionOverride.INHERITED, FulltextAnalyzerSchemaContract.TEXT,
+			AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, weight
+		);
 	}
 }

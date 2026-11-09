@@ -191,4 +191,14 @@ public interface AssociatedDataSchemaEditor extends
 	@Nonnull
 	AssociatedDataSchemaEditor lengthPivot(int lengthPivot);
 
+	/**
+	 * Sets the fulltext ranking weight in every scope, preserving scopes and the text expression.
+	 * Zero preserves matches while contributing no ranking strength. Changing the weight does not rebuild the field.
+	 *
+	 * @param searchWeight finite, non-negative ranking weight
+	 * @return this editor
+	 */
+	@Nonnull
+	AssociatedDataSchemaEditor searchWeight(float searchWeight);
+
 }

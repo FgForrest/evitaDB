@@ -5336,22 +5336,29 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					final AttributeSchemaContract name = schema.getAttribute("name").orElseThrow();
 					assertEquals(FulltextAnalyzerSchemaContract.HTML_TEXT, name.getAnalyzer());
 					assertEquals(8, name.getLengthPivot());
+					assertEquals(2.5f, name.getSearchWeight());
 					final AttributeSchemaContract plainName = schema.getAttribute("plainName").orElseThrow();
 					assertEquals(FulltextAnalyzerSchemaContract.TEXT, plainName.getAnalyzer());
 					assertEquals(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, plainName.getLengthPivot());
+					assertEquals(1.0f, plainName.getSearchWeight());
 
 					final AttributeSchemaContract globalTitle = session.getCatalogSchema()
 						.getAttribute("fieldSettingsGlobalTitle").orElseThrow();
 					assertEquals(FulltextAnalyzerSchemaContract.TEXT, globalTitle.getAnalyzer());
 					assertEquals(12, globalTitle.getLengthPivot());
+					assertEquals(3.5f, globalTitle.getSearchWeight());
 					final AttributeSchemaContract label = schema.getReference("marketingBrand").orElseThrow()
 						.getAttribute("label").orElseThrow();
 					assertEquals(FulltextAnalyzerSchemaContract.HTML_TEXT, label.getAnalyzer());
 					assertEquals(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, label.getLengthPivot());
+					assertEquals(4.5f, label.getSearchWeight());
 
 					final AssociatedDataSchemaContract body = schema.getAssociatedData("body").orElseThrow();
 					assertEquals(FulltextAnalyzerSchemaContract.HTML_TEXT, body.getAnalyzer());
 					assertEquals(400, body.getLengthPivot());
+					assertEquals(0.0f, body.getSearchWeight());
+					assertEquals(5.5f, schema.getAssociatedData("paragraphs").orElseThrow().getSearchWeight());
+					assertEquals(6.5f, schema.getAssociatedData("article").orElseThrow().getSearchWeight());
 				}
 			);
 		}

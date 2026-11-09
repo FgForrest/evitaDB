@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.mutation.associatedData;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
@@ -58,9 +59,9 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
  *
  * The mutation is a **full statement of the searchability axis** - it names every scope the associated data should be
  * searchable in once it is applied (a scope it does not name ends up not searchable) together with the one text
- * expression that applies to all of them. The fulltext analyzer and the length pivot of the field travel with it but
- * are not part of that statement: `null` keeps the current value, so a client unaware of them never resets them. It
- * touches nothing else.
+ * expression that applies to all of them. The fulltext analyzer, length pivot and ranking weight of the field travel
+ * with it but are not part of that statement: `null` keeps the current value, so a client unaware of them never
+ * resets them. It touches nothing else.
  *
  * The mutation refuses nothing. Whether the associated data can be searchable at all - localized, of type `String`,
  * `String[]` or a complex data object with a text expression - is checked by
@@ -101,6 +102,9 @@ public class SetAssociatedDataSchemaSearchableMutation
 	 */
 	@Getter @Nullable private final Integer lengthPivot;
 
+	/** Ranking weight, or `null` to keep the current value. */
+	@Getter @Nullable private final Float searchWeight;
+
 	/**
 	 * Creates a mutation making the associated data searchable in the {@link Scope#DEFAULT_SCOPE default scope} only,
 	 * or searchable nowhere, without a text expression.
@@ -110,7 +114,7 @@ public class SetAssociatedDataSchemaSearchableMutation
 	 *                   nowhere
 	 */
 	public SetAssociatedDataSchemaSearchableMutation(@Nonnull String name, boolean searchable) {
-		this(name, searchable ? Scope.DEFAULT_SCOPES : NO_SCOPE, null, null, null);
+		this(name, searchable ? Scope.DEFAULT_SCOPES : NO_SCOPE, null, null, null, null);
 	}
 
 	/**
@@ -126,12 +130,12 @@ public class SetAssociatedDataSchemaSearchableMutation
 		@Nullable Scope[] searchableInScopes,
 		@Nullable Expression textExpression
 	) {
-		this(name, searchableInScopes, textExpression, null, null);
+		this(name, searchableInScopes, textExpression, null, null, null);
 	}
 
 	/**
 	 * Creates a mutation stating the scopes the associated data should be searchable in and its text expression, and
-	 * setting the fulltext analyzer and the length pivot of its field.
+	 * setting the fulltext analyzer, the length pivot and the ranking weight of its field.
 	 *
 	 * @param name               name of the altered associated data
 	 * @param searchableInScopes the scopes the associated data should be searchable in; a scope not named here ends up
@@ -139,6 +143,7 @@ public class SetAssociatedDataSchemaSearchableMutation
 	 * @param textExpression     the expression selecting the text of a complex data object value, or `null`
 	 * @param analyzer           the name of the fulltext analyzer, or `null` to keep the current one
 	 * @param lengthPivot        the length pivot, or `null` to keep the current one
+	 * @param searchWeight       finite, non-negative ranking weight, or `null` to keep the current value
 	 */
 	@SerializableCreator
 	public SetAssociatedDataSchemaSearchableMutation(
@@ -146,13 +151,15 @@ public class SetAssociatedDataSchemaSearchableMutation
 		@Nullable Scope[] searchableInScopes,
 		@Nullable Expression textExpression,
 		@Nullable String analyzer,
-		@Nullable Integer lengthPivot
+		@Nullable Integer lengthPivot,
+		@Nullable Float searchWeight
 	) {
 		super(name);
 		this.searchableInScopes = searchableInScopes == null ? NO_SCOPE : searchableInScopes;
 		this.textExpression = textExpression;
 		this.analyzer = analyzer;
 		this.lengthPivot = lengthPivot;
+		this.searchWeight = searchWeight == null ? null : AttributeSchemaContract.normalizeSearchWeight(searchWeight);
 	}
 
 	/**
@@ -174,9 +181,11 @@ public class SetAssociatedDataSchemaSearchableMutation
 		if (existingMutation instanceof SetAssociatedDataSchemaSearchableMutation theExistingMutation &&
 			this.name.equals(theExistingMutation.getName())
 		) {
-			// the scopes and the expression are a full statement, the analyzer and the pivot are kept unless restated
+			// the scopes and the expression are a full statement, the analyzer, pivot and ranking weight are kept
+			// unless restated
 			if ((this.analyzer != null || theExistingMutation.getAnalyzer() == null) &&
-				(this.lengthPivot != null || theExistingMutation.getLengthPivot() == null)) {
+				(this.lengthPivot != null || theExistingMutation.getLengthPivot() == null) &&
+				(this.searchWeight != null || theExistingMutation.getSearchWeight() == null)) {
 				return new MutationCombinationResult<>(null, this);
 			}
 			return new MutationCombinationResult<>(
@@ -184,7 +193,8 @@ public class SetAssociatedDataSchemaSearchableMutation
 				new SetAssociatedDataSchemaSearchableMutation(
 					this.name, this.searchableInScopes, this.textExpression,
 					this.analyzer == null ? theExistingMutation.getAnalyzer() : this.analyzer,
-					this.lengthPivot == null ? theExistingMutation.getLengthPivot() : this.lengthPivot
+					this.lengthPivot == null ? theExistingMutation.getLengthPivot() : this.lengthPivot,
+					this.searchWeight == null ? theExistingMutation.getSearchWeight() : this.searchWeight
 				)
 			);
 		} else {
@@ -199,11 +209,14 @@ public class SetAssociatedDataSchemaSearchableMutation
 		final EnumSet<Scope> searchable = ArrayUtils.toEnumSet(Scope.class, this.searchableInScopes);
 		final String theAnalyzer = this.analyzer == null ? associatedDataSchema.getAnalyzer() : this.analyzer;
 		final int theLengthPivot = this.lengthPivot == null ? associatedDataSchema.getLengthPivot() : this.lengthPivot;
+		final float theSearchWeight =
+			this.searchWeight == null ? associatedDataSchema.getSearchWeight() : this.searchWeight;
 		if (
 			associatedDataSchema.getSearchableInScopes().equals(searchable) &&
 				Objects.equals(associatedDataSchema.getTextExpression(), this.textExpression) &&
 				associatedDataSchema.getAnalyzer().equals(theAnalyzer) &&
-				associatedDataSchema.getLengthPivot() == theLengthPivot
+				associatedDataSchema.getLengthPivot() == theLengthPivot &&
+				Float.compare(associatedDataSchema.getSearchWeight(), theSearchWeight) == 0
 		) {
 			return associatedDataSchema;
 		}
@@ -218,7 +231,7 @@ public class SetAssociatedDataSchemaSearchableMutation
 			searchable,
 			this.textExpression,
 			associatedDataSchema.getConflictResolutionOverride(),
-			theAnalyzer, theLengthPivot
+			theAnalyzer, theLengthPivot, theSearchWeight
 		);
 	}
 
@@ -248,7 +261,8 @@ public class SetAssociatedDataSchemaSearchableMutation
 			"searchable=" + (isSearchable() ? "(in scopes: " + Arrays.toString(this.searchableInScopes) + ")" : "no") +
 			(this.textExpression == null ? "" : ", textExpression=" + this.textExpression.toExpressionString()) +
 			(this.analyzer == null ? "" : ", analyzer=" + this.analyzer) +
-			(this.lengthPivot == null ? "" : ", lengthPivot=" + this.lengthPivot);
+			(this.lengthPivot == null ? "" : ", lengthPivot=" + this.lengthPivot) +
+			(this.searchWeight == null ? "" : ", searchWeight=" + this.searchWeight);
 	}
 
 }

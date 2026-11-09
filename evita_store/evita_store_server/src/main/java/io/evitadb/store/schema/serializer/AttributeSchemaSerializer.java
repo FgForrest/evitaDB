@@ -99,14 +99,14 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 			output.writeBoolean(false);
 		}
 		kryo.writeObject(output, attributeSchema.getConflictResolutionOverride());
-		// four sections appended last, in this fixed order - the accelerators, the searchable scopes, the
-		// normalization, then the fulltext field settings (analyzer, length pivot); the release-2026.2 reader
-		// (AttributeSchemaSerializer_2026_2) simply stops before all four
+		// Append accelerators, searchable scopes, normalization and fulltext settings (analyzer, length pivot, weight).
+		// The release-2026.2 reader (AttributeSchemaSerializer_2026_2) stops before all four.
 		EntitySchemaSerializer.writeAccelerators(kryo, output, attributeSchema.getAcceleratorsInScopes());
 		EntitySchemaSerializer.writeScopeSet(kryo, output, attributeSchema.getSearchableInScopes());
 		writeAnalysisSteps(kryo, output, attributeSchema.getNormalization());
 		output.writeString(attributeSchema.getAnalyzer());
 		output.writeVarInt(attributeSchema.getLengthPivot(), true);
+		output.writeFloat(attributeSchema.getSearchWeight());
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
@@ -148,12 +148,13 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 		final List<AnalysisStep> normalization = readAnalysisSteps(kryo, input);
 		final String analyzer = input.readString();
 		final int lengthPivot = input.readVarInt(true);
+		final float searchWeight = input.readFloat();
 		return AttributeSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			unique, filterable, accelerators, searchable, sortable, localized, nullable, representative,
 			type, (Serializable) defaultValue, indexedDecimalPlaces, conflictResolutionOverride,
 			normalization,
-			analyzer, lengthPivot
+			analyzer, lengthPivot, searchWeight
 		);
 	}
 

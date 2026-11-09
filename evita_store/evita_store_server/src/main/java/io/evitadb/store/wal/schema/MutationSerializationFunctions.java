@@ -83,6 +83,17 @@ public interface MutationSerializationFunctions {
 	}
 
 	/**
+	 * Reads the optional ranking weight immediately after the nullable length pivot.
+	 *
+	 * @param input the source
+	 * @return ranking weight, or `null` when absent
+	 */
+	@Nullable
+	static Float readNullableSearchWeight(@Nonnull Input input) {
+		return input.readBoolean() ? input.readFloat() : null;
+	}
+
+	/**
 	 * Reads ordered analysis steps written by {@link #writeAnalysisSteps(Kryo, Output, List)}.
 	 *
 	 * @param kryo the Kryo instance used to deserialize parameter values with their runtime types
@@ -126,27 +137,33 @@ public interface MutationSerializationFunctions {
 	}
 
 	/**
-	 * Writes the fulltext field settings a searchable or create mutation carries: the analyzer name and the length
-	 * pivot, each `null` when the mutation leaves it to the current or the default value.
+	 * Writes the fulltext field settings a searchable or create mutation carries: the analyzer name, length pivot
+	 * and ranking weight, each `null` when the mutation leaves it to the current or the default value.
 	 *
-	 * @param output      the destination
-	 * @param analyzer    the name of the analyzer, or `null`
-	 * @param lengthPivot the length pivot, or `null`
+	 * @param output       the destination
+	 * @param analyzer     the name of the analyzer, or `null`
+	 * @param lengthPivot  the length pivot, or `null`
+	 * @param searchWeight the ranking weight, or `null`
 	 */
 	static void writeFulltextFieldSettings(
 		@Nonnull Output output,
 		@Nullable String analyzer,
-		@Nullable Integer lengthPivot
+		@Nullable Integer lengthPivot,
+		@Nullable Float searchWeight
 	) {
 		output.writeString(analyzer);
 		output.writeBoolean(lengthPivot != null);
 		if (lengthPivot != null) {
 			output.writeVarInt(lengthPivot, false);
 		}
+		output.writeBoolean(searchWeight != null);
+		if (searchWeight != null) {
+			output.writeFloat(searchWeight);
+		}
 	}
 
 	/**
-	 * Reads the length pivot written by {@link #writeFulltextFieldSettings(Output, String, Integer)}, after the
+	 * Reads the length pivot written by {@link #writeFulltextFieldSettings(Output, String, Integer, Float)}, after the
 	 * analyzer name, which {@link Input#readString()} reads.
 	 *
 	 * @param input the source

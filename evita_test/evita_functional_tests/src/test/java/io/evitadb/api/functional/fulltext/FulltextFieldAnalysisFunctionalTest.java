@@ -23,6 +23,7 @@
 
 package io.evitadb.api.functional.fulltext;
 
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -586,4 +587,68 @@ class FulltextFieldAnalysisFunctionalTest implements EvitaTestSupport {
 		return EvitaConfiguration.builder(base).transaction(TransactionOptions.builder(base.transaction())
 			.checkpointIntervalInMillis(3_600_000L).build()).build();
 	}
+
+	/** Ranking configuration cannot replace field identities or discard postings from earlier entity writes. */
+	@Test
+	@DisplayName("should keep attribute and associated data generations after weight-only commits")
+	void shouldKeepFieldGenerationsWhenOnlySearchWeightsChange() {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
+			session.defineEntitySchema(PRODUCT).withoutGeneratedPrimaryKey().withLocale(Locale.ENGLISH)
+				.withAttribute("title", String.class, a -> a.localized().searchable())
+				.withAssociatedData("article", String.class, a -> a.localized().searchable())
+				.updateVia(session);
+			for (int id = 1; id <= 2; id++) {
+				session.upsertEntity(session.createNewEntity(PRODUCT, id)
+					.setAttribute("title", Locale.ENGLISH, "green")
+					.setAssociatedData("article", Locale.ENGLISH, "amber"));
+			}
+			session.goLiveAndClose();
+		});
+		final FulltextFieldKey title = FulltextFieldKey.attribute("title");
+		final FulltextFieldKey article = FulltextFieldKey.associatedData("article");
+		final FulltextIndex before = index(this.evita, Locale.ENGLISH);
+		final int titleId = before.getFieldId(title);
+		final int articleId = before.getFieldId(article);
+		final int fieldCount = before.getFieldCount();
+		final long titleFingerprint = before.getIndexFingerprint(titleId);
+		final long articleFingerprint = before.getIndexFingerprint(articleId);
+		for (final float weight : new float[]{2.5f, 0.0f}) {
+			this.evita.updateCatalog(TEST_CATALOG, session -> {
+				session.getEntitySchemaOrThrow(PRODUCT).openForWrite()
+					.withAttribute("title", String.class, a -> a.searchWeight(weight))
+					.withAssociatedData("article", String.class, a -> a.searchWeight(weight))
+					.updateVia(session);
+			});
+			this.evita.queryCatalog(TEST_CATALOG, session -> {
+				final EntitySchemaContract committed = session.getEntitySchemaOrThrow(PRODUCT);
+				assertEquals(weight, committed.getAttribute("title").orElseThrow().getSearchWeight());
+				assertEquals(weight, committed.getAssociatedData("article").orElseThrow().getSearchWeight());
+				return null;
+			});
+			assertMatches(this.evita, Locale.ENGLISH, "green", "title", 1, 2);
+			assertMatches(this.evita, Locale.ENGLISH, "amber", null, 1, 2);
+			this.evita.updateCatalog(TEST_CATALOG, session -> {
+				session.upsertEntity(session.getEntity(PRODUCT, 1, entityFetchAllContent()).orElseThrow()
+					.openForWrite().setAttribute("title", Locale.ENGLISH, "green tea")
+					.setAssociatedData("article", Locale.ENGLISH, "amber light"));
+			});
+			final FulltextIndex after = index(this.evita, Locale.ENGLISH);
+			assertEquals(titleId, after.getFieldId(title));
+			assertEquals(articleId, after.getFieldId(article));
+			assertEquals(fieldCount, after.getFieldCount());
+			assertEquals(titleFingerprint, after.getIndexFingerprint(titleId));
+			assertEquals(articleFingerprint, after.getIndexFingerprint(articleId));
+			assertFalse(after.isFieldRetired(titleId));
+			assertFalse(after.isFieldRetired(articleId));
+			this.evita.queryCatalog(TEST_CATALOG, session -> {
+				final EntitySchemaContract committed = session.getEntitySchemaOrThrow(PRODUCT);
+				assertEquals(weight, committed.getAttribute("title").orElseThrow().getSearchWeight());
+				assertEquals(weight, committed.getAssociatedData("article").orElseThrow().getSearchWeight());
+				return null;
+			});
+			assertMatches(this.evita, Locale.ENGLISH, "green", "title", 1, 2);
+			assertMatches(this.evita, Locale.ENGLISH, "amber", null, 1, 2);
+		}
+	}
+
 }

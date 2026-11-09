@@ -255,35 +255,49 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 		return assembleInstance().getLengthPivot();
 	}
 
+	@Override
+	public float getSearchWeight() {
+		return assembleInstance().getSearchWeight();
+	}
+
 	@Nonnull
 	@Override
 	public T analyzer(@Nonnull String analyzerName) {
 		Assert.notNull(analyzerName, "Analyzer name must not be null.");
-		return setFulltextField(analyzerName, null);
+		return setFulltextField(analyzerName, null, null);
 	}
 
 	@Nonnull
 	@Override
 	public T lengthPivot(int lengthPivot) {
-		return setFulltextField(null, lengthPivot);
+		return setFulltextField(null, lengthPivot, null);
+	}
+
+	@Nonnull
+	@Override
+	public T searchWeight(float searchWeight) {
+		return setFulltextField(null, null, searchWeight);
 	}
 
 	/**
-	 * Records the analyzer or the length pivot of the attribute's fulltext field. The searchability mutation carries
-	 * both, so it restates the scopes currently declared and leaves them as they are.
+	 * Records the analyzer, length pivot or ranking weight of the attribute's fulltext field. The searchability
+	 * mutation carries all three, so it restates the scopes currently declared and leaves them as they are.
 	 *
 	 * @param analyzerName the analyzer to set, or `null` to keep the current one
 	 * @param lengthPivot  the length pivot to set, or `null` to keep the current one
+	 * @param searchWeight the ranking weight to set, or `null` to keep the current one
 	 * @return this builder
 	 */
 	@Nonnull
-	private T setFulltextField(@Nullable String analyzerName, @Nullable Integer lengthPivot) {
+	private T setFulltextField(
+		@Nullable String analyzerName, @Nullable Integer lengthPivot, @Nullable Float searchWeight
+	) {
 		final Scope[] searchableInScopes = assembleInstance().getSearchableInScopes().toArray(Scope[]::new);
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaSearchableMutation(
-					this.baseSchema.getName(), searchableInScopes, analyzerName, lengthPivot
+					this.baseSchema.getName(), searchableInScopes, analyzerName, lengthPivot, searchWeight
 				)
 			)
 		);

@@ -707,7 +707,8 @@ public class EntitySchemaConverter {
 					attributeSchema.getIndexedDecimalPlaces(),
 					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
 					toAnalysisSteps(attributeSchema.getNormalizedList()),
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				);
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
@@ -733,7 +734,8 @@ public class EntitySchemaConverter {
 					attributeSchema.getIndexedDecimalPlaces(),
 					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
 					toAnalysisSteps(attributeSchema.getNormalizedList()),
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				);
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
@@ -759,7 +761,8 @@ public class EntitySchemaConverter {
 					attributeSchema.getIndexedDecimalPlaces(),
 					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
 					toAnalysisSteps(attributeSchema.getNormalizedList()),
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				);
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
@@ -785,7 +788,8 @@ public class EntitySchemaConverter {
 			null,
 			null,
 			EvitaEnumConverter.toConflictResolutionOverride(associatedDataSchema.getConflictResolutionOverride()),
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 

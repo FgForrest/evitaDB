@@ -119,7 +119,8 @@ class CatalogSchemaTest {
 						String.class, null, 0,
 						ConflictResolutionOverride.INHERITED,
 						null,
-						FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+						FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+						AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 					)
 				),
 				Map.of(),
@@ -260,7 +261,8 @@ class CatalogSchemaTest {
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
 				null,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 
 			final Map<String, GlobalAttributeSchemaContract> attrs = Map.of("url", attr);

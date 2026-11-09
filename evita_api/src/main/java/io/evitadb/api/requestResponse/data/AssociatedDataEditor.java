@@ -138,7 +138,8 @@ public interface AssociatedDataEditor<W extends AssociatedDataEditor<W>> extends
 				null,
 				null,
 				ConflictResolutionOverride.INHERITED,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 		}
 

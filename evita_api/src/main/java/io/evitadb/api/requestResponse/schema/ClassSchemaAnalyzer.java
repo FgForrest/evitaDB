@@ -400,6 +400,9 @@ public class ClassSchemaAnalyzer {
 			if (attributeAnnotation.lengthPivot() != editor.getLengthPivot()) {
 				editor.lengthPivot(attributeAnnotation.lengthPivot());
 			}
+			if (Float.compare(attributeAnnotation.searchWeight(), editor.getSearchWeight()) != 0) {
+				editor.searchWeight(attributeAnnotation.searchWeight());
+			}
 
 			// representative - reconcile with annotation
 			if (attributeAnnotation.representative() && !editor.isRepresentative()) {
@@ -1725,6 +1728,9 @@ public class ClassSchemaAnalyzer {
 				}
 				if (associatedDataAnnotation.lengthPivot() != whichIs.getLengthPivot()) {
 					whichIs.lengthPivot(associatedDataAnnotation.lengthPivot());
+				}
+				if (Float.compare(associatedDataAnnotation.searchWeight(), whichIs.getSearchWeight()) != 0) {
+					whichIs.searchWeight(associatedDataAnnotation.searchWeight());
 				}
 				// conflict resolution granularity override - reconcile with annotation. A defaulted (INHERITED)
 				// annotation carries no opinion and must never overwrite an explicit override set through the

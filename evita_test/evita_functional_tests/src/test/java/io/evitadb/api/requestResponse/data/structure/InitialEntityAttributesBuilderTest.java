@@ -126,7 +126,8 @@ class InitialEntityAttributesBuilderTest
 					Integer.class, null,
 					0, ConflictResolutionOverride.INHERITED,
 					null,
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				),
 				attributes.getAttributeSchema("abc")
 					.orElse(null)
@@ -139,7 +140,8 @@ class InitialEntityAttributesBuilderTest
 					IntegerNumberRange.class, null,
 					0, ConflictResolutionOverride.INHERITED,
 					null,
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				),
 				attributes.getAttributeSchema("def")
 					.orElse(null)
@@ -152,7 +154,8 @@ class InitialEntityAttributesBuilderTest
 					BigDecimal.class, null,
 					0, ConflictResolutionOverride.INHERITED,
 					null,
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				),
 				attributes.getAttributeSchema("dd")
 					.orElse(null)
@@ -165,7 +168,8 @@ class InitialEntityAttributesBuilderTest
 					String.class, null,
 					0, ConflictResolutionOverride.INHERITED,
 					null,
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				),
 				attributes
 					.getAttributeSchema("greetings")

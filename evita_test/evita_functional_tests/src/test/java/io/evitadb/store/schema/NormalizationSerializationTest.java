@@ -23,6 +23,7 @@
 
 package io.evitadb.store.schema;
 
+import io.evitadb.store.schema.NormalizationSerializationTest;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
@@ -167,7 +168,7 @@ class NormalizationSerializationTest {
 					new ScopedAttributeFilterAccelerators(Scope.LIVE, SUBSTRING_SEARCH)
 				},
 				Scope.DEFAULT_SCOPES, Scope.DEFAULT_SCOPES,
-				true, true, true, String.class, "default", 0, ConflictResolutionOverride.ENTITY, steps, null, null
+				true, true, true, String.class, "default", 0, ConflictResolutionOverride.ENTITY, steps, null, null, null
 			);
 			final CreateGlobalAttributeSchemaMutation restored = roundTrip(createWalKryo(), mutation);
 			assertEquals(mutation, restored);
@@ -228,7 +229,7 @@ class NormalizationSerializationTest {
 				new ScopedAttributeFilterAccelerators(Scope.LIVE, SUBSTRING_SEARCH)
 			},
 			Scope.DEFAULT_SCOPES, Scope.DEFAULT_SCOPES,
-			true, true, true, String.class, "default", 0, ConflictResolutionOverride.ENTITY, steps, null, null
+			true, true, true, String.class, "default", 0, ConflictResolutionOverride.ENTITY, steps, null, null, null
 		);
 	}
 

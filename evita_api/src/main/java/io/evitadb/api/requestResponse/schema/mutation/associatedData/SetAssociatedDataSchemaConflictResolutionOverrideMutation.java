@@ -104,7 +104,8 @@ public class SetAssociatedDataSchemaConflictResolutionOverrideMutation
 			associatedDataSchema.getSearchableInScopes(),
 			associatedDataSchema.getTextExpression(),
 			this.conflictResolutionOverride,
-			associatedDataSchema.getAnalyzer(), associatedDataSchema.getLengthPivot()
+			associatedDataSchema.getAnalyzer(), associatedDataSchema.getLengthPivot(),
+			associatedDataSchema.getSearchWeight()
 		);
 	}
 

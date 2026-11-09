@@ -36,6 +36,7 @@ import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 import java.io.Serializable;
 
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readNullableLengthPivot;
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readNullableSearchWeight;
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeFulltextFieldSettings;
 
 /**
@@ -65,7 +66,9 @@ public class CreateAssociatedDataSchemaMutationSerializer extends Serializer<Cre
 		} else {
 			output.writeBoolean(false);
 		}
-		writeFulltextFieldSettings(output, mutation.getAnalyzer(), mutation.getLengthPivot());
+		writeFulltextFieldSettings(
+			output, mutation.getAnalyzer(), mutation.getLengthPivot(), mutation.getSearchWeight()
+		);
 	}
 
 	@Override
@@ -82,6 +85,7 @@ public class CreateAssociatedDataSchemaMutationSerializer extends Serializer<Cre
 		final Expression textExpression = input.readBoolean() ? kryo.readObject(input, Expression.class) : null;
 		final String analyzer = input.readString();
 		final Integer lengthPivot = readNullableLengthPivot(input);
+		final Float searchWeight = readNullableSearchWeight(input);
 		return new CreateAssociatedDataSchemaMutation(
 			name,
 			description,
@@ -93,7 +97,7 @@ public class CreateAssociatedDataSchemaMutationSerializer extends Serializer<Cre
 			textExpression,
 			conflictResolutionOverride,
 			analyzer,
-			lengthPivot
+			lengthPivot, searchWeight
 		);
 	}
 

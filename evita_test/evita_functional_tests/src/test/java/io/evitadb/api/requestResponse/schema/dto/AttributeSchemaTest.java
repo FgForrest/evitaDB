@@ -110,7 +110,8 @@ class AttributeSchemaTest {
 				0,
 				ConflictResolutionOverride.INHERITED,
 				null,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 
 			assertEquals("priority", schema.getName());
@@ -150,7 +151,8 @@ class AttributeSchemaTest {
 				String.class, null, 0,
 				ConflictResolutionOverride.INHERITED,
 				null,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 
 			assertEquals(
@@ -211,7 +213,8 @@ class AttributeSchemaTest {
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
 				null,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 
 			assertTrue(schema.isUniqueInScope(Scope.LIVE));
@@ -235,7 +238,8 @@ class AttributeSchemaTest {
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
 				null,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 
 			assertTrue(schema.isUniqueInScope(Scope.LIVE));
@@ -256,7 +260,8 @@ class AttributeSchemaTest {
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
 				null,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 
 			assertEquals(AttributeUniquenessType.NOT_UNIQUE, schema.getUniquenessType(Scope.ARCHIVED));
@@ -282,7 +287,8 @@ class AttributeSchemaTest {
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
 				null,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 
 			assertTrue(schema.isFilterableInScope(Scope.LIVE));
@@ -301,7 +307,8 @@ class AttributeSchemaTest {
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
 				null,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 
 			assertTrue(schema.isSortableInScope(Scope.LIVE));
@@ -426,7 +433,8 @@ class AttributeSchemaTest {
 					Integer.class, null, 0,
 					ConflictResolutionOverride.INHERITED,
 					null,
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				)
 			);
 			assertSame(InvalidSchemaMutationException.class, exception.getClass());
@@ -470,7 +478,8 @@ class AttributeSchemaTest {
 				String.class, null, 0,
 				ConflictResolutionOverride.INHERITED,
 				null,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 		}
 	}
@@ -705,7 +714,8 @@ class AttributeSchemaTest {
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
 				null,
-				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 
 			final String result = schema.toString();
@@ -741,4 +751,28 @@ class AttributeSchemaTest {
 		assertTrue(normalized.toString().contains("normalization=[lowercase]"));
 	}
 
+	/** Ranking weight participates in the value contract, with a canonical representation for zero. */
+	@Test
+	void shouldIncludeSearchWeightInValueSemantics() {
+		final AttributeSchema zero = schemaWithSearchWeight(0.0f);
+		final AttributeSchema weighted = schemaWithSearchWeight(2.5f);
+		assertNotEquals(zero, weighted);
+		assertNotEquals(zero.hashCode(), weighted.hashCode());
+		assertTrue(weighted.toString().contains("searchWeight=2.5"));
+		final AttributeSchema negativeZero = schemaWithSearchWeight(-0.0f);
+		assertEquals(Float.floatToRawIntBits(0.0f), Float.floatToRawIntBits(negativeZero.getSearchWeight()));
+		assertEquals(zero, negativeZero);
+		assertEquals(zero.hashCode(), negativeZero.hashCode());
+	}
+
+	/** Builds a DTO whose only variable setting is the ranking weight. */
+	@Nonnull
+	private static AttributeSchema schemaWithSearchWeight(float weight) {
+		return AttributeSchema._internalBuild(
+			"code", null, null,
+			(ScopedAttributeUniquenessType[]) null, null, null, null, null,
+			false, false, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, weight
+		);
+	}
 }

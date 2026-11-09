@@ -127,7 +127,8 @@ class CatalogSchemaConverterTest {
 					0,
 					ConflictResolutionOverride.ENTITY,
 					List.of(lowercase(), asciiFolding(), removeCharacters("- "), trim()),
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				),
 				"priority", GlobalAttributeSchema._internalBuild(
 					"code",

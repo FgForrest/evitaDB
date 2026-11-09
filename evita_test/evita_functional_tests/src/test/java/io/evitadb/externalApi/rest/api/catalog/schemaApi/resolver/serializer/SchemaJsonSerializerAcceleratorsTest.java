@@ -100,7 +100,8 @@ class SchemaJsonSerializerAcceleratorsTest {
 			String.class, null, 0,
 			ConflictResolutionOverride.INHERITED,
 			null,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 
 		final ArrayNode rendered = new TestSerializer().render(attributeSchema);
@@ -132,7 +133,8 @@ class SchemaJsonSerializerAcceleratorsTest {
 			String.class, null, 0,
 			ConflictResolutionOverride.INHERITED,
 			null,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 
 		assertTrue(new TestSerializer().render(attributeSchema).isEmpty());
