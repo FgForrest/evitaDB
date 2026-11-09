@@ -90,7 +90,7 @@ class FulltextSurfaceWalkerTest {
 						final Map<String, Integer> expected = new TreeMap<>();
 						final SurfaceFormCursor scan = index.surfaceFormCursor(phase, "");
 						while (scan.next()) {
-							final String folded = scan.folded();
+							final String folded = folded(scan);
 							final String prefix = query.substring(0, query.offsetByCodePoints(0, frozen));
 							if (!folded.startsWith(prefix)) {
 								continue;
@@ -107,7 +107,7 @@ class FulltextSurfaceWalkerTest {
 								}
 							}
 							if (distance <= edits) {
-								expected.put(folded + "/" + scan.stem(), distance);
+								expected.put(folded + "/" + stem(scan), distance);
 							}
 						}
 						final FulltextDictionaryWalker walker = new FulltextDictionaryWalker(query, edits, frozen,
@@ -115,7 +115,7 @@ class FulltextSurfaceWalkerTest {
 						for (int repeat = 0; repeat < 2; repeat++) {
 							final Map<String, Integer> actual = new TreeMap<>();
 							walker.walkSurface(index, phase, (cursor, distance) -> {
-								actual.put(cursor.folded() + "/" + cursor.stem(), distance);
+								actual.put(foldedAndStem(cursor), distance);
 								return true;
 							});
 							assertEquals(expected, actual, query + "/" + edits + "/" + openEnd);
@@ -169,10 +169,14 @@ class FulltextSurfaceWalkerTest {
 					assertThrows(GenericEvitaInternalError.class, lookup::size);
 				}
 				final SurfaceFormCursor lane = index.surfaceFormCursor(analyzer.fingerprint().wordPhase(), "");
-				while (lane.next()) {
-					assertEquals(lane.folded(), lane.foldedCharacters().toString());
-					assertEquals(lane.stem(), lane.stemCharacters().toString());
+				final List<String> expected = new ArrayList<>(words);
+				expected.sort(String::compareTo);
+				for (final String word : expected) {
+					assertTrue(lane.next());
+					assertEquals(word, folded(lane));
+					assertEquals(word, stem(lane));
 				}
+				assertFalse(lane.next());
 			}
 		}
 	}
@@ -188,14 +192,14 @@ class FulltextSurfaceWalkerTest {
 		void shouldRevisePendingSeek(boolean absentCeiling, boolean laterPhase) {
 			withSeekFixture(laterPhase, cursor -> {
 				assertTrue(cursor.next());
-				assertEquals("ab0000", cursor.folded());
+				assertEquals("ab0000", folded(cursor));
 				assertThrows(GenericEvitaInternalError.class, () -> cursor.seek("ab0000"));
 				cursor.seek(absentCeiling ? "zzzz" : "ab0004");
 				cursor.seek("ab0002");
 				assertTrue(cursor.next());
-				assertEquals("ab0002", cursor.folded());
+				assertEquals("ab0002", folded(cursor));
 				assertTrue(cursor.next());
-				assertEquals("ab0004", cursor.folded());
+				assertEquals("ab0004", folded(cursor));
 				assertFalse(cursor.next());
 			});
 		}
@@ -238,13 +242,13 @@ class FulltextSurfaceWalkerTest {
 				treeField.set(index, tree);
 				final SurfaceFormCursor cursor = index.surfaceFormCursor(analyzer.fingerprint().wordPhase(), "ab");
 				assertTrue(cursor.next());
-				assertEquals("ab0000", cursor.folded());
+				assertEquals("ab0000", folded(cursor));
 				cursor.seek("ab0002");
 				cursor.seek("ab0004");
 				assertTrue(cursor.next());
-				assertEquals("ab0004", cursor.folded());
+				assertEquals("ab0004", folded(cursor));
 				assertTrue(cursor.next());
-				assertEquals("ab0005", cursor.folded());
+				assertEquals("ab0005", folded(cursor));
 				assertEquals(1, tree.opens);
 			}
 		}

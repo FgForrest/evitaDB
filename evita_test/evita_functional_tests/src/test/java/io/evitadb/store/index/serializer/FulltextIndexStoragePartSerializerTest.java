@@ -716,6 +716,11 @@ class FulltextIndexStoragePartSerializerTest {
 					surfaceDisk.get(root.getSurfaceFormPageSequences()[i]),
 					FulltextSurfaceFormLeafPagePart.class).getPage();
 			}
+			for (final SurfaceFormPage decoded : surfacePages) {
+				final SurfaceFormPage original = surfaces.changedPages().stream()
+					.filter(page -> page.pageSequence() == decoded.pageSequence()).findFirst().orElseThrow();
+				assertArrayEquals(original.keys(), decoded.keys(), "Display payloads must survive serialization.");
+			}
 			final FulltextIndex reloaded = FulltextIndex.fromPersistedPages(fields, pageSequences, pages,
 				root.getDictionaryHighWaterPageSequence(), root.getWordPhaseIds(), root.getSurfaceFormPageSequences(),
 				surfacePages, root.getSurfaceFormHighWaterPageSequence());
@@ -728,9 +733,8 @@ class FulltextIndexStoragePartSerializerTest {
 				reloaded.surfaceFormCursor(testAnalyzer().fingerprint().wordPhase(), "");
 			while (before.next()) {
 				assertTrue(after.next());
-				assertEquals(before.folded(), after.folded());
-				assertEquals(before.stem(), after.stem());
-				assertEquals(before.accented(), after.accented());
+				assertEquals(folded(before), folded(after));
+				assertEquals(stem(before), stem(after));
 			}
 			assertFalse(after.next());
 			assertTrue(reloaded.collectChangedSurfaceFormPages().changedPages().isEmpty());
@@ -760,6 +764,19 @@ class FulltextIndexStoragePartSerializerTest {
 			for (final LengthBlockEmission lengths : reloaded.collectChangedLengthBlocks()) {
 				assertTrue(lengths.changedBlocks().isEmpty(), "A reloaded length table writes nothing.");
 			}
+
+			final int phase = index.getWordPhaseIds().get(testAnalyzer().fingerprint().wordPhase());
+			final List<String> expectedSpelling = persistedSurfaceEntries(surfaces.changedPages(), phase).stream()
+				.filter(entry -> entry.startsWith("rychla/")).toList();
+			assertEquals(1, expectedSpelling.size());
+			assertTrue(expectedSpelling.getFirst().endsWith("/rychlá"));
+			// The unaccented value reuses the pair and must leave its first, accented display intact.
+			reloaded.addValue(attribute("title"), 6, testAnalyzer(), fieldPivot(reloaded, attribute("title")),
+				null, "rychla");
+			assertEquals(expectedSpelling,
+				persistedSurfaceEntries(reloaded.collectChangedSurfaceFormPages().changedPages(), phase).stream()
+					.filter(entry -> entry.startsWith("rychla/")).toList(),
+				"The reconstructed index must retain the original accented display spelling.");
 		}
 
 		/**

@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.FulltextLanguageSchemaContract;
 import io.evitadb.api.requestResponse.schema.FulltextResourceSchemaContract;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer.StopWordPreparation;
 import io.evitadb.utils.Assert;
@@ -165,7 +166,12 @@ public class FulltextAnalyzerRegistry implements Closeable {
 	 * @param analyzer the field's schema analyzer name
 	 * @param locale the locale of its postings
 	 * @return the shared compiled chains and index identities
-	 * @throws EvitaInvalidUsageException when resolution or compilation fails, or the catalog cache is closed
+	 * @throws EvitaInvalidUsageException when the registry is closed, analyzer resolution fails, or an analysis
+	 *                                    definition, parameter, resource or step placement is invalid
+	 * @throws GenericEvitaInternalError when fingerprinting detects cyclic delegates or unsupported parameter values,
+	 *                                  or resource word splitting or preparation fails with an I/O error
+	 * @throws RuntimeException when an analysis provider, compilation or chain cleanup throws another unchecked
+	 *                          exception, propagated without wrapping
 	 */
 	@Nonnull
 	public CompiledFulltextAnalyzer getCompiledAnalyzer(

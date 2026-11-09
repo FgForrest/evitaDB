@@ -115,6 +115,7 @@ import static io.evitadb.test.TestTags.SERIALIZATION;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -366,7 +367,7 @@ class GlobalEntityIndexFulltextPersistenceTest {
 			lines.add("references " + surfaceReferenceCounts(index, phase));
 			final FulltextIndex.SurfaceFormCursor cursor = index.surfaceFormCursor(phase, "");
 			while (cursor.next()) {
-				lines.add(cursor.folded() + "/" + cursor.stem() + "/" + cursor.accented());
+				lines.add(foldedAndStem(cursor));
 			}
 		}
 		return lines;
@@ -406,6 +407,16 @@ class GlobalEntityIndexFulltextPersistenceTest {
 				assertSameFulltext(index, loaded);
 				final FulltextIndex restored = loaded.getFulltextIndex(CZECH);
 				assertEquals(2, restored.getWordPhaseIds().size());
+				assertTrue(flush(loaded).isEmpty(), "An untouched reloaded index writes nothing.");
+				// Reusing the folded/stem pair must preserve the first, accented display after reconstruction.
+				restored.addValue(attribute("description"), 2, testAnalyzer(), 25, null, "cerne");
+				final List<StoragePart> changed = flush(loaded);
+				assertEquals(List.of("cerne/cern/černé"), persistedSurfaceEntries(
+					partsOf(changed, FulltextSurfaceFormLeafPagePart.class).stream()
+						.map(FulltextSurfaceFormLeafPagePart::getPage).toList(),
+					restored.getWordPhaseIds().get(testAnalyzer().fingerprint().wordPhase())),
+					"The reconstructed global index must retain the original accented display spelling.");
+				disk.write(changed);
 				restored.removeValue(attribute("brand"), 1, exactAnalyzer(), 25, "Cern café");
 				restored.retireField(attribute("brand"));
 				assertEquals(Map.of(testAnalyzer().fingerprint().wordPhase(), 0), restored.getWordPhaseIds());
@@ -958,6 +969,8 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		@Nonnull private OffsetIndex offsetIndex = openWritableOffsetIndex();
 		@Nullable private OffsetIndexDescriptor descriptor;
 		private long version;
+		/** Expected surface payloads retained across flushes; clean pages are never requested from emissions again. */
+		private final Map<Long, String[]> surfaceKeys = new TreeMap<>();
 
 		/**
 		 * Applies one flush at the next catalog version and flushes the file.
@@ -970,8 +983,14 @@ class GlobalEntityIndexFulltextPersistenceTest {
 				if (part instanceof DeferredRemovalStoragePart removal) {
 					final long primaryKey = removal.computeUniquePartIdAndSet(this.offsetIndex.getReadOnlyKeyCompressor());
 					this.offsetIndex.remove(this.version, primaryKey, removal.removedContainerType());
+					if (removal.removedContainerType() == FulltextSurfaceFormLeafPagePart.class) {
+						this.surfaceKeys.remove(primaryKey);
+					}
 				} else {
 					this.offsetIndex.put(this.version, part);
+					if (part instanceof FulltextSurfaceFormLeafPagePart surface) {
+						this.surfaceKeys.put(surface.getStoragePartPK(), surface.getPage().keys().clone());
+					}
 				}
 			}
 			this.descriptor = this.offsetIndex.flush(this.version);
@@ -1005,6 +1024,13 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		@Nonnull
 		GlobalEntityIndex reload(@Nonnull FulltextAnalyzerRegistry analyzerRegistry) {
 			final OffsetIndexReadService service = new OffsetIndexReadService(reopen());
+			for (final Map.Entry<Long, String[]> expected : this.surfaceKeys.entrySet()) {
+				final FulltextSurfaceFormLeafPagePart stored = service.getStoragePart(
+					this.version, expected.getKey(), FulltextSurfaceFormLeafPagePart.class);
+				assertNotNull(stored, "Every retained surface page must survive the store round trip.");
+				assertArrayEquals(expected.getValue(), stored.getPage().keys(),
+					"Persisted display spellings must survive the store round trip.");
+			}
 			final EntityIndexStoragePart manifest = service.getStoragePart(
 				this.version, ENTITY_INDEX_PK, EntityIndexStoragePart.class
 			);

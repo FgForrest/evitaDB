@@ -1685,7 +1685,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 *
 	 * @param wordPhase persistent fingerprint of the queried profile
 	 * @param foldedPrefix literal query-prepared prefix
-	 * @return bounded prefix cursor yielding normalized lookup keys, stems and display spellings
+	 * @return bounded prefix cursor yielding normalized lookup keys and their stems
 	 */
 	@Nonnull
 	public SurfaceFormCursor surfaceFormCursor(long wordPhase, @Nonnull String foldedPrefix) {
@@ -1930,40 +1930,6 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 					target.append(character);
 				}
 			}
-		}
-
-		/**
-		 * Returns the captured index token after the profile's embedded lookup normalization.
-		 *
-		 * @return folded surface without the word-phase prefix
-		 */
-		@Nonnull
-		public String folded() {
-			return foldedCharacters().toString();
-		}
-
-		/**
-		 * Returns the index stem of the current pair.
-		 *
-		 * @return the term used for postings lookup in the queried profile's fields
-		 */
-		@Nonnull
-		public String stem() {
-			return stemCharacters().toString();
-		}
-
-		/**
-		 * Returns the retained display spelling, falling back to the folded form when the key omits its display
-		 * component because the display equals the folded form.
-		 *
-		 * @return the lower-cased accented word
-		 */
-		@Nonnull
-		public String accented() {
-			final CharSequence current = currentKey();
-			final int start = surfaceStemEnd(current, surfaceFoldedEnd(current)) + 1;
-			return start == current.length() ? folded()
-				: decodeSurfaceComponent(current.subSequence(start, current.length()).toString());
 		}
 
 		/**

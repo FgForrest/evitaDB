@@ -26,12 +26,10 @@ package io.evitadb.core.query.filter.translator.fulltext;
 import io.evitadb.api.configuration.FulltextOptions;
 
 import io.evitadb.core.query.algebra.fulltext.FulltextFormula.ExpandedTerm;
-import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.fulltext.FulltextFieldKey;
 import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.typo.FulltextTypoParameters;
-import io.evitadb.test.fulltext.TypoExpansion;
-import io.evitadb.test.fulltext.TypoThresholds;
+import io.evitadb.test.fulltext.EditDistances;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -489,22 +487,22 @@ class TextMatchesExpansionTest {
 	}
 
 	/**
-	 * Oracle equivalence for single-hypothesis words only. TypoExpansion combines finite hypothesis walks with
-	 * one open-ended typed-fragment walk; spec §6.2 and the engine open every variant. Multi-variant unfinished
-	 * words therefore have independent deterministic expectations above, rather than an oracle equivalence claim.
+	 * Independent matrix-distance oracle for single-hypothesis words. Multi-variant unfinished words have
+	 * deterministic expectations above. Every sampled dictionary word is queried as itself, as its shortest
+	 * expandable prefix and with an inner letter from outside the dictionary alphabet, so the scan checks exact,
+	 * prefix and fuzzy precedence below every leg's cap.
 	 */
 	@Nested
 	@DisplayName("Seeded oracle")
 	class Oracle {
 		/**
-		 * Random dictionaries stay below the cap. Identity hypotheses cover the shared single-hypothesis contract;
-		 * the oracle's finite-variant/open-fragment algorithm is not equivalent to spec §6.2 for multiple variants.
+		 * Random dictionaries stay below the cap. Identity hypotheses isolate the single-hypothesis contract while
+		 * a linear scan and a full distance matrix remain independent of the engine's dictionary walker.
 		 */
 		@Test
-		@DisplayName("Matches TypoExpansion on a seeded random dictionary")
+		@DisplayName("Matches an independent matrix-distance scan on a seeded random dictionary")
 		void shouldMatchOracle() {
 			final Random random = new Random(9341);
-			final TransactionalBucketBPlusTree<String> dictionary = new TransactionalBucketBPlusTree<>(String.class);
 			final List<String> words = new ArrayList<>();
 			for (int i = 0; i < 180; i++) {
 				final StringBuilder word = new StringBuilder(9);
@@ -513,25 +511,64 @@ class TextMatchesExpansionTest {
 				}
 				final String term = word.toString();
 				words.add(term);
-				dictionary.addRecord(term, i + 1);
 				add(i + 1, term);
 			}
+			final int prefixLength = DEFAULT_PARAMETERS.minFragmentLength();
 			for (int i = 0; i < 35; i++) {
 				final String word = words.get(random.nextInt(words.size()));
-				final String query = word.substring(0, 2) + "x" + word.substring(3);
-				for (final boolean unfinished : new boolean[]{false, true}) {
-					final Map<String, String> expected = new TreeMap<>();
-					for (final TypoExpansion.ExpandedTerm term : TypoExpansion.expand(dictionary,
-						new TypoExpansion.QueryWord(query, List.of(query)), TypoThresholds.PROPOSAL,
-						TypoExpansion.LengthBase.HYPOTHESIS, unfinished
-							? TypoExpansion.UnfinishedWordMode.PREFIX_AND_OPEN_END_TYPO
-							: TypoExpansion.UnfinishedWordMode.FINISHED,
-						new TypoExpansion.UnfinishedWordRules(4, 2, true))) {
-						expected.put(term.term(), term.exactness() + ":" + term.distance());
+				final List<String> queries = new ArrayList<>(3);
+				queries.add(word.substring(0, 2) + "x" + word.substring(3));
+				queries.add(word);
+				if (word.length() > prefixLength) {
+					queries.add(word.substring(0, prefixLength));
+				}
+				for (final String query : queries) {
+					for (final boolean unfinished : new boolean[]{false, true}) {
+						final Map<String, String> expected = oracle(words, query, unfinished);
+						assertTrue(expected.size() < CAP, "Oracle hits must stay below every expansion cap.");
+						assertEquals(expected, describe(expand(query, unfinished, query)), query + "/" + unfinished);
 					}
-					assertEquals(expected, describe(expand(query, unfinished, query)), query);
 				}
 			}
+		}
+
+		/**
+		 * Classifies the dictionary against one query by a linear scan: an equal word is exact, a longer word
+		 * extending an expandable unfinished query is a prefix hit, and any other word sharing the frozen initials is
+		 * fuzzy when its matrix distance stays within the query's edit budget.
+		 */
+		private Map<String, String> oracle(List<String> words, String query, boolean unfinished) {
+			final Map<String, String> expected = new TreeMap<>();
+			final int length = query.codePointCount(0, query.length());
+			final boolean prefix = unfinished && DEFAULT_PARAMETERS.prefixLeg()
+				&& length >= DEFAULT_PARAMETERS.minFragmentLength();
+			final boolean openEnd = prefix && length >= DEFAULT_PARAMETERS.openEndedStartLength();
+			final int frozenEnd = query.offsetByCodePoints(0, Math.min(length, DEFAULT_PARAMETERS.nonFuzzyPrefix()));
+			final String frozen = query.substring(0, frozenEnd);
+			for (final String candidate : words) {
+				if (candidate.equals(query)) {
+					expected.put(candidate, "EXACT:0");
+				} else if (prefix && candidate.startsWith(query)) {
+					expected.put(candidate, "PREFIX:0");
+				} else if (candidate.startsWith(frozen)) {
+					// Matrix distance on the unfrozen suffix cannot edit across the frozen boundary.
+					final String queryTail = query.substring(frozenEnd);
+					final String candidateTail = candidate.substring(frozenEnd);
+					int distance = EditDistances.distance(queryTail, candidateTail,
+						DEFAULT_PARAMETERS.transpositions());
+					if (openEnd) {
+						for (int offset = 0; offset < candidateTail.length();
+							offset += Character.charCount(candidateTail.codePointAt(offset))) {
+							distance = Math.min(distance, EditDistances.distance(queryTail,
+								candidateTail.substring(0, offset), DEFAULT_PARAMETERS.transpositions()));
+						}
+					}
+					if (distance > 0 && distance <= DEFAULT_PARAMETERS.maxEdits(query)) {
+						expected.put(candidate, "FUZZY:" + distance);
+					}
+				}
+			}
+			return expected;
 		}
 	}
 	/** Extension declarations determine whether an unfinished word may open the completion guard. */

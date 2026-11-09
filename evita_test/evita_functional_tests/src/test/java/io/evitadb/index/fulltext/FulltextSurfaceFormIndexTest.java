@@ -24,6 +24,9 @@
 package io.evitadb.index.fulltext;
 
 import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
+import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer.Savepoint;
 import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.fulltext.FulltextIndex.SurfaceFormCursor;
@@ -37,10 +40,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import javax.annotation.Nonnull;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.BiConsumer;
 
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
@@ -70,11 +76,13 @@ class FulltextSurfaceFormIndexTest {
 			index.addValue(attribute("name"), 1, testAnalyzer(), 25, null, "Černé černé", "černé");
 			index.addValue(attribute("description"), 1, testAnalyzer(), 25, null, "černé");
 			index.addValue(attribute("name"), 2, testAnalyzer(), 25, null, "cerne");
-			assertEquals(List.of("cerne/cern/černé"), entries(index, testAnalyzer().fingerprint().wordPhase(), ""));
+			assertEquals(List.of("cerne/cern"), entries(index, testAnalyzer().fingerprint().wordPhase(), ""));
+			assertPersistedEntries(index, testAnalyzer().fingerprint().wordPhase(), List.of("cerne/cern/černé"));
 			assertEquals(3, count(index));
 			index.removeValue(attribute("name"), 1, testAnalyzer(), 25, "Černé černé", "černé");
 			assertEquals(2, count(index));
-			assertEquals(List.of("cerne/cern/černé"), entries(index, testAnalyzer().fingerprint().wordPhase(), ""));
+			assertEquals(List.of("cerne/cern"), entries(index, testAnalyzer().fingerprint().wordPhase(), ""));
+			assertPersistedEntries(index, testAnalyzer().fingerprint().wordPhase(), List.of("cerne/cern/černé"));
 			index.removeValue(attribute("description"), 1, testAnalyzer(), 25, "černé");
 			assertEquals(1, count(index));
 			index.removeValue(attribute("name"), 2, testAnalyzer(), 25, "cerne");
@@ -96,10 +104,15 @@ class FulltextSurfaceFormIndexTest {
 				final long descriptionPhase = testAnalyzer().fingerprint().wordPhase();
 				final long brandPhase = brand.fingerprint().wordPhase();
 				assertNotEquals(descriptionPhase, brandPhase);
-				assertEquals(List.of("cerne/cern/černé"), entries(index, descriptionPhase, "cer"));
-				assertEquals(List.of("cafe/cafe/cafe"), entries(index, brandPhase, "cafe"));
-				assertEquals(List.of("café/café/café"), entries(index, brandPhase, "café"));
-				assertEquals(List.of("cern/cern/cern"), entries(index, brandPhase, "cer"));
+				assertEquals(List.of("cerne/cern"), entries(index, descriptionPhase, "cer"));
+				assertEquals(List.of("cafe/cafe"), entries(index, brandPhase, "cafe"));
+				assertEquals(List.of("café/café"), entries(index, brandPhase, "café"));
+				assertEquals(List.of("cern/cern"), entries(index, brandPhase, "cer"));
+				final List<FulltextIndex.SurfaceFormPage> pages = index.collectChangedSurfaceFormPages().changedPages();
+				assertEquals(List.of("cerne/cern/černé"),
+					persistedSurfaceEntries(pages, index.getWordPhaseIds().get(descriptionPhase)));
+				assertEquals(List.of("cafe/cafe/cafe", "café/café/café", "cern/cern/cern"),
+					persistedSurfaceEntries(pages, index.getWordPhaseIds().get(brandPhase)));
 			}
 		}
 
@@ -116,8 +129,10 @@ class FulltextSurfaceFormIndexTest {
 					"protected-text", Locale.forLanguageTag("cs"));
 				final FulltextIndex index = new FulltextIndex();
 				index.addValue(attribute("name"), 1, analyzer, 25, null, "černé cerne");
-				assertEquals(List.of("cerne/cerne/cerne", "cerne/cern/černé"),
+				assertEquals(List.of("cerne/cerne", "cerne/cern"),
 					entriesExact(index, analyzer.fingerprint().wordPhase(), "cerne"));
+				assertPersistedEntries(index, analyzer.fingerprint().wordPhase(),
+					List.of("cerne/cerne/cerne", "cerne/cern/černé"));
 				index.removeValue(attribute("name"), 1, analyzer, 25, "černé cerne");
 				assertTrue(entries(index, analyzer.fingerprint().wordPhase(), "").isEmpty());
 			}
@@ -129,8 +144,10 @@ class FulltextSurfaceFormIndexTest {
 		void shouldRespectIndexLowercasing() {
 			final FulltextIndex index = new FulltextIndex();
 			index.addValue(attribute("name"), 1, exactAnalyzer(), 25, null, "İSTANBUL");
-			assertEquals(List.of("istanbul/istanbul/i\u0307stanbul"),
+			assertEquals(List.of("istanbul/istanbul"),
 				entriesExact(index, exactAnalyzer().fingerprint().wordPhase(), "istanbul"));
+			assertPersistedEntries(index, exactAnalyzer().fingerprint().wordPhase(),
+				List.of("istanbul/istanbul/i\u0307stanbul"));
 		}
 
 		/** Index text preparation changes the token while display retains the original source slice. */
@@ -145,7 +162,8 @@ class FulltextSurfaceFormIndexTest {
 					"joined", Locale.ROOT);
 				final FulltextIndex index = new FulltextIndex();
 				index.addValue(attribute("name"), 1, analyzer, 25, null, "USB-C");
-				assertEquals(List.of("usbc/usbc/usb-c"), entries(index, analyzer.fingerprint().wordPhase(), ""));
+				assertEquals(List.of("usbc/usbc"), entries(index, analyzer.fingerprint().wordPhase(), ""));
+				assertPersistedEntries(index, analyzer.fingerprint().wordPhase(), List.of("usbc/usbc/usb-c"));
 			}
 		}
 
@@ -160,7 +178,7 @@ class FulltextSurfaceFormIndexTest {
 				final SurfaceFormCursor cursor = index.surfaceFormCursor(analyzer.fingerprint().wordPhase(), "");
 				final List<String> folded = new ArrayList<>();
 				while (cursor.next()) {
-					folded.add(cursor.folded());
+					folded.add(folded(cursor));
 				}
 				assertEquals(List.of("café", "hauser", "strasse"), folded);
 			}
@@ -191,13 +209,15 @@ class FulltextSurfaceFormIndexTest {
 			final FulltextIndex index = new FulltextIndex();
 			index.addValue(attribute("name"), 1, exactAnalyzer(), 25, null, "cafe cafeteria café delta");
 			final long phase = exactAnalyzer().fingerprint().wordPhase();
-			assertEquals(List.of("cafe/cafe/cafe"), entriesExact(index, phase, "cafe"));
+			assertEquals(List.of("cafe/cafe"), entriesExact(index, phase, "cafe"));
+			assertPersistedEntries(index, phase, List.of("cafe/cafe/cafe", "cafeteria/cafeteria/cafeteria",
+				"café/café/café", "delta/delta/delta"));
 			final SurfaceFormCursor cursor = index.surfaceFormCursor(phase, "caf");
 			assertTrue(cursor.next());
-			assertEquals("cafe", cursor.folded());
+			assertEquals("cafe", folded(cursor));
 			cursor.seek("café");
 			assertTrue(cursor.next());
-			assertEquals("café", cursor.folded());
+			assertEquals("café", folded(cursor));
 			assertThrows(GenericEvitaInternalError.class, () -> cursor.seek("cafe"));
 			assertFalse(cursor.next());
 			assertFalse(index.surfaceFormCursor(Long.MIN_VALUE, "").next());
@@ -227,7 +247,8 @@ class FulltextSurfaceFormIndexTest {
 		@Test
 		@DisplayName("should restore the lane after an entity savepoint rollback")
 		void shouldRestoreEntitySavepoint() {
-			assertWarmUpSavepointRollbackRestores(new FulltextIndex(),
+			final FulltextIndex fixture = new FulltextIndex();
+			assertWarmUpSavepointRollbackRestores(fixture,
 				index -> index.addValue(attribute("name"), 1, testAnalyzer(), 25, null, "černé"),
 				FulltextSurfaceFormIndexTest::state,
 				index -> {
@@ -235,6 +256,7 @@ class FulltextSurfaceFormIndexTest {
 					index.retireField(attribute("name"));
 					index.addValue(attribute("brand"), 2, exactAnalyzer(), 25, null, "café");
 				});
+			assertPersistedEntries(fixture, testAnalyzer().fingerprint().wordPhase(), List.of("cerne/cern/černé"));
 		}
 
 		/**
@@ -244,15 +266,21 @@ class FulltextSurfaceFormIndexTest {
 		@Test
 		@DisplayName("should restore the lane after a transactional entity savepoint rollback")
 		void shouldRestoreTransactionalEntitySavepoint() {
-			assertSavepointRollbackRestores(new FulltextIndex(),
-				index -> index.addValue(attribute("name"), 1, testAnalyzer(), 25, null, "černé"),
-				FulltextSurfaceFormIndexTest::state,
+			assertStateAfterCommit(new FulltextIndex(),
 				index -> {
+					index.addValue(attribute("name"), 1, testAnalyzer(), 25, null, "černé");
+					final String expected = state(index);
+					final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+					final Savepoint savepoint = maintainer.openSavepoint();
 					index.removeValue(attribute("name"), 1, testAnalyzer(), 25, "černé");
 					index.retireField(attribute("name"));
 					index.addValue(attribute("brand"), 2, exactAnalyzer(), 25, null, "café");
 					assertEquals(Map.of(exactAnalyzer().fingerprint().wordPhase(), 0), index.getWordPhaseIds());
-				});
+					maintainer.rollbackSavepoint(savepoint);
+					assertEquals(expected, state(index));
+				},
+				(original, committed) -> assertPersistedEntries(committed,
+					testAnalyzer().fingerprint().wordPhase(), List.of("cerne/cern/černé")));
 		}
 
 		/** Transaction rollback discards both node and id-map layers. */
@@ -268,8 +296,10 @@ class FulltextSurfaceFormIndexTest {
 				},
 				(original, ignored) -> {
 					assertEquals(1, original.getWordPhaseIds().size());
-					assertEquals(List.of("cerne/cern/černé"),
+					assertEquals(List.of("cerne/cern"),
 						entries(original, testAnalyzer().fingerprint().wordPhase(), ""));
+					assertPersistedEntries(original, testAnalyzer().fingerprint().wordPhase(),
+						List.of("cerne/cern/černé"));
 				});
 			assertStateAfterCommit(index,
 				changed -> changed.addValue(attribute("name"), 2, testAnalyzer(), 25, null, "černé"),
@@ -297,6 +327,9 @@ class FulltextSurfaceFormIndexTest {
 				final boolean preservesAccents = language.equals("root") || language.equals("en");
 				final String value = preservesAccents ? accented + " " + unaccented : accented;
 				index.addValue(attribute("name"), 1, analyzer, 25, null, value);
+				final List<String> persisted =
+					collectPersistedSurfaceEntries(index, analyzer.fingerprint().wordPhase());
+				final Map<String, String> expectedPersisted = new TreeMap<>();
 				for (final String spelling : List.of(accented, unaccented)) {
 					final List<AnalyzedTerm> prepared = collectTerms(analyzer.surface(), spelling);
 					assertEquals(1, prepared.size());
@@ -305,17 +338,20 @@ class FulltextSurfaceFormIndexTest {
 					final SurfaceFormCursor exact = index.exactSurfaceFormCursor(
 						analyzer.fingerprint().wordPhase(), key);
 					assertTrue(exact.next(), language + ": query key " + key);
-					assertEquals(key, exact.folded());
-					assertEquals(preservesAccents ? spelling.toLowerCase(Locale.ROOT)
-						: accented.toLowerCase(Locale.ROOT), exact.accented());
+					assertEquals(key, folded(exact));
+					final String stem = stem(exact);
+					final String display = preservesAccents ? spelling.toLowerCase(Locale.ROOT)
+						: accented.toLowerCase(Locale.ROOT);
+					expectedPersisted.put(key, key + "/" + stem + "/" + display);
 					final SurfaceFormCursor prefix = index.surfaceFormCursor(
 						analyzer.fingerprint().wordPhase(), key.substring(0, 2));
 					boolean found = false;
 					while (prefix.next()) {
-						found |= prefix.folded().equals(key);
+						found |= folded(prefix).equals(key);
 					}
 					assertTrue(found, language + ": prepared prefix must reach " + key);
 				}
+				assertEquals(new ArrayList<>(expectedPersisted.values()), persisted);
 				index.removeValue(attribute("name"), 1, analyzer, 25, value);
 				assertTrue(surfaceReferenceCounts(index, analyzer.fingerprint().wordPhase()).isEmpty());
 			}
@@ -348,13 +384,13 @@ class FulltextSurfaceFormIndexTest {
 			withCursorFixture((index, phase) -> {
 				final SurfaceFormCursor cursor = index.surfaceFormCursor(phase, "");
 				assertTrue(cursor.next());
-				assertEquals("ab", cursor.folded());
+				assertEquals("ab", folded(cursor));
 				assertDoesNotThrow(() -> cursor.seek("ab\0"));
 				assertTrue(cursor.next());
-				assertEquals("ab\0", cursor.folded());
+				assertEquals("ab\0", folded(cursor));
 				cursor.seek("ab\0c");
 				assertTrue(cursor.next());
-				assertEquals("ab\0c", cursor.folded());
+				assertEquals("ab\0c", folded(cursor));
 				cursor.seek("ac");
 				assertWords(cursor, List.of("ac"));
 				final SurfaceFormCursor prefix = index.surfaceFormCursor(phase, "ab");
@@ -390,7 +426,7 @@ class FulltextSurfaceFormIndexTest {
 	private static void assertWords(SurfaceFormCursor cursor, List<String> expected) {
 		final List<String> actual = new ArrayList<>();
 		while (cursor.next()) {
-			actual.add(cursor.folded());
+			actual.add(folded(cursor));
 		}
 		assertEquals(expected, actual);
 	}
@@ -400,7 +436,7 @@ class FulltextSurfaceFormIndexTest {
 		final List<String> result = new ArrayList<>();
 		final SurfaceFormCursor cursor = index.surfaceFormCursor(phase, prefix);
 		while (cursor.next()) {
-			result.add(cursor.folded() + "/" + cursor.stem() + "/" + cursor.accented());
+			result.add(foldedAndStem(cursor));
 		}
 		return result;
 	}
@@ -410,9 +446,18 @@ class FulltextSurfaceFormIndexTest {
 		final List<String> result = new ArrayList<>();
 		final SurfaceFormCursor cursor = index.exactSurfaceFormCursor(phase, word);
 		while (cursor.next()) {
-			result.add(cursor.folded() + "/" + cursor.stem() + "/" + cursor.accented());
+			result.add(foldedAndStem(cursor));
 		}
 		return result;
+	}
+
+	/** Flushes a freshly written fixture and checks its persisted display payload as well as the two lookup parts. */
+	private static void assertPersistedEntries(
+		@Nonnull FulltextIndex index, long phase, @Nonnull List<String> expected
+	) {
+		final List<FulltextIndex.SurfaceFormPage> pages = index.collectChangedSurfaceFormPages().changedPages();
+		assertFalse(pages.isEmpty(), "This assertion requires a dirty fixture at its flush boundary.");
+		assertEquals(expected, persistedSurfaceEntries(pages, index.getWordPhaseIds().get(phase)));
 	}
 
 	/** Captures keys, references and short identities for savepoint comparison. */

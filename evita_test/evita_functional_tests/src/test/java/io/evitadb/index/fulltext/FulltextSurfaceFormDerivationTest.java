@@ -53,6 +53,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Serializable;
@@ -136,8 +139,10 @@ class FulltextSurfaceFormDerivationTest {
 				index.addValue(attribute("name"), 1, analyzer, 25, null, "AB\0CD");
 				assertEquals(Map.of("abcd\0abcd", 1L),
 					surfaceReferenceCounts(index, analyzer.fingerprint().wordPhase()));
-				assertEquals(List.of("abcd/abcd/abcd"),
+				assertEquals(List.of("abcd/abcd"),
 					FulltextSurfaceFormIndexTest.entries(index, analyzer.fingerprint().wordPhase(), ""));
+				assertEquals(List.of("abcd/abcd/abcd"),
+					collectPersistedSurfaceEntries(index, analyzer.fingerprint().wordPhase()));
 				index.removeValue(attribute("name"), 1, analyzer, 25, "AB\0CD");
 				assertTrue(surfaceReferenceCounts(index, analyzer.fingerprint().wordPhase()).isEmpty());
 			}
@@ -165,8 +170,10 @@ class FulltextSurfaceFormDerivationTest {
 
 				final int fieldId = index.getFieldId(attribute("name"));
 				assertArrayEquals(new int[]{1}, postingsOf(index, fieldId, "strasse").getArray());
-				assertEquals(List.of("strasse/strasse/strasse"),
+				assertEquals(List.of("strasse/strasse"),
 					FulltextSurfaceFormIndexTest.entries(index, analyzer.fingerprint().wordPhase(), ""));
+				assertEquals(List.of("strasse/strasse/strasse"),
+					collectPersistedSurfaceEntries(index, analyzer.fingerprint().wordPhase()));
 
 				index.removeValue(attribute("name"), 1, analyzer, 25, "Straße");
 
@@ -188,7 +195,7 @@ class FulltextSurfaceFormDerivationTest {
 			index.addValue(attribute("name"), 1, exactAnalyzer(), 25, null, "cafe");
 			final FulltextIndex.SurfaceFormPage page = index.collectChangedSurfaceFormPages().changedPages().getFirst();
 			assertArrayEquals(new String[]{"0000\0cafe\0\0"}, page.keys());
-			assertEquals(List.of("cafe/cafe/cafe"),
+			assertEquals(List.of("cafe/cafe"),
 				FulltextSurfaceFormIndexTest.entriesExact(index, exactAnalyzer().fingerprint().wordPhase(), "cafe"));
 		}
 		/** Persisted identities must not repeat folded text or contain ambiguous escape sequences. */
@@ -266,9 +273,9 @@ class FulltextSurfaceFormDerivationTest {
 				index.addValue(attribute("name"), 2, analyzer, 25, null, "cards");
 				assertEquals(Map.of("cards\0cards", 2L, "cards\0card", 2L),
 					surfaceReferenceCounts(index, analyzer.fingerprint().wordPhase()));
-				assertEquals(List.of("cards/cards/cards", "cards/card/cards"),
+				assertEquals(List.of("cards/cards", "cards/card"),
 					FulltextSurfaceFormIndexTest.entriesExact(index, analyzer.fingerprint().wordPhase(), "cards"));
-				final FulltextIndex restored = reload(index, null);
+				final FulltextIndex restored = reload(index, null, "cards/cards/cards", "cards/card/cards");
 				assertEquals(surfaceReferenceCounts(index, analyzer.fingerprint().wordPhase()),
 					surfaceReferenceCounts(restored, analyzer.fingerprint().wordPhase()));
 				restored.removeValue(attribute("name"), 1, analyzer, 25, "cards cards");
@@ -292,15 +299,23 @@ class FulltextSurfaceFormDerivationTest {
 				final FulltextIndex index = new FulltextIndex();
 				final String value = "AB\0CD\1EF";
 				index.addValue(attribute("name"), 1, analyzer, 25, null, value);
-				final FulltextIndex restored = reload(index, null);
+				final FulltextIndex restored = reload(index, null, "ab\0cd\1ef/ab\0cd\1ef/abcd\1ef");
 				final FulltextIndex.SurfaceFormCursor cursor = restored.exactSurfaceFormCursor(
 					analyzer.fingerprint().wordPhase(), value.toLowerCase(Locale.ROOT));
 				assertTrue(cursor.next());
-				assertEquals("ab\0cd\1ef", cursor.folded());
-				assertEquals(cursor.folded(), cursor.stem());
-				assertEquals("abcd\1ef", cursor.accented());
+				assertEquals("ab\0cd\1ef", folded(cursor));
+				assertEquals(folded(cursor), stem(cursor));
 				assertFalse(cursor.next());
+				assertTrue(restored.collectChangedSurfaceFormPages().changedPages().isEmpty());
+				// Reuse the pair to emit its reconstructed key without replacing the first display spelling.
+				restored.addValue(attribute("name"), 2, analyzer, 25, null, value);
+				assertEquals(List.of("ab\0cd\1ef/ab\0cd\1ef/abcd\1ef"),
+					collectPersistedSurfaceEntries(restored, analyzer.fingerprint().wordPhase()),
+					"The reconstructed index must retain the escaped display spelling.");
 				restored.removeValue(attribute("name"), 1, analyzer, 25, value);
+				assertEquals(Map.of("ab\0cd\1ef\0ab\0cd\1ef", 1L),
+					surfaceReferenceCounts(restored, analyzer.fingerprint().wordPhase()));
+				restored.removeValue(attribute("name"), 2, analyzer, 25, value);
 				assertTrue(surfaceReferenceCounts(restored, analyzer.fingerprint().wordPhase()).isEmpty());
 			}
 		}
@@ -455,7 +470,11 @@ class FulltextSurfaceFormDerivationTest {
 	}
 
 	/** Restores actual emitted pages after surface leaves pass through their registered Kryo serializer. */
-	private static FulltextIndex reload(FulltextIndex source, FulltextIndex.SurfaceFormPage replacement) {
+	@Nonnull
+	private static FulltextIndex reload(
+		@Nonnull FulltextIndex source, @Nullable FulltextIndex.SurfaceFormPage replacement,
+		@Nonnull String... expectedEntries
+	) {
 		final PageEmission<FulltextIndex.DictionaryPage> pages = source.collectChangedPages();
 		final FieldLengthTable.LengthBlockEmission[] lengths = source.collectChangedLengthBlocks();
 		final List<FulltextIndex.Field> fields = new ArrayList<>(lengths.length);
@@ -478,6 +497,10 @@ class FulltextSurfaceFormDerivationTest {
 			final FulltextSurfaceFormLeafPagePart part = new FulltextSurfaceFormLeafPagePart(3, Locale.ROOT, page);
 			part.computeUniquePartIdAndSet(compressor);
 			decoded[i] = roundTrip(kryo, part, FulltextSurfaceFormLeafPagePart.class).getPage();
+			assertArrayEquals(page.keys(), decoded[i].keys(), "The display and escaped components must survive.");
+		}
+		if (expectedEntries.length > 0) {
+			assertEquals(List.of(expectedEntries), persistedSurfaceEntries(List.of(decoded), 0));
 		}
 		return FulltextIndex.fromPersistedPages(fields, pages.orderedPageSequences(),
 			pages.changedPages().toArray(FulltextIndex.DictionaryPage[]::new), pages.highWaterPageSequence(),
@@ -695,8 +718,8 @@ class FulltextSurfaceFormDerivationTest {
 				final FulltextIndex.SurfaceFormCursor cursor =
 					index.exactSurfaceFormCursor(analyzer.fingerprint().wordPhase(), term);
 				assertTrue(cursor.next());
-				assertEquals(term, cursor.folded());
-				assertEquals(term, cursor.stem());
+				assertEquals(term, folded(cursor));
+				assertEquals(term, stem(cursor));
 				assertFalse(cursor.next());
 				assertArrayEquals(new int[]{1},
 					postingsOf(index, index.getFieldId(attribute("name")), term).getArray());

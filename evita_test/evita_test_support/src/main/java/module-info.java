@@ -21,7 +21,7 @@ module evita.test.support {
 
 	requires evita.api;
 	requires evita.engine;
-	// the automaton and the folding filter of the typo-tolerance helpers; the engine requires both non-transitively
+	// the folding filter (a core `TokenFilter`) and the hunspell word-form generator of the fulltext fixtures
 	requires org.apache.lucene.core;
 	requires org.apache.lucene.analysis.common;
 	requires evita.common;

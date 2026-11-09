@@ -192,10 +192,13 @@ class FulltextSingleWalkEquivalenceTest {
 							phases.add(index.getWordPhaseId(field));
 						}
 						assertTrue(phases.size() >= 2, "Multiple word phases must be searched.");
+						final List<FulltextIndex.SurfaceFormPage> surfacePages =
+							index.collectChangedSurfaceFormPages().changedPages();
 						for (final long phase : phases) {
-							final SurfaceFormCursor cursor = index.surfaceFormCursor(phase, "");
-							while (cursor.next()) {
-								if (!cursor.folded().equals(cursor.accented())) {
+							for (final String entry : persistedSurfaceEntries(surfacePages,
+								index.getWordPhaseIds().get(phase))) {
+								final String[] components = entry.split("/", -1);
+								if (!components[0].equals(components[2])) {
 									accentedPairs++;
 								}
 							}

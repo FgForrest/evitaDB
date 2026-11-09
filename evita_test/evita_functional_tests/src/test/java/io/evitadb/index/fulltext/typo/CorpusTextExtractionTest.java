@@ -69,9 +69,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * Extracts the text of a real catalog to a flat file that {@link CorpusTypoMeasurementTest} reads. The catalog is
- * supplied externally and never committed, so every location is a system property and the test is skipped when
- * they are missing:
+ * Extracts the text of a real catalog to a flat file, the input of typo-tolerance measurements over real text. The
+ * catalog is supplied externally and never committed, so every location is a system property and the test is
+ * skipped when they are missing:
  *
  * - `fulltext.corpus.dataDir` — storage directory holding the catalog folder; open a copy, the engine may write
  * - `fulltext.corpus.catalog` — catalog name
@@ -82,8 +82,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * - `fulltext.corpus.locale` — the locale of the attributes, default `cs`
  *
  * The output holds one line per non-empty field: `primaryKey TAB field TAB text`, the text HTML-stripped (the
- * markup is not what a search chain will see, P1 measurements part 5) and with tabs and line breaks replaced by
- * spaces.
+ * markup is not what a search chain will see) and with tabs and line breaks replaced by spaces.
  *
  * @author Lukáš Hornych (hornych@fg.cz)
  */

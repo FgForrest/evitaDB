@@ -59,6 +59,7 @@ import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.TreeMap;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Shared real schema analysis for low-level fulltext index fixtures. */
@@ -243,12 +244,83 @@ public final class FulltextIndexTestSupport {
 			final FulltextIndex.SurfaceFormCursor decoded = index.surfaceFormCursor(wordPhase, "");
 			while (cursor.next() && cursor.value().startsWith(prefix)) {
 				assertTrue(decoded.next());
-				result.put(decoded.folded() + '\0' + decoded.stem(), cursor.longRecordId());
+				result.put(folded(decoded) + '\0' + stem(decoded), cursor.longRecordId());
 			}
 			return result;
 		} catch (ReflectiveOperationException ex) {
 			throw new AssertionError("Follow FulltextIndex#surfaceForms when renaming it.", ex);
 		}
+	}
+
+	/** Copies the folded lookup word of the cursor's current pair out of its reused buffer. */
+	@Nonnull
+	public static String folded(@Nonnull FulltextIndex.SurfaceFormCursor cursor) {
+		return cursor.foldedCharacters().toString();
+	}
+
+	/** Copies the index stem of the cursor's current pair out of its reused buffer. */
+	@Nonnull
+	public static String stem(@Nonnull FulltextIndex.SurfaceFormCursor cursor) {
+		return cursor.stemCharacters().toString();
+	}
+
+	/** Describes the cursor's current pair as `folded/stem`, the lookup half of a persisted surface entry. */
+	@Nonnull
+	public static String foldedAndStem(@Nonnull FulltextIndex.SurfaceFormCursor cursor) {
+		return folded(cursor) + "/" + stem(cursor);
+	}
+
+	/**
+	 * Collects the index's changed surface pages and decodes one word phase's entries from them. Unlike
+	 * {@link #persistedSurfaceEntries(Iterable, int)}, this consumes the dirty-page emission, so a later collection
+	 * sees only the pages written after this call.
+	 */
+	@Nonnull
+	public static List<String> collectPersistedSurfaceEntries(@Nonnull FulltextIndex index, long wordPhase) {
+		return persistedSurfaceEntries(index.collectChangedSurfaceFormPages().changedPages(),
+			index.getWordPhaseIds().get(wordPhase));
+	}
+
+	/**
+	 * Decodes retained persistence-fixture pages independently of the production cursor. The caller captures pages
+	 * at a flush boundary and retains them across clean reads; this method never consumes dirty-page emissions.
+	 * Explicit empty components and escaped NUL/SOH are distinct from omitted identity-stem/display components.
+	 *
+	 * @param pages surface pages captured at a flush boundary
+	 * @param shortPhase short word-phase id whose keys are decoded; keys of every other phase are skipped
+	 * @return one `folded/stem/display` entry per key, an omitted stem or display expanded to the folded form,
+	 * ordered by encoded key
+	 */
+	@Nonnull
+	public static List<String> persistedSurfaceEntries(
+		@Nonnull Iterable<FulltextIndex.SurfaceFormPage> pages, int shortPhase
+	) {
+		final String prefix = FulltextTermKeys.fieldPrefix(shortPhase);
+		final Map<String, String> result = new TreeMap<>();
+		for (final FulltextIndex.SurfaceFormPage page : pages) {
+			for (final String key : page.keys()) {
+				final String[] components = key.split("\0", -1);
+				assertEquals(4, components.length, "Surface keys have four framed components.");
+				if (components[0].equals(prefix)) {
+					final String folded = decodePersistedSurfaceComponent(components[1]);
+					final String stem = components[2].isEmpty() ? folded
+						: decodePersistedSurfaceComponent(components[2]);
+					final String display = components[3].isEmpty() ? folded
+						: decodePersistedSurfaceComponent(components[3]);
+					result.put(key, folded + "/" + stem + "/" + display);
+				}
+			}
+		}
+		return new ArrayList<>(result.values());
+	}
+
+	/** Decodes the fixture's escaped component, including the dedicated explicit-empty marker. */
+	@Nonnull
+	private static String decodePersistedSurfaceComponent(@Nonnull String component) {
+		if (component.equals("\1\3")) {
+			return "";
+		}
+		return component.replace("\1\1", "\0").replace("\1\2", "\1");
 	}
 
 	/**
