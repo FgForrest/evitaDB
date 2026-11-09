@@ -23,7 +23,7 @@
 
 package io.evitadb.index.fulltext.analysis;
 
-import org.apache.lucene.analysis.cz.CzechStemmer;
+import io.evitadb.test.fulltext.LuceneCzechStemmer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -54,7 +54,7 @@ class CzechVariantStemmerLexiconTest {
 	@Test
 	@DisplayName("The variant set covers the folded index term for every dictionary word")
 	void shouldCoverAccentedStemsOverWholeLexicon() throws IOException {
-		final CzechStemmer accented = new CzechStemmer();
+		final LuceneCzechStemmer accented = new LuceneCzechStemmer();
 
 		final LexiconCoverageSweep.Result result = LexiconCoverageSweep.sweep(
 			"/fulltext/hunspell/cs_CZ.dic",

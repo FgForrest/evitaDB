@@ -20,14 +20,14 @@ read through mmap, off the heap — really holds in evitaDB. Both are empirical 
 nobody has measured.
 
 The mini-gate's question is **not** "jVector or an in-house HNSW". Reading the libraries shows that no
-library on the table is the thing evitaDB needs. What evitaDB needs is a **retrieval subsystem with several
+library on the table supplies the whole of what evitaDB needs; each fills only some of its slots. What evitaDB needs is a **retrieval subsystem with several
 physical access paths** — an exact scan over a candidate bitmap, an unfiltered graph walk with
 post-filtering, a graph walk with an in-walk acceptance test, and a predicate-aware walk that widens its
 neighbourhood when the filter is sparse — chosen per query by a **planner** that knows the candidate set's
 cardinality exactly ([§3.4](#34-filtered-ann-and-the-planner)). Under those paths sit two independent representations: the graph topology and
 the vector codec used for traversal, with the raw vectors kept reachable for reranking ([§3.5](#35-codecs-and-oversampling)). A library can
-supply the graph, a codec, or a searcher; none of the candidates supplies the planner, and only Lucene
-supplies a predicate-aware searcher.
+supply the graph and a codec; only Lucene supplies a usable predicate-aware searcher, and none supplies the
+planner.
 
 The spike's deliverable is therefore **the measured curve family that lets the planner be written** —
 latency and recall per strategy per selectivity, recall per codec per oversampling factor, heap bytes per
@@ -71,17 +71,18 @@ The criteria and their thresholds are fixed in advance so the result cannot be r
 The mini-gate does not decide by a single number: a candidate may win on performance and lose on integration.
 *Blocking* means that failing it alone decides against a candidate. Cells marked *known* were decided by
 reading the checkouts; the spike confirms them by measurement or by a running JVM but does not re-open them.
+Cells marked *to measure* are open: nothing has been measured yet, and the spike produces those numbers.
 
 | Criterion | How it is measured | Threshold | Weight | jVector (path A) | Lucene as library (path L) |
 |---|---|---|---|---|---|
-| recall@10 with rescoring | against a brute-force ground truth | ≥ 0.95 | blocking | measured | measured |
-| query latency | 1M × 768, one thread, p50 and p95 | < 10 ms | blocking | measured | measured |
-| filtered ANN | latency and recall per strategy per selectivity ([§4.4](#44-the-filtered-matrix)) | no selectivity band below 0.95 that the exact scan does not cover cheaply | blocking | measured with our searcher ([§2.7](#27-the-searcher-and-the-planner-are-evitadb-owned)) | measured with `FilteredHnswGraphSearcher` |
-| incremental maintenance | insert and delete at runtime without a full rebuild; recall drift under churn ([§4.7](#47-the-churn-protocol)) | works within a measured rebuild cadence | blocking | **known: yes**, two-phase delete with a quiescent `cleanup()` ([§3.2](#32-the-graph-component-candidates-and-recommendation)) | **known: insert-only**; liveness bits plus rebuild, cadence measured |
+| recall@10 with rescoring | against a brute-force ground truth | ≥ 0.95 | blocking | *to measure* | *to measure* |
+| query latency | 1M × 768, one thread, p50 and p95 | < 10 ms | blocking | *to measure* | *to measure* |
+| filtered ANN | latency and recall per strategy per selectivity ([§4.4](#44-the-filtered-matrix)) | no selectivity band below 0.95 that the exact scan does not cover cheaply | blocking | *to measure* with our searcher ([§2.7](#27-the-searcher-and-the-planner-are-evitadb-owned)) | *to measure* with `FilteredHnswGraphSearcher` |
+| incremental maintenance | insert and delete at runtime without a full rebuild; recall drift under churn ([§4.7](#47-the-churn-protocol)) | works within a measured rebuild cadence | blocking | **known: yes**, two-phase delete with a quiescent `cleanup()` ([§3.2](#32-the-graph-component-candidates-and-recommendation)) | **known: insert-only**; liveness bits plus rebuild, cadence *to measure* |
 | JPMS | `requires` from a named module | works, or has a workaround | blocking | **known: automatic module**, no `jlink` ([§2.6](#26-the-seam-every-library-contact-is-reversible)) | **known: named module** |
 | interruptibility | a cancellation check inside the walk | the query can be cancelled | high | **known: absent in the library's searcher**; present in ours ([§2.7](#27-the-searcher-and-the-planner-are-evitadb-owned)) | **known: `earlyTerminated()` per iteration** |
 | codec pluggability | a foreign approximate scorer drives the walk | works without a fork | high | **known: `ScoreFunction`** seam ([§2.6](#26-the-seam-every-library-contact-is-reversible)) | scorers are plain classes |
-| heap memory | bytes per indexed vector per component, JOL ([§2.8](#28-the-memory-accounting-rule), [§4.6](#46-memory)) | codes + graph within the [§1.2](#12-criteria) budget; raw vectors not on the heap | high | measured; the raw block needs our mapped `RandomAccessVectorValues` on JDK 21 ([§2.3](#23-storage-append-only-files-fileindex-naming-the-first-mmap)) | measured |
+| heap memory | bytes per indexed vector per component, JOL ([§2.8](#28-the-memory-accounting-rule), [§4.6](#46-memory)) | codes + graph within the [§1.2](#12-criteria) budget; raw vectors not on the heap | high | *to measure*; the raw block needs our mapped `RandomAccessVectorValues` on JDK 21 ([§2.3](#23-storage-append-only-files-fileindex-naming-the-first-mmap)) | *to measure* |
 | mmap compatibility | which read backend is selected on the target JDK | maps, no 2 GB failure | high | **known: `MappedChunkReader` on 21, `MemorySegmentReader` on 22** ([§2.3](#23-storage-append-only-files-fileindex-naming-the-first-mmap)) | not applicable — evitaDB reads its own files |
 | maturity and format | released version, format stability, configuration surface | see [§3.2](#32-the-graph-component-candidates-and-recommendation) | high | RC only; JMX-global builder config; stale `UPGRADING.md` | released 10.x; stable format |
 | dependency size | the transitive tree, CVEs | no frameworks | medium | four, one dead ([§2.6](#26-the-seam-every-library-contact-is-reversible)) | none |

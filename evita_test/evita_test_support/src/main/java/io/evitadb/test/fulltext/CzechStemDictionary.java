@@ -26,7 +26,6 @@ package io.evitadb.test.fulltext;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.cz.CzechAnalyzer;
-import org.apache.lucene.analysis.cz.CzechStemmer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -138,7 +137,7 @@ public final class CzechStemDictionary {
 	 * @return the folded stem, or null for a Czech stop word, which the index chain drops
 	 */
 	@Nullable
-	public static String indexTerm(@Nonnull String word, @Nonnull CzechStemmer stemmer) {
+	public static String indexTerm(@Nonnull String word, @Nonnull LuceneCzechStemmer stemmer) {
 		final CharArraySet stopWords = CzechAnalyzer.getDefaultStopSet();
 		if (stopWords.contains(word)) {
 			return null;
@@ -156,7 +155,7 @@ public final class CzechStemDictionary {
 	@Nonnull
 	private static CzechStemDictionary build() {
 		final CzechWordForms forms = CzechWordForms.load();
-		final CzechStemmer stemmer = new CzechStemmer();
+		final LuceneCzechStemmer stemmer = new LuceneCzechStemmer();
 		final TreeSet<String> stems = new TreeSet<>();
 		final TreeSet<String> sample = new TreeSet<>();
 		final long[] formCount = {0L};

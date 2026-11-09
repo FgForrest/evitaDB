@@ -28,10 +28,10 @@ import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.test.fulltext.CzechLexicon;
 import io.evitadb.test.fulltext.CzechStemDictionary;
+import io.evitadb.test.fulltext.LuceneCzechStemmer;
 import io.evitadb.test.fulltext.TypoExpansion;
 import io.evitadb.test.fulltext.TypoExpansion.QueryWord;
 import io.evitadb.utils.CollectionUtils;
-import org.apache.lucene.analysis.cz.CzechStemmer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -130,7 +130,7 @@ class PrefixVersusExactExpansionTest {
 		void shouldMeasurePrefixInputsPerKeystroke() {
 			final CzechStemDictionary stems = CzechStemDictionary.get();
 			final TransactionalBucketBPlusTree<String> tree = stems.getTree();
-			final CzechStemmer stemmer = new CzechStemmer();
+			final LuceneCzechStemmer stemmer = new LuceneCzechStemmer();
 			final Map<String, Integer> prefixCounts = CollectionUtils.createHashMap(65_536);
 			final Bucket[] buckets = {
 				new Bucket("inside the stem"), new Bucket("past the stem"), new Bucket("complete word")

@@ -37,6 +37,7 @@ import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.test.fulltext.CzechLexicon;
 import io.evitadb.test.fulltext.LevenshteinDictionaryWalker;
 import io.evitadb.test.fulltext.LevenshteinDictionaryWalker.Hit;
+import io.evitadb.test.fulltext.LuceneCzechStemmer;
 import io.evitadb.test.fulltext.SyntheticTypos;
 import io.evitadb.test.fulltext.SyntheticTypos.TypoKind;
 import io.evitadb.test.fulltext.TypoExpansion;
@@ -48,7 +49,6 @@ import io.evitadb.test.fulltext.TypoExpansion.UnfinishedWordRules;
 import io.evitadb.test.fulltext.TypoThresholds;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.JolHeapSize;
-import org.apache.lucene.analysis.cz.CzechStemmer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -781,7 +781,7 @@ class CorpusTypoMeasurementTest {
 	 */
 	private static void measureFanOut(@Nonnull Cohort cohort, @Nonnull List<Word> words) {
 		final TypoThresholds thresholds = TypoThresholds.PROPOSAL;
-		final CzechStemmer stemmer = new CzechStemmer();
+		final LuceneCzechStemmer stemmer = new LuceneCzechStemmer();
 		final Random random = new Random(13);
 		final TypoKind[] kinds = TypoKind.values();
 		final int[] variantCounts = new int[8];
@@ -1000,7 +1000,7 @@ class CorpusTypoMeasurementTest {
 	 * through the rules that does not fork on an ambiguous ending.
 	 */
 	@Nonnull
-	private static String straight(@Nonnull String folded, @Nonnull CzechStemmer stemmer) {
+	private static String straight(@Nonnull String folded, @Nonnull LuceneCzechStemmer stemmer) {
 		final char[] buffer = folded.toCharArray();
 		final int length = stemmer.stem(buffer, buffer.length);
 		return new String(buffer, 0, length);

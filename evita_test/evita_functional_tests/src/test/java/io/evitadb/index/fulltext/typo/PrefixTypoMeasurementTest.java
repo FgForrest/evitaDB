@@ -28,6 +28,7 @@ import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.test.fulltext.CzechLexicon;
 import io.evitadb.test.fulltext.CzechStemDictionary;
+import io.evitadb.test.fulltext.LuceneCzechStemmer;
 import io.evitadb.test.fulltext.SyntheticTypos;
 import io.evitadb.test.fulltext.SyntheticTypos.TypoKind;
 import io.evitadb.test.fulltext.TypoExpansion;
@@ -36,7 +37,6 @@ import io.evitadb.test.fulltext.TypoExpansion.LengthBase;
 import io.evitadb.test.fulltext.TypoExpansion.QueryWord;
 import io.evitadb.test.fulltext.TypoExpansion.UnfinishedWordMode;
 import io.evitadb.test.fulltext.TypoThresholds;
-import org.apache.lucene.analysis.cz.CzechStemmer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -177,7 +177,7 @@ class PrefixTypoMeasurementTest {
 	 */
 	@Nonnull
 	private static List<Case> corpus(@Nonnull CzechStemDictionary stems) {
-		final CzechStemmer stemmer = new CzechStemmer();
+		final LuceneCzechStemmer stemmer = new LuceneCzechStemmer();
 		final List<String> eligible = new ArrayList<>(4_096);
 		for (final String form : stems.getSampledForms()) {
 			if (form.length() >= MIN_LENGTH && CzechStemDictionary.indexTerm(form, stemmer) != null) {

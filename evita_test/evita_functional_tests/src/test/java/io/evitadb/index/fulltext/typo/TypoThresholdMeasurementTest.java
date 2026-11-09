@@ -30,6 +30,7 @@ import io.evitadb.test.fulltext.CzechLexicon;
 import io.evitadb.test.fulltext.CzechStemDictionary;
 import io.evitadb.test.fulltext.LevenshteinDictionaryWalker;
 import io.evitadb.test.fulltext.LevenshteinDictionaryWalker.Hit;
+import io.evitadb.test.fulltext.LuceneCzechStemmer;
 import io.evitadb.test.fulltext.SyntheticTypos;
 import io.evitadb.test.fulltext.SyntheticTypos.TypoKind;
 import io.evitadb.test.fulltext.TypoExpansion;
@@ -37,7 +38,6 @@ import io.evitadb.test.fulltext.TypoExpansion.LengthBase;
 import io.evitadb.test.fulltext.TypoExpansion.QueryWord;
 import io.evitadb.test.fulltext.TypoThresholds;
 import io.evitadb.utils.CollectionUtils;
-import org.apache.lucene.analysis.cz.CzechStemmer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -106,7 +106,7 @@ class TypoThresholdMeasurementTest {
 	void shouldMeasureThresholdPolicies() {
 		final CzechStemDictionary stems = CzechStemDictionary.get();
 		final TransactionalBucketBPlusTree<String> tree = stems.getTree();
-		final CzechStemmer stemmer = new CzechStemmer();
+		final LuceneCzechStemmer stemmer = new LuceneCzechStemmer();
 		final TypoThresholds thresholds = TypoThresholds.PROPOSAL;
 		final Random random = new Random(7);
 		final TypoKind[] kinds = TypoKind.values();
