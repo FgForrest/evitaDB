@@ -391,13 +391,13 @@ public class SelectionFormula extends AbstractFormula
 	 */
 	@Nonnull
 	@Override
-	public FulltextPhaseOneScorer.Result getFulltextScores(@Nonnull int[] candidates, int topN) {
+	public FulltextPhaseOneScorer.Result getFulltextScores(@Nonnull int[] candidates) {
 		final List<FulltextScoreAccessor> accessors = findInnerScoreAccessors();
 		Assert.isPremiseValid(
 			accessors.size() == 1,
 			() -> "Selection formula wraps " + accessors.size() + " fulltext score accessors, exactly one expected!"
 		);
-		return accessors.get(0).getFulltextScores(candidates, topN);
+		return accessors.get(0).getFulltextScores(candidates);
 	}
 
 	/**

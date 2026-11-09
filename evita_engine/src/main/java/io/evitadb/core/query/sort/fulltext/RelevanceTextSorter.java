@@ -23,9 +23,8 @@
 
 package io.evitadb.core.query.sort.fulltext;
 
-import com.carrotsearch.hppc.IntLongHashMap;
-import com.carrotsearch.hppc.cursors.IntLongCursor;
 import io.evitadb.core.query.algebra.fulltext.FulltextScoreAccessor;
+import io.evitadb.core.query.algebra.fulltext.FulltextScoreCombiner;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -34,12 +33,12 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
+import io.evitadb.index.fulltext.FulltextScoringPolicy;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
 import java.util.function.IntConsumer;
 
 /**
@@ -56,21 +55,16 @@ import java.util.function.IntConsumer;
  *
  * ## Top N, not a full sort
  *
- * The page ends at `endIndex`, so the accessors are asked for the best `endIndex` entities (counted from where this
- * sorter starts) instead of a sorted match set: the first page of twenty out of a million matches selects twenty.
- * Entities preceding the page are reported to the skipped-records consumer, the page is written, and the entities
- * no accessor ranked - the ones the filter admitted without a fulltext match, e.g. through another branch of an `or` -
- * are handed on unsorted to the next sorter. When the accessors matched more entities than the page reaches, the page
- * is full and nothing is handed on.
+ * Every accessor scores all candidates and returns a vector aligned with those primary keys. Quality comes from
+ * the lexicographically best source; strength is best source strength + t × other source strengths. Each source
+ * has already combined its own places by the same rule and coefficient. Scopes have disjoint entities, so their
+ * vectors never add two scope contributions for one entity. Reference sources distinguish entity versus group
+ * mappings and the value of the originating nested constraint; equal constraints and scope/index copies collapse.
+ * Each reference place contributes its own 0.5-weighted best target strength.
  *
- * ## Several accessors
- *
- * Each scope's `textMatches` yields its own formula, so a LIVE + ARCHIVED query has two accessors over disjoint
- * entities, and two `textMatches` in one filter - or a `textMatches` beside an `entityHaving` carrying one - have two
- * accessors over overlapping ones. Each accessor ranks its own top N, an entity ranked by several keeps its best
- * composite, and the union is ordered by composite (unsigned, best first), ties by ascending primary key - the
- * scorer's own rule. The merge is exact: an entity in the true top N of the merged order is in the top N of the
- * accessor that gave it its best composite.
+ * Only after combining does a heap select the best `endIndex` entities, in unsigned composite order with ascending
+ * primary keys breaking ties. Per-source top N would lose candidates whose combined evidence earns them a page.
+ * Entities before the page are reported as skipped; entities matching no source pass to the next sorter.
  *
  * ## Scope restriction
  *
@@ -89,6 +83,8 @@ public class RelevanceTextSorter implements Sorter {
 	 * Global indexes of the scopes whose entities are ranked, or null when the entities of every scope are.
 	 */
 	@Nullable private final EntityIndex[] scopeIndexes;
+	/** Effective query coefficient shared with the score sources. */
+	@Nonnull private final FulltextScoringPolicy scoringPolicy;
 
 	/**
 	 * Creates the sorter.
@@ -97,11 +93,16 @@ public class RelevanceTextSorter implements Sorter {
 	 *                     {@link FulltextScoreAccessor#providesFulltextScores()} with true
 	 * @param scopeIndexes global indexes of the scopes whose entities are ranked, or null to rank the entities of every
 	 *                     scope
+	 * @param scoringPolicy effective query coefficient
 	 */
-	public RelevanceTextSorter(@Nonnull FulltextScoreAccessor[] accessors, @Nullable EntityIndex[] scopeIndexes) {
+	public RelevanceTextSorter(
+		@Nonnull FulltextScoreAccessor[] accessors, @Nullable EntityIndex[] scopeIndexes,
+		@Nonnull FulltextScoringPolicy scoringPolicy
+	) {
 		Assert.isPremiseValid(accessors.length > 0, "The relevance sorter needs at least one score accessor!");
 		this.accessors = accessors;
 		this.scopeIndexes = scopeIndexes;
+		this.scoringPolicy = scoringPolicy;
 	}
 
 	@Nonnull
@@ -181,39 +182,11 @@ public class RelevanceTextSorter implements Sorter {
 	 */
 	@Nonnull
 	private Ranking rank(@Nonnull int[] candidates, int topN) {
-		if (this.accessors.length == 1) {
-			final Result scores = this.accessors[0].getFulltextScores(candidates, topN);
-			return new Ranking(scores.primaryKeys(), scores.matchedDocuments() == scores.primaryKeys().length);
-		}
-		// an entity ranked by several accessors keeps its best composite
-		final IntLongHashMap best = new IntLongHashMap(Math.min(topN, candidates.length) * this.accessors.length);
-		boolean complete = true;
-		for (FulltextScoreAccessor accessor : this.accessors) {
-			final Result scores = accessor.getFulltextScores(candidates, topN);
-			final int[] primaryKeys = scores.primaryKeys();
-			final long[] composites = scores.composites();
-			for (int i = 0; i < primaryKeys.length; i++) {
-				final int index = best.indexOf(primaryKeys[i]);
-				if (index < 0) {
-					best.indexInsert(index, primaryKeys[i], composites[i]);
-				} else if (Long.compareUnsigned(composites[i], best.indexGet(index)) > 0) {
-					best.indexReplace(index, composites[i]);
-				}
-			}
-			complete &= scores.matchedDocuments() == primaryKeys.length;
-		}
-		final RankedEntity[] merged = new RankedEntity[best.size()];
-		int index = 0;
-		for (IntLongCursor cursor : best) {
-			merged[index++] = new RankedEntity(cursor.key, cursor.value);
-		}
-		Arrays.sort(merged);
-		final int[] primaryKeys = new int[Math.min(topN, merged.length)];
-		for (int i = 0; i < primaryKeys.length; i++) {
-			primaryKeys[i] = merged[i].primaryKey();
-		}
-		// the union of complete rankings is complete only while it still fits the page
-		return new Ranking(primaryKeys, complete && merged.length <= topN);
+		final Result combined = FulltextScoreCombiner.combine(candidates, this.accessors, this.scoringPolicy);
+		final Result selected = FulltextPhaseOneScorer.selectTopN(
+			candidates, combined.composites(), topN, combined.postingsWalked()
+		);
+		return new Ranking(selected.primaryKeys(), selected.matchedDocuments() == selected.primaryKeys().length);
 	}
 
 	/**
@@ -228,23 +201,6 @@ public class RelevanceTextSorter implements Sorter {
 		 * The ranking of no candidate.
 		 */
 		static final Ranking EMPTY = new Ranking(new int[0], true);
-	}
-
-	/**
-	 * An entity with its composite score, ordered best first: by composite compared unsigned, as
-	 * {@link FulltextPhaseOneScorer} defines it, descending, ties by ascending primary key.
-	 *
-	 * @param primaryKey primary key of the entity
-	 * @param composite  its best composite
-	 */
-	private record RankedEntity(int primaryKey, long composite) implements Comparable<RankedEntity> {
-
-		@Override
-		public int compareTo(@Nonnull RankedEntity other) {
-			final int byComposite = Long.compareUnsigned(other.composite, this.composite);
-			return byComposite == 0 ? Integer.compare(this.primaryKey, other.primaryKey) : byComposite;
-		}
-
 	}
 
 }

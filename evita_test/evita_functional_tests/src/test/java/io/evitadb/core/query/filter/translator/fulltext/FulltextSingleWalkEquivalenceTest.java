@@ -52,6 +52,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.*;
 
+import static io.evitadb.core.query.filter.translator.fulltext.FulltextSurfaceTestSupport.unitWeights;
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
 import static io.evitadb.index.fulltext.FulltextIndexTestSupport.*;
 import static io.evitadb.core.query.filter.translator.fulltext.FulltextExpansionTestSupport.*;
@@ -123,7 +124,8 @@ class FulltextSingleWalkEquivalenceTest {
 				final CountingIndex index = new CountingIndex();
 				final int[] fields = fields(index, registry, 3, false);
 				final String[] words = {"abcdefgh", "ijklmnop", "abcd", "ab12", "abc"};
-				new FulltextTermExpansion(PARAMETERS).expand(index, fields, words, words, new String[0], false);
+				new FulltextTermExpansion(PARAMETERS).expand(index, fields, unitWeights(index), words, words,
+					new String[0], false);
 				assertEquals(9, index.stemWalks);
 				assertEquals(6, index.laneWalks);
 				assertEquals(3, index.walkers.size());
@@ -214,7 +216,8 @@ class FulltextSingleWalkEquivalenceTest {
 							final List<ExpandedTerm> expected = cascade.expand(index, fieldIds, variants, surfaces,
 								new String[]{query}, unfinished);
 							final List<ExpandedTerm> actual = new FulltextTermExpansion(PARAMETERS).expand(
-								index, fieldIds, variants, surfaces, new String[]{query}, unfinished);
+								index, fieldIds, unitWeights(index), variants, surfaces, new String[]{query},
+									unfinished);
 							assertViews(expected, actual);
 							if (cascade.bandOneUnion == CAP && cascade.bandOneMaximumField < CAP) {
 								boundaries[0]++;
@@ -273,6 +276,7 @@ class FulltextSingleWalkEquivalenceTest {
 				assertEquals(CAP, cascade.size());
 				assertEquals(CAP + 1, visited.size());
 				final List<ExpandedTerm> actual = new FulltextTermExpansion(PARAMETERS).expand(index, new int[]{0},
+					unitWeights(index),
 					new String[]{query}, new String[0], new String[]{query}, unfinished);
 				assertEquals(CAP, actual.size());
 				assertTrue(actual.stream().anyMatch(term -> term.term().equals("abcde\uD800gh")));
@@ -333,6 +337,7 @@ class FulltextSingleWalkEquivalenceTest {
 				final List<ExpandedTerm> expected = new CascadeExpansion(PARAMETERS).expand(index, new int[]{0},
 					new String[]{query}, new String[0], new String[]{query}, unfinished);
 				final List<ExpandedTerm> actual = new FulltextTermExpansion(PARAMETERS).expand(index, new int[]{0},
+					unitWeights(index),
 					new String[]{query}, new String[0], new String[]{query}, unfinished);
 				assertEquals(1, expected.size());
 				assertEquals(2, actual.size());
@@ -386,7 +391,7 @@ class FulltextSingleWalkEquivalenceTest {
 		final List<ExpandedTerm> expected = new CascadeExpansion(PARAMETERS).expand(
 			index, fields, variants, surfaces, variants, unfinished);
 		final List<ExpandedTerm> actual = new FulltextTermExpansion(PARAMETERS).expand(
-			index, fields, variants, surfaces, variants, unfinished);
+			index, fields, unitWeights(index), variants, surfaces, variants, unfinished);
 		assertViews(expected, actual);
 		return actual;
 	}
@@ -920,7 +925,8 @@ class FulltextSingleWalkEquivalenceTest {
 			final ExpandedTerm[] found = new ExpandedTerm[1];
 			index.forEachTerm(fieldId, term, (visited, postings, impacts) -> {
 				if (visited.equals(term) && !postings.isEmpty()) {
-					found[0] = new ExpandedTerm(fieldId, visited, postings, impacts, 0);
+					found[0] = new ExpandedTerm(fieldId, visited, postings, impacts, 0, FulltextTermExactness.EXACT,
+						fieldId, 1.0f);
 				}
 				return false;
 			});
@@ -985,7 +991,7 @@ class FulltextSingleWalkEquivalenceTest {
 			for (final Candidate candidate : candidates.values()) {
 				for (final FieldTerm field : candidate.fields) {
 					result.add(new ExpandedTerm(field.fieldId(), candidate.term, field.postings(), field.impacts(),
-						candidate.distance, candidate.exactness));
+						candidate.distance, candidate.exactness, field.fieldId(), 1.0f));
 				}
 			}
 		}

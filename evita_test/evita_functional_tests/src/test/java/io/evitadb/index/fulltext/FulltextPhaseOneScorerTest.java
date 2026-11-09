@@ -24,6 +24,11 @@
 package io.evitadb.index.fulltext;
 
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.core.query.algebra.fulltext.FulltextFormula;
+import io.evitadb.core.query.algebra.fulltext.FulltextFormula.ExpandedTerm;
+import io.evitadb.core.query.algebra.fulltext.FulltextScoreAccessor;
+import io.evitadb.core.query.algebra.fulltext.FulltextScoreCombiner;
+import io.evitadb.core.query.algebra.fulltext.ReferenceOwnerFulltextScoreAccessor;
 import io.evitadb.index.bPlusTree.ImpactView;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -40,10 +45,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import net.openhft.hashing.LongHashFunction;
+
 import javax.annotation.Nonnull;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.Random;
+import java.util.Map;
 
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.defaultScoringPolicy;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.scoreTopN;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.QUERY;
@@ -65,7 +77,7 @@ class FulltextPhaseOneScorerTest {
 	/** Creates a finite expansion whose zero distance denotes an exact match. */
 	private static Expansion finiteExpansion(Bitmap postings, ImpactView impacts, int distance) {
 		return new Expansion(postings, impacts, distance, distance == 0
-			? FulltextTermExactness.EXACT : FulltextTermExactness.FUZZY);
+			? FulltextTermExactness.EXACT : FulltextTermExactness.FUZZY, 0, 1.0f);
 	}
 
 	/**
@@ -97,6 +109,332 @@ class FulltextPhaseOneScorerTest {
 		return (int) ((composite >>> shift) & 0xFFL);
 	}
 
+	/** Real formulas exercise the decided two-level rule without adding a public coefficient API. */
+	@Nested
+	@DisplayName("Weighted places and sources")
+	class WeightedPlaces {
+		/** Integer tables preserve the exact binary float value, including subnormal and halfway inputs. */
+		@Test
+		@DisplayName("should match exact decimal quantization for every impact and representative weight")
+		void shouldMatchExactWeightTables() {
+			final float[] weights = {0, Float.MIN_VALUE, 0.0625f, 0.1f, 0.3f, 1, 3, 15, 31.99f, 32,
+				1e6f, Float.MAX_VALUE};
+			final FulltextScoringPolicy policy = new FulltextScoringPolicy(Map.of());
+			for (final float weight : weights) {
+				final char[] actual = policy.getWeightedImpacts(weight);
+				assertSame(actual, policy.getWeightedImpacts(weight), "Tables must be shared by weight bits");
+				assertEquals(0, actual[0]);
+				final BigDecimal multiplier = new BigDecimal((double) weight).multiply(BigDecimal.valueOf(8));
+				for (int impact = 1; impact < 256; impact++) {
+					final int expected = multiplier.multiply(BigDecimal.valueOf(impact))
+						.min(BigDecimal.valueOf(65535)).setScale(0, RoundingMode.HALF_UP).intValueExact();
+					assertEquals(expected, actual[impact], "weight=" + weight + ", impact=" + impact);
+				}
+			}
+			assertEquals(1, policy.getWeightedImpacts(0.0625f)[1]);
+		}
+
+		/** A half fixed-point unit rounds upward at both combination boundaries. */
+		@Test
+		@DisplayName("should round halfway bonuses and reference strengths upward")
+		void shouldRoundHalfwayStrengthsUp() {
+			assertEquals(2, new FulltextScoringPolicy(Map.of(), 0.5f).combine(1, 2));
+			assertEquals(1, FulltextScoringPolicy.weightReferenceStrength(1));
+		}
+
+		/** Schema defaults name=3 and description=1 combine before the category place weighted 0.5. */
+		@ParameterizedTest
+		@CsvSource({"0, 600", "0.1, 620", "0.3, 660", "1, 800"})
+		@DisplayName("Combines schema-weighted name and description, then the category source")
+		void shouldCombineWeightedPlacesAtBothLevels(float t, int expected) {
+			final FulltextScoringPolicy policy = new FulltextScoringPolicy(Map.of(), t);
+			final FulltextFormula own = formula(policy,
+				weightedTerm(0, 3, 0, 1, 200), weightedTerm(1, 1, 0, 1, 100));
+			final FulltextFormula target = formula(policy, weightedTerm(0, 1, 0, 9, 200));
+			final ReferenceOwnerFulltextScoreAccessor reference = ReferenceOwnerFulltextScoreAccessor.create(
+				target, ignored -> new BaseBitmap(1), () -> policy);
+			assertNotNull(reference);
+			final Result combined = FulltextScoreCombiner.combine(new int[]{1},
+				new FulltextScoreAccessor[]{own, reference}, policy);
+			assertEquals(expected * 8, FulltextScoringPolicy.strength(combined.composites()[0]));
+		}
+
+		/** Expansions of one word collapse, while different words add within a place. */
+		@Test
+		@DisplayName("Collapses expansions of one word before adding different words")
+		void shouldCollapsePlaceBeforeWeighting() {
+			final ExpandedTerm a = weightedTerm(0, 3, 0, 1, 100);
+			final ExpandedTerm b = weightedTerm(0, 3, 0, 1, 200);
+			final FulltextFormula formula = new FulltextFormula(new ExpandedTerm[][]{{a, b}, {a, b}}, null,
+				defaultScoringPolicy());
+			assertEquals(1200 * 8, FulltextScoringPolicy.strength(formula.getFulltextScores(new int[]{1})
+				.composites()[0]));
+		}
+
+		/** Dense early words must not leave raw impacts behind when later words hit only one place. */
+		@Test
+		@DisplayName("should match a candidate-first reference when later words touch fewer places")
+		void shouldFoldOnlyCurrentWordPlaces() {
+			final int placeCount = 12;
+			final Expansion[] dense = new Expansion[placeCount];
+			for (int place = 0; place < placeCount; place++) {
+				dense[place] = new Expansion(new BaseBitmap(1, 2),
+					ImpactView.of(new byte[]{(byte) (30 + place), (byte) (90 - place)}),
+					0, FulltextTermExactness.EXACT, place, 1.25f);
+			}
+			final Expansion sparse = new Expansion(new BaseBitmap(2, 3), ImpactView.of(new byte[]{100, 50}),
+				0, FulltextTermExactness.EXACT, 2, 1.25f);
+			final Expansion miss = new Expansion(new BaseBitmap(9), ImpactView.of(new byte[]{120}),
+				0, FulltextTermExactness.EXACT, 9, 1.25f);
+			final Expansion last = new Expansion(new BaseBitmap(1), ImpactView.of(new byte[]{80}),
+				0, FulltextTermExactness.EXACT, 2, 1.25f);
+			final Expansion[][] words = {dense, {sparse, sparse}, {miss}, {last}};
+			final int[] candidates = {1, 2, 3, 4};
+			final long[] expected = new long[candidates.length];
+			// Deliberately traverse candidates, then words and every place, with no reusable raw lanes or stamps.
+			for (int c = 0; c < candidates.length; c++) {
+				final int[] sums = new int[placeCount];
+				int matched = 0;
+				for (final Expansion[] word : words) {
+					boolean hit = false;
+					for (int place = 0; place < placeCount; place++) {
+						int raw = 0;
+						for (final Expansion expansion : word) {
+							if (expansion.placeId() == place) {
+								final int position = Arrays.binarySearch(
+									expansion.postings().getArray(), candidates[c]);
+								if (position >= 0) {
+									hit = true;
+									raw = Math.max(raw, Byte.toUnsignedInt(expansion.impacts().toArray()[position]));
+								}
+							}
+						}
+						final int weighted = BigDecimal.valueOf(raw).multiply(BigDecimal.TEN)
+							.setScale(0, RoundingMode.HALF_UP).intValueExact();
+						sums[place] = Math.min(65535, sums[place] + weighted);
+					}
+					matched += hit ? 1 : 0;
+				}
+				if (matched > 0) {
+					final int best = Arrays.stream(sums).max().orElseThrow();
+					final long others = Arrays.stream(sums).asLongStream().sum() - best;
+					final int bonus = new BigDecimal((double) 0.3f).multiply(BigDecimal.valueOf(others))
+						.setScale(0, RoundingMode.HALF_UP).intValueExact();
+					expected[c] = ((long) matched << 56) | (255L << 48) | (255L << 40)
+						| ((long) Math.min(65535, best + bonus) << FulltextScoringPolicy.STRENGTH_SHIFT);
+				}
+			}
+			for (final MergeStrategy strategy : MergeStrategy.values()) {
+				assertArrayEquals(expected, FulltextPhaseOneScorer.scoreAll(candidates, words, strategy, null,
+					defaultScoringPolicy()).composites(), strategy.name());
+			}
+		}
+
+		/** Both words in the stronger name beat words spread over name and description at equal raw quality. */
+		@ParameterizedTest
+		@CsvSource({"0", "0.3", "1"})
+		@DisplayName("should prefer kozena bunda together in name to a name and description split")
+		void shouldSumWordsWithinName(float t) {
+			final FulltextScoringPolicy policy = new FulltextScoringPolicy(Map.of(), t);
+			final FulltextFormula formula = new FulltextFormula(new ExpandedTerm[][]{
+				{weightedTerm(0, 3, 0, 1, 100, 2, 100)},
+				{weightedTerm(0, 3, 0, 1, 100), weightedTerm(1, 1, 0, 2, 100)}
+			}, null, policy);
+			final long[] scores = formula.getFulltextScores(new int[]{1, 2}).composites();
+			assertEquals(scores[0] & FulltextScoringPolicy.QUALITY_MASK,
+				scores[1] & FulltextScoringPolicy.QUALITY_MASK);
+			assertEquals(600 * 8, FulltextScoringPolicy.strength(scores[0]));
+			assertTrue(Long.compareUnsigned(scores[0], scores[1]) > 0);
+		}
+
+		/** An original and both parts share one word fold even when all three hit. */
+		@Test
+		@DisplayName("should count a split word once for place strength")
+		void shouldCountSplitWordStrengthOnce() {
+			final ExpandedTerm original = weightedTerm(0, 3, 0, 1, 100);
+			final ExpandedTerm part = weightedTerm(0, 3, 0, 1, 200);
+			final FulltextFormula formula = new FulltextFormula(new ExpandedTerm[][]{{original, part, part}},
+				new int[][]{{1, 2, 3}}, defaultScoringPolicy());
+			final long score = formula.getFulltextScores(new int[]{1}).composites()[0];
+			assertEquals(600 * 8, FulltextScoringPolicy.strength(score));
+			assertEquals(2, lane(score, 56));
+		}
+
+		/** Halfway weights round each word with the shared exact table before the place adds them. */
+		@Test
+		@DisplayName("should quantize each word before adding its place strength")
+		void shouldQuantizeEachWordBeforeAdding() {
+			final ExpandedTerm term = weightedTerm(0, 0.0625f, 0, 1, 1);
+			final FulltextFormula formula = new FulltextFormula(new ExpandedTerm[][]{{term}, {term}}, null,
+				defaultScoringPolicy());
+			assertEquals(2, FulltextScoringPolicy.strength(formula.getFulltextScores(new int[]{1}).composites()[0]));
+		}
+
+		/** Each contribution is below the ceiling; their sum saturates without spilling into quality. */
+		@Test
+		@DisplayName("should saturate the place sum across query words")
+		void shouldSaturatePlaceWordSum() {
+			final ExpandedTerm term = weightedTerm(0, 20, 0, 1, 255);
+			final FulltextFormula formula = new FulltextFormula(new ExpandedTerm[][]{{term}, {term}}, null,
+				defaultScoringPolicy());
+			final long score = formula.getFulltextScores(new int[]{1}).composites()[0];
+			assertEquals(65535, FulltextScoringPolicy.strength(score));
+			assertEquals(2, lane(score, 56));
+			assertEquals(255, lane(score, 40));
+		}
+
+		/** Zero weight retains membership and every raw quality lane. */
+		@Test
+		@DisplayName("Zero weight keeps membership and quality but contributes no strength")
+		void shouldKeepZeroWeightMembershipAndQuality() {
+			final FulltextFormula zero = formula(defaultScoringPolicy(), weightedTerm(0, 0, 0, 1, 200));
+			final FulltextFormula normal = formula(defaultScoringPolicy(), weightedTerm(0, 1, 0, 1, 200));
+			assertArrayEquals(new int[]{1}, zero.compute().getArray());
+			final long score = zero.getFulltextScores(new int[]{1, 2}).composites()[0];
+			assertEquals(0, FulltextScoringPolicy.strength(score));
+			assertEquals(normal.getFulltextScores(new int[]{1}).composites()[0] & FulltextScoringPolicy.QUALITY_MASK,
+				score & FulltextScoringPolicy.QUALITY_MASK);
+			assertEquals(0, zero.getFulltextScores(new int[]{1, 2}).composites()[1]);
+		}
+
+		/** Quality always dominates even when the lower-quality place saturates strength. */
+		@Test
+		@DisplayName("An exact zero-weight match beats a typo with the largest possible weight")
+		void shouldKeepQualityAboveAnyWeight() {
+			final FulltextFormula formula = formula(defaultScoringPolicy(),
+				weightedTerm(0, 0, 0, 1, 1), weightedTerm(1, Float.MAX_VALUE, 1, 2, 255));
+			final Result scores = formula.getFulltextScores(new int[]{1, 2});
+			assertEquals(65535, FulltextScoringPolicy.strength(scores.composites()[1]));
+			assertTrue(Long.compareUnsigned(scores.composites()[0], scores.composites()[1]) > 0);
+		}
+
+		/** Independent repetitions, monotonic boosts, saturation and unsigned quality boundaries. */
+		@Test
+		@DisplayName("Strength is deterministic, monotonic and saturating below all quality bits")
+		void shouldQuantizeDeterministically() {
+			long previous = 0;
+			for (final float weight : new float[]{0, 0.1f, 1, 3, 15, 31, 32, 100, Float.MAX_VALUE}) {
+				final FulltextFormula first = formula(defaultScoringPolicy(), weightedTerm(0, weight, 0, 1, 255));
+				final FulltextFormula replica = formula(defaultScoringPolicy(), weightedTerm(0, weight, 0, 1, 255));
+				final long composite = first.getFulltextScores(new int[]{1}).composites()[0];
+				assertEquals(composite, replica.getFulltextScores(new int[]{1}).composites()[0]);
+				assertTrue(Long.compareUnsigned(composite, previous) >= 0);
+				assertEquals(0, composite & 0xFFFFFFL);
+				previous = composite;
+			}
+			assertEquals(65535, FulltextScoringPolicy.strength(previous));
+			for (final long qualityBit : new long[]{1L << 40, 1L << 48, 1L << 56, Long.MIN_VALUE}) {
+				assertTrue(Long.compareUnsigned(qualityBit, qualityBit - (1L << 24)) > 0);
+			}
+			final FulltextScoringPolicy policy = defaultScoringPolicy();
+			assertEquals(52000, policy.combine(40000, 80000), "The sum cannot saturate before applying t");
+			assertEquals(65535, policy.combine(60000, 120000));
+			assertEquals(1, new FulltextScoringPolicy(Map.of(), Float.MIN_VALUE).combine(1, 100000));
+		}
+
+		/** The reference bonus changes order only when t admits evidence from another source. */
+		@ParameterizedTest
+		@CsvSource({"0, 2", "0.1, 1", "0.3, 1", "1, 1"})
+		@DisplayName("A name impact 200 plus a category beats 210 only with a sufficient source bonus")
+		void shouldCombineOwnAndCategoryStrength(float t, int firstPk) {
+			final FulltextScoringPolicy policy = new FulltextScoringPolicy(Map.of(), t);
+			final FulltextFormula own = formula(policy, weightedTerm(0, 1, 0, 1, 200, 2, 210));
+			final FulltextFormula target = formula(policy, weightedTerm(0, 1, 0, 9, 200));
+			final ReferenceOwnerFulltextScoreAccessor reference = ReferenceOwnerFulltextScoreAccessor.create(
+				target, ignored -> new BaseBitmap(1), () -> policy);
+			assertNotNull(reference);
+			final Result result = FulltextScoreCombiner.combine(new int[]{1, 2},
+				new FulltextScoreAccessor[]{own, reference}, policy);
+			assertEquals(firstPk, FulltextPhaseOneScorer.selectTopN(new int[]{1, 2}, result.composites(), 1, 0)
+				.primaryKeys()[0]);
+		}
+
+		/** Quality comes from the best source alone, while every source contributes its strength. */
+		@Test
+		@DisplayName("should take quality from the best source and strength from every source")
+		void shouldTakeQualityFromBestSourceAndStrengthFromAllSources() {
+			final FulltextFormula exact = formula(defaultScoringPolicy(), weightedTerm(0, 1, 0, 1, 50));
+			final FulltextFormula typo = formula(defaultScoringPolicy(), weightedTerm(0, 1, 1, 1, 200, 2, 100));
+			final int[] candidates = {1, 2, 3};
+			final Result exactScores = exact.getFulltextScores(candidates);
+			final Result typoScores = typo.getFulltextScores(candidates);
+			assertTrue(Long.compareUnsigned(exactScores.composites()[0] & FulltextScoringPolicy.QUALITY_MASK,
+				typoScores.composites()[0] & FulltextScoringPolicy.QUALITY_MASK) > 0);
+			final Result combined = FulltextScoreCombiner.combine(candidates,
+				new FulltextScoreAccessor[]{exact, typo}, defaultScoringPolicy());
+			assertEquals(exactScores.composites()[0] & FulltextScoringPolicy.QUALITY_MASK,
+				combined.composites()[0] & FulltextScoringPolicy.QUALITY_MASK);
+			assertEquals(defaultScoringPolicy().combine(200 * 8, (200 + 50) * 8),
+				FulltextScoringPolicy.strength(combined.composites()[0]));
+			assertEquals(typoScores.composites()[1], combined.composites()[1]);
+			assertEquals(0, combined.composites()[2]);
+			assertEquals(2, combined.matchedDocuments());
+			assertEquals(exactScores.postingsWalked() + typoScores.postingsWalked(), combined.postingsWalked());
+		}
+
+		/** Copies of one reference place keep their best quality and best strength separately, never a sum. */
+		@Test
+		@DisplayName("should collapse distinct copies to their best quality and best strength")
+		void shouldCollapseDistinctSourcesToBestQualityAndBestStrength() {
+			final FulltextFormula exact = formula(defaultScoringPolicy(), weightedTerm(0, 1, 0, 1, 50));
+			final FulltextFormula typo = formula(defaultScoringPolicy(), weightedTerm(0, 1, 1, 1, 200, 2, 100));
+			final int[] candidates = {1, 2, 3};
+			final Result exactScores = exact.getFulltextScores(candidates);
+			final Result typoScores = typo.getFulltextScores(candidates);
+			for (final FulltextScoreAccessor[] copies : new FulltextScoreAccessor[][]{{exact, typo}, {typo, exact}}) {
+				final Result collapsed = FulltextScoreCombiner.collapseSources(copies).getFulltextScores(candidates);
+				assertEquals((exactScores.composites()[0] & FulltextScoringPolicy.QUALITY_MASK)
+					| ((long) (200 * 8) << FulltextScoringPolicy.STRENGTH_SHIFT), collapsed.composites()[0]);
+				assertEquals(typoScores.composites()[1], collapsed.composites()[1]);
+				assertEquals(0, collapsed.composites()[2]);
+				assertEquals(2, collapsed.matchedDocuments());
+				assertEquals(exactScores.postingsWalked() + typoScores.postingsWalked(), collapsed.postingsWalked());
+			}
+			assertSame(exact, FulltextScoreCombiner.collapseSources(new FulltextScoreAccessor[]{exact}));
+			assertThrows(GenericEvitaInternalError.class,
+				() -> FulltextScoreCombiner.collapseSources(new FulltextScoreAccessor[0]));
+		}
+
+		/** A coefficient and each effective place weight / grouping participate even with identical postings. */
+		@Test
+		@DisplayName("Hashes effective weight bits, place grouping and the coefficient")
+		void shouldHashEffectivePolicy() {
+			final ExpandedTerm base = weightedTerm(0, 1, 0, 1, 200);
+			final ExpandedTerm weight = new ExpandedTerm(base.fieldId(), base.term(), base.postings(), base.impacts(),
+				base.distance(), base.exactness(), base.placeId(), 3);
+			final ExpandedTerm grouping = new ExpandedTerm(base.fieldId(), base.term(), base.postings(), base.impacts(),
+				base.distance(), base.exactness(), 1, base.weight());
+			final long hash = formula(defaultScoringPolicy(), base).getHash();
+			assertNotEquals(hash, formula(defaultScoringPolicy(), weight).getHash());
+			assertNotEquals(hash, formula(defaultScoringPolicy(), grouping).getHash());
+			assertNotEquals(hash, formula(new FulltextScoringPolicy(Map.of(), 0), base).getHash());
+			final FulltextScoringPolicy schema = new FulltextScoringPolicy(Map.of(FulltextFieldKey.attribute("name"),
+				3f));
+			assertNotEquals(hash, formula(schema, base).getHash());
+			final FulltextScoringPolicy changed = new FulltextScoringPolicy(
+				Map.of(FulltextFieldKey.attribute("name"), 4f));
+			assertNotEquals(formula(schema, base).getHash(), formula(changed, base).getHash(),
+				"Identical keys, terms and postings must still distinguish changed policy weight bits");
+			for (final LongHashFunction function : new LongHashFunction[]{
+				LongHashFunction.xx3(), LongHashFunction.xx(), LongHashFunction.city_1_1()}) {
+				final long first = schema.computeHash(function);
+				assertEquals(first, schema.computeHash(function));
+				assertNotEquals(first, changed.computeHash(function));
+			}
+		}
+	}
+
+	/** Creates one weighted real posting source. */
+	private static ExpandedTerm weightedTerm(int place, float weight, int distance, int... pairs) {
+		final Expansion raw = expansion(distance, pairs);
+		return new ExpandedTerm(place, "word", raw.postings(), raw.impacts(), distance, raw.exactness(), place, weight);
+	}
+
+	/** Creates a one-word formula retaining explicit effective policy and real postings. */
+	private static FulltextFormula formula(FulltextScoringPolicy policy, ExpandedTerm... expansions) {
+		return new FulltextFormula(new ExpandedTerm[][]{expansions}, null, policy);
+	}
+
 	@Nested
 	@DisplayName("Counting rule")
 	class CountingRule {
@@ -105,7 +443,7 @@ class FulltextPhaseOneScorerTest {
 		@DisplayName("A token counts once however many of its expansions hit, keeping the best lanes")
 		void shouldCountTokenOnceAcrossItsExpansions() {
 			for (MergeStrategy strategy : MergeStrategy.values()) {
-				final Result result = FulltextPhaseOneScorer.score(
+				final Result result = scoreTopN(
 					new int[]{3, 7, 11},
 					new Expansion[][]{{expansion(1, 7, 200), expansion(0, 7, 100, 11, 90)}},
 					10,
@@ -116,7 +454,8 @@ class FulltextPhaseOneScorerTest {
 				assertEquals(1, lane(seven, 56), "matched tokens of 7");
 				assertEquals(255, lane(seven, 48), "7 matched at distance zero");
 				assertEquals(255, lane(seven, 40), "7 matched the exact class");
-				assertEquals(200, lane(seven, 32), "impact of 7 is the maximum across expansions");
+				assertEquals(200 * 8, FulltextScoringPolicy.strength(seven),
+					"impact of 7 is the maximum across expansions");
 				assertEquals(1, lane(result.composites()[1], 56), "matched tokens of 11");
 				assertEquals(2, result.matchedDocuments());
 			}
@@ -126,7 +465,7 @@ class FulltextPhaseOneScorerTest {
 		@DisplayName("Two tokens hitting one entity count twice")
 		void shouldCountDistinctTokens() {
 			for (MergeStrategy strategy : MergeStrategy.values()) {
-				final Result result = FulltextPhaseOneScorer.score(
+				final Result result = scoreTopN(
 					new int[]{3, 7, 11},
 					new Expansion[][]{{expansion(0, 7, 200)}, {expansion(0, 7, 10)}},
 					10,
@@ -134,7 +473,7 @@ class FulltextPhaseOneScorerTest {
 				);
 				assertArrayEquals(new int[]{7}, result.primaryKeys());
 				assertEquals(2, lane(result.composites()[0], 56), strategy.name());
-				assertEquals(200, lane(result.composites()[0], 32), strategy.name());
+				assertEquals(210 * 8, FulltextScoringPolicy.strength(result.composites()[0]), strategy.name());
 			}
 		}
 
@@ -145,14 +484,14 @@ class FulltextPhaseOneScorerTest {
 			final Expansion distant = expansion(200, 1, 10);
 			for (MergeStrategy strategy : MergeStrategy.values()) {
 				for (Expansion[] expansions : new Expansion[][]{{exact, distant}, {distant, exact}}) {
-					final Result result = FulltextPhaseOneScorer.score(
+					final Result result = scoreTopN(
 						new int[]{1}, new Expansion[][]{expansions}, 1, strategy
 					);
 					final long composite = result.composites()[0];
 					final String message = strategy.name() + ", distance " + expansions[0].distance() + " first";
 					assertEquals(255, lane(composite, 48), message);
 					assertEquals(255, lane(composite, 40), message);
-					assertEquals(1L << 56 | 255L << 48 | 255L << 40 | 10L << 32, composite, message);
+					assertEquals(1L << 56 | 255L << 48 | 255L << 40 | 80L << 24, composite, message);
 				}
 			}
 		}
@@ -164,7 +503,7 @@ class FulltextPhaseOneScorerTest {
 			final Expansion[] distant = {expansion(200, 1, 10)};
 			for (MergeStrategy strategy : MergeStrategy.values()) {
 				for (Expansion[][] tokens : new Expansion[][][]{{exact, distant}, {distant, exact}}) {
-					final Result result = FulltextPhaseOneScorer.score(new int[]{1}, tokens, 1, strategy);
+					final Result result = scoreTopN(new int[]{1}, tokens, 1, strategy);
 					final long composite = result.composites()[0];
 					final String message = strategy.name() + ", distance " + tokens[0][0].distance() + " first";
 					assertEquals(2, lane(composite, 56), message);
@@ -190,14 +529,14 @@ class FulltextPhaseOneScorerTest {
 			};
 			for (final Bitmap[] postings : tiers) {
 				final Expansion exact = new Expansion(postings[0], ImpactView.of(new byte[]{1}), 0,
-					FulltextTermExactness.EXACT);
+					FulltextTermExactness.EXACT, 0, 1.0f);
 				final Expansion prefix = new Expansion(postings[1], ImpactView.of(new byte[]{100, 100}), 0,
-					FulltextTermExactness.PREFIX);
+					FulltextTermExactness.PREFIX, 0, 1.0f);
 				final Expansion fuzzy = new Expansion(postings[2], ImpactView.of(new byte[]{120}), 1,
-					FulltextTermExactness.FUZZY);
+					FulltextTermExactness.FUZZY, 0, 1.0f);
 				for (final MergeStrategy strategy : MergeStrategy.values()) {
 					final String scenario = postings[0].getClass().getSimpleName() + " / " + strategy.name();
-					final Result result = FulltextPhaseOneScorer.score(new int[]{1, 2, 3},
+					final Result result = scoreTopN(new int[]{1, 2, 3},
 						new Expansion[][]{{prefix, fuzzy, exact}}, 3, strategy);
 					assertArrayEquals(new int[]{1, 2, 3}, result.primaryKeys(), scenario);
 					assertEquals(255, lane(result.composites()[0], 48), scenario);
@@ -218,7 +557,7 @@ class FulltextPhaseOneScorerTest {
 			// 4 - one token, distance 1, high impact       -> fourth (exactness beats impact)
 			// 5 - one token, distance 2, high impact       -> fifth  (smaller distance wins among typo-only)
 			// 6 - nothing                                 -> absent
-			final Result result = FulltextPhaseOneScorer.score(
+			final Result result = scoreTopN(
 				new int[]{1, 2, 3, 4, 5, 6},
 				new Expansion[][]{
 					{expansion(0, 1, 10, 3, 5), expansion(1, 2, 250, 4, 250), expansion(2, 5, 250)},
@@ -245,10 +584,10 @@ class FulltextPhaseOneScorerTest {
 				tokens[i] = new Expansion[]{expansion(0, 1, 10)};
 			}
 			for (MergeStrategy strategy : MergeStrategy.values()) {
-				final Result top = FulltextPhaseOneScorer.score(new int[]{1, 2}, tokens, 1, strategy);
+				final Result top = scoreTopN(new int[]{1, 2}, tokens, 1, strategy);
 				assertArrayEquals(new int[]{1}, top.primaryKeys(), strategy.name());
 				assertEquals(128, lane(top.composites()[0], 56), strategy.name());
-				final Result both = FulltextPhaseOneScorer.score(new int[]{1, 2}, tokens, 2, strategy);
+				final Result both = scoreTopN(new int[]{1, 2}, tokens, 2, strategy);
 				assertArrayEquals(new int[]{1, 2}, both.primaryKeys(), strategy.name());
 			}
 		}
@@ -256,7 +595,7 @@ class FulltextPhaseOneScorerTest {
 		@Test
 		@DisplayName("Equal composites are ordered by ascending primary key")
 		void shouldBreakTiesByPrimaryKey() {
-			final Result result = FulltextPhaseOneScorer.score(
+			final Result result = scoreTopN(
 				new int[]{4, 8, 15, 16, 23, 42},
 				new Expansion[][]{{expansion(0, 4, 9, 8, 9, 15, 9, 16, 9, 23, 9, 42, 9)}},
 				3, (int[][]) null
@@ -268,11 +607,11 @@ class FulltextPhaseOneScorerTest {
 		@Test
 		@DisplayName("Fewer matches than requested returns only the matches; no candidates returns nothing")
 		void shouldReturnOnlyMatches() {
-			final Result some = FulltextPhaseOneScorer.score(
+			final Result some = scoreTopN(
 				new int[]{1, 2, 3}, new Expansion[][]{{expansion(0, 2, 7)}, {}}, 10, (int[][]) null
 			);
 			assertArrayEquals(new int[]{2}, some.primaryKeys());
-			final Result none = FulltextPhaseOneScorer.score(
+			final Result none = scoreTopN(
 				new int[0], new Expansion[][]{{expansion(0, 2, 7)}}, 10, (int[][]) null
 			);
 			assertEquals(0, none.primaryKeys().length);
@@ -308,7 +647,7 @@ class FulltextPhaseOneScorerTest {
 				final int topN = 1 + random.nextInt(50);
 				final Result expected = naiveScore(candidates, tokens, topN);
 				for (MergeStrategy strategy : MergeStrategy.values()) {
-					final Result actual = FulltextPhaseOneScorer.score(candidates, tokens, topN, strategy);
+					final Result actual = scoreTopN(candidates, tokens, topN, strategy);
 					final String message = "round " + round + " " + strategy;
 					assertArrayEquals(expected.primaryKeys(), actual.primaryKeys(), message);
 					assertArrayEquals(expected.composites(), actual.composites(), message);
@@ -342,7 +681,7 @@ class FulltextPhaseOneScorerTest {
 					final Expansion[][] tokens = {{finiteExpansion(tier, ImpactView.of(impacts), 0)}};
 					final Result expected = naiveScore(candidates, tokens, postingCount);
 					for (final MergeStrategy strategy : MergeStrategy.values()) {
-						final Result actual = FulltextPhaseOneScorer.score(candidates, tokens, postingCount, strategy);
+						final Result actual = scoreTopN(candidates, tokens, postingCount, strategy);
 						final String message = postingCount + " " + tier.getClass().getSimpleName() + " " + strategy;
 						assertEquals(postingCount, actual.matchedDocuments(), message);
 						assertArrayEquals(expected.primaryKeys(), actual.primaryKeys(), message);
@@ -361,9 +700,9 @@ class FulltextPhaseOneScorerTest {
 				{finiteExpansion(new BaseBitmap(1, -1), ImpactView.of(new byte[]{10, (byte) 200}), 0)}
 			};
 			for (final MergeStrategy strategy : MergeStrategy.values()) {
-				final Result result = FulltextPhaseOneScorer.score(new int[]{1}, tokens, 1, strategy);
+				final Result result = scoreTopN(new int[]{1}, tokens, 1, strategy);
 				assertArrayEquals(new int[]{1}, result.primaryKeys(), strategy.name());
-				assertEquals(10, lane(result.composites()[0], 32), strategy.name());
+				assertEquals(10 * 8, FulltextScoringPolicy.strength(result.composites()[0]), strategy.name());
 			}
 		}
 
@@ -382,8 +721,8 @@ class FulltextPhaseOneScorerTest {
 			final Expansion[][] shortTokens = {{expansion(0, 5, 50, 7, 70)}};
 			final int[] candidates = {2, 4, 5, 6, 7, 8};
 			for (final MergeStrategy strategy : MergeStrategy.values()) {
-				FulltextPhaseOneScorer.score(candidates, longTokens, candidates.length, strategy);
-				final Result result = FulltextPhaseOneScorer.score(
+				scoreTopN(candidates, longTokens, candidates.length, strategy);
+				final Result result = scoreTopN(
 					candidates, shortTokens, candidates.length, strategy
 				);
 				final Result expected = naiveScore(candidates, shortTokens, candidates.length);
@@ -409,10 +748,10 @@ class FulltextPhaseOneScorerTest {
 			};
 			for (final MergeStrategy strategy : MergeStrategy.values()) {
 				// the candidates run out at the third posting of the long list: 0 hits it, 4 misses it below 6
-				final Result early = FulltextPhaseOneScorer.score(new int[]{0, 4}, tokens, 10, strategy);
+				final Result early = scoreTopN(new int[]{0, 4}, tokens, 10, strategy);
 				assertEquals(1_004L, early.postingsWalked(), strategy.name());
 				assertEquals(2, early.matchedDocuments(), strategy.name());
-				final Result none = FulltextPhaseOneScorer.score(new int[0], tokens, 10, strategy);
+				final Result none = scoreTopN(new int[0], tokens, 10, strategy);
 				assertEquals(1_004L, none.postingsWalked(), strategy.name());
 				assertEquals(0, none.matchedDocuments(), strategy.name());
 			}
@@ -466,7 +805,7 @@ class FulltextPhaseOneScorerTest {
 		@DisplayName("Sums best distances per word and resolves ties with exactness")
 		void shouldSumDistancesAndClasses() {
 			for (final MergeStrategy strategy : MergeStrategy.values()) {
-				final Result result = FulltextPhaseOneScorer.score(new int[]{1, 2}, new Expansion[][]{
+				final Result result = scoreTopN(new int[]{1, 2}, new Expansion[][]{
 					{expansion(1, 1, 250), expansion(2, 2, 1)},
 					{expansion(1, 1, 250), expansion(0, 2, 1)}
 				}, 2, strategy);
@@ -483,9 +822,9 @@ class FulltextPhaseOneScorerTest {
 		@DisplayName("Ranks every exact word above a prefix despite a shared exact word and higher impact")
 		void shouldRankExactWordsAbovePrefixesDespiteImpact() {
 			final Expansion prefix = new Expansion(new BaseBitmap(2), ImpactView.of(new byte[]{(byte) 255}), 0,
-				FulltextTermExactness.PREFIX);
+				FulltextTermExactness.PREFIX, 0, 1.0f);
 			for (final MergeStrategy strategy : MergeStrategy.values()) {
-				final Result result = FulltextPhaseOneScorer.score(new int[]{1, 2}, new Expansion[][]{
+				final Result result = scoreTopN(new int[]{1, 2}, new Expansion[][]{
 					{expansion(0, 1, 1, 2, 255)}, {expansion(0, 1, 1), prefix}
 				}, 2, strategy);
 				assertArrayEquals(new int[]{1, 2}, result.primaryKeys());
@@ -497,9 +836,9 @@ class FulltextPhaseOneScorerTest {
 		@DisplayName("Ranks a one-edit query above a two-edit query even when their minimum distances tie")
 		void shouldRankByTotalDistanceBeforeImpact() {
 			final Expansion prefix = new Expansion(new BaseBitmap(1), ImpactView.of(new byte[]{1}), 0,
-				FulltextTermExactness.PREFIX);
+				FulltextTermExactness.PREFIX, 0, 1.0f);
 			for (final MergeStrategy strategy : MergeStrategy.values()) {
-				final Result result = FulltextPhaseOneScorer.score(new int[]{1, 2}, new Expansion[][]{
+				final Result result = scoreTopN(new int[]{1, 2}, new Expansion[][]{
 					{prefix, expansion(0, 2, 255)}, {expansion(1, 1, 1), expansion(2, 2, 255)}
 				}, 2, strategy);
 				assertArrayEquals(new int[]{1, 2}, result.primaryKeys());
@@ -512,12 +851,12 @@ class FulltextPhaseOneScorerTest {
 		void shouldSaturateQualityLanes() {
 			final Expansion[][] tokens = new Expansion[200][];
 			Arrays.fill(tokens, new Expansion[]{expansion(2, 1, 9)});
-			final long composite = FulltextPhaseOneScorer.score(new int[]{1}, tokens, 1, (int[][]) null)
+			final long composite = scoreTopN(new int[]{1}, tokens, 1, (int[][]) null)
 				.composites()[0];
 			assertEquals(200, lane(composite, 56));
 			assertEquals(0, lane(composite, 48));
 			assertEquals(55, lane(composite, 40));
-			assertEquals(0, composite & 0xFFFFFFFFL);
+			assertEquals(0, composite & 0xFFFFFFL);
 		}
 
 		/** Bitmap bands OR all profile groups before subtracting better classes. */
@@ -546,7 +885,7 @@ class FulltextPhaseOneScorerTest {
 						random.nextBytes(impacts);
 						expansions[group * 8 + leg] = new Expansion(new BaseBitmap(postings), ImpactView.of(impacts),
 							distance, rank == 0 ? FulltextTermExactness.EXACT : rank == 1
-								? FulltextTermExactness.PREFIX : FulltextTermExactness.FUZZY);
+								? FulltextTermExactness.PREFIX : FulltextTermExactness.FUZZY, 0, 1.0f);
 						distanceBands[distance].or(postings);
 						classBands[rank].or(postings);
 					}
@@ -563,7 +902,7 @@ class FulltextPhaseOneScorerTest {
 				}
 				final int expectedMatches = PersistentRoaringBitmap.or(distanceBands).getCardinality();
 				for (final MergeStrategy strategy : MergeStrategy.values()) {
-					final Result result = FulltextPhaseOneScorer.score(
+					final Result result = scoreTopN(
 						candidates, new Expansion[][]{expansions}, 80, strategy
 					);
 					assertEquals(expectedMatches, result.matchedDocuments());
@@ -597,9 +936,9 @@ class FulltextPhaseOneScorerTest {
 			final Expansion[][] words = new Expansion[86][];
 			Arrays.fill(words, new Expansion[]{expansion(2, 1, 1, 2, 255)});
 			words[85] = new Expansion[]{expansion(0, 1, 1), new Expansion(
-				new BaseBitmap(2), ImpactView.of(new byte[]{(byte) 255}), 0, FulltextTermExactness.PREFIX)};
+				new BaseBitmap(2), ImpactView.of(new byte[]{(byte) 255}), 0, FulltextTermExactness.PREFIX, 0, 1.0f)};
 			for (final MergeStrategy strategy : MergeStrategy.values()) {
-				final Result result = FulltextPhaseOneScorer.score(new int[]{1, 2}, words, 2, strategy);
+				final Result result = scoreTopN(new int[]{1, 2}, words, 2, strategy);
 				assertArrayEquals(new int[]{1, 2}, result.primaryKeys());
 				assertEquals(85, lane(result.composites()[0], 48));
 				assertEquals(170, lane(result.composites()[0], 40));
@@ -611,7 +950,7 @@ class FulltextPhaseOneScorerTest {
 		@Test
 		@DisplayName("Keeps exactness independent of the maximum accepted edit distance")
 		void shouldCountMaximumDistanceAsOneNonExactWord() {
-			final long composite = FulltextPhaseOneScorer.score(new int[]{1},
+			final long composite = scoreTopN(new int[]{1},
 				new Expansion[][]{{expansion(254, 1, 1)}}, 1, (int[][]) null).composites()[0];
 			assertEquals(1, lane(composite, 48));
 			assertEquals(254, lane(composite, 40));
@@ -623,7 +962,7 @@ class FulltextPhaseOneScorerTest {
 		void shouldCountAllNonExactWordsAtLimit() {
 			final Expansion[][] words = new Expansion[255][];
 			Arrays.fill(words, new Expansion[]{expansion(2, 1, 1)});
-			final long composite = FulltextPhaseOneScorer.score(new int[]{1}, words, 1, (int[][]) null).composites()[0];
+			final long composite = scoreTopN(new int[]{1}, words, 1, (int[][]) null).composites()[0];
 			assertEquals(255, lane(composite, 56));
 			assertEquals(0, lane(composite, 48));
 			assertEquals(0, lane(composite, 40));
@@ -656,7 +995,7 @@ class FulltextPhaseOneScorerTest {
 					MergeStrategy.ADAPTIVE, candidates.length, postings.length), "expansion " + e);
 			}
 
-			final Result result = FulltextPhaseOneScorer.score(
+			final Result result = scoreTopN(
 				candidates, new Expansion[][]{word}, 10, new int[][]{{1, 3, 4}}
 			);
 
@@ -675,8 +1014,8 @@ class FulltextPhaseOneScorerTest {
 		void shouldScoreOriginalOnlyRowAsOrdinaryWord() {
 			final Expansion[][] words = {{expansion(0, 1, 10, 2, 20)}, {expansion(1, 2, 30)}};
 
-			final Result originalOnly = FulltextPhaseOneScorer.score(new int[]{1, 2}, words, 2, new int[][]{{1}, {}});
-			final Result ordinary = FulltextPhaseOneScorer.score(new int[]{1, 2}, words, 2, (int[][]) null);
+			final Result originalOnly = scoreTopN(new int[]{1, 2}, words, 2, new int[][]{{1}, {}});
+			final Result ordinary = scoreTopN(new int[]{1, 2}, words, 2, (int[][]) null);
 
 			assertArrayEquals(new int[]{2, 1}, originalOnly.primaryKeys());
 			assertEquals(1, lane(originalOnly.composites()[1], 56));
@@ -699,7 +1038,7 @@ class FulltextPhaseOneScorerTest {
 			};
 			for (final int[][] ends : invalid) {
 				assertThrows(GenericEvitaInternalError.class,
-					() -> FulltextPhaseOneScorer.score(new int[]{1}, words, 1, ends), Arrays.deepToString(ends));
+					() -> scoreTopN(new int[]{1}, words, 1, ends), Arrays.deepToString(ends));
 			}
 		}
 
@@ -720,16 +1059,57 @@ class FulltextPhaseOneScorerTest {
 			);
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> FulltextPhaseOneScorer.score(
+				() -> scoreTopN(
 					new int[]{1}, new Expansion[][]{{expansion(0, 1, 1)}}, 0, (int[][]) null
 				)
 			);
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> FulltextPhaseOneScorer.score(
+				() -> scoreTopN(
 					new int[]{1}, new Expansion[FulltextPhaseOneScorer.MAX_QUERY_TOKENS + 1][0], 1, (int[][]) null
 				)
 			);
+		}
+
+		/** Weights and tie breakers outside the policy's arithmetic, and lookups of unresolved places, are refused. */
+		@Test
+		@DisplayName("Invalid policy weights, tie breakers and unresolved places are refused")
+		void shouldRejectInvalidPolicyInputs() {
+			final FulltextFieldKey name = FulltextFieldKey.attribute("name");
+			for (final float weight : new float[]{Float.NaN, -1f, Float.POSITIVE_INFINITY}) {
+				assertThrows(GenericEvitaInternalError.class, () -> new FulltextScoringPolicy(Map.of(name, weight)),
+					"weight=" + weight);
+				assertThrows(GenericEvitaInternalError.class, () -> FulltextScoringPolicy.weightedImpacts(weight),
+					"weight=" + weight);
+			}
+			for (final float tieBreaker : new float[]{-0.1f, 1.1f, Float.NaN, Float.POSITIVE_INFINITY}) {
+				assertThrows(GenericEvitaInternalError.class, () -> new FulltextScoringPolicy(Map.of(), tieBreaker),
+					"tieBreaker=" + tieBreaker);
+			}
+			final FulltextScoringPolicy policy = new FulltextScoringPolicy(Map.of(name, 2.5f));
+			assertEquals(2.5f, policy.weight(name));
+			assertThrows(GenericEvitaInternalError.class, () -> policy.weight(FulltextFieldKey.attribute("missing")));
+		}
+
+		/** A source answering for fewer candidates than asked must never be combined position by position. */
+		@Test
+		@DisplayName("A source vector misaligned with the candidates is refused")
+		void shouldRejectMisalignedSourceScores() {
+			final FulltextScoreAccessor misaligned = new FulltextScoreAccessor() {
+				@Override
+				public boolean providesFulltextScores() {
+					return true;
+				}
+
+				@Nonnull
+				@Override
+				public Result getFulltextScores(@Nonnull int[] candidates) {
+					return new Result(candidates, new long[candidates.length - 1], 0, 0);
+				}
+			};
+			final FulltextFormula aligned = formula(defaultScoringPolicy(), weightedTerm(0, 1, 0, 1, 50));
+			assertThrows(GenericEvitaInternalError.class, () -> FulltextScoreCombiner.combine(new int[]{1, 2},
+				new FulltextScoreAccessor[]{aligned, misaligned}, defaultScoringPolicy()));
 		}
 
 	}
@@ -761,7 +1141,7 @@ class FulltextPhaseOneScorerTest {
 			int matched = 0;
 			int exactness = 0;
 			int typoPenalty = 0;
-			int maxImpact = 0;
+			int summedImpact = 0;
 			for (int t = 0; t < tokens.length; t++) {
 				int tokenTypo = 0;
 				int tokenImpact = 0;
@@ -777,7 +1157,7 @@ class FulltextPhaseOneScorerTest {
 				}
 				if (tokenTypo != 0) {
 					matched++;
-					maxImpact = Math.max(maxImpact, tokenImpact);
+					summedImpact += tokenImpact;
 					typoPenalty = Math.min(255, typoPenalty + tokenTypo - 1);
 					exactness += exact ? 0 : 1;
 				}
@@ -786,7 +1166,7 @@ class FulltextPhaseOneScorerTest {
 				matchedDocuments++;
 				composites[c] = ((long) matched << 56) | ((long) (255 - typoPenalty) << 48)
 					| ((long) (255 - exactness) << 40)
-					| ((long) maxImpact << 32);
+					| ((long) Math.min(65535, summedImpact * 8) << 24);
 			}
 		}
 		// only a matched candidate can be selected, so only the matched ones are ordered

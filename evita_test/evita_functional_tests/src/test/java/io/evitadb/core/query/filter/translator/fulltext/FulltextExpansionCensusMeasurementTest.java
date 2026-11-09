@@ -58,6 +58,7 @@ import java.text.Normalizer;
 import java.util.*;
 import java.util.concurrent.locks.LockSupport;
 
+import static io.evitadb.core.query.filter.translator.fulltext.FulltextSurfaceTestSupport.unitWeights;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.core.query.filter.translator.fulltext.FulltextExpansionCensusSupport.*;
@@ -380,7 +381,8 @@ class FulltextExpansionCensusMeasurementTest implements EvitaTestSupport {
 							new TextMatchesTranslator.QueryToken(token.surfaceForm(), variants));
 					final long start = System.nanoTime();
 					List<ExpandedTerm> expanded = dropped && !expansion.expandsUnfinishedWord(fragments, last)
-						? List.of() : expansion.expand(index, group.ids(), variants, surfaces, fragments, last);
+						? List.of() : expansion.expand(index, group.ids(), unitWeights(index), variants, surfaces,
+							fragments, last);
 					final long nanos = System.nanoTime() - start;
 					if (dropped && expanded.stream().noneMatch(t -> t.exactness() == FulltextTermExactness.PREFIX)) {
 						expanded = List.of();

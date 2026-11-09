@@ -336,7 +336,7 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 
 	@Nonnull
 	@Override
-	public Result getFulltextScores(@Nonnull int[] candidates, int topN) {
+	public Result getFulltextScores(@Nonnull int[] candidates) {
 		throw new GenericEvitaInternalError(
 			"Formula `" + getClass().getSimpleName() + "` translates primary keys and provides no fulltext scores!"
 		);

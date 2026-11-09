@@ -37,6 +37,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.defaultScoringPolicy;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.rankedScores;
 import static io.evitadb.index.fulltext.FulltextTermExactness.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
@@ -47,6 +49,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(FULLTEXT)
 @DisplayName("Fulltext postings budget")
 class FulltextPostingsBudgetTest {
+
 	@Nested
 	@DisplayName("Closed worst-case cost model")
 	class CostModel {
@@ -167,10 +170,11 @@ class FulltextPostingsBudgetTest {
 			final ExpandedTerm secondGroupOriginal = term(1, "other", FUZZY, 4);
 			final ExpandedTerm[][][] words = {{{original}, {firstPart}, {}, {secondGroupOriginal}, {}, {lastPart}}};
 			final ExpandedTerm[][][] kept = FulltextPostingsBudget.retain(words, 4);
-			final FulltextFormula formula = FulltextPostingsBudget.toFormula(kept, new int[]{3});
+			final FulltextFormula formula = FulltextPostingsBudget.toFormula(kept, new int[]{3},
+				defaultScoringPolicy());
 			assertArrayEquals(new ExpandedTerm[]{original, firstPart, lastPart}, formula.getTokens()[0]);
 			assertArrayEquals(new int[]{1, 2, 3}, formula.compute().getArray());
-			final Result scores = formula.getFulltextScores(new int[]{1, 2, 3}, 3);
+			final Result scores = rankedScores(formula, new int[]{1, 2, 3}, 3);
 			assertArrayEquals(new int[]{1, 2, 3}, scores.primaryKeys());
 			assertArrayEquals(new long[]{2, 2, 1}, Arrays.stream(scores.composites()).map(it -> it >>> 56).toArray());
 		}
@@ -181,7 +185,7 @@ class FulltextPostingsBudgetTest {
 		void shouldKeepEmptyWordsMandatory() {
 			final ExpandedTerm[][][] words = {{{term(0, "a", EXACT, 1)}}, {{term(0, "b", PREFIX, 1)}}};
 			final FulltextFormula formula = FulltextPostingsBudget.toFormula(
-				FulltextPostingsBudget.retain(words, 1), new int[]{1, 1});
+				FulltextPostingsBudget.retain(words, 1), new int[]{1, 1}, defaultScoringPolicy());
 			assertTrue(formula.compute().isEmpty());
 			assertEquals(2, formula.getTokens().length);
 		}
@@ -193,20 +197,22 @@ class FulltextPostingsBudgetTest {
 			final ExpandedTerm a = term(0, "a", EXACT, 1, 2);
 			final ExpandedTerm b = term(0, "b", FUZZY, 2, 3);
 			final ExpandedTerm[][][] words = {{{a, b}}, {{a}}};
-			final FulltextFormula expected = new FulltextFormula(new ExpandedTerm[][]{{a, b}, {a}});
+			final FulltextFormula expected = new FulltextFormula(new ExpandedTerm[][]{{a, b}, {a}}, null,
+				defaultScoringPolicy());
 			final FulltextFormula actual = FulltextPostingsBudget.toFormula(
-				FulltextPostingsBudget.retain(words, FulltextPostingsBudget.limit(2, 3)), new int[]{1, 1});
+				FulltextPostingsBudget.retain(words, FulltextPostingsBudget.limit(2, 3)), new int[]{1, 1},
+					defaultScoringPolicy());
 			assertEquals(expected.getHash(), actual.getHash());
 			assertArrayEquals(expected.compute().getArray(), actual.compute().getArray());
-			assertArrayEquals(expected.getFulltextScores(new int[]{1, 2}, 2).composites(),
-				actual.getFulltextScores(new int[]{1, 2}, 2).composites());
+			assertArrayEquals(rankedScores(expected, new int[]{1, 2}, 2).composites(),
+				rankedScores(actual, new int[]{1, 2}, 2).composites());
 		}
 	}
 
 	/** Creates a real immutable posting and impact view with observable membership. */
 	private static ExpandedTerm term(int field, String stem, FulltextTermExactness leg, int... postings) {
 		return new ExpandedTerm(field, stem, new ArrayBitmap(postings), ImpactView.of(new byte[postings.length]),
-			leg == FUZZY ? 1 : 0, leg);
+			leg == FUZZY ? 1 : 0, leg, field, 1.0f);
 	}
 
 	/** Creates the same ordered stem batch for the offline simulator. */

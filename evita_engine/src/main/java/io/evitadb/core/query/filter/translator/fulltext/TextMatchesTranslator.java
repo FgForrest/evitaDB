@@ -51,6 +51,7 @@ import io.evitadb.index.fulltext.FulltextFieldDefinition;
 import io.evitadb.index.fulltext.FulltextFieldKey;
 import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
+import io.evitadb.index.fulltext.FulltextScoringPolicy;
 import io.evitadb.index.fulltext.FulltextTermExactness;
 import io.evitadb.index.fulltext.analysis.AnalyzedTermConsumer;
 import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
@@ -58,6 +59,7 @@ import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -174,6 +176,8 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 		final EntitySchemaContract entitySchema = processingScope.getEntitySchemaOrThrowException();
 		final Set<Scope> scopes = processingScope.getScopes();
 		final Map<Scope, FulltextFieldDefinition[]> fieldsByScope = resolveFields(textMatches, entitySchema, scopes);
+		final FulltextScoringPolicy scoringPolicy = filterByVisitor.getQueryContext()
+			.getFulltextScoringPolicy(entitySchema);
 		// Writes validate locales, so an undeclared locale cannot own a fulltext index. Keep field errors above.
 		if (!entitySchema.getLocales().contains(locale)) {
 			return EmptyFormula.INSTANCE;
@@ -269,8 +273,8 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 						List.of((EntityIndex) globalIndex), textMatches,
 						() -> createFormula(
 							fulltextIndex, groupsByScope.get(scope), searchTokens, unfinished, expansion,
-							globalIndex.getRecordsWithLanguageFormula(locale).getEstimatedCardinality()
-						)
+							globalIndex.getRecordsWithLanguageFormula(locale).getEstimatedCardinality(), scoringPolicy
+						), scoringPolicy.computeHash(LongHashFunction.xx3())
 					)
 				);
 			}
@@ -581,15 +585,18 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 * @param tokens the shared words with their original surface forms and their split parts
 	 * @param unfinished whether the raw text ends with an unclosed word
 	 * @param expansion query-local walkers and submitted-search policy shared across scopes and groups
+	 * @param scoringPolicy effective place weights and coefficient resolved before empty-index shortcuts
 	 * @param documentCount cardinality of the scope global index's locale bitmap, known before query execution
 	 * @return the fulltext formula, or empty when all words were dropped
 	 */
 	@Nonnull
 	private static Formula createFormula(
 		@Nonnull FulltextIndex fulltextIndex, @Nonnull List<AnalyzedFieldGroup> groups,
-		@Nonnull QueryToken[] tokens, boolean unfinished, @Nonnull FulltextTermExpansion expansion, int documentCount
+		@Nonnull QueryToken[] tokens, boolean unfinished, @Nonnull FulltextTermExpansion expansion, int documentCount,
+		@Nonnull FulltextScoringPolicy scoringPolicy
 	) {
 		final List<int[]> fieldIds = new ArrayList<>(groups.size());
+		final float[] weightsByFieldId = new float[fulltextIndex.getFieldCount()];
 		for (final AnalyzedFieldGroup group : groups) {
 			final int[] ids = new int[group.fields().length];
 			int count = 0;
@@ -598,6 +605,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 				if (id != FulltextIndex.UNKNOWN_FIELD_ID && fulltextIndex.isFieldCurrent(
 					id, group.analyzer().fingerprint().index(), field.lengthPivot())) {
 					ids[count++] = id;
+					weightsByFieldId[id] = scoringPolicy.weight(field.key());
 				}
 			}
 			fieldIds.add(Arrays.copyOf(ids, count));
@@ -633,7 +641,8 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 					if (dropped && !hasFragment) {
 						continue;
 					}
-					final List<ExpandedTerm> expanded = expansion.expand(fulltextIndex, fieldIds.get(g), alternatives,
+					final List<ExpandedTerm> expanded = expansion.expand(
+						fulltextIndex, fieldIds.get(g), weightsByFieldId, alternatives,
 						group.surfaces()[i][part], fragments, lastUnfinished);
 					if (dropped && !containsCompletion(expanded)) {
 						continue;
@@ -698,7 +707,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 				retained[last] = finalWord;
 			}
 		}
-		return FulltextPostingsBudget.toFormula(retained, Arrays.copyOf(partCounts, words.length));
+		return FulltextPostingsBudget.toFormula(retained, Arrays.copyOf(partCounts, words.length), scoringPolicy);
 	}
 
 	/**

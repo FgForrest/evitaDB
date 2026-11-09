@@ -28,7 +28,9 @@ import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
-import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
+import io.evitadb.index.fulltext.FulltextScoringPolicy;
+import io.evitadb.index.fulltext.FulltextTermExactness;
+import io.evitadb.index.bPlusTree.ImpactView;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -39,10 +41,13 @@ import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.function.IntFunction;
 
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.defaultScoringPolicy;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.rankedScores;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
@@ -70,6 +75,30 @@ class ReferenceOwnerFulltextScoreAccessorTest {
 		default -> EmptyBitmap.INSTANCE;
 	};
 
+	/** Three matching categories count as one reference-type place, weighted 0.5. */
+	@Test
+	@DisplayName("Multiple targets collapse before the engine reference weight is applied")
+	void shouldCollapseTargetsBeforeWeighting() {
+		final FulltextFormula targets = new FulltextFormula(new FulltextFormula.ExpandedTerm[][]{{
+			new FulltextFormula.ExpandedTerm(0, "green", new BaseBitmap(1, 2, 3, 4),
+				ImpactView.of(new byte[]{(byte) 200, (byte) 200, (byte) 200, (byte) 210}),
+				0, FulltextTermExactness.EXACT, 0, 1.0f)
+		}}, null, defaultScoringPolicy());
+		final ReferenceOwnerFulltextScoreAccessor accessor = ReferenceOwnerFulltextScoreAccessor.create(
+			targets, target -> new BaseBitmap(target == 4 ? 11 : 10), () -> defaultScoringPolicy());
+		assertNotNull(accessor);
+		final Result all = accessor.getFulltextScores(new int[]{10, 11, 12});
+		assertArrayEquals(new int[]{10, 11, 12}, all.primaryKeys());
+		assertEquals(100 * 8, FulltextScoringPolicy.strength(all.composites()[0]));
+		assertEquals(105 * 8, FulltextScoringPolicy.strength(all.composites()[1]));
+		assertEquals(0, all.composites()[2]);
+		assertArrayEquals(new int[]{11, 10}, rankedScores(accessor, new int[]{10, 11, 12}, 3).primaryKeys());
+		final FulltextScoreAccessor collapsed = FulltextScoreCombiner.collapseSources(
+			new FulltextScoreAccessor[]{accessor, accessor, accessor});
+		assertArrayEquals(all.composites(), collapsed.getFulltextScores(new int[]{10, 11, 12}).composites(),
+			"Repeated scope/query accessors of the same reference type must also collapse");
+	}
+
 	@Nested
 	@DisplayName("Creation")
 	class Creation {
@@ -77,7 +106,8 @@ class ReferenceOwnerFulltextScoreAccessorTest {
 		@Test
 		@DisplayName("a filter without a score source has nothing to carry over")
 		void shouldCreateNothingWithoutScoreSource() {
-			assertNull(ReferenceOwnerFulltextScoreAccessor.create(new ConstantFormula(new ArrayBitmap(1, 2)), OWNERS));
+			assertNull(ReferenceOwnerFulltextScoreAccessor.create(new ConstantFormula(new ArrayBitmap(1, 2)), OWNERS,
+				() -> { throw new AssertionError("A non-scoring filter must not resolve a fulltext policy"); }));
 		}
 
 		@Test
@@ -85,7 +115,7 @@ class ReferenceOwnerFulltextScoreAccessorTest {
 		void shouldCreateNothingWhenNoSourceProvidesScores() {
 			final ScoringFormula silent = new ScoringFormula(new ArrayBitmap(1, 2), Map.of(1, WORSE), false);
 
-			assertNull(ReferenceOwnerFulltextScoreAccessor.create(silent, OWNERS));
+			assertNull(ReferenceOwnerFulltextScoreAccessor.create(silent, OWNERS, () -> defaultScoringPolicy()));
 		}
 
 	}
@@ -99,7 +129,7 @@ class ReferenceOwnerFulltextScoreAccessorTest {
 		void shouldKeepBestScoreOfReferencedTargets() {
 			final ReferenceOwnerFulltextScoreAccessor accessor = createAccessor(Map.of(1, WORSE, 2, BETTER, 3, BEST));
 
-			final Result result = accessor.getFulltextScores(new int[]{10, 11, 12, 13}, 4);
+			final Result result = rankedScores(accessor, new int[]{10, 11, 12, 13}, 4);
 
 			// 11 references both targets and keeps the better one; target 3 scores best but has no owner
 			assertArrayEquals(new int[]{11, 12, 10}, result.primaryKeys());
@@ -111,7 +141,7 @@ class ReferenceOwnerFulltextScoreAccessorTest {
 		void shouldReturnTopNOfCandidatesOnly() {
 			final ReferenceOwnerFulltextScoreAccessor accessor = createAccessor(Map.of(1, WORSE, 2, BETTER));
 
-			final Result result = accessor.getFulltextScores(new int[]{10, 12}, 1);
+			final Result result = rankedScores(accessor, new int[]{10, 12}, 1);
 
 			assertArrayEquals(new int[]{12}, result.primaryKeys());
 		}
@@ -121,7 +151,7 @@ class ReferenceOwnerFulltextScoreAccessorTest {
 		void shouldIgnoreUnscoredTarget() {
 			final ReferenceOwnerFulltextScoreAccessor accessor = createAccessor(Map.of(2, BETTER));
 
-			final Result result = accessor.getFulltextScores(new int[]{10, 11, 12}, 3);
+			final Result result = rankedScores(accessor, new int[]{10, 11, 12}, 3);
 
 			assertArrayEquals(new int[]{11, 12}, result.primaryKeys());
 		}
@@ -135,7 +165,8 @@ class ReferenceOwnerFulltextScoreAccessorTest {
 		@Nonnull
 		private static ReferenceOwnerFulltextScoreAccessor createAccessor(@Nonnull Map<Integer, Long> composites) {
 			final ReferenceOwnerFulltextScoreAccessor accessor = ReferenceOwnerFulltextScoreAccessor.create(
-				new ScoringFormula(new ArrayBitmap(1, 2, 3), composites, true), OWNERS
+				new ScoringFormula(new ArrayBitmap(1, 2, 3), composites, true), OWNERS,
+				() -> defaultScoringPolicy()
 			);
 			assertNotNull(accessor);
 			return accessor;
@@ -177,12 +208,12 @@ class ReferenceOwnerFulltextScoreAccessorTest {
 
 		@Nonnull
 		@Override
-		public Result getFulltextScores(@Nonnull int[] candidates, int topN) {
+		public Result getFulltextScores(@Nonnull int[] candidates) {
 			final long[] candidateComposites = new long[candidates.length];
 			for (int i = 0; i < candidates.length; i++) {
 				candidateComposites[i] = this.composites.getOrDefault(candidates[i], 0L);
 			}
-			return FulltextPhaseOneScorer.selectTopN(candidates, candidateComposites, topN, 0L);
+			return new Result(candidates, candidateComposites, 0, 0L);
 		}
 	}
 

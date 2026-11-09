@@ -27,6 +27,7 @@ import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.core.query.algebra.fulltext.FulltextScoreAccessor;
 import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
@@ -64,6 +65,46 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Shared real schema analysis for low-level fulltext index fixtures. */
 public final class FulltextIndexTestSupport {
+	/**
+	 * Creates a fresh default engine policy for low-level fixtures without schema places. A policy keeps
+	 * unsynchronized query-local caches, and test classes run concurrently, so fixtures never share one.
+	 */
+	@Nonnull
+	public static FulltextScoringPolicy defaultScoringPolicy() {
+		return new FulltextScoringPolicy(Map.of());
+	}
+
+	/** Scores through the production aligned-vector path, then selects a test page. */
+	@Nonnull
+	public static FulltextPhaseOneScorer.Result scoreTopN(
+		@Nonnull int[] candidates, @Nonnull FulltextPhaseOneScorer.Expansion[][] tokens, int topN,
+			@Nullable int[][] partEnds
+	) {
+		final FulltextPhaseOneScorer.Result scores = FulltextPhaseOneScorer.scoreAll(
+			candidates, tokens, partEnds, defaultScoringPolicy());
+		return FulltextPhaseOneScorer.selectTopN(candidates, scores.composites(), topN, scores.postingsWalked());
+	}
+
+	/** Exercises each real posting merge through the same aligned scoring path as production. */
+	@Nonnull
+	public static FulltextPhaseOneScorer.Result scoreTopN(
+		@Nonnull int[] candidates, @Nonnull FulltextPhaseOneScorer.Expansion[][] tokens, int topN,
+		@Nonnull FulltextPhaseOneScorer.MergeStrategy strategy
+	) {
+		final FulltextPhaseOneScorer.Result scores = FulltextPhaseOneScorer.scoreAll(
+			candidates, tokens, strategy, null, defaultScoringPolicy());
+		return FulltextPhaseOneScorer.selectTopN(candidates, scores.composites(), topN, scores.postingsWalked());
+	}
+
+	/** Selects a page only after obtaining the accessor's complete aligned score vector. */
+	@Nonnull
+	public static FulltextPhaseOneScorer.Result rankedScores(
+		@Nonnull FulltextScoreAccessor accessor, @Nonnull int[] candidates, int topN
+	) {
+		final FulltextPhaseOneScorer.Result scores = accessor.getFulltextScores(candidates);
+		return FulltextPhaseOneScorer.selectTopN(candidates, scores.composites(), topN, scores.postingsWalked());
+	}
+
 	/** The schema shared by fixtures with no custom analysis definitions. */
 	public static final CatalogSchemaContract SCHEMA = CatalogSchema._internalBuild(
 		"test", NamingConvention.generate("test"), null, EnumSet.allOf(CatalogEvolutionMode.class),

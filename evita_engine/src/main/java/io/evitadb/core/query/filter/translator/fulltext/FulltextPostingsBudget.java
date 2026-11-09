@@ -25,6 +25,7 @@ package io.evitadb.core.query.filter.translator.fulltext;
 
 import io.evitadb.core.query.algebra.fulltext.FulltextFormula;
 import io.evitadb.core.query.algebra.fulltext.FulltextFormula.ExpandedTerm;
+import io.evitadb.index.fulltext.FulltextScoringPolicy;
 import io.evitadb.index.fulltext.FulltextTermExactness;
 
 import javax.annotation.Nonnull;
@@ -155,14 +156,18 @@ final class FulltextPostingsBudget {
 	}
 
 	/**
-	 * Flattens retained batches by part for the formula, recomputing every split-word range end. Empty words and
-	 * empty part ranges remain present; the latter still count toward the coverage of an original-word hit.
-	 * @param words retained words with group-major, part-minor batches
+	 * Flattens retained batches with their effective rank-time policy and recomputes split-word range ends.
+	 * Empty words and empty part ranges stay present and count toward coverage. An empty mandatory word
+	 * matches nothing.
+	 * @param words retained words in group-major, part-minor batches
 	 * @param partCounts number of ranges per word, including the original
-	 * @return formula whose empty mandatory words match nothing
+	 * @param scoringPolicy effective weights and coefficient
+	 * @return weighted fulltext formula
 	 */
 	@Nonnull
-	static FulltextFormula toFormula(@Nonnull ExpandedTerm[][][] words, @Nonnull int[] partCounts) {
+	static FulltextFormula toFormula(
+		@Nonnull ExpandedTerm[][][] words, @Nonnull int[] partCounts, @Nonnull FulltextScoringPolicy scoringPolicy
+	) {
 		final ExpandedTerm[][] flat = new ExpandedTerm[words.length][];
 		final int[][] coverage = new int[words.length][];
 		boolean split = false;
@@ -187,6 +192,6 @@ final class FulltextPostingsBudget {
 				}
 			}
 		}
-		return new FulltextFormula(flat, split ? coverage : null);
+		return new FulltextFormula(flat, split ? coverage : null, scoringPolicy);
 	}
 }

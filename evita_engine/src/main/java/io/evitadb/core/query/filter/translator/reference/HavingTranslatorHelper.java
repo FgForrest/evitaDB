@@ -601,6 +601,7 @@ public class HavingTranslatorHelper {
 	 * {@link GroupHaving}) into a formula that selects candidate partitions during discovery or computes
 	 * owner entity primary keys for matching reference rows during row evaluation.
 	 *
+	 * @param origin the original having container, compared by structural equality across per-index translations
 	 * @param filterConstraint          the child filter constraint from the having container
 	 * @param filterByVisitor           the visitor for traversing filter constraints
 	 * @param entitySchema              the schema of the queried entity
@@ -624,6 +625,7 @@ public class HavingTranslatorHelper {
 	 */
 	@Nonnull
 	static Formula translateHavingConstraint(
+		@Nonnull FilterConstraint origin,
 		@Nonnull FilterConstraint filterConstraint,
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull EntitySchemaContract entitySchema,
@@ -648,11 +650,12 @@ public class HavingTranslatorHelper {
 				.map(nestedResult -> {
 					final boolean indexDiscovery =
 						ReferencedTypeEntityIndex.class.isAssignableFrom(processingScope.getIndexType());
-					if (!indexDiscovery) {
-						// the index-discovery pass only selects candidate indexes - the owner-level answer, and with
-						// it the relevance of the owners, comes from every other branch below
+					if (!indexDiscovery || processingScope.getVirtualPartitionRows() != null) {
+						// Virtual row evaluation also uses the type index, but answers owners rather than discovering
+						// candidate indexes. Its target scores must reach the owner just like materialized rows.
 						registerReferencedFulltextScores(
-							filterByVisitor, entitySchema, referenceSchema, typeLevelIndexType, nestedResult
+							filterByVisitor, entitySchema, referenceSchema, typeLevelIndexType,
+							origin, nestedResult
 						);
 					}
 					if (indexDiscovery) {
@@ -807,6 +810,7 @@ public class HavingTranslatorHelper {
 	 * @param entitySchema       schema of the owner entity
 	 * @param referenceSchema    the reference the owners reach the targets through
 	 * @param typeLevelIndexType whether the targets are referenced entities or groups
+	 * @param origin the originating nested filter constraint, shared across target scopes
 	 * @param nestedResult       the planned nested query over one target global index
 	 */
 	static void registerReferencedFulltextScores(
@@ -814,6 +818,7 @@ public class HavingTranslatorHelper {
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull EntityIndexType typeLevelIndexType,
+		@Nonnull FilterConstraint origin,
 		@Nonnull GlobalIndexAndFormula nestedResult
 	) {
 		if (nestedResult.globalIndex() == null || filterByVisitor.isConstraintCheckOnly()) {
@@ -842,10 +847,11 @@ public class HavingTranslatorHelper {
 				final PersistentRoaringBitmap combined = owners.length == 1 ?
 					owners[0] : PersistentRoaringBitmap.or(owners);
 				return combined.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(combined);
-			}
+			}, queryContext::getFulltextScoringPolicy
 		);
 		if (accessor != null) {
-			filterByVisitor.registerReferencedFulltextScores(referenceSchema.getName(), accessor);
+			filterByVisitor.registerReferencedFulltextScores(
+				referenceSchema.getName(), typeLevelIndexType, origin, accessor);
 		}
 	}
 

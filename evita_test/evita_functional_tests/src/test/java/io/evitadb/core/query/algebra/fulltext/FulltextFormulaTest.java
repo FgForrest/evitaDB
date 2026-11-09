@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.algebra.fulltext;
 
+import com.carrotsearch.hppc.IntObjectHashMap;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
@@ -47,6 +48,7 @@ import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Expansion;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
+import io.evitadb.index.fulltext.FulltextScoringPolicy;
 import io.evitadb.index.fulltext.FulltextTermExactness;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
@@ -65,6 +67,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -106,6 +109,26 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(QUERY)
 @Tag(FULLTEXT)
 class FulltextFormulaTest {
+
+	/** Membership does not need impact tables; scoring creates and shares them only when requested. */
+	@Test
+	@DisplayName("should leave ranking tables absent until scores are requested")
+	void shouldKeepRankingTablesLazy() throws ReflectiveOperationException {
+		final FulltextScoringPolicy policy = new FulltextScoringPolicy(Map.of());
+		final FulltextFormula formula = new FulltextFormula(new ExpandedTerm[][]{{term("green", 0, 1, 100)}},
+			null, policy);
+		final Field field = FulltextScoringPolicy.class.getDeclaredField("impactTables");
+		field.setAccessible(true);
+		final IntObjectHashMap<?> tables = (IntObjectHashMap<?>) field.get(policy);
+		assertTrue(tables.isEmpty(), "Formula construction must not build ranking tables");
+		assertArrayEquals(new int[]{1}, formula.compute().getArray());
+		assertTrue(tables.isEmpty(), "Filter-only execution must not build ranking tables");
+		assertEquals(800, FulltextScoringPolicy.strength(formula.getFulltextScores(new int[]{1}).composites()[0]));
+		assertEquals(1, tables.size());
+		final Object table = tables.get(Float.floatToIntBits(1f));
+		formula.getFulltextScores(new int[]{1});
+		assertSame(table, tables.get(Float.floatToIntBits(1f)));
+	}
 
 	/**
 	 * Words the randomized test builds values from - content words only, so each analyzes to at least one term.
@@ -155,7 +178,8 @@ class FulltextFormulaTest {
 		}
 		return new ExpandedTerm(
 			0, term, primaryKeys.length == 0 ? EmptyBitmap.INSTANCE : new ArrayBitmap(primaryKeys),
-			ImpactView.of(impacts), distance
+			ImpactView.of(impacts), distance,
+			distance == 0 ? FulltextTermExactness.EXACT : FulltextTermExactness.FUZZY, 0, 1.0f
 		);
 	}
 
@@ -167,7 +191,7 @@ class FulltextFormulaTest {
 	 */
 	@Nonnull
 	private static FulltextFormula query(@Nonnull ExpandedTerm[]... tokens) {
-		return new FulltextFormula(tokens);
+		return new FulltextFormula(tokens, null, defaultScoringPolicy());
 	}
 
 	/**
@@ -190,7 +214,8 @@ class FulltextFormulaTest {
 	 */
 	@Nonnull
 	private static ExpandedTerm countedTerm(@Nonnull String term, @Nonnull ReadCountingBitmap postings) {
-		return new ExpandedTerm(0, term, postings, ImpactView.of(new byte[postings.size()]), 0);
+		return new ExpandedTerm(0, term, postings, ImpactView.of(new byte[postings.size()]), 0,
+			FulltextTermExactness.EXACT, 0, 1.0f);
 	}
 
 	/**
@@ -330,7 +355,7 @@ class FulltextFormulaTest {
 				// fresh copies of both, so the formula's own hand-over of the dictionary's views is what gets compared
 				result[i][j] = new Expansion(
 					new BaseBitmap(term.postings().getArray()), ImpactView.of(term.impacts().toArray()),
-					term.distance(), term.exactness()
+					term.distance(), term.exactness(), term.placeId(), term.weight()
 				);
 			}
 		}
@@ -408,7 +433,8 @@ class FulltextFormulaTest {
 							union.set(pk);
 						}
 						tokens[t][e] = new ExpandedTerm(
-							0, "t" + t + "_" + e, new BaseBitmap(postings), ImpactView.of(new byte[postings.length]), 0
+							0, "t" + t + "_" + e, new BaseBitmap(postings), ImpactView.of(new byte[postings.length]), 0,
+							FulltextTermExactness.EXACT, 0, 1.0f
 						);
 					}
 					if (expected == null) {
@@ -499,11 +525,13 @@ class FulltextFormulaTest {
 					postings[k] = j + k * 20;
 				}
 				secondToken[j] = new ExpandedTerm(
-					0, "t" + j, new BaseBitmap(postings), ImpactView.of(new byte[postings.length]), 0
+					0, "t" + j, new BaseBitmap(postings), ImpactView.of(new byte[postings.length]), 0,
+					FulltextTermExactness.EXACT, 0, 1.0f
 				);
 			}
 			final ExpandedTerm firstToken = new ExpandedTerm(
-				0, "even", new BaseBitmap(evenKeys), ImpactView.of(new byte[evenKeys.length]), 0
+				0, "even", new BaseBitmap(evenKeys), ImpactView.of(new byte[evenKeys.length]), 0,
+				FulltextTermExactness.EXACT, 0, 1.0f
 			);
 
 			final int[] expected = new int[600];
@@ -686,7 +714,8 @@ class FulltextFormulaTest {
 			final ExpandedTerm[] terms = new ExpandedTerm[postings.length];
 			for (int i = 0; i < postings.length; i++) {
 				before[i] = postings[i].getArray();
-				terms[i] = new ExpandedTerm(0, "t" + i, postings[i], ImpactView.of(new byte[postings[i].size()]), 0);
+				terms[i] = new ExpandedTerm(0, "t" + i, postings[i], ImpactView.of(new byte[postings[i].size()]), 0,
+					FulltextTermExactness.EXACT, 0, 1.0f);
 			}
 			final long widerPostings = (long) postings[1].size() + postings[2].size() + postings[3].size();
 			assertEquals(
@@ -736,15 +765,15 @@ class FulltextFormulaTest {
 			final int[] candidates = {1, 2, 3, 5, 7, 9};
 
 			assertSameScores(
-				FulltextPhaseOneScorer.score(candidates, expansionsOf(formula), 4, (int[][]) null),
-				formula.getFulltextScores(candidates, 4)
+				scoreTopN(candidates, expansionsOf(formula), 4, (int[][]) null),
+				rankedScores(formula, candidates, 4)
 			);
 		}
 
 		@Test
 		@DisplayName("A candidate matching both tokens outranks one matching a single token")
 		void shouldRankFullMatchesFirst() {
-			final Result result = sampleQuery().getFulltextScores(new int[]{1, 2, 3, 5, 7}, 5);
+			final Result result = rankedScores(sampleQuery(), new int[]{1, 2, 3, 5, 7}, 5);
 
 			// 2 and 3 match both tokens and both have an exact match; 2 carries the larger impact (200 against 100)
 			assertArrayEquals(new int[]{2, 3}, Arrays.copyOf(result.primaryKeys(), 2));
@@ -756,28 +785,30 @@ class FulltextFormulaTest {
 			final FulltextFormula formula = query(token(term("kol", 0, 1, 10), term("kolo", 1, 2, 200)));
 
 			// the edit distance must reach the scorer: without it both are exact and 2's impact would win
-			assertArrayEquals(new int[]{1, 2}, formula.getFulltextScores(new int[]{1, 2}, 2).primaryKeys());
+			assertArrayEquals(new int[]{1, 2}, rankedScores(formula, new int[]{1, 2}, 2).primaryKeys());
 		}
 
 		@Test
 		@DisplayName("An exact term outranks a zero-distance prefix completion with a larger impact")
 		void shouldRankExactTermsAboveZeroDistancePrefixes() {
 			final ExpandedTerm exact = new ExpandedTerm(
-				0, "stem", new ArrayBitmap(1), ImpactView.of(new byte[]{1}), 0, FulltextTermExactness.EXACT
+				0, "stem", new ArrayBitmap(1), ImpactView.of(new byte[]{1}), 0, FulltextTermExactness.EXACT,
+				0, 1.0f
 			);
 			final ExpandedTerm prefix = new ExpandedTerm(
-				0, "stems", new ArrayBitmap(2), ImpactView.of(new byte[]{100}), 0, FulltextTermExactness.PREFIX
+				0, "stems", new ArrayBitmap(2), ImpactView.of(new byte[]{100}), 0, FulltextTermExactness.PREFIX,
+				0, 1.0f
 			);
 			final FulltextFormula formula = query(token(exact, prefix));
 
 			// both match at distance zero, so only the matching class keeps the prefix's larger impact below
-			assertArrayEquals(new int[]{1, 2}, formula.getFulltextScores(new int[]{1, 2}, 2).primaryKeys());
+			assertArrayEquals(new int[]{1, 2}, rankedScores(formula, new int[]{1, 2}, 2).primaryKeys());
 		}
 
 		@Test
 		@DisplayName("Scores are computed for the candidates passed, not for the formula's own result")
 		void shouldScoreOnlyThePassedCandidates() {
-			final Result result = sampleQuery().getFulltextScores(new int[]{5, 7}, 10);
+			final Result result = rankedScores(sampleQuery(), new int[]{5, 7}, 10);
 
 			// each matches one token exactly, so the impact decides: 70 for 7 against 50 for 5
 			assertArrayEquals(new int[]{7, 5}, result.primaryKeys());
@@ -790,7 +821,7 @@ class FulltextFormulaTest {
 			final FulltextFormula formula = sampleQuery();
 			final int[] candidates = {1, 2, 3, 5, 7};
 
-			assertSameScores(formula.getFulltextScores(candidates, 3), formula.getFulltextScores(candidates, 3));
+			assertSameScores(rankedScores(formula, candidates, 3), rankedScores(formula, candidates, 3));
 		}
 
 		@Test
@@ -817,31 +848,32 @@ class FulltextFormulaTest {
 			final ExpandedTerm c = countedTerm("7800", common);
 			final ExpandedTerm[][] words = {{a, b, c}};
 			// Prime only the existing operand hashes. No split coverage is involved in this ordinary formula.
-			new FulltextFormula(words).getHash();
+			new FulltextFormula(words, null, defaultScoringPolicy()).getHash();
 			original.resetReads();
 			letters.resetReads();
 			common.resetReads();
-			final FulltextFormula first = new FulltextFormula(words, new int[][]{{1, 2, 3}});
+			final FulltextFormula first = new FulltextFormula(words, new int[][]{{1, 2, 3}}, defaultScoringPolicy());
 			final FulltextFormula reordered = new FulltextFormula(
-				new ExpandedTerm[][]{{a, c, b}}, new int[][]{{1, 2, 3}});
+				new ExpandedTerm[][]{{a, c, b}}, new int[][]{{1, 2, 3}}, defaultScoringPolicy());
 			assertEquals(first.getHash(), reordered.getHash());
-			assertNotEquals(first.getHash(), new FulltextFormula(words, new int[][]{{0, 2, 3}}).getHash());
+			assertNotEquals(first.getHash(), new FulltextFormula(words, new int[][]{{0, 2, 3}},
+				defaultScoringPolicy()).getHash());
 			final int roaring = original.roaringReads + letters.roaringReads + common.roaringReads;
 			final int arrays = original.arrayReads + letters.arrayReads + common.arrayReads;
 			final int other = original.contentReads + letters.contentReads + common.contentReads;
 			assertEquals(0, roaring + arrays + other,
 				"Coverage posting reads: roaring=" + roaring + ", arrays=" + arrays + ", other=" + other);
-			assertArrayEquals(new int[]{1, 2, 3}, first.getFulltextScores(new int[]{1, 2, 3}, 3).primaryKeys());
+			assertArrayEquals(new int[]{1, 2, 3}, rankedScores(first, new int[]{1, 2, 3}, 3).primaryKeys());
 			final int[] candidates = java.util.stream.IntStream.rangeClosed(1, 10000).toArray();
-			final Result ranked = first.getFulltextScores(candidates, 3);
+			final Result ranked = rankedScores(first, candidates, 3);
 			assertArrayEquals(new int[]{1, 2, 3}, ranked.primaryKeys());
 			assertEquals(2, (ranked.composites()[0] >>> 56) & 255);
 			assertEquals(2, (ranked.composites()[1] >>> 56) & 255);
 			assertEquals(1, (ranked.composites()[2] >>> 56) & 255);
-			assertSameScores(ranked, first.getFulltextScores(candidates, 3));
+			assertSameScores(ranked, rankedScores(first, candidates, 3));
 			final FulltextFormula repeated = new FulltextFormula(
-				new ExpandedTerm[][]{{a, b, c}, {a, b, c}}, new int[][]{{1, 2, 3}, {1, 2, 3}});
-			final Result repeatedScores = repeated.getFulltextScores(new int[]{1, 2, 3}, 3);
+				new ExpandedTerm[][]{{a, b, c}, {a, b, c}}, new int[][]{{1, 2, 3}, {1, 2, 3}}, defaultScoringPolicy());
+			final Result repeatedScores = rankedScores(repeated, new int[]{1, 2, 3}, 3);
 			assertArrayEquals(new int[]{1, 2, 3}, repeatedScores.primaryKeys());
 			assertEquals(4, repeatedScores.composites()[0] >>> 56);
 			assertEquals(4, repeatedScores.composites()[1] >>> 56);
@@ -853,18 +885,18 @@ class FulltextFormulaTest {
 		@DisplayName("Counts original-only hits across empty parts and deduplicates overlapping part expansions")
 		void shouldCoverEmptyPartsAndDeduplicateHits() {
 			final FulltextFormula original = new FulltextFormula(
-				new ExpandedTerm[][]{{term("code", 0, 1, 1)}}, new int[][]{{1, 1, 1}});
-			assertEquals(2, original.getFulltextScores(new int[]{1}, 1).composites()[0] >>> 56);
+				new ExpandedTerm[][]{{term("code", 0, 1, 1)}}, new int[][]{{1, 1, 1}}, defaultScoringPolicy());
+			assertEquals(2, rankedScores(original, new int[]{1}, 1).composites()[0] >>> 56);
 			final FulltextFormula parts = new FulltextFormula(new ExpandedTerm[][]{{
 				term("letter", 0, 1, 1, 2, 1), term("variant", 1, 1, 1), term("number", 0, 1, 1)
-			}}, new int[][]{{0, 2, 3}});
-			final Result scores = parts.getFulltextScores(new int[]{1, 2}, 2);
+			}}, new int[][]{{0, 2, 3}}, defaultScoringPolicy());
+			final Result scores = rankedScores(parts, new int[]{1, 2}, 2);
 			assertEquals(2, scores.composites()[0] >>> 56);
 			assertEquals(1, scores.composites()[1] >>> 56);
 			final FulltextFormula fuzzy = new FulltextFormula(new ExpandedTerm[][]{{
 				term("code", 1, 1, 1), term("part", 1, 1, 1), term("other", 1, 1, 1)
-			}}, new int[][]{{1, 2, 3}});
-			final long fuzzyScore = fuzzy.getFulltextScores(new int[]{1}, 1).composites()[0];
+			}}, new int[][]{{1, 2, 3}}, defaultScoringPolicy());
+			final long fuzzyScore = rankedScores(fuzzy, new int[]{1}, 1).composites()[0];
 			assertEquals(2, fuzzyScore >>> 56);
 			assertEquals(254, (fuzzyScore >>> 48) & 255);
 			assertEquals(254, (fuzzyScore >>> 40) & 255, "A split group contributes one non-exact word");
@@ -881,11 +913,13 @@ class FulltextFormulaTest {
 		void shouldIncludeEachScoreSourceComponent(int component) {
 			final Bitmap postings = new BaseBitmap(1, 2);
 			final ImpactView impacts = ImpactView.of(new byte[]{1, (byte) 255});
-			final ExpandedTerm original = new ExpandedTerm(0, "a", postings, impacts, 0);
+			final ExpandedTerm original = new ExpandedTerm(0, "a", postings, impacts, 0, FulltextTermExactness.EXACT, 0,
+				1.0f);
 			final ExpandedTerm changed = switch (component) {
-				case 0 -> new ExpandedTerm(1, "a", postings, impacts, 0);
-				case 1 -> new ExpandedTerm(0, "b", postings, impacts, 0);
-				case 2 -> new ExpandedTerm(0, "a", postings, ImpactView.of(new byte[]{(byte) 255, 1}), 0);
+				case 0 -> new ExpandedTerm(1, "a", postings, impacts, 0, FulltextTermExactness.EXACT, 1, 1.0f);
+				case 1 -> new ExpandedTerm(0, "b", postings, impacts, 0, FulltextTermExactness.EXACT, 0, 1.0f);
+				case 2 -> new ExpandedTerm(0, "a", postings, ImpactView.of(new byte[]{(byte) 255, 1}), 0,
+					FulltextTermExactness.EXACT, 0, 1.0f);
 				default -> throw new IllegalArgumentException("Unknown score-source component");
 			};
 			assertNotEquals(query(token(original)).getHash(), query(token(changed)).getHash());
@@ -897,13 +931,15 @@ class FulltextFormulaTest {
 		@DisplayName("Distinguishes equal-posting score sources with opposite impacts and split ranges")
 		void shouldDistinguishOppositeImpactSources(boolean split) {
 			final ExpandedTerm[][] a = {{new ExpandedTerm(0, "a", new BaseBitmap(1, 2),
-				ImpactView.of(new byte[]{1, (byte) 255}), 0)}};
+				ImpactView.of(new byte[]{1, (byte) 255}), 0, FulltextTermExactness.EXACT, 0, 1.0f)}};
 			final ExpandedTerm[][] b = {{new ExpandedTerm(0, "b", new BaseBitmap(1, 2),
-				ImpactView.of(new byte[]{(byte) 255, 1}), 0)}};
-			final FulltextFormula first = new FulltextFormula(a, split ? new int[][]{{1, 1, 1}} : null);
-			final FulltextFormula second = new FulltextFormula(b, split ? new int[][]{{1, 1, 1}} : null);
-			assertArrayEquals(new int[]{2, 1}, first.getFulltextScores(new int[]{1, 2}, 2).primaryKeys());
-			assertArrayEquals(new int[]{1, 2}, second.getFulltextScores(new int[]{1, 2}, 2).primaryKeys());
+				ImpactView.of(new byte[]{(byte) 255, 1}), 0, FulltextTermExactness.EXACT, 0, 1.0f)}};
+			final FulltextFormula first = new FulltextFormula(a, split ? new int[][]{{1, 1, 1}} : null,
+				defaultScoringPolicy());
+			final FulltextFormula second = new FulltextFormula(b, split ? new int[][]{{1, 1, 1}} : null,
+				defaultScoringPolicy());
+			assertArrayEquals(new int[]{2, 1}, rankedScores(first, new int[]{1, 2}, 2).primaryKeys());
+			assertArrayEquals(new int[]{1, 2}, rankedScores(second, new int[]{1, 2}, 2).primaryKeys());
 			assertNotEquals(first.getHash(), second.getHash());
 		}
 	}
@@ -916,7 +952,7 @@ class FulltextFormulaTest {
 		@DisplayName("Rejects a null part row with a domain assertion")
 		void shouldRejectNullPartRows() {
 			assertThrows(GenericEvitaInternalError.class, () -> new FulltextFormula(
-				new ExpandedTerm[][]{{term("a", 0, 1, 1)}}, new int[][]{null}));
+				new ExpandedTerm[][]{{term("a", 0, 1, 1)}}, new int[][]{null}, defaultScoringPolicy()));
 		}
 	}
 
@@ -948,9 +984,12 @@ class FulltextFormulaTest {
 		void shouldHashPostingsAndDistance() {
 			final Bitmap postings = new ArrayBitmap(1, 2);
 			final ImpactView impacts = ImpactView.of(new byte[]{1, 1});
-			final long base = query(token(new ExpandedTerm(0, "a", postings, impacts, 0))).getHash();
-			assertNotEquals(base, query(token(new ExpandedTerm(0, "a", new ArrayBitmap(1, 3), impacts, 0))).getHash());
-			assertNotEquals(base, query(token(new ExpandedTerm(0, "a", postings, impacts, 1))).getHash());
+			final long base = query(token(new ExpandedTerm(0, "a", postings, impacts, 0, FulltextTermExactness.EXACT, 0,
+				1.0f))).getHash();
+			assertNotEquals(base, query(token(new ExpandedTerm(0, "a", new ArrayBitmap(1, 3), impacts, 0,
+				FulltextTermExactness.EXACT, 0, 1.0f))).getHash());
+			assertNotEquals(base, query(token(new ExpandedTerm(0, "a", postings, impacts, 1,
+				FulltextTermExactness.FUZZY, 0, 1.0f))).getHash());
 		}
 
 		@Test
@@ -958,8 +997,10 @@ class FulltextFormulaTest {
 		void shouldHashExactness() {
 			final Bitmap postings = new ArrayBitmap(1, 2);
 			final ImpactView impacts = ImpactView.of(new byte[]{1, 1});
-			final ExpandedTerm exact = new ExpandedTerm(0, "a", postings, impacts, 0, FulltextTermExactness.EXACT);
-			final ExpandedTerm prefix = new ExpandedTerm(0, "a", postings, impacts, 0, FulltextTermExactness.PREFIX);
+			final ExpandedTerm exact = new ExpandedTerm(0, "a", postings, impacts, 0, FulltextTermExactness.EXACT, 0,
+				1.0f);
+			final ExpandedTerm prefix = new ExpandedTerm(0, "a", postings, impacts, 0, FulltextTermExactness.PREFIX, 0,
+				1.0f);
 
 			assertNotEquals(query(token(exact)).getHash(), query(token(prefix)).getHash());
 		}
@@ -976,7 +1017,8 @@ class FulltextFormulaTest {
 		@Test
 		@DisplayName("A query without tokens is refused")
 		void shouldRefuseAQueryWithoutTokens() {
-			assertThrows(GenericEvitaInternalError.class, () -> new FulltextFormula(new ExpandedTerm[0][]));
+			assertThrows(GenericEvitaInternalError.class, () -> new FulltextFormula(new ExpandedTerm[0][], null,
+				defaultScoringPolicy()));
 		}
 
 		@Test
@@ -986,7 +1028,8 @@ class FulltextFormulaTest {
 			for (int i = 0; i < tokens.length; i++) {
 				tokens[i] = token(term("t" + i, 0, 1, 1));
 			}
-			assertThrows(GenericEvitaInternalError.class, () -> new FulltextFormula(tokens));
+			assertThrows(GenericEvitaInternalError.class, () -> new FulltextFormula(tokens, null,
+				defaultScoringPolicy()));
 		}
 
 		@Test
@@ -997,10 +1040,10 @@ class FulltextFormulaTest {
 			for (int i = 1; i < tokens.length; i++) {
 				tokens[i] = token(term("t" + i, 0, 1, 1));
 			}
-			final FulltextFormula formula = new FulltextFormula(tokens);
+			final FulltextFormula formula = new FulltextFormula(tokens, null, defaultScoringPolicy());
 
 			assertArrayEquals(new int[]{1}, formula.compute().getArray());
-			assertArrayEquals(new int[]{1}, formula.getFulltextScores(new int[]{1}, 1).primaryKeys());
+			assertArrayEquals(new int[]{1}, rankedScores(formula, new int[]{1}, 1).primaryKeys());
 		}
 
 		@Test
@@ -1008,7 +1051,8 @@ class FulltextFormulaTest {
 		void shouldRefuseMisalignedImpacts() {
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> new ExpandedTerm(0, "a", new ArrayBitmap(1, 2), ImpactView.of(new byte[]{1}), 0)
+				() -> new ExpandedTerm(0, "a", new ArrayBitmap(1, 2), ImpactView.of(new byte[]{1}), 0,
+					FulltextTermExactness.EXACT, 0, 1.0f)
 			);
 		}
 
@@ -1074,7 +1118,7 @@ class FulltextFormulaTest {
 					queryWords.add(wordTerms);
 					tokens[w] = expand(index, fields, wordTerms);
 				}
-				final FulltextFormula formula = new FulltextFormula(tokens);
+				final FulltextFormula formula = new FulltextFormula(tokens, null, defaultScoringPolicy());
 
 				final TreeSet<Integer> expected = new TreeSet<>();
 				for (int pk = 0; pk < entityCount; pk++) {
@@ -1093,8 +1137,8 @@ class FulltextFormulaTest {
 						matchingMultiWordRounds++;
 					}
 					assertSameScores(
-						FulltextPhaseOneScorer.score(actual, expansionsOf(formula), actual.length, (int[][]) null),
-						formula.getFulltextScores(actual, actual.length)
+						scoreTopN(actual, expansionsOf(formula), actual.length, (int[][]) null),
+						rankedScores(formula, actual, actual.length)
 					);
 				}
 			}
@@ -1144,7 +1188,8 @@ class FulltextFormulaTest {
 				new ExpandedTerm[][]{
 					expand(index, fields, Set.of("kolo", "kola")),
 					expand(index, fields, Set.of("hrad"))
-				}
+				},
+				null, defaultScoringPolicy()
 			);
 			final TreeSet<Integer> expected = new TreeSet<>(kolo);
 			expected.addAll(kola);
@@ -1154,8 +1199,8 @@ class FulltextFormulaTest {
 			assertArrayEquals(expected.stream().mapToInt(Integer::intValue).toArray(), actual);
 			assertTrue(actual.length > kola.size(), "Both tiers must contribute to the match.");
 			assertSameScores(
-				FulltextPhaseOneScorer.score(actual, expansionsOf(formula), actual.length, (int[][]) null),
-				formula.getFulltextScores(actual, actual.length)
+				scoreTopN(actual, expansionsOf(formula), actual.length, (int[][]) null),
+				rankedScores(formula, actual, actual.length)
 			);
 			// the formula reads the dictionary's own posting bitmaps and impacts, it must never write them
 			assertArrayEquals(koloBefore, postingsOf(index, body, "kolo").getArray());
@@ -1217,7 +1262,8 @@ class FulltextFormulaTest {
 					// term when the field holds it
 					index.forEachTerm(fieldId, term, (visited, postings, impacts) -> {
 						if (visited.equals(term) && !postings.isEmpty()) {
-							result.add(new ExpandedTerm(fieldId, visited, postings, impacts, 0));
+							result.add(new ExpandedTerm(fieldId, visited, postings, impacts, 0,
+								FulltextTermExactness.EXACT, fieldId, 1.0f));
 						}
 						return false;
 					});
@@ -1274,7 +1320,7 @@ class FulltextFormulaTest {
 			assertEquals(List.of(selection), List.copyOf(found));
 			assertTrue(selection.providesFulltextScores());
 			final int[] candidates = {1, 2, 3, 7};
-			assertSameScores(fulltext.getFulltextScores(candidates, 3), selection.getFulltextScores(candidates, 3));
+			assertSameScores(rankedScores(fulltext, candidates, 3), rankedScores(selection, candidates, 3));
 		}
 
 		@Test
@@ -1288,7 +1334,7 @@ class FulltextFormulaTest {
 			final int[] candidates = {2, 3};
 
 			assertTrue(outer.providesFulltextScores());
-			assertSameScores(fulltext.getFulltextScores(candidates, 2), outer.getFulltextScores(candidates, 2));
+			assertSameScores(rankedScores(fulltext, candidates, 2), rankedScores(outer, candidates, 2));
 		}
 
 		@Test
@@ -1299,7 +1345,7 @@ class FulltextFormulaTest {
 			final SelectionFormula selection = new SelectionFormula(fulltext, alternative);
 			final int[] candidates = {1, 2, 3};
 
-			assertSameScores(fulltext.getFulltextScores(candidates, 3), selection.getFulltextScores(candidates, 3));
+			assertSameScores(rankedScores(fulltext, candidates, 3), rankedScores(selection, candidates, 3));
 			assertFalse(alternative.asked);
 		}
 
@@ -1311,7 +1357,7 @@ class FulltextFormulaTest {
 			);
 
 			assertFalse(selection.providesFulltextScores());
-			assertThrows(GenericEvitaInternalError.class, () -> selection.getFulltextScores(new int[]{1}, 1));
+			assertThrows(GenericEvitaInternalError.class, () -> rankedScores(selection, new int[]{1}, 1));
 		}
 
 		@Test
@@ -1324,7 +1370,7 @@ class FulltextFormulaTest {
 			final SelectionFormula outer = new SelectionFormula(new AndFormula(plain, fulltext), new FailingFilter());
 			final int[] candidates = {2, 3};
 
-			assertSameScores(fulltext.getFulltextScores(candidates, 2), outer.getFulltextScores(candidates, 2));
+			assertSameScores(rankedScores(fulltext, candidates, 2), rankedScores(outer, candidates, 2));
 		}
 
 		@Test
@@ -1335,7 +1381,7 @@ class FulltextFormulaTest {
 			);
 
 			assertTrue(selection.providesFulltextScores());
-			assertThrows(GenericEvitaInternalError.class, () -> selection.getFulltextScores(new int[]{2}, 1));
+			assertThrows(GenericEvitaInternalError.class, () -> rankedScores(selection, new int[]{2}, 1));
 		}
 
 		@Test
@@ -1346,7 +1392,7 @@ class FulltextFormulaTest {
 			final int[] candidates = {1, 2, 3};
 
 			assertTrue(filtering.providesFulltextScores());
-			assertSameScores(fulltext.getFulltextScores(candidates, 3), filtering.getFulltextScores(candidates, 3));
+			assertSameScores(rankedScores(fulltext, candidates, 3), rankedScores(filtering, candidates, 3));
 		}
 
 		@Test
@@ -1357,7 +1403,7 @@ class FulltextFormulaTest {
 
 			assertFalse(plain.providesFulltextScores());
 			assertFalse(silent.providesFulltextScores());
-			assertThrows(GenericEvitaInternalError.class, () -> plain.getFulltextScores(new int[]{1}, 1));
+			assertThrows(GenericEvitaInternalError.class, () -> rankedScores(plain, new int[]{1}, 1));
 		}
 
 	}
@@ -1418,12 +1464,12 @@ class FulltextFormulaTest {
 
 		@Nonnull
 		@Override
-		public Result getFulltextScores(@Nonnull int[] candidates, int topN) {
+		public Result getFulltextScores(@Nonnull int[] candidates) {
 			this.asked = true;
 			if (this.source == null) {
 				throw new AssertionError("This source provides no scores.");
 			}
-			return this.source.getFulltextScores(candidates, topN);
+			return this.source.getFulltextScores(candidates);
 		}
 
 	}

@@ -32,10 +32,11 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.fulltext.FulltextIndex;
-import io.evitadb.index.fulltext.FulltextTermExactness;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Expansion;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
+import io.evitadb.index.fulltext.FulltextScoringPolicy;
+import io.evitadb.index.fulltext.FulltextTermExactness;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
@@ -61,12 +62,14 @@ import java.util.Arrays;
  *
  * ## What it ranks
  *
- * {@link #getFulltextScores(int[], int)} runs {@link FulltextPhaseOneScorer} over the same terms and the impact bytes
+ * {@link #getFulltextScores(int[])} runs {@link FulltextPhaseOneScorer} over the same terms and the impact bytes
  * aligned with their postings, for whatever candidates the caller passes - typically the final result of the whole
- * filter. Scoring is not bound to the strict match set: a candidate containing only some of the tokens is selected
- * too, below the candidates containing more, and only one containing none is left out. A token counts once however
- * many of its terms hit a candidate, whichever field they came from. A split word instead counts its covered
- * parts, with original hits covering every part; quality penalties still count once for the whole word.
+ * filter. Scoring is not bound to the strict match set: a candidate containing only some of the tokens receives
+ * a score too, below the candidates containing more, while one containing none receives a zero composite. A token
+ * counts once however many of its terms hit a candidate, whichever field they came from. A split word instead
+ * counts its covered parts, with original hits covering every part; quality penalties still count once for the
+ * whole word. For strength, each place sums the best weighted impact of each word; a split word contributes
+ * once through the best impact of its original or parts. These saturating place sums combine by best + t × others.
  *
  * ## Why it is never cached
  *
@@ -113,6 +116,11 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	 * of {@link AbstractFormula}: a formula is evaluated by the one thread running its query.
 	 */
 	@Nullable private Expansion[][] memoizedExpansions;
+	/**
+	 * Effective place weights and tie breaker the scores are composed with. Mixed into the structural hash, because
+	 * two formulas over the same terms rank differently under different policies.
+	 */
+	@Nonnull private final FulltextScoringPolicy scoringPolicy;
 
 	/**
 	 * One term of the dictionary a query token expanded into, in one field.
@@ -122,6 +130,8 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	 * @param postings primary keys of the entities whose field contains the term, ascending
 	 * @param impacts  impact byte of each posting, the i-th belonging to the i-th posting
 	 * @param distance edit distance at which the term matched the token, `0` for exact and prefix matches
+	 * @param placeId query-local grouping identity, shared by all items of one place
+	 * @param weight effective rank-time weight
 	 * @param exactness best matching class across all expansion legs
 	 */
 	public record ExpandedTerm(
@@ -130,23 +140,10 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 		@Nonnull Bitmap postings,
 		@Nonnull ImpactView impacts,
 		int distance,
-		@Nonnull FulltextTermExactness exactness
+		@Nonnull FulltextTermExactness exactness,
+		int placeId,
+		float weight
 	) {
-
-		/**
-		 * Creates a finite exact or fuzzy term; prefix expansions use the explicit matching class.
-		 * @param fieldId id of the dictionary field
-		 * @param term the bare analyzed term
-		 * @param postings primary keys containing the term
-		 * @param impacts impact bytes aligned with the postings
-		 * @param distance finite edit distance, zero meaning exact
-		 */
-		public ExpandedTerm(
-			int fieldId, @Nonnull String term, @Nonnull Bitmap postings, @Nonnull ImpactView impacts, int distance
-		) {
-			this(fieldId, term, postings, impacts, distance,
-				distance == 0 ? FulltextTermExactness.EXACT : FulltextTermExactness.FUZZY);
-		}
 
 		/**
 		 * Validates the term.
@@ -156,8 +153,11 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 		 * @param impacts impact bytes aligned with the postings
 		 * @param distance edit distance, independent of prefix exactness
 		 * @param exactness best matching class across expansion legs
+		 * @param placeId grouping identity of the place
+		 * @param weight finite nonnegative effective weight
 		 */
 		public ExpandedTerm {
+			Assert.isPremiseValid(Float.isFinite(weight) && weight >= 0, "Invalid fulltext place weight!");
 			Assert.isPremiseValid(
 				postings.size() == impacts.size(),
 				() -> "Term `" + term + "` carries " + postings.size() + " postings but " + impacts.size() + " impacts!"
@@ -178,31 +178,20 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	}
 
 	/**
-	 * Creates the formula over the query's tokens.
-	 *
-	 * @param tokens the query tokens in query order, each as the terms it expanded into; a token may carry no term,
-	 *               in which case nothing matches. The arrays are adopted, not copied, and must not be written after
-	 *               the call.
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when there is no token, or more tokens than
-	 *                                                        {@link FulltextPhaseOneScorer#MAX_QUERY_TOKENS}
+	 * Creates a formula with effective rank-time weights and grouping already attached to its expanded terms.
+	 * Both token and part-end arrays, including their rows, are adopted without copying and must not be written
+	 * after this call. A token may carry no terms; that mandatory word then matches nothing.
+	 * Split coverage is checked by {@link FulltextPhaseOneScorer#validatePartEnds} before the arrays are adopted.
+	 * Ranking tables are fetched lazily when scores are requested.
+	 * @param tokens query words and weighted expansions
+	 * @param partEnds optional split-word boundaries
+	 * @param scoringPolicy effective query coefficient and resolved place table
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when there are no tokens, too many tokens, or malformed
+	 *                                                        part ends
 	 */
-	public FulltextFormula(@Nonnull ExpandedTerm[][] tokens) {
-		this(tokens, null);
-	}
-
-	/**
-	 * Creates a formula with split-word coverage. Every word still contributes one OR to strict membership.
-	 *
-	 * @param tokens   expansions grouped by mandatory word across every profile group; a split word lays out the
-	 *                 original's expansions first, then each part's. The arrays are adopted, not copied.
-	 * @param partEnds `null` for an unsplit query; otherwise one non-null row per word of exclusive original/part
-	 *                 ends, empty for an ordinary word - the contract is
-	 *                 {@link FulltextPhaseOneScorer#validatePartEnds}'s
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when there is no token, more tokens than
-	 *                                                        {@link FulltextPhaseOneScorer#MAX_QUERY_TOKENS}, or a
-	 *                                                        row is null or its ends are malformed
-	 */
-	public FulltextFormula(@Nonnull ExpandedTerm[][] tokens, @Nullable int[][] partEnds) {
+	public FulltextFormula(
+		@Nonnull ExpandedTerm[][] tokens, @Nullable int[][] partEnds, @Nonnull FulltextScoringPolicy scoringPolicy
+	) {
 		Assert.isPremiseValid(tokens.length > 0, "A fulltext formula needs at least one query token!");
 		Assert.isPremiseValid(
 			tokens.length <= FulltextPhaseOneScorer.MAX_QUERY_TOKENS,
@@ -212,6 +201,7 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 		FulltextPhaseOneScorer.validatePartEnds(tokens, partEnds);
 		this.tokens = tokens;
 		this.partEnds = partEnds;
+		this.scoringPolicy = scoringPolicy;
 		this.initFields();
 	}
 
@@ -232,11 +222,11 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 
 	@Nonnull
 	@Override
-	public Result getFulltextScores(@Nonnull int[] candidates, int topN) {
+	public Result getFulltextScores(@Nonnull int[] candidates) {
 		if (this.memoizedExpansions == null) {
 			this.memoizedExpansions = toExpansions(this.tokens);
 		}
-		return FulltextPhaseOneScorer.score(candidates, this.memoizedExpansions, topN, this.partEnds);
+		return FulltextPhaseOneScorer.scoreAll(candidates, this.memoizedExpansions, this.partEnds, this.scoringPolicy);
 	}
 
 	@Nonnull
@@ -323,6 +313,7 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 				termHashes[j] = hashFunction.hashLongs(
 					new long[]{bitmapIdentityToken(token[j].postings(), hashFunction), token[j].fieldId(),
 						hashFunction.hashChars(token[j].term()), token[j].distance(), token[j].exactness().ordinal(),
+						token[j].placeId(), Float.floatToIntBits(token[j].weight()),
 						Integer.toUnsignedLong(System.identityHashCode(token[j].impacts()))}
 				);
 			}
@@ -346,7 +337,8 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 			tokenHashes[i] = hashFunction.hashLongs(groupingHashes);
 		}
 		Arrays.sort(tokenHashes);
-		return hashFunction.hashLongs(tokenHashes);
+		return hashFunction.hashLongs(new long[]{hashFunction.hashLongs(tokenHashes),
+			this.scoringPolicy.computeHash(hashFunction)});
 	}
 
 	@Override
@@ -509,7 +501,8 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 			final Expansion[] tokenExpansions = new Expansion[token.length];
 			for (int j = 0; j < token.length; j++) {
 				final ExpandedTerm term = token[j];
-				tokenExpansions[j] = new Expansion(term.postings(), term.impacts(), term.distance(), term.exactness());
+				tokenExpansions[j] = new Expansion(term.postings(), term.impacts(), term.distance(), term.exactness(),
+					term.placeId(), term.weight());
 			}
 			expansions[i] = tokenExpansions;
 		}

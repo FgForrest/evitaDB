@@ -666,9 +666,9 @@ class FulltextIndexTest {
 			final List<Expansion> fromWalk = new ArrayList<>(3);
 			final List<Expansion> fromCopies = new ArrayList<>(3);
 			index.forEachTerm(body, "the", (term, postings, impacts) -> {
-				fromWalk.add(new Expansion(postings, impacts, 0, FulltextTermExactness.EXACT));
+				fromWalk.add(new Expansion(postings, impacts, 0, FulltextTermExactness.EXACT, 0, 1.0f));
 				fromCopies.add(new Expansion(
-					postings, ImpactView.of(impacts.toArray()), 0, FulltextTermExactness.EXACT
+					postings, ImpactView.of(impacts.toArray()), 0, FulltextTermExactness.EXACT, 0, 1.0f
 				));
 				return true;
 			});
@@ -681,12 +681,12 @@ class FulltextIndexTest {
 				for (int i = 0; i < candidates.length; i++) {
 					candidates[i] = i * stride;
 				}
-				final Result copied = FulltextPhaseOneScorer.score(
+				final Result copied = scoreTopN(
 					candidates, new Expansion[][]{fromCopies.toArray(Expansion[]::new)}, 50, MergeStrategy.LINEAR
 				);
 				assertTrue(copied.matchedDocuments() > 0);
 				for (final MergeStrategy strategy : MergeStrategy.values()) {
-					final Result walked = FulltextPhaseOneScorer.score(
+					final Result walked = scoreTopN(
 						candidates, new Expansion[][]{fromWalk.toArray(Expansion[]::new)}, 50, strategy
 					);
 					final String message = "stride " + stride + " " + strategy;
@@ -836,31 +836,16 @@ class FulltextIndexTest {
 		}
 
 		@Test
-		@DisplayName("An array value is indexed as the text its elements make one after another")
-		void shouldIndexArrayAsOneText() {
+		@DisplayName("An array keeps the best per-value impact and the total length")
+		void shouldIndexBestArrayValue() {
 			final FulltextIndex index = newIndex();
 			index.addValue(attribute("keywords"), 1, testAnalyzer(), fieldPivot(index, attribute("keywords")),
 				null, new String[]{"horské kolo", "kolo Praha"});
 			index.addValue(attribute("keywords"), 2, testAnalyzer(), fieldPivot(index, attribute("keywords")),
 				null, "Brno");
-			final FulltextIndex expected = newIndex();
-			expected.addValue(attribute("keywords"), 1, testAnalyzer(), fieldPivot(expected,
-				attribute("keywords")), null, "horské kolo kolo Praha");
-			expected.addValue(attribute("keywords"), 2, testAnalyzer(), fieldPivot(expected,
-				attribute("keywords")), null, "Brno");
-			// summed frequencies (`kolo` twice), summed length, and therefore the very same impacts
-			assertEquals(contentOf(expected), contentOf(index));
 			final int keywords = index.getFieldId(attribute("keywords"));
 			final String bike = termFrequencies("kolo").keySet().iterator().next();
-			// the impacts are normalized with the summed length
-			assertArrayEquals(
-				new byte[]{(byte) FulltextIndex.computeImpact(
-					termFrequencies("horské kolo kolo Praha").get(bike),
-					positions("horské kolo") + positions("kolo Praha"),
-					fieldPivot(index, attribute("keywords"))
-				)},
-				impactsOf(index, keywords, bike)
-			);
+			assertArrayEquals(new byte[]{impact(1, 2)}, impactsOf(index, keywords, bike));
 
 			// one entry per entity: a second value is refused in either form
 			assertThrows(GenericEvitaInternalError.class, () -> index.addValue(attribute("keywords"), 1,
@@ -877,6 +862,53 @@ class FulltextIndexTest {
 			onlyBrno.addValue(attribute("keywords"), 2, testAnalyzer(), fieldPivot(onlyBrno,
 				attribute("keywords")), null, "Brno");
 			assertEquals(contentOf(onlyBrno), contentOf(index));
+		}
+
+		/** Independent value frequencies win over repetition across values; unrelated values never dilute a hit. */
+		@Test
+		@DisplayName("should rank and update arrays by their best value impact")
+		void shouldRankAndUpdateBestArrayValue() {
+			final FulltextIndex index = newIndex();
+			final FulltextFieldKey key = attribute("keywords");
+			final double pivot = fieldPivot(index, key);
+			final String[] separate = {"green", "green!", "green?"};
+			index.addValue(key, 1, testAnalyzer(), pivot, null, separate);
+			index.addValue(key, 2, testAnalyzer(), pivot, null, new String[]{"green green"});
+			final int field = index.getFieldId(key);
+			final String term = termFrequencies("green").keySet().iterator().next();
+			assertPostingsEqual(new TreeMap<>(Map.of(1, Byte.toUnsignedInt(impact(1, 1)),
+				2, Byte.toUnsignedInt(impact(2, 2)))), index, field, term);
+			assertTrue(Byte.toUnsignedInt(impact(2, 2)) > Byte.toUnsignedInt(impact(1, 1)));
+			final Expansion green = new Expansion(postingsOf(index, field, term),
+				ImpactView.of(impactsOf(index, field, term)), 0, FulltextTermExactness.EXACT, field, 1f);
+			assertArrayEquals(new int[]{2, 1}, scoreTopN(new int[]{1, 2}, new Expansion[][]{{green}},
+				2, (int[][]) null).primaryKeys());
+			index.removeValue(key, 1, testAnalyzer(), pivot, separate);
+			final String[] appended = {"green", "green!", "green?", "amber ".repeat(300)};
+			index.addValue(key, 1, testAnalyzer(), pivot, null, appended);
+			assertEquals(Byte.toUnsignedInt(impact(1, 1)), Byte.toUnsignedInt(impactsOf(index, field, term)[0]));
+			index.removeValue(key, 1, testAnalyzer(), pivot, appended);
+			final String[] updated = {"green", "green!", "blue"};
+			index.addValue(key, 1, testAnalyzer(), pivot, null, updated);
+			final String blue = termFrequencies("blue").keySet().iterator().next();
+			assertArrayEquals(new int[]{1}, postingsOf(index, field, blue).getArray());
+			index.removeValue(key, 1, testAnalyzer(), pivot, updated);
+			final String[] reduced = {"green", "green!"};
+			index.addValue(key, 1, testAnalyzer(), pivot, null, reduced);
+			assertTrue(postingsOf(index, field, blue).isEmpty());
+			assertEquals(Byte.toUnsignedInt(impact(1, 1)), Byte.toUnsignedInt(impactsOf(index, field, term)[0]));
+			index.removeValue(key, 1, testAnalyzer(), pivot, reduced);
+			index.addValue(key, 1, testAnalyzer(), pivot, null, separate);
+			final FulltextIndex rebuilt = newIndex();
+			rebuilt.addValue(key, 1, testAnalyzer(), pivot, null, separate);
+			rebuilt.addValue(key, 2, testAnalyzer(), pivot, null, new String[]{"green green"});
+			assertEquals(contentOf(rebuilt), contentOf(index));
+			assertEquals(lengthBlocksOf(rebuilt), lengthBlocksOf(index));
+			index.removeValue(key, 1, testAnalyzer(), pivot, separate);
+			index.removeValue(key, 2, testAnalyzer(), pivot, new String[]{"green green"});
+			assertEquals(0, termCount(index));
+			assertFalse(index.hasIndexedValue(field, 1));
+			assertFalse(index.hasIndexedValue(field, 2));
 		}
 
 		@Test
@@ -932,6 +964,21 @@ class FulltextIndexTest {
 				index.forEachTerm(fieldId, "", (term, postings, impacts) -> terms.add(term));
 				assertEquals(rebuiltTerms, terms, field);
 				for (String term : terms) {
+					final TreeMap<Integer, Integer> expectedImpacts = new TreeMap<>();
+					for (final Map.Entry<Integer, String> value : live.get(field).entrySet()) {
+						int best = 0;
+						for (final String element : splitElements(value.getValue())) {
+							final int frequency = termFrequencies(element).getOrDefault(term, 0);
+							if (frequency > 0) {
+								best = Math.max(best, FulltextIndex.computeImpact(frequency, positions(element),
+									index.getLengthPivot(fieldId)));
+							}
+						}
+						if (best > 0) {
+							expectedImpacts.put(value.getKey(), best);
+						}
+					}
+					assertPostingsEqual(expectedImpacts, index, fieldId, term);
 					assertArrayEquals(
 						postingsOf(rebuilt, fieldId, term).getArray(), postingsOf(index, fieldId, term).getArray(),
 						field + "/" + term
@@ -1302,9 +1349,8 @@ class FulltextIndexTest {
 
 	/**
 	 * Builds a fresh index holding exactly the modelled values, with the fields registered in the order - and with the
-	 * pivots - the reference index registered them, so the two assign the same ids. An array value is indexed as the
-	 * single text its elements make when written one after another, which is what the array semantics promise - so
-	 * the rebuild is an independent oracle of them, not a replay of the array API.
+	 * pivots - the reference index registered them, so the two assign the same ids. Array boundaries are retained
+	 * for best-value impact normalization. The random write-path test independently checks those impacts per value.
 	 *
 	 * @param reference the index whose field registry to copy
 	 * @param live      field to primary key to value
@@ -1322,7 +1368,7 @@ class FulltextIndexTest {
 		for (Map.Entry<String, Map<Integer, String>> entry : live.entrySet()) {
 			for (Map.Entry<Integer, String> value : entry.getValue().entrySet()) {
 				rebuilt.addValue(attribute(entry.getKey()), value.getKey(), testAnalyzer(), fieldPivot(rebuilt,
-					attribute(entry.getKey())), null, value.getValue().replace(ELEMENT_SEPARATOR, ' '));
+					attribute(entry.getKey())), null, splitElements(value.getValue()));
 			}
 		}
 		return rebuilt;

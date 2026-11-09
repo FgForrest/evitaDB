@@ -126,12 +126,12 @@ public class EntityFilteringFormula extends AbstractFormula
 
 	@Nonnull
 	@Override
-	public FulltextPhaseOneScorer.Result getFulltextScores(@Nonnull int[] candidates, int topN) {
+	public FulltextPhaseOneScorer.Result getFulltextScores(@Nonnull int[] candidates) {
 		Assert.isPremiseValid(
 			providesFulltextScores(),
 			"Entity filtering formula has no fulltext scores to give - its alternative provides none!"
 		);
-		return ((FulltextScoreAccessor) this.alternative).getFulltextScores(candidates, topN);
+		return ((FulltextScoreAccessor) this.alternative).getFulltextScores(candidates);
 	}
 
 	@Nonnull

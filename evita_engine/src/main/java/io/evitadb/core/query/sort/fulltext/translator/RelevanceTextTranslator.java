@@ -59,8 +59,9 @@ import java.util.stream.Stream;
  *
  * A `textMatches` inside `entityHaving` (or `groupHaving`) searches the referenced entities, and its formula lives in
  * their primary-key space, hidden from the owner's filter tree. Its scores reach this translator through the filter
- * visitor of the plan, already carried over to the owners, and compete with the owners' own scores - an owner keeps
- * its best composite.
+ * visitor of the plan, already carried over to the owners. Each reference place first collapses its targets and
+ * applies its 0.5 strength weight once. The sorter takes quality from the best source and combines strength as
+ * best + t × others across the owner's own `textMatches` sources and these reference places.
  *
  * ## Without a fulltext filter
  *
@@ -133,7 +134,8 @@ public class RelevanceTextTranslator
 		return Stream.of(
 			new RelevanceTextSorter(
 				accessors.toArray(FulltextScoreAccessor[]::new),
-				resolveScopeIndexes(orderByVisitor, processingScope)
+				resolveScopeIndexes(orderByVisitor, processingScope),
+				orderByVisitor.getQueryContext().getFulltextScoringPolicy()
 			)
 		);
 	}

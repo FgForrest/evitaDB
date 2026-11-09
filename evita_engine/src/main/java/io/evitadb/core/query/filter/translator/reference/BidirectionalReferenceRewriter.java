@@ -205,7 +205,8 @@ public class BidirectionalReferenceRewriter {
 		final Set<Scope> scopes = processingScope.getScopes();
 		final Formula referencedEntityFormula = createReferencedEntityFormula(
 			filterByVisitor, filterByVisitor.getQueryContext(), plan.targetEntityType(),
-			plan.split().entityHavingChild(), scopes, plan.counterpartScopes(), ownerEntitySchema, ownerReference
+			plan.split().origin(), plan.split().entityHavingChild(), scopes, plan.counterpartScopes(),
+			ownerEntitySchema, ownerReference
 		);
 		if (referencedEntityFormula == EmptyFormula.INSTANCE) {
 			return of(EmptyFormula.INSTANCE);
@@ -500,6 +501,7 @@ public class BidirectionalReferenceRewriter {
 		final List<FilterConstraint> children = new ArrayList<>(referenceHaving.getChildren().length);
 		flattenConjunction(referenceHaving.getChildren(), children);
 		FilterConstraint entityHavingChild = null;
+		EntityHaving origin = null;
 		final List<FilterConstraint> attributeConstraints = new ArrayList<>(children.size());
 		final List<String> attributeNames = new ArrayList<>(children.size());
 		boolean negatedAttribute = false;
@@ -513,6 +515,7 @@ public class BidirectionalReferenceRewriter {
 				if (entityHavingChildren.length == 0) {
 					return null;
 				}
+				origin = entityHaving;
 				// the container's children are conjunctive - the nested query has to see them as one constraint
 				entityHavingChild = entityHavingChildren.length == 1 ?
 					entityHavingChildren[0] : new And(entityHavingChildren);
@@ -547,7 +550,7 @@ public class BidirectionalReferenceRewriter {
 		if (attributeConstraints.size() > 1) {
 			return null;
 		}
-		return new SplitChildren(entityHavingChild, attributeConstraints, attributeNames, negatedAttribute);
+		return new SplitChildren(origin, entityHavingChild, attributeConstraints, attributeNames, negatedAttribute);
 	}
 
 	/**
@@ -887,12 +890,23 @@ public class BidirectionalReferenceRewriter {
 	/**
 	 * Creates the shared formula narrowing the referenced entities - the nested query planned for `entityHaving`, or
 	 * the full in-scope set of the referenced collection when there is none.
+	 * @param filterByVisitor owner filter translator receiving score registrations
+	 * @param queryContext owner query context
+	 * @param targetEntityType referenced entity collection
+	 * @param origin original having container, or null for an unconstrained reference
+	 * @param entityHavingChild nested filter, or null for an unconstrained reference
+	 * @param scopes scopes processed by the owner query
+	 * @param counterpartScopes scopes containing counterpart rows
+	 * @param ownerEntitySchema owner collection schema
+	 * @param ownerReference reference whose target scores are carried to owners
+	 * @return target-key filter, including all target scopes when the reference has no nested filter
 	 */
 	@Nonnull
 	private static Formula createReferencedEntityFormula(
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull String targetEntityType,
+		@Nullable EntityHaving origin,
 		@Nullable FilterConstraint entityHavingChild,
 		@Nonnull Set<Scope> scopes,
 		@Nonnull Set<Scope> counterpartScopes,
@@ -928,7 +942,7 @@ public class BidirectionalReferenceRewriter {
 			// on the owner-side path the rewrite replaces
 			HavingTranslatorHelper.registerReferencedFulltextScores(
 				filterByVisitor, ownerEntitySchema, ownerReference, EntityIndexType.REFERENCED_ENTITY_TYPE,
-				nestedResults.get(i)
+				Objects.requireNonNull(origin), nestedResults.get(i)
 			);
 		}
 		final Formula nestedFormula = FormulaFactory.or(nestedFormulas);
@@ -1270,6 +1284,7 @@ public class BidirectionalReferenceRewriter {
 	 * Result of {@link #splitChildren(ReferenceHaving)} - the `entityHaving` payload separated from the pure
 	 * reference-attribute constraints, along with every attribute name those constraints touch.
 	 *
+	 * @param origin original entityHaving container, compared by structural equality across per-index translations
 	 * @param entityHavingChild    the single child of the `entityHaving` container, or NULL when absent
 	 * @param attributeConstraints the reference-attribute constraints, conjunctive between themselves. When
 	 *                             {@link #negatedAttribute()} is set this holds the constraint as written *inside*
@@ -1279,6 +1294,7 @@ public class BidirectionalReferenceRewriter {
 	 *                             result has to be subtracted from that owner's rows
 	 */
 	private record SplitChildren(
+		@Nullable EntityHaving origin,
 		@Nullable FilterConstraint entityHavingChild,
 		@Nonnull List<FilterConstraint> attributeConstraints,
 		@Nonnull List<String> attributeNames,

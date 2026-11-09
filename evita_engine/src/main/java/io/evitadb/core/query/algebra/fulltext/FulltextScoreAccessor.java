@@ -65,23 +65,22 @@ public interface FulltextScoreAccessor {
 	 * when it wraps one, so a sorter skips the wrappers that answer `false` rather than treating them as matching
 	 * nothing.
 	 *
-	 * @return true when {@link #getFulltextScores(int[], int)} may be called
+	 * @return true when {@link #getFulltextScores(int[])} may be called
 	 */
 	boolean providesFulltextScores();
 
 	/**
-	 * Scores the candidates against the fulltext query this accessor represents and returns the top N, best first.
-	 * A candidate is selected when it contains at least one query token — it need not be in the strict match set of
+	 * Scores every candidate against this source and returns composites aligned with the candidates array.
+	 * A candidate has a score when it contains at least one query token — it need not be in the strict match set of
 	 * the fulltext formula, and ranks below the candidates matching more tokens. Candidates matching no token are
-	 * never selected.
+	 * represented by a zero composite.
 	 *
 	 * @param candidates primary keys of the entities to rank — typically the final result of the whole filter —
 	 *                   ascending and distinct
-	 * @param topN       how many entities to return, at least one
-	 * @return the selected entities and their composite scores, as {@link FulltextPhaseOneScorer} defines them
+	 * @return all candidate primary keys and their aligned composites, as {@link FulltextPhaseOneScorer} defines them
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when {@link #providesFulltextScores()} is false
 	 */
 	@Nonnull
-	Result getFulltextScores(@Nonnull int[] candidates, int topN);
+	Result getFulltextScores(@Nonnull int[] candidates);
 
 }

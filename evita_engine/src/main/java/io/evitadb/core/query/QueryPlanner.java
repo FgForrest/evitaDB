@@ -23,9 +23,11 @@
 
 package io.evitadb.core.query;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.TextMatches;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap;
@@ -65,7 +67,6 @@ import io.evitadb.core.query.sort.primaryKey.sorter.TranslatedPrimaryKeySorter;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.Index;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.spi.store.catalog.chunk.ExpressionBasedSlicer;
@@ -163,6 +164,7 @@ public class QueryPlanner {
 			// index short-cut
 			context.assertDefaultFacetRelationsEffective();
 			context.assertFacetGroupFiltersEvaluable();
+			resolveFulltextScoringPolicy(context);
 
 			// determine the indexes that should be used for filtering
 			final IndexSelectionResult<?> indexSelectionResult = selectIndexes(context);
@@ -244,6 +246,8 @@ public class QueryPlanner {
 	) {
 		context.pushStep(QueryPhase.PLANNING_NESTED_QUERY, nestedQueryDescription);
 		try {
+			resolveFulltextScoringPolicy(context);
+
 			// determine the indexes that should be used for filtering
 			final IndexSelectionResult<?> indexSelectionResult = selectIndexes(context);
 
@@ -282,6 +286,21 @@ public class QueryPlanner {
 
 		} finally {
 			context.popStep();
+		}
+	}
+
+	/**
+	 * Resolves the fulltext scoring policy of the queried entity type before the index selection, when the query
+	 * searches text. The policy is built, validated and cached in the context here, ahead of any empty-index
+	 * short-cut, so a `textMatches` query is checked the same way whether or not its indexes hold any entity; the
+	 * translators and the relevance sorter then reuse the cached instance.
+	 *
+	 * @param context planning context of the query or of a nested query
+	 */
+	private static void resolveFulltextScoringPolicy(@Nonnull QueryPlanningContext context) {
+		if (context.isEntityTypeKnown() && !QueryUtils.findFilters(
+			context.getEvitaRequest().getQuery(), TextMatches.class).isEmpty()) {
+			context.getFulltextScoringPolicy();
 		}
 	}
 

@@ -48,6 +48,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.fulltext.FulltextIndex;
+import io.evitadb.index.fulltext.FulltextScoringPolicy;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Expansion;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
@@ -80,6 +81,7 @@ import java.util.stream.IntStream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.scoreTopN;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.FILTER;
@@ -1114,7 +1116,7 @@ public class FulltextQueryFunctionalTest {
 						scoresOf(evita, PRODUCT, Locale.ENGLISH, "tea", candidates, Scope.LIVE)
 					);
 					brandScoresOfOwners(evita, "green", candidates)
-						.forEach((pk, score) -> scores.merge(pk, score, FulltextQueryFunctionalTest::better));
+						.forEach((pk, score) -> scores.merge(pk, score, FulltextQueryFunctionalTest::combineSources));
 					final int[] expected = orderByScores(scores, candidates);
 					for (PlanPreference plan : PlanPreference.values()) {
 						assertArrayEquals(
@@ -1152,7 +1154,7 @@ public class FulltextQueryFunctionalTest {
 						scoresOf(evita, PRODUCT, Locale.ENGLISH, "green", candidates, Scope.LIVE)
 					);
 					brandScoresOfOwners(evita, "green", candidates)
-						.forEach((pk, score) -> scores.merge(pk, score, FulltextQueryFunctionalTest::better));
+						.forEach((pk, score) -> scores.merge(pk, score, FulltextQueryFunctionalTest::combineSources));
 					final int[] expected = orderByScores(scores, candidates);
 					for (PlanPreference plan : PlanPreference.values()) {
 						assertArrayEquals(
@@ -1234,7 +1236,7 @@ public class FulltextQueryFunctionalTest {
 						scoresOf(evita, PRODUCT, Locale.ENGLISH, "tea", candidates, Scope.LIVE)
 					);
 					placementGroupScoresOfOwners(evita, "green", candidates)
-						.forEach((pk, score) -> scores.merge(pk, score, FulltextQueryFunctionalTest::better));
+						.forEach((pk, score) -> scores.merge(pk, score, FulltextQueryFunctionalTest::combineSources));
 					final int[] expected = orderByScores(scores, candidates);
 					for (PlanPreference plan : PlanPreference.values()) {
 						assertArrayEquals(
@@ -1470,12 +1472,14 @@ public class FulltextQueryFunctionalTest {
 					if (fulltextIndex.isFieldRetired(fieldId)) {
 						continue;
 					}
+					final int placeId = fieldId;
 					for (String term : tokens.get(i)) {
 						// looked up the way the query path does: the walk from the term itself, whose first key is
 						// the term when the field holds it
 						fulltextIndex.forEachTerm(fieldId, term, (visited, postings, impacts) -> {
 							if (visited.equals(term) && !postings.isEmpty()) {
-								tokenExpansions.add(new Expansion(postings, impacts, 0, FulltextTermExactness.EXACT));
+								tokenExpansions.add(new Expansion(postings, impacts, 0, FulltextTermExactness.EXACT,
+									placeId, 1.0f));
 							}
 							return false;
 						});
@@ -1483,7 +1487,7 @@ public class FulltextQueryFunctionalTest {
 				}
 				expansions[i] = tokenExpansions.toArray(Expansion[]::new);
 			}
-			final Result result = FulltextPhaseOneScorer.score(
+			final Result result = scoreTopN(
 				candidates, expansions, candidates.length, (int[][]) null
 			);
 			for (int i = 0; i < result.primaryKeys().length; i++) {
@@ -1491,6 +1495,18 @@ public class FulltextQueryFunctionalTest {
 			}
 		}
 		return best;
+	}
+
+	/** Computes the decision's two-source rule independently: best quality and max + 0.3 × min strength. */
+	private static long combineSources(long a, long b) {
+		final long qualityA = a & FulltextScoringPolicy.QUALITY_MASK;
+		final long qualityB = b & FulltextScoringPolicy.QUALITY_MASK;
+		final long quality = Long.compareUnsigned(qualityA, qualityB) >= 0 ? qualityA : qualityB;
+		final int strengthA = FulltextScoringPolicy.strength(a);
+		final int strengthB = FulltextScoringPolicy.strength(b);
+		final long strength = Math.min(65535,
+			Math.max(strengthA, strengthB) + (3L * Math.min(strengthA, strengthB) + 5) / 10);
+		return quality | (strength << FulltextScoringPolicy.STRENGTH_SHIFT);
 	}
 
 	/**
@@ -1532,7 +1548,7 @@ public class FulltextQueryFunctionalTest {
 
 	/**
 	 * Computes the scores the owners get through the brands they reference: every brand matching the text is scored
-	 * as {@link #scoresOf} does, and an owner keeps the best composite of the matching brands it references.
+	 * as {@link #scoresOf} does, and an owner keeps the best matching target, with strength weighted 0.5.
 	 *
 	 * @param evita  the evita instance
 	 * @param text   the English text searched in the brands
@@ -1574,7 +1590,7 @@ public class FulltextQueryFunctionalTest {
 
 	/**
 	 * Computes the scores the owners get through the brands they are related to: every brand matching the text is
-	 * scored as {@link #scoresOf} does, and an owner keeps the best composite of the matching brands it relates to.
+	 * scored as {@link #scoresOf} does, and an owner keeps the best matching target, with strength weighted 0.5.
 	 *
 	 * @param evita         the evita instance
 	 * @param text          the English text searched in the brands
@@ -1600,6 +1616,8 @@ public class FulltextQueryFunctionalTest {
 				}
 			}
 		}
+		ownerScores.replaceAll((owner, composite) -> (composite & FulltextScoringPolicy.QUALITY_MASK) |
+			((long) ((FulltextScoringPolicy.strength(composite) + 1) / 2) << FulltextScoringPolicy.STRENGTH_SHIFT));
 		return ownerScores;
 	}
 

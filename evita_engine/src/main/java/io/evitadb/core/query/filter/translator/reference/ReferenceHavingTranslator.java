@@ -28,7 +28,9 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.query.filter.TextMatches;
 import io.evitadb.api.query.require.ReferenceContent;
+import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.algebra.AbstractFormula;
@@ -218,7 +220,8 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 	 *
 	 * The virtual part costs one pass over the virtual candidates per query, on top of the split, and for a body that
 	 * is not row-exact one evaluation of the body against the referenced-type entity index per scope; the materialized
-	 * part costs what the whole evaluation cost before, minus the virtual candidates.
+	 * part costs what the whole evaluation cost before, minus the virtual candidates. A row-exact body containing
+	 * fulltext also takes the evaluation pass to register its target score sources with this owner visitor.
 	 *
 	 * @param referenceHaving the constraint
 	 * @param filterByVisitor the visitor translating the constraint
@@ -249,14 +252,18 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 		final boolean rowExact = VirtualPartitionBodyEvaluator.isRowExact(
 			getFilterByFormula(referenceHaving).orElse(null), referenceSchema.getName()
 		);
-		final Formula virtualOwners = rowExact ?
-			VirtualPartitionBodyEvaluator.getOwnersFormula(split) :
+		// Row-exact membership can reuse the candidates, but fulltext still needs this visitor's target score
+		// registrations. Discovery used another visitor, so its registrations cannot reach the owner sorter.
+		final boolean evaluateBody = !rowExact || !FinderVisitor.findConstraints(
+			referenceHaving, TextMatches.class::isInstance).isEmpty();
+		final Formula virtualOwners = evaluateBody ?
 			VirtualPartitionBodyEvaluator.getOwnersFormula(
 				split,
 				VirtualPartitionBodyEvaluator.getMatchingPartitions(
 					filterByVisitor, entitySchema, referenceSchema, new FilterBy(referenceHaving.getChildren()), split
 				)
-			);
+			) :
+			VirtualPartitionBodyEvaluator.getOwnersFormula(split);
 		if (materializedIndexes.isEmpty()) {
 			return virtualOwners;
 		}

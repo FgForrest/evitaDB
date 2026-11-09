@@ -25,6 +25,12 @@ package io.evitadb.api.functional.fulltext;
 
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.query.expression.ExpressionFactory;
+import io.evitadb.dataType.ComplexDataObject;
+import io.evitadb.dataType.data.DataItem;
+import io.evitadb.dataType.data.DataItemArray;
+import io.evitadb.dataType.data.DataItemMap;
+import io.evitadb.dataType.data.DataItemValue;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
@@ -60,12 +66,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
 import static io.evitadb.index.fulltext.FulltextIndexTestSupport.retainedAnalyzerCount;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.impactsOf;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.postingsOf;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.QUERY;
@@ -586,6 +595,116 @@ class FulltextFieldAnalysisFunctionalTest implements EvitaTestSupport {
 		final EvitaConfiguration base = newTestEvitaConfigurationBuilder(testPaths).build();
 		return EvitaConfiguration.builder(base).transaction(TransactionOptions.builder(base.transaction())
 			.checkpointIntervalInMillis(3_600_000L).build()).build();
+	}
+
+	/** Weight-only schema commits immediately change ranking while retaining every indexed byte. */
+	@Test
+	@DisplayName("should reorder the next query after changing only schema search weights")
+	void shouldReorderWithoutRebuildingFields() {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
+			session.defineEntitySchema(PRODUCT).withoutGeneratedPrimaryKey().withLocale(Locale.ENGLISH)
+				.withAttribute("title", String.class, a -> a.localized().searchable().searchWeight(3))
+				.withAssociatedData("article", String.class, a -> a.localized().searchable().searchWeight(1))
+				.updateVia(session);
+			session.upsertEntity(session.createNewEntity(PRODUCT, 1)
+				.setAttribute("title", Locale.ENGLISH, "green")
+				.setAssociatedData("article", Locale.ENGLISH, "amber"));
+			session.upsertEntity(session.createNewEntity(PRODUCT, 2)
+				.setAttribute("title", Locale.ENGLISH, "amber")
+				.setAssociatedData("article", Locale.ENGLISH, "green"));
+			session.goLiveAndClose();
+		});
+		final FulltextIndex before = index(this.evita, Locale.ENGLISH);
+		assertRanked(1, 2);
+		this.evita.updateCatalog(TEST_CATALOG, session -> { session.getEntitySchemaOrThrow(PRODUCT).openForWrite()
+			.withAttribute("title", String.class, a -> a.searchWeight(0))
+			.withAssociatedData("article", String.class, a -> a.searchWeight(4)).updateVia(session); });
+		assertRanked(2, 1);
+		final FulltextIndex after = index(this.evita, Locale.ENGLISH);
+		assertSame(before, after, "No index mutation, field retirement, posting or impact rebuild is needed");
+		assertFalse(after.isFieldRetired(after.getFieldId(FulltextFieldKey.attribute("title"))));
+		assertFalse(after.isFieldRetired(after.getFieldId(FulltextFieldKey.associatedData("article"))));
+	}
+
+	/** A candidate below top one in both sources must still reach the first page after combining evidence. */
+	@Test
+	@DisplayName("should select the page only after combining all candidates from both sources")
+	void shouldAvoidPerSourceTruncation() {
+		defineFields("text", "text");
+		put(1, Locale.ENGLISH, "green", "amber");
+		put(2, Locale.ENGLISH, "amber", "green");
+		put(3, Locale.ENGLISH, "green tea", "green tea");
+		this.evita.queryCatalog(TEST_CATALOG, session -> {
+			for (final String field : new String[]{"title", "body"}) {
+				final int expected = field.equals("title") ? 1 : 2;
+				final int actual = session.query(query(collection(PRODUCT), filterBy(entityLocaleEquals(Locale.ENGLISH),
+					textMatches("green ", inField(field))), orderBy(relevanceText()), require(page(1, 1))),
+					EntityReference.class).getRecordData().getFirst().getPrimaryKey();
+				assertEquals(expected, actual, "Candidate 3 is below top one in " + field);
+			}
+			final int actual = session.query(query(collection(PRODUCT), filterBy(entityLocaleEquals(Locale.ENGLISH),
+				or(textMatches("green ", inField("title")), textMatches("green ", inField("body")))),
+				orderBy(relevanceText()), require(page(1, 1))), EntityReference.class)
+				.getRecordData().getFirst().getPrimaryKey();
+			assertEquals(3, actual, "Two slightly lower impacts combine above either source's winner");
+			return null;
+		});
+	}
+
+	/** Expression-selected texts use the same independent-value impacts as a string array. */
+	@Test
+	@DisplayName("should retain the best impact among associated data expression texts")
+	void shouldCollapseExpressionValuesToBestImpact() {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
+			session.defineEntitySchema(PRODUCT).withoutGeneratedPrimaryKey().withLocale(Locale.ENGLISH)
+				.withAssociatedData("article", ComplexDataObject.class, a -> a.localized().nullable()
+					.searchable(ExpressionFactory.parse("$value.blocks.*[$.text]"))).updateVia(session);
+			session.upsertEntity(session.createNewEntity(PRODUCT, 1)
+				.setAssociatedData("article", Locale.ENGLISH, article("green", "green!", "green?")));
+			session.upsertEntity(session.createNewEntity(PRODUCT, 2)
+				.setAssociatedData("article", Locale.ENGLISH, article("green green")));
+			session.goLiveAndClose();
+		});
+		final FulltextIndex original = index(this.evita, Locale.ENGLISH);
+		final int field = original.getFieldId(FulltextFieldKey.associatedData("article"));
+		final byte[] before = impactsOf(original, field, "green");
+		assertEquals(2, before.length);
+		assertTrue(Byte.toUnsignedInt(before[1]) > Byte.toUnsignedInt(before[0]));
+		assertRanked(2, 1);
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
+			session.upsertEntity(session.getEntity(PRODUCT, 1, entityFetchAllContent()).orElseThrow().openForWrite()
+				.setAssociatedData("article", Locale.ENGLISH,
+					article("green", "green!", "green?", "amber ".repeat(300))));
+		});
+		final FulltextIndex appended = index(this.evita, Locale.ENGLISH);
+		assertArrayEquals(before, impactsOf(appended, field, "green"));
+		assertRanked(2, 1);
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
+			session.upsertEntity(session.getEntity(PRODUCT, 1, entityFetchAllContent()).orElseThrow().openForWrite()
+				.removeAssociatedData("article", Locale.ENGLISH));
+		});
+		assertArrayEquals(new int[]{2}, postingsOf(index(this.evita, Locale.ENGLISH), field, "green").getArray());
+	}
+
+	/** Builds the complex value consumed by the real expression extractor. */
+	private static ComplexDataObject article(String... texts) {
+		final DataItem[] blocks = new DataItem[texts.length];
+		for (int i = 0; i < texts.length; i++) {
+			blocks[i] = new DataItemMap(Map.of("text", new DataItemValue(texts[i])));
+		}
+		return new ComplexDataObject(new DataItemMap(Map.of("blocks", new DataItemArray(blocks))));
+	}
+
+	/** Queries the real catalog after a weight-only schema change. */
+	private void assertRanked(int... expected) {
+		this.evita.queryCatalog(TEST_CATALOG, session -> {
+			final int[] actual = session.query(query(collection(PRODUCT),
+				filterBy(entityLocaleEquals(Locale.ENGLISH), textMatches("green ")), orderBy(relevanceText()),
+				require(page(1, 10))), EntityReference.class).getRecordData().stream()
+				.mapToInt(EntityReference::getPrimaryKey).toArray();
+			assertArrayEquals(expected, actual);
+			return null;
+		});
 	}
 
 	/** Ranking configuration cannot replace field identities or discard postings from earlier entity writes. */

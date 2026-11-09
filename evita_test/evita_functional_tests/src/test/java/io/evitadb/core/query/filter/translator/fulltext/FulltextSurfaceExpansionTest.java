@@ -148,7 +148,8 @@ class FulltextSurfaceExpansionTest {
 						.map(t -> t.term()).toArray(String[]::new);
 					final List<ExpandedTerm> actual = new FulltextTermExpansion(
 						new FulltextTypoParameters(100, 200, 1, true, true, false, 4, 4))
-						.expand(index, new int[]{index.getFieldId(field)}, new String[0], typed, new String[0], false);
+						.expand(index, new int[]{index.getFieldId(field)}, unitWeights(index), new String[0], typed,
+							new String[0], false);
 					assertEquals(profile.equals("folded-lane") ? 1 : 0, actual.size());
 					if (!actual.isEmpty()) {
 						assertEquals(FulltextTermExactness.EXACT, actual.getFirst().exactness());
@@ -172,7 +173,7 @@ class FulltextSurfaceExpansionTest {
 				index.addValue(FulltextFieldKey.attribute("title"), 1000, analyzer, 25, null, "surfzz");
 				index.addValue(FulltextFieldKey.attribute("title"), 1001, analyzer, 25, null, "surfzz");
 				final List<ExpandedTerm> actual = new FulltextTermExpansion(new FulltextTypoParameters(new FulltextOptions()))
-					.expand(index, new int[]{id}, new String[]{"stem"}, new String[]{"surf"},
+					.expand(index, new int[]{id}, unitWeights(index), new String[]{"stem"}, new String[]{"surf"},
 						new String[]{"surf"}, true);
 				final List<String> prefixes = actual.stream().filter(t -> t.exactness() == FulltextTermExactness.PREFIX)
 					.map(ExpandedTerm::term).toList();
@@ -205,7 +206,7 @@ class FulltextSurfaceExpansionTest {
 				}
 				index.addValue(FulltextFieldKey.attribute("title"), 1000, analyzer, 25, null, "surf" + popularSuffix);
 				final List<ExpandedTerm> actual = new FulltextTermExpansion(new FulltextTypoParameters(new FulltextOptions()))
-					.expand(index, new int[]{id}, new String[]{"stem" + querySuffix},
+					.expand(index, new int[]{id}, unitWeights(index), new String[]{"stem" + querySuffix},
 						new String[]{"surf" + querySuffix}, new String[0], false);
 				final List<String> winners = new ArrayList<>();
 				winners.add("w" + popularSuffix);
@@ -334,7 +335,8 @@ class FulltextSurfaceExpansionTest {
 		index.addValue(field, 1, analyzer, 25.0, null, "running");
 		final int id = index.getFieldId(field);
 		return new FulltextTermExpansion(new FulltextTypoParameters(new FulltextOptions()))
-			.expand(index, new int[]{id}, variants, new String[]{typed}, new String[]{typed}, unfinished);
+			.expand(index, new int[]{id}, unitWeights(index), variants, new String[]{typed}, new String[]{typed},
+				unfinished);
 	}
 
 	/** Creates equal-length alphabetical surfaces with controlled posting stems. */
@@ -368,7 +370,7 @@ class FulltextSurfaceExpansionTest {
 	/** Checks the uncapped exact survivor or the capped completion survivors while comparing allocation growth. */
 	private static void expandFanout(FulltextIndex index, boolean exactExcluded, boolean guided) {
 		final List<ExpandedTerm> result = new FulltextTermExpansion(new FulltextTypoParameters(new FulltextOptions()))
-			.expand(index, new int[]{0}, exactExcluded ? new String[]{"root"} : new String[0],
+			.expand(index, new int[]{0}, unitWeights(index), exactExcluded ? new String[]{"root"} : new String[0],
 				guided ? new String[]{"sury"} : new String[0], new String[]{guided ? "sury" : "surf"}, true);
 		assertEquals(exactExcluded ? 1 : CAP, result.size());
 		if (exactExcluded) {

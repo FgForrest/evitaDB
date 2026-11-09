@@ -37,7 +37,8 @@ import java.util.Arrays;
 
 /**
  * Phase 1 of fulltext ranking: scores every candidate entity against the query's tokens in one pass over the
- * posting lists, and selects the top N.
+ * posting lists, into a vector aligned with the candidates. Selecting a page from such a vector is the separate
+ * {@link #selectTopN(int[], long[], int, long)}, run once every score source of the query has been combined.
  *
  * ## What is scored
  *
@@ -50,7 +51,7 @@ import java.util.Arrays;
  * | matched words | matched query words, or covered parts of a split word | more |
  * | TYPO | `255 - sum(best distance per matched word)`, saturated at zero | larger |
  * | EXACTNESS | `255 - count(matched words whose best class is not EXACT)` | larger |
- * | impact | the largest impact byte any matched expansion carries | larger |
+ * | strength | best place word-sum + t × the other place word-sums | larger |
  *
  * EXACTNESS counts non-exact query words (split groups count once), independently of their distances. At equal
  * total typo cost this orders exactly like summed class ranks: EXACT has rank 0, PREFIX rank 1, FUZZY(d) rank
@@ -60,11 +61,11 @@ import java.util.Arrays;
  * 255 non-exact words and is independent of the accepted maximum distance. Each word takes its smallest distance
  * and whether any exact expansion hit across every profile group, expansion leg and dictionary.
  *
- * The unsigned 64-bit composite orders matched words at bit 56, TYPO at bit 48, EXACTNESS at bit 40 and impact
- * at bit 32. TYPO sums the raw best distances, which is the typo-tolerance specification's default typo-lane
+ * The unsigned 64-bit composite orders matched words at bit 56, TYPO at bit 48, EXACTNESS at bit 40 and 16-bit strength
+ * at bit 24. TYPO sums the raw best distances, which is the typo-tolerance specification's default typo-lane
  * weighting `w = (0, 1, 2)`; the specification leaves the weights open until judged queries can tune them, and no
- * other weighting exists. The low 32 bits reserve context and stay zero. Compare with `Long.compareUnsigned`: 128
- * or more matched words set the sign bit.
+ * other weighting exists. The low 24 bits reserve context and stay zero. See {@link FulltextScoringPolicy} for
+ * scale and saturation. Compare with `Long.compareUnsigned`: 128 or more matched words set the sign bit.
  *
  * ## The counting rule
  *
@@ -76,7 +77,8 @@ import java.util.Arrays;
  * split word raises the matched-word lane during the merge, at the first hit of each part (`PartCoverage`); an
  * ordinary word raises it by one when its lanes are folded, and allocates no coverage state. The matched-word count
  * saturates at 255. Each word's expansions merge into reusable primitive per-word lanes; no hit allocates or boxes
- * an object.
+ * an object. For strength, each place sums each query word's best weighted impact, saturating at 65535 fixed-point
+ * units. Repeated expansions and a split word's original and parts contribute one maximum per word and place.
  *
  * ## The merge, and where the impact offset comes from
  *
@@ -204,9 +206,12 @@ public final class FulltextPhaseOneScorer {
 	 * @param impacts  impact byte of each posting, the i-th belonging to the i-th posting
 	 * @param distance edit distance at which the term matched the token, `0` for exact and prefix matches
 	 * @param exactness matching class, EXACT when this word contributes no EXACTNESS penalty
+	 * @param placeId query-local place identity, shared by all items of the same place
+	 * @param weight effective rank-time weight of the place
 	 */
 	public record Expansion(
-		@Nonnull Bitmap postings, @Nonnull ImpactView impacts, int distance, @Nonnull FulltextTermExactness exactness
+		@Nonnull Bitmap postings, @Nonnull ImpactView impacts, int distance, @Nonnull FulltextTermExactness exactness,
+		int placeId, float weight
 	) {
 
 		/**
@@ -215,8 +220,11 @@ public final class FulltextPhaseOneScorer {
 		 * @param impacts impacts aligned with the postings
 		 * @param distance edit distance
 		 * @param exactness matching class independent of distance
+		 * @param placeId query-local place identity
+		 * @param weight finite nonnegative effective place weight
 		 */
 		public Expansion {
+			Assert.isPremiseValid(Float.isFinite(weight) && weight >= 0, "Invalid fulltext place weight!");
 			Assert.isPremiseValid(
 				postings.size() == impacts.size(),
 				() -> "An expansion carries " + postings.size() + " postings but " + impacts.size() + " impacts!"
@@ -230,9 +238,9 @@ public final class FulltextPhaseOneScorer {
 	}
 
 	/**
-	 * The result of one scoring pass: the selected entities in descending rank order.
+	 * The result of one scoring pass: a complete candidate-aligned vector, or a selected page in descending rank order.
 	 *
-	 * @param primaryKeys      primary keys of the top entities, best first
+	 * @param primaryKeys      candidate keys for scoreAll, or selected keys best first for selectTopN
 	 * @param composites       the composite of each, parallel to `primaryKeys`; compare them unsigned (see the
 	 *                         class documentation)
 	 * @param matchedDocuments how many candidates matched at least one token
@@ -246,54 +254,6 @@ public final class FulltextPhaseOneScorer {
 		int matchedDocuments,
 		long postingsWalked
 	) {
-	}
-
-	/**
-	 * Scores the candidates against the query words and returns the top N; a split word counts its covered parts,
-	 * while every word's quality penalties count once.
-	 *
-	 * The candidates ascend in signed `int` order and every posting list is read in its own record order, which is
-	 * unsigned; the two agree because entity primary keys are never negative. The expansions are only read, never
-	 * written, for the duration of the call.
-	 *
-	 * @param candidates primary keys of the candidate entities, ascending and distinct
-	 * @param tokens     the query words, each as the expansions it produced across every profile group; a word
-	 *                   without expansions matches nothing but still counts toward the word limit
-	 * @param topN       how many entities to return, at least one
-	 * @param partEnds   `null` for a query without split words; otherwise one row per word - empty for an ordinary
-	 *                   word, and the exclusive expansion ends `[original, part 1, ...]` for a split one, whose row
-	 *                   holding the original's end alone scores as an ordinary word (see {@link #validatePartEnds})
-	 * @return the selected entities in descending rank order; ties are broken by ascending primary key
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when `topN` is not positive, the query carries more
-	 *                                                        than {@link #MAX_QUERY_TOKENS} words, or `partEnds`
-	 *                                                        is malformed
-	 */
-	@Nonnull
-	public static Result score(
-		@Nonnull int[] candidates, @Nonnull Expansion[][] tokens, int topN, @Nullable int[][] partEnds
-	) {
-		return score(candidates, tokens, topN, MergeStrategy.ADAPTIVE, partEnds);
-	}
-
-	/**
-	 * Scores the candidates against the query with the chosen merge strategy and returns the top N.
-	 *
-	 * @param candidates primary keys of the candidate entities, ascending and distinct
-	 * @param tokens     the query tokens, each as the expansions it produced
-	 * @param topN       how many entities to return, at least one
-	 * @param strategy   how each expansion is merged
-	 * @return the selected entities in descending rank order; ties are broken by ascending primary key
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when `topN` is not positive, or the query carries more
-	 *                                                        than {@link #MAX_QUERY_TOKENS} tokens
-	 */
-	@Nonnull
-	static Result score(
-		@Nonnull int[] candidates,
-		@Nonnull Expansion[][] tokens,
-		int topN,
-		@Nonnull MergeStrategy strategy
-	) {
-		return score(candidates, tokens, topN, strategy, null);
 	}
 
 	/**
@@ -328,20 +288,21 @@ public final class FulltextPhaseOneScorer {
 
 	/**
 	 * Merges each word's postings, then folds its best quality and covered-part count into the candidate lanes.
+	 * The contract is {@link #scoreAll(int[], Expansion[][], int[][], FulltextScoringPolicy)}'s; the strategy only
+	 * decides how each posting list is merged, never the result.
 	 *
 	 * @param candidates sorted distinct candidate primary keys
 	 * @param tokens expansions grouped by query word
-	 * @param topN positive result limit
 	 * @param strategy posting merge strategy
 	 * @param partEnds optional original/part expansion ends aligned with words; null when the query has no split word
-	 * @return selected candidates in unsigned composite order
+	 * @param policy effective coefficient used to combine place strengths
+	 * @return all candidates and their aligned composites
 	 */
 	@Nonnull
-	private static Result score(
-		@Nonnull int[] candidates, @Nonnull Expansion[][] tokens, int topN, @Nonnull MergeStrategy strategy,
-		@Nullable int[][] partEnds
+	static Result scoreAll(
+		@Nonnull int[] candidates, @Nonnull Expansion[][] tokens, @Nonnull MergeStrategy strategy,
+		@Nullable int[][] partEnds, @Nonnull FulltextScoringPolicy policy
 	) {
-		Assert.isPremiseValid(topN > 0, () -> "The number of results must be positive, " + topN + " was requested!");
 		Assert.isPremiseValid(
 			tokens.length <= MAX_QUERY_TOKENS,
 			() -> "A query may carry at most " + MAX_QUERY_TOKENS + " tokens, " + tokens.length + " were passed!"
@@ -351,10 +312,16 @@ public final class FulltextPhaseOneScorer {
 		final byte[] matchedTokens = new byte[candidateCount];
 		final byte[] exactnessPenalty = new byte[candidateCount];
 		final byte[] typoPenalty = new byte[candidateCount];
-		final byte[] maxImpact = new byte[candidateCount];
-		// the per-word impact, typo and exactness lanes: every expansion of one word writes here, and only the merged
+		// Word-major traversal preserves split coverage and reusable quality lanes. Only raw per-place maxima
+		// are reset after each word; saturating weighted place sums survive until final composition.
+		final int[] places = placeIds(tokens);
+		final byte[][] placeImpacts = new byte[places.length][candidateCount];
+		final char[][] placeSums = new char[places.length][candidateCount];
+		final char[][] weightedImpacts = new char[places.length][];
+		final int[] wordPlaces = new int[places.length];
+		final int[] placeWordStamps = new int[places.length];
+		// the per-word typo and exactness lanes: every expansion of one word writes here, and only the merged
 		// result reaches the accumulators above - the cheapest implementation of the counting rule
-		final byte[] tokenImpact = new byte[candidateCount];
 		final byte[] tokenTypo = new byte[candidateCount];
 		final byte[] tokenExactness = new byte[candidateCount];
 		final PartCoverage coverage = partEnds == null ? null : new PartCoverage(candidateCount, matchedTokens);
@@ -372,6 +339,7 @@ public final class FulltextPhaseOneScorer {
 				}
 				int part = 0;
 				boolean anyHit = false;
+				int wordPlaceCount = 0;
 				for (int e = 0; e < expansions.length; e++) {
 					final Expansion expansion = expansions[e];
 					if (wordCoverage != null) {
@@ -379,6 +347,11 @@ public final class FulltextPhaseOneScorer {
 							part++;
 						}
 						wordCoverage.part = part;
+					}
+					final int place = Arrays.binarySearch(places, expansion.placeId());
+					final byte[] placeImpact = placeImpacts[place];
+					if (weightedImpacts[place] == null) {
+						weightedImpacts[place] = policy.getWeightedImpacts(expansion.weight());
 					}
 					final Bitmap postings = expansion.postings();
 					final int postingCount = postings.size();
@@ -388,19 +361,24 @@ public final class FulltextPhaseOneScorer {
 					// stored one-based, so `0` in the typo lane means "this token did not hit the candidate"
 					final byte distance = (byte) (expansion.distance() + 1);
 					final ImpactView.Reader impacts = expansion.impacts().reader();
-					anyHit |= switch (chooseMerge(strategy, candidateCount, postingCount)) {
+					final boolean expansionHit = switch (chooseMerge(strategy, candidateCount, postingCount)) {
 						case LINEAR -> linearMerge(
-							candidates, feed.reset(postings), impacts, distance, tokenImpact, tokenTypo,
+							candidates, feed.reset(postings), impacts, distance, placeImpact, tokenTypo,
 							expansion.exactness() == FulltextTermExactness.EXACT, tokenExactness, wordCoverage
 						);
 						case GALLOPING -> gallopingMerge(
-							candidates, feed.reset(postings), impacts, distance, tokenImpact, tokenTypo,
+							candidates, feed.reset(postings), impacts, distance, placeImpact, tokenTypo,
 							expansion.exactness() == FulltextTermExactness.EXACT, tokenExactness, wordCoverage
 						);
-						case SKIPPING -> skippingMerge(candidates, postings, impacts, distance, tokenImpact, tokenTypo,
+						case SKIPPING -> skippingMerge(candidates, postings, impacts, distance, placeImpact, tokenTypo,
 							expansion.exactness() == FulltextTermExactness.EXACT, tokenExactness, wordCoverage);
 						case ADAPTIVE -> throw new GenericEvitaInternalError("The merge choice never yields ADAPTIVE!");
 					};
+					anyHit |= expansionHit;
+					if (expansionHit && placeWordStamps[place] != token + 1) {
+						placeWordStamps[place] = token + 1;
+						wordPlaces[wordPlaceCount++] = place;
+					}
 					postingsWalked += postingCount;
 				}
 				if (anyHit) {
@@ -413,16 +391,24 @@ public final class FulltextPhaseOneScorer {
 						if (wordCoverage == null) {
 							matchedTokens[i] = (byte) Math.min(255, Byte.toUnsignedInt(matchedTokens[i]) + 1);
 						}
-						if (Byte.toUnsignedInt(tokenImpact[i]) > Byte.toUnsignedInt(maxImpact[i])) {
-							maxImpact[i] = tokenImpact[i];
-						}
 						typoPenalty[i] = (byte) Math.min(255,
 							Byte.toUnsignedInt(typoPenalty[i]) + Byte.toUnsignedInt(typo) - 1);
 						if (tokenExactness[i] == 0) {
 							exactnessPenalty[i]++;
 						}
 					}
-					Arrays.fill(tokenImpact, (byte) 0);
+					// Fold only places this word hit, once after the original and its parts supplied their raw maxima.
+					for (int touched = 0; touched < wordPlaceCount; touched++) {
+						final int place = wordPlaces[touched];
+						final byte[] impacts = placeImpacts[place];
+						final char[] sums = placeSums[place];
+						final char[] table = weightedImpacts[place];
+						for (int i = 0; i < candidateCount; i++) {
+							sums[i] = (char) Math.min(FulltextScoringPolicy.MAX_STRENGTH,
+								sums[i] + table[Byte.toUnsignedInt(impacts[i])]);
+						}
+						Arrays.fill(impacts, (byte) 0);
+					}
 					Arrays.fill(tokenTypo, (byte) 0);
 					Arrays.fill(tokenExactness, (byte) 0);
 					if (wordCoverage != null) {
@@ -443,18 +429,79 @@ public final class FulltextPhaseOneScorer {
 				continue;
 			}
 			matchedDocuments++;
+			int best = 0;
+			long sum = 0;
+			for (int place = 0; place < places.length; place++) {
+				final int strength = placeSums[place][i];
+				best = Math.max(best, strength);
+				sum += strength;
+			}
 			composites[i] = ((long) Byte.toUnsignedInt(matchedTokens[i]) << 56)
 				| ((long) (255 - Byte.toUnsignedInt(typoPenalty[i])) << 48)
 				| ((long) (255 - Byte.toUnsignedInt(exactnessPenalty[i])) << 40)
-				| ((long) Byte.toUnsignedInt(maxImpact[i]) << 32);
+				| ((long) policy.combine(best, sum) << FulltextScoringPolicy.STRENGTH_SHIFT);
 		}
-		return selectTopN(candidates, composites, Math.min(topN, matchedDocuments), matchedDocuments, postingsWalked);
+		return new Result(candidates, composites, matchedDocuments, postingsWalked);
 	}
 
 	/**
-	 * Selects the top N of candidates scored elsewhere, in the order {@link #score} selects its own: composite
-	 * compared unsigned, best first, ties by ascending primary key. It lets a score source that derives composites
-	 * rather than computing them - the owners of scored referenced entities - rank exactly as the scorer does.
+	 * Scores every candidate without selection, returning composites aligned with the input primary keys.
+	 * Candidates ascend in signed integer order; postings ascend in unsigned order. These agree because entity
+	 * primary keys are never negative. Expansion arrays and their borrowed postings/impacts are only read.
+	 *
+	 * @param candidates sorted distinct primary keys
+	 * @param tokens the query words, each as the expansions it produced across every profile group; a word without
+	 *               expansions matches nothing but still counts toward the word limit
+	 * @param partEnds `null` for a query without split words; otherwise one row per word - empty for an ordinary
+	 *                 word, and the exclusive expansion ends `[original, part 1, ...]` for a split one (see
+	 *                 {@link #validatePartEnds})
+	 * @param policy the query's policy, supplying the weight tables and the tie breaker
+	 * @return all candidates, including zero composites for candidates matching no word
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the query carries more than
+	 *                                                        {@link #MAX_QUERY_TOKENS} words, or `partEnds` is
+	 *                                                        malformed
+	 */
+	@Nonnull
+	public static Result scoreAll(
+		@Nonnull int[] candidates, @Nonnull Expansion[][] tokens, @Nullable int[][] partEnds,
+		@Nonnull FulltextScoringPolicy policy
+	) {
+		return scoreAll(candidates, tokens, MergeStrategy.ADAPTIVE, partEnds, policy);
+	}
+
+	/**
+	 * Collects distinct place identities without a candidate-by-place map or boxed keys.
+	 * @param tokens expansions grouped by query word
+	 * @return sorted distinct place ids
+	 */
+	@Nonnull
+	private static int[] placeIds(@Nonnull Expansion[][] tokens) {
+		int count = 0;
+		for (final Expansion[] token : tokens) {
+			count += token.length;
+		}
+		final int[] ids = new int[count];
+		int index = 0;
+		for (final Expansion[] token : tokens) {
+			for (final Expansion expansion : token) {
+				ids[index++] = expansion.placeId();
+			}
+		}
+		Arrays.sort(ids);
+		int distinct = 0;
+		for (final int id : ids) {
+			if (distinct == 0 || id != ids[distinct - 1]) {
+				ids[distinct++] = id;
+			}
+		}
+		return Arrays.copyOf(ids, distinct);
+	}
+
+	/**
+	 * Selects the top N of a candidate-aligned score vector, comparing composites unsigned, best first, with ties
+	 * broken by ascending primary key. The vector is one
+	 * {@link #scoreAll(int[], Expansion[][], int[][], FulltextScoringPolicy)} produced, or one combined from several
+	 * score sources of the query.
 	 *
 	 * @param candidates     primary keys of the candidates, distinct
 	 * @param composites     the composite of each candidate, parallel to `candidates`; `0` for a candidate not scored
@@ -542,7 +589,7 @@ public final class FulltextPhaseOneScorer {
 	 * @param postings       the expansion's postings, fed in batches
 	 * @param impacts        reader of the impact bytes aligned to the postings
 	 * @param distance       the expansion's one-based edit distance
-	 * @param tokenImpact    the per-token impact lane, by candidate
+	 * @param placeImpact    the persistent raw maximum of the expansion's place, by candidate
 	 * @param tokenTypo      the per-token typo lane, by candidate
 	 * @param exact          whether this expansion is EXACT
 	 * @param tokenExactness whether any exact expansion of this word hit, by candidate
@@ -554,7 +601,7 @@ public final class FulltextPhaseOneScorer {
 		@Nonnull PostingFeed postings,
 		@Nonnull ImpactView.Reader impacts,
 		byte distance,
-		@Nonnull byte[] tokenImpact,
+		@Nonnull byte[] placeImpact,
 		@Nonnull byte[] tokenTypo,
 		boolean exact,
 		@Nonnull byte[] tokenExactness,
@@ -581,7 +628,7 @@ public final class FulltextPhaseOneScorer {
 					batchIndex++;
 				} else {
 					recordHit(
-						candidateIndex, impacts.impactAt(batchStart + batchIndex), distance, tokenImpact, tokenTypo,
+						candidateIndex, impacts.impactAt(batchStart + batchIndex), distance, placeImpact, tokenTypo,
 						exact, tokenExactness, coverage
 					);
 					hit = true;
@@ -601,7 +648,7 @@ public final class FulltextPhaseOneScorer {
 	 * @param postings       the expansion's postings, fed in batches
 	 * @param impacts        reader of the impact bytes aligned to the postings
 	 * @param distance       the expansion's one-based edit distance
-	 * @param tokenImpact    the per-token impact lane, by candidate
+	 * @param placeImpact    the persistent raw maximum of the expansion's place, by candidate
 	 * @param tokenTypo      the per-token typo lane, by candidate
 	 * @param exact          whether this expansion is EXACT
 	 * @param tokenExactness whether any exact expansion of this word hit, by candidate
@@ -613,7 +660,7 @@ public final class FulltextPhaseOneScorer {
 		@Nonnull PostingFeed postings,
 		@Nonnull ImpactView.Reader impacts,
 		byte distance,
-		@Nonnull byte[] tokenImpact,
+		@Nonnull byte[] placeImpact,
 		@Nonnull byte[] tokenTypo,
 		boolean exact,
 		@Nonnull byte[] tokenExactness,
@@ -634,7 +681,7 @@ public final class FulltextPhaseOneScorer {
 				final int posting = batch[batchIndex];
 				from = gallopTo(candidates, from, posting);
 				if (from < candidateCount && candidates[from] == posting) {
-					recordHit(from, impacts.impactAt(batchStart + batchIndex), distance, tokenImpact, tokenTypo,
+					recordHit(from, impacts.impactAt(batchStart + batchIndex), distance, placeImpact, tokenTypo,
 						exact, tokenExactness, coverage);
 					hit = true;
 					from++;
@@ -659,7 +706,7 @@ public final class FulltextPhaseOneScorer {
 	 * @param postings       the expansion's postings
 	 * @param impacts        reader of the impact bytes aligned to the postings
 	 * @param distance       the expansion's one-based edit distance
-	 * @param tokenImpact    the per-token impact lane, by candidate
+	 * @param placeImpact    the persistent raw maximum of the expansion's place, by candidate
 	 * @param tokenTypo      the per-token typo lane, by candidate
 	 * @param exact          whether this expansion is EXACT
 	 * @param tokenExactness whether any exact expansion of this word hit, by candidate
@@ -671,7 +718,7 @@ public final class FulltextPhaseOneScorer {
 		@Nonnull Bitmap postings,
 		@Nonnull ImpactView.Reader impacts,
 		byte distance,
-		@Nonnull byte[] tokenImpact,
+		@Nonnull byte[] placeImpact,
 		@Nonnull byte[] tokenTypo,
 		boolean exact,
 		@Nonnull byte[] tokenExactness,
@@ -692,7 +739,7 @@ public final class FulltextPhaseOneScorer {
 				if (posting == candidate) {
 					// the rank counts from one, the impact offset from zero
 					recordHit(
-						candidateIndex, impacts.impactAt(cursor.peekNextRank() - 1), distance, tokenImpact, tokenTypo,
+						candidateIndex, impacts.impactAt(cursor.peekNextRank() - 1), distance, placeImpact, tokenTypo,
 						exact, tokenExactness, coverage
 					);
 					hit = true;
@@ -705,7 +752,7 @@ public final class FulltextPhaseOneScorer {
 			for (int candidateIndex = 0; candidateIndex < candidateCount; candidateIndex++) {
 				final int position = postings.indexOf(candidates[candidateIndex]);
 				if (position >= 0) {
-					recordHit(candidateIndex, impacts.impactAt(position), distance, tokenImpact, tokenTypo,
+					recordHit(candidateIndex, impacts.impactAt(position), distance, placeImpact, tokenTypo,
 						exact, tokenExactness, coverage);
 					hit = true;
 				}
@@ -759,7 +806,7 @@ public final class FulltextPhaseOneScorer {
 	 * @param candidateIndex index of the candidate hit
 	 * @param impact         the impact byte of the posting
 	 * @param distance       the expansion's one-based edit distance
-	 * @param tokenImpact    the per-token impact lane, by candidate
+	 * @param placeImpact    the persistent raw maximum of the expansion's place, by candidate
 	 * @param tokenTypo      the per-token typo lane, by candidate
 	 * @param exact          whether this expansion is EXACT
 	 * @param tokenExactness whether any exact expansion of this word hit, by candidate
@@ -769,7 +816,7 @@ public final class FulltextPhaseOneScorer {
 		int candidateIndex,
 		byte impact,
 		byte distance,
-		@Nonnull byte[] tokenImpact,
+		@Nonnull byte[] placeImpact,
 		@Nonnull byte[] tokenTypo,
 		boolean exact,
 		@Nonnull byte[] tokenExactness,
@@ -781,8 +828,8 @@ public final class FulltextPhaseOneScorer {
 		if (coverage != null) {
 			coverage.recordHit(candidateIndex);
 		}
-		if (Byte.toUnsignedInt(impact) > Byte.toUnsignedInt(tokenImpact[candidateIndex])) {
-			tokenImpact[candidateIndex] = impact;
+		if (Byte.toUnsignedInt(impact) > Byte.toUnsignedInt(placeImpact[candidateIndex])) {
+			placeImpact[candidateIndex] = impact;
 		}
 		if (
 			tokenTypo[candidateIndex] == 0

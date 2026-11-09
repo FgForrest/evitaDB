@@ -26,7 +26,6 @@ package io.evitadb.core.query.filter.translator.fulltext;
 import io.evitadb.api.configuration.FulltextOptions;
 import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import java.util.function.Consumer;
 import io.evitadb.core.query.algebra.fulltext.FulltextFormula.ExpandedTerm;
 import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.fulltext.FulltextFieldKey;
@@ -43,12 +42,20 @@ import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.*;
+import java.util.function.Consumer;
 
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
 import static io.evitadb.test.fulltext.FulltextAnalysisTestSupport.collectTerms;
 
 /** Real extension providers shared by fragment policy and surface expansion tests. */
 final class FulltextSurfaceTestSupport {
+	/** Effective unit weights for expansion fixtures, indexed by dictionary field id. */
+	static float[] unitWeights(FulltextIndex index) {
+		final float[] weights = new float[index.getFieldCount()];
+		Arrays.fill(weights, 1.0f);
+		return weights;
+	}
+
 	/** Utility class. */
 	private FulltextSurfaceTestSupport() { }
 	/** Builds a real cached analyzer using a discovered provider plus the controlled extension. */
@@ -86,6 +93,7 @@ final class FulltextSurfaceTestSupport {
 		final FulltextIndex index = new FulltextIndex();
 		index.addValue(FulltextFieldKey.attribute("title"), 1, analyzer, 25, null, indexed);
 		return new FulltextTermExpansion(new FulltextTypoParameters(new FulltextOptions())).expand(index, new int[]{0},
+			unitWeights(index),
 			collectTerms(analyzer.word(), query).stream().map(t -> t.term()).toArray(String[]::new),
 			collectTerms(analyzer.surface(), query).stream().map(t -> t.term()).toArray(String[]::new),
 			fragments, true);

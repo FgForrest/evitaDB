@@ -114,12 +114,12 @@ import java.util.Map;
  *
  * ## Multi-valued fields
  *
- * An array value - `String[]` - is indexed as **one text**: every element is analyzed on its own, and the term
- * frequencies and lengths of all of them are summed into one entry per (field, entity), exactly as if the elements
- * had been written one after another. This is how a multi-valued field behaves in Lucene's BM25, and it keeps the
- * length table and the impacts single-valued. Analyzing the elements separately keeps a token from ever spanning two
- * of them. The index stores no positions, so two adjacent elements cannot form a phrase match either; a later
- * position-aware feature would have to leave a gap between them.
+ * Each value of a `String[]`, each text selected by an associated-data expression and each pooled reference
+ * attribute value is analyzed separately: tokens never span two values. For each term, the stored impact is the
+ * best value's BM25 impact, computed with that value's own term frequency and length and the field's length pivot.
+ * Adding an unrelated or long value therefore never weakens a strong match. The length table still stores the
+ * total token-position count and marks presence; impact normalization uses the transient per-value lengths.
+ * Surface pairs remain distinct over all values. No positions are stored, so adjacent values cannot form a phrase.
  *
  * Because the entity has one entry, changing one element is a removal of the whole old array followed by an
  * addition of the whole new one - the same update protocol as for a single value.
@@ -887,14 +887,13 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			() -> "Entity " + primaryKey + " already has a value of fulltext field " + field.key() + " indexed; " +
 				"remove it before indexing another."
 		);
-		final AnalyzedValue analyzed = analyze(analyzer, values);
+		final AnalyzedValue analyzed = analyze(analyzer, field.lengthPivot(), true, values);
 		if (analyzed.length() == 0) {
 			return;
 		}
 		markWritten();
-		final double pivot = field.lengthPivot();
-		for (final Map.Entry<String, int[]> entry : analyzed.termFrequencies().entrySet()) {
-			final int impact = computeImpact(entry.getValue()[0], analyzed.length(), pivot);
+		for (final Map.Entry<String, int[]> entry : analyzed.termImpacts().entrySet()) {
+			final int impact = entry.getValue()[0];
 			this.dictionary.addRecord(FulltextTermKeys.encode(fieldId, entry.getKey()), primaryKey, (byte) impact);
 		}
 		updateSurfaceForms(field.wordPhaseId(), analyzed.surfacePairs(), 1);
@@ -915,14 +914,14 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		if (fieldAt(fieldId).lengths().getEncoded(primaryKey) == 0) {
 			return;
 		}
-		final AnalyzedValue analyzed = analyze(analyzer, values);
+		final AnalyzedValue analyzed = analyze(analyzer, fieldAt(fieldId).lengthPivot(), false, values);
 		if (analyzed.length() == 0) {
 			// the mirror of addValue: a value without tokens was indexed as nothing, so there is nothing to remove -
 			// and touching the length table here would erase the length of whatever the entity really has indexed
 			return;
 		}
 		markWritten();
-		for (final String term : analyzed.termFrequencies().keySet()) {
+		for (final String term : analyzed.termImpacts().keySet()) {
 			this.dictionary.removeRecord(FulltextTermKeys.encode(fieldId, term), primaryKey);
 		}
 		updateSurfaceForms(fieldAt(fieldId).wordPhaseId(), analyzed.surfacePairs(), -1);
@@ -1386,29 +1385,38 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 
 	/**
 	 * Analyzes the elements of a value through the field's compiled index chain into its distinct terms with their
-	 * frequencies and its length, summed over the elements - one element for a single value.
+	 * best per-value impacts and total length - one element for a single value.
 	 *
 	 * The length counts token **positions**: a term arriving at position increment `0` is a variant of the previous
 	 * position, not a further token of the text, and a stop word removed by the chain leaves a gap but is not a token
 	 * either. Each element is analyzed on its own, so no token spans two of them.
 	 *
-	 * The term frequencies count every term the chain emits, stacked variants at increment `0` included, so a term's
-	 * frequency may exceed the length. Surface pairs are distinct over the entire value. A passive capture in the
-	 * full index chain pairs each normalized pre-stem input with its outputs, including shared positions. Only index
-	 * operations contribute; query-only synonyms and normalization never determine persisted keys. Display is the
-	 * original NFC offset slice lowercased with `Locale.ROOT`, with NUL dropped and all other characters retained.
+	 * Per-value term frequencies count every emitted term, stacked variants included. Each term keeps the maximum
+	 * per-value impact, using that value's frequency and length. Surface pairs are distinct over the entire value.
+	 * A passive capture in the full index chain pairs each normalized pre-stem input with its outputs, including
+	 * shared positions. Only index operations contribute; query-only synonyms and normalization never determine
+	 * persisted keys. Display is the original NFC offset slice lowercased with `Locale.ROOT`, with NUL dropped and
+	 * all other characters retained.
 	 *
 	 * @param analyzer the compiled index chain of the field
+	 * @param pivot the field length pivot used for each value
+	 * @param calculateImpacts whether to compute ranking impacts; false collects only terms for removal
 	 * @param values the elements to analyze
 	 * @return the analysis
 	 */
 	@Nonnull
-	private AnalyzedValue analyze(@Nonnull CompiledFulltextAnalyzer analyzer, @Nonnull String... values) {
-		final Map<String, int[]> termFrequencies = CollectionUtils.createHashMap(16);
+	private AnalyzedValue analyze(
+		@Nonnull CompiledFulltextAnalyzer analyzer, double pivot, boolean calculateImpacts, @Nonnull String... values
+	) {
+		final Map<String, int[]> termImpacts = CollectionUtils.createHashMap(16);
 		final Map<SurfacePair, String> distinctPairs = CollectionUtils.createLinkedHashMap(16);
 		final SurfacePair lookup = new SurfacePair("", "");
+		int totalLength = 0;
+		final Map<String, int[]> termFrequencies = CollectionUtils.createHashMap(16);
 		final int[] length = new int[1];
 		for (final String value : values) {
+			termFrequencies.clear();
+			length[0] = 0;
 			Assert.isPremiseValid(value != null, "A fulltext value must not contain a null element!");
 			analyzer.indexSurface().analyzeIndexed(value, (term, folded, surface, start, end, increment) -> {
 				if (increment > 0) {
@@ -1425,6 +1433,14 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 					}
 				}
 			});
+			totalLength += length[0];
+			for (final Map.Entry<String, int[]> entry : termFrequencies.entrySet()) {
+				final int[] best = termImpacts.computeIfAbsent(entry.getKey(), ignored -> new int[1]);
+				if (calculateImpacts) {
+					final int impact = computeImpact(entry.getValue()[0], length[0], pivot);
+					best[0] = Math.max(best[0], impact);
+				}
+			}
 		}
 		final Map<String, String> surfacePairs = CollectionUtils.createLinkedHashMap(distinctPairs.size());
 		for (final Map.Entry<SurfacePair, String> entry : distinctPairs.entrySet()) {
@@ -1433,7 +1449,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			final String stem = pair.stem.equals(folded) ? "" : encodeDistinctSurfaceComponent(pair.stem);
 			surfacePairs.put(encodeSurfaceComponent(folded) + '\0' + stem + '\0', entry.getValue());
 		}
-		return new AnalyzedValue(termFrequencies, surfacePairs, length[0]);
+		return new AnalyzedValue(termImpacts, surfacePairs, totalLength);
 	}
 
 	/**
@@ -2109,13 +2125,12 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	/**
 	 * One value after analysis.
 	 *
-	 * @param termFrequencies each distinct term with its frequency in a one-element array, so counting allocates
-	 *                        once per distinct term rather than once per occurrence
+	 * @param termImpacts each distinct term with its best per-value impact in a one-element array
 	 * @param surfacePairs distinct folded/stem pair prefixes with their first accented spelling
 	 * @param length          the value's length in token positions, summed over its elements
 	 */
 	private record AnalyzedValue(
-		@Nonnull Map<String, int[]> termFrequencies, @Nonnull Map<String, String> surfacePairs, int length
+		@Nonnull Map<String, int[]> termImpacts, @Nonnull Map<String, String> surfacePairs, int length
 	) {
 	}
 

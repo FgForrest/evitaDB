@@ -94,6 +94,7 @@ final class FulltextTermExpansion {
 	 * Expands a word into its profile's current field generations.
 	 * @param index the scope's locale dictionary
 	 * @param fieldIds current fields belonging to this profile
+	 * @param weightsByFieldId effective weights indexed by current dictionary field id
 	 * @param variants the word's analyzed alternatives
 	 * @param surfaces query-prepared typed words in the lane normalization space
 	 * @param fragments normalized raw fragments prepared around stop removal
@@ -102,15 +103,16 @@ final class FulltextTermExpansion {
 	 */
 	@Nonnull
 	List<ExpandedTerm> expand(
-		@Nonnull FulltextIndex index, @Nonnull int[] fieldIds, @Nonnull String[] variants,
+		@Nonnull FulltextIndex index, @Nonnull int[] fieldIds, @Nonnull float[] weightsByFieldId,
+		@Nonnull String[] variants,
 		@Nonnull String[] surfaces, @Nonnull String[] fragments, boolean unfinished
 	) {
 		final Map<String, Candidate> exact = CollectionUtils.createLinkedHashMap(variants.length);
 		for (final String variant : variants) {
 			for (final int fieldId : fieldIds) {
-				final ExpandedTerm term = lookUpTerm(index, fieldId, variant);
+				final FieldTerm term = lookUpTerm(index, fieldId, variant);
 				if (term != null) {
-					offer(exact, fieldId, term.term(), term.postings(), term.impacts(), 0,
+					offer(exact, fieldId, variant, term.postings(), term.impacts(), 0,
 						FulltextTermExactness.EXACT, term.postings().size());
 				}
 			}
@@ -133,9 +135,9 @@ final class FulltextTermExpansion {
 		final Map<String, Candidate> typo = collectTypos(
 			index, fieldIds, phases, variants, surfaces, exact, prefix, openEnd, lane);
 		final List<ExpandedTerm> result = new ArrayList<>(viewCount(exact) + viewCount(prefix) + viewCount(typo));
-		append(result, exact);
-		append(result, prefix);
-		append(result, typo);
+		append(result, exact, weightsByFieldId);
+		append(result, prefix, weightsByFieldId);
+		append(result, typo, weightsByFieldId);
 		return result;
 	}
 
@@ -361,7 +363,7 @@ final class FulltextTermExpansion {
 			final Candidate candidate = ordered[i];
 			for (final int fieldId : fieldIds) {
 				if (!candidate.hasField(fieldId)) {
-					final ExpandedTerm found = lookUpTerm(index, fieldId, candidate.term);
+					final FieldTerm found = lookUpTerm(index, fieldId, candidate.term);
 					if (found != null) {
 						offer(union, fieldId, candidate.term, found.postings(), found.impacts(), candidate.distance,
 							candidate.exactness, found.postings().size());
@@ -405,11 +407,11 @@ final class FulltextTermExpansion {
 	 * @return borrowed dictionary views, or null when the term is absent or has no postings
 	 */
 	@Nullable
-	static ExpandedTerm lookUpTerm(@Nonnull FulltextIndex index, int fieldId, @Nonnull String term) {
-		final ExpandedTerm[] found = new ExpandedTerm[1];
+	static FieldTerm lookUpTerm(@Nonnull FulltextIndex index, int fieldId, @Nonnull String term) {
+		final FieldTerm[] found = new FieldTerm[1];
 		index.forEachTerm(fieldId, term, (visited, postings, impacts) -> {
 			if (visited.equals(term) && !postings.isEmpty()) {
-				found[0] = new ExpandedTerm(fieldId, visited, postings, impacts, 0);
+				found[0] = new FieldTerm(fieldId, postings, impacts);
 			}
 			return false;
 		});
@@ -469,12 +471,16 @@ final class FulltextTermExpansion {
 	 * Emits selected borrowed field views with the term's merged match metadata.
 	 * @param result destination in leg order
 	 * @param candidates selected stems
+	 * @param weightsByFieldId effective weights indexed by dictionary field id
 	 */
-	private static void append(@Nonnull List<ExpandedTerm> result, @Nonnull Map<String, Candidate> candidates) {
+	private static void append(
+		@Nonnull List<ExpandedTerm> result, @Nonnull Map<String, Candidate> candidates,
+		@Nonnull float[] weightsByFieldId
+	) {
 		for (final Candidate candidate : candidates.values()) {
 			for (final FieldTerm field : candidate.fields) {
 				result.add(new ExpandedTerm(field.fieldId(), candidate.term, field.postings(), field.impacts(),
-					candidate.distance, candidate.exactness));
+					candidate.distance, candidate.exactness, field.fieldId(), weightsByFieldId[field.fieldId()]));
 			}
 		}
 	}
@@ -600,7 +606,7 @@ final class FulltextTermExpansion {
 	 * @param postings primary keys containing the term
 	 * @param impacts aligned impact bytes
 	 */
-	private record FieldTerm(int fieldId, @Nonnull Bitmap postings, @Nonnull ImpactView impacts) { }
+	record FieldTerm(int fieldId, @Nonnull Bitmap postings, @Nonnull ImpactView impacts) { }
 
 	/** A union candidate, bounded by the total number of retained field hits. */
 	private static final class Candidate {

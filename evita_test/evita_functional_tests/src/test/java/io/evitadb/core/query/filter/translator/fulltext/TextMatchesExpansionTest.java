@@ -70,7 +70,8 @@ class TextMatchesExpansionTest {
 	/** Expands one word in the title field under the default policy, its fragment passed as the translator does. */
 	private ExpandedTerm[] expand(String fragment, boolean unfinished, String... variants) {
 		return new FulltextTermExpansion(DEFAULT_PARAMETERS)
-			.expand(this.index, new int[]{0}, variants, new String[0], new String[]{fragment}, unfinished)
+			.expand(this.index, new int[]{0}, unitWeights(this.index), variants, new String[0], new String[]{fragment},
+				unfinished)
 			.toArray(ExpandedTerm[]::new);
 	}
 
@@ -87,6 +88,24 @@ class TextMatchesExpansionTest {
 			assertNull(result.put(term.term(), exactness + ":" + term.distance()), "Duplicate " + term.term());
 		}
 		return result;
+	}
+
+	/** Every expansion leg receives the explicit field weight when the retained term is created. */
+	@Test
+	@DisplayName("should create exact prefix and fuzzy terms with their effective weights")
+	void shouldCreateWeightedTerms() {
+		add(1, "green", "greener", "greet");
+		final List<ExpandedTerm> terms = new FulltextTermExpansion(DEFAULT_PARAMETERS).expand(
+			this.index, new int[]{0}, new float[]{3f}, new String[]{"green"}, new String[0],
+			new String[]{"green"}, true);
+		assertFalse(terms.isEmpty());
+		assertTrue(terms.stream().anyMatch(t -> t.term().equals("green")));
+		assertTrue(terms.stream().anyMatch(t -> t.term().equals("greener")));
+		assertTrue(terms.stream().anyMatch(t -> t.term().equals("greet")));
+		for (final ExpandedTerm term : terms) {
+			assertEquals(0, term.placeId());
+			assertEquals(3f, term.weight());
+		}
 	}
 
 	/** Finished-word mechanics. */
@@ -214,7 +233,8 @@ class TextMatchesExpansionTest {
 			}
 			addWords(TextMatchesExpansionTest.this.index, excluded, 1, "stemexcluded");
 			final List<ExpandedTerm> actual = new FulltextTermExpansion(DEFAULT_PARAMETERS)
-				.expand(TextMatchesExpansionTest.this.index, new int[]{0, secondId}, new String[0],
+				.expand(TextMatchesExpansionTest.this.index, new int[]{0, secondId},
+					unitWeights(TextMatchesExpansionTest.this.index), new String[0],
 					new String[0], new String[]{"stem"}, true);
 			assertEquals(2 * CAP, actual.size());
 			final Set<String> terms = new TreeSet<>();
@@ -259,6 +279,7 @@ class TextMatchesExpansionTest {
 			}
 			final List<ExpandedTerm> actual = new FulltextTermExpansion(DEFAULT_PARAMETERS).expand(
 				TextMatchesExpansionTest.this.index, reverse ? new int[]{secondId, 0} : new int[]{0, secondId},
+					unitWeights(TextMatchesExpansionTest.this.index),
 				reverse ? new String[]{"sbem", "stam"} : new String[]{"stam", "sbem"},
 				new String[0], new String[]{"stam"}, true);
 			assertEquals(2 * CAP, actual.size());
@@ -274,6 +295,7 @@ class TextMatchesExpansionTest {
 			addWideDictionary();
 			final FulltextTermExpansion expansion = new FulltextTermExpansion(DEFAULT_PARAMETERS);
 			final List<ExpandedTerm> actual = expansion.expand(TextMatchesExpansionTest.this.index, new int[]{0},
+				unitWeights(TextMatchesExpansionTest.this.index),
 				new String[]{"zzzz", "aaaa"}, new String[0], new String[]{"aaaa"}, true);
 			final Map<String, String> expected = new TreeMap<>();
 			for (int i = 0; i < CAP - 1; i++) {
@@ -347,7 +369,8 @@ class TextMatchesExpansionTest {
 			}
 			expected.add("stemsingle");
 			final List<ExpandedTerm> actual = new FulltextTermExpansion(DEFAULT_PARAMETERS).expand(
-				TextMatchesExpansionTest.this.index, new int[]{0, secondId}, new String[0], new String[0],
+				TextMatchesExpansionTest.this.index, new int[]{0, secondId},
+					unitWeights(TextMatchesExpansionTest.this.index), new String[0], new String[0],
 					new String[]{"stem"}, true);
 			final Set<String> actualTerms = new TreeSet<>();
 			for (final ExpandedTerm term : actual) {
@@ -374,7 +397,8 @@ class TextMatchesExpansionTest {
 				addWords(TextMatchesExpansionTest.this.index, second, pk, "stemwinner");
 			}
 			final List<ExpandedTerm> actual = new FulltextTermExpansion(DEFAULT_PARAMETERS).expand(
-				TextMatchesExpansionTest.this.index, new int[]{0, secondId}, new String[0], new String[0],
+				TextMatchesExpansionTest.this.index, new int[]{0, secondId},
+					unitWeights(TextMatchesExpansionTest.this.index), new String[0], new String[0],
 					new String[]{"stem"}, true);
 			assertEquals(CAP + 1, actual.size());
 			int fields = 0;
@@ -468,6 +492,7 @@ class TextMatchesExpansionTest {
 		private List<?> configured(String word, boolean prefix, int minimum, int openEnd, boolean swaps) {
 			return new FulltextTermExpansion(new FulltextTypoParameters(4, 8, 1, swaps, true,
 				prefix, minimum, openEnd)).expand(TextMatchesExpansionTest.this.index, new int[]{0},
+					unitWeights(TextMatchesExpansionTest.this.index),
 					new String[]{word}, new String[0], new String[]{word}, true);
 		}
 

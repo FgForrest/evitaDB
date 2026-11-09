@@ -61,6 +61,7 @@ import io.evitadb.core.query.algebra.facet.FacetHavingFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.fulltext.FulltextScoreAccessor;
+import io.evitadb.core.query.algebra.fulltext.FulltextScoreCombiner;
 import io.evitadb.core.query.algebra.fulltext.ReferenceOwnerFulltextScoreAccessor;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
@@ -684,35 +685,51 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * tree, so this is the only way the `relevanceText()` sorter of the plan learns about it - see
 	 * {@link ReferenceOwnerFulltextScoreAccessor}.
 	 *
-	 * The same nested filter reached through the same reference is recorded once, however many times it is
-	 * translated - a per-index evaluation translates it once per reduced index.
+	 * A place is the reference, the mapping kind and the originating constraint compared by structural equality. A
+	 * registration repeating both the place and the very same target filter instance is dropped, so a nested filter
+	 * translated once per reduced index is recorded once. Other target filters of the same place are kept and
+	 * collapse to their best scores when the sources are requested.
 	 *
 	 * @param referenceName name of the reference the owners reach the targets through
-	 * @param accessor      the score source in the owner primary-key space
+	 * @param mappingKind whether the target keys denote referenced entities or groups
+	 * @param origin the originating nested filter constraint, compared by structural equality
+	 * @param accessor the score source in the owner primary-key space
 	 */
 	public void registerReferencedFulltextScores(
 		@Nonnull String referenceName,
+		@Nonnull EntityIndexType mappingKind,
+		@Nonnull FilterConstraint origin,
 		@Nonnull ReferenceOwnerFulltextScoreAccessor accessor
 	) {
-		for (ReferencedFulltextScores registered : this.referencedFulltextScores) {
+		final ReferencedFulltextPlace place = new ReferencedFulltextPlace(referenceName, mappingKind, origin);
+		for (final ReferencedFulltextScores registered : this.referencedFulltextScores) {
 			if (registered.accessor().getTargetFilter() == accessor.getTargetFilter() &&
-				registered.referenceName().equals(referenceName)) {
+				registered.place().equals(place)) {
 				return;
 			}
 		}
-		this.referencedFulltextScores.add(new ReferencedFulltextScores(referenceName, accessor));
+		this.referencedFulltextScores.add(new ReferencedFulltextScores(place, accessor));
 	}
 
 	/**
-	 * Returns the fulltext score sources of the nested queries recorded during this visitor's translation pass.
+	 * Returns one source per reference name, mapping kind (entity or group) and originating nested constraint
+	 * value. Equal constraints and scope/index copies of that place collapse. Each source already carries
+	 * its own 0.5 reference weight; different places combine in the sorter by best + t × others.
 	 *
 	 * @return the score sources in the owner primary-key space; empty when no nested query searched fulltext
 	 */
 	@Nonnull
 	public List<FulltextScoreAccessor> getReferencedFulltextScores() {
-		final List<FulltextScoreAccessor> result = new ArrayList<>(this.referencedFulltextScores.size());
-		for (ReferencedFulltextScores registered : this.referencedFulltextScores) {
-			result.add(registered.accessor());
+		final Map<ReferencedFulltextPlace, List<FulltextScoreAccessor>> places = CollectionUtils.createLinkedHashMap(
+			this.referencedFulltextScores.size()
+		);
+		for (final ReferencedFulltextScores registered : this.referencedFulltextScores) {
+			places.computeIfAbsent(registered.place(),
+				ignored -> new ArrayList<>(2)).add(registered.accessor());
+		}
+		final List<FulltextScoreAccessor> result = new ArrayList<>(places.size());
+		for (final List<FulltextScoreAccessor> place : places.values()) {
+			result.add(FulltextScoreCombiner.collapseSources(place.toArray(FulltextScoreAccessor[]::new)));
 		}
 		return result;
 	}
@@ -2240,14 +2257,23 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
-	 * A fulltext score source of a nested query, with the reference it reaches the owners through.
-	 *
+	 * Structural key of one nested reference place, independent of target scope and target-formula memoization.
 	 * @param referenceName name of the reference
-	 * @param accessor      the score source in the owner primary-key space
+	 * @param mappingKind entity or group owner mapping
+	 * @param origin originating nested filter constraint, compared by structural equality
+	 */
+	private record ReferencedFulltextPlace(
+		@Nonnull String referenceName, @Nonnull EntityIndexType mappingKind, @Nonnull FilterConstraint origin
+	) {
+	}
+
+	/**
+	 * A fulltext score source of one nested reference place in one target scope.
+	 * @param place reference name, mapping kind and originating constraint value
+	 * @param accessor score source in the owner primary-key space
 	 */
 	private record ReferencedFulltextScores(
-		@Nonnull String referenceName,
-		@Nonnull ReferenceOwnerFulltextScoreAccessor accessor
+		@Nonnull ReferencedFulltextPlace place, @Nonnull ReferenceOwnerFulltextScoreAccessor accessor
 	) {
 	}
 

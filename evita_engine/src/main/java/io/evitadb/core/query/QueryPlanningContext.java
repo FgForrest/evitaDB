@@ -69,6 +69,8 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -93,13 +95,15 @@ import io.evitadb.core.session.EvitaSession;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.*;
-import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.analysis.AnalysisStepRegistry;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.facet.FacetIndex;
+import io.evitadb.index.fulltext.FulltextFieldKey;
+import io.evitadb.index.fulltext.FulltextScoringPolicy;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.fulltext.typo.FulltextTypoParameters;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
@@ -413,6 +417,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * resolution and never shared with another context, so it never outlives the index snapshots this context reads.
 	 */
 	@Nullable private PartitionKeyMemo partitionKeyMemo;
+	/** Resolved rank-time policies per processing entity type, shared by its textMatches sources and segments. */
+	@Nullable private Map<String, FulltextScoringPolicy> fulltextScoringPolicies;
 
 
 	/**
@@ -1765,6 +1771,56 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	@Nonnull
 	public AnalysisStepRegistry getAnalysisStepRegistry() {
 		return this.catalog.getAnalysisStepRegistry();
+	}
+
+	/**
+	 * Resolves schema defaults for the queried entity type before empty-index shortcuts.
+	 * @return effective policy of this context's entity type; its weights and coefficient are immutable, its caches
+	 *         belong to this query
+	 */
+	@Nonnull
+	public FulltextScoringPolicy getFulltextScoringPolicy() {
+		return getFulltextScoringPolicy(getSchema());
+	}
+
+	/**
+	 * Resolves defaults once per processing entity type. Hierarchy filters can translate another collection with
+	 * the owner's planning context; their fields and weights belong to that processing schema.
+	 * @param schema schema currently being translated
+	 * @return effective policy in the processing entity type's place namespace; its weights and coefficient are
+	 *         immutable, its caches belong to this query
+	 */
+	@Nonnull
+	public FulltextScoringPolicy getFulltextScoringPolicy(@Nonnull EntitySchemaContract schema) {
+		if (this.fulltextScoringPolicies == null) {
+			this.fulltextScoringPolicies = CollectionUtils.createHashMap(2);
+		}
+		final FulltextScoringPolicy existing = this.fulltextScoringPolicies.get(schema.getName());
+		if (existing != null) {
+			return existing;
+		}
+		final Map<FulltextFieldKey, Float> weights = CollectionUtils.createHashMap(16);
+		for (final AttributeSchemaContract attribute : schema.getAttributes().values()) {
+			if (attribute.isSearchableInAnyScope()) {
+				weights.put(FulltextFieldKey.attribute(attribute.getName()), attribute.getSearchWeight());
+			}
+		}
+		for (final AssociatedDataSchemaContract data : schema.getAssociatedData().values()) {
+			if (data.isSearchableInAnyScope()) {
+				weights.put(FulltextFieldKey.associatedData(data.getName()), data.getSearchWeight());
+			}
+		}
+		for (final ReferenceSchemaContract reference : schema.getReferences().values()) {
+			for (final AttributeSchemaContract attribute : reference.getAttributes().values()) {
+				if (attribute.isSearchableInAnyScope()) {
+					weights.put(FulltextFieldKey.referenceAttribute(reference.getName(), attribute.getName()),
+						attribute.getSearchWeight());
+				}
+			}
+		}
+		final FulltextScoringPolicy policy = new FulltextScoringPolicy(weights);
+		this.fulltextScoringPolicies.put(schema.getName(), policy);
+		return policy;
 	}
 
 	/**
