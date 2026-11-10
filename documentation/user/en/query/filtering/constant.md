@@ -108,10 +108,14 @@ will only get entities from the archive scope. You can also mix entities from bo
 `scope(LIVE, ARCHIVE)`, and in such a case the [`referenceHaving`](../filtering/references.md#reference-having)
 may also match entities from different scopes than the one being queried.
 
-The constraint selects the scopes of the whole filter, or of the entity level of an `entityHaving` / `groupHaving`.
-Place it at the root of the filter or in an `and`; inside `not`, or inside an `or` joining it with other
-constraints, the query is refused. Use `inScope` for a condition that holds in one scope only - see
-[behavioral filtering](behavioral.md#in-scope).
+The constraint selects the scopes of the whole entity level: the filter root or the body of an `entityHaving` /
+`groupHaving`. It may appear once per level, directly at the root or below a chain of `and` containers. An `or`
+with one child is transparent. A second `scope` in the same level is refused even if identical; name all the scopes
+in one constraint, in the order you prefer them. Repeated values inside that one constraint are allowed.
+Inside `not`, an `or` with several children, `inScope`, `userFilter` or any other container outside this root path,
+`scope` is refused. Keep the scope selection at the root of the same level and use `inScope` for conditions specific
+to one scope. A hierarchy `node` filter and a `segment`'s `entityHaving` validate their root scope but do not apply
+it. See [behavioral filtering](behavioral.md#in-scope) for the level boundaries, advice and exceptions.
 
 The hierarchy filters [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) and
 [`hierarchyWithinRoot`](../filtering/hierarchy.md#hierarchy-within-root) read the hierarchy tree of every queried

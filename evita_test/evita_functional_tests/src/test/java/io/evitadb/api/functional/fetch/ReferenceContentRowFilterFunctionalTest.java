@@ -950,6 +950,29 @@ class ReferenceContentRowFilterFunctionalTest {
 			);
 		}
 
+		/** Root conjunctions preserve both scope selection and row predicates. */
+		@Test
+		@DisplayName("accept a scope and a real row predicate in a root and")
+		@UseDataSet(DATA_SET)
+		void shouldAcceptScopeWhenInRootConjunction(@Nonnull Evita evita) {
+			// brand 2 of owner 1 holds x 7: the scope alone fetches it, only a retained row predicate drops it
+			assertTrue(
+				queryRows(evita, LIVE, null, REF_BRANDS, referenceContent(REF_BRANDS, filterBy(scope(Scope.LIVE))), 1)
+					.get(1).contains("2")
+			);
+
+			for (final FilterBy filter : List.of(
+				filterBy(scope(Scope.LIVE), attributeEquals(ATTR_X, 5)),
+				filterBy(and(scope(Scope.LIVE), attributeEquals(ATTR_X, 5)))
+			)) {
+				assertEquals(
+					rows(1, List.of("1"), 2, List.of("1")),
+					queryRows(evita, LIVE, null, REF_BRANDS, referenceContent(REF_BRANDS, filter), 1, 2),
+					filter::toString
+				);
+			}
+		}
+
 		@Test
 		@DisplayName("each owner reads the attribute by the declaration of its own scope")
 		@UseDataSet(DATA_SET)
@@ -1142,7 +1165,7 @@ class ReferenceContentRowFilterFunctionalTest {
 		void shouldRefuseScopeBelowRoot(Evita evita) {
 			assertRefusedAtPlanning(
 				evita, REF_BRANDS, filterBy(inScope(Scope.LIVE, scope(Scope.LIVE))),
-				EvitaInvalidUsageException.class, "scope", REF_BRANDS
+				EvitaInvalidUsageException.class, "Constraint `scope(LIVE)` cannot be placed in `inScope`"
 			);
 			// a negated scope is refused by the check of the whole query, before the filter is compiled
 			assertRefusedAtPlanning(
@@ -1232,7 +1255,10 @@ class ReferenceContentRowFilterFunctionalTest {
 			assertRefusedAtFetch(
 				evita, 1, filterBy(not(scope(Scope.LIVE))), "Constraint `scope(LIVE)` cannot be negated in `not`"
 			);
-			assertRefusedAtFetch(evita, 1, filterBy(inScope(Scope.LIVE, scope(Scope.LIVE))), "scope", REF_BRANDS);
+			assertRefusedAtFetch(
+				evita, 1, filterBy(inScope(Scope.LIVE, scope(Scope.LIVE))),
+				"Constraint `scope(LIVE)` cannot be placed in `inScope`"
+			);
 		}
 
 		@Test

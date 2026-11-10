@@ -46,6 +46,7 @@ import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -69,6 +70,205 @@ import static io.evitadb.test.TestTags.QUERY;
 class QueryUtilsTest {
 	/** An `inScope` of the live scope, which a query requesting the archived scope alone refuses. */
 	private static final FilterConstraint LIVE_X = inScope(Scope.LIVE, attributeEquals("x", 1));
+
+	/**
+	 * Checks the allowed root path and uniqueness independently of scope lookup.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Scope placement and uniqueness")
+	class ScopePlacement {
+		/** The number of filter roots {@link #scopeInEveryFilterRoot(int)} places a scope in. */
+		private static final int FILTER_ROOTS = 6;
+
+		/** Every non-conjunctive wrapper retains its identity through conjunctions, and the nearest one is named. */
+		@Test
+		@DisplayName("Refuse scope inside inScope and userFilter, naming the nearest of them")
+		void shouldRefuseScopeWhenInsideForbiddenContainer() {
+			final List<Map.Entry<FilterConstraint, String>> refusals = List.of(
+				Map.entry(inScope(Scope.LIVE, scope(Scope.LIVE)), "inScope"),
+				Map.entry(inScope(Scope.LIVE, and(and(scope(Scope.LIVE), attributeEquals("x", 1)))), "inScope"),
+				Map.entry(and(inScope(Scope.LIVE, scope(Scope.LIVE))), "inScope"),
+				Map.entry(userFilter(scope(Scope.LIVE)), "userFilter"),
+				Map.entry(userFilter(and(scope(Scope.LIVE), attributeEquals("x", 1))), "userFilter"),
+				Map.entry(inScope(Scope.LIVE, userFilter(scope(Scope.LIVE))), "userFilter"),
+				Map.entry(userFilter(inScope(Scope.LIVE, scope(Scope.LIVE))), "inScope")
+			);
+
+			for (final Map.Entry<FilterConstraint, String> refusal : refusals) {
+				assertPlacement(query(collection("a"), filterBy(refusal.getKey())), refusal.getValue());
+			}
+		}
+
+		/** Each filter root starts an entity level of its own, so one scope per root is valid. */
+		@Test
+		@DisplayName("Accept a scope in every filter root and refuse a second one in any of them")
+		void shouldAcceptScopeWhenEachFilterRootHasOwnScope() {
+			assertDoesNotThrow(() -> QueryUtils.assertScopePlacementValid(scopeInEveryFilterRoot(-1)));
+
+			for (int repeatedRoot = 0; repeatedRoot < FILTER_ROOTS; repeatedRoot++) {
+				final Query query = scopeInEveryFilterRoot(repeatedRoot);
+				assertEquals(
+					"Constraint `scope(ARCHIVED)` repeats the scope selection of `scope(LIVE)` in the same entity " +
+						"level - name all the scopes, in the order you prefer them, in one `scope(...)`.",
+					assertThrowsExactly(EvitaInvalidUsageException.class,
+						() -> QueryUtils.assertScopePlacementValid(query), query::toString
+					).getMessage()
+				);
+			}
+		}
+
+		/** Every scope-applying level permits an arbitrary root conjunction path. */
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("io.evitadb.api.query.QueryUtilsTest#allowedScopeApplyingLevels")
+		@DisplayName("Accept conjunction chains at every scope-applying level")
+		void shouldAcceptScopeWhenOnRootConjunctionPath(
+			@Nonnull String description, @Nonnull Function<FilterConstraint, FilterConstraint> level
+		) {
+			final FilterConstraint filter = level.apply(or(and(and(scope(Scope.ARCHIVED), attributeEquals("x", 1)))));
+			for (final Query query : List.of(
+				query(collection("a"), filterBy(filter)),
+				query(collection("a"), orderBy(segments(segment(
+					entityHaving(filter), orderBy(attributeNatural("x"))
+				)))),
+				query(collection("a"), require(entityFetch(referenceContent("r", filterBy(filter)))))
+			)) {
+				assertDoesNotThrow(() -> QueryUtils.assertScopePlacementValid(query), description);
+			}
+		}
+
+		/** Inert scopes are refused even without a logical wrapper in an order filter. */
+		@Test
+		@DisplayName("Refuse an inert scope in the order section without not or or")
+		void shouldRefuseScopeWhenInertInOrderSection() {
+			final Query query = query(collection("a"), orderBy(segments(segment(
+				entityHaving(referenceHaving("r", scope(Scope.LIVE))), orderBy(attributeNatural("x"))
+			))));
+			assertEquals(
+				"Constraint `scope(LIVE)` has no effect in `referenceHaving` - it selects scopes only in the root " +
+					"of a filter and in `entityHaving` or `groupHaving`, so it must be placed there or removed.",
+				assertThrowsExactly(
+					EvitaInvalidUsageException.class, () -> QueryUtils.assertScopePlacementValid(query)
+				).getMessage()
+			);
+		}
+
+		/** Separate levels reset both the forbidden path and sibling aggregation. */
+		@Test
+		@DisplayName("Accept independent levels and repeated values in one scope")
+		void shouldAcceptScopeWhenLevelsAreIndependent() {
+			for (final FilterConstraint filter : List.of(
+				inScope(Scope.LIVE, referenceHaving("r", entityHaving(scope(Scope.ARCHIVED)))),
+				and(scope(Scope.LIVE), entityHaving(scope(Scope.ARCHIVED))),
+				and(entityHaving(scope(Scope.LIVE)), entityHaving(scope(Scope.ARCHIVED))),
+				and(referenceHaving("r", entityHaving(scope(Scope.LIVE))),
+					referenceHaving("s", entityHaving(scope(Scope.ARCHIVED)))),
+				scope(Scope.LIVE, Scope.ARCHIVED, Scope.LIVE)
+			)) {
+				assertDoesNotThrow(() -> QueryUtils.assertScopePlacementValid(
+					query(collection("a"), filterBy(filter))
+				), filter::toString);
+			}
+		}
+
+		/** The first selection of a level must be unambiguous, even for equal constraints. */
+		@Test
+		@DisplayName("Refuse two scope constraints in one level including identical selections")
+		void shouldRefuseScopeWhenRepeatedInSameLevel() {
+			for (final Scope second : Scope.values()) {
+				for (final FilterConstraint filter : List.of(
+					and(scope(Scope.LIVE), scope(second)),
+					and(scope(Scope.LIVE), and(and(scope(second)))),
+					entityHaving(scope(Scope.LIVE), scope(second)),
+					groupHaving(and(scope(Scope.LIVE), scope(second)))
+				)) {
+					for (final Query query : List.of(
+						query(collection("a"), filterBy(filter)),
+						query(collection("a"), require(entityFetch(referenceContent("r", filterBy(filter))))),
+						query(collection("a"), orderBy(segments(segment(
+							entityHaving(filter), orderBy(attributeNatural("x"))
+						))))
+					)) {
+						assertEquals(
+							"Constraint `scope(" + second + ")` repeats the scope selection of `scope(LIVE)` in the " +
+								"same entity level - name all the scopes, in the order you prefer them, " +
+								"in one `scope(...)`.",
+							assertThrowsExactly(EvitaInvalidUsageException.class,
+								() -> QueryUtils.assertScopePlacementValid(query), query::toString
+							).getMessage()
+						);
+					}
+				}
+			}
+		}
+
+		/** Placement wins even over a duplicate in an earlier subtree or section. */
+		@Test
+		@DisplayName("Report placement before duplicates throughout the request")
+		void shouldPreferPlacementWhenDuplicateOccursEarlier() {
+			final Query negated = query(collection("a"), filterBy(
+				scope(Scope.LIVE), scope(Scope.ARCHIVED), not(scope(Scope.LIVE))
+			));
+			assertEquals(
+				"Constraint `scope(LIVE)` cannot be negated in `not` - it selects the scopes to search in, it " +
+					"does not filter entities. Name the scopes you want in `scope(...)` instead.",
+				assertThrowsExactly(EvitaInvalidUsageException.class,
+					() -> QueryUtils.assertScopePlacementValid(negated)).getMessage()
+			);
+			assertPlacement(query(collection("a"), filterBy(
+				and(scope(Scope.LIVE), scope(Scope.ARCHIVED)), userFilter(scope(Scope.LIVE))
+			)), "userFilter");
+			assertPlacement(query(collection("a"), filterBy(scope(Scope.LIVE), scope(Scope.ARCHIVED)),
+				require(entityFetch(referenceContent("r", filterBy(userFilter(scope(Scope.LIVE))))))
+			), "userFilter");
+		}
+
+		/** Pins the complete placement diagnostic and its extra inScope advice. */
+		private void assertPlacement(@Nonnull Query query, @Nonnull String container) {
+			assertEquals(
+				"Constraint `scope(LIVE)` cannot be placed in `" + container + "` - it selects the scopes its " +
+					"whole entity level is searched in, so it may stand only at the root of the filter of that " +
+					"level or in `and`." + (container.equals("inScope") ?
+					" Name the scopes in a `scope(...)` at the root of that level and keep only the conditions " +
+						"in `inScope(...)`." : ""),
+				assertThrowsExactly(EvitaInvalidUsageException.class,
+					() -> QueryUtils.assertScopePlacementValid(query), query::toString).getMessage()
+			);
+		}
+
+		/**
+		 * Builds a query with `scope(LIVE)` in each of its filter roots: the filter section, the `entityHaving` of an
+		 * order segment, the filters of two fetched references and both filters of a facet summary.
+		 *
+		 * @param repeatedRoot the index of the root that also holds `scope(ARCHIVED)`, -1 for none
+		 * @return the query
+		 */
+		@Nonnull
+		private Query scopeInEveryFilterRoot(int repeatedRoot) {
+			final FilterConstraint[] roots = new FilterConstraint[FILTER_ROOTS];
+			for (int i = 0; i < roots.length; i++) {
+				roots[i] = i == repeatedRoot ? and(scope(Scope.LIVE), scope(Scope.ARCHIVED)) : scope(Scope.LIVE);
+			}
+			return query(
+				collection("a"),
+				filterBy(roots[0]),
+				orderBy(segments(segment(entityHaving(roots[1]), orderBy(attributeNatural("x"))))),
+				require(
+					entityFetch(referenceContent("r", filterBy(roots[2])), referenceContent("s", filterBy(roots[3]))),
+					facetSummaryOfReference(
+						"t", FacetStatisticsDepth.COUNTS, filterBy(roots[4]), filterGroupBy(roots[5])
+					)
+				)
+			);
+		}
+	}
+
+	/** Supplies scope-applying levels whose root path is conjunctive. */
+	@Nonnull
+	static Stream<Arguments> allowedScopeApplyingLevels() {
+		return scopeApplyingLevels().filter(arguments -> !arguments.get()[0].equals("or below the root"));
+	}
 
 	/** Admission follows the scope of each entity level, independently of reference data. */
 	@Nested
@@ -514,7 +714,7 @@ class QueryUtilsTest {
 				not(hierarchyWithin("r", referenceHaving("s", entityHaving(scope(Scope.ARCHIVED)))))
 			)) {
 				assertDoesNotThrow(
-					() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query(collection("a"), filterBy(filter))),
+					() -> QueryUtils.assertScopePlacementValid(query(collection("a"), filterBy(filter))),
 					filter::toString
 				);
 			}
@@ -524,17 +724,17 @@ class QueryUtilsTest {
 		@Test
 		@DisplayName("Accept a scope beside not and a not without a scope")
 		void shouldAcceptScopeWhenBesideNegation() {
-			assertDoesNotThrow(() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query(
+			assertDoesNotThrow(() -> QueryUtils.assertScopePlacementValid(query(
 				collection("a"), filterBy(scope(Scope.ARCHIVED), not(attributeEquals("y", 1)))
 			)));
-			assertDoesNotThrow(() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query(
+			assertDoesNotThrow(() -> QueryUtils.assertScopePlacementValid(query(
 				collection("a"),
 				orderBy(segments(segment(
 					entityHaving(and(scope(Scope.ARCHIVED), not(attributeEquals("y", 1)))),
 					orderBy(attributeNatural("y"))
 				)))
 			)));
-			assertDoesNotThrow(() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query(collection("a"))));
+			assertDoesNotThrow(() -> QueryUtils.assertScopePlacementValid(query(collection("a"))));
 		}
 
 		/** The lookup of the scope of the query fails on two scopes, which the check needs no lookup to refuse. */
@@ -583,7 +783,7 @@ class QueryUtilsTest {
 			)) {
 				final EvitaInvalidUsageException error = assertThrowsExactly(
 					EvitaInvalidUsageException.class,
-					() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query),
+					() -> QueryUtils.assertScopePlacementValid(query),
 					query::toString
 				);
 				assertEquals(inert, error.getMessage());
@@ -646,7 +846,7 @@ class QueryUtilsTest {
 		private void assertNegated(@Nonnull Query query, @Nonnull EntityScope negatedScope) {
 			final EvitaInvalidUsageException error = assertThrowsExactly(
 				EvitaInvalidUsageException.class,
-				() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query),
+				() -> QueryUtils.assertScopePlacementValid(query),
 				query::toString
 			);
 			assertEquals(
@@ -707,17 +907,17 @@ class QueryUtilsTest {
 		@Test
 		@DisplayName("Accept a scope beside or and an or without a scope")
 		void shouldAcceptScopeWhenBesideDisjunction() {
-			assertDoesNotThrow(() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query(
+			assertDoesNotThrow(() -> QueryUtils.assertScopePlacementValid(query(
 				collection("a"), filterBy(scope(Scope.ARCHIVED), or(attributeEquals("y", 1), attributeEquals("y", 2)))
 			)));
-			assertDoesNotThrow(() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query(
+			assertDoesNotThrow(() -> QueryUtils.assertScopePlacementValid(query(
 				collection("a"),
 				orderBy(segments(segment(
 					entityHaving(and(scope(Scope.ARCHIVED), or(attributeEquals("y", 1), attributeEquals("y", 2)))),
 					orderBy(attributeNatural("y"))
 				)))
 			)));
-			assertDoesNotThrow(() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query(collection("a"))));
+			assertDoesNotThrow(() -> QueryUtils.assertScopePlacementValid(query(collection("a"))));
 			for (final FilterConstraint filter : List.of(
 				scope(Scope.ARCHIVED),
 				and(and(scope(Scope.ARCHIVED), attributeEquals("y", 1))),
@@ -793,7 +993,7 @@ class QueryUtilsTest {
 			)) {
 				final EvitaInvalidUsageException error = assertThrowsExactly(
 					EvitaInvalidUsageException.class,
-					() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query),
+					() -> QueryUtils.assertScopePlacementValid(query),
 					query::toString
 				);
 				assertEquals(inert, error.getMessage());
@@ -860,7 +1060,7 @@ class QueryUtilsTest {
 		/** Asserts that the check lets the filter through, naming the filter when it does not. */
 		private void assertAccepted(@Nonnull FilterConstraint filter) {
 			assertDoesNotThrow(
-				() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query(collection("a"), filterBy(filter))),
+				() -> QueryUtils.assertScopePlacementValid(query(collection("a"), filterBy(filter))),
 				filter::toString
 			);
 		}
@@ -869,7 +1069,7 @@ class QueryUtilsTest {
 		private void assertDisjoined(@Nonnull Query query, @Nonnull EntityScope disjoinedScope) {
 			final EvitaInvalidUsageException error = assertThrowsExactly(
 				EvitaInvalidUsageException.class,
-				() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query),
+				() -> QueryUtils.assertScopePlacementValid(query),
 				query::toString
 			);
 			assertEquals(
@@ -911,7 +1111,7 @@ class QueryUtilsTest {
 		private void assertRefusedAsNegated(@Nonnull FilterConstraint filter) {
 			final EvitaInvalidUsageException error = assertThrowsExactly(
 				EvitaInvalidUsageException.class,
-				() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query(collection("a"), filterBy(filter))),
+				() -> QueryUtils.assertScopePlacementValid(query(collection("a"), filterBy(filter))),
 				filter::toString
 			);
 			assertEquals(
