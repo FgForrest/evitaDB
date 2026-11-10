@@ -27,7 +27,7 @@ Module `evita_test/evita_performance_tests` (built only under the `full` Maven p
 | `ClickQueryEmbedder` | importer: the production search and click logs → embedded query vectors and clicks |
 | `ClickRecallScenario` | results doc measurements 5 and 7: every code and strategy on production queries; also the shared evaluator and walks |
 | `GraphSeamScenarios` | results doc measurements 8–10: our searcher, the graph family, the graph file |
-| `FilteredMatrixScenario` | results doc measurement 6: the filtered matrix |
+| `FilteredMatrixScenario` | results doc measurement 6: the filtered matrix; the code scan over OSQ codes (`code-scan`) |
 | `ChurnScenario` | results doc measurement 11: the churn protocol; also on the library combination (`churn-combined`) |
 | `GraphSwapScenario` | results doc measurement 12: a graph copied from the live one, changed by a batch and swapped in |
 | `GraphDensityScenarios` | results doc measurements 3 and 6: PQ centering, ACORN over denser Lucene graphs |
@@ -65,7 +65,7 @@ multi-release layer). Name the JDK 21 `java` explicitly; the machine's default m
 - `--add-modules jdk.incubator.vector` is what enables Lucene's SIMD.
 - Every output must show both `PanamaVectorizationProvider` and Lucene's "Java vector incubator API enabled"
   before any number from it is used.
-- `churn` ran with `-Xmx6g` (4 GB was not tried); everything else ran in 4 GB at 23k × 2,048.
+- `churn` and `code-scan` ran with `-Xmx6g` (4 GB was not tried); everything else ran in 4 GB at 23k × 2,048.
 
 **JMH latency** (results doc measurement 4, spec §4.5). JMH forks its own JVM and takes its flags from the
 benchmark's `@Fork`, so the command line needs none:
@@ -164,6 +164,7 @@ prints the scenario column.
 | the seams: our code file, mapped raw block (§2.6) | `lucene-wired-*`, `jvector-wired` | results doc 2 | A–E | — |
 | latency < 10 ms (§1.2, §4.5) | `ClickSearchLatencyBenchmark` (JMH) | results doc 4 | A–E | **1M**: the criterion is for 1M |
 | filtered ANN per strategy and selectivity (§3.4, §4.4) | `click-recall` (real filter), `filter-matrix` (synthetic) | results doc 5, 6 | real filter A, B, E; synthetic A–E | 1M; the switch point between 50 and 85 % |
+| the scan of the members over OSQ codes, reranked (§3.4) | `code-scan` (OSQ 4-bit `PACKED_NIBBLE` and 1-bit `SINGLE_BIT_QUERY_NIBBLE`) | results doc 6 (follow-up); proposal 6.3 | A, C, D, E | the switch point to the walk under JMH |
 | membership structure at 50 % (§2.5, §4.4) | `filter-matrix` (the `in-walk` row against `in-walk, BOOLEAN_ARRAY / FLAT_BITSET / ROARING`) | results doc 6 | A–E | JMH ranking (harness timings only) |
 | our searcher, interruptibility (§2.7, step 5) | `own-searcher` | results doc 8 | A–E | — |
 | graph family (§3.2, step 4) | `graph-family` | results doc 9 | A–E | **1M** decides the hierarchy |
@@ -179,7 +180,7 @@ prints the scenario column.
 1. `jvector-mmap` and `lucene-float32` (memory and build time);
 2. `lucene-osq1|4|7` and `own-searcher` (codes);
 3. `ClickSearchLatencyBenchmark` (the 10 ms criterion);
-4. `filter-matrix` (watch the scan cost of the 10 % band, results doc 6);
+4. `filter-matrix` and `code-scan` (the scan cost of the 10–20 % band, results doc 6);
 5. `graph-family` (hierarchy);
 6. `graph-file`;
 7. `churn`.

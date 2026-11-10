@@ -521,7 +521,7 @@ public final class GraphSeamScenarios {
 	 * @throws java.io.UncheckedIOException when the code cannot be read
 	 */
 	@Nonnull
-	private static RandomVectorScorer unchecked(
+	static RandomVectorScorer unchecked(
 		@Nonnull IoFunction<float[], RandomVectorScorer> scorers,
 		@Nonnull float[] query
 	) {

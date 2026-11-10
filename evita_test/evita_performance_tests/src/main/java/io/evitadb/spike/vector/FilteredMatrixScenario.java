@@ -36,6 +36,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.OnHeapHnswGraph;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues.ScalarEncoding;
+import org.roaringbitmap.PeekableIntIterator;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -82,6 +83,8 @@ public final class FilteredMatrixScenario {
 	private static final int SEEDS = 10;
 	/** The most queries a cell runs. */
 	private static final int MAX_QUERIES = 500;
+	/** Selectivities of the code scan, around the band where neither the walk nor the exact scan is fast. */
+	private static final double[] CODE_SCAN_SELECTIVITIES = {0.20, 0.10, 0.05, 0.02, 0.01};
 
 	private FilteredMatrixScenario() {
 		throw new UnsupportedOperationException("Utility class, not to be instantiated.");
@@ -145,6 +148,170 @@ public final class FilteredMatrixScenario {
 				runCell("excluded", selectivity, excluded, queries, exact, configurations);
 			}
 		}
+	}
+
+	/**
+	 * Runs the code scan: the members of the filter scanned over the OSQ codes of our code file, the best
+	 * candidates reranked with the float32 vectors. It is measured against the exact scan of the members, and
+	 * against the walk and the planner of the library combination (jVector graph, OSQ 4-bit codes, our searcher),
+	 * for the random and correlated shapes at the selectivities where the planner hands over to the exact scan.
+	 *
+	 * @param base    mapped corpus vectors
+	 * @param workDir directory holding the click queries and the code files
+	 * @throws IOException when an input cannot be read
+	 */
+	public static void runCodeScan(@Nonnull MappedVectors base, @Nonnull Path workDir) throws IOException {
+		section("Code scan: filter members scored over OSQ codes, the best reranked exactly");
+		final float[][] allQueries = ClickRecallScenario.loadQueries(workDir, base.dimension());
+		final float[][] queries = Arrays.copyOf(allQueries, Math.min(MAX_QUERIES, allQueries.length));
+		final ExactScorer exact = new ExactScorer(base);
+		final int n = base.count();
+		final Corpus corpus = Corpus.load(workDir.resolve(VectorExportExtractor.TEXT_ORDINALS_FILE), base);
+		final PrimaryKeyOrdinals ordinals = PrimaryKeyOrdinals.of(corpus.record(), corpus.recordCount());
+		line("corpus " + n + " vectors / " + corpus.recordCount() + " records, queries " + queries.length
+			+ ", code scan depth " + CANDIDATES + "; filters are bitmaps of primary keys, whole records");
+
+		final IoFunction<float[], RandomVectorScorer> osq4 =
+			SpikeIndexes.luceneOsq(SpikeIndexes.osqCodes(workDir, base, ScalarEncoding.PACKED_NIBBLE));
+		final IoFunction<float[], RandomVectorScorer> osq1 =
+			SpikeIndexes.luceneOsq(SpikeIndexes.osqCodes(workDir, base, ScalarEncoding.SINGLE_BIT_QUERY_NIBBLE));
+		final MappedRavv ravv = new MappedRavv(base);
+		final ImmutableGraphIndex jvectorGraph = SpikeIndexes.jvectorGraph(ravv, SpikeIndexes.DEFAULT_ALPHA, true);
+		final Configuration combined = Configuration.own("jvector + osq 4-bit",
+			GraphView.ofJVector(jvectorGraph, jvectorGraph.getView()), new EvitaGraphSearcher(),
+			q -> NodeScorer.ofLucene(GraphSeamScenarios.unchecked(osq4, q)));
+
+		final int[] shuffled = shuffledOrdinals(n, new Random(42L));
+		final int[][] seedOrders = seedOrders(base, exact, new Random(43L));
+		line("shape | selectivity | members | configuration | strategy | recall@10 1x / 4x | visited | starved | "
+			+ "fallbacks | p50 / p95 ms");
+		for (final double selectivity : CODE_SCAN_SELECTIVITIES) {
+			final int members = Math.max(1, (int) Math.round(selectivity * n));
+			final Filter[] correlated = new Filter[SEEDS];
+			for (int s = 0; s < SEEDS; s++) {
+				correlated[s] = prefix(seedOrders[s], members, ordinals);
+			}
+			for (final Cell cell : new Cell[]{
+				new Cell("random", selectivity, new Filter[]{prefix(shuffled, members, ordinals)}, queries, exact),
+				new Cell("correlated", selectivity, correlated, queries, exact)
+			}) {
+				cell.report("exact", "scan", (q, filter, acceptor, stats) -> exact.exactScan(q, filter, CANDIDATES));
+				cell.report("osq 4-bit", "code scan", (q, filter, acceptor, stats) ->
+					codeScan(osq4.apply(q), filter, CANDIDATES));
+				cell.report("osq 1-bit", "code scan", (q, filter, acceptor, stats) ->
+					codeScan(osq1.apply(q), filter, CANDIDATES));
+				// the 100 best by code reranked here, so the cell's 4x rerank reorders an exact list
+				cell.report("osq 1-bit", "code scan, rerank 10x", (q, filter, acceptor, stats) ->
+					exact.rerank(q, codeScan(osq1.apply(q), filter, CANDIDATES), CANDIDATES));
+				cell.report(combined.label, "in-walk", (q, filter, acceptor, stats) ->
+					combined.walk(q, acceptor, false, stats));
+				cell.report(combined.label, "planner", (q, filter, acceptor, stats) ->
+					combined.planned(q, filter, acceptor, exact, stats));
+			}
+		}
+	}
+
+	/**
+	 * Scores every member of the filter over a code and keeps the best. The bitmap of primary keys is iterated
+	 * and each member's vectors are reached through the ordinal map, as in the exact scan.
+	 *
+	 * @param scorer the query's scorer over the codes
+	 * @param filter the filter whose members are scored
+	 * @param depth  number of ordinals to return
+	 * @return the best `depth` member ordinals by code score, best first
+	 * @throws IOException when the scorer fails
+	 */
+	@Nonnull
+	private static int[] codeScan(@Nonnull RandomVectorScorer scorer, @Nonnull Filter filter, int depth)
+		throws IOException {
+		// a bounded min-heap of the best `depth` ordinals, the worst at the root
+		final int[] heap = new int[depth];
+		final float[] heapScores = new float[depth];
+		int size = 0;
+		final int[] pkStart = filter.ordinals().pkStart();
+		final PeekableIntIterator keys = filter.primaryKeys().getIntIterator();
+		while (keys.hasNext()) {
+			final int pk = keys.next();
+			for (int ord = pkStart[pk]; ord < pkStart[pk + 1]; ord++) {
+				final float score = scorer.score(ord);
+				if (size < depth) {
+					heap[size] = ord;
+					heapScores[size] = score;
+					siftUp(heap, heapScores, size++);
+				} else if (score > heapScores[0]) {
+					heap[0] = ord;
+					heapScores[0] = score;
+					siftDown(heap, heapScores, size);
+				}
+			}
+		}
+		// popping the root repeatedly fills the result from its end, the best last popped
+		final int[] result = new int[size];
+		for (int i = size - 1; i >= 0; i--) {
+			result[i] = heap[0];
+			heap[0] = heap[i];
+			heapScores[0] = heapScores[i];
+			siftDown(heap, heapScores, i);
+		}
+		return result;
+	}
+
+	/**
+	 * Restores the min-heap after an entry was appended.
+	 *
+	 * @param heap   ordinals of the heap
+	 * @param scores their scores
+	 * @param index  position of the appended entry
+	 */
+	private static void siftUp(@Nonnull int[] heap, @Nonnull float[] scores, int index) {
+		int i = index;
+		while (i > 0) {
+			final int parent = (i - 1) >>> 1;
+			if (scores[parent] <= scores[i]) {
+				return;
+			}
+			swap(heap, scores, i, parent);
+			i = parent;
+		}
+	}
+
+	/**
+	 * Restores the min-heap after its root was replaced.
+	 *
+	 * @param heap   ordinals of the heap
+	 * @param scores their scores
+	 * @param size   number of entries in the heap
+	 */
+	private static void siftDown(@Nonnull int[] heap, @Nonnull float[] scores, int size) {
+		int i = 0;
+		while (true) {
+			final int left = 2 * i + 1;
+			if (left >= size) {
+				return;
+			}
+			final int right = left + 1;
+			final int child = right < size && scores[right] < scores[left] ? right : left;
+			if (scores[i] <= scores[child]) {
+				return;
+			}
+			swap(heap, scores, i, child);
+			i = child;
+		}
+	}
+
+	/**
+	 * @param heap   ordinals of the heap
+	 * @param scores their scores
+	 * @param a      position of one entry
+	 * @param b      position of the other entry
+	 */
+	private static void swap(@Nonnull int[] heap, @Nonnull float[] scores, int a, int b) {
+		final int ordinal = heap[a];
+		heap[a] = heap[b];
+		heap[b] = ordinal;
+		final float score = scores[a];
+		scores[a] = scores[b];
+		scores[b] = score;
 	}
 
 	/**

@@ -77,7 +77,8 @@ latency and scan figures are harsher than 1M × 768 would be, because every dist
   `PanamaVectorizationProvider`, Lucene "Java vector incubator API enabled").
 - Heap 4 GB for A and B, 8 GB for C, D and E; `jvector-heap` 4 / 10 / 10 / 12 / 10 GB (A / B / C / D / E), because
   it holds the raw vectors on the heap; `churn` 6 GB for A and B.
-- One measurement at a time, nothing else running. Run between 2026-11-06 and 2026-11-07, follow-ups on 2026-11-09.
+- One measurement at a time, nothing else running. Run between 2026-11-06 and 2026-11-07, follow-ups on 2026-11-09
+  and 2026-11-10.
 - Graph parameters fixed for every corpus (harness doc, part 5): Lucene `M = 16`, beam 100, one thread, seed 42;
   jVector degree 32, beam 100, `alpha = 1.2`, hierarchy on, all cores. Walk depth 100, ten results.
 - Latencies in the harness tables are one-thread timings after one warm-up pass, good to an order of magnitude;
@@ -102,7 +103,10 @@ latency and scan figures are harsher than 1M × 768 would be, because every dist
   because Lucene's graph stays equally sparse (measurement 6). On the large corpora,
   in-walk with a correlated filter of 10 % reaches p95 25–49 ms. The exact scan of the members is cheaper than
   in-walk from 5–10 % down on A–C, from 1–5 % on D and E. The planner's switch at 100 members is far too low:
-  it needs a switch on the member count relative to the corpus.
+  it needs a switch on the member count relative to the corpus. **A scan of the members over the OSQ 1-bit code
+  with a float32 rerank of the best 100** closes the band where neither path was fast: at 5–10 % on C–E it keeps
+  recall@10 ≥ 0.998 at p95 ≤ 7 ms, where the float32 exact scan takes 9–35 ms and the current planner up to 49 ms
+  (measurement 6, follow-up).
 - **Our searcher** returns the same recall as jVector's `GraphSearcher` (within ±0.003) with 5–10 % more visited
   nodes, over jVector's graph and over Lucene's OSQ codes alike; every walk stops when cancelled.
 - **Hierarchy.** No systematic recall difference between the flat graph and the hierarchy at any size up to
@@ -1073,6 +1077,7 @@ ten results), `fN`: N planner fallbacks to the exact scan. Corpus A has 107 quer
 | exact scan of the members faster than Lucene float32 in-walk (p50) from (random / correlated) | 10 % / 10 % | 10 % / 10 % | 5 % / 5 % | 1 % / 5 % | 1 % / 5 % |
 | Lucene float32 in-walk keeps recall@10 ≥ 0.95 at 4× and p95 < 10 ms down to (random / correlated) | 1 % / 5 % | 5 % / 50 % | 10 % / 50 % | 50 % / 50 % | 5 % / 50 % |
 | exact scan of 1 % of the corpus (random), p50 ms | 0.05 | 0.08 | 0.95 | 3.94 | 1.23 |
+| OSQ 1-bit code scan with a 100-candidate rerank keeps recall@10 ≥ 0.998 and p95 < 10 ms up to (random / correlated; measured from 1 to 20 %, follow-up below) | 20 % / 20 % | — | 20 % / 20 % | 20 % / 20 % | 20 % / 20 % |
 
 #### ACORN over denser Lucene graphs (follow-up run, 2026-11-09)
 
@@ -1121,6 +1126,111 @@ rule (`alpha = 1.2`) fills its bound of 32. ACORN therefore does not recover (E'
 % filter `M = 64` is worse still (0.09–0.21): ACORN's exploration constants scale with `M`, and `minToScore` drops to
 zero once 2·M exceeds the inverse selectivity. In-walk gains a little from a larger `M` on B (random 10 %: 0.926 at `M =
 16`, 0.998 at 32).
+
+#### Scan over the codes (follow-up run, 2026-11-10)
+
+**What and why.** On the large corpora, filters of 5–10 % left the planner without a fast path: the float32 exact
+scan of the members took 7–27 ms p50 and in-walk 6–28 ms. This run scans the members over the OSQ codes of our
+code file instead of the float32 vectors and reranks the best candidates with float32: a quarter (4-bit) or a
+thirtieth (1-bit) of the bytes per member. It is measured beside the float32 exact scan and beside the walk and
+the planner of the library combination (jVector graph, our searcher, OSQ 4-bit), for the random and correlated
+shapes at 20, 10, 5, 2 and 1 %. The scenario is `code-scan`.
+
+**Setup.** As in the matrix above: 500 queries per cell (107 on A), filters as bitmaps of primary keys of whole
+records, ten seeds for the correlated shape, harness timing (one timed pass after one untimed), not JMH. The
+code scan scores every member and keeps the best 100 by code. The 1-bit encoding is
+`SINGLE_BIT_QUERY_NIBBLE`. The jVector graph is built with `alpha = 1.2` and the hierarchy, as in the matrix
+above, not with the proposed `alpha = 1.0`. Heap 6 GB. Each cell is *recall@10 at 4× / p95 ms*; the latency
+includes the 40-candidate float32 rerank that the 4× recall describes. The column "rerank 100" reranks the 100
+best by the 1-bit code with float32 before that, which is a 10× oversampling. `fN`: N planner fallbacks to the
+float32 exact scan.
+
+##### Corpus A — 14,837 vectors, 107 queries
+
+| shape | selectivity | members | float32 exact scan | OSQ 4-bit code scan | OSQ 1-bit code scan | OSQ 1-bit code scan, rerank 100 | combination in-walk | combination planner |
+|---|---|---|---|---|---|---|---|---|
+| random | 20 % | 2,977 | 1.000 / 1.77 | 1.000 / 0.55 | 1.000 / 0.23 | 1.000 / 0.30 | 0.997 / 0.87 | 0.997 / 2.75 f18 |
+| random | 10 % | 1,492 | 1.000 / 0.74 | 1.000 / 0.23 | 1.000 / 0.14 | 1.000 / 0.18 | 1.000 / 0.95 | 1.000 / 1.81 f107 |
+| random | 5 % | 743 | 1.000 / 0.31 | 1.000 / 0.14 | 0.999 / 0.12 | 1.000 / 0.16 | 1.000 / 2.21 | 1.000 / 0.50 f107 |
+| random | 2 % | 297 | 1.000 / 0.11 | 1.000 / 0.12 | 1.000 / 0.10 | 1.000 / 0.14 | 1.000 / 3.75 | 1.000 / 0.32 f107 |
+| random | 1 % | 148 | 1.000 / 0.07 | 1.000 / 0.08 | 1.000 / 0.07 | 1.000 / 0.10 | 1.000 / 6.30 | 1.000 / 0.14 f107 |
+| correlated | 20 % | 2,967 | 1.000 / 1.68 | 1.000 / 0.43 | 0.996 / 0.20 | 1.000 / 0.30 | 0.996 / 1.87 | 0.996 / 2.55 f31 |
+| correlated | 10 % | 1,484 | 1.000 / 1.01 | 1.000 / 0.29 | 0.996 / 0.15 | 1.000 / 0.18 | 1.000 / 2.19 | 1.000 / 1.47 f96 |
+| correlated | 5 % | 742 | 1.000 / 0.46 | 1.000 / 0.17 | 0.994 / 0.12 | 1.000 / 0.15 | 1.000 / 3.75 | 1.000 / 0.79 f107 |
+| correlated | 2 % | 297 | 1.000 / 0.24 | 1.000 / 0.12 | 0.997 / 0.10 | 1.000 / 0.13 | 1.000 / 4.90 | 1.000 / 0.31 f107 |
+| correlated | 1 % | 148 | 1.000 / 0.07 | 1.000 / 0.08 | 0.996 / 0.07 | 1.000 / 0.11 | 1.000 / 6.79 | 1.000 / 0.13 f107 |
+
+##### Corpus C — 214,410 vectors
+
+| shape | selectivity | members | float32 exact scan | OSQ 4-bit code scan | OSQ 1-bit code scan | OSQ 1-bit code scan, rerank 100 | combination in-walk | combination planner |
+|---|---|---|---|---|---|---|---|---|
+| random | 20 % | 45,927 | 1.000 / 30.93 | 1.000 / 9.70 | 1.000 / 3.28 | 1.000 / 2.25 | 0.999 / 2.02 | 0.999 / 2.05 |
+| random | 10 % | 23,528 | 1.000 / 24.05 | 1.000 / 6.39 | 1.000 / 2.48 | 1.000 / 1.54 | 1.000 / 5.30 | 1.000 / 4.58 |
+| random | 5 % | 12,149 | 1.000 / 9.76 | 1.000 / 2.90 | 1.000 / 1.14 | 1.000 / 1.52 | 1.000 / 7.66 | 1.000 / 17.67 f364 |
+| random | 2 % | 5,330 | 1.000 / 4.18 | 1.000 / 1.14 | 1.000 / 0.39 | 1.000 / 0.61 | 0.999 / 15.74 | 1.000 / 7.46 f500 |
+| random | 1 % | 3,048 | 1.000 / 2.09 | 1.000 / 0.51 | 0.999 / 0.30 | 1.000 / 0.50 | 0.999 / 34.13 | 1.000 / 4.33 f500 |
+| correlated | 20 % | 43,987 | 1.000 / 29.60 | 1.000 / 8.97 | 0.998 / 2.76 | 1.000 / 3.39 | 0.998 / 6.94 | 0.998 / 6.27 |
+| correlated | 10 % | 22,063 | 1.000 / 22.34 | 1.000 / 12.38 | 0.999 / 3.29 | 1.000 / 2.87 | 0.998 / 12.72 | 0.999 / 49.05 f82 |
+| correlated | 5 % | 11,024 | 1.000 / 9.17 | 1.000 / 3.64 | 0.998 / 1.61 | 1.000 / 2.05 | 0.998 / 29.08 | 1.000 / 15.99 f369 |
+| correlated | 2 % | 4,396 | 1.000 / 3.97 | 1.000 / 1.64 | 0.997 / 0.94 | 1.000 / 0.98 | 0.999 / 57.94 | 1.000 / 6.87 f488 |
+| correlated | 1 % | 2,205 | 1.000 / 2.24 | 1.000 / 0.54 | 0.997 / 0.25 | 1.000 / 0.46 | 0.998 / 78.16 | 1.000 / 3.64 f497 |
+
+##### Corpus D — 416,559 vectors
+
+| shape | selectivity | members | float32 exact scan | OSQ 4-bit code scan | OSQ 1-bit code scan | OSQ 1-bit code scan, rerank 100 | combination in-walk | combination planner |
+|---|---|---|---|---|---|---|---|---|
+| random | 20 % | 84,960 | 1.000 / 63.46 | 1.000 / 18.61 | 0.999 / 6.76 | 1.000 / 8.28 | 0.996 / 3.25 | 0.996 / 3.92 |
+| random | 10 % | 42,602 | 1.000 / 34.56 | 1.000 / 12.58 | 0.999 / 4.93 | 1.000 / 6.99 | 0.997 / 5.53 | 0.997 / 5.67 |
+| random | 5 % | 21,291 | 1.000 / 17.32 | 1.000 / 7.38 | 0.999 / 2.01 | 1.000 / 1.74 | 0.998 / 9.86 | 0.999 / 24.25 f66 |
+| random | 2 % | 8,513 | 1.000 / 7.58 | 1.000 / 1.66 | 1.000 / 0.58 | 1.000 / 0.63 | 0.999 / 19.79 | 1.000 / 13.74 f500 |
+| random | 1 % | 4,258 | 1.000 / 3.54 | 1.000 / 0.54 | 0.999 / 0.37 | 1.000 / 0.44 | 0.999 / 32.14 | 1.000 / 7.52 f500 |
+| correlated | 20 % | 84,240 | 1.000 / 75.16 | 1.000 / 16.85 | 0.998 / 9.38 | 1.000 / 8.15 | 0.991 / 10.58 | 0.991 / 10.84 |
+| correlated | 10 % | 42,285 | 1.000 / 35.15 | 1.000 / 11.65 | 0.995 / 5.14 | 1.000 / 5.22 | 0.993 / 24.79 | 0.994 / 45.23 f71 |
+| correlated | 5 % | 21,194 | 1.000 / 22.51 | 1.000 / 6.13 | 0.997 / 3.72 | 1.000 / 4.15 | 0.995 / 55.58 | 0.999 / 26.10 f338 |
+| correlated | 2 % | 8,437 | 1.000 / 6.88 | 1.000 / 2.56 | 0.994 / 1.25 | 1.000 / 1.49 | 0.996 / 101.39 | 1.000 / 11.78 f469 |
+| correlated | 1 % | 4,197 | 1.000 / 3.49 | 1.000 / 1.11 | 0.992 / 0.84 | 1.000 / 0.64 | 0.997 / 141.53 | 1.000 / 6.46 f496 |
+
+##### Corpus E — 312,787 vectors
+
+| shape | selectivity | members | float32 exact scan | OSQ 4-bit code scan | OSQ 1-bit code scan | OSQ 1-bit code scan, rerank 100 | combination in-walk | combination planner |
+|---|---|---|---|---|---|---|---|---|
+| random | 20 % | 62,869 | 1.000 / 57.36 | 1.000 / 15.27 | 1.000 / 6.57 | 1.000 / 5.82 | 0.994 / 1.36 | 0.994 / 1.34 |
+| random | 10 % | 31,493 | 1.000 / 27.50 | 1.000 / 8.99 | 1.000 / 4.30 | 1.000 / 2.53 | 0.997 / 2.21 | 0.997 / 1.89 |
+| random | 5 % | 15,812 | 1.000 / 13.48 | 1.000 / 2.55 | 0.999 / 1.39 | 1.000 / 1.20 | 0.998 / 4.36 | 0.998 / 5.19 |
+| random | 2 % | 6,364 | 1.000 / 5.04 | 1.000 / 1.10 | 0.999 / 0.48 | 1.000 / 0.60 | 0.998 / 9.51 | 1.000 / 8.76 f500 |
+| random | 1 % | 3,216 | 1.000 / 2.55 | 1.000 / 0.46 | 1.000 / 0.28 | 1.000 / 0.36 | 0.999 / 19.48 | 1.000 / 5.35 f500 |
+| correlated | 20 % | 62,557 | 1.000 / 53.49 | 1.000 / 8.93 | 0.994 / 3.73 | 1.000 / 3.92 | 0.980 / 14.21 | 0.980 / 13.48 |
+| correlated | 10 % | 31,279 | 1.000 / 16.79 | 1.000 / 4.28 | 0.988 / 1.85 | 0.999 / 1.81 | 0.986 / 25.48 | 0.987 / 29.64 f98 |
+| correlated | 5 % | 15,639 | 1.000 / 9.31 | 1.000 / 3.04 | 0.984 / 1.41 | 0.998 / 0.98 | 0.982 / 76.25 | 0.994 / 17.88 f279 |
+| correlated | 2 % | 6,256 | 1.000 / 5.36 | 1.000 / 1.44 | 0.983 / 0.44 | 1.000 / 0.63 | 0.989 / 127.40 | 1.000 / 7.38 f428 |
+| correlated | 1 % | 3,128 | 1.000 / 2.59 | 1.000 / 0.84 | 0.987 / 0.40 | 0.999 / 0.49 | 0.995 / 152.79 | 1.000 / 4.95 f484 |
+
+**Result.**
+
+- **The 1-bit code scan with a 100-candidate rerank closes the band.** At 5–10 % on C–E it keeps recall@10
+  0.998–1.000 at p95 0.98–6.99 ms (correlated 0.98–5.22 ms). The float32 exact scan of the same members takes
+  9.2–35.2 ms p95, and the current planner 16.0–49.1 ms under the correlated filters. The rerank of 100 instead of
+  40 stays within the noise of one timed pass (−1.8 to +2.1 ms at p95), and without it the 1-bit scan still
+  reaches 0.984–1.000 at 4×.
+- **The 4-bit code scan alone falls short at 10 % on the two largest corpora.** It keeps recall 1.000 at 4×, but
+  its p95 at 10 % is 12.4 ms on C (correlated) and 11.7–12.6 ms on D. At 5 % it is under 7.4 ms everywhere. The
+  1-bit scan is 2–5× faster than the 4-bit one: it reads a quarter of the bytes, and Lucene's 1-bit kernel is
+  cheaper per byte.
+- **The 1-bit code scan with the rerank is never slower than the float32 exact scan** beyond a few hundred members
+  (on A at 148–297 members both take 0.07–0.24 ms), and 5–16× faster from about 2,000 members up. The float32
+  exact scan therefore has no band of its own: the code scan replaces it.
+- **The current planner pays twice wherever the walk hits its budget.** It walks until `members + 1` visited
+  nodes and then runs the float32 scan on top, so in the cells with fallbacks (every correlated cell at 5–10 %,
+  random 5 % on C and D) its p95 is 4–27 ms above the scan alone: on C at correlated 10 % 49.1 ms with 82
+  fallbacks, against 22.3 ms. At correlated 10 % it is also slower than the unbudgeted walk (29.6–49.1 against
+  12.7–25.5 ms). Where the walk finishes within budget (random 10 %, random 5 % on E) it beats the scan 2.6–15×.
+  The fallback rule is sound only when the fallback is cheap; below the code-scan threshold the walk should not
+  start at all.
+- **The crossover between the code scan and the walk is about 10–20 %, and depends on the shape.** At 20 % the
+  walk wins at p50 everywhere and at p95 for the random shape (D: 3.25 against 8.28 ms for the code scan). The code
+  scan still wins at p95 for the correlated shape at 20 % on C, D and E (3.39, 8.15 and 3.92 ms against 6.94, 10.58
+  and 14.21 ms), where the walk's tail is long. Its cost grows linearly with the members: 0.04–0.1 ms p50 per
+  1,000 members on these corpora.
 
 ### 7. Relevance against users' clicks
 
@@ -2288,6 +2398,8 @@ is the rerun.
   and the transaction overlay (13) ran after the main run, one at a time, with the same build of the harness plus the
   new scenarios. Their jVector rows carry the usual run-to-run
   variation; the tables of the main run were not rerun.
+- **Follow-up run (2026-11-10)**: the code scan (`code-scan`, measurement 6) on A, C, D and E with `-Xmx6g`, its
+  jVector graph built with `alpha = 1.2` as in the filtered matrix. Corpus B was not run.
 
 - **Corpus D stands in for 1M × 768.** No 1M dataset was available; the spec's latency criterion and the gate are
   judged on D (416,559 × 2,048), which is about the same bytes. See the mini-gate below.
@@ -2353,15 +2465,20 @@ proved to plug in through the scorer seam (measurement 8).
 - **The version:** jVector 4.0.2 (final; OP6-6 is closed), Lucene 10.6.0. jVector's process-wide builder
   configuration is bypassed by its deprecated eight-argument constructor, which fixes every parameter per builder;
   no fork is needed (OP6-15).
-- **The codec:** OSQ 4-bit for a recall margin, or OSQ 1-bit within the 1-bit budget of §1.2. Both pass at 4×
-  with the combination; 1-bit at 0.967 on the hardest corpus.
+- **The codec: OSQ 1-bit, the agreed default.** Both OSQ 1-bit and 4-bit pass at 4× with the combination
+  (1-bit at 0.967, 4-bit at 0.976 on the hardest corpus); 1-bit fits the 1-bit budget of §1.2 and is the code
+  the scan of the members needs (measurement 6, follow-up). OSQ 4-bit stays an option for a larger recall margin,
+  but then a parallel 1-bit code file has to serve the scan of the members.
 - **The graph:** jVector with `alpha = 1.0` unless a later measurement says otherwise, the hierarchy optional.
   Built with `refineFinalGraph = false`: the refinement costs a pass over the whole graph on every `cleanup()`
   and buys no recall here.
 - **The planner's thresholds**, measured:
   - post-filter only above ~85 % (it starves below ~50 %);
   - in-walk in between;
-  - the exact scan of the members from 5–10 % down on corpora up to 214k vectors, from 1–5 % down on 313k–417k.
+  - the exact scan of the members from 5–10 % down on corpora up to 214k vectors, from 1–5 % down on 313k–417k;
+  - the follow-up run replaces that exact scan with a scan over the OSQ 1-bit code and a float32 rerank of the
+    best 100, which is faster at every member count above a few hundred and moves the switch to about 10–20 %
+    of the corpus on every corpus, depending on the filter's shape.
   The switch must depend on the member count relative to the corpus, not on a fixed 100 members.
 - **ACORN is rejected:** Lucene's implementation and our port return the same low recall; the cause is the
   graph's sparsity and the filter's shape, not the wiring (measurement 6).
@@ -2371,10 +2488,10 @@ proved to plug in through the scorer seam (measurement 8).
 
 **Open risks, none blocking.**
 
-- **Correlated filters of 5–10 % on the large corpora.** Recall passes, but neither path is under 10 ms there:
-  the float32 exact scan of the members takes 7–27 ms p50 on C–E and in-walk 6–28 ms. A scan over the 4-bit
-  code with a float32 rerank of the best candidates reads an eighth of the bytes and should close the gap; it is
-  not measured.
+- **Correlated filters of 5–10 % on the large corpora: closed by the follow-up run.** Neither the float32 exact
+  scan of the members (7–27 ms p50) nor in-walk (6–28 ms) was under 10 ms there. A scan of the members over the
+  OSQ 1-bit code with a float32 rerank of the best 100 keeps recall@10 0.998–1.000 at p95 0.98–6.99 ms on C–E
+  (measurement 6, follow-up). The 4-bit code alone is not enough at 10 % on C and D (p95 11.7–12.6 ms).
 - **Deletes are expensive to repair.** A fixed pass over the graph (2.5–7.9 s on C–E) plus 2–4 ms per deleted
   node. Deletes therefore wait in the liveness bitmap and are repaired in batches, rarely.
 - **The step that the spec calls path B** (step 8) is answered in the harness, not in the engine: the graph,

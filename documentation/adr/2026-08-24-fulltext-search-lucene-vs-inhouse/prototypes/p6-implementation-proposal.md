@@ -11,7 +11,7 @@ every number cites the measurement that produced it.
 - [`p6-measurement-harness.md`](p6-measurement-harness.md): how to re-run any measurement. The prototype code
   is in `evita_test/evita_performance_tests`, package `io.evitadb.spike.vector`; class names below refer to it.
 
-Versions: **jVector 4.0.2, Lucene 10.6.0, JDK 21** (the floor). Measured 2026-11-04 to 2026-11-09.
+Versions: **jVector 4.0.2, Lucene 10.6.0, JDK 21** (the floor). Measured 2026-11-04 to 2026-11-10.
 
 ---
 
@@ -22,8 +22,9 @@ Versions: **jVector 4.0.2, Lucene 10.6.0, JDK 21** (the floor). Measured 2026-11
 - **jVector supplies the graph** and its maintenance. It is the only library whose graph takes concurrent inserts
   and deletes under readers and keeps its ordinals (results 11).
 - **Lucene supplies the codes**: its optimized scalar quantization (OSQ), its scorers and its SIMD kernels.
+  **OSQ 1-bit is the agreed default encoding** (section 4.3); OSQ 4-bit stays an option for a larger recall margin.
   jVector's own codes (PQ, BQ) miss recall@10 ≥ 0.95 on some corpora (results 3).
-- **evitaDB owns everything between**: the searcher, the planner, the exact scan, the files (raw vectors, codes,
+- **evitaDB owns everything between**: the searcher, the planner, the code scan, the files (raw vectors, codes,
   graph), the primary key ↔ ordinal map, and the transaction layer.
 
 Neither library alone passes every blocking criterion: jVector alone misses recall, Lucene alone misses
@@ -55,7 +56,7 @@ more nodes per step, and still about ten times under the 10 ms criterion. The fu
 | codes | — | `OptimizedScalarQuantizer` computes them | the code file and its mapped reader (`OsqCodeFile`) |
 | scoring | — | `Lucene104ScalarQuantizedVectorScorer`, flat scorer, `VectorUtil` kernels | `NodeScorer` adapter (one method) |
 | search | — | — | `EvitaGraphSearcher`: walk, filter, visit budget, cancellation |
-| filtered search | — | — | the planner and the exact scan |
+| filtered search | — | — | the planner and the code scan (6.3) |
 | primary keys | — | — | `pk ↔ ord` map (`PrimaryKeyOrdinals`), the accept test (`Acceptor`) |
 | transactions | — | — | own vectors and deletes beside the shared graph |
 | storage lifecycle | — | — | append-only files, compaction, `ObsoleteFileMaintainer`, the pin protocol |
@@ -156,6 +157,14 @@ hands the mapped file to Lucene's scorer, with recall identical to the third dec
 |---|---|---|---|
 | OSQ 4-bit (`PACKED_NIBBLE`) | 1,040 | 400 | 400 MB |
 | OSQ 1-bit (`SINGLE_BIT_QUERY_NIBBLE`, RaBitQ-derived) | 272 | 112 | 112 MB |
+
+- **OSQ 1-bit is the agreed default.** It passes recall@10 ≥ 0.95 at 4× on every corpus with the combination
+  (0.967 on the hardest), fits the 1-bit budget of spec §1.2, and is the code the code scan needs (section 6.3),
+  so one code file serves both the walk and the scan.
+- **OSQ 4-bit is an option, never alone.** It buys a larger recall margin (0.976 on the hardest corpus) for four
+  times the mapped bytes, but the code scan over it is 2–5× slower and misses 10 ms at 10 % on the largest
+  corpora. A 4-bit configuration therefore keeps a 1-bit code file beside it for the code scan, ~260 B more per
+  vector at 2,048 dimensions.
 
 - **The centroid is fixed per file.** Vectors inserted later are encoded against it; compaction recomputes it and
   re-encodes from the raw block. How far recall drifts in between was not measured (results, "Deviations").
@@ -262,25 +271,42 @@ and must not be used.
 |---|---|---|
 | above ~85 % of the corpus | **post-filter**: unfiltered walk, drop non-members | cheapest; below ~50 % it returns fewer than k results |
 | between | **in-walk** acceptance | real filters of B (29.7 %) and E (38.9 %): recall ≥ 0.98 at p95 ≤ 2 ms |
-| ≤ 5–10 % (corpora up to ~214k), ≤ 1–5 % (313k–417k) | **exact scan** of the members | recall 1.000; on A (1.66 %) 0.2 ms against p95 12 ms for in-walk |
+| ≤ ~10 % on every corpus, up to ~20 % for clustered filters | **code scan** of the members: OSQ 1-bit, the best 100 reranked with float32 (6.3) | recall@10 ≥ 0.998; p95 ≤ 7 ms at 5–10 % on C–E, ≤ 0.3 ms on A |
 
-Sources: results 5 and 6. Two rules carry it:
+Sources: results 5 and 6 with its follow-up. Three rules carry it:
 
 - **The switch to the scan depends on the members relative to the corpus**, not on a fixed count; a fixed 100
   members is far too low.
-- **The fallback** `visitLimit = members + 1`: a walk that has scored more nodes than there are members was
-  more expensive than the scan, so it is abandoned and the scan runs. It is the rule of Lucene's
-  `AbstractKnnVectorQuery`, and it chose correctly on every corpus without tuning.
+- **Below the switch the walk does not start.** The fallback `visitLimit = members + 1` (the rule of Lucene's
+  `AbstractKnnVectorQuery`) abandons a walk that has scored more nodes than there are members, and runs the scan.
+  It chose correctly on every corpus, but with the float32 scan as the fallback a walk that hit the budget paid
+  the walk *and* the scan: in the 5–10 % band 4–27 ms above the scan alone (results 6, follow-up). It stays as
+  the safety net above the switch, where the fallback is the cheap code scan.
+- **The float32 exact scan has no band of its own.** The code scan is faster from a few hundred members up and
+  equal below; the float32 pass over all members is needed only when there are no more members than the rerank
+  depth.
 
 The membership structure does not matter (`boolean[]`, flat bitset and RoaringBitmap within noise, results 6),
 so the walk can test the RoaringBitmap directly.
 
-### 6.3 The open risk: correlated filters of 5–10 % on large corpora
+### 6.3 The code scan: filters of 5–20 % on large corpora
 
-Recall passes, but neither path is under 10 ms there: the float32 exact scan of the members takes 7–27 ms p50
-on C–E and in-walk 6–28 ms (results 6). The candidate fix, a scan over the 4-bit codes with a float32 rerank of
-the best candidates, reads an eighth of the bytes and is not measured. It is the first thing to measure in the
-implementation.
+Without it, the large corpora had no fast path for filters of 5–10 %: the float32 exact scan of the members took
+7–27 ms p50 on C–E and in-walk 6–28 ms (results 6). The code scan scores every member over the OSQ code of our
+code file, keeps the best 100 and reranks them with float32 (results 6, follow-up run of 2026-11-10):
+
+- **OSQ 1-bit** keeps recall@10 0.998–1.000 at p95 0.98–6.99 ms at 5–10 % on C–E; the float32 exact scan of
+  the same members takes 9.2–35.2 ms p95. The cost grows linearly with the members, 0.04–0.1 ms p50 per 1,000.
+- **OSQ 4-bit** keeps recall 1.000 at 4× but is 2–5× slower: p95 11.7–12.6 ms at 10 % on corpus D. With only
+  a 4-bit code file the switch would have to sit at about 5 % on the largest corpora; a 4-bit configuration
+  therefore keeps a parallel 1-bit code file for this path (section 4.3).
+- **The crossover with the walk** is about 10–20 % and depends on the shape: at 20 % the walk wins at p50 and,
+  for random filters, at p95; for clustered filters the code scan still wins at p95 (3.4–8.2 against 6.9–14.2 ms),
+  because the walk's tail is long when the members sit in one region of the graph.
+
+The scan is a loop over the members' ordinals with Lucene's `RandomVectorScorer` and a bounded heap
+(`FilteredMatrixScenario#codeScan`). Measured with the harness's timing (one timed pass after one untimed), not
+JMH, over a graph built with `alpha = 1.2`.
 
 ---
 
@@ -433,9 +459,11 @@ MappedGraphFile.write(GraphView.ofJVector(builder.getGraph(), builder.getGraph()
 RoaringBitmap members = filterBitmap.and(entitiesWithVector);        // exact cardinality (6.2)
 Acceptor accept = Acceptor.of(members, ordinals, liveness, tx.deletes());
 
+RandomVectorScorer bits = osqScorer.getRandomVectorScorer(DOT_PRODUCT, oneBitCodes.values(), query);
+
 int[] top;
-if (planner.preferScan(members.getCardinality(), corpusSize)) {
-    top = exactScan(members, raw, query, k);                         // float32 over the mapped block
+if (planner.preferScan(members.getCardinality(), corpusSize)) {     // below ~10 %: no walk (6.2)
+    top = exactRerank(codeScan(members, bits, /* keep */ 100), raw, query, k);   // the code scan (6.3)
 } else {
     RandomVectorScorer codes = osqScorer.getRandomVectorScorer(DOT_PRODUCT, codeFile.values(), query);
     Walk walk = new EvitaGraphSearcher().search(
@@ -443,7 +471,7 @@ if (planner.preferScan(members.getCardinality(), corpusSize)) {
             /* depth */ 100, /* keep */ 4 * k,
             /* visit budget */ members.getCardinality() + 1, cancelled);
     top = walk.exhausted()
-            ? exactScan(members, raw, query, k)                      // the fallback rule (6.2)
+            ? exactRerank(codeScan(members, bits, 100), raw, query, k)         // the fallback rule (6.2)
             : exactRerank(walk.candidates(), raw, query, k);
 }
 top = mergeByExactScore(top, scanExactly(tx.ownVectors(), query, k), k);   // the transaction (7)
@@ -459,12 +487,14 @@ Not done by the spike, because its non-goals keep production code out (spec §1.
   `ObsoleteFileMaintainer` and the pin protocol (spec §2.3);
 - the transaction layer of section 7 against evitaDB's transactional structures and the WAL;
 - the OSQ code of an inserted vector against the file's fixed centroid, and the recall drift until compaction;
-- the code choice: **OSQ 1-bit** fits the 1-bit budget of spec §1.2 at a margin of 0.017 on the hardest corpus;
-  **OSQ 4-bit** gives a larger margin for four times the mapped bytes.
+- the code choice is settled: **OSQ 1-bit is the agreed default** (section 4.3). Should a configuration choose
+  OSQ 4-bit for the walk, the code scan still needs a parallel 1-bit code file (~260 B per vector); the writer,
+  compaction and the pin protocol then handle two code files.
 
 Open measurements:
 
-- the 4-bit code scan for the 5–10 % band on large corpora (section 6.3);
+- the planner's exact switch point between the code scan and the walk under JMH (the follow-up measured 1–20 %
+  with the harness's timing, section 6.3);
 - a real 1M dataset when one exists; corpus D stands in for it, and a walk over 1M nodes visits somewhat more of
   them than over 416k;
 - a variable-length level 0 in the graph file (section 4.4).
@@ -489,7 +519,8 @@ The spec is kept as the question the spike answered; these are the points where 
 7. **§2.8, the budget:** a degree-32 heap graph costs ~380–400 B per node, not ~300; only the mapped graph file
    meets the budget, and a reindex doubles every term (section 8).
 8. **§3.4, the planner:** post-filter is right only above ~85 %; the scan threshold depends on the corpus size;
-   ACORN is rejected (section 6.2).
+   the scan runs over the OSQ 1-bit code with a float32 rerank, not over float32; ACORN is rejected (sections 6.2
+   and 6.3).
 9. **§3.5, the codes:** no code reaches 0.95 on its own ordering, the rerank is what makes a code pass;
    `UNSIGNED_BYTE` is excluded on JDK 21; the RaBitQ-derived 1-bit code beats symmetric BQ at the same size.
 10. **§4.2, real exports:** an export repeats a referenced record under every referencing one; indexed as is, the
