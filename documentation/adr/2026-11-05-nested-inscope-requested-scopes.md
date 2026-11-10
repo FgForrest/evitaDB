@@ -5,7 +5,7 @@ updated: 2026-11-10 15:01
 status: accepted
 kind: fix
 issues: [1880, 1897]
-prs: [1884]
+prs: [1884, 1914]
 areas:
   - evita_api/src/main/java/io/evitadb/api/requestResponse
   - evita_query/src/main/java/io/evitadb/api/query
@@ -305,4 +305,4 @@ scope, and the composer of the query has to leave the container out.
   and the refusal of an inert `scope` added after a second review, every filter of the require section after a third;
   #1883 split off; PR #1884 opened.
 - **2026-11-05** — PR #1884 merged.
-- **2026-11-10** — #1897: a `scope(...)` below `not` refused before the scopes are resolved.
+- **2026-11-10** — #1897: a `scope(...)` below `not` refused before the scopes are resolved; PR #1914 opened.
