@@ -704,12 +704,15 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Returns the full entity body for the active mutation batch, resolved via the supplier
-	 * installed at construction. Required by scope-change processing, which needs the full entity
+	 * Returns the full entity body as of now, resolved via the supplier installed at construction. This executor
+	 * receives each local mutation before the {@link ContainerizedLocalMutationExecutor} applies it to the storage
+	 * parts, so the body reflects every local mutation of the active batch that precedes the one being dispatched, and
+	 * not that one: a scope change finds the entity in the scope it is leaving, and a second scope change in one batch
+	 * finds the entity where the first one left it. Required by scope-change processing, which needs the full entity
 	 * state to capture pre-mutation attribute values and to drive the `removeEntityFromIndexes` /
 	 * `addEntityToIndexes` calls.
 	 *
-	 * @return the full entity body for the active mutation batch
+	 * @return the full entity body after the local mutations preceding the one being dispatched
 	 */
 	@Nonnull
 	public Entity getFullEntity() {
