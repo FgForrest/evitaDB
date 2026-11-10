@@ -2128,6 +2128,13 @@ must be managed by evitaDB, otherwise the query is refused. A filter outside of 
 the references of the entities in all the queried scopes; wrap its part in [`inScope`](../filtering/behavioral.md#in-scope)
 to apply it to the references of the entities living in a single scope only.
 
+The referenced entities fetched by `entityFetch` are fetched in the [`scope`](../filtering/constant.md#scope) the
+`entityHaving` of the filter names, or, when it names none, in the scopes the entities owning the references are
+fetched in. A `referenceContent` nested in that
+`entityFetch` filters the references of those entities, so an `inScope` in its filter may name the scopes they are
+fetched in - even a scope the query itself doesn't request - and a scope its own filter names, at its root or in its
+own `entityHaving`. Any other scope is refused, whether or not some reference reaches the filter.
+
 </Note>
 
 <Note type="info">

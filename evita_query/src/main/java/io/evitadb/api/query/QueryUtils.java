@@ -26,6 +26,7 @@ package io.evitadb.api.query;
 import io.evitadb.api.query.filter.DifferentEntityFilterContainer;
 import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
+import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.FilterBy;
@@ -38,6 +39,7 @@ import io.evitadb.api.query.order.EntityGroupProperty;
 import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.ReferenceOrderingSpecification;
+import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
 import io.evitadb.api.query.visitor.FinderVisitor;
@@ -190,20 +192,75 @@ public class QueryUtils {
 			return enclosingLocale;
 		}
 		final Locale referenceLocale = resolveLocale(referenceFilter);
-		final List<ConstraintContainer<FilterConstraint>> bodyLevels = FinderVisitor.findConstraints(
-			referenceFilter,
-			constraint -> group ? constraint instanceof GroupHaving : constraint instanceof EntityHaving,
-			SeparateEntityScopeContainer.class::isInstance
-		);
-		final List<FilterConstraint> bodyFilters = new ArrayList<>(bodyLevels.size());
-		for (final ConstraintContainer<FilterConstraint> bodyLevel : bodyLevels) {
-			Collections.addAll(bodyFilters, bodyLevel.getChildren());
-		}
-		final Locale bodyLocale = resolveLocale(new FilterBy(bodyFilters.toArray(FilterConstraint[]::new)));
+		final Locale bodyLocale = resolveLocale(extractReferenceBodyFilter(referenceFilter, group));
 		if (bodyLocale != null) {
 			return bodyLocale;
 		}
 		return referenceLocale == null ? enclosingLocale : referenceLocale;
+	}
+
+	/**
+	 * Extracts the filter of one body level from the filter of a reference: the children of its {@link EntityHaving}
+	 * (or {@link GroupHaving}) containers and, for the referenced entity level only, the {@link EntityPrimaryKeyInSet}
+	 * constraints of the reference. Every other constraint of the reference level - its attribute constraints, its
+	 * `entityLocaleEquals` and the `scope(...)` in its root among them - is left out. The lookup does not descend into
+	 * a {@link SeparateEntityScopeContainer}: it delimits a nested entity level whose constraints must not leak into
+	 * this body level.
+	 *
+	 * The request fetching the bodies of a reference is derived from this filter, so this one rule decides the locale
+	 * ({@link #resolveReferenceBodyLocale}) and the scope ({@link #findReferenceBodyScope}) of the bodies, both
+	 * where they are fetched and where a query is checked before anything of it runs.
+	 *
+	 * @param referenceFilter the filter of the reference
+	 * @param group           true to extract the group level, false for the referenced entity level
+	 * @return the filter of the body level, without children when the reference filter has none
+	 */
+	@Nonnull
+	public static FilterBy extractReferenceBodyFilter(@Nonnull FilterBy referenceFilter, boolean group) {
+		final List<FilterConstraint> bodyLevels = FinderVisitor.findConstraints(
+			referenceFilter,
+			constraint -> group ?
+				constraint instanceof GroupHaving :
+				constraint instanceof EntityHaving || constraint instanceof EntityPrimaryKeyInSet,
+			SeparateEntityScopeContainer.class::isInstance
+		);
+		final List<FilterConstraint> bodyFilters = new ArrayList<>(bodyLevels.size());
+		for (final FilterConstraint bodyLevel : bodyLevels) {
+			if (bodyLevel instanceof ConstraintContainer<?> container) {
+				for (final Constraint<?> child : container.getChildren()) {
+					bodyFilters.add((FilterConstraint) child);
+				}
+			} else {
+				bodyFilters.add(bodyLevel);
+			}
+		}
+		return new FilterBy(bodyFilters.toArray(FilterConstraint[]::new));
+	}
+
+	/**
+	 * Returns the `scope(...)` the referenced entity bodies of a reference are fetched in: the one among the criteria
+	 * of the referenced entity level ({@link #extractReferenceBodyFilter}), typically
+	 * `entityHaving(and(scope(LIVE), ...))`. The group bodies are fetched in it as well - the request fetching either
+	 * is derived from the criteria of the referenced entity level (`ReferencedEntityFetcher#unwrapFilterBy`), so the
+	 * `scope(...)` of a `groupHaving` selects the groups of the rows and fetches no group body.
+	 *
+	 * The scope replaces both the scopes the enclosing level searches and the scopes it admits: below the bodies, an
+	 * `inScope` may name this scope only. Bodies whose level names none inherit both. The `scope(...)` in the root of
+	 * the reference filter is not a scope of the bodies: it widens the scopes the references are looked up in.
+	 *
+	 * @param referenceFilter the filter of the reference, NULL when it has none
+	 * @return the scope of the bodies, NULL when their level names none
+	 * @throws EvitaInvalidUsageException when the referenced entity level names more than one scope
+	 */
+	@Nullable
+	public static EntityScope findReferenceBodyScope(@Nullable FilterBy referenceFilter) {
+		return referenceFilter == null ?
+			null :
+			findConstraint(
+				extractReferenceBodyFilter(referenceFilter, false),
+				EntityScope.class,
+				SeparateEntityScopeContainer.class
+			);
 	}
 
 	/**
@@ -480,9 +537,11 @@ public class QueryUtils {
 	 *
 	 * The filter section is judged by {@link #assertFilterScopesApplicable(FilterBy, Set)} against the passed scopes,
 	 * and every filter of the require section - of a `referenceContent`, a hierarchy `node`, a facet summary - at any
-	 * depth, against the scopes {@link #getRequireFilterRequestedScopes} derives from them. A scope a `referenceContent`
-	 * names for its bodies is not handed to a nested `referenceContent`: this check keeps to what the query as a whole
-	 * requests.
+	 * depth, against the scopes {@link #getRequireFilterRequestedScopes} derives from them. Below the fetch of the
+	 * bodies of a `referenceContent`, the scope those bodies are fetched in replaces what encloses them, when the
+	 * referenced entity level of its filter names one ({@link #findReferenceBodyScope}) - an `inScope` of a nested
+	 * `referenceContent` names a scope of those bodies, not of the query. The `scope(...)` in the root of that filter
+	 * widens the lookup of the references only, and is not handed down.
 	 *
 	 * The check runs on every execution, so it looks no `scope(...)` up unless a filter holds an `inScope`.
 	 *
@@ -525,10 +584,11 @@ public class QueryUtils {
 
 	/**
 	 * Walks the require section looking for its filters - see {@link #assertFilterScopesApplicable(Query, Set)}. A filter
-	 * is an additional child of the requirement holding it, and a nested requirement is a child of its container.
+	 * is an additional child of the requirement holding it, and a nested requirement is a child of its container. The
+	 * fetches of the bodies of a `referenceContent` are its children, its filter is an additional one.
 	 *
 	 * @param constraint the require constraint to examine
-	 * @param requestedScopes the scopes the query requests
+	 * @param requestedScopes the scopes requested at the entity level the constraint belongs to
 	 */
 	private static void assertRequireFilterScopesApplicable(
 		@Nonnull Constraint<?> constraint, @Nonnull Set<Scope> requestedScopes
@@ -537,8 +597,10 @@ public class QueryUtils {
 			final FilterConstraint filter = (FilterConstraint) constraint;
 			assertFilterScopesApplicable(filter, getRequireFilterRequestedScopes(filter, requestedScopes), null);
 		} else if (constraint instanceof ConstraintContainer<?> container) {
+			final Set<Scope> childRequestedScopes = constraint instanceof ReferenceContent referenceContent ?
+				getReferenceBodyRequestedScopes(referenceContent, requestedScopes) : requestedScopes;
 			for (final Constraint<?> child : container.getChildren()) {
-				assertRequireFilterScopesApplicable(child, requestedScopes);
+				assertRequireFilterScopesApplicable(child, childRequestedScopes);
 			}
 			for (final Constraint<?> additionalChild : container.getAdditionalChildren()) {
 				assertRequireFilterScopesApplicable(additionalChild, requestedScopes);
@@ -568,6 +630,74 @@ public class QueryUtils {
 		final EntityScope rootScope = findConstraint(filter, EntityScope.class, SeparateEntityScopeContainer.class);
 		return rootScope == null || inheritedScopes.containsAll(rootScope.getScope()) ?
 			inheritedScopes : CollectionUtils.combine(inheritedScopes, rootScope.getScope());
+	}
+
+	/**
+	 * Returns the scopes an `inScope` below the fetch of the bodies of the `referenceContent` may name: the scope of
+	 * the bodies when the referenced entity level of its filter names one ({@link #findReferenceBodyScope}), as the
+	 * request fetching them names it, otherwise the inherited ones.
+	 *
+	 * The inherited set itself is returned when the `referenceContent` has no filter, or when no filter below it holds
+	 * an `inScope` - only an `inScope` can tell the two sets apart, so the lookup is spared.
+	 *
+	 * @param referenceContent the `referenceContent` whose children fetch the bodies
+	 * @param inheritedScopes the scopes requested at the entity level owning the references
+	 * @return the scopes an `inScope` below the fetch of the bodies may name
+	 */
+	@Nonnull
+	private static Set<Scope> getReferenceBodyRequestedScopes(
+		@Nonnull ReferenceContent referenceContent, @Nonnull Set<Scope> inheritedScopes
+	) {
+		// the scan of `ReferenceContent#getFilterBy` without the `Optional` it allocates - this runs on every execution
+		FilterBy referenceFilter = null;
+		for (final Constraint<?> additionalChild : referenceContent.getAdditionalChildren()) {
+			if (additionalChild instanceof FilterBy filter) {
+				referenceFilter = filter;
+				break;
+			}
+		}
+		if (referenceFilter == null) {
+			return inheritedScopes;
+		}
+		// the `scope(...)` lookup allocates, so the allocation-free search for an `inScope` below the bodies - the only
+		// constraint their scope changes the verdict for - runs first
+		boolean holdsInScope = false;
+		for (final Constraint<?> child : referenceContent.getChildren()) {
+			if (holdsRequireFilterInScope(child)) {
+				holdsInScope = true;
+				break;
+			}
+		}
+		if (!holdsInScope) {
+			return inheritedScopes;
+		}
+		final EntityScope bodyScope = findReferenceBodyScope(referenceFilter);
+		return bodyScope == null ? inheritedScopes : bodyScope.getScope();
+	}
+
+	/**
+	 * Returns true when a filter of the require constraint, at any depth, holds a filter `inScope`.
+	 *
+	 * @param constraint the require constraint to examine
+	 * @return true when an `inScope` was found
+	 */
+	private static boolean holdsRequireFilterInScope(@Nonnull Constraint<?> constraint) {
+		if (constraint instanceof FilterBy || constraint instanceof FilterGroupBy) {
+			return holdsFilterInScope(constraint);
+		}
+		if (constraint instanceof ConstraintContainer<?> container) {
+			for (final Constraint<?> child : container.getChildren()) {
+				if (holdsRequireFilterInScope(child)) {
+					return true;
+				}
+			}
+			for (final Constraint<?> additionalChild : container.getAdditionalChildren()) {
+				if (holdsRequireFilterInScope(additionalChild)) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	/**

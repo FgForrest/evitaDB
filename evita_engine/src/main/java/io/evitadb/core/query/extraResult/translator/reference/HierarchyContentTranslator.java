@@ -24,6 +24,7 @@
 package io.evitadb.core.query.extraResult.translator.reference;
 
 import io.evitadb.api.exception.HierarchyContentMisplacedException;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.HierarchyNode;
 import io.evitadb.api.query.require.HierarchyStopAt;
@@ -44,6 +45,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import static io.evitadb.core.query.extraResult.translator.hierarchyStatistics.AbstractHierarchyTranslator.stopAtConstraintToPredicate;
 
@@ -77,13 +79,17 @@ public class HierarchyContentTranslator implements RequireConstraintTranslator<H
 	}
 
 	/**
-	 * Checks the node filter of the `stopAt(node(...))` bound of the parents against the schema, in every processing
-	 * scope. The parents are walked only while an entity is fetched, and only for an entity that has a parent - so the
-	 * filter would otherwise be checked or not depending on the data the query returns. It is translated here over the
-	 * global index of each scope, or over an empty index of a scope holding no entity of the type, and thrown away.
-	 * The translation runs in the locale of the body that fetches the parents
+	 * Checks the node filter of the `stopAt(node(...))` bound of the parents against the schema, in every scope the
+	 * parents are walked in. The parents are walked only while an entity is fetched, and only for an entity that has a
+	 * parent - so the filter would otherwise be checked or not depending on the data the query returns. It is
+	 * translated here over the global index of each scope, or over an empty index of a scope holding no entity of the
+	 * type, and thrown away. The translation runs in the locale of the body that fetches the parents
 	 * ({@link ExtraResultPlanningVisitor#getEntityFetchRequest}), and the schema capabilities it requests are passed on
 	 * to the owner's planning context, which records them for the query.
+	 *
+	 * The parents are walked in the processing scopes, unless an enclosing `referenceContent` names the scope its
+	 * bodies are fetched in ({@link ReferenceContentTranslator#resolveOwnerScope}): the parents of those bodies are
+	 * walked in that scope alone, and an `inScope` of the node filter may name it alone, as in the fetch.
 	 *
 	 * @param hierarchyContent           the requirement whose bound is checked
 	 * @param entitySchema               the schema of the entity whose parents are fetched
@@ -98,17 +104,21 @@ public class HierarchyContentTranslator implements RequireConstraintTranslator<H
 		if (stopAt != null && stopAt.getStopAtDefinition() instanceof HierarchyNode && entitySchema.isWithHierarchy()) {
 			final QueryPlanningContext ownerContext = extraResultPlanningVisitor.getQueryContext();
 			final EvitaRequest bodyRequest = extraResultPlanningVisitor.getEntityFetchRequest(hierarchyContent);
+			final EntityScope bodyScope =
+				ReferenceContentTranslator.resolveOwnerScope(hierarchyContent, extraResultPlanningVisitor);
+			final Set<Scope> scopes = bodyScope == null ?
+				extraResultPlanningVisitor.getProcessingScope().getScopes() : bodyScope.getScope();
+			final EvitaRequest checkRequest = bodyScope == null ?
+				bodyRequest.deriveCopyWith(
+					entitySchema.getName(), null, null, bodyRequest.getRequiredOrImplicitLocale(), scopes
+				) :
+				bodyRequest.deriveCopyWith(
+					entitySchema.getName(), null, null, bodyRequest.getRequiredOrImplicitLocale(), scopes, scopes
+				);
 			final QueryPlanningContext queryContext = ownerContext
 				.getEntityCollectionOrThrowException(entitySchema.getName(), "check fetched hierarchy bounds")
-				.createQueryContext(
-					ownerContext,
-					bodyRequest.deriveCopyWith(
-						entitySchema.getName(), null, null, bodyRequest.getRequiredOrImplicitLocale(),
-						extraResultPlanningVisitor.getProcessingScope().getScopes()
-					),
-					Objects.requireNonNull(ownerContext.getEvitaSession())
-				);
-			for (final Scope scope : extraResultPlanningVisitor.getProcessingScope().getScopes()) {
+				.createQueryContext(ownerContext, checkRequest, Objects.requireNonNull(ownerContext.getEvitaSession()));
+			for (final Scope scope : scopes) {
 				stopAtConstraintToPredicate(
 					TraversalDirection.BOTTOM_UP,
 					stopAt,

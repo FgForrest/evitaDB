@@ -464,11 +464,142 @@ class QueryUtilsTest {
 			);
 		}
 
+		/** The bodies are fetched in the scope their level names, which replaces the scopes of the query below them. */
+		@Test
+		@DisplayName("Refuse a scope the bodies of the enclosing fetched references are not fetched in")
+		void shouldRefuseScopeWhenBodyLevelOfEnclosingFetchedReferenceExcludesIt() {
+			assertUnrequested(
+				query(
+					collection("a"),
+					require(entityFetch(referenceContent(
+						"r", filterBy(entityHaving(and(scope(Scope.ARCHIVED), attributeEquals("y", 1)))),
+						entityFetch(referenceContent("s", filterBy(entityHaving(LIVE_X))))
+					)))
+				),
+				Set.of(Scope.values())
+			);
+		}
+
+		/** A scope the bodies are fetched in may be named below them, though the query does not request it. */
+		@Test
+		@DisplayName("Accept a scope the bodies of the enclosing fetched references are fetched in")
+		void shouldAcceptScopeWhenBodyLevelOfEnclosingFetchedReferenceNamesIt() {
+			assertDoesNotThrow(() -> QueryUtils.assertFilterScopesApplicable(
+				query(
+					collection("a"),
+					require(entityFetch(referenceContent(
+						"r", filterBy(entityHaving(and(scope(Scope.LIVE), attributeEquals("y", 1)))),
+						entityFetch(referenceContent("s", filterBy(entityHaving(LIVE_X))))
+					)))
+				),
+				Set.of(Scope.ARCHIVED)
+			));
+		}
+
+		/** A body level naming no scope inherits the scope of the bodies enclosing it. */
+		@Test
+		@DisplayName("Accept a scope the bodies two levels up are fetched in")
+		void shouldAcceptScopeWhenBodyLevelTwoLevelsUpNamesIt() {
+			assertDoesNotThrow(() -> QueryUtils.assertFilterScopesApplicable(
+				query(
+					collection("a"),
+					require(entityFetch(referenceContent(
+						"r", filterBy(entityHaving(and(scope(Scope.LIVE), attributeEquals("y", 1)))),
+						entityFetch(referenceContent(
+							"s", entityFetch(referenceContent("t", filterBy(entityHaving(LIVE_X))))
+						))
+					)))
+				),
+				Set.of(Scope.ARCHIVED)
+			));
+		}
+
+		/** The group bodies are fetched by a request derived from the referenced entity level, as the fetch does. */
+		@Test
+		@DisplayName("Refuse a scope the group bodies are not fetched in, following the referenced entity level")
+		void shouldRefuseScopeWhenGroupBodiesAreFetchedInScopeOfReferencedEntityLevel() {
+			assertUnrequested(
+				query(
+					collection("a"),
+					require(entityFetch(referenceContent(
+						"r", filterBy(entityHaving(and(scope(Scope.ARCHIVED), attributeEquals("y", 1)))),
+						entityGroupFetch(referenceContent("s", filterBy(entityHaving(LIVE_X))))
+					)))
+				),
+				Set.of(Scope.values())
+			);
+		}
+
+		/** The scope of a `groupHaving` selects the groups of the rows, the fetch of the group bodies ignores it. */
+		@Test
+		@DisplayName("Refuse a scope only the group level of the enclosing fetched references names")
+		void shouldRefuseScopeWhenOnlyGroupLevelOfEnclosingFetchedReferenceNamesIt() {
+			assertUnrequested(query(
+				collection("a"),
+				require(entityFetch(referenceContent(
+					"r", filterBy(groupHaving(and(scope(Scope.LIVE), attributeEquals("g", 1)))),
+					entityGroupFetch(referenceContent("s", filterBy(entityHaving(LIVE_X))))
+				)))
+			));
+		}
+
+		/** A scope of an entity level reached from the bodies is not a scope of the bodies. */
+		@Test
+		@DisplayName("Refuse a scope only an entity level below the bodies of the enclosing fetched references names")
+		void shouldRefuseScopeWhenOnlyEntityLevelBelowBodiesNamesIt() {
+			assertUnrequested(query(
+				collection("a"),
+				require(entityFetch(referenceContent(
+					"r", filterBy(entityHaving(referenceHaving(
+						"t", entityHaving(and(scope(Scope.LIVE), attributeEquals("y", 1)))
+					))),
+					entityFetch(referenceContent("s", filterBy(entityHaving(LIVE_X))))
+				)))
+			));
+		}
+
+		/**
+		 * The filter of fetched references selects among the references of their owners, so the scope the bodies are
+		 * fetched in admits nothing in it - though it admits the same scope below the bodies.
+		 */
+		@Test
+		@DisplayName("Refuse in the filter of fetched references a scope only their bodies are fetched in")
+		void shouldRefuseScopeInFilterOfFetchedReferenceWhenOnlyItsBodiesAreFetchedInIt() {
+			assertUnrequested(query(
+				collection("a"),
+				require(entityFetch(referenceContent(
+					"r", filterBy(entityHaving(and(scope(Scope.LIVE), attributeEquals("y", 1))), LIVE_X),
+					entityFetch(referenceContent("s", filterBy(entityHaving(LIVE_X))))
+				)))
+			));
+		}
+
+		/** The scope one `referenceContent` fetches its bodies in stays below it, a sibling inherits the query's. */
+		@Test
+		@DisplayName("Refuse below sibling fetched references a scope only the other's bodies are fetched in")
+		void shouldRefuseScopeWhenOnlyBodiesOfSiblingFetchedReferenceAreFetchedInIt() {
+			assertUnrequested(query(
+				collection("a"),
+				require(entityFetch(
+					referenceContent(
+						"r", filterBy(entityHaving(and(scope(Scope.LIVE), attributeEquals("y", 1)))),
+						entityFetch(referenceContent("s", filterBy(entityHaving(LIVE_X))))
+					),
+					referenceContent("u", entityFetch(referenceContent("v", filterBy(entityHaving(LIVE_X)))))
+				))
+			));
+		}
+
 		/** Pins the public exception and the scope diagnostic of a query requesting the archived scope alone. */
 		private void assertUnrequested(@Nonnull Query query) {
+			assertUnrequested(query, Set.of(Scope.ARCHIVED));
+		}
+
+		/** Pins the public exception and the scope diagnostic of a query requesting the passed scopes. */
+		private void assertUnrequested(@Nonnull Query query, @Nonnull Set<Scope> requestedScopes) {
 			final EvitaInvalidUsageException error = assertThrowsExactly(
 				EvitaInvalidUsageException.class,
-				() -> QueryUtils.assertFilterScopesApplicable(query, Set.of(Scope.ARCHIVED))
+				() -> QueryUtils.assertFilterScopesApplicable(query, requestedScopes)
 			);
 			assertEquals(
 				"Scope `LIVE` used in `inScope` filter container was not requested by `scope` constraint!",
@@ -760,6 +891,98 @@ class QueryUtilsTest {
 		@Nonnull
 		private FilterConstraint body(boolean group, @Nonnull FilterConstraint... children) {
 			return group ? groupHaving(children) : entityHaving(children);
+		}
+	}
+
+	/**
+	 * Covers the rule the request fetching the bodies of a reference is derived by, and the scope it finds for them.
+	 */
+	@Nested
+	@DisplayName("Reference body filter and scope")
+	class ReferenceBodyScope {
+
+		/** The entity level holds the criteria of `entityHaving` and the referenced keys, nothing of the reference. */
+		@Test
+		@DisplayName("Extract the referenced entity level")
+		void shouldExtractEntityHavingChildrenAndReferencedKeysWhenEntityLevelIsExtracted() {
+			final FilterBy referenceFilter = filterBy(
+				scope(Scope.LIVE),
+				attributeEquals("order", 1),
+				entityPrimaryKeyInSet(1, 2),
+				entityHaving(and(scope(Scope.ARCHIVED), attributeEquals("code", "a"))),
+				groupHaving(attributeEquals("g", 1)),
+				referenceHaving("t", entityHaving(attributeEquals("y", 1)))
+			);
+
+			assertEquals(
+				filterBy(entityPrimaryKeyInSet(1, 2), and(scope(Scope.ARCHIVED), attributeEquals("code", "a"))),
+				QueryUtils.extractReferenceBodyFilter(referenceFilter, false)
+			);
+		}
+
+		/** The group level holds the criteria of `groupHaving` only. */
+		@Test
+		@DisplayName("Extract the group level")
+		void shouldExtractGroupHavingChildrenOnlyWhenGroupLevelIsExtracted() {
+			final FilterBy referenceFilter = filterBy(
+				entityPrimaryKeyInSet(1, 2),
+				entityHaving(attributeEquals("code", "a")),
+				groupHaving(attributeEquals("g", 1))
+			);
+
+			assertEquals(
+				filterBy(attributeEquals("g", 1)),
+				QueryUtils.extractReferenceBodyFilter(referenceFilter, true)
+			);
+		}
+
+		/** A reference filter without a body level yields a filter without children. */
+		@Test
+		@DisplayName("Extract nothing from a filter of the reference level alone")
+		void shouldExtractNothingWhenReferenceFilterHasNoBodyLevel() {
+			assertFalse(
+				QueryUtils.extractReferenceBodyFilter(filterBy(attributeEquals("order", 1)), false).isApplicable()
+			);
+		}
+
+		/** The scope of the bodies is the one their `entityHaving` names, at any depth of its boolean containers. */
+		@Test
+		@DisplayName("Find the scope the referenced entity level names")
+		void shouldFindScopeWhenReferencedEntityLevelNamesIt() {
+			final EntityScope found = QueryUtils.findReferenceBodyScope(filterBy(or(
+				entityHaving(and(scope(Scope.LIVE), attributeEquals("code", "a"))),
+				attributeEquals("o", 1)
+			)));
+
+			assertEquals(scope(Scope.LIVE), found);
+		}
+
+		/** Neither the root of the reference filter nor another entity level names a scope of the bodies. */
+		@Test
+		@DisplayName("Find no scope the bodies are fetched in when only other levels name one")
+		void shouldFindNoScopeWhenOnlyOtherLevelsNameIt() {
+			assertNull(QueryUtils.findReferenceBodyScope(null));
+			assertNull(QueryUtils.findReferenceBodyScope(filterBy(scope(Scope.LIVE), entityHaving(LIVE_X))));
+			assertNull(QueryUtils.findReferenceBodyScope(
+				filterBy(groupHaving(and(scope(Scope.LIVE), attributeEquals("g", 1))))
+			));
+			assertNull(QueryUtils.findReferenceBodyScope(
+				filterBy(entityHaving(referenceHaving("t", entityHaving(scope(Scope.LIVE)))))
+			));
+		}
+
+		/** One body level names one scope, as the lookup of the request fetching the bodies expects. */
+		@Test
+		@DisplayName("Refuse two scopes of the referenced entity level")
+		void shouldRefuseTwoScopesWhenReferencedEntityLevelNamesThem() {
+			final EvitaInvalidUsageException error = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.findReferenceBodyScope(
+					filterBy(entityHaving(scope(Scope.LIVE)), entityHaving(scope(Scope.ARCHIVED)))
+				)
+			);
+
+			assertTrue(error.getMessage().contains("scope(LIVE), scope(ARCHIVED)"), error.getMessage());
 		}
 	}
 

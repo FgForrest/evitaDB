@@ -30,6 +30,7 @@ import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.ReferenceContent;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -53,6 +54,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -105,6 +107,9 @@ public class NestedInScopeFilterFunctionalTest {
 	private static final String DATA_SET = "nestedInScope";
 	private static final String WARM_UP_DATA_SET = "nestedInScopeWarmUp";
 	private static final String WARM_UP_NODE = "warmUpNode";
+	private static final String HIERARCHY_DATA_SET = "nestedInScopeHierarchy";
+	private static final String NODE = "node";
+	private static final String NODE_OWNER = "nodeOwner";
 	private static final Scope[] BOTH = Scope.values();
 
 	/** Collection families with and without archived target indexes. */
@@ -157,6 +162,32 @@ public class NestedInScopeFilterFunctionalTest {
 				.withAttribute("marker", Integer.class).updateVia(session);
 			session.createNewEntity(WARM_UP_NODE, 1).setAttribute("marker", 1).upsertVia(session);
 			session.createNewEntity(WARM_UP_NODE, 2).setParent(1).setAttribute("marker", 1).upsertVia(session);
+		});
+	}
+
+	/**
+	 * Builds the live hierarchy of nodes 1 ← 2 ← 3, whose `level` equals the key and is filterable in the live scope
+	 * only, and two owners referencing node 3: the archived owner 1, which also references the live owner 2 through
+	 * `related`, and that owner 2.
+	 */
+	@DataSet(value = HIERARCHY_DATA_SET, destroyAfterClass = true)
+	void setUpHierarchyDataSet(@Nonnull Evita evita) {
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.defineEntitySchema(NODE).withoutGeneratedPrimaryKey().withHierarchy()
+				.withAttribute("level", Integer.class, a -> a.filterableInScope(Scope.LIVE)).updateVia(session);
+			session.createNewEntity(NODE, 1).setAttribute("level", 1).upsertVia(session);
+			session.createNewEntity(NODE, 2).setParent(1).setAttribute("level", 2).upsertVia(session);
+			session.createNewEntity(NODE, 3).setParent(2).setAttribute("level", 3).upsertVia(session);
+			session.defineEntitySchema(NODE_OWNER).withoutGeneratedPrimaryKey()
+				.withReferenceToEntity("nodes", NODE, Cardinality.ZERO_OR_MORE,
+					r -> r.indexedForFilteringAndPartitioningInScope(BOTH))
+				.withReferenceToEntity("related", NODE_OWNER, Cardinality.ZERO_OR_MORE,
+					r -> r.indexedForFilteringAndPartitioningInScope(BOTH))
+				.updateVia(session);
+			session.createNewEntity(NODE_OWNER, 2).setReference("nodes", 3).upsertVia(session);
+			session.createNewEntity(NODE_OWNER, 1).setReference("nodes", 3).setReference("related", 2)
+				.upsertVia(session);
+			session.archiveEntity(NODE_OWNER, 1);
 		});
 	}
 
@@ -933,6 +964,229 @@ public class NestedInScopeFilterFunctionalTest {
 		}
 	}
 
+	/**
+	 * The `scope(...)` an `entityHaving` of a `referenceContent` filter names is the scope its bodies are fetched in,
+	 * and a `referenceContent` of those bodies is judged by it, whatever the rows.
+	 */
+	@Nested
+	@DisplayName("Scopes of fetched bodies")
+	class FetchedBodyScopes {
+		/** The values are fetched in the live scope their level names, so their tag filter may not name another. */
+		@ParameterizedTest
+		@EnumSource(Target.class)
+		@DisplayName("Query refuses a scope the bodies are not fetched in whether rows reach it or not")
+		@UseDataSet(DATA_SET)
+		void shouldRefuseScopeExcludedByBodyScopeWhenQuerySelectsOwnerWithOrWithoutRows(
+			@Nonnull Target target, @Nonnull Evita evita
+		) {
+			for (final int id : new int[]{1, 7}) {
+				assertScopeError(Scope.ARCHIVED, () -> evita.queryCatalog(TEST_CATALOG, session -> {
+					return session.queryListOfSealedEntities(query(collection(target.product),
+						filterBy(scope(BOTH), entityPrimaryKeyInSet(id)),
+						require(entityFetch(scopedValues(Scope.LIVE, filterBy(archivedTag()))))));
+				}));
+			}
+		}
+
+		/** A direct get plans no check of the fetched references, and must still not depend on the rows. */
+		@ParameterizedTest
+		@EnumSource(Target.class)
+		@DisplayName("Direct get refuses a scope the bodies are not fetched in whether rows reach it or not")
+		@UseDataSet(DATA_SET)
+		void shouldRefuseScopeExcludedByBodyScopeWhenGotOwnerHasOrLacksRows(
+			@Nonnull Target target, @Nonnull Evita evita
+		) {
+			for (final int id : new int[]{1, 7}) {
+				assertScopeError(Scope.ARCHIVED, () -> evita.queryCatalog(TEST_CATALOG, session -> {
+					return session.getEntity(
+						target.product, id, BOTH, scopedValues(Scope.LIVE, filterBy(archivedTag()))
+					);
+				}));
+			}
+		}
+
+		/** `y` is filterable in the live scope only, which is the only scope the values are fetched in. */
+		@ParameterizedTest
+		@EnumSource(Target.class)
+		@DisplayName("Fetch tags of live bodies by an attribute filterable in the live scope only")
+		@UseDataSet(DATA_SET)
+		void shouldFetchTagsByLiveOnlyAttributeWhenBodiesAreFetchedInLiveScope(
+			@Nonnull Target target, @Nonnull Evita evita
+		) {
+			final ReferenceContent content = scopedValues(Scope.LIVE, filterBy(entityHaving(attributeEquals("y", 1))));
+			final Map<Integer, Map<Integer, List<Integer>>> expected = new TreeMap<>(Map.of(
+				1, Map.of(1, List.of(1), 2, List.of()),
+				2, Map.of(1, List.of(1), 2, List.of()),
+				3, Map.of(2, List.of()),
+				7, Map.of()
+			));
+			if (target == Target.ARCHIVED) {
+				// their values are archived, and so excluded by the scope of the value level
+				expected.put(4, Map.of());
+				expected.put(5, Map.of());
+				expected.put(6, Map.of());
+			}
+
+			final Map<Integer, Map<Integer, List<Integer>>> queried = evita.queryCatalog(TEST_CATALOG, session -> {
+				final Map<Integer, Map<Integer, List<Integer>>> result = new TreeMap<>();
+				for (final SealedEntity product : session.queryListOfSealedEntities(query(
+					collection(target.product), filterBy(scope(BOTH)), require(entityFetch(content))
+				))) {
+					result.put(product.getPrimaryKey(), tagIdsByValue(product));
+				}
+				return result;
+			});
+			final Map<Integer, Map<Integer, List<Integer>>> got = evita.queryCatalog(TEST_CATALOG, session -> {
+				final Map<Integer, Map<Integer, List<Integer>>> result = new TreeMap<>();
+				for (final int id : expected.keySet()) {
+					result.put(id, tagIdsByValue(session.getEntity(target.product, id, BOTH, content).orElseThrow()));
+				}
+				return result;
+			});
+
+			assertEquals(expected, queried);
+			assertEquals(expected, got);
+		}
+
+		/** An archived query fetches the values in the live scope their level names, so their tags may name it. */
+		@ParameterizedTest
+		@EnumSource(Target.class)
+		@DisplayName("Admit below the bodies the scope they are fetched in, though the query does not request it")
+		@UseDataSet(DATA_SET)
+		void shouldAdmitBodyScopeWhenQueryDoesNotRequestIt(@Nonnull Target target, @Nonnull Evita evita) {
+			final Scope[] archived = {Scope.ARCHIVED};
+			final ReferenceContent content = scopedValues(Scope.LIVE, filterBy(liveY(1)));
+			final Map<Integer, Map<Integer, List<Integer>>> expected = new TreeMap<>(Map.of(
+				2, Map.of(1, List.of(1), 2, List.of())
+			));
+			if (target == Target.ARCHIVED) {
+				// its only value is archived and private
+				expected.put(5, Map.of());
+			}
+
+			final Map<Integer, Map<Integer, List<Integer>>> queried = evita.queryCatalog(TEST_CATALOG, session -> {
+				final Map<Integer, Map<Integer, List<Integer>>> result = new TreeMap<>();
+				for (final SealedEntity product : session.queryListOfSealedEntities(query(
+					collection(target.product), filterBy(scope(archived)), require(entityFetch(content))
+				))) {
+					result.put(product.getPrimaryKey(), tagIdsByValue(product));
+				}
+				return result;
+			});
+			final Map<Integer, Map<Integer, List<Integer>>> got = evita.queryCatalog(TEST_CATALOG, session -> {
+				final Map<Integer, Map<Integer, List<Integer>>> result = new TreeMap<>();
+				for (final int id : expected.keySet()) {
+					result.put(
+						id, tagIdsByValue(session.getEntity(target.product, id, archived, content).orElseThrow())
+					);
+				}
+				return result;
+			});
+
+			assertEquals(expected, queried);
+			assertEquals(expected, got);
+		}
+
+		/**
+		 * An archived owner fetches its nodes in the live scope their level names, and their parents are walked in it,
+		 * so the bound of that walk may name it. Node 2 is the bound, so node 1 is fetched only if the bound is lost.
+		 */
+		@Test
+		@DisplayName("Admit in the hierarchy bound of the bodies the scope they are fetched in")
+		@UseDataSet(HIERARCHY_DATA_SET)
+		void shouldAdmitBodyScopeInHierarchyBoundWhenQueryDoesNotRequestIt(@Nonnull Evita evita) {
+			final Scope[] archived = {Scope.ARCHIVED};
+			final ReferenceContent content = referenceContent(
+				"nodes", filterBy(entityHaving(scope(Scope.LIVE))),
+				entityFetch(hierarchyContent(stopAt(node(filterBy(inScope(Scope.LIVE, entityPrimaryKeyInSet(2)))))))
+			);
+			final Map<Integer, List<Integer>> expected = Map.of(3, List.of(2));
+
+			final Map<Integer, List<Integer>> got = evita.queryCatalog(TEST_CATALOG, session -> {
+				return parentIdsByNode(session.getEntity(NODE_OWNER, 1, archived, content).orElseThrow());
+			});
+			assertEquals(expected, got);
+
+			final Map<Integer, List<Integer>> queried = evita.queryCatalog(TEST_CATALOG, session -> {
+				return parentIdsByNode(session.queryOneSealedEntity(query(
+					collection(NODE_OWNER), filterBy(scope(archived), entityPrimaryKeyInSet(1)),
+					require(entityFetch(content))
+				)).orElseThrow());
+			});
+			assertEquals(expected, queried);
+		}
+
+		/**
+		 * The parents of nodes fetched in the live scope are walked in it alone, so the bound may read `level`, which
+		 * is filterable in the live scope only, although the query searches the archived scope too.
+		 */
+		@Test
+		@DisplayName("Check the hierarchy bound of the bodies in the scope they are fetched in")
+		@UseDataSet(HIERARCHY_DATA_SET)
+		void shouldCheckHierarchyBoundInBodyScopeWhenQueryRequestsAnotherScopeToo(@Nonnull Evita evita) {
+			final ReferenceContent content = referenceContent(
+				"nodes", filterBy(entityHaving(scope(Scope.LIVE))),
+				entityFetch(hierarchyContent(stopAt(node(filterBy(attributeEquals("level", 2))))))
+			);
+			final Map<Integer, Map<Integer, List<Integer>>> expected = Map.of(
+				1, Map.of(3, List.of(2)),
+				2, Map.of(3, List.of(2))
+			);
+
+			final Map<Integer, Map<Integer, List<Integer>>> queried = evita.queryCatalog(TEST_CATALOG, session -> {
+				final Map<Integer, Map<Integer, List<Integer>>> result = new TreeMap<>();
+				for (final SealedEntity owner : session.queryListOfSealedEntities(query(
+					collection(NODE_OWNER), filterBy(scope(BOTH)), require(entityFetch(content))
+				))) {
+					result.put(owner.getPrimaryKey(), parentIdsByNode(owner));
+				}
+				return result;
+			});
+			final Map<Integer, Map<Integer, List<Integer>>> got = evita.queryCatalog(TEST_CATALOG, session -> {
+				final Map<Integer, Map<Integer, List<Integer>>> result = new TreeMap<>();
+				for (final int id : expected.keySet()) {
+					result.put(id, parentIdsByNode(session.getEntity(NODE_OWNER, id, BOTH, content).orElseThrow()));
+				}
+				return result;
+			});
+
+			assertEquals(expected, queried);
+			assertEquals(expected, got);
+		}
+
+		/**
+		 * The related owners are of the queried type and fetched in its locale, yet in the live scope their level
+		 * names, so their references are checked in that scope rather than in the archived one the query requests.
+		 */
+		@Test
+		@DisplayName("Admit below bodies of the queried type the scope they are fetched in")
+		@UseDataSet(HIERARCHY_DATA_SET)
+		void shouldAdmitBodyScopeBelowBodiesOfQueriedTypeWhenQueryDoesNotRequestIt(@Nonnull Evita evita) {
+			final ReferenceContent content = referenceContent(
+				"related", filterBy(entityHaving(scope(Scope.LIVE))),
+				entityFetch(referenceContent(
+					"nodes", filterBy(entityHaving(inScope(Scope.LIVE, entityPrimaryKeyInSet(3))))
+				))
+			);
+
+			final Map<Integer, List<Integer>> nodeIdsByRelated = evita.queryCatalog(TEST_CATALOG, session -> {
+				final SealedEntity owner = session.queryOneSealedEntity(query(
+					collection(NODE_OWNER), filterBy(scope(Scope.ARCHIVED), entityPrimaryKeyInSet(1)),
+					require(entityFetch(content))
+				)).orElseThrow();
+				final Map<Integer, List<Integer>> result = new TreeMap<>();
+				for (final ReferenceContract reference : owner.getReferences("related")) {
+					final SealedEntity related = reference.getReferencedEntity().orElseThrow();
+					result.put(related.getPrimaryKey(), related.getReferences("nodes").stream()
+						.map(ReferenceContract::getReferencedPrimaryKey).sorted().toList());
+				}
+				return result;
+			});
+
+			assertEquals(Map.of(2, List.of(3)), nodeIdsByRelated);
+		}
+	}
+
 	/** Own scopes are checked even if a fetched owner has no reference rows. */
 	@Nested
 	@DisplayName("Admission independent of reference rows")
@@ -1087,6 +1341,30 @@ public class NestedInScopeFilterFunctionalTest {
 			});
 		}
 
+		/**
+		 * The archiving request admits the live scope, but the values are fetched in the archived one their level
+		 * names - and the product has no value, so no row would ever reach the tag filter to refuse it. No other test
+		 * of this data set reads the product, so a late refusal cannot leak into them.
+		 */
+		@Test
+		@DisplayName("Archiving refuses a scope the bodies are not fetched in before the entity changes its scope")
+		@UseDataSet(WARM_UP_DATA_SET)
+		void shouldRefuseScopeExcludedByBodyScopeBeforeEntityChangesScopeWhenArchiving(@Nonnull Evita evita) {
+			final String product = Target.LIVE_ONLY.product;
+
+			evita.updateCatalog(TEST_CATALOG, session -> {
+				assertEquals(CatalogState.WARMING_UP, session.getCatalogState());
+				assertScopeError(Scope.LIVE, () -> session.archiveEntity(
+					product, 7, scopedValues(Scope.ARCHIVED, filterBy(liveY(1)))
+				));
+			});
+
+			final Scope scope = evita.queryCatalog(TEST_CATALOG, session -> {
+				return session.getEntity(product, 7, BOTH).orElseThrow().getScope();
+			});
+			assertEquals(Scope.LIVE, scope);
+		}
+
 		/** Creates a fetch of parents stopping at a node selected in a scope a live request does not name. */
 		@Nonnull
 		private static HierarchyContent foreignHierarchyBound() {
@@ -1177,6 +1455,59 @@ public class NestedInScopeFilterFunctionalTest {
 	@Nonnull
 	private static FilterConstraint liveX(int x) {
 		return entityHaving(inScope(Scope.LIVE, attributeEquals("x", x)));
+	}
+
+	/**
+	 * Fetches the active values in the scope their own level names, with their tags filtered by the passed filter.
+	 */
+	@Nonnull
+	private static ReferenceContent scopedValues(@Nonnull Scope valueScope, @Nonnull FilterBy tagFilter) {
+		return referenceContent(
+			"values",
+			filterBy(entityHaving(and(scope(valueScope), attributeEquals("status", "ACTIVE")))),
+			entityFetch(referenceContent("tags", tagFilter))
+		);
+	}
+
+	/** Creates the tag filter naming the live scope, the only one `y` is filterable in. */
+	@Nonnull
+	private static FilterConstraint liveY(int y) {
+		return entityHaving(inScope(Scope.LIVE, attributeEquals("y", y)));
+	}
+
+	/** Creates the tag filter naming the archived scope, which holds tag 3 in the archived family. */
+	@Nonnull
+	private static FilterConstraint archivedTag() {
+		return entityHaving(inScope(Scope.ARCHIVED, entityPrimaryKeyInSet(3)));
+	}
+
+	/** Returns the fetched tags of every fetched value of the product, keyed by the value. */
+	@Nonnull
+	private static Map<Integer, List<Integer>> tagIdsByValue(@Nonnull SealedEntity product) {
+		final Map<Integer, List<Integer>> result = new TreeMap<>();
+		for (final ReferenceContract reference : product.getReferences("values")) {
+			final SealedEntity value = reference.getReferencedEntity().orElseThrow();
+			result.put(value.getPrimaryKey(), value.getReferences("tags").stream()
+				.map(ReferenceContract::getReferencedPrimaryKey).sorted().toList());
+		}
+		return result;
+	}
+
+	/** Returns the fetched parents of every fetched node of the owner, nearest first, keyed by the node. */
+	@Nonnull
+	private static Map<Integer, List<Integer>> parentIdsByNode(@Nonnull SealedEntity owner) {
+		final Map<Integer, List<Integer>> result = new TreeMap<>();
+		for (final ReferenceContract reference : owner.getReferences("nodes")) {
+			final SealedEntity node = reference.getReferencedEntity().orElseThrow();
+			final List<Integer> parentIds = new ArrayList<>(2);
+			EntityClassifierWithParent parent = node.getParentEntity().orElse(null);
+			while (parent != null) {
+				parentIds.add(parent.getPrimaryKey());
+				parent = parent.getParentEntity().orElse(null);
+			}
+			result.put(node.getPrimaryKey(), parentIds);
+		}
+		return result;
 	}
 
 	/** Creates the single-child nested filter naming the archived scope. */

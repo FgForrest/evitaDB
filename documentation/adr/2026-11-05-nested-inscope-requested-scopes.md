@@ -1,10 +1,10 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-06 23:10
+updated: 2026-11-10 14:11
 status: accepted
 kind: fix
-issues: [1880]
+issues: [1880, 1883]
 prs: [1884]
 areas:
   - evita_api/src/main/java/io/evitadb/api/requestResponse
@@ -12,6 +12,7 @@ areas:
   - evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference
   - evita_engine/src/main/java/io/evitadb/core/query/filter/translator/behavioral
   - evita_engine/src/main/java/io/evitadb/core/query/fetch
+  - evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/reference
   - evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/reference/producer
   - evita_engine/src/main/java/io/evitadb/core/query/QueryPlanner.java
   - evita_engine/src/main/java/io/evitadb/core/collection
@@ -147,6 +148,43 @@ This was the first implementation of this fix, and it passed its tests.
 - **Rejected because:** the project owner chose an error over a silent no-op, as the row filter of `referenceContent`
   already does below its root. It would be worth revisiting for a container that starts reading its own scope.
 
+### #1883 — the scope of fetched bodies
+
+The fetch derives the request of the bodies of a `referenceContent` from the criteria of the referenced entity level,
+so `entityHaving(and(scope(LIVE), …))` fetches the bodies in `LIVE` alone, and a `referenceContent` of those bodies
+admits `LIVE` alone. Neither the planning check nor the pre-flight knew that: both handed the owners of the nested
+`referenceContent` the scopes of the query. The issue offered two fixes, and each one alone leaves a hole.
+
+#### Option I — resolve the scope of the bodies in the planning check only (declined)
+
+- **Pros:** smallest change; the check then plans the nested filter in the scopes the fetch plans it in.
+- **Rejected because:** the direct calls plan no check, so their verdict stays dependent on the rows. Measured with the
+  fix in the check and without it in the pre-flight: `getEntity` answered the query of the issue for an owner without
+  rows, and `archiveEntity` of an owner no row of which reaches the filter archived it and threw nothing - the reason
+  Option G lost.
+
+#### Option J — hand the scope of the bodies down in the pre-flight only (declined)
+
+- **Pros:** closes every entry point, the direct calls included.
+- **Rejected because:** the pre-flight judges `inScope` admission only. The planning check also plans the nested filter
+  against the schemas, in the scopes it is handed, so it kept refusing a correct query: a filter of the tags of
+  `LIVE`-only bodies reading an attribute filterable in `LIVE` alone failed with `AttributeNotFilterableException` for
+  `ARCHIVED`, a scope no body is fetched in. The issue had assumed no correct query was affected.
+
+#### Option K — both, from one rule (chosen)
+
+`QueryUtils#extractReferenceBodyFilter` is the rule the fetch derives the request of the bodies by (moved from
+`ReferencedEntityFetcher`), and `QueryUtils#findReferenceBodyScope` reads the scope from it. The pre-flight hands that
+scope to everything below the fetch of the bodies, and `ReferenceContentTranslator` checks the owners of a nested
+`referenceContent` in it, as both their searched and their requested scopes. `HierarchyContentTranslator` checks the
+`stopAt(node(...))` bound of a `hierarchyContent` below the bodies in it too, through the same walk of the requirement
+chain (`ReferenceContentTranslator#resolveOwnerScope`): handing the scope down in the pre-flight alone made `getEntity`
+answer such a bound while a planned query refused it. The fetch derives the request of the bodies
+from the same body filter, and the `EvitaRequest` copy constructor finds the scope in it by the same lookup. Two choices
+are still made in two places: that the group bodies take the referenced entity level (`unwrapFilterBy` and
+`findReferenceBodyScope`), and the lookup of the scope itself (`EvitaRequest` and `findReferenceBodyScope`). A change to
+either has to change both.
+
 ## Decision
 
 **Chosen: Option A, with the checks Options G and H decline to do without.** Option A is the only option under which a
@@ -158,6 +196,10 @@ is on #1880.
 
 A wrongly composed query stays refused. `scope(ARCHIVED)` with `entityHaving(inScope(LIVE, x=1))` requests no live
 scope, and the composer of the query has to leave the container out.
+
+**#1883: Option K.** Neither half of it fixes the issue alone, and the half the issue did not ask for fixed a refusal of
+a correct query. The refusal it adds is not a breaking change: the query contradicts itself and already failed for any
+owner with rows.
 
 ## Key technical details
 
@@ -194,6 +236,24 @@ scope, and the composer of the query has to leave the container out.
 - Performance: no benchmark. The clone allocates as before. The walk runs once per request, per nested plan and per
   compiled reference filter, never per row, and allocates nothing unless the filter holds an `inScope`. Only queries
   with a nested foreign `inScope` take a different path.
+- **The scope of fetched bodies (#1883).** The bodies of a `referenceContent` are fetched in the `scope(...)` among the
+  children of its `entityHaving` containers (`QueryUtils#findReferenceBodyScope`), which *replaces* what encloses them
+  for both searching and admission. A body level naming none inherits both. The `scope(...)` in the root of the filter
+  widens only the lookup of the references and is not handed down.
+- **Looks like a bug and is not:** the group bodies take the scope of the referenced entity level too, never the one of
+  `groupHaving` - `ReferencedEntityFetcher#unwrapFilterBy` derives both requests from the referenced entity level, and
+  the checks mirror it so that the verdict cannot depend on the rows. The group shape is pinned on the pre-flight
+  alone (`QueryUtilsTest$QueryFilterScopes`); the fixture has no group type with references, so no functional test
+  fetches below an `entityGroupFetch`. Whether the group bodies should follow
+  `groupHaving` instead is a question about the fetch, and changing `findReferenceBodyScope` alone would recreate
+  #1883 under `entityGroupFetch`.
+- **Every planning check below fetched bodies has to use their scope.** The pre-flight judges every filter below the
+  fetch of the bodies by it, so a check that plans one of those filters in the scopes of the query refuses what the
+  fetch and `getEntity` answer. `ReferenceContentTranslator` and `HierarchyContentTranslator#verifyStopAtNode` do so; a
+  new check of a requirement nested in an `entityFetch` has to call `ReferenceContentTranslator#resolveOwnerScope`.
+- `ReferencedEntityFetcher#verifyReferenceContentConstraints` takes the requested scopes of the owners explicitly; NULL
+  keeps the five-argument `deriveCopyWith`, which unites the scopes of the query with the searched ones. Its shortcut
+  reusing the context of the query applies only then, so a self-referencing type cannot skip a scope of its bodies.
 
 ## Verification
 
@@ -223,7 +283,30 @@ scope, and the composer of the query has to leave the container out.
   a `SessionProtocolNegotiationException` in a class this change does not touch. The class passes alone, 13 of 13.
 - **Whole reactor.** A clean `test-compile` under `-P unitAndFunctional,full` built the documentation and long-running
   test modules, and the performance test module compiled online. The javadoc build reports no error.
-
+- **#1883, the scope of fetched bodies.** `NestedInScopeFilterFunctionalTest$FetchedBodyScopes` runs the query of the
+  issue for an owner with rows and one without, through a query and `getEntity`, the false refusal of a filter
+  filterable in the scope of the bodies alone, and a query admitting the scope of the bodies it does not request;
+  `$RefusalBeforeMutation#shouldRefuseScopeExcludedByBodyScopeBeforeEntityChangesScopeWhenArchiving` archives an owner
+  no row of which reaches the filter. On a data set of its own, a hierarchy of three nodes, the class also holds the
+  `stopAt(node(...))` bound below the bodies, with an `inScope` of their scope and with an attribute filterable in it
+  alone, and a self-reference below bodies of the queried type. `QueryUtilsTest$QueryFilterScopes` holds eight rows for
+  the walk, the group shape and a sibling `referenceContent` among them, and `$ReferenceBodyScope` six for the rule.
+  Before the fix the issue's query and `getEntity` accepted owner 7, and the filter of the live-only attribute failed
+  with `AttributeNotFilterableException` for `ARCHIVED`. The classes run 114 and 136 tests with 0 failures.
+- **#1883, the tests can fail.** Without the scope handed down by the pre-flight, 4 rows of `QueryUtilsTest` and 5
+  functional tests fail (the `getEntity` refusals, the archive and the admitted scope); without the scope in
+  `ReferenceContentTranslator`, 4 (the attribute filterable in the live scope alone and the admitted scope, each in both
+  families); without it in `verifyStopAtNode`, both hierarchy bounds, one with the `inScope` refused and one with
+  `AttributeNotFilterableException` for `ARCHIVED`. Dropping `requestedScopes == null` from the shortcut of
+  `verifyReferenceContentConstraints` fails the self-reference, and handing the scope of the bodies to the filter of
+  their own `referenceContent` fails `shouldRefuseScopeInFilterOfFetchedReferenceWhenOnlyItsBodiesAreFetchedInIt`.
+- **#1883, review.** An adversarial review by Codex (GPT-6.1 Sol) returned GO with one low finding, an `Optional` the
+  pre-flight allocated per filtered `referenceContent`, now gone. The code-quality pass found the split of the
+  hierarchy bound (Option K above); it is fixed with its test.
+- **#1883, full suite**, `-P unitAndFunctional -DreleaseFixtures.skip=true` with fixed parallelism 8, 16:36 min, after
+  the review fixes: 33,282 functional tests, 71 skipped, 185 not passing and none of them in a query, a reference or a
+  fetch. 183 are the release upgrade tests, each naming the fixture the skipped generation did not write; 2 timed out in
+  `EvitaServerTest`, which passes alone, 14 of 14.
 ## Consequences & open follow-ups
 
 - **Visible to clients, both ways.** A query over both scopes with a nested `inScope` now works where it failed. `or`
@@ -233,10 +316,15 @@ scope, and the composer of the query has to leave the container out.
   container other than `entityHaving` and `groupHaving`.
 - **A composer that adds `inScope(LIVE, …)` unconditionally now fails on archived-only fetches.** That is the
   composer's defect, and the error says so.
-- **Open, #1883.** The bodies of a `referenceContent` filter whose root names a wider scope: one owner is refused and
-  another answered. The pre-flight keeps to what the query as a whole requests, and
-  `QueryUtilsTest$QueryFilterScopes#shouldRefuseScopeWhenOnlyEnclosingFetchedReferenceFilterNamesIt` pins that a scope
-  named for the bodies is not handed down. That issue may revise it deliberately.
+- **Closed by #1883, both ways.** A `referenceContent` of bodies whose `entityHaving` names a narrower scope used to be
+  refused for an owner with rows and answered for one without; it is refused for every owner, before anything runs. A
+  query not requesting the scope those bodies are fetched in used to be refused although the fetch admitted it; it is
+  answered. The root `scope(...)` of a filter is still not handed down, as
+  `QueryUtilsTest$QueryFilterScopes#shouldRefuseScopeWhenOnlyEnclosingFetchedReferenceFilterNamesIt` pins.
+- **Open: the group bodies follow the referenced entity level**, see Key technical details. Read from the code and not
+  measured: `EntityCollection#getEntityById` returns no body outside the scopes of its request, so
+  `entityHaving(scope(LIVE))` beside an `entityGroupFetch` would fetch no archived group body, and a
+  `groupHaving(scope(...))` naming a scope the owners are not fetched in would fetch none of the groups it selects.
 - **Known and left alone**, each found by the final review and each harmless to stored data:
   - `enrichEntity` takes no scope, so its request searches the live scope, and an `inScope` of the archived scope is
     refused on an archived entity. `getEntity` with scopes admits it. Letting the entity's scope admit it would need a
@@ -272,3 +360,5 @@ scope, and the composer of the query has to leave the container out.
   and the refusal of an inert `scope` added after a second review, every filter of the require section after a third;
   #1883 split off; PR #1884 opened.
 - **2026-11-05** — PR #1884 merged.
+- **2026-11-10** — #1883 fixed: the scope of fetched bodies resolved by one rule in the pre-flight, the planning check
+  and the fetch. The red run found a false refusal of a correct query the issue had not expected.
