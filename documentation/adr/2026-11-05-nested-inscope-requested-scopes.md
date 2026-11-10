@@ -5,7 +5,7 @@ updated: 2026-11-10 17:29
 status: accepted
 kind: fix
 issues: [1880, 1897, 1917]
-prs: [1884, 1914]
+prs: [1884, 1914, 1919]
 areas:
   - evita_api/src/main/java/io/evitadb/api/requestResponse
   - evita_query/src/main/java/io/evitadb/api/query
@@ -330,4 +330,4 @@ scope, and the composer of the query has to leave the container out.
 - **2026-11-05** — PR #1884 merged.
 - **2026-11-10** — #1897: a `scope(...)` below `not` refused before the scopes are resolved; PR #1914 opened.
 - **2026-11-10** — #1917: a `scope(...)` below `or` refused before scope lookup, with inert scope usage and
-  negation retaining diagnostic precedence; entity levels enclosed by `or` keep their own scopes.
+  negation retaining diagnostic precedence; entity levels enclosed by `or` keep their own scopes. PR #1919 opened.
