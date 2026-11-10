@@ -39,6 +39,7 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.FilterByVisitor.ReducedIndexCandidates;
 import io.evitadb.core.query.filter.FilterByVisitor.SplitReducedIndexCandidates;
+import io.evitadb.core.query.filter.NegationResolution;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.dataType.Scope;
@@ -96,6 +97,8 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 			ReferenceContent.ALL_REFERENCES,
 			entitySchema,
 			referenceSchema,
+			// the body is rebuilt one reference row at a time, which settles its negations - see the transposer
+			NegationResolution.TRANSPOSED,
 			processingScope.withReferenceSchemaAccessor(referenceName),
 			(entityContract, attributeName, locale) -> {
 				// this is the place for which we need to prefetch the reference content
@@ -108,8 +111,9 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 				final Formula[] collectedFormulas = filterByVisitor.getCollectedFormulasOnCurrentLevel();
 				// leaves inside this body carry the index that produced them, so the body can be rebuilt one
 				// reference row at a time; the tags are consumed there and never reach the enclosing tree.
-				// The index stream is passed as a supplier because only a negated body needs it - see the
-				// transposer for why a negation cannot settle for the indexes that tagged something.
+				// The index stream is passed as a supplier because only a negated body, or one restricting a scope
+				// other than that of some of its rows, needs it - see the transposer for why such a body cannot
+				// settle for the indexes that tagged something.
 				return ReferenceBodyTransposer.transpose(
 					switch (collectedFormulas.length) {
 						// when there was no filter constraint at all, we can safely use super set formula
@@ -123,6 +127,7 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 								collectedFormulas.length + " for: `" + filterConstraint + "`."
 						);
 					},
+					filterByVisitor.getProcessingScope().getScopes(),
 					() -> filterByVisitor.getEntityIndexStream().toList()
 				);
 			}

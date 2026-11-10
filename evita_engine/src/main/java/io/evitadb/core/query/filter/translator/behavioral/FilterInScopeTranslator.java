@@ -30,16 +30,19 @@ import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
+import io.evitadb.core.query.filter.NegationResolution;
 import io.evitadb.core.query.filter.VirtualPartitionRows;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyInSetTranslator;
+import io.evitadb.core.query.filter.translator.reference.ReferenceBodyTransposer;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.Index;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
@@ -67,15 +70,18 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 			"Scope `" + scopeToUse + "` used in `inScope` filter container was not requested by `scope` constraint!"
 		);
 
-		final VirtualPartitionRows virtualPartitionRows =
-			filterByVisitor.getProcessingScope().getVirtualPartitionRows();
+		final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+		final VirtualPartitionRows virtualPartitionRows = processingScope.getVirtualPartitionRows();
 		if (virtualPartitionRows != null) {
 			return translateForVirtualPartitionRows(inScope, virtualPartitionRows, filterByVisitor);
+		}
+		if (processingScope.getNegationResolution() == NegationResolution.TRANSPOSED) {
+			return translateForTransposedBody(inScope, filterByVisitor);
 		}
 
 		// a nested evaluation may process fewer scopes than the query searches - the parent filter of a hierarchy
 		// constraint is resolved in the tree of one scope at a time - and the container must restrict only those
-		final Set<Scope> processingScopes = filterByVisitor.getProcessingScope().getScopes();
+		final Set<Scope> processingScopes = processingScope.getScopes();
 		filterByVisitor.registerFormulaPostProcessorBefore(
 			InScopeFormulaPostProcessor.class,
 			() -> new InScopeFormulaPostProcessor(processingScopes, filterByVisitor::getSuperSetFormula),
@@ -116,18 +122,60 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 	}
 
 	/**
+	 * Answers the container inside the body of a `referenceHaving` evaluated over reduced entity indexes, which
+	 * {@link ReferenceBodyTransposer} rebuilds one reference row at a time. A row lives in the scope of its owner, and
+	 * the container restricts the rows of its own scope only, exactly as it restricts the entities of its own scope at
+	 * the top level of a filter. The rebuild decides it for each row by the scope of the row's index: for a row of the
+	 * container's scope it is the conjunction of its children, for a row of another scope it is satisfied.
+	 *
+	 * The {@link InScopeFormulaPostProcessor} is therefore not registered - it would read the body as entities of
+	 * a scope rather than as rows. A negation among the children stays a placeholder for the rebuild, which subtracts
+	 * it from the owners of the row's own index: subtracted from every row of the scope here, it would answer whether
+	 * an owner has no matching row of the scope at all.
+	 *
+	 * @param inScope         the container
+	 * @param filterByVisitor the visitor translating the body
+	 * @return the container holding the formulas of its children, translated in its scope - or none of them when the
+	 *         body processes no row of that scope
+	 */
+	@Nonnull
+	private static Formula translateForTransposedBody(
+		@Nonnull FilterInScope inScope,
+		@Nonnull FilterByVisitor filterByVisitor
+	) {
+		final Scope scopeToUse = inScope.getScope();
+		final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+		if (!processingScope.getScopes().contains(scopeToUse)) {
+			// no row of the scope is examined here, so the container is satisfied by every row the body examines -
+			// the rebuild reads an empty container of another scope that way
+			return new ScopeContainerFormula(scopeToUse);
+		}
+		return processingScope.doWithScope(
+			EnumSet.of(scopeToUse),
+			() -> {
+				for (final FilterConstraint innerConstraint : inScope.getChildren()) {
+					innerConstraint.accept(filterByVisitor);
+				}
+				return new ScopeContainerFormula(scopeToUse, filterByVisitor.getCollectedFormulasOnCurrentLevel());
+			}
+		);
+	}
+
+	/**
 	 * Answers the container for rows of registered single-owner partitions of one scope - see
 	 * {@link VirtualPartitionRows}. Every row lives in the scope of its partition, so the container is decided for all
 	 * of them at once, without the post-processor, which would read the type-level index of the rows' scope as the
 	 * whole answer and fill the other requested scopes with records of another kind:
 	 *
 	 * - naming the scope of the rows, the container is its children, translated in that scope;
-	 * - naming another scope, it is unmet: a constraint confined to another scope contributes nothing for a partition.
+	 * - naming another scope, it is satisfied by every row: it restricts the rows of its own scope only, as
+	 *   {@link #translateForTransposedBody} reads it for the rows of reduced entity indexes.
 	 *
 	 * @param inScope         the container
 	 * @param rows            the rows answered
 	 * @param filterByVisitor the visitor translating the body
-	 * @return the formula over the partition primary keys of the rows satisfying the container
+	 * @return the formula over the partition primary keys of the rows satisfying the container - the caller keeps
+	 *         those of the rows only
 	 */
 	@Nonnull
 	private static Formula translateForVirtualPartitionRows(
@@ -137,7 +185,8 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 	) {
 		final Scope scopeToUse = inScope.getScope();
 		if (scopeToUse != rows.getScope()) {
-			return EmptyFormula.INSTANCE;
+			// the type-level super set - every partition of the rows' scope, of which the caller keeps the rows
+			return filterByVisitor.getSuperSetFormula();
 		}
 		return filterByVisitor.getProcessingScope()
 			.doWithScope(
