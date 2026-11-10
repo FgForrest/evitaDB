@@ -169,6 +169,10 @@ import java.util.Set;
  * query placing it there is refused. The filter of a `referenceContent` takes it in its root only as a direct child of
  * its `filterBy`.
  *
+ * A query placing it below {@link Not}, at any depth of the same entity level, is refused too: the constraint selects
+ * scopes and filters no entity, so there is nothing to negate. A `not` enclosing an {@link EntityHaving} or
+ * {@link GroupHaving} with its own `scope` negates that container as a whole and stays valid.
+ *
  * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/behavioral#scope)
  *
  * @see Scope

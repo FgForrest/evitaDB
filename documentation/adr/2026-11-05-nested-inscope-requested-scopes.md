@@ -1,10 +1,10 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-06 23:10
+updated: 2026-11-10 13:40
 status: accepted
 kind: fix
-issues: [1880]
+issues: [1880, 1897]
 prs: [1884]
 areas:
   - evita_api/src/main/java/io/evitadb/api/requestResponse
@@ -171,6 +171,13 @@ scope, and the composer of the query has to leave the container out.
   `EntityCollection#assertScopeUsageValid` run it on the filter section and on every filter of the require section - of
   a `referenceContent`, a hierarchy `node`, a facet summary - at any depth, before anything of the request runs. A new
   client-facing entry point has to call it.
+- **The one exception, #1897:** a `scope(...)` below `not` is refused by `QueryUtils#assertNoNegatedScope`, a walk of
+  the same filters and of the `entityHaving` of a `segment`, which needs no scopes. Both entry points run it **before**
+  they resolve the requested scopes, because the resolution (`EvitaRequest#getScopes`, and the lookups of a level's
+  own scope inside the walk above) reads a scope through the negation as a positive one, and fails on two of them with
+  a `MoreThanSingleResultException` that names neither. A new entry point calls it before `getRequestedScopes()`. A
+  negated scope a container would not apply at all is left to the walk above, whose "has no effect" diagnostic names
+  the more fundamental mistake.
 - Only `entityHaving` and `groupHaving` read their own `scope(...)`, in `HavingTranslatorHelper#planNestedQuery`. Below
   any other separate container the walk refuses it. A level without its own scope inherits what encloses it.
 - `HavingTranslatorHelper#planNestedQuery` runs the walk again before `computeOnlyOnce`, because that memo reuses the
@@ -223,6 +230,18 @@ scope, and the composer of the query has to leave the container out.
   a `SessionProtocolNegotiationException` in a class this change does not touch. The class passes alone, 13 of 13.
 - **Whole reactor.** A clean `test-compile` under `-P unitAndFunctional,full` built the documentation and long-running
   test modules, and the performance test module compiled online. The javadoc build reports no error.
+- **#1897, the negated scope.** `NegatedScopeFunctionalTest` (23 tests) runs every filter of the issue on its fixture,
+  the `facetGroups*` and facet summary group filters, a fetch by `getEntity` and a `segment` filter, and pins the
+  unchanged answers (`[4]`, `[20]`, `[3]`); `QueryUtilsTest$NegatedScopes` (25) covers the walk, and
+  `CatalogGraphQLQueryEntityQueryFunctionalTest#shouldRefuseScopeWhenNegated` the GraphQL API. Before the fix, 18 of
+  the then 22 functional tests failed: twelve internal errors, two `MoreThanSingleResultException`s, three silent
+  results, and the message of the row filter compiler for a `referenceContent` filter.
+  With the refusal disabled, 31 tests failed across `NegatedScopeFunctionalTest`, `QueryUtilsTest` and
+  `ReferenceContentRowFilterFunctionalTest`, and the GraphQL test got the old internal error. With the walk run after
+  the scopes are resolved, exactly the 7 tests naming two scopes failed with a `MoreThanSingleResultException`. The
+  `segment` test failed with the internal error before the walk covered the order section. Full suite, 18:47 min:
+  33,304 tests with 0 failures and 71 skipped; 183 release upgrade tests errored on fixtures the run skipped
+  (`-DreleaseFixtures.skip=true`), every one of them with "Fixture ... is not on the class path".
 
 ## Consequences & open follow-ups
 
@@ -248,11 +267,20 @@ scope, and the composer of the query has to leave the container out.
     returns null without a verdict.
   - `referenceContent` takes a root `scope(...)` only as a direct child of its `filterBy`. Below `and` the check accepts
     it and the row filter compiler refuses it, on a write path after the write.
-  - `segment(entityHaving(...))` unwraps the container and translates its children in the enclosing context, and the
-    order section is not walked, so a `scope(...)` there has no effect and is not refused.
+  - `segment(entityHaving(...))` unwraps the container and translates its children in the enclosing context, and
+    `assertFilterScopesApplicable` does not walk the order section, so a `scope(...)` there has no effect and is not
+    refused. A negated one is refused since #1897 by `assertNoNegatedScope`, which does walk it - it used to end in the
+    internal error of `NotTranslator`.
   - A facet summary filter over the queried entity type itself is planned in the enclosing context, so its own
     `scope(...)` does not narrow what an `inScope` of that filter may name
     (`FilteringFormulaPredicate#createTargetQueryContext`). The searched scopes follow the `scope(...)` of the filter.
+- **Breaking, #1897.** A `scope(...)` below `not`, at any depth of its entity level, is refused. It used to end in a
+  `GenericEvitaInternalError` from `NotTranslator`, or, beside a sibling, to be applied as if it stood outside the
+  `not` - `not(and(scope(ARCHIVED), code=a))` returned archived items. Giving it a meaning (the complement of the named
+  scopes) was declined: a query's scopes would then depend on a negation, and naming the scopes says the same.
+- **Open, left by #1897.** `or(scope(ARCHIVED), code=a)` applies the scope to the whole filter, not to its branch. The
+  GraphQL API wraps sibling constraints in `and`, so `scope` must stay legal in `and`; `or` has no such need, and
+  whether to refuse it there was not decided.
 - **Backport: none, by the project owner's decision.** The `ClassCastException` stays on `release_2026-2`, where it
   depends on the data. The refusal never shipped, because that branch has no residual check.
 
@@ -272,3 +300,4 @@ scope, and the composer of the query has to leave the container out.
   and the refusal of an inert `scope` added after a second review, every filter of the require section after a third;
   #1883 split off; PR #1884 opened.
 - **2026-11-05** — PR #1884 merged.
+- **2026-11-10** — #1897: a `scope(...)` below `not` refused before the scopes are resolved.
