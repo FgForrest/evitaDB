@@ -1,7 +1,7 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-10 13:40
+updated: 2026-11-10 13:59
 status: accepted
 kind: fix
 issues: [1880, 1897]
@@ -176,8 +176,9 @@ scope, and the composer of the query has to leave the container out.
   they resolve the requested scopes, because the resolution (`EvitaRequest#getScopes`, and the lookups of a level's
   own scope inside the walk above) reads a scope through the negation as a positive one, and fails on two of them with
   a `MoreThanSingleResultException` that names neither. A new entry point calls it before `getRequestedScopes()`. A
-  negated scope a container would not apply at all is left to the walk above, whose "has no effect" diagnostic names
-  the more fundamental mistake.
+  negated scope a container would not apply at all gets the "has no effect" diagnostic of the walk above, which names
+  the more fundamental mistake. The negation walk raises it itself, because the walk above does not reach the order
+  section, where `segment(entityHaving(referenceHaving("r", not(scope(LIVE)))))` would otherwise reach `NotTranslator`.
 - Only `entityHaving` and `groupHaving` read their own `scope(...)`, in `HavingTranslatorHelper#planNestedQuery`. Below
   any other separate container the walk refuses it. A level without its own scope inherits what encloses it.
 - `HavingTranslatorHelper#planNestedQuery` runs the walk again before `computeOnlyOnce`, because that memo reuses the
@@ -230,8 +231,8 @@ scope, and the composer of the query has to leave the container out.
   a `SessionProtocolNegotiationException` in a class this change does not touch. The class passes alone, 13 of 13.
 - **Whole reactor.** A clean `test-compile` under `-P unitAndFunctional,full` built the documentation and long-running
   test modules, and the performance test module compiled online. The javadoc build reports no error.
-- **#1897, the negated scope.** `NegatedScopeFunctionalTest` (23 tests) runs every filter of the issue on its fixture,
-  the `facetGroups*` and facet summary group filters, a fetch by `getEntity` and a `segment` filter, and pins the
+- **#1897, the negated scope.** `NegatedScopeFunctionalTest` (24 tests) runs every filter of the issue on its fixture,
+  the `facetGroups*` and facet summary group filters, a fetch by `getEntity` and two `segment` filters, and pins the
   unchanged answers (`[4]`, `[20]`, `[3]`); `QueryUtilsTest$NegatedScopes` (25) covers the walk, and
   `CatalogGraphQLQueryEntityQueryFunctionalTest#shouldRefuseScopeWhenNegated` the GraphQL API. Before the fix, 18 of
   the then 22 functional tests failed: twelve internal errors, two `MoreThanSingleResultException`s, three silent
@@ -239,7 +240,10 @@ scope, and the composer of the query has to leave the container out.
   With the refusal disabled, 31 tests failed across `NegatedScopeFunctionalTest`, `QueryUtilsTest` and
   `ReferenceContentRowFilterFunctionalTest`, and the GraphQL test got the old internal error. With the walk run after
   the scopes are resolved, exactly the 7 tests naming two scopes failed with a `MoreThanSingleResultException`. The
-  `segment` test failed with the internal error before the walk covered the order section. Full suite, 18:47 min:
+  `segment` test failed with the internal error before the walk covered the order section. An adversarial review
+  found the negated scope of a `referenceHaving` inside a `segment` still reaching it, because the walk left such a
+  scope to the check of the filter section; `$OrderSection#shouldRefuseScopeAsInertWhenNegatedInSegmentReferenceFilter`
+  failed with the internal error until the walk raised the diagnostic itself. Full suite, 18:47 min:
   33,304 tests with 0 failures and 71 skipped; 183 release upgrade tests errored on fixtures the run skipped
   (`-DreleaseFixtures.skip=true`), every one of them with "Fixture ... is not on the class path".
 

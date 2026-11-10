@@ -557,24 +557,40 @@ class QueryUtilsTest {
 			);
 		}
 
-		/** A scope a container would not apply at all keeps the diagnostic naming the container. */
+		/**
+		 * A negated scope a container would not apply at all gets the diagnostic naming the container, the same in the
+		 * order section, which only this walk reaches, as in the filter section.
+		 */
 		@ParameterizedTest(name = "{0}")
 		@MethodSource("io.evitadb.api.query.QueryUtilsTest#scopeRefusingContainers")
-		@DisplayName("Leave a negated scope a container would not apply to the inert scope check")
-		void shouldLeaveScopeToInertCheckWhenContainerDoesNotApplyIt(
+		@DisplayName("Refuse a negated scope a container would not apply as having no effect")
+		void shouldRefuseScopeAsInertWhenNegatedInContainerNotApplyingIt(
 			@Nonnull String container, @Nonnull Function<FilterConstraint, FilterConstraint> level
 		) {
 			final FilterBy filter = filterBy(not(level.apply(not(scope(Scope.LIVE)))));
+			final String inert = "Constraint `scope(LIVE)` has no effect in `" + container + "` - it selects scopes " +
+				"only in the root of a filter and in `entityHaving` or `groupHaving`, so it must be placed there or " +
+				"removed.";
 
-			assertDoesNotThrow(() -> QueryUtils.assertNoNegatedScope(query(collection("a"), filter)));
+			for (final Query query : List.of(
+				query(collection("a"), filter),
+				query(
+					collection("a"),
+					orderBy(segments(segment(
+						entityHaving(level.apply(not(scope(Scope.LIVE)))), orderBy(attributeNatural("y"))
+					)))
+				)
+			)) {
+				final EvitaInvalidUsageException error = assertThrowsExactly(
+					EvitaInvalidUsageException.class, () -> QueryUtils.assertNoNegatedScope(query), query::toString
+				);
+				assertEquals(inert, error.getMessage());
+			}
 			final EvitaInvalidUsageException error = assertThrowsExactly(
 				EvitaInvalidUsageException.class,
 				() -> QueryUtils.assertFilterScopesApplicable(filter, Set.of(Scope.values()))
 			);
-			assertTrue(
-				error.getMessage().startsWith("Constraint `scope(LIVE)` has no effect in `" + container + "`"),
-				error.getMessage()
-			);
+			assertEquals(inert, error.getMessage());
 		}
 
 		/** Every filter nested in the order and the require section is checked, at any depth. */

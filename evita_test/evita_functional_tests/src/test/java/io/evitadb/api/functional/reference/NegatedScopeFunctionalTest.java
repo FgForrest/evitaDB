@@ -342,28 +342,60 @@ public class NegatedScopeFunctionalTest {
 		void shouldRefuseScopeWhenNegatedInSegmentFilter(@Nonnull Evita evita) {
 			evita.queryCatalog(TEST_CATALOG, session -> {
 				// the control: a negation without a scope selects item 2 for the segment, item 1 follows it
-				assertEquals(List.of(2, 1), queryOrderedPrimaryKeys(session, entityHaving(not(CODE_A))));
+				assertEquals(List.of(2, 1), queryOrderedPrimaryKeys(session, ENTITY_ITEM, entityHaving(not(CODE_A))));
 				assertNegatedScopeRefused(
-					scope(L), () -> queryOrderedPrimaryKeys(session, entityHaving(not(scope(L))))
+					scope(L), () -> queryOrderedPrimaryKeys(session, ENTITY_ITEM, entityHaving(not(scope(L))))
 				);
 			});
 		}
 
 		/**
-		 * Returns the live items in the order of a single segment, which sorts the items its filter selects by their
-		 * primary key in descending order and puts them before all others.
+		 * A negated scope in a container of a segment filter that reads no scope of its own gets the diagnostic naming
+		 * that container, as it does in the filter section - whose check does not reach the order section.
+		 */
+		@Test
+		@UseDataSet(DATA_SET)
+		@DisplayName("Refuse a negated scope a reference filter of a segment would not apply as having no effect")
+		void shouldRefuseScopeAsInertWhenNegatedInSegmentReferenceFilter(@Nonnull Evita evita) {
+			evita.queryCatalog(TEST_CATALOG, session -> {
+				// the control: owner 20 refers to the item without code a, so the segment puts it first
+				assertEquals(
+					List.of(20, 10),
+					queryOrderedPrimaryKeys(
+						session, ENTITY_OWNER, entityHaving(referenceHaving(REF_ITEM, entityHaving(not(CODE_A))))
+					)
+				);
+				final EvitaInvalidUsageException refusal = assertThrowsExactly(
+					EvitaInvalidUsageException.class,
+					() -> queryOrderedPrimaryKeys(
+						session, ENTITY_OWNER, entityHaving(referenceHaving(REF_ITEM, not(scope(L))))
+					)
+				);
+				assertEquals(
+					"Constraint `scope(LIVE)` has no effect in `referenceHaving` - it selects scopes only in the " +
+						"root of a filter and in `entityHaving` or `groupHaving`, so it must be placed there or " +
+						"removed.",
+					refusal.getMessage()
+				);
+			});
+		}
+
+		/**
+		 * Returns the live entities in the order of a single segment, which sorts the entities its filter selects by
+		 * their primary key in descending order and puts them before all others.
 		 *
 		 * @param session       the session to query in
+		 * @param entityType    the queried entity type
 		 * @param segmentFilter the filter of the segment
 		 * @return the primary keys in the order of the query
 		 */
 		@Nonnull
 		private List<Integer> queryOrderedPrimaryKeys(
-			@Nonnull EvitaSessionContract session, @Nonnull EntityHaving segmentFilter
+			@Nonnull EvitaSessionContract session, @Nonnull String entityType, @Nonnull EntityHaving segmentFilter
 		) {
 			return session.queryList(
 					query(
-						collection(ENTITY_ITEM),
+						collection(entityType),
 						orderBy(segments(segment(segmentFilter, orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)))))
 					),
 					EntityReference.class
