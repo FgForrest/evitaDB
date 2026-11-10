@@ -1,7 +1,7 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-10 13:59
+updated: 2026-11-10 15:01
 status: accepted
 kind: fix
 issues: [1880, 1897]
@@ -243,9 +243,10 @@ scope, and the composer of the query has to leave the container out.
   `segment` test failed with the internal error before the walk covered the order section. An adversarial review
   found the negated scope of a `referenceHaving` inside a `segment` still reaching it, because the walk left such a
   scope to the check of the filter section; `$OrderSection#shouldRefuseScopeAsInertWhenNegatedInSegmentReferenceFilter`
-  failed with the internal error until the walk raised the diagnostic itself. Full suite, 18:47 min:
-  33,304 tests with 0 failures and 71 skipped; 183 release upgrade tests errored on fixtures the run skipped
-  (`-DreleaseFixtures.skip=true`), every one of them with "Fixture ... is not on the class path".
+  failed with the internal error until the walk raised the diagnostic itself. Full suite on the final code, 15:28 min:
+  33,305 tests with 0 failures and 71 skipped; 183 release upgrade tests errored on fixtures the run skipped
+  (`-DreleaseFixtures.skip=true`), every one with "Fixture ... is not on the class path", and their 9 classes then
+  passed in a run that generated the fixtures, 217 tests with 0 failures.
 
 ## Consequences & open follow-ups
 

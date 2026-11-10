@@ -98,7 +98,9 @@ public class NegatedScopeFunctionalTest {
 	private static final String ENTITY_OWNER = "Owner";
 	private static final String REF_ITEM = "item";
 	private static final String ATTR_CODE = "code";
+	/** The live scope, aliased to one letter so the filters below fit on one line. */
 	private static final Scope L = Scope.LIVE;
+	/** The archived scope, aliased to one letter so the filters below fit on one line. */
 	private static final Scope A = Scope.ARCHIVED;
 	/** Matches items 1 and 3, the live and the archived item with `code = a`. */
 	private static final FilterConstraint CODE_A = attributeEquals(ATTR_CODE, "a");
@@ -199,6 +201,18 @@ public class NegatedScopeFunctionalTest {
 	private static String negatedScopeMessage(@Nonnull EntityScope negatedScope) {
 		return "Constraint `" + negatedScope + "` cannot be negated in `not` - it selects the scopes to search in, " +
 			"it does not filter entities. Name the scopes you want in `scope(...)` instead.";
+	}
+
+	/**
+	 * Returns the diagnostic refusing a scope below `referenceHaving`, which applies no scope of its own.
+	 *
+	 * @param inertScope the refused scope
+	 * @return the exact message of the refusal
+	 */
+	@Nonnull
+	private static String inertScopeMessage(@Nonnull EntityScope inertScope) {
+		return "Constraint `" + inertScope + "` has no effect in `referenceHaving` - it selects scopes only in the " +
+			"root of a filter and in `entityHaving` or `groupHaving`, so it must be placed there or removed.";
 	}
 
 	/**
@@ -320,11 +334,7 @@ public class NegatedScopeFunctionalTest {
 				}
 			);
 
-			assertEquals(
-				"Constraint `scope(LIVE)` has no effect in `referenceHaving` - it selects scopes only in the root " +
-					"of a filter and in `entityHaving` or `groupHaving`, so it must be placed there or removed.",
-				refusal.getMessage()
-			);
+			assertEquals(inertScopeMessage(scope(L)), refusal.getMessage());
 		}
 	}
 
@@ -371,12 +381,7 @@ public class NegatedScopeFunctionalTest {
 						session, ENTITY_OWNER, entityHaving(referenceHaving(REF_ITEM, not(scope(L))))
 					)
 				);
-				assertEquals(
-					"Constraint `scope(LIVE)` has no effect in `referenceHaving` - it selects scopes only in the " +
-						"root of a filter and in `entityHaving` or `groupHaving`, so it must be placed there or " +
-						"removed.",
-					refusal.getMessage()
-				);
+				assertEquals(inertScopeMessage(scope(L)), refusal.getMessage());
 			});
 		}
 

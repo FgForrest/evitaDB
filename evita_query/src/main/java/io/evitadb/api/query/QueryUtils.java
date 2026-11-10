@@ -681,10 +681,10 @@ public class QueryUtils {
 	}
 
 	/**
-	 * Refuses a `scope(...)` below a {@link Not} at any depth, in the filter section and in every filter nested in the
-	 * order and the require section - the `entityHaving` of a `segment`, and the filters
-	 * {@link #assertFilterScopesApplicable(Query, Set)} judges. A `scope(...)` selects the scopes its entity level
-	 * searches in, it does not filter entities, so a negation has nothing to negate: the translation of the `not`
+	 * Refuses a `scope(...)` below a {@link Not} at any depth: in the filter section, in the `entityHaving` of a
+	 * `segment` in the order section, and in every filter nested in the require section - the same filters
+	 * {@link #assertFilterScopesApplicable(Query, Set)} judges there. A `scope(...)` selects the scopes its entity
+	 * level searches in, it does not filter entities, so a negation has nothing to negate: the translation of the `not`
 	 * finds no formula of its child, and the lookup of the scopes of the level reads the scope through the negation and
 	 * applies it as if it stood outside of it.
 	 *

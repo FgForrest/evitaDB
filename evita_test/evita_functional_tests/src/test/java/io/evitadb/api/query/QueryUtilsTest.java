@@ -624,6 +624,16 @@ class QueryUtilsTest {
 						"r", FacetStatisticsDepth.COUNTS, filterBy(attributeEquals("y", 1)), filterGroupBy(negation)
 					))
 				),
+				query(
+					collection("a"),
+					require(referenceSummaryOfReference("r", FacetStatisticsDepth.COUNTS, filterBy(negation)))
+				),
+				query(
+					collection("a"),
+					require(referenceSummaryOfReference(
+						"r", FacetStatisticsDepth.COUNTS, filterBy(attributeEquals("y", 1)), filterGroupBy(negation)
+					))
+				),
 				query(collection("a"), require(facetGroupsConjunction("r", filterBy(negation))))
 			)) {
 				assertNegated(query, scope(Scope.ARCHIVED));
