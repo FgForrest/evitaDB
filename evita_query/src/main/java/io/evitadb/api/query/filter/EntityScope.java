@@ -175,7 +175,7 @@ import java.util.Set;
  * scope only. A `not` or `or` enclosing an {@link EntityHaving} or {@link GroupHaving} with its own `scope` operates
  * on that container as a whole and stays valid. An `or` of a single child joins nothing and is read as that child.
  *
- * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/behavioral#scope)
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/constant#scope)
  *
  * @see Scope
  * @see FilterInScope
@@ -186,7 +186,7 @@ import java.util.Set;
 	name = "scope",
 	shortDescription = "The constraint controls the scope of the entity search, accepting one or more scopes (LIVE, ARCHIVED)" +
 		" where entities should be searched.",
-	userDocsLink = "/documentation/query/filtering/behavioral#scope",
+	userDocsLink = "/documentation/query/filtering/constant#scope",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class EntityScope extends AbstractFilterConstraintLeaf implements GenericConstraint<FilterConstraint> {
