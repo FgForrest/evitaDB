@@ -29,6 +29,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.*;
 import io.evitadb.store.shared.service.StoragePartRegistry;
 
 import javax.annotation.Nonnull;
+
 import java.util.Arrays;
 import java.util.Collection;
 
@@ -87,7 +88,8 @@ public class IndexStoragePartRegistry implements StoragePartRegistry {
 			new StoragePartRecord((byte) 56, AttributeNormalizationStoragePart.class, StoragePartGroup.ATTRIBUTE_INDEX),
 			new StoragePartRecord(
 				(byte) 57, GlobalAttributeNormalizationStoragePart.class, StoragePartGroup.ATTRIBUTE_INDEX),
-			new StoragePartRecord((byte) 58, FulltextSurfaceFormLeafPagePart.class, StoragePartGroup.FULLTEXT_INDEX)
+			new StoragePartRecord((byte) 58, FulltextSurfaceFormLeafPagePart.class, StoragePartGroup.FULLTEXT_INDEX),
+			new StoragePartRecord((byte) 59, FulltextReferenceValueLeafPagePart.class, StoragePartGroup.FULLTEXT_INDEX)
 		);
 	}
 

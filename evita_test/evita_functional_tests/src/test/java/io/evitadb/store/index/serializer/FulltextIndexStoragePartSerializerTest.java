@@ -28,19 +28,27 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.analysis.AnalysisStepRegistry;
+import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.fulltext.FieldLengthTable;
 import io.evitadb.index.fulltext.FieldLengthTable.LengthBlock;
 import io.evitadb.index.fulltext.FieldLengthTable.LengthBlockEmission;
-import io.evitadb.index.fulltext.FieldLengthTable;
+import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.FulltextIndex.DictionaryPage;
 import io.evitadb.index.fulltext.FulltextIndex.SurfaceFormPage;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextSurfaceFormLeafPagePart;
-import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.FulltextTermKeys;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.ChildKind;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.ChildStream;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.RowValues;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.ValueManifest;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.ValuePage;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordPrimitive;
 import io.evitadb.index.page.PageEmission;
+import io.evitadb.index.page.PageStreamRegistry;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AbstractLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextDictionaryLeafPagePart;
@@ -48,10 +56,13 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextDicti
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextFieldLengthBlockPart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextFieldLengthBlockRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart.FieldEntry;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextLeafStreamKey.StreamKind;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart.FieldEntry;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextLeafStreamKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextLeafStreamKey.StreamKind;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextReferenceValueLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextReferenceValueStreamKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextSurfaceFormLeafPagePart;
 import io.evitadb.store.catalog.CatalogHeaderKryoConfigurer;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
 import io.evitadb.store.shared.kryo.KryoFactory;
@@ -63,6 +74,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import javax.annotation.Nonnull;
 
@@ -73,7 +86,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 import static io.evitadb.index.fulltext.FulltextFieldKey.associatedData;
 import static io.evitadb.index.fulltext.FulltextFieldKey.attribute;
@@ -87,6 +102,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -134,6 +150,186 @@ class FulltextIndexStoragePartSerializerTest {
 		this.keyCompressor = new ReadWriteKeyCompressor(Collections.emptyMap());
 		this.indexKryo = KryoFactory.createKryo(new IndexStoragePartConfigurer(this.keyCompressor));
 		this.headerKryo = KryoFactory.createKryo(CatalogHeaderKryoConfigurer.INSTANCE);
+	}
+
+	/** Real registered Kryo coverage for compressed reference buckets and relational loader validation. */
+	@Nested
+	@DisplayName("Reference value pages")
+	class ReferenceValues {
+		@Test
+		@DisplayName("keeps a dense enrollment block bitmap-compressed")
+		void shouldCompressDenseEnrollmentBlock() {
+			final Bitmap owners = new BaseBitmap();
+			for (int owner = 65536; owner < 131072; owner++) {
+				owners.add(owner);
+			}
+			final ValuePage page = new ValuePage(0, ChildKind.ENROLLED_OWNER_BLOCKS,
+				new Object[]{1}, new long[0], new Bitmap[]{owners});
+			final FulltextReferenceValueLeafPagePart part = new FulltextReferenceValueLeafPagePart(1, 0, page);
+			final byte[] bytes = StoragePartSerializerTestSupport.encodeCurrent(indexKryo, part);
+			// 65,536 owners take 262,144 bytes as plain ints; compressed, one 16-bit block is a single roaring
+			// container of at most 8 KiB
+			assertTrue(bytes.length < 12000, "Dense bucket must retain bitmap compression: " + bytes.length);
+			final FulltextReferenceValueLeafPagePart read = StoragePartSerializerTestSupport.decode(
+				indexKryo, bytes, FulltextReferenceValueLeafPagePart.class);
+			assertArrayEquals(owners.getArray(), read.getPage().records()[0].getArray());
+		}
+
+		@Test
+		@DisplayName("refuses a HOLDERS set larger than its carrying row count")
+		void shouldRejectImpossibleHolderCardinality() {
+			final FulltextIndex index = referenceIndex();
+			add(index, 1);
+			add(index, 2, "red");
+			final SavedReference saved = save(index);
+			replaceBucket(saved, ChildKind.OWNER_SETS, new BaseBitmap(1, 2));
+			assertTrue(assertThrows(GenericEvitaInternalError.class, () -> load(saved))
+				.getMessage().contains("cardinality"));
+		}
+
+		@Test
+		@DisplayName("refuses an EXCEPT set larger than its non-carrying row count")
+		void shouldRejectImpossibleExceptionCardinality() {
+			final FulltextIndex index = referenceIndex();
+			add(index, 1, "red");
+			add(index, 2);
+			final SavedReference saved = save(index);
+			replaceBucket(saved, ChildKind.OWNER_SETS, new BaseBitmap(1, 2));
+			assertTrue(assertThrows(GenericEvitaInternalError.class, () -> load(saved))
+				.getMessage().contains("cardinality"));
+		}
+
+		@Test
+		@DisplayName("refuses live rows without any enrolled owner")
+		void shouldRejectLiveRowsWithoutEnrollment() {
+			final FulltextIndex index = referenceIndex();
+			add(index, 1, "red");
+			final SavedReference saved = save(index);
+			final ValuePage old = saved.pages().get(ChildKind.ENROLLED_OWNER_BLOCKS.ordinal()).getFirst();
+			saved.pages().set(ChildKind.ENROLLED_OWNER_BLOCKS.ordinal(), List.of(new ValuePage(
+				old.pageSequence(), old.kind(), new Object[0], new long[0], new Bitmap[0])));
+			assertTrue(assertThrows(GenericEvitaInternalError.class, () -> load(saved))
+				.getMessage().contains("enrolled owners"));
+		}
+
+		/**
+		 * A live leaf splits as soon as an insert fills it and merges only below capacity, so a page holding the full
+		 * block of 256 keys cannot come from a live tree - and the tree would not accept an insert into it.
+		 */
+		@ParameterizedTest
+		@EnumSource(value = ChildKind.class, names = {"RAW_VALUE_IDS", "TERM_VALUE_IDS"})
+		@DisplayName("refuses a page holding a full leaf")
+		void shouldRejectFullLeaf(ChildKind childKind) {
+			final FulltextIndex index = referenceIndex();
+			final Set<String> values = new TreeSet<>();
+			for (int i = 0; i < 256; i++) {
+				values.add(String.format("value%03d", i));
+			}
+			add(index, 1, values.toArray(String[]::new));
+			final SavedReference saved = save(index);
+			final int kind = childKind.ordinal();
+			final List<ValuePage> pages = saved.pages().get(kind);
+			final Object[] keys = new Object[256];
+			final long[] scalars = new long[childKind.scalar() ? 256 : 0];
+			final Bitmap[] records = new Bitmap[childKind.scalar() ? 0 : 256];
+			int offset = 0;
+			for (final ValuePage page : pages) {
+				System.arraycopy(page.keys(), 0, keys, offset, page.keys().length);
+				if (childKind.scalar()) {
+					System.arraycopy(page.scalars(), 0, scalars, offset, page.keys().length);
+				} else {
+					System.arraycopy(page.records(), 0, records, offset, page.keys().length);
+				}
+				offset += page.keys().length;
+			}
+			final int sequence = pages.getFirst().pageSequence();
+			saved.manifest().streams()[kind] = new ChildStream(
+				saved.manifest().streams()[kind].highWater(), new int[]{sequence});
+			saved.pages().set(kind, List.of(new ValuePage(sequence, childKind, keys, scalars, records)));
+			assertTrue(assertThrows(GenericEvitaInternalError.class, () -> load(saved))
+				.getMessage().contains("Invalid reference dictionary page columns"));
+		}
+
+		@Test
+		@DisplayName("loads empty children and dead values beside bare rows")
+		void shouldAcceptEmptyChildrenAndDeadValuesWithBareRows() {
+			assertTrue(load(save(referenceIndex())).lookup(Set.of("red")).isEmpty());
+			final FulltextIndex index = referenceIndex();
+			add(index, 1, "red");
+			add(index, 2);
+			index.reconcileReferenceValues(0, 1, List.of(new RowValues(10, Set.of("red"))),
+				List.of(), false, exactAnalyzer());
+			assertTrue(load(save(index)).lookup(Set.of("red")).isEmpty());
+		}
+
+		@Test
+		@DisplayName("loads the empty EXCEPT of duplicate rows that differ")
+		void shouldAcceptEmptyDuplicateException() {
+			final FulltextIndex index = referenceIndex();
+			add(index, 1, "red");
+			index.reconcileReferenceValues(0, 1, List.of(new RowValues(10, Set.of("red"))),
+				List.of(new RowValues(10, Set.of("red")), new RowValues(10, Set.of())), true, exactAnalyzer());
+			final ReferenceFulltextValueIndex.ValueMatch match = load(save(index)).lookup(Set.of("red")).getFirst();
+			assertEquals(ReferenceFulltextValueIndex.MembershipForm.EXCEPT, match.form());
+			assertTrue(match.owners().isEmpty());
+		}
+
+		/** Creates an index whose only field, id 0, is a reference attribute with a value dictionary. */
+		private FulltextIndex referenceIndex() {
+			final FulltextIndex index = new FulltextIndex();
+			registerExactField(index, referenceAttribute("category", "label"), 25.0);
+			return index;
+		}
+
+		/** Enrolls a new owner with one row to target 10 carrying the passed raw values. */
+		private void add(FulltextIndex index, int owner, String... values) {
+			index.reconcileReferenceValues(0, owner, List.of(), List.of(new RowValues(10, Set.of(values))),
+				true, exactAnalyzer());
+		}
+
+		/** Collects every child page and the manifest through a fresh registry, as a first flush would. */
+		private SavedReference save(FulltextIndex index) {
+			final ReferenceFulltextValueIndex values = index.getReferenceValues(0);
+			final PageStreamRegistry registry = new PageStreamRegistry();
+			final List<List<ValuePage>> pages = new ArrayList<>();
+			for (final PageEmission<ValuePage> emission : values.collectChangedPages(0, registry)) {
+				pages.add(new ArrayList<>(emission.changedPages()));
+			}
+			return new SavedReference(values.manifest(0, registry), pages);
+		}
+
+		/** Corrupts a child: its first page keeps its keys and takes the passed records as its only bucket. */
+		private void replaceBucket(SavedReference saved, ChildKind kind, Bitmap owners) {
+			final ValuePage old = saved.pages().get(kind.ordinal()).getFirst();
+			saved.pages().set(kind.ordinal(), List.of(new ValuePage(old.pageSequence(), kind,
+				old.keys(), old.scalars(), new Bitmap[]{owners})));
+		}
+
+		/** Round-trips every page through the registered serializer, then loads and validates the dictionary. */
+		private ReferenceFulltextValueIndex load(SavedReference saved) {
+			final List<List<ValuePage>> pages = new ArrayList<>();
+			for (final List<ValuePage> child : saved.pages()) {
+				final List<ValuePage> decoded = new ArrayList<>();
+				for (final ValuePage page : child) {
+					decoded.add(roundTrip(indexKryo, new FulltextReferenceValueLeafPagePart(1, 0, page),
+						FulltextReferenceValueLeafPagePart.class).getPage());
+				}
+				pages.add(decoded);
+			}
+			return ReferenceFulltextValueIndex.fromPersistedPages(saved.manifest(), pages);
+		}
+	}
+
+	/** Mutable fixture lists permit controlled corruption before the real serializer runs. */
+	private record SavedReference(ValueManifest manifest, List<List<ValuePage>> pages) { }
+
+	/** Creates valid reference metadata using the production child collection path. */
+	private static ValueManifest referenceManifest() {
+		final ReferenceFulltextValueIndex values =
+			new ReferenceFulltextValueIndex();
+		final PageStreamRegistry pages = new PageStreamRegistry();
+		values.collectChangedPages(2, pages);
+		return values.manifest(2, pages);
 	}
 
 	/**
@@ -459,13 +655,14 @@ class FulltextIndexStoragePartSerializerTest {
 		private FulltextIndexStoragePart root() {
 			return new FulltextIndexStoragePart(12, CZECH, new FieldEntry[]{
 					new FieldEntry(attribute("title"), "text", testAnalyzer().fingerprint().index(),
-						testAnalyzer().fingerprint().wordPhase(), 8.5, null, true, new int[]{0, 1, 14}),
-					new FieldEntry(associatedData("body"), "html-text", 1234567890L, -9876543210L, 400.0, "$value.blocks.*[$.text]", false, new int[0]),
+						testAnalyzer().fingerprint().wordPhase(), 8.5, null, true, new int[]{0, 1, 14}, null),
+					new FieldEntry(associatedData("body"), "html-text", 1234567890L, -9876543210L,
+						400.0, "$value.blocks.*[$.text]", false, new int[0], null),
 					new FieldEntry(referenceAttribute("brand", "title"), "text",
 						testAnalyzer().fingerprint().index(), testAnalyzer().fingerprint().wordPhase(), 25.0, null,
-						false, new int[]{3}),
+						false, new int[]{3}, referenceManifest()),
 					new FieldEntry(attribute("title"), "text", testAnalyzer().fingerprint().index(),
-						testAnalyzer().fingerprint().wordPhase(), 25.0, null, false, new int[0])
+						testAnalyzer().fingerprint().wordPhase(), 25.0, null, false, new int[0], null)
 				}, 17, new int[]{3, 17, 0, 9}, Map.of(testAnalyzer().fingerprint().wordPhase(), 2,
 					-9876543210L, 7), 8, new int[]{8, 3}, null);
 		}
@@ -497,6 +694,16 @@ class FulltextIndexStoragePartSerializerTest {
 				assertEquals(root.getFields()[i].textExpression(), read.getFields()[i].textExpression());
 				assertArrayEquals(root.getFields()[i].lengthBlocks(), read.getFields()[i].lengthBlocks());
 			}
+			final ValueManifest expected =
+				root.getFields()[2].referenceValues();
+			final ValueManifest actual =
+				read.getFields()[2].referenceValues();
+			assertNotNull(actual);
+			assertEquals(expected.nextValueId(), actual.nextValueId());
+			for (int child = 0; child < expected.streams().length; child++) {
+				assertEquals(expected.streams()[child].highWater(), actual.streams()[child].highWater());
+				assertArrayEquals(expected.streams()[child].sequences(), actual.streams()[child].sequences());
+			}
 			assertEquals(17, read.getDictionaryHighWaterPageSequence());
 			assertArrayEquals(new int[]{3, 17, 0, 9}, read.getDictionaryPageSequences());
 			assertEquals(root.getStoragePartPK(), read.getStoragePartPK(), "The write assigned the key; it survives.");
@@ -523,17 +730,17 @@ class FulltextIndexStoragePartSerializerTest {
 			assertThrows(
 				GenericEvitaInternalError.class,
 				() -> new FieldEntry(attribute("title"), "text", testAnalyzer().fingerprint().index(),
-					testAnalyzer().fingerprint().wordPhase(), 1.0, null, false, new int[]{2, 1})
+					testAnalyzer().fingerprint().wordPhase(), 1.0, null, false, new int[]{2, 1}, null)
 			);
 			assertThrows(
 				GenericEvitaInternalError.class,
 				() -> new FieldEntry(attribute("title"), "text", testAnalyzer().fingerprint().index(),
-					testAnalyzer().fingerprint().wordPhase(), 1.0, null, false, new int[]{1, 1})
+					testAnalyzer().fingerprint().wordPhase(), 1.0, null, false, new int[]{1, 1}, null)
 			);
 			assertThrows(
 				GenericEvitaInternalError.class,
 				() -> new FieldEntry(attribute("title"), "text", testAnalyzer().fingerprint().index(),
-					testAnalyzer().fingerprint().wordPhase(), 1.0, null, false, new int[]{0x10000})
+					testAnalyzer().fingerprint().wordPhase(), 1.0, null, false, new int[]{0x10000}, null)
 			);
 		}
 
@@ -552,6 +759,11 @@ class FulltextIndexStoragePartSerializerTest {
 			for (final StreamKind kind : StreamKind.values()) {
 				final FulltextLeafStreamKey streamKey = new FulltextLeafStreamKey(42, ENGLISH, kind);
 				assertEquals(streamKey, roundTripObject(kryo, streamKey, FulltextLeafStreamKey.class));
+			}
+			for (final ChildKind kind : ChildKind.values()) {
+				final FulltextReferenceValueStreamKey streamKey =
+					new FulltextReferenceValueStreamKey(42, ENGLISH, 7, kind);
+				assertEquals(streamKey, roundTripObject(kryo, streamKey, FulltextReferenceValueStreamKey.class));
 			}
 		}
 
@@ -671,10 +883,10 @@ class FulltextIndexStoragePartSerializerTest {
 				new FulltextIndexStoragePart(3, CZECH, new FieldEntry[]{
 						new FieldEntry(attribute("title"), "text", testAnalyzer().fingerprint().index(),
 							testAnalyzer().fingerprint().wordPhase(), index.getLengthPivot(title), null, false,
-							lengthEmissions[title].blockKeys()),
+							lengthEmissions[title].blockKeys(), null),
 						new FieldEntry(attribute("body"), "text", testAnalyzer().fingerprint().index(),
 							testAnalyzer().fingerprint().wordPhase(), index.getLengthPivot(body), null, false,
-							lengthEmissions[body].blockKeys())
+							lengthEmissions[body].blockKeys(), null)
 					}, emission.highWaterPageSequence(), emission.orderedPageSequences(), index.getWordPhaseIds(),
 					surfaces.highWaterPageSequence(), surfaces.orderedPageSequences(), null),
 				FulltextIndexStoragePart.class

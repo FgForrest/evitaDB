@@ -24,11 +24,11 @@
 package io.evitadb.store.index;
 
 import com.esotericsoftware.kryo.Kryo;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.dataType.Scope;
-import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
@@ -435,6 +435,10 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(FulltextSurfaceFormLeafPagePart.class,
 			new SerialVersionBasedSerializer<>(new FulltextSurfaceFormLeafPagePartSerializer(),
 				FulltextSurfaceFormLeafPagePart.class), index++);
+
+		kryo.register(FulltextReferenceValueLeafPagePart.class,
+			new SerialVersionBasedSerializer<>(new FulltextReferenceValueLeafPagePartSerializer(),
+				FulltextReferenceValueLeafPagePart.class), index++);
 
 		Assert.isPremiseValid(index < 700, "Index count overflow.");
 	}

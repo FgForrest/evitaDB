@@ -31,6 +31,7 @@ import io.evitadb.index.fulltext.FieldLengthTable.LengthBlock;
 import io.evitadb.index.fulltext.FieldLengthTable.LengthBlockEmission;
 import io.evitadb.index.fulltext.FulltextFieldKey.FieldKind;
 import io.evitadb.index.fulltext.FulltextIndex.DictionaryPage;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.RowValues;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.page.PageEmission;
@@ -49,6 +50,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
 
@@ -229,6 +231,13 @@ class FulltextIndexHeapSizeTest {
 		}
 		for (int fieldId = 0; fieldId < index.getFieldCount(); fieldId++) {
 			paths.add("fields." + fieldId + ".lengths.flushState");
+			if (index.getReferenceValues(fieldId) != null) {
+				for (final String child : List.of("values", "terms", "valueTargets", "targetValues", "targetCounts",
+					"holderCounts", "subsetForms", "ownerSubsets", "enrolledOwners")) {
+					paths.add("fields." + fieldId + ".referenceValues." + child + ".valueColumnFactory");
+					paths.add("fields." + fieldId + ".referenceValues." + child + ".recordColumnFactory");
+				}
+			}
 		}
 		return paths.toArray(String[]::new);
 	}
@@ -236,6 +245,27 @@ class FulltextIndexHeapSizeTest {
 	@Nested
 	@DisplayName("Index")
 	class Index {
+
+		/** Every dictionary child, sparse form, allocator and retained generation belongs to its field. */
+		@Test
+		@DisplayName("should price reference dictionary children and retired generations against JOL")
+		void shouldPriceReferenceDictionaryChildrenExactly() {
+			final FulltextIndex index = newIndex();
+			addSmallFields(index, 7);
+			final FulltextFieldKey key = FulltextFieldKey.referenceAttribute("žreference", "žlabel");
+			final int field = registerExactField(index, key, 25.0);
+			for (int owner = 10_000; owner < 10_024; owner++) {
+				index.reconcileReferenceValues(field, owner, List.of(),
+					List.of(new RowValues(1_000, Set.of(owner < 10_016 ? "žcommon" : "žalternate"))),
+					true, exactAnalyzer());
+			}
+			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, SHARED_ROOTS, exclusionsOf(index));
+			index.retireField(key);
+			// As in the existing retirement fixture, give each generation its own key and name storage.
+			registerExactField(index, FulltextFieldKey.referenceAttribute(
+				new String(key.referenceName().toCharArray()), new String(key.name().toCharArray())), 50.0);
+			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, SHARED_ROOTS, exclusionsOf(index));
+		}
 
 		@Test
 		@DisplayName("an empty index reports exactly what a JOL walk finds")
@@ -367,6 +397,12 @@ class FulltextIndexHeapSizeTest {
 				final Locale locale = LOCALES.get(i);
 				final FulltextIndex index = new FulltextIndex();
 				fill(index, i == 0 ? 600 : 50, "ž");
+				final FulltextFieldKey key = FulltextFieldKey.referenceAttribute("žreference", "žlabel");
+				final int referenceField = registerExactField(index, key, 25.0);
+				index.reconcileReferenceValues(referenceField, 1, List.of(),
+					List.of(new RowValues(10, Set.of("žvalue"))), true, exactAnalyzer());
+				index.retireField(key);
+				registerExactField(index, key, 50.0);
 				map.put(locale, index);
 				indexes.add(index);
 			}

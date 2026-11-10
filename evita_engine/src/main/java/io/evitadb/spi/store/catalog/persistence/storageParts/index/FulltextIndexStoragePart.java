@@ -24,6 +24,7 @@
 package io.evitadb.spi.store.catalog.persistence.storageParts.index;
 
 import io.evitadb.index.fulltext.FulltextFieldKey;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.ValueManifest;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.utils.Assert;
@@ -34,6 +35,7 @@ import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.io.Serial;
 import java.util.Locale;
 import java.util.Map;
@@ -45,7 +47,8 @@ import java.util.Map;
  * - the **field registry** in field-id order - the id of a field is its position, and it is the key prefix of every
  *   term the field owns, so the order is part of the format - with each field's identity, the analyzer name and the
  *   identities of the index chain and its words phase it was built with, its length pivot, its text expression,
- *   whether it was retired, and the blocks of its length table that have a page;
+ *   whether it was retired, the blocks of its length table that have a page and, for a reference attribute, the
+ *   manifest of its value dictionary pages;
  * - the **dictionary page list** - the sequences of the dictionary's leaf pages in key order, which a load assembles
  *   into the tree leaf by leaf - and the high-water of the dictionary's page-sequence allocator, so a sequence is never
  *   handed out twice across a restart;
@@ -53,7 +56,9 @@ import java.util.Map;
  *   gives every surface key its word-phase prefix. Surface pages hold reference counts, without postings.
  *
  * The pages are {@link FulltextDictionaryLeafPagePart}s and {@link FulltextSurfaceFormLeafPagePart}s, and the length
- * blocks have pages of their own; all are keyed by a {@link FulltextLeafStreamKey} of this index.
+ * blocks have pages of their own; all are keyed by a {@link FulltextLeafStreamKey} of this index. The value dictionary
+ * pages of a reference attribute are {@link FulltextReferenceValueLeafPagePart}s, keyed by a
+ * {@link FulltextReferenceValueStreamKey} of their field and child.
  *
  * Loading restores the recorded analysis identities without compiling a chain; queries skip generations that no
  * longer agree with their schema.
@@ -63,7 +68,7 @@ import java.util.Map;
 @ToString(of = {"entityIndexPrimaryKey", "locale"})
 public class FulltextIndexStoragePart implements StoragePart {
 	/** Identity of this storage-part format. */
-	@Serial private static final long serialVersionUID = -8709870492189630142L;
+	@Serial private static final long serialVersionUID = 7623501083909622147L;
 
 	/**
 	 * Primary key of the owning entity index.
@@ -121,6 +126,8 @@ public class FulltextIndexStoragePart implements StoragePart {
 	 *                       {@link FulltextFieldLengthBlockPart#pageSequenceOf(int, int) pageSequenceOf(fieldId,
 	 *                       blockKey)} in the {@link FulltextLeafStreamKey.StreamKind#FIELD_LENGTHS} stream of the
 	 *                       index, which is how the reload finds it
+	 * @param referenceValues the manifest of the value dictionary pages of a reference attribute, `null` for every
+	 *                       other field kind
 	 */
 	public record FieldEntry(
 		@Nonnull FulltextFieldKey key,
@@ -130,11 +137,13 @@ public class FulltextIndexStoragePart implements StoragePart {
 		double lengthPivot,
 		@Nullable String textExpression,
 		boolean retired,
-		@Nonnull int[] lengthBlocks
+		@Nonnull int[] lengthBlocks,
+		@Nullable ValueManifest referenceValues
 	) {
 
 		/**
-		 * Verifies the block list is a strictly ascending list of 16-bit block keys.
+		 * Verifies that only a reference attribute carries a value dictionary manifest, and that the block list is a
+		 * strictly ascending list of 16-bit block keys.
 		 *
 		 * @param key the field identity
 		 * @param analyzerName the analyzer name recorded at registration
@@ -144,8 +153,11 @@ public class FulltextIndexStoragePart implements StoragePart {
 		 * @param textExpression the extraction expression, or null for text values
 		 * @param retired whether the generation stopped accepting writes
 		 * @param lengthBlocks the persisted length block keys in strictly ascending order
+		 * @param referenceValues dictionary metadata for reference fields, null otherwise
 		 */
 		public FieldEntry {
+			Assert.isPremiseValid((key.kind() == FulltextFieldKey.FieldKind.REFERENCE_ATTRIBUTE) ==
+				(referenceValues != null), "Reference dictionary metadata must match the field kind!");
 			for (int i = 0; i < lengthBlocks.length; i++) {
 				final int block = lengthBlocks[i];
 				final int previous = i == 0 ? -1 : lengthBlocks[i - 1];

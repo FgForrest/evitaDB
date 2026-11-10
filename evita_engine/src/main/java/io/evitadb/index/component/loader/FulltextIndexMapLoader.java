@@ -29,6 +29,10 @@ import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.FulltextIndex.DictionaryPage;
 import io.evitadb.index.fulltext.FulltextIndex.Field;
 import io.evitadb.index.fulltext.FulltextIndex.SurfaceFormPage;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.ChildKind;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.ValueManifest;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.ValuePage;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AbstractLeafPagePart;
@@ -39,10 +43,14 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndex
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart.FieldEntry;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextLeafStreamKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextLeafStreamKey.StreamKind;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextReferenceValueLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextReferenceValueStreamKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextSurfaceFormLeafPagePart;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -109,7 +117,7 @@ public final class FulltextIndexMapLoader implements ComponentLoader {
 		final int[] pageSequences = root.getDictionaryPageSequences();
 		final DictionaryPage[] pages = loadDictionaryPages(context, service, keyCompressor, pageSequences, locale);
 		final List<Field> fields = loadFields(context, service, keyCompressor, root, locale);
-		return FulltextIndex.fromPersistedPages(
+		final FulltextIndex index = FulltextIndex.fromPersistedPages(
 			fields,
 			pageSequences,
 			pages,
@@ -117,6 +125,14 @@ public final class FulltextIndexMapLoader implements ComponentLoader {
 			loadSurfacePages(context, service, keyCompressor, root.getSurfaceFormPageSequences(), locale),
 			root.getSurfaceFormHighWaterPageSequence()
 		);
+		for (int fieldId = 0; fieldId < fields.size(); fieldId++) {
+			final ReferenceFulltextValueIndex reference = index.getReferenceValues(fieldId);
+			if (reference != null) {
+				reference.restorePageStreams(fieldId, index.getPageStreamRegistry(),
+					root.getFields()[fieldId].referenceValues());
+			}
+		}
+		return index;
 	}
 
 	/**
@@ -247,11 +263,51 @@ public final class FulltextIndexMapLoader implements ComponentLoader {
 				new Field(
 					entry.key(), entry.analyzerName(), entry.indexFingerprint(), entry.wordPhaseId(),
 						entry.lengthPivot(), entry.textExpression(), entry.retired(),
-					FieldLengthTable.fromPersistedBlocks(blocks)
+					FieldLengthTable.fromPersistedBlocks(blocks),
+					loadReferenceValues(context, service, keyCompressor, locale, fieldId, entry.referenceValues())
 				)
 			);
 		}
 		return fields;
+	}
+
+	/**
+	 * Loads every typed child listed by a reference field's manifest, without owner-body scans or analysis.
+	 * @param context current load context
+	 * @param service storage part reader
+	 * @param compressor registered stream identities
+	 * @param locale index locale
+	 * @param fieldId owning generation
+	 * @param manifest child metadata, null for other field kinds
+	 * @return restored dictionary, null for other fields
+	 */
+	@Nullable
+	private static ReferenceFulltextValueIndex loadReferenceValues(
+		@Nonnull LoadContext context, @Nonnull StoragePartPersistenceService<?> service,
+		@Nonnull KeyCompressor compressor, @Nonnull Locale locale, int fieldId, @Nullable ValueManifest manifest
+	) {
+		if (manifest == null) {
+			return null;
+		}
+		final List<List<ValuePage>> children = new ArrayList<>(ChildKind.values().length);
+		for (final ChildKind kind : ChildKind.values()) {
+			final int stream = compressor.getId(
+				new FulltextReferenceValueStreamKey(context.entityIndexId(), locale, fieldId, kind));
+			final List<ValuePage> pages = new ArrayList<>();
+			for (final int sequence : manifest.streams()[kind.ordinal()].sequences()) {
+				final FulltextReferenceValueLeafPagePart part = service.getStoragePart(context.catalogVersion(),
+					AbstractLeafPagePart.computeUniquePartId(stream, sequence),
+					FulltextReferenceValueLeafPagePart.class);
+				isPremiseValid(part != null, () -> "Missing reference fulltext page " + sequence +
+					" of field " + fieldId + " child " + kind + " in entity index " + context.entityIndexId() + "!");
+				isPremiseValid(part.getFieldId() == fieldId && part.getStreamId() == stream &&
+					part.getPageSequence() == sequence && part.getPage().kind() == kind,
+					"Reference fulltext page identity does not match its field/child manifest!");
+				pages.add(part.getPage());
+			}
+			children.add(pages);
+		}
+		return ReferenceFulltextValueIndex.fromPersistedPages(manifest, children);
 	}
 
 }

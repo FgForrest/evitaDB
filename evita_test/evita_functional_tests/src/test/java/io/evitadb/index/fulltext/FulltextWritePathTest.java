@@ -30,7 +30,13 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.SealedInstance;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
@@ -38,10 +44,13 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
+import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.ValueMatch;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.fulltext.AnalyzedTerm;
-import io.evitadb.test.fulltext.FulltextAnalysisTestSupport;
+import io.evitadb.utils.NumberUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -60,6 +69,7 @@ import java.util.TreeSet;
 import java.util.function.Consumer;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
+import static io.evitadb.index.IndexHeapSizeAssertions.readField;
 import static io.evitadb.index.fulltext.FulltextFieldKey.attribute;
 import static io.evitadb.index.fulltext.FulltextFieldKey.referenceAttribute;
 import static io.evitadb.test.TestTags.ENGINE;
@@ -355,8 +365,8 @@ class FulltextWritePathTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("a change that leaves the union the same set writes nothing to the index")
-		void shouldNotWriteWhenTheUnionStaysTheSameSet() {
+		@DisplayName("a change that leaves the union unchanged preserves its postings and impacts")
+		void shouldNotWriteWhenTheUnionStaysTheSameSet() throws ReflectiveOperationException {
 			write(
 				session -> session.upsertEntity(
 					session.createNewEntity(PRODUCT, 1)
@@ -370,14 +380,28 @@ class FulltextWritePathTest implements EvitaTestSupport {
 			// `shoes` is still carried by reference 10 and `boots` already by reference 11 - the set is unchanged
 			setLabel(1, 12, "boots");
 
-			// a write opens a transactional layer, and only an index without one is carried into the next catalog
-			// version as the same instance
-			assertSame(before, requireFulltextIndex(Scope.LIVE, Locale.ENGLISH));
+			final FulltextIndex after = requireFulltextIndex(Scope.LIVE, Locale.ENGLISH);
+			assertNotSame(before, after);
+			// Impacts live in the same dictionary: identity pins both columns remaining untouched by side-only writes.
+			final java.lang.reflect.Field dictionary = FulltextIndex.class.getDeclaredField("dictionary");
+			dictionary.setAccessible(true);
+			final Object oldLeaf = ((TransactionalBucketBPlusTree<?>) dictionary.get(before))
+				.enumerateLeaves().getFirst();
+			final Object newLeaf = ((TransactionalBucketBPlusTree<?>) dictionary.get(after))
+				.enumerateLeaves().getFirst();
+			assertSame(readField(oldLeaf, "keys"), readField(newLeaf, "keys"));
+			assertSame(readField(oldLeaf, "records"), readField(newLeaf, "records"));
+			assertSame(readField(oldLeaf, "impacts"), readField(newLeaf, "impacts"));
 			assertIndexed(Scope.LIVE, Locale.ENGLISH, labelField(), 1, "shoes", "boots");
+			assertTrue(referenceOwners(Scope.LIVE, labelField(), "shoes", 12, 1).isEmpty());
+			assertEquals(Set.of(1), referenceOwners(Scope.LIVE, labelField(), "boots", 12, 1));
 
 			// the positive control: a change of the set does write
 			setLabel(1, 12, "sandals");
-			assertNotSame(before, requireFulltextIndex(Scope.LIVE, Locale.ENGLISH));
+			final FulltextIndex changed = requireFulltextIndex(Scope.LIVE, Locale.ENGLISH);
+			final Object changedLeaf = ((TransactionalBucketBPlusTree<?>) dictionary.get(changed))
+				.enumerateLeaves().getFirst();
+			assertNotSame(readField(newLeaf, "keys"), readField(changedLeaf, "keys"));
 			assertIndexed(Scope.LIVE, Locale.ENGLISH, labelField(), 1, "shoes", "boots", "sandals");
 		}
 
@@ -423,6 +447,9 @@ class FulltextWritePathTest implements EvitaTestSupport {
 			setLabel(2, 12, "boots");
 
 			assertIndexed(Scope.LIVE, Locale.ENGLISH, labelField(), 2, "shoes", "boots");
+			assertEquals(Set.of(1, 2), referenceOwners(Scope.LIVE, labelField(), "shoes", 10, 1, 2));
+			assertEquals(Set.of(1, 2), referenceOwners(Scope.LIVE, labelField(), "boots", 11, 1, 2));
+			assertEquals(Set.of(2), referenceOwners(Scope.LIVE, labelField(), "boots", 12, 1, 2));
 		}
 
 		@Test
@@ -451,6 +478,342 @@ class FulltextWritePathTest implements EvitaTestSupport {
 			assertIndexed(Scope.LIVE, Locale.ENGLISH, labelField(), 1, "shoes");
 		}
 
+	}
+
+	@Nested
+	@DisplayName("Reference value provenance")
+	class ReferenceValues {
+		@BeforeEach
+		void goLive() {
+			FulltextWritePathTest.this.goLive();
+		}
+
+		/** Duplicate array elements count once through replacement and removal with another surviving holder. */
+		@Test
+		@DisplayName("should count duplicate array elements once through replacement and removal")
+		void shouldReconcileDuplicateArraysOnReplacementAndRemoval() {
+			write(session -> session.getEntitySchemaOrThrow(PRODUCT).openForWrite()
+				.withReferenceTo(REFERENCE_CATEGORIES, CATEGORY, Cardinality.ZERO_OR_MORE,
+					reference -> reference.withAttribute("tags", String[].class,
+						attribute -> attribute.localized().nullable().searchable()))
+				.updateVia(session));
+			write(session -> {
+				for (int owner = 1; owner <= 2; owner++) {
+					session.upsertEntity(session.createNewEntity(PRODUCT, owner)
+						.setReference(REFERENCE_CATEGORIES, 10, reference -> reference.setAttribute("tags",
+							Locale.ENGLISH, new String[]{"red", "red", "blue"})));
+				}
+			});
+			final FulltextFieldKey key = referenceAttribute(REFERENCE_CATEGORIES, "tags");
+			assertReferenceCounts(key, "red", 2, 2, ReferenceFulltextValueIndex.MembershipForm.ALL);
+			write(session -> session.getEntity(PRODUCT, 1, entityFetchAllContent()).orElseThrow().openForWrite()
+				.setReference(REFERENCE_CATEGORIES, 10, reference -> reference.setAttribute("tags", Locale.ENGLISH,
+					new String[]{"blue", "blue", "green", "green"})).upsertVia(session));
+			assertReferenceCounts(key, "red", 2, 1, ReferenceFulltextValueIndex.MembershipForm.EXCEPT);
+			assertReferenceCounts(key, "blue", 2, 2, ReferenceFulltextValueIndex.MembershipForm.ALL);
+			assertReferenceCounts(key, "green", 2, 1, ReferenceFulltextValueIndex.MembershipForm.HOLDERS);
+			write(session -> session.getEntity(PRODUCT, 1, entityFetchAllContent()).orElseThrow().openForWrite()
+				.setReference(REFERENCE_CATEGORIES, 10, reference -> reference.removeAttribute("tags", Locale.ENGLISH))
+				.upsertVia(session));
+			assertReferenceCounts(key, "red", 2, 1, ReferenceFulltextValueIndex.MembershipForm.EXCEPT);
+			assertReferenceCounts(key, "blue", 2, 1, ReferenceFulltextValueIndex.MembershipForm.EXCEPT);
+			assertTrue(referenceDictionary(Scope.LIVE, key).lookup(Set.of(analyzedWord("green"))).isEmpty());
+			assertEquals(Set.of(2), referenceOwners(Scope.LIVE, key, "blue", 10, 1, 2));
+		}
+
+		/** A bare row changes only registered locale dictionaries; an unrelated Czech field stays independent. */
+		@Test
+		@DisplayName("should reconcile a bare row only in the locales that registered the field")
+		void shouldReconcileOnlyRegisteredReferenceLocales() {
+			write(session -> session.upsertEntity(session.createNewEntity(PRODUCT, 1)
+				.setAttribute(ATTRIBUTE_NAME, CZECH, "čaj")
+				.setReference(REFERENCE_CATEGORIES, 10, labelled("red"))));
+			assertReferenceCounts(labelField(), "red", 1, 1, ReferenceFulltextValueIndex.MembershipForm.ALL);
+			assertEquals(FulltextIndex.UNKNOWN_FIELD_ID,
+				requireFulltextIndex(Scope.LIVE, CZECH).getFieldId(labelField()));
+			write(session -> session.upsertEntity(session.createNewEntity(PRODUCT, 2)
+				.setReference(REFERENCE_CATEGORIES, 10)));
+			assertReferenceCounts(labelField(), "red", 2, 1, ReferenceFulltextValueIndex.MembershipForm.EXCEPT);
+			assertEquals(FulltextIndex.UNKNOWN_FIELD_ID,
+				requireFulltextIndex(Scope.LIVE, CZECH).getFieldId(labelField()));
+			removeCategory(2, 10);
+			assertReferenceCounts(labelField(), "red", 1, 1, ReferenceFulltextValueIndex.MembershipForm.ALL);
+			assertEquals(FulltextIndex.UNKNOWN_FIELD_ID,
+				requireFulltextIndex(Scope.LIVE, CZECH).getFieldId(labelField()));
+		}
+
+		/** Schema checks must precede text extraction for unrelated localized non-text attributes. */
+		@Test
+		@DisplayName("should skip non-searchable localized reference attributes during row reconciliation")
+		void shouldIgnoreNonSearchableReferencePayloadsDuringRowReconciliation() {
+			write(session -> session.getEntitySchemaOrThrow(PRODUCT).openForWrite()
+				.withReferenceTo(REFERENCE_CATEGORIES, CATEGORY, Cardinality.ZERO_OR_MORE,
+					reference -> reference.withAttribute("rank", Integer.class,
+						attribute -> attribute.localized().nullable()))
+				.updateVia(session));
+			write(session -> session.upsertEntity(session.createNewEntity(PRODUCT, 1)
+				.setAttribute(ATTRIBUTE_NAME, CZECH, "čaj")
+				.setReference(REFERENCE_CATEGORIES, 10, reference -> reference
+					.setAttribute(ATTRIBUTE_LABEL, Locale.ENGLISH, "red").setAttribute("rank", CZECH, 7))));
+			write(session -> session.getEntity(PRODUCT, 1, entityFetchAllContent()).orElseThrow().openForWrite()
+				.setReference(REFERENCE_CATEGORIES, 11).upsertVia(session));
+			removeCategory(1, 10);
+			final ReferenceFulltextValueIndex dictionary = referenceDictionary(Scope.LIVE, labelField());
+			assertTrue(dictionary.lookup(Set.of(analyzedWord("red"))).isEmpty());
+			assertEquals(1L, dictionary.targetCounts.getLongRecordEqualTo(11).orElseThrow());
+			assertEquals(FulltextIndex.UNKNOWN_FIELD_ID, requireFulltextIndex(Scope.LIVE, CZECH)
+				.getFieldId(referenceAttribute(REFERENCE_CATEGORIES, "rank")));
+		}
+
+		/** The raw executor sees the dropped pre-image before reinserting the exact reference key. */
+		@Test
+		@DisplayName("should remove and reinsert the same reference within one entity mutation")
+		void shouldRemoveAndReinsertDroppedReferenceInOneBatch() {
+			write(session -> session.upsertEntity(session.createNewEntity(PRODUCT, 1)
+				.setReference(REFERENCE_CATEGORIES, 10, labelled("red"))));
+			write(session -> {
+				final ReferenceKey key = session.getEntity(PRODUCT, 1, entityFetchAllContent()).orElseThrow()
+					.getReference(REFERENCE_CATEGORIES, 10).orElseThrow().getReferenceKey();
+				session.upsertEntity(new EntityUpsertMutation(PRODUCT, 1, EntityExistence.MUST_EXIST,
+					new RemoveReferenceMutation(key), new InsertReferenceMutation(key),
+					new ReferenceAttributeMutation(key,
+						new UpsertAttributeMutation(ATTRIBUTE_LABEL, Locale.ENGLISH, "blue"))));
+			});
+			assertReferenceCounts(labelField(), "blue", 1, 1, ReferenceFulltextValueIndex.MembershipForm.ALL);
+			assertTrue(referenceDictionary(Scope.LIVE, labelField()).lookup(Set.of(analyzedWord("red"))).isEmpty());
+			assertEquals(Set.of(1), referenceOwners(Scope.LIVE, labelField(), "blue", 10, 1, 2));
+		}
+
+		/** Keep a bitmap-tier owner bucket alive while a real entity commit changes the current bucket. */
+		@Test
+		@DisplayName("should keep a bitmap-tier owner set unchanged for an old reader across a commit")
+		void shouldRetainBitmapTierOldReaderAcrossCommit() {
+			write(session -> session.upsertEntity(session.createNewEntity(PRODUCT, 101)
+				.setReference(REFERENCE_CATEGORIES, 20, labelled("seed"))));
+			write(session -> {
+				session.upsertEntity(session.createNewEntity(PRODUCT, 1).setReference(REFERENCE_CATEGORIES, 10));
+				for (int owner = 2; owner <= 100; owner++) {
+					session.upsertEntity(session.createNewEntity(PRODUCT, owner)
+						.setReference(REFERENCE_CATEGORIES, 10, labelled("shoes")));
+				}
+			});
+			final ReferenceFulltextValueIndex old = referenceDictionary(Scope.LIVE, labelField());
+			final ValueMatch oldMatch = old.lookup(Set.of(analyzedWord("shoes"))).getFirst();
+			assertEquals(99, oldMatch.owners().size());
+			setLabel(50, 10, "boots");
+			assertEquals(99, oldMatch.owners().size());
+			assertTrue(oldMatch.owners().contains(50));
+			assertEquals(Set.of(50), referenceOwners(Scope.LIVE, labelField(), "boots", 10, 1, 50, 100));
+			assertEquals(98, referenceDictionary(Scope.LIVE, labelField())
+				.lookup(Set.of(analyzedWord("shoes"))).getFirst().owners().size());
+			assertTrue(old.lookup(Set.of(analyzedWord("boots"))).isEmpty());
+		}
+
+		/** Raw array identity is exact; repeated/null elements never inflate row multiplicities. */
+		@Test
+		@DisplayName("should retain exact raw array values and combine fields only inside the same partition")
+		void shouldMaintainReferenceArraysAndSeparateFieldEnrollment() {
+			write(session -> session.getEntitySchemaOrThrow(PRODUCT).openForWrite()
+				.withReferenceTo(REFERENCE_CATEGORIES, CATEGORY, Cardinality.ZERO_OR_MORE,
+					reference -> reference.withAttribute("tags", String[].class,
+						attribute -> attribute.localized().nullable().searchable()))
+				.updateVia(session));
+			write(session -> {
+				session.upsertEntity(session.createNewEntity(PRODUCT, 1)
+					.setReference(REFERENCE_CATEGORIES, 10, reference -> reference
+						.setAttribute(ATTRIBUTE_LABEL, Locale.ENGLISH, "shoes")
+						.setAttribute("tags", Locale.ENGLISH,
+							new String[]{"Blue", "blue", "Blue", "leather", "", null, "the"})));
+				session.upsertEntity(session.createNewEntity(PRODUCT, 2)
+					.setReference(REFERENCE_CATEGORIES, 10, labelled("boots")));
+			});
+			final FulltextFieldKey tagsKey = referenceAttribute(REFERENCE_CATEGORIES, "tags");
+			final ReferenceFulltextValueIndex tags = referenceDictionary(Scope.LIVE, tagsKey);
+			assertEquals(5, tags.values.size());
+			assertNotEquals(tags.values.getLongRecordEqualTo("Blue"), tags.values.getLongRecordEqualTo("blue"));
+			assertEquals(2L, tags.targetCounts.getLongRecordEqualTo(10).orElseThrow());
+			for (final ValueMatch match : tags.lookup(Set.of(analyzedWord("blue")))) {
+				assertEquals(1L, tags.holderCounts.getLongRecordEqualTo(
+					io.evitadb.utils.NumberUtils.pack(match.valueId(), 10)).orElseThrow());
+			}
+			assertEquals(Set.of(1), referenceOwners(Scope.LIVE, tagsKey, "blue", 10, 1, 2));
+			assertEquals(Set.of(1), referenceOwners(Scope.LIVE, labelField(), "shoes", 10, 1, 2));
+			final Set<Integer> combined = new TreeSet<>(referenceOwners(Scope.LIVE, tagsKey, "blue", 10, 1, 2));
+			combined.retainAll(referenceOwners(Scope.LIVE, tagsKey, "leather", 10, 1, 2));
+			combined.retainAll(referenceOwners(Scope.LIVE, labelField(), "shoes", 10, 1, 2));
+			assertEquals(Set.of(1), combined);
+			assertTrue(tags.isEnrolled(2));
+			assertTrue(tags.lookup(Set.of(analyzedWord("boots"))).isEmpty());
+			write(session -> session.deleteEntity(PRODUCT, 1));
+			final ReferenceFulltextValueIndex remaining = referenceDictionary(Scope.LIVE, tagsKey);
+			assertEquals(0, remaining.values.size());
+			assertEquals(1L, remaining.targetCounts.getLongRecordEqualTo(10).orElseThrow());
+			removeCategory(2, 10);
+			assertEquals(0, referenceDictionary(Scope.LIVE, tagsKey).targetCounts.size());
+		}
+
+		/** Bare rows must not inherit a shared target's value; removing an absent attribute row repairs counts. */
+		@Test
+		@DisplayName("should maintain shared targets across bare insertions and complete removals")
+		void shouldMaintainSharedTargetAcrossBareRows() {
+			write(session -> {
+				session.upsertEntity(session.createNewEntity(PRODUCT, 1)
+					.setReference(REFERENCE_CATEGORIES, 10, labelled("shoes")));
+				session.upsertEntity(session.createNewEntity(PRODUCT, 2).setReference(REFERENCE_CATEGORIES, 10));
+				session.upsertEntity(session.createNewEntity(PRODUCT, 3)
+					.setReference(REFERENCE_CATEGORIES, 10, labelled("boots")));
+			});
+			assertEquals(Set.of(1), referenceOwners(Scope.LIVE, labelField(), "shoes", 10, 1, 2, 3));
+			assertEquals(Set.of(3), referenceOwners(Scope.LIVE, labelField(), "boots", 10, 1, 2, 3));
+			assertEquals(3L, referenceDictionary(Scope.LIVE, labelField()).targetCounts
+				.getLongRecordEqualTo(10).orElseThrow());
+			removeCategory(2, 10);
+			assertEquals(2L, referenceDictionary(Scope.LIVE, labelField()).targetCounts
+				.getLongRecordEqualTo(10).orElseThrow());
+			write(session -> session.deleteEntity(PRODUCT, 1));
+			final ReferenceFulltextValueIndex dictionary = referenceDictionary(Scope.LIVE, labelField());
+			assertEquals(ReferenceFulltextValueIndex.MembershipForm.ALL,
+				dictionary.lookup(Set.of(analyzedWord("boots"))).getFirst().form());
+			assertFalse(dictionary.isEnrolled(1));
+			assertEquals(Set.of(3), referenceOwners(Scope.LIVE, labelField(), "boots", 10, 3));
+		}
+
+		/** A rename must retain other owners' old value through a partial fan-out, including old MVCC readers. */
+		@Test
+		@DisplayName("should retain denormalized values until each owner is renamed")
+		void shouldRetainValuesDuringRename() {
+			write(session -> {
+				for (int owner = 1; owner <= 20; owner++) {
+					session.upsertEntity(session.createNewEntity(PRODUCT, owner)
+						.setReference(REFERENCE_CATEGORIES, 10, labelled("shoes")));
+				}
+			});
+			final ReferenceFulltextValueIndex old = referenceDictionary(Scope.LIVE, labelField());
+			final int[] owners = java.util.stream.IntStream.rangeClosed(1, 20).toArray();
+			for (int owner = 1; owner <= 10; owner++) {
+				setLabel(owner, 10, "boots");
+			}
+			assertEquals(10, referenceOwners(Scope.LIVE, labelField(), "shoes", 10, owners).size());
+			assertEquals(10, referenceOwners(Scope.LIVE, labelField(), "boots", 10, owners).size());
+			assertEquals(20, old.resolve(old.lookup(Set.of(analyzedWord("shoes"))).getFirst(),
+				new BaseBitmap(owners)).size());
+			for (int owner = 11; owner <= 20; owner++) {
+				setLabel(owner, 10, "boots");
+			}
+			assertTrue(referenceOwners(Scope.LIVE, labelField(), "shoes", 10, owners).isEmpty());
+			assertEquals(20, referenceOwners(Scope.LIVE, labelField(), "boots", 10, owners).size());
+		}
+
+		/** Restart retains holes, subset form and tokenless enrollment; a later mutation uses restored counts. */
+		@Test
+		@DisplayName("should reload reference value ids, holes and tokenless enrollment")
+		void shouldReloadIdsAndEnrollment() {
+			write(session -> {
+				session.upsertEntity(session.createNewEntity(PRODUCT, 1)
+					.setReference(REFERENCE_CATEGORIES, 10, labelled("shoes")));
+				session.upsertEntity(session.createNewEntity(PRODUCT, 2)
+					.setReference(REFERENCE_CATEGORIES, 10, labelled("boots")));
+				session.upsertEntity(session.createNewEntity(PRODUCT, 3)
+					.setReference(REFERENCE_CATEGORIES, 10, labelled("the")));
+			});
+			setLabel(2, 10, "shoes");
+			final long id = referenceDictionary(Scope.LIVE, labelField()).values
+				.getLongRecordEqualTo("shoes").orElseThrow();
+			final int next = referenceDictionary(Scope.LIVE, labelField()).allocator.getNextValueId();
+			restart();
+			final ReferenceFulltextValueIndex reloaded = referenceDictionary(Scope.LIVE, labelField());
+			assertEquals(id, reloaded.values.getLongRecordEqualTo("shoes").orElseThrow());
+			assertEquals(next, reloaded.allocator.getNextValueId());
+			assertTrue(reloaded.isEnrolled(3));
+			assertEquals(Set.of(1, 2), referenceOwners(Scope.LIVE, labelField(), "shoes", 10, 1, 2, 3));
+			setLabel(3, 10, "sandals");
+			assertEquals(next + 1, referenceDictionary(Scope.LIVE, labelField()).allocator.getNextValueId());
+		}
+
+		/** Complete pre/post images keep scope changes ordered with local attribute replacements and removals. */
+		@Test
+		@DisplayName("should move reference provenance with a mixed scope mutation")
+		void shouldMoveProvenanceWithMixedScopeMutation() {
+			write(session -> session.getEntitySchemaOrThrow(PRODUCT).openForWrite()
+				.withReferenceTo(REFERENCE_CATEGORIES, CATEGORY, Cardinality.ZERO_OR_MORE,
+					ref -> ref.withAttribute(ATTRIBUTE_LABEL, String.class,
+						attr -> attr.localized().nullable().searchableInScope(Scope.LIVE, Scope.ARCHIVED)))
+				.updateVia(session));
+			write(session -> session.upsertEntity(session.createNewEntity(PRODUCT, 1)
+				.setReference(REFERENCE_CATEGORIES, 10, labelled("shoes"))
+				.setReference(REFERENCE_CATEGORIES, 11, labelled("boots"))));
+			write(session -> session.getEntity(PRODUCT, 1, entityFetchAllContent()).orElseThrow().openForWrite()
+				.setScope(Scope.ARCHIVED).removeReference(REFERENCE_CATEGORIES, 10)
+				.setReference(REFERENCE_CATEGORIES, 11, labelled("sandals")).upsertVia(session));
+			assertFalse(referenceDictionary(Scope.LIVE, labelField()).isEnrolled(1));
+			assertEquals(Set.of(1), referenceOwners(Scope.ARCHIVED, labelField(), "sandals", 11, 1));
+			assertTrue(referenceOwners(Scope.ARCHIVED, labelField(), "boots", 11, 1).isEmpty());
+			assertTrue(referenceOwners(Scope.ARCHIVED, labelField(), "shoes", 10).isEmpty());
+		}
+
+		/** Reference targets may be zero or negative; their rows are kept, reloaded and removed like any other. */
+		@Test
+		@DisplayName("should maintain zero and negative reference targets through writes, reload and removal")
+		void shouldMaintainNonPositiveReferenceTargets() {
+			// a bare row written before any field exists stays unenrolled
+			write(session -> session.upsertEntity(session.createNewEntity(PRODUCT, 1)
+				.setReference(REFERENCE_CATEGORIES, 0)));
+			write(session -> session.upsertEntity(session.createNewEntity(PRODUCT, 2)
+				.setReference(REFERENCE_CATEGORIES, 7, labelled("red"))));
+			write(session -> session.upsertEntity(session.createNewEntity(PRODUCT, 3)
+				.setReference(REFERENCE_CATEGORIES, 0, labelled("blue"))
+				.setReference(REFERENCE_CATEGORIES, -5, labelled("blue"))));
+			assertEquals(Set.of(3), referenceOwners(Scope.LIVE, labelField(), "blue", 0, 1, 3));
+			assertEquals(Set.of(3), referenceOwners(Scope.LIVE, labelField(), "blue", -5, 3));
+			restart();
+			assertEquals(Set.of(3), referenceOwners(Scope.LIVE, labelField(), "blue", 0, 1, 3));
+			assertEquals(Set.of(3), referenceOwners(Scope.LIVE, labelField(), "blue", -5, 3));
+			assertEquals(1L, referenceDictionary(Scope.LIVE, labelField()).targetCounts
+				.getLongRecordEqualTo(0).orElseThrow());
+			write(session -> session.deleteEntity(PRODUCT, 1));
+			final ReferenceFulltextValueIndex dictionary = referenceDictionary(Scope.LIVE, labelField());
+			assertFalse(dictionary.isEnrolled(1));
+			assertEquals(1L, dictionary.targetCounts.getLongRecordEqualTo(0).orElseThrow());
+			assertEquals(1L, dictionary.targetCounts.getLongRecordEqualTo(-5).orElseThrow());
+		}
+	}
+
+	/** Reads current field state through the production partition-parameterized dictionary API. */
+	private ReferenceFulltextValueIndex referenceDictionary(Scope scope, FulltextFieldKey key) {
+		final FulltextIndex index = requireFulltextIndex(scope, Locale.ENGLISH);
+		return index.getReferenceValues(index.getFieldId(key));
+	}
+
+	/** Checks row multiplicity and the symbolic representation after real entity mutations. */
+	private void assertReferenceCounts(
+		FulltextFieldKey key, String word, long rows, long carrying, ReferenceFulltextValueIndex.MembershipForm form
+	) {
+		final ReferenceFulltextValueIndex dictionary = referenceDictionary(Scope.LIVE, key);
+		final ValueMatch match = dictionary.lookup(Set.of(analyzedWord(word))).getFirst();
+		assertEquals(rows, dictionary.targetCounts.getLongRecordEqualTo(10).orElseThrow());
+		assertEquals(carrying, dictionary.holderCounts.getLongRecordEqualTo(
+			NumberUtils.pack(match.valueId(), 10)).orElseThrow());
+		assertEquals(form, match.form());
+	}
+
+	/** Resolves all values for one analyzed word against the supplied actual target partition. */
+	private Set<Integer> referenceOwners(Scope scope, FulltextFieldKey key, String word, int target, int... owners) {
+		final ReferenceFulltextValueIndex dictionary = referenceDictionary(scope, key);
+		final Set<Integer> result = new TreeSet<>();
+		for (final ValueMatch match : dictionary.lookup(Set.of(analyzedWord(word)))) {
+			if (match.targetPK() == target) {
+				for (final int owner : dictionary.resolve(match, new BaseBitmap(owners)).getArray()) {
+					result.add(owner);
+				}
+			}
+		}
+		return result;
+	}
+
+	/** Uses the same real English analyzer as the write path. */
+	private String analyzedWord(String word) {
+		return collectTerms(catalog().getFulltextAnalyzerRegistry()
+			.getCompiledAnalyzer(catalog().getSchema(), "text", Locale.ENGLISH).indexSurface(), word).getFirst().term();
 	}
 
 	@Nested
@@ -487,6 +850,8 @@ class FulltextWritePathTest implements EvitaTestSupport {
 			);
 
 			assertIndexed(Scope.LIVE, Locale.ENGLISH, duplicateLabelField(), 1, "shoes", "boots");
+			assertEquals(Set.of(1), referenceOwners(Scope.LIVE, duplicateLabelField(), "shoes", 10, 1));
+			assertEquals(Set.of(1), referenceOwners(Scope.LIVE, duplicateLabelField(), "boots", 10, 1));
 		}
 
 		@Test
@@ -508,6 +873,8 @@ class FulltextWritePathTest implements EvitaTestSupport {
 			);
 
 			assertIndexed(Scope.LIVE, Locale.ENGLISH, duplicateLabelField(), 1, "shoes", "boots");
+			assertEquals(Set.of(1), referenceOwners(Scope.LIVE, duplicateLabelField(), "shoes", 10, 1));
+			assertEquals(Set.of(1), referenceOwners(Scope.LIVE, duplicateLabelField(), "boots", 10, 1));
 
 			// removing the first duplicate takes only its own value out of the union
 			write(

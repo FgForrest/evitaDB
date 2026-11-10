@@ -62,6 +62,7 @@ import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
@@ -84,14 +85,11 @@ import io.evitadb.function.TriConsumer;
 import io.evitadb.index.*;
 import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
-import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor;
 import io.evitadb.index.mutation.EntityIndexMutation;
 import io.evitadb.index.mutation.IndexImplicitMutations;
 import io.evitadb.index.mutation.IndexMutation;
 import io.evitadb.index.mutation.ReevaluateExpressionMutation;
-import io.evitadb.index.mutation.local.handler.LocalMutationHandler;
-import io.evitadb.index.mutation.local.handler.LocalMutationHandlerRegistry;
 import io.evitadb.index.mutation.local.dataAccess.EntityExistingDataFactory;
 import io.evitadb.index.mutation.local.dataAccess.EntityIndexedReferenceSupplier;
 import io.evitadb.index.mutation.local.dataAccess.EntityPriceSupplier;
@@ -99,11 +97,13 @@ import io.evitadb.index.mutation.local.dataAccess.EntityStoragePartExistingDataF
 import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.index.mutation.local.dataAccess.ExistingDataSupplierFactory;
 import io.evitadb.index.mutation.local.dataAccess.ReferenceSupplier;
+import io.evitadb.index.mutation.local.handler.LocalMutationHandler;
+import io.evitadb.index.mutation.local.handler.LocalMutationHandlerRegistry;
+import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.usage.SchemaCapabilityKey;
 import io.evitadb.index.usage.SchemaCapabilityUsage;
 import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
-import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleScope;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleWithScope;
@@ -120,6 +120,7 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.io.Serializable;
 import java.util.*;
 import java.util.Map.Entry;
@@ -3564,8 +3565,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @param primaryKey primary key of the entity that is being removed from the indexes
 	 */
 	private void removeEntity(int primaryKey) {
-		final EntityIndex globalIndex = getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, getScope()));
+		final GlobalEntityIndex globalIndex = (GlobalEntityIndex) getOrCreateIndex(
+			new EntityIndexKey(EntityIndexType.GLOBAL, getScope()));
 		if (globalIndex.removePrimaryKey(primaryKey)) {
+			// EntityRemoveMutation emits a RemoveReferenceMutation per reference before this call.
+			FulltextIndexMutator.removeEntityEnrollment(this, globalIndex);
 			// we need to remove the entity compounds rely on non-localized attributes
 			// they will exist even if the attributes are not present (i.e. compounds contain only NULL values)
 			final EntitySchema entitySchema = getEntitySchema();

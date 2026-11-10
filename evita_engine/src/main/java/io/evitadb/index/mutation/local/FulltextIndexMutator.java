@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssocia
 import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
@@ -53,6 +54,7 @@ import io.evitadb.index.IndexType;
 import io.evitadb.index.fulltext.FulltextFieldDefinition;
 import io.evitadb.index.fulltext.FulltextFieldKey;
 import io.evitadb.index.fulltext.FulltextIndex;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.RowValues;
 import io.evitadb.index.fulltext.SearchableTextExtractor;
 import io.evitadb.index.fulltext.SearchableTextExtractor.ExtractionMode;
 import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
@@ -62,8 +64,11 @@ import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -81,7 +86,7 @@ import java.util.Set;
  *   followed by the indexing of the new one;
  * - **a reference attribute** - the field is {@link FulltextFieldKey#referenceAttribute(String, String) the attribute
  *   of the reference}, and its value is the **set union** of the attribute over all the entity's references of that
- *   name. A change that neither adds a member to that set nor removes one touches no index at all;
+ *   name. The union postings change only when that set changes; the row dictionary also follows target provenance;
  * - **an associated data item** - the field is {@link FulltextFieldKey#associatedData(String) the associated data
  *   itself}, its text the value (a `String`, the elements of a `String[]`) or what the text expression selects from a
  *   complex data object (see {@link SearchableTextExtractor}); an update is a removal followed by an indexing, as for
@@ -258,7 +263,7 @@ public interface FulltextIndexMutator {
 	/**
 	 * Applies a reference mutation to the fulltext index: a reference attribute mutation, or the removal of
 	 * a reference, may change the union of a searchable reference attribute over the entity's references of that name.
-	 * Inserting a reference never does - its attributes arrive in mutations of their own.
+	 * A bare insertion also maintains row counts and exceptions in every existing reference field.
 	 *
 	 * @param executor    the executor of the entity mutation
 	 * @param globalIndex the global index of the scope being written
@@ -271,6 +276,10 @@ public interface FulltextIndexMutator {
 	) {
 		if (mutation instanceof ReferenceAttributeMutation attributeMutation) {
 			executeReferenceAttributeMutation(executor, globalIndex, attributeMutation);
+		} else if (mutation instanceof InsertReferenceMutation insertMutation) {
+			reconcileReferenceRows(executor, globalIndex,
+				executor.getReferencesStoragePart().getReferencesAsCollection(),
+				insertMutation.getReferenceKey(), 1);
 		} else if (mutation instanceof RemoveReferenceMutation removeMutation) {
 			executeReferenceRemoval(executor, globalIndex, removeMutation.getReferenceKey());
 		}
@@ -290,6 +299,7 @@ public interface FulltextIndexMutator {
 		@Nonnull Entity entity
 	) {
 		final int primaryKey = entity.getPrimaryKeyOrThrowException();
+		reconcileEntityReferences(executor, globalIndex, entity, false);
 		forEachSearchableValue(
 			executor.getEntitySchema(), globalIndex, entity,
 			(fieldKey, locale, values, textExpression) -> removeValue(executor, globalIndex, locale, fieldKey,
@@ -311,12 +321,31 @@ public interface FulltextIndexMutator {
 		@Nonnull Entity entity
 	) {
 		final int primaryKey = entity.getPrimaryKeyOrThrowException();
+		reconcileEntityReferences(executor, globalIndex, entity, true);
 		forEachSearchableValue(
 			executor.getEntitySchema(), globalIndex, entity,
 			(fieldKey, locale, values, textExpression) -> addValue(
 				executor, globalIndex, locale, fieldKey, primaryKey, values, textExpression
 			)
 		);
+	}
+
+	/**
+	 * Clears reference-field enrollment at final entity deletion, after its individual reference removals.
+	 * @param executor mutation executor with all row deltas already applied
+	 * @param globalIndex executor-acquired scope index
+	 */
+	static void removeEntityEnrollment(
+		@Nonnull EntityIndexLocalMutationExecutor executor, @Nonnull GlobalEntityIndex globalIndex
+	) {
+		for (final UnionKey key : referenceFields(globalIndex, List.of(), null)) {
+			if (!isReferenceFieldSearchable(executor, globalIndex, key)) {
+				continue;
+			}
+			reconcileReferenceField(executor, globalIndex, key.locale(),
+				FulltextFieldKey.referenceAttribute(key.referenceName(), key.attributeName()),
+				List.of(), List.of(), false);
+		}
 	}
 
 	/**
@@ -359,6 +388,9 @@ public interface FulltextIndexMutator {
 			executor.getReferencesStoragePart().getReferencesAsCollection();
 		final Serializable newValue = attributeMutation instanceof UpsertAttributeMutation upsertMutation ?
 			toSchemaType(upsertMutation.getAttributeValue(), attributeSchema) : null;
+		reconcileReferenceField(executor, globalIndex, locale, fieldKey,
+			collectRows(references, referenceName, attributeKey, null, null, 0),
+			collectRows(references, referenceName, attributeKey, referenceKey, newValue, 0), true);
 		replaceUnion(
 			executor, globalIndex, locale, fieldKey,
 			collectUnion(references, referenceName, attributeKey, null, null),
@@ -367,11 +399,9 @@ public interface FulltextIndexMutator {
 	}
 
 	/**
-	 * Applies the removal of one reference: for every localized attribute the removed reference carries, recomputes
-	 * the union over the entity's references of that name without it, and replaces the indexed union when the two
-	 * differ. The union "before" is computed from the references storage part as it stands before the removal, so it
-	 * still includes the removed reference. A field that is not searchable in the scope - or whose attribute the
-	 * reference schema no longer declares - is retired instead.
+	 * Reconciles row counts and owner membership for every registered reference field and locale, including fields
+	 * absent from the removed row. Recomputes each union without that reference and replaces it when changed. The
+	 * pre-storage image still includes the removed reference. Fields no longer searchable or declared are retired.
 	 *
 	 * @param executor     the executor of the entity mutation
 	 * @param globalIndex  the global index of the scope being written
@@ -398,31 +428,207 @@ public interface FulltextIndexMutator {
 			return;
 		}
 
-		final String referenceName = referenceKey.referenceName();
-		final ReferenceSchemaContract referenceSchema =
-			executor.getEntitySchema().getReferenceOrThrowException(referenceName);
-		final Scope scope = globalIndex.getIndexKey().scope();
-		for (final AttributeValue attributeValue : removedReference.getAttributeValues()) {
-			final AttributeKey attributeKey = attributeValue.key();
-			final Locale locale = attributeKey.locale();
-			if (locale == null || !attributeValue.exists()) {
+		reconcileReferenceRows(executor, globalIndex, references, referenceKey, -1);
+	}
+
+	/**
+	 * Reconciles bare insertion/removal for all registered fields, including attributes absent from the changed row.
+	 * @param executor mutation executor
+	 * @param globalIndex current scope index, acquired through the executor
+	 * @param references live pre-storage image
+	 * @param changedRow exact changed row identity
+	 * @param rowChange one for insertion, minus one for removal
+	 */
+	private static void reconcileReferenceRows(
+		@Nonnull EntityIndexLocalMutationExecutor executor, @Nonnull GlobalEntityIndex globalIndex,
+		@Nonnull Collection<ReferenceContract> references, @Nonnull ReferenceKey changedRow, int rowChange
+	) {
+		final String name = changedRow.referenceName();
+		for (final UnionKey key : referenceFields(globalIndex, references, name)) {
+			if (!isReferenceFieldSearchable(executor, globalIndex, key)) {
 				continue;
 			}
-			final String attributeName = attributeKey.attributeName();
-			final FulltextFieldKey fieldKey = FulltextFieldKey.referenceAttribute(referenceName, attributeName);
-			final boolean searchable = referenceSchema.getAttribute(attributeName)
-				.map(it -> it.isSearchableInScope(scope))
-				.orElse(false);
-			if (searchable) {
-				replaceUnion(
-					executor, globalIndex, locale, fieldKey,
-					collectUnion(references, referenceName, attributeKey, null, null),
-					collectUnion(references, referenceName, attributeKey, referenceKey, null)
-				);
-			} else {
-				retireField(globalIndex, locale, fieldKey);
+			final AttributeKey attribute = new AttributeKey(key.attributeName(), key.locale());
+			final FulltextFieldKey field = FulltextFieldKey.referenceAttribute(name, key.attributeName());
+			final List<RowValues> before = collectRows(references, name, attribute, null, null, 0);
+			final List<RowValues> after = collectRows(references, name, attribute, changedRow, null, rowChange);
+			reconcileReferenceField(executor, globalIndex, key.locale(), field, before, after, true);
+			replaceUnion(executor, globalIndex, key.locale(), field, unionOfRows(before), unionOfRows(after));
+		}
+	}
+
+	/**
+	 * Applies complete row batches on scope entry/leave.
+	 * @param executor mutation executor
+	 * @param globalIndex scope being entered or left
+	 * @param entity image at this local mutation
+	 * @param entering true for entry, false for leave
+	 */
+	private static void reconcileEntityReferences(
+		@Nonnull EntityIndexLocalMutationExecutor executor, @Nonnull GlobalEntityIndex globalIndex,
+		@Nonnull Entity entity, boolean entering
+	) {
+		for (final UnionKey key : referenceFields(globalIndex, entity.getReferences(), null)) {
+			if (!isReferenceFieldSearchable(executor, globalIndex, key)) {
+				continue;
+			}
+			final List<RowValues> rows = collectRows(entity.getReferences(), key.referenceName(),
+				new AttributeKey(key.attributeName(), key.locale()), null, null, 0);
+			reconcileReferenceField(executor, globalIndex, key.locale(),
+				FulltextFieldKey.referenceAttribute(key.referenceName(), key.attributeName()),
+				entering ? List.of() : rows, entering ? rows : List.of(), entering);
+		}
+	}
+
+	/**
+	 * Enumerates registered reference generations plus fields present in the supplied rows, without other owners.
+	 * @param globalIndex scope index
+	 * @param references supplied owner's rows
+	 * @param referenceName restrict to one reference, null for every reference
+	 * @return field/locale identities, deduplicated
+	 */
+	@Nonnull
+	private static Set<UnionKey> referenceFields(
+		@Nonnull GlobalEntityIndex globalIndex, @Nonnull Collection<ReferenceContract> references,
+		@Nullable String referenceName
+	) {
+		final Set<UnionKey> result = CollectionUtils.createLinkedHashSet(8);
+		for (final Locale locale : globalIndex.getFulltextIndexLocales()) {
+			final FulltextIndex index = Objects.requireNonNull(globalIndex.getFulltextIndex(locale));
+			for (int field = 0; field < index.getFieldCount(); field++) {
+				final FulltextFieldKey key = Objects.requireNonNull(index.getFieldKey(field));
+				if (!index.isFieldRetired(field) && key.kind() == FulltextFieldKey.FieldKind.REFERENCE_ATTRIBUTE &&
+					(referenceName == null || referenceName.equals(key.referenceName()))) {
+					result.add(new UnionKey(key.referenceName(), key.name(), locale));
+				}
 			}
 		}
+		for (final ReferenceContract reference : references) {
+			if (reference.exists() && (referenceName == null || referenceName.equals(reference.getReferenceName()))) {
+				for (final AttributeValue value : reference.getAttributeValues()) {
+					if (value.exists() && value.key().locale() != null) {
+						result.add(new UnionKey(reference.getReferenceName(),
+							value.key().attributeName(), value.key().locale()));
+					}
+				}
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Checks searchability before reading raw values, which may have non-text types in unsearchable fields.
+	 * @param executor current schema owner
+	 * @param globalIndex current scope index
+	 * @param key reference field and locale
+	 * @return whether the field can be reconciled
+	 */
+	private static boolean isReferenceFieldSearchable(
+		@Nonnull EntityIndexLocalMutationExecutor executor, @Nonnull GlobalEntityIndex globalIndex,
+		@Nonnull UnionKey key
+	) {
+		final boolean searchable = executor.getEntitySchema().getReference(key.referenceName())
+			.flatMap(reference -> reference.getAttribute(key.attributeName()))
+			.map(attribute -> attribute.isSearchableInScope(globalIndex.getIndexKey().scope())).orElse(false);
+		if (!searchable) {
+			retireField(globalIndex, key.locale(),
+				FulltextFieldKey.referenceAttribute(key.referenceName(), key.attributeName()));
+		}
+		return searchable;
+	}
+
+	/**
+	 * Reconciles a field after its caller has checked searchability once.
+	 * @param executor current mutation executor
+	 * @param globalIndex current scope index
+	 * @param locale field locale
+	 * @param fieldKey reference attribute identity
+	 * @param before complete prior owner rows
+	 * @param after complete final owner rows
+	 * @param enroll whether to retain enrollment, false when the owner leaves the scope or the entity is removed
+	 */
+	private static void reconcileReferenceField(
+		@Nonnull EntityIndexLocalMutationExecutor executor, @Nonnull GlobalEntityIndex globalIndex,
+		@Nonnull Locale locale, @Nonnull FulltextFieldKey fieldKey, @Nonnull List<RowValues> before,
+		@Nonnull List<RowValues> after, boolean enroll
+	) {
+		FulltextIndex index = globalIndex.getFulltextIndex(locale);
+		if (!enroll && index == null) {
+			return;
+		}
+		final FulltextFieldDefinition definition =
+			FulltextFieldDefinition.resolve(executor.getEntitySchema(), fieldKey);
+		final CompiledFulltextAnalyzer analyzer = compiledAnalyzerOf(executor, definition, locale);
+		if (index == null) {
+			index = globalIndex.getOrCreateFulltextIndex(locale);
+		}
+		int fieldId = index.getFieldId(fieldKey);
+		if (!enroll && (fieldId == FulltextIndex.UNKNOWN_FIELD_ID ||
+			!index.isFieldCurrent(fieldId, analyzer.fingerprint().index(), definition.lengthPivot()))) {
+			index.retireField(fieldKey);
+			return;
+		}
+		fieldId = index.getOrAssignFieldId(fieldKey, definition.analyzer(), analyzer.fingerprint().index(),
+			analyzer.fingerprint().wordPhase(), definition.lengthPivot(), null);
+		index.reconcileReferenceValues(fieldId,
+			executor.getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, enroll ? Target.NEW : Target.EXISTING),
+			before, after, enroll, analyzer);
+	}
+
+	/**
+	 * Overlays exactly one local mutation on the owner's pre-storage reference image.
+	 * @param references pre-storage rows
+	 * @param referenceName reference being reconciled
+	 * @param attribute field attribute and locale
+	 * @param changedRow exact row changed, null for the unmodified image
+	 * @param replacement attribute replacement, null for removal or a bare row event
+	 * @param rowChange zero for attribute mutation, one for row insertion, minus one for row removal
+	 * @return complete live rows with per-row distinct values
+	 */
+	@Nonnull
+	private static List<RowValues> collectRows(
+		@Nonnull Collection<ReferenceContract> references, @Nonnull String referenceName,
+		@Nonnull AttributeKey attribute, @Nullable ReferenceKey changedRow,
+		@Nullable Serializable replacement, int rowChange
+	) {
+		final List<RowValues> result = new ArrayList<>(references.size() + 1);
+		for (final ReferenceContract reference : references) {
+			if (!reference.exists() || !referenceName.equals(reference.getReferenceName())) {
+				continue;
+			}
+			final boolean changed = changedRow != null &&
+				ReferenceKey.FULL_COMPARATOR.compare(reference.getReferenceKey(), changedRow) == 0;
+			if (!changed || rowChange != -1) {
+				Serializable stored = null;
+				for (final AttributeValue value : reference.getAttributeValues()) {
+					if (value.exists() && value.key().equals(attribute)) {
+						stored = value.value();
+						break;
+					}
+				}
+				final Serializable raw = changed && rowChange == 0 ? replacement : stored;
+				result.add(new RowValues(reference.getReferencedPrimaryKey(),
+					raw == null ? Set.of() : distinctValues(raw)));
+			}
+		}
+		if (rowChange == 1) {
+			result.add(new RowValues(Objects.requireNonNull(changedRow).primaryKey(), Set.of()));
+		}
+		return result;
+	}
+
+	/**
+	 * Collects the unchanged union representation from a transient row image.
+	 * @param rows live owner rows
+	 * @return distinct raw values across the reference
+	 */
+	@Nonnull
+	private static Set<String> unionOfRows(@Nonnull List<RowValues> rows) {
+		final Set<String> result = CollectionUtils.createLinkedHashSet(4);
+		for (final RowValues row : rows) {
+			result.addAll(row.values());
+		}
+		return result;
 	}
 
 	/**

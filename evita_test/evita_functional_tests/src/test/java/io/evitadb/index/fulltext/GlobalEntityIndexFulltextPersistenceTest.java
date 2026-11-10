@@ -36,8 +36,11 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.analysis.AttributeNormalizationResolver;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.component.loader.LoadContext;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.ChildKind;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.RowValues;
 import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
@@ -49,14 +52,16 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.KeyCompr
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextDictionaryLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextSurfaceFormLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextSurfaceFormLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextDictionaryLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextFieldLengthBlockPart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextFieldLengthBlockRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexRootRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextReferenceValueLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextReferenceValueLeafPageRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextSurfaceFormLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextSurfaceFormLeafPageRemoval;
 import io.evitadb.store.catalog.CatalogHeaderKryoConfigurer;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
 import io.evitadb.store.index.SharedIndexStoragePartConfigurer;
@@ -64,8 +69,8 @@ import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
-import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndex;
+import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.OffsetIndexSerializationService.FileLocationAndWrittenBytes;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
@@ -83,6 +88,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
@@ -321,6 +329,8 @@ class GlobalEntityIndexFulltextPersistenceTest {
 			} else if (part instanceof FulltextDictionaryLeafPagePart page) {
 				partLocale = page.getLocale();
 			} else if (part instanceof FulltextSurfaceFormLeafPagePart page) {
+				partLocale = (Locale) io.evitadb.index.IndexHeapSizeAssertions.readField(page, "locale");
+			} else if (part instanceof FulltextReferenceValueLeafPagePart page) {
 				partLocale = (Locale) io.evitadb.index.IndexHeapSizeAssertions.readField(page, "locale");
 			} else if (part instanceof FulltextFieldLengthBlockPart block) {
 				partLocale = block.getLocale();
@@ -746,6 +756,241 @@ class GlobalEntityIndexFulltextPersistenceTest {
 			}
 		}
 
+	}
+
+	@Nested
+	@DisplayName("Reference value child persistence")
+	class ReferenceValues {
+		/** Scalar, singleton, small-set and bitmap payloads all use the registered Kryo format. */
+		@Test
+		@DisplayName("should reload reference bucket payloads across their adaptive tiers")
+		void shouldReloadReferenceBucketTiers() {
+			final GlobalEntityIndex global = newGlobalIndex();
+			final FulltextIndex index = global.getOrCreateFulltextIndex(ENGLISH);
+			final int field = registerExactField(index, FulltextFieldKey.referenceAttribute("category", "label"), 25.0);
+			for (int owner = 1; owner <= 96; owner++) {
+				final Set<String> values = owner > 93 ? Set.of("shared", "red " + owner, "rare") :
+					Set.of("shared", "red " + owner);
+				index.reconcileReferenceValues(field, owner, List.of(),
+					List.of(new RowValues(10, values), new RowValues(20 + owner, Set.of("shared"))),
+					true, exactAnalyzer());
+				index.reconcileReferenceValues(field, 100 + owner, List.of(),
+					List.of(new RowValues(10, Set.of())), true, exactAnalyzer());
+			}
+			try (final Disk disk = new Disk()) {
+				disk.write(flush(global));
+				final ReferenceFulltextValueIndex restored = disk.reload(registry).getFulltextIndex(ENGLISH)
+					.getReferenceValues(field);
+				assertEquals(96, restored.terms.getRecordsEqualTo("red").size());
+				final int shared = (int) restored.values.getLongRecordEqualTo("shared").orElseThrow();
+				assertEquals(97, restored.valueTargets.getRecordsEqualTo(shared).size());
+				assertEquals(98, restored.targetValues.getRecordsEqualTo(10).size());
+				final ReferenceFulltextValueIndex.ValueMatch common = restored.lookup(Set.of("shared")).stream()
+					.filter(match -> match.targetPK() == 10).findFirst().orElseThrow();
+				assertEquals(ReferenceFulltextValueIndex.MembershipForm.EXCEPT, common.form());
+				assertEquals(96, common.owners().size());
+				assertArrayEquals(new int[]{1, 96},
+					restored.resolve(common, new BaseBitmap(1, 96, 101, 196)).getArray());
+				final ReferenceFulltextValueIndex.ValueMatch rare = restored.lookup(Set.of("rare")).getFirst();
+				assertArrayEquals(new int[]{94, 95, 96}, rare.owners().getArray());
+				assertEquals(ReferenceFulltextValueIndex.MembershipForm.HOLDERS, rare.form());
+			}
+		}
+
+		/** Replacements overwrite matching stream sequences and reclaim every remaining old generation page. */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("should reclaim reference pages on whole-index removal and locale replacement")
+		void shouldReclaimReferenceFootprints(boolean replace) {
+			final GlobalEntityIndex global = newGlobalIndex();
+			final FulltextIndex index = global.getOrCreateFulltextIndex(ENGLISH);
+			final FulltextFieldKey key = FulltextFieldKey.referenceAttribute("category", "label");
+			final int field = registerExactField(index, key, 25.0);
+			for (int number = 1; number <= 300; number++) {
+				referencePair(index, field, number, true);
+			}
+			index.retireField(key);
+			final int current = registerExactField(index, key, 50.0);
+			referencePair(index, current, 301, true);
+			try (final Disk disk = new Disk()) {
+				final List<StoragePart> first = flush(global);
+				disk.write(first);
+				final List<PersistedPart> old = fulltextPartsOf(first, ENGLISH);
+				final List<StoragePart> second;
+				if (replace) {
+					global.removeFulltextIndex(ENGLISH);
+					final FulltextIndex replacement = global.getOrCreateFulltextIndex(ENGLISH);
+					final int replacementField = registerExactField(replacement, key, 25.0);
+					referencePair(replacement, replacementField, 1, true);
+					second = flush(global);
+				} else {
+					final TrappedChanges removals = new TrappedChanges();
+					global.emitFootprintRemovals(removals);
+					second = drain(removals);
+				}
+				assertFalse(partsOf(second, FulltextReferenceValueLeafPageRemoval.class).isEmpty());
+				disk.write(second);
+				final List<PersistedPart> retained = fulltextPartsOf(second, ENGLISH);
+				final OffsetIndex store = disk.reopen();
+				for (final PersistedPart part : old) {
+					if (!retained.contains(part)) {
+						assertNull(store.get(disk.version(), part.primaryKey(), part.type()), "Removed: " + part);
+					}
+				}
+				if (replace) {
+					final FulltextIndex restored = disk.reload(registry).getFulltextIndex(ENGLISH);
+					assertEquals(1, restored.getFieldCount());
+					assertEquals(1, restored.getReferenceValues(0).values.size());
+					assertTrue(flush(global).isEmpty());
+				}
+			}
+		}
+
+		/** Every child splits and later frees leaves; real bytes retain allocator holes and mutation state. */
+		@Test
+		@DisplayName("should page every reference child and reload after consecutive warm-up merges")
+		void shouldPageEveryReferenceChildAndReload() {
+			final GlobalEntityIndex global = newGlobalIndex();
+			final FulltextIndex index = global.getOrCreateFulltextIndex(ENGLISH);
+			final int field = registerExactField(index, FulltextFieldKey.referenceAttribute("category", "label"), 25.0);
+			for (int i = 1; i <= 600; i++) {
+				referencePair(index, field, i, true);
+			}
+			try (final Disk disk = new Disk()) {
+				final List<StoragePart> first = flush(global);
+				assertEquals(Set.of(new FulltextIndexKey(ENGLISH)), manifestOf(first).getFulltextIndexes());
+				for (final ChildKind kind : ChildKind.values()) {
+					assertTrue(partsOf(first, FulltextReferenceValueLeafPagePart.class).stream()
+						.filter(page -> page.getPage().kind() == kind).count() > 1, "Split child: " + kind);
+				}
+				disk.write(first);
+				assertTrue(flush(global).isEmpty());
+				for (int i = 101; i <= 600; i++) {
+					referencePair(index, field, i, false);
+				}
+				final List<StoragePart> second = flush(global);
+				assertFalse(partsOf(second, FulltextReferenceValueLeafPageRemoval.class).isEmpty());
+				assertTrue(partsOf(second, FulltextDictionaryLeafPagePart.class).isEmpty(),
+					"Side-only changes do not rewrite union postings.");
+				disk.write(second);
+				final GlobalEntityIndex reloaded = disk.reload(registry);
+				final FulltextIndex restored = reloaded.getFulltextIndex(ENGLISH);
+				final ReferenceFulltextValueIndex values = restored.getReferenceValues(field);
+				assertEquals(601, values.allocator.getNextValueId());
+				assertEquals(100, values.values.size());
+				assertEquals(ReferenceFulltextValueIndex.MembershipForm.EXCEPT,
+					values.lookup(Set.of("value1")).getFirst().form());
+				assertArrayEquals(new int[]{65_537}, values.resolve(values.lookup(Set.of("value1")).getFirst(),
+					new BaseBitmap(65_537, 65_538)).getArray());
+				assertTrue(flush(reloaded).isEmpty(), "Cold-loaded children start clean.");
+				referencePair(restored, field, 601, true);
+				assertEquals(601L, values.values.getLongRecordEqualTo("value601").orElseThrow());
+				disk.write(flush(reloaded));
+				assertEquals(602, disk.reload(registry).getFulltextIndex(ENGLISH)
+					.getReferenceValues(field).allocator.getNextValueId());
+			}
+		}
+
+		/** Missing root-listed child pages are errors, even when the top-level union has no postings. */
+		@Test
+		@DisplayName("should refuse a missing reference child page")
+		void shouldRefuseMissingReferencePage() {
+			final GlobalEntityIndex global = newGlobalIndex();
+			final FulltextIndex index = global.getOrCreateFulltextIndex(ENGLISH);
+			final int field = registerExactField(index, FulltextFieldKey.referenceAttribute("category", "label"), 25.0);
+			for (int number = 1; number <= 300; number++) {
+				referencePair(index, field, number, true);
+			}
+			final List<StoragePart> parts = flush(global);
+			final StoragePart missing = partsOf(parts, FulltextReferenceValueLeafPagePart.class).getFirst();
+			parts.remove(missing);
+			try (final Disk disk = new Disk()) {
+				disk.write(parts);
+				assertThrows(GenericEvitaInternalError.class, () -> disk.reload(registry));
+			}
+		}
+
+		/** A page addressed by the expected stream must still identify the correct field in its payload. */
+		@Test
+		@DisplayName("should reject a reference page associated with the wrong field")
+		void shouldRejectWrongReferenceFieldAssociation() {
+			final GlobalEntityIndex global = newGlobalIndex();
+			final FulltextIndex index = global.getOrCreateFulltextIndex(ENGLISH);
+			final int field = registerExactField(index, FulltextFieldKey.referenceAttribute("category", "label"), 25.0);
+			referencePair(index, field, 1, true);
+			final List<StoragePart> first = flush(global);
+			try (final Disk disk = new Disk()) {
+				disk.write(first);
+				final FulltextReferenceValueLeafPagePart page =
+					partsOf(first, FulltextReferenceValueLeafPagePart.class).getFirst();
+				disk.write(List.of(
+					new FulltextReferenceValueLeafPagePart(page.getStreamId(), field + 1, page.getPage())));
+				final GenericEvitaInternalError error = assertThrows(GenericEvitaInternalError.class,
+					() -> disk.reload(registry));
+				assertTrue(error.getMessage().contains("field/child manifest"));
+			}
+		}
+
+		/** Invalid ids/counts/tags must fail at load after passing through real Kryo bytes. */
+		@ParameterizedTest
+		@EnumSource(value = ChildKind.class, names = {"RAW_VALUE_IDS", "VALUE_ROW_COUNTS", "OWNER_FORMS"})
+		@DisplayName("should reject malformed persisted reference ids, counts and forms")
+		void shouldRejectMalformedReferenceState(ChildKind corruptedKind) {
+			final GlobalEntityIndex global = newGlobalIndex();
+			final FulltextIndex index = global.getOrCreateFulltextIndex(ENGLISH);
+			final int field = registerExactField(index, FulltextFieldKey.referenceAttribute("category", "label"), 25.0);
+			referencePair(index, field, 1, true);
+			final List<StoragePart> parts = flush(global);
+			final FulltextReferenceValueLeafPagePart old = partsOf(parts, FulltextReferenceValueLeafPagePart.class)
+				.stream().filter(page -> page.getPage().kind() == corruptedKind).findFirst().orElseThrow();
+			final ReferenceFulltextValueIndex.ValuePage page = old.getPage();
+			final long[] invalid = page.scalars().clone();
+			invalid[0] = 999L;
+			parts.set(parts.indexOf(old), new FulltextReferenceValueLeafPagePart(ENTITY_INDEX_PK, ENGLISH, field,
+				new ReferenceFulltextValueIndex.ValuePage(page.pageSequence(), page.kind(), page.keys(),
+					invalid, page.records())));
+			try (final Disk disk = new Disk()) {
+				disk.write(parts);
+				assertThrows(GenericEvitaInternalError.class, () -> disk.reload(registry));
+			}
+		}
+
+		/** Retired generations remain persisted, and dropping the locale reclaims them as well as the current one. */
+		@Test
+		@DisplayName("should retain retired reference footprints until their locale is dropped")
+		void shouldRetainRetiredReferenceFootprints() {
+			final GlobalEntityIndex global = newGlobalIndex();
+			final FulltextIndex index = global.getOrCreateFulltextIndex(ENGLISH);
+			final FulltextFieldKey key = FulltextFieldKey.referenceAttribute("category", "label");
+			final int first = registerExactField(index, key, 25.0);
+			referencePair(index, first, 1, true);
+			try (final Disk disk = new Disk()) {
+				disk.write(flush(global));
+				index.retireField(key);
+				final int current = registerExactField(index, key, 50.0);
+				referencePair(index, current, 2, true);
+				disk.write(flush(global));
+				final GlobalEntityIndex reloaded = disk.reload(registry);
+				assertTrue(reloaded.getFulltextIndex(ENGLISH).isFieldRetired(first));
+				assertEquals(1, reloaded.getFulltextIndex(ENGLISH).getReferenceValues(first).values.size());
+				reloaded.removeFulltextIndex(ENGLISH);
+				final List<StoragePart> dropped = flush(reloaded);
+				assertEquals(2 * ChildKind.values().length,
+					partsOf(dropped, FulltextReferenceValueLeafPageRemoval.class).size());
+				disk.write(dropped);
+				assertNull(disk.reload(registry).getFulltextIndex(ENGLISH));
+			}
+		}
+
+		/** Batches two real owners into one target with one holder and one bare row. */
+		private void referencePair(FulltextIndex index, int field, int number, boolean insert) {
+			final List<RowValues> holder = List.of(new RowValues(number, Set.of("value" + number)));
+			final List<RowValues> bare = List.of(new RowValues(number, Set.of()));
+			index.reconcileReferenceValues(field, number * 65_536 + 1,
+				insert ? List.of() : holder, insert ? holder : List.of(), insert, exactAnalyzer());
+			index.reconcileReferenceValues(field, number * 65_536 + 2,
+				insert ? List.of() : bare, insert ? bare : List.of(), insert, exactAnalyzer());
+		}
 	}
 
 	@Nested

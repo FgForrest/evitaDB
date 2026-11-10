@@ -30,6 +30,9 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.index.fulltext.FulltextFieldKey;
 import io.evitadb.index.fulltext.FulltextFieldKey.FieldKind;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.ChildKind;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.ChildStream;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.ValueManifest;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart.FieldEntry;
@@ -37,6 +40,7 @@ import io.evitadb.store.index.serializer.PagedStreamMetadataSerializer.PagedStre
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
+
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
@@ -95,6 +99,14 @@ public class FulltextIndexStoragePartSerializer extends Serializer<FulltextIndex
 			for (final int lengthBlock : lengthBlocks) {
 				output.writeVarInt(lengthBlock, true);
 			}
+			final ValueManifest manifest = field.referenceValues();
+			output.writeBoolean(manifest != null);
+			if (manifest != null) {
+				output.writeVarInt(manifest.nextValueId(), true);
+				for (final ChildStream stream : manifest.streams()) {
+					PagedStreamMetadataSerializer.writeBody(output, stream.highWater(), stream.sequences());
+				}
+			}
 		}
 
 		PagedStreamMetadataSerializer.writeBody(
@@ -134,8 +146,18 @@ public class FulltextIndexStoragePartSerializer extends Serializer<FulltextIndex
 			for (int j = 0; j < lengthBlocks.length; j++) {
 				lengthBlocks[j] = input.readVarInt(true);
 			}
+			ValueManifest referenceValues = null;
+			if (input.readBoolean()) {
+				final int nextValueId = input.readVarInt(true);
+				final ChildStream[] streams = new ChildStream[ChildKind.values().length];
+				for (int child = 0; child < streams.length; child++) {
+					final PagedStreamMetadata stream = PagedStreamMetadataSerializer.readBody(input);
+					streams[child] = new ChildStream(stream.highWaterPageSequence(), stream.leafPageSequences());
+				}
+				referenceValues = new ValueManifest(nextValueId, streams);
+			}
 			fields[i] = new FieldEntry(key, analyzerName, indexFingerprint, wordPhaseId, lengthPivot,
-				textExpression, retired, lengthBlocks);
+				textExpression, retired, lengthBlocks, referenceValues);
 		}
 
 		final PagedStreamMetadata dictionary = PagedStreamMetadataSerializer.readBody(input);

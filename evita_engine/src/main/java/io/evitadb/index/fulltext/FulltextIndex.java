@@ -59,8 +59,10 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -84,17 +86,20 @@ import java.util.Map;
  *   so that the n-th impact of a term always belongs to its n-th posting — by construction, through every insert,
  *   split, merge and commit, rather than by bookkeeping kept in step from outside.
  * - **A {@link FieldLengthTable} per field**, the length of every indexed value in tokens.
+ * - **A {@link ReferenceFulltextValueIndex} per reference-attribute field**, the field's distinct raw values with the
+ *   targets and owners whose reference rows carry them, so a match can be confined to a single reference row.
  * - **Field ids**, assigned on first use of a {@link FulltextFieldKey}, which become the key prefix. The id of a field
  *   never changes for the life of the index, so a key once written always means the same field.
  *
  * ## Retired fields
  *
  * A field whose source stopped being searchable is **retired** ({@link #retireField(FulltextFieldKey)}): its key no
- * longer resolves to its id, its postings and lengths stay where they are, and nothing writes to it again. Should the
- * source become searchable once more, its key is registered anew under a fresh id and starts empty. Removing the old
- * postings would take every value the field ever indexed, which only a reindex has; leaving them reachable would let a
- * re-added field return entities whose values changed while it was not searchable. A retired field is dead weight until
- * a reindex drops it - a query over the re-added field may miss entities, but it never finds a wrong one.
+ * longer resolves to its id, its postings, lengths and reference value dictionary stay where they are, and nothing
+ * writes to it again. Should the source become searchable once more, its key is registered anew under a fresh id and
+ * starts empty. Removing the old postings would take every value the field ever indexed, which only a reindex has;
+ * leaving them reachable would let a re-added field return entities whose values changed while it was not searchable.
+ * A retired field is dead weight until a reindex drops it - a query over the re-added field may miss entities, but it
+ * never finds a wrong one.
  *
  * ## The impact byte
  *
@@ -283,8 +288,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 
 	/**
 	 * The state of one field. What it was registered with - its key, analyzer name and identities, pivot and text
-	 * expression - never changes, and it is retired at most once; its length table is replaced by its committed copy
-	 * at every commit that merges the index.
+	 * expression - never changes, and it is retired at most once; its length table and reference value dictionary are
+	 * replaced by their committed copies at every commit that merges the index.
 	 *
 	 * @param key            the field's identity
 	 * @param analyzerName   the analyzer name recorded at registration
@@ -295,6 +300,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 *                       text expression of searchable associated data), `null` when the values are the text
 	 *                       themselves; see {@link #getTextExpression(int)}
 	 * @param retired        whether the field was retired - its key no longer resolves to it, and it takes no writes
+	 * @param referenceValues the row value dictionary of a reference attribute, null for other field kinds
 	 * @param lengths        the lengths of the field's indexed values
 	 */
 	public record Field(
@@ -305,8 +311,29 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		double lengthPivot,
 		@Nullable String textExpression,
 		boolean retired,
-		@Nonnull FieldLengthTable lengths
+		@Nonnull FieldLengthTable lengths,
+		@Nullable ReferenceFulltextValueIndex referenceValues
 	) {
+
+		/**
+		 * Creates a new field and its reference dictionary when applicable.
+		 * @param key field identity
+		 * @param analyzerName schema analyzer name
+		 * @param indexFingerprint index chain identity
+		 * @param wordPhaseId word phase identity
+		 * @param lengthPivot normalization pivot
+		 * @param textExpression extraction expression, null for text attributes
+		 * @param retired whether the field is retired
+		 * @param lengths indexed union lengths
+		 */
+		public Field(
+			@Nonnull FulltextFieldKey key, @Nonnull String analyzerName, long indexFingerprint, long wordPhaseId,
+			double lengthPivot, @Nullable String textExpression, boolean retired, @Nonnull FieldLengthTable lengths
+		) {
+			this(key, analyzerName, indexFingerprint, wordPhaseId, lengthPivot, textExpression, retired, lengths,
+				key.kind() == FulltextFieldKey.FieldKind.REFERENCE_ATTRIBUTE
+					? new ReferenceFulltextValueIndex() : null);
+		}
 
 		/**
 		 * Keeps an owned analyzer name so field heap accounting does not depend on cache or string interning.
@@ -319,20 +346,23 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		 * @param textExpression the extraction expression, or null for text values
 		 * @param retired whether this generation has stopped accepting writes
 		 * @param lengths the field's value lengths
+		 * @param referenceValues reference row dictionary, null for other fields
 		 */
 		public Field {
+			Assert.isPremiseValid((key.kind() == FulltextFieldKey.FieldKind.REFERENCE_ATTRIBUTE) ==
+				(referenceValues != null), "Reference fulltext state must match its field kind!");
 			analyzerName = new String(analyzerName.toCharArray());
 		}
 
 		/**
-		 * Returns this field retired, with the very same length table.
+		 * Returns this field retired, with the very same length table and reference value dictionary.
 		 *
 		 * @return the retired copy
 		 */
 		@Nonnull
 		Field retire() {
 			return new Field(this.key, this.analyzerName, this.indexFingerprint, this.wordPhaseId,
-				this.lengthPivot, this.textExpression, true, this.lengths);
+				this.lengthPivot, this.textExpression, true, this.lengths, this.referenceValues);
 		}
 
 	}
@@ -608,6 +638,39 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			this.fields = registered;
 		}
 		return fieldId;
+	}
+
+	/**
+	 * Reconciles a reference field's row dictionary before the owner union shortcut. A reconciliation that changes
+	 * nothing leaves the index clean, so the next flush does not rewrite it.
+	 * @param fieldId current generation id
+	 * @param ownerPK affected owner
+	 * @param before complete owner rows before this mutation
+	 * @param after complete owner rows after this mutation
+	 * @param enroll false when the owner leaves the scope or the entity is removed
+	 * @param analyzer generation analyzer
+	 */
+	public void reconcileReferenceValues(
+		int fieldId, int ownerPK, @Nonnull Collection<ReferenceFulltextValueIndex.RowValues> before,
+		@Nonnull Collection<ReferenceFulltextValueIndex.RowValues> after, boolean enroll,
+		@Nonnull CompiledFulltextAnalyzer analyzer
+	) {
+		final ReferenceFulltextValueIndex values = getReferenceValues(fieldId);
+		Assert.isPremiseValid(values != null && !isFieldRetired(fieldId),
+			"Only a current reference field accepts row values!");
+		if (values.reconcile(ownerPK, before, after, enroll, analyzer)) {
+			markWritten();
+		}
+	}
+
+	/**
+	 * Returns the partition-parameterized reference value dictionary, including a retired field's frozen state.
+	 * @param fieldId generation identity
+	 * @return the dictionary, null for entity attributes and associated data
+	 */
+	@Nullable
+	public ReferenceFulltextValueIndex getReferenceValues(int fieldId) {
+		return fieldAt(fieldId).referenceValues();
 	}
 
 	/**
@@ -1089,13 +1152,16 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			// the shared empty registry belongs to no index
 			size += layout.sizeOfArray(this.fields.length, layout.referenceSize());
 			for (final Field field : this.fields) {
-				// The pivot, two identities and retired flag, then key / analyzerName / expression / lengths.
+				// The pivot, two identities and retired flag, then key / analyzerName / expression / lengths /
+				// reference value dictionary.
 				final String textExpression = field.textExpression();
-				size += layout.sizeOfObject(Double.BYTES + 2L * Long.BYTES + 1L + 4L * layout.referenceSize())
+				final ReferenceFulltextValueIndex referenceValues = field.referenceValues();
+				size += layout.sizeOfObject(Double.BYTES + 2L * Long.BYTES + 1L + 5L * layout.referenceSize())
 					+ getHeapSizeInBytes(field.key(), layout)
 					+ MemoryMeasuringConstants.computeStringSize(field.analyzerName())
 					+ (textExpression == null ? 0L : MemoryMeasuringConstants.computeStringSize(textExpression))
-					+ field.lengths().getHeapSizeInBytes();
+					+ field.lengths().getHeapSizeInBytes()
+					+ (referenceValues == null ? 0L : referenceValues.getHeapSizeInBytes());
 			}
 		}
 		return size;
@@ -1161,12 +1227,14 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			if (!retired) {
 				mergedFieldIds.put(field.key(), fieldId);
 			}
+			final ReferenceFulltextValueIndex referenceValues = field.referenceValues();
 			mergedFields[fieldId] = new Field(
 				field.key(), field.analyzerName(), field.indexFingerprint(), field.wordPhaseId(),
 				field.lengthPivot(),
 				field.textExpression(),
 				retired,
-				transactionalLayer.getStateCopyWithCommittedChanges(field.lengths())
+				transactionalLayer.getStateCopyWithCommittedChanges(field.lengths()),
+				referenceValues == null ? null : transactionalLayer.getStateCopyWithCommittedChanges(referenceValues)
 			);
 		}
 		return new FulltextIndex(
@@ -1183,17 +1251,33 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final FulltextIndexChanges layer = transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		for (final Field field : this.fields) {
-			field.lengths().removeLayer(transactionalLayer);
+			removeFieldLayers(field, transactionalLayer);
 		}
 		if (layer != null) {
 			for (final Field field : layer.getAddedFields()) {
-				field.lengths().removeLayer(transactionalLayer);
+				removeFieldLayers(field, transactionalLayer);
 			}
 		}
 		this.dictionary.removeLayer(transactionalLayer);
 		this.surfaceForms.removeLayer(transactionalLayer);
 		this.wordPhaseIds.removeLayer(transactionalLayer);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.dirty);
+	}
+
+	/**
+	 * Drops the layers a field's own transactional parts hold.
+	 *
+	 * @param field the committed or newly added field
+	 * @param transactionalLayer the maintainer whose layers are dropped
+	 */
+	private static void removeFieldLayers(
+		@Nonnull Field field, @Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
+		field.lengths().removeLayer(transactionalLayer);
+		final ReferenceFulltextValueIndex referenceValues = field.referenceValues();
+		if (referenceValues != null) {
+			referenceValues.removeLayer(transactionalLayer);
+		}
 	}
 
 	/**

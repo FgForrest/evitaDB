@@ -38,14 +38,15 @@ import lombok.Setter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+
 import java.io.Serial;
 import java.io.Serializable;
 
 import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLayerIfExists;
 
 /**
- * Mints the stable **value ids** of ONE shared value tree — the ids that name a distinct attribute value
- * independently of where that value currently sits in the tree.
+ * Mints the stable **value ids** of ONE shared value tree or value dictionary — the ids that name a distinct
+ * attribute value independently of where that value currently sits in the tree.
  *
  * ## Lifecycle: monotonic with holes
  *
@@ -68,10 +69,11 @@ import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLaye
  *
  * ## Scope
  *
- * One allocator per shared value tree — per (attribute, locale, scope) — never one catalog-global instance. The
- * write path re-shells on the order of a hundred thousand reduced indexes per commit (write-path tuning ADR,
- * 2026-07-27), and a single shared counter across all of them would be a contention point on precisely the path
- * that can least afford one.
+ * One allocator per shared value tree — per (attribute, locale, scope) — and one per generation of a reference
+ * attribute's fulltext value dictionary ({@link io.evitadb.index.fulltext.ReferenceFulltextValueIndex}), never one
+ * catalog-global instance. The write path re-shells on the order of a hundred thousand reduced indexes per commit
+ * (write-path tuning ADR, 2026-07-27), and a single shared counter across all of them would be a contention point on
+ * precisely the path that can least afford one.
  *
  * The allocator is **persisted** with the tree, so ids survive a restart. Without that, a reload would renumber every
  * value and invalidate every id-keyed structure built on top of the tree.
@@ -184,7 +186,7 @@ public class ValueIdAllocator
 				"The high-water mark is persisted with the tree, so a restart does not reset it, and the " +
 				"generation-scoped compaction that would reclaim the holes is not implemented - the entity " +
 				"collection must be rebuilt.",
-			"The value ids of an attribute value index (used by substring search) are exhausted. They are " +
+			"The value ids of a value dictionary are exhausted. They are " +
 				"persisted with the index and never reused, so a restart does not help - rebuild the entity " +
 				"collection: insert its entities into a new collection and swap it in with `replaceCollection`."
 		);
