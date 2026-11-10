@@ -1,7 +1,7 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-10 23:35
+updated: 2026-11-10 23:37
 status: accepted
 kind: fix
 issues: [1880, 1897, 1917]
@@ -258,11 +258,12 @@ scope, and the composer of the query has to leave the container out.
   With the placement check removed from `EntityCollection#assertScopeUsageValid` only, exactly the five
   `getEntity` refusals and the refused `upsertAndFetchEntity` of `ScopePlacementFunctionalTest` failed: the
   `inScope` and `userFilter` rows met the row compiler's message instead of the pinned placement message, and the
-  two duplicate rows threw nothing. An adversarial review enumerated every wrapper chain of length one to four over
-  `and`, single-child and multi-child `or`, `not`, `inScope`, `userFilter`, nested `filterBy` / `filterGroupBy`,
-  `entityHaving`, `groupHaving`, `referenceHaving` and `facetHaving` against the expected verdict: 21,768 checks
-  passed. Full suite on the final code with the release fixtures generated, 15:57 min: 33,436 tests with 0 failures,
-  0 errors and 71 skipped.
+  two duplicate rows threw nothing. An adversarial review ran a throwaway probe, not kept as a repository test, over
+  every wrapper chain of length one to four that the constructors accept, built from `and`, single-child and
+  multi-child `or`, `not`, `inScope`, `userFilter`, nested `filterBy` / `filterGroupBy`, `entityHaving`, `groupHaving`,
+  `referenceHaving` and `facetHaving`: with ten explicit boundary and duplicate cases, 21,768 checks matched the
+  expected verdict, and the constructors refused 862 other chains before validation. Full suite on the final code
+  with the release fixtures generated, 15:57 min: 33,436 tests with 0 failures, 0 errors and 71 skipped.
   They exposed accepted `inScope` / `userFilter` selections, the generic duplicate-lookup exception, an unnegated
   inert order scope, root conjunction compilation failures and an owner still present after a refused write-and-fetch.
   `QueryUtilsTest$ScopePlacement` checks placement before duplicates across sections, independent sibling levels,
