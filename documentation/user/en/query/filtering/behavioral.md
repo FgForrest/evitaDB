@@ -75,12 +75,18 @@ searched in, whatever the scopes of the query. Anywhere else - in
 [`referenceHaving`](references.md#reference-having) or [`facetHaving`](references.md#facet-having) - it would do
 nothing, so the query is rejected with an error.
 
-A `scope` cannot be placed in a [`not`](logical.md#not) container either, at any depth below it. It selects the scopes
-the query searches in, it does not filter entities, so there is nothing to negate - name the scopes you want in
-`scope` instead. The query is rejected with an error. The `scope` of an
-[`entityHaving`](references.md#entity-having) or [`groupHaving`](references.md#group-having) that the `not` encloses
-is not negated and stays valid: it selects the scopes of the entities that container reaches, and the `not` negates
-the container as a whole. A `not` placed inside such a container cannot hold a `scope`, as at the root.
+A `scope` cannot be placed in a [`not`](logical.md#not) or [`or`](logical.md#or) container, at any depth within
+its entity level. It selects the scopes the query searches in, it does not filter entities, so it has no meaning as
+a negated condition or as a branch of a disjunction. The query is rejected with an error. Name the scopes you want
+in `scope(...)` and write a condition that holds in one scope only with `inScope`. For example,
+`scope(LIVE, ARCHIVED), inScope(LIVE, attributeEquals("code", "a"))` returns every archived entity and the live
+entities with that code. A `scope` at the root or in an [`and`](logical.md#and) stays valid, and so does one in an
+`or` of a single child, which joins nothing and is read as that child.
+
+The `scope` of an [`entityHaving`](references.md#entity-having) or [`groupHaving`](references.md#group-having)
+that the `not` or `or` encloses stays valid: it selects the scopes of the entities that container reaches, and the
+logical container operates on that container as a whole. A `not` or `or` placed inside such a container cannot
+hold a `scope`, as at the root.
 
 </Note>
 

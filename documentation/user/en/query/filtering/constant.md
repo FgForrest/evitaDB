@@ -108,6 +108,11 @@ will only get entities from the archive scope. You can also mix entities from bo
 `scope(LIVE, ARCHIVE)`, and in such a case the [`referenceHaving`](../filtering/references.md#reference-having)
 may also match entities from different scopes than the one being queried.
 
+The constraint selects the scopes of the whole filter, or of the entity level of an `entityHaving` / `groupHaving`.
+Place it at the root of the filter or in an `and`; inside `not`, or inside an `or` joining it with other
+constraints, the query is refused. Use `inScope` for a condition that holds in one scope only - see
+[behavioral filtering](behavioral.md#in-scope).
+
 The hierarchy filters [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) and
 [`hierarchyWithinRoot`](../filtering/hierarchy.md#hierarchy-within-root) read the hierarchy tree of every queried
 scope. Each tree is searched exactly as in a query over its scope alone, and an entity of any queried scope matches

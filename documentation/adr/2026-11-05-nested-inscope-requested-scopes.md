@@ -1,10 +1,10 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-10 15:01
+updated: 2026-11-10 17:29
 status: accepted
 kind: fix
-issues: [1880, 1897]
+issues: [1880, 1897, 1917]
 prs: [1884, 1914]
 areas:
   - evita_api/src/main/java/io/evitadb/api/requestResponse
@@ -171,14 +171,16 @@ scope, and the composer of the query has to leave the container out.
   `EntityCollection#assertScopeUsageValid` run it on the filter section and on every filter of the require section - of
   a `referenceContent`, a hierarchy `node`, a facet summary - at any depth, before anything of the request runs. A new
   client-facing entry point has to call it.
-- **The one exception, #1897:** a `scope(...)` below `not` is refused by `QueryUtils#assertNoNegatedScope`, a walk of
-  the same filters and of the `entityHaving` of a `segment`, which needs no scopes. Both entry points run it **before**
-  they resolve the requested scopes, because the resolution (`EvitaRequest#getScopes`, and the lookups of a level's
-  own scope inside the walk above) reads a scope through the negation as a positive one, and fails on two of them with
-  a `MoreThanSingleResultException` that names neither. A new entry point calls it before `getRequestedScopes()`. A
-  negated scope a container would not apply at all gets the "has no effect" diagnostic of the walk above, which names
-  the more fundamental mistake. The negation walk raises it itself, because the walk above does not reach the order
-  section, where `segment(entityHaving(referenceHaving("r", not(scope(LIVE)))))` would otherwise reach `NotTranslator`.
+- **The exceptions, #1897 and #1917:** a `scope(...)` below `not` or `or` is refused by
+  `QueryUtils#assertNoScopeBelowNegationOrDisjunction`, a walk of the same filters and of the `entityHaving` of a
+  `segment`, which needs no scopes. Both entry points run it **before** they resolve the requested scopes, because
+  the resolution (`EvitaRequest#getScopes`, and the lookups of a level's own scope inside the walk above) reads a
+  scope through either logical container and applies it to the whole level, and fails on two scopes with a
+  `MoreThanSingleResultException` that names neither the container nor the mistake. A new entry point calls it
+  before `getRequestedScopes()`. A scope an enclosing container would not apply at all gets the "has no effect"
+  diagnostic first; otherwise `not` takes precedence over `or`. This walk raises the inert diagnostic itself,
+  because the applicability walk does not reach the order section. Every separate container resets both logical
+  states, so an `entityHaving` or `groupHaving` enclosed by either logical container still takes its own scope.
 - Only `entityHaving` and `groupHaving` read their own `scope(...)`, in `HavingTranslatorHelper#planNestedQuery`. Below
   any other separate container the walk refuses it. A level without its own scope inherits what encloses it.
 - `HavingTranslatorHelper#planNestedQuery` runs the walk again before `computeOnlyOnce`, because that memo reuses the
@@ -248,6 +250,17 @@ scope, and the composer of the query has to leave the container out.
   (`-DreleaseFixtures.skip=true`), every one with "Fixture ... is not on the class path", and their 9 classes then
   passed in a run that generated the fixtures, 217 tests with 0 failures.
 
+- **#1917, the disjunctive scope.** Its six test classes pass 568 tests with no failures, errors or skips:
+  `ScopeInDisjunctionFunctionalTest` 26, `NegatedScopeFunctionalTest` 23, `QueryUtilsTest` 174 (28 in
+  `$DisjunctiveScopes`), `ReferenceContentRowFilterFunctionalTest` 39, `ReferenceRowFilterCompilerTest` 39 and
+  `CatalogGraphQLQueryEntityQueryFunctionalTest` 267. The tests were written first and run against the code before
+  the fix, while they still held a functional row for the single-child `or`, removed since: 43 of 560 failed - 17
+  functional disjunction tests, 23 utility tests, two row-filter diagnostic checks and the GraphQL refusal. With the
+  single-child condition of the walk removed, `QueryUtilsTest` fails exactly one test,
+  `$DisjunctiveScopes#shouldAcceptScopeWhenOrHasSingleChild`, on `or(scope(ARCHIVED))`. On the direct-fetch path,
+  `getEntity` with `entityHaving(or(scope(ARCHIVED)))` answers as with `entityHaving(scope(ARCHIVED))`
+  (`ScopeInDisjunctionFunctionalTest`, `shouldAcceptScopeWhenOrHasSingleChildInFetchedReferenceFilter`).
+
 ## Consequences & open follow-ups
 
 - **Visible to clients, both ways.** A query over both scopes with a nested `inScope` now works where it failed. `or`
@@ -274,8 +287,8 @@ scope, and the composer of the query has to leave the container out.
     it and the row filter compiler refuses it, on a write path after the write.
   - `segment(entityHaving(...))` unwraps the container and translates its children in the enclosing context, and
     `assertFilterScopesApplicable` does not walk the order section, so a `scope(...)` there has no effect and is not
-    refused. A negated one is refused since #1897 by `assertNoNegatedScope`, which does walk it - it used to end in the
-    internal error of `NotTranslator`.
+    refused. One below `not` or `or` is refused by `assertNoScopeBelowNegationOrDisjunction`, which does walk it;
+    the negated case used to end in the internal error of `NotTranslator`.
   - A facet summary filter over the queried entity type itself is planned in the enclosing context, so its own
     `scope(...)` does not narrow what an `inScope` of that filter may name
     (`FilteringFormulaPredicate#createTargetQueryContext`). The searched scopes follow the `scope(...)` of the filter.
@@ -283,9 +296,19 @@ scope, and the composer of the query has to leave the container out.
   `GenericEvitaInternalError` from `NotTranslator`, or, beside a sibling, to be applied as if it stood outside the
   `not` - `not(and(scope(ARCHIVED), code=a))` returned archived items. Giving it a meaning (the complement of the named
   scopes) was declined: a query's scopes would then depend on a negation, and naming the scopes says the same.
-- **Open, left by #1897.** `or(scope(ARCHIVED), code=a)` applies the scope to the whole filter, not to its branch. The
-  GraphQL API wraps sibling constraints in `and`, so `scope` must stay legal in `and`; `or` has no such need, and
-  whether to refuse it there was not decided.
+- **Breaking, #1917.** A `scope(...)` below `or`, at any depth of its entity level, is refused like one below
+  `not`. The user documentation defines `scope` as the scope the result is searched in; a branch has no meaning
+  for it, and the `referenceContent` row filter already refuses it below its root. Keeping the silent application
+  to the whole filter was declined because it answers a different query: `or(scope(ARCHIVED), code=a)` returned
+  only archived items with code a. Name both scopes and use `inScope(LIVE, code=a)` to return every archived item
+  and the live items with code a. The GraphQL API wraps sibling constraints in `and`, so `scope` stays legal in
+  `and`, at any depth. An `or` of a single child is no disjunction and is not refused: `or(scope(ARCHIVED))` says
+  `scope(ARCHIVED)`. The query methods of the session normalize it into its child before an entry point checks the
+  query, and the walk reads it as that child on the paths that are not normalized too - `getEntity` and the other
+  direct fetches. Refusing it instead would have needed a third check, before the normalization, for a shape that
+  already answers what it says. The row filter of `referenceContent` keeps its own rule on those paths: it takes a
+  `scope` only as a direct child of its `filterBy` (see above), so a direct fetch refuses
+  `referenceContent("item", filterBy(or(scope(LIVE))))`, which a normalized query accepts.
 - **Backport: none, by the project owner's decision.** The `ClassCastException` stays on `release_2026-2`, where it
   depends on the data. The refusal never shipped, because that branch has no residual check.
 
@@ -306,3 +329,5 @@ scope, and the composer of the query has to leave the container out.
   #1883 split off; PR #1884 opened.
 - **2026-11-05** — PR #1884 merged.
 - **2026-11-10** — #1897: a `scope(...)` below `not` refused before the scopes are resolved; PR #1914 opened.
+- **2026-11-10** — #1917: a `scope(...)` below `or` refused before scope lookup, with inert scope usage and
+  negation retaining diagnostic precedence; entity levels enclosed by `or` keep their own scopes.

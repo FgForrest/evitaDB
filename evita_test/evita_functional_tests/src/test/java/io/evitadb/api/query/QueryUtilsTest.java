@@ -514,7 +514,7 @@ class QueryUtilsTest {
 				not(hierarchyWithin("r", referenceHaving("s", entityHaving(scope(Scope.ARCHIVED)))))
 			)) {
 				assertDoesNotThrow(
-					() -> QueryUtils.assertNoNegatedScope(query(collection("a"), filterBy(filter))),
+					() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query(collection("a"), filterBy(filter))),
 					filter::toString
 				);
 			}
@@ -524,17 +524,17 @@ class QueryUtilsTest {
 		@Test
 		@DisplayName("Accept a scope beside not and a not without a scope")
 		void shouldAcceptScopeWhenBesideNegation() {
-			assertDoesNotThrow(() -> QueryUtils.assertNoNegatedScope(query(
+			assertDoesNotThrow(() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query(
 				collection("a"), filterBy(scope(Scope.ARCHIVED), not(attributeEquals("y", 1)))
 			)));
-			assertDoesNotThrow(() -> QueryUtils.assertNoNegatedScope(query(
+			assertDoesNotThrow(() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query(
 				collection("a"),
 				orderBy(segments(segment(
 					entityHaving(and(scope(Scope.ARCHIVED), not(attributeEquals("y", 1)))),
 					orderBy(attributeNatural("y"))
 				)))
 			)));
-			assertDoesNotThrow(() -> QueryUtils.assertNoNegatedScope(query(collection("a"))));
+			assertDoesNotThrow(() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query(collection("a"))));
 		}
 
 		/** The lookup of the scope of the query fails on two scopes, which the check needs no lookup to refuse. */
@@ -582,7 +582,9 @@ class QueryUtilsTest {
 				)
 			)) {
 				final EvitaInvalidUsageException error = assertThrowsExactly(
-					EvitaInvalidUsageException.class, () -> QueryUtils.assertNoNegatedScope(query), query::toString
+					EvitaInvalidUsageException.class,
+					() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query),
+					query::toString
 				);
 				assertEquals(inert, error.getMessage());
 			}
@@ -644,12 +646,277 @@ class QueryUtilsTest {
 		private void assertNegated(@Nonnull Query query, @Nonnull EntityScope negatedScope) {
 			final EvitaInvalidUsageException error = assertThrowsExactly(
 				EvitaInvalidUsageException.class,
-				() -> QueryUtils.assertNoNegatedScope(query),
+				() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query),
 				query::toString
 			);
 			assertEquals(
 				"Constraint `" + negatedScope + "` cannot be negated in `not` - it selects the scopes to search in, " +
 					"it does not filter entities. Name the scopes you want in `scope(...)` instead.",
+				error.getMessage()
+			);
+		}
+	}
+
+	/** A `scope(...)` below `or` is refused whatever the scopes, at every entity level that applies a scope. */
+	@Nested
+	@DisplayName("Disjunctive scopes")
+	class DisjunctiveScopes {
+		/** The ways a disjunction can reach a scope within one entity level. */
+		private static final List<FilterConstraint> DISJUNCTIONS = List.of(
+			or(scope(Scope.ARCHIVED), attributeEquals("y", 1)),
+			or(and(scope(Scope.ARCHIVED), attributeEquals("y", 1)), attributeEquals("y", 2)),
+			and(or(attributeEquals("y", 1), scope(Scope.ARCHIVED)), attributeEquals("y", 2)),
+			or(attributeEquals("y", 2), and(attributeEquals("y", 1), or(scope(Scope.ARCHIVED)))),
+			or(inScope(Scope.LIVE, scope(Scope.ARCHIVED)), attributeEquals("y", 1))
+		);
+
+		/** Every level a scope applies at refuses it below `or`, at any depth of that level. */
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("io.evitadb.api.query.QueryUtilsTest#scopeApplyingLevels")
+		@DisplayName("Refuse a scope below or at a level that applies it")
+		void shouldRefuseScopeWhenDisjoinedAtLevelApplyingIt(
+			@Nonnull String levelName, @Nonnull Function<FilterConstraint, FilterConstraint> level
+		) {
+			for (final FilterConstraint disjunction : DISJUNCTIONS) {
+				assertDisjoined(query(collection("a"), filterBy(level.apply(disjunction))), scope(Scope.ARCHIVED));
+			}
+		}
+
+		/** A container starting its own entity level selects that level's scopes even when enclosed by or. */
+		@Test
+		@DisplayName("Accept a scope of an entity level the disjunction encloses")
+		void shouldAcceptScopeWhenDisjoinedContainerStartsOwnEntityLevel() {
+			for (final FilterConstraint filter : List.of(
+				or(entityHaving(scope(Scope.ARCHIVED)), attributeEquals("y", 2)),
+				or(groupHaving(and(scope(Scope.ARCHIVED), attributeEquals("y", 1))), attributeEquals("y", 2)),
+				or(
+					referenceHaving("r", entityHaving(and(scope(Scope.ARCHIVED), attributeEquals("y", 1)))),
+					attributeEquals("y", 2)
+				),
+				or(facetHaving("r", groupHaving(scope(Scope.ARCHIVED))), attributeEquals("y", 2)),
+				or(
+					hierarchyWithin("r", referenceHaving("s", entityHaving(scope(Scope.ARCHIVED)))),
+					attributeEquals("y", 2)
+				)
+			)) {
+				assertAccepted(filter);
+			}
+		}
+
+		/** A scope beside a disjunction and a disjunction without a scope are what the check must let through. */
+		@Test
+		@DisplayName("Accept a scope beside or and an or without a scope")
+		void shouldAcceptScopeWhenBesideDisjunction() {
+			assertDoesNotThrow(() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query(
+				collection("a"), filterBy(scope(Scope.ARCHIVED), or(attributeEquals("y", 1), attributeEquals("y", 2)))
+			)));
+			assertDoesNotThrow(() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query(
+				collection("a"),
+				orderBy(segments(segment(
+					entityHaving(and(scope(Scope.ARCHIVED), or(attributeEquals("y", 1), attributeEquals("y", 2)))),
+					orderBy(attributeNatural("y"))
+				)))
+			)));
+			assertDoesNotThrow(() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query(collection("a"))));
+			for (final FilterConstraint filter : List.of(
+				scope(Scope.ARCHIVED),
+				and(and(scope(Scope.ARCHIVED), attributeEquals("y", 1))),
+				and(scope(Scope.LIVE, Scope.ARCHIVED), inScope(Scope.LIVE, attributeEquals("y", 1)))
+			)) {
+				assertAccepted(filter);
+			}
+		}
+
+		/**
+		 * An `or` of a single child joins nothing: the normalization of a query flattens it into that child, and the
+		 * check reads it the same way on the paths that are not normalized.
+		 */
+		@Test
+		@DisplayName("Accept a scope in an or of a single child, which joins nothing")
+		void shouldAcceptScopeWhenOrHasSingleChild() {
+			for (final FilterConstraint filter : List.of(
+				or(scope(Scope.ARCHIVED)),
+				or(and(scope(Scope.ARCHIVED), attributeEquals("y", 1))),
+				or(or(scope(Scope.ARCHIVED))),
+				entityHaving(or(scope(Scope.ARCHIVED)))
+			)) {
+				assertAccepted(filter);
+			}
+		}
+
+		/** The lookup of the scope of the query fails on two scopes, which the check needs no lookup to refuse. */
+		@Test
+		@DisplayName("Refuse a disjoined scope beside another scope of the same level")
+		void shouldRefuseScopeWhenDisjoinedBesideAnotherScope() {
+			final Query query = query(
+				collection("a"),
+				filterBy(scope(Scope.LIVE, Scope.ARCHIVED), or(scope(Scope.ARCHIVED), attributeEquals("y", 1)))
+			);
+
+			assertDisjoined(query, scope(Scope.ARCHIVED));
+			assertDisjoined(
+				query(collection("a"), filterBy(or(scope(Scope.LIVE), scope(Scope.ARCHIVED)))), scope(Scope.LIVE)
+			);
+			assertDisjoined(
+				query(
+					collection("a"),
+					filterBy(entityHaving(and(
+						scope(Scope.LIVE, Scope.ARCHIVED), or(scope(Scope.ARCHIVED), attributeEquals("y", 1)), LIVE_X
+					)))
+				),
+				scope(Scope.ARCHIVED)
+			);
+		}
+
+		/**
+		 * A disjoined scope a container would not apply at all gets the diagnostic naming the container, the
+		 * same in the order section, which only this walk reaches, as in the filter section.
+		 */
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("io.evitadb.api.query.QueryUtilsTest#scopeRefusingContainers")
+		@DisplayName("Refuse a disjoined scope a container would not apply as having no effect")
+		void shouldRefuseScopeAsInertWhenDisjoinedInContainerNotApplyingIt(
+			@Nonnull String container, @Nonnull Function<FilterConstraint, FilterConstraint> level
+		) {
+			final FilterConstraint disjunction = or(scope(Scope.LIVE), attributeEquals("y", 1));
+			final FilterBy filter = filterBy(or(level.apply(disjunction)));
+			final String inert = "Constraint `scope(LIVE)` has no effect in `" + container + "` - it selects scopes " +
+				"only in the root of a filter and in `entityHaving` or `groupHaving`, so it must be placed there or " +
+				"removed.";
+
+			for (final Query query : List.of(
+				query(collection("a"), filter),
+				query(
+					collection("a"),
+					orderBy(segments(segment(entityHaving(level.apply(disjunction)), orderBy(attributeNatural("y")))))
+				)
+			)) {
+				final EvitaInvalidUsageException error = assertThrowsExactly(
+					EvitaInvalidUsageException.class,
+					() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query),
+					query::toString
+				);
+				assertEquals(inert, error.getMessage());
+			}
+			final EvitaInvalidUsageException error = assertThrowsExactly(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertFilterScopesApplicable(filter, Set.of(Scope.values()))
+			);
+			assertEquals(inert, error.getMessage());
+		}
+
+		/** Every filter nested in the order and the require section is checked, at any depth. */
+		@Test
+		@DisplayName("Refuse a scope below or in a filter of the order or the require section")
+		void shouldRefuseScopeWhenDisjoinedInNestedFilter() {
+			final FilterConstraint disjunction = or(scope(Scope.ARCHIVED), attributeEquals("y", 1));
+			for (final Query query : List.of(
+				query(
+					collection("a"),
+					orderBy(segments(
+						segment(orderBy(attributeNatural("y"))),
+						segment(entityHaving(disjunction), orderBy(attributeNatural("y")))
+					))
+				),
+				query(collection("a"), require(entityFetch(referenceContent("r", filterBy(disjunction))))),
+				query(
+					collection("a"),
+					require(entityFetch(referenceContent(
+						"r", entityFetch(referenceContent("s", filterBy(entityHaving(disjunction))))
+					)))
+				),
+				query(collection("a"), require(entityFetch(hierarchyContent(stopAt(node(filterBy(disjunction))))))),
+				query(
+					collection("a"),
+					require(facetSummaryOfReference("r", FacetStatisticsDepth.COUNTS, filterBy(disjunction)))
+				),
+				query(
+					collection("a"),
+					require(facetSummaryOfReference(
+						"r", FacetStatisticsDepth.COUNTS, filterBy(attributeEquals("y", 1)), filterGroupBy(disjunction)
+					))
+				),
+				query(
+					collection("a"),
+					require(referenceSummaryOfReference("r", FacetStatisticsDepth.COUNTS, filterBy(disjunction)))
+				),
+				query(
+					collection("a"),
+					require(referenceSummaryOfReference(
+						"r", FacetStatisticsDepth.COUNTS, filterBy(attributeEquals("y", 1)), filterGroupBy(disjunction)
+					))
+				),
+				query(collection("a"), require(facetGroupsConjunction("r", filterBy(disjunction)))),
+				query(collection("a"), require(facetGroupsDisjunction("r", filterBy(disjunction)))),
+				query(collection("a"), require(facetGroupsNegation("r", filterBy(disjunction)))),
+				query(collection("a"), require(facetGroupsExclusivity("r", filterBy(disjunction)))),
+				query(collection("a"), require(facetSummary(FacetStatisticsDepth.COUNTS, filterBy(disjunction)))),
+				query(collection("a"), require(referenceSummary(FacetStatisticsDepth.COUNTS, filterBy(disjunction))))
+			)) {
+				assertDisjoined(query, scope(Scope.ARCHIVED));
+			}
+		}
+
+		/** Asserts that the check lets the filter through, naming the filter when it does not. */
+		private void assertAccepted(@Nonnull FilterConstraint filter) {
+			assertDoesNotThrow(
+				() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query(collection("a"), filterBy(filter))),
+				filter::toString
+			);
+		}
+
+		/** Pins the public exception and the diagnostic naming the disjoined scope. */
+		private void assertDisjoined(@Nonnull Query query, @Nonnull EntityScope disjoinedScope) {
+			final EvitaInvalidUsageException error = assertThrowsExactly(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query),
+				query::toString
+			);
+			assertEquals(
+				"Constraint `" + disjoinedScope + "` cannot be placed in `or` - it selects the scopes to search " +
+					"in, it does not filter entities. Name the scopes you want in `scope(...)` and put a " +
+					"condition that holds in one scope only in `inScope(...)`.",
+				error.getMessage()
+			);
+		}
+
+		/** In both nesting orders the diagnostic of `not` takes precedence over the one of `or`. */
+		@Test
+		@DisplayName("Prefer not over or within the same entity level")
+		void shouldPreferNegationWhenBothContainersEncloseScope() {
+			for (final FilterConstraint filter : List.of(
+				not(or(scope(Scope.ARCHIVED), attributeEquals("y", 1))),
+				or(not(scope(Scope.ARCHIVED)), attributeEquals("y", 1))
+			)) {
+				assertRefusedAsNegated(filter);
+			}
+		}
+
+		/**
+		 * An `or` of a single child is no disjunction, so it neither lifts the refusal of a scope below `not` nor
+		 * changes its diagnostic, whichever of the two encloses the other.
+		 */
+		@Test
+		@DisplayName("Refuse a negated scope in an or of a single child with the not diagnostic")
+		void shouldRefuseScopeAsNegatedWhenOrHasSingleChild() {
+			for (final FilterConstraint filter : List.of(
+				not(or(scope(Scope.ARCHIVED))),
+				or(not(scope(Scope.ARCHIVED)))
+			)) {
+				assertRefusedAsNegated(filter);
+			}
+		}
+
+		/** Pins the public exception and the diagnostic of `not` for `scope(ARCHIVED)` in the filter. */
+		private void assertRefusedAsNegated(@Nonnull FilterConstraint filter) {
+			final EvitaInvalidUsageException error = assertThrowsExactly(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertNoScopeBelowNegationOrDisjunction(query(collection("a"), filterBy(filter))),
+				filter::toString
+			);
+			assertEquals(
+				"Constraint `scope(ARCHIVED)` cannot be negated in `not` - it selects the scopes to " +
+					"search in, it does not filter entities. Name the scopes you want in `scope(...)` instead.",
 				error.getMessage()
 			);
 		}

@@ -1140,18 +1140,19 @@ class ReferenceContentRowFilterFunctionalTest {
 		@DisplayName("a scope below the root of the filter is refused rather than read as true")
 		@UseDataSet(DATA_SET)
 		void shouldRefuseScopeBelowRoot(Evita evita) {
-			for (FilterBy filterBy : List.of(
-				filterBy(or(scope(Scope.LIVE), attributeEquals(ATTR_X, 5))),
-				filterBy(inScope(Scope.LIVE, scope(Scope.LIVE)))
-			)) {
-				assertRefusedAtPlanning(
-					evita, REF_BRANDS, filterBy, EvitaInvalidUsageException.class, "scope", REF_BRANDS
-				);
-			}
+			assertRefusedAtPlanning(
+				evita, REF_BRANDS, filterBy(inScope(Scope.LIVE, scope(Scope.LIVE))),
+				EvitaInvalidUsageException.class, "scope", REF_BRANDS
+			);
 			// a negated scope is refused by the check of the whole query, before the filter is compiled
 			assertRefusedAtPlanning(
 				evita, REF_BRANDS, filterBy(not(scope(Scope.LIVE))), EvitaInvalidUsageException.class,
 				"Constraint `scope(LIVE)` cannot be negated in `not`"
+			);
+			// a scope below or is refused by the check of the whole query, before the filter is compiled
+			assertRefusedAtPlanning(
+				evita, REF_BRANDS, filterBy(or(scope(Scope.LIVE), attributeEquals(ATTR_X, 5))),
+				EvitaInvalidUsageException.class, "Constraint `scope(LIVE)` cannot be placed in `or`"
 			);
 		}
 
@@ -1222,8 +1223,10 @@ class ReferenceContentRowFilterFunctionalTest {
 		@DisplayName("a scope below the root of the filter is refused rather than read as true")
 		@UseDataSet(DATA_SET)
 		void shouldRefuseScopeBelowRoot(Evita evita) {
+			// a scope below or is refused by the check of the whole query, before the filter is compiled
 			assertRefusedAtFetch(
-				evita, 1, filterBy(or(scope(Scope.LIVE), attributeEquals(ATTR_X, 5))), "scope", REF_BRANDS
+				evita, 1, filterBy(or(scope(Scope.LIVE), attributeEquals(ATTR_X, 5))),
+				"Constraint `scope(LIVE)` cannot be placed in `or`"
 			);
 			// a negated scope is refused by the check of the whole query, before the filter is compiled
 			assertRefusedAtFetch(

@@ -33,6 +33,7 @@ import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.filter.FilterInScope;
 import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.Not;
+import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.query.order.EntityGroupProperty;
@@ -507,11 +508,12 @@ public class QueryUtils {
 	 *
 	 * - an `inScope` naming a scope that was not requested. {@link EntityHaving} and {@link GroupHaving}, which plan a
 	 *   nested query, are judged by a `scope(...)` of their own level when they name one; every other level inherits.
-	 * - a `scope(...)` the engine would not apply. It is read only in the root of a filter, boolean containers
-	 *   included, and at the level of {@link EntityHaving} and {@link GroupHaving}. Below any other
+	 * - a `scope(...)` the engine would not apply. It is read in the root of a filter, also through the conjunctive
+	 *   `and` and `userFilter`, and at the level of {@link EntityHaving} and {@link GroupHaving}. Below any other
 	 *   {@link SeparateEntityScopeContainer} nothing reads it, so the query would silently mean something else than
-	 *   it says. A `scope(...)` below {@link Not} is refused by {@link #assertNoNegatedScope(Query)}, which an entry
-	 *   point runs first, because the scopes this check is passed are resolved through the negation.
+	 *   it says. A `scope(...)` below {@link Not} or {@link Or} is refused by
+	 *   {@link #assertNoScopeBelowNegationOrDisjunction(Query)}, which an entry point runs first, because the scopes
+	 *   this check is passed are resolved through those containers.
 	 *
 	 * The walk allocates nothing unless the filter holds an `inScope`, or fails.
 	 *
@@ -681,105 +683,125 @@ public class QueryUtils {
 	}
 
 	/**
-	 * Refuses a `scope(...)` below a {@link Not} at any depth: in the filter section, in the `entityHaving` of a
-	 * `segment` in the order section, and in every filter nested in the require section - the same filters
-	 * {@link #assertFilterScopesApplicable(Query, Set)} judges there. A `scope(...)` selects the scopes its entity
-	 * level searches in, it does not filter entities, so a negation has nothing to negate: the translation of the `not`
-	 * finds no formula of its child, and the lookup of the scopes of the level reads the scope through the negation and
-	 * applies it as if it stood outside of it.
+	 * Refuses a `scope(...)` below a {@link Not} or {@link Or} at any depth: in the filter section, in the
+	 * `entityHaving` of a `segment` in the order section, and in every filter nested in the require section - the
+	 * same filters {@link #assertFilterScopesApplicable(Query, Set)} judges there. A `scope(...)` selects the scopes
+	 * its entity level searches in, it does not filter entities, so it has no meaning as a negated condition or as a
+	 * branch of a disjunction. Its translation produces no formula, and the lookup of the scopes of the level reads
+	 * it through either container and applies it to the whole level.
 	 *
-	 * The negation reaches down to the next {@link SeparateEntityScopeContainer}, which starts an entity level of its
-	 * own: in `not(referenceHaving("r", entityHaving(and(scope(LIVE), ...))))` the scope selects the scopes of the
-	 * referenced entities and the `not` negates the container as a whole. A negated `scope(...)` the enclosing
-	 * container would not apply at all gets the diagnostic of {@link #assertFilterScopesApplicable(FilterBy, Set)}
-	 * instead, which names that more fundamental mistake - raised by this walk, which reaches the order section too.
+	 * Negation and disjunction reach down to the next {@link SeparateEntityScopeContainer}, which starts an entity
+	 * level of its own: in `or(referenceHaving("r", entityHaving(and(scope(LIVE), ...))), ...)` the scope selects
+	 * the scopes of the referenced entities and the `or` joins the container as a whole. The same boundary applies
+	 * to `not`. A scope the enclosing container would not apply at all gets the diagnostic of
+	 * {@link #assertFilterScopesApplicable(FilterBy, Set)} first, which names that more fundamental mistake - raised
+	 * by this walk, which reaches the order section too. Otherwise negation takes precedence over disjunction.
+	 *
+	 * An `or` of a single child joins nothing and is read as that child. The normalization of a query flattens it
+	 * away before the query is planned, and this walk reads it the same way on the paths that are not normalized.
 	 *
 	 * Unlike {@link #assertFilterScopesApplicable(Query, Set)} this check needs no scopes, so an entry point runs it
-	 * before it resolves them: the resolution reads every `scope(...)` of a level through a negation and fails with a
-	 * `MoreThanSingleResultException` naming neither the negation nor the mistake when it finds two of them.
+	 * before it resolves them: the resolution reads every `scope(...)` of a level through negation and disjunction
+	 * and fails with a `MoreThanSingleResultException` naming neither the container nor the mistake on two scopes.
 	 *
 	 * The walk allocates nothing unless it fails.
 	 *
 	 * @param query the query to check
-	 * @throws EvitaInvalidUsageException when a `scope(...)` is negated
+	 * @throws EvitaInvalidUsageException when a `scope(...)` is below negation or disjunction in its entity level
 	 */
-	public static void assertNoNegatedScope(@Nonnull Query query) {
+	public static void assertNoScopeBelowNegationOrDisjunction(@Nonnull Query query) {
 		final FilterBy filterBy = query.getFilterBy();
 		if (filterBy != null) {
-			assertNoNegatedScope(filterBy, false, null);
+			assertNoScopeBelowNegationOrDisjunction(filterBy, false, false, null);
 		}
 		final OrderBy orderBy = query.getOrderBy();
 		if (orderBy != null) {
-			assertNoNegatedNestedFilterScope(orderBy);
+			assertNoNestedFilterScopeBelowNegationOrDisjunction(orderBy);
 		}
 		final Require require = query.getRequire();
 		if (require != null) {
-			assertNoNegatedNestedFilterScope(require);
+			assertNoNestedFilterScopeBelowNegationOrDisjunction(require);
 		}
 	}
 
 	/**
 	 * Walks the order or the require section looking for the filters nested in it - see
-	 * {@link #assertNoNegatedScope(Query)}. A filter is an additional child of the constraint holding it, and a nested
-	 * order or require constraint is a child of its container.
+	 * {@link #assertNoScopeBelowNegationOrDisjunction(Query)}. A filter is an additional child of the constraint
+	 * holding it, and a nested order or require constraint is a child of its container.
 	 *
 	 * @param constraint the order or require constraint to examine
 	 */
-	private static void assertNoNegatedNestedFilterScope(@Nonnull Constraint<?> constraint) {
+	private static void assertNoNestedFilterScopeBelowNegationOrDisjunction(@Nonnull Constraint<?> constraint) {
 		if (constraint instanceof FilterConstraint) {
-			assertNoNegatedScope(constraint, false, null);
+			assertNoScopeBelowNegationOrDisjunction(constraint, false, false, null);
 		} else if (constraint instanceof ConstraintContainer<?> container) {
 			for (final Constraint<?> child : container.getChildren()) {
-				assertNoNegatedNestedFilterScope(child);
+				assertNoNestedFilterScopeBelowNegationOrDisjunction(child);
 			}
 			for (final Constraint<?> additionalChild : container.getAdditionalChildren()) {
-				assertNoNegatedNestedFilterScope(additionalChild);
+				assertNoNestedFilterScopeBelowNegationOrDisjunction(additionalChild);
 			}
 		}
 	}
 
 	/**
-	 * Walks one constraint of a filter - see {@link #assertNoNegatedScope(Query)}.
+	 * Walks one constraint of a filter - see {@link #assertNoScopeBelowNegationOrDisjunction(Query)}.
 	 *
 	 * @param constraint         the constraint to examine
 	 * @param negated            true when a `not` encloses the constraint within its entity level
+	 * @param disjoined          true when an `or` joining more than one child encloses the constraint within its
+	 *                           entity level
 	 * @param enclosingContainer the nearest separate container enclosing the constraint, NULL when there is none
-	 * @throws EvitaInvalidUsageException when a `scope(...)` is negated
+	 * @throws EvitaInvalidUsageException when a `scope(...)` is below negation or disjunction in its entity level
 	 */
-	private static void assertNoNegatedScope(
+	private static void assertNoScopeBelowNegationOrDisjunction(
 		@Nonnull Constraint<?> constraint,
 		boolean negated,
+		boolean disjoined,
 		@Nullable SeparateEntityScopeContainer enclosingContainer
 	) {
 		if (constraint instanceof EntityScope entityScope) {
-			if (negated) {
-				// a scope the enclosing container does not apply would do nothing even without the negation, which is
+			if (negated || disjoined) {
+				// a scope the enclosing container does not apply would do nothing outside either logical container:
 				// the more fundamental mistake - raised here, because the order section is beyond the reach of
 				// `assertFilterScopesApplicable`, which would name it in the other sections
 				if (enclosingContainer != null && !appliesOwnScope(enclosingContainer)) {
 					throw createInertScopeException(entityScope, enclosingContainer);
 				}
+				if (negated) {
+					throw new EvitaInvalidUsageException(
+						"Constraint `" + entityScope + "` cannot be negated in `not` - it selects the scopes to " +
+							"search in, it does not filter entities. Name the scopes you want in `scope(...)` instead."
+					);
+				}
 				throw new EvitaInvalidUsageException(
-					"Constraint `" + entityScope + "` cannot be negated in `not` - it selects the scopes to search " +
-						"in, it does not filter entities. Name the scopes you want in `scope(...)` instead."
+					"Constraint `" + entityScope + "` cannot be placed in `or` - it selects the scopes to search " +
+						"in, it does not filter entities. Name the scopes you want in `scope(...)` and put a " +
+						"condition that holds in one scope only in `inScope(...)`."
 				);
 			}
 			return;
 		}
 		if (constraint instanceof ConstraintContainer<?> container) {
-			// a separate container starts an entity level of its own, which a `not` around it does not negate
+			// a separate container starts an entity level of its own, beyond an enclosing `not` or `or`
 			final boolean nestedNegated;
+			final boolean nestedDisjoined;
 			final SeparateEntityScopeContainer nestedEnclosingContainer;
 			if (constraint instanceof SeparateEntityScopeContainer separate) {
 				nestedNegated = false;
+				nestedDisjoined = false;
 				nestedEnclosingContainer = separate;
 			} else {
 				nestedNegated = negated || constraint instanceof Not;
+				// an `or` of a single child joins nothing - the normalization of a query flattens it into that child
+				nestedDisjoined = disjoined || (constraint instanceof Or && container.getChildrenCount() > 1);
 				nestedEnclosingContainer = enclosingContainer;
 			}
 			// no filter container holds additional children
 			for (final Constraint<?> child : container.getChildren()) {
-				assertNoNegatedScope(child, nestedNegated, nestedEnclosingContainer);
+				assertNoScopeBelowNegationOrDisjunction(
+					child, nestedNegated, nestedDisjoined, nestedEnclosingContainer
+				);
 			}
 		}
 	}

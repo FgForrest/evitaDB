@@ -156,8 +156,8 @@ public class QueryPlanner {
 		// that a stored query of the refused shape stays readable and a copied container cannot slip past them
 		final EvitaRequest evitaRequest = context.getEvitaRequest();
 		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
-		// before the requested scopes are resolved, which reads a negated scope as if it stood outside the negation
-		QueryUtils.assertNoNegatedScope(evitaRequest.getQuery());
+		// before scope lookup, which reads scopes through `not` and `or` and fails on two scopes of one level
+		QueryUtils.assertNoScopeBelowNegationOrDisjunction(evitaRequest.getQuery());
 		QueryUtils.assertFilterScopesApplicable(evitaRequest.getQuery(), evitaRequest.getRequestedScopes());
 		context.pushStep(QueryPhase.PLANNING);
 		try {

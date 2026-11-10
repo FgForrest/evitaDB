@@ -647,6 +647,38 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			);
 	}
 
+	/** The GraphQL or list reports a misplaced scope with the same diagnostic as the Java API. */
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should refuse a scope in or as a client mistake")
+	void shouldRefuseScopeWhenInDisjunction(@Nonnull GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+					query {
+						queryProduct(filterBy: {or: [{scope: ARCHIVED}, {attributeCodeEquals: "a"}]}) {
+							recordStrip(limit: 1) {
+								data {
+									primaryKey
+								}
+							}
+						}
+					}
+					"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, hasSize(1))
+			.body(
+				ERRORS_PATH + "[0].message",
+				equalTo(
+					"Constraint `scope(ARCHIVED)` cannot be placed in `or` - it selects the scopes to search in, it " +
+						"does not filter entities. Name the scopes you want in `scope(...)` and put a condition " +
+						"that holds in one scope only in `inScope(...)`."
+				)
+			);
+	}
+
 	@Test
 	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
 	@DisplayName("Should return both live and archived entities explicitly")

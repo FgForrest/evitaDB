@@ -299,24 +299,6 @@ public class NegatedScopeFunctionalTest {
 			});
 		}
 
-		/**
-		 * A scope in a disjunction applies to the whole filter, as it did before - whether `or` should be refused too
-		 * was left open.
-		 */
-		@Test
-		@UseDataSet(DATA_SET)
-		@DisplayName("Keep a scope in a disjunction applying to the whole filter")
-		void shouldApplyScopeToWholeFilterWhenInDisjunction(@Nonnull Evita evita) {
-			final List<Integer> items = evita.queryCatalog(
-				TEST_CATALOG,
-				session -> {
-					return queryPrimaryKeys(session, ENTITY_ITEM, filterBy(or(scope(A), CODE_A)));
-				}
-			);
-
-			assertEquals(List.of(3), items);
-		}
-
 		/** The scope a container does not apply at all keeps its own, more fundamental diagnostic. */
 		@Test
 		@UseDataSet(DATA_SET)

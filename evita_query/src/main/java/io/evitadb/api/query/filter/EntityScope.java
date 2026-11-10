@@ -163,15 +163,17 @@ import java.util.Set;
  *
  * ## Where the Constraint Applies
  *
- * The constraint selects the scopes in the root of a filter, boolean containers included, and in {@link EntityHaving}
- * and {@link GroupHaving}, for the entities they reach. Below any other {@link SeparateEntityScopeContainer} - a
- * hierarchy constraint, a direct child of {@link ReferenceHaving} or {@link FacetHaving} - nothing would read it, so a
- * query placing it there is refused. The filter of a `referenceContent` takes it in its root only as a direct child of
- * its `filterBy`.
+ * The constraint selects the scopes in the root of a filter, also through the conjunctive {@link And} and
+ * {@link UserFilter}, and in {@link EntityHaving} and {@link GroupHaving}, for the entities they reach. Below any
+ * other {@link SeparateEntityScopeContainer} - a hierarchy constraint, a direct child of {@link ReferenceHaving} or
+ * {@link FacetHaving} - nothing would read it, so a query placing it there is refused. The filter of a
+ * `referenceContent` takes it in its root only as a direct child of its `filterBy`.
  *
- * A query placing it below {@link Not}, at any depth of the same entity level, is refused too: the constraint selects
- * scopes and filters no entity, so there is nothing to negate. A `not` enclosing an {@link EntityHaving} or
- * {@link GroupHaving} with its own `scope` negates that container as a whole and stays valid.
+ * A query placing it below {@link Not} or {@link Or}, at any depth of the same entity level, is refused too:
+ * the constraint selects scopes and filters no entity, so it has no meaning as a negated condition or as a branch
+ * of a disjunction. Name the scopes in `scope(...)` and use {@link FilterInScope} for a condition that holds in one
+ * scope only. A `not` or `or` enclosing an {@link EntityHaving} or {@link GroupHaving} with its own `scope` operates
+ * on that container as a whole and stays valid. An `or` of a single child joins nothing and is read as that child.
  *
  * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/behavioral#scope)
  *
