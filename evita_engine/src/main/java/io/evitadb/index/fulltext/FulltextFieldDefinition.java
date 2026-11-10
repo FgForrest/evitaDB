@@ -27,9 +27,12 @@ package io.evitadb.index.fulltext;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 
 /**
  * The current schema analysis of a searchable field, shared by index maintenance and query planning.
@@ -41,6 +44,21 @@ import javax.annotation.Nonnull;
 public record FulltextFieldDefinition(
 	@Nonnull FulltextFieldKey key, @Nonnull String analyzer, double lengthPivot
 ) {
+	/**
+	 * Returns reference attributes whose schemas are available during planning. An unbound reflection still owns
+	 * its local declarations, but cannot resolve inherited attributes until its original becomes available.
+	 *
+	 * @param reference reference whose fulltext places or weights are being discovered
+	 * @return effective attributes when bound, otherwise only locally declared attributes
+	 */
+	@Nonnull
+	public static Map<String, AttributeSchemaContract> availableReferenceAttributes(
+		@Nonnull ReferenceSchemaContract reference
+	) {
+		return reference instanceof ReflectedReferenceSchema reflected && !reflected.isReflectedReferenceAvailable() ?
+			reflected.getDeclaredAttributes() : reference.getAttributes();
+	}
+
 	/**
 	 * Reads the current analysis settings of any kind of searchable field.
 	 *

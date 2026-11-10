@@ -102,6 +102,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.facet.FacetIndex;
+import io.evitadb.index.fulltext.FulltextFieldDefinition;
 import io.evitadb.index.fulltext.FulltextFieldKey;
 import io.evitadb.index.fulltext.FulltextScoringPolicy;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
@@ -1785,7 +1786,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 	/**
 	 * Resolves defaults once per processing entity type. Hierarchy filters can translate another collection with
-	 * the owner's planning context; their fields and weights belong to that processing schema.
+	 * the owner's planning context; their fields and weights belong to that processing schema. Reference attributes
+	 * come from {@link FulltextFieldDefinition#availableReferenceAttributes(ReferenceSchemaContract)}, the set field
+	 * discovery searches, so an unbound reflected reference weighs only its locally declared attributes.
 	 * @param schema schema currently being translated
 	 * @return effective policy in the processing entity type's place namespace; its weights and coefficient are
 	 *         immutable, its caches belong to this query
@@ -1811,7 +1814,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			}
 		}
 		for (final ReferenceSchemaContract reference : schema.getReferences().values()) {
-			for (final AttributeSchemaContract attribute : reference.getAttributes().values()) {
+			for (final AttributeSchemaContract attribute :
+				FulltextFieldDefinition.availableReferenceAttributes(reference).values()) {
 				if (attribute.isSearchableInAnyScope()) {
 					weights.put(FulltextFieldKey.referenceAttribute(reference.getName(), attribute.getName()),
 						attribute.getSearchWeight());

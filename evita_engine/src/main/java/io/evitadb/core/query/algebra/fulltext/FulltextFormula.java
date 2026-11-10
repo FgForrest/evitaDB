@@ -79,7 +79,11 @@ import java.util.Arrays;
  * hit. Caching a fulltext result means a flattened form that carries the scores, as the price formulas' flattened
  * forms carry their price records.
  *
- * The terms are read, never copied or written: the posting lists and impact views are the dictionary's own read-only
+ * Composed reference places arrive as owner-space postings, with negative query-local field/place ids and lazy
+ * maximum impacts across the referenced items. They participate in the same word intersection and scoring source.
+ * Their additional bitmap dependency tokens retain the target input even when the lifted owner union stays unchanged.
+ *
+ * Stored terms are read, never copied or written: the posting lists and impact views are the dictionary's own read-only
  * views, so the index must not be written while the formula is in use - which the transactional snapshot a query
  * runs against already guarantees.
  *
@@ -133,6 +137,7 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	 * @param placeId query-local grouping identity, shared by all items of one place
 	 * @param weight effective rank-time weight
 	 * @param exactness best matching class across all expansion legs
+	 * @param dependencyId input bitmap dependency of a synthetic posting list, zero for a stored posting view
 	 */
 	public record ExpandedTerm(
 		int fieldId,
@@ -142,7 +147,8 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 		int distance,
 		@Nonnull FulltextTermExactness exactness,
 		int placeId,
-		float weight
+		float weight,
+		long dependencyId
 	) {
 
 		/**
@@ -155,6 +161,7 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 		 * @param exactness best matching class across expansion legs
 		 * @param placeId grouping identity of the place
 		 * @param weight finite nonnegative effective weight
+		 * @param dependencyId input bitmap dependency, zero when the posting view carries its own identity
 		 */
 		public ExpandedTerm {
 			Assert.isPremiseValid(Float.isFinite(weight) && weight >= 0, "Invalid fulltext place weight!");
@@ -166,6 +173,24 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 				distance >= 0 && distance <= FulltextPhaseOneScorer.MAX_DISTANCE,
 				() -> "Edit distance " + distance + " is outside 0.." + FulltextPhaseOneScorer.MAX_DISTANCE + "!"
 			);
+		}
+
+		/**
+		 * Creates an expansion backed by a stored posting view, without an additional synthetic dependency.
+		 * @param fieldId dictionary field identity
+		 * @param term bare analyzed term
+		 * @param postings primary keys containing the term
+		 * @param impacts impact bytes aligned with the postings
+		 * @param distance edit distance
+		 * @param exactness best expansion matching class
+		 * @param placeId query-local place grouping identity
+		 * @param weight finite nonnegative effective weight
+		 */
+		public ExpandedTerm(
+			int fieldId, @Nonnull String term, @Nonnull Bitmap postings, @Nonnull ImpactView impacts,
+			int distance, @Nonnull FulltextTermExactness exactness, int placeId, float weight
+		) {
+			this(fieldId, term, postings, impacts, distance, exactness, placeId, weight, 0L);
 		}
 
 		@Nonnull
@@ -286,13 +311,18 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	protected long[] gatherBitmapIdsInternal() {
 		int termCount = 0;
 		for (final ExpandedTerm[] token : this.tokens) {
-			termCount += token.length;
+			for (final ExpandedTerm term : token) {
+				termCount += term.dependencyId() == 0L ? 1 : 2;
+			}
 		}
 		final long[] result = new long[termCount];
 		int index = 0;
 		for (final ExpandedTerm[] token : this.tokens) {
 			for (final ExpandedTerm term : token) {
 				result[index++] = bitmapIdentityToken(term.postings(), HASH_FUNCTION);
+				if (term.dependencyId() != 0L) {
+					result[index++] = term.dependencyId();
+				}
 			}
 		}
 		return result;
@@ -302,7 +332,8 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		// neither the order of the tokens nor the order of the terms within one range changes the match set or the
 		// scores, so both are hashed order-independently; which range a term falls into does change the scores, so
-		// the range structure is hashed too. Field and term distinguish buckets sharing posting contents.
+		// the range structure is hashed too. Field and term distinguish buckets sharing posting contents. The
+		// dependency id of a lifted term separates owner lists whose union is equal while the target input differs.
 		// The immutable impact view is a conservative query-local version token: distinct views remain distinct
 		// even when their bytes happen to agree. This avoids reading impacts or allocating an identity wrapper.
 		final long[] tokenHashes = new long[this.tokens.length];
@@ -313,7 +344,7 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 				termHashes[j] = hashFunction.hashLongs(
 					new long[]{bitmapIdentityToken(token[j].postings(), hashFunction), token[j].fieldId(),
 						hashFunction.hashChars(token[j].term()), token[j].distance(), token[j].exactness().ordinal(),
-						token[j].placeId(), Float.floatToIntBits(token[j].weight()),
+						token[j].placeId(), Float.floatToIntBits(token[j].weight()), token[j].dependencyId(),
 						Integer.toUnsignedLong(System.identityHashCode(token[j].impacts()))}
 				);
 			}

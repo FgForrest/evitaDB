@@ -25,6 +25,9 @@ package io.evitadb.core.query.filter.translator.fulltext;
 
 import io.evitadb.core.query.algebra.fulltext.FulltextFormula;
 import io.evitadb.core.query.algebra.fulltext.FulltextFormula.ExpandedTerm;
+import io.evitadb.core.query.filter.translator.fulltext.FulltextPostingsBudget.PreparedTerm;
+import io.evitadb.core.query.filter.translator.fulltext.FulltextPostingsBudget.TermPreparation;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.ImpactView;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
@@ -32,10 +35,12 @@ import io.evitadb.index.fulltext.FulltextTermExactness;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.evitadb.index.fulltext.FulltextIndexTestSupport.defaultScoringPolicy;
 import static io.evitadb.index.fulltext.FulltextIndexTestSupport.rankedScores;
@@ -154,6 +159,100 @@ class FulltextPostingsBudgetTest {
 						Arrays.stream(kept[w][0]).map(ExpandedTerm::term).distinct().toList());
 				}
 			}
+		}
+	}
+
+	@Nested
+	@DisplayName("Lifted retention")
+	class LiftedRetention {
+		/** Own groups keep their terms as they are and pay posting cardinality; composed groups pay their lift. */
+		@Test
+		@DisplayName("Keeps own-group terms unlifted and prices them by their postings")
+		void shouldKeepOwnGroupTermsUnlifted() {
+			final ExpandedTerm own = term(0, "own", PREFIX, 1, 2);
+			final ExpandedTerm target = term(1, "target", PREFIX, 3);
+			final ExpandedTerm lifted = term(-1, "target", PREFIX, 7, 8, 9);
+			final TermPreparation[] preparations = {
+				null, (term, remaining) -> remaining >= 4 ? new PreparedTerm(lifted, 4) : null
+			};
+			final ExpandedTerm[][][] words = {{{own}, {target}}};
+
+			final ExpandedTerm[][][] fits = FulltextPostingsBudget.retainLifted(words, 6, preparations, new int[]{1});
+			final ExpandedTerm[][][] overflows = FulltextPostingsBudget.retainLifted(
+				words, 5, preparations, new int[]{1});
+
+			assertSame(own, fits[0][0][0]);
+			assertSame(lifted, fits[0][1][0]);
+			assertArrayEquals(new ExpandedTerm[]{own}, overflows[0][0]);
+			assertEquals(0, overflows[0][1].length);
+			assertArrayEquals(new ExpandedTerm[]{own}, words[0][0], "The input stays intact");
+			assertArrayEquals(new ExpandedTerm[]{target}, words[0][1], "The input stays intact");
+		}
+
+		/** A word's batches are laid out group by group, with each group's split parts together. */
+		@Test
+		@DisplayName("Prepares every part batch with the preparation of its own group, exacts first")
+		void shouldMapPartBatchesToTheirGroup() {
+			final List<String> first = new ArrayList<>(4);
+			final List<String> second = new ArrayList<>(4);
+			final TermPreparation[] preparations = {
+				(term, remaining) -> {
+					first.add(term.term());
+					return new PreparedTerm(term, 1);
+				},
+				(term, remaining) -> {
+					second.add(term.term());
+					return new PreparedTerm(term, 1);
+				}
+			};
+			final ExpandedTerm[][][] words = {
+				{{term(0, "a0", EXACT, 1)}, {term(0, "a1", PREFIX, 1)}, {term(1, "b0", PREFIX, 1)},
+					{term(1, "b1", EXACT, 1)}},
+				{{term(0, "c", PREFIX, 1)}, {term(1, "d", EXACT, 1)}}
+			};
+
+			FulltextPostingsBudget.retainLifted(words, Long.MAX_VALUE, preparations, new int[]{2, 1});
+
+			assertEquals(List.of("a0", "a1", "c"), first);
+			assertEquals(List.of("b1", "d", "b0"), second);
+		}
+
+		/** One stem's field views stand or fall together, and the first overflow ends all later inexact work. */
+		@Test
+		@DisplayName("Drops an overflowing stem's views together and stops every later inexact term")
+		void shouldStopAtFirstOverflowAcrossWords() {
+			final AtomicInteger calls = new AtomicInteger();
+			final TermPreparation[] preparations = {
+				(term, remaining) -> {
+					calls.incrementAndGet();
+					final long cost = term.postings().size();
+					return cost <= remaining ? new PreparedTerm(term, cost) : null;
+				}
+			};
+			final ExpandedTerm fits = term(0, "fits", PREFIX, 1);
+			final ExpandedTerm firstView = term(0, "wide", PREFIX, 1, 2);
+			final ExpandedTerm secondView = term(1, "wide", PREFIX, 1, 2, 3);
+			final ExpandedTerm laterExact = term(0, "exact", EXACT, 4);
+			final ExpandedTerm laterSmall = term(0, "small", FUZZY, 5);
+			final ExpandedTerm[][][] words = {{{fits, firstView, secondView}}, {{laterExact, laterSmall}}};
+
+			final ExpandedTerm[][][] kept = FulltextPostingsBudget.retainLifted(
+				words, 4, preparations, new int[]{1, 1});
+
+			assertArrayEquals(new ExpandedTerm[]{fits}, kept[0][0], "The first view alone fits, its stem does not");
+			assertArrayEquals(new ExpandedTerm[]{laterExact}, kept[1][0]);
+			assertEquals(4, calls.get(), "The later inexact term is never prepared");
+		}
+
+		/** Exact terms are never budgeted away, so a preparation refusing one is a programming error. */
+		@Test
+		@DisplayName("Refuses a preparation that does not retain an exact term")
+		void shouldRefuseUnretainedExact() {
+			final TermPreparation[] preparations = {(term, remaining) -> null};
+			final ExpandedTerm[][][] words = {{{term(0, "exact", EXACT, 1)}}};
+
+			assertThrows(GenericEvitaInternalError.class,
+				() -> FulltextPostingsBudget.retainLifted(words, Long.MAX_VALUE, preparations, new int[]{1}));
 		}
 	}
 

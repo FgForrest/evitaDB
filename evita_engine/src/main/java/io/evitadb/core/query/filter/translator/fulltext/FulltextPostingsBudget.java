@@ -27,8 +27,10 @@ import io.evitadb.core.query.algebra.fulltext.FulltextFormula;
 import io.evitadb.core.query.algebra.fulltext.FulltextFormula.ExpandedTerm;
 import io.evitadb.index.fulltext.FulltextScoringPolicy;
 import io.evitadb.index.fulltext.FulltextTermExactness;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 
 /**
@@ -134,6 +136,114 @@ final class FulltextPostingsBudget {
 			}
 		}
 		return result;
+	}
+
+	/**
+	 * A term prepared for owner-space membership, with the work needed to produce and consume its postings.
+	 * @param term expanded term in owner primary-key space
+	 * @param cost target postings read plus owner postings produced, or own posting cardinality
+	 */
+	record PreparedTerm(@Nonnull ExpandedTerm term, long cost) { }
+
+	/** Prepares a target expansion, stopping before an inexact term can exceed the remaining allowance. */
+	@FunctionalInterface
+	interface TermPreparation {
+		/**
+		 * Lifts one term within the remaining work allowance.
+		 * @param term expansion in the target primary-key space
+		 * @param remaining inclusive work allowance; exact terms receive `Long.MAX_VALUE`
+		 * @return owner expansion and its cost, or null on overflow
+		 */
+		@Nullable PreparedTerm prepare(@Nonnull ExpandedTerm term, long remaining);
+	}
+
+	/**
+	 * Reserves lifted exacts first, then prepares inexact stems only until the first overflow. Target reads and
+	 * owner fan-out share the existing predicted-time allowance. Preparation is per group; null means an own group.
+	 * @param words unlifted expansions in production order
+	 * @param limit inclusive work allowance
+	 * @param preparations lifting of each group, shared across its parts
+	 * @param partCounts number of ranges of every word
+	 * @return retained owner-space expansions, without modifying the input
+	 */
+	@Nonnull
+	static ExpandedTerm[][][] retainLifted(
+		@Nonnull ExpandedTerm[][][] words, long limit, @Nonnull TermPreparation[] preparations,
+		@Nonnull int[] partCounts
+	) {
+		final ExpandedTerm[][][] result = new ExpandedTerm[words.length][][];
+		long sum = 0;
+		for (int w = 0; w < words.length; w++) {
+			result[w] = new ExpandedTerm[words[w].length][];
+			for (int b = 0; b < words[w].length; b++) {
+				final ExpandedTerm[] batch = words[w][b];
+				result[w][b] = new ExpandedTerm[batch.length];
+				final TermPreparation preparation = preparations[b / partCounts[w]];
+				for (int t = 0; t < batch.length; t++) {
+					if (batch[t].exactness() == FulltextTermExactness.EXACT) {
+						final PreparedTerm prepared = prepareOrKeep(preparation, batch[t], Long.MAX_VALUE);
+						Assert.isPremiseValid(prepared != null, "Exact fulltext terms must always be retained!");
+						result[w][b][t] = prepared.term();
+						sum += prepared.cost();
+					}
+				}
+			}
+		}
+		boolean stopped = sum > limit;
+		for (int w = 0; w < words.length; w++) {
+			for (int b = 0; b < words[w].length; b++) {
+				final ExpandedTerm[] batch = words[w][b];
+				final ExpandedTerm[] kept = result[w][b];
+				final TermPreparation preparation = preparations[b / partCounts[w]];
+				int count = 0;
+				for (int start = 0; start < batch.length;) {
+					int end = start + 1;
+					while (end < batch.length && batch[start].term().equals(batch[end].term())) {
+						end++;
+					}
+					boolean keep = batch[start].exactness() == FulltextTermExactness.EXACT;
+					if (!keep && !stopped) {
+						long cost = 0;
+						keep = true;
+						for (int t = start; t < end; t++) {
+							final PreparedTerm prepared = prepareOrKeep(preparation, batch[t], limit - sum - cost);
+							if (prepared == null || prepared.cost() > limit - sum - cost) {
+								keep = false;
+								stopped = true;
+								break;
+							}
+							kept[t] = prepared.term();
+							cost += prepared.cost();
+						}
+						if (keep) {
+							sum += cost;
+						}
+					}
+					if (keep) {
+						System.arraycopy(kept, start, kept, count, end - start);
+						count += end - start;
+					}
+					start = end;
+				}
+				result[w][b] = Arrays.copyOf(kept, count);
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Prepares one term of a group, keeping an own-group term as it is at its posting cardinality.
+	 * @param preparation lifting of the term's group, null for an own group
+	 * @param term expansion to prepare
+	 * @param remaining inclusive work allowance handed to the lifting; an own group ignores it
+	 * @return the prepared term with its cost, or null when the lifting overflows the allowance
+	 */
+	@Nullable
+	private static PreparedTerm prepareOrKeep(
+		@Nullable TermPreparation preparation, @Nonnull ExpandedTerm term, long remaining
+	) {
+		return preparation == null ? new PreparedTerm(term, term.postings().size()) :
+			preparation.prepare(term, remaining);
 	}
 
 	/**

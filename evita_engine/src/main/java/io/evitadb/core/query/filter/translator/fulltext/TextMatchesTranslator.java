@@ -34,6 +34,9 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.ReferenceSearchMode;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.exception.AttributeNotSearchableException;
 import io.evitadb.core.query.QueryPlanningContext;
@@ -62,6 +65,7 @@ import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.fulltext.FulltextFieldDefinition;
 import io.evitadb.index.fulltext.FulltextFieldKey;
 import io.evitadb.index.fulltext.FulltextIndex;
@@ -135,6 +139,14 @@ import static io.evitadb.core.query.filter.translator.fulltext.FulltextTermExpan
  * ARCHIVED query never pairs one scope's answer with the other's index. No prefetch alternative is offered: the
  * formula always computes from the index.
  *
+ * A plain entity constraint also searches declared `COMPOSITION` references, one level deep. Each target place
+ * is a separate owner place, weighted by its own weight times the reference weight. Referenced entities are items
+ * of that place: their best impact per word is lifted to the owners before word intersection and place scoring.
+ * Target analyzers join the shared split; targets in every processed scope map to owners in this formula's scope.
+ * Explicit `inField` selectors search own fields only. Composition writes no index and reads current schemas.
+ * Without an eligible composed place, preparation reuses the scope index and one shared own-field weight array;
+ * source maps, place remapping and lifting are allocated only for composition.
+ *
  * Inside `referenceHaving`, only the reference's searchable attributes participate. Every word must match the same
  * reference target and owner partition; different attributes or array elements of that row may supply the words.
  * Discovery returns matching partition keys, materialized leaves retain their producing-index tags, and virtual
@@ -145,7 +157,8 @@ import static io.evitadb.core.query.filter.translator.fulltext.FulltextTermExpan
  * ## What fails at planning time
  *
  * The engine neither filters nor sorts over data it keeps no index for, so a query that cannot be answered from a
- * fulltext index fails rather than returning an empty result: no locale, no searchable field in some processed scope,
+ * fulltext index fails rather than returning an empty result: no locale, neither an own searchable place nor a
+ * composition declaration in a processed scope,
  * an `inField` naming an unknown field or one not searchable in a processed scope, `textMatches` anywhere under
  * `userFilter` (the query model rejects only a direct child), or with more words
  * than the scorer can count. Every check runs before any index is consulted, so the query never fails or passes
@@ -198,31 +211,42 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			resolveReferenceFields(textMatches, entitySchema, referenceSchema, scopes);
 		final FulltextScoringPolicy scoringPolicy = filterByVisitor.getQueryContext()
 			.getFulltextScoringPolicy(entitySchema);
-		// Writes validate locales, so an undeclared locale cannot own a fulltext index. Keep field errors above.
+		// Field errors still precede this schema-only shortcut; undeclared locales cannot own query results.
 		if (!entitySchema.getLocales().contains(locale)) {
 			return EmptyFormula.INSTANCE;
 		}
-
 		final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();
 		final FulltextAnalyzerRegistry analyzerRegistry = queryContext.getFulltextAnalyzerRegistry();
 		final String entityType = entitySchema.getName();
 		final CatalogSchemaContract catalogSchema = queryContext.getCatalogSchema();
-		// All field definitions compile before any index containing data is read, including the check-only path.
+		final Map<Scope, List<SearchableSource>> sources = resolveSources(
+			entitySchema, fieldsByScope, catalogSchema, referenceSchema == null && textMatches.getInFields().length == 0
+		);
+		// All own and target analyzers compile before any index containing data is read, also for check-only plans.
 		final Set<CompiledFulltextAnalyzer> analyzers = CollectionUtils.createLinkedHashSet(4);
 		final Map<String, CompiledFulltextAnalyzer> resolved = CollectionUtils.createHashMap(4);
 		final Map<Scope, Map<CompiledFulltextAnalyzer, List<FulltextFieldDefinition>>> fieldsByAnalyzer =
 			new EnumMap<>(Scope.class);
+		long processedScopes = 0L;
 		for (final Map.Entry<Scope, FulltextFieldDefinition[]> entry : fieldsByScope.entrySet()) {
-			final Map<CompiledFulltextAnalyzer, List<FulltextFieldDefinition>> grouped =
-				CollectionUtils.createLinkedHashMap(4);
-			for (final FulltextFieldDefinition field : entry.getValue()) {
-				// Keep the resolved handle across analysis and grouping: eviction may change a later lookup's identity.
-				final CompiledFulltextAnalyzer analyzer = resolved.computeIfAbsent(field.analyzer(),
-					name -> analyzerRegistry.getCompiledAnalyzer(catalogSchema, name, locale));
-				analyzers.add(analyzer);
-				grouped.computeIfAbsent(analyzer, ignored -> new ArrayList<>(4)).add(field);
+			processedScopes |= 1L << entry.getKey().ordinal();
+			fieldsByAnalyzer.put(entry.getKey(), groupFields(
+				entry.getValue(), analyzers, resolved, analyzerRegistry, catalogSchema, locale));
+		}
+		final Map<SearchableSource, Map<CompiledFulltextAnalyzer, List<FulltextFieldDefinition>>> composedFields =
+			sources == null ? null : CollectionUtils.createLinkedHashMap(sources.size());
+		if (sources != null) {
+			for (final List<SearchableSource> scopedSources : sources.values()) {
+				for (final SearchableSource source : scopedSources) {
+					// resolving the target's policy validates its weights now, before any data index is read
+				queryContext.getFulltextScoringPolicy(source.schema());
+					composedFields.put(source, groupFields(
+						source.fields(), analyzers, resolved, analyzerRegistry, catalogSchema, locale));
+				}
 			}
-			fieldsByAnalyzer.put(entry.getKey(), grouped);
+		}
+		if (analyzers.isEmpty()) {
+			return EmptyFormula.INSTANCE;
 		}
 		final CompiledFulltextAnalyzer first = analyzers.iterator().next();
 		boolean commonText = true;
@@ -267,12 +291,21 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 				entry.getValue().entrySet()) {
 				groups.add(new AnalyzedFieldGroup(group.getKey(),
 					group.getValue().toArray(FulltextFieldDefinition[]::new), analyzed.get(group.getKey()),
-					surfaces.get(group.getKey()), fragments.get(group.getKey())));
+					surfaces.get(group.getKey()), fragments.get(group.getKey()), null));
+			}
+			if (sources != null) {
+				for (final SearchableSource source : sources.get(entry.getKey())) {
+					for (final Map.Entry<CompiledFulltextAnalyzer, List<FulltextFieldDefinition>> group :
+						composedFields.get(source).entrySet()) {
+						groups.add(new AnalyzedFieldGroup(group.getKey(),
+							group.getValue().toArray(FulltextFieldDefinition[]::new), analyzed.get(group.getKey()),
+							surfaces.get(group.getKey()), fragments.get(group.getKey()), source));
+					}
+				}
 			}
 			groupsByScope.put(entry.getKey(), groups);
 		}
 		if (filterByVisitor.isConstraintCheckOnly()) {
-			// the constraint has been checked against the schema - a check reads no index holding data
 			return EmptyFormula.INSTANCE;
 		}
 
@@ -284,7 +317,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 				.getGlobalEntityIndexIfExists(entityType, scope)
 				.orElse(null);
 			final FulltextIndex fulltextIndex = globalIndex == null ? null : globalIndex.getFulltextIndex(locale);
-			if (fulltextIndex == null || searchTokens.length == 0) {
+			if (globalIndex == null || (fulltextIndex == null && sources == null) || searchTokens.length == 0) {
 				formulasByScope.put(scope, EmptyFormula.INSTANCE);
 			} else {
 				formulasByScope.put(
@@ -293,18 +326,24 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 						List.of((EntityIndex) globalIndex), textMatches,
 						() -> {
 							final Formula prepared = prepareUnionFormula(
-								fulltextIndex, groupsByScope.get(scope), searchTokens, unfinished, expansion,
+								queryContext, entitySchema, scope, locale, fulltextIndex, groupsByScope.get(scope),
+								searchTokens, unfinished, expansion,
 								globalIndex.getRecordsWithLanguageFormula(locale).getEstimatedCardinality(),
 								scoringPolicy
 							);
 							return referenceSchema != null && prepared instanceof FulltextFormula union ?
 								createReferenceFormula(fulltextIndex, union, queryContext, entitySchema,
 									referenceSchema, scope) : prepared;
-						}, scoringPolicy.computeHash(LongHashFunction.xx3()), fulltextIndex.getId(),
+						}, scoringPolicy.computeHash(LongHashFunction.xx3()),
+						sources == null ? fulltextIndex.getId() :
+							sourceIdentity(groupsByScope.get(scope), queryContext, locale, fulltextIndex),
 						// the reference and a kind marker keep a body's membership formula apart from the union
 						// memoized for an equal top-level constraint, and from an equal body of another reference
 						referenceSchema == null ? 0L : LongHashFunction.xx3().hashChars(referenceSchema.getName()),
-						referenceSchema == null ? 0L : 1L
+						referenceSchema == null ? 0L : 1L,
+						// analyzers of every processed scope decide the shared split, so an equal constraint planned
+						// under `inScope` must not reuse the formula of a wider scope set, nor the other way round
+						processedScopes
 					)
 				);
 			}
@@ -317,6 +356,209 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			entityIndex -> resolveFromIndex(entityIndex, formulasByScope)
 		);
 	}
+
+	/**
+	 * Groups schema fields by their compiled analyzer before any data index is read.
+	 * @param fields searchable fields in one source and scope
+	 * @param analyzers distinct compiled analyzers participating in the shared split
+	 * @param resolved query-local handles retained across grouping and analysis
+	 * @param registry catalog analyzer registry
+	 * @param catalog catalog schema declaring named analyzers
+	 * @param locale query locale
+	 * @return fields grouped by shared analyzer identity
+	 */
+	@Nonnull
+	private static Map<CompiledFulltextAnalyzer, List<FulltextFieldDefinition>> groupFields(
+		@Nonnull FulltextFieldDefinition[] fields, @Nonnull Set<CompiledFulltextAnalyzer> analyzers,
+		@Nonnull Map<String, CompiledFulltextAnalyzer> resolved, @Nonnull FulltextAnalyzerRegistry registry,
+		@Nonnull CatalogSchemaContract catalog, @Nonnull Locale locale
+	) {
+		final Map<CompiledFulltextAnalyzer, List<FulltextFieldDefinition>> grouped =
+			CollectionUtils.createLinkedHashMap(4);
+		for (final FulltextFieldDefinition field : fields) {
+			final CompiledFulltextAnalyzer analyzer = resolved.computeIfAbsent(field.analyzer(),
+				name -> registry.getCompiledAnalyzer(catalog, name, locale));
+			analyzers.add(analyzer);
+			grouped.computeIfAbsent(analyzer, ignored -> new ArrayList<>(4)).add(field);
+		}
+		return grouped;
+	}
+
+	/**
+	 * Distinguishes the target inputs of composed places in the root context's shared memo: target indexes, target
+	 * scopes, target scoring policies and the composing references with their weights. The processed scopes and the
+	 * selectors are separate parts of the memo key.
+	 * @param groups searched own and composed groups
+	 * @param context snapshot index and policy resolver
+	 * @param locale query locale
+	 * @param ownIndex already resolved owner index, null when the owner has only composed places
+	 * @return query-local source identity
+	 */
+	private static long sourceIdentity(
+		@Nonnull List<AnalyzedFieldGroup> groups, @Nonnull QueryPlanningContext context, @Nonnull Locale locale,
+		@Nullable FulltextIndex ownIndex
+	) {
+		long identity = ownIndex == null ? 0 : ownIndex.getId();
+		for (final AnalyzedFieldGroup group : groups) {
+			final SearchableSource source = group.source();
+			if (source == null) {
+				continue;
+			}
+			final GlobalEntityIndex global = context.getGlobalEntityIndexIfExists(source.schema().getName(),
+				source.scope()).orElse(null);
+			final FulltextIndex index = global == null ? null : global.getFulltextIndex(locale);
+			identity = 31 * identity + (index == null ? 0 : index.getId());
+			identity = 31 * identity + source.scope().ordinal();
+			identity = 31 * identity + context.getFulltextScoringPolicy(source.schema())
+				.computeHash(LongHashFunction.xx3());
+			if (source.reference() != null) {
+				identity = 31 * identity + LongHashFunction.xx3().hashChars(source.reference().getName());
+				identity = 31 * identity + Float.floatToIntBits(source.reference().getSearchableThroughWeight());
+			}
+		}
+		return identity;
+	}
+
+	/**
+	 * Declared modes count as searchable capability even if the target collection or its places do not exist yet.
+	 * @param schema owner schema
+	 * @param scope owner scope
+	 * @return whether any reference declares composition in the scope
+	 */
+	private static boolean declaresComposition(@Nonnull EntitySchemaContract schema, @Nonnull Scope scope) {
+		for (final ReferenceSchemaContract reference : schema.getReferences().values()) {
+			if (reference.getSearchableThrough(scope) == ReferenceSearchMode.COMPOSITION) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Resolves schema-only sources before opening data indexes. Target declarations are deliberately not followed.
+	 * Synthetic negative ids identify (reference, target place) across all target scopes;
+	 * own field ids are nonnegative.
+	 * @param schema owner schema
+	 * @param ownFields selected own places in every owner scope
+	 * @param catalog catalog schema supplying managed target schemas
+	 * @param compose whether this is a plain entity text constraint
+	 * @return eligible composed sources per owner scope, or null when none has a searchable place
+	 */
+	@Nullable
+	private static Map<Scope, List<SearchableSource>> resolveSources(
+		@Nonnull EntitySchemaContract schema, @Nonnull Map<Scope, FulltextFieldDefinition[]> ownFields,
+		@Nonnull CatalogSchemaContract catalog, boolean compose
+	) {
+		if (!compose) {
+			return null;
+		}
+		Map<Scope, List<SearchableSource>> result = null;
+		Map<String, Map<FulltextFieldKey, Integer>> places = null;
+		int nextPlace = -1;
+		for (final Map.Entry<Scope, FulltextFieldDefinition[]> own : ownFields.entrySet()) {
+			for (final ReferenceSchemaContract reference : schema.getReferences().values()) {
+				if (reference.getSearchableThrough(own.getKey()) != ReferenceSearchMode.COMPOSITION ||
+					!reference.isReferencedEntityTypeManaged() ||
+					reference instanceof ReflectedReferenceSchemaContract reflected &&
+						!reflected.isReflectedReferenceAvailable() ||
+					!reference.isIndexedInScope(own.getKey()) ||
+					!reference.getIndexedComponents(own.getKey())
+						.contains(ReferenceIndexedComponents.REFERENCED_ENTITY)) {
+					continue;
+				}
+				final EntitySchemaContract target = catalog.getEntitySchema(reference.getReferencedEntityType())
+					.orElse(null);
+				if (target == null) {
+					continue;
+				}
+				for (final Scope targetScope : ownFields.keySet()) {
+					final FulltextFieldDefinition[] fields = collectSearchableFields(target, targetScope);
+					if (fields.length == 0) {
+						continue;
+					}
+					if (result == null) {
+						result = new EnumMap<>(Scope.class);
+						places = CollectionUtils.createHashMap(4);
+						for (final Scope ownerScope : ownFields.keySet()) {
+							result.put(ownerScope, new ArrayList<>(4));
+						}
+					}
+					final Map<FulltextFieldKey, Integer> referencePlaces =
+						places.computeIfAbsent(reference.getName(), ignored -> CollectionUtils.createHashMap(8));
+					for (final FulltextFieldDefinition field : fields) {
+						if (!referencePlaces.containsKey(field.key())) {
+							referencePlaces.put(field.key(), nextPlace--);
+						}
+					}
+					result.get(own.getKey()).add(
+						new SearchableSource(target, targetScope, reference, fields, referencePlaces));
+				}
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Unions all materialized and virtual owner partitions of a target in one owner scope.
+	 * @param context snapshot index resolver
+	 * @param schema owner schema
+	 * @param reference eligible reference, including a reflected reference's own declaration
+	 * @param scope owner scope
+	 * @param target target primary key, with no sign restriction
+	 * @return owner primary keys, possibly empty
+	 */
+	@Nonnull
+	private static Bitmap ownersOf(
+		@Nonnull QueryPlanningContext context, @Nonnull EntitySchemaContract schema,
+		@Nonnull ReferenceSchemaContract reference, @Nonnull Scope scope, int target
+	) {
+		final ReferencePartition[] partitions = context.resolvePartitionsOfTargetForRead(
+			schema, reference, scope, target);
+		if (partitions.length == 0) {
+			return EmptyBitmap.INSTANCE;
+		}
+		if (partitions.length == 1) {
+			return partitions[0].getAllPrimaryKeys();
+		}
+		final BaseBitmap owners = new BaseBitmap();
+		for (final ReferencePartition partition : partitions) {
+			owners.addAll(partition.getAllPrimaryKeys());
+		}
+		return owners;
+	}
+
+	/**
+	 * Applies the ordinary budget when no projection exists, and bounded lifting otherwise.
+	 * @param words unlifted expansion batches
+	 * @param documentCount owner documents, including owners whose only text comes through a reference
+	 * @param preparations per-group projection, null when every group searches own fields
+	 * @param partCounts number of ranges in every word
+	 * @return retained owner-space expansion batches
+	 */
+	@Nonnull
+	private static ExpandedTerm[][][] retain(
+		@Nonnull ExpandedTerm[][][] words, int documentCount,
+		@Nullable FulltextPostingsBudget.TermPreparation[] preparations, @Nonnull int[] partCounts
+	) {
+		final long limit = FulltextPostingsBudget.limit(words.length, documentCount);
+		if (preparations != null) {
+			return FulltextPostingsBudget.retainLifted(words, limit, preparations, partCounts);
+		}
+		return FulltextPostingsBudget.retain(words, limit);
+	}
+
+	/**
+	 * Schema-only origin of a searched group. No target schema traversal happens after this first level.
+	 * @param schema collection whose own places are searched
+	 * @param scope scope of its global fulltext index
+	 * @param reference owner reference declaring composition
+	 * @param fields searchable places in this target scope
+	 * @param places synthetic ids shared across target scopes
+	 */
+	private record SearchableSource(
+		@Nonnull EntitySchemaContract schema, @Nonnull Scope scope, @Nonnull ReferenceSchemaContract reference,
+		@Nonnull FulltextFieldDefinition[] fields, @Nonnull Map<FulltextFieldKey, Integer> places
+	) { }
 
 	/**
 	 * Builds the reference consumer of the union preparation using the collection's real partition split.
@@ -528,7 +770,8 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 * Resolves the fields the constraint searches in every processed scope, and verifies they may be searched there.
 	 *
 	 * Without `inField` the constraint searches every searchable field of the collection in the scope: its entity
-	 * attributes (global attributes included), the attributes of its references and its associated data. With
+	 * attributes (global attributes included), the attributes of its references and its associated data; places
+	 * reached through a `COMPOSITION` reference are not its fields and are resolved separately. With
 	 * `inField` it searches the named entity or global attributes only - duplicates are de-duplicated, and each must be
 	 * searchable in every processed scope, as an attribute filter must be filterable in every one. Reference attributes
 	 * and associated data are reachable only through the default; naming them needs a specification constraint of
@@ -537,11 +780,12 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 * @param textMatches  the constraint
 	 * @param entitySchema schema of the queried collection
 	 * @param scopes       the processed scopes
-	 * @return the searched fields per scope, never empty
+	 * @return own searched fields per scope, possibly empty when a composition is declared
 	 * @throws AttributeNotFoundException when an `inField` names an attribute the collection does not declare
 	 * @throws AttributeNotSearchableException when an `inField` names an attribute that is not searchable at all, or
 	 *                                        not in some processed scope
-	 * @throws EvitaInvalidUsageException     when a processed scope has no searchable field at all
+	 * @throws EvitaInvalidUsageException     when a processed scope has neither a searchable field nor a reference
+	 *                                        declaring composition
 	 */
 	@Nonnull
 	private static Map<Scope, FulltextFieldDefinition[]> resolveFields(
@@ -555,12 +799,13 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			for (final Scope scope : scopes) {
 				final FulltextFieldDefinition[] fields = collectSearchableFields(entitySchema, scope);
 				Assert.isTrue(
-					fields.length > 0,
+					fields.length > 0 || declaresComposition(entitySchema, scope),
 					() -> new EvitaInvalidUsageException(
 						"Constraint `textMatches` cannot be used on the entity collection `" + entitySchema.getName() +
 							"` in scope `" + scope + "` - the collection declares no attribute or associated data " +
-							"searchable there. Make at least one localized String attribute or associated data " +
-							"`searchable` in the schema!"
+							"searchable there and no reference composing the text of its referenced entities. Make " +
+							"at least one localized String attribute or associated data `searchable` in the schema, " +
+							"or declare a reference `searchableThrough(COMPOSITION)` in that scope!"
 					)
 				);
 				result.put(scope, fields);
@@ -597,7 +842,9 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 
 	/**
 	 * Collects every field of the collection that is searchable in the scope: its entity attributes, global ones
-	 * included, the attributes of each of its references, and its associated data.
+	 * included, the attributes of each of its references, and its associated data. A reflected reference whose
+	 * original is not available yet contributes only its locally declared attributes, see
+	 * {@link FulltextFieldDefinition#availableReferenceAttributes(ReferenceSchemaContract)}.
 	 *
 	 * @param entitySchema schema of the queried collection
 	 * @param scope        the scope
@@ -616,12 +863,12 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			}
 		}
 		for (final ReferenceSchemaContract referenceSchema : entitySchema.getReferences().values()) {
-			for (final AttributeSchemaContract attributeSchema : referenceSchema.getAttributes().values()) {
+			for (final AttributeSchemaContract attributeSchema :
+				FulltextFieldDefinition.availableReferenceAttributes(referenceSchema).values()) {
 				if (attributeSchema.isSearchableInScope(scope)) {
-					fields.add(
-						FulltextFieldDefinition.resolve(entitySchema,
-							FulltextFieldKey.referenceAttribute(referenceSchema.getName(), attributeSchema.getName()))
-					);
+					fields.add(new FulltextFieldDefinition(
+						FulltextFieldKey.referenceAttribute(referenceSchema.getName(), attributeSchema.getName()),
+						attributeSchema.getAnalyzer(), attributeSchema.getLengthPivot()));
 				}
 			}
 		}
@@ -637,6 +884,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	/**
 	 * One analyzer's searched fields and alternatives aligned with the shared query words.
 	 *
+	 * @param source schema-only composed origin, null for own fields
 	 * @param analyzer the shared compiled content identity
 	 * @param fields the fields searched in this scope
 	 * @param alternatives per word, index 0 the original and then each part, each with its analyzed alternatives;
@@ -649,7 +897,8 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 */
 	private record AnalyzedFieldGroup(
 		@Nonnull CompiledFulltextAnalyzer analyzer, @Nonnull FulltextFieldDefinition[] fields,
-		@Nonnull String[][][] alternatives, @Nonnull String[][][] surfaces, @Nonnull String[][] fragments
+		@Nonnull String[][][] alternatives, @Nonnull String[][][] surfaces, @Nonnull String[][] fragments,
+		@Nullable SearchableSource source
 	) { }
 
 	/**
@@ -777,36 +1026,84 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 * after the cut: a batch whose last completion was cut leaves, and a final word left with no batch leaves the query
 	 * as if it had been closed, with the remaining words priced again for their own count.
 	 *
-	 * @param fulltextIndex the locale index of this scope
+	 * @param context query context resolving snapshot indexes and owner partitions
+	 * @param entitySchema owner collection schema
+	 * @param scope owner scope
+	 * @param locale query locale
+	 * @param ownIndex already resolved owner index, null when the owner has no own indexed text
 	 * @param groups the analyzed groups and their schema field identities
 	 * @param tokens the shared words with their original surface forms and their split parts
 	 * @param unfinished whether the raw text ends with an unclosed word
 	 * @param expansion query-local walkers and submitted-search policy shared across scopes and groups
-	 * @param scoringPolicy effective place weights and coefficient resolved before empty-index shortcuts
 	 * @param documentCount cardinality of the scope global index's locale bitmap, known before query execution
+	 * @param scoringPolicy effective place weights and coefficient resolved before empty-index shortcuts
 	 * @return retained union preparation used directly at top level and as the reference matcher's scoring input,
 	 *         or empty when all words were dropped
 	 */
 	@Nonnull
 	private static Formula prepareUnionFormula(
-		@Nonnull FulltextIndex fulltextIndex, @Nonnull List<AnalyzedFieldGroup> groups,
+		@Nonnull QueryPlanningContext context, @Nonnull EntitySchemaContract entitySchema, @Nonnull Scope scope,
+		@Nonnull Locale locale, @Nullable FulltextIndex ownIndex, @Nonnull List<AnalyzedFieldGroup> groups,
 		@Nonnull QueryToken[] tokens, boolean unfinished, @Nonnull FulltextTermExpansion expansion, int documentCount,
 		@Nonnull FulltextScoringPolicy scoringPolicy
 	) {
 		final List<int[]> fieldIds = new ArrayList<>(groups.size());
-		final float[] weightsByFieldId = new float[fulltextIndex.getFieldCount()];
+		boolean composed = false;
 		for (final AnalyzedFieldGroup group : groups) {
+			composed |= group.source() != null;
+		}
+		final float[] ownWeights = new float[ownIndex == null ? 0 : ownIndex.getFieldCount()];
+		final List<float[]> weights = composed ? new ArrayList<>(groups.size()) : null;
+		final List<FulltextIndex> indexes = composed ? new ArrayList<>(groups.size()) : null;
+		final FulltextPostingsBudget.TermPreparation[] preparations = composed ?
+			new FulltextPostingsBudget.TermPreparation[groups.size()] : null;
+		final Map<String, FulltextTermLifter> lifters = composed ? CollectionUtils.createHashMap(4) : null;
+		for (int g = 0; g < groups.size(); g++) {
+			final AnalyzedFieldGroup group = groups.get(g);
+			final SearchableSource source = group.source();
+			final FulltextIndex index;
+			final float[] fieldWeights;
+			final int[] places;
+			final FulltextScoringPolicy policy;
+			if (source == null) {
+				index = ownIndex;
+				fieldWeights = ownWeights;
+				places = null;
+				policy = scoringPolicy;
+			} else {
+				final GlobalEntityIndex global = context.getGlobalEntityIndexIfExists(
+					source.schema().getName(), source.scope()).orElse(null);
+				index = global == null ? null : global.getFulltextIndex(locale);
+				fieldWeights = new float[index == null ? 0 : index.getFieldCount()];
+				places = new int[fieldWeights.length];
+				policy = context.getFulltextScoringPolicy(source.schema());
+			}
 			final int[] ids = new int[group.fields().length];
 			int count = 0;
 			for (final FulltextFieldDefinition field : group.fields()) {
-				final int id = fulltextIndex.getFieldId(field.key());
-				if (id != FulltextIndex.UNKNOWN_FIELD_ID && fulltextIndex.isFieldCurrent(
+				final int id = index == null ? FulltextIndex.UNKNOWN_FIELD_ID : index.getFieldId(field.key());
+				if (id != FulltextIndex.UNKNOWN_FIELD_ID && index.isFieldCurrent(
 					id, group.analyzer().fingerprint().index(), field.lengthPivot())) {
 					ids[count++] = id;
-					weightsByFieldId[id] = scoringPolicy.weight(field.key());
+					final double weight = (double) policy.weight(field.key()) *
+						(source == null ? 1f : source.reference().getSearchableThroughWeight());
+					fieldWeights[id] = (float) Math.min(Float.MAX_VALUE, weight);
+					if (source != null) {
+						places[id] = source.places().get(field.key());
+					}
 				}
 			}
 			fieldIds.add(Arrays.copyOf(ids, count));
+			if (composed) {
+				indexes.add(index);
+				weights.add(fieldWeights);
+			}
+			if (source != null) {
+				final FulltextTermLifter lifter = lifters.computeIfAbsent(source.reference().getName(),
+					ignored -> new FulltextTermLifter(target -> ownersOf(context, entitySchema, source.reference(),
+						scope, target)));
+				preparations[g] = (term, remaining) -> lifter.prepare(term, places[term.fieldId()], remaining);
+			}
 		}
 		final List<ExpandedTerm[][]> expandedTokens = new ArrayList<>(tokens.length);
 		final int[] partCounts = new int[tokens.length];
@@ -825,6 +1122,8 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 					continue;
 				}
 				final AnalyzedFieldGroup group = groups.get(g);
+				final FulltextIndex groupIndex = composed ? indexes.get(g) : ownIndex;
+				final float[] groupWeights = composed ? weights.get(g) : ownWeights;
 				for (int part = 0; part < partCount; part++) {
 					final QueryToken word = tokens[i].wordAt(part);
 					final String[] alternatives = group.alternatives()[i][part];
@@ -835,13 +1134,13 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 					// Stop recognition depends on exact corpus collisions, never on a fuzzy neighbour.
 					final boolean dropped = alternatives.length == 0 ||
 						group.analyzer().isFoldedStopWord(word.surfaceForm()) &&
-							!isKnownToIndex(fulltextIndex, new QueryToken(word.surfaceForm(), alternatives));
+							!isKnownToIndex(groupIndex, new QueryToken(word.surfaceForm(), alternatives));
 					if (dropped && !hasFragment) {
 						continue;
 					}
 					final List<ExpandedTerm> expanded = expansion.expand(
-						fulltextIndex, fieldIds.get(g), weightsByFieldId, alternatives,
-						group.surfaces()[i][part], fragments, lastUnfinished);
+						groupIndex, fieldIds.get(g), groupWeights, alternatives, group.surfaces()[i][part], fragments,
+						lastUnfinished);
 					if (dropped && !containsCompletion(expanded)) {
 						continue;
 					}
@@ -877,8 +1176,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			return EmptyFormula.INSTANCE;
 		}
 		ExpandedTerm[][][] words = expandedTokens.toArray(ExpandedTerm[][][]::new);
-		ExpandedTerm[][][] retained = FulltextPostingsBudget.retain(
-			words, FulltextPostingsBudget.limit(words.length, documentCount));
+		ExpandedTerm[][][] retained = retain(words, documentCount, preparations, partCounts);
 		if (completionOnly != null) {
 			// The completion gate applies again to the batches whose last completion the cut removed.
 			final int last = words.length - 1;
@@ -900,7 +1198,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 				}
 				// The word leaves as if it had been closed, so the remaining words are priced for their own count.
 				words = Arrays.copyOf(words, last);
-				retained = FulltextPostingsBudget.retain(words, FulltextPostingsBudget.limit(last, documentCount));
+				retained = retain(words, documentCount, preparations, partCounts);
 			} else {
 				retained[last] = finalWord;
 			}
