@@ -357,12 +357,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * are executed AFTER the corresponding storage write completes, ensuring that the expression evaluation
 	 * reads the updated attribute values from storage. Without deferral, the expression would read stale
 	 * (pre-mutation) values because the index updater runs before the storage writer for each mutation.
-	 * Contains both facet and histogram re-evaluation lambdas (flushed together).
+	 * Contains both facet and histogram re-evaluation lambdas, all run by {@link #executeDeferredReEvaluations()}.
 	 */
 	@Nullable private List<Runnable> deferredExpressionReEvaluations;
 	/**
 	 * Memoized result of resolving the reduced indexes the entity being processed belongs to, valid for the
-	 * duration of one deferred re-evaluation phase. See {@link #getOrComputeOwnerReducedIndexes(Supplier)}.
+	 * duration of one run of the deferred re-evaluations. See {@link #getOrComputeOwnerReducedIndexes(Supplier)}.
 	 */
 	@Nullable private List<ReferenceIndexMutator.OwnerReducedIndex> deferredOwnerReducedIndexes;
 	/**
@@ -836,9 +836,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Defers an expression re-evaluation action to be executed after the corresponding storage write
 	 * completes. This ensures that expression evaluation reads updated attribute/associated data values
-	 * from storage, not stale pre-mutation values. Call {@link #finishLocalMutationExecutionPhase()} after
-	 * the storage writer has processed the mutation to execute all deferred actions. Used for both facet
-	 * and histogram expression re-evaluations.
+	 * from storage, not stale pre-mutation values. The action runs in {@link #executeDeferredReEvaluations()}, at
+	 * the end of the phase or before a scope change of the entity, whichever comes first - always in the scope
+	 * the entity was in when the action was queued. Used for both facet and histogram expression re-evaluations.
 	 *
 	 * @param action the re-evaluation action to defer
 	 */
@@ -851,17 +851,16 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 
 	/**
 	 * Returns the reduced indexes the currently processed entity belongs to, computing them through
-	 * `factory` on first use and reusing that answer for the rest of the deferred phase.
+	 * `factory` on first use and reusing that answer for the rest of the run of the deferred re-evaluations.
 	 *
-	 * Every deferred re-evaluation queued for one entity runs inside a single
-	 * {@link #finishLocalMutationExecutionPhase()} call, after the storage write, so the entity's reference
-	 * set - and hence the set of reduced indexes holding it - is identical for all of them. Without this
-	 * memo each queued action re-walks every reference of the entity, which is quadratic in the number of
-	 * reference mutations: an entity carrying thirty conditionally faceted references walked its references
-	 * thirty times over.
+	 * The deferred re-evaluations queued between two {@link #executeDeferredReEvaluations()} calls run inside
+	 * the later one, after the storage write and in one scope, so the entity's reference set - and hence the set
+	 * of reduced indexes holding it - is identical for all of them. Without this memo each queued action re-walks
+	 * every reference of the entity, which is quadratic in the number of reference mutations: an entity carrying
+	 * thirty conditionally faceted references walked its references thirty times over.
 	 *
-	 * The memo is dropped at the end of each phase, so implicit mutations that add references in a later
-	 * phase get a freshly resolved list.
+	 * The memo is dropped at the end of each such call, so implicit mutations that add references in a later
+	 * phase get a freshly resolved list, and actions run after a scope change resolve the indexes of the new scope.
 	 *
 	 * @param factory computes the list when the memo is empty
 	 * @return the reduced indexes holding the entity being processed
@@ -1230,12 +1229,30 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Executes and clears all deferred expression re-evaluation actions (both facet and histogram).
-	 * Must be called after the storage writer has processed the current mutation so that expression
-	 * evaluation reads the updated values.
+	 * Runs the re-evaluations still queued at the end of the phase through {@link #executeDeferredReEvaluations()}.
+	 * The storage writer must have processed every local mutation of the phase first, so that the expressions read
+	 * the updated values.
 	 */
 	@Override
 	public void finishLocalMutationExecutionPhase() {
+		executeDeferredReEvaluations();
+	}
+
+	/**
+	 * Executes and clears all deferred expression re-evaluation actions (both facet and histogram) queued so far,
+	 * and drops the reduced indexes memoized for them.
+	 *
+	 * Runs at the end of every local-mutation phase ({@link #finishLocalMutationExecutionPhase()}), and also before
+	 * the entity changes its scope. Each action writes into the scope that was current when it was queued, while the
+	 * scope change re-indexes the entity into the new scope from its stored body - so an action left queued past the
+	 * scope change would write into the scope the entity has just left. Running the actions while the entity is still
+	 * in that scope is equivalent to running them at the end of a phase that ended right before the scope change,
+	 * because every local mutation preceding the scope change has already been written to the storage parts the
+	 * actions read - the very parts the scope change re-indexes the entity from. The scope change then moves the state
+	 * they produced, and the actions queued after it run in the new scope - before the next scope change, or at the
+	 * end of the phase when there is none.
+	 */
+	public void executeDeferredReEvaluations() {
 		try {
 			if (this.deferredExpressionReEvaluations != null && !this.deferredExpressionReEvaluations.isEmpty()) {
 				for (final Runnable action : this.deferredExpressionReEvaluations) {
@@ -1244,7 +1261,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				this.deferredExpressionReEvaluations.clear();
 			}
 		} finally {
-			// dropped unconditionally: the next phase may see a different reference set, and a memo that
+			// dropped unconditionally: the next run may see a different reference set or scope, and a memo that
 			// outlived its entity would silently write facets into another entity's partitions
 			this.deferredOwnerReducedIndexes = null;
 		}

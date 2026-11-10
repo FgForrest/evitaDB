@@ -51,7 +51,8 @@ flowchart TD
     DISPATCH -->|ReferenceMutation| REF["updateReferences\n+ cross-ref fan-out"]
     DISPATCH -->|AttributeMutation| ATTR["updateAttribute\n+ cross-ref fan-out"]
     DISPATCH -->|AssociatedDataMutation| NOP[no-op]
-    DISPATCH -->|SetEntityScopeMutation| SCOPE["removeEntityFromIndexes\n+ addEntityToIndexes"]
+    SCOPE["executeDeferredReEvaluations\n+ removeEntityFromIndexes\n+ addEntityToIndexes"]
+    DISPATCH -->|SetEntityScopeMutation| SCOPE
     PIRH --> LOOP
     PRICE --> LOOP
     HIER --> LOOP
@@ -106,7 +107,7 @@ then calls into the per-domain mutators:
 | `RemoveAttributeMutation`           | `executeAttributeRemoval`         |          Yes           |
 | `ApplyDeltaAttributeMutation`       | `executeAttributeDelta`           |          Yes           |
 | `AssociatedDataMutation`            | *(no-op)*                         |           No           |
-| `SetEntityScopeMutation`            | full remove + full add            |          N/A           |
+| `SetEntityScopeMutation`            | drain + full remove + full add    |          N/A           |
 
 <Term location="/documentation/developer/indexes/overview.md" name="cross-reference propagation">**Cross-reference
 propagation**</Term>
@@ -127,8 +128,16 @@ indexes.
 #### `finishLocalMutationExecutionPhase()`
 
 Runs and clears the deferred expression re-evaluation actions (facet and histogram) collected while
-the mutations were applied. It must run after the storage writer has processed the current mutation,
-so that expression evaluation reads updated values.
+the mutations were applied, through `executeDeferredReEvaluations()`. It must run after the storage
+writer has processed the current mutation, so that expression evaluation reads updated values. The
+same call drops the reduced indexes memoized for the entity.
+
+Each queued action writes into the scope the entity was in when the action was queued. That is why
+`SetEntityScopeMutation` calls `executeDeferredReEvaluations()` before it removes the entity from its
+current scope: the actions queued by the preceding mutations land in the scope they target, and the
+removal then takes their result out of that scope with the rest of the entity. Actions queued after
+the scope change run in the new scope: before the next scope change, or at the end of the phase when
+there is none.
 
 #### `applyChanges()`
 
@@ -204,7 +213,7 @@ structures participate correctly; nothing in this document's mutators registers 
 | `memoizedRepresentativeAttributes` | Cache of `RepresentativeReferenceKeys` per reference        |
 | `createdReferences`                | References newly inserted in this batch                     |
 | `localMutations`                   | Full batch; peeked during RepresentativeReferenceKey calc   |
-| `deferredExpressionReEvaluations`  | Actions drained by `finishLocalMutationExecutionPhase()`    |
+| `deferredExpressionReEvaluations`  | Actions drained by `executeDeferredReEvaluations()`         |
 
 ### Primary Key Overloading
 
