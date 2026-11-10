@@ -202,9 +202,12 @@ class FulltextReferenceHavingFunctionalTest {
 			}
 			session.defineEntitySchema("Empty").withoutGeneratedPrimaryKey().withLocale(CZECH)
 				.withReferenceTo("labels1", "Target", Cardinality.ZERO_OR_MORE,
-					r -> r.indexedForFilteringInScope(Scope.values())
+					r -> r.indexedForFilteringInScope(Scope.values()).faceted()
 						.withAttribute("label", String[].class, a -> a.localized().nullable().searchable())
 						.withAttribute("primary", Boolean.class, a -> a.filterable()))
+				.withReferenceToEntity("owners", Representation.MATERIALIZED.name(), Cardinality.ZERO_OR_MORE,
+					r -> r.indexedForFilteringInScope(Scope.values()).faceted()
+						.withGroupTypeRelatedToEntity(Representation.MATERIALIZED.name()))
 				.updateVia(session);
 			createHierarchyCollections(session);
 		});
@@ -476,6 +479,53 @@ class FulltextReferenceHavingFunctionalTest {
 					filterBy(scope(Scope.LIVE, Scope.ARCHIVED), entityLocaleEquals(CZECH), entityPrimaryKeyInSet(201),
 						referenceHaving("labels1", textMatches("zimní bundy ")))), EntityReference.class);
 				assertEquals(0, crossedScope.getTotalRecordCount());
+			});
+		}
+
+		/** Facets are chosen by their reference rows, never by searching them: text directly in the body is refused. */
+		@Test
+		@UseDataSet(DATA)
+		@DisplayName("Refuses direct reference text inside facetHaving at any depth of its body")
+		void shouldRefuseDirectTextInFacetHaving(Evita evita) {
+			evita.queryCatalog(CATALOG, session -> {
+				for (final FilterConstraint body : new FilterConstraint[]{
+					textMatches("zimní"),
+					and(attributeEquals("primary", true), not(textMatches("zimní")))
+				}) {
+					final EvitaInvalidUsageException error = assertThrows(EvitaInvalidUsageException.class,
+						() -> session.query(query(collection("Empty"),
+							filterBy(entityLocaleEquals(CZECH), facetHaving("labels1", body))), EntityReference.class));
+					assertTrue(error.getMessage().contains("facetHaving"), error.getMessage());
+					assertTrue(error.getMessage().contains("labels1"), error.getMessage());
+				}
+				// the same body without text is a valid facet filter
+				assertEquals(0, session.query(query(collection("Empty"),
+					filterBy(entityLocaleEquals(CZECH), facetHaving("labels1", attributeEquals("primary", true)))),
+					EntityReference.class).getTotalRecordCount());
+			});
+		}
+
+		/** The facet entity and its group are searched in their own collection, so their text stays allowed. */
+		@Test
+		@UseDataSet(DATA)
+		@DisplayName("Accepts text of the facet entity or its group inside facetHaving, but not beside them")
+		void shouldAcceptFacetEntityAndGroupTextInFacetHaving(Evita evita) {
+			evita.queryCatalog(CATALOG, session -> {
+				for (final FilterConstraint body : new FilterConstraint[]{
+					entityHaving(textMatches("owneronly")),
+					groupHaving(textMatches("owneronly"))
+				}) {
+					assertEquals(0, session.query(query(collection("Empty"),
+						filterBy(entityLocaleEquals(CZECH), facetHaving("owners", body))),
+						EntityReference.class).getTotalRecordCount());
+				}
+				// the exemption covers the nested container alone - direct text beside it is still refused
+				final EvitaInvalidUsageException error = assertThrows(EvitaInvalidUsageException.class,
+					() -> session.query(query(collection("Empty"), filterBy(entityLocaleEquals(CZECH),
+						facetHaving("owners", and(textMatches("owneronly"), entityHaving(textMatches("owneronly")))))),
+						EntityReference.class));
+				assertTrue(error.getMessage().contains("facetHaving"), error.getMessage());
+				assertTrue(error.getMessage().contains("owners"), error.getMessage());
 			});
 		}
 

@@ -158,7 +158,7 @@ class FulltextWritePathTest implements EvitaTestSupport {
 					)
 					.withReferenceTo(
 						REFERENCE_CATEGORIES, CATEGORY, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.withAttribute(
+						whichIs -> whichIs.indexedForFiltering().withAttribute(
 							ATTRIBUTE_LABEL, String.class, thatIs -> thatIs.localized().nullable().searchable()
 						)
 					)
@@ -426,7 +426,7 @@ class FulltextWritePathTest implements EvitaTestSupport {
 					.openForWrite()
 					.withReferenceTo(
 						REFERENCE_CATEGORIES, CATEGORY, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.withAttribute(
+						whichIs -> whichIs.indexedForFiltering().withAttribute(
 							ATTRIBUTE_LABEL, String.class,
 							thatIs -> thatIs.localized().nullable().searchable().lengthPivot(100)
 						)
@@ -494,7 +494,7 @@ class FulltextWritePathTest implements EvitaTestSupport {
 		void shouldReconcileDuplicateArraysOnReplacementAndRemoval() {
 			write(session -> session.getEntitySchemaOrThrow(PRODUCT).openForWrite()
 				.withReferenceTo(REFERENCE_CATEGORIES, CATEGORY, Cardinality.ZERO_OR_MORE,
-					reference -> reference.withAttribute("tags", String[].class,
+					reference -> reference.indexedForFiltering().withAttribute("tags", String[].class,
 						attribute -> attribute.localized().nullable().searchable()))
 				.updateVia(session));
 			write(session -> {
@@ -615,7 +615,7 @@ class FulltextWritePathTest implements EvitaTestSupport {
 		void shouldMaintainReferenceArraysAndSeparateFieldEnrollment() {
 			write(session -> session.getEntitySchemaOrThrow(PRODUCT).openForWrite()
 				.withReferenceTo(REFERENCE_CATEGORIES, CATEGORY, Cardinality.ZERO_OR_MORE,
-					reference -> reference.withAttribute("tags", String[].class,
+					reference -> reference.indexedForFiltering().withAttribute("tags", String[].class,
 						attribute -> attribute.localized().nullable().searchable()))
 				.updateVia(session));
 			write(session -> {
@@ -737,8 +737,9 @@ class FulltextWritePathTest implements EvitaTestSupport {
 		void shouldMoveProvenanceWithMixedScopeMutation() {
 			write(session -> session.getEntitySchemaOrThrow(PRODUCT).openForWrite()
 				.withReferenceTo(REFERENCE_CATEGORIES, CATEGORY, Cardinality.ZERO_OR_MORE,
-					ref -> ref.withAttribute(ATTRIBUTE_LABEL, String.class,
-						attr -> attr.localized().nullable().searchableInScope(Scope.LIVE, Scope.ARCHIVED)))
+					ref -> ref.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
+						.withAttribute(ATTRIBUTE_LABEL, String.class,
+							attr -> attr.localized().nullable().searchableInScope(Scope.LIVE, Scope.ARCHIVED)))
 				.updateVia(session));
 			write(session -> session.upsertEntity(session.createNewEntity(PRODUCT, 1)
 				.setReference(REFERENCE_CATEGORIES, 10, labelled("shoes"))
@@ -835,6 +836,7 @@ class FulltextWritePathTest implements EvitaTestSupport {
 					.withReferenceTo(
 						REFERENCE_DUPLICATE_CATEGORIES, CATEGORY, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
 						whichIs -> whichIs
+							.indexedForFiltering()
 							.withAttribute(ATTRIBUTE_SLOT, Integer.class, AttributeSchemaEditor::representative)
 							.withAttribute(
 								ATTRIBUTE_LABEL, String.class, thatIs -> thatIs.localized().nullable().searchable()

@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.data.annotation.Reference;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.api.requestResponse.data.annotation.ScopeAttributeSettings;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.dataType.Scope;
 
 import java.io.Serializable;
@@ -82,7 +83,7 @@ public interface GetterBasedEntitySearchableEvolutionV1 {
 	@AssociatedData(localized = true, searchable = true, textExpression = "$value.title")
 	Article getArticle();
 
-	@Reference(managed = false)
+	@Reference(managed = false, indexed = ReferenceIndexType.FOR_FILTERING)
 	Brand getMarketingBrand();
 
 	/**

@@ -2393,29 +2393,26 @@ class AttributeSchemaBuilderTest {
 
 		@Test
 		@DisplayName(
-			"should make an attribute of a non-indexed reference searchable"
+			"should refuse a searchable attribute of a non-indexed reference"
 		)
 		@Tag(FULLTEXT)
-		void shouldMakeAttributeOfNonIndexedReferenceSearchable() {
-			// unlike filterability, searchability needs no reference index - the entity is searchable by the union
-			// of the attribute's values over its references, which lives in the entity's global index
-			final EntitySchemaContract schema =
-				createEntitySchemaBuilder()
-					.withReferenceTo(
-						"brand", Entities.BRAND,
-						Cardinality.ZERO_OR_MORE,
-						ref -> ref.withAttribute(
-							"name", String.class,
-							whichIs -> whichIs.localized().searchable()
-						)
+		void shouldRefuseSearchableAttributeOfNonIndexedReference() {
+			final EntitySchema schema = (EntitySchema) createEntitySchemaBuilder()
+				.withReferenceTo(
+					"brand", Entities.BRAND,
+					Cardinality.ZERO_OR_MORE,
+					ref -> ref.withAttribute(
+						"name", String.class,
+						whichIs -> whichIs.localized().searchable()
 					)
-					.toInstance();
-
-			final AttributeSchemaContract attr =
-				schema.getReference("brand").orElseThrow()
-					.getAttribute("name").orElseThrow();
-
-			assertTrue(attr.isSearchable());
+				)
+				.toInstance();
+			final InvalidSchemaMutationException exception = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> schema.validate(AttributeSchemaBuilderTest.this.catalogSchema)
+			);
+			assertTrue(exception.getMessage().contains("`name`"), exception.getMessage());
+			assertTrue(exception.getMessage().contains("searchable in scope `LIVE`"), exception.getMessage());
 		}
 
 		@Test
@@ -2430,7 +2427,7 @@ class AttributeSchemaBuilderTest {
 					.withReferenceTo(
 						"brand", Entities.BRAND,
 						Cardinality.ZERO_OR_MORE,
-						ref -> ref.withAttribute(
+						ref -> ref.indexedForFiltering().withAttribute(
 							"name", String.class,
 							AttributeSchemaEditor::searchable
 						)

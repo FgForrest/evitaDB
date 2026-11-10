@@ -1569,6 +1569,20 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 							);
 						}
 					}
+					// searchability is part of indexing the reference: a reference that is not indexed keeps no
+					// fulltext data at all, so no write pays for words that `referenceHaving` - which refuses such a
+					// reference - could never search; unlike the flags above, an inherited attribute of a reflected
+					// reference is not exempt, because the fulltext write path consults the attribute alone and would
+					// store its words even where no reduced index of the reflected reference exists
+					if (attribute.isSearchableInScope(scope)) {
+						attributeErrors = Stream.concat(
+							attributeErrors,
+							Stream.of(
+								"Attribute `" + attribute.getName() + "` of reference schema `" + this.name +
+									"` is searchable in scope `" + scope +
+									"` but reference schema is not indexed there!")
+						);
+					}
 				}
 			}
 		}

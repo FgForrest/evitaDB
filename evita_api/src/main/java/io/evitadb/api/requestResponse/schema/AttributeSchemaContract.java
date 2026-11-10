@@ -367,13 +367,15 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * of its references of that reference type - an entity referencing three brands is found by the name of any of
 	 * them, and a name two of its references share counts once. A change of a reference attribute that adds no value
 	 * missing from that union and removes no value no other reference still holds changes nothing in the fulltext
-	 * index at all.
+	 * index at all. The reference must be indexed in every scope the attribute is searchable in - for the attributes
+	 * a reflected reference inherits too - otherwise the reference schema is refused.
 	 *
-	 * **Over stored data**, declaring an attribute searchable is never refused, but values stored before the
-	 * declaration are not indexed retroactively - stored data is not reindexed yet - so a search returns incomplete
-	 * results until such a value is written again. Withdrawing searchability takes effect lazily, at the next write of
-	 * the attribute in the scope and locale, and the space its old values took in the index is not reclaimed; a later
-	 * re-declaration starts from an empty field. Results are only ever incomplete, never phantom.
+	 * **Over stored data**, declaring an attribute searchable is never refused because of the data already stored,
+	 * but values stored before the declaration are not indexed retroactively - stored data is not reindexed yet - so
+	 * a search returns incomplete results until such a value is written again. Withdrawing searchability takes effect
+	 * lazily, at the next write of the attribute in the scope and locale, and the space its old values took in the
+	 * index is not reclaimed; a later re-declaration starts from an empty field. Results are only ever incomplete,
+	 * never phantom.
 	 *
 	 * This method returns true only if the attribute is searchable in the default (i.e. {@link Scope#LIVE}) scope.
 	 *

@@ -138,7 +138,7 @@ class FulltextFieldSettingsSchemaTest implements EvitaTestSupport {
 					)
 					.withReferenceTo(
 						REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.withAttribute(
+						whichIs -> whichIs.indexedForFiltering().withAttribute(
 							ATTRIBUTE_BRAND_NAME, String.class,
 							thatIs -> thatIs.localized().nullable().searchable()
 								.analyzer(FulltextAnalyzerSchemaContract.HTML_TEXT).searchWeight(4.0f)
@@ -366,7 +366,7 @@ class FulltextFieldSettingsSchemaTest implements EvitaTestSupport {
 								a -> a.localized().searchable(() -> searchable).searchWeight(weight));
 							case ATTRIBUTE_BRAND_NAME -> builder.withReferenceTo(
 								REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
-								r -> r.withAttribute(ATTRIBUTE_BRAND_NAME, String.class,
+								r -> r.indexedForFiltering().withAttribute(ATTRIBUTE_BRAND_NAME, String.class,
 									a -> a.localized().searchable(() -> searchable).searchWeight(weight))
 							);
 							default -> throw new IllegalStateException("Unexpected place `" + place + "`.");

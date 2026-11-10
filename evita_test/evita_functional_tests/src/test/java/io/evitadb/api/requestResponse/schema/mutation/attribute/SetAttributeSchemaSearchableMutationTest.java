@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
@@ -46,6 +47,7 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -104,8 +106,8 @@ class SetAttributeSchemaSearchableMutationTest {
 	}
 
 	/**
-	 * A real (not mocked), non-indexed reference holding one `String` attribute searchable in the live scope, created
-	 * through the create mutation rather than a builder - the path that skips the builder's own validation.
+	 * A real (not mocked) reference indexed for filtering with one `String` attribute searchable in the live scope,
+	 * created through the create mutation rather than a builder - the path that skips the builder's own validation.
 	 *
 	 * @param localized whether the attribute is localized
 	 * @return the reference schema holding the attribute
@@ -113,7 +115,9 @@ class SetAttributeSchemaSearchableMutationTest {
 	@Nonnull
 	private static ReferenceSchemaContract createSearchableReferenceAttribute(boolean localized) {
 		final ReferenceSchema brand = ReferenceSchema._internalBuild(
-			"brand", "brand", false, Cardinality.ZERO_OR_MORE, null, false, null, null
+			"brand", "brand", false, Cardinality.ZERO_OR_MORE, null, false,
+			new ScopedReferenceIndexType[]{new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)},
+			null
 		);
 		final CreateAttributeSchemaMutation create = new CreateAttributeSchemaMutation(
 			ATTRIBUTE_NAME, null, null, null,
@@ -616,23 +620,6 @@ class SetAttributeSchemaSearchableMutationTest {
 					Mockito.mock(CatalogSchemaContract.class), EntitySchema._internalBuild("product")
 				)
 			);
-		}
-
-		@Test
-		@DisplayName("Should mutate the attribute of a reference that is not indexed")
-		void shouldMutateAttributeOfReferenceThatIsNotIndexed() {
-			// unlike filterability, searchability needs no reference index - the fulltext index lives in the
-			// entity's global index, so a non-indexed reference is a valid holder of a searchable attribute
-			final ReferenceSchemaContract referenceSchema = createMockedReferenceSchema();
-			Mockito.when(referenceSchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createStringAttributeSchema()));
-
-			final ReferenceSchemaContract mutatedSchema = new SetAttributeSchemaSearchableMutation(ATTRIBUTE_NAME, true)
-				.mutate(Mockito.mock(EntitySchemaContract.class), referenceSchema);
-
-			assertNotNull(mutatedSchema);
-			final AttributeSchemaContract newAttributeSchema =
-				mutatedSchema.getAttribute(ATTRIBUTE_NAME).orElseThrow();
-			assertEquals(Set.of(Scope.LIVE), newAttributeSchema.getSearchableInScopes());
 		}
 	}
 

@@ -332,7 +332,7 @@ class FulltextFieldAnalysisFunctionalTest implements EvitaTestSupport {
 					.withAssociatedData("article", String.class,
 						a -> a.localized().nullable().searchable().analyzer("html-text").lengthPivot(125))
 					.withReferenceToEntity("categories", "category", Cardinality.ZERO_OR_MORE,
-						r -> r.withAttribute("label", String.class,
+						r -> r.indexedForFiltering().withAttribute("label", String.class,
 							a -> a.localized().nullable().searchable().analyzer("html-text").lengthPivot(75)))
 					.updateVia(session);
 				session.upsertEntity(session.createNewEntity(PRODUCT, 1)

@@ -91,7 +91,7 @@ class ReferenceFulltextValueWritePathRollbackTest implements EvitaTestSupport {
 			session.defineEntitySchema("product").withoutGeneratedPrimaryKey().withLocale(Locale.ENGLISH)
 				.withAttribute("code", String.class, attribute -> attribute.unique())
 				.withReferenceTo("categories", "category", Cardinality.ZERO_OR_MORE,
-					reference -> reference.withAttribute("label", String.class,
+					reference -> reference.indexedForFiltering().withAttribute("label", String.class,
 						attribute -> attribute.localized().nullable().searchable()))
 				.updateVia(session);
 			for (int owner = 1; owner <= 2; owner++) {
@@ -107,7 +107,7 @@ class ReferenceFulltextValueWritePathRollbackTest implements EvitaTestSupport {
 			this.evita.updateCatalog(CATALOG, session -> {
 				session.getEntitySchemaOrThrow("product").openForWrite()
 				.withReferenceTo("categories", "category", Cardinality.ZERO_OR_MORE,
-					reference -> reference.withAttribute("label", String.class,
+					reference -> reference.indexedForFiltering().withAttribute("label", String.class,
 						attribute -> attribute.localized().nullable().searchable().lengthPivot(100)))
 				.updateVia(session);
 			});

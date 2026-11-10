@@ -264,7 +264,10 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 *
 	 * **On a reference attribute**, the entity is searchable by the **set union** of the attribute's values over all
 	 * of its references of that reference type. A change of a reference attribute that adds no value missing from that
-	 * union and removes no value no other reference still holds changes nothing in the fulltext index at all.
+	 * union and removes no value no other reference still holds changes nothing in the fulltext index at all. The
+	 * reference must be indexed in every scope the attribute is searchable in, because a reference that is not indexed
+	 * keeps no fulltext data; the attributes a reflected reference inherits are held to the same rule. A schema that
+	 * breaks it is refused when the session that changed it closes.
 	 *
 	 * The declaration is accepted on a collection that already holds entities, but their stored values are not
 	 * indexed retroactively - each becomes searchable when it is written again.

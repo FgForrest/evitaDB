@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
 import io.evitadb.api.requestResponse.data.annotation.Reference;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 
 import java.io.Serializable;
 
@@ -78,7 +79,7 @@ public interface GetterBasedEntityFulltextFieldSettings {
 	/** Serializable article projected into a complex data object. */
 	record Article(String title) implements Serializable {}
 
-	@Reference(managed = false)
+	@Reference(managed = false, indexed = ReferenceIndexType.FOR_FILTERING)
 	Brand getMarketingBrand();
 
 	interface Brand extends Serializable {

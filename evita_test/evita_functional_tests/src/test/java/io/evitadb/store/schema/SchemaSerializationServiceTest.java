@@ -288,7 +288,7 @@ class SchemaSerializationServiceTest {
 			.withAttribute("description", String.class, whichIs -> whichIs.localized().searchable())
 			.withReferenceToEntity(
 				Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs.withAttribute(
+				whichIs -> whichIs.indexedForFiltering().withAttribute(
 					"brandName", String[].class, thatIs -> thatIs.localized().searchable()
 				)
 			)

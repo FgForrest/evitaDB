@@ -24,7 +24,9 @@
 package io.evitadb.api.functional.schema;
 
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -50,6 +52,7 @@ import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -76,6 +79,9 @@ class SearchableAttributeSchemaTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_TITLE = "title";
 	private static final String ATTRIBUTE_BRAND_NAME = "brandName";
 	private static final String REFERENCE_BRAND = "brand";
+	private static final String REFERENCE_CATEGORIES = "categories";
+	private static final String REFERENCE_PRODUCTS = "products";
+	private static final String ATTRIBUTE_LABEL = "label";
 
 	private TestPaths paths;
 	private Evita evita;
@@ -124,7 +130,7 @@ class SearchableAttributeSchemaTest implements EvitaTestSupport {
 						)
 						.withReferenceTo(
 							REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
-							whichIs -> whichIs.withAttribute(
+							whichIs -> whichIs.indexedForFiltering().withAttribute(
 								ATTRIBUTE_BRAND_NAME, String.class,
 								thatIs -> thatIs.localized().nullable().searchable()
 							)
@@ -186,6 +192,161 @@ class SearchableAttributeSchemaTest implements EvitaTestSupport {
 			);
 
 			assertTrue(test.productSchema().getAttribute(ATTRIBUTE_DESCRIPTION).isEmpty());
+		}
+
+		@Test
+		@DisplayName("should refuse a searchable reference attribute in a scope where its reference is not indexed")
+		void shouldRefuseSearchableReferenceAttributeOfReferenceNotIndexed() {
+			final SearchableAttributeSchemaTest test = SearchableAttributeSchemaTest.this;
+			test.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withoutGeneratedPrimaryKey()
+						.withLocale(Locale.ENGLISH)
+						.updateVia(session);
+					session.goLiveAndClose();
+				}
+			);
+			final RollbackException notIndexedRollback = assertThrows(
+				RollbackException.class,
+				() -> test.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntitySchemaOrThrow(Entities.PRODUCT)
+							.openForWrite()
+							.withReferenceTo(
+								REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
+								whichIs -> whichIs.nonIndexed().withAttribute(
+									ATTRIBUTE_BRAND_NAME, String.class,
+									thatIs -> thatIs.localized().nullable().searchable()
+								)
+							)
+							.updateVia(session);
+					}
+				)
+			);
+			final InvalidSchemaMutationException notIndexed =
+				assertInstanceOf(InvalidSchemaMutationException.class, notIndexedRollback.getCause());
+			assertTrue(
+				notIndexed.getMessage().contains("`" + ATTRIBUTE_BRAND_NAME + "`") &&
+					notIndexed.getMessage().contains("searchable in scope `LIVE`"),
+				notIndexed.getMessage()
+			);
+
+			// indexed in the live scope only: searchability in the archived scope is refused there
+			final RollbackException archivedOnlyRollback = assertThrows(
+				RollbackException.class,
+				() -> test.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntitySchemaOrThrow(Entities.PRODUCT)
+							.openForWrite()
+							.withReferenceTo(
+								REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
+								whichIs -> whichIs.indexedForFilteringInScope(Scope.LIVE).withAttribute(
+									ATTRIBUTE_BRAND_NAME, String.class,
+									thatIs -> thatIs.localized().nullable()
+										.searchableInScope(Scope.LIVE, Scope.ARCHIVED)
+								)
+							)
+							.updateVia(session);
+					}
+				)
+			);
+			final InvalidSchemaMutationException archivedOnly =
+				assertInstanceOf(InvalidSchemaMutationException.class, archivedOnlyRollback.getCause());
+			assertTrue(archivedOnly.getMessage().contains("searchable in scope `ARCHIVED`"), archivedOnly.getMessage());
+			assertFalse(archivedOnly.getMessage().contains("searchable in scope `LIVE`"), archivedOnly.getMessage());
+		}
+
+		@Test
+		@DisplayName("should refuse an inherited searchable attribute where the reflected reference is not indexed")
+		void shouldRefuseInheritedSearchableAttributeWhereReflectedReferenceIsNotIndexed() {
+			final SearchableAttributeSchemaTest test = SearchableAttributeSchemaTest.this;
+			// the reflected reference inherits the indexing of the original, so the inherited attribute is accepted
+			test.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					defineProductWithSearchableCategoryLabel(session, Scope.LIVE, Scope.ARCHIVED);
+					session.defineEntitySchema(Entities.CATEGORY)
+						.withoutGeneratedPrimaryKey()
+						.withLocale(Locale.ENGLISH)
+						.withReflectedReferenceToEntity(
+							REFERENCE_PRODUCTS, Entities.PRODUCT, REFERENCE_CATEGORIES,
+							whichIs -> whichIs.withAttributesInherited()
+						)
+						.updateVia(session);
+					session.goLiveAndClose();
+				}
+			);
+
+			final RollbackException rollback = assertThrows(
+				RollbackException.class,
+				() -> test.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntitySchemaOrThrow(Entities.CATEGORY)
+							.openForWrite()
+							.withReflectedReferenceToEntity(
+								REFERENCE_PRODUCTS, Entities.PRODUCT, REFERENCE_CATEGORIES,
+								whichIs -> whichIs.indexedForFilteringInScope(Scope.LIVE).withAttributesInherited()
+							)
+							.updateVia(session);
+					}
+				)
+			);
+			final InvalidSchemaMutationException exception =
+				assertInstanceOf(InvalidSchemaMutationException.class, rollback.getCause());
+			assertTrue(
+				exception.getMessage().contains(
+					"Attribute `" + ATTRIBUTE_LABEL + "` of reference schema `" + REFERENCE_PRODUCTS +
+						"` is searchable in scope `ARCHIVED`"
+				),
+				exception.getMessage()
+			);
+			assertFalse(exception.getMessage().contains("searchable in scope `LIVE`"), exception.getMessage());
+		}
+
+		@Test
+		@DisplayName("should refuse widening an original attribute beyond the scopes its reflected reference indexes")
+		void shouldRefuseWideningSearchabilityBeyondReflectedReferenceIndex() {
+			final SearchableAttributeSchemaTest test = SearchableAttributeSchemaTest.this;
+			test.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					defineProductWithSearchableCategoryLabel(session, Scope.LIVE);
+					session.defineEntitySchema(Entities.CATEGORY)
+						.withoutGeneratedPrimaryKey()
+						.withLocale(Locale.ENGLISH)
+						.withReflectedReferenceToEntity(
+							REFERENCE_PRODUCTS, Entities.PRODUCT, REFERENCE_CATEGORIES,
+							whichIs -> whichIs.indexedForFilteringInScope(Scope.LIVE).withAttributesInherited()
+						)
+						.updateVia(session);
+					session.goLiveAndClose();
+				}
+			);
+
+			// the original is indexed in both scopes, so only the reflected reference can object
+			final RollbackException rollback = assertThrows(
+				RollbackException.class,
+				() -> test.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						defineProductWithSearchableCategoryLabel(session, Scope.LIVE, Scope.ARCHIVED);
+					}
+				)
+			);
+			final InvalidSchemaMutationException exception =
+				assertInstanceOf(InvalidSchemaMutationException.class, rollback.getCause());
+			assertTrue(
+				exception.getMessage().contains(
+					"Attribute `" + ATTRIBUTE_LABEL + "` of reference schema `" + REFERENCE_PRODUCTS +
+						"` is searchable in scope `ARCHIVED`"
+				),
+				exception.getMessage()
+			);
 		}
 	}
 
@@ -281,6 +442,30 @@ class SearchableAttributeSchemaTest implements EvitaTestSupport {
 				return session.getEntitySchemaOrThrow(Entities.PRODUCT);
 			}
 		);
+	}
+
+	/**
+	 * Defines or updates the `PRODUCT` schema with a managed `categories` reference indexed in both scopes, whose
+	 * localized `label` attribute is searchable in the given scopes.
+	 *
+	 * @param session          the session of the catalog update
+	 * @param searchableScopes the scopes the label is searchable in
+	 */
+	private static void defineProductWithSearchableCategoryLabel(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Scope... searchableScopes
+	) {
+		session.defineEntitySchema(Entities.PRODUCT)
+			.withoutGeneratedPrimaryKey()
+			.withLocale(Locale.ENGLISH)
+			.withReferenceToEntity(
+				REFERENCE_CATEGORIES, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED).withAttribute(
+					ATTRIBUTE_LABEL, String.class,
+					thatIs -> thatIs.localized().nullable().searchableInScope(searchableScopes)
+				)
+			)
+			.updateVia(session);
 	}
 
 	/**

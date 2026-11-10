@@ -2216,6 +2216,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 * we don't control their indexing / faceting settings - they are controlled by the original reference schema.
 	 * But we still allow the reference to be non-indexed and then the index is not present on the reflected reference
 	 * either. We enforce reference to be indexed only when there is new explicitly defined attribute that needs indexing.
+	 * Searchability is the exception: {@link ReferenceSchema#validateAttributes} checks it for inherited attributes
+	 * too, because fulltext data is written for a searchable attribute whether the reference is indexed or not.
 	 *
 	 * @param attributeSchema the attribute schema contract to be checked for validation
 	 * @return true if the attribute should be validated, false otherwise

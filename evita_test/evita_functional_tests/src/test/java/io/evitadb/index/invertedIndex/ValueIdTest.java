@@ -134,7 +134,7 @@ class ValueIdTest {
 	private static void assertExhaustionAdvice(@Nonnull IdentifierOverflowException error) {
 		final String publicMessage = error.getPublicMessage();
 		assertTrue(
-			publicMessage.contains("value ids of an attribute value index") &&
+			publicMessage.contains("value ids of a value dictionary") &&
 				publicMessage.contains("a restart does not help") &&
 				publicMessage.contains("rebuild the entity collection") &&
 				publicMessage.contains("`replaceCollection`"),
