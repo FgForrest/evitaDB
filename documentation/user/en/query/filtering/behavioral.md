@@ -75,6 +75,13 @@ searched in, whatever the scopes of the query. Anywhere else - in
 [`referenceHaving`](references.md#reference-having) or [`facetHaving`](references.md#facet-having) - it would do
 nothing, so the query is rejected with an error.
 
+A `scope` cannot be placed in a [`not`](logical.md#not) container either, at any depth below it. It selects the scopes
+the query searches in, it does not filter entities, so there is nothing to negate - name the scopes you want in
+`scope` instead. The query is rejected with an error. The `scope` of an
+[`entityHaving`](references.md#entity-having) or [`groupHaving`](references.md#group-having) that the `not` encloses
+is not negated and stays valid: it selects the scopes of the entities that container reaches, and the `not` negates
+the container as a whole. A `not` placed inside such a container cannot hold a `scope`, as at the root.
+
 </Note>
 
 
