@@ -121,7 +121,8 @@ class SetAttributeSchemaSearchableMutationTest {
 		final ReferenceSchema brand = ReferenceSchema._internalBuild(
 			"brand", "brand", false, Cardinality.ZERO_OR_MORE, null, false,
 			new ScopedReferenceIndexType[]{new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)},
-			null
+			null,
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 		final CreateAttributeSchemaMutation create = new CreateAttributeSchemaMutation(
 			ATTRIBUTE_NAME, null, null, null,

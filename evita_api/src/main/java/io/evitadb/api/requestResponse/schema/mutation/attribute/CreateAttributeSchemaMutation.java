@@ -726,7 +726,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 							)
 						),
 					referenceSchema.getSortableAttributeCompounds(),
-					referenceSchema.getConflictResolutionOverride()
+					referenceSchema.getConflictResolutionOverride(),
+					referenceSchema.getSearchableThroughInScopes(), referenceSchema.getSearchableThroughWeight()
 				);
 			}
 		} else if (existingAttributeSchema.get().equals(newAttributeSchema)) {

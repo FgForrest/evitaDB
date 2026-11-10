@@ -218,7 +218,8 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 			new ScopedReferenceIndexType[]{
 				new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 			},
-			new Scope[]{Scope.DEFAULT_SCOPE}
+			new Scope[]{Scope.DEFAULT_SCOPE},
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 		final AttributeSchemaContract brandCodeSchema =
 			AttributeSchema._internalBuild(

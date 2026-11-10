@@ -255,7 +255,8 @@ public class RemoveAttributeSchemaMutation
 							)
 						),
 					referenceSchema.getSortableAttributeCompounds(),
-					referenceSchema.getConflictResolutionOverride()
+					referenceSchema.getConflictResolutionOverride(),
+					referenceSchema.getSearchableThroughInScopes(), referenceSchema.getSearchableThroughWeight()
 				);
 			}
 		}

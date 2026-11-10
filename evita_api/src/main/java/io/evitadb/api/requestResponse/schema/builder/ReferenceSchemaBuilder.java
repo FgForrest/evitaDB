@@ -148,10 +148,22 @@ public final class ReferenceSchemaBuilder
 						.entrySet()
 						.stream()
 						.map(it -> new ScopedBucketedPartially(it.getKey(), it.getValue()))
-						.toArray(ScopedBucketedPartially[]::new)
+						.toArray(ScopedBucketedPartially[]::new),
+					ReferenceSchema.toScopedSearchModes(this.baseSchema.getSearchableThroughInScopes()),
+					this.baseSchema.getSearchableThroughWeight()
 				)
 			);
-		} else {
+		}
+		mutations.stream()
+			.filter(
+				it -> it instanceof ReferenceSchemaMutation referenceSchemaMutation &&
+						(name.equals(referenceSchemaMutation.getName()) &&
+						!(referenceSchemaMutation instanceof CreateReferenceSchemaMutation)) &&
+						!(referenceSchemaMutation instanceof RemoveReferenceSchemaMutation)
+			)
+			.forEach(this.mutations::add);
+		// New target/cardinality changes follow prior edits, which may withdraw their prerequisites.
+		if (!createNew) {
 			Assert.isPremiseValid(
 				existingSchema != null,
 				"When not creating new reference schema, the existing schema must be provided!"
@@ -160,12 +172,12 @@ public final class ReferenceSchemaBuilder
 			// reference, never the caller-supplied `existingSchema`. The caller builds
 			// `existingSchema` from `toInstance()`, so it already reflects every pending
 			// entity-level mutation targeting this reference — the very same mutations that are
-			// copied into `this.mutations` below. Starting the replay from an already-mutated
+			// copied into `this.mutations` above. Starting the replay from an already-mutated
 			// base would re-apply those mutations on top of themselves.
 			// Intentional asymmetry: `baseSchema` is the raw persisted reference (see above),
 			// but the comparisons below deliberately read `existingSchema` (the post-mutation view).
 			// Any prior entity-type / cardinality change is already present in the `mutations` list
-			// copied a few lines further down, and therefore already reflected in `existingSchema`.
+			// copied above, and therefore already reflected in `existingSchema`.
 			// Comparing against the post-mutation view prevents re-emitting a Modify*Mutation that
 			// is already queued.
 			if (referencedEntityTypeManaged != existingSchema.isReferencedEntityTypeManaged() || !entityType.equals(existingSchema.getReferencedEntityType())) {
@@ -186,14 +198,6 @@ public final class ReferenceSchemaBuilder
 				);
 			}
 		}
-		mutations.stream()
-			.filter(
-				it -> it instanceof ReferenceSchemaMutation referenceSchemaMutation &&
-						(name.equals(referenceSchemaMutation.getName()) &&
-						!(referenceSchemaMutation instanceof CreateReferenceSchemaMutation)) &&
-						!(referenceSchemaMutation instanceof RemoveReferenceSchemaMutation)
-			)
-			.forEach(this.mutations::add);
 	}
 
 	/**
@@ -219,7 +223,8 @@ public final class ReferenceSchemaBuilder
 				ReferenceSchema._internalBuild(
 					name, entityType, referencedEntityTypeManaged, cardinality,
 					null, false,
-					ScopedReferenceIndexType.EMPTY, Scope.NO_SCOPE
+					ScopedReferenceIndexType.EMPTY, Scope.NO_SCOPE,
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				) :
 				existingSchema;
 		} else {

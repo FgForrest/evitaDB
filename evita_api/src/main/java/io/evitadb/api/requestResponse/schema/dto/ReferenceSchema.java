@@ -34,14 +34,16 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSearchMode;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceSearchMode;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
@@ -77,7 +79,11 @@ import static java.util.Optional.ofNullable;
 @Immutable
 @ThreadSafe
 public sealed class ReferenceSchema implements ReferenceSchemaContract permits ReflectedReferenceSchema {
-	@Serial private static final long serialVersionUID = 5443565766311111160L;
+	@Serial private static final long serialVersionUID = 5443565766311111161L;
+	/** Search modes declared on this reference, independently of reflected originals. */
+	@Getter @Nonnull protected final Map<Scope, ReferenceSearchMode> searchableThroughInScopes;
+	/** Ranking weight shared by all scopes, even when no mode is declared. */
+	@Getter protected final float searchableThroughWeight;
 	/**
 	 * Reference name distinguishing relations of the same target type.
 	 */
@@ -626,6 +632,21 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		return result.isEmpty() ? Collections.emptyMap() : result;
 	}
 
+	/**
+	 * Creates an internal reference schema with explicit text composition metadata.
+	 *
+	 * @param name reference name
+	 * @param entityType referenced entity type
+	 * @param referencedEntityTypeManaged whether the referenced type is managed by evitaDB
+	 * @param cardinality reference cardinality
+	 * @param groupType referenced group type, or null without a group
+	 * @param referencedGroupTypeManaged whether the group type is managed
+	 * @param indexedInScopes per-scope index configuration, or null for none
+	 * @param facetedInScopes faceted scopes, or null for none
+	 * @param searchableThroughInScopes complete search mode declaration, or null for none
+	 * @param searchableThroughWeight ranking weight shared by every scope
+	 * @return newly created reference schema
+	 */
 	@Nonnull
 	public static ReferenceSchema _internalBuild(
 		@Nonnull String name,
@@ -635,7 +656,9 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nullable String groupType,
 		boolean referencedGroupTypeManaged,
 		@Nullable ScopedReferenceIndexType[] indexedInScopes,
-		@Nullable Scope[] facetedInScopes
+		@Nullable Scope[] facetedInScopes,
+		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
+		float searchableThroughWeight
 	) {
 		return _internalBuild(
 			name, NamingConvention.generate(name),
@@ -657,7 +680,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			null,
 			null, null,
 			Collections.emptyMap(), Collections.emptyMap(),
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			searchableThroughInScopes, searchableThroughWeight
 		);
 	}
 
@@ -666,6 +690,30 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
+	 *
+	 * @param name reference name
+	 * @param nameVariants reference name variants
+	 * @param description description, or null when absent
+	 * @param deprecationNotice deprecation notice, or null when absent
+	 * @param cardinality reference cardinality
+	 * @param referencedEntityType referenced entity type
+	 * @param entityTypeNameVariants unmanaged referenced type name variants
+	 * @param referencedEntityTypeManaged whether the referenced type is managed by evitaDB
+	 * @param referencedGroupType referenced group type, or null
+	 * @param groupTypeNameVariants unmanaged group type name variants
+	 * @param referencedGroupTypeManaged whether the group type is managed
+	 * @param indexedInScopes per-scope index configuration
+	 * @param indexedComponentsInScopes per-scope indexed components
+	 * @param facetedInScopes faceted scopes
+	 * @param facetedPartiallyInScopes per-scope facet predicates
+	 * @param bucketedInScopes per-scope histogram definitions
+	 * @param bucketedPartiallyInScopes per-scope histogram predicates
+	 * @param attributes declared attributes
+	 * @param sortableAttributeCompounds declared sortable attribute compounds
+	 * @param conflictResolutionOverride conflict resolution override
+	 * @param searchableThroughInScopes complete search mode declaration, or null for none
+	 * @param searchableThroughWeight ranking weight shared by every scope
+	 * @return reconstructed reference schema
 	 */
 	@Nonnull
 	public static ReferenceSchema _internalBuild(
@@ -688,7 +736,9 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nonnull Map<Scope, Expression> bucketedPartiallyInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
+		float searchableThroughWeight
 	) {
 		return new ReferenceSchema(
 			name, nameVariants,
@@ -707,7 +757,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			bucketedPartiallyInScopes,
 			attributes,
 			sortableAttributeCompounds,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			searchableThroughInScopes, searchableThroughWeight
 		);
 	}
 
@@ -716,6 +767,30 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
+	 *
+	 * @param name reference name
+	 * @param nameVariants reference name variants
+	 * @param description description, or null when absent
+	 * @param deprecationNotice deprecation notice, or null when absent
+	 * @param entityType referenced entity type
+	 * @param entityTypeNameVariants unmanaged referenced type name variants
+	 * @param referencedEntityTypeManaged whether the referenced type is managed by evitaDB
+	 * @param cardinality reference cardinality
+	 * @param groupType referenced group type, or null without a group
+	 * @param groupTypeNameVariants unmanaged group type name variants
+	 * @param referencedGroupTypeManaged whether the group type is managed
+	 * @param indexedInScopes per-scope index configuration
+	 * @param indexedComponentsInScopes per-scope indexed components
+	 * @param facetedInScopes faceted scopes
+	 * @param facetedPartiallyInScopes per-scope facet predicates
+	 * @param bucketedInScopes per-scope histogram definitions
+	 * @param bucketedPartiallyInScopes per-scope histogram predicates
+	 * @param attributes declared attributes
+	 * @param sortableAttributeCompounds declared sortable attribute compounds
+	 * @param conflictResolutionOverride conflict resolution override
+	 * @param searchableThroughInScopes complete search mode declaration, or null for none
+	 * @param searchableThroughWeight ranking weight shared by every scope
+	 * @return reconstructed reference schema
 	 */
 	@Nonnull
 	public static ReferenceSchema _internalBuild(
@@ -738,7 +813,9 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nullable ScopedBucketedPartially[] bucketedPartiallyInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
+		float searchableThroughWeight
 	) {
 		validateEntityTypeClassifiers(entityType, groupType);
 
@@ -769,7 +846,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			bucketedPartiallyMap,
 			attributes,
 			sortableAttributeCompounds,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			searchableThroughInScopes, searchableThroughWeight
 		);
 	}
 
@@ -778,6 +856,10 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
+	 *
+	 * @param referenceSchema schema whose settings should be retained
+	 * @param elevatedCardinality new cardinality
+	 * @return schema retaining all other settings
 	 */
 	public static ReferenceSchemaContract _internalBuild(
 		@Nonnull ReferenceSchemaContract referenceSchema,
@@ -807,7 +889,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			referenceSchema.getBucketedPartiallyInScopes(),
 			referenceSchema.getAttributes(),
 			referenceSchema.getSortableAttributeCompounds(),
-			referenceSchema.getConflictResolutionOverride()
+			referenceSchema.getConflictResolutionOverride(),
+			referenceSchema.getSearchableThroughInScopes(), referenceSchema.getSearchableThroughWeight()
 		);
 	}
 
@@ -1004,6 +1087,32 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		return errors;
 	}
 
+	/**
+	 * Reconstructs an immutable reference schema with its declared text composition metadata.
+	 *
+	 * @param name reference name
+	 * @param nameVariants reference name variants
+	 * @param description description, or null when absent
+	 * @param deprecationNotice deprecation notice, or null when absent
+	 * @param cardinality reference cardinality
+	 * @param referencedEntityType referenced entity type
+	 * @param entityTypeNameVariants unmanaged referenced type name variants
+	 * @param referencedEntityTypeManaged whether the referenced type is managed by evitaDB
+	 * @param referencedGroupType referenced group type, or null
+	 * @param groupTypeNameVariants unmanaged group type name variants
+	 * @param referencedGroupTypeManaged whether the group type is managed
+	 * @param indexedInScopes per-scope index configuration
+	 * @param indexedComponentsInScopes per-scope indexed components
+	 * @param facetedInScopes faceted scopes
+	 * @param facetedPartiallyInScopes per-scope facet predicates
+	 * @param bucketedInScopes per-scope histogram definitions
+	 * @param bucketedPartiallyInScopes per-scope histogram predicates
+	 * @param attributes declared attributes
+	 * @param sortableAttributeCompounds declared sortable attribute compounds
+	 * @param conflictResolutionOverride conflict resolution override
+	 * @param searchableThroughInScopes complete search mode declaration, or null for none
+	 * @param searchableThroughWeight ranking weight shared by every scope
+	 */
 	protected ReferenceSchema(
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
@@ -1024,7 +1133,9 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nonnull Map<Scope, Expression> bucketedPartiallyInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
-		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
+		float searchableThroughWeight
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, referencedEntityType);
 		this.name = name;
@@ -1032,6 +1143,10 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
 		this.conflictResolutionOverride = conflictResolutionOverride;
+		this.searchableThroughInScopes = searchableThroughInScopes == null
+			? Collections.emptyMap()
+			: CollectionUtils.toUnmodifiableMap(searchableThroughInScopes);
+		this.searchableThroughWeight = AttributeSchemaContract.normalizeSearchWeight(searchableThroughWeight);
 		this.cardinality = cardinality == null ? Cardinality.ZERO_OR_MORE : cardinality;
 		this.referencedEntityType = referencedEntityType;
 		this.entityTypeNameVariants = Collections.unmodifiableMap(entityTypeNameVariants);
@@ -1099,6 +1214,95 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 					)
 				)
 			);
+	}
+
+	/**
+	 * Converts the complete scoped declaration; null denotes no declared scope.
+	 *
+	 * @param modes scoped search modes, or null for none
+	 * @return map of declared modes
+	 */
+	@Nonnull
+	public static Map<Scope, ReferenceSearchMode> toSearchableThroughMap(
+		@Nullable ScopedReferenceSearchMode[] modes
+	) {
+		final Map<Scope, ReferenceSearchMode> result = new EnumMap<>(Scope.class);
+		if (modes != null) {
+			for (final ScopedReferenceSearchMode mode : modes) {
+				result.put(mode.scope(), mode.mode());
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Converts a scope map back to the complete scoped declaration carried by mutations; the inverse of
+	 * {@link #toSearchableThroughMap(ScopedReferenceSearchMode[])}.
+	 *
+	 * @param modes declared mode of each scope
+	 * @return scoped search modes in the iteration order of the map, empty when no scope declares a mode
+	 */
+	@Nonnull
+	public static ScopedReferenceSearchMode[] toScopedSearchModes(@Nonnull Map<Scope, ReferenceSearchMode> modes) {
+		return modes.entrySet().stream()
+			.map(entry -> new ScopedReferenceSearchMode(entry.getKey(), entry.getValue()))
+			.toArray(ScopedReferenceSearchMode[]::new);
+	}
+
+	@Nullable
+	@Override
+	public ReferenceSearchMode getSearchableThrough(@Nonnull Scope scope) {
+		return this.searchableThroughInScopes.get(scope);
+	}
+
+	/**
+	 * Collects search-through requirements using the effective index settings.
+	 * Inherited index checks await binding when a reflected original is unavailable.
+	 *
+	 * @param entityType owner entity named in errors
+	 * @return errors naming the reference, owner and offending scopes
+	 */
+	@Nonnull
+	public Stream<String> validateSearchableThrough(@Nonnull String entityType) {
+		final boolean indexAvailable = !(this instanceof ReflectedReferenceSchema reflected) ||
+			reflected.isReflectedReferenceAvailable() || !reflected.isIndexedInherited();
+		final List<Scope> invalidScopes = this.searchableThroughInScopes.keySet().stream()
+			.filter(scope -> !isReferencedEntityTypeManaged() || indexAvailable && (!isIndexedInScope(scope) ||
+				!getIndexedComponents(scope).contains(ReferenceIndexedComponents.REFERENCED_ENTITY)))
+			.toList();
+		Stream<String> errors = invalidScopes.isEmpty() ? Stream.empty() : Stream.of(
+			"Reference `" + this.name + "` of entity `" + entityType +
+				"` declares searchableThrough in scopes " + invalidScopes +
+				"! Searchable-through references must target a managed entity type and be indexed with " +
+				"`REFERENCED_ENTITY` in every declared scope."
+		);
+		if (!Float.isFinite(this.searchableThroughWeight) || this.searchableThroughWeight < 0) {
+			errors = Stream.concat(errors, Stream.of(
+				"Reference `" + this.name + "` of entity `" + entityType +
+					"` declares the search weight " + this.searchableThroughWeight +
+					"! The search weight must be finite and non-negative."
+			));
+		}
+		return errors;
+	}
+
+	/**
+	 * Copies this reference with an independent text composition declaration.
+	 *
+	 * @param modes complete new scope map
+	 * @param weight shared ranking weight
+	 * @return updated immutable reference schema
+	 */
+	@Nonnull
+	public ReferenceSchema withSearchableThrough(@Nonnull Map<Scope, ReferenceSearchMode> modes, float weight) {
+		return _internalBuild(
+			this.name, this.nameVariants, this.description, this.deprecationNotice, this.cardinality,
+			this.referencedEntityType, this.entityTypeNameVariants, this.referencedEntityTypeManaged,
+			this.referencedGroupType, this.groupTypeNameVariants, this.referencedGroupTypeManaged,
+			this.indexedInScopes, this.indexedComponentsInScopes, this.facetedInScopes,
+			this.facetedPartiallyInScopes, this.bucketedInScopes, this.bucketedPartiallyInScopes,
+			getAttributes(), getSortableAttributeCompounds(), this.conflictResolutionOverride, modes, weight
+		);
 	}
 
 	@Override
@@ -1244,7 +1448,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	@Override
 	public void validate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchema entitySchema) throws SchemaAlteringException {
 		final Optional<EntitySchemaContract> referencedEntityTypeSchema = catalogSchema.getEntitySchema(this.referencedEntityType);
-		Stream<String> referenceErrors = Stream.empty();
+		Stream<String> referenceErrors = validateSearchableThrough(entitySchema.getName());
 		if (this.referencedEntityTypeManaged && referencedEntityTypeSchema.isEmpty()) {
 			referenceErrors = Stream.concat(
 				referenceErrors,
@@ -1435,7 +1639,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			this.bucketedPartiallyInScopes,
 			this.getAttributes(),
 			this.getSortableAttributeCompounds(),
-			this.conflictResolutionOverride
+			this.conflictResolutionOverride,
+			this.searchableThroughInScopes, this.searchableThroughWeight
 		);
 	}
 
@@ -1473,13 +1678,16 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			this.bucketedPartiallyInScopes,
 			this.getAttributes(),
 			this.getSortableAttributeCompounds(),
-			this.conflictResolutionOverride
+			this.conflictResolutionOverride,
+			this.searchableThroughInScopes, this.searchableThroughWeight
 		);
 	}
 
 	@Override
 	public int hashCode() {
 		int result = this.name.hashCode();
+		result = 31 * result + this.searchableThroughInScopes.hashCode();
+		result = 31 * result + Float.hashCode(this.searchableThroughWeight);
 		result = 31 * result + this.nameVariants.hashCode();
 		result = 31 * result + Objects.hashCode(this.description);
 		result = 31 * result + Objects.hashCode(this.deprecationNotice);
@@ -1508,7 +1716,9 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		if (o == null || getClass() != o.getClass()) return false;
 
 		ReferenceSchema that = (ReferenceSchema) o;
-		return this.referencedEntityTypeManaged == that.referencedEntityTypeManaged &&
+		return this.searchableThroughInScopes.equals(that.searchableThroughInScopes) &&
+			Float.compare(this.searchableThroughWeight, that.searchableThroughWeight) == 0 &&
+			this.referencedEntityTypeManaged == that.referencedEntityTypeManaged &&
 			this.referencedGroupTypeManaged == that.referencedGroupTypeManaged &&
 			this.indexedInScopes.equals(that.indexedInScopes) &&
 			this.indexedComponentsInScopes.equals(that.indexedComponentsInScopes) &&

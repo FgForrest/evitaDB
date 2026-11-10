@@ -569,7 +569,8 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 			ScopedReferenceIndexType.EMPTY, null,
 			Scope.NO_SCOPE, null, null, null,
 			attributes, Map.of(),
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 

@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverri
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSearchMode;
 import io.evitadb.dataType.Scope;
 
 import java.lang.annotation.Documented;
@@ -137,6 +138,28 @@ public @interface Reference {
 	ReferenceIndexedComponents[] indexedComponents() default { ReferenceIndexedComponents.REFERENCED_ENTITY };
 
 	/**
+	 * Declares how searchable text of referenced entities participates in the owner's fulltext search.
+	 * Empty means this reference is not searched through; exactly one mode may be supplied.
+	 * The target must be managed and the scope must index the referenced entity component.
+	 * Applies to LIVE when {@link #scope()} is empty. Otherwise it must stay empty - the scope entries declare the
+	 * modes, and a general mode next to them is refused.
+	 * Reflected references declare their own mode and never inherit it.
+	 *
+	 * @return zero or one search mode
+	 */
+	ReferenceSearchMode[] searchableThrough() default {};
+
+	/**
+	 * Sets the single ranking weight shared by all scopes. Zero preserves matches without adding rank strength.
+	 * The weight must be finite and non-negative; either signed zero is stored as positive zero.
+	 * When {@link #scope()} is non-empty, this value is ignored and the entries supply the shared weight instead; those
+	 * declaring a non-default weight must agree on it, and different values are refused.
+	 *
+	 * @return shared ranking weight, defaulting to 0.5
+	 */
+	float searchableThroughWeight() default ReferenceSchemaContract.DEFAULT_SEARCHABLE_THROUGH_WEIGHT;
+
+	/**
 	 * Enables facet computation for reference of this name.
 	 * Propagates to {@link ReferenceSchemaContract#isFaceted()}.
 	 */
@@ -177,14 +200,15 @@ public @interface Reference {
 	 * Allows to define different settings for different scopes.
 	 *
 	 * If `scope = {}` (default, empty array), the general settings (`indexed`, `indexedComponents`, `faceted`,
-	 * `facetedPartially`, `bucketed`, `bucketedPartially`) apply to {@link Scope#LIVE} only; in
+	 * `facetedPartially`, `bucketed`, `bucketedPartially`, `searchableThrough`) apply to {@link Scope#LIVE} only; in
 	 * {@link Scope#ARCHIVED} the reference and its attributes are not indexed whatsoever (not filterable,
 	 * not sortable, not unique, not faceted).
 	 *
 	 * If `scope = {…}` is non-empty, the per-scope settings **completely replace** what the general settings would
-	 * otherwise produce — the analyzer requires the general `indexed`, `faceted`, `facetedPartially`, `bucketed`
-	 * and `bucketedPartially` properties to be left at their defaults (otherwise an assertion fires). The general
-	 * `indexedComponents` is silently ignored. Scopes not listed in the array remain non-indexed/non-faceted;
+	 * otherwise produce — the analyzer requires the general `indexed`, `faceted`, `facetedPartially`, `bucketed`,
+	 * `bucketedPartially` and `searchableThrough` properties to be left at their defaults
+	 * (otherwise an assertion fires). The general `indexedComponents` is silently ignored.
+	 * Scopes not listed in the array remain non-indexed/non-faceted;
 	 * the general settings are not used as a fallback.
 	 */
 	ScopeReferenceSettings[] scope() default {};

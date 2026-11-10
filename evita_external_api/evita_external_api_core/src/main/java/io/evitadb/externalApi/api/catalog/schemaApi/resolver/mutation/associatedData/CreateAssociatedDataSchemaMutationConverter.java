@@ -73,7 +73,7 @@ public class CreateAssociatedDataSchemaMutationConverter extends AssociatedDataS
 
 	@Override
 	protected void convertToOutput(@Nonnull CreateAssociatedDataSchemaMutation mutation, @Nonnull Output output) {
-		writeSearchWeight(mutation.getSearchWeight(), output);
+		writeSearchWeight("searchWeight", mutation.getSearchWeight(), output);
 		super.convertToOutput(mutation, output);
 	}
 }

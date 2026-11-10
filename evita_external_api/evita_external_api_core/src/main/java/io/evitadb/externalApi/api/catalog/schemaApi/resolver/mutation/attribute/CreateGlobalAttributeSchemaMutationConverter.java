@@ -145,7 +145,7 @@ public class CreateGlobalAttributeSchemaMutationConverter
 	@Override
 	protected void convertToOutput(@Nonnull CreateGlobalAttributeSchemaMutation mutation, @Nonnull Output output) {
 		writeNormalization(mutation.getNormalization(), output);
-		writeSearchWeight(mutation.getSearchWeight(), output);
+		writeSearchWeight("searchWeight", mutation.getSearchWeight(), output);
 		super.convertToOutput(mutation, output);
 	}
 }

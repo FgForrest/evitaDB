@@ -95,7 +95,8 @@ final class PickFirstReducedIndexFixture {
 	 * The reference the resolver walks.
 	 */
 	@Nonnull final ReferenceSchema referenceSchema = ReferenceSchema._internalBuild(
-		REFERENCE_NAME, "target", false, Cardinality.ZERO_OR_MORE, null, false, null, null
+		REFERENCE_NAME, "target", false, Cardinality.ZERO_OR_MORE, null, false, null, null,
+		null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 	);
 	/**
 	 * Every index of the collection by its primary key, the backing of

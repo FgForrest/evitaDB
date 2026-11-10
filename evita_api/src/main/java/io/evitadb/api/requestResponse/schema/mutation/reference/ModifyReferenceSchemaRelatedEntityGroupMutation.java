@@ -136,7 +136,8 @@ public class ModifyReferenceSchemaRelatedEntityGroupMutation
 				referenceSchema.getBucketedPartiallyInScopes(),
 				referenceSchema.getAttributes(),
 				referenceSchema.getSortableAttributeCompounds(),
-				referenceSchema.getConflictResolutionOverride()
+				referenceSchema.getConflictResolutionOverride(),
+				referenceSchema.getSearchableThroughInScopes(), referenceSchema.getSearchableThroughWeight()
 			);
 		}
 	}

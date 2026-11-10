@@ -167,7 +167,9 @@ public class SetReferenceSchemaFacetedMutation
 						? this.facetedPartiallyInScopes
 						: createMutation.getFacetedPartiallyInScopes(),
 					createMutation.getBucketedInScopes(),
-					createMutation.getBucketedPartiallyInScopes()
+					createMutation.getBucketedPartiallyInScopes(),
+					createMutation.getConflictResolutionOverride(),
+					createMutation.getSearchableThroughInScopes(), createMutation.getSearchableThroughWeight()
 				)
 			);
 		} else if (
@@ -195,7 +197,8 @@ public class SetReferenceSchemaFacetedMutation
 					createMutation.getBucketedInScopes(),
 					createMutation.getBucketedPartiallyInScopes(),
 					createMutation.getAttributeInheritanceBehavior(),
-					createMutation.getAttributeInheritanceFilter()
+					createMutation.getAttributeInheritanceFilter(),
+					createMutation.getSearchableThroughInScopes(), createMutation.getSearchableThroughWeight()
 				)
 			);
 		} else {
@@ -310,7 +313,8 @@ public class SetReferenceSchemaFacetedMutation
 				referenceSchema.getBucketedPartiallyInScopes(),
 				referenceSchema.getAttributes(),
 				referenceSchema.getSortableAttributeCompounds(),
-				referenceSchema.getConflictResolutionOverride()
+				referenceSchema.getConflictResolutionOverride(),
+				referenceSchema.getSearchableThroughInScopes(), referenceSchema.getSearchableThroughWeight()
 			);
 		}
 	}

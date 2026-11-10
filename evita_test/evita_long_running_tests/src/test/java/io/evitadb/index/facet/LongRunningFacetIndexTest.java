@@ -83,7 +83,8 @@ class LongRunningFacetIndexTest implements TimeBoundedTestSupport {
 		Entities.BRAND, Entities.BRAND, true, Cardinality.ZERO_OR_MORE,
 		null, false,
 		new ScopedReferenceIndexType[]{new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)},
-		Scope.NO_SCOPE
+		Scope.NO_SCOPE,
+		null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 	);
 
 	@ParameterizedTest(name = "FacetIndex should survive generational randomized test applying modifications on it")

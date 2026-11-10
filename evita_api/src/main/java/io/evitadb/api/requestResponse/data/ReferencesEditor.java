@@ -475,7 +475,8 @@ public interface ReferencesEditor<W extends ReferencesEditor<W>> extends Referen
 			return ReferenceSchema._internalBuild(
 				referenceName, referencedEntityType, false, cardinality,
 				ofNullable(group).map(GroupEntityReference::getType).orElse(null), false,
-				null, null
+				null, null,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 		}
 

@@ -51,6 +51,76 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	SortableAttributeCompoundSchemaProviderEditor<T, AttributeSchemaContract, SortableAttributeCompoundSchemaContract>,
 	ConflictResolutionOverrideAwareSchemaEditor<T>
 {
+	/**
+	 * Composes referenced text in the default scope, keeping the shared weight.
+	 *
+	 * @param mode how the referenced text participates
+	 * @return this editor
+	 */
+	@Nonnull
+	default T searchableThrough(@Nonnull ReferenceSearchMode mode) {
+		return searchableThroughInScope(mode, Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Composes referenced text in the default scope and sets the weight for all scopes.
+	 *
+	 * @param mode how the referenced text participates
+	 * @param weight finite, non-negative shared ranking weight; zero preserves matching
+	 * @return this editor
+	 */
+	@Nonnull
+	default T searchableThrough(@Nonnull ReferenceSearchMode mode, float weight) {
+		return searchableThroughInScope(mode, weight, Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Sets the mode in the supplied scopes, keeping all other scopes and the shared weight.
+	 * Reflected references declare this independently of their original reference.
+	 * Each scope must index the referenced entity component and the target must be managed by evitaDB.
+	 * A violation is refused when the edit applies; only the index settings a reflected reference inherits from an
+	 * original that is not bound yet are checked later, when the session defining it closes.
+	 * Changing this metadata never rebuilds or retires an index.
+	 *
+	 * @param mode how the referenced text participates
+	 * @param inScope scopes to declare
+	 * @return this editor
+	 */
+	@Nonnull
+	T searchableThroughInScope(@Nonnull ReferenceSearchMode mode, @Nonnull Scope... inScope);
+
+	/**
+	 * Sets the mode in the supplied scopes and replaces the single weight shared by all scopes, not only by those
+	 * supplied. With no scope supplied, only the weight changes. The requirements are those of
+	 * {@link #searchableThroughInScope(ReferenceSearchMode, Scope...)}.
+	 *
+	 * @param mode how the referenced text participates
+	 * @param weight finite, non-negative shared ranking weight; zero preserves matching
+	 * @param inScope scopes to declare
+	 * @return this editor
+	 */
+	@Nonnull
+	T searchableThroughInScope(@Nonnull ReferenceSearchMode mode, float weight, @Nonnull Scope... inScope);
+
+	/**
+	 * Removes the mode in every scope, keeping the shared weight.
+	 *
+	 * @return this editor
+	 */
+	@Nonnull
+	default T nonSearchableThrough() {
+		return nonSearchableThroughInScope(Scope.values());
+	}
+
+	/**
+	 * Removes the mode in the supplied scopes, keeping the shared weight.
+	 *
+	 * @param inScope scopes whose mode should be removed
+	 * @return this editor
+	 */
+	@Nonnull
+	T nonSearchableThroughInScope(@Nonnull Scope... inScope);
+
 
 	/**
 	 * Specifies that reference of this type will be related to external entity not maintained in Evita.

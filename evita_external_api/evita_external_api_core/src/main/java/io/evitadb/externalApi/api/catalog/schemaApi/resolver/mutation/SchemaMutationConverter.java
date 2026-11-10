@@ -51,13 +51,16 @@ public abstract class SchemaMutationConverter<M extends SchemaMutation> extends 
 	 * by name. A finite weight is written as a decimal; a non-finite one, which a mutation may carry until schema
 	 * validation refuses it, has no decimal form and is written verbatim (`NaN`, `Infinity`, `-Infinity`).
 	 *
+	 * @param propertyName the output property receiving the weight
 	 * @param weight the supplied ranking weight, or `null` to omit the property
 	 * @param output the mutation output receiving the value
 	 */
-	protected static void writeSearchWeight(@Nullable Float weight, @Nonnull Output output) {
+	protected static void writeSearchWeight(
+		@Nonnull String propertyName, @Nullable Float weight, @Nonnull Output output
+	) {
 		if (weight != null) {
 			output.setProperty(
-				"searchWeight",
+				propertyName,
 				Float.isFinite(weight) ? new BigDecimal(Float.toString(weight)) : Float.toString(weight)
 			);
 		}

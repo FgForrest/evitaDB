@@ -901,8 +901,10 @@ public class EntitySchemaConverter {
 								it -> toSortableAttributeCompoundSchema(it.getValue())
 							)
 						),
-					ConflictResolutionOverride.INHERITED
-				)
+					ConflictResolutionOverride.INHERITED,
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
+				),
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 		} else {
 			return ReferenceSchema._internalBuild(
@@ -944,7 +946,8 @@ public class EntitySchemaConverter {
 							it -> toSortableAttributeCompoundSchema(it.getValue())
 						)
 					),
-				EvitaEnumConverter.toConflictResolutionOverride(referenceSchema.getConflictResolutionOverride())
+				EvitaEnumConverter.toConflictResolutionOverride(referenceSchema.getConflictResolutionOverride()),
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 		}
 	}

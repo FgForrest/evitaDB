@@ -247,7 +247,8 @@ class GrpcReferenceHistogramConversionTest {
 			new ScopedReferenceIndexType[]{
 				new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
 			},
-			new Scope[]{Scope.LIVE}
+			new Scope[]{Scope.LIVE},
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 

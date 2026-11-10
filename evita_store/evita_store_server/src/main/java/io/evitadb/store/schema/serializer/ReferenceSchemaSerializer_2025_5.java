@@ -134,7 +134,8 @@ public class ReferenceSchemaSerializer_2025_5 extends Serializer<ReferenceSchema
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			Collections.emptyMap(),
-			attributes, sortableAttributeCompounds, ConflictResolutionOverride.INHERITED
+			attributes, sortableAttributeCompounds, ConflictResolutionOverride.INHERITED,
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 

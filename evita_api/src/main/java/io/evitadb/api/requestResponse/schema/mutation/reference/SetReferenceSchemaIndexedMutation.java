@@ -310,7 +310,9 @@ public class SetReferenceSchemaIndexedMutation
 					createMutation.getFacetedInScopes(),
 					createMutation.getFacetedPartiallyInScopes(),
 					createMutation.getBucketedInScopes(),
-					createMutation.getBucketedPartiallyInScopes()
+					createMutation.getBucketedPartiallyInScopes(),
+					createMutation.getConflictResolutionOverride(),
+					createMutation.getSearchableThroughInScopes(), createMutation.getSearchableThroughWeight()
 				)
 			);
 		} else {
@@ -379,7 +381,12 @@ public class SetReferenceSchemaIndexedMutation
 			}
 			// an indexed scope the explicit components leave uncovered gets the default, exactly as a plain
 			// reference's does - otherwise it would be indexed with no component and build no index at all
-			return result.withDefaultComponentsInUncoveredScopes(reflectedReferenceSchema);
+			final ReflectedReferenceSchema completed =
+				result.withDefaultComponentsInUncoveredScopes(reflectedReferenceSchema);
+			if (consistencyChecks == ConsistencyChecks.APPLY) {
+				SetReferenceSchemaSearchableThroughMutation.verifyRequirements(entitySchema, completed);
+			}
+			return completed;
 		} else {
 			// strip components for NONE-indexed scopes before building the schema
 			final ScopedReferenceIndexedComponents[] filteredComponentsArray =
@@ -409,7 +416,7 @@ public class SetReferenceSchemaIndexedMutation
 					verifyAttributeIndexRequirements(entitySchema, referenceSchema, indexedScopes);
 				}
 
-				return ReferenceSchema._internalBuild(
+				final ReferenceSchema result = ReferenceSchema._internalBuild(
 					this.name,
 					referenceSchema.getNameVariants(),
 					referenceSchema.getDescription(),
@@ -433,8 +440,13 @@ public class SetReferenceSchemaIndexedMutation
 					referenceSchema.getBucketedPartiallyInScopes(),
 					referenceSchema.getAttributes(),
 					referenceSchema.getSortableAttributeCompounds(),
-					referenceSchema.getConflictResolutionOverride()
+					referenceSchema.getConflictResolutionOverride(),
+					referenceSchema.getSearchableThroughInScopes(), referenceSchema.getSearchableThroughWeight()
 				);
+				if (consistencyChecks == ConsistencyChecks.APPLY) {
+					SetReferenceSchemaSearchableThroughMutation.verifyRequirements(entitySchema, result);
+				}
+				return result;
 			}
 		}
 	}

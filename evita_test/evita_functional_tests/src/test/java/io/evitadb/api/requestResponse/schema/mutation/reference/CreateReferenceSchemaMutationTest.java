@@ -208,7 +208,8 @@ class CreateReferenceSchemaMutationTest {
 					)
 				)
 			),
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 
@@ -238,7 +239,8 @@ class CreateReferenceSchemaMutationTest {
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-			null
+			null,
+			null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 
@@ -829,7 +831,8 @@ class CreateReferenceSchemaMutationTest {
 				null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
 				REFERENCE_NAME,

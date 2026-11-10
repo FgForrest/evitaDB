@@ -168,7 +168,8 @@ class EntitySchemaConverterTest {
 					Entities.PARAMETER_GROUP,
 					false,
 					new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) },
-					new Scope[]{Scope.LIVE}
+					new Scope[]{Scope.LIVE},
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				),
 				"test2", ReferenceSchema._internalBuild(
 					"test2",
@@ -248,7 +249,8 @@ class EntitySchemaConverterTest {
 							)
 						)
 					),
-					ConflictResolutionOverride.ENTITY
+					ConflictResolutionOverride.ENTITY,
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				)
 			),
 			Set.of(EvolutionMode.ADDING_ASSOCIATED_DATA, EvolutionMode.ADDING_ATTRIBUTES),
@@ -602,7 +604,8 @@ class EntitySchemaConverterTest {
 					ScopedBucketedPartially.EMPTY,
 					Collections.emptyMap(),
 					Collections.emptyMap(),
-					ConflictResolutionOverride.INHERITED
+					ConflictResolutionOverride.INHERITED,
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				)
 			),
 			Collections.emptySet(),

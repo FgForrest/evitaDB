@@ -23,15 +23,18 @@
 
 package io.evitadb.store.schema.serializer;
 
+import static io.evitadb.store.schema.serializer.ReferenceSchemaSerializer.readSearchModes;
+import static io.evitadb.store.schema.serializer.ReferenceSchemaSerializer.writeSearchModes;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.ReferenceSearchMode;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
@@ -132,6 +135,8 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 		for (String attributeName : referenceSchema.getAttributeInheritanceFilter()) {
 			output.writeString(attributeName);
 		}
+		writeSearchModes(kryo, output, referenceSchema.getSearchableThroughInScopes());
+		output.writeFloat(referenceSchema.getSearchableThroughWeight());
 	}
 
 	@Override
@@ -166,13 +171,16 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 			attributesExcludedFromInheritance[i] = input.readString();
 		}
 
+		final Map<Scope, ReferenceSearchMode> searchModes = readSearchModes(kryo, input);
+		final float searchWeight = input.readFloat();
+
 		return ReflectedReferenceSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			entityType, reflectedReferenceName, cardinality,
 			indexedInScopes, indexedComponentsInScopes, facetedInScopes, facetedPartiallyInScopes,
 			bucketedInScopes, bucketedPartiallyInScopes,
 			attributes, sortableAttributeCompounds,
-			attributeInheritanceBehavior, attributesExcludedFromInheritance
+			attributeInheritanceBehavior, attributesExcludedFromInheritance, searchModes, searchWeight
 		);
 	}
 

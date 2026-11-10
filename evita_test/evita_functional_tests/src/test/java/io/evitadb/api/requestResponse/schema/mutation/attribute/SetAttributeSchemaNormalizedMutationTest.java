@@ -185,7 +185,8 @@ class SetAttributeSchemaNormalizedMutationTest {
 	@DisplayName("Reference attributes accept the same normalization descriptions")
 	void shouldNormalizeReferenceAttributes() {
 		final ReferenceSchema reference = ReferenceSchema._internalBuild(
-			"brand", "brand", false, Cardinality.ZERO_OR_MORE, null, false, null, null
+			"brand", "brand", false, Cardinality.ZERO_OR_MORE, null, false, null, null,
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 		final EntitySchema entity = EntitySchema._internalBuild("product");
 		final ReferenceSchema withAttribute = (ReferenceSchema) new CreateAttributeSchemaMutation(

@@ -30,14 +30,16 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceSearchMode;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
+import static io.evitadb.store.wal.schema.reference.SetReferenceSchemaSearchableThroughMutationSerializer.*;
 import static io.evitadb.store.wal.schema.reference.SetReferenceSchemaBucketedMutationSerializer.readScopedHistogramIndexDefinitionArray;
 import static io.evitadb.store.wal.schema.reference.SetReferenceSchemaBucketedMutationSerializer.readScopedBucketedPartiallyArray;
 import static io.evitadb.store.wal.schema.reference.SetReferenceSchemaBucketedMutationSerializer.writeScopedHistogramIndexDefinitionArray;
@@ -99,6 +101,8 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 		for (final String attribute : attributesExcludedFromInheritance) {
 			output.writeString(attribute);
 		}
+		writeSearchModes(kryo, output, mutation.getSearchableThroughInScopes());
+		kryo.writeObjectOrNull(output, mutation.getSearchableThroughWeight(), Float.class);
 	}
 
 	@Override
@@ -130,6 +134,9 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 			attributesExcludedFromInheritance[i] = input.readString();
 		}
 
+		final ScopedReferenceSearchMode[] searchModes = readSearchModes(kryo, input);
+		final Float searchWeight = kryo.readObjectOrNull(input, Float.class);
+
 		return new CreateReflectedReferenceSchemaMutation(
 			name,
 			description,
@@ -144,7 +151,7 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 			bucketedInScopes,
 			bucketedPartiallyInScopes,
 			attributeInheritanceBehavior,
-			attributesExcludedFromInheritance
+			attributesExcludedFromInheritance, searchModes, searchWeight
 		);
 	}
 

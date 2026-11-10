@@ -193,7 +193,8 @@ class AssignedWhenPropagationTest {
 			new ScopedReferenceIndexType[]{
 				new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 			},
-			new Scope[]{Scope.LIVE}
+			new Scope[]{Scope.LIVE},
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 		final EntitySchema entitySchema = realEntitySchemaWithReference(existingSchema);
 
@@ -269,7 +270,8 @@ class AssignedWhenPropagationTest {
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-			null
+			null,
+			null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 		final EntitySchema entitySchema = realEntitySchemaWithReference(existingSchema);
 
@@ -333,7 +335,8 @@ class AssignedWhenPropagationTest {
 			null,
 			Collections.emptyMap(),
 			Collections.emptyMap(),
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 
 		final List<LocalEntitySchemaMutation> mutations = invokeReferenceSchemaBuilderCreateNew(
@@ -389,7 +392,8 @@ class AssignedWhenPropagationTest {
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-			null
+			null,
+			null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 
 		final List<LocalEntitySchemaMutation> mutations = invokeReflectedReferenceSchemaBuilderCreateNew(

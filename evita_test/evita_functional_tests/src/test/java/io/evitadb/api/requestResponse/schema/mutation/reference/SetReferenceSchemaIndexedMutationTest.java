@@ -315,7 +315,8 @@ class SetReferenceSchemaIndexedMutationTest {
 						)
 					),
 					Collections.emptyMap(),
-					ConflictResolutionOverride.INHERITED
+					ConflictResolutionOverride.INHERITED,
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				);
 			// Mutate with different indexed scopes to trigger verification
 			final SetReferenceSchemaIndexedMutation mutation =
@@ -394,7 +395,8 @@ class SetReferenceSchemaIndexedMutationTest {
 						)
 					),
 					Collections.emptyMap(),
-					ConflictResolutionOverride.INHERITED
+					ConflictResolutionOverride.INHERITED,
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				);
 			// Mutation changes LIVE from FOR_FILTERING to NONE — should reject because
 			// the NEW state has NONE for LIVE but a filterable attribute exists there
@@ -469,7 +471,8 @@ class SetReferenceSchemaIndexedMutationTest {
 						)
 					),
 					Collections.emptyMap(),
-					ConflictResolutionOverride.INHERITED
+					ConflictResolutionOverride.INHERITED,
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				);
 			// a reference that is not indexed keeps no fulltext data, so withdrawing the index in LIVE is refused
 			final SetReferenceSchemaIndexedMutation mutation =
@@ -545,7 +548,8 @@ class SetReferenceSchemaIndexedMutationTest {
 						)
 					),
 					Collections.emptyMap(),
-					ConflictResolutionOverride.INHERITED
+					ConflictResolutionOverride.INHERITED,
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				);
 			// Same mutation but with SKIP — should NOT throw
 			final SetReferenceSchemaIndexedMutation mutation =
@@ -874,7 +878,8 @@ class SetReferenceSchemaIndexedMutationTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			assertFalse(unbound.isReflectedReferenceAvailable(), "The premise is a reflected reference not bound yet");
 			assertTrue(unbound.isIndexedInherited(), "The premise is a reflected reference inheriting its scopes");
@@ -1126,7 +1131,8 @@ class SetReferenceSchemaIndexedMutationTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(), Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			// mutation sets LIVE to NONE but carries explicit LIVE components
 			final SetReferenceSchemaIndexedMutation mutation =
@@ -1181,7 +1187,8 @@ class SetReferenceSchemaIndexedMutationTest {
 					Collections.emptyMap(), Collections.emptyMap(),
 					ReflectedReferenceSchemaContract.AttributeInheritanceBehavior
 						.INHERIT_ONLY_SPECIFIED,
-					null
+					null,
+					null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				);
 			// mutation sets LIVE to NONE — components should be stripped even though
 			// the mutation's components are the same as the schema's defaults
@@ -1238,7 +1245,8 @@ class SetReferenceSchemaIndexedMutationTest {
 					null,
 					null, null,
 					Collections.emptyMap(), Collections.emptyMap(),
-					ConflictResolutionOverride.INHERITED
+					ConflictResolutionOverride.INHERITED,
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				)
 			);
 		}
@@ -1273,7 +1281,8 @@ class SetReferenceSchemaIndexedMutationTest {
 				null,
 				null, null,
 				Collections.emptyMap(), Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertNotNull(schema);

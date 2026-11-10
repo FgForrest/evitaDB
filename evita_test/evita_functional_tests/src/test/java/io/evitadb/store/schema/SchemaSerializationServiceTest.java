@@ -1161,7 +1161,8 @@ class SchemaSerializationServiceTest {
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			Collections.emptyMap(),
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 
@@ -1218,7 +1219,8 @@ class SchemaSerializationServiceTest {
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
-			null
+			null,
+			null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 
@@ -1364,7 +1366,8 @@ class SchemaSerializationServiceTest {
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
-			null
+			null,
+			null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 

@@ -198,7 +198,8 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 								Map.Entry::getValue
 							)
 						),
-					referenceSchema.getConflictResolutionOverride()
+					referenceSchema.getConflictResolutionOverride(),
+					referenceSchema.getSearchableThroughInScopes(), referenceSchema.getSearchableThroughWeight()
 				);
 			}
 		}

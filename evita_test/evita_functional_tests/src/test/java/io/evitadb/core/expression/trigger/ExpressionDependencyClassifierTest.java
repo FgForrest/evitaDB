@@ -966,7 +966,8 @@ class ExpressionDependencyClassifierTest {
 		return ReferenceSchema._internalBuild(
 			REFERENCE_NAME, REFERENCED_ENTITY_TYPE, true,
 			Cardinality.ZERO_OR_MORE, GROUP_ENTITY_TYPE, true,
-			null, null
+			null, null,
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 
@@ -980,7 +981,8 @@ class ExpressionDependencyClassifierTest {
 		return ReferenceSchema._internalBuild(
 			REFERENCE_NAME, REFERENCED_ENTITY_TYPE, true,
 			Cardinality.ZERO_OR_MORE, null, false,
-			null, null
+			null, null,
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 

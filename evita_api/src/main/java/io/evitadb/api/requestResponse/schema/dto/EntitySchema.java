@@ -641,7 +641,9 @@ public final class EntitySchema implements EntitySchemaContract {
 					.toArray(ScopedBucketedPartially[]::new),
 				referenceSchemaContract.getAttributes(),
 				referenceSchemaContract.getSortableAttributeCompounds(),
-				referenceSchemaContract.getConflictResolutionOverride()
+				referenceSchemaContract.getConflictResolutionOverride(),
+				referenceSchemaContract.getSearchableThroughInScopes(),
+				referenceSchemaContract.getSearchableThroughWeight()
 			);
 	}
 

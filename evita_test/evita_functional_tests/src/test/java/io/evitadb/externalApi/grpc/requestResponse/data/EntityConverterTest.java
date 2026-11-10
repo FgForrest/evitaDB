@@ -205,8 +205,20 @@ class EntityConverterTest {
 					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT)
 			),
 			Map.of(
-				"test1", ReferenceSchema._internalBuild("test1", Entities.PARAMETER, true, Cardinality.ZERO_OR_MORE, Entities.PARAMETER_GROUP, false, new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) }, new Scope[] { Scope.LIVE }),
-				"test2", ReferenceSchema._internalBuild("test2", Entities.CATEGORY, false, Cardinality.ONE_OR_MORE, null, false, new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) }, new Scope[] { Scope.LIVE })
+				"test1", ReferenceSchema._internalBuild(
+					"test1", Entities.PARAMETER, true, Cardinality.ZERO_OR_MORE, Entities.PARAMETER_GROUP, false,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
+					}, new Scope[]{Scope.LIVE},
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
+				),
+				"test2", ReferenceSchema._internalBuild(
+					"test2", Entities.CATEGORY, false, Cardinality.ONE_OR_MORE, null, false,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
+					}, new Scope[]{Scope.LIVE},
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
+				)
 			),
 			Set.of(EvolutionMode.ADDING_ASSOCIATED_DATA, EvolutionMode.ADDING_ATTRIBUTES),
 			Map.of(

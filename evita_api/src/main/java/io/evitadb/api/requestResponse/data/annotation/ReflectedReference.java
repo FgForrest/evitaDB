@@ -27,6 +27,7 @@ package io.evitadb.api.requestResponse.data.annotation;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSearchMode;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.dataType.Scope;
@@ -121,6 +122,28 @@ public @interface ReflectedReference {
 	ReferenceIndexedComponents[] indexedComponents() default { ReferenceIndexedComponents.REFERENCED_ENTITY };
 
 	/**
+	 * Declares how searchable text of referenced entities participates in the owner's fulltext search.
+	 * Empty means this reference is not searched through; exactly one mode may be supplied.
+	 * The target must be managed and the scope must index the referenced entity component.
+	 * Applies to LIVE when {@link #scope()} is empty. Otherwise it must stay empty - the scope entries declare the
+	 * modes, and a general mode next to them is refused.
+	 * Reflected references declare their own mode and never inherit it.
+	 *
+	 * @return zero or one search mode
+	 */
+	ReferenceSearchMode[] searchableThrough() default {};
+
+	/**
+	 * Sets the single ranking weight shared by all scopes. Zero preserves matches without adding rank strength.
+	 * The weight must be finite and non-negative; either signed zero is stored as positive zero.
+	 * When {@link #scope()} is non-empty, this value is ignored and the entries supply the shared weight instead; those
+	 * declaring a non-default weight must agree on it, and different values are refused.
+	 *
+	 * @return shared ranking weight, defaulting to 0.5
+	 */
+	float searchableThroughWeight() default ReferenceSchemaContract.DEFAULT_SEARCHABLE_THROUGH_WEIGHT;
+
+	/**
 	 * Enables facet computation for reference of this name.
 	 * Propagates to {@link ReflectedReferenceSchemaContract#isFaceted()}.
 	 */
@@ -155,15 +178,16 @@ public @interface ReflectedReference {
 	 * Allows to define different settings for different scopes.
 	 *
 	 * If `scope = {}` (default, empty array), the general settings ({@link #indexed()},
-	 * {@link #indexedComponents()}, {@link #faceted()}) apply to {@link Scope#LIVE} only; in
-	 * {@link Scope#ARCHIVED} the reference and its attributes are not indexed whatsoever (not filterable,
+	 * {@link #indexedComponents()}, {@link #faceted()}, {@link #searchableThrough()}) apply to {@link Scope#LIVE}
+	 * only; in {@link Scope#ARCHIVED} the reference and its attributes are not indexed whatsoever (not filterable,
 	 * not sortable, not unique, not faceted).
 	 *
 	 * If `scope = {…}` is non-empty, the per-scope settings **completely replace** what the general settings would
 	 * otherwise produce. The general {@link #faceted()} property is required to remain at its default
-	 * ({@link InheritableBoolean#FALSE}) — an assertion fires otherwise. The general {@link #indexed()} and
-	 * {@link #indexedComponents()} properties are silently ignored. Scopes not listed in the array stay
-	 * non-indexed/non-faceted; the general settings are not used as a fallback.
+	 * ({@link InheritableBoolean#FALSE}) and the general {@link #searchableThrough()} to remain empty — an assertion
+	 * fires otherwise. The general {@link #indexed()} and {@link #indexedComponents()} properties are silently
+	 * ignored. Scopes not listed in the array stay non-indexed/non-faceted; the general settings are not used as a
+	 * fallback.
 	 *
 	 * The entities in different scopes are never not connected by the reflected reference. The reflected references
 	 * connect only entities in the same scope.
