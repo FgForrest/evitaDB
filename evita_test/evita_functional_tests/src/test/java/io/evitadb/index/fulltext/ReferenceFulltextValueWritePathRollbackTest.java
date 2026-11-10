@@ -156,7 +156,6 @@ class ReferenceFulltextValueWritePathRollbackTest implements EvitaTestSupport {
 		assertEquals(retire ? 2L : 3L, values.targetCounts.getLongRecordEqualTo(10).orElseThrow());
 		assertEquals(ReferenceFulltextValueIndex.MembershipForm.ALL, values.lookup(Set.of("red")).getFirst().form());
 		assertFalse(index.hasIndexedValue(0, 4));
-		assertEquals(retire ? 2 : 3, values.resolve(values.lookup(Set.of("red")).getFirst(),
-			new BaseBitmap(1, 2, 3, 4)).size());
+		assertEquals(retire ? 2 : 3, values.getEnrolledOwners(new BaseBitmap(1, 2, 3, 4)).size());
 	}
 }

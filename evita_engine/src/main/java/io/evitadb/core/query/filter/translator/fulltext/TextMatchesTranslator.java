@@ -24,29 +24,44 @@
 package io.evitadb.core.query.filter.translator.fulltext;
 
 import io.evitadb.api.exception.AttributeNotFoundException;
+import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.InField;
+import io.evitadb.api.query.filter.Not;
 import io.evitadb.api.query.filter.TextMatches;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.exception.AttributeNotSearchableException;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.fulltext.FulltextFormula;
 import io.evitadb.core.query.algebra.fulltext.FulltextFormula.ExpandedTerm;
+import io.evitadb.core.query.algebra.fulltext.ReferenceFulltextFormula;
+import io.evitadb.core.query.algebra.fulltext.ReferenceFulltextScoreAccessor;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
+import io.evitadb.core.query.filter.VirtualPartitionRows;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
+import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencePartitions;
+import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.fulltext.FulltextFieldDefinition;
 import io.evitadb.index.fulltext.FulltextFieldKey;
 import io.evitadb.index.fulltext.FulltextIndex;
@@ -63,6 +78,7 @@ import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -72,13 +88,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 import static io.evitadb.core.query.filter.translator.fulltext.FulltextTermExpansion.lookUpTerm;
 
 /**
- * Translates {@link TextMatches} into a {@link FulltextFormula}: the entities whose searchable fields contain every
- * word of the text, ranked on request by the `relevanceText()` sorter.
+ * Prepares {@link TextMatches} once for union membership or reference-row dictionary membership, with the same
+ * retained terms and ranking policy. The `relevanceText()` sorter reads the corresponding owner-space score source.
  *
  * ## From text to formula
  *
@@ -110,18 +127,27 @@ import static io.evitadb.core.query.filter.translator.fulltext.FulltextTermExpan
  * The fulltext index lives in the {@link GlobalEntityIndex} of each scope only, never in a reduced index, so the
  * formula is computed once per scope and memoised on the root planning context
  * ({@link QueryPlanningContext#computeOnlyOnce}), keyed by the global index and the constraint - two different texts or
- * field sets never share an entry. A reduced target index gets the scope's global formula AND-ed with its own primary
+ * field sets never share an entry. Inside `referenceHaving` the key also names the reference, so a body's membership
+ * formula never shares an entry with an equal top-level `textMatches` or with the body of another reference.
+ * A reduced target index gets the scope's global formula AND-ed with its own primary
  * keys - the "Shape P" the substring accelerator established (see
  * `AbstractAttributeStringSearchTranslator#resolveFromIndex`). Several scopes yield one formula each, so a LIVE +
  * ARCHIVED query never pairs one scope's answer with the other's index. No prefetch alternative is offered: the
  * formula always computes from the index.
+ *
+ * Inside `referenceHaving`, only the reference's searchable attributes participate. Every word must match the same
+ * reference target and owner partition; different attributes or array elements of that row may supply the words.
+ * Discovery returns matching partition keys, materialized leaves retain their producing-index tags, and virtual
+ * leaves read installed row identities. Duplicate owner/target pairs share membership: words and sibling predicates
+ * may combine across their rows, and negation can miss an owner. Top-level text keeps its pooled union semantics.
+ * Both paths use this translator's shared preparation, including all expansion and posting-budget decisions.
  *
  * ## What fails at planning time
  *
  * The engine neither filters nor sorts over data it keeps no index for, so a query that cannot be answered from a
  * fulltext index fails rather than returning an empty result: no locale, no searchable field in some processed scope,
  * an `inField` naming an unknown field or one not searchable in a processed scope, `textMatches` anywhere under
- * `userFilter` (the query model rejects only a direct child), inside a reference-scoped container, or with more words
+ * `userFilter` (the query model rejects only a direct child), or with more words
  * than the scorer can count. Every check runs before any index is consulted, so the query never fails or passes
  * depending on the data. A searchable field the index retired or never saw simply contributes nothing.
  *
@@ -129,7 +155,7 @@ import static io.evitadb.core.query.filter.translator.fulltext.FulltextTermExpan
  * set of zero tokens is empty by the same rule that makes a token without terms match nothing, and an empty search box
  * is already handled by the factory, which drops the constraint. A stop word typed without diacritics, which the
  * search chain does not recognize but the index dropped, is not asked for at all, unless it is the unfinished final
- * word and completes to a longer dictionary term - see `createFormula`.
+ * word and completes to a longer dictionary term - see `prepareUnionFormula`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -156,14 +182,6 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 		);
 		final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
 		final ReferenceSchemaContract referenceSchema = processingScope.getReferenceSchema();
-		Assert.isTrue(
-			referenceSchema == null,
-			() -> new EvitaInvalidUsageException(
-				"Constraint `textMatches` cannot be used inside a container scoped to the reference `" +
-					referenceSchema.getName() + "` - it searches the fields of the entity itself, and the searchable " +
-					"attributes of its references are searched by a top-level `textMatches` without `inField`!"
-			)
-		);
 		final Locale locale = filterByVisitor.getLocale();
 		Assert.isTrue(
 			locale != null,
@@ -175,7 +193,9 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 
 		final EntitySchemaContract entitySchema = processingScope.getEntitySchemaOrThrowException();
 		final Set<Scope> scopes = processingScope.getScopes();
-		final Map<Scope, FulltextFieldDefinition[]> fieldsByScope = resolveFields(textMatches, entitySchema, scopes);
+		final Map<Scope, FulltextFieldDefinition[]> fieldsByScope = referenceSchema == null ?
+			resolveFields(textMatches, entitySchema, scopes) :
+			resolveReferenceFields(textMatches, entitySchema, referenceSchema, scopes);
 		final FulltextScoringPolicy scoringPolicy = filterByVisitor.getQueryContext()
 			.getFulltextScoringPolicy(entitySchema);
 		// Writes validate locales, so an undeclared locale cannot own a fulltext index. Keep field errors above.
@@ -271,18 +291,195 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 					scope,
 					queryContext.computeOnlyOnce(
 						List.of((EntityIndex) globalIndex), textMatches,
-						() -> createFormula(
-							fulltextIndex, groupsByScope.get(scope), searchTokens, unfinished, expansion,
-							globalIndex.getRecordsWithLanguageFormula(locale).getEstimatedCardinality(), scoringPolicy
-						), scoringPolicy.computeHash(LongHashFunction.xx3())
+						() -> {
+							final Formula prepared = prepareUnionFormula(
+								fulltextIndex, groupsByScope.get(scope), searchTokens, unfinished, expansion,
+								globalIndex.getRecordsWithLanguageFormula(locale).getEstimatedCardinality(),
+								scoringPolicy
+							);
+							return referenceSchema != null && prepared instanceof FulltextFormula union ?
+								createReferenceFormula(fulltextIndex, union, queryContext, entitySchema,
+									referenceSchema, scope) : prepared;
+						}, scoringPolicy.computeHash(LongHashFunction.xx3()), fulltextIndex.getId(),
+						// the reference and a kind marker keep a body's membership formula apart from the union
+						// memoized for an equal top-level constraint, and from an equal body of another reference
+						referenceSchema == null ? 0L : LongHashFunction.xx3().hashChars(referenceSchema.getName()),
+						referenceSchema == null ? 0L : 1L
 					)
 				);
 			}
 		}
 
+		if (referenceSchema != null) {
+			return resolveReferenceText(filterByVisitor, textMatches, formulasByScope);
+		}
 		return filterByVisitor.applyOnIndexes(
 			entityIndex -> resolveFromIndex(entityIndex, formulasByScope)
 		);
+	}
+
+	/**
+	 * Builds the reference consumer of the union preparation using the collection's real partition split.
+	 * @param index locale's current field generations
+	 * @param union retained expansion and scoring preparation shared with top-level search
+	 * @param context planning context of the owner collection
+	 * @param entitySchema owner schema
+	 * @param reference reference whose attributes were selected
+	 * @param scope owner scope
+	 * @return membership formula with symbolic per-word target maps
+	 */
+	@Nonnull
+	private static ReferenceFulltextFormula createReferenceFormula(
+		@Nonnull FulltextIndex index, @Nonnull FulltextFormula union, @Nonnull QueryPlanningContext context,
+		@Nonnull EntitySchemaContract entitySchema, @Nonnull ReferenceSchemaContract reference, @Nonnull Scope scope
+	) {
+		final String entityType = entitySchema.getName();
+		final IntFunction<ReferencePartition> partitionAccessor;
+		if (entityType.equals(context.getEntityType())) {
+			// the queried collection - its index snapshot
+			partitionAccessor = context::resolvePartition;
+		} else {
+			// another collection planned with the queried one's context (a hierarchy parent filter, for example) - its
+			// live indexes, because index primary keys are per collection and name another index in the queried one
+			final EntityCollection collection = context.getEntityCollectionOrThrowException(
+				entityType, "resolve reference text partitions");
+			partitionAccessor = pk -> ReferencePartitions.requirePartition(
+				collection.getIndexByPrimaryKeyIfExists(pk), entityType, pk);
+		}
+		return new ReferenceFulltextFormula(index, union, targets -> {
+			final BaseBitmap candidates = new BaseBitmap();
+			context.getEntityIndex(entityType,
+				new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, reference.getName()),
+				ReferencedTypeEntityIndex.class).ifPresent(typeIndex -> {
+					for (final int target : targets) {
+						candidates.addAll(typeIndex.getAllReferenceIndexes(target));
+					}
+				});
+			return context.splitPartitionsForRead(entityType, reference.getName(), candidates, scope);
+		}, partitionAccessor);
+	}
+
+	/**
+	 * Projects one memoized scope formula into tagged body owners or discovery partition keys.
+	 * Exact virtual evaluation reads installed row identities and never the flattened reference accessor.
+	 * @param visitor visitor that owns this plan's score registrations
+	 * @param origin structural identity of the direct text place
+	 * @param formulas membership formulas per owner scope
+	 * @return tagged materialized leaves or partition-key leaves
+	 */
+	@Nonnull
+	private static Formula resolveReferenceText(
+		@Nonnull FilterByVisitor visitor, @Nonnull TextMatches origin, @Nonnull Map<Scope, Formula> formulas
+	) {
+		final Map<Scope, ReferenceFulltextScoreAccessor> scores = new EnumMap<>(Scope.class);
+		final VirtualPartitionRows rows = visitor.getProcessingScope().getVirtualPartitionRows();
+		final boolean positive = isUnderEvenNegation(visitor);
+		final Formula result = visitor.applyOnIndexes(entityIndex -> {
+			final Scope scope = entityIndex.getIndexKey().scope();
+			if (!(formulas.get(scope) instanceof ReferenceFulltextFormula membership)) {
+				return EmptyFormula.INSTANCE;
+			}
+			if (rows != null) {
+				final ReferenceFulltextScoreAccessor accessor = scores.computeIfAbsent(scope,
+					ignored -> new ReferenceFulltextScoreAccessor(membership));
+				return rows.select(row -> {
+					final int owner = rows.getOwnerPrimaryKey(row);
+					final boolean matched = membership.matches(rows.getTargetPrimaryKey(row), owner);
+					if (matched && positive) {
+						accessor.include(owner);
+					}
+					return matched;
+				});
+			}
+			if (entityIndex instanceof ReferencedTypeEntityIndex) {
+				return constant(membership.getMatchingPartitions());
+			}
+			Assert.isPremiseValid(entityIndex instanceof ReducedEntityIndex,
+				"Direct reference text requires a reference partition!");
+			final ReducedEntityIndex partition = (ReducedEntityIndex) entityIndex;
+			final Bitmap matched = membership.resolve(partition.getReferenceKey().primaryKey(),
+				partition.getAllPrimaryKeys());
+			final ReferenceFulltextScoreAccessor accessor = scores.computeIfAbsent(scope,
+				ignored -> new ReferenceFulltextScoreAccessor(membership));
+			if (positive) {
+				accessor.include(matched);
+			}
+			return constant(matched);
+		});
+		for (final Map.Entry<Scope, ReferenceFulltextScoreAccessor> score : scores.entrySet()) {
+			visitor.registerOwnerFulltextScores(origin, score.getKey(), score.getValue());
+		}
+		return result;
+	}
+
+	/**
+	 * Tells whether the text counts as a positive occurrence, whose matches may score: an even number of `not`
+	 * containers encloses it on the processing scope's constraint stack, which starts at the reference body.
+	 * @param visitor visitor whose processing scope holds the enclosing constraints
+	 * @return true under no or an even number of negations, false under an odd number
+	 */
+	private static boolean isUnderEvenNegation(@Nonnull FilterByVisitor visitor) {
+		int negations = 0;
+		for (final FilterConstraint parent : visitor.getProcessingScope().getProcessedConstraintParents()) {
+			if (parent instanceof Not) {
+				negations++;
+			}
+		}
+		return negations % 2 == 0;
+	}
+
+	/**
+	 * Wraps a materialized positive result, retaining the canonical empty leaf.
+	 * @param bitmap owner or partition keys in the current processing space
+	 * @return content-keyed constant or the empty formula
+	 */
+	@Nonnull
+	private static Formula constant(@Nonnull Bitmap bitmap) {
+		return bitmap.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(bitmap);
+	}
+
+	/**
+	 * Validates selectors against this reference, before inspecting any index data.
+	 * @param textMatches direct body text constraint
+	 * @param entitySchema owner schema used in diagnostics and field identities
+	 * @param reference schema supplying searchable attributes
+	 * @param scopes every requested owner scope
+	 * @return selected reference fields in every processed scope
+	 */
+	@Nonnull
+	private static Map<Scope, FulltextFieldDefinition[]> resolveReferenceFields(
+		@Nonnull TextMatches textMatches, @Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract reference, @Nonnull Set<Scope> scopes
+	) {
+		final Set<String> names = CollectionUtils.createLinkedHashSet(textMatches.getInFields().length);
+		for (final InField selector : textMatches.getInFields()) {
+			names.add(selector.getFieldName());
+		}
+		final Map<Scope, FulltextFieldDefinition[]> result = new EnumMap<>(Scope.class);
+		for (final Scope scope : scopes) {
+			final List<FulltextFieldDefinition> selected = new ArrayList<>(reference.getAttributes().size());
+			if (names.isEmpty()) {
+				for (final AttributeSchemaContract attribute : reference.getAttributes().values()) {
+					if (attribute.isSearchableInScope(scope)) {
+						selected.add(FulltextFieldDefinition.resolve(entitySchema,
+							FulltextFieldKey.referenceAttribute(reference.getName(), attribute.getName())));
+					}
+				}
+			} else {
+				for (final String name : names) {
+					final AttributeSchemaContract attribute = reference.getAttribute(name)
+						.orElseThrow(() -> new AttributeNotFoundException(name, reference, entitySchema));
+					Assert.isTrue(attribute.isSearchableInScope(scope),
+						() -> new AttributeNotSearchableException(name, reference, entitySchema, scope));
+					selected.add(FulltextFieldDefinition.resolve(entitySchema,
+						FulltextFieldKey.referenceAttribute(reference.getName(), name)));
+				}
+			}
+			Assert.isTrue(!selected.isEmpty(), () -> new EvitaInvalidUsageException(
+				"Reference `" + reference.getName() + "` declares no searchable attribute in scope `" + scope + "`!"));
+			result.put(scope, selected.toArray(FulltextFieldDefinition[]::new));
+		}
+		return result;
 	}
 
 	/**
@@ -587,10 +784,11 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 * @param expansion query-local walkers and submitted-search policy shared across scopes and groups
 	 * @param scoringPolicy effective place weights and coefficient resolved before empty-index shortcuts
 	 * @param documentCount cardinality of the scope global index's locale bitmap, known before query execution
-	 * @return the fulltext formula, or empty when all words were dropped
+	 * @return retained union preparation used directly at top level and as the reference matcher's scoring input,
+	 *         or empty when all words were dropped
 	 */
 	@Nonnull
-	private static Formula createFormula(
+	private static Formula prepareUnionFormula(
 		@Nonnull FulltextIndex fulltextIndex, @Nonnull List<AnalyzedFieldGroup> groups,
 		@Nonnull QueryToken[] tokens, boolean unfinished, @Nonnull FulltextTermExpansion expansion, int documentCount,
 		@Nonnull FulltextScoringPolicy scoringPolicy

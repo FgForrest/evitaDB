@@ -55,13 +55,16 @@ import java.util.stream.Stream;
  * in {@link LookUp#SHALLOW} mode so that a prefetch wrapper delegating the accessor stops the lookup - and the sorter
  * pulls *what* they are only when it sorts.
  *
- * ## Scores of referenced entities
+ * ## Scores of references and referenced entities
  *
  * A `textMatches` inside `entityHaving` (or `groupHaving`) searches the referenced entities, and its formula lives in
  * their primary-key space, hidden from the owner's filter tree. Its scores reach this translator through the filter
- * visitor of the plan, already carried over to the owners. Each reference place first collapses its targets and
- * applies its 0.5 strength weight once. The sorter takes quality from the best source and combines strength as
- * best + t × others across the owner's own `textMatches` sources and these reference places.
+ * visitor of the plan, already carried over to the owners. Each such place first collapses its targets and
+ * applies its 0.5 strength weight once. A `textMatches` directly in a `referenceHaving` body searches the
+ * reference's own attributes: its filter tree holds only membership constants, so its source arrives the same way,
+ * already in the owners' space, masked to owners whose row matched under an even number of negations and weighted
+ * by the attributes' search weights, with no 0.5 factor. The sorter takes quality from the best source and combines
+ * strength as best + t × others across the owner's own `textMatches` sources and these reference places.
  *
  * ## Without a fulltext filter
  *
@@ -123,9 +126,9 @@ public class RelevanceTextTranslator
 				accessors.add(accessor);
 			}
 		}
-		// the scores of nested `entityHaving` / `groupHaving` queries, already carried over to the owners - their
-		// formulas are not part of the filter tree, see `ReferenceOwnerFulltextScoreAccessor`
-		accessors.addAll(orderByVisitor.getFilterByVisitor().getReferencedFulltextScores());
+		// Additional owner-space sources include direct reference text and mapped entity/group text.
+		// Their scoring formulas are deliberately hidden from the membership tree.
+		accessors.addAll(orderByVisitor.getFilterByVisitor().getAdditionalFulltextScores());
 		if (accessors.isEmpty()) {
 			// no fulltext filter - nothing to sort by, every entity passes on to the next sorter
 			return Stream.empty();

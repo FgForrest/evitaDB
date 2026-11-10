@@ -336,18 +336,13 @@ public final class ReferenceFulltextValueIndex
 	}
 
 	/**
-	 * Resolves a symbolic match against the owners of its actual materialized or virtual reference partition.
-	 * @param match a match returned by this generation
-	 * @param partitionOwners owners of that target's actual body partition
-	 * @return a newly owned bitmap of matching owners
+	 * Restricts an actual partition to this field generation's enrolled owners.
+	 * @param partitionOwners owners of that target's actual materialized partition
+	 * @return a newly owned bitmap of enrolled partition owners
 	 */
 	@Nonnull
-	public Bitmap resolve(@Nonnull ValueMatch match, @Nonnull Bitmap partitionOwners) {
+	public Bitmap getEnrolledOwners(@Nonnull Bitmap partitionOwners) {
 		final PersistentRoaringBitmap partition = RoaringBitmapBackedBitmap.getRoaringBitmap(partitionOwners);
-		if (match.form() == MembershipForm.HOLDERS) {
-			return new BaseBitmap(PersistentRoaringBitmap.and(
-				partition, RoaringBitmapBackedBitmap.getRoaringBitmap(match.owners())));
-		}
 		final PersistentRoaringBitmap result = new PersistentRoaringBitmap();
 		if (!partitionOwners.isEmpty()) {
 			final int lastBlock = partitionOwners.getLast() >>> 16;
@@ -356,9 +351,6 @@ public final class ReferenceFulltextValueIndex
 				result.or(PersistentRoaringBitmap.and(
 					partition, RoaringBitmapBackedBitmap.getRoaringBitmap(blocks.records())));
 			}
-		}
-		if (match.form() == MembershipForm.EXCEPT) {
-			result.andNot(RoaringBitmapBackedBitmap.getRoaringBitmap(match.owners()));
 		}
 		return new BaseBitmap(result);
 	}

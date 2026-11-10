@@ -112,4 +112,19 @@ public class AttributeNotSearchableException extends EvitaInvalidUsageException 
 		);
 	}
 
+	/**
+	 * Creates the exception for a reference attribute unavailable in a requested owner scope.
+	 * @param attributeName attribute selected by the query
+	 * @param referenceSchema reference declaring the attribute
+	 * @param entitySchema collection owning the reference
+	 * @param scope owner scope where searching is unavailable
+	 */
+	public AttributeNotSearchableException(
+		@Nonnull String attributeName, @Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull EntitySchemaContract entitySchema, @Nonnull Scope scope
+	) {
+		super("Attribute `" + attributeName + "` in reference `" + referenceSchema.getName() + "` of entity `" +
+			entitySchema.getName() + "` is not searchable in scope `" + scope + "`!");
+	}
+
 }

@@ -28,6 +28,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
 import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.ChildKind;
 import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.MembershipForm;
 import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.RowValues;
@@ -99,13 +100,15 @@ class ReferenceFulltextValueIndexTest {
 			change(index, 131073, List.of(), List.of(row(10, "red")), true);
 			final ReferenceFulltextValueIndex dictionary = index.getReferenceValues(0);
 			final BaseBitmap partition = new BaseBitmap(1, 2, 65537, 131073, 196609);
-			assertArrayEquals(new int[]{1, 131073}, dictionary.resolve(match(dictionary, "red"), partition).getArray());
+			assertArrayEquals(new int[]{1, 131073},
+				resolve(dictionary, match(dictionary, "red"), partition).getArray());
 			change(index, 65537, List.of(), List.of(row(10)), true);
 			assertEquals(MembershipForm.EXCEPT, match(dictionary, "red").form());
-			assertArrayEquals(new int[]{1, 131073}, dictionary.resolve(match(dictionary, "red"), partition).getArray());
+			assertArrayEquals(new int[]{1, 131073},
+				resolve(dictionary, match(dictionary, "red"), partition).getArray());
 			change(index, 196609, List.of(), List.of(row(10, "blue")), true);
 			assertEquals(MembershipForm.HOLDERS, match(dictionary, "blue").form());
-			assertArrayEquals(new int[]{196609}, dictionary.resolve(match(dictionary, "blue"), partition).getArray());
+			assertArrayEquals(new int[]{196609}, resolve(dictionary, match(dictionary, "blue"), partition).getArray());
 			assertArrayEquals(new int[]{1, 2, 65537, 131073, 196609}, partition.getArray());
 		}
 
@@ -125,20 +128,20 @@ class ReferenceFulltextValueIndexTest {
 			assertTrue(emptyExcept.owners().isEmpty());
 			change(index, 2, List.of(), List.of(row(10)), true);
 			assertArrayEquals(new int[]{2}, match(dictionary, "red").owners().getArray());
-			assertArrayEquals(new int[]{1}, dictionary.resolve(match(dictionary, "red"),
+			assertArrayEquals(new int[]{1}, resolve(dictionary, match(dictionary, "red"),
 				new BaseBitmap(1, 2, 999)).getArray());
 			change(index, 3, List.of(), List.of(row(10, "blue")), true);
 			assertEquals(MembershipForm.HOLDERS, match(dictionary, "blue").form());
-			assertArrayEquals(new int[]{3}, dictionary.resolve(match(dictionary, "blue"),
+			assertArrayEquals(new int[]{3}, resolve(dictionary, match(dictionary, "blue"),
 				new BaseBitmap(1, 2, 3, 999)).getArray());
-			assertTrue(dictionary.resolve(match(dictionary, "blue"), new BaseBitmap(1, 2)).isEmpty());
+			assertTrue(resolve(dictionary, match(dictionary, "blue"), new BaseBitmap(1, 2)).isEmpty());
 			change(index, 2, List.of(row(10)), List.of(), false);
 			change(index, 3, List.of(row(10, "blue")), List.of(), false);
 			change(index, 1, duplicate, red, true);
 			assertEquals(MembershipForm.ALL, match(dictionary, "red").form());
 			assertEquals(0, dictionary.ownerSubsets.size());
 			assertEquals(0, dictionary.subsetForms.size());
-			assertArrayEquals(new int[]{1}, dictionary.resolve(match(dictionary, "red"),
+			assertArrayEquals(new int[]{1}, resolve(dictionary, match(dictionary, "red"),
 				new BaseBitmap(1, 2, 999)).getArray());
 		}
 
@@ -155,7 +158,7 @@ class ReferenceFulltextValueIndexTest {
 			assertEquals(MembershipForm.EXCEPT, match(dictionary, "red").form());
 			assertTrue(match(dictionary, "red").owners().isEmpty());
 			assertTrue(dictionary.lookup(Set.of("unindexed")).isEmpty());
-			assertArrayEquals(new int[]{1, 2}, dictionary.resolve(match(dictionary, "red"),
+			assertArrayEquals(new int[]{1, 2}, resolve(dictionary, match(dictionary, "red"),
 				new BaseBitmap(1, 2, 3)).getArray());
 		}
 
@@ -173,10 +176,10 @@ class ReferenceFulltextValueIndexTest {
 			final BaseBitmap partition = new BaseBitmap(1, 2, 3);
 			assertEquals(MembershipForm.ALL, match(names, "shoe").form());
 			assertEquals(MembershipForm.ALL, match(colors, "red").form());
-			assertArrayEquals(new int[]{1}, names.resolve(match(names, "shoe"), partition).getArray());
-			assertArrayEquals(new int[]{2}, colors.resolve(match(colors, "red"), partition).getArray());
+			assertArrayEquals(new int[]{1}, resolve(names, match(names, "shoe"), partition).getArray());
+			assertArrayEquals(new int[]{2}, resolve(colors, match(colors, "red"), partition).getArray());
 			index.reconcileReferenceValues(second, 1, List.of(), List.of(row(10, "red")), true, exactAnalyzer());
-			assertArrayEquals(new int[]{1, 2}, colors.resolve(match(colors, "red"), partition).getArray());
+			assertArrayEquals(new int[]{1, 2}, resolve(colors, match(colors, "red"), partition).getArray());
 		}
 
 	}
@@ -210,9 +213,9 @@ class ReferenceFulltextValueIndexTest {
 					index.reconcileReferenceValues(0, owner, red, blue, true, analyzer);
 					if (owner == 10) {
 						final ReferenceFulltextValueIndex values = index.getReferenceValues(0);
-						assertArrayEquals(new int[]{11, 12}, values.resolve(match(values, "red"),
+						assertArrayEquals(new int[]{11, 12}, resolve(values, match(values, "red"),
 							new BaseBitmap(9, 10, 11, 12)).getArray());
-						assertArrayEquals(new int[]{9, 10}, values.resolve(match(values, "blue"),
+						assertArrayEquals(new int[]{9, 10}, resolve(values, match(values, "blue"),
 							new BaseBitmap(9, 10, 11, 12)).getArray());
 						assertEquals(Map.of("red", 1, "blue", 1), calls);
 					}
@@ -264,8 +267,9 @@ class ReferenceFulltextValueIndexTest {
 			assertEquals(1L, fresh.targetCounts.getLongRecordEqualTo(10).orElseThrow());
 			assertFalse(fresh.isEnrolled(1));
 			assertTrue(fresh.lookup(Set.of("blue")).isEmpty());
-			assertArrayEquals(new int[]{2}, fresh.resolve(match(fresh, "red"), new BaseBitmap(1, 2)).getArray());
-			assertArrayEquals(new int[]{2}, original.resolve(match(original, "blue"), new BaseBitmap(1, 2)).getArray());
+			assertArrayEquals(new int[]{2}, resolve(fresh, match(fresh, "red"), new BaseBitmap(1, 2)).getArray());
+			assertArrayEquals(new int[]{2},
+				resolve(original, match(original, "blue"), new BaseBitmap(1, 2)).getArray());
 			final int changedPivot = index.getOrAssignFieldId(KEY, "text", newFingerprint,
 				analyzer.fingerprint().wordPhase(), 50.0, null);
 			assertTrue(index.isFieldRetired(changedAnalyzer));
@@ -482,7 +486,7 @@ class ReferenceFulltextValueIndexTest {
 						.anyMatch(row -> row.targetPK() == match.targetPK()))
 						.mapToInt(Map.Entry::getKey).sorted().toArray();
 					assertArrayEquals(expected.stream().mapToInt(Integer::intValue).toArray(),
-						dictionary.resolve(match, new BaseBitmap(partition)).getArray());
+						resolve(dictionary, match, new BaseBitmap(partition)).getArray());
 					assertTrue(dictionary.targetValues.getRecordsEqualTo(match.targetPK()).contains(match.valueId()));
 				}
 			}
@@ -518,6 +522,23 @@ class ReferenceFulltextValueIndexTest {
 		FulltextIndex index, int owner, List<RowValues> before, List<RowValues> after, boolean enroll
 	) {
 		index.reconcileReferenceValues(0, owner, before, after, enroll, exactAnalyzer());
+	}
+
+	/** Interprets symbolic lookup results using the production enrollment views and single-owner checks. */
+	private static BaseBitmap resolve(ReferenceFulltextValueIndex dictionary, ValueMatch match, BaseBitmap partition) {
+		final BaseBitmap result = new BaseBitmap();
+		final Bitmap enrolled = dictionary.getEnrolledOwners(partition);
+		for (final int owner : partition.getArray()) {
+			assertEquals(dictionary.isEnrolled(owner), enrolled.contains(owner));
+			if (switch (match.form()) {
+				case ALL -> enrolled.contains(owner);
+				case EXCEPT -> enrolled.contains(owner) && !match.owners().contains(owner);
+				case HOLDERS -> match.owners().contains(owner);
+			}) {
+				result.add(owner);
+			}
+		}
+		return result;
 	}
 
 	/** Finds the sole value-target match in the single-target fixtures. */

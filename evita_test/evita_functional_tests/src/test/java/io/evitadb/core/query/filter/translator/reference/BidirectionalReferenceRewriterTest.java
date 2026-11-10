@@ -24,6 +24,7 @@
 package io.evitadb.core.query.filter.translator.reference;
 
 import io.evitadb.api.exception.CollectionNotFoundException;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -38,7 +39,6 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -53,6 +53,7 @@ import org.mockito.invocation.Invocation;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Map;
@@ -63,7 +64,9 @@ import java.util.stream.Stream;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static io.evitadb.api.query.QueryConstraints.entityHaving;
 import static io.evitadb.api.query.QueryConstraints.not;
+import static io.evitadb.api.query.QueryConstraints.or;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
+import static io.evitadb.api.query.QueryConstraints.textMatches;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REFERENCE;
@@ -143,6 +146,18 @@ class BidirectionalReferenceRewriterTest {
 	 * baseline clears the cost gate with room to spare.
 	 */
 	private static final int BASELINE_OWNER_SIDE_BUCKETS = 100;
+
+	/** Direct reference text cannot move to the counterpart, including disjunction and negation shapes. */
+	@Test
+	@DisplayName("Should decline direct body text without moving its field identity or score place")
+	void shouldDeclineDirectReferenceText() {
+		final RewriteFixture fixture = RewriteFixture.baseline(Set.of(Scope.LIVE));
+		assertTrue(fixture.isApplicable(), "The baseline must otherwise qualify for rewriting");
+		assertFalse(fixture.isApplicableFor(referenceHaving(OWNER_REFERENCE_NAME, textMatches("winter"))));
+		assertFalse(fixture.isApplicableFor(referenceHaving(OWNER_REFERENCE_NAME, not(textMatches("winter")))));
+		assertFalse(fixture.isApplicableFor(referenceHaving(OWNER_REFERENCE_NAME,
+			or(attributeEquals(ATTRIBUTE_NAME, 7L), textMatches("winter")))));
+	}
 
 	/**
 	 * The indexed-component sets that leave a scope without {@link ReferenceIndexedComponents#REFERENCED_ENTITY}: the

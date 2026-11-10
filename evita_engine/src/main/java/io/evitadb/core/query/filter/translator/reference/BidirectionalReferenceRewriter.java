@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.filter.translator.reference;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
@@ -34,6 +35,7 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.Not;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.query.filter.TextMatches;
 import io.evitadb.api.query.order.ReferenceProperty;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
@@ -55,7 +57,6 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.VirtualPartitionRows;
 import io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper.GlobalIndexAndFormula;
-import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
@@ -73,6 +74,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -629,6 +631,12 @@ public class BidirectionalReferenceRewriter {
 		@Nonnull FilterConstraint constraint,
 		@Nonnull List<String> attributeNames
 	) {
+		if (constraint instanceof TextMatches) {
+			// Direct body text belongs to this reference's dictionary and score place, not the counterpart's.
+			// Nested entityHaving is handled separately and keeps its existing fulltext translation.
+			return false;
+		}
+
 		if (constraint instanceof AttributeConstraint<?> attributeConstraint) {
 			Collections.addAll(attributeNames, attributeConstraint.getAttributeNames());
 			return true;

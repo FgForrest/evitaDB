@@ -789,8 +789,12 @@ class GlobalEntityIndexFulltextPersistenceTest {
 					.filter(match -> match.targetPK() == 10).findFirst().orElseThrow();
 				assertEquals(ReferenceFulltextValueIndex.MembershipForm.EXCEPT, common.form());
 				assertEquals(96, common.owners().size());
-				assertArrayEquals(new int[]{1, 96},
-					restored.resolve(common, new BaseBitmap(1, 96, 101, 196)).getArray());
+				assertArrayEquals(new int[]{1, 96, 101, 196},
+					restored.getEnrolledOwners(new BaseBitmap(1, 96, 101, 196)).getArray());
+				assertFalse(common.owners().contains(1));
+				assertFalse(common.owners().contains(96));
+				assertTrue(common.owners().contains(101));
+				assertTrue(common.owners().contains(196));
 				final ReferenceFulltextValueIndex.ValueMatch rare = restored.lookup(Set.of("rare")).getFirst();
 				assertArrayEquals(new int[]{94, 95, 96}, rare.owners().getArray());
 				assertEquals(ReferenceFulltextValueIndex.MembershipForm.HOLDERS, rare.form());
@@ -880,8 +884,10 @@ class GlobalEntityIndexFulltextPersistenceTest {
 				assertEquals(100, values.values.size());
 				assertEquals(ReferenceFulltextValueIndex.MembershipForm.EXCEPT,
 					values.lookup(Set.of("value1")).getFirst().form());
-				assertArrayEquals(new int[]{65_537}, values.resolve(values.lookup(Set.of("value1")).getFirst(),
-					new BaseBitmap(65_537, 65_538)).getArray());
+				assertArrayEquals(new int[]{65_537, 65_538},
+					values.getEnrolledOwners(new BaseBitmap(65_537, 65_538)).getArray());
+				assertFalse(values.lookup(Set.of("value1")).getFirst().owners().contains(65_537));
+				assertTrue(values.lookup(Set.of("value1")).getFirst().owners().contains(65_538));
 				assertTrue(flush(reloaded).isEmpty(), "Cold-loaded children start clean.");
 				referencePair(restored, field, 601, true);
 				assertEquals(601L, values.values.getLongRecordEqualTo("value601").orElseThrow());

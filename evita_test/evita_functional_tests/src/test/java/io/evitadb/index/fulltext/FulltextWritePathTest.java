@@ -695,8 +695,9 @@ class FulltextWritePathTest implements EvitaTestSupport {
 			}
 			assertEquals(10, referenceOwners(Scope.LIVE, labelField(), "shoes", 10, owners).size());
 			assertEquals(10, referenceOwners(Scope.LIVE, labelField(), "boots", 10, owners).size());
-			assertEquals(20, old.resolve(old.lookup(Set.of(analyzedWord("shoes"))).getFirst(),
-				new BaseBitmap(owners)).size());
+			assertEquals(ReferenceFulltextValueIndex.MembershipForm.ALL,
+				old.lookup(Set.of(analyzedWord("shoes"))).getFirst().form());
+			assertEquals(20, old.getEnrolledOwners(new BaseBitmap(owners)).size());
 			for (int owner = 11; owner <= 20; owner++) {
 				setLabel(owner, 10, "boots");
 			}
@@ -802,8 +803,14 @@ class FulltextWritePathTest implements EvitaTestSupport {
 		final Set<Integer> result = new TreeSet<>();
 		for (final ValueMatch match : dictionary.lookup(Set.of(analyzedWord(word)))) {
 			if (match.targetPK() == target) {
-				for (final int owner : dictionary.resolve(match, new BaseBitmap(owners)).getArray()) {
-					result.add(owner);
+				for (final int owner : owners) {
+					if (switch (match.form()) {
+						case ALL -> dictionary.isEnrolled(owner);
+						case EXCEPT -> dictionary.isEnrolled(owner) && !match.owners().contains(owner);
+						case HOLDERS -> match.owners().contains(owner);
+					}) {
+						result.add(owner);
+					}
 				}
 			}
 		}

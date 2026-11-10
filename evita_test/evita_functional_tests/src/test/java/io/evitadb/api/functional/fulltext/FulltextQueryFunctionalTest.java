@@ -23,7 +23,6 @@
 
 package io.evitadb.api.functional.fulltext;
 
-import io.evitadb.index.fulltext.FulltextTermExactness;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.index.EntityIndexType;
@@ -48,10 +47,11 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.fulltext.FulltextIndex;
-import io.evitadb.index.fulltext.FulltextScoringPolicy;
+import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Expansion;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
-import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
+import io.evitadb.index.fulltext.FulltextScoringPolicy;
+import io.evitadb.index.fulltext.FulltextTermExactness;
 import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -646,7 +646,7 @@ public class FulltextQueryFunctionalTest {
 			);
 		}
 
-		@DisplayName("Should refuse inField outside textMatches and textMatches in a reference scope")
+		@DisplayName("Should refuse inField outside textMatches and accept searchable reference text")
 		@UseDataSet(FULLTEXT_DATASET)
 		@Test
 		void shouldRefuseMisplacedConstraints(Evita evita) {
@@ -660,11 +660,8 @@ public class FulltextQueryFunctionalTest {
 						)
 					);
 					assertTrue(strayInField.getMessage().contains("textMatches"), strayInField.getMessage());
-					assertThrows(
-						EvitaInvalidUsageException.class,
-						() -> assertMatches(
-							session, new int[0], referenceHaving(REFERENCE_CATEGORIES, textMatches("loose"))
-						)
+					assertMatches(
+						session, new int[]{1, 2}, referenceHaving(REFERENCE_CATEGORIES, textMatches("loose"))
 					);
 					return null;
 				}
