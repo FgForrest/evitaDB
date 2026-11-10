@@ -427,6 +427,80 @@ class SetReferenceSchemaIndexedMutationTest {
 		}
 
 		@Test
+		@DisplayName("should throw when mutation changes indexed scope to NONE with searchable attribute")
+		void shouldThrowWhenMutationChangesIndexedScopeToNoneWithSearchableAttribute() {
+			// a reference indexed in LIVE with a searchable attribute there - a valid state, like the filterable one
+			final ReferenceSchemaContract indexedReferenceWithSearchable =
+				ReferenceSchema._internalBuild(
+					REFERENCE_NAME,
+					NamingConvention.generate(REFERENCE_NAME),
+					"description", null,
+					Cardinality.ZERO_OR_MORE,
+					"category",
+					NamingConvention.generate("category"),
+					false,
+					null,
+					Collections.emptyMap(),
+					false,
+					Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+					ReferenceSchema.defaultIndexedComponents(
+						Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+					),
+					Collections.emptySet(),
+					Collections.emptyMap(),
+					Collections.emptyMap(),
+					Collections.emptyMap(),
+					Map.of(
+						"searchableAttr",
+						AttributeSchema._internalBuild(
+							"searchableAttr",
+							null, null,
+							null,
+							Scope.NO_SCOPE,
+							null,
+							new Scope[]{Scope.LIVE},
+							Scope.NO_SCOPE,
+							true, true, false,
+							String.class, null, 0,
+							ConflictResolutionOverride.INHERITED,
+							null,
+							FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+							AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
+						)
+					),
+					Collections.emptyMap(),
+					ConflictResolutionOverride.INHERITED
+				);
+			// a reference that is not indexed keeps no fulltext data, so withdrawing the index in LIVE is refused
+			final SetReferenceSchemaIndexedMutation mutation =
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(
+							Scope.LIVE, ReferenceIndexType.NONE
+						)
+					}
+				);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getName()).thenReturn("product");
+
+			final InvalidSchemaMutationException exception = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> mutation.mutate(
+					entitySchema, indexedReferenceWithSearchable, ConsistencyChecks.APPLY
+				)
+			);
+			assertTrue(
+				exception.getMessage().contains("single searchable attribute in scope `LIVE`"),
+				"Exception message should name the searchable attribute kind, got: " + exception.getMessage()
+			);
+			assertTrue(
+				exception.getMessage().contains("searchableAttr"),
+				"Exception message should contain 'searchableAttr', got: " + exception.getMessage()
+			);
+		}
+
+		@Test
 		@DisplayName("should not throw when consistency checks are skipped")
 		void shouldNotThrowWhenConsistencyChecksSkipped() {
 			// Same invalid-state setup: non-indexed with filterable attribute

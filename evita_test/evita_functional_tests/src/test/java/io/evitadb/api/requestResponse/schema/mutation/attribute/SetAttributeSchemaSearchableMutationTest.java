@@ -47,6 +47,7 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator.ConsistencyChecks;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.DisplayName;
@@ -106,14 +107,17 @@ class SetAttributeSchemaSearchableMutationTest {
 	}
 
 	/**
-	 * A real (not mocked) reference indexed for filtering with one `String` attribute searchable in the live scope,
+	 * A real (not mocked) reference indexed for filtering in the live scope only, with one `String` attribute,
 	 * created through the create mutation rather than a builder - the path that skips the builder's own validation.
 	 *
-	 * @param localized whether the attribute is localized
+	 * @param localized          whether the attribute is localized
+	 * @param searchableInScopes the scopes the attribute is searchable in
 	 * @return the reference schema holding the attribute
 	 */
 	@Nonnull
-	private static ReferenceSchemaContract createSearchableReferenceAttribute(boolean localized) {
+	private static ReferenceSchemaContract createLiveIndexedReferenceAttribute(
+		boolean localized, @Nonnull Scope... searchableInScopes
+	) {
 		final ReferenceSchema brand = ReferenceSchema._internalBuild(
 			"brand", "brand", false, Cardinality.ZERO_OR_MORE, null, false,
 			new ScopedReferenceIndexType[]{new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)},
@@ -121,7 +125,7 @@ class SetAttributeSchemaSearchableMutationTest {
 		);
 		final CreateAttributeSchemaMutation create = new CreateAttributeSchemaMutation(
 			ATTRIBUTE_NAME, null, null, null,
-			Scope.NO_SCOPE, null, new Scope[]{Scope.LIVE}, Scope.NO_SCOPE,
+			Scope.NO_SCOPE, null, searchableInScopes, Scope.NO_SCOPE,
 			localized, false, false, String.class, null, 0,
 			ConflictResolutionOverride.INHERITED
 		);
@@ -603,7 +607,7 @@ class SetAttributeSchemaSearchableMutationTest {
 		void shouldMakeReferenceReportSearchableAttributeThatIsNotLocalized() {
 			// a mutation arriving without a builder - over the wire or from the WAL - is validated only once the
 			// whole schema is assembled, so the reference must run the attribute rules itself
-			final ReferenceSchemaContract notLocalized = createSearchableReferenceAttribute(false);
+			final ReferenceSchemaContract notLocalized = createLiveIndexedReferenceAttribute(false, Scope.LIVE);
 			final InvalidSchemaMutationException exception = assertThrows(
 				InvalidSchemaMutationException.class,
 				() -> ((ReferenceSchema) notLocalized).validate(
@@ -614,11 +618,53 @@ class SetAttributeSchemaSearchableMutationTest {
 			assertTrue(exception.getMessage().contains(ATTRIBUTE_NAME), exception.getMessage());
 
 			// the positive control - the same reference with a localized attribute validates
-			final ReferenceSchemaContract localized = createSearchableReferenceAttribute(true);
+			final ReferenceSchemaContract localized = createLiveIndexedReferenceAttribute(true, Scope.LIVE);
 			assertDoesNotThrow(
 				() -> ((ReferenceSchema) localized).validate(
 					Mockito.mock(CatalogSchemaContract.class), EntitySchema._internalBuild("product")
 				)
+			);
+		}
+
+		@Test
+		@DisplayName("Should refuse the attribute of a reference that is not indexed in a requested scope")
+		void shouldRefuseAttributeOfReferenceNotIndexedInRequestedScope() {
+			// like filterability, searchability needs the reference indexed in the scope, and a mutation applied on
+			// its own is refused right here rather than only when the whole schema is validated
+			final ReferenceSchemaContract liveIndexed = createLiveIndexedReferenceAttribute(true);
+			final InvalidSchemaMutationException exception = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> new SetAttributeSchemaSearchableMutation(ATTRIBUTE_NAME, new Scope[]{Scope.LIVE, Scope.ARCHIVED})
+					.mutate(EntitySchema._internalBuild("product"), liveIndexed)
+			);
+			assertTrue(exception.getMessage().contains("required scopes: ARCHIVED!"), exception.getMessage());
+			assertTrue(
+				exception.getMessage().contains("searchable attribute `" + ATTRIBUTE_NAME + "`"), exception.getMessage()
+			);
+
+			// the positive control - the scope the reference is indexed in is accepted
+			final ReferenceSchemaContract mutated = new SetAttributeSchemaSearchableMutation(
+				ATTRIBUTE_NAME, new Scope[]{Scope.LIVE}
+			).mutate(EntitySchema._internalBuild("product"), liveIndexed);
+			assertNotNull(mutated);
+			assertEquals(
+				EnumSet.of(Scope.LIVE), mutated.getAttribute(ATTRIBUTE_NAME).orElseThrow().getSearchableInScopes()
+			);
+		}
+
+		@Test
+		@DisplayName("Should leave the reference index to the schema validation when consistency checks are skipped")
+		void shouldNotRefuseAttributeOfReferenceNotIndexedWhenChecksAreSkipped() {
+			// a builder applies its mutations one by one with the checks skipped, so it may declare searchability
+			// before indexing - the assembled schema is validated once all of them are applied
+			final ReferenceSchemaContract liveIndexed = createLiveIndexedReferenceAttribute(true);
+			final ReferenceSchemaContract mutated = new SetAttributeSchemaSearchableMutation(
+				ATTRIBUTE_NAME, new Scope[]{Scope.LIVE, Scope.ARCHIVED}
+			).mutate(EntitySchema._internalBuild("product"), liveIndexed, ConsistencyChecks.SKIP);
+			assertNotNull(mutated);
+			assertEquals(
+				EnumSet.of(Scope.LIVE, Scope.ARCHIVED),
+				mutated.getAttribute(ATTRIBUTE_NAME).orElseThrow().getSearchableInScopes()
 			);
 		}
 	}

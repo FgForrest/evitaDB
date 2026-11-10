@@ -208,8 +208,9 @@ class SearchableAttributeSchemaTest implements EvitaTestSupport {
 					session.goLiveAndClose();
 				}
 			);
-			final RollbackException notIndexedRollback = assertThrows(
-				RollbackException.class,
+			// like a filterable one, the attribute is refused as soon as the schema change is applied
+			final InvalidSchemaMutationException notIndexed = assertThrows(
+				InvalidSchemaMutationException.class,
 				() -> test.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
@@ -226,17 +227,15 @@ class SearchableAttributeSchemaTest implements EvitaTestSupport {
 					}
 				)
 			);
-			final InvalidSchemaMutationException notIndexed =
-				assertInstanceOf(InvalidSchemaMutationException.class, notIndexedRollback.getCause());
 			assertTrue(
-				notIndexed.getMessage().contains("`" + ATTRIBUTE_BRAND_NAME + "`") &&
-					notIndexed.getMessage().contains("searchable in scope `LIVE`"),
+				notIndexed.getMessage().contains("searchable attribute `" + ATTRIBUTE_BRAND_NAME + "`") &&
+					notIndexed.getMessage().contains("required scopes: LIVE!"),
 				notIndexed.getMessage()
 			);
 
 			// indexed in the live scope only: searchability in the archived scope is refused there
-			final RollbackException archivedOnlyRollback = assertThrows(
-				RollbackException.class,
+			final InvalidSchemaMutationException archivedOnly = assertThrows(
+				InvalidSchemaMutationException.class,
 				() -> test.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
@@ -254,10 +253,7 @@ class SearchableAttributeSchemaTest implements EvitaTestSupport {
 					}
 				)
 			);
-			final InvalidSchemaMutationException archivedOnly =
-				assertInstanceOf(InvalidSchemaMutationException.class, archivedOnlyRollback.getCause());
-			assertTrue(archivedOnly.getMessage().contains("searchable in scope `ARCHIVED`"), archivedOnly.getMessage());
-			assertFalse(archivedOnly.getMessage().contains("searchable in scope `LIVE`"), archivedOnly.getMessage());
+			assertTrue(archivedOnly.getMessage().contains("required scopes: ARCHIVED!"), archivedOnly.getMessage());
 		}
 
 		@Test

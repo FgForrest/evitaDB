@@ -76,7 +76,7 @@ public class SetReferenceSchemaIndexedMutation
 
 	/**
 	 * Verifies that making the reference non-indexed does not conflict with any filterable, unique,
-	 * or sortable attributes that require an indexed reference to function.
+	 * sortable or searchable attributes that require an indexed reference to function.
 	 *
 	 * @param entitySchema    the entity schema containing the reference
 	 * @param referenceSchema the reference schema whose attributes are being checked
@@ -94,18 +94,21 @@ public class SetReferenceSchemaIndexedMutation
 			for (AttributeSchemaContract attributeSchema : referenceSchema.getAttributes().values()) {
 				if (attributeSchema.isFilterableInScope(scope) ||
 					attributeSchema.isUniqueInScope(scope) ||
-					attributeSchema.isSortableInScope(scope)) {
+					attributeSchema.isSortableInScope(scope) ||
+					attributeSchema.isSearchableInScope(scope)) {
 					final String type;
 					if (attributeSchema.isFilterableInScope(scope)) {
 						type = "filterable";
 					} else if (attributeSchema.isUniqueInScope(scope)) {
 						type = "unique";
-					} else {
+					} else if (attributeSchema.isSortableInScope(scope)) {
 						type = "sortable";
+					} else {
+						type = "searchable";
 					}
 					if (newIndexType == ReferenceIndexType.NONE) {
 						// new index type is NONE in the scope, but attribute is indexed
-						// this is not allowed because it would prevent filtering/sorting
+						// this is not allowed because it would prevent filtering/sorting/searching
 						throw new InvalidSchemaMutationException(
 							"Cannot make reference schema `" +
 								referenceSchema.getName() + "` of entity `" +

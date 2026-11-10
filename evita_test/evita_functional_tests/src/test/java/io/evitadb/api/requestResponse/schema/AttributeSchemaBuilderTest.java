@@ -2397,22 +2397,22 @@ class AttributeSchemaBuilderTest {
 		)
 		@Tag(FULLTEXT)
 		void shouldRefuseSearchableAttributeOfNonIndexedReference() {
-			final EntitySchema schema = (EntitySchema) createEntitySchemaBuilder()
-				.withReferenceTo(
-					"brand", Entities.BRAND,
-					Cardinality.ZERO_OR_MORE,
-					ref -> ref.withAttribute(
-						"name", String.class,
-						whichIs -> whichIs.localized().searchable()
-					)
-				)
-				.toInstance();
+			// like a filterable one, the attribute is refused as soon as the builder applies its mutations
 			final InvalidSchemaMutationException exception = assertThrows(
 				InvalidSchemaMutationException.class,
-				() -> schema.validate(AttributeSchemaBuilderTest.this.catalogSchema)
+				() -> createEntitySchemaBuilder()
+					.withReferenceTo(
+						"brand", Entities.BRAND,
+						Cardinality.ZERO_OR_MORE,
+						ref -> ref.withAttribute(
+							"name", String.class,
+							whichIs -> whichIs.localized().searchable()
+						)
+					)
+					.toInstance()
 			);
-			assertTrue(exception.getMessage().contains("`name`"), exception.getMessage());
-			assertTrue(exception.getMessage().contains("searchable in scope `LIVE`"), exception.getMessage());
+			assertTrue(exception.getMessage().contains("searchable attribute `name`"), exception.getMessage());
+			assertTrue(exception.getMessage().contains("required scopes: LIVE!"), exception.getMessage());
 		}
 
 		@Test

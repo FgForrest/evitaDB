@@ -23,12 +23,14 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
@@ -39,6 +41,7 @@ import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMut
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -52,6 +55,8 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static io.evitadb.dataType.Scope.NO_SCOPE;
 
@@ -68,11 +73,13 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
  * current value, so a client unaware of them never resets them. It touches nothing else: searchability is independent
  * of filterability, so the filterability and the accelerators of the attribute are carried through unchanged.
  *
- * The mutation refuses nothing. Whether the attribute can be searchable at all - a localized `String` or `String[]`
- * - is checked by {@link AttributeSchemaContract#validate()} on the assembled schema, so that `searchable()`,
- * `localized()` and a type change may be declared in any order. It is also never refused because the collection
- * already holds entities: values stored before the attribute became searchable are not indexed retroactively, and
- * a search over them returns incomplete results until they are written again.
+ * On a reference attribute, the mutation applied with consistency checks refuses a scope the reference is not indexed
+ * in, exactly as {@link SetAttributeSchemaFilterableMutation} does - a reference that is not indexed keeps no
+ * fulltext data. Nothing else is refused here. Whether the attribute can be searchable at all - a localized `String`
+ * or `String[]` - is checked by {@link AttributeSchemaContract#validate()} on the assembled schema, so that
+ * `searchable()`, `localized()` and a type change may be declared in any order. It is also never refused because
+ * the collection already holds entities: values stored before the attribute became searchable are not indexed
+ * retroactively, and a search over them returns incomplete results until they are written again.
  *
  * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * if the mutation is placed twice in the mutation pipeline.
@@ -318,6 +325,30 @@ public class SetAttributeSchemaSearchableMutation
 		@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor
 	) {
 		return mutateGlobalAttributeSchema(catalogSchema, entitySchemaAccessor, this);
+	}
+
+	@Nullable
+	@Override
+	public ReferenceSchemaContract mutate(
+		@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ConsistencyChecks consistencyChecks
+	) {
+		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
+		if (consistencyChecks != ReferenceSchemaMutator.ConsistencyChecks.SKIP) {
+			final List<Scope> nonIndexedScopes = Arrays.stream(this.searchableInScopes)
+				.filter(scope -> !referenceSchema.isIndexedInScope(scope))
+				.toList();
+			Assert.isTrue(
+				nonIndexedScopes.isEmpty(),
+				() -> new InvalidSchemaMutationException(
+					"The reference `" + referenceSchema.getName() + "` is in entity `" + entitySchema.getName() +
+						"` is not indexed in required scopes: " +
+						nonIndexedScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + "! " +
+						"Non-indexed references must not contain searchable attribute `" + this.name + "`!"
+				)
+			);
+		}
+		return ReferenceAttributeSchemaMutation.super.mutate(entitySchema, referenceSchema, consistencyChecks);
 	}
 
 	@Nonnull
