@@ -1142,13 +1142,17 @@ class ReferenceContentRowFilterFunctionalTest {
 		void shouldRefuseScopeBelowRoot(Evita evita) {
 			for (FilterBy filterBy : List.of(
 				filterBy(or(scope(Scope.LIVE), attributeEquals(ATTR_X, 5))),
-				filterBy(not(scope(Scope.LIVE))),
 				filterBy(inScope(Scope.LIVE, scope(Scope.LIVE)))
 			)) {
 				assertRefusedAtPlanning(
 					evita, REF_BRANDS, filterBy, EvitaInvalidUsageException.class, "scope", REF_BRANDS
 				);
 			}
+			// a negated scope is refused by the check of the whole query, before the filter is compiled
+			assertRefusedAtPlanning(
+				evita, REF_BRANDS, filterBy(not(scope(Scope.LIVE))), EvitaInvalidUsageException.class,
+				"Constraint `scope(LIVE)` cannot be negated in `not`"
+			);
 		}
 
 		@Test
@@ -1221,7 +1225,10 @@ class ReferenceContentRowFilterFunctionalTest {
 			assertRefusedAtFetch(
 				evita, 1, filterBy(or(scope(Scope.LIVE), attributeEquals(ATTR_X, 5))), "scope", REF_BRANDS
 			);
-			assertRefusedAtFetch(evita, 1, filterBy(not(scope(Scope.LIVE))), "scope", REF_BRANDS);
+			// a negated scope is refused by the check of the whole query, before the filter is compiled
+			assertRefusedAtFetch(
+				evita, 1, filterBy(not(scope(Scope.LIVE))), "Constraint `scope(LIVE)` cannot be negated in `not`"
+			);
 			assertRefusedAtFetch(evita, 1, filterBy(inScope(Scope.LIVE, scope(Scope.LIVE))), "scope", REF_BRANDS);
 		}
 

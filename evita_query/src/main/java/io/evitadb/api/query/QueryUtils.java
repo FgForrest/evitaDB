@@ -691,7 +691,8 @@ public class QueryUtils {
 	 * - a `scope(...)` the engine would not apply. It is read only in the root of a filter, boolean containers
 	 *   included, and at the level of {@link EntityHaving} and {@link GroupHaving}. Below any other
 	 *   {@link SeparateEntityScopeContainer} nothing reads it, so the query would silently mean something else than
-	 *   it says.
+	 *   it says. A `scope(...)` below {@link Not} is refused by {@link #assertNoNegatedScope(Query)}, which an entry
+	 *   point runs first, because the scopes this check is passed are resolved through the negation.
 	 *
 	 * The walk allocates nothing unless the filter holds an `inScope`, or fails.
 	 *
@@ -845,11 +846,7 @@ public class QueryUtils {
 	) {
 		if (constraint instanceof EntityScope entityScope) {
 			if (enclosingContainer != null && !appliesOwnScope(enclosingContainer)) {
-				throw new EvitaInvalidUsageException(
-					"Constraint `" + entityScope + "` has no effect in `" + enclosingContainer.getName() +
-						"` - it selects scopes only in the root of a filter and in `entityHaving` or `groupHaving`, " +
-						"so it must be placed there or removed."
-				);
+				throw createInertScopeException(entityScope, enclosingContainer);
 			}
 			return;
 		}
@@ -905,6 +902,25 @@ public class QueryUtils {
 	}
 
 	/**
+	 * Creates the exception refusing a `scope(...)` the enclosing container would not apply - see
+	 * {@link #appliesOwnScope}.
+	 *
+	 * @param entityScope the refused scope
+	 * @param container   the nearest separate container enclosing it
+	 * @return the exception to throw
+	 */
+	@Nonnull
+	private static EvitaInvalidUsageException createInertScopeException(
+		@Nonnull EntityScope entityScope, @Nonnull SeparateEntityScopeContainer container
+	) {
+		return new EvitaInvalidUsageException(
+			"Constraint `" + entityScope + "` has no effect in `" + container.getName() +
+				"` - it selects scopes only in the root of a filter and in `entityHaving` or `groupHaving`, " +
+				"so it must be placed there or removed."
+		);
+	}
+
+	/**
 	 * Returns true when the constraint is a filter `inScope` or holds one at any depth.
 	 *
 	 * @param constraint the filter constraint to examine
@@ -922,6 +938,110 @@ public class QueryUtils {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Refuses a `scope(...)` below a {@link Not} at any depth: in the filter section, in the `entityHaving` of a
+	 * `segment` in the order section, and in every filter nested in the require section - the same filters
+	 * {@link #assertFilterScopesApplicable(Query, Set)} judges there. A `scope(...)` selects the scopes its entity
+	 * level searches in, it does not filter entities, so a negation has nothing to negate: the translation of the `not`
+	 * finds no formula of its child, and the lookup of the scopes of the level reads the scope through the negation and
+	 * applies it as if it stood outside of it.
+	 *
+	 * The negation reaches down to the next {@link SeparateEntityScopeContainer}, which starts an entity level of its
+	 * own: in `not(referenceHaving("r", entityHaving(and(scope(LIVE), ...))))` the scope selects the scopes of the
+	 * referenced entities and the `not` negates the container as a whole. A negated `scope(...)` the enclosing
+	 * container would not apply at all gets the diagnostic of {@link #assertFilterScopesApplicable(FilterBy, Set)}
+	 * instead, which names that more fundamental mistake - raised by this walk, which reaches the order section too.
+	 *
+	 * Unlike {@link #assertFilterScopesApplicable(Query, Set)} this check needs no scopes, so an entry point runs it
+	 * before it resolves them: the resolution reads every `scope(...)` of a level through a negation and fails with a
+	 * `MoreThanSingleResultException` naming neither the negation nor the mistake when it finds two of them.
+	 *
+	 * The walk allocates nothing unless it fails.
+	 *
+	 * @param query the query to check
+	 * @throws EvitaInvalidUsageException when a `scope(...)` is negated
+	 */
+	public static void assertNoNegatedScope(@Nonnull Query query) {
+		final FilterBy filterBy = query.getFilterBy();
+		if (filterBy != null) {
+			assertNoNegatedScope(filterBy, false, null);
+		}
+		final OrderBy orderBy = query.getOrderBy();
+		if (orderBy != null) {
+			assertNoNegatedNestedFilterScope(orderBy);
+		}
+		final Require require = query.getRequire();
+		if (require != null) {
+			assertNoNegatedNestedFilterScope(require);
+		}
+	}
+
+	/**
+	 * Walks the order or the require section looking for the filters nested in it - see
+	 * {@link #assertNoNegatedScope(Query)}. A filter is an additional child of the constraint holding it, and a nested
+	 * order or require constraint is a child of its container.
+	 *
+	 * @param constraint the order or require constraint to examine
+	 */
+	private static void assertNoNegatedNestedFilterScope(@Nonnull Constraint<?> constraint) {
+		if (constraint instanceof FilterConstraint) {
+			assertNoNegatedScope(constraint, false, null);
+		} else if (constraint instanceof ConstraintContainer<?> container) {
+			for (final Constraint<?> child : container.getChildren()) {
+				assertNoNegatedNestedFilterScope(child);
+			}
+			for (final Constraint<?> additionalChild : container.getAdditionalChildren()) {
+				assertNoNegatedNestedFilterScope(additionalChild);
+			}
+		}
+	}
+
+	/**
+	 * Walks one constraint of a filter - see {@link #assertNoNegatedScope(Query)}.
+	 *
+	 * @param constraint         the constraint to examine
+	 * @param negated            true when a `not` encloses the constraint within its entity level
+	 * @param enclosingContainer the nearest separate container enclosing the constraint, NULL when there is none
+	 * @throws EvitaInvalidUsageException when a `scope(...)` is negated
+	 */
+	private static void assertNoNegatedScope(
+		@Nonnull Constraint<?> constraint,
+		boolean negated,
+		@Nullable SeparateEntityScopeContainer enclosingContainer
+	) {
+		if (constraint instanceof EntityScope entityScope) {
+			if (negated) {
+				// a scope the enclosing container does not apply would do nothing even without the negation, which is
+				// the more fundamental mistake - raised here, because the order section is beyond the reach of
+				// `assertFilterScopesApplicable`, which would name it in the other sections
+				if (enclosingContainer != null && !appliesOwnScope(enclosingContainer)) {
+					throw createInertScopeException(entityScope, enclosingContainer);
+				}
+				throw new EvitaInvalidUsageException(
+					"Constraint `" + entityScope + "` cannot be negated in `not` - it selects the scopes to search " +
+						"in, it does not filter entities. Name the scopes you want in `scope(...)` instead."
+				);
+			}
+			return;
+		}
+		if (constraint instanceof ConstraintContainer<?> container) {
+			// a separate container starts an entity level of its own, which a `not` around it does not negate
+			final boolean nestedNegated;
+			final SeparateEntityScopeContainer nestedEnclosingContainer;
+			if (constraint instanceof SeparateEntityScopeContainer separate) {
+				nestedNegated = false;
+				nestedEnclosingContainer = separate;
+			} else {
+				nestedNegated = negated || constraint instanceof Not;
+				nestedEnclosingContainer = enclosingContainer;
+			}
+			// no filter container holds additional children
+			for (final Constraint<?> child : container.getChildren()) {
+				assertNoNegatedScope(child, nestedNegated, nestedEnclosingContainer);
+			}
+		}
 	}
 
 	/**

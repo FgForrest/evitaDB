@@ -678,6 +678,184 @@ class QueryUtilsTest {
 		}
 	}
 
+	/** A `scope(...)` below `not` is refused whatever the scopes, at every entity level that applies a scope. */
+	@Nested
+	@DisplayName("Negated scopes")
+	class NegatedScopes {
+		/** The ways a negation can reach a scope within one entity level. */
+		private static final List<FilterConstraint> NEGATIONS = List.of(
+			not(scope(Scope.ARCHIVED)),
+			not(and(scope(Scope.ARCHIVED), attributeEquals("y", 1))),
+			not(or(attributeEquals("y", 1), scope(Scope.ARCHIVED))),
+			not(not(scope(Scope.ARCHIVED))),
+			not(inScope(Scope.LIVE, scope(Scope.ARCHIVED)))
+		);
+
+		/** Every level a scope applies at refuses it below `not`, at any depth of that level. */
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("io.evitadb.api.query.QueryUtilsTest#scopeApplyingLevels")
+		@DisplayName("Refuse a scope below not at a level that applies it")
+		void shouldRefuseScopeWhenNegatedAtLevelApplyingIt(
+			@Nonnull String levelName, @Nonnull Function<FilterConstraint, FilterConstraint> level
+		) {
+			for (final FilterConstraint negation : NEGATIONS) {
+				assertNegated(query(collection("a"), filterBy(level.apply(negation))), scope(Scope.ARCHIVED));
+			}
+		}
+
+		/** A negated container starting an entity level of its own negates the container, not its scope. */
+		@Test
+		@DisplayName("Accept a scope of an entity level the negation encloses")
+		void shouldAcceptScopeWhenNegatedContainerStartsOwnEntityLevel() {
+			for (final FilterConstraint filter : List.of(
+				not(entityHaving(scope(Scope.ARCHIVED))),
+				not(groupHaving(and(scope(Scope.ARCHIVED), attributeEquals("y", 1)))),
+				not(referenceHaving("r", entityHaving(and(scope(Scope.ARCHIVED), attributeEquals("y", 1))))),
+				not(facetHaving("r", groupHaving(scope(Scope.ARCHIVED)))),
+				not(hierarchyWithin("r", referenceHaving("s", entityHaving(scope(Scope.ARCHIVED)))))
+			)) {
+				assertDoesNotThrow(
+					() -> QueryUtils.assertNoNegatedScope(query(collection("a"), filterBy(filter))),
+					filter::toString
+				);
+			}
+		}
+
+		/** A scope beside a negation and a negation without a scope are what the check must let through. */
+		@Test
+		@DisplayName("Accept a scope beside not and a not without a scope")
+		void shouldAcceptScopeWhenBesideNegation() {
+			assertDoesNotThrow(() -> QueryUtils.assertNoNegatedScope(query(
+				collection("a"), filterBy(scope(Scope.ARCHIVED), not(attributeEquals("y", 1)))
+			)));
+			assertDoesNotThrow(() -> QueryUtils.assertNoNegatedScope(query(
+				collection("a"),
+				orderBy(segments(segment(
+					entityHaving(and(scope(Scope.ARCHIVED), not(attributeEquals("y", 1)))),
+					orderBy(attributeNatural("y"))
+				)))
+			)));
+			assertDoesNotThrow(() -> QueryUtils.assertNoNegatedScope(query(collection("a"))));
+		}
+
+		/** The lookup of the scope of the query fails on two scopes, which the check needs no lookup to refuse. */
+		@Test
+		@DisplayName("Refuse a negated scope beside another scope of the same level")
+		void shouldRefuseScopeWhenNegatedBesideAnotherScope() {
+			final Query query = query(
+				collection("a"), filterBy(scope(Scope.LIVE, Scope.ARCHIVED), not(scope(Scope.ARCHIVED)))
+			);
+
+			assertNegated(query, scope(Scope.ARCHIVED));
+			assertNegated(
+				query(
+					collection("a"),
+					filterBy(entityHaving(and(
+						scope(Scope.LIVE, Scope.ARCHIVED), not(scope(Scope.ARCHIVED)), LIVE_X
+					)))
+				),
+				scope(Scope.ARCHIVED)
+			);
+		}
+
+		/**
+		 * A negated scope a container would not apply at all gets the diagnostic naming the container, the same in the
+		 * order section, which only this walk reaches, as in the filter section.
+		 */
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("io.evitadb.api.query.QueryUtilsTest#scopeRefusingContainers")
+		@DisplayName("Refuse a negated scope a container would not apply as having no effect")
+		void shouldRefuseScopeAsInertWhenNegatedInContainerNotApplyingIt(
+			@Nonnull String container, @Nonnull Function<FilterConstraint, FilterConstraint> level
+		) {
+			final FilterBy filter = filterBy(not(level.apply(not(scope(Scope.LIVE)))));
+			final String inert = "Constraint `scope(LIVE)` has no effect in `" + container + "` - it selects scopes " +
+				"only in the root of a filter and in `entityHaving` or `groupHaving`, so it must be placed there or " +
+				"removed.";
+
+			for (final Query query : List.of(
+				query(collection("a"), filter),
+				query(
+					collection("a"),
+					orderBy(segments(segment(
+						entityHaving(level.apply(not(scope(Scope.LIVE)))), orderBy(attributeNatural("y"))
+					)))
+				)
+			)) {
+				final EvitaInvalidUsageException error = assertThrowsExactly(
+					EvitaInvalidUsageException.class, () -> QueryUtils.assertNoNegatedScope(query), query::toString
+				);
+				assertEquals(inert, error.getMessage());
+			}
+			final EvitaInvalidUsageException error = assertThrowsExactly(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertFilterScopesApplicable(filter, Set.of(Scope.values()))
+			);
+			assertEquals(inert, error.getMessage());
+		}
+
+		/** Every filter nested in the order and the require section is checked, at any depth. */
+		@Test
+		@DisplayName("Refuse a scope below not in a filter of the order or the require section")
+		void shouldRefuseScopeWhenNegatedInNestedFilter() {
+			final FilterConstraint negation = not(scope(Scope.ARCHIVED));
+			for (final Query query : List.of(
+				query(
+					collection("a"),
+					orderBy(segments(
+						segment(orderBy(attributeNatural("y"))),
+						segment(entityHaving(negation), orderBy(attributeNatural("y")))
+					))
+				),
+				query(collection("a"), require(entityFetch(referenceContent("r", filterBy(negation))))),
+				query(
+					collection("a"),
+					require(entityFetch(referenceContent(
+						"r", entityFetch(referenceContent("s", filterBy(entityHaving(negation))))
+					)))
+				),
+				query(collection("a"), require(entityFetch(hierarchyContent(stopAt(node(filterBy(negation))))))),
+				query(
+					collection("a"),
+					require(facetSummaryOfReference("r", FacetStatisticsDepth.COUNTS, filterBy(negation)))
+				),
+				query(
+					collection("a"),
+					require(facetSummaryOfReference(
+						"r", FacetStatisticsDepth.COUNTS, filterBy(attributeEquals("y", 1)), filterGroupBy(negation)
+					))
+				),
+				query(
+					collection("a"),
+					require(referenceSummaryOfReference("r", FacetStatisticsDepth.COUNTS, filterBy(negation)))
+				),
+				query(
+					collection("a"),
+					require(referenceSummaryOfReference(
+						"r", FacetStatisticsDepth.COUNTS, filterBy(attributeEquals("y", 1)), filterGroupBy(negation)
+					))
+				),
+				query(collection("a"), require(facetGroupsConjunction("r", filterBy(negation))))
+			)) {
+				assertNegated(query, scope(Scope.ARCHIVED));
+			}
+		}
+
+		/** Pins the public exception and the diagnostic naming the negated scope. */
+		private void assertNegated(@Nonnull Query query, @Nonnull EntityScope negatedScope) {
+			final EvitaInvalidUsageException error = assertThrowsExactly(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertNoNegatedScope(query),
+				query::toString
+			);
+			assertEquals(
+				"Constraint `" + negatedScope + "` cannot be negated in `not` - it selects the scopes to search in, " +
+					"it does not filter entities. Name the scopes you want in `scope(...)` instead.",
+				error.getMessage()
+			);
+		}
+	}
+
 	/**
 	 * Supplies every container that separates an entity level without reading a `scope(...)` of its own, each wrapping
 	 * the passed constraint as its child.
@@ -752,7 +930,6 @@ class QueryUtilsTest {
 				"or below the root",
 				(Function<FilterConstraint, FilterConstraint>) it -> or(it, attributeEquals("y", 1))
 			),
-			Arguments.of("not below the root", (Function<FilterConstraint, FilterConstraint>) it -> not(it)),
 			Arguments.of("entityHaving", (Function<FilterConstraint, FilterConstraint>) it -> entityHaving(it)),
 			Arguments.of("groupHaving", (Function<FilterConstraint, FilterConstraint>) it -> groupHaving(it)),
 			Arguments.of(

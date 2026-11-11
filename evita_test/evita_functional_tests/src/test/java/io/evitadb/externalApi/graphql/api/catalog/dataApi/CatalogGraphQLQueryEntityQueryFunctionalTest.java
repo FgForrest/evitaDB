@@ -619,6 +619,36 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	@Test
 	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should refuse a scope negated in not as a client mistake")
+	void shouldRefuseScopeWhenNegated(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+					query {
+						queryProduct(filterBy: {not: {scope: LIVE}}) {
+							recordStrip(limit: 1) {
+								data {
+									primaryKey
+								}
+							}
+						}
+					}
+					"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, hasSize(1))
+			.body(
+				ERRORS_PATH + "[0].message",
+				equalTo(
+					"Constraint `scope(LIVE)` cannot be negated in `not` - it selects the scopes to search in, it " +
+						"does not filter entities. Name the scopes you want in `scope(...)` instead."
+				)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
 	@DisplayName("Should return both live and archived entities explicitly")
 	void shouldReturnBothLiveAndArchivedEntitiesExplicitly(Evita evita, GraphQLTester tester) {
 		final List<SealedEntity> liveEntities = getEntities(

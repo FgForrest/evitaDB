@@ -1,11 +1,11 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-11 01:22
+updated: 2026-11-11 01:24
 status: accepted
 kind: fix
-issues: [1880, 1883, 1915]
-prs: [1884, 1913]
+issues: [1880, 1883, 1897, 1915]
+prs: [1884, 1913, 1914]
 areas:
   - evita_api/src/main/java/io/evitadb/api/requestResponse
   - evita_query/src/main/java/io/evitadb/api/query
@@ -231,9 +231,9 @@ every `or`, `not` and `inScope`, as #1883 had done for the entity level.
 #### Option O — refuse an `or` or `not` of scoped containers (declined)
 
 - **Pros:** one scope per level, nothing to unite.
-- **Rejected because:** since #1917 a `scope` inside an `entityHaving` or `groupHaving` below `or` is valid and selects
-  the scope of that container alone. The row filter answers such a filter, and refusing it for the bodies would refuse
-  a correct query.
+- **Rejected because:** a `scope` inside an `entityHaving` or `groupHaving` below `or` is valid and selects the scope
+  of that container alone - #1917, which refuses a `scope` directly below `or`, keeps it so. The row filter answers
+  such a filter, and refusing it for the bodies would refuse a correct query.
 
 #### Option P — follow the scope inside a reference-level `inScope` (declined)
 
@@ -283,6 +283,14 @@ and the verdict on a filter below the bodies no longer depends on the rows. Two 
   `EntityCollection#assertScopeUsageValid` run it on the filter section and on every filter of the require section - of
   a `referenceContent`, a hierarchy `node`, a facet summary - at any depth, before anything of the request runs. A new
   client-facing entry point has to call it.
+- **The one exception, #1897:** a `scope(...)` below `not` is refused by `QueryUtils#assertNoNegatedScope`, a walk of
+  the same filters and of the `entityHaving` of a `segment`, which needs no scopes. Both entry points run it **before**
+  they resolve the requested scopes, because the resolution (`EvitaRequest#getScopes`, and the lookups of a level's
+  own scope inside the walk above) reads a scope through the negation as a positive one, and fails on two of them with
+  a `MoreThanSingleResultException` that names neither. A new entry point calls it before `getRequestedScopes()`. A
+  negated scope a container would not apply at all gets the "has no effect" diagnostic of the walk above, which names
+  the more fundamental mistake. The negation walk raises it itself, because the walk above does not reach the order
+  section, where `segment(entityHaving(referenceHaving("r", not(scope(LIVE)))))` would otherwise reach `NotTranslator`.
 - Only `entityHaving` and `groupHaving` read their own `scope(...)`, in `HavingTranslatorHelper#planNestedQuery`. Below
   any other separate container the walk refuses it. A level without its own scope inherits what encloses it.
 - `HavingTranslatorHelper#planNestedQuery` runs the walk again before `computeOnlyOnce`, because that memo reuses the
@@ -372,6 +380,22 @@ and the verdict on a filter below the bodies no longer depends on the rows. Two 
   a `SessionProtocolNegotiationException` in a class this change does not touch. The class passes alone, 13 of 13.
 - **Whole reactor.** A clean `test-compile` under `-P unitAndFunctional,full` built the documentation and long-running
   test modules, and the performance test module compiled online. The javadoc build reports no error.
+- **#1897, the negated scope.** `NegatedScopeFunctionalTest` (24 tests) runs every filter of the issue on its fixture,
+  the `facetGroups*` and facet summary group filters, a fetch by `getEntity` and two `segment` filters, and pins the
+  unchanged answers (`[4]`, `[20]`, `[3]`); `QueryUtilsTest$NegatedScopes` (25) covers the walk, and
+  `CatalogGraphQLQueryEntityQueryFunctionalTest#shouldRefuseScopeWhenNegated` the GraphQL API. Before the fix, 18 of
+  the then 22 functional tests failed: twelve internal errors, two `MoreThanSingleResultException`s, three silent
+  results, and the message of the row filter compiler for a `referenceContent` filter.
+  With the refusal disabled, 31 tests failed across `NegatedScopeFunctionalTest`, `QueryUtilsTest` and
+  `ReferenceContentRowFilterFunctionalTest`, and the GraphQL test got the old internal error. With the walk run after
+  the scopes are resolved, exactly the 7 tests naming two scopes failed with a `MoreThanSingleResultException`. The
+  `segment` test failed with the internal error before the walk covered the order section. An adversarial review
+  found the negated scope of a `referenceHaving` inside a `segment` still reaching it, because the walk left such a
+  scope to the check of the filter section; `$OrderSection#shouldRefuseScopeAsInertWhenNegatedInSegmentReferenceFilter`
+  failed with the internal error until the walk raised the diagnostic itself. Full suite on the final code, 15:28 min:
+  33,305 tests with 0 failures and 71 skipped; 183 release upgrade tests errored on fixtures the run skipped
+  (`-DreleaseFixtures.skip=true`), every one with "Fixture ... is not on the class path", and their 9 classes then
+  passed in a run that generated the fixtures, 217 tests with 0 failures.
 - **#1883, the scope of fetched bodies.** `NestedInScopeFilterFunctionalTest$FetchedBodyScopes` runs the query of the
   issue for an owner with rows and one without, through a query and `getEntity`, the false refusal of a filter
   filterable in the scope of the bodies alone, and a query admitting the scope of the bodies it does not request;
@@ -429,6 +453,7 @@ and the verdict on a filter below the bodies no longer depends on the rows. Two 
   (`$GroupBodyScopes#shouldRefusePlannedLocalizedBodyAttributesWhenFetchLocaleIsMissing`,
   `#shouldKeepDirectFetchParityWhenNeitherShapeSuppliesBodyLocale`). The price criteria of the bodies are read from
   the code only: the data set has no prices.
+
 ## Consequences & open follow-ups
 
 - **Visible to clients, both ways.** A query over both scopes with a nested `inScope` now works where it failed. `or`
@@ -484,11 +509,20 @@ and the verdict on a filter below the bodies no longer depends on the rows. Two 
     returns null without a verdict.
   - `referenceContent` takes a root `scope(...)` only as a direct child of its `filterBy`. Below `and` the check accepts
     it and the row filter compiler refuses it, on a write path after the write.
-  - `segment(entityHaving(...))` unwraps the container and translates its children in the enclosing context, and the
-    order section is not walked, so a `scope(...)` there has no effect and is not refused.
+  - `segment(entityHaving(...))` unwraps the container and translates its children in the enclosing context, and
+    `assertFilterScopesApplicable` does not walk the order section, so a `scope(...)` there has no effect and is not
+    refused. A negated one is refused since #1897 by `assertNoNegatedScope`, which does walk it - it used to end in the
+    internal error of `NotTranslator`.
   - A facet summary filter over the queried entity type itself is planned in the enclosing context, so its own
     `scope(...)` does not narrow what an `inScope` of that filter may name
     (`FilteringFormulaPredicate#createTargetQueryContext`). The searched scopes follow the `scope(...)` of the filter.
+- **Breaking, #1897.** A `scope(...)` below `not`, at any depth of its entity level, is refused. It used to end in a
+  `GenericEvitaInternalError` from `NotTranslator`, or, beside a sibling, to be applied as if it stood outside the
+  `not` - `not(and(scope(ARCHIVED), code=a))` returned archived items. Giving it a meaning (the complement of the named
+  scopes) was declined: a query's scopes would then depend on a negation, and naming the scopes says the same.
+- **Open, left by #1897.** `or(scope(ARCHIVED), code=a)` applies the scope to the whole filter, not to its branch. The
+  GraphQL API wraps sibling constraints in `and`, so `scope` must stay legal in `and`; `or` has no such need, and
+  whether to refuse it there was not decided.
 - **Backport: none, by the project owner's decision.** The `ClassCastException` stays on `release_2026-2`, where it
   depends on the data. The refusal never shipped, because that branch has no residual check.
 
@@ -511,6 +545,7 @@ and the verdict on a filter below the bodies no longer depends on the rows. Two 
   and the refusal of an inert `scope` added after a second review, every filter of the require section after a third;
   #1883 split off; PR #1884 opened.
 - **2026-11-05** — PR #1884 merged.
+- **2026-11-10** — #1897: a `scope(...)` below `not` refused before the scopes are resolved; PR #1914 opened.
 - **2026-11-10** — #1883 fixed: the scope of fetched bodies resolved by one rule in the pre-flight, the planning check
   and the fetch. The red run found a false refusal of a correct query the issue had not expected.
 - **2026-11-10** — #1915 split off the review of #1883 and folded into PR #1913. The first fix (Option M) measured
