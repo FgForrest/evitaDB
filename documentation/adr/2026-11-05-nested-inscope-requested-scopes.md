@@ -1,7 +1,7 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-10 23:37
+updated: 2026-11-11 18:28
 status: accepted
 kind: fix
 issues: [1880, 1897, 1917]
@@ -147,6 +147,19 @@ This was the first implementation of this fix, and it passed its tests.
 - **Rejected because:** the project owner chose an error over a silent no-op, as the row filter of `referenceContent`
   already does below its root. It would be worth revisiting for a container that starts reading its own scope.
 
+### Option I — declare the placement rule in the constraint descriptors (declined)
+
+- **Pros:** `UserFilter` already refuses a list of children in its constructor (`FORBIDDEN_CHILDREN`), and its
+  `@Child(forbidden = ...)` reaches the GraphQL and REST schemas, so `userFilter(scope(...))` would be refused as soon
+  as the query is built.
+- **Cons:** the constructor sees only direct children, so `userFilter(and(scope(...)))` would pass, and no descriptor
+  can say "once per level" or tell an `or` of one child from an `or` of several. The walk is needed anyway.
+- **Rejected because:** the constructor also runs when a stored query is read back - `UserFilterSerializer` and the
+  EvitaQL parser build `UserFilter` through it - so a recorded query holding the shape could no longer be read, and
+  the generated GraphQL and REST schemas would change. The rule is checked on the finished tree at the entry points,
+  as the refusal below `not` of #1897 is. Worth revisiting only if stored queries stop being read back through the
+  constructors.
+
 ## Decision
 
 **Chosen: Option A, with the checks Options G and H decline to do without.** Option A is the only option under which a
@@ -180,6 +193,12 @@ scope, and the composer of the query has to leave the container out.
   one scope remain valid and retain their requested order. For one scope's ancestors, inertness wins over `not`,
   multi-child `or`, then the nearest other forbidden ancestor. Every `SeparateEntityScopeContainer` starts a fresh
   level; its entire sibling body is checked together and contributes no scope to its parent.
+- **Two passes, not one:** a single walk that throws at the second scope of a level stops before a misplaced scope
+  later in the tree, so `filterBy(scope(LIVE), scope(ARCHIVED), not(scope(LIVE)))` would report the duplicate
+  instead of the `not`.
+- **Why `and` stays allowed:** GraphQL and REST turn each object in a list of constraints into an implicit `and`
+  (`ConstraintResolver#resolveWrapperContainer`; the wrapper is `And` in the `FilterConstraintResolver` of both APIs),
+  so a scope written beside other constraints in such an object reaches the engine inside `and`.
 - Only `entityHaving` and `groupHaving` read their own `scope(...)`, in `HavingTranslatorHelper#planNestedQuery`. Below
   any other separate container the walk refuses it. A level without its own scope inherits what encloses it.
 - `HavingTranslatorHelper#planNestedQuery` runs the walk again before `computeOnlyOnce`, because that memo reuses the
@@ -351,10 +370,12 @@ scope, and the composer of the query has to leave the container out.
   and the refusal of an inert `scope` added after a second review, every filter of the require section after a third;
   #1883 split off; PR #1884 opened.
 - **2026-11-05** — PR #1884 merged.
-- **2026-11-10** — #1897: a `scope(...)` below `not` refused before the scopes are resolved; PR #1914 opened.
+- **2026-11-10** — #1897: a `scope(...)` below `not` refused before the scopes are resolved; PR #1914 opened and
+  merged.
 - **2026-11-10** — #1917: a `scope(...)` below `or` refused before scope lookup, with inert scope usage and
   negation retaining diagnostic precedence; entity levels enclosed by `or` keep their own scopes. PR #1919 opened.
 - **2026-11-10** — #1917 extended within PR #1919 to the scope allow-list and per-level uniqueness after design
   review and placement probes. `userFilter` refusal accepted as a breaking change; reference row compilation made
   transparent through root conjunctions and single-child disjunctions. Placement across all sections precedes
   duplicate detection. Hierarchy-node and segment root-scope exceptions and the internal evaluator caveat recorded.
+- **2026-11-11** — PR #1919 merged.
