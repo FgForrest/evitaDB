@@ -631,22 +631,30 @@ class ReferenceHistogramNetChangeFunctionalTest implements EvitaTestSupport {
 			List.of(live(HISTOGRAM_SHARE, ANCHORS_ONLY), live(HISTOGRAM_SECOND_SHARE, ANCHORS_ONLY))
 		));
 		// a new reference gets its share explicitly and its weight from the default value, in a later phase
-		scenarios.add(new Scenario(
-			"TWO_HISTOGRAMS_ONE_SOURCE_DEFAULTED",
-			Fixture.ungrouped(
-				histogramsOf(HISTOGRAM_SHARE, SHARE_VALUE, HISTOGRAM_WEIGHT, WEIGHT_VALUE), null, 5
-			),
-			builder -> {
-			},
-			List.of(live(HISTOGRAM_SHARE, ANCHORS_ONLY), live(HISTOGRAM_WEIGHT, ANCHORS_ONLY)),
-			upsertOf(new InsertReferenceMutation(brand(BRAND_PK)), referenceAttribute(BRAND_PK, ATTRIBUTE_SHARE, 1)),
-			List.of(
-				live(HISTOGRAM_SHARE, range(1, SECOND_ANCHOR_VALUE)),
-				live(HISTOGRAM_WEIGHT, range(5, SECOND_ANCHOR_VALUE))
-			),
-			upsertOf(referenceAttribute(BRAND_PK, ATTRIBUTE_SHARE, INSIDE_ANCHOR_RANGE)),
-			List.of(live(HISTOGRAM_SHARE, ANCHORS_ONLY))
-		));
+		for (final boolean scopeFirst : new boolean[]{false, true}) {
+			final Scope scope = scopeFirst ? Scope.ARCHIVED : Scope.LIVE;
+			final LocalMutation<?, ?>[] insertion = precededByArchiving(
+				scopeFirst,
+				new InsertReferenceMutation(brand(BRAND_PK)),
+				referenceAttribute(BRAND_PK, ATTRIBUTE_SHARE, 1)
+			);
+			scenarios.add(new Scenario(
+				"TWO_HISTOGRAMS_ONE_SOURCE_DEFAULTED" + (scopeFirst ? "_AFTER_SCOPE_CHANGE" : ""),
+				Fixture.ungrouped(
+					histogramsOf(HISTOGRAM_SHARE, SHARE_VALUE, HISTOGRAM_WEIGHT, WEIGHT_VALUE), null, 5
+				),
+				builder -> {
+				},
+				List.of(live(HISTOGRAM_SHARE, ANCHORS_ONLY), live(HISTOGRAM_WEIGHT, ANCHORS_ONLY)),
+				upsertOf(insertion),
+				List.of(
+					ungrouped(scope, HISTOGRAM_SHARE, range(1, SECOND_ANCHOR_VALUE)),
+					ungrouped(scope, HISTOGRAM_WEIGHT, range(5, SECOND_ANCHOR_VALUE))
+				),
+				upsertOf(referenceAttribute(BRAND_PK, ATTRIBUTE_SHARE, INSIDE_ANCHOR_RANGE)),
+				List.of(ungrouped(scope, HISTOGRAM_SHARE, ANCHORS_ONLY))
+			));
+		}
 	}
 
 	/**
@@ -1038,6 +1046,27 @@ class ReferenceHistogramNetChangeFunctionalTest implements EvitaTestSupport {
 			cleanupTestPaths(paths);
 		}
 		assertAll(checks);
+	}
+
+	/**
+	 * Returns `mutations`, preceded by a move of the product to the archive when `scopeFirst` is TRUE.
+	 *
+	 * @param scopeFirst TRUE when the move to the archive comes first
+	 * @param mutations  the other local mutations of the upsert
+	 * @return the local mutations of the upsert, in the order they are applied
+	 */
+	@Nonnull
+	private static LocalMutation<?, ?>[] precededByArchiving(
+		boolean scopeFirst,
+		@Nonnull LocalMutation<?, ?>... mutations
+	) {
+		if (!scopeFirst) {
+			return mutations;
+		}
+		final LocalMutation<?, ?>[] result = new LocalMutation<?, ?>[mutations.length + 1];
+		result[0] = new SetEntityScopeMutation(Scope.ARCHIVED);
+		System.arraycopy(mutations, 0, result, 1, mutations.length);
+		return result;
 	}
 
 	/**
