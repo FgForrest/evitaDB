@@ -152,8 +152,14 @@ public class NumberUtils {
 	}
 
 	/**
-	 * Converts {@link BigDecimal} to {@link int} scaling it to the accepted decimal places. Precision loss is verified
-	 * during conversion process.
+	 * Converts {@link BigDecimal} to {@link int} scaling it to the accepted decimal places. Digits beyond the accepted
+	 * decimal places are rounded half up (see {@link #scaleToInteger(BigDecimal, int)}), never refused; only a scaled
+	 * number outside the `int` range fails the conversion.
+	 *
+	 * @param number              the number to convert
+	 * @param acceptDecimalPlaces the number of decimal places kept, the rest is rounded half up
+	 * @return the number scaled to the accepted decimal places as an `int`
+	 * @throws ArithmeticException when the scaled number does not fit the `int` range
 	 */
 	public static int convertToInt(@Nonnull BigDecimal number, int acceptDecimalPlaces) {
 		try {
