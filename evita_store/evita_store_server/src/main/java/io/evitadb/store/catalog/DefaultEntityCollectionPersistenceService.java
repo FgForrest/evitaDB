@@ -24,17 +24,12 @@
 package io.evitadb.store.catalog;
 
 import com.esotericsoftware.kryo.Kryo;
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.EntityMissingException;
-import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
-import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
-import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.References.ChunkTransformerAccessor;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
@@ -44,13 +39,11 @@ import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializ
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.buffer.DataStoreChanges.RemovedStoragePart;
 import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.CatalogConsumersListener;
-import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.buffer.StorageAccessScope;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
@@ -131,7 +124,6 @@ import java.io.OutputStream;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
@@ -139,7 +131,6 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getEntityCollectionDataStoreFileNamePattern;
 import static io.evitadb.utils.Assert.isPremiseValid;
@@ -161,7 +152,6 @@ public class DefaultEntityCollectionPersistenceService
 	EntityCollectionPersistenceService<PersistentStorageDescriptor, EntityCollectionFileHeader>,
 	CatalogConsumersListener
 {
-	public static final byte[][] BYTE_TWO_DIMENSIONAL_ARRAY = new byte[0][];
 	/**
 	 * Buffer size for the {@link BufferedOutputStream} that wraps the raw compaction output file. The snapshot
 	 * copy emits three tiny writes per record (header, payload, tail); without buffering a multi-million-record
@@ -792,32 +782,6 @@ public class DefaultEntityCollectionPersistenceService
 			);
 	}
 
-	@Nullable
-	@Override
-	public BinaryEntityWithFetchCount readBinaryEntity(
-		long catalogVersion,
-		int entityPrimaryKey,
-		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull EntitySchema entitySchema,
-		@Nonnull EvitaSessionContract session,
-		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreReader dataStoreReader
-	) {
-		// fetch the main entity container
-		final byte[] entityStorageContainer = dataStoreReader.fetchBinary(
-			catalogVersion, entityPrimaryKey, EntityBodyStoragePart.class
-		);
-		if (entityStorageContainer == null) {
-			// return null if not found
-			return null;
-		} else {
-			return toBinaryEntity(
-				catalogVersion, entityStorageContainer, evitaRequest, entitySchema,
-				session, entityCollectionFetcher, dataStoreReader
-			);
-		}
-	}
-
 	@Nonnull
 	@Override
 	public EntityWithFetchCount enrichEntity(
@@ -955,21 +919,6 @@ public class DefaultEntityCollectionPersistenceService
 		return dataStoreReader.countStorageParts(
 			catalogVersion, EntityBodyStoragePart.class
 		) == 0;
-	}
-
-	@Nonnull
-	@Override
-	public BinaryEntityWithFetchCount enrichEntity(
-		long catalogVersion,
-		@Nonnull EntitySchema entitySchema,
-		@Nonnull BinaryEntity entity,
-		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull DataStoreReader dataStoreReader
-	) throws EntityAlreadyRemovedException {
-		/* TOBEDONE https://github.com/FgForrest/evitaDB/issues/13 */
-		return new BinaryEntityWithFetchCount(
-			entity, 0, 0
-		);
 	}
 
 	@Nonnull
@@ -1410,158 +1359,6 @@ public class DefaultEntityCollectionPersistenceService
 	}
 
 	/**
-	 * Converts the given entity and its associated data, attributes, prices, and references into a BinaryEntity object.
-	 *
-	 * @param entityStorageContainer  The entity storage container.
-	 * @param evitaRequest            The Evita request.
-	 * @param session                 The Evita session.
-	 * @param entityCollectionFetcher The function used to fetch entity collections.
-	 * @param dataStoreReader         The buffer for storing the storage containers.
-	 * @return The BinaryEntity object representing the converted entity.
-	 */
-	@Nonnull
-	private BinaryEntityWithFetchCount toBinaryEntity(
-		long catalogVersion,
-		@Nonnull byte[] entityStorageContainer,
-		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull EntitySchema entitySchema,
-		@Nonnull EvitaSessionContract session,
-		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreReader dataStoreReader
-	) {
-		final IoFetchStatistics ioFetchStatistics = new IoFetchStatistics();
-		// the caller read the body before it could know whose it was, and this is the first point that does - an
-		// entity asking for nothing else is made of that read alone, and would otherwise report costing nothing
-		ioFetchStatistics.record(entityStorageContainer);
-		final EntityBodyStoragePart deserializedEntityBody = this.storagePartPersistenceService.deserializeStoragePart(
-			entityStorageContainer, EntityBodyStoragePart.class
-		);
-
-		final int entityPrimaryKey = deserializedEntityBody.getPrimaryKey();
-		// load additional containers only when requested
-		final byte[] priceStorageContainer = fetchPrices(
-			null, new PriceContractSerializablePredicate(evitaRequest, (Boolean) null),
-			() -> ioFetchStatistics.record(
-				dataStoreReader.fetchBinary(
-					catalogVersion, entityPrimaryKey, PricesStoragePart.class
-				)
-			)
-		);
-
-		final List<byte[]> attributesStorageContainers = fetchAttributes(
-			entityPrimaryKey, null, new AttributeValueSerializablePredicate(evitaRequest),
-			deserializedEntityBody.getAttributeLocales(),
-			attributesSetKey -> ioFetchStatistics.record(
-				dataStoreReader.fetchBinary(
-					catalogVersion,
-					attributesSetKey,
-					AttributesStoragePart.class,
-					AttributesStoragePart::computeUniquePartId
-				)
-			)
-		);
-		final List<byte[]> associatedDataStorageContainers = fetchAssociatedData(
-			entityPrimaryKey, null, new AssociatedDataValueSerializablePredicate(evitaRequest),
-			deserializedEntityBody.getAssociatedDataKeys(),
-			associatedDataKey -> ioFetchStatistics.record(dataStoreReader.fetchBinary(
-					catalogVersion,
-					associatedDataKey,
-					AssociatedDataStoragePart.class,
-					AssociatedDataStoragePart::computeUniquePartId
-				)
-			)
-		);
-
-		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
-		final AtomicReference<ReferencesStoragePart> referencesStoragePartRef = new AtomicReference<>();
-		// The container is re-serialized verbatim into the binary entity handed to the client, so it must carry
-		// every reference the entity has. The unrestricted coverage is BOUND here rather than assumed: it lives in
-		// a thread local that a read further up the stack may still own, and inheriting one would hand the client
-		// a silently incomplete entity - or, since both consumers below refuse a narrowed part, fail the request.
-		byte[] referencesStorageContainer = null;
-		if (shouldFetchReferences(null, new ReferenceContractSerializablePredicate(evitaRequest))) {
-			referencesStorageContainer = ReferenceDecodeCoverageContext.executeWithCoverage(
-				null,
-				() -> {
-					if (referenceEntityFetch.isEmpty()) {
-						return ioFetchStatistics.record(
-							dataStoreReader.fetchBinary(
-								catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
-							)
-						);
-					} else {
-						final ReferencesStoragePart fetchedPart = ioFetchStatistics.record(
-							dataStoreReader.fetch(
-								catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
-							)
-						);
-						if (fetchedPart != null) {
-							referencesStoragePartRef.set(fetchedPart);
-							return this.storagePartPersistenceService.serializeStoragePart(fetchedPart);
-						}
-						return null;
-					}
-				}
-			);
-		}
-
-		final BinaryEntity[] referencedEntities = referencesStoragePartRef.get() == null ?
-			new BinaryEntity[0] :
-			referenceEntityFetch
-				.entrySet()
-				.stream()
-				.flatMap(entry -> {
-					final String referenceName = entry.getKey();
-					final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
-					final RequirementContext requirementTuple = entry.getValue();
-					final EntityFetch entityFetch = referenceSchema.isReferencedEntityTypeManaged() ?
-						requirementTuple.entityFetch() : null;
-					final EntityGroupFetch entityGroupFetch = referenceSchema.isReferencedGroupTypeManaged() && referenceSchema.getReferencedGroupType() != null ?
-						requirementTuple.entityGroupFetch() : null;
-					return Stream.concat(
-						ofNullable(entityFetch)
-							.map(
-								requirement -> Arrays.stream(referencesStoragePartRef.get().getDistinctReferencedIds(referenceName))
-									.mapToObj(
-										it -> entityCollectionFetcher.apply(referenceSchema.getReferencedEntityType())
-											.fetchBinaryEntity(it, evitaRequest.deriveCopyWith(referenceSchema.getReferencedEntityType(), entityFetch), session)
-											.orElse(null)
-									)
-							)
-							.orElse(Stream.empty()),
-						ofNullable(entityGroupFetch)
-							.map(
-								requirement -> Arrays.stream(referencesStoragePartRef.get().getDistinctReferencedGroupIds(referenceName))
-									.mapToObj(
-										it -> entityCollectionFetcher.apply(referenceSchema.getReferencedGroupType())
-											.fetchBinaryEntity(it, evitaRequest.deriveCopyWith(referenceSchema.getReferencedGroupType(), entityGroupFetch), session)
-											.orElse(null)
-									)
-							)
-							.orElse(Stream.empty())
-					);
-				})
-				.filter(Objects::nonNull)
-				.toArray(BinaryEntity[]::new);
-
-		// and build the entity
-		return new BinaryEntityWithFetchCount(
-			new BinaryEntity(
-				entitySchema,
-				entityPrimaryKey,
-				entityStorageContainer,
-				attributesStorageContainers.toArray(BYTE_TWO_DIMENSIONAL_ARRAY),
-				associatedDataStorageContainers.toArray(BYTE_TWO_DIMENSIONAL_ARRAY),
-				priceStorageContainer,
-				referencesStorageContainer,
-				referencedEntities
-			),
-			ioFetchStatistics.getIoFetchCount(),
-			ioFetchStatistics.getIoFetchedBytes()
-		);
-	}
-
-	/**
 	 * Collects the information about fetched data.
 	 */
 	@Getter
@@ -1576,9 +1373,8 @@ public class DefaultEntityCollectionPersistenceService
 		 */
 		private final List<ReadRecord> readRecords = new ArrayList<>(8);
 		/**
-		 * Source of keys for reads that carry none of their own. Binary reads hand back raw bytes rather than a
-		 * keyed storage part, so nothing identifies them; a descending sequence keeps each of them distinct from
-		 * every other record, which is the honest answer - two such reads are two reads.
+		 * Source of keys for storage parts that have not been assigned a key yet. A descending sequence keeps
+		 * each such read distinct from every other record.
 		 */
 		private long unkeyedReadSequence;
 
@@ -1644,29 +1440,6 @@ public class DefaultEntityCollectionPersistenceService
 			StorageAccessScope.noteRecordRead(
 				storagePart, StorageRecord.getOverheadSize() + 8 + storagePart.sizeInBytes().orElse(0)
 			);
-		}
-
-		/**
-		 * Records the I/O fetch with particular size in Bytes, on the same terms as {@link #record(EntityStoragePart)}.
-		 *
-		 * @param storagePart The storage part that was fetched.
-		 */
-		@Nullable
-		public byte[] record(@Nullable byte[] storagePart) {
-			if (storagePart == null) {
-				return null;
-			} else {
-				// we need to count the overhead size of the storage part and serialUUID header along with the storage part itself
-				final int sizeInBytes = StorageRecord.getOverheadSize() + 8 + storagePart.length;
-				StorageAccessScope.noteRecordRead(storagePart, sizeInBytes);
-				this.ioFetchCount++;
-				this.ioFetchedBytes += sizeInBytes;
-				// raw bytes carry no key, so this read de-duplicates against nothing - see #unkeyedReadSequence
-				this.readRecords.add(
-					new ReadRecord(byte[].class, --this.unkeyedReadSequence, sizeInBytes)
-				);
-				return storagePart;
-			}
 		}
 
 	}

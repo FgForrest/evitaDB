@@ -1584,14 +1584,6 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	CommitBehavior getCommitBehavior();
 
 	/**
-	 * Returns true if session is switched to binary format output.
-	 *
-	 * @see io.evitadb.api.SessionTraits.SessionFlags#BINARY
-	 * @see io.evitadb.api.requestResponse.EvitaBinaryEntityResponse
-	 */
-	boolean isBinaryFormat();
-
-	/**
 	 * Returns true if session has dry run flag that means that no updates will be committed whatsoever.
 	 *
 	 * @see io.evitadb.api.SessionTraits.SessionFlags#DRY_RUN

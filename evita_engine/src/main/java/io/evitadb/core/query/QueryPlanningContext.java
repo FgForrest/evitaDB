@@ -211,7 +211,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * The reference is NULL when the query is evaluated outside any session (WAL replay re-evaluating a facet
 	 * expression, for example) or when the passed session is not the internal {@link EvitaSession} implementation.
 	 * Everything that genuinely needs a session degrades gracefully in that case: {@link #analyse(Formula)} skips
-	 * the cache, {@link #isRequiresBinaryForm()} answers false and entity proxy creation throws.
+	 * the cache and entity proxy creation throws.
 	 */
 	@Getter
 	@Nullable private final EvitaSession evitaSession;
@@ -504,8 +504,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 	/**
 	 * Creates a session-optional context for internal index-only evaluation (e.g., facet expression re-evaluation
-	 * during WAL replay where no session is available). The session is nullable — cache analysis and binary format
-	 * checks gracefully degrade when absent. All other query planning features (indexes, schema, formula
+	 * during WAL replay where no session is available). The session is nullable — cache analysis gracefully degrades
+	 * when absent. All other query planning features (indexes, schema, formula
 	 * construction) work normally.
 	 *
 	 * No telemetry is collected by such a context - there is no client to report it to - and no {@link FinishedEvent}
@@ -1884,15 +1884,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		} else {
 			return computer;
 		}
-	}
-
-	/**
-	 * Returns true if session is switched to binary format output.
-	 *
-	 * @see io.evitadb.api.requestResponse.EvitaBinaryEntityResponse
-	 */
-	public boolean isRequiresBinaryForm() {
-		return this.evitaSession != null && this.evitaSession.isBinaryFormat();
 	}
 
 	/**

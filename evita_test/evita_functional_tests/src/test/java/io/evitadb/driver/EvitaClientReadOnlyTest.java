@@ -28,7 +28,6 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
-import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.proxy.mock.CategoryInterface;
 import io.evitadb.api.proxy.mock.ProductInterface;
@@ -112,7 +111,6 @@ import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -1035,43 +1033,6 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 				);
 			}
 		);
-	}
-
-	/**
-	 * Tests that the client can query and retrieve a single sealed entity in binary format.
-	 *
-	 * This test verifies that the client can successfully query for an entity
-	 * using binary session flags and retrieve the entity in binary serialized format.
-	 * Currently disabled as this functionality is not yet implemented.
-	 *
-	 * @param evitaClient the EvitaClient instance injected by the test framework
-	 * @param products map of product entities available for testing
-	 */
-	@Test
-	@DisplayName("query one sealed binary entity")
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	@Disabled("Not working (yet)")
-	void shouldQueryOneSealedBinaryEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
-		final SealedEntity sealedEntity = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.queryOneSealedEntity(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							entityPrimaryKeyInSet(1)
-						),
-						require(
-							entityFetchAll()
-						)
-					)
-				);
-			},
-			SessionFlags.BINARY
-		).orElseThrow();
-
-		assertEquals(Entities.PRODUCT, sealedEntity.getType());
-		assertExactlyEquals(products.get(1), sealedEntity);
 	}
 
 	/**

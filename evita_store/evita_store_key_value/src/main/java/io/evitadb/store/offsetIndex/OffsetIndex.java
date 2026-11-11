@@ -1163,17 +1163,6 @@ public class OffsetIndex {
 	}
 
 	/**
-	 * Method allows to execute custom "(de)serialization" function in the context of current OffsetIndex Kryo read
-	 * instance. The serialization MUST NOT attempt to produce new keys via. {@link KeyCompressor} otherwise the
-	 * exception will be thrown.
-	 */
-	public <T> T executeWithKryo(@Nonnull Function<Kryo, T> logic) {
-		return this.readKryoPool.borrowAndExecute(
-			logic::apply
-		);
-	}
-
-	/**
 	 * Returns record id for passed type of {@link StoragePart}.
 	 */
 	public byte getIdForRecordType(Class<? extends StoragePart> storagePartClass) {

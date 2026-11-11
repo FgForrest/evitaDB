@@ -32,7 +32,6 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
@@ -353,36 +352,6 @@ public class GrpcAssertions {
 					)
 				)
 			);
-		}
-	}
-
-	public static void assertBinaryEntity(@Nonnull BinaryEntity expectedEntity, @Nonnull GrpcBinaryEntity actualEntity) {
-		assertEquals(expectedEntity.getType(), actualEntity.getEntityType());
-		final byte[] entityStoragePart = expectedEntity.getEntityStoragePart();
-		if (entityStoragePart == null) {
-			assertTrue(actualEntity.getEntityStoragePart().isEmpty());
-		} else {
-			assertArrayEquals(entityStoragePart, actualEntity.getEntityStoragePart().toByteArray());
-		}
-		final byte[] priceStoragePart = expectedEntity.getPriceStoragePart();
-		if (priceStoragePart == null) {
-			assertTrue(actualEntity.getPriceStoragePart().isEmpty());
-		} else {
-			assertArrayEquals(priceStoragePart, actualEntity.getPriceStoragePart().toByteArray());
-		}
-		final byte[] referenceStoragePart = expectedEntity.getReferenceStoragePart();
-		if (referenceStoragePart == null) {
-			assertTrue(actualEntity.getReferenceStoragePart().isEmpty());
-		} else {
-			assertArrayEquals(referenceStoragePart, actualEntity.getReferenceStoragePart().toByteArray());
-		}
-		final byte[][] expectedAttributeStorageParts = expectedEntity.getAttributeStorageParts();
-		for (int i = 0; i < expectedAttributeStorageParts.length; i++) {
-			assertArrayEquals(expectedAttributeStorageParts[i], actualEntity.getAttributeStoragePartsList().get(i).toByteArray());
-		}
-		final byte[][] expectedAssociatedDataStorageParts = expectedEntity.getAssociatedDataStorageParts();
-		for (int i = 0; i < expectedAssociatedDataStorageParts.length; i++) {
-			assertArrayEquals(expectedAssociatedDataStorageParts[i], actualEntity.getAssociatedDataStoragePartsList().get(i).toByteArray());
 		}
 	}
 

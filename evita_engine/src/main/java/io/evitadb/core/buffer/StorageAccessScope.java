@@ -215,8 +215,8 @@ public final class StorageAccessScope implements Closeable {
 	 * says so rather than being guessed at: {@link #fetch} parks a record it served from {@link #records its own
 	 * cache}, and the transaction overlay parks one it served from its uncommitted changes
 	 * ({@link #noteRecordServedFromMemory}). Either way the record sits in {@link #recordServedWithoutIo} for
-	 * exactly this call to recognise and skip. Reads that reach neither layer - binary fetches and reads issued
-	 * with no scope bound - went to the storage by construction and are counted as they come.
+	 * exactly this call to recognise and skip. Reads issued with no scope bound went to the storage by
+	 * construction and are counted as they come.
 	 *
 	 * These totals describe what the query cost the storage. They are deliberately **not** the sum of the
 	 * per-entity statistics, which report what each entity would have cost fetched on its own and therefore report

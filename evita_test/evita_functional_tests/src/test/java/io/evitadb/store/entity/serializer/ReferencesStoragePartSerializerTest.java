@@ -541,7 +541,8 @@ class ReferencesStoragePartSerializerTest {
 			final ReferencesStoragePart[] parts = readTwoParts(writeTwoParts(), Set.of(CATEGORY));
 
 			assertArrayEquals(new String[]{CATEGORY, CATEGORY}, referenceNamesOf(parts[0]));
-			assertArrayEquals(new int[]{900, 901}, parts[0].getDistinctReferencedGroupIds(CATEGORY));
+			assertEquals(900, parts[0].getReferences()[0].getGroup().orElseThrow().getPrimaryKeyOrThrowException());
+			assertEquals(901, parts[0].getReferences()[1].getGroup().orElseThrow().getPrimaryKeyOrThrowException());
 			assertEquals("category-code", parts[0].getReferences()[0].getAttribute(ATTRIBUTE_CODE));
 
 			// the second part has no category reference at all - an empty result, not a desynchronized stream
@@ -740,7 +741,6 @@ class ReferencesStoragePartSerializerTest {
 			final ReferencesStoragePart narrowed = readTwoParts(writeTwoParts(), Set.of(PARAMETER))[0];
 
 			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getReferencedIds(BRAND));
-			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getDistinctReferencedIds(CATEGORY));
 			assertThrows(GenericEvitaInternalError.class, () -> narrowed.contains(new ReferenceKey(BRAND, 100)));
 			// whole-part questions cannot be answered from a subset either
 			assertThrows(GenericEvitaInternalError.class, narrowed::isEmpty);
@@ -975,7 +975,6 @@ class ReferencesStoragePartSerializerTest {
 
 			// category 200 was SKIPPED, not found missing - reading the difference as absence is the whole hazard
 			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getReferencedIds(CATEGORY));
-			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getDistinctReferencedIds(CATEGORY));
 			assertThrows(GenericEvitaInternalError.class, () -> narrowed.contains(new ReferenceKey(CATEGORY, 200)));
 			assertThrows(GenericEvitaInternalError.class, narrowed::isEmpty);
 		}
