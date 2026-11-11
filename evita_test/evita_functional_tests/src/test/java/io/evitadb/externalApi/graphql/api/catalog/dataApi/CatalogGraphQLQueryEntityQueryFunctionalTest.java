@@ -647,6 +647,104 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			);
 	}
 
+	/** The GraphQL or list reports a misplaced scope with the same diagnostic as the Java API. */
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should refuse a scope in or as a client mistake")
+	void shouldRefuseScopeWhenInDisjunction(@Nonnull GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+					query {
+						queryProduct(filterBy: {or: [{scope: ARCHIVED}, {attributeCodeEquals: "a"}]}) {
+							recordStrip(limit: 1) {
+								data {
+									primaryKey
+								}
+							}
+						}
+					}
+					"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, hasSize(1))
+			.body(
+				ERRORS_PATH + "[0].message",
+				equalTo(
+					"Constraint `scope(ARCHIVED)` cannot be placed in `or` - it selects the scopes to search in, it " +
+						"does not filter entities. Name the scopes you want in `scope(...)` and put a condition " +
+						"that holds in one scope only in `inScope(...)`."
+				)
+			);
+	}
+
+	/** The GraphQL filter reports a misplaced scope with the same diagnostic as the Java API. */
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should refuse a scope in userFilter as a client mistake")
+	void shouldRefuseScopeWhenInsideUserFilter(@Nonnull GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+					query {
+						queryProduct(filterBy: {userFilter: {scope: ARCHIVED}}) {
+							recordStrip(limit: 1) {
+								data {
+									primaryKey
+								}
+							}
+						}
+					}
+					"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, hasSize(1))
+			.body(
+				ERRORS_PATH + "[0].message",
+				equalTo(
+					"Constraint `scope(ARCHIVED)` cannot be placed in `userFilter` - it selects the scopes its whole " +
+						"entity level is searched in, so it may stand only at the root of the filter of that level " +
+						"or in `and`."
+				)
+			);
+	}
+
+	/** The GraphQL filter reports a misplaced scope with the same diagnostic as the Java API. */
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should refuse a scope in inScope as a client mistake")
+	void shouldRefuseScopeWhenInsideInScope(@Nonnull GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+					query {
+						queryProduct(filterBy: {inScope: {scope: LIVE, filtering: {scope: ARCHIVED}}}) {
+							recordStrip(limit: 1) {
+								data {
+									primaryKey
+								}
+							}
+						}
+					}
+					"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, hasSize(1))
+			.body(
+				ERRORS_PATH + "[0].message",
+				equalTo(
+					"Constraint `scope(ARCHIVED)` cannot be placed in `inScope` - it selects the scopes its whole " +
+						"entity level is searched in, so it may stand only at the root of the filter of that level " +
+						"or in `and`." +
+						" Name the scopes in a `scope(...)` at the root of that level and keep only the conditions " +
+						"in `inScope(...)`."
+				)
+			);
+	}
+
 	@Test
 	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
 	@DisplayName("Should return both live and archived entities explicitly")

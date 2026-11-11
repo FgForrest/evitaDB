@@ -1,11 +1,11 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-10 15:01
+updated: 2026-11-10 23:37
 status: accepted
 kind: fix
-issues: [1880, 1897]
-prs: [1884, 1914]
+issues: [1880, 1897, 1917]
+prs: [1884, 1914, 1919]
 areas:
   - evita_api/src/main/java/io/evitadb/api/requestResponse
   - evita_query/src/main/java/io/evitadb/api/query
@@ -167,18 +167,19 @@ scope, and the composer of the query has to leave the container out.
   which every derived request goes through, changed the locale a top-level `hierarchyWithin` resolved in.
 - `EvitaRequest.ScopeEnforcer`: the root of the copy is always a `FilterBy` holding the enforced scope once. Every
   `inScope` is retained, and so is a `scope(...)` below a `SeparateEntityScopeContainer`, which targets another entity.
-- `QueryUtils#assertFilterScopesApplicable` is the one walk behind every verdict. `QueryPlanner#planQuery` and
+- `QueryUtils#assertFilterScopesApplicable` is the scope-admission walk. `QueryPlanner#planQuery` and
   `EntityCollection#assertScopeUsageValid` run it on the filter section and on every filter of the require section - of
   a `referenceContent`, a hierarchy `node`, a facet summary - at any depth, before anything of the request runs. A new
   client-facing entry point has to call it.
-- **The one exception, #1897:** a `scope(...)` below `not` is refused by `QueryUtils#assertNoNegatedScope`, a walk of
-  the same filters and of the `entityHaving` of a `segment`, which needs no scopes. Both entry points run it **before**
-  they resolve the requested scopes, because the resolution (`EvitaRequest#getScopes`, and the lookups of a level's
-  own scope inside the walk above) reads a scope through the negation as a positive one, and fails on two of them with
-  a `MoreThanSingleResultException` that names neither. A new entry point calls it before `getRequestedScopes()`. A
-  negated scope a container would not apply at all gets the "has no effect" diagnostic of the walk above, which names
-  the more fundamental mistake. The negation walk raises it itself, because the walk above does not reach the order
-  section, where `segment(entityHaving(referenceHaving("r", not(scope(LIVE)))))` would otherwise reach `NotTranslator`.
+- **Scope placement, #1897 and #1917:** `QueryUtils#assertScopePlacementValid` allows one `scope(...)` per entity
+  level, at its filter root or on an `and` chain from it; single-child `or` is transparent. All other wrappers,
+  including `inScope` and `userFilter`, refuse a scope in their own level. Both entry points call it before
+  `getRequestedScopes()`: lookup reads through forbidden wrappers and otherwise fails on duplicate selections with
+  `MoreThanSingleResultException`. The first pass validates placement across filter, order and require sections;
+  only then does the second pass check duplicates per level, including identical selections. Repeated values inside
+  one scope remain valid and retain their requested order. For one scope's ancestors, inertness wins over `not`,
+  multi-child `or`, then the nearest other forbidden ancestor. Every `SeparateEntityScopeContainer` starts a fresh
+  level; its entire sibling body is checked together and contributes no scope to its parent.
 - Only `entityHaving` and `groupHaving` read their own `scope(...)`, in `HavingTranslatorHelper#planNestedQuery`. Below
   any other separate container the walk refuses it. A level without its own scope inherits what encloses it.
 - `HavingTranslatorHelper#planNestedQuery` runs the walk again before `computeOnlyOnce`, because that memo reuses the
@@ -199,9 +200,10 @@ scope, and the composer of the query has to leave the container out.
   `inScope` outside the checked scopes restricts nothing, while its children are not checked in that pass.
 - **Looks like a bug and is not:** `entityHaving(referenceHaving("tags", entityHaving(inScope(LIVE, y=1))))` over both
   scopes matches no archived value through a live tag, because the archived pass searches archived tags only.
-- Performance: no benchmark. The clone allocates as before. The walk runs once per request, per nested plan and per
-  compiled reference filter, never per row, and allocates nothing unless the filter holds an `inScope`. Only queries
-  with a nested foreign `inScope` take a different path.
+- Performance: no benchmark or allocation measurement. The clone allocates as before. The client entry-point
+  placement validator makes two traversals using stack state and constraint references, with no collections or copied
+  trees. The admission walk runs per request, nested plan and compiled reference filter, never per row, and allocates
+  nothing unless the filter holds an `inScope` or fails.
 
 ## Verification
 
@@ -248,6 +250,31 @@ scope, and the composer of the query has to leave the container out.
   (`-DreleaseFixtures.skip=true`), every one with "Fixture ... is not on the class path", and their 9 classes then
   passed in a run that generated the fixtures, 217 tests with 0 failures.
 
+- **#1917, scope placement and uniqueness.** The clean nine-class gate passes 792 tests with no failures, errors
+  or skips: `ScopePlacementFunctionalTest` 23, `ScopeInDisjunctionFunctionalTest` 26, `NegatedScopeFunctionalTest` 23,
+  `QueryUtilsTest` 188, `ReferenceContentRowFilterFunctionalTest` 40, `ReferenceRowFilterCompilerTest` 40,
+  `CatalogGraphQLQueryEntityQueryFunctionalTest` 269, `FilterInScopeTest` 30 and `EvitaRequestTest` 153.
+  The tests were written first and run against unchanged production code: 791 tests, 14 failures and 13 errors.
+  With the placement check removed from `EntityCollection#assertScopeUsageValid` only, exactly the five
+  `getEntity` refusals and the refused `upsertAndFetchEntity` of `ScopePlacementFunctionalTest` failed: the
+  `inScope` and `userFilter` rows met the row compiler's message instead of the pinned placement message, and the
+  two duplicate rows threw nothing. An adversarial review ran a throwaway probe, not kept as a repository test, over
+  every wrapper chain of length one to four that the constructors accept, built from `and`, single-child and
+  multi-child `or`, `not`, `inScope`, `userFilter`, nested `filterBy` / `filterGroupBy`, `entityHaving`, `groupHaving`,
+  `referenceHaving` and `facetHaving`: with ten explicit boundary and duplicate cases, 21,768 checks matched the
+  expected verdict, and the constructors refused 862 other chains before validation. Full suite on the final code
+  with the release fixtures generated, 15:57 min: 33,436 tests with 0 failures, 0 errors and 71 skipped.
+  They exposed accepted `inScope` / `userFilter` selections, the generic duplicate-lookup exception, an unnegated
+  inert order scope, root conjunction compilation failures and an owner still present after a refused write-and-fetch.
+  `QueryUtilsTest$ScopePlacement` checks placement before duplicates across sections, independent sibling levels,
+  identical duplicates and repeated values inside one selection. On owner 60, which references live item 1 and
+  archived item 3 with code a, `filterBy(entityHaving(code=a))` returns `[1]`; a direct root scope over both scopes,
+  root conjunction chains and singleton `or` mixtures return `[1, 3]`. `ScopePlacementFunctionalTest` verifies this
+  difference through `queryList`, `getEntity` and `upsertAndFetchEntity`, and verifies that a refused scope leaves
+  no owner written. The GraphQL tests pin the full `inScope` and `userFilter` diagnostics. The negation and disjunction
+  functional classes are unchanged; the two reference-content `inScope(LIVE, scope(LIVE))` rows now expect the
+  entry-point diagnostic instead of the late row compiler's diagnostic.
+
 ## Consequences & open follow-ups
 
 - **Visible to clients, both ways.** A query over both scopes with a nested `inScope` now works where it failed. `or`
@@ -270,12 +297,18 @@ scope, and the composer of the query has to leave the container out.
     leave an empty collection behind. The entity is not written.
   - The GraphQL selections of an unknown entity build their requirements only for a found entity, so a missing one
     returns null without a verdict.
-  - `referenceContent` takes a root `scope(...)` only as a direct child of its `filterBy`. Below `and` the check accepts
-    it and the row filter compiler refuses it, on a write path after the write.
-  - `segment(entityHaving(...))` unwraps the container and translates its children in the enclosing context, and
-    `assertFilterScopesApplicable` does not walk the order section, so a `scope(...)` there has no effect and is not
-    refused. A negated one is refused since #1897 by `assertNoNegatedScope`, which does walk it - it used to end in the
-    internal error of `NotTranslator`.
+  - **Resolved in #1917:** the row compiler of `referenceContent` flattens the root `and` and single-child `or`
+    path, skips scope selections there and delegates every other node to ordinary compilation. Direct fetch and
+    write-and-fetch now accept the same root path as planning; an accepted conjunction no longer fails after writing.
+  - A hierarchy requirement's `node` filter evaluates against the supplied hierarchy index without extracting its
+    root scope. A root `scope(...)` there is validated for placement and uniqueness but has no effect on the tree.
+  - `segment(entityHaving(...))` unwraps the container and translates its children in the enclosing processing
+    scopes without extracting its root scope. That root selection is validated but has no effect. Placement and
+    uniqueness are still checked throughout order filters, including nested reference/entity levels; an unnegated
+    inert scope in a reference filter there is now refused too.
+  - The engine's conditional-expression evaluator builds its own filter with a root scope and translates the formula
+    directly, bypassing `QueryPlanner`. The client entry-point placement check does not cover this internal evaluator;
+    its expression translator constructs no scope leaves.
   - A facet summary filter over the queried entity type itself is planned in the enclosing context, so its own
     `scope(...)` does not narrow what an `inScope` of that filter may name
     (`FilteringFormulaPredicate#createTargetQueryContext`). The searched scopes follow the `scope(...)` of the filter.
@@ -283,9 +316,22 @@ scope, and the composer of the query has to leave the container out.
   `GenericEvitaInternalError` from `NotTranslator`, or, beside a sibling, to be applied as if it stood outside the
   `not` - `not(and(scope(ARCHIVED), code=a))` returned archived items. Giving it a meaning (the complement of the named
   scopes) was declined: a query's scopes would then depend on a negation, and naming the scopes says the same.
-- **Open, left by #1897.** `or(scope(ARCHIVED), code=a)` applies the scope to the whole filter, not to its branch. The
-  GraphQL API wraps sibling constraints in `and`, so `scope` must stay legal in `and`; `or` has no such need, and
-  whether to refuse it there was not decided.
+- **Breaking, #1917.** One `scope(...)` per entity level, at the root or on an `and` chain, replaces the
+  logical-container block-list. A single-child `or` is transparent on normalized queries and direct fetches alike.
+  Multi-child `or`, `inScope`, `userFilter` and every other wrapper outside the allowed path refuse a scope;
+  inert levels retain their own diagnostic. Separate entity/group levels start their own valid root path.
+  A scope selects the whole level's searched scopes and produces no entity predicate, so reading it through these
+  wrappers silently changes the meaning of the query. Measured on the four-item fixture,
+  `inScope(LIVE, scope(LIVE, ARCHIVED), code=a)` returned `[1, 3, 4]`, and
+  `inScope(ARCHIVED, scope(ARCHIVED), code=a)` returned `[3]`. Name the scopes at the root of that same level and
+  keep conditions in `inScope`.
+  **The `userFilter` refusal intentionally breaks a working use:** `userFilter(scope(ARCHIVED), code=a)` returned
+  `[3]`, as did `scope(ARCHIVED), userFilter(code=a)`. It is refused by the project owner's decision, so that the
+  rule names a single conjunction, `and`; the upgrade is to move the `scope(...)` to the root of the filter.
+  Duplicate constraints, even identical ones, get a structural diagnostic with advice to name all scopes in one
+  ordered selection; previously `scope(LIVE), and(scope(LIVE))` raised `MoreThanSingleResultException`.
+  `referenceContent` accepts the root path too, by flattening `and` and single-child `or` before compiling its row
+  predicates. Scope lookup, `inScope` compilation and target-bound extraction keep their existing meanings.
 - **Backport: none, by the project owner's decision.** The `ClassCastException` stays on `release_2026-2`, where it
   depends on the data. The refusal never shipped, because that branch has no residual check.
 
@@ -306,3 +352,9 @@ scope, and the composer of the query has to leave the container out.
   #1883 split off; PR #1884 opened.
 - **2026-11-05** — PR #1884 merged.
 - **2026-11-10** — #1897: a `scope(...)` below `not` refused before the scopes are resolved; PR #1914 opened.
+- **2026-11-10** — #1917: a `scope(...)` below `or` refused before scope lookup, with inert scope usage and
+  negation retaining diagnostic precedence; entity levels enclosed by `or` keep their own scopes. PR #1919 opened.
+- **2026-11-10** — #1917 extended within PR #1919 to the scope allow-list and per-level uniqueness after design
+  review and placement probes. `userFilter` refusal accepted as a breaking change; reference row compilation made
+  transparent through root conjunctions and single-child disjunctions. Placement across all sections precedes
+  duplicate detection. Hierarchy-node and segment root-scope exceptions and the internal evaluator caveat recorded.

@@ -88,8 +88,9 @@ import static java.util.Optional.ofNullable;
  *   the twelve attribute constraints of the reference;
  * - `entityHaving` and `groupHaving`, whose content is a filter over another collection - it is not walked here, but
  *   planned as a nested query by {@link NestedSet};
- * - `scope(...)` only directly in the root `filterBy`, where it widens the scopes the references are looked up in and
- *   produces no node. Below the root it has no meaning on a row, and it is refused rather than read as "true".
+ * - `scope(...)` only at the root of the `filterBy` or below a chain of `and` (and `or` of a single child) from it,
+ *   where it widens the scopes the references are looked up in and produces no node. Below any other container it has
+ *   no meaning on a row, and it is refused rather than read as "true".
  *
  * A constraint the query model considers not applicable (a container without children) is dropped as the query model
  * itself drops it, and a container left without children is dropped with it. A filter left with no node accepts every
@@ -331,8 +332,8 @@ final class ReferenceRowFilterCompiler {
 	}
 
 	/**
-	 * Compiles the root of the filter - the children of `filterBy`, conjoined. A `scope(...)` among them produces no
-	 * node: it has widened the examined scopes already.
+	 * Compiles the root of the filter, conjoining its children through root `and` and single-child `or` paths.
+	 * A `scope(...)` on that path produces no node: it has widened the examined scopes already.
 	 *
 	 * @param filterBy       the filter of the fetched references
 	 * @param examinedScopes the scopes the references are looked up in - those of the request and of the root
@@ -348,12 +349,41 @@ final class ReferenceRowFilterCompiler {
 	) {
 		final FilterConstraint[] children = filterBy.getChildren();
 		final List<RowPredicate> compiled = new ArrayList<>(children.length);
-		for (FilterConstraint child : children) {
-			if (!(child instanceof EntityScope)) {
-				addIfPresent(compiled, compile(child, examinedScopes, readingScopes));
-			}
+		for (final FilterConstraint child : children) {
+			compileRootConjunct(child, examinedScopes, readingScopes, compiled);
 		}
 		return combine(compiled, RowPredicate.And::new);
+	}
+
+	/**
+	 * Flattens the allowed root path without copying constraints. Scopes on that path have already widened the
+	 * lookup; all other nodes keep their ordinary row-predicate compilation boundary.
+	 *
+	 * @param constraint     the root conjunct to compile
+	 * @param examinedScopes the scopes the references are looked up in
+	 * @param readingScopes  the scopes used for reference attribute readings
+	 * @param compiled       the accumulated root predicates
+	 */
+	private void compileRootConjunct(
+		@Nonnull FilterConstraint constraint,
+		@Nonnull Set<Scope> examinedScopes,
+		@Nonnull Set<Scope> readingScopes,
+		@Nonnull List<RowPredicate> compiled
+	) {
+		final FilterConstraint[] children;
+		if (constraint instanceof And and) {
+			children = and.getChildren();
+		} else if (constraint instanceof Or or && or.getChildrenCount() == 1) {
+			children = or.getChildren();
+		} else {
+			if (!(constraint instanceof EntityScope)) {
+				addIfPresent(compiled, compile(constraint, examinedScopes, readingScopes));
+			}
+			return;
+		}
+		for (final FilterConstraint child : children) {
+			compileRootConjunct(child, examinedScopes, readingScopes, compiled);
+		}
 	}
 
 	/**
@@ -431,8 +461,8 @@ final class ReferenceRowFilterCompiler {
 			case AttributeIs attributeIs -> compilePresence(attributeIs, readingScopes);
 			case EntityScope entityScope -> throw new EvitaInvalidUsageException(
 				"Constraint `" + entityScope + "` can be used in the filter of the fetched references `" +
-					this.context.referenceSchema().getName() + "` only directly in its `filterBy` - it selects " +
-					"the scopes the references are looked up in and has no meaning on a single reference."
+					this.context.referenceSchema().getName() + "` only at the root of its `filterBy` or in `and` - " +
+					"it selects the scopes the references are looked up in and has no meaning on a single reference."
 			);
 			default -> {
 				final FilteringConstraintTranslator<? extends FilterConstraint> translator =

@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query;
 
+import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.DifferentEntityFilterContainer;
 import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
@@ -33,6 +34,7 @@ import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.filter.FilterInScope;
 import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.Not;
+import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.query.order.EntityGroupProperty;
@@ -507,11 +509,11 @@ public class QueryUtils {
 	 *
 	 * - an `inScope` naming a scope that was not requested. {@link EntityHaving} and {@link GroupHaving}, which plan a
 	 *   nested query, are judged by a `scope(...)` of their own level when they name one; every other level inherits.
-	 * - a `scope(...)` the engine would not apply. It is read only in the root of a filter, boolean containers
-	 *   included, and at the level of {@link EntityHaving} and {@link GroupHaving}. Below any other
-	 *   {@link SeparateEntityScopeContainer} nothing reads it, so the query would silently mean something else than
-	 *   it says. A `scope(...)` below {@link Not} is refused by {@link #assertNoNegatedScope(Query)}, which an entry
-	 *   point runs first, because the scopes this check is passed are resolved through the negation.
+	 * - a `scope(...)` the engine would not apply below an inert {@link SeparateEntityScopeContainer}. Placement
+	 *   and uniqueness are checked first by {@link #assertScopePlacementValid(Query)}: one scope at the root of its
+	 *   level or on a chain of `and` and single-child `or` containers. {@link EntityHaving} and {@link GroupHaving}
+	 *   start their own scope-applying levels. The entry point validates the original tree before resolving the
+	 *   scopes passed to this check, because lookup reads through forbidden containers and fails on duplicates.
 	 *
 	 * The walk allocates nothing unless the filter holds an `inScope`, or fails.
 	 *
@@ -681,107 +683,185 @@ public class QueryUtils {
 	}
 
 	/**
-	 * Refuses a `scope(...)` below a {@link Not} at any depth: in the filter section, in the `entityHaving` of a
-	 * `segment` in the order section, and in every filter nested in the require section - the same filters
-	 * {@link #assertFilterScopesApplicable(Query, Set)} judges there. A `scope(...)` selects the scopes its entity
-	 * level searches in, it does not filter entities, so a negation has nothing to negate: the translation of the `not`
-	 * finds no formula of its child, and the lookup of the scopes of the level reads the scope through the negation and
-	 * applies it as if it stood outside of it.
+	 * Validates placement and uniqueness of `scope(...)` in every entity level of the query. A scope may stand at
+	 * the root of its level or on a chain of {@link And} and single-child {@link Or} containers from that root.
+	 * A {@link SeparateEntityScopeContainer} starts a fresh level; a scope in a level that does not apply its own
+	 * scope, such as the body of `referenceHaving`, is refused as having no effect.
 	 *
-	 * The negation reaches down to the next {@link SeparateEntityScopeContainer}, which starts an entity level of its
-	 * own: in `not(referenceHaving("r", entityHaving(and(scope(LIVE), ...))))` the scope selects the scopes of the
-	 * referenced entities and the `not` negates the container as a whole. A negated `scope(...)` the enclosing
-	 * container would not apply at all gets the diagnostic of {@link #assertFilterScopesApplicable(FilterBy, Set)}
-	 * instead, which names that more fundamental mistake - raised by this walk, which reaches the order section too.
+	 * The complete placement pass covers the filter section and every filter nested in the order and require
+	 * sections before the duplicate pass begins. Thus a placement error always wins over duplicates, even across
+	 * sections. When several ancestors of one scope forbid it, the message names the first reason in this order: an
+	 * inert level, a `not`, an `or` of several children, the nearest other container.
 	 *
-	 * Unlike {@link #assertFilterScopesApplicable(Query, Set)} this check needs no scopes, so an entry point runs it
-	 * before it resolves them: the resolution reads every `scope(...)` of a level through a negation and fails with a
-	 * `MoreThanSingleResultException` naming neither the negation nor the mistake when it finds two of them.
-	 *
-	 * The walk allocates nothing unless it fails.
+	 * Entry points run this before resolving requested scopes: scope lookup reads through forbidden containers
+	 * and otherwise fails on duplicate selections without explaining the placement mistake. Both passes allocate
+	 * nothing unless they throw.
 	 *
 	 * @param query the query to check
-	 * @throws EvitaInvalidUsageException when a `scope(...)` is negated
+	 * @throws EvitaInvalidUsageException when a scope is misplaced or repeated in the same entity level
 	 */
-	public static void assertNoNegatedScope(@Nonnull Query query) {
+	public static void assertScopePlacementValid(@Nonnull Query query) {
+		assertScopePlacementValid(query, false);
+		assertScopePlacementValid(query, true);
+	}
+
+	/**
+	 * Runs one pass across all query sections before starting the next pass.
+	 *
+	 * @param query the query to check
+	 * @param duplicates true for uniqueness, false for placement
+	 */
+	private static void assertScopePlacementValid(@Nonnull Query query, boolean duplicates) {
 		final FilterBy filterBy = query.getFilterBy();
 		if (filterBy != null) {
-			assertNoNegatedScope(filterBy, false, null);
+			assertNestedFilterScopePlacementValid(filterBy, duplicates);
 		}
 		final OrderBy orderBy = query.getOrderBy();
 		if (orderBy != null) {
-			assertNoNegatedNestedFilterScope(orderBy);
+			assertNestedFilterScopePlacementValid(orderBy, duplicates);
 		}
 		final Require require = query.getRequire();
 		if (require != null) {
-			assertNoNegatedNestedFilterScope(require);
+			assertNestedFilterScopePlacementValid(require, duplicates);
 		}
 	}
 
 	/**
-	 * Walks the order or the require section looking for the filters nested in it - see
-	 * {@link #assertNoNegatedScope(Query)}. A filter is an additional child of the constraint holding it, and a nested
-	 * order or require constraint is a child of its container.
+	 * Discovers independent filter roots in a section, including ordinary and additional children.
 	 *
-	 * @param constraint the order or require constraint to examine
+	 * @param constraint the constraint to examine
+	 * @param duplicates true for uniqueness, false for placement
 	 */
-	private static void assertNoNegatedNestedFilterScope(@Nonnull Constraint<?> constraint) {
+	private static void assertNestedFilterScopePlacementValid(@Nonnull Constraint<?> constraint, boolean duplicates) {
 		if (constraint instanceof FilterConstraint) {
-			assertNoNegatedScope(constraint, false, null);
+			if (duplicates) {
+				assertScopeUniqueAtLevel(constraint);
+			} else {
+				assertScopePlacementValid(constraint, true, false, false, null, null);
+			}
 		} else if (constraint instanceof ConstraintContainer<?> container) {
 			for (final Constraint<?> child : container.getChildren()) {
-				assertNoNegatedNestedFilterScope(child);
+				assertNestedFilterScopePlacementValid(child, duplicates);
 			}
 			for (final Constraint<?> additionalChild : container.getAdditionalChildren()) {
-				assertNoNegatedNestedFilterScope(additionalChild);
+				assertNestedFilterScopePlacementValid(additionalChild, duplicates);
 			}
 		}
 	}
 
 	/**
-	 * Walks one constraint of a filter - see {@link #assertNoNegatedScope(Query)}.
+	 * Validates one filter subtree without looking up or aggregating scopes. Every separate container resets the
+	 * state below it, because its body is a level of its own.
 	 *
-	 * @param constraint         the constraint to examine
-	 * @param negated            true when a `not` encloses the constraint within its entity level
-	 * @param enclosingContainer the nearest separate container enclosing the constraint, NULL when there is none
-	 * @throws EvitaInvalidUsageException when a `scope(...)` is negated
+	 * @param constraint the constraint to examine
+	 * @param root true only for the discovered filter root, the only place where a wrapping {@link FilterBy} or
+	 *             {@link FilterGroupBy} is transparent
+	 * @param negated whether a `not` encloses this subtree in the same entity level
+	 * @param disjoined whether an `or` of several children encloses this subtree in the same entity level
+	 * @param enclosingContainer the nearest separate container, NULL at the outer root
+	 * @param forbiddenContainer the nearest ancestor in this level other than `and`, `not`, `or` and the root
+	 *                           wrapper, NULL when absent
+	 * @throws EvitaInvalidUsageException when a scope stands in an inert level or below a forbidden container
 	 */
-	private static void assertNoNegatedScope(
+	private static void assertScopePlacementValid(
 		@Nonnull Constraint<?> constraint,
+		boolean root,
 		boolean negated,
-		@Nullable SeparateEntityScopeContainer enclosingContainer
+		boolean disjoined,
+		@Nullable SeparateEntityScopeContainer enclosingContainer,
+		@Nullable ConstraintContainer<?> forbiddenContainer
 	) {
 		if (constraint instanceof EntityScope entityScope) {
+			if (enclosingContainer != null && !appliesOwnScope(enclosingContainer)) {
+				throw createInertScopeException(entityScope, enclosingContainer);
+			}
 			if (negated) {
-				// a scope the enclosing container does not apply would do nothing even without the negation, which is
-				// the more fundamental mistake - raised here, because the order section is beyond the reach of
-				// `assertFilterScopesApplicable`, which would name it in the other sections
-				if (enclosingContainer != null && !appliesOwnScope(enclosingContainer)) {
-					throw createInertScopeException(entityScope, enclosingContainer);
-				}
 				throw new EvitaInvalidUsageException(
-					"Constraint `" + entityScope + "` cannot be negated in `not` - it selects the scopes to search " +
-						"in, it does not filter entities. Name the scopes you want in `scope(...)` instead."
+					"Constraint `" + entityScope + "` cannot be negated in `not` - it selects the scopes to " +
+						"search in, it does not filter entities. Name the scopes you want in `scope(...)` instead."
+				);
+			}
+			if (disjoined) {
+				throw new EvitaInvalidUsageException(
+					"Constraint `" + entityScope + "` cannot be placed in `or` - it selects the scopes to search " +
+						"in, it does not filter entities. Name the scopes you want in `scope(...)` and put a " +
+						"condition that holds in one scope only in `inScope(...)`."
+				);
+			}
+			if (forbiddenContainer != null) {
+				throw new EvitaInvalidUsageException(
+					"Constraint `" + entityScope + "` cannot be placed in `" + forbiddenContainer.getName() +
+						"` - it selects the scopes its whole entity level is searched in, so it may stand only at " +
+						"the root of the filter of that level or in `and`." +
+						(forbiddenContainer instanceof FilterInScope ?
+							" Name the scopes in a `scope(...)` at the root of that level and keep only the " +
+								"conditions in `inScope(...)`." : "")
 				);
 			}
 			return;
 		}
 		if (constraint instanceof ConstraintContainer<?> container) {
-			// a separate container starts an entity level of its own, which a `not` around it does not negate
 			final boolean nestedNegated;
+			final boolean nestedDisjoined;
 			final SeparateEntityScopeContainer nestedEnclosingContainer;
+			final ConstraintContainer<?> nestedForbiddenContainer;
 			if (constraint instanceof SeparateEntityScopeContainer separate) {
+				// Each separate container owns its entire sibling body, independently of its ancestors.
 				nestedNegated = false;
+				nestedDisjoined = false;
 				nestedEnclosingContainer = separate;
+				nestedForbiddenContainer = null;
 			} else {
 				nestedNegated = negated || constraint instanceof Not;
+				nestedDisjoined = disjoined || (constraint instanceof Or && container.getChildrenCount() > 1);
 				nestedEnclosingContainer = enclosingContainer;
+				// Only the actual filter root is a transparent wrapper; a nested FilterBy is not another root.
+				final boolean transparent = constraint instanceof And || constraint instanceof Not ||
+					constraint instanceof Or ||
+					(root && (constraint instanceof FilterBy || constraint instanceof FilterGroupBy));
+				nestedForbiddenContainer = transparent ? forbiddenContainer : container;
 			}
-			// no filter container holds additional children
+			// No filter container holds additional children.
 			for (final Constraint<?> child : container.getChildren()) {
-				assertNoNegatedScope(child, nestedNegated, nestedEnclosingContainer);
+				assertScopePlacementValid(
+					child, false, nestedNegated, nestedDisjoined, nestedEnclosingContainer, nestedForbiddenContainer
+				);
 			}
 		}
+	}
+
+	/**
+	 * Checks one level's sibling body and returns its first scope to its parent. A separate container checks its
+	 * whole body as a fresh level and returns NULL, so independent levels never contribute to a parent's duplicates.
+	 *
+	 * @param constraint the filter subtree to check
+	 * @return the first scope of the current level, NULL when none or when the subtree starts a separate level
+	 */
+	@Nullable
+	private static EntityScope assertScopeUniqueAtLevel(@Nonnull Constraint<?> constraint) {
+		if (constraint instanceof EntityScope entityScope) {
+			return entityScope;
+		}
+		if (constraint instanceof ConstraintContainer<?> container) {
+			final Constraint<?>[] children = container.getChildren();
+			for (int i = 0; i < children.length; i++) {
+				final EntityScope first = assertScopeUniqueAtLevel(children[i]);
+				if (first != null) {
+					for (int j = i + 1; j < children.length; j++) {
+						final EntityScope next = assertScopeUniqueAtLevel(children[j]);
+						if (next != null) {
+							throw new EvitaInvalidUsageException(
+								"Constraint `" + next + "` repeats the scope selection of `" + first +
+									"` in the same entity level - name all the scopes, in the order you prefer them, " +
+									"in one `scope(...)`."
+							);
+						}
+					}
+					return constraint instanceof SeparateEntityScopeContainer ? null : first;
+				}
+			}
+		}
+		return null;
 	}
 
 	/**

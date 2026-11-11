@@ -2323,7 +2323,8 @@ public final class EntityCollection implements
 
 	/**
 	 * Refuses a request using scopes in a way the engine cannot honour, before the request looks for an entity or
-	 * changes it - see {@link QueryUtils#assertNoNestedScopeContainers}, {@link QueryUtils#assertNoNegatedScope} and
+	 * changes it - see {@link QueryUtils#assertNoNestedScopeContainers},
+	 * {@link QueryUtils#assertScopePlacementValid} and
 	 * {@link QueryUtils#assertFilterScopesApplicable}.
 	 *
 	 * @param evitaRequest the request of the client
@@ -2331,8 +2332,8 @@ public final class EntityCollection implements
 	private static void assertScopeUsageValid(@Nonnull EvitaRequest evitaRequest) {
 		final Query query = evitaRequest.getQuery();
 		QueryUtils.assertNoNestedScopeContainers(query);
-		// before the requested scopes are resolved, which reads a negated scope as if it stood outside the negation
-		QueryUtils.assertNoNegatedScope(query);
+		// before scope lookup, which reads through forbidden containers and fails on duplicate selections
+		QueryUtils.assertScopePlacementValid(query);
 		QueryUtils.assertFilterScopesApplicable(query, evitaRequest.getRequestedScopes());
 	}
 
