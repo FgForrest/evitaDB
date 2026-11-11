@@ -131,12 +131,6 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 
 	@Override
 	@Nullable
-	public <T extends StoragePart> byte[] fetchBinary(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
-		return this.dataStoreChanges.getStoragePartAsBinary(catalogVersion, primaryKey, containerType);
-	}
-
-	@Override
-	@Nullable
 	public <T extends StoragePart, U extends Comparable<U>> T fetch(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
 		final OptionalLong storagePartId = compressedKeyComputer.apply(
 			this.dataStoreChanges.getReadOnlyKeyCompressor(),
@@ -147,21 +141,6 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 			return null;
 		} else {
 			return this.dataStoreChanges.getStoragePart(catalogVersion, storagePartId.getAsLong(), containerType);
-		}
-	}
-
-	@Override
-	@Nullable
-	public <T extends StoragePart, U extends Comparable<U>> byte[] fetchBinary(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
-		final OptionalLong storagePartId = compressedKeyComputer.apply(
-			this.dataStoreChanges.getReadOnlyKeyCompressor(),
-			originalKey
-		);
-		if (storagePartId.isEmpty()) {
-			// key wasn't yet assigned
-			return null;
-		} else {
-			return this.dataStoreChanges.getStoragePartAsBinary(catalogVersion, storagePartId.getAsLong(), containerType);
 		}
 	}
 

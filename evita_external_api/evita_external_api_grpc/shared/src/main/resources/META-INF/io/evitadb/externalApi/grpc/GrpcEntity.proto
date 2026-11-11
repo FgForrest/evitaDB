@@ -175,33 +175,6 @@ message GrpcSealedEntity {
   GrpcPrice priceForSaleMax = 21;
 }
 
-// Response carries entities in a binary format and is part of the PRIVATE API that is used by Java driver. The client
-// that receives the binary data must know how to deserialize them using Kryo deserializers which are internal to
-// the evitaDB (and even if they had been public they could not have been used because Kryo is not ported to other
-// platforms than Java). The response is triggered by BinaryForm query requirement.
-message GrpcBinaryEntity {
-  // Type of entity.
-  // Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
-  // entity type entity is uniquely represented by primary key.
-  string entityType = 1;
-  // Unique Integer positive number representing the entity. Can be used for fast lookup for
-  // entity (entities). Primary key must be unique within the same entity type.
-  int32 primaryKey = 2;
-  // Contains version of this entity schema and gets increased with any entity type update. Allows to execute
-  // optimistic locking i.e. avoiding parallel modifications.
-  int32 schemaVersion = 3;
-  // Serialized representation of the entity body.
-  bytes entityStoragePart = 4;
-  // Serialized representation of entity attributes.
-  repeated bytes attributeStorageParts = 5;
-  // Serialized representation of entity associated data.
-  repeated bytes associatedDataStorageParts = 6;
-  // Serialized representation of entity prices.
-  bytes priceStoragePart = 7;
-  // Serialized representation of entity references.
-  bytes referenceStoragePart = 8;
-}
-
 // References refer to other entities (of same or different entity type).
 // Allows entity filtering (but not sorting) of the entities by using FacetHaving query
 // and statistics computation if when FacetStatistics requirement is used. Reference

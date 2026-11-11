@@ -33,7 +33,7 @@ public interface GrpcQueryResponseOrBuilder extends
 
   /**
    * <pre>
-   * The fetched page or strip of entities (in whichever of the three representations the query's
+   * The fetched page or strip of entities (in whichever of the two representations the query's
    * `require` block asked for - see `GrpcDataChunk`).
    * </pre>
    *
@@ -43,7 +43,7 @@ public interface GrpcQueryResponseOrBuilder extends
   boolean hasRecordPage();
   /**
    * <pre>
-   * The fetched page or strip of entities (in whichever of the three representations the query's
+   * The fetched page or strip of entities (in whichever of the two representations the query's
    * `require` block asked for - see `GrpcDataChunk`).
    * </pre>
    *
@@ -53,7 +53,7 @@ public interface GrpcQueryResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcDataChunk getRecordPage();
   /**
    * <pre>
-   * The fetched page or strip of entities (in whichever of the three representations the query's
+   * The fetched page or strip of entities (in whichever of the two representations the query's
    * `require` block asked for - see `GrpcDataChunk`).
    * </pre>
    *

@@ -34,7 +34,7 @@ public interface GrpcDataChunkOrBuilder extends
   /**
    * <pre>
    * Entity references (type + primary key only, no content). Populated when the query's `require` block
-   * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+   * has no `entityFetch` requirement; `sealedEntities` is then empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -44,7 +44,7 @@ public interface GrpcDataChunkOrBuilder extends
   /**
    * <pre>
    * Entity references (type + primary key only, no content). Populated when the query's `require` block
-   * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+   * has no `entityFetch` requirement; `sealedEntities` is then empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -53,7 +53,7 @@ public interface GrpcDataChunkOrBuilder extends
   /**
    * <pre>
    * Entity references (type + primary key only, no content). Populated when the query's `require` block
-   * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+   * has no `entityFetch` requirement; `sealedEntities` is then empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -62,7 +62,7 @@ public interface GrpcDataChunkOrBuilder extends
   /**
    * <pre>
    * Entity references (type + primary key only, no content). Populated when the query's `require` block
-   * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+   * has no `entityFetch` requirement; `sealedEntities` is then empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -72,7 +72,7 @@ public interface GrpcDataChunkOrBuilder extends
   /**
    * <pre>
    * Entity references (type + primary key only, no content). Populated when the query's `require` block
-   * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+   * has no `entityFetch` requirement; `sealedEntities` is then empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -82,9 +82,8 @@ public interface GrpcDataChunkOrBuilder extends
 
   /**
    * <pre>
-   * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-   * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-   * are then both empty.
+   * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+   * requirement; `entityReferences` is then empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -93,9 +92,8 @@ public interface GrpcDataChunkOrBuilder extends
       getSealedEntitiesList();
   /**
    * <pre>
-   * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-   * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-   * are then both empty.
+   * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+   * requirement; `entityReferences` is then empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -103,9 +101,8 @@ public interface GrpcDataChunkOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getSealedEntities(int index);
   /**
    * <pre>
-   * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-   * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-   * are then both empty.
+   * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+   * requirement; `entityReferences` is then empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -113,9 +110,8 @@ public interface GrpcDataChunkOrBuilder extends
   int getSealedEntitiesCount();
   /**
    * <pre>
-   * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-   * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-   * are then both empty.
+   * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+   * requirement; `entityReferences` is then empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -124,68 +120,13 @@ public interface GrpcDataChunkOrBuilder extends
       getSealedEntitiesOrBuilderList();
   /**
    * <pre>
-   * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-   * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-   * are then both empty.
+   * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+   * requirement; `entityReferences` is then empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getSealedEntitiesOrBuilder(
-      int index);
-
-  /**
-   * <pre>
-   * Fully fetched entities in the server's binary storage format, for clients that decode entities
-   * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-   * storage format; `entityReferences`/`sealedEntities` are then both empty.
-   * </pre>
-   *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-   */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity> 
-      getBinaryEntitiesList();
-  /**
-   * <pre>
-   * Fully fetched entities in the server's binary storage format, for clients that decode entities
-   * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-   * storage format; `entityReferences`/`sealedEntities` are then both empty.
-   * </pre>
-   *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-   */
-  io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity getBinaryEntities(int index);
-  /**
-   * <pre>
-   * Fully fetched entities in the server's binary storage format, for clients that decode entities
-   * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-   * storage format; `entityReferences`/`sealedEntities` are then both empty.
-   * </pre>
-   *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-   */
-  int getBinaryEntitiesCount();
-  /**
-   * <pre>
-   * Fully fetched entities in the server's binary storage format, for clients that decode entities
-   * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-   * storage format; `entityReferences`/`sealedEntities` are then both empty.
-   * </pre>
-   *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-   */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder> 
-      getBinaryEntitiesOrBuilderList();
-  /**
-   * <pre>
-   * Fully fetched entities in the server's binary storage format, for clients that decode entities
-   * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-   * storage format; `entityReferences`/`sealedEntities` are then both empty.
-   * </pre>
-   *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-   */
-  io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder getBinaryEntitiesOrBuilder(
       int index);
 
   /**
