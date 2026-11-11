@@ -1,7 +1,7 @@
 ---
 title: Conditionally index per-reference attribute histograms via a dedicated HistogramIndex family
 date: 2026-04-23
-updated: 2026-07-31 12:00
+updated: 2026-11-11 02:30
 status: accepted
 kind: feature
 issues: [8]
@@ -9,7 +9,8 @@ prs: [1136]
 areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/schema, evita_engine/src/main/java/io/evitadb/index, evita_engine/src/main/java/io/evitadb/core/expression/trigger, evita_engine/src/main/java/io/evitadb/core/catalog]
 supersedes: []
 superseded-by: []
-relates: [2026-05-06-reference-histogram-statistics, 2026-05-27-range-and-multi-histogram-schema, 2026-04-23-conditional-facet-indexing, 2026-08-31-cross-entity-histogram-removal-pre-pass]
+relates: [2026-05-06-reference-histogram-statistics, 2026-05-27-range-and-multi-histogram-schema, 2026-04-23-conditional-facet-indexing, 2026-08-31-cross-entity-histogram-removal-pre-pass,
+  2026-11-11-reference-histogram-net-change-per-run]
 ---
 
 # Conditionally index per-reference attribute histograms via a dedicated HistogramIndex family
@@ -212,6 +213,9 @@ this session):
   top of the index this record establishes.
 - [[2026-05-27-range-and-multi-histogram-schema]] — the follow-up (issue #1161) that added
   `Range`-typed source attributes and promoted `bucketed()` to an array.
+- [[2026-11-11-reference-histogram-net-change-per-run]] — changed how the local path uses the deferred queue:
+  one withdrawal and one add per reference per run. `PreMutationHistogramSnapshot`, named in this record's
+  timeline, was removed by it.
 
 ## Timeline
 

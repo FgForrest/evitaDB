@@ -127,10 +127,10 @@ indexes.
 
 #### `finishLocalMutationExecutionPhase()`
 
-Runs and clears the deferred expression re-evaluation actions (facet and histogram) collected while
-the mutations were applied, through `executeDeferredReEvaluations()`. It must run after the storage
-writer has processed the current mutation, so that expression evaluation reads updated values. The
-same call drops the reduced indexes memoized for the entity.
+Runs deferred facet actions and adds each pending reference's histogram contribution once through
+`executeDeferredReEvaluations()`. It must run after the storage writer has processed the current
+mutation, so evaluation reads updated values. The same call clears pending histogram identities and
+drops the reduced indexes memoized for the run.
 
 Each queued action writes into the scope the entity was in when the action was queued. That is why
 `SetEntityScopeMutation` calls `executeDeferredReEvaluations()` before it removes the entity from its
@@ -213,7 +213,8 @@ structures participate correctly; nothing in this document's mutators registers 
 | `memoizedRepresentativeAttributes` | Cache of `RepresentativeReferenceKeys` per reference        |
 | `createdReferences`                | References newly inserted in this batch                     |
 | `localMutations`                   | Full batch; peeked during RepresentativeReferenceKey calc   |
-| `deferredExpressionReEvaluations`  | Actions drained by `executeDeferredReEvaluations()`         |
+| `deferredExpressionReEvaluations`  | Facet actions drained by `executeDeferredReEvaluations()`   |
+| `pendingHistogramReferences`       | Strict reference identities owing one add in this run      |
 
 ### Primary Key Overloading
 
@@ -951,6 +952,8 @@ tuple.
 ## Histogram Mutations (Conditional Bucketed Indexing)
 
 **Primary classes:**
+`EntityIndexLocalMutationExecutor` (first touch, pending set and the add at the end of each deferred run),
+`HistogramReferenceIdentity` (strict identity of a pending reference),
 `ReferenceIndexMutator` (histogram insert/remove within reference processing),
 `ReevaluateExpressionExecutor` (cross-entity re-evaluation).
 
@@ -970,13 +973,42 @@ Triggers fire through `HistogramExpressionTrigger` instances (extending
 
 ### Local Triggers (same-entity mutations)
 
-When an entity attribute, reference attribute, or reference itself changes, local
-`HistogramExpressionTrigger`s are evaluated inline during the mutation batch. The trigger:
+Within one deferred run, each reference is either **clean** (its indexed contribution matches
+storage) or **pending** (its contribution has been withdrawn and one add is owed).
 
-1. Evaluates the condition expression against the current entity state.
-2. If true, resolves the value from the `HistogramValueDescriptor` source.
-3. Performs cardinality-tracked insert/remove on the target `HistogramIndex`
-   (`ReducedGroupEntityIndex` for grouped references, `ReferencedTypeEntityIndex` for ungrouped).
+The first histogram-relevant touch of a clean reference withdraws its contribution immediately,
+while storage still holds the pre-mutation state. Each trigger evaluates its own condition and
+removes only its own values when the condition holds. The presence guard beneath that evaluation
+remains as tolerance for catalogs whose counters already drifted. Subsequent touches of the same
+pending reference do nothing for histograms.
+
+The touch sits at the top of `updateReferences`, before representative-key migration and before
+any handler cleans up indexes. Group changes and reference removals touch the reference there.
+Reference attributes touch it when used as a histogram value source or condition input. Every
+reference mutation of a grouped reference that allows duplicates and has histogram triggers is a
+touch, because even an unrelated mutation can initiate representative-key migration for the batch.
+Entity attribute changes use a registry lookup by owner type, scope and attribute to touch existing
+references of the affected names before storage changes. Parent and associated-data fan-outs keep
+their existing behavior.
+
+Inserted references are born pending without withdrawal. Pending identity includes reference name,
+referenced primary key and internal primary key; a mutation key that carries an internal primary key
+is checked against the pending set as it is, unknown keys on existing references resolve against
+storage before mutation, and negative temporary keys remain distinct.
+
+References re-indexed into a new scope by `SetEntityScopeMutation` are not pending.
+`indexAllReferences` adds their histogram values at once, from the full entity body, so the values
+cover every locale the entity has at that moment, including one the same upsert added. The drain
+before the scope change has just emptied the pending set, so nothing adds them a second time. They
+are clean in the new scope, and a later touch in the same run withdraws what the re-index added, in
+the locales the entity had before the upsert.
+
+At `executeDeferredReEvaluations()`, each pending reference that still exists adds **all** its
+histogram triggers once, reading its current condition, values and group from storage. Removed
+references add nothing. The pending set ends with every run, including the drain before a scope
+change. A later implicit default mutation therefore starts from a clean reference and can withdraw
+and re-add its updated contribution in its own run. Scope-change unindexing follows the preceding
+drain and retains its existing removal behavior.
 
 ### Cross-Entity Triggers (ReevaluateExpressionMutation)
 
