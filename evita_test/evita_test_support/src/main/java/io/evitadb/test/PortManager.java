@@ -79,7 +79,9 @@ public class PortManager {
 	}
 
 	/**
-	 * Allocates new set of port for particular `dataSetName`.
+	 * Allocates a new set of ports for a particular `dataSetName`.
+	 *
+	 * @throws IllegalStateException if the requested ports exceed the available range through `65535`
 	 */
 	@Nonnull
 	public int[] allocatePorts(@Nonnull String dataSetName, int count) {
@@ -89,6 +91,19 @@ public class PortManager {
 				!this.portAllocationTable.containsKey(dataSetName),
 				"Ports for dataset " + dataSetName + " already allocated."
 			);
+
+			int availablePorts = 65536 - this.portBase - this.allocatedPorts.size();
+			for (Entry<String, CompletableFuture<Void>> entry : this.pendingReleases.entrySet()) {
+				if (entry.getValue() != null && entry.getValue().isDone()) {
+					availablePorts += this.portAllocationTable.get(entry.getKey()).length;
+				}
+			}
+			if (count > availablePorts) {
+				throw new IllegalStateException(
+					"Cannot allocate " + count + " ports for dataset " + dataSetName +
+						": only " + availablePorts + " ports remain in range " + this.portBase + "..65535."
+				);
+			}
 
 			final Iterator<Entry<String, CompletableFuture<Void>>> it = this.pendingReleases.entrySet().iterator();
 			while (it.hasNext()) {

@@ -217,6 +217,82 @@ class PortManagerTest {
 		}
 	}
 
+
+	/**
+	 * Verifies that exhaustion never changes allocation state or returns a port above `65535`.
+	 */
+	@Nested
+	@Tag(SERVER)
+	@Tag(MANAGEMENT)
+	@DisplayName("Port range exhaustion")
+	class Exhaustion {
+
+		/**
+		 * Uses the highest configured base to exercise the end of the valid range.
+		 */
+		@BeforeEach
+		void setHighBase() {
+			System.setProperty(PORT_BASE_PROPERTY, "65000");
+			portManager = new PortManager();
+		}
+
+		/**
+		 * Rejects an oversized first allocation before changing counters or reserving ports.
+		 */
+		@Test
+		@DisplayName("rejects 537 ports from base 65000 without changing state")
+		void shouldRejectAllocationAboveValidRangeWithoutChangingState() {
+			final IllegalStateException error = assertThrows(
+				IllegalStateException.class, () -> portManager.allocatePorts("dataset", 537)
+			);
+			assertEquals(
+				"Cannot allocate 537 ports for dataset dataset: only 536 ports remain in range 65000..65535.",
+				error.getMessage()
+			);
+			assertEquals(0, portManager.getCounter());
+			assertEquals(0, portManager.getPeak());
+			final int[] ports = portManager.allocatePorts("dataset", 536);
+			assertEquals(65000, ports[0]);
+			assertEquals(65535, ports[535]);
+		}
+
+		/**
+		 * Counts live allocations across datasets and preserves them after a rejected request.
+		 */
+		@Test
+		@DisplayName("checks remaining capacity across several datasets")
+		void shouldRejectExhaustionAcrossDatasetsWithoutChangingState() {
+			portManager.allocatePorts("first", 200);
+			portManager.allocatePorts("second", 335);
+			assertThrows(IllegalStateException.class, () -> portManager.allocatePorts("third", 2));
+			assertEquals(535, portManager.getCounter());
+			assertEquals(200, portManager.getPeak());
+			assertArrayEquals(new int[]{65535}, portManager.allocatePorts("third", 1));
+			assertThrows(IllegalStateException.class, () -> portManager.allocatePorts("fourth", 1));
+			portManager.releasePorts("first");
+			final int[] reused = portManager.allocatePorts("fourth", 200);
+			assertEquals(65000, reused[0]);
+			assertEquals(65199, reused[199]);
+		}
+
+		/**
+		 * Includes completed pending releases in available capacity without draining them on failure.
+		 */
+		@Test
+		@DisplayName("reuses completed pending releases after an oversized request fails")
+		void shouldAccountForCompletedReleasesBeforeCheckingCapacity() {
+			portManager.allocatePorts("first", 536);
+			portManager.releasePortsOnCompletion("first", CompletableFuture.completedFuture(null));
+			assertThrows(IllegalStateException.class, () -> portManager.allocatePorts("second", 537));
+			assertEquals(536, portManager.getCounter());
+			assertEquals(0, portManager.getPeak());
+			final int[] reused = portManager.allocatePorts("second", 536);
+			assertEquals(65000, reused[0]);
+			assertEquals(65535, reused[535]);
+			assertEquals(0, portManager.getPeak());
+		}
+	}
+
 	@Nested
 	@Tag(SERVER)
 	@Tag(MANAGEMENT)
