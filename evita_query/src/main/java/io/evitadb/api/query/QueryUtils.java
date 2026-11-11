@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query;
 
+import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.DifferentEntityFilterContainer;
 import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
@@ -33,12 +34,15 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.filter.FilterInScope;
 import io.evitadb.api.query.filter.GroupHaving;
+import io.evitadb.api.query.filter.Not;
+import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.query.order.EntityGroupProperty;
 import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.ReferenceOrderingSpecification;
+import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
@@ -54,6 +58,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -130,6 +135,18 @@ import java.util.function.Predicate;
  */
 public class QueryUtils {
 
+	/** Scopes supported by the body summary, cached to avoid allocating enum arrays during the walk. */
+	private static final Scope[] BODY_SCOPES = Scope.values();
+	/** Low bits encode the named scopes of a body summary. */
+	private static final int BODY_SCOPE_MASK = (1 << BODY_SCOPES.length) - 1;
+	/** A matching path without a named body scope inherits the owners' scopes. */
+	private static final int BODY_SCOPE_DEFAULT = 1 << BODY_SCOPES.length;
+	/**
+	 * Raw named scopes occupy the bits above the named scopes and the default flag, so the summary holds up to 15
+	 * scopes.
+	 */
+	private static final int BODY_SCOPE_RAW_SHIFT = BODY_SCOPES.length + 1;
+
 	/** Private constructor to prevent instantiation of utility class. */
 	private QueryUtils() {
 	}
@@ -171,8 +188,9 @@ public class QueryUtils {
 	 * level's own opinion, otherwise the opinion of the reference level holding it, otherwise the enclosing level's
 	 * locale. The entity and the group are separate levels, so neither inherits the other's opinion.
 	 *
-	 * The body level consists of the children of every {@link EntityHaving} (or {@link GroupHaving}) the reference
-	 * filter holds outside a nested {@link SeparateEntityScopeContainer}. The reference level is resolved by
+	 * The body level consists of the children of and-reachable {@link EntityHaving} (or {@link GroupHaving})
+	 * containers, outside Boolean alternatives, scope wrappers and nested separate entity levels.
+	 * The reference level is resolved by
 	 * {@link #resolveLocale(Constraint)}, which stops only at a {@link DifferentEntityFilterContainer}: it descends
 	 * into {@link ReferenceHaving} and {@link FacetHaving}, whose children stay at the owner's level; the body lookup
 	 * stops there, because an `entityHaving` below it describes the target of another reference. Both levels are
@@ -203,13 +221,14 @@ public class QueryUtils {
 	 * Extracts the filter of one body level from the filter of a reference: the children of its {@link EntityHaving}
 	 * (or {@link GroupHaving}) containers and, for the referenced entity level only, the {@link EntityPrimaryKeyInSet}
 	 * constraints of the reference. Every other constraint of the reference level - its attribute constraints, its
-	 * `entityLocaleEquals` and the `scope(...)` in its root among them - is left out. The lookup does not descend into
-	 * a {@link SeparateEntityScopeContainer}: it delimits a nested entity level whose constraints must not leak into
-	 * this body level.
+	 * `entityLocaleEquals` and the `scope(...)` in its root among them - is left out. The lookup descends from the root
+	 * through `and` only: a container below `or`, `not` or a reference-level `inScope` does not constrain every
+	 * matching row, and a {@link SeparateEntityScopeContainer} delimits a nested entity level whose constraints must
+	 * not leak into this body level.
 	 *
 	 * The request fetching the bodies of a reference is derived from this filter, so this one rule decides the locale
-	 * ({@link #resolveReferenceBodyLocale}) and the scope ({@link #findReferenceBodyScope}) of the bodies, both
-	 * where they are fetched and where a query is checked before anything of it runs.
+	 * ({@link #resolveReferenceBodyLocale}) of the bodies. Scopes use the alternatives summary of
+	 * {@link #resolveReferenceBodyScopes(FilterBy, boolean)}, both where they are fetched and where a query is checked.
 	 *
 	 * @param referenceFilter the filter of the reference
 	 * @param group           true to extract the group level, false for the referenced entity level
@@ -222,7 +241,7 @@ public class QueryUtils {
 			constraint -> group ?
 				constraint instanceof GroupHaving :
 				constraint instanceof EntityHaving || constraint instanceof EntityPrimaryKeyInSet,
-			SeparateEntityScopeContainer.class::isInstance
+			constraint -> !(constraint instanceof FilterBy || constraint instanceof And)
 		);
 		final List<FilterConstraint> bodyFilters = new ArrayList<>(bodyLevels.size());
 		for (final FilterConstraint bodyLevel : bodyLevels) {
@@ -238,29 +257,132 @@ public class QueryUtils {
 	}
 
 	/**
-	 * Returns the `scope(...)` the referenced entity bodies of a reference are fetched in: the one among the criteria
-	 * of the referenced entity level ({@link #extractReferenceBodyFilter}), typically
-	 * `entityHaving(and(scope(LIVE), ...))`. The group bodies are fetched in it as well - the request fetching either
-	 * is derived from the criteria of the referenced entity level (`ReferencedEntityFetcher#unwrapFilterBy`), so the
-	 * `scope(...)` of a `groupHaving` selects the groups of the rows and fetches no group body.
+	 * Resolves the scopes named by every way a reference row can match at one body level, in one post-order walk.
+	 * The returned integer encodes named scopes and whether a matching path inherits the owners' default scopes.
+	 * Pass it to {@link #materializeReferenceBodyScopes} to obtain searched and requested scope sets.
 	 *
-	 * The scope replaces both the scopes the enclosing level searches and the scopes it admits: below the bodies, an
-	 * `inScope` may name this scope only. Bodies whose level names none inherit both. The `scope(...)` in the root of
-	 * the reference filter is not a scope of the bodies: it widens the scopes the references are looked up in.
+	 * Each body container reads only its own scope, stopping at nested separate entity levels. Disjunction unites
+	 * alternatives. Conjunction intersects named alternatives and includes either side when the other can inherit;
+	 * a contradiction falls back to all raw scopes named by that conjunction. Negation keeps raw named scopes plus
+	 * inheritance. Reference-level `inScope` also allows inheritance, since owners outside its scope pass unrestricted.
+	 * Other levels and reference-level scope leaves inherit. Only container scope lookups allocate objects.
 	 *
-	 * @param referenceFilter the filter of the reference, NULL when it has none
-	 * @return the scope of the bodies, NULL when their level names none
-	 * @throws EvitaInvalidUsageException when the referenced entity level names more than one scope
+	 * @param referenceFilter the reference filter, NULL when absent
+	 * @param group true for group bodies, false for referenced entities
+	 * @return the encoded named scopes and default-scope flag
+	 * @throws EvitaInvalidUsageException when one body container names more than one scope constraint
+	 */
+	public static int resolveReferenceBodyScopes(@Nullable FilterBy referenceFilter, boolean group) {
+		return referenceFilter == null ? BODY_SCOPE_DEFAULT :
+			resolveReferenceBodyScopes((FilterConstraint) referenceFilter, group) &
+				(BODY_SCOPE_MASK | BODY_SCOPE_DEFAULT);
+	}
+
+	/**
+	 * Materializes a body summary against its immediate owners. NULL preserves both inherited sets exactly.
+	 * A followed named scope always replaces both sets, even when it equals the searched scopes of the owners.
+	 * A default path unites named scopes with each inherited set independently. An empty named set, or a default
+	 * path whose named scopes are already searched by the owners, is plain inheritance.
+	 *
+	 * @param summary the result of {@link #resolveReferenceBodyScopes(FilterBy, boolean)}
+	 * @param scopes the scopes searched for owners
+	 * @param requestedScopes the scopes admitted by owners
+	 * @return explicit searched and admitted scopes, or NULL for inheritance
 	 */
 	@Nullable
-	public static EntityScope findReferenceBodyScope(@Nullable FilterBy referenceFilter) {
-		return referenceFilter == null ?
-			null :
-			findConstraint(
-				extractReferenceBodyFilter(referenceFilter, false),
-				EntityScope.class,
-				SeparateEntityScopeContainer.class
+	public static ReferenceBodyScopes materializeReferenceBodyScopes(
+		int summary, @Nonnull Set<Scope> scopes, @Nonnull Set<Scope> requestedScopes
+	) {
+		final int named = summary & BODY_SCOPE_MASK;
+		final boolean inherits = (summary & BODY_SCOPE_DEFAULT) != 0;
+		if (named == 0 || (inherits && (named & ~getBodyScopeBits(scopes)) == 0)) {
+			return null;
+		}
+		final Set<Scope> namedScopes = EnumSet.noneOf(Scope.class);
+		for (final Scope scope : BODY_SCOPES) {
+			if ((named & (1 << scope.ordinal())) != 0) {
+				namedScopes.add(scope);
+			}
+		}
+		return new ReferenceBodyScopes(
+			inherits ? CollectionUtils.combine(namedScopes, scopes) : namedScopes,
+			inherits ? CollectionUtils.combine(namedScopes, requestedScopes) : namedScopes
+		);
+	}
+
+	/**
+	 * Explicit scopes of fetched bodies; NULL at the call site means plain inheritance.
+	 *
+	 * @param scopes scopes searched for the bodies
+	 * @param requestedScopes scopes admitted by filters below the bodies
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record ReferenceBodyScopes(@Nonnull Set<Scope> scopes, @Nonnull Set<Scope> requestedScopes) {
+	}
+
+	/** Encodes a scope set without allocating a collection or an enum array. */
+	private static int getBodyScopeBits(@Nonnull Set<Scope> scopes) {
+		int bits = 0;
+		for (final Scope scope : BODY_SCOPES) {
+			if (scopes.contains(scope)) {
+				bits |= 1 << scope.ordinal();
+			}
+		}
+		return bits;
+	}
+
+	/**
+	 * Carries named alternatives, the default flag and raw named scopes together, avoiding rescans below negation.
+	 * Body containers and every other separate entity level are terminal nodes of this walk.
+	 */
+	private static int resolveReferenceBodyScopes(@Nonnull FilterConstraint constraint, boolean group) {
+		if (group ? constraint instanceof GroupHaving : constraint instanceof EntityHaving) {
+			final EntityScope ownScope = findConstraint(
+				new FilterBy(
+					group ? ((GroupHaving) constraint).getChildren() : ((EntityHaving) constraint).getChildren()
+				),
+				EntityScope.class, SeparateEntityScopeContainer.class
 			);
+			if (ownScope == null) {
+				return BODY_SCOPE_DEFAULT;
+			}
+			final int named = getBodyScopeBits(ownScope.getScope());
+			return named | (named << BODY_SCOPE_RAW_SHIFT);
+		}
+		if (constraint instanceof SeparateEntityScopeContainer ||
+			!(constraint instanceof ConstraintContainer<?> container)) {
+			return BODY_SCOPE_DEFAULT;
+		}
+		int named = 0;
+		int raw = 0;
+		final boolean disjunction = constraint instanceof Or;
+		// the identity of the fold: nothing matches an empty `or`, everything matches an empty conjunction
+		boolean defaults = !disjunction;
+		for (final Constraint<?> child : container.getChildren()) {
+			final int summary = resolveReferenceBodyScopes((FilterConstraint) child, group);
+			final int childNamed = summary & BODY_SCOPE_MASK;
+			final boolean childDefaults = (summary & BODY_SCOPE_DEFAULT) != 0;
+			raw |= summary >>> BODY_SCOPE_RAW_SHIFT;
+			if (disjunction) {
+				named |= childNamed;
+				defaults |= childDefaults;
+			} else {
+				// both sides name a scope: only their common scopes match; a side that may match in the owners' scopes
+				// constrains nothing, so the scopes the other side names pass through it
+				named = (named & childNamed) | (defaults ? childNamed : 0) | (childDefaults ? named : 0);
+				defaults &= childDefaults;
+			}
+		}
+		if (constraint instanceof Not) {
+			named = raw;
+			defaults = true;
+		} else if (constraint instanceof FilterInScope) {
+			defaults = true;
+		} else if (named == 0 && !defaults) {
+			// No row can satisfy the conjunction; retain a conservative superset of its raw named scopes.
+			named = raw;
+		}
+		return named | (defaults ? BODY_SCOPE_DEFAULT : 0) | (raw << BODY_SCOPE_RAW_SHIFT);
 	}
 
 	/**
@@ -538,10 +660,11 @@ public class QueryUtils {
 	 * The filter section is judged by {@link #assertFilterScopesApplicable(FilterBy, Set)} against the passed scopes,
 	 * and every filter of the require section - of a `referenceContent`, a hierarchy `node`, a facet summary - at any
 	 * depth, against the scopes {@link #getRequireFilterRequestedScopes} derives from them. Below the fetch of the
-	 * bodies of a `referenceContent`, the scope those bodies are fetched in replaces what encloses them, when the
-	 * referenced entity level of its filter names one ({@link #findReferenceBodyScope}) - an `inScope` of a nested
-	 * `referenceContent` names a scope of those bodies, not of the query. The `scope(...)` in the root of that filter
-	 * widens the lookup of the references only, and is not handed down.
+	 * bodies of a `referenceContent`, the searched and admitted scope pair is resolved from every matching alternative
+	 * ({@link #resolveReferenceBodyScopes(FilterBy, boolean)}) - the referenced entity level below its
+	 * `entityFetch`, the group level below its `entityGroupFetch`. An `inScope` of a nested `referenceContent` names a
+	 * scope of those bodies, not of the query. The `scope(...)` in the root of that filter widens the lookup of the
+	 * references only, and is not handed down.
 	 *
 	 * The check runs on every execution, so it looks no `scope(...)` up unless a filter holds an `inScope`.
 	 *
@@ -585,7 +708,8 @@ public class QueryUtils {
 	/**
 	 * Walks the require section looking for its filters - see {@link #assertFilterScopesApplicable(Query, Set)}. A filter
 	 * is an additional child of the requirement holding it, and a nested requirement is a child of its container. The
-	 * fetches of the bodies of a `referenceContent` are its children, its filter is an additional one.
+	 * fetches of the bodies of a `referenceContent` are its children, each judged by the level of its bodies, and its
+	 * filter is an additional one.
 	 *
 	 * @param constraint the require constraint to examine
 	 * @param requestedScopes the scopes requested at the entity level the constraint belongs to
@@ -597,9 +721,11 @@ public class QueryUtils {
 			final FilterConstraint filter = (FilterConstraint) constraint;
 			assertFilterScopesApplicable(filter, getRequireFilterRequestedScopes(filter, requestedScopes), null);
 		} else if (constraint instanceof ConstraintContainer<?> container) {
-			final Set<Scope> childRequestedScopes = constraint instanceof ReferenceContent referenceContent ?
-				getReferenceBodyRequestedScopes(referenceContent, requestedScopes) : requestedScopes;
+			final FilterBy referenceFilter = constraint instanceof ReferenceContent referenceContent ?
+				findReferenceContentFilter(referenceContent) : null;
 			for (final Constraint<?> child : container.getChildren()) {
+				final Set<Scope> childRequestedScopes = referenceFilter == null ?
+					requestedScopes : getReferenceBodyRequestedScopes(referenceFilter, child, requestedScopes);
 				assertRequireFilterScopesApplicable(child, childRequestedScopes);
 			}
 			for (final Constraint<?> additionalChild : container.getAdditionalChildren()) {
@@ -633,46 +759,51 @@ public class QueryUtils {
 	}
 
 	/**
-	 * Returns the scopes an `inScope` below the fetch of the bodies of the `referenceContent` may name: the scope of
-	 * the bodies when the referenced entity level of its filter names one ({@link #findReferenceBodyScope}), as the
-	 * request fetching them names it, otherwise the inherited ones.
+	 * Returns the filter of the `referenceContent` - the scan of `ReferenceContent#getFilterBy` without the `Optional`
+	 * it allocates, as this runs on every execution.
 	 *
-	 * The inherited set itself is returned when the `referenceContent` has no filter, or when no filter below it holds
-	 * an `inScope` - only an `inScope` can tell the two sets apart, so the lookup is spared.
+	 * @param referenceContent the `referenceContent` to examine
+	 * @return the filter of the fetched references, NULL when it has none
+	 */
+	@Nullable
+	private static FilterBy findReferenceContentFilter(@Nonnull ReferenceContent referenceContent) {
+		for (final Constraint<?> additionalChild : referenceContent.getAdditionalChildren()) {
+			if (additionalChild instanceof FilterBy filter) {
+				return filter;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Returns the scopes an `inScope` below one child of a `referenceContent` may name: the admitted union of
+	 * its bodies, resolved at their own level ({@link #resolveReferenceBodyScopes(FilterBy, boolean)}) against
+	 * inherited admission.
+	 * Default paths inherit while named-only paths replace admission, as in the request fetching them.
+	 * An {@link EntityGroupFetch} is judged by the group level, any other child by the referenced entity level.
 	 *
-	 * @param referenceContent the `referenceContent` whose children fetch the bodies
+	 * The inherited set itself is returned when no filter below the child holds an `inScope` - only an `inScope` can
+	 * tell the two sets apart, so the lookup is spared.
+	 *
+	 * @param referenceFilter the filter of the `referenceContent` holding the child
+	 * @param bodyFetch the child of the `referenceContent`, typically the fetch of its bodies
 	 * @param inheritedScopes the scopes requested at the entity level owning the references
-	 * @return the scopes an `inScope` below the fetch of the bodies may name
+	 * @return the scopes an `inScope` below the child may name
 	 */
 	@Nonnull
 	private static Set<Scope> getReferenceBodyRequestedScopes(
-		@Nonnull ReferenceContent referenceContent, @Nonnull Set<Scope> inheritedScopes
+		@Nonnull FilterBy referenceFilter, @Nonnull Constraint<?> bodyFetch, @Nonnull Set<Scope> inheritedScopes
 	) {
-		// the scan of `ReferenceContent#getFilterBy` without the `Optional` it allocates - this runs on every execution
-		FilterBy referenceFilter = null;
-		for (final Constraint<?> additionalChild : referenceContent.getAdditionalChildren()) {
-			if (additionalChild instanceof FilterBy filter) {
-				referenceFilter = filter;
-				break;
-			}
-		}
-		if (referenceFilter == null) {
-			return inheritedScopes;
-		}
 		// the `scope(...)` lookup allocates, so the allocation-free search for an `inScope` below the bodies - the only
 		// constraint their scope changes the verdict for - runs first
-		boolean holdsInScope = false;
-		for (final Constraint<?> child : referenceContent.getChildren()) {
-			if (holdsRequireFilterInScope(child)) {
-				holdsInScope = true;
-				break;
-			}
-		}
-		if (!holdsInScope) {
+		if (!holdsRequireFilterInScope(bodyFetch)) {
 			return inheritedScopes;
 		}
-		final EntityScope bodyScope = findReferenceBodyScope(referenceFilter);
-		return bodyScope == null ? inheritedScopes : bodyScope.getScope();
+		final ReferenceBodyScopes bodyScopes = materializeReferenceBodyScopes(
+			resolveReferenceBodyScopes(referenceFilter, bodyFetch instanceof EntityGroupFetch),
+			inheritedScopes, inheritedScopes
+		);
+		return bodyScopes == null ? inheritedScopes : bodyScopes.requestedScopes();
 	}
 
 	/**

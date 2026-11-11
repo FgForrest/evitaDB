@@ -30,32 +30,37 @@ import io.evitadb.api.query.filter.FilterInScope;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.Page;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link QueryUtils} - utility methods for accessing and manipulating
@@ -284,6 +289,32 @@ class QueryUtilsTest {
 	@Nested
 	@DisplayName("Scopes of a whole query")
 	class QueryFilterScopes {
+		/** Union bodies admit their named scopes below reference and hierarchy content for every owner. */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Admit scopes of union bodies below references and hierarchy bounds")
+		void shouldAdmitNestedScopesWhenBodyAlternativesNameThem(boolean hierarchy) {
+			final EntityContentRequire nested = hierarchy ?
+				hierarchyContent(stopAt(node(filterBy(inScope(Scope.ARCHIVED, entityPrimaryKeyInSet(200)))))) :
+				referenceContent("labels", filterBy(entityHaving(inScope(Scope.ARCHIVED, entityPrimaryKeyInSet(200)))));
+			assertDoesNotThrow(() -> QueryUtils.assertFilterScopesApplicable(query(collection("a"),
+				require(entityFetch(referenceContent("r", filterBy(or(
+					groupHaving(and(scope(Scope.LIVE), entityPrimaryKeyInSet(10))),
+					groupHaving(and(scope(Scope.ARCHIVED), entityPrimaryKeyInSet(20)))
+				)), entityGroupFetch(nested))))), Set.of(Scope.LIVE)));
+		}
+
+		/** Owners outside a reference-level wrapper preserve inherited admission below its body fetch. */
+		@Test
+		@DisplayName("Keep inherited admission below a reference scope wrapper")
+		void shouldKeepInheritedAdmissionWhenBodyPredicateIsScopeWrapped() {
+			assertDoesNotThrow(() -> QueryUtils.assertFilterScopesApplicable(query(collection("a"),
+				require(entityFetch(referenceContent("r", filterBy(inScope(Scope.LIVE,
+					groupHaving(and(scope(Scope.ARCHIVED), entityPrimaryKeyInSet(20)))
+				)), entityGroupFetch(referenceContent("labels", filterBy(entityHaving(LIVE_X)))))))),
+				Set.of(Scope.values())));
+		}
+
 		/** An `inScope` of the filter section is judged directly by the requested scopes. */
 		@Test
 		@DisplayName("Refuse an unrequested scope in the filter section")
@@ -514,11 +545,14 @@ class QueryUtilsTest {
 			));
 		}
 
-		/** The group bodies are fetched by a request derived from the referenced entity level, as the fetch does. */
+		/**
+		 * The group bodies are fetched by a request derived from the group level, which names no scope here, so they
+		 * inherit the scopes of the query whatever the referenced entity level names.
+		 */
 		@Test
-		@DisplayName("Refuse a scope the group bodies are not fetched in, following the referenced entity level")
-		void shouldRefuseScopeWhenGroupBodiesAreFetchedInScopeOfReferencedEntityLevel() {
-			assertUnrequested(
+		@DisplayName("Accept below the group bodies a scope only the referenced entity level excludes")
+		void shouldAcceptScopeBelowGroupBodiesWhenOnlyReferencedEntityLevelExcludesIt() {
+			assertDoesNotThrow(() -> QueryUtils.assertFilterScopesApplicable(
 				query(
 					collection("a"),
 					require(entityFetch(referenceContent(
@@ -527,18 +561,54 @@ class QueryUtilsTest {
 					)))
 				),
 				Set.of(Scope.values())
+			));
+		}
+
+		/** The group bodies are fetched in the scope their `groupHaving` names, which the query does not request. */
+		@Test
+		@DisplayName("Accept a scope the group level of the enclosing fetched references names")
+		void shouldAcceptScopeWhenGroupLevelOfEnclosingFetchedReferenceNamesIt() {
+			assertDoesNotThrow(() -> QueryUtils.assertFilterScopesApplicable(
+				query(
+					collection("a"),
+					require(entityFetch(referenceContent(
+						"r", filterBy(groupHaving(and(scope(Scope.LIVE), attributeEquals("g", 1)))),
+						entityGroupFetch(referenceContent("s", filterBy(entityHaving(LIVE_X))))
+					)))
+				),
+				Set.of(Scope.ARCHIVED)
+			));
+		}
+
+		/** The scope the group level names replaces the scopes of the query below the group bodies. */
+		@Test
+		@DisplayName("Refuse a scope the group bodies of the enclosing fetched references are not fetched in")
+		void shouldRefuseScopeWhenGroupLevelOfEnclosingFetchedReferenceExcludesIt() {
+			assertUnrequested(
+				query(
+					collection("a"),
+					require(entityFetch(referenceContent(
+						"r", filterBy(groupHaving(and(scope(Scope.ARCHIVED), attributeEquals("g", 1)))),
+						entityGroupFetch(referenceContent("s", filterBy(entityHaving(LIVE_X))))
+					)))
+				),
+				Set.of(Scope.values())
 			);
 		}
 
-		/** The scope of a `groupHaving` selects the groups of the rows, the fetch of the group bodies ignores it. */
+		/**
+		 * Each fetch of the bodies is judged by its own level: the referenced entities are fetched in the live scope
+		 * their level names, the groups in the archived scope of the query their level inherits.
+		 */
 		@Test
-		@DisplayName("Refuse a scope only the group level of the enclosing fetched references names")
-		void shouldRefuseScopeWhenOnlyGroupLevelOfEnclosingFetchedReferenceNamesIt() {
+		@DisplayName("Refuse below the group bodies a scope only the sibling fetch of referenced entities admits")
+		void shouldRefuseScopeBelowGroupBodiesWhenOnlySiblingEntityFetchIsFetchedInIt() {
 			assertUnrequested(query(
 				collection("a"),
 				require(entityFetch(referenceContent(
-					"r", filterBy(groupHaving(and(scope(Scope.LIVE), attributeEquals("g", 1)))),
-					entityGroupFetch(referenceContent("s", filterBy(entityHaving(LIVE_X))))
+					"r", filterBy(entityHaving(and(scope(Scope.LIVE), attributeEquals("y", 1)))),
+					entityFetch(referenceContent("s", filterBy(entityHaving(LIVE_X)))),
+					entityGroupFetch(referenceContent("t", filterBy(entityHaving(LIVE_X))))
 				)))
 			));
 		}
@@ -945,45 +1015,145 @@ class QueryUtilsTest {
 			);
 		}
 
-		/** The scope of the bodies is the one their `entityHaving` names, at any depth of its boolean containers. */
-		@Test
-		@DisplayName("Find the scope the referenced entity level names")
-		void shouldFindScopeWhenReferencedEntityLevelNamesIt() {
-			final EntityScope found = QueryUtils.findReferenceBodyScope(filterBy(or(
-				entityHaving(and(scope(Scope.LIVE), attributeEquals("code", "a"))),
-				attributeEquals("o", 1)
-			)));
-
-			assertEquals(scope(Scope.LIVE), found);
-		}
-
-		/** Neither the root of the reference filter nor another entity level names a scope of the bodies. */
-		@Test
-		@DisplayName("Find no scope the bodies are fetched in when only other levels name one")
-		void shouldFindNoScopeWhenOnlyOtherLevelsNameIt() {
-			assertNull(QueryUtils.findReferenceBodyScope(null));
-			assertNull(QueryUtils.findReferenceBodyScope(filterBy(scope(Scope.LIVE), entityHaving(LIVE_X))));
-			assertNull(QueryUtils.findReferenceBodyScope(
-				filterBy(groupHaving(and(scope(Scope.LIVE), attributeEquals("g", 1))))
-			));
-			assertNull(QueryUtils.findReferenceBodyScope(
-				filterBy(entityHaving(referenceHaving("t", entityHaving(scope(Scope.LIVE)))))
+		/** Body criteria are followed only along conjunctions from the reference root. */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Extract only and reachable body containers")
+		void shouldExtractOnlyFollowedCriteriaWhenBodiesAreBelowBooleanContainers(boolean group) {
+			final FilterConstraint followed = body(group, attributeEquals("code", "followed"));
+			final FilterConstraint alternative = body(group, entityLocaleEquals(Locale.ENGLISH));
+			assertEquals(filterBy(attributeEquals("code", "followed")), QueryUtils.extractReferenceBodyFilter(
+				filterBy(and(followed, or(alternative, attributeEquals("rank", 1)), not(alternative),
+					inScope(Scope.LIVE, alternative), referenceHaving("nested", alternative))), group
 			));
 		}
 
-		/** One body level names one scope, as the lookup of the request fetching the bodies expects. */
+		/** Every algebra row is materialized against narrow and wide owners, with wider admission than search. */
+		@ParameterizedTest(name = "{0}, group: {1}")
+		@MethodSource("bodyScopeAlternatives")
+		@DisplayName("Resolve each matching alternative at its own body level")
+		void shouldResolveBodyScopesWhenFilterCombinesMatchingAlternatives(
+			@Nonnull String shape, boolean group, @Nullable FilterBy filter,
+			@Nonnull Set<Scope> named, boolean defaults
+		) {
+			final List<Executable> assertions = new ArrayList<>();
+			final int summary = QueryUtils.resolveReferenceBodyScopes(filter, group);
+			final Set<Scope> both = Set.of(Scope.values());
+			for (final Set<Scope> owners : List.of(Set.of(Scope.LIVE), Set.of(Scope.ARCHIVED), both)) {
+				assertions.add(() -> {
+					final QueryUtils.ReferenceBodyScopes actual =
+						QueryUtils.materializeReferenceBodyScopes(summary, owners, both);
+					if (named.isEmpty() || defaults && owners.containsAll(named)) {
+						assertNull(actual, shape + " inherits " + owners);
+					} else {
+						final Set<Scope> searched = EnumSet.copyOf(named);
+						final Set<Scope> admitted = EnumSet.copyOf(named);
+						if (defaults) {
+							searched.addAll(owners);
+							admitted.addAll(both);
+						}
+						assertEquals(new QueryUtils.ReferenceBodyScopes(searched, admitted), actual, shape);
+					}
+				});
+			}
+			assertAll(assertions);
+		}
+
+		/**
+		 * Owners searching the live scope and admitting both. A path naming no scope, and a default path beside a named
+		 * scope the owners already search, inherit both sets. A default path beside a named scope the owners do not
+		 * search widens each set by it. A named scope without a default path replaces both sets, even when it equals
+		 * the scope the owners search.
+		 */
 		@Test
-		@DisplayName("Refuse two scopes of the referenced entity level")
-		void shouldRefuseTwoScopesWhenReferencedEntityLevelNamesThem() {
-			final EvitaInvalidUsageException error = assertThrows(
-				EvitaInvalidUsageException.class,
-				() -> QueryUtils.findReferenceBodyScope(
-					filterBy(entityHaving(scope(Scope.LIVE)), entityHaving(scope(Scope.ARCHIVED)))
-				)
+		@DisplayName("Inherit, widen or replace the scopes of the owners when materializing the body scopes")
+		void shouldInheritWidenOrReplaceOwnerScopesWhenBodyScopesAreMaterialized() {
+			final FilterConstraint neutral = attributeEquals("rank", 1);
+			final Set<Scope> live = Set.of(Scope.LIVE);
+			final Set<Scope> both = Set.of(Scope.values());
+
+			final int noNamedScope = QueryUtils.resolveReferenceBodyScopes(filterBy(entityHaving(neutral)), false);
+			final int searchedBesideDefault = QueryUtils.resolveReferenceBodyScopes(
+				filterBy(or(entityHaving(scope(Scope.LIVE)), neutral)), false
+			);
+			final int unsearchedBesideDefault = QueryUtils.resolveReferenceBodyScopes(
+				filterBy(or(entityHaving(scope(Scope.ARCHIVED)), neutral)), false
+			);
+			final int namedWithoutDefault = QueryUtils.resolveReferenceBodyScopes(
+				filterBy(entityHaving(scope(Scope.LIVE))), false
 			);
 
-			assertTrue(error.getMessage().contains("scope(LIVE), scope(ARCHIVED)"), error.getMessage());
+			assertAll(
+				() -> assertNull(QueryUtils.materializeReferenceBodyScopes(noNamedScope, live, both)),
+				() -> assertNull(QueryUtils.materializeReferenceBodyScopes(searchedBesideDefault, live, both)),
+				() -> assertEquals(
+					new QueryUtils.ReferenceBodyScopes(both, both),
+					QueryUtils.materializeReferenceBodyScopes(unsearchedBesideDefault, live, both)
+				),
+				() -> assertEquals(
+					new QueryUtils.ReferenceBodyScopes(live, live),
+					QueryUtils.materializeReferenceBodyScopes(namedWithoutDefault, live, both)
+				)
+			);
 		}
+
+		/** Two scope constraints inside one body container still have no supported interpretation. */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Refuse two own scopes inside one body container")
+		void shouldRefuseTwoScopesWhenOneBodyContainerNamesThem(boolean group) {
+			assertThrows(EvitaInvalidUsageException.class, () -> QueryUtils.resolveReferenceBodyScopes(
+				filterBy(body(group, scope(Scope.LIVE), scope(Scope.ARCHIVED))), group
+			));
+		}
+
+		/** Supplies discriminating alternatives for each algebra operator, including raw scopes below negation. */
+		@Nonnull
+		static Stream<Arguments> bodyScopeAlternatives() {
+			final List<Arguments> rows = new ArrayList<>();
+			for (final boolean group : new boolean[]{false, true}) {
+				final FilterConstraint live = body(group, scope(Scope.LIVE));
+				final FilterConstraint archived = body(group, scope(Scope.ARCHIVED));
+				final FilterConstraint neutral = attributeEquals("rank", 1);
+				final Set<Scope> none = Set.of();
+				final Set<Scope> l = Set.of(Scope.LIVE);
+				final Set<Scope> a = Set.of(Scope.ARCHIVED);
+				final Set<Scope> both = Set.of(Scope.values());
+				rows.add(Arguments.of("absent filter", group, null, none, true));
+				rows.add(Arguments.of("own scope", group, filterBy(archived), a, false));
+				rows.add(Arguments.of("unscoped body", group, filterBy(body(group, neutral)), none, true));
+				rows.add(Arguments.of("other level", group, filterBy(body(!group, scope(Scope.ARCHIVED))), none, true));
+				rows.add(Arguments.of("leaf", group, filterBy(neutral), none, true));
+				rows.add(Arguments.of("reference scope", group, filterBy(scope(Scope.ARCHIVED)), none, true));
+				rows.add(Arguments.of("named disjunction", group, filterBy(or(live, archived)), both, false));
+				rows.add(Arguments.of("default disjunction", group, filterBy(or(archived, neutral)), a, true));
+				rows.add(Arguments.of("named conjunction", group, filterBy(and(live, live)), l, false));
+				rows.add(Arguments.of("default conjunction", group, filterBy(and(archived, neutral)), a, false));
+				rows.add(Arguments.of("conjunction of alternatives", group,
+					filterBy(and(or(live, neutral), or(archived, neutral))), both, true));
+				rows.add(Arguments.of("intersect alternatives", group,
+					filterBy(and(or(live, archived), live)), l, false));
+				rows.add(Arguments.of("contradiction", group, filterBy(and(live, archived)), both, false));
+				rows.add(Arguments.of("negation", group, filterBy(not(archived)), a, true));
+				rows.add(Arguments.of("raw negation", group,
+					filterBy(not(and(or(live, archived), live))), both, true));
+				rows.add(Arguments.of("scope wrapper", group,
+					filterBy(inScope(Scope.LIVE, archived)), a, true));
+				rows.add(Arguments.of("nested separate level", group,
+					filterBy(body(group, referenceHaving("nested", entityHaving(scope(Scope.ARCHIVED))))), none, true));
+				rows.add(Arguments.of("nested separate level under not", group,
+					filterBy(not(body(group, referenceHaving("nested", entityHaving(scope(Scope.ARCHIVED)))))),
+					none, true));
+			}
+			return rows.stream();
+		}
+
+		/** Builds a container at one of the two independent body levels. */
+		@Nonnull
+		private static FilterConstraint body(boolean group, @Nonnull FilterConstraint... children) {
+			return group ? groupHaving(children) : entityHaving(children);
+		}
+
 	}
 
 	@Nested

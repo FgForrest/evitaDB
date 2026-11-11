@@ -24,7 +24,7 @@
 package io.evitadb.core.query.extraResult.translator.reference;
 
 import io.evitadb.api.exception.HierarchyContentMisplacedException;
-import io.evitadb.api.query.filter.EntityScope;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.HierarchyNode;
 import io.evitadb.api.query.require.HierarchyStopAt;
@@ -87,9 +87,10 @@ public class HierarchyContentTranslator implements RequireConstraintTranslator<H
 	 * ({@link ExtraResultPlanningVisitor#getEntityFetchRequest}), and the schema capabilities it requests are passed on
 	 * to the owner's planning context, which records them for the query.
 	 *
-	 * The parents are walked in the processing scopes, unless an enclosing `referenceContent` names the scope its
-	 * bodies are fetched in ({@link ReferenceContentTranslator#resolveOwnerScope}): the parents of those bodies are
-	 * walked in that scope alone, and an `inScope` of the node filter may name it alone, as in the fetch.
+	 * The parents are walked in the processing scopes, unless an enclosing `referenceContent` resolves an explicit
+	 * scope pair for the bodies it fetches ({@link ReferenceContentTranslator#resolveOwnerScope}): the parents of those
+	 * bodies are walked in the scopes the pair searches, and an `inScope` of the node filter may name the scopes it
+	 * admits, as in the fetch. A deeper level that inherits keeps the pair of the outer one.
 	 *
 	 * @param hierarchyContent           the requirement whose bound is checked
 	 * @param entitySchema               the schema of the entity whose parents are fetched
@@ -104,16 +105,17 @@ public class HierarchyContentTranslator implements RequireConstraintTranslator<H
 		if (stopAt != null && stopAt.getStopAtDefinition() instanceof HierarchyNode && entitySchema.isWithHierarchy()) {
 			final QueryPlanningContext ownerContext = extraResultPlanningVisitor.getQueryContext();
 			final EvitaRequest bodyRequest = extraResultPlanningVisitor.getEntityFetchRequest(hierarchyContent);
-			final EntityScope bodyScope =
+			final QueryUtils.ReferenceBodyScopes bodyScope =
 				ReferenceContentTranslator.resolveOwnerScope(hierarchyContent, extraResultPlanningVisitor);
 			final Set<Scope> scopes = bodyScope == null ?
-				extraResultPlanningVisitor.getProcessingScope().getScopes() : bodyScope.getScope();
+				extraResultPlanningVisitor.getProcessingScope().getScopes() : bodyScope.scopes();
 			final EvitaRequest checkRequest = bodyScope == null ?
 				bodyRequest.deriveCopyWith(
 					entitySchema.getName(), null, null, bodyRequest.getRequiredOrImplicitLocale(), scopes
 				) :
 				bodyRequest.deriveCopyWith(
-					entitySchema.getName(), null, null, bodyRequest.getRequiredOrImplicitLocale(), scopes, scopes
+					entitySchema.getName(), null, null, bodyRequest.getRequiredOrImplicitLocale(),
+					scopes, bodyScope.requestedScopes()
 				);
 			final QueryPlanningContext queryContext = ownerContext
 				.getEntityCollectionOrThrowException(entitySchema.getName(), "check fetched hierarchy bounds")

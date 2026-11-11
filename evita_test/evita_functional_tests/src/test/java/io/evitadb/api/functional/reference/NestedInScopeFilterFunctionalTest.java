@@ -25,10 +25,12 @@ package io.evitadb.api.functional.reference;
 
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.HierarchyContent;
+import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -52,14 +54,18 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 
 import static io.evitadb.api.query.Query.query;
@@ -110,6 +116,16 @@ public class NestedInScopeFilterFunctionalTest {
 	private static final String HIERARCHY_DATA_SET = "nestedInScopeHierarchy";
 	private static final String NODE = "node";
 	private static final String NODE_OWNER = "nodeOwner";
+	/** Shared fixture for entity and group body scope alternatives. */
+	private static final String GROUP_BODY_DATA_SET = "nestedInScopeGroupBodies";
+	/** Owner collection of the body-scope fixture. */
+	private static final String GROUPED_PRODUCT = "groupedProduct";
+	/** Referenced value collection of the body-scope fixture. */
+	private static final String GROUPED_VALUE = "groupedValue";
+	/** Managed group collection of the body-scope fixture. */
+	private static final String VALUE_GROUP = "valueGroup";
+	/** Nested label collection of the body-scope fixture. */
+	private static final String GROUP_LABEL = "groupLabel";
 	private static final Scope[] BOTH = Scope.values();
 
 	/** Collection families with and without archived target indexes. */
@@ -188,6 +204,69 @@ public class NestedInScopeFilterFunctionalTest {
 			session.createNewEntity(NODE_OWNER, 1).setReference("nodes", 3).setReference("related", 2)
 				.upsertVia(session);
 			session.archiveEntity(NODE_OWNER, 1);
+		});
+	}
+
+	/**
+	 * Builds the live product 1 whose rows cross scopes between the value and its group: the live value 1 in the live
+	 * group 10, the live value 2 in the archived group 20 and the archived value 3 in the live group 10. The live
+	 * group 10 references the live label 100 and the archived label 200, the archived group 20 the archived labels
+	 * 200 and 300. The live product 2 has no rows. Archived product 3 references values 1 and 3, both in group 10.
+	 * Every row has `rank` equal to its value key. Localized `label` is German only on value 1 and group 10,
+	 * and English only on values 2 and 3 and group 20.
+	 */
+	@DataSet(value = GROUP_BODY_DATA_SET, destroyAfterClass = true)
+	void setUpGroupBodyDataSet(@Nonnull Evita evita) {
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.defineEntitySchema(GROUP_LABEL).withoutGeneratedPrimaryKey()
+				.withAttribute("code", String.class).updateVia(session);
+			for (final int id : new int[]{100, 200, 300}) {
+				session.createNewEntity(GROUP_LABEL, id).setAttribute("code", "label-" + id).upsertVia(session);
+			}
+			session.defineEntitySchema(VALUE_GROUP).withoutGeneratedPrimaryKey()
+				.withAttribute("code", String.class)
+				.withAttribute("label", String.class, a -> a.localized())
+				.withReferenceToEntity("labels", GROUP_LABEL, Cardinality.ZERO_OR_MORE,
+					r -> r.indexedForFilteringAndPartitioningInScope(BOTH))
+				.updateVia(session);
+			session.createNewEntity(VALUE_GROUP, 10).setAttribute("code", "group-10")
+				.setAttribute("label", Locale.GERMAN, "gruppe-10")
+				.setReference("labels", 100).setReference("labels", 200).upsertVia(session);
+			session.createNewEntity(VALUE_GROUP, 20).setAttribute("code", "group-20")
+				.setAttribute("label", Locale.ENGLISH, "group-20")
+				.setReference("labels", 200).setReference("labels", 300).upsertVia(session);
+			session.defineEntitySchema(GROUPED_VALUE).withoutGeneratedPrimaryKey()
+				.withAttribute("code", String.class)
+				.withAttribute("label", String.class, a -> a.localized()).updateVia(session);
+			for (int id = 1; id <= 3; id++) {
+				session.createNewEntity(GROUPED_VALUE, id).setAttribute("code", "value-" + id)
+					.setAttribute("label", id == 1 ? Locale.GERMAN : Locale.ENGLISH, "label-" + id).upsertVia(session);
+			}
+			session.defineEntitySchema(GROUPED_PRODUCT).withoutGeneratedPrimaryKey()
+				.withReferenceToEntity("values", GROUPED_VALUE, Cardinality.ZERO_OR_MORE,
+					r -> r.withGroupTypeRelatedToEntity(VALUE_GROUP)
+						.withAttribute("rank", Integer.class)
+						.indexedForFilteringAndPartitioningInScope(BOTH)
+						.indexedWithComponentsInScope(Scope.LIVE, ReferenceIndexedComponents.REFERENCED_ENTITY,
+							ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY)
+						.indexedWithComponentsInScope(Scope.ARCHIVED, ReferenceIndexedComponents.REFERENCED_ENTITY,
+							ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY))
+				.updateVia(session);
+			session.createNewEntity(GROUPED_PRODUCT, 1)
+				.setReference("values", 1, r -> r.setGroup(10).setAttribute("rank", 1))
+				.setReference("values", 2, r -> r.setGroup(20).setAttribute("rank", 2))
+				.setReference("values", 3, r -> r.setGroup(10).setAttribute("rank", 3))
+				.upsertVia(session);
+			session.createNewEntity(GROUPED_PRODUCT, 2).upsertVia(session);
+			session.createNewEntity(GROUPED_PRODUCT, 3)
+				.setReference("values", 1, r -> r.setGroup(10).setAttribute("rank", 1))
+				.setReference("values", 3, r -> r.setGroup(10).setAttribute("rank", 3))
+				.upsertVia(session);
+			session.archiveEntity(VALUE_GROUP, 20);
+			session.archiveEntity(GROUPED_VALUE, 3);
+			session.archiveEntity(GROUP_LABEL, 200);
+			session.archiveEntity(GROUP_LABEL, 300);
+			session.archiveEntity(GROUPED_PRODUCT, 3);
 		});
 	}
 
@@ -979,13 +1058,16 @@ public class NestedInScopeFilterFunctionalTest {
 		void shouldRefuseScopeExcludedByBodyScopeWhenQuerySelectsOwnerWithOrWithoutRows(
 			@Nonnull Target target, @Nonnull Evita evita
 		) {
+			final List<Executable> assertions = new ArrayList<>();
 			for (final int id : new int[]{1, 7}) {
-				assertScopeError(Scope.ARCHIVED, () -> evita.queryCatalog(TEST_CATALOG, session -> {
-					return session.queryListOfSealedEntities(query(collection(target.product),
-						filterBy(scope(BOTH), entityPrimaryKeyInSet(id)),
-						require(entityFetch(scopedValues(Scope.LIVE, filterBy(archivedTag()))))));
-				}));
+				assertions.add(() -> assertScopeError(Scope.ARCHIVED,
+					() -> evita.queryCatalog(TEST_CATALOG, session -> {
+						return session.queryListOfSealedEntities(query(collection(target.product),
+							filterBy(scope(BOTH), entityPrimaryKeyInSet(id)),
+							require(entityFetch(scopedValues(Scope.LIVE, filterBy(archivedTag()))))));
+					})));
 			}
+			assertAll(assertions);
 		}
 
 		/** A direct get plans no check of the fetched references, and must still not depend on the rows. */
@@ -996,13 +1078,16 @@ public class NestedInScopeFilterFunctionalTest {
 		void shouldRefuseScopeExcludedByBodyScopeWhenGotOwnerHasOrLacksRows(
 			@Nonnull Target target, @Nonnull Evita evita
 		) {
+			final List<Executable> assertions = new ArrayList<>();
 			for (final int id : new int[]{1, 7}) {
-				assertScopeError(Scope.ARCHIVED, () -> evita.queryCatalog(TEST_CATALOG, session -> {
-					return session.getEntity(
-						target.product, id, BOTH, scopedValues(Scope.LIVE, filterBy(archivedTag()))
-					);
-				}));
+				assertions.add(() -> assertScopeError(Scope.ARCHIVED,
+					() -> evita.queryCatalog(TEST_CATALOG, session -> {
+						return session.getEntity(
+							target.product, id, BOTH, scopedValues(Scope.LIVE, filterBy(archivedTag()))
+						);
+					})));
 			}
+			assertAll(assertions);
 		}
 
 		/** `y` is filterable in the live scope only, which is the only scope the values are fetched in. */
@@ -1027,25 +1112,30 @@ public class NestedInScopeFilterFunctionalTest {
 				expected.put(6, Map.of());
 			}
 
-			final Map<Integer, Map<Integer, List<Integer>>> queried = evita.queryCatalog(TEST_CATALOG, session -> {
-				final Map<Integer, Map<Integer, List<Integer>>> result = new TreeMap<>();
-				for (final SealedEntity product : session.queryListOfSealedEntities(query(
-					collection(target.product), filterBy(scope(BOTH)), require(entityFetch(content))
-				))) {
-					result.put(product.getPrimaryKey(), tagIdsByValue(product));
+			assertAll(
+				() -> {
+					final Map<Integer, Map<Integer, List<Integer>>> queried =
+						evita.queryCatalog(TEST_CATALOG, session -> {
+							final Map<Integer, Map<Integer, List<Integer>>> result = new TreeMap<>();
+							for (final SealedEntity product : session.queryListOfSealedEntities(query(
+								collection(target.product), filterBy(scope(BOTH)), require(entityFetch(content))
+							))) {
+								result.put(product.getPrimaryKey(), tagIdsByValue(product));
+							}
+							return result;
+						});
+					assertEquals(expected, queried);
+				},
+				() -> {
+					assertAll(expected.entrySet().stream().map(entry -> () -> {
+						final Map<Integer, List<Integer>> actual = evita.queryCatalog(TEST_CATALOG, session -> {
+							return tagIdsByValue(session.getEntity(target.product, entry.getKey(), BOTH, content)
+								.orElseThrow());
+						});
+						assertEquals(entry.getValue(), actual, "owner " + entry.getKey());
+					}));
 				}
-				return result;
-			});
-			final Map<Integer, Map<Integer, List<Integer>>> got = evita.queryCatalog(TEST_CATALOG, session -> {
-				final Map<Integer, Map<Integer, List<Integer>>> result = new TreeMap<>();
-				for (final int id : expected.keySet()) {
-					result.put(id, tagIdsByValue(session.getEntity(target.product, id, BOTH, content).orElseThrow()));
-				}
-				return result;
-			});
-
-			assertEquals(expected, queried);
-			assertEquals(expected, got);
+			);
 		}
 
 		/** An archived query fetches the values in the live scope their level names, so their tags may name it. */
@@ -1064,27 +1154,30 @@ public class NestedInScopeFilterFunctionalTest {
 				expected.put(5, Map.of());
 			}
 
-			final Map<Integer, Map<Integer, List<Integer>>> queried = evita.queryCatalog(TEST_CATALOG, session -> {
-				final Map<Integer, Map<Integer, List<Integer>>> result = new TreeMap<>();
-				for (final SealedEntity product : session.queryListOfSealedEntities(query(
-					collection(target.product), filterBy(scope(archived)), require(entityFetch(content))
-				))) {
-					result.put(product.getPrimaryKey(), tagIdsByValue(product));
+			assertAll(
+				() -> {
+					final Map<Integer, Map<Integer, List<Integer>>> queried =
+						evita.queryCatalog(TEST_CATALOG, session -> {
+							final Map<Integer, Map<Integer, List<Integer>>> result = new TreeMap<>();
+							for (final SealedEntity product : session.queryListOfSealedEntities(query(
+								collection(target.product), filterBy(scope(archived)), require(entityFetch(content))
+							))) {
+								result.put(product.getPrimaryKey(), tagIdsByValue(product));
+							}
+							return result;
+						});
+					assertEquals(expected, queried);
+				},
+				() -> {
+					assertAll(expected.entrySet().stream().map(entry -> () -> {
+						final Map<Integer, List<Integer>> actual = evita.queryCatalog(TEST_CATALOG, session -> {
+							return tagIdsByValue(session.getEntity(target.product, entry.getKey(), archived, content)
+								.orElseThrow());
+						});
+						assertEquals(entry.getValue(), actual, "owner " + entry.getKey());
+					}));
 				}
-				return result;
-			});
-			final Map<Integer, Map<Integer, List<Integer>>> got = evita.queryCatalog(TEST_CATALOG, session -> {
-				final Map<Integer, Map<Integer, List<Integer>>> result = new TreeMap<>();
-				for (final int id : expected.keySet()) {
-					result.put(
-						id, tagIdsByValue(session.getEntity(target.product, id, archived, content).orElseThrow())
-					);
-				}
-				return result;
-			});
-
-			assertEquals(expected, queried);
-			assertEquals(expected, got);
+			);
 		}
 
 		/**
@@ -1102,18 +1195,23 @@ public class NestedInScopeFilterFunctionalTest {
 			);
 			final Map<Integer, List<Integer>> expected = Map.of(3, List.of(2));
 
-			final Map<Integer, List<Integer>> got = evita.queryCatalog(TEST_CATALOG, session -> {
-				return parentIdsByNode(session.getEntity(NODE_OWNER, 1, archived, content).orElseThrow());
-			});
-			assertEquals(expected, got);
-
-			final Map<Integer, List<Integer>> queried = evita.queryCatalog(TEST_CATALOG, session -> {
-				return parentIdsByNode(session.queryOneSealedEntity(query(
-					collection(NODE_OWNER), filterBy(scope(archived), entityPrimaryKeyInSet(1)),
-					require(entityFetch(content))
-				)).orElseThrow());
-			});
-			assertEquals(expected, queried);
+			assertAll(
+				() -> {
+					final Map<Integer, List<Integer>> got = evita.queryCatalog(TEST_CATALOG, session -> {
+						return parentIdsByNode(session.getEntity(NODE_OWNER, 1, archived, content).orElseThrow());
+					});
+					assertEquals(expected, got);
+				},
+				() -> {
+					final Map<Integer, List<Integer>> queried = evita.queryCatalog(TEST_CATALOG, session -> {
+						return parentIdsByNode(session.queryOneSealedEntity(query(
+							collection(NODE_OWNER), filterBy(scope(archived), entityPrimaryKeyInSet(1)),
+							require(entityFetch(content))
+						)).orElseThrow());
+					});
+					assertEquals(expected, queried);
+				}
+			);
 		}
 
 		/**
@@ -1133,25 +1231,30 @@ public class NestedInScopeFilterFunctionalTest {
 				2, Map.of(3, List.of(2))
 			);
 
-			final Map<Integer, Map<Integer, List<Integer>>> queried = evita.queryCatalog(TEST_CATALOG, session -> {
-				final Map<Integer, Map<Integer, List<Integer>>> result = new TreeMap<>();
-				for (final SealedEntity owner : session.queryListOfSealedEntities(query(
-					collection(NODE_OWNER), filterBy(scope(BOTH)), require(entityFetch(content))
-				))) {
-					result.put(owner.getPrimaryKey(), parentIdsByNode(owner));
+			assertAll(
+				() -> {
+					final Map<Integer, Map<Integer, List<Integer>>> queried =
+						evita.queryCatalog(TEST_CATALOG, session -> {
+							final Map<Integer, Map<Integer, List<Integer>>> result = new TreeMap<>();
+							for (final SealedEntity owner : session.queryListOfSealedEntities(query(
+								collection(NODE_OWNER), filterBy(scope(BOTH)), require(entityFetch(content))
+							))) {
+								result.put(owner.getPrimaryKey(), parentIdsByNode(owner));
+							}
+							return result;
+						});
+					assertEquals(expected, queried);
+				},
+				() -> {
+					assertAll(expected.entrySet().stream().map(entry -> () -> {
+						final Map<Integer, List<Integer>> actual = evita.queryCatalog(TEST_CATALOG, session -> {
+							return parentIdsByNode(session.getEntity(NODE_OWNER, entry.getKey(), BOTH, content)
+								.orElseThrow());
+						});
+						assertEquals(entry.getValue(), actual, "owner " + entry.getKey());
+					}));
 				}
-				return result;
-			});
-			final Map<Integer, Map<Integer, List<Integer>>> got = evita.queryCatalog(TEST_CATALOG, session -> {
-				final Map<Integer, Map<Integer, List<Integer>>> result = new TreeMap<>();
-				for (final int id : expected.keySet()) {
-					result.put(id, parentIdsByNode(session.getEntity(NODE_OWNER, id, BOTH, content).orElseThrow()));
-				}
-				return result;
-			});
-
-			assertEquals(expected, queried);
-			assertEquals(expected, got);
+			);
 		}
 
 		/**
@@ -1184,6 +1287,661 @@ public class NestedInScopeFilterFunctionalTest {
 			});
 
 			assertEquals(Map.of(2, List.of(3)), nodeIdsByRelated);
+		}
+
+	}
+
+	/**
+	 * The group of a row is an independent body level. Its matching alternatives determine searched and admitted
+	 * scopes, and only and-reachable containers supply fetch criteria. Nested content is judged by those scopes.
+	 * Every row is described by the key of its group and by what its fetched body holds.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Scopes of fetched group bodies")
+	class GroupBodyScopes {
+		/**
+		 * Only the referenced entity level names a scope, so the group bodies are fetched in both scopes of the query:
+		 * the archived group 20 of the live value 2, and the live group 10 of the archived value 3.
+		 */
+		@ParameterizedTest
+		@EnumSource(Scope.class)
+		@DisplayName("Fetch group bodies in the scopes of the owners when only the entity level names a scope")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldFetchGroupBodiesInOwnerScopesWhenOnlyEntityLevelNamesScope(
+			@Nonnull Scope entityScope, @Nonnull Evita evita
+		) {
+			final Map<Integer, String> expected = entityScope == Scope.LIVE ?
+				Map.of(1, "group 10, body valueGroup 10 LIVE", 2, "group 20, body valueGroup 20 ARCHIVED") :
+				Map.of(3, "group 10, body valueGroup 10 LIVE");
+
+			assertRowBodies(evita, BOTH, referenceContent(
+				"values", filterBy(entityHaving(scope(entityScope))), entityGroupFetch()
+			), true, expected);
+		}
+
+		/** The query requests the live scope alone, and the group level names the archived one its groups live in. */
+		@Test
+		@DisplayName("Fetch group bodies in the scope the group level names although the query does not request it")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldFetchGroupBodiesInGroupLevelScopeWhenQueryDoesNotRequestIt(@Nonnull Evita evita) {
+			assertRowBodies(evita, new Scope[]{Scope.LIVE}, referenceContent(
+				"values", filterBy(archivedGroup()), entityGroupFetch()
+			), true, Map.of(2, "group 20, body valueGroup 20 ARCHIVED"));
+		}
+
+		/**
+		 * The filters of the two group-body tests above, fetching the referenced entity bodies of their rows instead.
+		 * Those bodies follow their own level: the live scope the entity level names, and - when only the group level
+		 * names the archived scope - the live scope of the query, not the archived scope of the groups.
+		 */
+		@Test
+		@DisplayName("Fetch entity bodies of the same rows in the scope of their own level")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldFetchEntityBodiesWhenEntityOrGroupLevelNamesScope(@Nonnull Evita evita) {
+			final List<Executable> assertions = new ArrayList<>();
+			assertions.add(() -> assertRowBodies(evita, BOTH, referenceContent(
+				"values", filterBy(entityHaving(scope(Scope.LIVE))), entityFetch()
+			), false, Map.of(1, "group 10, body groupedValue 1 LIVE", 2, "group 20, body groupedValue 2 LIVE")));
+			assertions.add(() -> assertRowBodies(evita, new Scope[]{Scope.LIVE}, referenceContent(
+				"values", filterBy(archivedGroup()), entityFetch()
+			), false, Map.of(2, "group 20, body groupedValue 2 LIVE")));
+			assertAll(assertions);
+		}
+
+		/** A filter naming no scope, or none at all, fetches the group bodies in both scopes of the query. */
+		@Test
+		@DisplayName("Fetch group bodies in the scopes of the owners when the filter names no scope")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldFetchGroupBodiesInOwnerScopesWhenFilterNamesNoScope(@Nonnull Evita evita) {
+			final List<Executable> assertions = new ArrayList<>();
+			assertions.add(() -> assertRowBodies(
+				evita, BOTH, referenceContent("values", entityGroupFetch()), true, Map.of(
+					1, "group 10, body valueGroup 10 LIVE",
+					2, "group 20, body valueGroup 20 ARCHIVED",
+					3, "group 10, body valueGroup 10 LIVE"
+				)));
+			assertions.add(() -> assertRowBodies(evita, BOTH, referenceContent(
+				"values", filterBy(entityHaving(entityPrimaryKeyInSet(1, 2))), entityGroupFetch()
+			), true, Map.of(1, "group 10, body valueGroup 10 LIVE", 2, "group 20, body valueGroup 20 ARCHIVED")));
+			assertAll(assertions);
+		}
+
+		/** Fetching only the references to existing entities keeps the group bodies of the entity-level scope case. */
+		@Test
+		@DisplayName("Fetch existing group bodies in the scopes of the owners when only the entity level names a scope")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldFetchExistingGroupBodiesInOwnerScopesWhenOnlyEntityLevelNamesScope(@Nonnull Evita evita) {
+			assertRowBodies(evita, BOTH, referenceContent(
+				ManagedReferencesBehaviour.EXISTING, "values", filterBy(entityHaving(scope(Scope.LIVE))),
+				entityGroupFetch()
+			), true, Map.of(1, "group 10, body valueGroup 10 LIVE", 2, "group 20, body valueGroup 20 ARCHIVED"));
+		}
+
+		/**
+		 * Fetching only the references to existing entities keeps the group bodies of the group-level scope case: the
+		 * existence of group 20 is checked in the archived scope its body is fetched in, not in the scope of the query.
+		 */
+		@Test
+		@DisplayName("Fetch existing group bodies in the scope the group level names although the query does not")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldFetchExistingGroupBodiesInGroupLevelScopeWhenQueryDoesNotRequestIt(@Nonnull Evita evita) {
+			assertRowBodies(evita, new Scope[]{Scope.LIVE}, referenceContent(
+				ManagedReferencesBehaviour.EXISTING, "values", filterBy(archivedGroup()), entityGroupFetch()
+			), true, Map.of(2, "group 20, body valueGroup 20 ARCHIVED"));
+		}
+
+		/**
+		 * The group bodies are fetched in the live scope their level names, so a `referenceContent` of their labels
+		 * may not name the archived one - whether a row reaches it, as for product 1, or not, as for product 2.
+		 */
+		@Test
+		@DisplayName("Refuse below group bodies a scope they are not fetched in whether rows reach it or not")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldRefuseScopeExcludedByGroupBodyScopeWhenOwnerHasOrLacksRows(@Nonnull Evita evita) {
+			final ReferenceContent content = referenceContent(
+				"values", filterBy(groupHaving(scope(Scope.LIVE))), entityGroupFetch(archivedLabel())
+			);
+			final List<Executable> refusals = new ArrayList<>(4);
+			for (final int id : new int[]{1, 2}) {
+				refusals.add(() -> assertScopeError(Scope.ARCHIVED, "planned query of product " + id,
+					() -> evita.queryCatalog(TEST_CATALOG, session -> {
+						return session.queryListOfSealedEntities(query(
+							collection(GROUPED_PRODUCT), filterBy(scope(BOTH), entityPrimaryKeyInSet(id)),
+							require(entityFetch(content))
+						));
+					})));
+				refusals.add(() -> assertScopeError(Scope.ARCHIVED, "getEntity of product " + id,
+					() -> evita.queryCatalog(TEST_CATALOG, session -> {
+						return session.getEntity(GROUPED_PRODUCT, id, BOTH, content);
+					})));
+			}
+
+			assertAll(refusals);
+		}
+
+		/**
+		 * The live query does not request the archived scope, but the group level names it, so the group bodies are
+		 * fetched in it and a `referenceContent` of their labels may name it: of the archived labels 200 and 300 of
+		 * group 20, the filter keeps 200.
+		 */
+		@Test
+		@DisplayName("Admit below group bodies the scope they are fetched in, though the query does not request it")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldAdmitGroupBodyScopeBelowGroupBodiesWhenQueryDoesNotRequestIt(@Nonnull Evita evita) {
+			final Scope[] live = {Scope.LIVE};
+			final ReferenceContent content = referenceContent(
+				"values", filterBy(archivedGroup()), entityGroupFetch(archivedLabel())
+			);
+			final Map<Integer, String> expected = Map.of(2, "group 20, labels [200]");
+
+			assertAll(
+				() -> assertEquals(expected, evita.queryCatalog(TEST_CATALOG, session -> {
+					return groupLabels(session.queryOneSealedEntity(query(
+						collection(GROUPED_PRODUCT), filterBy(scope(live), entityPrimaryKeyInSet(1)),
+						require(entityFetch(content))
+					)).orElseThrow());
+				}), "planned query"),
+				() -> assertEquals(expected, evita.queryCatalog(TEST_CATALOG, session -> {
+					return groupLabels(session.getEntity(GROUPED_PRODUCT, 1, live, content).orElseThrow());
+				}), "getEntity")
+			);
+		}
+
+		/** A row may match a named body scope or a reference attribute in the owners' default scopes. */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Fetch bodies from named and default scopes when either branch matches")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldFetchBodiesFromNamedAndDefaultScopesWhenDisjunctionMatches(boolean group, @Nonnull Evita evita) {
+			final List<Executable> assertions = new ArrayList<>();
+			final FilterConstraint named = scopedBody(group, Scope.ARCHIVED, group ? 20 : 3);
+			for (final Scope[] scopes : new Scope[][]{BOTH, {Scope.LIVE}}) {
+				assertions.add(() -> assertRowBodies(evita, scopes, referenceContent(
+					"values", filterBy(or(named, attributeEquals("rank", 1))),
+					group ? null : entityFetch(), group ? entityGroupFetch() : null
+				), group, expectedBodies(group, group ? new int[]{1, 2} : new int[]{1, 3})));
+			}
+			assertAll(assertions);
+		}
+
+		/** Negation preserves named scopes and the owners' default scopes without following the negated criteria. */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Fetch every admitted body when a scoped body predicate is negated")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldFetchAdmittedBodiesWhenScopedPredicateIsNegated(boolean group, @Nonnull Evita evita) {
+			assertRowBodies(evita, BOTH, referenceContent(
+				"values", filterBy(not(scopedBody(group, Scope.ARCHIVED, group ? 20 : 3))),
+				group ? null : entityFetch(), group ? entityGroupFetch() : null
+			), group, expectedBodies(group, group ? new int[]{1, 3} : new int[]{1, 2}));
+		}
+
+		/** Separate scoped containers in a disjunction unite scopes for both reference existence policies. */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Unite body scopes when separate scoped branches match")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldUniteBodyScopesWhenScopedBranchesMatch(boolean group, @Nonnull Evita evita) {
+			final List<Executable> assertions = new ArrayList<>();
+			for (final ManagedReferencesBehaviour behaviour : new ManagedReferencesBehaviour[]{
+				ManagedReferencesBehaviour.ANY, ManagedReferencesBehaviour.EXISTING
+			}) {
+				final ReferenceContent content = referenceContent(
+					behaviour, "values", filterBy(or(
+						scopedBody(group, Scope.LIVE, group ? 10 : 1),
+						scopedBody(group, Scope.ARCHIVED, group ? 20 : 3)
+					)), group ? null : entityFetch(), group ? entityGroupFetch() : null
+				);
+				assertions.add(() -> assertRowBodies(evita, BOTH, content, group,
+					expectedBodies(group, group ? new int[]{1, 2, 3} : new int[]{1, 3})));
+				assertions.add(() -> assertRowBodies(evita, 2, BOTH, content, group, Map.of()));
+			}
+			assertAll(assertions);
+		}
+
+		/** An entity branch naming no group scope leaves the archived group body available. */
+		@Test
+		@DisplayName("Inherit group scopes when another body level supplies a matching branch")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldInheritGroupScopesWhenEntityBranchMatches(@Nonnull Evita evita) {
+			assertRowBodies(evita, BOTH, referenceContent(
+				"values", filterBy(or(groupHaving(scope(Scope.LIVE)), entityHaving(entityPrimaryKeyInSet(2)))),
+				entityGroupFetch()
+			), true, expectedBodies(true, 1, 2, 3));
+		}
+
+		/** An English branch filters rows while explicit fetch locales preserve every admitted body. */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Fetch English labels when a locale branch or a reference attribute matches")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldFetchEnglishLabelsWhenLocaleBranchOrReferenceAttributeMatches(boolean group, @Nonnull Evita evita) {
+			final FilterConstraint english = group ?
+				groupHaving(entityLocaleEquals(Locale.ENGLISH)) : entityHaving(entityLocaleEquals(Locale.ENGLISH));
+			assertEnglishBodyLabels(evita, group, filterBy(or(english, attributeEquals("rank", 1))),
+				group ? new int[]{1, 2} : new int[]{1, 2, 3});
+		}
+
+		/** A negated German branch filters rows without supplying the fetched bodies' locale. */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Fetch English labels when a German body locale is negated")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldFetchEnglishLabelsWhenBodyLocaleIsNegated(boolean group, @Nonnull Evita evita) {
+			final FilterConstraint german = group ?
+				groupHaving(entityLocaleEquals(Locale.GERMAN)) : entityHaving(entityLocaleEquals(Locale.GERMAN));
+			assertEnglishBodyLabels(evita, group, filterBy(not(german)), group ? new int[]{2} : new int[]{2, 3});
+		}
+
+		/** Alternative body locales are independent row predicates and do not conflict during fetching. */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Fetch English labels when alternative body locales match")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldFetchEnglishLabelsWhenAlternativeBodyLocalesMatch(boolean group, @Nonnull Evita evita) {
+			final FilterConstraint english = group ?
+				groupHaving(entityLocaleEquals(Locale.ENGLISH)) : entityHaving(entityLocaleEquals(Locale.ENGLISH));
+			final FilterConstraint german = group ?
+				groupHaving(entityLocaleEquals(Locale.GERMAN)) : entityHaving(entityLocaleEquals(Locale.GERMAN));
+			assertEnglishBodyLabels(evita, group, filterBy(or(english, german)), 1, 2, 3);
+		}
+
+		/** Neither a branch locale nor the rank-only control supplies a planned body's fetch locale. */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Refuse planned localized body attributes when neither shape supplies a fetch locale")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldRefusePlannedLocalizedBodyAttributesWhenFetchLocaleIsMissing(boolean group, @Nonnull Evita evita) {
+			final List<Executable> assertions = new ArrayList<>();
+			for (final MissingLocaleShape shape : missingLocaleShapes(group)) {
+				final ReferenceContent content = referenceContent("values", shape.filter(),
+					group ? null : entityFetch(attributeContent("label")),
+					group ? entityGroupFetch(attributeContent("label")) : null);
+				for (final int owner : new int[]{1, 2}) {
+					assertions.add(() -> assertThrows(EntityLocaleMissingException.class,
+						() -> fetchProduct(evita, owner, BOTH, content, true),
+						"owner " + owner + ", filter " + shape.filter()));
+				}
+			}
+			assertAll(assertions);
+		}
+
+		/**
+		 * `getEntity` plans no fetch, so the check of named localized attributes does not run there, with or without
+		 * the locale branch. This pins parity of the two shapes, not that entry point's leniency.
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Keep direct fetch parity with and without a locale branch when the fetch locale is missing")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldKeepDirectFetchParityWhenNeitherShapeSuppliesBodyLocale(boolean group, @Nonnull Evita evita) {
+			final List<Executable> assertions = new ArrayList<>();
+			for (final MissingLocaleShape shape : missingLocaleShapes(group)) {
+				final ReferenceContent content = referenceContent("values", shape.filter(),
+					group ? null : entityFetch(attributeContent("label")),
+					group ? entityGroupFetch(attributeContent("label")) : null);
+				for (final int owner : new int[]{1, 2}) {
+					assertions.add(() -> {
+						final SealedEntity product = fetchProduct(evita, owner, BOTH, content, false);
+						assertAll(
+							() -> assertEquals(owner == 1 ? expectedBodies(group, shape.rows()) : Map.of(),
+								rowBodies(product, group), "owner " + owner + ", filter " + shape.filter()),
+							() -> assertAll(product.getReferences("values").stream().map(row -> () -> {
+								final SealedEntity body =
+									(group ? row.getGroupEntity() : row.getReferencedEntity()).orElseThrow();
+								assertAll(
+									() -> assertEquals(Set.of(), body.getLocales()),
+									() -> assertEquals(List.of(), List.copyOf(body.getAttributeValues()))
+								);
+							}))
+						);
+					});
+				}
+			}
+			assertAll(assertions);
+		}
+
+		/** An and-reachable body container still supplies the locale used for fetching its localized attributes. */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Fetch English attributes when the body locale is and reachable")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldFetchEnglishAttributesWhenBodyLocaleIsAndReachable(boolean group, @Nonnull Evita evita) {
+			final ReferenceContent content = referenceContent(
+				"values", filterBy(group ? groupHaving(entityLocaleEquals(Locale.ENGLISH)) :
+					entityHaving(entityLocaleEquals(Locale.ENGLISH))),
+				group ? null : entityFetch(attributeContent("label")),
+				group ? entityGroupFetch(attributeContent("label")) : null
+			);
+			final List<Executable> assertions = new ArrayList<>();
+			for (final int owner : new int[]{1, 2}) {
+				for (final boolean planned : new boolean[]{true, false}) {
+					assertions.add(() -> {
+						final SealedEntity product = fetchProduct(evita, owner, BOTH, content, planned);
+						assertAll(
+							() -> assertEquals(owner == 1 ?
+								expectedBodies(group, group ? new int[]{2} : new int[]{2, 3}) : Map.of(),
+								rowBodies(product, group)),
+							() -> assertAll(product.getReferences("values").stream().map(row -> () -> {
+								final SealedEntity body =
+									(group ? row.getGroupEntity() : row.getReferencedEntity()).orElseThrow();
+								assertAll(
+									() -> assertEquals(Set.of(Locale.ENGLISH), body.getLocales()),
+									() -> assertEquals(body.getAttribute("label", Locale.ENGLISH, String.class),
+										body.getAttribute("label", String.class))
+								);
+							}))
+						);
+					});
+				}
+			}
+			assertAll(assertions);
+		}
+
+		/** Owners outside a reference-level scope wrapper match unrestricted; owners inside follow its predicate. */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Preserve default bodies when the owner is outside the reference scope wrapper")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldPreserveDefaultBodiesWhenOwnerIsOutsideScopeWrapper(boolean group, @Nonnull Evita evita) {
+			final List<Executable> assertions = new ArrayList<>();
+			final FilterConstraint predicate = scopedBody(group, Scope.ARCHIVED, group ? 20 : 3);
+			final ReferenceContent wrapped = referenceContent("values", filterBy(inScope(Scope.LIVE, predicate)),
+				group ? null : entityFetch(), group ? entityGroupFetch() : null);
+			final ReferenceContent plain = referenceContent(
+				"values", group ? null : entityFetch(), group ? entityGroupFetch() : null
+			);
+			final ReferenceContent unwrapped = referenceContent("values", filterBy(predicate),
+				group ? null : entityFetch(), group ? entityGroupFetch() : null);
+			assertions.add(() -> assertRowBodies(evita, 3, BOTH, plain, group, expectedBodies(group, 1, 3)));
+			assertions.add(() -> assertRowBodies(evita, 3, BOTH, wrapped, group, expectedBodies(group, 1, 3)));
+			assertions.add(() -> assertRowBodies(evita, BOTH, unwrapped, group, expectedBodies(group, group ? 2 : 3)));
+			assertions.add(() -> assertRowBodies(evita, BOTH, wrapped, group, expectedBodies(group, group ? 2 : 3)));
+			assertAll(assertions);
+		}
+
+		/** A union admits its archived scope below group bodies even when the live owner has no rows. */
+		@Test
+		@DisplayName("Admit nested archived filters when the group scope union contains archived")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldAdmitNestedScopeWhenGroupUnionContainsIt(@Nonnull Evita evita) {
+			final ReferenceContent content = referenceContent("values", filterBy(or(
+				scopedBody(true, Scope.LIVE, 10), scopedBody(true, Scope.ARCHIVED, 20)
+			)), entityGroupFetch(archivedLabel()));
+			final List<Executable> assertions = new ArrayList<>();
+			for (final int id : new int[]{1, 2}) {
+				final Map<Integer, String> expected = id == 1 ? Map.of(
+					1, "group 10, labels [100, 200]", 2, "group 20, labels [200]", 3, "group 10, labels [100, 200]"
+				) : Map.of();
+				for (final boolean planned : new boolean[]{true, false}) {
+					assertions.add(() -> assertEquals(expected, groupLabels(fetchProduct(
+						evita, id, new Scope[]{Scope.LIVE}, content, planned
+					)), "owner " + id + ", planned " + planned));
+				}
+			}
+			assertAll(assertions);
+		}
+
+		/** Naming only live scopes replaces wider admission below group bodies for owners with and without rows. */
+		@Test
+		@DisplayName("Refuse nested archived filters when all group branches name live")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldRefuseNestedScopeWhenGroupUnionExcludesIt(@Nonnull Evita evita) {
+			final ReferenceContent content = referenceContent("values", filterBy(or(
+				scopedBody(true, Scope.LIVE, 10), scopedBody(true, Scope.LIVE, 11)
+			)), entityGroupFetch(archivedLabel()));
+			final List<Executable> assertions = new ArrayList<>();
+			for (final int id : new int[]{1, 2}) {
+				for (final boolean planned : new boolean[]{true, false}) {
+					assertions.add(() -> assertScopeError(Scope.ARCHIVED,
+						() -> fetchProduct(evita, id, BOTH, content, planned)));
+				}
+			}
+			assertAll(assertions);
+		}
+
+		/**
+		 * Two `groupHaving` reachable through `and` name the same scope, so the group bodies are fetched in it. A
+		 * `referenceContent` of their labels without a filter derives its request from the request of the group
+		 * bodies, keeping that request's filter, and must not find the scope of the group level there a second time.
+		 * The labels are fetched in the live scope of the group bodies, not in both scopes of the query: archived
+		 * label 200 keeps its row and has no body.
+		 */
+		@Test
+		@DisplayName("Fetch references of group bodies when two followed group levels name the same scope")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldFetchNestedReferencesWhenTwoFollowedGroupLevelsNameSameScope(@Nonnull Evita evita) {
+			final ReferenceContent content = referenceContent("values", filterBy(and(
+				scopedBody(true, Scope.LIVE, 10), groupHaving(scope(Scope.LIVE))
+			)), entityGroupFetch(referenceContent("labels", entityFetch())));
+			assertLabelBodies(evita, BOTH, content, Map.of(
+				1, "group 10, labels [100 LIVE, 200 no body]", 3, "group 10, labels [100 LIVE, 200 no body]"
+			));
+		}
+
+		/**
+		 * The group levels of an `or` name the live and the archived scope, so the group bodies of a live query are
+		 * fetched in both. A `referenceContent` of their labels without a filter inherits both, so the archived labels
+		 * have bodies too, although the query requests the live scope only.
+		 */
+		@Test
+		@DisplayName("Fetch references of group bodies in the united scopes of their alternatives")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldFetchNestedBodiesInUnitedScopesWhenNestedReferenceHasNoFilter(@Nonnull Evita evita) {
+			final ReferenceContent content = referenceContent("values", filterBy(or(
+				scopedBody(true, Scope.LIVE, 10), scopedBody(true, Scope.ARCHIVED, 20)
+			)), entityGroupFetch(referenceContent("labels", entityFetch())));
+			assertLabelBodies(evita, new Scope[]{Scope.LIVE}, content, Map.of(
+				1, "group 10, labels [100 LIVE, 200 ARCHIVED]",
+				2, "group 20, labels [200 ARCHIVED, 300 ARCHIVED]",
+				3, "group 10, labels [100 LIVE, 200 ARCHIVED]"
+			));
+		}
+
+		/**
+		 * Checks product 1 against the expected label bodies of its group bodies and product 2 against none,
+		 * independently through both entry points.
+		 */
+		private static void assertLabelBodies(
+			@Nonnull Evita evita, @Nonnull Scope[] scopes, @Nonnull ReferenceContent content,
+			@Nonnull Map<Integer, String> expected
+		) {
+			final List<Executable> assertions = new ArrayList<>();
+			for (final int id : new int[]{1, 2}) {
+				for (final boolean planned : new boolean[]{true, false}) {
+					assertions.add(() -> assertEquals(id == 1 ? expected : Map.of(),
+						groupLabelBodies(fetchProduct(evita, id, scopes, content, planned)),
+						"product " + id + ", planned " + planned));
+				}
+			}
+			assertAll(assertions);
+		}
+
+		/** Checks explicit English content and body presence independently for both owners and both fetch paths. */
+		private static void assertEnglishBodyLabels(
+			@Nonnull Evita evita, boolean group, @Nonnull FilterBy filter, @Nonnull int... rows
+		) {
+			final ReferenceContent content = referenceContent("values", filter,
+				group ? null : entityFetch(attributeContent("label"), dataInLocales(Locale.ENGLISH)),
+				group ? entityGroupFetch(attributeContent("label"), dataInLocales(Locale.ENGLISH)) : null);
+			final List<Executable> assertions = new ArrayList<>();
+			for (final int owner : new int[]{1, 2}) {
+				for (final boolean planned : new boolean[]{true, false}) {
+					assertions.add(() -> {
+						final SealedEntity product = fetchProduct(evita, owner, BOTH, content, planned);
+						assertAll(
+							() -> assertEquals(owner == 1 ? expectedBodies(group, rows) : Map.of(),
+								rowBodies(product, group), "owner " + owner + ", planned " + planned),
+							() -> assertAll(product.getReferences("values").stream().map(row -> () -> {
+								final SealedEntity body =
+									(group ? row.getGroupEntity() : row.getReferencedEntity()).orElseThrow();
+								final String expected = group ?
+									(body.getPrimaryKey() == 10 ? null : "group-20") :
+									(body.getPrimaryKey() == 1 ? null : "label-" + body.getPrimaryKey());
+								assertEquals(expected, body.getAttribute("label", Locale.ENGLISH, String.class));
+							}))
+						);
+					});
+				}
+			}
+			assertAll(assertions);
+		}
+
+		/** Supplies the branch-locale shape and the rank-only control, each with the rows product 1 keeps. */
+		@Nonnull
+		private static List<MissingLocaleShape> missingLocaleShapes(boolean group) {
+			final FilterConstraint english = group ?
+				groupHaving(entityLocaleEquals(Locale.ENGLISH)) : entityHaving(entityLocaleEquals(Locale.ENGLISH));
+			return List.of(
+				new MissingLocaleShape(
+					filterBy(or(english, attributeEquals("rank", 1))), group ? new int[]{1, 2} : new int[]{1, 2, 3}
+				),
+				new MissingLocaleShape(filterBy(attributeEquals("rank", 1)), new int[]{1})
+			);
+		}
+
+		/**
+		 * A reference filter that supplies no fetch locale to the bodies, with the rows it keeps for product 1.
+		 *
+		 * @param filter the filter of the fetched references
+		 * @param rows   the keys of the values whose rows product 1 keeps
+		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+		 */
+		private record MissingLocaleShape(@Nonnull FilterBy filter, @Nonnull int[] rows) {
+		}
+
+		/** Fetches the selected product through planning or the direct entity API. */
+		@Nonnull
+		private static SealedEntity fetchProduct(
+			@Nonnull Evita evita, int owner, @Nonnull Scope[] scopes, @Nonnull ReferenceContent content, boolean planned
+		) {
+			return evita.queryCatalog(TEST_CATALOG, session -> planned ?
+				session.queryOneSealedEntity(query(
+					collection(GROUPED_PRODUCT), filterBy(scope(scopes), entityPrimaryKeyInSet(owner)),
+					require(entityFetch(content))
+				)).orElseThrow() :
+				session.getEntity(GROUPED_PRODUCT, owner, scopes, content).orElseThrow());
+		}
+
+		/** Creates one scoped predicate of the selected body level. */
+		@Nonnull
+		private static FilterConstraint scopedBody(boolean group, @Nonnull Scope scope, int key) {
+			final FilterConstraint predicate = and(scope(scope), entityPrimaryKeyInSet(key));
+			return group ? groupHaving(predicate) : entityHaving(predicate);
+		}
+
+		/** Describes the expected value or group bodies for the selected rows of the fixed data set. */
+		@Nonnull
+		private static Map<Integer, String> expectedBodies(boolean group, @Nonnull int... keys) {
+			final Map<Integer, String> expected = new TreeMap<>();
+			for (final int key : keys) {
+				final int groupKey = key == 2 ? 20 : 10;
+				expected.put(key, "group " + groupKey + ", body " + (group ? VALUE_GROUP : GROUPED_VALUE) + " " +
+					(group ? groupKey : key) + " " + ((group ? key == 2 : key == 3) ? Scope.ARCHIVED : Scope.LIVE));
+			}
+			return expected;
+		}
+
+		/** Creates the fetch of the labels of the group bodies, filtered by an `inScope` of the archived scope. */
+		@Nonnull
+		private static ReferenceContent archivedLabel() {
+			return referenceContent(
+				"labels", filterBy(entityHaving(inScope(Scope.ARCHIVED, entityPrimaryKeyInSet(200))))
+			);
+		}
+
+		/** Describes the fetched labels of the group body of every fetched row of the product, keyed by its value. */
+		@Nonnull
+		private static Map<Integer, String> groupLabels(@Nonnull SealedEntity product) {
+			final Map<Integer, String> result = new TreeMap<>();
+			for (final ReferenceContract reference : product.getReferences("values")) {
+				result.put(
+					reference.getReferencedPrimaryKey(),
+					reference.getGroup().map(it -> "group " + it.getPrimaryKey()).orElse("no group") + ", " +
+						reference.getGroupEntity()
+							.map(it -> "labels " + it.getReferences("labels").stream()
+								.map(ReferenceContract::getReferencedPrimaryKey).sorted().toList())
+							.orElse("no body")
+				);
+			}
+			return result;
+		}
+
+		/**
+		 * Describes every row by its group and by the labels of the group body, each label by the scope of its body or
+		 * by `no body`.
+		 */
+		@Nonnull
+		private static Map<Integer, String> groupLabelBodies(@Nonnull SealedEntity product) {
+			final Map<Integer, String> result = new TreeMap<>();
+			for (final ReferenceContract reference : product.getReferences("values")) {
+				result.put(
+					reference.getReferencedPrimaryKey(),
+					reference.getGroup().map(it -> "group " + it.getPrimaryKey()).orElse("no group") + ", " +
+						reference.getGroupEntity()
+							.map(it -> "labels " + it.getReferences("labels").stream()
+								.sorted(Comparator.comparingInt(ReferenceContract::getReferencedPrimaryKey))
+								.map(label -> label.getReferencedPrimaryKey() + " " + label.getReferencedEntity()
+									.map(body -> body.getScope().name()).orElse("no body"))
+								.toList())
+							.orElse("no body")
+				);
+			}
+			return result;
+		}
+
+		/** Creates the filter selecting the rows of archived group 20, in the scope the group level names. */
+		@Nonnull
+		private static FilterConstraint archivedGroup() {
+			return groupHaving(and(scope(Scope.ARCHIVED), entityPrimaryKeyInSet(20)));
+		}
+
+		/**
+		 * Checks product 1 against the expected bodies and empty product 2, independently through both entry points.
+		 */
+		private static void assertRowBodies(
+			@Nonnull Evita evita, @Nonnull Scope[] scopes, @Nonnull ReferenceContent content, boolean group,
+			@Nonnull Map<Integer, String> expected
+		) {
+			assertAll(
+				() -> assertRowBodies(evita, 1, scopes, content, group, expected),
+				() -> assertRowBodies(evita, 2, scopes, content, group, Map.of())
+			);
+		}
+
+		/** Checks the same rows and bodies through planning and direct fetching for the selected owner. */
+		private static void assertRowBodies(
+			@Nonnull Evita evita, int owner, @Nonnull Scope[] scopes, @Nonnull ReferenceContent content, boolean group,
+			@Nonnull Map<Integer, String> expected
+		) {
+			assertAll(
+				() -> assertEquals(expected, rowBodies(fetchProduct(evita, owner, scopes, content, true), group),
+					"planned query"),
+				() -> assertEquals(expected, rowBodies(fetchProduct(evita, owner, scopes, content, false), group),
+					"getEntity")
+			);
+		}
+
+		/**
+		 * Describes every fetched row of the product, keyed by its value: the key of its group and the key, type and
+		 * scope of its fetched group body, or of its referenced entity body when `group` is false.
+		 */
+		@Nonnull
+		private static Map<Integer, String> rowBodies(@Nonnull SealedEntity product, boolean group) {
+			final Map<Integer, String> result = new TreeMap<>();
+			for (final ReferenceContract reference : product.getReferences("values")) {
+				final Optional<SealedEntity> body = group ?
+					reference.getGroupEntity() : reference.getReferencedEntity();
+				result.put(
+					reference.getReferencedPrimaryKey(),
+					reference.getGroup().map(it -> "group " + it.getPrimaryKey()).orElse("no group") + ", " +
+						body.map(it -> "body " + it.getType() + " " + it.getPrimaryKey() + " " + it.getScope())
+							.orElse("no body")
+				);
+			}
+			return result;
 		}
 	}
 
@@ -1576,8 +2334,13 @@ public class NestedInScopeFilterFunctionalTest {
 	/** Checks the public exception type and the translator's exact diagnostic. */
 	private static void assertScopeError(@Nonnull Scope scope,
 		@Nonnull Executable action) {
-		final EvitaInvalidUsageException error = assertThrowsExactly(EvitaInvalidUsageException.class, action);
+		assertScopeError(scope, "", action);
+	}
+
+	/** Checks the public exception type and the translator's exact diagnostic, naming the call checked. */
+	private static void assertScopeError(@Nonnull Scope scope, @Nonnull String call, @Nonnull Executable action) {
+		final EvitaInvalidUsageException error = assertThrowsExactly(EvitaInvalidUsageException.class, action, call);
 		assertEquals("Scope `" + scope +
-			"` used in `inScope` filter container was not requested by `scope` constraint!", error.getMessage());
+			"` used in `inScope` filter container was not requested by `scope` constraint!", error.getMessage(), call);
 	}
 }

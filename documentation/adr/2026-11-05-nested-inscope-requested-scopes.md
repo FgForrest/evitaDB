@@ -1,11 +1,11 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-10 14:11
+updated: 2026-11-11 01:22
 status: accepted
 kind: fix
-issues: [1880, 1883]
-prs: [1884]
+issues: [1880, 1883, 1915]
+prs: [1884, 1913]
 areas:
   - evita_api/src/main/java/io/evitadb/api/requestResponse
   - evita_query/src/main/java/io/evitadb/api/query
@@ -18,7 +18,8 @@ areas:
   - evita_engine/src/main/java/io/evitadb/core/collection
 supersedes: []
 superseded-by: []
-relates: [2026-10-08-scope-faithful-planning-and-facet-summary-parity, 2026-10-20-reference-content-filter-row-by-row]
+relates: [2026-10-08-scope-faithful-planning-and-facet-summary-parity,
+  2026-10-20-reference-content-filter-row-by-row, 2026-10-21-one-locale-per-entity-level]
 ---
 
 # A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
@@ -173,17 +174,81 @@ admits `LIVE` alone. Neither the planning check nor the pre-flight knew that: bo
 
 #### Option K — both, from one rule (chosen)
 
-`QueryUtils#extractReferenceBodyFilter` is the rule the fetch derives the request of the bodies by (moved from
-`ReferencedEntityFetcher`), and `QueryUtils#findReferenceBodyScope` reads the scope from it. The pre-flight hands that
-scope to everything below the fetch of the bodies, and `ReferenceContentTranslator` checks the owners of a nested
-`referenceContent` in it, as both their searched and their requested scopes. `HierarchyContentTranslator` checks the
-`stopAt(node(...))` bound of a `hierarchyContent` below the bodies in it too, through the same walk of the requirement
-chain (`ReferenceContentTranslator#resolveOwnerScope`): handing the scope down in the pre-flight alone made `getEntity`
-answer such a bound while a planned query refused it. The fetch derives the request of the bodies
-from the same body filter, and the `EvitaRequest` copy constructor finds the scope in it by the same lookup. Two choices
-are still made in two places: that the group bodies take the referenced entity level (`unwrapFilterBy` and
-`findReferenceBodyScope`), and the lookup of the scope itself (`EvitaRequest` and `findReferenceBodyScope`). A change to
-either has to change both.
+One rule in `QueryUtils` decides the scope of the bodies, and the fetch and both checks call it. The pre-flight hands
+that scope to everything below the fetch of the bodies, and `ReferenceContentTranslator` checks the owners of a nested
+`referenceContent` in it. `HierarchyContentTranslator` checks the `stopAt(node(...))` bound of a `hierarchyContent`
+below the bodies in it too, through the same walk of the requirement chain
+(`ReferenceContentTranslator#resolveOwnerScope`): handing the scope down in the pre-flight alone made `getEntity`
+answer such a bound while a planned query refused it. #1883 read that scope from the criteria of the referenced
+entity level (`QueryUtils#extractReferenceBodyFilter`), and the fetch found it there a second time, through the
+lookup of the `EvitaRequest` copy constructor. #1915 changed what the rule says and removed the second lookup, see
+below.
+
+### #1915 — the scope of the group bodies, and of bodies below `or`, `not` and `inScope`
+
+#1883 left two defects in the rule, both measured on a data set of their own (`nestedInScopeGroupBodies` below), the
+same through a query and `getEntity`:
+
+- **The group bodies took the referenced entity level.** `entityHaving(scope(LIVE))` beside an `entityGroupFetch` over
+  both scopes withheld the body of an archived group, its mirror the body of a live group, and
+  `groupHaving(and(scope(ARCHIVED), …))` in a live query fetched none of the groups it selected. Each row kept its group
+  key and lost the body. The locale already treated the group as a level of its own
+  (`2026-10-21-one-locale-per-entity-level`).
+- **An `or`, `not` or `inScope` was read as an `and`.** `QueryUtils#extractReferenceBodyFilter` collected every
+  `entityHaving` of the filter and flattened their children into one filter of the bodies, so their scope, locale and
+  price criteria applied to every body. `or(entityHaving(and(scope(ARCHIVED), …)), attributeEquals("rank", 1))` withheld
+  the body of the live value its second branch admits, `not(entityHaving(and(scope(ARCHIVED), …)))` the bodies of
+  every admitted row, and `or` of two `entityHaving` naming different scopes threw `MoreThanSingleResultException`
+  naming neither, for an owner with rows only. A locale did the same: `or(entityHaving(entityLocaleEquals(ENGLISH)),
+  …)` withheld the body of a value held in German only, and `or` of two `entityHaving` naming different locales was
+  refused as two locales of one level. It is the defect class of #1897 and #1917: a constraint read through a container
+  that changes its meaning.
+
+#### Option L — keep the group bodies at the referenced entity level (declined)
+
+- **Pros:** one scope for both kinds of bodies; the fetch as it was.
+- **Rejected because:** it withholds the bodies above. Nothing in the documentation said the scope of `entityHaving`
+  applies to the group, and `groupHaving` documents a `scope` of its own.
+
+#### Option M — each level reads the scope found anywhere in its containers (declined)
+
+The first fix of #1915: the group bodies read `groupHaving`, the entity bodies `entityHaving`, both looked up through
+every `or`, `not` and `inScope`, as #1883 had done for the entity level.
+
+- **Pros:** small; the lookup of #1883 applied to the group.
+- **Rejected because:** it moved the second defect to the group level, where the state before had answered. Measured:
+  `or(groupHaving(and(scope(ARCHIVED), …)), attributeEquals("rank", 1))` and `not(groupHaving(and(scope(ARCHIVED),
+  …)))` lost the bodies of live groups, `or(groupHaving(scope(LIVE)), entityHaving(…))` the body of an archived group,
+  and `or` of two scoped `groupHaving` threw for an owner with rows only.
+
+#### Option N — the union of the scopes the containers name (declined)
+
+- **Pros:** answers `or` of two scoped containers.
+- **Rejected because:** a way to match that names no scope admits rows whose bodies live in the scopes of the owners.
+  Under `or(groupHaving(and(scope(ARCHIVED), …)), attributeEquals("rank", 1))` the union is the archived scope, and the
+  live group of the row the second branch admits loses its body.
+
+#### Option O — refuse an `or` or `not` of scoped containers (declined)
+
+- **Pros:** one scope per level, nothing to unite.
+- **Rejected because:** since #1917 a `scope` inside an `entityHaving` or `groupHaving` below `or` is valid and selects
+  the scope of that container alone. The row filter answers such a filter, and refusing it for the bodies would refuse
+  a correct query.
+
+#### Option P — follow the scope inside a reference-level `inScope` (declined)
+
+- **Pros:** reads `inScope(LIVE, entityHaving(and(scope(ARCHIVED), …)))` as the archived scope, as an `and` would.
+- **Rejected because:** `inScope(S, X)` admits every owner outside `S` whatever `X` says. Measured on the archived
+  owner: its rows into live values lost their bodies, where with no filter they have them.
+
+#### Option Q — follow `and` only, otherwise the scopes of every way to match (chosen)
+
+The rule of the project owner, for both levels: the scope of an `entityHaving` or `groupHaving`, and its criteria,
+apply to the bodies only when the container is reachable from the root of the reference filter through `and` alone.
+Otherwise the bodies are fetched in the union of the scopes of every way a row can match: the scope each branch names,
+and the scopes of the owners for each branch or `not` that names none. The locale and the price criteria follow the
+same extraction, so they come only from containers reachable through `and`, otherwise from the reference level and
+then the owners. Two scopes side by side in one container still fail, as at the root.
 
 ## Decision
 
@@ -200,6 +265,11 @@ scope, and the composer of the query has to leave the container out.
 **#1883: Option K.** Neither half of it fixes the issue alone, and the half the issue did not ask for fixed a refusal of
 a correct query. The refusal it adds is not a breaking change: the query contradicts itself and already failed for any
 owner with rows.
+
+**#1915: Option Q**, by the project owner's rule. Under it a body is fetched in the scopes of every way its row can be
+admitted at the level of the body - the scopes its containers name, the scopes of the owners where they name none -
+and the verdict on a filter below the bodies no longer depends on the rows. Two uses that worked are refused now
+(Consequences); the project owner decided against a `breaking change` label and an upgrade note for the first one.
 
 ## Key technical details
 
@@ -235,18 +305,37 @@ owner with rows.
   scopes matches no archived value through a live tag, because the archived pass searches archived tags only.
 - Performance: no benchmark. The clone allocates as before. The walk runs once per request, per nested plan and per
   compiled reference filter, never per row, and allocates nothing unless the filter holds an `inScope`. Only queries
-  with a nested foreign `inScope` take a different path.
-- **The scope of fetched bodies (#1883).** The bodies of a `referenceContent` are fetched in the `scope(...)` among the
-  children of its `entityHaving` containers (`QueryUtils#findReferenceBodyScope`), which *replaces* what encloses them
-  for both searching and admission. A body level naming none inherits both. The `scope(...)` in the root of the filter
-  widens only the lookup of the references and is not handed down.
-- **Looks like a bug and is not:** the group bodies take the scope of the referenced entity level too, never the one of
-  `groupHaving` - `ReferencedEntityFetcher#unwrapFilterBy` derives both requests from the referenced entity level, and
-  the checks mirror it so that the verdict cannot depend on the rows. The group shape is pinned on the pre-flight
-  alone (`QueryUtilsTest$QueryFilterScopes`); the fixture has no group type with references, so no functional test
-  fetches below an `entityGroupFetch`. Whether the group bodies should follow
-  `groupHaving` instead is a question about the fetch, and changing `findReferenceBodyScope` alone would recreate
-  #1883 under `entityGroupFetch`.
+  with a nested foreign `inScope` take a different path. The summary of the body scopes is an `int`; the fetch and
+  the group `EXISTING` gate each resolve it once per fetched reference batch, and the pre-flight only after the
+  allocation-free search for an `inScope` below the bodies. It allocates only the lookup of the own scope of each
+  container of the level. The encoding holds up to 15 scopes.
+- **The scope of fetched bodies (#1883, #1915).** `QueryUtils#resolveReferenceBodyScopes` summarizes one body level -
+  the referenced entity below `entityFetch`, the group below `entityGroupFetch` - in one walk of the reference filter:
+  the scopes a matching row's body can be in (`N`), and whether some way to match names none (`D`). A container of the
+  level with its own scope gives `({s}, false)`; one without, the other level and any leaf give `(∅, true)`; `or`
+  unites; `and` intersects, a side with `D` letting the other side's scopes through; `not` gives the scopes named below
+  it with `D`; a reference-level `inScope` its child's `N` with `D`. `QueryUtils#materializeReferenceBodyScopes` turns
+  the summary into the scopes of the bodies: plain inheritance of what the owners search and admit when `N` is empty,
+  or when `D` holds and the owners already search `N`; otherwise searched `N ∪ (D ? owners' searched : ∅)` and
+  admitted `N ∪ (D ? owners' admitted : ∅)`, which `EvitaRequest#deriveCopyWithScopes` sets on the request of the
+  bodies. The fetch, the group `EXISTING` gate, the pre-flight and the planning checks call these two and nothing else.
+  The `scope(...)` in the root of the filter widens only the lookup of the references and is not handed down.
+- **The criteria of the bodies follow `and` only.** `QueryUtils#extractReferenceBodyFilter` collects the containers of
+  the level reachable from the root through `and` alone, so the locale (`QueryUtils#resolveReferenceBodyLocale` and
+  every caller: the fetch, the `EXISTING` gates, the ordering, planning, GraphQL and the gRPC client) and the price
+  criteria of the bodies come from them, otherwise from the reference level and then the owners (the price part read
+  from the code, not measured). The fetch strips the scopes of the level from that filter, because a
+  `referenceContent` of the bodies without a filter keeps it in its request, whose copy constructor would look the
+  scope up again; a scope below a nested separate container stays.
+- **Looks like a bug and is not:** a followed scope equal to the owners' searched scopes is still set explicitly. It
+  replaces the admitted scopes too, and the owners may admit more than they search.
+- **Looks like a bug and is not:** the searched and the admitted set of an explicit pair are equal for every request
+  today. With two scopes and owners searching at least one, `D` adds the scopes of the owners to both sides and
+  covers the difference, and without `D` both are `N`. The pair keeps admission from following the searched set
+  silently once that changes; no test can tell them apart now.
+- **Looks like a bug and is not:** `and(entityHaving(and(scope(LIVE), …)), entityHaving(and(scope(ARCHIVED), …)))`
+  fetches the bodies in both named scopes. No row matches, so any superset is sound, and an empty `N` would mean
+  inheritance.
 - **Every planning check below fetched bodies has to use their scope.** The pre-flight judges every filter below the
   fetch of the bodies by it, so a check that plans one of those filters in the scopes of the query refuses what the
   fetch and `getEntity` answer. `ReferenceContentTranslator` and `HierarchyContentTranslator#verifyStopAtNode` do so; a
@@ -307,6 +396,39 @@ owner with rows.
   the review fixes: 33,282 functional tests, 71 skipped, 185 not passing and none of them in a query, a reference or a
   fetch. 183 are the release upgrade tests, each naming the fixture the skipped generation did not write; 2 timed out in
   `EvitaServerTest`, which passes alone, 14 of 14.
+- **#1915, the scope and the criteria of the bodies.** `NestedInScopeFilterFunctionalTest$GroupBodyScopes` (34 tests)
+  runs on a data set of its own, `nestedInScopeGroupBodies`: rows into live and archived values and groups, an owner
+  without rows and an archived one, a `rank` reference attribute, values and groups localized in one language each.
+  Every case runs through a planned query and `getEntity`, for an owner with rows and one without: the group bodies
+  following `groupHaving`, `or` and `not` with and without a scope in the branch, `or` of two scoped containers under
+  `ANY` and `EXISTING`, a reference-level `inScope`, a nested `inScope` below the united bodies admitted and refused,
+  two followed containers naming one scope above a `referenceContent` without a filter, and the locale shapes with
+  `dataInLocales`. `QueryUtilsTest$ReferenceBodyScope` (44) holds a row per row of the algebra, the materialization
+  against narrow and wide owners and the extraction through `and` only, replacing the six rows of #1883;
+  `$QueryFilterScopes` (27) the pre-flight. Before the production change, 13 of the new functional invocations
+  failed: bodies lost below `or`, `not` and `inScope`, a `MoreThanSingleResultException` for `or` of two scoped
+  containers, and a branch locale withholding bodies. The 13 classes around the change run 741 tests with 0 failures
+  and the one skip `@Disabled` before it.
+- **#1915, the tests can fail.** Each counterfactual ran `NestedInScopeFilterFunctionalTest` and `QueryUtilsTest`:
+  `or` read as `and` failed 7 tests, the conjunction as a union 2, `not` read as `and` 6, a reference-level `inScope`
+  without the default 5, no fallback on a contradiction 2, the old flattening extraction 12, the fetch without the
+  explicit pair 12, the group `EXISTING` gate on the scopes of the owners 1, the pre-flight always inheriting 18,
+  planning always inheriting 9, and a followed scope inherited when the owners search it 23. Keeping the scope of the
+  level in the filter of the bodies failed the nested `referenceContent` without a filter with
+  `MoreThanSingleResultException`; until that test existed, only a test calling the private method by reflection
+  could see it. Handing the planning checks the searched set for the admitted one changes nothing observable, see
+  Key technical details.
+- **#1915, review.** The design was reviewed by an advisor and by Codex (GPT-6.1 Sol), whose six findings shaped the
+  materialization (never by set equality), the planning chain and the locale. The adversarial review of the change
+  returned GO WITH CHANGES with five low findings - wording of this record and of the user documentation, the
+  15-scope limit of the summary, and the label bodies the nested test did not inspect - all addressed. The
+  code-quality pass found no defect; it added a literal test of the materialization, which fails with 10 rows of the
+  matrix when the inheritance reads the admitted set instead of the searched one.
+- **#1915, measured and left alone.** A named localized attribute of bodies with no locale source is refused by a
+  planned query and answered by `getEntity`, alike for a locale below `or` and a filter without any `entityHaving`
+  (`$GroupBodyScopes#shouldRefusePlannedLocalizedBodyAttributesWhenFetchLocaleIsMissing`,
+  `#shouldKeepDirectFetchParityWhenNeitherShapeSuppliesBodyLocale`). The price criteria of the bodies are read from
+  the code only: the data set has no prices.
 ## Consequences & open follow-ups
 
 - **Visible to clients, both ways.** A query over both scopes with a nested `inScope` now works where it failed. `or`
@@ -321,10 +443,36 @@ owner with rows.
   query not requesting the scope those bodies are fetched in used to be refused although the fetch admitted it; it is
   answered. The root `scope(...)` of a filter is still not handed down, as
   `QueryUtilsTest$QueryFilterScopes#shouldRefuseScopeWhenOnlyEnclosingFetchedReferenceFilterNamesIt` pins.
-- **Open: the group bodies follow the referenced entity level**, see Key technical details. Read from the code and not
-  measured: `EntityCollection#getEntityById` returns no body outside the scopes of its request, so
-  `entityHaving(scope(LIVE))` beside an `entityGroupFetch` would fetch no archived group body, and a
-  `groupHaving(scope(...))` naming a scope the owners are not fetched in would fetch none of the groups it selects.
+- **Closed by #1915.** A group body is fetched by the `groupHaving` of the filter, whatever `entityHaving` names: in
+  the scope of one reachable through `and`, otherwise in the scopes of every way to match, which for a filter naming
+  no group scope are the scopes of the owners. The same holds for the referenced entities and `entityHaving`, so a
+  row admitted by a branch naming no scope keeps its body, and `or` of two `entityHaving` or `groupHaving` naming
+  different scopes is answered for every owner, where it threw for an owner with rows. `or` of two of them naming
+  different locales is no longer refused as two locales of one level.
+- **Refused now, worked before (#1915):**
+  - an `inScope` below `entityGroupFetch` naming a scope the `groupHaving` of the filter excludes - the group bodies
+    used to inherit the scopes of the owners;
+  - a named localized attribute of bodies whose locale was named only below `or`, `not` or `inScope`, with no other
+    locale source, by a planned query (`EntityLocaleMissingException`, the check of the locale record). It used to be
+    answered in that locale, dropping every body without data in it. `dataInLocales` in the fetch of the bodies
+    brings every body back, with the attribute where the body has it.
+- **A Java driver and the server must agree on the body locale.** The driver reconstructs the predicates of the
+  bodies by `QueryUtils#resolveReferenceBodyLocale` (`2026-10-21-one-locale-per-entity-level`), so a driver older
+  than #1915 disagrees with this server for a locale below `or`, `not` or `inScope`.
+- **Open, left by #1915:**
+  - `getEntity` plans no fetch, so it answers the named localized attribute above, which a planned query refuses. It
+    does so with or without a locale below `or` - also for a filter with no `entityHaving` at all - so the split is
+    older than this change.
+  - #1920: an `inScope` in the require section narrows the scopes the planning check of a nested `referenceContent`
+    inherits, while the pre-flight and the fetch do not, so the planned query refuses a filter they admit.
+  - The `EXISTING` gate of the referenced entities searches every scope the filter names at any level
+    (`ReferencedEntityFetcher#gatherSearchedScopes`), the bodies only the scopes of their level, so a row the widened
+    lookup admits can lack its body.
+  - The price lookups of the `EvitaRequest` copy constructor do not stop at a nested separate container, so a price
+    criterion of a deeper level can reach the price context of the outer bodies.
+  - Two scopes side by side in one container (`groupHaving(scope(LIVE), scope(ARCHIVED))`) fail as before, as the same
+    pair does at the root, and for the bodies only when a row reaches the fetch or an `inScope` sits below them. Out of
+    scope by the project owner's decision.
 - **Known and left alone**, each found by the final review and each harmless to stored data:
   - `enrichEntity` takes no scope, so its request searches the live scope, and an `inScope` of the archived scope is
     refused on an archived entity. `getEntity` with scopes admits it. Letting the entity's scope admit it would need a
@@ -351,6 +499,9 @@ owner with rows.
 - `2026-10-20-reference-content-filter-row-by-row` — the row filter compiler and `NestedSet`, whose locale visitor and
   `getEntity` path shaped the admission walk; the refusal of `scope` below the root of its filter is the precedent for
   refusing an inert `scope` everywhere.
+- `2026-10-21-one-locale-per-entity-level` — the body chain of `QueryUtils#resolveReferenceBodyLocale` reads the
+  extraction of the body level, which since #1915 follows `and` only. The scope of the bodies uses the summary of
+  every way to match instead, so a locale below `or` gives the bodies none, while a scope below `or` adds its scope.
 
 ## Timeline
 
@@ -362,3 +513,6 @@ owner with rows.
 - **2026-11-05** — PR #1884 merged.
 - **2026-11-10** — #1883 fixed: the scope of fetched bodies resolved by one rule in the pre-flight, the planning check
   and the fetch. The red run found a false refusal of a correct query the issue had not expected.
+- **2026-11-10** — #1915 split off the review of #1883 and folded into PR #1913. The first fix (Option M) measured
+  worse at the group level; the project owner set the rule of Option Q, reviewed by an advisor and an adversarial
+  Codex review of the design before it was implemented.

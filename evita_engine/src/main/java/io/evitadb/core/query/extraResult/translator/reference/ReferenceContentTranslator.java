@@ -26,7 +26,7 @@ package io.evitadb.core.query.extraResult.translator.reference;
 import io.evitadb.api.exception.ReferenceContentMisplacedException;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.filter.EntityScope;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.EntityGroupFetch;
@@ -84,9 +84,9 @@ public class ReferenceContentTranslator implements RequireConstraintTranslator<R
 			);
 			final EntitySchemaContract schema = entitySchema.get();
 			final OwnerLevel owner = resolveOwnerLevel(referenceContent, extraResultPlanningVisitor);
-			final EntityScope ownerScope = owner.scope();
+			final QueryUtils.ReferenceBodyScopes ownerScope = owner.scope();
 			final Set<Scope> ownerScopes = ownerScope == null ?
-				extraResultPlanningVisitor.getProcessingScope().getScopes() : ownerScope.getScope();
+				extraResultPlanningVisitor.getProcessingScope().getScopes() : ownerScope.scopes();
 
 			of(referenceContent.getReferenceNames())
 				.filter(it -> !ArrayUtils.isEmpty(it))
@@ -101,7 +101,7 @@ public class ReferenceContentTranslator implements RequireConstraintTranslator<R
 						referenceContent.getFilterBy().orElse(null),
 						referenceContent.getOrderBy().orElse(null),
 						ownerScopes,
-						ownerScope == null ? null : ownerScopes,
+						ownerScope == null ? null : ownerScope.requestedScopes(),
 						owner.locale()
 					);
 					extraResultPlanningVisitor.executeInContext(
@@ -131,8 +131,9 @@ public class ReferenceContentTranslator implements RequireConstraintTranslator<R
 	 *
 	 * - the locale of the level, which inherits the reference level's opinion, then its owner's locale, when it has no
 	 *   opinion of its own
-	 * - the scope of the level, which both bodies take from the referenced entity level, as the request fetching them
-	 *   does ({@link QueryUtils#findReferenceBodyScope}), and inherit when that level names none
+	 * - the scope of the level, which the referenced entity bodies take from the referenced entity level and the group
+	 *   bodies from the group level's alternatives ({@link QueryUtils#resolveReferenceBodyScopes(FilterBy, boolean)}),
+	 *   as the requests fetching them do, and inherit when their level names none
 	 *
 	 * @param referenceContent           the `referenceContent` being planned
 	 * @param extraResultPlanningVisitor the visitor planning it
@@ -162,24 +163,21 @@ public class ReferenceContentTranslator implements RequireConstraintTranslator<R
 	}
 
 	/**
-	 * Returns the scope the entity owning the requirement is fetched in when an enclosing `referenceContent` names one
-	 * for its bodies. Walking the requirements outermost first, each enclosing entity or group fetch takes the scope
-	 * the referenced entity level of its `referenceContent` names ({@link QueryUtils#findReferenceBodyScope}), as the
-	 * request fetching those bodies does, and inherits the nearest enclosing one when that level names none.
+	 * Resolves searched and admitted scopes of the entity owning a requirement, outermost body level first.
+	 * Each entity or group fetch materializes its own matching alternatives against the immediate owner's pair.
+	 * A deeper inheriting level retains any outer explicit pair. Plain inheritance uses processing scopes for search
+	 * and the query's requested scopes for admission, preserving the planning context's existing inheritance base.
 	 *
-	 * Every check planned below the fetch of such bodies must run in this scope and admit no other, as the fetch does.
-	 *
-	 * @param requirement                the requirement being planned
+	 * @param requirement the requirement being planned
 	 * @param extraResultPlanningVisitor the visitor planning it
-	 * @return the scope of the owners, NULL when no enclosing level names one and the owners are fetched in the scopes
-	 * being processed
+	 * @return the explicit owner pair, NULL when every enclosing body level inherits
 	 */
 	@Nullable
-	static EntityScope resolveOwnerScope(
+	static QueryUtils.ReferenceBodyScopes resolveOwnerScope(
 		@Nonnull EntityContentRequire requirement,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor
 	) {
-		EntityScope ownerScope = null;
+		QueryUtils.ReferenceBodyScopes ownerScope = null;
 		ReferenceContent enclosing = null;
 		final Iterator<RequireConstraint> requirementChain =
 			extraResultPlanningVisitor.getEntityContentRequireChain(requirement).iterator();
@@ -188,7 +186,16 @@ public class ReferenceContentTranslator implements RequireConstraintTranslator<R
 			if (chained != requirement && chained instanceof ReferenceContent parent) {
 				enclosing = parent;
 			} else if (enclosing != null && chained instanceof EntityFetchRequire) {
-				final EntityScope bodyScope = QueryUtils.findReferenceBodyScope(enclosing.getFilterBy().orElse(null));
+				final Set<Scope> inheritedScopes = ownerScope == null ?
+					extraResultPlanningVisitor.getProcessingScope().getScopes() : ownerScope.scopes();
+				final Set<Scope> inheritedRequestedScopes = ownerScope == null ?
+					extraResultPlanningVisitor.getQueryContext().getEvitaRequest().getRequestedScopes() :
+					ownerScope.requestedScopes();
+				final QueryUtils.ReferenceBodyScopes bodyScope = QueryUtils.materializeReferenceBodyScopes(
+					QueryUtils.resolveReferenceBodyScopes(
+						enclosing.getFilterBy().orElse(null), chained instanceof EntityGroupFetch
+					), inheritedScopes, inheritedRequestedScopes
+				);
 				if (bodyScope != null) {
 					ownerScope = bodyScope;
 				}
@@ -202,10 +209,9 @@ public class ReferenceContentTranslator implements RequireConstraintTranslator<R
 	 * The level owning the references being planned.
 	 *
 	 * @param locale the locale the owners are fetched in, NULL when there is none
-	 * @param scope  the scope the nearest enclosing level naming one fetches the owners in, NULL when no enclosing
-	 *               level names one and the owners are fetched in the scopes being processed
+	 * @param scope the searched and admitted owner scopes, NULL for plain planning inheritance
 	 */
-	private record OwnerLevel(@Nullable Locale locale, @Nullable EntityScope scope) {
+	private record OwnerLevel(@Nullable Locale locale, @Nullable QueryUtils.ReferenceBodyScopes scope) {
 	}
 
 }
