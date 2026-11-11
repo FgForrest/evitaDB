@@ -24,7 +24,6 @@
 package io.evitadb.core.query.algebra.base;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -33,10 +32,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.List;
-import java.util.Objects;
-import java.util.function.Consumer;
 
 /**
  * And formula will perform boolean conjunction (AND) on multiple bitmaps at once.
@@ -63,23 +59,14 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 	 */
 	private List<Formula> sortedFormulasByComplexity;
 
-	AndFormula(@Nonnull Consumer<CacheableFormula> computationCallback, @Nonnull Formula[] innerFormulas, long[] indexTransactionId, @Nullable Bitmap[] bitmaps) {
-		super(computationCallback, indexTransactionId, bitmaps);
-		Assert.isTrue(
-			innerFormulas.length > 1 || Objects.requireNonNull(bitmaps).length > 1,
-			"And formula has no sense with " + innerFormulas.length + " inner formulas / bitmaps!"
-		);
-		this.initFields(innerFormulas);
-	}
-
 	public AndFormula(@Nonnull Formula... innerFormulas) {
-		super(null, null, null);
+		super(null, null);
 		Assert.isTrue(innerFormulas.length > 1, "And formula has no sense with " + innerFormulas.length + " inner formulas!");
 		this.initFields(innerFormulas);
 	}
 
 	public AndFormula(long[] indexTransactionId, @Nonnull Bitmap... bitmaps) {
-		super(null, indexTransactionId, bitmaps);
+		super(indexTransactionId, bitmaps);
 		Assert.isTrue(bitmaps.length > 1, "And formula has no sense with " + bitmaps.length + " inner bitmaps!");
 		this.initFields();
 	}
@@ -118,17 +105,6 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 	@Override
 	public long getOperationCost() {
 		return 9;
-	}
-
-	@Nonnull
-	@Override
-	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
-		return new AndFormula(
-			selfOperator,
-			innerFormulas,
-			this.indexTransactionId,
-			this.bitmaps
-		);
 	}
 
 	@Override

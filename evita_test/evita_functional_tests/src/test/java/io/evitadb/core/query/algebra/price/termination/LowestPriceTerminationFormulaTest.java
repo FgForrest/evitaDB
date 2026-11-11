@@ -25,7 +25,6 @@ package io.evitadb.core.query.algebra.price.termination;
 
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -210,8 +209,8 @@ class LowestPriceTerminationFormulaTest {
 		}
 
 		@Test
-		@DisplayName("should create clone with computation callback preserving all config")
-		void shouldCreateCloneWithComputationCallbackPreservingAllConfig() {
+		@DisplayName("should create clone with inner formulas preserving all config")
+		void shouldCreateCloneWithInnerFormulasPreservingAllConfig() {
 			final PriceEvaluationContext context = createContext("basic", CZK);
 			final PriceRecordPredicate predicate = PricePredicate.ALL_RECORD_FILTER;
 			final LowestPriceTerminationFormula original = new LowestPriceTerminationFormula(
@@ -220,8 +219,7 @@ class LowestPriceTerminationFormulaTest {
 			);
 
 			final ConstantFormula newInner = new ConstantFormula(new ArrayBitmap(5, 6));
-			final CacheableFormula clone = original.getCloneWithComputationCallback(
-				f -> { /* no-op callback */ }, newInner
+			final Formula clone = original.getCloneWithInnerFormulas(newInner
 			);
 
 			assertInstanceOf(LowestPriceTerminationFormula.class, clone);
@@ -477,8 +475,8 @@ class LowestPriceTerminationFormulaTest {
 		}
 
 		@Test
-		@DisplayName("should propagate the flag through computation callback cloning")
-		void shouldPropagateFlagThroughComputationCallbackCloning() {
+		@DisplayName("should propagate the flag through inner-formula cloning")
+		void shouldPropagateFlagThroughInnerFormulaCloning() {
 			final LowestPriceTerminationFormula withHistogram = new LowestPriceTerminationFormula(
 				new ConstantFormula(new ArrayBitmap(1)),
 				createContext("basic", CZK),
@@ -487,9 +485,7 @@ class LowestPriceTerminationFormulaTest {
 				true
 			);
 
-			final CacheableFormula clone = withHistogram.getCloneWithComputationCallback(
-				f -> { /* no-op callback */ },
-				new ConstantFormula(new ArrayBitmap(5, 6))
+			final Formula clone = withHistogram.getCloneWithInnerFormulas(new ConstantFormula(new ArrayBitmap(5, 6))
 			);
 
 			assertInstanceOf(LowestPriceTerminationFormula.class, clone);

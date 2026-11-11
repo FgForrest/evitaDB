@@ -25,7 +25,6 @@ package io.evitadb.core.query.algebra.price.termination;
 
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -203,8 +202,8 @@ class SumPriceTerminationFormulaTest {
 		}
 
 		@Test
-		@DisplayName("should create clone with computation callback preserving all config")
-		void shouldCreateCloneWithComputationCallbackPreservingAllConfig() {
+		@DisplayName("should create clone with inner formulas preserving all config")
+		void shouldCreateCloneWithInnerFormulasPreservingAllConfig() {
 			final PriceEvaluationContext context = createContext("basic", CZK);
 			final PriceRecordPredicate predicate = PricePredicate.ALL_RECORD_FILTER;
 			final SumPriceTerminationFormula original = new SumPriceTerminationFormula(
@@ -213,8 +212,7 @@ class SumPriceTerminationFormulaTest {
 			);
 
 			final ConstantFormula newInner = new ConstantFormula(new ArrayBitmap(5, 6));
-			final CacheableFormula clone = original.getCloneWithComputationCallback(
-				f -> { /* no-op callback */ }, newInner
+			final Formula clone = original.getCloneWithInnerFormulas(newInner
 			);
 
 			assertInstanceOf(SumPriceTerminationFormula.class, clone);

@@ -29,7 +29,6 @@ module evita.engine {
 	exports io.evitadb.core;
 	exports io.evitadb.core.buffer;
 	exports io.evitadb.core.cache;
-	exports io.evitadb.core.cache.payload;
 	exports io.evitadb.core.catalog;
 	exports io.evitadb.core.cdc;
 	exports io.evitadb.core.collection;

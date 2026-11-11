@@ -24,7 +24,6 @@
 package io.evitadb.core.query.algebra.base;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -36,9 +35,6 @@ import io.evitadb.utils.Assert;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.Objects;
-import java.util.function.Consumer;
 
 /**
  * Or formula will perform boolean disjunction (OR) on multiple bitmaps at once.
@@ -60,23 +56,14 @@ public class OrFormula extends AbstractBitmapCacheableFormula {
 	 */
 	private static final long CLASS_ID = -7493244674442362190L;
 
-	OrFormula(@Nonnull Consumer<CacheableFormula> computationCallback, @Nonnull Formula[] innerFormulas, long[] indexTransactionId, @Nullable Bitmap[] bitmaps) {
-		super(computationCallback, indexTransactionId, bitmaps);
-		Assert.isTrue(
-			innerFormulas.length > 1 || Objects.requireNonNull(bitmaps).length > 1,
-			"Or formula has no sense with " + innerFormulas.length + " inner formulas / bitmaps!"
-		);
-		this.initFields(innerFormulas);
-	}
-
 	public OrFormula(@Nonnull Formula... innerFormulas) {
-		super(null, null, null);
+		super(null, null);
 		Assert.isTrue(innerFormulas.length > 1, "Or formula has no sense with " + innerFormulas.length + " inner formulas!");
 		this.initFields(innerFormulas);
 	}
 
 	public OrFormula(long[] indexTransactionId, @Nonnull Bitmap... bitmaps) {
-		super(null, indexTransactionId, bitmaps);
+		super(indexTransactionId, bitmaps);
 		Assert.isTrue(bitmaps.length > 1, "Or formula has no sense with " + bitmaps.length + " inner bitmaps!");
 		this.initFields();
 	}
@@ -96,17 +83,6 @@ public class OrFormula extends AbstractBitmapCacheableFormula {
 	@Override
 	public long getOperationCost() {
 		return 13;
-	}
-
-	@Nonnull
-	@Override
-	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
-		return new OrFormula(
-			selfOperator,
-			innerFormulas,
-			this.indexTransactionId,
-			this.bitmaps
-		);
 	}
 
 	@Override

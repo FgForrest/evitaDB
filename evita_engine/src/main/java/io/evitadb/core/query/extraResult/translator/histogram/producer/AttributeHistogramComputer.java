@@ -29,7 +29,6 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogram;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
-import io.evitadb.core.query.extraResult.translator.histogram.cache.FlattenedHistogramComputer;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramProducer.AttributeHistogramRequest;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -41,7 +40,6 @@ import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,7 +49,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.function.ToIntFunction;
 import java.util.stream.LongStream;
 
@@ -65,11 +62,6 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	 * Contains the name of the reference attribute.
 	 */
 	@Getter private final String attributeName;
-	/**
-	 * Contains reference to the lambda that needs to be executed THE FIRST time the histogram produced by this computer
-	 * instance is really computed (and memoized).
-	 */
-	private final Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> onComputationCallback;
 	/**
 	 * Contains filtering formula tree that was used to produce results so that computed sub-results can be used for
 	 * sorting. A null value means "no mandatory filter applies" — the histogram spans all records reachable through
@@ -244,6 +236,9 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 		return converter;
 	}
 
+	/**
+	 * Creates a histogram computer for the supplied request and filtering inputs.
+	 */
 	public AttributeHistogramComputer(
 		@Nonnull String attributeName,
 		@Nullable Formula filterFormula,
@@ -251,19 +246,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 		@Nonnull HistogramBehavior behavior,
 		@Nonnull AttributeHistogramRequest request
 	) {
-		this(attributeName, null, filterFormula, bucketCount, behavior, request);
-	}
-
-	private AttributeHistogramComputer(
-		@Nonnull String attributeName,
-		@Nullable Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> onComputationCallback,
-		@Nullable Formula filterFormula,
-		int bucketCount,
-		@Nonnull HistogramBehavior behavior,
-		@Nonnull AttributeHistogramRequest request
-	) {
 		this.attributeName = attributeName;
-		this.onComputationCallback = onComputationCallback;
 		this.filterFormula = filterFormula;
 		this.bucketCount = bucketCount;
 		this.behavior = behavior;
@@ -303,37 +286,6 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 				.map(FilterIndex::getAllRecordsFormula)
 				.mapToLong(TransactionalDataRelatedStructure::getEstimatedCost)
 				.sum() * getOperationCost();
-	}
-
-	@Override
-	public FlattenedHistogramComputer toSerializableResult(long extraResultHash, @Nonnull LongHashFunction hashFunction) {
-		return new FlattenedHistogramComputer(
-			extraResultHash,
-			getHash(),
-			Arrays.stream(gatherTransactionalIds())
-				.distinct()
-				.sorted()
-				.toArray(),
-			Objects.requireNonNull(compute())
-		);
-	}
-
-	@Override
-	public int getSerializableResultSizeEstimate() {
-		return FlattenedHistogramComputer.estimateSize(
-			gatherTransactionalIds(),
-			compute()
-		);
-	}
-
-	@Nonnull
-	@Override
-	public CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> getCloneWithComputationCallback(
-		@Nonnull Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> selfOperator
-	) {
-		return new AttributeHistogramComputer(
-			this.attributeName, selfOperator, this.filterFormula, this.bucketCount, this.behavior, this.request
-		);
 	}
 
 	@Nonnull
@@ -466,7 +418,6 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 				}
 			}
 
-			ofNullable(this.onComputationCallback).ifPresent(it -> it.accept(this));
 		}
 		return this.memoizedResult;
 	}

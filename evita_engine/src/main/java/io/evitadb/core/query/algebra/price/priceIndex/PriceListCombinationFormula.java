@@ -23,22 +23,15 @@
 
 package io.evitadb.core.query.algebra.price.priceIndex;
 
-import io.evitadb.core.cache.payload.FlattenedFormula;
-import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPrices;
 import io.evitadb.core.query.algebra.AbstractFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.price.CacheablePriceFormula;
-import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
-import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
-import java.util.function.Consumer;
 
 /**
  * This is formula that is an extension of {@link NotFormula} that captures the relation between two price lists.
@@ -96,50 +89,10 @@ public class PriceListCombinationFormula extends NotFormula implements Cacheable
 		this.priceEvaluationContext = priceEvaluationContext;
 	}
 
-	protected PriceListCombinationFormula(@Nonnull Consumer<CacheableFormula> computationCallback, @Nonnull Serializable subtractedPriceListName, @Nonnull Serializable priceListName, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull Formula subtractedFormula, @Nonnull Formula supersetFormula) {
-		super(computationCallback, subtractedFormula, supersetFormula);
-		this.subtractedPriceListName = subtractedPriceListName;
-		this.priceListName = priceListName;
-		this.priceEvaluationContext = priceEvaluationContext;
-	}
-
-	@Override
-	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
-		final Bitmap computationalResult = compute();
-		final long[] sortedDistinctIds = sortAndDeduplicateLongArray(gatherTransactionalIds());
-		// by this time computation result should be already memoized
-		return new FlattenedFormulaWithFilteredPrices(
-			formulaHash,
-			getTransactionalIdHash(),
-			sortedDistinctIds,
-			computationalResult,
-			FilteredPriceRecords.createFromFormulas(this, computationalResult, this.executionContext),
-			this.priceEvaluationContext
-		);
-	}
-
-	@Override
-	public int getSerializableFormulaSizeEstimate() {
-		return FlattenedFormulaWithFilteredPrices.estimateSize(
-			gatherTransactionalIds(),
-			compute(),
-			getPriceEvaluationContext()
-		);
-	}
-
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		return new PriceListCombinationFormula(this.subtractedPriceListName, this.priceListName, this.priceEvaluationContext, innerFormulas[0], innerFormulas[1]);
-	}
-
-	@Nonnull
-	@Override
-	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
-		return new PriceListCombinationFormula(
-			selfOperator,
-			this.subtractedPriceListName, this.priceListName, this.priceEvaluationContext, innerFormulas[0], innerFormulas[1]
-		);
 	}
 
 	@Override

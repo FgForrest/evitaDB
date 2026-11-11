@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.algebra.price.translate;
 
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -124,16 +123,15 @@ class PriceIdToEntityIdTranslateFormulaTest {
 		}
 
 		@Test
-		@DisplayName("should create clone with computation callback")
-		void shouldCreateCloneWithComputationCallback() {
+		@DisplayName("should create clone with inner formulas")
+		void shouldCreateCloneWithInnerFormulas() {
 			final PriceIdToEntityIdTranslateFormula original =
 				new PriceIdToEntityIdTranslateFormula(
 					new ConstantFormula(new ArrayBitmap(1))
 				);
 
 			final ConstantFormula newInner = new ConstantFormula(new ArrayBitmap(5, 6));
-			final CacheableFormula clone = original.getCloneWithComputationCallback(
-				f -> { /* no-op callback */ }, newInner
+			final Formula clone = original.getCloneWithInnerFormulas(newInner
 			);
 
 			assertInstanceOf(PriceIdToEntityIdTranslateFormula.class, clone);

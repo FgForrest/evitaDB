@@ -24,20 +24,17 @@
 package io.evitadb.core.query.algebra.base;
 
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
-import java.util.function.Consumer;
 
 /**
  * Not formula will perform boolean negation (NOT) on two bitmaps: superset and subtracted one
@@ -66,23 +63,13 @@ public class NotFormula extends AbstractCacheableFormula {
 	 */
 	private final Bitmap supersetBitmap;
 
-	protected NotFormula(@Nonnull Consumer<CacheableFormula> computationCallback, @Nonnull Formula subtractedFormula, @Nonnull Formula supersetFormula) {
-		super(computationCallback);
-		this.subtractedBitmap = null;
-		this.supersetBitmap = null;
-		this.initFields(subtractedFormula, supersetFormula);
-		Assert.isTrue(this.innerFormulas.length > 1, "And formula has no sense with " + this.innerFormulas.length + " inner formulas!");
-	}
-
 	public NotFormula(@Nonnull Formula subtractedFormula, @Nonnull Formula supersetFormula) {
-		super(null);
 		this.subtractedBitmap = null;
 		this.supersetBitmap = null;
 		this.initFields(subtractedFormula, supersetFormula);
 	}
 
 	public NotFormula(@Nonnull Bitmap subtractedBitmap, @Nonnull Bitmap supersetBitmap) {
-		super(null);
 		this.subtractedBitmap = subtractedBitmap;
 		this.supersetBitmap = supersetBitmap;
 		this.initFields();
@@ -124,15 +111,6 @@ public class NotFormula extends AbstractCacheableFormula {
 	@Override
 	public long getOperationCost() {
 		return 9;
-	}
-
-	@Nonnull
-	@Override
-	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
-		return new NotFormula(
-			selfOperator,
-			innerFormulas[0], innerFormulas[1]
-		);
 	}
 
 	@Override

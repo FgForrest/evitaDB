@@ -24,7 +24,6 @@
 package io.evitadb.core.query.algebra.base;
 
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.CacheablePriceFormula;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
@@ -34,8 +33,6 @@ import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.function.Consumer;
 
 /**
  * Computes the *signed multiplicity* of two families of bitmaps in a single pass:
@@ -87,17 +84,12 @@ public class RangeCountFormula extends AbstractCacheableFormula implements Cache
 	 */
 	private final Bitmap[] minus;
 
-	public RangeCountFormula(long indexTransactionId, @Nonnull Bitmap[] plus, @Nonnull Bitmap[] minus) {
-		this(null, indexTransactionId, plus, minus);
-	}
-
-	RangeCountFormula(
-		@Nullable Consumer<CacheableFormula> computationCallback,
+	public RangeCountFormula(
 		long indexTransactionId,
 		@Nonnull Bitmap[] plus,
 		@Nonnull Bitmap[] minus
 	) {
-		super(computationCallback);
+
 		Assert.isTrue(
 			plus.length > 0,
 			"Range count formula with an empty plus family computes nothing - use EmptyFormula.INSTANCE instead!"
@@ -112,16 +104,6 @@ public class RangeCountFormula extends AbstractCacheableFormula implements Cache
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		throw new UnsupportedOperationException("Range count formula doesn't support inner formulas, just bitmaps.");
-	}
-
-	@Nonnull
-	@Override
-	public CacheableFormula getCloneWithComputationCallback(
-		@Nonnull Consumer<CacheableFormula> selfOperator,
-		@Nonnull Formula... innerFormulas
-	) {
-		Assert.isPremiseValid(innerFormulas.length == 0, "Range count formula doesn't support inner formulas!");
-		return new RangeCountFormula(selfOperator, this.indexTransactionId, this.plus, this.minus);
 	}
 
 	@Override

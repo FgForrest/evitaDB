@@ -23,12 +23,9 @@
 
 package io.evitadb.core.query.algebra.price.termination;
 
-import io.evitadb.core.cache.payload.FlattenedFormula;
-import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPricesAndFilteredOutRecords;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
@@ -60,8 +57,6 @@ import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
-import java.util.Objects;
-import java.util.function.Consumer;
 
 /**
  * PlainPriceTerminationFormulaWithPriceFilter translates price ids produced by delegate formula to entity ids. It may
@@ -106,32 +101,18 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull PriceRecordPredicate pricePredicate
 	) {
-		super(null);
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.pricePredicate = pricePredicate;
 		this.initFields(containerFormula);
 	}
 
 	private PlainPriceTerminationFormulaWithPriceFilter(
-		@Nullable Consumer<CacheableFormula> computationCallback,
-		@Nonnull Formula containerFormula,
-		@Nonnull PriceEvaluationContext priceEvaluationContext,
-		@Nonnull PriceRecordPredicate pricePredicate
-	) {
-		super(computationCallback);
-		this.pricePredicate = pricePredicate;
-		this.priceEvaluationContext = priceEvaluationContext;
-		this.initFields(containerFormula);
-	}
-
-	private PlainPriceTerminationFormulaWithPriceFilter(
-		@Nullable Consumer<CacheableFormula> computationCallback,
 		@Nonnull Formula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull PriceRecordPredicate pricePredicate,
 		@Nonnull Bitmap recordsFilteredOutByPredicate
 	) {
-		super(recordsFilteredOutByPredicate, computationCallback);
+		super(recordsFilteredOutByPredicate);
 		this.pricePredicate = pricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.recordsFilteredOutByPredicate = recordsFilteredOutByPredicate;
@@ -163,7 +144,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new PlainPriceTerminationFormulaWithPriceFilter(
-			this.computationCallback, innerFormulas[0], this.priceEvaluationContext, this.pricePredicate
+			innerFormulas[0], this.priceEvaluationContext, this.pricePredicate
 		);
 	}
 
@@ -176,22 +157,10 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	@Override
 	public Formula getCloneWithPricePredicateFilteredOutResults() {
 		return new PlainPriceTerminationFormulaWithPriceFilter(
-			this.computationCallback,
 			this.innerFormulas[0],
 			this.priceEvaluationContext,
 			PricePredicate.ALL_RECORD_FILTER,
 			this.recordsFilteredOutByPredicate
-		);
-	}
-
-	@Nonnull
-	@Override
-	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
-		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
-		return new PlainPriceTerminationFormulaWithPriceFilter(
-			selfOperator,
-			innerFormulas[0],
-			this.priceEvaluationContext, this.pricePredicate
 		);
 	}
 
@@ -208,34 +177,6 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	@Override
 	public String toString() {
 		return this.pricePredicate.toString();
-	}
-
-	@Override
-	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
-		final long[] sortedDistinctIds = sortAndDeduplicateLongArray(gatherTransactionalIds());
-		return new FlattenedFormulaWithFilteredPricesAndFilteredOutRecords(
-			formulaHash,
-			getTransactionalIdHash(),
-			sortedDistinctIds,
-			compute(),
-			getFilteredPriceRecords(this.executionContext),
-			Objects.requireNonNull(getRecordsFilteredOutByPredicate()),
-			getPriceEvaluationContext(),
-			this.pricePredicate.getQueryPriceMode(),
-			this.pricePredicate.getFrom(),
-			this.pricePredicate.getTo(),
-			this.pricePredicate.getIndexedPricePlaces()
-		);
-	}
-
-	@Override
-	public int getSerializableFormulaSizeEstimate() {
-		return FlattenedFormulaWithFilteredPricesAndFilteredOutRecords.estimateSize(
-			gatherTransactionalIds(),
-			compute(),
-			Objects.requireNonNull(getRecordsFilteredOutByPredicate()),
-			getPriceEvaluationContext()
-		);
 	}
 
 	@Nonnull

@@ -614,29 +614,6 @@ class EntityPrimaryKeyRangeFormulaTest {
 		}
 
 		@Test
-		@DisplayName("should create cacheable clone that invokes the supplied computation callback on compute")
-		void shouldCreateCacheableCloneWithComputationCallback() {
-			final ConstantFormula inner = new ConstantFormula(
-				new ArrayBitmap(new CompositeIntArray(1, 5, 10))
-			);
-			final EntityPrimaryKeyRangeFormula original =
-				new EntityPrimaryKeyRangeFormula(1, 10, inner);
-
-			final boolean[] callbackInvoked = {false};
-			final CacheableFormula clone =
-				original.getCloneWithComputationCallback(
-					formula -> callbackInvoked[0] = true,
-					inner
-				);
-
-			assertInstanceOf(EntityPrimaryKeyRangeFormula.class, clone);
-
-			// trigger computation to invoke callback
-			clone.compute();
-			assertTrue(callbackInvoked[0]);
-		}
-
-		@Test
 		@DisplayName("should throw when clone is asked for more than one inner formula")
 		void shouldThrowWhenClonedWithWrongInnerFormulaCount() {
 			final ConstantFormula innerA = new ConstantFormula(

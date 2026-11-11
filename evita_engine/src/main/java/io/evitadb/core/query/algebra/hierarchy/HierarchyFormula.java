@@ -51,7 +51,7 @@ import javax.annotation.Nullable;
  * hierarchy branch from a cloned filter formula tree without having to re-translate the original query constraints.
  *
  * Implements {@link NonCacheableFormula} so that any cacheable parent (e.g. an enclosing `AND`/`OR`) is forbidden
- * from being flattened into a {@link io.evitadb.core.cache.payload.FlattenedFormula}. Flattening would erase the
+ * from being replaced with a result that erases the
  * `HierarchyFormula` wrapper from the formula tree, which would break the hierarchy-statistics planner's filter
  * cloning — it relies on locating `HierarchyFormula` instances by type to selectively strip them per
  * {@link io.evitadb.api.query.require.StatisticsBase} mode.

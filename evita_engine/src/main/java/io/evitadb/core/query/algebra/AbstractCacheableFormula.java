@@ -23,13 +23,9 @@
 
 package io.evitadb.core.query.algebra;
 
-import io.evitadb.core.cache.payload.FlattenedFormula;
 import io.evitadb.index.bitmap.Bitmap;
-import net.openhft.hashing.LongHashFunction;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.function.Consumer;
 
 import static java.util.Optional.ofNullable;
 
@@ -41,46 +37,17 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public abstract class AbstractCacheableFormula extends AbstractFormula implements CacheableFormula {
+
 	/**
-	 * Callback invoked after the formula result is computed, allowing the cache supervisor to record the computation.
+	 * Creates a formula whose result will be computed on demand.
 	 */
-	protected final Consumer<CacheableFormula> computationCallback;
-
-	protected AbstractCacheableFormula(@Nullable Consumer<CacheableFormula> computationCallback) {
-		this.computationCallback = computationCallback;
+	protected AbstractCacheableFormula() {
 	}
 
-	protected AbstractCacheableFormula(@Nullable Bitmap memoizedResult, @Nullable Consumer<CacheableFormula> computationCallback) {
+	/**
+	 * Creates a formula with an already computed result.
+	 */
+	protected AbstractCacheableFormula(@Nullable Bitmap memoizedResult) {
 		this.memoizedResult = memoizedResult;
-		this.computationCallback = computationCallback;
-	}
-
-	@Nonnull
-	@Override
-	public Bitmap compute() {
-		if (this.memoizedResult == null) {
-			this.memoizedResult = computeInternal();
-			ofNullable(this.computationCallback).ifPresent(it -> it.accept(this));
-		}
-		return this.memoizedResult;
-	}
-
-	@Override
-	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
-		// by this time computation result should be already memoized
-		return new FlattenedFormula(
-			formulaHash,
-			getTransactionalIdHash(),
-			gatherTransactionalIds(),
-			compute()
-		);
-	}
-
-	@Override
-	public int getSerializableFormulaSizeEstimate() {
-		return FlattenedFormula.estimateSize(
-			gatherTransactionalIds(),
-			compute()
-		);
 	}
 }

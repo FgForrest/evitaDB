@@ -35,9 +35,7 @@ import io.evitadb.dataType.SupportedEnum;
  * - `VERIFY_ALTERNATIVE_INDEX_RESULTS` — exercises index redundancy by computing the query result through every
  *   available alternative index (e.g. both a sorted and an inverted index for the same attribute) and asserting
  *   that all paths produce bit-identical result sets. Detects inconsistencies between index implementations.
- * - `VERIFY_POSSIBLE_CACHING_TREES` — exercises the formula caching layer by materialising every possible variant
- *   of the query formula tree where sub-trees can be swapped with cached versions, and verifying that all
- *   variants produce identical results. Detects caching bugs.
+ * - `VERIFY_POSSIBLE_CACHING_TREES` — selects bitmap-favouring planning and denies optional prefetch.
  * - `PREFER_PREFETCHING` — overrides the cost-based strategy selector and unconditionally uses the prefetch
  *   strategy whenever the query's filter constraints make prefetching feasible. Used to exercise the prefetch
  *   code path that would otherwise be skipped for large datasets where the index scan is cheaper.
@@ -61,9 +59,7 @@ public enum DebugMode {
 	 */
 	VERIFY_ALTERNATIVE_INDEX_RESULTS,
 	/**
-	 * This option trigger creation and verification of all possible variants of computational tree where the results
-	 * are exchanged with cached variants. This mode allows us to verify that all variants of cacheable tree parts
-	 * produce the same results.
+	 * Selects bitmap-favouring planning and denies optional prefetch.
 	 */
 	VERIFY_POSSIBLE_CACHING_TREES,
 	/**

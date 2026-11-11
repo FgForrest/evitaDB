@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.algebra.base;
 
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -40,7 +39,6 @@ import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.TreeSet;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.evitadb.test.TestTags.CACHE;
 import static io.evitadb.test.TestTags.INDEXING;
@@ -203,25 +201,6 @@ class RangeCountFormulaTest {
 			);
 			assertEquals(0, tested.getInnerFormulas().length);
 			assertThrows(UnsupportedOperationException.class, tested::getCloneWithInnerFormulas);
-			assertThrows(
-				GenericEvitaInternalError.class,
-				() -> tested.getCloneWithComputationCallback(it -> {
-				}, new ConstantFormula(bitmap(9)))
-			);
-		}
-
-		@Test
-		@DisplayName("A computation-callback clone computes the same records and fires the callback once")
-		void shouldCloneWithComputationCallback() {
-			final RangeCountFormula tested = new RangeCountFormula(
-				INDEX_ID, new Bitmap[]{bitmap(1, 2), bitmap(2)}, new Bitmap[]{bitmap(2)}
-			);
-			final AtomicInteger callbackCount = new AtomicInteger();
-			final CacheableFormula clone = tested.getCloneWithComputationCallback(it -> callbackCount.incrementAndGet());
-
-			assertNotSame(tested, clone);
-			assertArrayEquals(tested.compute().getArray(), clone.compute().getArray());
-			assertEquals(1, callbackCount.get(), "The computation callback must fire exactly once per computation");
 		}
 
 		@Test

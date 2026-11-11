@@ -25,7 +25,6 @@ package io.evitadb.core.query.algebra.price.priceIndex;
 
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.LazyEvaluatedEntityPriceRecords;
@@ -36,8 +35,6 @@ import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.function.Consumer;
 
 /**
  * Simple delegating formula that doesn't compute anything (computational logic is delegated to {@link #getDelegate()}
@@ -79,19 +76,6 @@ public class PriceIndexContainerFormula extends AbstractCacheableFormula impleme
 		@Nonnull PriceListAndCurrencyPriceIndex<?> lowestPriceRecordsSource,
 		@Nonnull Formula delegate
 	) {
-		super(null);
-		this.priceIndex = priceIndex;
-		this.lowestPriceRecordsSource = lowestPriceRecordsSource;
-		this.initFields(delegate);
-	}
-
-	private PriceIndexContainerFormula(
-		@Nullable Consumer<CacheableFormula> computationCallback,
-		@Nonnull PriceListAndCurrencyPriceIndex<?> priceIndex,
-		@Nonnull PriceListAndCurrencyPriceIndex<?> lowestPriceRecordsSource,
-		@Nonnull Formula delegate
-	) {
-		super(computationCallback);
 		this.priceIndex = priceIndex;
 		this.lowestPriceRecordsSource = lowestPriceRecordsSource;
 		this.initFields(delegate);
@@ -109,15 +93,6 @@ public class PriceIndexContainerFormula extends AbstractCacheableFormula impleme
 	@Override
 	public long getOperationCost() {
 		return 1;
-	}
-
-	@Nonnull
-	@Override
-	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
-		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
-		return new PriceIndexContainerFormula(
-			selfOperator, this.priceIndex, this.lowestPriceRecordsSource, innerFormulas[0]
-		);
 	}
 
 	@Nonnull

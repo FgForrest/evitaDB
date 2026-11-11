@@ -28,14 +28,10 @@ import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import io.evitadb.api.query.require.QueryPriceMode;
-import io.evitadb.core.cache.payload.FlattenedFormula;
-import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPricesAndFilteredOutRecords;
-import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPricesForHistogram;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
@@ -70,7 +66,6 @@ import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /**
@@ -170,7 +165,6 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 		@Nonnull PriceRecordPredicate sellingPricePredicate,
 		boolean collectPerInnerRecordPrices
 	) {
-		super(null);
 		this.sellingPricePredicate = sellingPricePredicate;
 		this.individualPricePredicate = Functions.alwaysTrue();
 		this.priceEvaluationContext = priceEvaluationContext;
@@ -184,12 +178,11 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 
 	/**
 	 * Internal constructor used by every cloning factory ({@link #getCloneWithInnerFormulas},
-	 * {@link #getCloneWithComputationCallback}, {@link #withIndividualPricePredicate}). Carries forward the
-	 * computation callback, the individual price predicate, and the histogram side-output flag — fields that
+	 * {@link #withIndividualPricePredicate}). Carries forward the
+	 * individual price predicate and the histogram side-output flag — fields that
 	 * are absent from the public constructor's API surface but must survive cloning.
 	 */
 	private LowestPriceTerminationFormula(
-		@Nullable Consumer<CacheableFormula> computationCallback,
 		@Nonnull Formula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull QueryPriceMode queryPriceMode,
@@ -197,7 +190,6 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 		@Nonnull Predicate<PriceRecordContract> individualPricePredicate,
 		boolean collectPerInnerRecordPrices
 	) {
-		super(computationCallback);
 		this.sellingPricePredicate = sellingPricePredicate;
 		this.individualPricePredicate = individualPricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
@@ -216,7 +208,6 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	 * a redundant pass.
 	 */
 	private LowestPriceTerminationFormula(
-		@Nullable Consumer<CacheableFormula> computationCallback,
 		@Nonnull Formula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull QueryPriceMode queryPriceMode,
@@ -225,7 +216,7 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 		@Nullable Bitmap recordsFilteredOutByPredicate,
 		boolean collectPerInnerRecordPrices
 	) {
-		super(recordsFilteredOutByPredicate, computationCallback);
+		super(recordsFilteredOutByPredicate);
 		this.sellingPricePredicate = sellingPricePredicate;
 		this.individualPricePredicate = individualPricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
@@ -240,7 +231,7 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 
 	/**
 	 * Creates a new instance of LowestPriceTerminationFormula with the specified individual price predicate and
-	 * retains the existing computation callback, delegate formula, price evaluation context, query price mode,
+	 * retains the existing delegate formula, price evaluation context, query price mode,
 	 * and selling price predicate.
 	 *
 	 * @param individualPricePredicate the predicate to filter individual price records; must not be null
@@ -251,7 +242,6 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 		@Nonnull Predicate<PriceRecordContract> individualPricePredicate
 	) {
 		return new LowestPriceTerminationFormula(
-			this.computationCallback,
 			getDelegate(),
 			this.priceEvaluationContext,
 			this.queryPriceMode,
@@ -305,7 +295,6 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new LowestPriceTerminationFormula(
-			this.computationCallback,
 			innerFormulas[0],
 			this.priceEvaluationContext, this.queryPriceMode, this.sellingPricePredicate, this.individualPricePredicate,
 			this.collectPerInnerRecordPrices
@@ -321,21 +310,9 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	@Override
 	public Formula getCloneWithPricePredicateFilteredOutResults() {
 		return new LowestPriceTerminationFormula(
-			this.computationCallback, this.innerFormulas[0],
+			this.innerFormulas[0],
 			this.priceEvaluationContext, this.queryPriceMode, PricePredicate.ALL_RECORD_FILTER, this.individualPricePredicate,
 			this.recordsFilteredOutByPredicate,
-			this.collectPerInnerRecordPrices
-		);
-	}
-
-	@Nonnull
-	@Override
-	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
-		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
-		return new LowestPriceTerminationFormula(
-			selfOperator,
-			innerFormulas[0],
-			this.priceEvaluationContext, this.queryPriceMode, this.sellingPricePredicate, this.individualPricePredicate,
 			this.collectPerInnerRecordPrices
 		);
 	}
@@ -384,68 +361,6 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	@Override
 	public String toString() {
 		return this.sellingPricePredicate.toString();
-	}
-
-	@Override
-	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
-		final long[] sortedDistinctIds = sortAndDeduplicateLongArray(gatherTransactionalIds());
-		if (this.collectPerInnerRecordPrices) {
-			// flag-on → sibling payload that carries the per-inner-record histogram side-output
-			return new FlattenedFormulaWithFilteredPricesForHistogram(
-				formulaHash,
-				getTransactionalIdHash(),
-				sortedDistinctIds,
-				compute(),
-				getFilteredPriceRecords(this.executionContext),
-				getFilteredPriceRecordsForHistogram(this.executionContext),
-				Objects.requireNonNull(getRecordsFilteredOutByPredicate()),
-				getPriceEvaluationContext(),
-				this.sellingPricePredicate.getQueryPriceMode(),
-				this.sellingPricePredicate.getFrom(),
-				this.sellingPricePredicate.getTo(),
-				this.sellingPricePredicate.getIndexedPricePlaces()
-			);
-		}
-		// flag-off → pre-existing payload (unchanged serialization signature, cache-compatible with older releases)
-		return new FlattenedFormulaWithFilteredPricesAndFilteredOutRecords(
-			formulaHash,
-			getTransactionalIdHash(),
-			sortedDistinctIds,
-			compute(),
-			getFilteredPriceRecords(this.executionContext),
-			Objects.requireNonNull(getRecordsFilteredOutByPredicate()),
-			getPriceEvaluationContext(),
-			this.sellingPricePredicate.getQueryPriceMode(),
-			this.sellingPricePredicate.getFrom(),
-			this.sellingPricePredicate.getTo(),
-			this.sellingPricePredicate.getIndexedPricePlaces()
-		);
-	}
-
-	@Override
-	public int getSerializableFormulaSizeEstimate() {
-		if (this.collectPerInnerRecordPrices) {
-			// flag-on → size estimate must include the per-inner-record contribution so the cache accounting
-			// matches the sibling payload chosen above by `toSerializableFormula`
-			final FilteredPriceRecords perInnerRecord = getFilteredPriceRecordsForHistogram(this.executionContext);
-			final int perInnerRecordCount = perInnerRecord instanceof ResolvedFilteredPriceRecords resolved
-				? resolved.getPriceRecords().length
-				: 0;
-			return FlattenedFormulaWithFilteredPricesForHistogram.estimateSize(
-				gatherTransactionalIds(),
-				compute(),
-				perInnerRecordCount,
-				Objects.requireNonNull(getRecordsFilteredOutByPredicate()),
-				getPriceEvaluationContext()
-			);
-		}
-		// flag-off → estimate matches the pre-existing payload size
-		return FlattenedFormulaWithFilteredPricesAndFilteredOutRecords.estimateSize(
-			gatherTransactionalIds(),
-			compute(),
-			Objects.requireNonNull(getRecordsFilteredOutByPredicate()),
-			getPriceEvaluationContext()
-		);
 	}
 
 	@Nonnull
@@ -603,11 +518,7 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		// Mix the histogram flag into the hash so cache entries for non-histogram queries do not collide
-		// with entries that carry the per-inner-record side-output (the latter use the
-		// FlattenedFormulaWithFilteredPricesForHistogram payload, the former
-		// FlattenedFormulaWithFilteredPricesAndFilteredOutRecords). A regression here would feed the wrong
-		// flattened class back to the caller.
+		// Include the histogram flag so identity distinguishes formulas with per-inner-record side-output.
 		return hashFunction.hashLongs(
 			new long[]{
 				this.priceEvaluationContext.computeHash(hashFunction),

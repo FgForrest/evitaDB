@@ -24,9 +24,7 @@
 package io.evitadb.core.query.algebra.base;
 
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.utils.Assert;
 import io.evitadb.index.bitmap.Bitmap;
 import net.openhft.hashing.LongHashFunction;
@@ -34,7 +32,6 @@ import net.openhft.hashing.LongHashFunction;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
-import java.util.function.Consumer;
 
 /**
  * Abstract ancestor for cacheable formulas that can operate on raw {@link Bitmap} operands in addition to composed
@@ -61,11 +58,9 @@ public abstract class AbstractBitmapCacheableFormula extends AbstractCacheableFo
 	protected final long[] indexTransactionId;
 
 	protected AbstractBitmapCacheableFormula(
-		@Nullable Consumer<CacheableFormula> computationCallback,
 		@Nullable long[] indexTransactionId,
 		@Nullable Bitmap[] bitmaps
 	) {
-		super(computationCallback);
 		this.bitmaps = bitmaps;
 		this.indexTransactionId = indexTransactionId;
 	}

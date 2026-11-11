@@ -23,9 +23,7 @@
 
 package io.evitadb.core.query.algebra.price.termination;
 
-
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
@@ -42,7 +40,6 @@ import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Currency;
-import java.util.function.Consumer;
 
 /**
  * Formula container that behaves exactly as {@link OrFormula}, but carries information about price lists, currency and
@@ -68,10 +65,6 @@ public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 	 * Date and time used to filter prices by their validity period.
 	 */
 	@Nullable @Getter private final OffsetDateTime validIn;
-	/**
-	 * Callback operator invoked when the formula computation result is available for caching.
-	 */
-	@Nullable Consumer<CacheableFormula> selfOperator;
 
 	public PriceFilteringEnvelopeContainer(
 		@Nullable String[] priceLists,
@@ -79,22 +72,6 @@ public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 		@Nullable OffsetDateTime validIn,
 		@Nonnull Formula... innerFormulas
 	) {
-		super(null);
-		this.selfOperator = null;
-		this.priceLists = priceLists;
-		this.currency = currency;
-		this.validIn = validIn;
-		this.initFields(innerFormulas);
-	}
-
-	private PriceFilteringEnvelopeContainer(
-		@Nonnull Consumer<CacheableFormula> selfOperator,
-		@Nullable String[] priceLists,
-		@Nullable Currency currency,
-		@Nullable OffsetDateTime validIn,
-		@Nonnull Formula... innerFormulas
-	) {
-		super(selfOperator);
 		this.priceLists = priceLists;
 		this.currency = currency;
 		this.validIn = validIn;
@@ -123,18 +100,6 @@ public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 	@Override
 	public long getOperationCost() {
 		return 11;
-	}
-
-	@Nonnull
-	@Override
-	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
-		return new PriceFilteringEnvelopeContainer(
-			selfOperator,
-			this.priceLists,
-			this.currency,
-			this.validIn,
-			innerFormulas
-		);
 	}
 
 	@Override

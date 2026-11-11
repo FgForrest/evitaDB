@@ -26,7 +26,6 @@ package io.evitadb.core.query.extraResult.translator.histogram.producer;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPricesForHistogram;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
@@ -38,7 +37,6 @@ import io.evitadb.core.query.algebra.price.termination.LowestPriceTerminationFor
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogram;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
-import io.evitadb.core.query.extraResult.translator.histogram.cache.FlattenedHistogramComputer;
 import io.evitadb.core.query.sort.price.FilteredPriceRecordsCollector;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -47,7 +45,6 @@ import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -56,8 +53,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.function.ToIntFunction;
 
 import static java.util.Optional.ofNullable;
@@ -92,11 +87,6 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	 * Execution context from initialization phase.
 	 */
 	protected QueryExecutionContext context;
-	/**
-	 * Contains reference to the lambda that needs to be executed THE FIRST time the histogram produced by this computer
-	 * instance is really computed (and memoized).
-	 */
-	private final Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> onComputationCallback;
 	/**
 	 * Bucket count contains desired count of histogram columns=buckets. Output histogram bucket count must never exceed
 	 * this value, but might be optimized to lower count when there are big gaps between columns.
@@ -222,6 +212,9 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 		};
 	}
 
+	/**
+	 * Creates a histogram computer for the supplied request and filtering inputs.
+	 */
 	public PriceHistogramComputer(
 		int bucketCount,
 		@Nonnull HistogramBehavior behavior,
@@ -232,25 +225,6 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
 		@Nullable FilteredPriceRecordsLookupResult priceRecordsLookupResult
 	) {
-		this(
-			null, bucketCount, behavior, indexedPricePlaces, queryPriceMode,
-			filteringFormula, filteringFormulaWithFilteredOutRecords, filteredPriceRecordAccessors,
-			priceRecordsLookupResult
-		);
-	}
-
-	private PriceHistogramComputer(
-		@Nullable Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> selfOperator,
-		int bucketCount,
-		@Nonnull HistogramBehavior behavior,
-		int indexedPricePlaces,
-		@Nonnull QueryPriceMode queryPriceMode,
-		@Nonnull Formula filteringFormula,
-		@Nullable Formula filteringFormulaWithFilteredOutRecords,
-		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
-		@Nullable FilteredPriceRecordsLookupResult priceRecordsLookupResult
-	) {
-		this.onComputationCallback = null;
 		this.bucketCount = bucketCount;
 		this.behavior = behavior;
 		this.indexedPricePlaces = indexedPricePlaces;
@@ -359,39 +333,6 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 		return this.costToPerformance;
 	}
 
-	@Override
-	public FlattenedHistogramComputer toSerializableResult(long extraResultHash, @Nonnull LongHashFunction hashFunction) {
-		return new FlattenedHistogramComputer(
-			extraResultHash,
-			getHash(),
-			Arrays.stream(gatherTransactionalIds())
-				.distinct()
-				.sorted()
-				.toArray(),
-			Objects.requireNonNull(compute())
-		);
-	}
-
-	@Override
-	public int getSerializableResultSizeEstimate() {
-		return FlattenedHistogramComputer.estimateSize(
-			gatherTransactionalIds(),
-			compute()
-		);
-	}
-
-	@Nonnull
-	@Override
-	public CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> getCloneWithComputationCallback(
-		@Nonnull Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> selfOperator
-	) {
-		return new PriceHistogramComputer(
-			selfOperator, this.bucketCount, this.behavior, this.indexedPricePlaces, this.queryPriceMode,
-			this.filteringFormula, this.filteringFormulaWithFilteredOutRecords,
-			this.filteredPriceRecordAccessors, this.priceRecordsLookupResult
-		);
-	}
-
 	@Nonnull
 	@Override
 	public CacheableHistogramContract compute() {
@@ -429,7 +370,6 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 				this.memoizedResult = CacheableHistogramContract.EMPTY;
 			}
 
-			ofNullable(this.onComputationCallback).ifPresent(it -> it.accept(this));
 		}
 		return this.memoizedResult;
 	}
@@ -442,8 +382,7 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	 * Branching:
 	 *
 	 * - When **at least one** accessor in {@link #filteredPriceRecordAccessors} exposes the per-inner-record
-	 *   side-output prepared at construction time by {@link LowestPriceTerminationFormula} (or its
-	 *   flattened cache sibling {@link FlattenedFormulaWithFilteredPricesForHistogram}), those accessors
+	 *   side-output prepared at construction time by {@link LowestPriceTerminationFormula}, those accessors
 	 *   contribute one bucket data point per inner record id and every entity they do not cover is topped
 	 *   up from the {@link FilteredPriceRecordsCollector} — see
 	 *   {@link #collectPerInnerRecordHistogramRecords(List)}. The {@code PriceHistogramTranslator} collects

@@ -162,7 +162,7 @@ public class QueryExecutionContext implements Closeable {
 	private int ioFetchedBytesAtScopeOpen;
 
 	/**
-	 * Returns true if the context is inside {@link QueryPlanner#verifyConsistentResultsInAllPlans(QueryPlanningContext, List, List, QueryPlanBuilder)}  method.
+	 * Returns true during {@link QueryPlanner#verifyConsistentResultsInAllPlans(List, QueryPlanBuilder)}.
 	 *
 	 * In that mode the same query is evaluated by several alternative plans purely to check they agree, so the run is
 	 * not the one the client observes. Two things follow, and both are relied upon across this class: the random

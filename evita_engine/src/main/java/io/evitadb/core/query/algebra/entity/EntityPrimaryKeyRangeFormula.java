@@ -24,7 +24,6 @@
 package io.evitadb.core.query.algebra.entity;
 
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -35,8 +34,6 @@ import net.openhft.hashing.LongHashFunction;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.function.Consumer;
 
 /**
  * Formula that filters a superset bitmap to retain only primary keys within the inclusive range
@@ -79,27 +76,6 @@ public class EntityPrimaryKeyRangeFormula extends AbstractCacheableFormula {
 		int to,
 		@Nonnull Formula superSetFormula
 	) {
-		super(null);
-		this.from = from;
-		this.to = to;
-		this.initFields(superSetFormula);
-	}
-
-	/**
-	 * Internal constructor accepting a computation callback for cache integration.
-	 *
-	 * @param computationCallback callback invoked after first computation (may be null)
-	 * @param from                inclusive lower bound
-	 * @param to                  inclusive upper bound
-	 * @param superSetFormula     the formula providing the full set of candidate primary keys
-	 */
-	private EntityPrimaryKeyRangeFormula(
-		@Nullable Consumer<CacheableFormula> computationCallback,
-		int from,
-		int to,
-		@Nonnull Formula superSetFormula
-	) {
-		super(computationCallback);
 		this.from = from;
 		this.to = to;
 		this.initFields(superSetFormula);
@@ -115,24 +91,6 @@ public class EntityPrimaryKeyRangeFormula extends AbstractCacheableFormula {
 	public long getOperationCost() {
 		// benchmarked via FormulaCostMeasurement at ~6,487 ops/s on a 100K-element bitmap
 		return 154;
-	}
-
-	@Nonnull
-	@Override
-	public CacheableFormula getCloneWithComputationCallback(
-		@Nonnull Consumer<CacheableFormula> selfOperator,
-		@Nonnull Formula... innerFormulas
-	) {
-		Assert.isTrue(
-			innerFormulas.length == 1,
-			"Expected exactly one inner formula (superset)!"
-		);
-		return new EntityPrimaryKeyRangeFormula(
-			selfOperator,
-			this.from,
-			this.to,
-			innerFormulas[0]
-		);
 	}
 
 	@Nonnull

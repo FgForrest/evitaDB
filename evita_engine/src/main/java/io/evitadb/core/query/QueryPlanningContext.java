@@ -887,7 +887,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Hands over everything this query has requested and leaves the context holding nothing.
 	 *
 	 * **The emptying is the deduplication of last resort.** A logical query may build its preferred plan more than
-	 * once - the two verification debug modes build it again after executing every alternative - and a drain that left
+	 * once - alternative-index verification builds it again after executing every alternative - and a drain that left
 	 * the list behind would count that query twice. Because the accumulator is handed over rather than copied, the
 	 * second drain finds nothing and the second build counts nothing.
 	 *
@@ -896,21 +896,11 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * {@link #drainRequestedCapabilitiesToCount()}, which also leaves out what another plan of the same logical query
 	 * counted already.
 	 *
-	 * # What that leaves standing, and why it is the honest reading
+	 * A capability registered after a build has drained is counted by a later build only if this logical query
+	 * has not counted it yet. The record of counted capabilities discards repeated requests without discarding
+	 * newly requested capabilities.
 	 *
-	 * A capability registered **after** a build has already drained is counted by the next build on the same context
-	 * only when the logical query has not counted it yet. One debug-only path registers such capabilities:
-	 * {@link io.evitadb.api.query.require.DebugMode#VERIFY_POSSIBLE_CACHING_TREES} equips each cacheable variant of
-	 * the formula with a sorter of its own *after* the preferred plan was built, and planning an ordering re-registers
-	 * what it names - which the record of the counted capabilities keeps from being counted twice.
-	 *
-	 * Suppressing everything registered after the first build with a one-way "already flushed" latch was deliberately
-	 * not done, and the asymmetry is the reason: this count exists to answer *"would dropping this flag break a
-	 * query?"*, where an over-count merely protects a flag a little too eagerly, while an under-count makes a used flag
-	 * look dead and invites somebody to drop it. A latch would silently discard the requests of any future caller that
-	 * legitimately plans further work on a context whose plan is already built; the record of the counted capabilities
-	 * discards only the repetition of a request the query has already counted.
-	 *
+
 	 * @return the distinct holders this query requested, in registration order; empty when it requested none
 	 */
 	@Nonnull

@@ -209,11 +209,10 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	 * ordered by a referenced entity's property, and `HavingTranslatorHelper` reads `getFilter()`. Both count, and that
 	 * is the intended reading - the sorter and the formula do run against those very indexes.
 	 *
-	 * **Under the two verification debug modes one query counts an index repeatedly, and counts losing candidates
-	 * too.** With {@link io.evitadb.api.query.require.DebugMode#VERIFY_ALTERNATIVE_INDEX_RESULTS} or
-	 * {@link io.evitadb.api.query.require.DebugMode#VERIFY_POSSIBLE_CACHING_TREES} enabled,
+	 * **Under alternative-index verification one query counts an index repeatedly, and counts losing candidates
+	 * too.** With {@link io.evitadb.api.query.require.DebugMode#VERIFY_ALTERNATIVE_INDEX_RESULTS} enabled,
 	 * {@link QueryPlanner#verifyConsistentResultsInAllPlans} builds and executes the preferred plan, every alternative
-	 * and every cacheable variant, after which the preferred plan is built once more to be returned. Those plans
+	 * after which the preferred plan is built once more to be returned. Those plans
 	 * genuinely execute against the indexes they name, so the extra increments are work performed rather than a
 	 * miscount, and are left standing; exact arithmetic on these readings simply requires a session with no
 	 * verification debug mode enabled.

@@ -582,7 +582,7 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("A query verified against every alternative plan is still one request")
 		void shouldCountOnceUnderTheAlternativeIndexVerification() {
-			assertCountedOnceWhileTheWinningPlanIsBuiltRepeatedly(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS);
+			assertCountedOnceWithExpectedPlanBuilds(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS);
 
 			// the same query leaves the global index at zero without this mode - see `RequestedIsNotChosen` - so a
 			// reading above zero is proof the losing candidate really was built and executed here
@@ -593,14 +593,10 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("A query verified against its cacheable variants is still one request")
-		void shouldCountOnceUnderTheCachingTreeVerification() {
-			// what this pins is the preferred plan being built a second time to be returned. The other half of the
-			// mode - equipping each cacheable variant with a sorter of its own, which re-plans the ordering *after*
-			// that build already drained - is not reached on this fixture, whose filter formulas hold no
-			// `CacheableFormula` for `CacheableVariantsGeneratingVisitor` to vary; that residual is documented on
-			// `QueryPlanningContext#drainRequestedCapabilities` rather than asserted here
-			assertCountedOnceWhileTheWinningPlanIsBuiltRepeatedly(DebugMode.VERIFY_POSSIBLE_CACHING_TREES);
+		@DisplayName("A bitmap-favouring query builds only the preferred plan and counts one request")
+		void shouldCountOnceUnderBitmapFavouringPlanning() {
+			assertCountedOnceWithExpectedPlanBuilds(DebugMode.VERIFY_POSSIBLE_CACHING_TREES);
+			assertEquals(0L, globalIndex().getActivity().getQueryCount(), "The losing candidate must not be built");
 		}
 
 		@Test
@@ -1240,16 +1236,9 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		}
 
 		/**
-		 * Runs one multi-candidate query under a verification debug mode and asserts the two readings part ways: the
-		 * winning index counts a query per plan built, the capability counts once.
-		 *
-		 * The per-index reading is what keeps this from passing vacuously - it proves the debug mode really did build
-		 * the winning plan more than once, which is the hazard being pinned. Without it a mode that silently stopped
-		 * verifying anything would look like a successful deduplication.
-		 *
-		 * @param debugMode the verification mode to enable
+		 * Runs a multi-candidate query and verifies one capability request alongside the plan builds the mode requires.
 		 */
-		private void assertCountedOnceWhileTheWinningPlanIsBuiltRepeatedly(@Nonnull DebugMode debugMode) {
+		private void assertCountedOnceWithExpectedPlanBuilds(@Nonnull DebugMode debugMode) {
 			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByExecuting(
 				Query.query(
 					collection(ENTITY_PRODUCT),
@@ -1264,11 +1253,11 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 				)
 			);
 
-			assertTrue(
-				reducedIndexOfCategory(QUERIED_CATEGORY).getActivity().getQueryCount() > 1L,
-				"`" + debugMode + "` did not build the winning plan more than once, so this case proves nothing " +
-					"about a double flush"
-			);
+			if (debugMode == DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS) {
+				assertTrue(reducedIndexOfCategory(QUERIED_CATEGORY).getActivity().getQueryCount() > 1L);
+			} else {
+				assertEquals(1L, reducedIndexOfCategory(QUERIED_CATEGORY).getActivity().getQueryCount());
+			}
 			assertRequested(requested, CODE_FILTER);
 			assertRequested(requested, PRIORITY_SORT);
 		}

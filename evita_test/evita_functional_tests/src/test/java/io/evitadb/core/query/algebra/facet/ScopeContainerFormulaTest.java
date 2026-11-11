@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.algebra.facet;
 
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -229,7 +228,7 @@ class ScopeContainerFormulaTest {
 		}
 
 		@Test
-		@DisplayName("should keep standing for the whole scope through clones with inner formulas and callbacks")
+		@DisplayName("should keep standing for the whole scope through clones with inner formulas")
 		void shouldKeepStandingForWholeScopeThroughClones() {
 			final ScopeContainerFormula original = ScopeContainerFormula.restrictingScope(
 				Scope.LIVE,
@@ -244,14 +243,6 @@ class ScopeContainerFormulaTest {
 				withOtherChild.getCloneWithInnerFormulas().compute().getArray()
 			);
 
-			final CacheableFormula withCallback = original.getCloneWithComputationCallback(
-				formula -> {},
-				new ConstantFormula(new ArrayBitmap(2, 3))
-			);
-			assertArrayEquals(
-				new int[]{1, 2, 3, 4, 5},
-				withCallback.getCloneWithInnerFormulas().compute().getArray()
-			);
 		}
 
 		@Test
@@ -269,28 +260,6 @@ class ScopeContainerFormulaTest {
 			assertNotSame(original, clone);
 		}
 
-		@Test
-		@DisplayName("should create cacheable clone with computation callback")
-		void shouldCreateCacheableCloneWithComputationCallback() {
-			final ScopeContainerFormula original = new ScopeContainerFormula(
-				Scope.LIVE,
-				new ConstantFormula(new ArrayBitmap(10, 20))
-			);
-
-			final boolean[] callbackInvoked = {false};
-			final CacheableFormula clone = original.getCloneWithComputationCallback(
-				formula -> callbackInvoked[0] = true,
-				new ConstantFormula(new ArrayBitmap(10, 20))
-			);
-
-			assertInstanceOf(ScopeContainerFormula.class, clone);
-			final ScopeContainerFormula cloned = (ScopeContainerFormula) clone;
-			assertEquals(Scope.LIVE, cloned.getScope());
-
-			// trigger computation to invoke callback
-			cloned.compute();
-			assertTrue(callbackInvoked[0]);
-		}
 	}
 
 	@Nested

@@ -24,13 +24,6 @@
 package io.evitadb.core.query.algebra;
 
 import io.evitadb.core.cache.CacheSupervisor;
-import io.evitadb.core.cache.payload.CachePayloadHeader;
-import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
-import io.evitadb.utils.MemoryMeasuringConstants;
-import net.openhft.hashing.LongHashFunction;
-
-import javax.annotation.Nonnull;
-import java.util.function.Consumer;
 
 /**
  * This interface marks formulas which can be cached with computed data via {@link CacheSupervisor}.
@@ -40,27 +33,4 @@ import java.util.function.Consumer;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface CacheableFormula extends Formula {
-
-	/**
-	 * Method is responsible for creating formula containing all crucial information this formula is computing.
-	 * The created {@link CachePayloadHeader} must be 100% interchangeable with this instance in terms of query evaluation.
-	 * It must keep the result of {@link Formula#compute()} method, as well other side computed data such as
-	 * {@link FilteredPriceRecordAccessor#getFilteredPriceRecords()} which are required for sorting and so on.
-	 */
-	CachePayloadHeader toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction);
-
-	/**
-	 * Method returns gross estimation of the in-memory size of {@link #toSerializableFormula(long, LongHashFunction)}
-	 * instance. The estimation is expected not to be a precise one. Please use constants from {@link MemoryMeasuringConstants}
-	 * for size computation.
-	 */
-	int getSerializableFormulaSizeEstimate();
-
-	/**
-	 * Returns copy of this formula with same inner formulas but new method handle that references callback that
-	 * will be called when {@link Formula#compute()} method is first executed and memoized result is available.
-	 */
-	@Nonnull
-	CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas);
-
 }

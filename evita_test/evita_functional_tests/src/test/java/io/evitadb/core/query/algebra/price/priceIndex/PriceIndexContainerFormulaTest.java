@@ -153,11 +153,6 @@ class PriceIndexContainerFormulaTest {
 			assertSame(index, innerClone.getPriceIndex());
 			assertSame(lowestPriceRecordsSource, innerClone.getLowestPriceRecordsSource());
 
-			final PriceIndexContainerFormula callbackClone = (PriceIndexContainerFormula) original
-				.getCloneWithComputationCallback(it -> {
-				}, createConstantFormula(3, 4));
-			assertSame(index, callbackClone.getPriceIndex());
-			assertSame(lowestPriceRecordsSource, callbackClone.getLowestPriceRecordsSource());
 		}
 
 		@Test

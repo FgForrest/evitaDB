@@ -23,12 +23,9 @@
 
 package io.evitadb.core.query.algebra.price.translate;
 
-import io.evitadb.core.cache.payload.FlattenedFormula;
-import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPrices;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.CacheablePriceFormula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
@@ -36,7 +33,6 @@ import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRec
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.SortingForm;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
-import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.dataType.array.CompositeObjectArray;
@@ -46,7 +42,6 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
-import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.Assert;
@@ -55,10 +50,8 @@ import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.function.Consumer;
 
 /**
  * PriceIdToEntityIdTranslateFormula translates price ids to entity ids in its {@link Formula#compute()} method.
@@ -83,12 +76,13 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 	private FilteredPriceRecords filteredPriceRecords;
 
 	public PriceIdToEntityIdTranslateFormula(@Nonnull Formula delegate) {
-		super(null);
 		this.initFields(delegate);
 	}
 
-	private PriceIdToEntityIdTranslateFormula(@Nullable Consumer<CacheableFormula> computationCallback, @Nonnull FilteredPriceRecords filteredPriceRecords, @Nonnull Formula delegate) {
-		super(computationCallback);
+	private PriceIdToEntityIdTranslateFormula(
+		@Nonnull FilteredPriceRecords filteredPriceRecords,
+		@Nonnull Formula delegate
+	) {
 		this.filteredPriceRecords = filteredPriceRecords;
 		this.initFields(delegate);
 	}
@@ -114,58 +108,13 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new PriceIdToEntityIdTranslateFormula(
-			this.computationCallback, this.filteredPriceRecords, innerFormulas[0]
+			this.filteredPriceRecords, innerFormulas[0]
 		);
 	}
 
 	@Override
 	public long getOperationCost() {
 		return 3527;
-	}
-
-	@Override
-	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
-		final long[] sortedDistinctIds = sortAndDeduplicateLongArray(gatherTransactionalIds());
-		return new FlattenedFormulaWithFilteredPrices(
-			formulaHash,
-			getTransactionalIdHash(),
-			sortedDistinctIds,
-			compute(),
-			getFilteredPriceRecords(this.executionContext),
-			getPriceEvaluationContext()
-		);
-	}
-
-	@Nonnull
-	private PriceEvaluationContext getPriceEvaluationContext() {
-		final Collection<PriceIdContainerFormula> priceIdFormulas = FormulaFinder.find(
-			getDelegate(), PriceIdContainerFormula.class, LookUp.SHALLOW
-		);
-
-		final PriceIndexKey[] keys = new PriceIndexKey[priceIdFormulas.size()];
-		int idx = 0;
-		for (PriceIdContainerFormula formula : priceIdFormulas) {
-			keys[idx++] = formula.getPriceIndex().getPriceIndexKey();
-		}
-		return new PriceEvaluationContext(null, keys);
-	}
-
-	@Override
-	public int getSerializableFormulaSizeEstimate() {
-		return FlattenedFormulaWithFilteredPrices.estimateSize(
-			gatherTransactionalIds(),
-			compute(),
-			getPriceEvaluationContext()
-		);
-	}
-
-	@Nonnull
-	@Override
-	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
-		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
-		return new PriceIdToEntityIdTranslateFormula(
-			selfOperator, this.filteredPriceRecords, innerFormulas[0]
-		);
 	}
 
 	@Nonnull
