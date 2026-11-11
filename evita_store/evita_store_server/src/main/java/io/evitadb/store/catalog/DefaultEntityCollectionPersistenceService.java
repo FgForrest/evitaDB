@@ -152,7 +152,6 @@ public class DefaultEntityCollectionPersistenceService
 	EntityCollectionPersistenceService<PersistentStorageDescriptor, EntityCollectionFileHeader>,
 	CatalogConsumersListener
 {
-	public static final byte[][] BYTE_TWO_DIMENSIONAL_ARRAY = new byte[0][];
 	/**
 	 * Buffer size for the {@link BufferedOutputStream} that wraps the raw compaction output file. The snapshot
 	 * copy emits three tiny writes per record (header, payload, tail); without buffering a multi-million-record

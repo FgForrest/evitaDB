@@ -72,7 +72,7 @@ import java.util.function.UnaryOperator;
  *
  * - {@link #register(EvitaSessionContract, String, Formula, FormulaCacheVisitor)}
  * - {@link #register(EvitaSessionContract, String, CacheableEvitaResponseExtraResultComputer)}
- * - {@link #register(EvitaSessionContract, int, Serializable, EntityFetch, Supplier)}
+ * - {@link #register(EvitaSessionContract, int, String, OffsetDateTime, EntityFetch, Supplier, UnaryOperator)}
  * - {@link #evaluateAssociates(boolean)}
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
