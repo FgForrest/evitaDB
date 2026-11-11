@@ -24,14 +24,21 @@
 package io.evitadb.test;
 
 import io.evitadb.exception.GenericEvitaInternalError;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+
+import javax.annotation.Nonnull;
 
 import java.util.concurrent.CompletableFuture;
 
+import static io.evitadb.test.PortManager.PORT_BASE_PROPERTY;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.SERVER;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -42,7 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies the port book-keeping contract of {@link PortManager}: ports are handed out sequentially
- * from the fixed base port 5560, already-allocated ports are skipped across datasets, released
+ * from the configured base port (5560 by default), already-allocated ports are skipped across datasets, released
  * ports become reusable, double allocation of the same dataset is rejected, and pending
  * completion-triggered releases are drained on the next allocation. The peak counter is asserted
  * against its actual implementation, which samples the live-port count at the *start* of each
@@ -52,21 +59,104 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @Tag(SERVER)
 @Tag(MANAGEMENT)
+@Isolated("Changes the port base system property")
 @DisplayName("PortManager port allocation contract")
 class PortManagerTest {
 
 	/**
-	 * Base port from which {@link PortManager} starts handing out ports (mirrors the constant used by
-	 * the implementation).
+	 * Default base port used when the system property is absent.
 	 */
 	private static final int BASE_PORT = 5560;
 
 	private PortManager portManager;
+	private String originalPortBase;
 
+	/**
+	 * Saves the caller's property and creates a fresh manager with the default base for each test.
+	 */
 	@BeforeEach
 	void setUp() {
+		this.originalPortBase = System.getProperty(PORT_BASE_PROPERTY);
+		System.clearProperty(PORT_BASE_PROPERTY);
 		// each test mutates the manager, so a fresh instance guarantees isolation
 		this.portManager = new PortManager();
+	}
+
+	/**
+	 * Restores the caller's property even when a test fails.
+	 */
+	@AfterEach
+	void tearDown() {
+		if (this.originalPortBase == null) {
+			System.clearProperty(PORT_BASE_PROPERTY);
+		} else {
+			System.setProperty(PORT_BASE_PROPERTY, this.originalPortBase);
+		}
+	}
+
+	/**
+	 * Verifies property parsing, inclusive limits and the lifetime of the configured base.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@Tag(SERVER)
+	@Tag(MANAGEMENT)
+	@DisplayName("Base port configuration")
+	class Configuration {
+
+		/**
+		 * Verifies the fallback when no property was provided.
+		 */
+		@Test
+		@DisplayName("uses 5560 when the property is absent")
+		void shouldUseDefaultBaseWhenPropertyIsAbsent() {
+			assertArrayEquals(new int[]{BASE_PORT}, portManager.allocatePorts("default", 1));
+		}
+
+		/**
+		 * Verifies a custom base and both inclusive boundaries.
+		 */
+		@ParameterizedTest
+		@ValueSource(ints = {1024, 7000, 65000})
+		@DisplayName("allocates sequential ports from a valid configured base")
+		void shouldAllocateFromCustomBaseWhenPropertyIsSet(int base) {
+			System.setProperty(PORT_BASE_PROPERTY, Integer.toString(base));
+			final PortManager manager = new PortManager();
+
+			assertArrayEquals(new int[]{base, base + 1}, manager.allocatePorts("custom", 2));
+		}
+
+		/**
+		 * Verifies that later property changes cannot move an existing manager's allocation range.
+		 */
+		@Test
+		@DisplayName("reads the property only at construction")
+		void shouldKeepInitialBaseWhenPropertyChanges() {
+			System.setProperty(PORT_BASE_PROPERTY, "7000");
+			final PortManager manager = new PortManager();
+			System.setProperty(PORT_BASE_PROPERTY, "8000");
+
+			assertArrayEquals(new int[]{7000}, manager.allocatePorts("first", 1));
+			assertArrayEquals(new int[]{7001}, manager.allocatePorts("second", 1));
+		}
+
+		/**
+		 * Verifies that invalid configuration fails with the property name, value and accepted range.
+		 */
+		@ParameterizedTest
+		@ValueSource(strings = {"1023", "65001", "not-an-integer", "", "2147483648"})
+		@DisplayName("rejects invalid bases with a clear message")
+		void shouldThrowExceptionWhenBaseIsInvalid(@Nonnull String base) {
+			System.setProperty(PORT_BASE_PROPERTY, base);
+
+			final IllegalArgumentException error = assertThrows(IllegalArgumentException.class, PortManager::new);
+			assertEquals(
+				"System property `" + PORT_BASE_PROPERTY +
+					"` must be an integer within 1024..65000 (inclusive), but was `" + base + "`.",
+				error.getMessage()
+			);
+		}
 	}
 
 	@Nested
