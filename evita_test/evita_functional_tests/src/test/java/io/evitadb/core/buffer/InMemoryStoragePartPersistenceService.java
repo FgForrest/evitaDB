@@ -193,20 +193,6 @@ class InMemoryStoragePartPersistenceService implements StoragePartPersistenceSer
 
 	@Nonnull
 	@Override
-	public <T extends StoragePart> byte[] serializeStoragePart(@Nonnull T storagePart) {
-		throw new UnsupportedOperationException("This in-memory service does not serialize!");
-	}
-
-	@Nonnull
-	@Override
-	public <T extends StoragePart> T deserializeStoragePart(
-		@Nonnull byte[] storagePart, @Nonnull Class<T> containerType
-	) {
-		throw new UnsupportedOperationException("This in-memory service does not serialize!");
-	}
-
-	@Nonnull
-	@Override
 	public KeyCompressor getReadOnlyKeyCompressor() {
 		return UNSUPPORTED_KEY_COMPRESSOR;
 	}

@@ -169,27 +169,6 @@ public interface StoragePartPersistenceService<S extends StorageDescriptor> exte
 	<T extends StoragePart> int countStorageParts(long catalogVersion, @Nonnull Class<T> containerType);
 
 	/**
-	 * Method serializes passed {@link StoragePart} to a byte array.
-	 *
-	 * @param storagePart {@link StoragePart} to be serialized
-	 * @param <T>         type of the storage part container
-	 * @return serialized {@link StoragePart}
-	 */
-	@Nonnull
-	<T extends StoragePart> byte[] serializeStoragePart(@Nonnull T storagePart);
-
-	/**
-	 * Method deserializes the binary form of {@link StoragePart}.
-	 *
-	 * @param storagePart   binary form of {@link StoragePart}
-	 * @param containerType type of the storage part container
-	 * @param <T>           type of the storage part container
-	 * @return deserialized {@link StoragePart}
-	 */
-	@Nonnull
-	<T extends StoragePart> T deserializeStoragePart(@Nonnull byte[] storagePart, @Nonnull Class<T> containerType);
-
-	/**
 	 * Returns a key compressor that contains indexes of keys assigned to a key comparable objects that are expensive
 	 * to be stored duplicated during serialization.
 	 */

@@ -259,18 +259,6 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 
 	@Nonnull
 	@Override
-	public <T extends StoragePart> byte[] serializeStoragePart(@Nonnull T storagePart) {
-		return this.delegate.serializeStoragePart(storagePart);
-	}
-
-	@Nonnull
-	@Override
-	public <T extends StoragePart> T deserializeStoragePart(@Nonnull byte[] storagePart, @Nonnull Class<T> containerType) {
-		return this.delegate.deserializeStoragePart(storagePart, containerType);
-	}
-
-	@Nonnull
-	@Override
 	public KeyCompressor getReadOnlyKeyCompressor() {
 		if (this.readOnlyKeyCompressor == null) {
 			this.readOnlyKeyCompressor = new AggregatedKeyCompressor(
