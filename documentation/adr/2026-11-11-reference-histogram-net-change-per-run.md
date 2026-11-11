@@ -1,7 +1,7 @@
 ---
 title: A reference's histogram contribution is withdrawn at its first touch and added once per run of the deferred queue
 date: 2026-11-11
-updated: 2026-11-11 02:30
+updated: 2026-11-11 14:05
 status: accepted
 kind: fix
 issues: [1911, 1916, 1918]
@@ -198,15 +198,19 @@ storage that pays for a rebuild anyway.
 Every scenario checks the histogram right after the upsert and again after a follow-up that moves the value
 into the range of anchor products, in memory and after a restart; only the second check can see a doubled value.
 
-- `ReferenceHistogramNetChangeFunctionalTest` — 50 cases, 0 failures. Before the change, on the same test code,
-  26 of its then 46 cases failed. They cover two histograms on one reference, an entity attribute change with a
+- `ReferenceHistogramNetChangeFunctionalTest` — 54 cases, 0 failures. Before the change, on the same test code,
+  26 of its then 46 cases failed. The later cases add an array changed twice in one upsert and a defaulted
+  reference inserted after a scope change. They cover two histograms on one reference, an entity attribute change with a
   non-contributing sibling, a group move of a non-contributing reference, an entity attribute change together
   with a reference change, a touch followed by removal with a value fallback, a group change followed by removal
   with a value from the referenced entity, removal and re-insertion of one target, and the only owner of a group
   leaving it. Six cases cover localized values, among them the locale added before a scope change that decided
   against Option H.
 - `ScopeChangeDeferredReEvaluationFunctionalTest` — 197 cases, 0 failures; 40 of them failed before the change.
-- Together **247 of 247**.
+- Together **251 of 251**.
+- `ReferenceHistogramPathParityFunctionalTest` — 12 cases, 0 failures. It reaches one final state through the
+  local path and through the cross-entity path and compares every bucket of the two histograms, after the change,
+  after a follow-up removal and after a restart. The same 12 pass on the code before this change.
 - `HistogramReferenceIdentityTest` pins the strict identity, including a temporary reference beside a dropped
   stored one.
 - Neighbouring suites, **333 of 333**: `RepeatedScopeChangeFunctionalTest` 36,
@@ -220,32 +224,39 @@ condition pays one more condition evaluation per affected reference and histogra
 
 ## Consequences & open follow-ups
 
-- **The deferred add reads the locales the entity had before the upsert.** *Open, to be filed as a defect for the
-  next release.* A new product stored with a localized value in one upsert gets no histogram value for it, and a
-  localized value changed after a scope change in the same upsert is neither withdrawn nor added in the new
-  locale. The first was measured and behaved the same before this change; the second is read from the code and
-  matches the previous behaviour, but was not run. Fixing it removes the reason for the synchronous re-index.
-- **A reference inserted together with a scope change gets no schema default values.** *Open, the maintainer is
-  deciding.* This is a storage defect, not an index one: the stored reference lacks the default, measured
-  through the entity body, by builder and by hand-built mutations alike. The scope-change branch of
-  `ContainerizedLocalMutationExecutor#popImplicitMutations` does not reach the default-value step. The test
-  scenario for it is held out of the test class.
-- **A group split into several reduced indexes answers its histogram from one of them.** *Open, the maintainer
-  is deciding.* After a representative attribute changes on a reference that allows duplicates, the owner sits
-  in another reduced index of its group, a new reduced index is not back-filled with the other owners' values,
-  and the reference summary reads one index per group. The scenarios that show it are held out of the test
-  class. This change makes the write side correct for them; the query side is untouched.
-- **Conditions reading the parent or associated data are never re-evaluated locally.** *Open, to be filed as a
-  defect for the next release.* Histogram triggers may carry both dependencies, but only the facet side reacts
-  to them. Until that is closed, a parent change followed by a reference touch in one upsert makes the
-  withdrawal evaluate against the new parent.
+- **The deferred add reads the locales the entity had before the upsert.** *Open: #1922.* A new product stored
+  with a localized value in one upsert gets no histogram value for it, and a localized value changed after a scope
+  change in the same upsert is neither withdrawn nor added in the new locale. The first was measured and behaved
+  the same before this change; the second is read from the code and matches the previous behaviour, but was not
+  run. Fixing it removes the reason for the synchronous re-index.
+- **A reference inserted together with a scope change got no schema default values.** *Fixed in the same pull
+  request: #1930.* The scope-change branch of `ContainerizedLocalMutationExecutor#popImplicitMutations` skipped
+  the reference attribute verification, so the default values were missing from the stored reference and a
+  missing mandatory attribute was accepted. It now verifies the references the upsert names, as the same-scope
+  branch does.
+- **A group split into several reduced indexes holds and answers its histogram wrongly.** *Open: #1924.* On a
+  reference that allows duplicates and has a representative attribute, every write goes to each reduced index
+  listed for the group, a new reduced index starts empty, an abandoned one keeps stale copies, a removal can take
+  a sibling's unit, and the reference summary reads one index per group. This change does not make the write
+  side correct for that shape: the replication itself is the defect. The fix is planned as one histogram store
+  per group and will carry its own record.
+- **Conditions reading the parent or associated data are never re-evaluated locally.** *Open: #1923.* Histogram
+  triggers may carry both dependencies, but only the facet side reacts to them. Until that is closed, a parent
+  change followed by a reference touch in one upsert makes the withdrawal evaluate against the new parent.
 - **A changed histogram definition or condition is not followed by any recomputation.** *Open, covered by the
   general rebuild work in #409.* The index keeps contributions computed under the old definition.
 - **Catalogs written by the previous release may hold doubled or stale values.** *Not repaired by this change.*
   A correct writer stops new drift and cannot find old drift. The release already recommends a full reindex.
-- **The cross-entity path is unchanged and its overlap with this one is not examined.** *Open.* For a
-  self-referencing entity type, and for nested runs caused by reflected references, local and cross-entity work
-  may apply one contribution twice. Read from the code, not measured.
+- **Local and cross-entity work can apply one contribution twice.** *Open: #1925.* For a self-referencing entity
+  type, and for a reference with a reflected counterpart, one upsert engages the local or nested path and the
+  cross-entity path on the same contribution, and the value is added twice. Measured: 36 failing cases in three
+  reproduction classes; the same cases fail on the code before this change.
+- **The cross-entity path reads reference-attribute values by the wrong identifiers.** *Open: #1926.* It
+  intersects owner primary keys with the record IDs of a reference-attribute filter index, which are partition
+  keys on an ungrouped reference and referenced keys on a grouped one. Measured: 16 of 48 cases fail, the same
+  before this change.
+- **A scope change does not pass an existing reference's attribute change to its reflected counterpart.** *Open:
+  #1927.*
 - **Duplicates on the cross-entity path** stay as coarse as
   [[2026-09-08-conditional-histogram-per-contribution-verdicts]] left them. The strict identity here covers the
   local path only.
@@ -266,3 +277,5 @@ condition pays one more condition evaluation per affected reference and histogra
 - **2026-11-10** — four defect reports traced to one cause; reproduction tests written and shown to fail
 - **2026-11-11** — implemented; the pending variant of the scope-change re-index measured as a regression and
   replaced by the synchronous add
+- **2026-11-11** — three defects found while testing fixed in the same pull request (#1928, #1929, #1930); the
+  other defects found on the way filed as #1922 to #1927
