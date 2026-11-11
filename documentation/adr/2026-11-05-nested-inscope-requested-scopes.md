@@ -1,7 +1,7 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-11 01:24
+updated: 2026-11-11 01:44
 status: accepted
 kind: fix
 issues: [1880, 1883, 1897, 1915]
@@ -448,6 +448,11 @@ and the verdict on a filter below the bodies no longer depends on the rows. Two 
   15-scope limit of the summary, and the label bodies the nested test did not inspect - all addressed. The
   code-quality pass found no defect; it added a literal test of the materialization, which fails with 10 rows of the
   matrix when the inheritance reads the admitted set instead of the searched one.
+- **#1915, full suite** on the tree merged with `dev` (#1897), `-P unitAndFunctional` with fixed parallelism 8 and the
+  release fixtures generated, 17:02 min: bitmap 19,215 tests with 0 failures and 1 skip, functional 33,447 with 0
+  failures, 71 skipped and 1 error - a two-minute timeout in
+  `CatalogGraphQLDataSubscriptionsFunctionalTest#shouldReceiveCatalogCaptureWithBodyUntyped`, whose class passes alone,
+  13 of 13.
 - **#1915, measured and left alone.** A named localized attribute of bodies with no locale source is refused by a
   planned query and answered by `getEntity`, alike for a locale below `or` and a filter without any `entityHaving`
   (`$GroupBodyScopes#shouldRefusePlannedLocalizedBodyAttributesWhenFetchLocaleIsMissing`,
