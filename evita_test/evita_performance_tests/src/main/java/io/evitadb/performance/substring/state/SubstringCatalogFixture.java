@@ -23,6 +23,8 @@
 
 package io.evitadb.performance.substring.state;
 
+import io.evitadb.api.configuration.CacheOptions;
+
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
@@ -187,18 +189,16 @@ public final class SubstringCatalogFixture {
 	 *
 	 * @param arm         which schema the attribute is declared with
 	 * @param entityCount how many entities - and distinct values - the catalog holds
-	 * @param cacheMode   whether the instance runs the formula cache
 	 * @return the shared fixture
 	 */
 	@Nonnull
 	public static SubstringCatalogFixture obtain(
 		@Nonnull SubstringIndexArm arm,
-		int entityCount,
-		@Nonnull SubstringCacheMode cacheMode
+		int entityCount
 	) {
 		registerShutdownHook();
 		return FIXTURES.computeIfAbsent(
-			new FixtureKey(arm, entityCount, cacheMode),
+			new FixtureKey(arm, entityCount),
 			SubstringCatalogFixture::build
 		);
 	}
@@ -313,7 +313,7 @@ public final class SubstringCatalogFixture {
 						.storageDirectory(storageDirectory)
 						.build()
 				)
-				.cache(key.cacheMode().toCacheOptions())
+				.cache(CacheOptions.builder().enabled(false).build())
 				.build()
 		);
 		evita.defineCatalog(CATALOG_NAME);
@@ -566,17 +566,15 @@ public final class SubstringCatalogFixture {
 	 *
 	 * @param arm         which schema the benchmarked attribute is declared with
 	 * @param entityCount how many entities - and distinct values - the catalog holds
-	 * @param cacheMode   whether the instance runs the formula cache
 	 */
 	public record FixtureKey(
 		@Nonnull SubstringIndexArm arm,
-		int entityCount,
-		@Nonnull SubstringCacheMode cacheMode
+		int entityCount
 	) {
 
 		@Override
 		public String toString() {
-			return this.arm + "/" + this.entityCount + "/cache-" + this.cacheMode;
+			return this.arm + "/" + this.entityCount;
 		}
 
 	}

@@ -69,7 +69,6 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.UpgradeCatalogForma
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.CollationKeyCacheSweeper;
-import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.UnusableCatalog;
@@ -539,8 +538,7 @@ public final class Evita implements EvitaContract {
 			.filter(it -> it > 0)
 			.map(it -> new SessionKiller(it, this, this.serviceExecutor))
 			.orElse(null);
-		this.cacheSupervisor = configuration.cache().enabled() ?
-			new HeapMemoryCacheSupervisor(configuration.cache(), this.serviceExecutor) : NoCacheSupervisor.INSTANCE;
+		this.cacheSupervisor = NoCacheSupervisor.INSTANCE;
 		this.collationKeyCacheSweeper = of(configuration.server().dropCollationKeysAfterSecondsOfInactivity())
 			.filter(it -> it > 0)
 			.map(it -> new CollationKeyCacheSweeper(it, this.serviceExecutor))

@@ -24,7 +24,6 @@
 package io.evitadb.core.cache;
 
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
@@ -33,13 +32,10 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
-import io.evitadb.core.cache.payload.FlattenedFormula;
 import io.evitadb.core.collection.EntityCollection;
-import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -82,7 +78,6 @@ import java.util.stream.IntStream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.TestTags.CACHE;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -91,37 +86,11 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies how the formula cache treats the part of a `referenceHaving` answered from registry rows - the owners of the
- * single-owner partitions, which the planner turns into one content-keyed {@link ConstantFormula}. A constant is not a
- * {@link CacheableFormula}, so it is never cached itself; what is cached is its cacheable ancestor, which inherits the
- * constant's content hash and content staleness token. Every case therefore names that ancestor - the
- * {@link AndFormula} of `and(<owner attribute>, referenceHaving(...))` - warms it, and asserts that the record of
- * **this subtree's hash** is in the {@link CacheEden} and is substituted on the next query, never an aggregate hit
- * count that any other subtree could have earned:
- *
- * - (i) a write in the same filter-value bucket of the referenced-type entity index that changes no answer keeps the
- *   ancestor's record - the constant depends on the owners, not on the bucket;
- * - (ii) a locale added to an owner the query does not match, with no locale filter in the query, keeps the record;
- * - (iii) a write registering a partition next to the matched ones in the registry keeps the record;
- * - (iv) the same body under another scope, another locale or another reference has a record of its own and its own
- *   answer;
- * - (v) a write to a matched row changes the constant and with it the ancestor's key - the cached answer is never
- *   served, the fresh one is;
- * - (vi) the bidirectional rewrite answering from a counterpart whose single-owner partitions are rows adds no
- *   invalidation beyond the one of the same rewrite answering from index objects for the same write, and the
- *   per-owner constants of the rows keep their content tokens under a counterpart write that changes no answer and
- *   change them under one that does;
- *
- * and that a `referenceHaving` whose candidates are all registry rows is never an adept at all - the reuse the
- * index objects had and the rows give up.
- *
- * The cache is the engine's own {@link CacheAnteroom} and {@link CacheEden} with the minimal thresholds, driven by the
- * {@link FormulaCacheVisitor} over the formula tree the engine plans for a real query on a real catalog - the same
- * wiring {@link HeapMemoryCacheSupervisor} uses, minus its timer, so the test decides when adepts are evaluated.
+ * Verifies result and formula identity over virtual reference partitions across unrelated and matched writes,
+ * discriminated query bodies and a materialized partition twin.
  *
  * The catalog is built anew for every case - each case writes - and holds:
  *
@@ -142,12 +111,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Formula cache over virtual reference partitions")
+@DisplayName("Formula identity over virtual reference partitions")
 @Tag(ENGINE)
-@Tag(CACHE)
 @Tag(REFERENCE)
 @TestInstance(Lifecycle.PER_CLASS)
-class VirtualPartitionFormulaCacheTest implements EvitaTestSupport {
+class VirtualPartitionFormulaIdentityTest implements EvitaTestSupport {
 	private static final String ENTITY_PRODUCT = "product";
 	private static final String ENTITY_CATEGORY = "category";
 	private static final String REFERENCE_RELATED = "relatedProducts";
@@ -189,7 +157,7 @@ class VirtualPartitionFormulaCacheTest implements EvitaTestSupport {
 	 */
 	private static final int CATEGORY_COUNT = 7;
 	/**
-	 * The rank bound of the owner attribute every warmed ancestor carries - owners `1` - `15`.
+	 * The rank bound of the owner attribute every tested ancestor carries - owners `1` - `15`.
 	 */
 	private static final int RANK_BOUND = 150;
 	/**
@@ -199,16 +167,6 @@ class VirtualPartitionFormulaCacheTest implements EvitaTestSupport {
 
 	private TestPaths paths;
 	private Evita evita;
-	private Scheduler scheduler;
-	/**
-	 * The anteroom of the cache of the case - the cache of the catalog of the case, whose single-owner partitions are
-	 * registry rows.
-	 */
-	private CacheAnteroom anteroom;
-	/**
-	 * The eden of {@link #anteroom}.
-	 */
-	private CacheEden eden;
 	/**
 	 * The catalog of the case.
 	 */
@@ -224,61 +182,35 @@ class VirtualPartitionFormulaCacheTest implements EvitaTestSupport {
 	private int catalogSequence;
 
 	/**
-	 * A formula tree planned for a query and the answer it computed.
-	 *
-	 * @param raw      the tree as the planner built it, never analysed by the cache
-	 * @param analysed the tree the cache handed back for computation - the raw tree when no cache was consulted
-	 * @param answer   the primary keys the analysed tree computed
+	 * A planned formula tree and its computed primary keys.
 	 */
-	private record Run(@Nonnull Formula raw, @Nonnull Formula analysed, @Nonnull List<Integer> answer) {
-	}
-
-	/**
-	 * The engine's cache wiring with the minimal thresholds: every cacheable formula is an adept, every adept that
-	 * was computed once is promoted on the next evaluation.
-	 *
-	 * @param anteroom the anteroom
-	 * @param eden     the eden behind it
-	 */
-	private record Cache(@Nonnull CacheAnteroom anteroom, @Nonnull CacheEden eden) {
+	private record Run(@Nonnull Formula raw, @Nonnull List<Integer> answer) {
 	}
 
 	@BeforeAll
 	void setUpEvita() {
-		this.paths = createTestPaths("VirtualPartitionFormulaCacheTest");
+		this.paths = createTestPaths("VirtualPartitionFormulaIdentityTest");
 		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
-		this.scheduler = new Scheduler(
-			ThreadPoolOptions.requestThreadPoolBuilder()
-				.minThreadCount(1)
-				.maxThreadCount(1)
-				.build()
-		);
 	}
 
 	@AfterAll
 	void tearDownEvita() {
 		this.evita.close();
-		this.scheduler.shutdown();
 		cleanupTestPaths(this.paths);
 	}
 
 	@BeforeEach
 	void setUpCase() {
-		this.catalog = "virtualPartitionCache" + (++this.catalogSequence);
+		this.catalog = "virtualPartitionIdentity" + (++this.catalogSequence);
 		this.objectTwin = null;
 		MaterializedPartitionTwin.createRowCatalog(
-			this.evita, this.catalog, VirtualPartitionFormulaCacheTest::fillCatalog,
-			VirtualPartitionFormulaCacheTest::archiveLastOwners
+			this.evita, this.catalog, VirtualPartitionFormulaIdentityTest::fillCatalog,
+			VirtualPartitionFormulaIdentityTest::archiveLastOwners
 		);
-		final Cache cache = newCache();
-		this.anteroom = cache.anteroom();
-		this.eden = cache.eden();
 	}
 
 	@AfterEach
-	void tearDownCase() throws Exception {
-		// the anteroom owns the eden and hands its Flight Recorder hook back on close
-		this.anteroom.close();
+	void tearDownCase() {
 		this.evita.deleteCatalogIfExists(this.catalog);
 		if (this.objectTwin != null) {
 			this.evita.deleteCatalogIfExists(this.objectTwin.objectCatalog());
@@ -306,10 +238,10 @@ class VirtualPartitionFormulaCacheTest implements EvitaTestSupport {
 	}
 
 	@Test
-	@DisplayName("(i) a write in the matched bucket of the type index that changes no answer keeps the cached ancestor")
+	@DisplayName("(i) a write in the matched bucket of the type index that changes no answer preserves the ancestor identity")
 	void shouldKeepTheAncestorUnderAWriteInTheSameTypeIndexBucket() {
 		final Query query = relatedAccessoriesUpTo(RANK_BOUND, Scope.LIVE);
-		final AndFormula warmed = warm(query, accessoryOwnersReadVirtually());
+		final AndFormula previous = computeAncestor(query, accessoryOwnersReadVirtually());
 
 		// owner 1 already matches through two rows; a third accessory row lands in the same bucket of the type index
 		final long[] bucketBefore = typeIndexBucketToken(REFERENCE_RELATED, ATTRIBUTE_RELATION_TYPE, TYPE_ACCESSORY);
@@ -323,14 +255,14 @@ class VirtualPartitionFormulaCacheTest implements EvitaTestSupport {
 			"The write must change the bucket of the type index, or keeping the ancestor proves nothing"
 		);
 
-		assertHit(query, warmed, accessoryOwnersReadVirtually(), expectedRelatedAccessories(RANK_BOUND));
+		assertUnchanged(query, previous, accessoryOwnersReadVirtually(), expectedRelatedAccessories(RANK_BOUND));
 	}
 
 	@Test
-	@DisplayName("(ii) a locale added to an owner the query does not match keeps the cached ancestor")
+	@DisplayName("(ii) a locale added to an owner the query does not match preserves the ancestor identity")
 	void shouldKeepTheAncestorUnderALocaleChangeOfAnUnmatchedOwner() {
 		final Query query = relatedAccessoriesUpTo(RANK_BOUND, Scope.LIVE);
-		final AndFormula warmed = warm(query, accessoryOwnersReadVirtually());
+		final AndFormula previous = computeAncestor(query, accessoryOwnersReadVirtually());
 
 		// owner 8 holds only spares and has no German name yet
 		final long[] localeBefore = globalLocaleToken(LOCALE_DE);
@@ -343,14 +275,14 @@ class VirtualPartitionFormulaCacheTest implements EvitaTestSupport {
 			"The write must change the global locale bitmap of the owners, or keeping the ancestor proves nothing"
 		);
 
-		assertHit(query, warmed, accessoryOwnersReadVirtually(), expectedRelatedAccessories(RANK_BOUND));
+		assertUnchanged(query, previous, accessoryOwnersReadVirtually(), expectedRelatedAccessories(RANK_BOUND));
 	}
 
 	@Test
-	@DisplayName("(iii) a partition registered next to the matched ones keeps the cached ancestor")
+	@DisplayName("(iii) a partition registered next to the matched ones preserves the ancestor identity")
 	void shouldKeepTheAncestorUnderAWriteToTheRegistry() {
 		final Query query = relatedAccessoriesUpTo(RANK_BOUND, Scope.LIVE);
-		final AndFormula warmed = warm(query, accessoryOwnersReadVirtually());
+		final AndFormula previous = computeAncestor(query, accessoryOwnersReadVirtually());
 
 		// owner 8 takes target 46 alone as a spare - a new single-owner partition, which the body does not match
 		final Object registryBefore = typeIndexOf(ENTITY_PRODUCT, Scope.LIVE, REFERENCE_RELATED)
@@ -368,11 +300,11 @@ class VirtualPartitionFormulaCacheTest implements EvitaTestSupport {
 			"The write must replace the registry instance, or keeping the ancestor proves nothing"
 		);
 
-		assertHit(query, warmed, accessoryOwnersReadVirtually(), expectedRelatedAccessories(RANK_BOUND));
+		assertUnchanged(query, previous, accessoryOwnersReadVirtually(), expectedRelatedAccessories(RANK_BOUND));
 	}
 
 	@Test
-	@DisplayName("(iv) the same body under another locale, scope or reference has its own entry and answer")
+	@DisplayName("(iv) the same body under another locale, scope or reference has its own identity and answer")
 	void shouldKeepDiscriminatedBodiesApart() {
 		// locale: one type index, the locale leaf narrows the rows differently
 		final Query german = accessoriesInLocale(LOCALE_DE);
@@ -401,10 +333,10 @@ class VirtualPartitionFormulaCacheTest implements EvitaTestSupport {
 
 	@Test
 	@DisplayName("(v) a write to a matched row changes the ancestor's key, so the fresh answer is computed")
-	void shouldMissAfterAWriteToAMatchedRow() {
+	void shouldChangeIdentityAfterAWriteToAMatchedRow() {
 		final Query query = relatedAccessoriesUpTo(RANK_BOUND, Scope.LIVE);
-		final AndFormula warmed = warm(query, accessoryOwnersReadVirtually());
-		final long warmedHash = recordHash(warmed);
+		final AndFormula previous = computeAncestor(query, accessoryOwnersReadVirtually());
+		final long previousHash = previous.getHash();
 
 		// owner 9 matches only through its single-owner accessory row - which becomes a spare
 		write(session -> session.upsertEntity(
@@ -413,59 +345,34 @@ class VirtualPartitionFormulaCacheTest implements EvitaTestSupport {
 		));
 
 		// the answer first: a constant remembered from before the write would still hold owner 9
-		final Run fresh = run(this.catalog, query, this.anteroom);
+		final Run fresh = run(this.catalog, query);
 		final List<Integer> expected = expectedRelatedAccessories(RANK_BOUND).stream().filter(pk -> pk != 9).toList();
 		assertEquals(expected, fresh.answer());
-		assertEquals(expected, run(this.catalog, query, null).answer(), "The uncached plan must answer the same");
 		final int[] remainingVirtualOwners = IntStream.of(accessoryOwnersReadVirtually())
 			.filter(pk -> pk != 9).toArray();
 		final AndFormula ancestor = findAncestor(fresh.raw(), remainingVirtualOwners);
-		assertNotEquals(warmedHash, recordHash(ancestor), "The changed constant must change the ancestor's key");
-		assertFalse(isCached(ancestor), "No record may answer the changed ancestor");
-		assertFalse(
-			containsFlattened(fresh.analysed(), recordHash(ancestor)) ||
-				containsFlattened(fresh.analysed(), warmedHash),
-			"Neither the changed nor the warmed ancestor may be substituted: " + fresh.analysed()
-		);
+		assertNotEquals(previousHash, ancestor.getHash(), "The changed constant must change the ancestor's key");
 	}
 
 	@Test
-	@DisplayName("a referenceHaving whose candidates are all registry rows is never a cache adept")
-	void shouldNeverAdmitABareAllVirtualReferenceHaving() {
+	@DisplayName("a referenceHaving over registry rows and its materialized twin return the same owners")
+	void shouldComputeABareAllVirtualReferenceHaving() {
 		final Query query = query(
 			collection(ENTITY_PRODUCT),
-			filterBy(scope(Scope.LIVE), referenceHaving(REFERENCE_ACCESSORIES, attributeEquals(ATTRIBUTE_RELATION_TYPE, TYPE_ACCESSORY)))
+			filterBy(scope(Scope.LIVE), referenceHaving(
+				REFERENCE_ACCESSORIES, attributeEquals(ATTRIBUTE_RELATION_TYPE, TYPE_ACCESSORY)
+			))
 		);
 		final int[] liveOwners = IntStream.rangeClosed(1, OWNER_COUNT).filter(LIVE_PRODUCT).toArray();
-
-		// the index objects: the body over every partition is a cacheable tree, admitted as an adept
 		final MaterializedPartitionTwin twin = objectTwin();
-		final Cache objectCache = newCache();
-		try {
-			final Run objectReading = run(twin.objectCatalog(), query, objectCache.anteroom());
-			assertEquals(toList(liveOwners), twin.expectedAnswer(ENTITY_PRODUCT, objectReading.answer()));
-			final List<Formula> objectAdepts = cacheableNodes(objectReading.raw()).stream()
-				.filter(it -> objectCache.anteroom().getCacheAdept(twin.objectCatalog(), ENTITY_PRODUCT, it) != null)
-				.toList();
-			assertFalse(objectAdepts.isEmpty(), "The index objects must be cacheable: " + objectReading.raw());
-		} finally {
-			closeQuietly(objectCache);
-		}
-
-		// the rows: one constant over the owners, no cacheable formula anywhere above it
-		final Run virtualReading = run(this.catalog, query, this.anteroom);
+		final Run objectReading = run(twin.objectCatalog(), query);
+		assertEquals(toList(liveOwners), twin.expectedAnswer(ENTITY_PRODUCT, objectReading.answer()));
+		final Run virtualReading = run(this.catalog, query);
 		assertEquals(toList(liveOwners), virtualReading.answer());
-		final List<Formula> path = findPath(virtualReading.raw(), isConstantOver(liveOwners));
-		assertFalse(path.isEmpty(), "The owners of the rows must be one constant: " + virtualReading.raw());
-		for (final Formula node : path) {
-			assertFalse(
-				node instanceof CacheableFormula,
-				"No formula holding the constant may be cacheable - the lost reuse this case documents: " + node
-			);
-			assertNull(this.anteroom.getCacheAdept(this.catalog, ENTITY_PRODUCT, node));
-		}
-		this.anteroom.evaluateAssociatesSynchronously();
-		assertEquals(0, this.eden.getCacheRecordCount(), "Nothing of the rows may reach the eden");
+		assertFalse(
+			findPath(virtualReading.raw(), isConstantOver(liveOwners)).isEmpty(),
+			"The owners of the rows must be one constant: " + virtualReading.raw()
+		);
 	}
 
 	@Test
@@ -475,157 +382,96 @@ class VirtualPartitionFormulaCacheTest implements EvitaTestSupport {
 		final Query query = categoriesWithPriorityAbove(1);
 		// categories 1, 2 and 4 - 6: category 3 holds only product 4 with priority 1, category 7 holds nothing
 		final List<Integer> expected = List.of(1, 2, 4, 5, 6);
-		final Cache objectCache = newCache();
-		try {
-			// the index objects warm their own cache, the rows this case's
-			final Run objectWarm = warmRun(twin.objectCatalog(), query, objectCache);
-			final Run virtualWarm = warmRun(this.catalog, query, cache());
-			assertEquals(expected, objectWarm.answer());
-			assertEquals(expected, virtualWarm.answer());
-			final AndFormula objectAncestor = findExistenceAncestor(objectWarm.raw());
-			final AndFormula virtualAncestor = findExistenceAncestor(virtualWarm.raw());
-			assertTrue(
-				isCached(objectCache, twin.objectCatalog(), ENTITY_CATEGORY, objectAncestor),
-				"The index objects must have been warmed"
-			);
-			assertTrue(
-				isCached(cache(), this.catalog, ENTITY_CATEGORY, virtualAncestor), "The rows must have been warmed"
-			);
-			final Set<Long> virtualCarrier = perOwnerIds(run(this.catalog, query, null).raw());
-			final Set<Long> objectCarrier = perOwnerIds(objectWarm.raw());
-			// the per-owner constants of products 5, 6 and 7, each alone in its category with a priority above 1,
-			// carry their content and nothing else - the rewrite reads their rows
-			assertTrue(
-				virtualCarrier.containsAll(contentTokens(5, 6, 7)),
-				"The per-owner constants of the rows carry their content: " + virtualCarrier
-			);
+		// Compare the row and index-object representations before and after the same writes.
+		final Run objectBefore = run(twin.objectCatalog(), query);
+		final Run virtualBefore = run(this.catalog, query);
+		assertEquals(expected, objectBefore.answer());
+		assertEquals(expected, virtualBefore.answer());
+		final Set<Long> virtualCarrier = perOwnerIds(run(this.catalog, query).raw());
+		final Set<Long> objectCarrier = perOwnerIds(objectBefore.raw());
+		// the per-owner constants of products 5, 6 and 7, each alone in its category with a priority above 1,
+		// carry their content and nothing else - the rewrite reads their rows
+		assertTrue(
+			virtualCarrier.containsAll(contentTokens(5, 6, 7)),
+			"The per-owner constants of the rows carry their content: " + virtualCarrier
+		);
 
-			// a write outside the product collection - the code of a category the query excludes: both readings keep
-			// their ancestors (any product write misses in both, because the referenced entity formula of the rewrite
-			// reads the product primary key bitmap, which every product upsert replaces)
-			writeCategory(
-				CATEGORY_COUNT, category -> category.setAttribute(ATTRIBUTE_CODE, "C" + CATEGORY_COUNT + "x")
-			);
-			assertSameInvalidation(query, objectCache, true, expected);
+		// a write outside the product collection - the code of a category the query excludes: both readings keep
+		// their answers
+		writeCategory(
+			CATEGORY_COUNT, category -> category.setAttribute(ATTRIBUTE_CODE, "C" + CATEGORY_COUNT + "x")
+		);
+		assertEquals(expected, run(twin.objectCatalog(), query).answer());
+		assertEquals(expected, run(this.catalog, query).answer());
 
-			// a counterpart write that changes no answer: product 30 takes category 7, which no product held, with
-			// priority 1 - a new single-owner partition the body does not match, in a category the code excludes
-			final long[] bucketBefore = counterpartBucketToken();
-			writeProduct(
-				30,
-				product -> product.setReference(
-					REFERENCE_CATEGORIES, CATEGORY_COUNT, ref -> ref.setAttribute(ATTRIBUTE_PRIORITY, 1)
-				)
-			);
-			assertFalse(
-				Arrays.equals(bucketBefore, counterpartBucketToken()),
-				"The write must change the bucket of the counterpart type index, or the carrier proves nothing"
-			);
-			// the baseline misses already - the existence formula hashes the counterpart type index id into its key
-			final boolean objectHit = assertSameInvalidation(query, objectCache, null, expected);
-			assertFalse(objectHit, "The index objects miss after a counterpart write - the baseline of this gate");
-			// the isolated carrier: the staleness tokens of the per-owner formulas of the existence formula - free of the
-			// counterpart type index id its key hashes and of the referenced entity formula every product write
-			// replaces, so there the baseline can hit, and the rows must hit where it does
-			final Run objectAfter = run(twin.objectCatalog(), query, null);
-			final Run virtualAfter = run(this.catalog, query, null);
-			assertEquals(
-				objectCarrier, perOwnerIds(objectAfter.raw()),
-				"The index objects keep their per-owner tokens - the baseline the rows are compared to"
-			);
-			assertEquals(
-				virtualCarrier, perOwnerIds(virtualAfter.raw()),
-				"The rows must keep their per-owner tokens where the index objects keep them"
-			);
+		// a counterpart write that changes no answer: product 30 takes category 7, which no product held, with
+		// priority 1 - a new single-owner partition the body does not match, in a category the code excludes
+		final long[] bucketBefore = counterpartBucketToken();
+		writeProduct(
+			30,
+			product -> product.setReference(
+				REFERENCE_CATEGORIES, CATEGORY_COUNT, ref -> ref.setAttribute(ATTRIBUTE_PRIORITY, 1)
+			)
+		);
+		assertFalse(
+			Arrays.equals(bucketBefore, counterpartBucketToken()),
+			"The write must change the bucket of the counterpart type index, or the carrier proves nothing"
+		);
+		final Run objectAfter = run(twin.objectCatalog(), query);
+		final Run virtualAfter = run(this.catalog, query);
+		assertEquals(expected, objectAfter.answer());
+		assertEquals(expected, virtualAfter.answer());
+		assertEquals(
+			objectCarrier, perOwnerIds(objectAfter.raw()),
+			"The index objects keep their per-owner tokens - the baseline the rows are compared to"
+		);
+		assertEquals(
+			virtualCarrier, perOwnerIds(virtualAfter.raw()),
+			"The rows must keep their per-owner tokens where the index objects keep them"
+		);
 
-			// a counterpart write that changes the answer: product 5, alone in category 4, drops to priority 0
-			writeProduct(
-				5,
-				product -> product.setReference(REFERENCE_CATEGORIES, 4, ref -> ref.setAttribute(ATTRIBUTE_PRIORITY, 0))
-			);
-			final Run objectChanged = run(twin.objectCatalog(), query, null);
-			final Run virtualChanged = run(this.catalog, query, null);
-			final List<Integer> changed = List.of(1, 2, 5, 6);
-			assertEquals(changed, objectChanged.answer());
-			assertEquals(changed, virtualChanged.answer());
-			final Set<Long> changedCarrier = perOwnerIds(virtualChanged.raw());
-			assertTrue(changedCarrier.containsAll(contentTokens(6, 7)), "The unchanged constants keep their content");
-			assertFalse(changedCarrier.containsAll(contentTokens(5)), "The changed constant must lose its content token");
-			assertNotEquals(virtualCarrier, changedCarrier, "A write that changes the answer must change the tokens");
-		} finally {
-			closeQuietly(objectCache);
-		}
+		// a counterpart write that changes the answer: product 5, alone in category 4, drops to priority 0
+		writeProduct(
+			5,
+			product -> product.setReference(REFERENCE_CATEGORIES, 4, ref -> ref.setAttribute(ATTRIBUTE_PRIORITY, 0))
+		);
+		final Run objectChanged = run(twin.objectCatalog(), query);
+		final Run virtualChanged = run(this.catalog, query);
+		final List<Integer> changed = List.of(1, 2, 5, 6);
+		assertEquals(changed, objectChanged.answer());
+		assertEquals(changed, virtualChanged.answer());
+		final Set<Long> changedCarrier = perOwnerIds(virtualChanged.raw());
+		assertTrue(changedCarrier.containsAll(contentTokens(6, 7)), "The unchanged constants keep their content");
+		assertFalse(changedCarrier.containsAll(contentTokens(5)), "The changed constant must lose its content token");
+		assertNotEquals(virtualCarrier, changedCarrier, "A write that changes the answer must change the tokens");
 	}
 
 	/**
-	 * Warms the ancestor of the constant over the given owners of rows: plans and computes the query through the cache
-	 * so its cacheable formulas become adepts, promotes them, and computes it again so the records are initialized. The
-	 * ancestor is found by the constant over exactly the owners of the rows - which is in the tree only when the query
-	 * read them.
-	 *
-	 * @param query          the query
-	 * @param virtualOwners  the owners the constant holds - identifies it in the tree
-	 * @return the warmed ancestor, whose record is initialized in the eden
+	 * Computes the query and locates the ancestor of the owners read from registry rows.
 	 */
 	@Nonnull
-	private AndFormula warm(@Nonnull Query query, @Nonnull int[] virtualOwners) {
-		final Run warmed = warmRun(this.catalog, query, cache());
-		final AndFormula ancestor = findAncestor(warmed.raw(), virtualOwners);
-		assertTrue(isCached(ancestor), "The warmed ancestor must be in the eden: " + ancestor);
-		return ancestor;
+	private AndFormula computeAncestor(@Nonnull Query query, @Nonnull int[] virtualOwners) {
+		return findAncestor(run(this.catalog, query).raw(), virtualOwners);
 	}
 
 	/**
-	 * Runs the query through a cache until its records are initialized: once to register the adepts, an evaluation
-	 * promoting them, once more to initialize the records.
-	 *
-	 * @param catalogName the catalog
-	 * @param query       the query
-	 * @param cache       the cache
-	 * @return the run that initialized the records
+	 * Verifies that an unrelated write preserves the ancestor's identity and expected answer.
 	 */
-	@Nonnull
-	private Run warmRun(@Nonnull String catalogName, @Nonnull Query query, @Nonnull Cache cache) {
-		run(catalogName, query, cache.anteroom());
-		cache.anteroom().evaluateAssociatesSynchronously();
-		return run(catalogName, query, cache.anteroom());
-	}
-
-	/**
-	 * Asserts the ancestor warmed before a write is still answered from the eden: the freshly planned ancestor has the
-	 * same key, its record is valid, the next query substitutes it, and the answer is the expected one.
-	 *
-	 * @param query         the query
-	 * @param warmed        the ancestor warmed before the write
-	 * @param virtualOwners the owners the constant holds after the write
-	 * @param expected      the expected answer
-	 */
-	private void assertHit(
+	private void assertUnchanged(
 		@Nonnull Query query,
-		@Nonnull AndFormula warmed,
+		@Nonnull AndFormula previous,
 		@Nonnull int[] virtualOwners,
 		@Nonnull List<Integer> expected
 	) {
-		final Run next = run(this.catalog, query, this.anteroom);
+		final Run next = run(this.catalog, query);
 		final AndFormula ancestor = findAncestor(next.raw(), virtualOwners);
-		assertEquals(recordHash(warmed), recordHash(ancestor), "The write must not change the ancestor's key");
-		assertTrue(isCached(ancestor), "The record of the ancestor must still answer it: " + ancestor);
-		assertTrue(
-			isSubstituted(next, ancestor),
-			"The next query must substitute the ancestor or a cacheable formula above it: " + next.analysed()
-		);
+		assertEquals(previous.getHash(), ancestor.getHash(), "The write must not change the ancestor's key");
+		assertEquals(idsOf(previous), idsOf(ancestor), "The write must preserve the ancestor's content tokens");
 		assertEquals(expected, next.answer());
-		assertEquals(expected, run(this.catalog, query, null).answer(), "The uncached plan must answer the same");
 	}
 
 	/**
-	 * Asserts two queries differing only in a discriminator never share a record: the second, planned after the first
-	 * was warmed, has another key, is not answered from the eden, and computes the answer its uncached plan computes.
-	 *
-	 * @param first          the query warmed first
-	 * @param firstOwners    the owners the first query's constant holds
-	 * @param second         the query planned after it
-	 * @param secondOwners   the owners the second query's constant holds
+	 * Verifies that queries with different discriminators have different identities and answers.
 	 */
 	private void assertDiscriminated(
 		@Nonnull Query first,
@@ -633,47 +479,14 @@ class VirtualPartitionFormulaCacheTest implements EvitaTestSupport {
 		@Nonnull Query second,
 		@Nonnull int[] secondOwners
 	) {
-		final AndFormula warmed = warm(first, firstOwners);
-		final Run next = run(this.catalog, second, this.anteroom);
-		final AndFormula ancestor = findAncestor(next.raw(), secondOwners);
-		assertNotEquals(recordHash(warmed), recordHash(ancestor), "Discriminated bodies must not share a key");
-		assertFalse(isCached(ancestor), "The second body must not be answered by the first one's record");
-		assertEquals(run(this.catalog, second, null).answer(), next.answer());
-		assertNotEquals(run(this.catalog, first, null).answer(), next.answer(), "The discriminator must matter");
-	}
-
-	/**
-	 * Asserts the rows are invalidated exactly when the index objects are: both re-plan the query, and the record of
-	 * each one's ancestor is valid in both or in neither; both answer as expected.
-	 *
-	 * @param query       the query
-	 * @param objectCache the cache of the object catalog of the twin
-	 * @param expectedHit the expected outcome, `null` when only the equality of the two is asserted
-	 * @param expected    the expected answer
-	 * @return TRUE when the index objects hit
-	 */
-	private boolean assertSameInvalidation(
-		@Nonnull Query query,
-		@Nonnull Cache objectCache,
-		@Nullable Boolean expectedHit,
-		@Nonnull List<Integer> expected
-	) {
-		final String objectCatalog = objectTwin().objectCatalog();
-		final Run objectRun = run(objectCatalog, query, objectCache.anteroom());
-		final Run virtualRun = run(this.catalog, query, cache().anteroom());
-		final boolean objectHit = isCached(
-			objectCache, objectCatalog, ENTITY_CATEGORY, findExistenceAncestor(objectRun.raw())
+		final Run firstRun = run(this.catalog, first);
+		final Run secondRun = run(this.catalog, second);
+		assertNotEquals(
+			findAncestor(firstRun.raw(), firstOwners).getHash(),
+			findAncestor(secondRun.raw(), secondOwners).getHash(),
+			"Discriminated bodies must not share a key"
 		);
-		final boolean virtualHit = isCached(
-			cache(), this.catalog, ENTITY_CATEGORY, findExistenceAncestor(virtualRun.raw())
-		);
-		assertEquals(objectHit, virtualHit, "The rows must be invalidated exactly when the index objects are");
-		if (expectedHit != null) {
-			assertEquals(expectedHit, objectHit);
-		}
-		assertEquals(expected, objectRun.answer());
-		assertEquals(expected, virtualRun.answer());
-		return objectHit;
+		assertNotEquals(firstRun.answer(), secondRun.answer(), "The discriminator must matter");
 	}
 
 	/**
@@ -735,18 +548,7 @@ class VirtualPartitionFormulaCacheTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Returns the nearest {@link AndFormula} above the existence formula of the bidirectional rewrite.
-	 *
-	 * @param tree the tree
-	 * @return the ancestor
-	 */
-	@Nonnull
-	private static AndFormula findExistenceAncestor(@Nonnull Formula tree) {
-		return nearestAnd(tree, ReferencedOwnerExistenceFormula.class::isInstance);
-	}
-
-	/**
-	 * Returns the nearest {@link AndFormula} above the constant over the given owners of rows - the cacheable ancestor
+	 * Returns the nearest {@link AndFormula} above the constant over the given owners of rows - the ancestor
 	 * every case names.
 	 *
 	 * @param tree          the tree
@@ -833,110 +635,10 @@ class VirtualPartitionFormulaCacheTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Returns every cacheable formula of a tree.
-	 *
-	 * @param tree the tree
-	 * @return the cacheable formulas
+	 * Plans and computes the query on the current committed state of a catalog.
 	 */
 	@Nonnull
-	private static List<Formula> cacheableNodes(@Nonnull Formula tree) {
-		final List<Formula> result = new ArrayList<>();
-		final List<Formula> stack = new ArrayList<>(List.of(tree));
-		while (!stack.isEmpty()) {
-			final Formula formula = stack.removeLast();
-			if (formula instanceof CacheableFormula) {
-				result.add(formula);
-			}
-			stack.addAll(Arrays.asList(formula.getInnerFormulas()));
-		}
-		return result;
-	}
-
-	/**
-	 * Returns TRUE when the analysed tree of a run substitutes the ancestor - or a cacheable formula above it, which
-	 * answers the ancestor's subtree too - by a record of the eden.
-	 *
-	 * @param run      the run
-	 * @param ancestor the ancestor in the run's raw tree
-	 * @return TRUE when substituted
-	 */
-	private boolean isSubstituted(@Nonnull Run run, @Nonnull AndFormula ancestor) {
-		final List<Formula> path = findPath(run.raw(), it -> it == ancestor);
-		for (final Formula formula : path) {
-			if (formula instanceof CacheableFormula && containsFlattened(run.analysed(), recordHash(formula))) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	/**
-	 * Returns TRUE when the tree holds a record of the eden under the given key.
-	 *
-	 * @param tree       the tree
-	 * @param recordHash the key
-	 * @return TRUE when found
-	 */
-	private static boolean containsFlattened(@Nonnull Formula tree, long recordHash) {
-		return !findPath(tree, it -> it instanceof FlattenedFormula flattened && flattened.getHash() == recordHash)
-			.isEmpty();
-	}
-
-	/**
-	 * Returns the key the eden stores the formula under in the catalog of the case.
-	 *
-	 * @param formula the formula
-	 * @return the key
-	 */
-	private long recordHash(@Nonnull Formula formula) {
-		return CacheAnteroom.computeDataStructureHash(this.catalog, ENTITY_PRODUCT, formula);
-	}
-
-	/**
-	 * Returns TRUE when the eden of the case holds an initialized record valid for the product formula.
-	 *
-	 * @param formula the formula, freshly planned for a product query
-	 * @return TRUE when the record would answer it
-	 */
-	private boolean isCached(@Nonnull Formula formula) {
-		return isCached(cache(), this.catalog, ENTITY_PRODUCT, formula);
-	}
-
-	/**
-	 * Returns TRUE when the eden holds an initialized record valid for the formula - one whose key is the formula's and
-	 * whose transactional id hash equals the formula's.
-	 *
-	 * @param cache       the cache
-	 * @param catalogName the catalog the formula was planned in
-	 * @param entityType  the collection the formula was planned for
-	 * @param formula     the formula, freshly planned
-	 * @return TRUE when the record would answer it
-	 */
-	private boolean isCached(
-		@Nonnull Cache cache,
-		@Nonnull String catalogName,
-		@Nonnull String entityType,
-		@Nonnull Formula formula
-	) {
-		final long hash = CacheAnteroom.computeDataStructureHash(catalogName, entityType, formula);
-		return inEngineSession(
-			catalogName,
-			session -> cache.eden().getCachedRecord(session, catalogName, entityType, formula, Formula.class, hash)
-				instanceof FlattenedFormula
-		);
-	}
-
-	/**
-	 * Plans the query on the current snapshot of a catalog, routes the planned tree through the cache when one is
-	 * given, and computes it.
-	 *
-	 * @param catalogName the catalog
-	 * @param query       the query, naming its collection
-	 * @param anteroom    the anteroom of the cache, `null` to compute the planned tree as it is
-	 * @return the run
-	 */
-	@Nonnull
-	private Run run(@Nonnull String catalogName, @Nonnull Query query, @Nullable CacheAnteroom anteroom) {
+	private Run run(@Nonnull String catalogName, @Nonnull Query query) {
 		final String entityType = query.getCollection().getEntityType();
 		return inEngineSession(
 			catalogName,
@@ -946,26 +648,16 @@ class VirtualPartitionFormulaCacheTest implements EvitaTestSupport {
 					session
 				);
 				final Formula raw = QueryPlanner.planQuery(context).getFilter();
-				final Formula analysed = anteroom == null ?
-					raw : FormulaCacheVisitor.analyse(session, entityType, raw, anteroom);
 				try (final QueryExecutionContext executionContext = context.createExecutionContext()) {
-					analysed.initialize(executionContext);
-					return new Run(raw, analysed, toList(analysed.compute().getArray()));
+					raw.initialize(executionContext);
+					return new Run(raw, toList(raw.compute().getArray()));
 				}
 			}
 		);
 	}
 
 	/**
-	 * Runs the logic in a session of a catalog, handing it the engine's own session object - the planning context
-	 * accepts no other, and the engine hands it only to the logic of a read-write session. The logic writes nothing, so
-	 * the session sees exactly the committed snapshot; the cache does not consult the session's mode here, only
-	 * {@link HeapMemoryCacheSupervisor} does, and this test drives the visitor below it.
-	 *
-	 * @param catalogName the catalog
-	 * @param logic       the logic
-	 * @param <T>         the type of the result
-	 * @return the result
+	 * Runs read-only planning logic in an engine session over the committed catalog state.
 	 */
 	private <T> T inEngineSession(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> logic) {
 		return this.evita.updateCatalog(catalogName, logic);
@@ -1233,8 +925,8 @@ class VirtualPartitionFormulaCacheTest implements EvitaTestSupport {
 	private MaterializedPartitionTwin objectTwin() {
 		if (this.objectTwin == null) {
 			this.objectTwin = MaterializedPartitionTwin.create(
-				this.evita, this.catalog, VirtualPartitionFormulaCacheTest::fillCatalog,
-				VirtualPartitionFormulaCacheTest::archiveLastOwners, ENTITY_PRODUCT,
+				this.evita, this.catalog, VirtualPartitionFormulaIdentityTest::fillCatalog,
+				VirtualPartitionFormulaIdentityTest::archiveLastOwners, ENTITY_PRODUCT,
 				REFERENCE_ACCESSORIES, REFERENCE_CATEGORIES
 			);
 		}
@@ -1308,41 +1000,6 @@ class VirtualPartitionFormulaCacheTest implements EvitaTestSupport {
 			.openForWrite();
 		change.accept(builder);
 		session.upsertEntity(builder);
-	}
-
-	/**
-	 * Returns the cache of the case.
-	 *
-	 * @return the cache
-	 */
-	@Nonnull
-	private Cache cache() {
-		return new Cache(this.anteroom, this.eden);
-	}
-
-	/**
-	 * Creates a cache with the minimal thresholds: every cacheable formula costing anything is an adept, and every
-	 * adept computed once is promoted on the next evaluation.
-	 *
-	 * @return the cache
-	 */
-	@Nonnull
-	private Cache newCache() {
-		final CacheEden newEden = new CacheEden(10_000_000L, 1, -1L, this.scheduler);
-		return new Cache(new CacheAnteroom(10_000, 1L, newEden, this.scheduler), newEden);
-	}
-
-	/**
-	 * Closes a cache other than the one of the case.
-	 *
-	 * @param cache the cache
-	 */
-	private static void closeQuietly(@Nonnull Cache cache) {
-		try {
-			cache.anteroom().close();
-		} catch (Exception e) {
-			throw new AssertionError("Closing the cache failed.", e);
-		}
 	}
 
 	/**

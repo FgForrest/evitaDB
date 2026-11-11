@@ -77,6 +77,7 @@ transaction:
   conflictPolicy: ${transaction.conflictPolicy:[ENTITY]}
 
 cache:
+  # Query cache settings are accepted; query caching is inactive. Reflection caching remains configurable.
   enabled: ${cache.enabled:false}
   reflection: ${cache.reflection:CACHE}
   reevaluateEachSeconds: ${cache.reevaluateEachSeconds:60}

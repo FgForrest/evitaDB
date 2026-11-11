@@ -23,8 +23,6 @@
 
 package io.evitadb.core.cache.payload;
 
-import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
@@ -37,14 +35,12 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
-import io.evitadb.store.cache.serializer.FlattenedFormulaWithFilteredPricesForHistogramSerializer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.util.Currency;
 
@@ -324,65 +320,6 @@ class FlattenedFormulaWithFilteredPricesForHistogramTest {
 				sorted[0].entityPrimaryKey() <= sorted[1].entityPrimaryKey()
 					&& sorted[1].entityPrimaryKey() <= sorted[2].entityPrimaryKey(),
 				"Per-inner-record array must be sorted by entity primary key after prepareForFlattening()"
-			);
-		}
-	}
-
-	@Nested
-	@DisplayName("Kryo serializer is registered for the sibling payload")
-	class KryoRegistrationTest {
-
-		/**
-		 * Regression guard for the Kryo registration of the sibling payload — when the sibling payload class
-		 * is not registered, the cache writer throws `Class is not registered` at the first attempt to cache
-		 * a histogram-enabled query. The dedicated serializer's `write` method is exercised against a fresh
-		 * `Kryo` instance to confirm the write path is intact end-to-end: the serializer can read each field
-		 * of the payload via its public accessors without tripping any null/registration guard, and the
-		 * resulting buffer actually carries bytes (the per-entity AND per-inner-record records).
-		 *
-		 * The read-side round-trip is intentionally not exercised here because deserialization requires a
-		 * `GlobalEntityIndex` fixture far heavier than the bug — the missing registration — warrants. The
-		 * read path mirrors the parent's `FlattenedFormulaWithFilteredPricesAndFilteredOutRecordsSerializer`
-		 * (which has no dedicated unit test for the same reason) and is covered by the engine's functional
-		 * cache tests.
-		 */
-		@Test
-		@DisplayName("should write payload via dedicated serializer without Kryo registration miss")
-		void shouldWritePayloadViaDedicatedSerializerWithoutKryoRegistrationMiss() {
-			final FilteredPriceRecords perEntityRecords = new ResolvedFilteredPriceRecords(
-				new PriceRecordContract[]{priceRecord(1, 100, 200)}, SortingForm.ENTITY_PK
-			);
-			final FilteredPriceRecords perInnerRecordRecords = new ResolvedFilteredPriceRecords(
-				new PriceRecordContract[]{priceRecord(1, 100, 200), priceRecord(1, 150, 300)},
-				SortingForm.NOT_SORTED
-			);
-			final FlattenedFormulaWithFilteredPricesForHistogram payload = createPayload(
-				perEntityRecords, perInnerRecordRecords
-			);
-
-			// the supplier is unused on the write path — only the read path consults the global entity index
-			final FlattenedFormulaWithFilteredPricesForHistogramSerializer serializer =
-				new FlattenedFormulaWithFilteredPricesForHistogramSerializer(() -> null);
-			final Kryo kryo = new Kryo();
-			// register the auxiliary types the serializer writes via `kryo.writeObjectOrNull`/`kryo.writeObject`;
-			// in production the PriceIndexKey serializer plus its `Currency` field are registered by the
-			// surrounding Kryo configurer — here we mirror just enough to drive the write path
-			kryo.register(QueryPriceMode.class);
-			kryo.register(BigDecimal.class);
-			kryo.register(PriceIndexKey.class);
-			kryo.register(Currency.class);
-			kryo.register(PriceInnerRecordHandling.class);
-
-			final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-			try (final Output output = new Output(buffer)) {
-				serializer.write(kryo, output, payload);
-			}
-
-			// the serializer must produce a non-trivial payload — the per-entity AND per-inner-record records
-			// both carry price record ids, so the buffer cannot be empty or trivially short
-			assertTrue(
-				buffer.size() > 32,
-				"Serialized payload should contain both record sets; got " + buffer.size() + " bytes"
 			);
 		}
 	}

@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.response;
 
-import io.evitadb.core.cache.CacheEden;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
@@ -43,7 +42,7 @@ public interface TransactionalDataRelatedStructure {
 	/**
 	 * Defines threshold that should trigger returning entire "index" transactional id instead of exact bitmap
 	 * transactional ids in method {@link #gatherTransactionalIds()}. Storing excessive amount of long ids would allocate
-	 * too much memory in {@link CacheEden} that is better invalidate less precisely on each index
+	 * too much memory, so it is better to invalidate less precisely on each index
 	 * change than to allocate a lot of memory for precise invalidation.
 	 */
 	int EXCESSIVE_HIGH_CARDINALITY = 100;

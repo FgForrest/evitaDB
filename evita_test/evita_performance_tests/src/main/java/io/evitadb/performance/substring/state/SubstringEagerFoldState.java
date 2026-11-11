@@ -122,7 +122,7 @@ public class SubstringEagerFoldState {
 	@Setup(Level.Trial)
 	public void setUp() {
 		final SubstringCatalogFixture fixture = SubstringCatalogFixture.obtain(
-			SubstringIndexArm.TRIGRAM, this.entityCount, SubstringCacheMode.DISABLED
+			SubstringIndexArm.TRIGRAM, this.entityCount
 		);
 		this.trigramIndex = fixture.getTrigramIndexOrThrow();
 		this.sharedValueTree = fixture.getSharedValueTree();

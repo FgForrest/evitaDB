@@ -23,7 +23,6 @@
 
 package io.evitadb.core.metric.event.system;
 
-import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
@@ -40,7 +39,6 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 
-import static java.util.Optional.ofNullable;
 
 /**
  * Event that is fired when evitaDB instance is started.
@@ -168,21 +166,6 @@ public class EvitaStatisticsEvent extends AbstractSystemCatalogEvent {
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int walMaxFileCountKept;
 
-	@Label("Cache reevaluation interval in seconds")
-	@Description("Configured threshold for the cache reevaluation interval in seconds (`cache.reevaluateEachSeconds`).")
-	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int cacheReevaluationSeconds;
-
-	@Label("Maximum number of records in the cache anteroom")
-	@Description("Configured threshold for the maximum number of records in the cache anteroom (`cache.anteroomRecordCount`).")
-	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int cacheAnteroomRecordLimit;
-
-	@Label("Maximum cache size in Bytes")
-	@Description("Configured threshold for the maximum cache size in Bytes (`cache.cacheSizeInBytes`).")
-	@ExportMetric(metricType = MetricType.GAUGE)
-	private final long cacheSizeInBytes;
-
 	@Label("Catalog count")
 	@Description("Number of accessible catalogs managed by this instance of evitaDB.")
 	@ExportMetric(metricType = MetricType.GAUGE)
@@ -237,10 +220,6 @@ public class EvitaStatisticsEvent extends AbstractSystemCatalogEvent {
 		this.walMaxFileCountKept = transactionConfiguration.walFileCountKept();
 		this.transactionFlushFrequencyInMillis = transactionConfiguration.flushFrequencyInMillis();
 
-		final CacheOptions cacheConfiguration = configuration.cache();
-		this.cacheReevaluationSeconds = cacheConfiguration.reevaluateEachSeconds();
-		this.cacheAnteroomRecordLimit = cacheConfiguration.anteroomRecordCount();
-		this.cacheSizeInBytes = ofNullable(cacheConfiguration.cacheSizeInBytes()).orElse(0L);
 
 	}
 

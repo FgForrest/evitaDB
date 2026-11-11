@@ -1688,8 +1688,7 @@ public final class EntityCollection implements
 
 	/**
 	 * Returns the entity body that reflects input request object using provided session and primary key.
-	 * The method will try to fetch the entity from cache if possible, otherwise it will fetch it from the underlying
-	 * storage and registers it as an cache adept.
+	 * Fetches the entity from storage, checks its locale and wraps it for the request.
 	 *
 	 * @param primaryKey the primary key of the entity to retrieve
 	 * @param evitaRequest the request context containing parameters required for fetching the entity
@@ -1704,28 +1703,18 @@ public final class EntityCollection implements
 		@Nonnull EvitaSessionContract session
 	) {
 		final SealedEntitySchema theSchema = getSchema();
-		return this.cacheSupervisor.analyse(
-			session,
-			primaryKey,
-			theSchema.getName(),
-			evitaRequest.getAlignedNow(),
-			evitaRequest.getEntityRequirement(),
-			() -> {
-				final EntityWithFetchCount internalEntity = getEntityById(primaryKey, evitaRequest);
-				if (internalEntity == null) {
-					return null;
-				} else if (
-					!ofNullable(evitaRequest.getRequiredOrImplicitLocale())
-						.map(it -> !theSchema.isLocalized() || internalEntity.entity().getLocales().contains(it))
-						.orElse(true)
-				) {
-					return null;
-				} else {
-					return wrapToDecorator(evitaRequest, internalEntity, null);
-				}
-			},
-			theEntity -> enrichEntityInternal(theEntity, evitaRequest)
-		);
+		final EntityWithFetchCount internalEntity = getEntityById(primaryKey, evitaRequest);
+		if (internalEntity == null) {
+			return empty();
+		} else if (
+			!ofNullable(evitaRequest.getRequiredOrImplicitLocale())
+				.map(it -> !theSchema.isLocalized() || internalEntity.entity().getLocales().contains(it))
+				.orElse(true)
+		) {
+			return empty();
+		} else {
+			return of(wrapToDecorator(evitaRequest, internalEntity, null));
+		}
 	}
 
 	/**

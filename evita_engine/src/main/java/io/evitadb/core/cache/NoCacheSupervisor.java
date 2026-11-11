@@ -24,22 +24,14 @@
 package io.evitadb.core.cache;
 
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
-import io.evitadb.core.query.response.ServerEntityDecorator;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.time.OffsetDateTime;
-import java.util.Optional;
-import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * This implementation of {@link CacheSupervisor} is used when caching is disabled entirely. It fulfills the interface
@@ -72,20 +64,6 @@ public class NoCacheSupervisor implements CacheSupervisor {
 	) {
 		// just return the input without any modification
 		return extraResultComputer;
-	}
-
-	@Nonnull
-	@Override
-	public Optional<ServerEntityDecorator> analyse(
-		@Nonnull EvitaSessionContract evitaSession,
-		int primaryKey,
-		@Nonnull String entityType,
-		@Nonnull OffsetDateTime offsetDateTime,
-		@Nullable EntityFetch entityRequirement,
-		@Nonnull Supplier<ServerEntityDecorator> entityFetcher,
-		@Nonnull UnaryOperator<ServerEntityDecorator> enricher
-	) {
-		return ofNullable(entityFetcher.get());
 	}
 
 	@Override
