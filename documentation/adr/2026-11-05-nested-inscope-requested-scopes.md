@@ -1,7 +1,7 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-11 01:44
+updated: 2026-11-11 01:47
 status: accepted
 kind: fix
 issues: [1880, 1883, 1897, 1915]
@@ -433,7 +433,9 @@ and the verdict on a filter below the bodies no longer depends on the rows. Two 
   failed: bodies lost below `or`, `not` and `inScope`, a `MoreThanSingleResultException` for `or` of two scoped
   containers, and a branch locale withholding bodies. The 13 classes around the change run 741 tests with 0 failures
   and the one skip `@Disabled` before it.
-- **#1915, the tests can fail.** Each counterfactual ran `NestedInScopeFilterFunctionalTest` and `QueryUtilsTest`:
+- **#1915, the tests can fail.** Each counterfactual ran `NestedInScopeFilterFunctionalTest` and `QueryUtilsTest`
+  (with `EvitaRequestTest` for the fetch without the explicit pair), before the last review and quality rounds
+  reshaped the tests:
   `or` read as `and` failed 7 tests, the conjunction as a union 2, `not` read as `and` 6, a reference-level `inScope`
   without the default 5, no fallback on a contradiction 2, the old flattening extraction 12, the fetch without the
   explicit pair 12, the group `EXISTING` gate on the scopes of the owners 1, the pre-flight always inheriting 18,
