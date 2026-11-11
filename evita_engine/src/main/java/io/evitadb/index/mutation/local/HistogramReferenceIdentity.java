@@ -31,8 +31,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * Strict identity of one reference owing a histogram add. Unlike `ReferenceKey.equals`, it keeps positive,
- * negative temporary and unknown internal primary keys distinct.
+ * Identifies a reference scheduled for a final histogram add by name, target and internal primary key. Unlike
+ * `ReferenceKey.equals`, it keeps positive, negative temporary and unknown internal primary keys distinct.
  *
  * @param referenceName the reference name
  * @param primaryKey the referenced entity primary key
@@ -44,7 +44,7 @@ record HistogramReferenceIdentity(@Nonnull String referenceName, int primaryKey,
 	 * Creates the identity of the reference the key names, keeping its internal primary key exactly as it is.
 	 *
 	 * @param referenceKey the key of the reference
-	 * @return the strict identity of the reference
+	 * @return the identity including the internal primary key
 	 */
 	@Nonnull
 	static HistogramReferenceIdentity of(@Nonnull ReferenceKey referenceKey) {

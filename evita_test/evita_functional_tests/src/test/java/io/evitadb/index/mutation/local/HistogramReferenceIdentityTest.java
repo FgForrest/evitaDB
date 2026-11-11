@@ -47,9 +47,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
- * Verifies that a pending histogram add cannot be redirected to another instance of the same reference target.
+ * Verifies that a scheduled final histogram add cannot be redirected to another instance of the same reference
+ * target.
  */
-@DisplayName("Strict identity of a pending histogram reference")
+@DisplayName("Identity of a reference awaiting a final histogram add")
 @Tag(INDEXING)
 @Tag(HISTOGRAM)
 class HistogramReferenceIdentityTest {
@@ -61,10 +62,11 @@ class HistogramReferenceIdentityTest {
 	);
 
 	/**
-	 * Pending entries distinguish stored, temporary and unknown identities, as well as their business keys.
+	 * Recorded identities distinguish stored, temporary and unknown internal primary keys, as well as their business
+	 * keys.
 	 */
 	@Test
-	@DisplayName("Should keep every component of the pending identity distinct")
+	@DisplayName("Should keep every component of the identity distinct")
 	void shouldKeepEveryComponentOfPendingIdentityDistinct() {
 		final Set<HistogramReferenceIdentity> pending = createHashSet(6);
 		pending.add(new HistogramReferenceIdentity(REFERENCE_NAME, 10, 7));
@@ -79,7 +81,7 @@ class HistogramReferenceIdentityTest {
 
 	/**
 	 * The identity taken from a reference key keeps its internal primary key as it is - stored, temporary or
-	 * unknown - so a pending entry names the same instance the key does.
+	 * unknown - so a recorded identity names the same instance the key does.
 	 *
 	 * @param internalPrimaryKey the internal primary key of the reference key
 	 */

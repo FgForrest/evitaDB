@@ -29,6 +29,10 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.parent.SetParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
@@ -40,6 +44,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.Arguments;
 
 import javax.annotation.Nonnull;
@@ -71,6 +76,16 @@ class ParentHistogramConditionLifecycleFunctionalTest implements EvitaTestSuppor
 	 * share 1 of its child 301, which waited for it as an orphan.
 	 */
 	private static final String EXPECTED_BOUNDS = "10:20";
+	/**
+	 * The condition admitting a child whose parent is active.
+	 */
+	private static final String ACTIVE_PARENT_CONDITION =
+		"($entity.parentEntity?.attributes['status'] ?? '') == 'ACTIVE'";
+	/**
+	 * The condition admitting a child that has no parent, or whose parent has no status.
+	 */
+	private static final String NO_PARENT_STATUS_CONDITION =
+		"($entity.parentEntity?.attributes['status'] ?? 'NONE') == 'NONE'";
 
 	/**
 	 * How product 300 enters the scope under test with the status `INACTIVE`.
@@ -311,9 +326,173 @@ class ParentHistogramConditionLifecycleFunctionalTest implements EvitaTestSuppor
 	}
 
 	/**
-	 * Defines a conditional histogram and qualifying anchors in both scopes.
+	 * Moves an entity holding a value whose condition its current parent no longer satisfies to the archive and back.
+	 * Unindexing the entity from the live scope must remove the value anyway, and re-indexing it must add nothing,
+	 * so the anchors' values alone remain - after the return, after a later deletion and after a restart. The direct
+	 * deletion of such an entity is covered by
+	 * {@link #shouldRemoveOwnerValueWhenChildEntityIsDeletedDirectly(CatalogState)}.
+	 *
+	 * @param state the catalog state during removal
+	 */
+	@ParameterizedTest
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("Remove all owner values after a parent change makes the condition false")
+	void shouldRemoveOwnerValuesWhenCurrentParentNoLongerQualifies(@Nonnull CatalogState state) {
+		final TestPaths paths = createTestPaths("parentHistogramRemoval_" + state);
+		final EvitaConfiguration configuration = newTestEvitaConfigurationBuilder(paths).build();
+		try {
+			try (final Evita evita = new Evita(configuration)) {
+				reachStaleParentContribution(evita, state);
+				for (final Scope scope : new Scope[]{Scope.ARCHIVED, Scope.LIVE}) {
+					evita.updateCatalog(TEST_CATALOG, session -> {
+						session.upsertEntity(new EntityUpsertMutation(
+							"product", 1, EntityExistence.MUST_EXIST, List.of(new SetEntityScopeMutation(scope))
+						));
+					});
+					assertEquals(EXPECTED_BOUNDS, describeHistogram(evita, TEST_CATALOG, Scope.LIVE));
+				}
+				evita.updateCatalog(TEST_CATALOG, session -> {
+					session.deleteEntity("product", 1);
+				});
+				assertEquals(EXPECTED_BOUNDS, describeHistogram(evita, TEST_CATALOG, Scope.LIVE));
+			}
+			try (final Evita evita = new Evita(configuration)) {
+				evita.waitUntilFullyInitialized();
+				assertEquals(EXPECTED_BOUNDS, describeHistogram(evita, TEST_CATALOG, Scope.LIVE));
+			}
+		} finally {
+			cleanupTestPaths(paths);
+		}
+	}
+
+	/**
+	 * Deletes a child entity whose histogram condition is false while it has its parent and true without one. Entity
+	 * removal drops the parent before the references, so a deletion that evaluated the condition would withdraw a
+	 * value the child never contributed. The deletion must succeed and leave the anchors' values alone, in memory and
+	 * after a restart.
+	 *
+	 * @param state the catalog state during removal
+	 */
+	@ParameterizedTest
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("Delete a child whose condition holds only without a parent")
+	void shouldDeleteChildEntityWhenParentConditionHoldsOnlyWithoutParent(@Nonnull CatalogState state) {
+		final TestPaths paths = createTestPaths("parentHistogramDeletionWithoutParent_" + state);
+		final EvitaConfiguration configuration = newTestEvitaConfigurationBuilder(paths).build();
+		try {
+			try (final Evita evita = new Evita(configuration)) {
+				evita.defineCatalog(TEST_CATALOG);
+				evita.updateCatalog(TEST_CATALOG, session -> {
+					setUpCatalog(session, false, NO_PARENT_STATUS_CONDITION);
+					session.createNewEntity("product", 1).setParent(200)
+						.setReference("brand", 1, ref -> ref.setAttribute("share", 5)).upsertVia(session);
+					if (state == CatalogState.ALIVE) {
+						session.goLiveAndClose();
+					}
+				});
+				assertEquals(EXPECTED_BOUNDS, describeHistogram(evita, TEST_CATALOG, Scope.LIVE));
+
+				evita.updateCatalog(TEST_CATALOG, session -> {
+					session.deleteEntity("product", 1);
+				});
+
+				assertEquals(EXPECTED_BOUNDS, describeHistogram(evita, TEST_CATALOG, Scope.LIVE));
+			}
+			try (final Evita evita = new Evita(configuration)) {
+				evita.waitUntilFullyInitialized();
+				assertEquals(EXPECTED_BOUNDS, describeHistogram(evita, TEST_CATALOG, Scope.LIVE));
+			}
+		} finally {
+			cleanupTestPaths(paths);
+		}
+	}
+
+	/**
+	 * Deletes an entity directly while it holds a value whose condition its current parent no longer satisfies. The
+	 * deletion must remove the value anyway: the entity is stored again under the inactive parent, which adds nothing,
+	 * so a value the deletion left behind would show up in the bounds, in memory and after a restart.
+	 *
+	 * @param state the catalog state during removal
+	 */
+	@ParameterizedTest
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("Remove the owner's value when the entity is deleted after its parent stopped qualifying")
+	void shouldRemoveOwnerValueWhenChildEntityIsDeletedDirectly(@Nonnull CatalogState state) {
+		final TestPaths paths = createTestPaths("parentHistogramDirectDeletion_" + state);
+		final EvitaConfiguration configuration = newTestEvitaConfigurationBuilder(paths).build();
+		try {
+			try (final Evita evita = new Evita(configuration)) {
+				reachStaleParentContribution(evita, state);
+
+				evita.updateCatalog(TEST_CATALOG, session -> {
+					session.deleteEntity("product", 1);
+				});
+				evita.updateCatalog(TEST_CATALOG, session -> {
+					session.createNewEntity("product", 1).setParent(300)
+						.setReference("brand", 1, ref -> ref.setAttribute("share", 15)).upsertVia(session);
+				});
+
+				assertEquals(EXPECTED_BOUNDS, describeHistogram(evita, TEST_CATALOG, Scope.LIVE));
+			}
+			try (final Evita evita = new Evita(configuration)) {
+				evita.waitUntilFullyInitialized();
+				assertEquals(EXPECTED_BOUNDS, describeHistogram(evita, TEST_CATALOG, Scope.LIVE));
+			}
+		} finally {
+			cleanupTestPaths(paths);
+		}
+	}
+
+	/**
+	 * Stores product 1 under the active parent 200 with the share 1, then moves it under the inactive parent 300 and
+	 * checks that the share 1 is still held. The parent change does not re-evaluate the condition, so this is the
+	 * only public way to reach a value whose condition no longer holds.
+	 *
+	 * @param evita the instance holding no catalog yet
+	 * @param state the catalog state the catalog is left in
+	 */
+	private static void reachStaleParentContribution(@Nonnull Evita evita, @Nonnull CatalogState state) {
+		evita.defineCatalog(TEST_CATALOG);
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			setUpCatalog(session, false);
+			session.createNewEntity("product", 300).setAttribute("status", "INACTIVE").upsertVia(session);
+			session.createNewEntity("product", 1).setParent(200)
+				.setReference("brand", 1, ref -> ref.setAttribute("share", 1)).upsertVia(session);
+			if (state == CatalogState.ALIVE) {
+				session.goLiveAndClose();
+			}
+		});
+		assertEquals("1:20", describeHistogram(evita, TEST_CATALOG, Scope.LIVE));
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.upsertEntity(new EntityUpsertMutation(
+				"product", 1, EntityExistence.MUST_EXIST, List.of(new SetParentMutation(300))
+			));
+		});
+		assertEquals(
+			"1:20", describeHistogram(evita, TEST_CATALOG, Scope.LIVE),
+			"a parent change does not re-evaluate the condition (#1923); once it does, the tests reaching a value "
+				+ "whose condition no longer holds need another way to get there"
+		);
+	}
+
+	/**
+	 * Defines a conditional histogram admitting children of an active parent, and qualifying anchors in both scopes.
 	 */
 	private static void setUpCatalog(@Nonnull EvitaSessionContract session, boolean bothScopes) {
+		setUpCatalog(session, bothScopes, ACTIVE_PARENT_CONDITION);
+	}
+
+	/**
+	 * Defines a conditional histogram and anchors in both scopes. The anchors are stored before the condition is
+	 * attached, so they contribute 10 and 20 whatever the condition says.
+	 *
+	 * @param session    the session of the catalog in warm-up
+	 * @param bothScopes TRUE when the histogram and the anchors exist in the archive as well
+	 * @param condition  the histogram condition attached after the anchors are stored
+	 */
+	private static void setUpCatalog(
+		@Nonnull EvitaSessionContract session, boolean bothScopes, @Nonnull String condition
+	) {
 		final Scope[] histogramScopes = bothScopes ? Scope.values() : new Scope[]{Scope.LIVE};
 		session.defineEntitySchema("brand").withoutGeneratedPrimaryKey().updateVia(session);
 		session.defineEntitySchema("product").withoutGeneratedPrimaryKey()
@@ -342,7 +521,7 @@ class ParentHistogramConditionLifecycleFunctionalTest implements EvitaTestSuppor
 			.withReferenceToEntity("brand", "brand", Cardinality.ZERO_OR_MORE, ref -> {
 				for (final Scope scope : histogramScopes) {
 					ref.bucketedInScope(scope, "shares", ExpressionFactory.parse("$reference.attributes['share']"),
-						ExpressionFactory.parse("($entity.parentEntity?.attributes['status'] ?? '') == 'ACTIVE'"));
+						ExpressionFactory.parse(condition));
 				}
 			}).updateVia(session);
 	}

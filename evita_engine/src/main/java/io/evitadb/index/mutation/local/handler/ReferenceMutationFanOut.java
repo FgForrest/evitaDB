@@ -63,8 +63,9 @@ final class ReferenceMutationFanOut {
 	}
 
 	/**
-	 * Applies the reference's own index changes, including its histogram touch before handler cleanup, then fans
-	 * out facet updates to other reference indexes and defers relevant facet expression re-evaluations.
+	 * Applies the reference's own index changes, including the withdrawal - or, for an entity removed entirely, the
+	 * removal - of its histogram values before handler cleanup, then fans out facet updates to other reference
+	 * indexes and defers relevant facet expression re-evaluations.
 	 */
 	static void apply(
 		@Nonnull ReferenceMutation<?> mutation,

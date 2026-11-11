@@ -40,6 +40,8 @@ import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMut
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceGroupMutation;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -77,6 +79,8 @@ import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.INDEXING;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
@@ -312,6 +316,72 @@ class ReferenceHistogramNetChangeFunctionalTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Verifies that existing-reference mutations of missing references are rejected through the public API. The same
+	 * mutations of an existing grouped reference change the histogram in the `SOLE_OWNER_OF_GROUP_*` guard scenarios.
+	 *
+	 * @param mutationType the mutation aimed at the missing reference
+	 * @param removedEarlier whether the same upsert first removes the reference
+	 */
+	@ParameterizedTest(name = "{0}, removed earlier: {1}")
+	@MethodSource("missingReferenceMutations")
+	@DisplayName("Reject mutations of missing references through the public API")
+	void shouldRejectMutationWhenReferenceDoesNotExist(@Nonnull String mutationType, boolean removedEarlier) {
+		final TestPaths paths = createTestPaths("missingReference" + mutationType + removedEarlier);
+		try (final Evita evita = new Evita(newTestEvitaConfigurationBuilder(paths).build())) {
+			evita.defineCatalog(TEST_CATALOG);
+			evita.updateCatalog(TEST_CATALOG, session -> {
+				setUpCatalog(
+					session, Fixture.grouped(histogramsOf(HISTOGRAM_SHARE, SHARE_VALUE), null),
+					product -> {
+						if (removedEarlier) {
+							product.setReference(REFERENCE_BRAND, BRAND_PK, reference -> reference
+								.setGroup(ENTITY_BRAND_GROUP, FIRST_GROUP_PK).setAttribute(ATTRIBUTE_SHARE, 1));
+						}
+					}
+				);
+			});
+			final LocalMutation<?, ?> mutation = switch (mutationType) {
+				case "attribute" -> referenceAttribute(BRAND_PK, ATTRIBUTE_SHARE, 5);
+				case "setGroup" -> new SetReferenceGroupMutation(brand(BRAND_PK), SECOND_GROUP_PK);
+				case "removeGroup" -> new RemoveReferenceGroupMutation(brand(BRAND_PK));
+				case "remove" -> new RemoveReferenceMutation(brand(BRAND_PK));
+				default -> throw new IllegalArgumentException(mutationType);
+			};
+			final LocalMutation<?, ?>[] mutations = removedEarlier ?
+				new LocalMutation<?, ?>[]{new RemoveReferenceMutation(brand(BRAND_PK)), mutation} :
+				new LocalMutation<?, ?>[]{mutation};
+			final GenericEvitaInternalError exception = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> evita.updateCatalog(TEST_CATALOG, upsertOf(mutations))
+			);
+			final String message = exception.getMessage();
+			assertAll(
+				() -> assertTrue(message.contains("withdraw histogram values"), message),
+				() -> assertTrue(message.contains("product") && message.contains("owner primary key 1"), message),
+				() -> assertTrue(message.contains("brand") && message.contains("10"), message),
+				() -> assertTrue(message.contains("internal primary key 0") && message.contains("LIVE"), message)
+			);
+		} finally {
+			cleanupTestPaths(paths);
+		}
+	}
+
+	/**
+	 * Supplies the four mutations with both an absent reference and one removed earlier in the same upsert.
+	 *
+	 * @return mutation types and removal flags
+	 */
+	@Nonnull
+	static List<Arguments> missingReferenceMutations() {
+		final List<Arguments> arguments = new ArrayList<>(8);
+		for (final String mutation : List.of("attribute", "setGroup", "removeGroup", "remove")) {
+			arguments.add(Arguments.of(mutation, false));
+			arguments.add(Arguments.of(mutation, true));
+		}
+		return arguments;
+	}
+
+	/**
 	 * The scenarios of the upserts suspected or known to leave a histogram that does not match the stored
 	 * references, together with their control variants.
 	 *
@@ -368,6 +438,11 @@ class ReferenceHistogramNetChangeFunctionalTest implements EvitaTestSupport {
 			session -> session.deleteEntity(ENTITY_PRODUCT, PRODUCT_PK),
 			soleOwnerGone, null, soleOwnerGone
 		));
+		scenarios.add(new Scenario(
+			"SOLE_OWNER_OF_GROUP_LOSES_GROUP", soleOwner, productInFirstGroup, soleOwnerBefore,
+			upsertOf(new RemoveReferenceGroupMutation(brand(BRAND_PK))),
+			soleOwnerGone, upsertOf(new RemoveReferenceMutation(brand(BRAND_PK))), soleOwnerGone
+		));
 
 		final Consumer<EntityBuilder> productWithShare = product -> product.setReference(
 			REFERENCE_BRAND, BRAND_PK, whichIs -> whichIs.setAttribute(ATTRIBUTE_SHARE, 1)
@@ -405,6 +480,58 @@ class ReferenceHistogramNetChangeFunctionalTest implements EvitaTestSupport {
 				.setReference(REFERENCE_BRAND, BRAND_PK, whichIs -> whichIs.setAttribute(ATTRIBUTE_SHARE, 5))
 				.upsertVia(session),
 			replaced, moveShare, List.of(live(HISTOGRAM_SHARE, ANCHORS_ONLY))
+		));
+
+		final ReferenceKey inserted = new ReferenceKey(REFERENCE_BRAND, BRAND_PK, 7);
+		scenarios.add(new Scenario(
+			"INSERT_THEN_REMOVE_WITH_KNOWN_INTERNAL_KEY", Fixture.ungrouped(null), product -> {},
+			List.of(live(HISTOGRAM_SHARE, ANCHORS_ONLY)),
+			upsertOf(
+				new InsertReferenceMutation(inserted),
+				new ReferenceAttributeMutation(inserted, new UpsertAttributeMutation(ATTRIBUTE_SHARE, 1)),
+				new RemoveReferenceMutation(inserted)
+			),
+			List.of(live(HISTOGRAM_SHARE, ANCHORS_ONLY)), null, List.of(live(HISTOGRAM_SHARE, ANCHORS_ONLY))
+		));
+		scenarios.add(new Scenario(
+			"INSERT_THEN_REMOVE_BY_UNKNOWN_KEY", Fixture.ungrouped(null), product -> {},
+			List.of(live(HISTOGRAM_SHARE, ANCHORS_ONLY)),
+			upsertOf(
+				new InsertReferenceMutation(inserted),
+				new ReferenceAttributeMutation(inserted, new UpsertAttributeMutation(ATTRIBUTE_SHARE, 1)),
+				new RemoveReferenceMutation(brand(BRAND_PK))
+			),
+			List.of(live(HISTOGRAM_SHARE, ANCHORS_ONLY)), null, List.of(live(HISTOGRAM_SHARE, ANCHORS_ONLY))
+		));
+
+		scenarios.add(new Scenario(
+			"UNKNOWN_KEY_INSERT_RECEIVES_FINAL_VALUES_BEFORE_ID_ASSIGNMENT", Fixture.ungrouped(null), product -> {},
+			List.of(live(HISTOGRAM_SHARE, ANCHORS_ONLY)),
+			upsertOf(new InsertReferenceMutation(brand(BRAND_PK)), referenceAttribute(BRAND_PK, ATTRIBUTE_SHARE, 1)),
+			List.of(live(HISTOGRAM_SHARE, range(1, SECOND_ANCHOR_VALUE))),
+			upsertOf(new RemoveReferenceMutation(brand(BRAND_PK))), List.of(live(HISTOGRAM_SHARE, ANCHORS_ONLY))
+		));
+		scenarios.add(new Scenario(
+			"REFERENCE_CHANGES_ON_BOTH_SIDES_OF_SCOPE_CHANGE", Fixture.ungrouped(null), productWithShare,
+			List.of(live(HISTOGRAM_SHARE, range(1, SECOND_ANCHOR_VALUE))),
+			upsertOf(
+				referenceAttribute(BRAND_PK, ATTRIBUTE_SHARE, 2),
+				new SetEntityScopeMutation(Scope.ARCHIVED),
+				referenceAttribute(BRAND_PK, ATTRIBUTE_SHARE, 5)
+			),
+			List.of(ungrouped(Scope.ARCHIVED, HISTOGRAM_SHARE, range(5, SECOND_ANCHOR_VALUE))),
+			moveShare, List.of(ungrouped(Scope.ARCHIVED, HISTOGRAM_SHARE, ANCHORS_ONLY))
+		));
+		scenarios.add(new Scenario(
+			"ENTITY_REMOVAL_AFTER_REFERENCE_CHANGES_IN_SAME_SESSION", Fixture.ungrouped(null), productWithShare,
+			List.of(live(HISTOGRAM_SHARE, range(1, SECOND_ANCHOR_VALUE))),
+			session -> {
+				upsertOf(
+					referenceAttribute(BRAND_PK, ATTRIBUTE_SHARE, 2), referenceAttribute(BRAND_PK, ATTRIBUTE_SHARE, 5)
+				).accept(session);
+				session.deleteEntity(ENTITY_PRODUCT, PRODUCT_PK);
+			},
+			List.of(live(HISTOGRAM_SHARE, ANCHORS_ONLY)), null, List.of(live(HISTOGRAM_SHARE, ANCHORS_ONLY))
 		));
 
 		return inBothCatalogStates(scenarios);

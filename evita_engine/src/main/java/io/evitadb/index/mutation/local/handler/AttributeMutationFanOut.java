@@ -67,8 +67,8 @@ final class AttributeMutationFanOut {
 	 * index via `IterationPath.BOTH`. The unique fan-out is required because entity-level
 	 * attribute bookkeeping is indexed once per (entity, reduced-index) pair — a per-reference
 	 * variant would double-decrement the `AttributeCardinalityIndex` whenever N sibling references
-	 * resolve to a single shared `ReducedGroupEntityIndex`. Histogram-dependent references are touched before
-	 * the attribute changes, withdrawing their contributions until the current deferred run adds them once.
+	 * resolve to a single shared `ReducedGroupEntityIndex`. References whose histogram condition reads the attribute
+	 * have their histogram values withdrawn before the attribute changes; the current deferred run adds them once.
 	 */
 	static void apply(
 		@Nonnull AttributeMutation mutation,
@@ -104,7 +104,9 @@ final class AttributeMutationFanOut {
 				for (final ReferenceContract reference :
 					executor.getReferencesStoragePart().getReferences()) {
 					if (reference.exists() && referenceNames.contains(reference.getReferenceName())) {
-						executor.touchReferenceHistogram(reference.getReferenceKey(), executor.getScope());
+						executor.withdrawHistogramValuesAndScheduleFinalAdd(
+							reference.getReferenceKey(), executor.getScope()
+						);
 					}
 				}
 			}

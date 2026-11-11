@@ -1,7 +1,7 @@
 ---
-title: A reference's histogram contribution is withdrawn at its first touch and added once per run of the deferred queue
+title: A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run of the deferred queue
 date: 2026-11-11
-updated: 2026-11-11 14:05
+updated: 2026-11-11 18:12
 status: accepted
 kind: fix
 issues: [1911, 1916, 1918]
@@ -13,15 +13,17 @@ relates: [2026-04-23-bucketed-histogram-indexing, 2026-08-31-cross-entity-histog
   2026-09-08-conditional-histogram-per-contribution-verdicts]
 ---
 
-# A reference's histogram contribution is withdrawn at its first touch and added once per run
+# A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run
 
 The local write path of reference histograms no longer lets every local mutation queue its own "remove, then
 add" action. Inside one run of the deferred queue a reference is either **clean** (the histogram holds exactly
-what its stored state implies) or **pending** (the histogram holds nothing from it and one add is owed). The
-first mutation that can change a clean reference's contribution removes that contribution on the spot, while
-storage still holds the state the index reflects. Every later mutation of the same reference does nothing for
-the histogram. When the queue runs, each pending reference that still exists is added once, from the state
-stored at that moment.
+what its stored state implies) or **pending** - in the code, awaiting its final add (the histogram holds nothing
+from it and one add is owed). The first mutation that can change a clean reference's contribution withdraws that
+contribution on the spot, while storage still holds the state the index reflects, and schedules the final add.
+Every later mutation of the same reference does nothing for the histogram, and removing the reference cancels
+the scheduled add. When the queue runs, every pending reference must still exist and is added once, from the
+state stored at that moment. A reference, index or value that is not where this protocol expects it fails
+loudly instead of being skipped.
 
 ## Why
 
@@ -59,11 +61,12 @@ This held as long as an upsert changed a reference once, which is what the first
 
 ## Options considered
 
-### Option A — withdraw at the first touch, add once per run (chosen)
+### Option A — withdraw at the first mutation that can change it, add once per run (chosen)
 
 A set of pending references on the executor. A mutation that can change a clean reference's contribution
-removes it immediately, with the condition evaluated against current storage, and marks the reference pending.
-The run adds every pending reference that still exists.
+removes it immediately, with the condition evaluated against current storage and every removed value asserted
+present, and marks the reference pending. Removing the reference cancels its pending add. The run adds every
+pending reference, each of which must still exist.
 
 - **Pros:** one rule for every handler; both halves use the same evaluator on the same storage accessor; the
   removal happens while the old group's indexes are still in place, so no destination has to be remembered; the
@@ -145,8 +148,8 @@ in the new scope would make the scope change one more instance of the rule.
 
 The driver is the unit. Whatever is done once per mutation composes wrongly as soon as two mutations meet on one
 reference; whatever is done once per reference per run cannot. Among the per-reference options, the immediate
-removal is the one that needs nothing remembered between the touch and the run, because the removal wants
-exactly the state storage still holds when the touch happens.
+removal is the one that needs nothing remembered between the withdrawal and the run, because the removal wants
+exactly the state storage still holds when the first mutation of the reference arrives.
 
 The scope-change exception does not weaken the rule. The re-index runs right after the queue has been run, so
 nothing is pending at that point, and it leaves every reference **clean** in the new scope: a later mutation in
@@ -158,56 +161,90 @@ storage that pays for a rebuild anyway.
 
 ## Key technical details
 
-- **The state** is `pendingHistogramReferences` in
-  `evita_engine/src/main/java/io/evitadb/index/mutation/local/EntityIndexLocalMutationExecutor.java`. It is
-  allocated only for references with histogram triggers.
-- **The touch** is `EntityIndexLocalMutationExecutor#touchReferenceHistogram`. Five rules hold it together:
-  1. It runs **before** the handler of the mutation does anything else: at the top of `#updateReferences`, ahead
-     of the `switch`. The first resolution of a representative key in a batch can move the owner between the
-     reduced indexes of a group without moving histogram values, and group handlers clean up group indexes; the
-     withdrawal has to see the indexes the values were written to.
-  2. The withdrawal is decided by the **evaluated condition**, per trigger. The presence probe underneath it is
-     only tolerance for catalogs that already drifted, where the counter may hold fewer units than storage
-     implies. It must never become the decision again.
-  3. The add reads the group, the condition and the values **when the queue runs**, never a captured copy.
-  4. The add **skips a reference that no longer exists**. A trigger without a condition evaluates to true
-     without looking at the reference, and a value taken from the referenced entity is readable after the
-     reference is gone.
-  5. The pending set is **cleared wherever the queue is run**, in a `finally`:
-     `#executeDeferredReEvaluations`, which also runs before a scope change.
-- **Which mutations touch** is `#isHistogramRelevant`. Every reference mutation other than an attribute change
-  does. An attribute change does when the attribute is a value source or a condition input, and **always** on a
-  reference that allows duplicates and is indexed by its group component. That last clause looks too wide and is
-  deliberate: there the attribute may be a representative one, and the migration it causes fires at the
-  reference's first handler in the batch, which can be a mutation of an attribute nothing reads.
-- **Entity attribute changes** touch every existing reference whose histogram condition reads the attribute:
-  `handler/AttributeMutationFanOut.java`, fed by the lookup
-  `LocalTriggerIndex#getHistogramReferencesForEntityAttribute` in
-  `evita_engine/src/main/java/io/evitadb/core/catalog/`. An attribute no histogram reads costs one map lookup.
-- **The identity is strict**: `HistogramReferenceIdentity`, next to the executor. `ReferenceKey#equals` treats a
-  stored reference, a temporary one and an unknown one to the same target as equal, so a reference removed and
-  inserted again in one upsert would collapse into one entry and the new reference would never be added.
-- **An inserted reference is born pending** without a withdrawal (`#markHistogramPending`).
-- **The scope-change re-index adds synchronously** from the full entity body in `#indexAllReferences` and marks
-  nothing pending. See Option H before changing it.
-- The wholesale removal of an entity from a scope still removes by presence. That is correct in aggregate,
-  because every reference of the owner leaves, and it relies on the queue having been run first.
+- **The state** is `referencesAwaitingFinalHistogramAdd` in
+  `evita_engine/src/main/java/io/evitadb/index/mutation/local/EntityIndexLocalMutationExecutor.java`. It records
+  references whose final histogram values must be added once in the current deferred run and is allocated only
+  for references with histogram triggers.
+- **Withdrawal and scheduling** use `#withdrawHistogramValuesAndScheduleFinalAdd`:
+  1. It runs before the mutation handler, at the top of `#updateReferences`. Representative-key migration and
+     group-index removal must happen after withdrawal so it sees the indexes that contain the current values.
+  2. It asserts that the reference exists in storage. Inserts use a separate method and entity attribute fan-out
+     supplies stored existing references. Later mutations of a recorded reference skip withdrawal.
+  3. Each trigger removes its values when its condition holds against current storage. Withdrawal asserts that
+     every value is present for the owner in the locale bucket: in the referenced-type index when ungrouped,
+     or in every reduced index listed for the group. A grouped reference requires the group-type index and at
+     least one listed index. Missing indexes, histograms, locale buckets or value-owner pairs fail loudly.
+     The values must have the shape the histogram descriptor declares: `ReferenceIndexMutator#resolveHistogramValues`
+     fails on an array where a single value is declared or vice versa, and on a value of the wrong number or
+     range kind, instead of resolving to fewer values whose presence would then go unchecked. Whole-entity
+     removal takes another route, see the last item.
+  4. `RemoveReferenceMutation` cancels the final add for the exact identity that withdrawal or insertion recorded.
+  5. `#addFinalHistogramValuesOfAwaitingReferences`, called by `#executeDeferredReEvaluations`, asserts that every
+     recorded identity resolves to an existing reference. It adds final values once using the current group and
+     condition; a grouped value requires the group-type index to list at least one reduced index for the group,
+     as the withdrawal does. The set is cleared in `finally` after every deferred run, including before a scope
+     change.
+- **Mutation selection** uses `#canMutationChangeHistogramValues`. Every non-attribute reference mutation other
+  than insertion requires withdrawal. An attribute change does when it is a histogram value source or condition
+  input. Any attribute change on a grouped reference allowing duplicates requires withdrawal because it can
+  start representative-key migration, including when the attribute itself is unrelated to the histogram.
+- **Entity attribute changes** withdraw values for stored references whose histogram condition reads the attribute:
+  `handler/AttributeMutationFanOut.java`, using `LocalTriggerIndex#getHistogramReferencesForEntityAttribute`.
+  An attribute no histogram reads costs one map lookup.
+- **Reference identity** uses `HistogramReferenceIdentity`: reference name, referenced primary key and internal
+  primary key. Positive, temporary negative and unknown `0` keys remain distinct. Unlike `ReferenceKey#equals`,
+  this prevents a removed reference and a new reference to the same target from sharing one scheduled add.
+  The index executor drains before the storage executor assigns missing IDs at the end of the phase, so a key
+  recorded as `0` still resolves as `0` during the final add.
+- **Insertion** uses `#scheduleFinalHistogramAddOfInsertedReference`, without withdrawal. Recording through
+  `#recordAwaitingFinalHistogramAdd` asserts that the identity was not already recorded. Membership is checked
+  by `#isAwaitingFinalHistogramAdd`.
+- **The scope-change re-index** in `#indexAllReferences` asserts that no reference awaits a final add, adds
+  synchronously from the full entity body and records nothing. See Option H before changing it.
+- **Whole-entity removal** removes the values present for the owner through
+  `ReferenceIndexMutator#removeHistogramFromIndex`, without evaluating any condition, on both of its paths: deleting the
+  entity (`RemoveReferenceMutation` while `isEntityRemovedEntirely()`, routed by `#updateReferences` to
+  `#removeHistogramValuesPresentForOwnerOfRemovedEntity`) and unindexing the entity from a scope it leaves
+  (`#unindexReferences`, which first asserts that no reference awaits a final add). All references of the owner leave
+  together. Asserting presence would require evaluating each reference's condition on every such removal, and entity
+  deletion drops the parent before the references, so a condition reading the parent would see a state the values were
+  never added under. Entity removal schedules no final add, so a reference awaiting one there fails like at unindexing.
 
 ## Verification
 
 Every scenario checks the histogram right after the upsert and again after a follow-up that moves the value
 into the range of anchor products, in memory and after a restart; only the second check can see a doubled value.
 
-- `ReferenceHistogramNetChangeFunctionalTest` — 54 cases, 0 failures. Before the change, on the same test code,
-  26 of its then 46 cases failed. The later cases add an array changed twice in one upsert and a defaulted
-  reference inserted after a scope change. They cover two histograms on one reference, an entity attribute change with a
-  non-contributing sibling, a group move of a non-contributing reference, an entity attribute change together
-  with a reference change, a touch followed by removal with a value fallback, a group change followed by removal
-  with a value from the referenced entity, removal and re-insertion of one target, and the only owner of a group
-  leaving it. Six cases cover localized values, among them the locale added before a scope change that decided
-  against Option H.
+- `ReferenceHistogramNetChangeFunctionalTest` — 74 cases, 0 failures. Before the change, on the same test code, 26 of
+  its then 46 cases failed. They cover two histograms on one reference, an entity attribute change with a
+  non-contributing sibling, a group move of a non-contributing reference, an entity attribute change together with a
+  reference change, a condition attribute removed before the reference with a value fallback, a group change followed by
+  removal with a value from the referenced entity, removal and re-insertion of one target, and the only owner of a group
+  leaving it. Six cases cover localized values, among them the locale added before a scope change that decided against
+  Option H. Later cases add an array changed twice in one upsert, a defaulted reference inserted after a scope change,
+  mutations of a missing reference rejected by the withdrawal, a reference inserted and removed in one upsert, changes
+  on both sides of a scope change, the removal of an owner whose references changed and the only owner of a group losing
+  its group.
 - `ScopeChangeDeferredReEvaluationFunctionalTest` — 197 cases, 0 failures; 40 of them failed before the change.
-- Together **251 of 251**.
+- Together **271 of 271**.
+- `EntityIndexLocalMutationExecutorHistogramProtocolTest` — 28 cases, 0 failures. All assertions of the protocol but two
+  are shown silent on the code before they existed and failing after. A withdrawn reference missing from storage, an
+  awaiting reference missing or dropped at the final add, a re-index or unindexing that starts with a reference
+  awaiting, an insertion already awaiting and a value missing at withdrawal, ungrouped and grouped, fail with the
+  identifiers that locate the data. A grouped final add whose group lists no reduced index names the group, reference,
+  histogram and owner. Seven value shapes that contradict the histogram descriptor, and one such value reached through a
+  reference removal, fail naming the source attribute and the value's class only. Two assertions have no negative test,
+  because their callers guarantee the precondition: the failed cancellation (its caller passes the identity the
+  withdrawal has just recorded or found scheduled) and the missing reference of an entity removed entirely (entity
+  removal names only its stored references). An entity removal that meets a reference awaiting a final add fails in a
+  protocol test that schedules the add before marking the entity removed. Three cases cancel the final add of an
+  inserted reference for each internal key form and check that the histogram holds nothing afterwards; three controls
+  show that the same sequence without the removal adds the value.
+- `ParentHistogramConditionLifecycleFunctionalTest` — 24 cases, 0 failures. Six of them remove an entity whose
+  histogram condition reads its parent, in both catalog states: an archive-and-return round trip after a parent
+  change left a value whose condition no longer holds, a direct deletion in the same state (it left the value
+  behind before deletion stopped evaluating conditions: `1:20` instead of `10:20`), and the deletion of an entity
+  whose condition holds only without a parent (it failed with `Cannot withdraw histogram value`).
 - `ReferenceHistogramPathParityFunctionalTest` — 12 cases, 0 failures. It reaches one final state through the
   local path and through the cross-entity path and compares every bucket of the two histograms, after the change,
   after a follow-up removal and after a restart. The same 12 pass on the code before this change.
@@ -219,7 +256,7 @@ into the range of anchor products, in memory and after a restart; only the secon
   `EntityIndexLocalMutationExecutor*Test` classes 74.
 
 No benchmark was run. The cost was assessed by reading only: an unrelated attribute change is cheaper than
-before, a second touch of one reference costs a set lookup, and an entity attribute change read by a histogram
+before, a second mutation of one reference costs a set lookup, and an entity attribute change read by a histogram
 condition pays one more condition evaluation per affected reference and histogram.
 
 ## Consequences & open follow-ups
@@ -238,15 +275,20 @@ condition pays one more condition evaluation per affected reference and histogra
   reference that allows duplicates and has a representative attribute, every write goes to each reduced index
   listed for the group, a new reduced index starts empty, an abandoned one keeps stale copies, a removal can take
   a sibling's unit, and the reference summary reads one index per group. This change does not make the write
-  side correct for that shape: the replication itself is the defect. The fix is planned as one histogram store
-  per group and will carry its own record.
+  side correct for that shape: the replication itself is the defect. Withdrawal now fails loudly when a reduced
+  index created later lacks the group's values. The fix is planned as one histogram store per group and will
+  carry its own record.
 - **Conditions reading the parent or associated data are never re-evaluated locally.** *Open: #1923.* Histogram
   triggers may carry both dependencies, but only the facet side reacts to them. Until that is closed, a parent
-  change followed by a reference touch in one upsert makes the withdrawal evaluate against the new parent.
+  change followed by a reference mutation in one upsert makes the withdrawal evaluate against the new parent.
+  Where that makes the condition hold for a value that was never added, the withdrawal fails loudly. Entity
+  deletion is not affected: it evaluates no condition.
 - **A changed histogram definition or condition is not followed by any recomputation.** *Open, covered by the
   general rebuild work in #409.* The index keeps contributions computed under the old definition.
 - **Catalogs written by the previous release may hold doubled or stale values.** *Not repaired by this change.*
-  A correct writer stops new drift and cannot find old drift. The release already recommends a full reindex.
+  A correct writer stops new drift and does not look for old drift; where a withdrawal expects a value such a
+  catalog lacks, the write fails loudly until the catalog is rebuilt. The release already recommends a full
+  reindex.
 - **Local and cross-entity work can apply one contribution twice.** *Open: #1925.* For a self-referencing entity
   type, and for a reference with a reflected counterpart, one upsert engages the local or nested path and the
   cross-entity path on the same contribution, and the value is added twice. Measured: 36 failing cases in three
@@ -254,7 +296,7 @@ condition pays one more condition evaluation per affected reference and histogra
 - **The cross-entity path reads reference-attribute values by the wrong identifiers.** *Open: #1926.* It
   intersects owner primary keys with the record IDs of a reference-attribute filter index, which are partition
   keys on an ungrouped reference and referenced keys on a grouped one. Measured: 16 of 48 cases fail, the same
-  before this change.
+  before this change. A local withdrawal of a value this path failed to add fails loudly.
 - **A scope change does not pass an existing reference's attribute change to its reflected counterpart.** *Open:
   #1927.*
 - **Duplicates on the cross-entity path** stay as coarse as

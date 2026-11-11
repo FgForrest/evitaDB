@@ -374,13 +374,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	@Nullable private Map<String, Map<Locale, Serializable>> capturedOldEntityAttributeValues;
 	/**
-	 * Strict identities of references owing one histogram add in the current deferred run. An existing reference
-	 * enters after its contribution is withdrawn against pre-mutation storage; an inserted reference enters without
-	 * withdrawal. A reference re-indexed by a scope change never enters: {@link #indexAllReferences} adds its values
-	 * at once and leaves it clean in the new scope, so a later touch in the same run withdraws them like those of any
-	 * other clean reference. Allocated only for references with histogram triggers and cleared at every drain.
+	 * References whose final histogram values will be added once at the end of the current deferred run. Each identity
+	 * includes the reference name, target primary key and internal primary key, distinguishing an inserted reference
+	 * from an older reference to the same target. Existing values are withdrawn before recording an existing reference.
+	 * Inserts are recorded without withdrawal. Scope re-indexing adds synchronously and records no references.
+	 * The set is allocated only for references with histogram triggers and cleared after every deferred run.
 	 */
-	@Nullable private Set<HistogramReferenceIdentity> pendingHistogramReferences;
+	@Nullable private Set<HistogramReferenceIdentity> referencesAwaitingFinalHistogramAdd;
 
 	/**
 	 * Memoized scope of the current entity.
@@ -1242,8 +1242,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Executes deferred facet actions and adds each pending reference's histograms once from current storage.
-	 * Clears the pending identities and drops the reduced indexes memoized for the run.
+	 * Executes deferred facet actions and adds each awaiting reference's final histogram values from current storage.
+	 * Clears the recorded identities and drops the reduced indexes memoized for the run.
 	 *
 	 * Runs at the end of every local-mutation phase ({@link #finishLocalMutationExecutionPhase()}), and also before
 	 * the entity changes its scope. Each action writes into the scope that was current when it was queued, while the
@@ -1263,29 +1263,42 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				}
 				this.deferredExpressionReEvaluations.clear();
 			}
-			if (this.pendingHistogramReferences != null && !this.pendingHistogramReferences.isEmpty()) {
-				final Scope scope = getScope();
-				final int ownerPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
-				for (final HistogramReferenceIdentity identity : this.pendingHistogramReferences) {
-					final ReferenceContract reference = identity.findReference(getReferencesStoragePart());
-					if (reference != null && reference.exists()) {
-						final ReferenceKey referenceKey = reference.getReferenceKey();
-						ReferenceIndexMutator.addHistogramToIndex(
-							this, referenceKey, extractActiveGroupPrimaryKey(reference), ownerPK,
-							getStoragePartExistingDataFactory()
-								.getNormalizedReferenceAttributeValueSupplier(referenceKey),
-							scope
-						);
-					}
-				}
-			}
+			addFinalHistogramValuesOfAwaitingReferences();
 		} finally {
-			if (this.pendingHistogramReferences != null) {
-				this.pendingHistogramReferences.clear();
+			if (this.referencesAwaitingFinalHistogramAdd != null) {
+				this.referencesAwaitingFinalHistogramAdd.clear();
 			}
 			// dropped unconditionally: the next run may see a different reference set or scope, and a memo that
 			// outlived its entity would silently write facets into another entity's partitions
 			this.deferredOwnerReducedIndexes = null;
+		}
+	}
+
+	/**
+	 * Adds the final histogram values of every recorded reference once, using current storage and the current scope.
+	 * Every recorded identity must resolve to an existing reference; removals cancel their recorded add beforehand.
+	 */
+	private void addFinalHistogramValuesOfAwaitingReferences() {
+		if (this.referencesAwaitingFinalHistogramAdd == null || this.referencesAwaitingFinalHistogramAdd.isEmpty()) {
+			return;
+		}
+		final Scope scope = getScope();
+		final int ownerPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
+		for (final HistogramReferenceIdentity identity : this.referencesAwaitingFinalHistogramAdd) {
+			final ReferenceContract reference = identity.findReference(getReferencesStoragePart());
+			if (reference == null || !reference.exists()) {
+				throw new GenericEvitaInternalError(
+					"Cannot perform final histogram add: " +
+						describeReferenceForDiagnostics(identity, identity.internalPrimaryKey(), scope) +
+						". The awaiting reference must exist in storage."
+				);
+			}
+			final ReferenceKey referenceKey = reference.getReferenceKey();
+			ReferenceIndexMutator.addHistogramToIndex(
+				this, referenceKey, extractActiveGroupPrimaryKey(reference), ownerPK,
+				getStoragePartExistingDataFactory().getNormalizedReferenceAttributeValueSupplier(referenceKey),
+				scope
+			);
 		}
 	}
 
@@ -2916,48 +2929,56 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Withdraws a clean reference's contribution before storage changes and owes one add at the end of this run.
-	 * Later touches of the same strict identity do nothing. Each trigger withdraws only its own values when its
-	 * condition holds; the lower-level presence guard tolerates historically drifted catalogs.
+	 * Removes the reference's current histogram values before storage changes and schedules one final add for this run.
+	 * Later mutations of the same reference do nothing for its histograms. Each trigger removes its values only when
+	 * its condition holds against current storage; the removal asserts that each value is present for the owner and
+	 * fails otherwise. A reference missing from storage is a protocol error.
 	 *
 	 * @param referenceKey the reference, resolving an unknown internal key against current storage
 	 * @param scope the scope of this run
 	 */
-	public void touchReferenceHistogram(@Nonnull ReferenceKey referenceKey, @Nonnull Scope scope) {
+	public void withdrawHistogramValuesAndScheduleFinalAdd(@Nonnull ReferenceKey referenceKey, @Nonnull Scope scope) {
 		final Collection<HistogramExpressionTrigger> triggers =
 			getLocalHistogramTriggers(referenceKey.referenceName(), scope);
 		if (!triggers.isEmpty()) {
-			touchReferenceHistogram(referenceKey, scope, triggers);
+			withdrawHistogramValuesAndScheduleFinalAdd(referenceKey, scope, triggers);
 		}
 	}
 
 	/**
-	 * Performs {@link #touchReferenceHistogram(ReferenceKey, Scope)} for a reference whose local histogram triggers
-	 * the caller has already looked up.
+	 * Removes current histogram values and schedules the final add using triggers already looked up by the caller.
+	 * See {@link #withdrawHistogramValuesAndScheduleFinalAdd(ReferenceKey, Scope)} for the per-run protocol.
 	 *
 	 * @param referenceKey the reference, resolving an unknown internal key against current storage
 	 * @param scope        the scope of this run
 	 * @param triggers     the local histogram triggers of the reference in the scope, never empty
+	 * @return the recorded identity, used to cancel the final add when the reference is removed
 	 */
-	private void touchReferenceHistogram(
+	@Nonnull
+	private HistogramReferenceIdentity withdrawHistogramValuesAndScheduleFinalAdd(
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull Scope scope,
 		@Nonnull Collection<HistogramExpressionTrigger> triggers
 	) {
-		// a key carrying an internal primary key names one exact reference - when that one already owes its add,
-		// there is nothing to withdraw, and the storage lookup below is not consulted for a key it might resolve
-		// to another instance
-		if (referenceKey.internalPrimaryKey() != 0 && isHistogramPending(HistogramReferenceIdentity.of(referenceKey))) {
-			return;
+		// An internal primary key identifies the reference instance. Once its values have been withdrawn,
+		// later mutations must leave the histogram unchanged until the final add.
+		final HistogramReferenceIdentity requestedIdentity = referenceKey.internalPrimaryKey() == 0 ?
+			null : HistogramReferenceIdentity.of(referenceKey);
+		if (requestedIdentity != null && isAwaitingFinalHistogramAdd(requestedIdentity)) {
+			return requestedIdentity;
 		}
 		final ReferenceContract reference = getReferencesStoragePart().findReference(referenceKey).orElse(null);
 		if (reference == null) {
-			return;
+			throw new GenericEvitaInternalError(
+				"Cannot withdraw histogram values: " +
+					describeReferenceForDiagnostics(referenceKey, referenceKey.internalPrimaryKey(), scope) +
+					". The reference must exist in storage."
+			);
 		}
 		final ReferenceKey storedKey = reference.getReferenceKey();
 		final HistogramReferenceIdentity identity = HistogramReferenceIdentity.of(storedKey);
-		if (isHistogramPending(identity)) {
-			return;
+		if (isAwaitingFinalHistogramAdd(identity)) {
+			return identity;
 		}
 		final int ownerPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
 		final Integer groupId = extractActiveGroupPrimaryKey(reference);
@@ -2972,18 +2993,57 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				);
 			}
 		}
-		addPendingHistogramReference(identity);
+		recordAwaitingFinalHistogramAdd(identity);
+		return identity;
 	}
 
 	/**
-	 * Marks an inserted reference pending without withdrawing anything, as it has contributed nothing yet.
+	 * Removes the histogram values the owner holds through a reference of an entity that is being removed entirely,
+	 * without evaluating any condition. Entity removal drops the parent before the references, so a condition read
+	 * here would see a state the values were never added under; and since every reference of the owner leaves,
+	 * whatever the owner holds is removed as it is.
+	 *
+	 * Entity removal schedules no final add: the parent removal before the references withdraws nothing, the
+	 * attribute removals after them find no existing reference, and this removal schedules nothing either. A
+	 * reference awaiting a final add here is therefore a protocol error.
+	 *
+	 * @param referenceKey the removed reference, carrying its stored internal primary key
+	 * @param scope        the scope of this run
+	 */
+	private void removeHistogramValuesPresentForOwnerOfRemovedEntity(
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull Scope scope
+	) {
+		assertNoReferencesAwaitingFinalHistogramAdd(scope, "entity removal");
+		// entity removal names every stored existing reference by its stored key, so the lookup resolves exactly
+		final ReferenceContract reference = getReferencesStoragePart().findReference(referenceKey).orElse(null);
+		if (reference == null) {
+			throw new GenericEvitaInternalError(
+				"Cannot remove histogram values of a removed entity: " +
+					describeReferenceForDiagnostics(referenceKey, referenceKey.internalPrimaryKey(), scope) +
+					". The reference must exist in storage."
+			);
+		}
+		ReferenceIndexMutator.removeHistogramFromIndex(
+			this, reference.getReferenceKey(), extractActiveGroupPrimaryKey(reference),
+			getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING), scope
+		);
+	}
+
+	/**
+	 * Schedules the inserted reference's final histogram values to be added once at the end of this run.
+	 * No values are removed because the reference has contributed nothing yet. Recording the same identity twice
+	 * is a protocol error.
 	 *
 	 * @param referenceKey the key of the inserted reference, possibly with a temporary internal primary key
 	 * @param scope the scope of the current run
 	 */
-	private void markHistogramPending(@Nonnull ReferenceKey referenceKey, @Nonnull Scope scope) {
+	private void scheduleFinalHistogramAddOfInsertedReference(
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull Scope scope
+	) {
 		if (!getLocalHistogramTriggers(referenceKey.referenceName(), scope).isEmpty()) {
-			addPendingHistogramReference(HistogramReferenceIdentity.of(referenceKey));
+			recordAwaitingFinalHistogramAdd(HistogramReferenceIdentity.of(referenceKey));
 		}
 	}
 
@@ -2998,9 +3058,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @param referenceSchema   the schema of the mutated reference
 	 * @param triggers          the local histogram triggers of the reference in the scope, never empty
 	 * @param scope             the scope of the current run
-	 * @return `true` when the mutation must touch the reference's histogram contribution
+	 * @return `true` when the mutation can change the reference's histogram values
 	 */
-	private static boolean isHistogramRelevant(
+	private static boolean canMutationChangeHistogramValues(
 		@Nonnull ReferenceMutation<?> referenceMutation,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Collection<HistogramExpressionTrigger> triggers,
@@ -3025,25 +3085,95 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Returns `true` when the reference already owes its histogram add in the current run.
+	 * Returns whether the reference's final histogram values are already scheduled to be added in this run.
 	 *
-	 * @param identity the strict identity of the reference
-	 * @return `true` when the reference is pending
+	 * @param identity the reference name, target primary key and internal primary key
+	 * @return `true` when the final add is already scheduled
 	 */
-	private boolean isHistogramPending(@Nonnull HistogramReferenceIdentity identity) {
-		return this.pendingHistogramReferences != null && this.pendingHistogramReferences.contains(identity);
+	private boolean isAwaitingFinalHistogramAdd(@Nonnull HistogramReferenceIdentity identity) {
+		return this.referencesAwaitingFinalHistogramAdd != null &&
+			this.referencesAwaitingFinalHistogramAdd.contains(identity);
 	}
 
 	/**
-	 * Records that the reference owes one histogram add in the current run, allocating the set on first use.
+	 * Records that the reference's final histogram values must be added in this run, allocating the set on first use.
+	 * Fails when the identity has already been recorded.
 	 *
-	 * @param identity the strict identity of the reference
+	 * @param identity the reference name, target primary key and internal primary key
 	 */
-	private void addPendingHistogramReference(@Nonnull HistogramReferenceIdentity identity) {
-		if (this.pendingHistogramReferences == null) {
-			this.pendingHistogramReferences = CollectionUtils.createHashSet(4);
+	private void recordAwaitingFinalHistogramAdd(@Nonnull HistogramReferenceIdentity identity) {
+		if (this.referencesAwaitingFinalHistogramAdd == null) {
+			this.referencesAwaitingFinalHistogramAdd = CollectionUtils.createHashSet(4);
 		}
-		this.pendingHistogramReferences.add(identity);
+		if (!this.referencesAwaitingFinalHistogramAdd.add(identity)) {
+			throw new GenericEvitaInternalError(
+				"Reference is already awaiting a final histogram add: " +
+					describeReferenceForDiagnostics(identity, identity.internalPrimaryKey(), getScope()) +
+					". Each insertion must schedule a new reference identity."
+			);
+		}
+	}
+
+	/**
+	 * Cancels the final histogram add of a reference that is being removed: its values were withdrawn by
+	 * {@link #withdrawHistogramValuesAndScheduleFinalAdd(ReferenceKey, Scope, Collection)} - now, or by an earlier
+	 * mutation of this run - and a removed reference contributes nothing. Fails when the identity was not scheduled,
+	 * because the caller passes the identity the withdrawal has just recorded or found scheduled.
+	 *
+	 * @param identity the scheduled identity: a stored, a temporary or an unknown internal primary key
+	 * @param scope    the scope of the current run
+	 */
+	private void cancelFinalHistogramAddOfRemovedReference(
+		@Nonnull HistogramReferenceIdentity identity,
+		@Nonnull Scope scope
+	) {
+		if (this.referencesAwaitingFinalHistogramAdd == null ||
+			!this.referencesAwaitingFinalHistogramAdd.remove(identity)) {
+			throw new GenericEvitaInternalError(
+				"Cannot cancel the final histogram add of a removed reference: " +
+					describeReferenceForDiagnostics(identity, identity.internalPrimaryKey(), scope) +
+					". The withdrawal must have scheduled it."
+			);
+		}
+	}
+
+	/**
+	 * Asserts that no reference awaits a final histogram add when the whole entity is synchronously re-indexed or
+	 * unindexed, or when a reference of an entity removed entirely is removed.
+	 *
+	 * @param scope the scope of the operation
+	 * @param operation the operation requiring an empty set
+	 */
+	private void assertNoReferencesAwaitingFinalHistogramAdd(@Nonnull Scope scope, @Nonnull String operation) {
+		if (this.referencesAwaitingFinalHistogramAdd != null && !this.referencesAwaitingFinalHistogramAdd.isEmpty()) {
+			final HistogramReferenceIdentity identity = this.referencesAwaitingFinalHistogramAdd.iterator().next();
+			throw new GenericEvitaInternalError(
+				"Cannot execute " + operation + ": " +
+					describeReferenceForDiagnostics(identity, identity.internalPrimaryKey(), scope) +
+					". No reference may await a final histogram add."
+			);
+		}
+	}
+
+	/**
+	 * Describes the reference a histogram protocol failure is about, together with its owner and scope, so every
+	 * protocol message locates the broken data the same way. Called only on failing branches, so the success path
+	 * builds no string.
+	 *
+	 * @param reference          the reference key or recorded identity, rendered by its `toString`
+	 * @param internalPrimaryKey the internal primary key of the reference
+	 * @param scope              the scope of the run
+	 * @return the description, starting with the entity type and ending with the scope
+	 */
+	@Nonnull
+	private String describeReferenceForDiagnostics(
+		@Nonnull Object reference,
+		int internalPrimaryKey,
+		@Nonnull Scope scope
+	) {
+		return "entity type `" + this.entityType + "`, owner primary key " +
+			getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING) + ", reference " + reference +
+			" (internal primary key " + internalPrimaryKey + "), scope " + scope;
 	}
 
 	/*
@@ -3758,6 +3888,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull GlobalEntityIndex globalIndex,
 		@Nonnull EntityExistingDataFactory existingDataSupplierFactory
 	) {
+		assertNoReferencesAwaitingFinalHistogramAdd(scope, "unindexReferences");
 		final int epk = entity.getPrimaryKeyOrThrowException();
 		// references come in name-sorted runs, so the schema resolved for the previous reference is almost always
 		// the one needed again - resolve it, and the facts derived from it, once per run instead of once per
@@ -4106,6 +4237,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull GlobalEntityIndex globalIndex,
 		@Nonnull EntityExistingDataFactory existingDataSupplierFactory
 	) {
+		assertNoReferencesAwaitingFinalHistogramAdd(scope, "indexAllReferences");
 		final int epk = entity.getPrimaryKeyOrThrowException();
 		// references come in name-sorted runs, so the schema resolved for the previous reference is almost always
 		// the one needed again - resolve it, and the facts derived from it, once per run instead of once per
@@ -4188,9 +4320,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					}
 					// histogram: added at once from the full entity body, which carries every locale the entity has
 					// now - the pre-mutation storage view the deferred run reads would miss a locale this upsert added.
-					// The reference is left clean in this scope: the run's drain has emptied the pending set right
-					// before the scope change, so nothing adds it a second time, and a later touch in the same run
-					// withdraws what this call added
+					// The empty awaiting set is asserted at the start of this method. No final add is scheduled here;
+					// a later mutation withdraws these values and schedules its own final add in the new scope.
 					ReferenceIndexMutator.addHistogramToIndex(
 						this, referenceKey, groupId, epk,
 						existingDataSupplierFactory.getNormalizedReferenceAttributeValueSupplier(referenceKey),
@@ -4335,8 +4466,18 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		if (!(referenceMutation instanceof InsertReferenceMutation)) {
 			final Collection<HistogramExpressionTrigger> triggers =
 				getLocalHistogramTriggers(referenceKey.referenceName(), scope);
-			if (!triggers.isEmpty() && isHistogramRelevant(referenceMutation, referenceSchema, triggers, scope)) {
-				touchReferenceHistogram(referenceKey, scope, triggers);
+			if (!triggers.isEmpty() &&
+				canMutationChangeHistogramValues(referenceMutation, referenceSchema, triggers, scope)) {
+				if (referenceMutation instanceof RemoveReferenceMutation &&
+					this.containerAccessor.isEntityRemovedEntirely()) {
+					removeHistogramValuesPresentForOwnerOfRemovedEntity(referenceKey, scope);
+				} else {
+					final HistogramReferenceIdentity identity =
+						withdrawHistogramValuesAndScheduleFinalAdd(referenceKey, scope, triggers);
+					if (referenceMutation instanceof RemoveReferenceMutation) {
+						cancelFinalHistogramAddOfRemovedReference(identity, scope);
+					}
+				}
 			}
 		}
 
@@ -4372,7 +4513,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Handles {@link SetReferenceGroupMutation}: updates the facet group assignment in global
 	 * and entity-component indexes, transfers group indexes, and defers facet expression
-	 * re-evaluation. Histogram maintenance was touched before dispatch.
+	 * re-evaluation. Histogram values were withdrawn and their final add scheduled before dispatch.
 	 */
 	private void updateReferenceOnSetGroup(
 		@Nonnull SetReferenceGroupMutation mutation,
@@ -4437,7 +4578,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Handles {@link RemoveReferenceGroupMutation}: removes the facet group assignment from
 	 * global and entity-component indexes, cleans up group indexes, and defers facet expression
-	 * re-evaluation. Histogram maintenance was touched before dispatch.
+	 * re-evaluation. Histogram values were withdrawn and their final add scheduled before dispatch.
 	 */
 	private void updateReferenceOnRemoveGroup(
 		@Nonnull RemoveReferenceGroupMutation mutation,
@@ -4555,7 +4696,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 
 	/**
 	 * Handles {@link InsertReferenceMutation}: adds the facet to global and entity-component indexes, defers facet
-	 * expression re-evaluation, and marks the reference as owing its histogram add to the deferred run.
+	 * expression re-evaluation, and schedules the final histogram values to be added at the end of the run.
 	 *
 	 * Group component is not handled here — group is always assigned later via
 	 * {@link SetReferenceGroupMutation}.
@@ -4600,12 +4741,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		// trigger, so cross-entity expressions ($reference.referencedEntity.*,
 		// $reference.groupEntity?.*) always return false at initial evaluation
 		deferFacetExpressionReEvaluation(entityIndex, epk, referenceKey.referenceName());
-		markHistogramPending(referenceKey, scope);
+		scheduleFinalHistogramAddOfInsertedReference(referenceKey, scope);
 	}
 
 	/**
-	 * Handles {@link RemoveReferenceMutation} after the histogram touch: removes the facet from global and
-	 * entity-component indexes and cleans up group indexes.
+	 * Handles {@link RemoveReferenceMutation} after the reference's histogram values were taken out: removes the facet
+	 * from global and entity-component indexes and cleans up group indexes.
 	 *
 	 * Unlike other mutation handlers, this method does not defer facet expression re-evaluation.
 	 * The facet index entry is removed synchronously by
