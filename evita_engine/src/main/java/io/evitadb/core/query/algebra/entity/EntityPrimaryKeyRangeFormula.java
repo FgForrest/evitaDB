@@ -147,9 +147,10 @@ public class EntityPrimaryKeyRangeFormula extends AbstractCacheableFormula {
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		// manual combination avoids the long[] allocation of hashFunction.hashLongs;
-		// the nested `31L + hashCode(from)` breaks symmetry so that e.g. (0, 31) and (1, 0) do not collide
-		return 31L * (31L + Integer.hashCode(this.from)) + Integer.hashCode(this.to);
+		// both 32-bit bounds packed into one long: injective, so no two ranges share the value, and free of the
+		// long[] allocation of hashFunction.hashLongs - a linear fold such as `31 * from + to` is not injective
+		// and made e.g. [1, 100] and [2, 69] over the same superset indistinguishable
+		return ((long) this.from << 32) | (this.to & 0xFFFFFFFFL);
 	}
 
 	@Override

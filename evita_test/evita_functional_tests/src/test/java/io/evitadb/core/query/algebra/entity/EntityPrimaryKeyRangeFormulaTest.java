@@ -703,6 +703,22 @@ class EntityPrimaryKeyRangeFormulaTest {
 
 			assertNotEquals(hashA, hashB);
 		}
+
+		@Test
+		@DisplayName("should produce different hash when bounds fold to the same linear combination")
+		void shouldProduceDifferentHashWhenBoundsFoldToSameLinearCombination() {
+			// `31 * from + to` is 131 for both ranges, so any hash that folds the bounds linearly
+			// makes the two indistinguishable - and over one child their transactional ids are
+			// equal as well, which leaves the hash as the only thing telling them apart
+			final ConstantFormula inner = new ConstantFormula(
+				new ArrayBitmap(new CompositeIntArray(1, 2, 69, 70, 100))
+			);
+			final EntityPrimaryKeyRangeFormula wide = new EntityPrimaryKeyRangeFormula(1, 100, inner);
+			final EntityPrimaryKeyRangeFormula narrow = new EntityPrimaryKeyRangeFormula(2, 69, inner);
+
+			assertEquals(wide.getTransactionalIdHash(), narrow.getTransactionalIdHash());
+			assertNotEquals(wide.getHash(), narrow.getHash());
+		}
 	}
 
 	@Nested
