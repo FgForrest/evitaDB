@@ -1,7 +1,7 @@
 ---
 title: Decode only the reference names a projection asks for, rather than deriving reference keys from the indexes
 date: 2026-09-11
-updated: 2026-09-23 18:40
+updated: 2026-11-11 23:23
 status: accepted
 kind: optimization
 issues: [1547, 1554]
@@ -139,8 +139,9 @@ read states its own requirement.
   "References were fetched before" no longer implies "all references are present", and answering an
   enrichment from a narrowed part would report the entity as having no such reference — a plausible
   wrong answer rather than a failure.
-- **`toBinaryEntity` is deliberately not narrowed.** Its container is re-serialized verbatim into the
-  binary entity handed to the client, so it must carry everything.
+- **`toBinaryEntity` was deliberately not narrowed** — obsolete since binary entity support was
+  removed (#1934). Its container was re-serialized verbatim into the binary entity handed to the
+  client, so it had to carry everything.
 - **Resolve the schema *after* the skip decision.** `EntitySchemaContext.getEntitySchema()` builds
   three `Optional`s per call. Hoisted above the filter it ran for every reference the narrowing exists
   to avoid touching — 7.5 % of the query's entire allocation, spent on objects immediately discarded.

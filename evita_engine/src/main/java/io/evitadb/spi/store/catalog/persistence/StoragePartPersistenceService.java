@@ -93,13 +93,18 @@ public interface StoragePartPersistenceService<S extends StorageDescriptor> exte
 
 	/**
 	 * Reads container primarily from transactional memory and when the container is not present there (or transaction
-	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
+	 * is not opened) reads it from the target {@link CatalogPersistenceService}, returning its stored bytes without
+	 * deserializing them.
+	 *
+	 * No read path of the engine needs a part undecoded. The method exists so that a stored part can be compared byte
+	 * for byte - the migration tests prove with it that a part a migration did not rewrite still holds exactly the
+	 * bytes it held before.
 	 *
 	 * @param catalogVersion the current version of the catalog the value is read from
 	 * @param storagePartPk primary key of the storage part
 	 * @param containerType type of the storage part container
 	 * @param <T>           type of the storage part container
-	 * @return container contents as byte array in binary form
+	 * @return stored bytes of the container, unparsed, or NULL when no such container is stored
 	 */
 	@Nullable
 	<T extends StoragePart> byte[] getStoragePartAsBinary(long catalogVersion, long storagePartPk, @Nonnull Class<T> containerType);

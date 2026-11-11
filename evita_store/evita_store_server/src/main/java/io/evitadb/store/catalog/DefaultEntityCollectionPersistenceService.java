@@ -424,10 +424,10 @@ public class DefaultEntityCollectionPersistenceService
 	 * Fetches prices container from OffsetIndex if it hasn't been already loaded before.
 	 */
 	@Nullable
-	private static <T> T fetchPrices(
+	private static PricesStoragePart fetchPrices(
 		@Nullable PriceContractSerializablePredicate previousPricePredicate,
 		@Nonnull PriceContractSerializablePredicate newPricePredicate,
-		@Nonnull Supplier<T> fetcher
+		@Nonnull Supplier<PricesStoragePart> fetcher
 	) {
 		if ((previousPricePredicate == null || previousPricePredicate.getPriceContentMode() == PriceContentMode.NONE) &&
 			newPricePredicate.getPriceContentMode() != PriceContentMode.NONE) {
@@ -441,14 +441,14 @@ public class DefaultEntityCollectionPersistenceService
 	 * Fetches attributes container from OffsetIndex if it hasn't been already loaded before.
 	 */
 	@Nonnull
-	private static <T> List<T> fetchAttributes(
+	private static List<AttributesStoragePart> fetchAttributes(
 		int entityPrimaryKey,
 		@Nullable AttributeValueSerializablePredicate previousAttributePredicate,
 		@Nonnull AttributeValueSerializablePredicate newAttributePredicate,
 		@Nonnull Set<Locale> allAvailableLocales,
-		@Nonnull Function<EntityAttributesSetKey, T> fetcher
+		@Nonnull Function<EntityAttributesSetKey, AttributesStoragePart> fetcher
 	) {
-		final List<T> attributesStorageContainers = new LinkedList<>();
+		final List<AttributesStoragePart> attributesStorageContainers = new LinkedList<>();
 		if (newAttributePredicate.isRequiresEntityAttributes()) {
 			// we need to load global attributes' container (i.e. attributes not linked to any locale)
 			final boolean firstRequest = previousAttributePredicate == null || !previousAttributePredicate.isRequiresEntityAttributes();
@@ -489,12 +489,12 @@ public class DefaultEntityCollectionPersistenceService
 	 * implicit nor an explicit locale only global associated data are included.
 	 */
 	@Nonnull
-	private static <T> List<T> fetchAssociatedData(
+	private static List<AssociatedDataStoragePart> fetchAssociatedData(
 		int entityPrimaryKey,
 		@Nullable AssociatedDataValueSerializablePredicate previousAssociatedDataValuePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate newAssociatedDataValuePredicate,
 		@Nonnull Set<AssociatedDataKey> allAssociatedDataKeys,
-		@Nonnull Function<EntityAssociatedDataKey, T> fetcher
+		@Nonnull Function<EntityAssociatedDataKey, AssociatedDataStoragePart> fetcher
 	) {
 		// if there is single request for associated data
 		if (newAssociatedDataValuePredicate.isRequiresEntityAssociatedData()) {
@@ -541,7 +541,7 @@ public class DefaultEntityCollectionPersistenceService
 				.stream()
 				.map(it -> {
 					// fetch missing associated data from underlying storage
-					final T associatedData = fetcher.apply(
+					final AssociatedDataStoragePart associatedData = fetcher.apply(
 						new EntityAssociatedDataKey(entityPrimaryKey, it.associatedDataName(), it.locale())
 					);
 					// since we know all available keys from the entity header there always should be looked up container
