@@ -591,10 +591,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		this.evitaSession = evitaSession instanceof EvitaSession es ? es : null;
 		this.evitaRequest = evitaRequest;
 		if (parentQueryContext == null) {
-			// when debug mode is enabled we need to enforce the main plan to be non-cached
-			// the cached variants needs to be derived from it
-			// the same policy serves `PREFER_INDEX_SCAN`, which needs the prefetch denied so the query resolves
-			// the indexes - and gets the cache bypass along with it, which keeps that resolution observable
+			// These debug modes favour bitmap planning and suppress optional prefetch so the query resolves indexes.
 			this.planningPolicy = isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
 				|| isDebugModeEnabled(DebugMode.PREFER_INDEX_SCAN) ?
 				BitmapFavouringNoCachePolicy.INSTANCE : DefaultPolicy.INSTANCE;

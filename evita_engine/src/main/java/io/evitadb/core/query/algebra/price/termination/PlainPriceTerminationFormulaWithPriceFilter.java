@@ -76,7 +76,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	 * Price evaluation context allows optimizing formula tree in the such way, that terminating formula with same
 	 * context will be replaced by single instance - taking advantage of result memoization.
 	 */
-	@Getter private final PriceEvaluationContext priceEvaluationContext;
+	private final PriceEvaluationContext priceEvaluationContext;
 	/**
 	 * Price filter is used to filter out entities which price doesn't match the predicate.
 	 */

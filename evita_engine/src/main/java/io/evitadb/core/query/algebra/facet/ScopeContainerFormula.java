@@ -55,10 +55,6 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 	 */
 	@Getter private final Scope scope;
 	/**
-	 * Array of transactional ids of the indexes that were used to build this formula, used for cache invalidation.
-	 */
-	private final long[] indexTransactionId;
-	/**
 	 * The formula of every entity of {@link #scope} the container stands for once all its inner formulas are removed
 	 * by a clone, or NULL when an emptied container stands for nothing. A container built by
 	 * {@link InScopeFormulaPostProcessor} restricts one scope of the query, so removing every constraint it holds -
@@ -74,20 +70,17 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 	/**
 	 * Creates the container with the formula an emptied clone stands for.
 	 *
-	 * @param scope               the scope the container restricts
-	 * @param emptyScopeFormula   the formula of every entity of the scope, or NULL - see {@link #emptyScopeFormula}
-	 * @param innerFormulas       the constraints of the scope
-	 * @param indexTransactionId  the transactional ids of the indexes the formula was built from
+	 * @param scope             the scope the container restricts
+	 * @param emptyScopeFormula the formula of every entity of the scope, or NULL - see {@link #emptyScopeFormula}
+	 * @param innerFormulas     the constraints of the scope
 	 */
 	private ScopeContainerFormula(
 		@Nonnull Scope scope,
 		@Nullable Formula emptyScopeFormula,
-		@Nonnull Formula[] innerFormulas,
-		@Nullable long[] indexTransactionId
+		@Nonnull Formula[] innerFormulas
 	) {
 		this.scope = scope;
 		this.emptyScopeFormula = emptyScopeFormula;
-		this.indexTransactionId = indexTransactionId;
 		this.initFields(innerFormulas);
 	}
 
@@ -102,7 +95,7 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 	 * @param innerFormulas the constraints of the scope
 	 */
 	public ScopeContainerFormula(@Nonnull Scope scope, @Nonnull Formula... innerFormulas) {
-		this(scope, null, innerFormulas, null);
+		this(scope, null, innerFormulas);
 	}
 
 	/**
@@ -127,7 +120,7 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 		@Nonnull Formula innerFormula
 	) {
 		return new ScopeContainerFormula(
-			scope, emptyScopeFormula, new Formula[]{emptyScopeFormula, innerFormula}, null
+			scope, emptyScopeFormula, new Formula[]{emptyScopeFormula, innerFormula}
 		);
 	}
 
@@ -199,10 +192,10 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 			return this.emptyScopeFormula == null ?
 				EmptyFormula.INSTANCE :
 				new ScopeContainerFormula(
-					this.scope, this.emptyScopeFormula, new Formula[]{this.emptyScopeFormula}, null
+					this.scope, this.emptyScopeFormula, new Formula[]{this.emptyScopeFormula}
 				);
 		}
-		return new ScopeContainerFormula(this.scope, this.emptyScopeFormula, innerFormulas, null);
+		return new ScopeContainerFormula(this.scope, this.emptyScopeFormula, innerFormulas);
 	}
 
 }

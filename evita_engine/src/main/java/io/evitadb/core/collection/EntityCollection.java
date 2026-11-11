@@ -318,11 +318,7 @@ public final class EntityCollection implements
 	 */
 	private final DataStoreReader dataStoreReader;
 	/**
-	 * Formula supervisor is an entry point to the Evita cache. The idea is that each {@link Formula} can be identified
-	 * by its {@link Formula#getHash()} method and when the supervisor identifies that certain
-	 * formula is frequently used in query formulas it moves its memoized results to the cache. The non-computed formula
-	 * of the same hash will be exchanged in next query that contains it with the cached formula that already contains
-	 * memoized result.
+	 * Analysis seam for query formulas and extra-result computers. The configured supervisor returns its inputs.
 	 */
 	private final CacheSupervisor cacheSupervisor;
 	/**
@@ -1674,7 +1670,7 @@ public final class EntityCollection implements
 	) {
 		// retrieve current version of entity
 		final List<ServerEntityDecorator> entityDecorators = Arrays.stream(primaryKeys)
-			.mapToObj(it -> fetchEntityDecorator(it, evitaRequest, session))
+			.mapToObj(it -> fetchEntityDecorator(it, evitaRequest))
 			.filter(Optional::isPresent)
 			.map(Optional::get)
 			.toList();
@@ -1687,20 +1683,18 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Returns the entity body that reflects input request object using provided session and primary key.
+	 * Returns the entity body for the primary key with the requested content.
 	 * Fetches the entity from storage, checks its locale and wraps it for the request.
 	 *
 	 * @param primaryKey the primary key of the entity to retrieve
 	 * @param evitaRequest the request context containing parameters required for fetching the entity
-	 * @param session the current session associated with the request
 	 * @return an {@link Optional} containing the {@link ServerEntityDecorator} if the entity is found and meets
 	 * the criteria, otherwise an empty {@link Optional}
 	 */
 	@Nonnull
 	public Optional<ServerEntityDecorator> fetchEntityDecorator(
 		int primaryKey,
-		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull EvitaSessionContract session
+		@Nonnull EvitaRequest evitaRequest
 	) {
 		final SealedEntitySchema theSchema = getSchema();
 		final EntityWithFetchCount internalEntity = getEntityById(primaryKey, evitaRequest);
@@ -2687,7 +2681,7 @@ public final class EntityCollection implements
 		@Nonnull ReferenceFetcher referenceFetcher
 	) {
 		// retrieve current version of entity
-		return fetchEntityDecorator(primaryKey, evitaRequest, session)
+		return fetchEntityDecorator(primaryKey, evitaRequest)
 			.map(it -> limitEntity(it, evitaRequest, session))
 			.map(it -> applyReferenceFetcher(evitaRequest, it, referenceFetcher));
 	}

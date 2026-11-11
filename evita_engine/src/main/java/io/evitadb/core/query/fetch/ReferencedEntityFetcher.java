@@ -548,7 +548,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				executionContext.pushStep(queryPhase);
 			}
 			entityIndex = fetchEntitiesByIdsIntoIndex(
-				entityIds, fetchRequest, nestedQueryContext, entityCollection,
+				entityIds, fetchRequest, entityCollection,
 				subReferenceFetcher, existingEntityRetriever
 			);
 		} finally {
@@ -569,7 +569,6 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 *
 	 * @param entityPks               primary keys of the entities to fetch; repeated ids are fetched only once
 	 * @param fetchRequest            request that describes the requested richness of the fetched entities
-	 * @param queryContext            planning context of the collection the entities are fetched from
 	 * @param entityCollection        the collection the entities are fetched from
 	 * @param referenceFetcher        fetcher resolving the references of the fetched entities (i.e. one level deeper)
 	 * @param existingEntityRetriever lambda providing access to potentially already prefetched entities (when only
@@ -580,7 +579,6 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	private static Map<Integer, ServerEntityDecorator> fetchEntitiesByIdsIntoIndex(
 		@Nonnull Bitmap entityPks,
 		@Nonnull EvitaRequest fetchRequest,
-		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull EntityCollection entityCollection,
 		@Nonnull ReferenceFetcher referenceFetcher,
 		@Nonnull IntFunction<Optional<SealedEntity>> existingEntityRetriever
@@ -598,7 +596,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				} else {
 					// if not, fetch the fresh entity from the collection
 					entityCollection.fetchEntityDecorator(
-							referencedRecordId, fetchRequest, Objects.requireNonNull(queryContext.getEvitaSession())
+							referencedRecordId, fetchRequest
 						)
 						.ifPresent(entity -> entityIndex.put(entity.getPrimaryKey(), entity));
 				}

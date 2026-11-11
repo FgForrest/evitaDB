@@ -164,7 +164,10 @@ class PlainPriceTerminationFormulaWithPriceFilterTest {
 			assertInstanceOf(PlainPriceTerminationFormulaWithPriceFilter.class, clone);
 			final PlainPriceTerminationFormulaWithPriceFilter typedClone =
 				(PlainPriceTerminationFormulaWithPriceFilter) clone;
-			assertSame(context, typedClone.getPriceEvaluationContext());
+			assertEquals(
+				new PlainPriceTerminationFormulaWithPriceFilter(newInner, context, predicate).getHash(),
+				typedClone.getHash()
+			);
 			assertSame(predicate, typedClone.getPricePredicate());
 		}
 
@@ -204,7 +207,10 @@ class PlainPriceTerminationFormulaWithPriceFilterTest {
 			assertInstanceOf(PlainPriceTerminationFormulaWithPriceFilter.class, clone);
 			final PlainPriceTerminationFormulaWithPriceFilter typedClone =
 				(PlainPriceTerminationFormulaWithPriceFilter) clone;
-			assertSame(context, typedClone.getPriceEvaluationContext());
+			assertEquals(
+				new PlainPriceTerminationFormulaWithPriceFilter(newInner, context, predicate).getHash(),
+				typedClone.getHash()
+			);
 			assertSame(predicate, typedClone.getPricePredicate());
 		}
 	}

@@ -44,24 +44,6 @@ import java.io.Serializable;
  * - then lookup for price in PRICE_LIST_C, but only for those entities that weren't resolved on previous two lines
  *
  * This formula captures the negated relation for the negated formulas composition of PRICE_LIST_B and PRICE_LIST_C.
- * The formula is cacheable and the idea is that repeated queries that share the partial combination of price lists
- * order can be satisfied from fast cache. I.e. for these queries:
- *
- * - PRICE_LIST_A, PRICE_LIST_B, PRICE_LIST_C
- * - PRICE_LIST_A, PRICE_LIST_B, PRICE_LIST_D
- * - PRICE_LIST_A, PRICE_LIST_B, PRICE_LIST_E
- *
- * We can serve the result of PRICE_LIST_A, PRICE_LIST_B negation from the cache, because the computation logic is
- * shared.
- *
- * TOBEDONE JNO - evaluate effectivnes of the cache because the price list combinations are usually in inverted way:
- *
- * - PRICE_LIST_C, PRICE_LIST_A, PRICE_LIST_B
- * - PRICE_LIST_D, PRICE_LIST_A, PRICE_LIST_B
- * - PRICE_LIST_E, PRICE_LIST_A, PRICE_LIST_B
- *
- * And this disqualifies the real benefit of cacheability of this formula
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class PriceListCombinationFormula extends NotFormula implements CacheablePriceFormula {
@@ -80,7 +62,7 @@ public class PriceListCombinationFormula extends NotFormula implements Cacheable
 	/**
 	 * Price evaluation context carrying information about price lists and currency used for price evaluation.
 	 */
-	@Getter private final PriceEvaluationContext priceEvaluationContext;
+	private final PriceEvaluationContext priceEvaluationContext;
 
 	public PriceListCombinationFormula(@Nonnull Serializable subtractedPriceListName, @Nonnull Serializable priceListName, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull Formula subtractedFormula, @Nonnull Formula supersetFormula) {
 		super(subtractedFormula, supersetFormula);

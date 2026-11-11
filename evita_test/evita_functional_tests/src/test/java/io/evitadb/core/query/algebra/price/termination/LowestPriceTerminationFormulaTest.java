@@ -183,7 +183,12 @@ class LowestPriceTerminationFormulaTest {
 
 			assertInstanceOf(LowestPriceTerminationFormula.class, clone);
 			final LowestPriceTerminationFormula typedClone = (LowestPriceTerminationFormula) clone;
-			assertSame(context, typedClone.getPriceEvaluationContext());
+			assertEquals(
+				new LowestPriceTerminationFormula(
+					newInner, context, QueryPriceMode.WITHOUT_TAX, predicate, false
+				).getHash(),
+				typedClone.getHash()
+			);
 			assertEquals(QueryPriceMode.WITHOUT_TAX, typedClone.getQueryPriceMode());
 			assertSame(predicate, typedClone.getSellingPricePredicate());
 		}
@@ -224,7 +229,12 @@ class LowestPriceTerminationFormulaTest {
 
 			assertInstanceOf(LowestPriceTerminationFormula.class, clone);
 			final LowestPriceTerminationFormula typedClone = (LowestPriceTerminationFormula) clone;
-			assertSame(context, typedClone.getPriceEvaluationContext());
+			assertEquals(
+				new LowestPriceTerminationFormula(
+					newInner, context, QueryPriceMode.WITH_TAX, predicate, false
+				).getHash(),
+				typedClone.getHash()
+			);
 			assertEquals(QueryPriceMode.WITH_TAX, typedClone.getQueryPriceMode());
 			assertSame(predicate, typedClone.getSellingPricePredicate());
 		}

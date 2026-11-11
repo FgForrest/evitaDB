@@ -25,22 +25,11 @@ package io.evitadb.core.query.algebra.price.termination;
 
 import io.evitadb.core.query.algebra.Formula;
 
-import javax.annotation.Nonnull;
-
 /**
- * This interface allows wrapping price related formula into a "recognized" container that is uniquely represented by
- * {@link PriceEvaluationContext} multiple price wrapping containers that share this evaluation context are
- * interchangeable one for another.
+ * Marks formulas that wrap price-list combinations or terminate price evaluation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface PriceWrappingFormula extends Formula {
-
-	/**
-	 * Returns price evaluation context allowing to optimize formula tree in the such way, that terminating formula
-	 * with same context will be replaced by single instance - taking advantage of result memoization.
-	 */
-	@Nonnull
-	PriceEvaluationContext getPriceEvaluationContext();
 
 }

@@ -178,7 +178,12 @@ class SumPriceTerminationFormulaTest {
 
 			assertInstanceOf(SumPriceTerminationFormula.class, clone);
 			final SumPriceTerminationFormula typedClone = (SumPriceTerminationFormula) clone;
-			assertSame(context, typedClone.getPriceEvaluationContext());
+			assertEquals(
+				new SumPriceTerminationFormula(
+					newInner, context, QueryPriceMode.WITHOUT_TAX, predicate
+				).getHash(),
+				typedClone.getHash()
+			);
 			assertSame(predicate, typedClone.getSellingPricePredicate());
 		}
 
@@ -217,7 +222,12 @@ class SumPriceTerminationFormulaTest {
 
 			assertInstanceOf(SumPriceTerminationFormula.class, clone);
 			final SumPriceTerminationFormula typedClone = (SumPriceTerminationFormula) clone;
-			assertSame(context, typedClone.getPriceEvaluationContext());
+			assertEquals(
+				new SumPriceTerminationFormula(
+					newInner, context, QueryPriceMode.WITH_TAX, predicate
+				).getHash(),
+				typedClone.getHash()
+			);
 			assertSame(predicate, typedClone.getSellingPricePredicate());
 		}
 

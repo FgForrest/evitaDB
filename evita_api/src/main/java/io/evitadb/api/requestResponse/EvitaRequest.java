@@ -634,13 +634,6 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns true if query targets specific entity type.
-	 */
-	public boolean isEntityTypeRequested() {
-		return this.entityType != null;
-	}
-
-	/**
 	 * Returns type of the entity this query targets. Allows to choose
 	 * proper {@link EntityCollectionContract}.
 	 */

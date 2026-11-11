@@ -121,7 +121,10 @@ class PlainPriceTerminationFormulaTest {
 
 			assertInstanceOf(PlainPriceTerminationFormula.class, clone);
 			final PlainPriceTerminationFormula typedClone = (PlainPriceTerminationFormula) clone;
-			assertSame(context, typedClone.getPriceEvaluationContext());
+			assertEquals(
+				new PlainPriceTerminationFormula(newInner, context).getHash(),
+				typedClone.getHash()
+			);
 			assertArrayEquals(new int[]{10, 20, 30}, typedClone.compute().getArray());
 		}
 

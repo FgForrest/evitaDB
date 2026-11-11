@@ -126,8 +126,7 @@ public class QueryPlanner {
 	 * Planning passes through these phases:
 	 *
 	 * 1. filtering formula construction for all possible indexes
-	 * a) replacing formulas with cached results
-	 * b) selecting the best formula / index combination that would produce result with minimal effort
+	 *    and selecting the formula / index combination with the lowest estimated cost
 	 * 2. creating sorter that will take care of ordering and slicing the result page
 	 * 3. prefetching the entity bodies if the filtering requires it, or it would produce results faster
 	 * 4. creating extra result computers, that will create and provide extra results for the request
@@ -216,8 +215,7 @@ public class QueryPlanner {
 	 * Planning passes through these phases:
 	 *
 	 * 1. filtering formula construction for all possible indexes
-	 * a) replacing formulas with cached results
-	 * b) selecting the best formula / index combination that would produce result with minimal effort
+	 *    and selecting the formula / index combination with the lowest estimated cost
 	 * 2. creating sorter that will take care of ordering and slicing the result page
 	 * 3. prefetching the entity bodies if the filtering requires it, or it would produce results faster
 	 *

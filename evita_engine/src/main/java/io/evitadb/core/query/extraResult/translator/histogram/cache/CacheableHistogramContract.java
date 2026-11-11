@@ -138,8 +138,7 @@ public interface CacheableHistogramContract extends Serializable {
 	 * Unlike {@link #getMin()} this value has **not** been rounded to the attribute schema's
 	 * {@code indexedDecimalPlaces} — it is suitable for direct lookup via
 	 * {@link io.evitadb.index.attribute.FilterIndex#getRecordsEqualTo(Serializable)} without any coercion.
-	 * Returns {@code null} when the producer did not retain the raw value (legacy histograms, histograms not built
-	 * from a single-attribute source such as the price histogram, or cached entries deserialized from an older format).
+	 * Returns `null` when the producer does not retain a raw attribute value, as in price histograms.
 	 */
 	@Nullable
 	default Serializable getRawMin() {

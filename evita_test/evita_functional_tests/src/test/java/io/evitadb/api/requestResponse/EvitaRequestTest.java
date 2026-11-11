@@ -207,7 +207,6 @@ class EvitaRequestTest {
 			);
 
 			assertEquals("product", request.getEntityType());
-			assertTrue(request.isEntityTypeRequested());
 		}
 
 		/**
@@ -246,7 +245,6 @@ class EvitaRequestTest {
 			);
 
 			assertNull(request.getEntityType());
-			assertFalse(request.isEntityTypeRequested());
 		}
 
 		/**

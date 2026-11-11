@@ -33,7 +33,6 @@ import io.evitadb.core.query.algebra.price.predicate.PricePredicate.PriceRecordP
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.NumberUtils;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import net.openhft.hashing.LongHashFunction;
 
@@ -60,10 +59,8 @@ public sealed abstract class PricePredicate implements PricePredicateContract
 	 * Contains brief description of what predicate does.
 	 */
 	private final String description;
-	@Getter private final QueryPriceMode queryPriceMode;
-	@Getter private final BigDecimal from;
-	@Getter private final BigDecimal to;
-	@Getter private final int indexedPricePlaces;
+	private final QueryPriceMode queryPriceMode;
+	private final int indexedPricePlaces;
 	private final int fromAsInt;
 	private final int toAsInt;
 	protected final Function<PriceContract, BigDecimal> priceExtractor;
@@ -104,8 +101,6 @@ public sealed abstract class PricePredicate implements PricePredicateContract
 					);
 			}
 		}
-		this.from = from;
-		this.to = to;
 		this.amountPredicate = new PriceAmountPredicate(
 			queryPriceMode, from, to, indexedPricePlaces,
 			amount ->  {

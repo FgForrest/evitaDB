@@ -99,7 +99,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	 * Price evaluation context allows optimizing formula tree in the such way, that terminating formula with same
 	 * context will be replaced by single instance - taking advantage of result memoization.
 	 */
-	@Getter private final PriceEvaluationContext priceEvaluationContext;
+	private final PriceEvaluationContext priceEvaluationContext;
 	/**
 	 * Contains query price mode of the current query.
 	 */

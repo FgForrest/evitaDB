@@ -121,7 +121,7 @@ public final class SubstringCatalogFixture {
 	private static final AtomicBoolean SHUTDOWN_HOOK_REGISTERED = new AtomicBoolean();
 
 	/**
-	 * What this fixture is - arm, corpus size and cache mode.
+	 * Identifies this fixture by its index arm and corpus size.
 	 */
 	@Nonnull private final FixtureKey key;
 

@@ -330,11 +330,10 @@ public class QueryExecutionContext implements Closeable {
 			);
 		} else {
 			final String entityType = this.queryContext.getEntityType();
-			final EvitaSessionContract evitaSession = this.queryContext.getEvitaSession();
 			final EntityCollection entityCollection = this.queryContext.getEntityCollectionOrThrowException(entityType, "fetch entities");
 			final EvitaRequest fetchRequest = this.queryContext.fabricateFetchRequest(entityType, requirements);
 			this.prefetchedEntities = Arrays.stream(entitiesToPrefetch.getArray())
-				.mapToObj(it -> entityCollection.fetchEntityDecorator(it, fetchRequest, evitaSession))
+				.mapToObj(it -> entityCollection.fetchEntityDecorator(it, fetchRequest))
 				.filter(Optional::isPresent)
 				.map(Optional::get)
 				.toList();
@@ -357,13 +356,12 @@ public class QueryExecutionContext implements Closeable {
 			if (this.prefetchedEntities == null) {
 				this.prefetchedEntities = new ArrayList<>(entitiesToPrefetch.length);
 			}
-			final EvitaSessionContract evitaSession = this.queryContext.getEvitaSession();
 			if (entitiesToPrefetch.length == 1) {
 				final String entityType = entitiesToPrefetch[0].getType();
 				final EntityCollection targetCollection = this.queryContext.getEntityCollectionOrThrowException(entityType, "fetch entity");
 				final EvitaRequest fetchRequest = this.queryContext.fabricateFetchRequest(entityType, requirements);
 				final int pk = entitiesToPrefetch[0].getPrimaryKey();
-				targetCollection.fetchEntityDecorator(pk, fetchRequest, evitaSession)
+				targetCollection.fetchEntityDecorator(pk, fetchRequest)
 					.ifPresent(it -> this.prefetchedEntities.add(it));
 			} else {
 				final Map<String, CompositeIntArray> entitiesByType = CollectionUtils.createHashMap(16);
@@ -379,7 +377,7 @@ public class QueryExecutionContext implements Closeable {
 						final EvitaRequest fetchRequest = this.queryContext.fabricateFetchRequest(entityType, requirements);
 						final EntityCollection targetCollection = this.queryContext.getEntityCollectionOrThrowException(entityType, "fetch entity");
 						return Arrays.stream(it.getValue().toArray())
-							.mapToObj(pk -> targetCollection.fetchEntityDecorator(pk, fetchRequest, evitaSession))
+							.mapToObj(pk -> targetCollection.fetchEntityDecorator(pk, fetchRequest))
 							.filter(Optional::isPresent)
 							.map(Optional::get);
 					})

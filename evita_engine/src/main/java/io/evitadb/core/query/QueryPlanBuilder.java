@@ -93,7 +93,7 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	 * to apply different pagination strategies by invoking the {@link #setSlicer} method.
 	 */
 	@Nullable
-	@Getter private Slicer slicer = DefaultSlicer.INSTANCE;
+	private Slicer slicer = DefaultSlicer.INSTANCE;
 	/**
 	 * Collection of {@link ExtraResultProducer} that compute additional results requested in response.
 	 */

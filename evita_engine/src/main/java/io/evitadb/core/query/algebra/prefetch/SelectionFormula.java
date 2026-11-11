@@ -81,10 +81,6 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 	 */
 	@Nullable private PriceAmountPredicate memoizedPredicate;
 	/**
-	 * Memoized clone stored upon first calculation to lower computational resources.
-	 */
-	private Formula memoizedClone;
-	/**
 	 * Memoized SHALLOW probe over the delegate sub-tree for inner {@link FilteredPriceRecordAccessor}
 	 * instances. The tree shape is fixed at construction so the result is stable for the lifetime of
 	 * this formula and can be safely cached after the first walk.

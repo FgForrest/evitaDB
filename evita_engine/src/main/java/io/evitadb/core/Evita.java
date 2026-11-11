@@ -91,7 +91,6 @@ import io.evitadb.core.metric.event.system.EvitaStatisticsEvent;
 import io.evitadb.core.metric.event.system.RequestThreadPoolStatisticsEvent;
 import io.evitadb.core.metric.event.system.ScheduledExecutorStatisticsEvent;
 import io.evitadb.core.metric.event.system.TransactionThreadPoolStatisticsEvent;
-import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.sequence.SequenceType;
 import io.evitadb.core.session.EvitaInternalSessionContract;
@@ -196,11 +195,7 @@ public final class Evita implements EvitaContract {
 	 */
 	private final Map<String, SessionRegistry> catalogSessionRegistries = CollectionUtils.createConcurrentHashMap(64);
 	/**
-	 * Formula supervisor is an entry point to the Evita cache. The idea is that each {@link Formula} can be identified by
-	 * its {@link Formula#getHash()} method and when the supervisor identifies that certain formula
-	 * is frequently used in query formulas it moves its memoized results to the cache. The non-computed formula
-	 * of the same hash will be exchanged in next query that contains it with the cached formula that already contains
-	 * memoized result.
+	 * Analysis seam for query formulas and extra-result computers. The configured supervisor returns its inputs.
 	 */
 	private final CacheSupervisor cacheSupervisor;
 	/**

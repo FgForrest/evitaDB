@@ -30,7 +30,6 @@ import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
-import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
@@ -54,7 +53,7 @@ public class PlainPriceTerminationFormula extends AbstractFormula implements Pri
 	 * Price evaluation context allows optimizing formula tree in the such way, that terminating formula with same
 	 * context will be replaced by single instance - taking advantage of result memoization.
 	 */
-	@Getter private final PriceEvaluationContext priceEvaluationContext;
+	private final PriceEvaluationContext priceEvaluationContext;
 
 	public PlainPriceTerminationFormula(@Nonnull Formula containerFormula, @Nonnull PriceEvaluationContext priceEvaluationContext) {
 		this.priceEvaluationContext = priceEvaluationContext;

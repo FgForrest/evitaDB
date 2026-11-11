@@ -120,17 +120,6 @@ class PriceListCombinationFormulaTest {
 		}
 
 		@Test
-		@DisplayName("should expose price evaluation context")
-		void shouldExposePriceEvaluationContext() {
-			final PriceListCombinationFormula formula = createFormula(
-				"subtracted", "superset",
-				new int[]{1}, new int[]{1, 2}
-			);
-
-			assertSame(DEFAULT_CONTEXT, formula.getPriceEvaluationContext());
-		}
-
-		@Test
 		@DisplayName("should return combined price list names")
 		void shouldReturnCombinedPriceListNames() {
 			final PriceListCombinationFormula formula = createFormula(
@@ -163,8 +152,8 @@ class PriceListCombinationFormulaTest {
 	class CloningTest {
 
 		@Test
-		@DisplayName("should preserve price list names and context in clone")
-		void shouldPreservePriceListNamesAndContextInClone() {
+		@DisplayName("should preserve price list names in clone")
+		void shouldPreservePriceListNamesInClone() {
 			final PriceListCombinationFormula original = createFormula(
 				"vip", "basic",
 				new int[]{1}, new int[]{1, 2, 3}
@@ -178,7 +167,6 @@ class PriceListCombinationFormulaTest {
 			final PriceListCombinationFormula typedClone = (PriceListCombinationFormula) clone;
 			assertEquals("vip", typedClone.getSubtractedPriceListName());
 			assertEquals("basic", typedClone.getPriceListName());
-			assertSame(DEFAULT_CONTEXT, typedClone.getPriceEvaluationContext());
 		}
 	}
 

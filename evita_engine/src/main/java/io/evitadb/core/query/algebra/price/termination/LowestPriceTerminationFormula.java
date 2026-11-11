@@ -80,8 +80,8 @@ import java.util.function.Predicate;
  * every inner-record winning price into the histogram side-output funnel exposed by
  * {@link #getFilteredPriceRecordsForHistogram(QueryExecutionContext)}. Non-histogram queries leave the flag
  * at {@code false} at construction time and pay zero overhead for the side-output. The flag is mixed into
- * {@link #includeAdditionalHash(LongHashFunction)} so a cached payload from a non-histogram query is never
- * served to a histogram caller (and vice versa).
+ * {@link #includeAdditionalHash(LongHashFunction)} so formula identity distinguishes computations with
+ * different histogram side-output requirements.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -95,7 +95,7 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	 * Price evaluation context allows optimizing formula tree in the such way, that terminating formula with same
 	 * context will be replaced by single instance - taking advantage of result memoization.
 	 */
-	@Getter private final PriceEvaluationContext priceEvaluationContext;
+	private final PriceEvaluationContext priceEvaluationContext;
 	/**
 	 * Contains query price mode of the current query.
 	 */
@@ -119,8 +119,8 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	 * `priceHistogram` extra result is requested AND (b) this LP is being built outside any
 	 * `userFilter` scope. When `false`, the histogram side-output funnel is never allocated and the
 	 * per-inner-record drain branch is never entered, so non-histogram queries pay zero cost.
-	 * The flag is mixed into {@link #includeAdditionalHash(LongHashFunction)} to keep histogram and
-	 * non-histogram cache entries isolated.
+	 * The flag is mixed into {@link #includeAdditionalHash(LongHashFunction)} to distinguish formulas
+	 * with different histogram side-output requirements.
 	 */
 	private final boolean collectPerInnerRecordPrices;
 	/**
