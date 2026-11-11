@@ -104,6 +104,7 @@ class ReferenceHistogramNetChangeFunctionalTest implements EvitaTestSupport {
 	private static final String ENTITY_BRAND_GROUP = "brandGroup";
 	private static final String REFERENCE_BRAND = "brand";
 	private static final String ATTRIBUTE_SHARE = "share";
+	private static final String ATTRIBUTE_SHARES = "shares";
 	private static final String ATTRIBUTE_TITLE = "title";
 	private static final String ATTRIBUTE_WEIGHT = "weight";
 	private static final String ATTRIBUTE_HIDDEN = "hidden";
@@ -140,6 +141,7 @@ class ReferenceHistogramNetChangeFunctionalTest implements EvitaTestSupport {
 	private static final String NO_HISTOGRAM = "no histogram";
 	private static final String SHARE_VALUE = "$reference.attributes['" + ATTRIBUTE_SHARE + "']";
 	private static final String LOCALIZED_SHARE_VALUE = "$reference.localizedAttributes['" + ATTRIBUTE_SHARE + "']";
+	private static final String SHARES_VALUE = "$reference.attributes['" + ATTRIBUTE_SHARES + "']";
 	private static final String WEIGHT_VALUE = "$reference.attributes['" + ATTRIBUTE_WEIGHT + "']";
 	private static final String SIZE_VALUE = "$reference.referencedEntity?.attributes['" + ATTRIBUTE_SIZE + "']";
 	private static final String REFERENCE_NOT_HIDDEN =
@@ -941,6 +943,53 @@ class ReferenceHistogramNetChangeFunctionalTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * The scenario of a histogram over an array reference attribute whose every element is a histogram value: one
+	 * upsert changes the array twice.
+	 *
+	 * @return arguments of {@link #shouldHoldEachArrayElementOnceWhenUpsertChangesArrayTwice}
+	 */
+	@Nonnull
+	static Stream<Arguments> arrayScenarios() {
+		final List<Scenario> scenarios = new ArrayList<>(1);
+		// the stored array and both arrays of the upsert under test keep one element below the anchor range and one
+		// above it, so the smallest and the largest value of the histogram show a stale element of the stored array
+		// and of the intermediate one alike
+		scenarios.add(new Scenario(
+			"ARRAY_SHARES_CHANGED_TWICE", Fixture.ungrouped(histogramsOf(HISTOGRAM_SHARE, SHARES_VALUE), null, null),
+			builder -> builder.setReference(
+				REFERENCE_BRAND, BRAND_PK, whichIs -> whichIs.setAttribute(ATTRIBUTE_SHARES, new Integer[]{1, 30})
+			),
+			List.of(live(HISTOGRAM_SHARE, range(1, 30))),
+			upsertOf(
+				referenceAttribute(BRAND_PK, ATTRIBUTE_SHARES, new Integer[]{2, 29}),
+				referenceAttribute(BRAND_PK, ATTRIBUTE_SHARES, new Integer[]{3, 28})
+			),
+			List.of(live(HISTOGRAM_SHARE, range(3, 28))),
+			upsertOf(referenceAttribute(BRAND_PK, ATTRIBUTE_SHARES, new Integer[]{INSIDE_ANCHOR_RANGE})),
+			List.of(live(HISTOGRAM_SHARE, ANCHORS_ONLY))
+		));
+		return inBothCatalogStates(scenarios);
+	}
+
+	/**
+	 * Changes an array reference attribute twice in one upsert and checks that the histogram holds every element of
+	 * the final array once and nothing of the stored or the intermediate one - right after the upsert, after the
+	 * follow-up that moves the array among the anchors, and after a restart.
+	 *
+	 * @param state    the state the catalog is in when the upsert is applied
+	 * @param scenario the scenario
+	 */
+	@ParameterizedTest(name = "{0} {1}")
+	@MethodSource("arrayScenarios")
+	@DisplayName("every element of an array reference value reaches the histogram once")
+	void shouldHoldEachArrayElementOnceWhenUpsertChangesArrayTwice(
+		@Nonnull CatalogState state,
+		@Nonnull Scenario scenario
+	) {
+		runScenario(state, scenario);
+	}
+
+	/**
 	 * Runs one scenario: sets the catalog up, checks the starting histograms, applies the upsert under test and
 	 * checks the histograms, applies the follow-up - where there is one - and checks them again, and checks them
 	 * once more after the engine restarted on the stored data. All failed checks are reported together.
@@ -1267,7 +1316,7 @@ class ReferenceHistogramNetChangeFunctionalTest implements EvitaTestSupport {
 	 *
 	 * The product has a localized `title` and the locales English and German. The reference of a product to a brand
 	 * is indexed for filtering and faceted in both scopes, grouped where `fixture` says, and carries its histograms
-	 * and condition; its `share` is localized where `fixture` says. The brands
+	 * and condition; its `share` is localized where `fixture` says, and its `shares` is an array. The brands
 	 * of the product and of its sibling reference have the size 1. An anchor product in each scope is visible and
 	 * prioritized and references two brands - in each of its groups, where grouped - with the shares, the weights
 	 * and the brand sizes 10 and 20, active and not hidden, so every histogram of every group spans the range 10 to
@@ -1320,6 +1369,9 @@ class ReferenceHistogramNetChangeFunctionalTest implements EvitaTestSupport {
 									thatIs.localized();
 								}
 							}
+						)
+						.withAttribute(
+							ATTRIBUTE_SHARES, Integer[].class, thatIs -> thatIs.filterableInScope(ALL_SCOPES).nullable()
 						)
 						.withAttribute(
 							ATTRIBUTE_WEIGHT, Integer.class,
@@ -1428,7 +1480,7 @@ class ReferenceHistogramNetChangeFunctionalTest implements EvitaTestSupport {
 	 * @param reference   the reference being built
 	 * @param fixture     the schema and the anchor products
 	 * @param groupPk     the primary key of the group, ignored where the reference is not grouped
-	 * @param anchorValue the share and the weight of the reference
+	 * @param anchorValue the share, the only element of the shares and the weight of the reference
 	 */
 	private static void setUpAnchorReference(
 		@Nonnull ReferenceBuilder reference,
@@ -1447,6 +1499,7 @@ class ReferenceHistogramNetChangeFunctionalTest implements EvitaTestSupport {
 			reference.setAttribute(ATTRIBUTE_SHARE, anchorValue);
 		}
 		reference
+			.setAttribute(ATTRIBUTE_SHARES, new Integer[]{anchorValue})
 			.setAttribute(ATTRIBUTE_WEIGHT, anchorValue)
 			.setAttribute(ATTRIBUTE_ACTIVE, true);
 	}
