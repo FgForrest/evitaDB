@@ -33,11 +33,9 @@ import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRec
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.SortingForm;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
-import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.algebra.price.predicate.PriceRecordPredicate;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
-import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramProducer;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.dataType.iterator.BatchArrayIterator;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -88,13 +86,6 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	 * is available once the {@link Formula#compute()} method has been called.
 	 */
 	private ResolvedFilteredPriceRecords filteredPriceRecords;
-	/**
-	 * Bitmap is initialized (non-null) after {@link Formula#compute()} method is called and contains set of entity primary
-	 * keys that were excluded due to {@link #pricePredicate} query. This information is reused in
-	 * {@link PriceHistogramProducer} to avoid duplicate computation - price histogram must not take price predicate
-	 * into an account.
-	 */
-	@Getter private Bitmap recordsFilteredOutByPredicate;
 
 	public PlainPriceTerminationFormulaWithPriceFilter(
 		@Nonnull Formula containerFormula,
@@ -103,19 +94,6 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	) {
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.pricePredicate = pricePredicate;
-		this.initFields(containerFormula);
-	}
-
-	private PlainPriceTerminationFormulaWithPriceFilter(
-		@Nonnull Formula containerFormula,
-		@Nonnull PriceEvaluationContext priceEvaluationContext,
-		@Nonnull PriceRecordPredicate pricePredicate,
-		@Nonnull Bitmap recordsFilteredOutByPredicate
-	) {
-		super(recordsFilteredOutByPredicate);
-		this.pricePredicate = pricePredicate;
-		this.priceEvaluationContext = priceEvaluationContext;
-		this.recordsFilteredOutByPredicate = recordsFilteredOutByPredicate;
 		this.initFields(containerFormula);
 	}
 
@@ -151,17 +129,6 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	@Override
 	public long getOperationCost() {
 		return 3205;
-	}
-
-	@Nonnull
-	@Override
-	public Formula getCloneWithPricePredicateFilteredOutResults() {
-		return new PlainPriceTerminationFormulaWithPriceFilter(
-			this.innerFormulas[0],
-			this.priceEvaluationContext,
-			PricePredicate.ALL_RECORD_FILTER,
-			this.recordsFilteredOutByPredicate
-		);
 	}
 
 	@Nonnull
@@ -204,8 +171,6 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 
 			// create new roaring bitmap builder for matching records
 			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-			// create new roaring bitmap builder for records excluded by predicate
-			final RoaringBitmapWriter<PersistentRoaringBitmap> predicateExcludedWriter = RoaringBitmapBackedBitmap.buildWriter();
 			final int[] buffer = SharedBufferPool.INSTANCE.obtain();
 			try {
 				final BatchArrayIterator entityIdIterator = new RoaringBitmapBatchArrayIterator(
@@ -228,8 +193,6 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 									if (this.pricePredicate.test(foundPrice)) {
 										writer.add(entityId);
 										priceRecordsFunnel.add(foundPrice);
-									} else {
-										predicateExcludedWriter.add(entityId);
 									}
 								}
 							);
@@ -255,11 +218,9 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 			);
 
 			// wrap result into the bitmap
-			this.recordsFilteredOutByPredicate = new BaseBitmap(predicateExcludedWriter.get());
 			return new BaseBitmap(writer.get());
 		} else {
 			this.filteredPriceRecords = new ResolvedFilteredPriceRecords();
-			this.recordsFilteredOutByPredicate = EmptyBitmap.INSTANCE;
 			return EmptyBitmap.INSTANCE;
 		}
 	}

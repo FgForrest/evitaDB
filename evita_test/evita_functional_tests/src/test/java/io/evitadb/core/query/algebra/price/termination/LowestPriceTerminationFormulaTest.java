@@ -229,28 +229,6 @@ class LowestPriceTerminationFormulaTest {
 			assertSame(predicate, typedClone.getSellingPricePredicate());
 		}
 
-		@Test
-		@DisplayName("should create clone with price predicate filtered out results")
-		void shouldCreateCloneWithPricePredicateFilteredOutResults() {
-			// first compute to populate recordsFilteredOutByPredicate
-			final LowestPriceTerminationFormula formula = new LowestPriceTerminationFormula(
-				EmptyFormula.INSTANCE,
-				createContext("basic", CZK),
-				QueryPriceMode.WITH_TAX,
-				PricePredicate.ALL_RECORD_FILTER,
-				false
-			);
-
-			// trigger computation on empty input - populates filtered out records
-			formula.compute();
-
-			final Formula clone = formula.getCloneWithPricePredicateFilteredOutResults();
-
-			assertInstanceOf(LowestPriceTerminationFormula.class, clone);
-			final LowestPriceTerminationFormula typedClone = (LowestPriceTerminationFormula) clone;
-			// the clone should use ALL_RECORD_FILTER predicate
-			assertSame(PricePredicate.ALL_RECORD_FILTER, typedClone.getSellingPricePredicate());
-		}
 	}
 
 	@Nested
@@ -358,8 +336,6 @@ class LowestPriceTerminationFormulaTest {
 			);
 
 			assertTrue(formula.compute().isEmpty());
-			assertNotNull(formula.getRecordsFilteredOutByPredicate());
-			assertTrue(formula.getRecordsFilteredOutByPredicate().isEmpty());
 		}
 
 		@Test
@@ -432,9 +408,7 @@ class LowestPriceTerminationFormulaTest {
 				inner, context, QueryPriceMode.WITH_TAX, predicate, true
 			);
 
-			// cache isolation acceptance criterion — the histogram-enabled formula uses a different
-			// flattened payload class on cache hit, so its hash MUST diverge to avoid feeding the wrong
-			// cached entry back to the caller (a.k.a. "cache poisoning")
+			// Formula identity distinguishes the presence of the per-inner-record histogram side-output.
 			assertNotEquals(without.getHash(), with.getHash());
 		}
 
@@ -494,51 +468,6 @@ class LowestPriceTerminationFormulaTest {
 		}
 
 		@Test
-		@DisplayName("should propagate the flag through price predicate filtered out results cloning")
-		void shouldPropagateFlagThroughFilteredOutResultsCloning() {
-			final LowestPriceTerminationFormula withHistogram = new LowestPriceTerminationFormula(
-				EmptyFormula.INSTANCE,
-				createContext("basic", CZK),
-				QueryPriceMode.WITH_TAX,
-				PricePredicate.ALL_RECORD_FILTER,
-				true
-			);
-
-			// trigger computation on empty input — populates filtered out records bitmap so that
-			// getCloneWithPricePredicateFilteredOutResults() can be invoked legitimately
-			withHistogram.compute();
-
-			final Formula clone = withHistogram.getCloneWithPricePredicateFilteredOutResults();
-
-			assertInstanceOf(LowestPriceTerminationFormula.class, clone);
-			final LowestPriceTerminationFormula typedClone = (LowestPriceTerminationFormula) clone;
-			// this is the path most likely to drop the flag silently — every cloning factory must carry it
-			assertTrue(typedClone.isCollectingPerInnerRecordPrices());
-		}
-
-		@Test
-		@DisplayName("should propagate cleared flag through price predicate filtered out results cloning")
-		void shouldPropagateClearedFlagThroughFilteredOutResultsCloning() {
-			// regression sibling — when the flag is OFF on the source it must stay OFF on the clone too,
-			// otherwise non-histogram queries would start paying the per-inner-record cost on cache miss
-			final LowestPriceTerminationFormula withoutHistogram = new LowestPriceTerminationFormula(
-				EmptyFormula.INSTANCE,
-				createContext("basic", CZK),
-				QueryPriceMode.WITH_TAX,
-				PricePredicate.ALL_RECORD_FILTER,
-				false
-			);
-
-			withoutHistogram.compute();
-
-			final Formula clone = withoutHistogram.getCloneWithPricePredicateFilteredOutResults();
-
-			assertInstanceOf(LowestPriceTerminationFormula.class, clone);
-			final LowestPriceTerminationFormula typedClone = (LowestPriceTerminationFormula) clone;
-			assertFalse(typedClone.isCollectingPerInnerRecordPrices());
-		}
-
-		@Test
 		@DisplayName("should throw GenericEvitaInternalError when histogram records requested but flag is off")
 		void shouldThrowWhenHistogramRecordsRequestedAndFlagOff() {
 			final LowestPriceTerminationFormula withoutHistogram = new LowestPriceTerminationFormula(
@@ -576,10 +505,7 @@ class LowestPriceTerminationFormulaTest {
 		}
 
 		/**
-		 * The empty-input branch in `LowestPriceTerminationFormula.computeInternal()` must allocate a
-		 * fresh `ResolvedFilteredPriceRecords` rather than alias the shared `ResolvedFilteredPriceRecords.EMPTY`
-		 * singleton — otherwise concurrent histogram queries against empty inputs would race when the
-		 * cache writer thread invokes `prepareForFlattening()` on the shared instance.
+		 * Empty-input computation exposes an independently owned resolved set with no histogram data points.
 		 */
 		@Test
 		@DisplayName("should return fresh empty records for empty input")
@@ -595,8 +521,7 @@ class LowestPriceTerminationFormulaTest {
 			withHistogram.compute();
 
 			final FilteredPriceRecords histogramRecords = withHistogram.getFilteredPriceRecordsForHistogram(null);
-			// per-instance allocation prevents the singleton-leak race — the histogram side-output must
-			// never alias the shared ResolvedFilteredPriceRecords.EMPTY
+			// The histogram side-output belongs to this formula instance.
 			assertNotSame(ResolvedFilteredPriceRecords.EMPTY, histogramRecords);
 			// the freshly allocated records must still be empty so downstream consumers see no data points
 			assertInstanceOf(ResolvedFilteredPriceRecords.class, histogramRecords);

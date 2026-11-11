@@ -125,8 +125,8 @@ public abstract class AbstractFormula implements Formula {
 	 *   holding equal record sets apart, the contents catch a change to the set;
 	 * - anything else is identified by its contents alone.
 	 *
-	 * A content hash is a legitimate token here: the cache validates a hit by comparing the HASH of the whole token
-	 * set (see {@code CacheEden}), never by resolving an individual token back to an object.
+	 * A content hash is a legitimate token here: identity compares the hash of the whole token set rather than
+	 * resolving an individual token back to an object.
 	 *
 	 * @param bitmap       the bitmap operand to identify
 	 * @param hashFunction the hash function to fold contents with

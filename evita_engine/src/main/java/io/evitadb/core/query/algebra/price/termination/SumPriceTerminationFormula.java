@@ -39,11 +39,9 @@ import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRec
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.SortingForm;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
-import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.algebra.price.predicate.PriceRecordPredicate;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
-import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramProducer;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.dataType.iterator.BatchArrayIterator;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -123,13 +121,6 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	 * is available once the {@link Formula#compute()} method has been called.
 	 */
 	private FilteredPriceRecords filteredPriceRecords;
-	/**
-	 * Bitmap is initialized (non-null) after {@link Formula#compute()} method is called and contains set of entity primary
-	 * keys that were excluded due to {@link #sellingPricePredicate} query. This information is reused in
-	 * {@link PriceHistogramProducer} to avoid duplicate computation - price histogram must not take price predicate
-	 * into an account.
-	 */
-	@Getter private Bitmap recordsFilteredOutByPredicate;
 
 	public SumPriceTerminationFormula(
 		@Nonnull Formula containerFormula,
@@ -165,28 +156,6 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		} else {
 			this.transformer = PriceRecordContract::priceWithoutTax;
 		}
-		this.initFields(containerFormula);
-	}
-
-	private SumPriceTerminationFormula(
-		@Nonnull Formula containerFormula,
-		@Nonnull PriceEvaluationContext priceEvaluationContext,
-		@Nonnull QueryPriceMode queryPriceMode,
-		@Nonnull PriceRecordPredicate sellingPricePredicate,
-		@Nonnull SumPredicate<PriceRecordContract> individualPricePredicate,
-		@Nonnull Bitmap recordsFilteredOutByPredicate
-	) {
-		super(recordsFilteredOutByPredicate);
-		this.sellingPricePredicate = sellingPricePredicate;
-		this.individualPricePredicate = individualPricePredicate;
-		this.priceEvaluationContext = priceEvaluationContext;
-		this.queryPriceMode = queryPriceMode;
-		if (queryPriceMode == QueryPriceMode.WITH_TAX) {
-			this.transformer = PriceRecordContract::priceWithTax;
-		} else {
-			this.transformer = PriceRecordContract::priceWithoutTax;
-		}
-		this.recordsFilteredOutByPredicate = recordsFilteredOutByPredicate;
 		this.initFields(containerFormula);
 	}
 
@@ -246,19 +215,6 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 
 	@Nonnull
 	@Override
-	public Formula getCloneWithPricePredicateFilteredOutResults() {
-		return new SumPriceTerminationFormula(
-			this.innerFormulas[0],
-			this.priceEvaluationContext,
-			this.queryPriceMode,
-			PricePredicate.ALL_RECORD_FILTER,
-			this.individualPricePredicate,
-			this.recordsFilteredOutByPredicate
-		);
-	}
-
-	@Nonnull
-	@Override
 	public FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context) {
 		if (this.filteredPriceRecords == null) {
 			// init the records first
@@ -297,8 +253,6 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 			final IntObjectMap<PriceRecordContract> entityInnerRecordPrice = new IntObjectHashMap<>();
 			// create new roaring bitmap builder
 			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-			// create new roaring bitmap builder for records excluded by predicate
-			final RoaringBitmapWriter<PersistentRoaringBitmap> predicateExcludedWriter = RoaringBitmapBackedBitmap.buildWriter();
 
 			final int[] buffer = SharedBufferPool.INSTANCE.obtain();
 			try {
@@ -365,8 +319,6 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 								writer.add(entityId);
 								// from now on - work with the lowest entity price grouped by inner record
 								priceRecordsFunnel.add(virtualPriceRecord);
-							} else {
-								predicateExcludedWriter.add(entityId);
 							}
 						}
 					}
@@ -382,11 +334,9 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 			);
 
 			// wrap result into the bitmap
-			this.recordsFilteredOutByPredicate = new BaseBitmap(predicateExcludedWriter.get());
 			return new BaseBitmap(writer.get());
 		} else {
 			this.filteredPriceRecords = new ResolvedFilteredPriceRecords();
-			this.recordsFilteredOutByPredicate = EmptyBitmap.INSTANCE;
 			return EmptyBitmap.INSTANCE;
 		}
 	}

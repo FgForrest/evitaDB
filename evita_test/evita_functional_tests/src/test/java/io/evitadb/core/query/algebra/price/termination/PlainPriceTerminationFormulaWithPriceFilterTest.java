@@ -312,8 +312,6 @@ class PlainPriceTerminationFormulaWithPriceFilterTest {
 				);
 
 			assertTrue(formula.compute().isEmpty());
-			assertNotNull(formula.getRecordsFilteredOutByPredicate());
-			assertTrue(formula.getRecordsFilteredOutByPredicate().isEmpty());
 		}
 	}
 

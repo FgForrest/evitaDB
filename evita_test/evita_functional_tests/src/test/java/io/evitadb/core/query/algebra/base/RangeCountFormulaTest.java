@@ -47,7 +47,6 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -293,7 +292,7 @@ class RangeCountFormulaTest {
 			assertEquals(tested.getEstimatedCost(), tested.getCost());
 
 			// and that is what reaches the formula cache: `AbstractFormula#getCostToPerformanceInternal` divides the
-			// actual cost by the result size, and CacheEden both admits and ranks entries on the resulting ratio
+			// actual cost by the result size to express the work per result
 			assertEquals(tested.getCost() / 3, tested.getCostToPerformanceRatio());
 		}
 

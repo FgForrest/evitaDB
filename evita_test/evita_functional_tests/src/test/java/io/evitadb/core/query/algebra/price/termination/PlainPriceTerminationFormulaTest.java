@@ -141,17 +141,6 @@ class PlainPriceTerminationFormulaTest {
 			);
 		}
 
-		@Test
-		@DisplayName("should return self from getCloneWithPricePredicateFilteredOutResults")
-		void shouldReturnSelfFromGetCloneWithPricePredicateFilteredOutResults() {
-			final PlainPriceTerminationFormula formula = new PlainPriceTerminationFormula(
-				new ConstantFormula(new ArrayBitmap(1, 2)), createPriceEvaluationContext("basic", CZK)
-			);
-
-			final Formula clone = formula.getCloneWithPricePredicateFilteredOutResults();
-
-			assertSame(formula, clone);
-		}
 	}
 
 	@Nested

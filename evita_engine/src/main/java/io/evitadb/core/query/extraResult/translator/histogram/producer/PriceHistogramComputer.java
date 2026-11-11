@@ -55,7 +55,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.function.ToIntFunction;
 
-import static java.util.Optional.ofNullable;
 
 /**
  * Computes the price histogram extra result from the filtering formula tree. The computer is instantiated by

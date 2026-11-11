@@ -29,7 +29,6 @@ import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.MemoryMeasuringConstants;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -196,13 +195,6 @@ public class CacheableHistogram implements CacheableHistogramContract {
 	@Override
 	public int getOverallCount() {
 		return this.overallCount;
-	}
-
-	@Override
-	public int estimateSize() {
-		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
-			MemoryMeasuringConstants.BIG_DECIMAL_WHOLE_SIZE +
-			this.buckets.length * CacheableBucket.BUCKET_MEMORY_SIZE;
 	}
 
 	@Nonnull

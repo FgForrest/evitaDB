@@ -35,9 +35,6 @@ import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanningContext;
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityToBitmapFilter;
 import io.evitadb.core.query.algebra.price.FilteredOutPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
@@ -59,7 +56,6 @@ import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
 import io.evitadb.spi.store.catalog.shared.model.PriceInternalIdContainer;
 import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
@@ -99,10 +95,6 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 	 * method. This object is available once the {@link EntityToBitmapFilter#filter(QueryExecutionContext)}  method has been called.
 	 */
 	private FilteredPriceRecords filteredPriceRecords;
-	/**
-	 * Contains result containing all entities that were filtered out by {@link #filter} predicate.
-	 */
-	private Formula filteredOutRecords;
 	/**
 	 * Memoized result of the filter.
 	 */
@@ -183,13 +175,6 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 
 	@Nonnull
 	@Override
-	public Formula getCloneWithPricePredicateFilteredOutResults() {
-		Assert.isPremiseValid(this.filteredOutRecords != null, "Filter was not yet called on selling price bitmap filter, this is not expected!");
-		return this.filteredOutRecords;
-	}
-
-	@Nonnull
-	@Override
 	public FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context) {
 		if (this.filteredPriceRecords == null) {
 			// init the records first
@@ -205,7 +190,6 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 			final CompositeObjectArray<PriceRecordContract> theFilteredPriceRecords = new CompositeObjectArray<>(PriceRecordContract.class);
 			final QueryPriceMode queryPriceMode = context.getQueryPriceMode();
 			final BaseBitmap result = new BaseBitmap();
-			final BaseBitmap filterOutResult = new BaseBitmap();
 			final AtomicInteger indexedPricePlaces = new AtomicInteger();
 			String entityType = null;
 			final List<ServerEntityDecorator> entities = context.getPrefetchedEntities();
@@ -229,25 +213,21 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 						// check whether they have valid selling price (applying filter on price lists and currency)
 						entity.getPriceForSale(this.filter)
 							// and if there is still selling price add it to the output result
-							.ifPresentOrElse(
+							.ifPresent(
 								it -> {
 									theFilteredPriceRecords.add(this.converter.apply(primaryKey, indexedPricePlaces.get(), queryPriceMode, it));
 									result.add(primaryKey);
-								},
-								() -> filterOutResult.add(primaryKey)
+								}
 							);
 					} else {
 						if (entity.getPrices().stream().filter(PriceContract::indexed).anyMatch(this.filter)) {
 							result.add(primaryKey);
-						} else {
-							filterOutResult.add(primaryKey);
 						}
 					}
 
 				}
 				// memoize valid selling prices for sorting purposes
 				this.filteredPriceRecords = new ResolvedFilteredPriceRecords(theFilteredPriceRecords.toArray(), SortingForm.NOT_SORTED);
-				this.filteredOutRecords = filterOutResult.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(filterOutResult);
 				// return entity ids having selling prices
 				this.memoizedResult = result;
 			}

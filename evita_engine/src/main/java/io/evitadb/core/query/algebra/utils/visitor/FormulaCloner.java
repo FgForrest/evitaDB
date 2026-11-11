@@ -226,7 +226,6 @@ public class FormulaCloner implements FormulaVisitor {
 	 * Creates new level in the stack.
 	 * The method is created just for the purpose of overloading it by descendants.
 	 *
-	 * @see io.evitadb.core.cache.FormulaCacheVisitor
 	 */
 	protected void pushContext(@Nonnull Deque<SubTree> stack, @Nonnull Formula formula) {
 		stack.push(new DefaultSubTree(formula.getInnerFormulas().length));
@@ -236,7 +235,6 @@ public class FormulaCloner implements FormulaVisitor {
 	 * Removes topmost level from the stack.
 	 * The method is created just for the purpose of overloading it by descendants.
 	 *
-	 * @see io.evitadb.core.cache.FormulaCacheVisitor
 	 */
 	protected SubTree popContext(@Nonnull Deque<SubTree> stack) {
 		return stack.pop();

@@ -39,24 +39,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Pins the invariant that actually protects range queries inside a transaction.
- *
- * A range formula built inside an open transaction carries the SAME {@link Formula#getHash()} as the one built
- * over the committed view - `TransactionalBitmap#getId()` is a per-instance sequence value the overlay does not
- * change, so neither `includeAdditionalHash` nor `gatherBitmapIdsInternal` can tell the two apart. That collision
- * is demonstrated below and is NOT a defect, because the formula cache is never consulted in that situation:
- * `HeapMemoryCacheSupervisor#analyse` returns the formula untouched for any session that is not read-only, and
- * `EvitaSession#createTransaction` asserts `!isReadOnly()`, so an open transaction implies a read-write session
- * implies no cache.
- *
- * The single `if (evitaSession.isReadOnly())` in `HeapMemoryCacheSupervisor#analyse` is therefore the whole
- * defence: remove it and the hashes would silently agree, and a write session would be served its own
- * pre-transaction answer.
- *
- * **What this test does and does not cover.** It pins the collision - the premise that makes that guard
- * load-bearing - at the formula level. It does NOT exercise `HeapMemoryCacheSupervisor` and would therefore NOT
- * fail if the read-only gate were deleted; `io.evitadb.core.cache.HeapMemoryCacheSupervisorReadOnlyGateTest` covers
- * the gate itself. The two are complements: that one proves the gate is applied, this one proves why it has to be.
+ * Verifies range formula identity across a transactional overlay. A transactional bitmap retains its identity
+ * while the overlay changes its contents, so formulas with the same hash can compute different transaction-local
+ * results. Rollback restores the committed result.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -67,8 +52,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 class RangeFormulaCacheKeyProbeTest {
 
 	@Test
-	@DisplayName("The formula cache is bypassed for read-write sessions, which is what makes the hash collision harmless")
-	void shouldBypassFormulaCacheForReadWriteSessions() {
+	@DisplayName("Transactional overlays retain formula identity while computing transaction-local results")
+	void shouldRetainFormulaIdentityAcrossTransactionalOverlay() {
 		final RangeIndex tested = new RangeIndex();
 		// enough points on both sides of the threshold that the prefix carries several starts AND several ends, so
 		// the query really builds a RangeCountFormula rather than collapsing to a ConstantFormula or an OrFormula
@@ -99,8 +84,7 @@ class RangeFormulaCacheKeyProbeTest {
 					"The fixture is wrong if the transaction did not change the answer - nothing is being probed! " +
 						"committed=" + Arrays.toString(committedResult) + " inTx=" + Arrays.toString(inTxResult)
 				);
-				// documents the collision rather than forbidding it - the hashes DO agree, and that is exactly why
-				// the read-only gate below is load-bearing
+				// The overlay changes results while preserving bitmap identity.
 				assertEquals(
 					committedHash, inTx.getHash(),
 					() -> "Expected the transactional and committed views to hash identically (TransactionalBitmap ids " +

@@ -221,25 +221,6 @@ class SumPriceTerminationFormulaTest {
 			assertSame(predicate, typedClone.getSellingPricePredicate());
 		}
 
-		@Test
-		@DisplayName("should create clone with price predicate filtered out results")
-		void shouldCreateCloneWithPricePredicateFilteredOutResults() {
-			final SumPriceTerminationFormula formula = new SumPriceTerminationFormula(
-				EmptyFormula.INSTANCE,
-				createContext("basic", CZK),
-				QueryPriceMode.WITH_TAX,
-				PricePredicate.ALL_RECORD_FILTER
-			);
-
-			// trigger computation on empty input - populates filtered out records
-			formula.compute();
-
-			final Formula clone = formula.getCloneWithPricePredicateFilteredOutResults();
-
-			assertInstanceOf(SumPriceTerminationFormula.class, clone);
-			final SumPriceTerminationFormula typedClone = (SumPriceTerminationFormula) clone;
-			assertSame(PricePredicate.ALL_RECORD_FILTER, typedClone.getSellingPricePredicate());
-		}
 	}
 
 	@Nested
@@ -342,8 +323,6 @@ class SumPriceTerminationFormulaTest {
 			);
 
 			assertTrue(formula.compute().isEmpty());
-			assertNotNull(formula.getRecordsFilteredOutByPredicate());
-			assertTrue(formula.getRecordsFilteredOutByPredicate().isEmpty());
 		}
 	}
 

@@ -27,7 +27,6 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.MemoryMeasuringConstants;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
@@ -72,17 +71,6 @@ public record PriceEvaluationContext(
 			!ArrayUtils.isEmpty(targetPriceIndexes),
 			"Expected at least one target price index identification!"
 		);
-	}
-
-	/**
-	 * Method returns gross estimation of the in-memory size of this instance. The estimation is expected not to be
-	 * a precise one. Please use constants from {@link MemoryMeasuringConstants} for size computation.
-	 */
-	public int estimateSize() {
-		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
-			MemoryMeasuringConstants.ARRAY_BASE_SIZE +
-			MemoryMeasuringConstants.LONG_SIZE +
-			this.targetPriceIndexes.length * (MemoryMeasuringConstants.REFERENCE_SIZE + PriceIndexKey.MEMORY_SIZE);
 	}
 
 	@Nonnull

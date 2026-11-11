@@ -63,8 +63,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 	 * racing writers can only overwrite each other with individually-consistent ones.
 	 *
 	 * Keying on the function rather than assuming a single global one keeps the memo correct for callers that bring
-	 * their own — {@code CacheEnforcingPolicy} builds a separate instance from the same factory as
-	 * {@code TransactionalDataRelatedStructure#HASH_FUNCTION}.
+	 * their own, independently of {@code TransactionalDataRelatedStructure#HASH_FUNCTION}.
 	 */
 	@Nullable private transient volatile ContentHash memoizedContentHash;
 

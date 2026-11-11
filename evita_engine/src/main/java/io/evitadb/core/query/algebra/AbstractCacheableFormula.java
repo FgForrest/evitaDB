@@ -23,11 +23,6 @@
 
 package io.evitadb.core.query.algebra;
 
-import io.evitadb.index.bitmap.Bitmap;
-
-import javax.annotation.Nullable;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * AbstractCacheableFormula is an abstract ancestor for all {@link Formula} that produce int based bitmaps as their
@@ -44,10 +39,4 @@ public abstract class AbstractCacheableFormula extends AbstractFormula implement
 	protected AbstractCacheableFormula() {
 	}
 
-	/**
-	 * Creates a formula with an already computed result.
-	 */
-	protected AbstractCacheableFormula(@Nullable Bitmap memoizedResult) {
-		this.memoizedResult = memoizedResult;
-	}
 }

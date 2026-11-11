@@ -52,7 +52,6 @@ import java.util.Objects;
 import java.util.function.ToIntFunction;
 import java.util.stream.LongStream;
 
-import static java.util.Optional.ofNullable;
 
 /**
  * DTO that aggregates all data necessary for computing histogram for single attribute.

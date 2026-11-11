@@ -39,11 +39,9 @@ import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRec
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.SortingForm;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
-import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.algebra.price.predicate.PriceRecordPredicate;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
-import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramProducer;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.dataType.iterator.BatchArrayIterator;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -138,13 +136,6 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	 * `null` on the non-histogram path.
 	 */
 	@Nullable private FilteredPriceRecords perInnerRecordPriceRecords;
-	/**
-	 * Bitmap is initialized (non-null) after {@link Formula#compute()} method is called and contains set of entity primary
-	 * keys that were excluded due to {@link #sellingPricePredicate} query. This information is reused in
-	 * {@link PriceHistogramProducer} to avoid duplicate computation - price histogram must not take price predicate
-	 * into an account.
-	 */
-	@Nullable @Getter private Bitmap recordsFilteredOutByPredicate;
 
 	/**
 	 * Constructs an LP for the LOWEST_PRICE inner-record-handling path.
@@ -198,34 +189,6 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 			Comparator.comparingInt(PriceRecordContract::priceWithTax) :
 			Comparator.comparingInt(PriceRecordContract::priceWithoutTax);
 		this.collectPerInnerRecordPrices = collectPerInnerRecordPrices;
-		this.initFields(containerFormula);
-	}
-
-	/**
-	 * Internal constructor used by {@link #getCloneWithPricePredicateFilteredOutResults()} where the
-	 * already-computed bitmap of records excluded by the selling price predicate must be preserved on the
-	 * clone — re-running {@code compute()} on the clone would otherwise lose that information and force
-	 * a redundant pass.
-	 */
-	private LowestPriceTerminationFormula(
-		@Nonnull Formula containerFormula,
-		@Nonnull PriceEvaluationContext priceEvaluationContext,
-		@Nonnull QueryPriceMode queryPriceMode,
-		@Nonnull PriceRecordPredicate sellingPricePredicate,
-		@Nonnull Predicate<PriceRecordContract> individualPricePredicate,
-		@Nullable Bitmap recordsFilteredOutByPredicate,
-		boolean collectPerInnerRecordPrices
-	) {
-		super(recordsFilteredOutByPredicate);
-		this.sellingPricePredicate = sellingPricePredicate;
-		this.individualPricePredicate = individualPricePredicate;
-		this.priceEvaluationContext = priceEvaluationContext;
-		this.queryPriceMode = queryPriceMode;
-		this.priceRecordComparator = queryPriceMode == QueryPriceMode.WITH_TAX ?
-			Comparator.comparingInt(PriceRecordContract::priceWithTax) :
-			Comparator.comparingInt(PriceRecordContract::priceWithoutTax);
-		this.collectPerInnerRecordPrices = collectPerInnerRecordPrices;
-		this.recordsFilteredOutByPredicate = recordsFilteredOutByPredicate;
 		this.initFields(containerFormula);
 	}
 
@@ -308,17 +271,6 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 
 	@Nonnull
 	@Override
-	public Formula getCloneWithPricePredicateFilteredOutResults() {
-		return new LowestPriceTerminationFormula(
-			this.innerFormulas[0],
-			this.priceEvaluationContext, this.queryPriceMode, PricePredicate.ALL_RECORD_FILTER, this.individualPricePredicate,
-			this.recordsFilteredOutByPredicate,
-			this.collectPerInnerRecordPrices
-		);
-	}
-
-	@Nonnull
-	@Override
 	public FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context) {
 		if (this.filteredPriceRecords == null) {
 			// init the records first
@@ -395,8 +347,6 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 			final IntObjectMap<PriceRecordContract> entityInnerRecordPrice = new IntObjectHashMap<>();
 			// create new roaring bitmap builder
 			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-			// create new roaring bitmap builder for records excluded by predicate
-			final RoaringBitmapWriter<PersistentRoaringBitmap> predicateExcludedWriter = RoaringBitmapBackedBitmap.buildWriter();
 			final int[] buffer = SharedBufferPool.INSTANCE.obtain();
 			try {
 				final BatchArrayIterator entityIdIterator = new RoaringBitmapBatchArrayIterator(
@@ -467,8 +417,6 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 							writer.add(entityId);
 							// from now on - work with the lowest entity price grouped by inner record
 							priceRecordsFunnel.add(lowestPrice);
-						} else {
-							predicateExcludedWriter.add(entityId);
 						}
 					}
 				}
@@ -490,19 +438,14 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 			}
 
 			// wrap result into the bitmap
-			this.recordsFilteredOutByPredicate = new BaseBitmap(predicateExcludedWriter.get());
 			return new BaseBitmap(writer.get());
 		} else {
 			// COLD PATH — empty input bitmap. Performance is irrelevant here; the branch exists purely so the
 			// hot path above can rely on a non-empty bitmap and skip the corresponding guards.
 			this.filteredPriceRecords = new ResolvedFilteredPriceRecords();
 			if (this.collectPerInnerRecordPrices) {
-				// allocate a fresh empty instance — must not alias the shared `ResolvedFilteredPriceRecords.EMPTY`
-				// singleton because the histogram cache writer subsequently invokes `prepareForFlattening()`
-				// on this side-output, which would race across concurrent empty-input histogram queries
 				this.perInnerRecordPriceRecords = new ResolvedFilteredPriceRecords();
 			}
-			this.recordsFilteredOutByPredicate = EmptyBitmap.INSTANCE;
 			return EmptyBitmap.INSTANCE;
 		}
 	}

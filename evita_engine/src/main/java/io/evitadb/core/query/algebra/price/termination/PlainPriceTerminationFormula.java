@@ -95,12 +95,6 @@ public class PlainPriceTerminationFormula extends AbstractFormula implements Pri
 		return 1;
 	}
 
-	@Nonnull
-	@Override
-	public Formula getCloneWithPricePredicateFilteredOutResults() {
-		return this;
-	}
-
 	@Override
 	public String toString() {
 		return PricePredicate.ALL_RECORD_FILTER.toString();

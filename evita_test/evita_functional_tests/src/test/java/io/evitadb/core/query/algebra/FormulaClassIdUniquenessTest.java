@@ -56,7 +56,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * `CLASS_ID`**.
  *
  * The constant is folded into the structural hash as `hashArray[0]`, so two classes sharing a value become
- * indistinguishable to {@link io.evitadb.core.cache.CacheEden} whenever the rest of their hash inputs agree -
+ * indistinguishable by their hash whenever the rest of their hash inputs agree -
  * and the symptom is a cache hit returning another formula's bitmap, which no read-time check would notice.
  * Nothing about a single declaration reveals the clash; only comparing all of them does.
  *

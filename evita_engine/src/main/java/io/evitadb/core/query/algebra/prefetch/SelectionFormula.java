@@ -28,7 +28,6 @@ import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
 import io.evitadb.core.query.algebra.price.FilteredOutPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
@@ -36,7 +35,6 @@ import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRec
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.SortingForm;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
-import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramComputer;
@@ -206,36 +204,6 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 				});
 		}
 		return this.memoizedPredicate;
-	}
-
-	@Nonnull
-	@Override
-	public Formula getCloneWithPricePredicateFilteredOutResults() {
-		if (this.memoizedClone == null) {
-			Assert.isPremiseValid(this.executionContext != null, "The formula hasn't been initialized!");
-			// if the entities were prefetched we passed the "is it worthwhile" check
-			this.memoizedClone = Optional.ofNullable(this.executionContext.getPrefetchedEntities())
-				// ask the alternative solution for filtered price records
-				.map(it ->
-					this.alternative instanceof FilteredOutPriceRecordAccessor ?
-						((FilteredOutPriceRecordAccessor) this.alternative).getCloneWithPricePredicateFilteredOutResults() :
-						EmptyFormula.INSTANCE
-				)
-				// otherwise collect the filtered records from the delegate
-				.orElseGet(() -> {
-					// collect all FilteredPriceRecordAccessor that were involved in computing delegate result
-					final Collection<FilteredOutPriceRecordAccessor> accessors = FormulaFinder.findAmongChildren(
-						this, FilteredOutPriceRecordAccessor.class, LookUp.SHALLOW
-					);
-					final Formula[] filteredOutRecords = new Formula[accessors.size()];
-					int index = 0;
-					for (FilteredOutPriceRecordAccessor accessor : accessors) {
-						filteredOutRecords[index++] = accessor.getCloneWithPricePredicateFilteredOutResults();
-					}
-					return FormulaFactory.or(filteredOutRecords);
-				});
-		}
-		return this.memoizedClone;
 	}
 
 	@Nonnull
