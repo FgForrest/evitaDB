@@ -65,6 +65,8 @@ import lombok.Getter;
 import lombok.Setter;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.TokenRole;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -1190,7 +1192,8 @@ public class HierarchyIndex
 	@Nonnull
 	public Formula getAllHierarchyNodesFormula() {
 		final Bitmap allNodes = getAllHierarchyNodes();
-		return allNodes.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(allNodes);
+		return allNodes.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(
+			allNodes, IdentityToken.derived(getId(), TokenRole.HIERARCHY_ALL_NODES));
 	}
 
 	/**

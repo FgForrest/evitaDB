@@ -29,6 +29,11 @@ import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.HierarchyIndex;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.TokenRole;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
@@ -44,34 +49,50 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	/**
 	 * Reference to the {@link HierarchyIndex} that will be used for gathering the data.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	protected final HierarchyIndex hierarchyIndex;
 	/**
 	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private Long estimatedCost;
 	/**
 	 * Contains memoized value of {@link #getCost()}  of this formula.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private Long cost;
 	/**
 	 * Contains memoized value of {@link #getHash()} method.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
 	private Long hash;
 	/**
 	 * Set of {@link TransactionalLayerProducer#getId()} that are involved in data computation.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
 	private long[] transactionalIds;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
 	private Long transactionalIdHash;
 	/**
 	 * Contains memoized result of the supplier.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private Bitmap memoizedResult;
+
+	/** Memoized detached holder key. */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
+	private FormulaKey memoizedKey;
+
+	/** Detached token memo for the current hierarchy owner. */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
+	private IdentityToken.ProducerId memoizedHierarchyIndexIdentity;
 
 	public AbstractHierarchyBitmapSupplier(@Nonnull HierarchyIndex hierarchyIndex, long[] transactionalIds) {
 		this.hierarchyIndex = hierarchyIndex;
+		this.memoizedHierarchyIndexIdentity = new IdentityToken.ProducerId(hierarchyIndex.getId(), TokenRole.DIRECT);
 		this.transactionalIds = transactionalIds;
 	}
 
@@ -158,4 +179,31 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	 */
 	protected abstract long computeHash(@Nonnull LongHashFunction hashFunction);
 
+
+	/** Returns the memoized detached key of this holder. */
+	@Nonnull
+	@Override
+	public final FormulaKey getKey() {
+		if (this.memoizedKey == null) {
+			this.memoizedKey = FormulaKey.of(identity(), getClassId(), FormulaKey.NO_CHILDREN, this);
+		}
+		return this.memoizedKey;
+	}
+
+	/** Returns the detached inputs of the concrete supplier. */
+	@Nonnull
+	protected abstract IdentityRecord identity();
+
+	/** Returns the concrete supplier discriminator. */
+	protected abstract long getClassId();
+
+	/** Returns the owner's version token, refreshing the memo when its source version differs. */
+	@Nonnull
+	protected IdentityToken getHierarchyIndexIdentityToken() {
+		final long ownerId = this.hierarchyIndex.getId();
+		if (this.memoizedHierarchyIndexIdentity.id() != ownerId) {
+			this.memoizedHierarchyIndexIdentity = new IdentityToken.ProducerId(ownerId, TokenRole.DIRECT);
+		}
+		return this.memoizedHierarchyIndexIdentity;
+	}
 }

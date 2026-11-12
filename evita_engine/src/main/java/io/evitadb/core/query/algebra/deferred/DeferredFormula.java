@@ -27,6 +27,10 @@ import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
@@ -47,6 +51,7 @@ public class DeferredFormula extends AbstractFormula {
 	/**
 	 * Supplier providing the lazily computed bitmap result of this deferred formula.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	protected final BitmapSupplier retrieveLambda;
 
 	public DeferredFormula(@Nonnull BitmapSupplier retrieveLambda) {
@@ -116,5 +121,32 @@ public class DeferredFormula extends AbstractFormula {
 	@Override
 	public String toString() {
 		return "DEFERRED CALCULATION: " + this.retrieveLambda.toString();
+	}
+
+	/** Returns detached inputs without computing the bitmap. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.retrieveLambda.getKey());
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param retrieveLambda detached retrieveLambda input
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull FormulaKey retrieveLambda) implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every input in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.retrieveLambda);
+		}
 	}
 }

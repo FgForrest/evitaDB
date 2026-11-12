@@ -36,6 +36,10 @@ import static io.evitadb.test.TestTags.HIERARCHY;
 import static io.evitadb.test.TestTags.INDEXING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
+
+import static org.junit.jupiter.api.Assertions.*;
+
 /**
  * Pins the cost-metric contract of {@link HierarchyByParentBitmapSupplier}: that nothing is computed before the
  * subtree listing has actually been paid for.
@@ -69,6 +73,23 @@ class HierarchyByParentBitmapSupplierTest {
 	void shouldReportSentinelBeforeComputation() {
 		final HierarchyByParentBitmapSupplier supplier = supplierOverEmptyHierarchy();
 		assertEquals(Long.MAX_VALUE, supplier.getCost());
+	}
+
+	/** An item-index-only commit must refresh the supplier identity. */
+	@Test
+	@DisplayName("Includes the hierarchy owner version after an orphan-only write")
+	void shouldRefreshKeyAfterOrphanOnlyCommit() {
+		final HierarchyIndex original = new HierarchyIndex();
+		original.addNode(1, null);
+		original.resetDirty();
+		final HierarchyByParentBitmapSupplier before = new HierarchyByParentBitmapSupplier(
+			original, new long[]{1, 2}, 1, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+		assertStateAfterCommit(original, index -> index.addNode(10, 99), (orig, committed) -> {
+			final HierarchyByParentBitmapSupplier after = new HierarchyByParentBitmapSupplier(
+				committed, new long[]{1, 2}, 1, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+			assertNotEquals(before.getKey(), after.getKey());
+			assertNotEquals(before.getKey().getHash64(), after.getKey().getHash64());
+		});
 	}
 
 }

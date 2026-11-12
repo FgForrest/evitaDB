@@ -98,14 +98,7 @@ public class FilteringFormulaPredicate implements IntPredicate {
 					entityType,
 					stepDescriptionSupplier
 				),
-				(executionContext, formula) -> {
-					try {
-						executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
-						return formula.compute();
-					} finally {
-						executionContext.popStep();
-					}
-				}
+				stepDescriptionSupplier
 			)
 		);
 		// we need to initialize formula immediately with new execution context - the results are needed in planning phase already
@@ -196,14 +189,7 @@ public class FilteringFormulaPredicate implements IntPredicate {
 					entitySchema,
 					stepDescriptionSupplier
 				),
-				(executionContext, formula) -> {
-					try {
-						executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
-						return formula.compute();
-					} finally {
-						executionContext.popStep();
-					}
-				}
+				stepDescriptionSupplier
 			)
 		);
 		// we need to initialize formula immediately with new execution context - the results are needed in planning phase already
