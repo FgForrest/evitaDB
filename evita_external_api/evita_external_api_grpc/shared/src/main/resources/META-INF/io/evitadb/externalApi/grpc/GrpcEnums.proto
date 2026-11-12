@@ -267,10 +267,10 @@ enum GrpcSessionType {
   READ_ONLY = 0;
   // Classic read-write session.
   READ_WRITE = 1;
-  // Read only session that returns all fetched entities in a form of a `BinaryEntity`, which has all of its data represented in a binary form. Should be used only in combination with evitaDB's Java driver.
-  BINARY_READ_ONLY = 2;
-  // Read write session that returns all fetched entities in a form of a `BinaryEntity`, which has all of its data represented in a binary form. Should be used only in combination with evitaDB's Java driver.
-  BINARY_READ_WRITE = 3;
+  // Values 2 and 3 were the binary entity session types, removed together with binary entity support. Kept reserved
+  // rather than reused so an older peer is never handed a new session type it reads as one of the removed ones.
+  reserved 2, 3;
+  reserved "BINARY_READ_ONLY", "BINARY_READ_WRITE";
 }
 
 // In EvitaDB we define only one-way relationship from the perspective of the entity. We stick to the ERD modelling

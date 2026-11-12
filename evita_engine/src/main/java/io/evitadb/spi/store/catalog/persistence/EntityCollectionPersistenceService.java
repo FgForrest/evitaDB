@@ -23,11 +23,9 @@
 
 package io.evitadb.spi.store.catalog.persistence;
 
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.requestResponse.EvitaRequest;
-import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.References.ChunkTransformerAccessor;
@@ -49,14 +47,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.OptionalInt;
-import java.util.function.Function;
 import java.util.function.IntConsumer;
 
 /**
  * Persistence service for a single entity collection within a catalog. It provides the full read/write surface for
  * the data stored in one entity collection data file:
  *
- * - **Entity bodies**: loading and enriching entities in both domain-object and binary (wire-format) representations
+ * - **Entity bodies**: loading and enriching entity domain objects
  * - **Entity indexes**: reconstructing individual {@link io.evitadb.index.EntityIndex} instances from storage parts
  * - **Bulk operations**: flushing trapped in-memory changes to persistent storage during initial load or WAL replay
  *
@@ -137,35 +134,6 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 	);
 
 	/**
-	 * Reads entity from persistent storage by its primary key in binary (wire-format) form. Unlike
-	 * {@link #readEntity} this variant skips full Java deserialization and returns the raw Kryo-serialized bytes
-	 * for each requested entity part wrapped in a {@link BinaryEntity}. This is used by gRPC and other transport
-	 * layers that forward the binary payload directly to the client without materializing domain objects on the
-	 * server side, thereby saving CPU and heap allocation costs.
-	 *
-	 * @param catalogVersion          the catalog version from which the entity should be read
-	 * @param entityPrimaryKey        the primary key of the entity to load
-	 * @param evitaRequest            the client request carrying {@link EntityContentRequire} constraints
-	 * @param entitySchema            the schema of the entity type; used for structural decisions during partial read
-	 * @param session                 the active session, used to resolve locale and other session-scoped settings
-	 * @param entityCollectionFetcher a function that resolves an entity collection by entity type name; used when
-	 *                                referenced entity bodies are requested inline
-	 * @param dataStoreReader         the low-level storage reader for accessing raw storage parts
-	 * @return a wrapper with the binary entity and I/O statistics, or `null` when no entity with the given primary
-	 *         key exists at the specified catalog version
-	 */
-	@Nullable
-	BinaryEntityWithFetchCount readBinaryEntity(
-		long catalogVersion,
-		int entityPrimaryKey,
-		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull EntitySchema entitySchema,
-		@Nonnull EvitaSessionContract session,
-		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreReader dataStoreReader
-	);
-
-	/**
 	 * Loads additional data to an already partially-fetched entity (represented by `entityDecorator`) according to
 	 * the new requirements expressed by the predicate arguments. Because entities are immutable, the result is always
 	 * a freshly created {@link EntityDecorator} that wraps the original entity body together with the newly loaded
@@ -230,29 +198,6 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 		long catalogVersion,
 		@Nonnull DataStoreReader dataStoreReader
 	);
-
-	/**
-	 * Loads additional data to an already partially-fetched binary entity according to the {@link EntityContentRequire}
-	 * constraints carried in `evitaRequest`. The binary entity stays in its serialized (wire-format) byte representation
-	 * throughout the operation — no full Java deserialization occurs. The result is a new {@link BinaryEntity} that
-	 * merges the previously fetched parts with the newly loaded ones.
-	 *
-	 * @param catalogVersion  the catalog version the binary entity was originally loaded from
-	 * @param entitySchema    the schema of the entity type, used for structural decisions during partial read
-	 * @param entity          the already (partially) loaded binary entity to enrich
-	 * @param evitaRequest    the client request specifying which additional parts should be present after enrichment
-	 * @param dataStoreReader the low-level storage reader for fetching missing binary storage parts
-	 * @return the enriched binary entity together with I/O statistics for the enrichment operation
-	 * @throws EntityAlreadyRemovedException when the entity has been removed between the initial fetch and enrichment
-	 */
-	@Nonnull
-	BinaryEntityWithFetchCount enrichEntity(
-		long catalogVersion,
-		@Nonnull EntitySchema entitySchema,
-		@Nonnull BinaryEntity entity,
-		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull DataStoreReader dataStoreReader
-	) throws EntityAlreadyRemovedException;
 
 	/**
 	 * Method reconstructs entity index from underlying containers.
@@ -400,20 +345,6 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 		 */
 		public static final ReadRecord[] NONE = new ReadRecord[0];
 
-	}
-
-	/**
-	 * Record contains information about binary entity and the number of I/O operation necessary to fetch it.
-	 *
-	 * @param entity         fetched binary entity
-	 * @param ioFetchCount   number of I/O operations necessary to fetch the entity
-	 * @param ioFetchedBytes number of bytes fetched from underlying storage to load the entity
-	 */
-	record BinaryEntityWithFetchCount(
-		@Nonnull BinaryEntity entity,
-		int ioFetchCount,
-		int ioFetchedBytes
-	) {
 	}
 
 }

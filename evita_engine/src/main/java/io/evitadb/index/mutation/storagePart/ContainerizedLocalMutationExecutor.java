@@ -420,10 +420,10 @@ public final class ContainerizedLocalMutationExecutor
 	 * goes through this method for that reason; adding one that calls `fetch` directly reopens the hole.
 	 *
 	 * The same obligation holds at the read sites this helper cannot reach, and is met at each of them instead:
-	 * `ReferencedEntityAttributeValueProvider#getAttributeValues`,
-	 * `ReferenceAttributeDeltaResolver#getInitialAttributeValue`, and the binary entity read in
-	 * `DefaultEntityCollectionPersistenceService`. The rule they all follow is the same: a consumer that needs an
-	 * entity's whole reference set BINDS the unrestricted coverage; it never assumes the thread carries none.
+	 * `ReferencedEntityAttributeValueProvider#getAttributeValues` and
+	 * `ReferenceAttributeDeltaResolver#getInitialAttributeValue`. The rule they all follow is the same: a consumer
+	 * that needs an entity's whole reference set BINDS the unrestricted coverage; it never assumes the thread
+	 * carries none.
 	 *
 	 * @param dataStoreReader    reader to fetch the part from
 	 * @param entityPrimaryKey   primary key of the entity whose references are read

@@ -31,7 +31,6 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
-import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.utils.IOUtils;
 
@@ -149,29 +148,6 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 				this.cacheAnteroom.register(
 					evitaSession, primaryKey, entityType, offsetDateTime,
 					entityRequirement, entityFetcher, enricher
-				)
-			);
-		} else {
-			return ofNullable(entityFetcher.get());
-		}
-	}
-
-	@Nonnull
-	@Override
-	public Optional<ServerBinaryEntityDecorator> analyse(
-		@Nonnull EvitaSessionContract evitaSession,
-		int primaryKey,
-		@Nonnull String entityType,
-		@Nullable EntityFetch entityRequirement,
-		@Nonnull Supplier<ServerBinaryEntityDecorator> entityFetcher,
-		@Nonnull UnaryOperator<ServerBinaryEntityDecorator> enricher
-	) {
-		// we use cache only for Evita read only sessions, write session might already contain client specific modifications
-		// that effectively exclude the formula caches from being used
-		if (evitaSession.isReadOnly()) {
-			return ofNullable(
-				this.cacheAnteroom.register(
-					evitaSession, primaryKey, entityType, entityRequirement, entityFetcher
 				)
 			);
 		} else {

@@ -28,7 +28,6 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
-import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -85,19 +84,6 @@ public class NoCacheSupervisor implements CacheSupervisor {
 		@Nullable EntityFetch entityRequirement,
 		@Nonnull Supplier<ServerEntityDecorator> entityFetcher,
 		@Nonnull UnaryOperator<ServerEntityDecorator> enricher
-	) {
-		return ofNullable(entityFetcher.get());
-	}
-
-	@Nonnull
-	@Override
-	public Optional<ServerBinaryEntityDecorator> analyse(
-		@Nonnull EvitaSessionContract evitaSession,
-		int primaryKey,
-		@Nonnull String entityType,
-		@Nullable EntityFetch entityRequirement,
-		@Nonnull Supplier<ServerBinaryEntityDecorator> entityFetcher,
-		@Nonnull UnaryOperator<ServerBinaryEntityDecorator> enricher
 	) {
 		return ofNullable(entityFetcher.get());
 	}

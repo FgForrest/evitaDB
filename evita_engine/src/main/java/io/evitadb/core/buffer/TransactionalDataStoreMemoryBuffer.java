@@ -150,17 +150,6 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 
 	@Override
 	@Nullable
-	public <T extends StoragePart> byte[] fetchBinary(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
-		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(this.transactionalMemoryDataSource);
-		if (layer == null) {
-			return this.persistenceService.getStoragePartAsBinary(catalogVersion, primaryKey, containerType);
-		} else {
-			return layer.getStoragePartAsBinary(catalogVersion, primaryKey, containerType);
-		}
-	}
-
-	@Override
-	@Nullable
 	public <T extends StoragePart, U extends Comparable<U>> T fetch(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
 		// the write-variant fetch for the same reason as in #fetch(long, long, Class)
 		final DataStoreChanges layer =
@@ -176,24 +165,6 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 			return layer == null ?
 				this.persistenceService.getStoragePart(catalogVersion, storagePartId.getAsLong(), containerType) :
 				layer.getStoragePart(catalogVersion, storagePartId.getAsLong(), containerType);
-		}
-	}
-
-	@Override
-	@Nullable
-	public <T extends StoragePart, U extends Comparable<U>> byte[] fetchBinary(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
-		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(this.transactionalMemoryDataSource);
-		final OptionalLong storagePartId = compressedKeyComputer.apply(
-			layer == null ? this.persistenceService.getReadOnlyKeyCompressor() : layer.getReadOnlyKeyCompressor(),
-			originalKey
-		);
-		if (storagePartId.isEmpty()) {
-			// key wasn't yet assigned
-			return null;
-		} else {
-			return layer == null ?
-				this.persistenceService.getStoragePartAsBinary(catalogVersion, storagePartId.getAsLong(), containerType) :
-				layer.getStoragePartAsBinary(catalogVersion, storagePartId.getAsLong(), containerType);
 		}
 	}
 
