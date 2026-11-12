@@ -309,24 +309,24 @@ class ReferencedOwnerExistenceFormulaTest {
 			assertNotEquals(formulaA.getKey(), formulaB.getKey());
 		}
 
-		/** Verifies the corresponding detached key contract. */
+		/** Verifies that the legacy index-id fold does not distinguish identical computations. */
 		@Test
-		@DisplayName("should change key when the counterpart type index id changes")
-		void shouldChangeKeyWhenCounterpartTypeIndexIdChanges() {
+		@DisplayName("should keep equal keys when only the counterpart type index fold changes")
+		void shouldKeepEqualKeysWhenOnlyCounterpartTypeIndexFoldChanges() {
+			final int[] owners = {10, 20};
+			final Formula[] perOwnerFormulas = {constant(1), constant(2)};
+			final Formula referencedEntityFormula = constant(2);
 			final ReferencedOwnerExistenceFormula formulaA = createFormula(
-				new int[]{10, 20},
-				new Formula[]{constant(1), constant(2)},
-				constant(2),
-				100L
+				owners, perOwnerFormulas, referencedEntityFormula, 31L * 100L + 200L
 			);
 			final ReferencedOwnerExistenceFormula formulaB = createFormula(
-				new int[]{10, 20},
-				new Formula[]{constant(1), constant(2)},
-				constant(2),
-				200L
+				owners, perOwnerFormulas, referencedEntityFormula, 31L * 101L + 200L
 			);
 
-			assertNotEquals(formulaA.getKey(), formulaB.getKey());
+			assertEquals(formulaA.getKey(), formulaB.getKey());
+			assertEquals(formulaA.getKey().getHash64(), formulaB.getKey().getHash64());
+			assertArrayEquals(new int[]{20}, formulaA.compute().getArray());
+			assertArrayEquals(formulaA.compute().getArray(), formulaB.compute().getArray());
 		}
 	}
 

@@ -70,20 +70,19 @@ public class ReferencedOwnerExistenceFormulaIdentityFixture
 			"value owners", new ConstructionMode<>(
 				() -> create(new int[]{10, 20}, owners, 1),
 				Map.of("owners", () -> create(new int[]{10, 21}, owners, 1),
-					"association", () -> create(new int[]{10, 20}, swapped, 1),
-					"index", () -> create(new int[]{10, 20}, owners, 2)),
+					"association", () -> create(new int[]{10, 20}, swapped, 1)),
 				Map.of(), Map.of("large side key", () -> create(new int[]{10}, new Formula[]{oversizedOwner}, 1)),
 				Map.of("equal child", new ClonePath<>(formula ->
 					formula.getCloneWithInnerFormulas(formula.getInnerFormulas()), EQUAL),
 					"no children", new ClonePath<>(formula -> formula.getCloneWithInnerFormulas(), UNEQUAL)),
-				Set.of(), Set.of("ownerPrimaryKeys", "counterpartTypeIndexTransactionalId"), Set.of()),
+				Set.of(), Set.of("ownerPrimaryKeys"), Set.of()),
 			"opaque owners", new ConstructionMode<>(null, Map.of(),
 				Map.of("large owner keys", () -> create(largeOwners, largeFormulas, 1),
 					"opaque side key", () -> create(new int[]{10}, new Formula[]{opaqueOwner}, 1)), Map.of(),
 				Map.of("equal child", new ClonePath<>(formula ->
 					formula.getCloneWithInnerFormulas(formula.getInnerFormulas()), UNEQUAL),
 					"no children", new ClonePath<>(formula -> formula.getCloneWithInnerFormulas(), UNEQUAL)),
-				Set.of(), Set.of("counterpartTypeIndexTransactionalId"), Set.of()));
+				Set.of(), Set.of(), Set.of()));
 	}
 
 	/** Builds an exact nonempty child. */

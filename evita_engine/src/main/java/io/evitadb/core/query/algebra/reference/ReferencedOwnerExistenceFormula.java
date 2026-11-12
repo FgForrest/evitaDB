@@ -32,7 +32,6 @@ import io.evitadb.core.query.algebra.identity.IdentityExempt;
 import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.core.query.algebra.identity.IdentityToken;
 import io.evitadb.core.query.algebra.identity.KeyAccumulator;
-import io.evitadb.core.query.algebra.identity.TokenRole;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -94,10 +93,10 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final Formula[] perOwnerFormulas;
 	/**
-	 * Transactional id of the counterpart type-level index the candidate owners were read from. The candidate set is
-	 * baked into this formula at planning time, so the formula becomes obsolete whenever anything in that index
-	 * changes, including changes to owners absent from the candidate set when the formula was planned.
+	 * Fold of counterpart type-level index transactional ids across scopes, retained for the legacy structural hash.
+	 * The computation uses only the captured owner keys, per-owner formulas and shared inner formula.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
 	private final long counterpartTypeIndexTransactionalId;
 
 	public ReferencedOwnerExistenceFormula(
@@ -188,8 +187,7 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 		for (int i = 0; i < ownerKeys.length; i++) {
 			ownerKeys[i] = this.perOwnerFormulas[i].getKey();
 		}
-		return new Identity(IdentityToken.ofContent(this.ownerPrimaryKeys), List.of(ownerKeys),
-			new IdentityToken.ProducerId(this.counterpartTypeIndexTransactionalId, TokenRole.DIRECT));
+		return new Identity(IdentityToken.ofContent(this.ownerPrimaryKeys), List.of(ownerKeys));
 	}
 
 	@Override
@@ -280,13 +278,11 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 	 *
 	 * @param ownerPrimaryKeys ordered candidate owner keys
 	 * @param perOwnerFormulas ordered keys paired with the owners
-	 * @param counterpartTypeIndexTransactionalId counterpart index version
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
 	public record Identity(
 		@Nonnull IdentityToken ownerPrimaryKeys,
-		@Nonnull List<FormulaKey> perOwnerFormulas,
-		@Nonnull IdentityToken counterpartTypeIndexTransactionalId
+		@Nonnull List<FormulaKey> perOwnerFormulas
 	) implements IdentityRecord {
 		/** Captures an immutable ordered association with candidate owners. */
 		public Identity {
@@ -304,7 +300,6 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 		public void describeTo(@Nonnull KeyAccumulator accumulator) {
 			accumulator.add(this.ownerPrimaryKeys);
 			accumulator.addKeys(this.perOwnerFormulas);
-			accumulator.add(this.counterpartTypeIndexTransactionalId);
 		}
 	}
 
