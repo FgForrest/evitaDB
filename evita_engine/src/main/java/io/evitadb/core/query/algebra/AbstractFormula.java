@@ -23,6 +23,10 @@
 
 package io.evitadb.core.query.algebra;
 
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.utils.visitor.PrettyPrintingFormulaVisitor;
@@ -59,34 +63,34 @@ public abstract class AbstractFormula implements Formula {
 	/**
 	 * Execution context from initialization phase.
 	 */
-	protected QueryExecutionContext executionContext;
+	@IdentityExempt(IdentityExempt.Reason.STATE) protected QueryExecutionContext executionContext;
 	/**
 	 * Contains an array of inner formulas.
 	 */
-	@Getter protected Formula[] innerFormulas;
+	@IdentityExempt(IdentityExempt.Reason.STATE) @Getter protected Formula[] innerFormulas;
 	/**
 	 * Contains a memoized result once {@link #computeInternal()} is invoked for the first time. Additional calls of
 	 * {@link Formula#compute()} will return this memoized result without paying the computational costs
 	 */
-	@Nullable protected Bitmap memoizedResult;
+	@IdentityExempt(IdentityExempt.Reason.STATE) @Nullable protected Bitmap memoizedResult;
 	/**
 	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
 	 */
-	private long estimatedCost;
+	@IdentityExempt(IdentityExempt.Reason.STATE) private long estimatedCost;
 	/**
 	 * Contains memoized value of {@link #getCost()} of this formula. Valid only when {@link #costComputed} is TRUE.
 	 */
-	private long cost;
+	@IdentityExempt(IdentityExempt.Reason.STATE) private long cost;
 	/**
 	 * TRUE once {@link #cost} holds a computed value. The flag is needed because {@link #getCostInternal()}
 	 * accumulates inner costs without an overflow guard and may therefore produce any `long` - including one that
 	 * would be indistinguishable from a sentinel.
 	 */
-	private boolean costComputed;
+	@IdentityExempt(IdentityExempt.Reason.STATE) private boolean costComputed;
 	/**
 	 * Contains memoized value of {@link #getHash()} method.
 	 */
-	private long hash;
+	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH) private long hash;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} method.
 	 *
@@ -97,11 +101,40 @@ public abstract class AbstractFormula implements Formula {
 	 * the hash and before the two values derived from it, and the formula is unreachable by anything but
 	 * `initFields` itself until that method returns.
 	 */
-	private long[] transactionalIds;
+	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH) private long[] transactionalIds;
 	/**
 	 * Contains memoized value of {@link #getTransactionalIdHash()} method.
 	 */
-	private long transactionalIdHash;
+	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH) private long transactionalIdHash;
+
+	/** Detached identity, computed only when requested. */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
+	@Nullable private FormulaKey memoizedKey;
+
+	/** Returns the detached identity built from declared inputs and ordered child keys. */
+	@Nonnull
+	@Override
+	public final FormulaKey getKey() {
+		final FormulaKey key = this.memoizedKey;
+		if (key != null) {
+			return key;
+		}
+		final IdentityRecord identity = identity();
+		final FormulaKey[] children = this.innerFormulas.length == 0 ?
+			FormulaKey.NO_CHILDREN : new FormulaKey[this.innerFormulas.length];
+		for (int i = 0; i < children.length; i++) {
+			children[i] = this.innerFormulas[i].getKey();
+		}
+		final FormulaKey computedKey = FormulaKey.of(identity, getClassId(), children, this);
+		this.memoizedKey = computedKey;
+		return computedKey;
+	}
+
+	/** Returns declared identity components; holders without a declaration fail explicitly. */
+	@Nonnull
+	protected IdentityRecord identity() {
+		throw new GenericEvitaInternalError("Identity not declared: " + getClass().getName());
+	}
 
 	/**
 	 * Returns the token that identifies `bitmap` for cache-keying and staleness purposes, in the one place both the

@@ -36,7 +36,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.Arrays;
+import java.util.List;
 
 /**
  * DTO that is connected to {@link PriceTerminationFormula} allowing to optimize formula tree in the such way,
@@ -55,10 +55,21 @@ import java.util.Arrays;
  */
 public record PriceEvaluationContext(
 	long validIn,
-	@Nonnull PriceIndexKey... targetPriceIndexes
+	@Nonnull List<PriceIndexKey> targetPriceIndexes
 ) implements Serializable {
 	@Serial private static final long serialVersionUID = -2132423408087460595L;
 
+	/** Copies target indexes into an immutable ordered value. */
+	public PriceEvaluationContext {
+		targetPriceIndexes = List.copyOf(targetPriceIndexes);
+	}
+
+	/** Builds a context from defensively copied array input. */
+	public PriceEvaluationContext(long validIn, @Nonnull PriceIndexKey... targetPriceIndexes) {
+		this(validIn, List.of(targetPriceIndexes));
+	}
+
+	/** Converts an optional validity moment to the range index's precision. */
 	public PriceEvaluationContext(
 		@Nullable OffsetDateTime validIn,
 		@Nonnull PriceIndexKey... targetPriceIndexes
@@ -80,7 +91,7 @@ public record PriceEvaluationContext(
 		// `floorDiv`/`floorMod` rather than `/` and `%` because a pre-1970 moment is negative and the truncating
 		// operators would place it one second late. The `Long.MIN_VALUE` "no validity constraint" sentinel is
 		// filtered out first, so what reaches the decomposition is always a real moment.
-		return Arrays.toString(this.targetPriceIndexes) + (this.validIn == Long.MIN_VALUE ? "" : " validIn: " +
+		return this.targetPriceIndexes.toString() + (this.validIn == Long.MIN_VALUE ? "" : " validIn: " +
 			LocalDateTime.ofEpochSecond(
 				Math.floorDiv(this.validIn, 1000L),
 				(int) Math.floorMod(this.validIn, 1000L) * 1_000_000,
@@ -93,10 +104,10 @@ public record PriceEvaluationContext(
 	 * {@link #hashCode()} and is targeted to be used in cache key.
 	 */
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		final long[] hashes = new long[1 + this.targetPriceIndexes.length];
+		final long[] hashes = new long[1 + this.targetPriceIndexes.size()];
 		hashes[0] = this.validIn;
-		for (int i = 0; i < this.targetPriceIndexes.length; i++) {
-			hashes[i + 1] = hashFunction.hashChars(this.targetPriceIndexes[i].toString());
+		for (int i = 0; i < this.targetPriceIndexes.size(); i++) {
+			hashes[i + 1] = hashFunction.hashChars(this.targetPriceIndexes.get(i).toString());
 		}
 		return hashFunction.hashLongs(hashes);
 	}

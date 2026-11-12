@@ -53,6 +53,7 @@ module evita.engine {
 	exports io.evitadb.core.query.algebra.price.predicate;
 	exports io.evitadb.core.query.algebra.price.termination;
 	exports io.evitadb.core.query.algebra;
+	exports io.evitadb.core.query.algebra.identity;
 	exports io.evitadb.core.query.extraResult.translator.histogram.cache;
 	exports io.evitadb.core.query.fetch;
 	exports io.evitadb.core.session;

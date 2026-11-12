@@ -28,6 +28,10 @@ import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.exception.GenericEvitaInternalError;
+
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
@@ -42,6 +46,24 @@ import java.util.function.Predicate;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, ExecutionContextRequiringPredicate {
+
+	/** Returns detached identity; holders without a declaration fail explicitly. */
+	@Nonnull
+	default FormulaKey getKey() {
+		throw new GenericEvitaInternalError("Identity not declared: " + getClass().getName());
+	}
+
+	/** Returns the declaring class identifier; undeclared holders fail explicitly. */
+	default long getClassId() {
+		throw new GenericEvitaInternalError("Identity not declared: " + getClass().getName());
+	}
+
+	/** Returns declared identity components; undeclared holders fail explicitly. */
+	@Nonnull
+	default IdentityRecord identity() {
+		throw new GenericEvitaInternalError("Identity not declared: " + getClass().getName());
+	}
+
 
 	HierarchyFilteringPredicate REJECT_ALL_NODES_PREDICATE = new HierarchyFilteringRejectAllPredicate();
 	HierarchyFilteringPredicate ACCEPT_ALL_NODES_PREDICATE = new HierarchyFilteringAcceptAllPredicate();

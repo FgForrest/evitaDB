@@ -27,6 +27,9 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.index.bitmap.Bitmap;
 
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.exception.GenericEvitaInternalError;
+
 import javax.annotation.Nonnull;
 
 /**
@@ -38,6 +41,18 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface EntityToBitmapFilter extends RequirementsDefiner {
+
+	/** Returns the declaring class identifier; undeclared holders fail explicitly. */
+	default long getClassId() {
+		throw new GenericEvitaInternalError("Identity not declared: " + getClass().getName());
+	}
+
+	/** Returns declared identity components; undeclared holders fail explicitly. */
+	@Nonnull
+	default IdentityRecord identity() {
+		throw new GenericEvitaInternalError("Identity not declared: " + getClass().getName());
+	}
+
 
 	/**
 	 * Method produces bitmap with entity ids of all {@link SealedEntity entities} that match the filter. Implementation

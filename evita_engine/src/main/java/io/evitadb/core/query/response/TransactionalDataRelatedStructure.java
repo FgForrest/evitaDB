@@ -30,6 +30,9 @@ import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import net.openhft.hashing.LongHashFunction;
 
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.exception.GenericEvitaInternalError;
+
 import javax.annotation.Nonnull;
 
 /**
@@ -39,6 +42,13 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface TransactionalDataRelatedStructure {
+
+	/** Returns detached identity; holders without a declaration fail explicitly. */
+	@Nonnull
+	default FormulaKey getKey() {
+		throw new GenericEvitaInternalError("Identity not declared: " + getClass().getName());
+	}
+
 	/**
 	 * Defines threshold that should trigger returning entire "index" transactional id instead of exact bitmap
 	 * transactional ids in method {@link #gatherTransactionalIds()}. Storing an excessive amount of long ids would

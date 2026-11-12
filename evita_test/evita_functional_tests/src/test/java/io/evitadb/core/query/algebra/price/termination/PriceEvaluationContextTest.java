@@ -74,9 +74,7 @@ class PriceEvaluationContextTest {
 	private static final LongHashFunction HASH_FUNCTION = CacheSupervisor.createHashFunction();
 
 	/**
-	 * The single target-index array every context in this class is built with. The record's generated {@code equals}
-	 * compares its reference components with {@code Objects.equals}, which is array identity — so the array is shared
-	 * deliberately, leaving `validIn` as the only thing that can make two contexts differ.
+	 * Shared target-index fixture for tests isolating validity discrimination.
 	 */
 	private static final PriceIndexKey[] TARGET_INDEXES = {
 		new PriceIndexKey("basic", Currency.getInstance("EUR"), PriceInnerRecordHandling.NONE)
@@ -205,4 +203,24 @@ class PriceEvaluationContextTest {
 			);
 		}
 	}
+	/** Checks list value equality and defensive copies from both constructor forms. */
+	@Test
+	@DisplayName("Compares independently constructed ordered index values and owns its list")
+	void shouldOwnOrderedIndexValues() {
+		final PriceIndexKey first = new PriceIndexKey("basic", Currency.getInstance("EUR"), PriceInnerRecordHandling.NONE);
+		final PriceIndexKey second = new PriceIndexKey("sale", Currency.getInstance("EUR"), PriceInnerRecordHandling.NONE);
+		final PriceIndexKey[] array = {first, second};
+		final PriceEvaluationContext context = new PriceEvaluationContext(7L, array);
+		array[0] = second;
+		final java.util.List<PriceIndexKey> list = new java.util.ArrayList<>(java.util.List.of(first, second));
+		final PriceEvaluationContext equal = new PriceEvaluationContext(7L, list);
+		list.clear();
+		assertEquals(context, equal);
+		assertEquals(context.hashCode(), equal.hashCode());
+		assertEquals(context.computeHash(HASH_FUNCTION), equal.computeHash(HASH_FUNCTION));
+		assertNotEquals(context, new PriceEvaluationContext(7L, second, first));
+		org.junit.jupiter.api.Assertions.assertThrows(UnsupportedOperationException.class,
+			() -> context.targetPriceIndexes().clear());
+	}
+
 }
