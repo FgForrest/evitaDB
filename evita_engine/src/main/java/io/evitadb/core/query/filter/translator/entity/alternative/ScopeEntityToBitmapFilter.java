@@ -26,6 +26,9 @@ package io.evitadb.core.query.filter.translator.entity.alternative;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.algebra.prefetch.EntityToBitmapFilter;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.dataType.Scope;
@@ -35,6 +38,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+
 import java.util.List;
 
 /**
@@ -46,6 +50,8 @@ import java.util.List;
  */
 @RequiredArgsConstructor
 public class ScopeEntityToBitmapFilter implements EntityToBitmapFilter {
+	/** Unique identifier of this entity filter. */
+	private static final long CLASS_ID = -3468580754276473146L;
 	/**
 	 * The bare entity bodies, which carry the scope of the entity.
 	 */
@@ -57,6 +63,7 @@ public class ScopeEntityToBitmapFilter implements EntityToBitmapFilter {
 	/**
 	 * The memoized result of the filter.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private Bitmap memoizedResult;
 
 	@Nonnull
@@ -84,4 +91,37 @@ public class ScopeEntityToBitmapFilter implements EntityToBitmapFilter {
 	public EntityFetchRequire getEntityRequire() {
 		return ENTITY_BODY;
 	}
+	/** Captures the detached semantic inputs without evaluating the holder. */
+	@Nonnull
+	@Override
+	public IdentityRecord identity() {
+		return new Identity(this.scope);
+	}
+
+	/** Returns the filter's class identifier. */
+	@Override
+	public long getClassId() {
+		return CLASS_ID;
+	}
+
+	/**
+	 * Detached semantic inputs of the holder.
+	 *
+	 * @param scope required scope
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull Scope scope) implements IdentityRecord {
+		/** Returns the holder's class identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every semantic input in the structural hash and retained weight. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.scope);
+		}
+	}
+
 }

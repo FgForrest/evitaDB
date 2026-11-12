@@ -25,6 +25,9 @@ package io.evitadb.core.query.filter.translator.entity.alternative;
 
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.algebra.prefetch.EntityToBitmapFilter;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -33,6 +36,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+
 import java.util.List;
 import java.util.Locale;
 
@@ -46,6 +50,8 @@ import static io.evitadb.api.query.QueryConstraints.entityFetch;
  */
 @RequiredArgsConstructor
 public class LocaleEntityToBitmapFilter implements EntityToBitmapFilter {
+	/** Unique identifier of this entity filter. */
+	private static final long CLASS_ID = 1344332402758057590L;
 	/**
 	 * The locale to be used for filtering entities.
 	 */
@@ -53,6 +59,7 @@ public class LocaleEntityToBitmapFilter implements EntityToBitmapFilter {
 	/**
 	 * The memoized result of the filter.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private Bitmap memoizedResult;
 
 	@Nonnull
@@ -79,4 +86,37 @@ public class LocaleEntityToBitmapFilter implements EntityToBitmapFilter {
 	public EntityFetchRequire getEntityRequire() {
 		return entityFetch(dataInLocales(this.locale));
 	}
+	/** Captures the detached semantic inputs without evaluating the holder. */
+	@Nonnull
+	@Override
+	public IdentityRecord identity() {
+		return new Identity(this.locale);
+	}
+
+	/** Returns the filter's class identifier. */
+	@Override
+	public long getClassId() {
+		return CLASS_ID;
+	}
+
+	/**
+	 * Detached semantic inputs of the holder.
+	 *
+	 * @param locale required locale
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull Locale locale) implements IdentityRecord {
+		/** Returns the holder's class identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every semantic input in the structural hash and retained weight. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.locale);
+		}
+	}
+
 }

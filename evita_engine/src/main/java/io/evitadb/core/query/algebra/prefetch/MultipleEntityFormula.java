@@ -28,6 +28,10 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
@@ -53,16 +57,26 @@ public class MultipleEntityFormula extends AbstractFormula {
 	/**
 	 * Contains the bitmap of virtual entity primary keys that were translated from entity references.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	@Getter private final Bitmap directEntityReferences;
 	/**
 	 * Contains the transactional ids of the bitmaps that contributed to this formula for cache invalidation.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
 	private final long[] transactionalIds;
 
 	public MultipleEntityFormula(@Nonnull long[] transactionalIds, @Nonnull Bitmap directEntityReferences) {
 		this.transactionalIds = transactionalIds;
 		this.directEntityReferences = directEntityReferences;
 		this.initFields();
+	}
+
+	/** Captures the detached semantic inputs without evaluating the holder. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.directEntityReferences.size() > IdentityToken.CONTENT_LIMIT ?
+			IdentityToken.OPAQUE : IdentityToken.ofContent(this.directEntityReferences.getArray()));
 	}
 
 	@Override
@@ -106,6 +120,26 @@ public class MultipleEntityFormula extends AbstractFormula {
 	@Override
 	public String toString() {
 		return "PREFETCH: " + this.directEntityReferences;
+	}
+
+	/**
+	 * Detached semantic inputs of the holder.
+	 *
+	 * @param directEntityReferences detached virtual primary key content
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull IdentityToken directEntityReferences) implements IdentityRecord {
+		/** Returns the holder's class identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every semantic input in the structural hash and retained weight. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.directEntityReferences);
+		}
 	}
 
 }

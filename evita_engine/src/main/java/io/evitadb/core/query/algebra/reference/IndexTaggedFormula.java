@@ -25,6 +25,8 @@ package io.evitadb.core.query.algebra.reference;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -110,6 +112,13 @@ public class IndexTaggedFormula extends AbstractFormula {
 		return this.indexPrimaryKey;
 	}
 
+	/** Captures the detached semantic inputs without evaluating the holder. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.indexPrimaryKey);
+	}
+
 	@Override
 	protected long getClassId() {
 		return CLASS_ID;
@@ -119,6 +128,26 @@ public class IndexTaggedFormula extends AbstractFormula {
 	@Override
 	protected Bitmap computeInternal() {
 		return this.innerFormulas[0].compute();
+	}
+
+	/**
+	 * Detached semantic inputs of the holder.
+	 *
+	 * @param indexPrimaryKey primary key of the producing index
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(int indexPrimaryKey) implements IdentityRecord {
+		/** Returns the holder's class identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every semantic input in the structural hash and retained weight. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.indexPrimaryKey);
+		}
 	}
 
 }
