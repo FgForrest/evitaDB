@@ -23,6 +23,7 @@
 
 package io.evitadb.index.mutation.local;
 
+import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
@@ -737,7 +738,8 @@ class EntityIndexLocalMutationExecutorHistogramProtocolTest implements EvitaTest
 					return "product";
 				}
 			},
-			new SchemaCapabilityUsageRegistry(), new SchemaCapabilityUsageRegistry(), true, new PartitionReservations()
+			new SchemaCapabilityUsageRegistry(), new SchemaCapabilityUsageRegistry(), true,
+			MissingHistogramValueBehavior.REFUSE, new PartitionReservations()
 		);
 	}
 
