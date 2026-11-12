@@ -25,7 +25,6 @@ package io.evitadb.core.query.algebra.base;
 
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.price.CacheablePriceFormula;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.bitmap.Bitmap;
@@ -60,7 +59,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class RangeCountFormula extends AbstractCacheableFormula implements CacheablePriceFormula {
+public class RangeCountFormula extends AbstractCacheableFormula {
 	/**
 	 * Unique identifier of this formula used in {@link AbstractCacheableFormula#getClassId()} for hash computation.
 	 */

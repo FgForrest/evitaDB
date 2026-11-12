@@ -27,8 +27,6 @@ import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.core.query.algebra.NonCollapsibleFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.NonCacheableFormula;
-import io.evitadb.core.query.algebra.NonCacheableFormulaScope;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.index.bitmap.Bitmap;
@@ -47,7 +45,7 @@ import java.util.List;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class UserFilterFormula extends AbstractFormula implements NonCacheableFormula, NonCacheableFormulaScope, NonCollapsibleFormula {
+public class UserFilterFormula extends AbstractFormula implements NonCollapsibleFormula {
 	/**
 	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
 	 */

@@ -26,7 +26,6 @@ package io.evitadb.core.query.algebra.facet;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.NonCacheableFormula;
 import io.evitadb.core.query.algebra.NonCollapsibleFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
@@ -54,7 +53,7 @@ import java.util.List;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public class FacetLocaleFormula extends AbstractFormula
-	implements ChildrenDependentFormula, NonCacheableFormula, NonCollapsibleFormula {
+	implements ChildrenDependentFormula, NonCollapsibleFormula {
 	/** Unique formula identifier, generated from the fully qualified class name. */
 	private static final long CLASS_ID = -4855853891316253538L;
 	/** Reference whose facet selection the owner condition belongs to. */

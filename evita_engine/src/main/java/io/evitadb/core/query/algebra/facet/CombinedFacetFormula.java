@@ -25,7 +25,6 @@ package io.evitadb.core.query.algebra.facet;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.NonCacheableFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -44,7 +43,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class CombinedFacetFormula extends AbstractFormula implements NonCacheableFormula {
+public class CombinedFacetFormula extends AbstractFormula {
 	/**
 	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
 	 */

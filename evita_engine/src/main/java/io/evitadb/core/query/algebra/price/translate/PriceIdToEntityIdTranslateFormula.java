@@ -27,7 +27,6 @@ import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.price.CacheablePriceFormula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.SortingForm;
@@ -63,7 +62,7 @@ import java.util.Collection;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula implements FilteredPriceRecordAccessor, CacheablePriceFormula, Formula {
+public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula implements FilteredPriceRecordAccessor, Formula {
 	/**
 	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
 	 */

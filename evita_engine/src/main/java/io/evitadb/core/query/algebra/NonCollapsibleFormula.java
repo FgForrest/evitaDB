@@ -29,7 +29,7 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
  * off the **structure** of the planned formula tree - facet selections, histogram range carriers, the `userFilter`
  * marker - and not merely off the record set the tree computes.
  *
- * This interface will ensure that no conjunctive container holding such a formula anywhere beneath it is replaced by
+ * This interface ensures that no conjunctive container holding such a formula anywhere beneath it is replaced by
  * {@link EmptyFormula} when another of its children collapses. The container is kept and left to compute empty on its
  * own, which it still does: a conjunction with an empty child is unsatisfiable regardless of how many children it has.
  *
@@ -42,12 +42,6 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
  * conjunction's children in ascending estimated-cost order and short-circuits on the first empty result, and
  * {@link EmptyFormula} reports zero cost and zero cardinality - so it sorts first, is computed first, and the
  * carrier beside it is never computed at all.
- *
- * This is the optimizer's analogue of {@link NonCacheableFormula}, which protects the same kind of side channel from
- * the cache. **The two sets are deliberately not the same** and must not be merged: `HierarchyFormula` and
- * `CombinedFacetFormula` are non-cacheable without being carriers, while
- * {@link io.evitadb.core.query.algebra.filter.AttributeRangeCarrierFormula} and `PriceBetweenFormula` are carriers
- * that cache perfectly well.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

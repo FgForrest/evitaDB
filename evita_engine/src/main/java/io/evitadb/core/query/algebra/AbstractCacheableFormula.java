@@ -24,13 +24,11 @@
 package io.evitadb.core.query.algebra;
 
 /**
- * AbstractCacheableFormula is an abstract ancestor for all {@link Formula} that produce int based bitmaps as their
- * result and that are suitable for caching. We need to stick to primitive types to perform fast. That's why
- * we need to maintain this type of formula.
+ * Base class for formulas eligible for result caching.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public abstract class AbstractCacheableFormula extends AbstractFormula implements CacheableFormula {
+public abstract class AbstractCacheableFormula extends AbstractFormula {
 
 	/**
 	 * Creates a formula whose result will be computed on demand.

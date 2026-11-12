@@ -26,7 +26,6 @@ package io.evitadb.core.query.algebra.hierarchy;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.NonCacheableFormula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.price.termination.PriceTerminationFormula;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
@@ -50,14 +49,9 @@ import javax.annotation.Nullable;
  * It enables downstream consumers — most notably the hierarchy-statistics planner — to selectively strip a single
  * hierarchy branch from a cloned filter formula tree without having to re-translate the original query constraints.
  *
- * Implements {@link NonCacheableFormula} so that any cacheable parent (e.g. an enclosing `AND`/`OR`) is forbidden
- * from being replaced by a precomputed result that would erase the `HierarchyFormula` wrapper from the formula tree,
- * which would break the hierarchy-statistics planner's filter cloning — it relies on locating `HierarchyFormula`
- * instances by type to selectively strip them per {@link io.evitadb.api.query.require.StatisticsBase} mode.
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class HierarchyFormula extends AbstractFormula implements ChildrenDependentFormula, NonCacheableFormula {
+public class HierarchyFormula extends AbstractFormula implements ChildrenDependentFormula {
 	/**
 	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
 	 */

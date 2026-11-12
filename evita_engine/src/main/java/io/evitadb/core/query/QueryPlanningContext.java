@@ -1852,12 +1852,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Analyzes the input extra result computer for cacheable / cached extra result computers and replaces them with
-	 * appropriate counterparts (only if cache is enabled).
+	 * Delegates extra result computer analysis to the cache supervisor.
 	 *
-	 * Unlike {@link #analyse(Formula)}, the substitution is routed through the {@link PlanningPolicy}, which is what
-	 * lets a debug run force caching on or off for extra results. The computer is returned untouched when there is
-	 * no session or no target entity type.
+	 * The computer is returned unchanged when there is no session or no target entity type, or when the inherited
+	 * planning policy favours bitmap indexes for a debug run.
 	 *
 	 * @param computer extra result computer to be analysed
 	 * @return the same computer, or its cacheable / cached counterpart
@@ -1865,8 +1863,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	@Nonnull
 	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull T computer) {
 		final String theEntityType = this.evitaRequest.getEntityType();
-		if (this.evitaSession != null && theEntityType != null) {
-			return this.planningPolicy.analyse(this.cacheSupervisor, this.evitaSession, theEntityType, computer);
+		if (this.evitaSession != null && theEntityType != null
+			&& this.planningPolicy != BitmapFavouringNoCachePolicy.INSTANCE) {
+			return this.cacheSupervisor.analyse(this.evitaSession, theEntityType, computer);
 		} else {
 			return computer;
 		}

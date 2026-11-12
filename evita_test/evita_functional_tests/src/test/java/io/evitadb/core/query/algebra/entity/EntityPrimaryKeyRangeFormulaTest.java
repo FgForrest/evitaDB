@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.algebra.entity;
 
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -793,24 +792,6 @@ class EntityPrimaryKeyRangeFormulaTest {
 				estimatedCost >= actualCost,
 				"Estimated cost " + estimatedCost + " should be >= actual cost " + actualCost
 			);
-		}
-	}
-
-	@Nested
-	@DisplayName("Cache behavior")
-	class CacheBehaviorTest {
-
-		@Test
-		@DisplayName("should be a CacheableFormula so the planner is free to memoise its result")
-		void shouldImplementCacheableFormula() {
-			// explicit marker test — CacheableFormula is the contract that marks a formula eligible for
-			// caching through the CacheSupervisor; losing the interface would silently exclude it
-			final EntityPrimaryKeyRangeFormula formula = createFormula(
-				1, 10,
-				1, 5, 10
-			);
-
-			assertInstanceOf(CacheableFormula.class, formula);
 		}
 	}
 

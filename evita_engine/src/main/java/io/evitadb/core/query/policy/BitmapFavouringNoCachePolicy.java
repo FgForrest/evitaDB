@@ -23,18 +23,13 @@
 
 package io.evitadb.core.query.policy;
 
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.require.EntityFetchRequire;
-import io.evitadb.core.cache.CacheSupervisor;
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
-import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
 /**
- * This implementation returns the input computer without any caching.
+ * Denies prefetch so query planning uses bitmap indexes.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -56,20 +51,6 @@ public class BitmapFavouringNoCachePolicy implements PlanningPolicy {
 	) {
 		// will not be taken into account, since prefetch is forbidden
 		return Long.MAX_VALUE;
-	}
-
-	@Nonnull
-	@Override
-	public Formula analyse(@Nonnull CacheSupervisor cacheSupervisor, @Nonnull EvitaSessionContract session, @Nonnull String entityType, @Nonnull Formula formula) {
-		// never use cache
-		return formula;
-	}
-
-	@Nonnull
-	@Override
-	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull CacheSupervisor cacheSupervisor, @Nonnull EvitaSessionContract evitaSession, @Nonnull String entityType, @Nonnull T computer) {
-		// never use cache
-		return computer;
 	}
 
 }

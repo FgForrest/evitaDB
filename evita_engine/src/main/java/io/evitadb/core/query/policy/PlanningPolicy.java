@@ -23,13 +23,8 @@
 
 package io.evitadb.core.query.policy;
 
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.EntityFetchRequire;
-import io.evitadb.core.cache.CacheSupervisor;
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
-import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 
 import javax.annotation.Nonnull;
 
@@ -58,30 +53,6 @@ public interface PlanningPolicy {
 		int prefetchedEntityCount,
 		@Nonnull EntityFetchRequire requirements,
 		boolean preferredByUser
-	);
-
-	/**
-	 * Analyzes the input formula for cacheable / cached formulas and replaces them with appropriate counterparts (only
-	 * if cache is enabled).
-	 */
-	@Nonnull
-	Formula analyse(
-		@Nonnull CacheSupervisor cacheSupervisor,
-		@Nonnull EvitaSessionContract session,
-		@Nonnull String entityType,
-		@Nonnull Formula formula
-	);
-
-	/**
-	 * Analyzes the input formula for cacheable / cached formulas and replaces them with appropriate counterparts (only
-	 * if cache is enabled).
-	 */
-	@Nonnull
-	<U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(
-		@Nonnull CacheSupervisor cacheSupervisor,
-		@Nonnull EvitaSessionContract evitaSession,
-		@Nonnull String entityType,
-		@Nonnull T computer
 	);
 
 	/**

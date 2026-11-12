@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.algebra.base;
 
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -354,23 +353,6 @@ class OrFormulaTest {
 				estimatedCost >= actualCost,
 				"Estimated cost " + estimatedCost + " should be >= actual cost " + actualCost
 			);
-		}
-	}
-
-	@Nested
-	@DisplayName("Cache behavior")
-	class CacheBehaviorTest {
-
-		@Test
-		@DisplayName("should implement CacheableFormula")
-		void shouldImplementCacheableFormula() {
-			final OrFormula formula = new OrFormula(
-				INDEX_TRANSACTION_ID,
-				new BaseBitmap(1, 2),
-				new BaseBitmap(3, 4)
-			);
-
-			assertInstanceOf(CacheableFormula.class, formula);
 		}
 	}
 

@@ -26,7 +26,6 @@ package io.evitadb.core.query.algebra.price.priceIndex;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.NotFormula;
-import io.evitadb.core.query.algebra.price.CacheablePriceFormula;
 import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
 import lombok.Getter;
 
@@ -47,7 +46,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class PriceListCombinationFormula extends NotFormula implements CacheablePriceFormula {
+public class PriceListCombinationFormula extends NotFormula {
 	/**
 	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
 	 */
