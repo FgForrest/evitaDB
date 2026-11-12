@@ -665,18 +665,26 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("Committed owner mutation changes the key and rebuilds the memo")
 		void shouldRefreshMemoAfterOwnerCommit() {
-			final OwnerFilterIndex index = new OwnerFilterIndex(new AttributeIndexKey(null, "memo", null), String.class);
-			index.addRecord(1, "A");
-			index.addRecord(2, "B");
+			final OwnerFilterIndex[] clean = new OwnerFilterIndex[1];
+			assertStateAfterCommit(
+				new OwnerFilterIndex(new AttributeIndexKey(null, "memo", null), String.class),
+				original -> {
+					original.addRecord(1, "A");
+					original.addRecord(2, "B");
+				}, (original, committed) -> clean[0] = committed);
+			final OwnerFilterIndex index = clean[0];
+			assertFalse(index.isDirty());
+			assertFalse(index.getInvertedIndex().isDirty());
 			final Formula before = index.getAllRecordsFormula();
+			final FormulaKey beforeKey = before.getKey();
 			assertStateAfterCommit(index, original -> original.addRecord(3, "A"), (original, committed) -> {
 				final Formula after = committed.getAllRecordsFormula();
 				assertNotEquals(original.getId(), committed.getId());
-				assertNotEquals(before.getKey(), after.getKey());
-				assertNotEquals(before.getKey().getHash64(), after.getKey().getHash64());
+				assertNotEquals(beforeKey, after.getKey());
+				assertNotEquals(beforeKey.getHash64(), after.getKey().getHash64());
 				assertArrayEquals(new int[]{1, 2}, before.compute().getArray());
 				assertArrayEquals(new int[]{1, 2, 3}, after.compute().getArray());
-				assertEquals(before.getKey(), original.getAllRecordsFormula().getKey());
+				assertEquals(beforeKey, original.getAllRecordsFormula().getKey());
 			});
 		}
 
@@ -685,15 +693,20 @@ class FilterIndexTest {
 		@DisplayName("Shared-tree mutation changes a view key while a clean merge preserves it")
 		void shouldFollowSharedTreeVersionAcrossMerges() {
 			final OwnerFilterIndex owner = new OwnerFilterIndex(new AttributeIndexKey(null, "memo", null), String.class);
-			owner.addRecord(1, "A");
-			owner.addRecord(2, "B");
-			final InvertedIndex tree = owner.getInvertedIndex();
+			final InvertedIndex[] clean = new InvertedIndex[1];
+			assertStateAfterCommit(owner.getInvertedIndex(), original -> {
+				original.addRecord("A", 1);
+				original.addRecord("B", 2);
+			}, (original, committed) -> clean[0] = committed);
+			final InvertedIndex tree = clean[0];
+			assertFalse(tree.isDirty());
 			final FilterIndexView view = view(tree);
 			final Formula before = view.getAllRecordsFormula();
+			final FormulaKey beforeKey = before.getKey();
 			final InvertedIndex[] changed = new InvertedIndex[1];
 			assertStateAfterCommit(tree, original -> view.addRecord(3, "A"), (original, committed) -> {
 				changed[0] = committed;
-				assertNotEquals(before.getKey(), view(committed).getAllRecordsFormula().getKey());
+				assertNotEquals(beforeKey, view(committed).getAllRecordsFormula().getKey());
 				assertArrayEquals(new int[]{1, 2, 3}, view(committed).getAllRecordsFormula().compute().getArray());
 			});
 			final FormulaKey cleanKey = view(changed[0]).getAllRecordsFormula().getKey();
