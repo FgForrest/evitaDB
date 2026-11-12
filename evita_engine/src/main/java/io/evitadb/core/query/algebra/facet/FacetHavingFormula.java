@@ -23,10 +23,12 @@
 
 package io.evitadb.core.query.algebra.facet;
 
-import io.evitadb.core.query.algebra.NonCollapsibleFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.NonCollapsibleFormula;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
@@ -137,5 +139,32 @@ public class FacetHavingFormula extends AbstractFormula implements ChildrenDepen
 	@Override
 	public String toStringVerbose() {
 		return "FACET HAVING (" + this.innerFormulas[0].toStringVerbose() + ")";
+	}
+
+	/** Captures this formula's own computation inputs. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.referenceName);
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param referenceName target reference
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull String referenceName) implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every input in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.referenceName);
+		}
 	}
 }

@@ -170,9 +170,51 @@ class CombinedFacetFormulaTest {
 		}
 	}
 
+	/**
+	 * Detached key equality and input sensitivity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism and sensitivity")
-	class HashTest {
+	@DisplayName("Key determinism and sensitivity")
+	class KeyTest {
+
+		/** Verifies the stated equality or input distinction with real formulas. */
+		@Test
+		@DisplayName("should produce identical key for identically constructed formulas")
+		void shouldProduceIdenticalKeyForIdenticallyConstructedFormulas() {
+			final CombinedFacetFormula formulaA = new CombinedFacetFormula(
+				new ConstantFormula(new ArrayBitmap(10, 20)),
+				new ConstantFormula(new ArrayBitmap(30, 40))
+			);
+			final CombinedFacetFormula formulaB = new CombinedFacetFormula(
+				new ConstantFormula(new ArrayBitmap(10, 20)),
+				new ConstantFormula(new ArrayBitmap(30, 40))
+			);
+
+			assertEquals(formulaA.getKey(), formulaB.getKey());
+		}
+
+		/** Verifies the stated equality or input distinction with real formulas. */
+		@Test
+		@DisplayName("should produce different key for different inner formulas")
+		void shouldProduceDifferentKeyForDifferentInnerFormulas() {
+			final CombinedFacetFormula formulaA = new CombinedFacetFormula(
+				new ConstantFormula(new ArrayBitmap(10, 20)),
+				new ConstantFormula(new ArrayBitmap(30, 40))
+			);
+			final CombinedFacetFormula formulaB = new CombinedFacetFormula(
+				new ConstantFormula(new ArrayBitmap(10, 20)),
+				new ConstantFormula(new ArrayBitmap(50, 60))
+			);
+
+			assertNotEquals(formulaA.getKey(), formulaB.getKey());
+		}
+	}
+
+	@Nested
+	@DisplayName("Legacy: Hash determinism and sensitivity")
+	class LegacyHashTest {
 
 		@Test
 		@DisplayName("should produce identical hash for identically constructed formulas")
@@ -268,5 +310,14 @@ class CombinedFacetFormulaTest {
 				"Exception message should mention exactly 2 required formulas, was: " + exception.getMessage()
 			);
 		}
+	}
+
+	/** Verifies the real construction modes and all independently described inputs of {@link CombinedFacetFormula}. */
+	@Test
+	@DisplayName("Verifies CombinedFacetFormula identity construction contracts")
+	void shouldVerifyCombinedFacetFormulaIdentityContract() {
+		io.evitadb.test.identity.IdentityContractVerifier.verify(
+			CombinedFacetFormula.class, new CombinedFacetFormulaIdentityFixture()
+		);
 	}
 }

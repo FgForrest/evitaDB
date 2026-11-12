@@ -1264,6 +1264,10 @@ class TrigramSubstringSearchTest {
 			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
 			final Formula inner = accelerated(index, ATTRIBUTE_TITLE, null, "omega", CONTAINS);
 			assertNotEquals(
+				new AttributeFormula(false, new AttributeKey(ATTRIBUTE_TITLE), inner).getKey(),
+				new AttributeFormula(false, new AttributeKey(ATTRIBUTE_LOCALIZED_TITLE), inner).getKey()
+			);
+			assertNotEquals(
 				new AttributeFormula(false, new AttributeKey(ATTRIBUTE_TITLE), inner).getHash(),
 				new AttributeFormula(false, new AttributeKey(ATTRIBUTE_LOCALIZED_TITLE), inner).getHash()
 			);

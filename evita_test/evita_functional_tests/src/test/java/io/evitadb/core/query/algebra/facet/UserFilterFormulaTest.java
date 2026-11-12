@@ -180,9 +180,63 @@ class UserFilterFormulaTest {
 		}
 	}
 
+	/**
+	 * Detached key equality and input sensitivity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism and sensitivity")
-	class HashTest {
+	@DisplayName("Key determinism and sensitivity")
+	class KeyTest {
+
+		/** Verifies the stated equality or input distinction with real formulas. */
+		@Test
+		@DisplayName("should produce identical key for identically constructed formulas")
+		void shouldProduceIdenticalKeyForIdenticallyConstructedFormulas() {
+			final UserFilterFormula formulaA = new UserFilterFormula(
+				new ConstantFormula(new ArrayBitmap(10, 20)),
+				new ConstantFormula(new ArrayBitmap(30, 40))
+			);
+			final UserFilterFormula formulaB = new UserFilterFormula(
+				new ConstantFormula(new ArrayBitmap(10, 20)),
+				new ConstantFormula(new ArrayBitmap(30, 40))
+			);
+
+			assertEquals(formulaA.getKey(), formulaB.getKey());
+		}
+
+		/** Verifies the stated equality or input distinction with real formulas. */
+		@Test
+		@DisplayName("should produce different key for different inner formulas")
+		void shouldProduceDifferentKeyForDifferentInnerFormulas() {
+			final UserFilterFormula formulaA = new UserFilterFormula(
+				new ConstantFormula(new ArrayBitmap(10, 20))
+			);
+			final UserFilterFormula formulaB = new UserFilterFormula(
+				new ConstantFormula(new ArrayBitmap(30, 40))
+			);
+
+			assertNotEquals(formulaA.getKey(), formulaB.getKey());
+		}
+
+		/** Verifies the stated equality or input distinction with real formulas. */
+		@Test
+		@DisplayName("should preserve child order in key")
+		void shouldPreserveChildOrderInKey() {
+			final ConstantFormula childA = new ConstantFormula(new ArrayBitmap(10, 20));
+			final ConstantFormula childB = new ConstantFormula(new ArrayBitmap(30, 40));
+
+			final UserFilterFormula formulaAB = new UserFilterFormula(childA, childB);
+			final UserFilterFormula formulaBA = new UserFilterFormula(childB, childA);
+
+			// Child positions are retained in the detached key.
+			assertNotEquals(formulaAB.getKey(), formulaBA.getKey());
+		}
+	}
+
+	@Nested
+	@DisplayName("Legacy: Hash determinism and sensitivity")
+	class LegacyHashTest {
 
 		@Test
 		@DisplayName("should produce identical hash for identically constructed formulas")
@@ -252,4 +306,13 @@ class UserFilterFormulaTest {
 		}
 	}
 
+
+	/** Verifies the real construction modes and all independently described inputs of {@link UserFilterFormula}. */
+	@Test
+	@DisplayName("Verifies UserFilterFormula identity construction contracts")
+	void shouldVerifyUserFilterFormulaIdentityContract() {
+		io.evitadb.test.identity.IdentityContractVerifier.verify(
+			UserFilterFormula.class, new UserFilterFormulaIdentityFixture()
+		);
+	}
 }

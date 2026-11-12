@@ -228,9 +228,54 @@ class FacetHavingFormulaTest {
 		}
 	}
 
+	/**
+	 * Detached key equality and input sensitivity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash stability")
-	class HashStabilityTest {
+	@DisplayName("Key stability")
+	class KeyTest {
+
+		/** Verifies the stated equality or input distinction with real formulas. */
+		@Test
+		@DisplayName("should produce identical key for two wrappers around identical children")
+		void shouldProduceIdenticalKeyForTwoWrappersAroundIdenticalChildren() {
+			// stable keying is what lets the formula cache recognise "two facetHaving wrappers around
+			// the same subtree" as equivalent — a drift here silently misses cache hits
+			final FacetHavingFormula a = new FacetHavingFormula(REFERENCE_NAME, newInnerFormula());
+			final FacetHavingFormula b = new FacetHavingFormula(REFERENCE_NAME, newInnerFormula());
+
+			assertEquals(a.getKey(), b.getKey());
+		}
+
+		/** Verifies the stated equality or input distinction with real formulas. */
+		@Test
+		@DisplayName("should produce different key for wrappers around different children")
+		void shouldProduceDifferentKeyForWrappersAroundDifferentChildren() {
+			// key must change when the child changes — otherwise sibling facet picks would collide
+			final FacetHavingFormula a = new FacetHavingFormula(REFERENCE_NAME, new ConstantFormula(new ArrayBitmap(1)));
+			final FacetHavingFormula b = new FacetHavingFormula(REFERENCE_NAME, new ConstantFormula(new ArrayBitmap(2)));
+
+			assertNotEquals(a.getKey(), b.getKey());
+		}
+
+		/** Verifies the stated equality or input distinction with real formulas. */
+		@Test
+		@DisplayName("should produce a key distinct from the bare inner formula")
+		void shouldProduceKeyDistinctFromBareInnerFormula() {
+			// the wrapper's own class ID must enter the key — otherwise `facetHaving(x)` and `x` would
+			// cache-collide and the relaxer's type-based lookup would see a false carrier
+			final Formula inner = newInnerFormula();
+			final FacetHavingFormula wrapper = new FacetHavingFormula(REFERENCE_NAME, inner);
+
+			assertNotEquals(inner.getKey(), wrapper.getKey());
+		}
+	}
+
+	@Nested
+	@DisplayName("Legacy: Hash stability")
+	class LegacyHashTest {
 
 		@Test
 		@DisplayName("should produce identical hash for two wrappers around identical children")
@@ -293,5 +338,14 @@ class FacetHavingFormulaTest {
 				verbose
 			);
 		}
+	}
+
+	/** Verifies the real construction modes and all independently described inputs of {@link FacetHavingFormula}. */
+	@Test
+	@DisplayName("Verifies FacetHavingFormula identity construction contracts")
+	void shouldVerifyFacetHavingFormulaIdentityContract() {
+		io.evitadb.test.identity.IdentityContractVerifier.verify(
+			FacetHavingFormula.class, new FacetHavingFormulaIdentityFixture()
+		);
 	}
 }

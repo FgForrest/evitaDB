@@ -27,6 +27,10 @@ import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.filter.translator.behavioral.FilterInScopeTranslator.InScopeFormulaPostProcessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.Bitmap;
@@ -65,6 +69,7 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 	 * Lazily initialized list of inner formulas sorted by their estimated cost in ascending order, used to
 	 * short-circuit AND evaluation starting from the cheapest formula.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private List<Formula> sortedFormulasByComplexity;
 
 	/**
@@ -189,4 +194,35 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 		return new ScopeContainerFormula(this.scope, this.emptyScopeFormula, innerFormulas);
 	}
 
+	/** Captures this formula's own computation inputs. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.scope, this.emptyScopeFormula == null ? null : this.emptyScopeFormula.getKey());
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param scope selected scope
+	 * @param emptyScopeFormula meaning of an emptied container
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(
+		@Nonnull Scope scope,
+		@Nullable FormulaKey emptyScopeFormula
+	) implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every input in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.scope);
+			accumulator.add(this.emptyScopeFormula);
+		}
+	}
 }

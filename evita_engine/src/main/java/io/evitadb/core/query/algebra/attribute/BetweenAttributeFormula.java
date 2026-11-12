@@ -27,12 +27,12 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.filter.AttributeRangeCarrierFormula;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.math.BigDecimal;
-import java.util.function.Predicate;
 
 /**
  * Tagged {@link AttributeFormula} subclass emitted by `AttributeBetweenTranslator` whenever it translates an
@@ -90,7 +90,7 @@ public class BetweenAttributeFormula extends AttributeFormula implements Attribu
 		boolean targetsGlobalAttribute,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Formula innerFormula,
-		@Nullable Predicate<BigDecimal> requestedPredicate
+		@Nullable RequestedThresholdPredicate requestedPredicate
 	) {
 		super(targetsGlobalAttribute, attributeKey, innerFormula, requestedPredicate);
 	}
@@ -117,5 +117,43 @@ public class BetweenAttributeFormula extends AttributeFormula implements Attribu
 			innerFormulas[0],
 			getRequestedPredicate()
 		);
+	}
+
+	/** Captures the attribute routing and requested histogram thresholds. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(isTargetsGlobalAttribute(), getAttributeKey(), getRequestedPredicate(), getLocaleImplied());
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param targetsGlobalAttribute whether the global attribute index is targeted
+	 * @param attributeKey attribute name and locale
+	 * @param requestedPredicate requested histogram thresholds
+	 * @param localeImplied whether each matching record holds the attribute locale
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(
+		boolean targetsGlobalAttribute,
+		@Nonnull AttributeKey attributeKey,
+		@Nullable RequestedThresholdPredicate requestedPredicate,
+		boolean localeImplied
+	) implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every input in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.targetsGlobalAttribute);
+			accumulator.add(this.attributeKey);
+			accumulator.add(this.requestedPredicate);
+			accumulator.add(this.localeImplied);
+		}
 	}
 }
